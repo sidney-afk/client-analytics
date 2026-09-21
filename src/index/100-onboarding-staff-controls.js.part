@@ -1,0 +1,2252 @@
+    /* ============================================================
+       CLIENT ONBOARDING MODULE  (standalone, private-link page)
+       Reachable ONLY via ?onboarding=<token>. Mirrors ?intake=1: bypasses the
+       staff password, hides workspace chrome, locks the SPA to this page.
+       Submit -> n8n `onboarding-submit` -> Supabase + Slack. Namespaced _ob/OB_.
+       Never-lose-a-submission fallbacks (see docs/features/ONBOARDING_FALLBACK.md): the submit
+       retries once, then fails over to the Supabase Edge capture, then to the n8n
+       fallback webhook (n8n Data Table `onboarding_fallback`). Drafts sync to the
+       same fallback store while the client types; a successful submit also sends a
+       `submitted` copy there, so every submission exists in two places.
+       ============================================================ */
+    const ONBOARDING_SUBMIT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/onboarding-submit';
+    const AI_ONBOARDING_SUBMIT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/ai-onboarding-submit';
+    // Backup capture endpoints, tried in order after the primary fails. The Edge
+    // function lives on different infrastructure than n8n (survives n8n outages and
+    // *.n8n.cloud adblock rules); the n8n fallback webhook survives Supabase-side
+    // failures (it writes to an n8n Data Table, not Supabase).
+    const ONBOARDING_EDGE_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/onboarding-capture';
+    const ONBOARDING_FALLBACK_URL = 'https://synchrosocial.app.n8n.cloud/webhook/onboarding-fallback';
+    // Funnel variant: 'normal' (/onboarding_form) or 'ai' (/ai_onboarding_form). The entry
+    // router sets this (and the matching draft + submission-id keys) before the form mounts.
+    let OB_VARIANT = 'normal';
+    let OB_DRAFT_KEY = 'syncview_onboarding_draft_v1';
+    let OB_SUBID_KEY = 'syncview_onboarding_subid_v1';
+    function _obEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function _obId(){ return 'o_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
+    // Stable submission id: minted once per funnel per browser and reused across
+    // submit retries and draft backups, so the server can dedupe by primary key
+    // (a retry after a lost success response answers {ok, duplicate:true} instead
+    // of creating a second row). Falls back to memory when localStorage is out.
+    let _obSubIdMem = '';
+    function _obSubId(){
+      if(_obSubIdMem) return _obSubIdMem;
+      let id=''; try{ id = localStorage.getItem(OB_SUBID_KEY) || ''; }catch(e){}
+      if(!id){ id=_obId(); try{ localStorage.setItem(OB_SUBID_KEY, id); }catch(e){} }
+      _obSubIdMem = id; return id;
+    }
+    function _obClearSubId(){ _obSubIdMem=''; try{ localStorage.removeItem(OB_SUBID_KEY); }catch(e){} }
+    function _obPost(url, payload, ms){
+      const opts={ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) };
+      try{ if(typeof AbortSignal!=='undefined' && AbortSignal.timeout) opts.signal=AbortSignal.timeout(ms||20000); }catch(e){}
+      return fetch(url, opts).then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json().catch(()=>({ok:true})); });
+    }
+    // Backup capture: Edge first (different infra), n8n fallback webhook second.
+    function _obBackupSend(payload, ms){
+      return _obPost(ONBOARDING_EDGE_URL, payload, ms||12000)
+        .catch(()=>_obPost(ONBOARDING_FALLBACK_URL, payload, ms||12000));
+    }
+
+    const OB_LOCK_SVG = '<svg class="ob-lock-ic" viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true"><rect x="3.1" y="7" width="9.8" height="6.4" rx="1.7" stroke="currentColor" stroke-width="1.25"/><path d="M5.4 7V5.1a2.6 2.6 0 0 1 5.2 0V7" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg>';
+    const OB_DRIVE_NOTE = '<div class="ob-drivenote">'+OB_LOCK_SVG+'<span>Any link works — Google Drive, Dropbox, WeTransfer, etc. If it\'s a private file, make sure it\'s shared so anyone with the link can open it.</span></div>';
+    const OB_PLAY_SVG = '<svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><path d="M2.6 1.3 L8 5 L2.6 8.7 Z" fill="currentColor"/></svg>';
+    const OB_PAUSE_SVG = '<svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><rect x="2.3" y="1.5" width="2" height="7" rx="0.4" fill="currentColor"/><rect x="5.7" y="1.5" width="2" height="7" rx="0.4" fill="currentColor"/></svg>';
+    const OB_INFO_SVG = '<svg viewBox="0 0 20 20" width="15" height="15" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8.2" stroke="currentColor" stroke-width="1.4"/><circle cx="10" cy="6.4" r="1.05" fill="currentColor"/><path d="M10 9.3v4.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+    // Hover-affordance icons on previews: a play triangle (videos) and a maximize/expand (thumbnail).
+    const OB_PLAY_BIG_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.54.84l10.5-6.86a1 1 0 0 0 0-1.68L9.54 4.3A1 1 0 0 0 8 5.14Z"/></svg>';
+    const OB_EXPAND_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>';
+    const OB_CHECK_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true"><path d="M3.3 8.4l3 3 6.4-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    function _obInfoBtn(attr){ return '<button type="button" class="ob-i" '+attr+'>'+OB_INFO_SVG+'</button>'; }
+    const OB_TEXTONLY_INFO = 'Your avatar appears in the background (an expression or a pose) while the main message is text on screen — no one is talking.';
+
+    const OB_VOICE_SCRIPT = [
+      "(Rising intonation, curious tone) <b>Have you ever stopped to wonder... why certain voices stay with you? Is it the warmth? The rhythm? Or something you simply can't explain? What if I told you — your voice is unlike anyone else's on the planet?</b>",
+      "(Confident, declarative, steady pace) <b>My name is Jordan Calloway, and I've spent the last twelve years studying sound. The human voice carries more information than words alone. Every breath, every pause — it tells a story.</b>",
+      "(soft, reflective) <b>It started as simple curiosity.</b> (warm, smiling) <b>Then it became a passion — something I genuinely loved.</b> (heavier, honest) <b>But honestly? There were moments I almost gave up entirely.</b> (quiet, resolved) <b>And then... everything changed.</b>",
+      "(Crisp and precise — enunciate carefully) <b>On March 3rd, 2019, at exactly 11:47 AM, I recorded my first 500 samples. I worked alongside Dr. Priya Venkataraman</b> (PREE-yah Ven-kah-tah-RAH-man) <b>and a linguist named Søren Bloch</b> (SORE-en Block). <b>We used a technique called prosodic mapping — that's P-R-O-S-O-D-I-C — combined with phoneme segmentation. The result? A dataset of over 2.3 million voice fragments.</b>",
+      "(Take your time — don't rush) <b>Here's what I know for certain...</b> (pause) <b>Your voice... is unique. It's you. What makes you you... is the very thing worth preserving.</b> (pause — then slowly) <b>So. Let's get started. Let's use this voice recording to clone your voice.</b>"
+    ];
+
+    // [key, label] — a ~20s preview clip per genre at onboarding-audio/<key>.mp3.
+    const OB_MUSIC_GENRES = [
+      ['inspirational','Inspirational'],
+      ['ambient','Ambient / Cinematic'],
+      ['lofi','Lofi / Chill'],
+      ['piano','Emotional Piano'],
+      ['guitar','Acoustic Guitar'],
+      ['synth','Synth'],
+      ['spiritual','Spiritual'],
+      ['classical','Classical'],
+      ['trending','Trending / TikTok'],
+    ];
+
+    const SC_THUMB = 'https://storage.googleapis.com/prod-sandcastles-thumbnails/';
+    const OB_VID = 'onboarding-video/';
+    // Step-4 worked example — a real ~30s talking-to-camera clip (a teammate) so the client sees
+    // exactly what a good "sample clip of you" looks like. Web-optimized 720×1280 H.264 w/ audio.
+    // The poster paints Casper's face on the tile immediately (before the video metadata loads).
+    const OB_SAMPLE_EG = OB_VID+'sample-example.mp4';
+    const OB_SAMPLE_EG_POSTER = OB_VID+'sample-example-poster.jpg';
+    // Style cards: [key, name, desc, standardMedia, highlightMedia] — highlight is the toggle variant ('' = none).
+    const OB_SUBTITLE_STYLES = [
+      ['elegant','Elegant','Thin, refined serif captions.', OB_VID+'sub-elegant.mp4', OB_VID+'sub-elegant-hl.mp4'],
+      ['native','Native','Clean, bold white captions.', OB_VID+'sub-native.mp4', OB_VID+'sub-native-hl.mp4'],
+      ['bold','Bold','Big, heavy captions that pop.', OB_VID+'sub-bold.mp4', OB_VID+'sub-bold-hl.mp4'],
+    ];
+    // AI "which look" examples — shown as selectable previews (client's own reference frames).
+    const OB_LOOK_TALKING = 'onboarding-ai/talking-head.jpg';
+    const OB_LOOK_PODCAST = 'onboarding-ai/podcast.jpg';
+
+    const OB_BROLL_OPTS = [ ['stock','Stock footage'], ['ai','AI-generated'], ['mix','Mix of both'], ['own','My own footage'], ['none','No B-roll'] ];
+
+    // Thumbnail text picker: Font (3) x Style (4) x Highlight (on/off) = 24 real renders,
+    // hosted in thumbnail-styles/<font>-<style>[-hl].jpg. The client builds the combo live.
+    const OB_TF = 'thumbnail-styles/';
+    const OB_THUMB_FONTS  = [ ['bold','Bold'], ['native','Native'], ['elegant','Elegant'] ];
+    const OB_THUMB_TSTYLES = [ ['plain','Plain'], ['shadow','Shadow'], ['stroke','Stroke'], ['banner','Banner'] ];
+    function _obThumbImg(font, style, hl){ return OB_TF + font + '-' + style + (hl ? '-hl' : '') + '.jpg'; }
+    const OB_THUMB_DEFAULT = { font:'native', style:'plain', hl:false };
+
+    function renderOnboardingView(){ return '<div class="ob-wrap"><div class="ob-card" id="obCard"></div></div>'; }
+
+    function _obField(f){
+      const req = f.required ? '<span class="ob-req">*</span>' : '';
+      const help = f.help ? '<div class="ob-help">'+f.help+'</div>' : '';
+      let inner = '';
+      if(f.type==='textarea'){
+        inner = '<textarea class="ob-input ob-ta" data-ob="'+f.id+'" rows="'+(f.rows||3)+'" placeholder="'+_obEsc(f.placeholder||'')+'"></textarea>';
+      } else if(f.type==='select'){
+        return _obCustomSelect(f);
+      } else if(f.type==='radio'){
+        inner = '<div class="ob-radios" data-ob-radio="'+f.id+'">'+
+          f.options.map(o=>'<label class="ob-pill-opt"><input type="radio" name="'+f.id+'" value="'+_obEsc(o[0])+'"><span>'+_obEsc(o[1])+'</span></label>').join('')+'</div>';
+      } else if(f.type==='multiselect'){
+        const mx = f.max ? ' data-ob-max="'+f.max+'"' : '';
+        const ex = f.exclusive ? ' data-ob-exclusive="'+_obEsc(f.exclusive)+'"' : '';
+        inner = '<div class="ob-checks" data-ob-multi="'+f.id+'"'+mx+ex+'>'+
+          f.options.map(o=>'<label class="ob-pill-opt"><input type="checkbox" value="'+_obEsc(o[0])+'"><span>'+_obEsc(o[1])+'</span></label>').join('')+'</div>';
+      } else {
+        const t = f.type==='email'?'email':(f.type==='tel'?'tel':(f.type==='url'?'url':'text'));
+        inner = '<input class="ob-input" type="'+t+'" data-ob="'+f.id+'" placeholder="'+_obEsc(f.placeholder||'')+'">';
+      }
+      const note = f.driveNote ? OB_DRIVE_NOTE : '';
+      return '<div class="ob-q" data-ob-q="'+f.id+'"><label class="ob-label">'+_obEsc(f.label)+req+'</label>'+help+inner+note+'</div>';
+    }
+
+    // Custom styled dropdown (not the native <select>).
+    function _obCustomSelect(f){
+      const req = f.required ? '<span class="ob-req">*</span>' : '';
+      const help = f.help ? '<div class="ob-help">'+f.help+'</div>' : '';
+      const opts = f.options.map(o=>{ const v=Array.isArray(o)?o[0]:o, l=Array.isArray(o)?o[1]:o; return '<button type="button" class="ob-cs-opt" data-cs-pick="'+f.id+'" data-cs-value="'+_obEsc(v)+'">'+_obEsc(l)+'</button>'; }).join('');
+      return '<div class="ob-q" data-ob-q="'+f.id+'"><label class="ob-label">'+_obEsc(f.label)+req+'</label>'+help+
+        '<div class="ob-cs"><button type="button" class="ob-cs-btn" data-cs-toggle="'+f.id+'"><span class="ob-cs-val" data-cs-val="'+f.id+'">Select…</span><span class="ob-cs-arrow"></span></button>'+
+        '<div class="ob-cs-panel" data-cs-panel="'+f.id+'" style="display:none">'+opts+'</div>'+
+        '<input type="hidden" data-ob="'+f.id+'"></div></div>';
+    }
+
+    function _obToggle(id,label,help){
+      const h = help ? '<div class="ob-help">'+help+'</div>' : '';
+      return '<div class="ob-q ob-toggle-q" data-ob-q="'+id+'"><div><label class="ob-label">'+_obEsc(label)+'</label>'+h+'</div>'+
+        '<label class="ob-switch"><input type="checkbox" data-ob-toggle="'+id+'"><span class="ob-switch-track"></span></label></div>';
+    }
+
+    function _obMusic(){
+      const rows = OB_MUSIC_GENRES.map(g=>
+        '<div class="ob-genre"><label class="ob-genre-pick"><input type="checkbox" value="'+g[0]+'"><span class="ob-chk"></span><span class="ob-genre-name">'+_obEsc(g[1])+'</span></label>'+
+        '<button type="button" class="ob-play" data-ob-play="'+g[0]+'" aria-label="Play sample">'+OB_PLAY_SVG+'</button></div>'
+      ).join('');
+      return '<div class="ob-q" data-ob-q="music"><label class="ob-label">Music</label>'+
+        '<div class="ob-help">Tick the vibes that fit you. Tap play to hear a sample.</div>'+
+        '<div class="ob-genres" data-ob-multi="music">'+rows+'</div></div>';
+    }
+
+    // A single preview tile: the clip/image (tap to play/zoom) plus a caption slot below
+    // (used for the selectable Standard / +Highlight pick under each subtitle style).
+    function _obStylePreview(url, isVideo, cap){
+      if(!url) return '';
+      const inner = isVideo
+        ? '<video src="'+url+'" muted loop playsinline preload="metadata"></video><span class="ob-zoom-ic ob-zoom-ic--play">'+OB_PLAY_BIG_SVG+'</span>'
+        : '<img src="'+url+'" alt="" loading="lazy"><span class="ob-zoom-ic">'+OB_EXPAND_SVG+'</span>';
+      return '<div class="ob-stp"><button type="button" class="ob-sub-thumb" data-ob-zoom="'+url+'" aria-label="View example full screen">'+inner+'</button>'+cap+'</div>';
+    }
+    function _obStyleCards(group, items, isVideo){
+      // Each preview (Standard and +Highlight) is its OWN selectable option with a radio dot that
+      // fills when picked — same bullet-select feel as the cards. One radio group (subtitle_pick)
+      // across all styles/variants; a change derives the hidden subtitle_style + subtitle_highlight.
+      const pick = (val, st, hl, label) =>
+        '<label class="ob-stp-pick"><input type="radio" name="subtitle_pick" value="'+val+'" data-style="'+st+'" data-hl="'+hl+'"><span class="ob-stp-dot"></span><span class="ob-stp-pk-txt">'+label+'</span></label>';
+      return items.map(t=>{
+        const std=t[3]||'', hl=t[4]||'';
+        const stdPrev = _obStylePreview(std, isVideo, pick(t[0], t[0], '0', 'Subtitle'));
+        const hlPrev = hl ? _obStylePreview(hl, isVideo, pick(t[0]+'__hl', t[0], '1', 'Subtitle + Highlights')) : '';
+        const previews = '<div class="ob-stp-row">'+stdPrev+hlPrev+'</div>';
+        const desc = t[2] ? '<div class="ob-sub-desc">'+_obEsc(t[2])+'</div>' : '';
+        return '<div class="ob-stcard"><div class="ob-sub-text"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</div>'+previews+'</div>';
+      }).join('');
+    }
+
+    // Step-4 example: a preview tile of the sample clip (a teammate talking to camera) + copy, so
+    // the client can see what to record. Tap → full-screen playback with sound via _obZoom (same
+    // preview + zoom mechanic as the subtitle clips; _obZoom auto-detects the .mp4 as a video).
+    function _obSampleExample(){
+      return '<div class="ob-q ob-sample-eg">'+
+        '<button type="button" class="ob-sub-thumb ob-sample-eg-thumb" data-ob-zoom="'+OB_SAMPLE_EG+'" aria-label="Play the example sample clip full screen">'+
+          '<video src="'+OB_SAMPLE_EG+'" poster="'+OB_SAMPLE_EG_POSTER+'" muted loop playsinline preload="metadata"></video>'+
+          '<span class="ob-zoom-ic ob-zoom-ic--play">'+OB_PLAY_BIG_SVG+'</span>'+
+        '</button>'+
+        '<div class="ob-sample-eg-body">'+
+          '<div class="ob-sample-eg-title">Here\'s an example</div>'+
+          '<div class="ob-sample-eg-desc">This is exactly what we mean — one of our team just talking to the camera like a normal video. <b>Tap to watch.</b> Yours doesn\'t need to be scripted or polished; a quick, natural ~30-second take on your phone is perfect.</div>'+
+        '</div>'+
+      '</div>';
+    }
+
+    function _obSubtitles(){
+      return '<div class="ob-q" data-ob-q="subtitle_style"><label class="ob-label">Subtitle style<span class="ob-req">*</span></label>'+
+        '<div class="ob-help">Tap a preview to play it, then click the dot under the look you want — pick the plain <b>Subtitle</b> or the <b>Subtitle + Highlights</b> version, where a key word pops in colour.</div>'+
+        '<div class="ob-stgrid">'+_obStyleCards('subtitle_style', OB_SUBTITLE_STYLES, true)+'</div>'+
+        // hidden carriers (set from the visible picks) — keep subtitle_style + subtitle_highlight
+        // exactly as before, so serialization, validation and the dashboard viewer are unchanged.
+        '<input type="hidden" data-ob="subtitle_style">'+
+        '<input type="checkbox" data-ob-toggle="subtitle_highlight" hidden></div>';
+    }
+
+    // Live thumbnail-text picker: a preview that swaps in place + tight controls beside it
+    // (font / style / highlight), so the cursor barely moves. The current trio is the saved pick.
+    function _obThumbPicker(){
+      const d = OB_THUMB_DEFAULT;
+      const seg = (group, opts, cur) => '<div class="ob-seg" data-ob-tp="'+group+'">'+
+        opts.map(o=>'<button type="button" class="ob-seg-btn'+(o[0]===cur?' sel':'')+'" data-ob-tp-opt="'+group+':'+o[0]+'">'+_obEsc(o[1])+'</button>').join('')+'</div>';
+      return '<div class="ob-q" data-ob-q="thumbnail">'+
+        '<label class="ob-label">Thumbnail style</label>'+
+        '<div class="ob-toggle-q ob-tp-buildrow"><div><span class="ob-tp-buildlbl">Build my own thumbnail look</span>'+
+          '<div class="ob-help">Switch this off and we\'ll design the thumbnail for you.</div></div>'+
+          '<label class="ob-switch"><input type="checkbox" data-ob-toggle="thumbnail_build" checked><span class="ob-switch-track"></span></label></div>'+
+        '<div class="ob-tp-wrap" id="obThumbWrap">'+
+          '<div class="ob-help ob-tp-help">Pick a font and a style, and flip on a highlighted line — the preview updates as you go.</div>'+
+          '<div class="ob-tp">'+
+            '<button type="button" class="ob-tp-prev" data-ob-zoom="'+_obThumbImg(d.font,d.style,d.hl)+'" aria-label="View full screen">'+
+              '<img class="ob-tp-img" id="obThumbImg" src="'+_obThumbImg(d.font,d.style,d.hl)+'" alt="Thumbnail preview">'+
+              '<span class="ob-zoom-ic">'+OB_EXPAND_SVG+'</span></button>'+
+            '<div class="ob-tp-ctrls">'+
+              '<div class="ob-tp-row"><span class="ob-tp-lbl">Font</span>'+seg('font', OB_THUMB_FONTS, d.font)+'</div>'+
+              '<div class="ob-tp-row"><span class="ob-tp-lbl">Style</span>'+seg('style', OB_THUMB_TSTYLES, d.style)+'</div>'+
+              '<div class="ob-tp-row ob-tp-hlrow"><span class="ob-tp-lbl">Highlight</span>'+
+                '<label class="ob-switch"><input type="checkbox" data-ob-toggle="thumbnail_highlight"'+(d.hl?' checked':'')+'><span class="ob-switch-track"></span></label></div>'+
+            '</div>'+
+          '</div>'+
+          '<div class="ob-info-panel ob-tp-note">This is just to point us in the right direction — nothing here is locked in. Treat it as inspiration: the font, the highlight colour, the music and anything else can all change as we work together. We also bring our professional design input to make sure the final style best suits your content and overall brand.</div>'+
+        '</div>'+
+        '<input type="hidden" data-ob="thumbnail_font" value="'+d.font+'">'+
+        '<input type="hidden" data-ob="thumbnail_text_style" value="'+d.style+'"></div>';
+    }
+    // Show/hide the picker based on the "build my own" toggle.
+    function _obThumbBuildSync(){
+      const t=document.querySelector('[data-ob-toggle="thumbnail_build"]'); const wrap=document.getElementById('obThumbWrap');
+      if(wrap) wrap.style.display = (!t || t.checked) ? '' : 'none';
+    }
+    // Reflect the current font/style/highlight into the preview, zoom target and selected buttons.
+    function _obThumbSync(){
+      const fEl=document.querySelector('[data-ob="thumbnail_font"]'); const sEl=document.querySelector('[data-ob="thumbnail_text_style"]');
+      const hEl=document.querySelector('[data-ob-toggle="thumbnail_highlight"]'); const img=document.getElementById('obThumbImg');
+      if(!fEl||!sEl||!img) return;
+      const font=fEl.value||OB_THUMB_DEFAULT.font, style=sEl.value||OB_THUMB_DEFAULT.style, hl=!!(hEl&&hEl.checked);
+      const url=_obThumbImg(font,style,hl);
+      if(img.getAttribute('src')!==url) img.setAttribute('src',url);
+      const prev=img.closest('.ob-tp-prev'); if(prev) prev.setAttribute('data-ob-zoom',url);
+      document.querySelectorAll('[data-ob-tp="font"] .ob-seg-btn').forEach(b=>b.classList.toggle('sel', b.getAttribute('data-ob-tp-opt')==='font:'+font));
+      document.querySelectorAll('[data-ob-tp="style"] .ob-seg-btn').forEach(b=>b.classList.toggle('sel', b.getAttribute('data-ob-tp-opt')==='style:'+style));
+    }
+    // Preload every combo so the preview swaps with no flicker.
+    function _obThumbPreload(){
+      OB_THUMB_FONTS.forEach(f=>OB_THUMB_TSTYLES.forEach(s=>[false,true].forEach(hl=>{ const im=new Image(); im.src=_obThumbImg(f[0],s[0],hl); })));
+    }
+
+    // Enable a group's Highlight toggle only when a style with a highlight variant is selected.
+    // Sync the per-style "+ Add highlight" pills to the current selection + add-on state.
+    // The pill on the SELECTED style reads "Highlight on" when the add-on is on; the others
+    // invite turning it on. subtitle_highlight is one boolean (a hidden checkbox carrier).
+    // A subtitle pick was made: write the chosen style + highlight into the hidden carriers.
+    function _obPickSubtitle(radio){
+      const s=document.querySelector('input[data-ob="subtitle_style"]');
+      const c=document.querySelector('[data-ob-toggle="subtitle_highlight"]');
+      if(s) s.value = radio.getAttribute('data-style')||'';
+      if(c) c.checked = radio.getAttribute('data-hl')==='1';
+    }
+    // Reflect the hidden subtitle_style + subtitle_highlight carriers onto the visible picks
+    // (used on restore / mount so a saved choice shows its filled dot).
+    function _obStyleSel(){
+      const s=document.querySelector('input[data-ob="subtitle_style"]');
+      const c=document.querySelector('[data-ob-toggle="subtitle_highlight"]');
+      const style=s?s.value:''; const hl=!!(c&&c.checked);
+      const want = style ? (style + (hl?'__hl':'')) : '';
+      document.querySelectorAll('input[name="subtitle_pick"]').forEach(r=>{ r.checked=(r.value===want); });
+    }
+    // Reveal the optional "link to your B-roll footage" field only when "My own footage" is picked.
+    function _obBrollSync(){
+      const r=document.querySelector('input[name="broll"]:checked');
+      const bl=document.getElementById('obBrollLink');
+      if(bl) bl.style.display=(r&&r.value==='own')?'block':'none';
+    }
+
+    function _obBroll(){ return _obField({ id:'broll', label:'B-roll', help:'Extra footage laid over your talking. Pick one.', type:'radio', options:OB_BROLL_OPTS }); }
+
+    // AI "which look" — multiselect chips, each with an ⓘ that opens an example frame.
+    function _obLook(){
+      // Show the example frames up front (no ⓘ to click) and let the client tick the look(s)
+      // they want — same preview + select feel as the subtitle styles. Multi-select (one or both).
+      const opt = (val, img, label) =>
+        '<div class="ob-stp">'+
+          '<button type="button" class="ob-sub-thumb" data-ob-zoom="'+img+'" aria-label="View '+_obEsc(label)+' full screen"><img src="'+img+'" alt="'+_obEsc(label)+'" loading="lazy"><span class="ob-zoom-ic">'+OB_EXPAND_SVG+'</span></button>'+
+          '<label class="ob-genre-pick ob-look-pick"><input type="checkbox" name="ai_content_style" value="'+val+'"><span class="ob-chk"></span><span class="ob-stp-pk-txt">'+label+'</span></label>'+
+        '</div>';
+      return '<div class="ob-q" data-ob-q="ai_content_style"><label class="ob-label">Which look do you prefer?<span class="ob-req">*</span></label>'+
+        '<div class="ob-help">Tap a preview to see it full screen, then tick the look(s) you want — pick one or both.</div>'+
+        '<div class="ob-stp-row ob-look-row" data-ob-multi="ai_content_style">'+
+          opt('talking_head', OB_LOOK_TALKING, 'Talking to camera')+
+          opt('podcast', OB_LOOK_PODCAST, 'Podcast style')+
+        '</div></div>';
+    }
+
+    function _obTextDriven(){
+      return '<div class="ob-q" data-ob-q="ai_text_driven"><label class="ob-label">Also make text-only videos (no speaking)?<span class="ob-req">*</span> '+
+        _obInfoBtn('data-ob-info="textonly" aria-label="What are text-only videos"')+'</label>'+
+        '<div class="ob-info-panel" data-ob-info-panel="textonly" style="display:none">'+OB_TEXTONLY_INFO+'</div>'+
+        '<div class="ob-radios" data-ob-radio="ai_text_driven"><label class="ob-pill-opt"><input type="radio" name="ai_text_driven" value="yes"><span>Yes</span></label>'+
+        '<label class="ob-pill-opt"><input type="radio" name="ai_text_driven" value="no"><span>No</span></label></div></div>';
+    }
+
+    function _obAccessories(){
+      const opts=[['glasses','Glasses'],['watch','Watch'],['jewelry','Jewelry'],['hat','Hat'],['other','Other'],['none','None']];
+      return '<div class="ob-q" data-ob-q="ai_accessories"><label class="ob-label">Accessories</label>'+
+        '<div class="ob-checks" data-ob-multi="ai_accessories">'+
+          opts.map(o=>'<label class="ob-pill-opt"><input type="checkbox" value="'+o[0]+'"><span>'+o[1]+'</span></label>').join('')+'</div>'+
+        '<input class="ob-input ob-other-field" data-ob="ai_accessories_other" type="text" placeholder="What accessory?" style="display:none;margin-top:8px"></div>';
+    }
+
+    function _obRepRowHtml(rep, first){
+      const x = first ? '' : '<button type="button" class="ob-rep-x" aria-label="Remove row">×</button>';
+      if(rep==='creators') return '<div class="ob-rep-row"><input class="ob-input" data-rep="creators" data-rep-k="link" type="url" placeholder="Creator link"><input class="ob-input" data-rep="creators" data-rep-k="model" type="text" placeholder="What to model from them?">'+x+'</div>';
+      return '<div class="ob-rep-row"><input class="ob-input" data-rep="clips" data-rep-k="link" type="url" placeholder="Paste a link">'+x+'</div>';
+    }
+    function _obCreators(){
+      return '<div class="ob-q" data-ob-q="creators"><label class="ob-label">Creators for inspiration</label>'+
+        '<div class="ob-help">Anyone whose style you\'d like us to model after.</div>'+
+        '<div class="ob-rep" id="obCreators">'+_obRepRowHtml('creators', true)+'</div>'+
+        '<button type="button" class="ob-add" data-rep-add="creators">+ Add another</button></div>';
+    }
+    function _obAiLikeness(){ return '<div class="ob-q" data-ob-q="ai_likeness" id="obAiLikenessWrap"></div>'; }
+
+    // A nested group with a subtle coloured rail, so the eye reads the hierarchy
+    // (Section -> sub-group -> field). `color` is an analogous neighbour of the
+    // parent section's colour, so a section + its sub-groups read as one family
+    // rather than a rainbow.
+    function _obSubgroup(title, color, fieldsHtml){
+      const chev = '<svg class="ob-sg-chev" viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      return '<div class="ob-subgroup" style="--sg-rail:'+color+';--sg-dot:'+color+'">'+
+        '<span class="ob-crail" data-ob-rail role="button" tabindex="0" aria-label="Collapse or expand '+_obEsc(title)+'"></span>'+
+        '<div class="ob-subhead" data-ob-collapse-sg role="button" tabindex="0"><span class="ob-sg-dot"></span><span class="ob-sg-title">'+_obEsc(title)+'</span>'+chev+'</div>'+
+        '<div class="ob-sg-body"><div class="ob-sg-inner">'+fieldsHtml.join('')+'</div></div></div>';
+    }
+    // Collapse/expand a sub-group. Keep overflow hidden during the animation, then restore
+    // visible once expanded so custom-select dropdowns inside aren't clipped.
+    function _obToggleSubgroup(sg){
+      const inner = sg.querySelector('.ob-sg-inner'); const body = sg.querySelector('.ob-sg-body');
+      const collapsing = !sg.classList.contains('collapsed');
+      if(inner) inner.style.overflow='hidden';
+      sg.classList.toggle('collapsed', collapsing);
+      if(!collapsing && body){
+        const onEnd=(e)=>{ if(e.target!==body || e.propertyName!=='grid-template-rows') return; body.removeEventListener('transitionend', onEnd); if(inner && !sg.classList.contains('collapsed')) inner.style.overflow=''; };
+        body.addEventListener('transitionend', onEnd);
+      }
+    }
+
+    function _obSections(){
+      const _ai = (OB_VARIANT === 'ai');
+      const _all = [
+        { id:'s1', n:'1', c:'var(--sv-misc-5f86df)', title:'Basic info', fields:[
+          _obField({id:'first_name', label:'First name', type:'text', required:true}),
+          _obField({id:'last_name', label:'Last name', type:'text', required:true}),
+          _obField({id:'email', label:'Email', type:'email', required:true}),
+          _obField({id:'phone', label:'Phone', type:'tel', required:true}),
+          _obField({id:'comms_people', label:'Anyone else we should keep in the loop?', help:'Name + email.', type:'textarea', rows:2}),
+          _obField({id:'accounting_contact', label:'Billing contact', help:'Who we send invoices to.', type:'text'}),
+        ]},
+        { id:'s2', n:'2', c:'var(--sv-misc-6f78e2)', title:'Your brand & audience', fields:[
+          _obField({id:'brand_guidelines', label:'Brand guidelines link', help:'Logos, colours, fonts — if you have them.', type:'url', placeholder:'https://…'}),
+          _obField({id:'ideal_customer', label:'Who is your IDEAL target customer?', help:'The more detail, the better.', type:'textarea', required:true}),
+          _obField({id:'pain_points', label:'What are the PAIN points of the customers you help?', help:'The more detail, the better.', type:'textarea', required:true}),
+          _obField({id:'desired_outcomes', label:'What are the DESIRED OUTCOMES of the customers you help?', help:'The more detail, the better.', type:'textarea', required:true}),
+          _obField({id:'process', label:'What is your PROCESS for helping clients get from where they are to where they want to go?', help:'The more detail, the better.', type:'textarea', required:true}),
+        ]},
+        { id:'s3', n:'3', c:'var(--sv-misc-8a6fe0)', title:'Style', intro:'Tell us the direction you want for your videos. None of this is locked in — it just points us the right way, and we fine-tune everything (fonts, colours, music, the lot) together as we go.', fields:[
+          _obCreators(),
+          _obSubgroup('Video', 'var(--sv-bg-6f8be8)', [
+            _obSubtitles(),
+            '<div class="ob-info-panel ob-tp-note">This is just to point us in the right direction — nothing here is locked in. Treat it as inspiration: the subtitles, the highlight colour, the music and anything else can all change as we work together. We also bring our professional design input to make sure the final style best suits your content and overall brand.</div>',
+            _obBroll(),
+            '<div class="ob-q" id="obBrollLink" data-ob-q="broll_link" style="display:none"><label class="ob-label">Link to your B-roll footage (optional)</label><div class="ob-help">If you have your own footage you\'d like us to use, drop a link here.</div><input class="ob-input" type="url" data-ob="broll_link" placeholder="Paste any link…">'+OB_DRIVE_NOTE+'</div>',
+            _obMusic(),
+            _obField({id:'music_refs', label:'Music reference (optional)', help:'A link to a song or two whose style you like — Spotify, YouTube, Apple Music, SoundCloud, whatever you use.', type:'url', placeholder:'Paste any link…'}),
+            _obField({id:'video_reference', label:'Video reference — links (optional)', help:'Paste links to videos or reels whose look you like.', type:'textarea', rows:2, placeholder:'Paste any links…'}),
+            _obField({id:'video_reference_desc', label:'…or describe the video look you want (optional)', help:'In your own words — editing, captions, fonts, pacing, vibe.', type:'textarea', rows:2, placeholder:'Describe what you\'re going for…'}),
+          ]),
+          _obSubgroup('Thumbnail', 'var(--sv-bg-a073e0)', [
+            _obThumbPicker(),
+            _obField({id:'thumbnail_reference', label:'Thumbnail reference — links (optional)', help:'Paste links or images of thumbnails / covers you like (Pinterest, screenshots, etc.).', type:'textarea', rows:2, placeholder:'Paste any links…'}),
+            _obField({id:'thumbnail_reference_desc', label:'…or describe the thumbnail you want (optional)', help:'In your own words — colours, text, style, mood.', type:'textarea', rows:2, placeholder:'Describe what you\'re going for…'}),
+          ]),
+          _obSubgroup('Anything else', 'var(--sv-bg-c46fc6)', [
+            _obField({id:'dos_donts', label:'Anything we must always include, or never include?', help:'Anything we should keep in mind for every video.', type:'textarea', rows:2}),
+          ]),
+        ]},
+        { id:'s4', n:'4', c:'var(--sv-misc-a063d8)', title:'Sample video', intro:'Before we produce your first real video, we\'ll make a few short sample edits — showing different subtitle styles, thumbnails and looks — so you can see your options and pick what feels right. To make those samples look like your actual videos, the single most useful thing you can give us is a short clip of you (below).', fields:[
+          _obSampleExample(),
+          _obField({id:'sample_clip', label:'A sample clip of you (optional but ideal)', help:'Record ~30 seconds talking to the camera like a normal video, and paste the link.', type:'url', placeholder:'https://…', driveNote:true}),
+        ]},
+        { id:'s5', n:'5', c:'var(--sv-misc-b65fce)', title:'Photos & source material', intro:'All optional — share whatever you already have.', fields:[
+          _obField({id:'photos_link', label:'Link to photos of you', help:'A few clear, recent, high-quality photos.', type:'url', placeholder:'https://…', driveNote:true}),
+          _obField({id:'source_material', label:'Content to pull from', help:'Podcasts, talks, videos — anything we can create from. Any link works: a Google Drive/Dropbox folder, a YouTube channel, a podcast, etc.', type:'url', placeholder:'Paste any link…', driveNote:true}),
+        ]},
+        { id:'s6', n:'6', c:'var(--sv-misc-c560bc)', title:'Goals', fields:[
+          _obField({id:'success', label:'What would make this a win for you?', type:'textarea', required:true}),
+          _obField({id:'anything_else', label:'Anything else we should know?', type:'textarea'}),
+          _obField({id:'questions', label:'Questions or anything unclear?', help:'If none of the options above fit what you had in mind, or you\'re unsure about anything, ask away here.', type:'textarea'}),
+        ]},
+        { id:'s7', n:'7', c:'var(--sv-misc-cf64a2)', title:'Account access', intro:'So we can publish for you. Stored securely.', fields:[
+          '<div class="ob-q"><div class="ob-info-panel">Prefer not to type passwords here? You can share them securely through <b>LastPass</b> to <b>house@synchrosocial.com</b> — we get access without the passwords ever being visible. Otherwise, just fill in what you can below.</div></div>',
+          _obField({id:'instagram', label:'Instagram login', help:'e.g. yourbrand / Mypassword123', placeholder:'username / password', type:'text'}),
+          _obField({id:'instagram_backup', label:'Instagram backup code', help:'Settings → Security → Two-factor → Backup codes.', type:'text'}),
+          _obField({id:'tiktok', label:'TikTok login', help:'e.g. yourbrand / Mypassword123', placeholder:'username / password', type:'text'}),
+          _obField({id:'facebook', label:'Facebook login', help:'e.g. you@email.com / Mypassword123', placeholder:'email / password', type:'text'}),
+          _obField({id:'linkedin', label:'LinkedIn login', help:'e.g. you@email.com / Mypassword123', placeholder:'email / password', type:'text'}),
+          _obField({id:'youtube', label:'YouTube access', help:'Invite house@synchrosocial.com via YouTube Studio, or leave blank.', type:'text'}),
+          '<div class="ob-q"><label class="ob-genre-pick ob-lp-check"><input type="checkbox" data-ob-toggle="lastpass_sent"><span class="ob-chk"></span><span>Sharing through <b>LastPass</b> instead of typing passwords above? Tick this once you\'ve sent your logins to <b>house@synchrosocial.com</b> — so we know to look for them.</span></label></div>',
+        ]},
+        { id:'s8', n:'8', c:'var(--sv-misc-d36f93)', title:'AI avatar', isAi:true, intro:'A realistic version of you that can deliver videos without filming. Tell us how you\'d like your avatar to look, sound and feel.', fields:[
+          '<div id="obAiFields" class="ob-ai-fields">'+
+            _obSubgroup('Your likeness', 'var(--sv-bg-c56fc0)', [
+              _obAiLikeness(),
+            ])+
+            _obSubgroup('Personality & delivery', 'var(--sv-bg-d16fa6)', [
+              _obField({id:'ai_personality', label:'How would you describe your personality?', type:'textarea', required:true}),
+              _obLook(),
+              _obTextDriven(),
+            ])+
+            _obSubgroup('Scene & framing', 'var(--sv-bg-db6f93)', [
+              _obField({id:'ai_setting', label:'What setting / background do you picture?', type:'textarea', rows:2, required:true}),
+              _obField({id:'ai_podcast_setting', label:'Podcast setting', type:'select', options:[['studio','Studio desk with mics'],['lounge','Casual lounge'],['office','Office / bookshelf'],['minimal','Plain backdrop']]}),
+              _obField({id:'ai_framing', label:'Camera framing', type:'select', required:true, options:[['closeup','Close-up'],['mid','Mid-shot'],['wide','Wide'],['mixed','Mixed']]}),
+            ])+
+            _obSubgroup('Appearance', 'var(--sv-bg-d3839f)', [
+              _obField({id:'ai_hair', label:'Hair', help:'How you\'d like the avatar\'s hair — e.g. short, long, tied back, natural, styled.', type:'text'}),
+              _obField({id:'ai_makeup', label:'Makeup', help:'The makeup look — e.g. natural, none, light, bold / glam.', type:'text'}),
+              _obField({id:'ai_clothing', label:'Clothing (up to 3)', type:'multiselect', max:3, required:true, options:[['formal','Formal / suit'],['smart_casual','Smart casual'],['casual','Casual'],['streetwear','Streetwear'],['athletic','Activewear'],['branded','Branded merch'],['elegant','Elegant']]}),
+              _obAccessories(),
+            ])+
+            _obSubgroup('Voice', 'var(--sv-bg-cc77bf)', [
+              '<div class="ob-q" data-ob-q="ai_voice_link"><label class="ob-label">Voice recording<span class="ob-req">*</span></label>'+
+                '<div class="ob-help">Read the script below in a quiet room (phone is fine) and paste the link.</div>'+
+                '<div class="ob-script">'+OB_VOICE_SCRIPT.map(p=>'<p>'+p+'</p>').join('')+'</div>'+
+                '<input class="ob-input" type="url" data-ob="ai_voice_link" placeholder="https://…">'+OB_DRIVE_NOTE+'</div>',
+              _obField({id:'ai_voice_samples', label:'More voice recordings (optional, but the more the better)', help:'On top of the script above, drop a link (Google Drive, Dropbox, etc.) to as many high-quality recordings of your voice as you can — podcasts, talks, voice notes, anything clear and natural. Around 3 hours is ideal; 2 hours is great; otherwise just as much as you can gather.', type:'url', placeholder:'https://…', driveNote:true}),
+            ])+
+          '</div>',
+        ]},
+      ];
+      // Variant filtering: the standard funnel drops the AI section; the AI funnel drops the
+      // Sample-video section and keeps the (gate-less) AI section. Then renumber + recolour by
+      // final position so the section gradient stays smooth in both.
+      const _RAMP = ['var(--sv-misc-5f86df)','var(--sv-misc-6f78e2)','var(--sv-misc-8a6fe0)','var(--sv-misc-a063d8)','var(--sv-misc-b65fce)','var(--sv-misc-c560bc)','var(--sv-misc-cf64a2)','var(--sv-misc-d36f93)'];
+      const _list = _all.filter(function(s){
+        if (s.id === 's8') return _ai;     // AI avatar — AI funnel only
+        if (s.id === 's4') return !_ai;    // Sample video — standard funnel only
+        return true;
+      });
+      _list.forEach(function(s, i){ s.n = String(i + 1); s.c = _RAMP[i] || s.c; });
+      return _list;
+    }
+
+    function mountOnboardingView(){
+      _obInjectStyles();
+      const card = document.getElementById('obCard'); if(!card) return;
+      const sections = _obSections();
+      const head = '<div class="ob-headblock">'+
+        '<div class="ob-brand"><span class="ob-logo-wrap"><img class="ob-logo" src="synchro-social-logo.png" alt="Synchro Social"></span>'+
+        '<span class="ob-kicker ob-brand-kicker">Client Onboarding</span></div>'+
+        '<h1 class="ob-title">Let\'s set up your content</h1>'+
+        '<p class="ob-sub">The more you tell us, the faster we make content that feels like you. Saved as you go.</p></div>';
+      const rail = '<div class="ob-rail">'+sections.map(s=>'<button type="button" class="ob-rail-btn" data-ob-go="'+s.id+'">'+s.n+'. '+_obEsc(s.title)+'</button>').join('')+'</div>';
+      const chev = '<svg class="ob-sec-chev" viewBox="0 0 16 16" width="17" height="17" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      const body = sections.map(s=>{
+        const intro = s.intro ? '<p class="ob-sec-intro">'+_obEsc(s.intro)+'</p>' : '';
+        return '<section class="ob-sec" id="'+s.id+'" style="--sec-rail:'+(s.c||'var(--ob-accent)')+'">'+
+          '<span class="ob-crail" data-ob-rail role="button" tabindex="0" aria-label="Collapse or expand '+_obEsc(s.title)+'"></span>'+
+          '<div class="ob-sec-h" data-ob-collapse role="button" tabindex="0"><span class="ob-sec-n">'+s.n+'</span><h2>'+_obEsc(s.title)+'</h2>'+chev+'</div>'+
+          '<div class="ob-sec-body"><div class="ob-sec-inner">'+intro+s.fields.join('')+'</div></div></section>';
+      }).join('');
+      const footer = '<div class="ob-footer"><div class="ob-err" id="obErr" style="display:none"></div><button type="button" class="ob-submit" id="obSubmit">Submit</button></div>';
+      card.innerHTML = head + rail + '<form id="obForm" autocomplete="off" novalidate>' + body + footer + '</form>';
+      if(!document.getElementById('obTop')){
+        const b=document.createElement('button'); b.id='obTop'; b.className='ob-top'; b.type='button'; b.setAttribute('aria-label','Back to top'); b.innerHTML='<svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true"><path d="M8 12.5V4M4.5 7.5L8 4l3.5 3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        b.addEventListener('click', ()=>window.scrollTo({top:0,behavior:'smooth'}));
+        document.body.appendChild(b);
+        window.addEventListener('scroll', _obToggleTop, {passive:true}); _obToggleTop();
+      }
+      if(!_obDocClickBound){ document.addEventListener('click', _obDocClick); _obDocClickBound=true; }
+      _obWire(); _obThumbPreload(); _obThumbSync(); _obThumbBuildSync(); _obUpdateLikeness(); _obRestoreDraft();
+    }
+
+    function _obToggleTop(){ const b=document.getElementById('obTop'); if(b) b.classList.toggle('show', window.scrollY>300); }
+    let _obDocClickBound=false;
+    function _obDocClick(e){ if(!(e.target.closest && e.target.closest('.ob-cs'))) document.querySelectorAll('.ob-cs-panel').forEach(p=>p.style.display='none'); }
+
+    function _obWire(){
+      const form = document.getElementById('obForm'); if(!form) return;
+      form.addEventListener('change', e=>{
+        const t = e.target;
+        if(t.name==='ai_avatar'){ _obToggleAi(t.value); }
+        if(t.getAttribute && t.getAttribute('data-ob')==='ai_use_existing'){ _obUpdateLikenessVisibility(); }
+        if(t.name==='ai_content_style'){ _obTogglePodcast(); }
+        if(t.name==='subtitle_pick'){ _obPickSubtitle(t); }
+        if(t.name==='broll'){ _obBrollSync(); }
+        if(t.getAttribute && t.getAttribute('data-ob-toggle')==='thumbnail_highlight'){ _obThumbSync(); }
+        if(t.getAttribute && t.getAttribute('data-ob-toggle')==='thumbnail_build'){ _obThumbBuildSync(); }
+        // Exclusive option: picking it clears the rest; picking anything else clears it.
+        const exm = t.closest && t.closest('[data-ob-multi][data-ob-exclusive]');
+        if(exm && t.type==='checkbox' && t.checked){
+          const exv = exm.getAttribute('data-ob-exclusive');
+          if(t.value===exv){ exm.querySelectorAll('input').forEach(i=>{ if(i.value!==exv) i.checked=false; }); }
+          else { const n=exm.querySelector('input[value="'+exv+'"]'); if(n) n.checked=false; }
+        }
+        // accessories "other" field
+        const am = t.closest && t.closest('[data-ob-multi="ai_accessories"]');
+        if(am){ const other=am.querySelector('input[value="other"]'); const fld=document.querySelector('[data-ob="ai_accessories_other"]'); if(fld) fld.style.display=(other&&other.checked)?'block':'none'; }
+        const wrap = t.closest && t.closest('[data-ob-multi][data-ob-max]');
+        if(wrap && t.type==='checkbox'){ const max=parseInt(wrap.getAttribute('data-ob-max'),10); if(wrap.querySelectorAll('input:checked').length>max){ t.checked=false; _obFlash('Up to '+max+'.'); } }
+        _obSaveDraftDebounced();
+      });
+      form.addEventListener('input', e=>{
+        const id = e.target && e.target.getAttribute && e.target.getAttribute('data-ob');
+        if(id==='photos_link') _obUpdateLikeness();
+        _obSaveDraftDebounced();
+      });
+      form.addEventListener('click', e=>{
+        const col = e.target.closest && e.target.closest('[data-ob-collapse]'); if(col){ const sec=col.closest('.ob-sec'); if(sec) sec.classList.toggle('collapsed'); return; }
+        const sgh = e.target.closest && e.target.closest('[data-ob-collapse-sg]'); if(sgh){ const sg=sgh.closest('.ob-subgroup'); if(sg) _obToggleSubgroup(sg); return; }
+        const rail = e.target.closest && e.target.closest('[data-ob-rail]'); if(rail){ const cont=rail.parentElement; if(cont && cont.classList.contains('ob-subgroup')) _obToggleSubgroup(cont); else if(cont && cont.classList.contains('ob-sec')) cont.classList.toggle('collapsed'); return; }
+        const tp = e.target.closest && e.target.closest('[data-ob-tp-opt]'); if(tp){ e.preventDefault(); const parts=tp.getAttribute('data-ob-tp-opt').split(':'); const sel=document.querySelector('[data-ob="thumbnail_'+(parts[0]==='font'?'font':'text_style')+'"]'); if(sel){ sel.value=parts[1]; } _obThumbSync(); _obSaveDraftDebounced(); return; }
+        const play = e.target.closest && e.target.closest('.ob-play'); if(play){ e.preventDefault(); _obPlayMusic(play); return; }
+        const zoom = e.target.closest && e.target.closest('[data-ob-zoom]'); if(zoom){ e.preventDefault(); _obZoom(zoom.getAttribute('data-ob-zoom')); return; }
+        const info = e.target.closest && e.target.closest('[data-ob-info]'); if(info){ e.preventDefault(); const k=info.getAttribute('data-ob-info'); const pan=document.querySelector('[data-ob-info-panel="'+k+'"]'); if(pan) pan.style.display = pan.style.display==='none'?'block':'none'; return; }
+        const csT = e.target.closest && e.target.closest('[data-cs-toggle]'); if(csT){ e.preventDefault(); _obToggleSelect(csT.getAttribute('data-cs-toggle')); return; }
+        const csP = e.target.closest && e.target.closest('[data-cs-pick]'); if(csP){ e.preventDefault(); _obPickSelect(csP.getAttribute('data-cs-pick'), csP.getAttribute('data-cs-value'), csP.textContent); return; }
+        const repAdd = e.target.closest && e.target.closest('[data-rep-add]'); if(repAdd){ e.preventDefault(); _obRepAdd(repAdd.getAttribute('data-rep-add')); return; }
+        const repX = e.target.closest && e.target.closest('.ob-rep-x'); if(repX){ e.preventDefault(); _obRepRemove(repX); return; }
+      });
+      // sample_clip is a normal field — keep likeness in sync on its input
+      const sc = form.querySelector('[data-ob="sample_clip"]'); if(sc) sc.addEventListener('input', _obUpdateLikeness);
+      document.querySelectorAll('[data-ob-go]').forEach(b=>b.addEventListener('click',()=>{ const el=document.getElementById(b.getAttribute('data-ob-go')); if(el){ el.classList.remove('collapsed'); el.scrollIntoView({behavior:'smooth',block:'start'}); } }));
+      form.addEventListener('keydown', e=>{
+        if(e.key!=='Enter' && e.key!==' ') return;
+        const col=e.target.closest && e.target.closest('[data-ob-collapse]'); if(col){ e.preventDefault(); const sec=col.closest('.ob-sec'); if(sec) sec.classList.toggle('collapsed'); return; }
+        const sgh=e.target.closest && e.target.closest('[data-ob-collapse-sg]'); if(sgh){ e.preventDefault(); const sg=sgh.closest('.ob-subgroup'); if(sg) _obToggleSubgroup(sg); return; }
+        const rail=e.target.closest && e.target.closest('[data-ob-rail]'); if(rail){ e.preventDefault(); const cont=rail.parentElement; if(cont && cont.classList.contains('ob-subgroup')) _obToggleSubgroup(cont); else if(cont && cont.classList.contains('ob-sec')) cont.classList.toggle('collapsed'); }
+      });
+      const ib=document.getElementById('obAiInfoBtn'); if(ib) ib.addEventListener('click', ()=>{ const p=document.getElementById('obAiInfo'); if(p) p.style.display = p.style.display==='none'?'block':'none'; });
+      const sb=document.getElementById('obSubmit'); if(sb) sb.addEventListener('click', _obSubmit);
+      // Last-gasp draft flush when the tab hides or closes (in-app browsers fire
+      // pagehide unreliably, so visibilitychange->hidden is the primary signal).
+      if(!_obBeaconBound){
+        _obBeaconBound=true;
+        window.addEventListener('pagehide', _obDraftBeacon);
+        document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') _obDraftBeacon(); });
+      }
+    }
+    let _obBeaconBound=false;
+
+    // ---- custom select ----
+    function _obToggleSelect(id){ const pan=document.querySelector('[data-cs-panel="'+id+'"]'); if(!pan) return; const open=pan.style.display!=='none'; document.querySelectorAll('.ob-cs-panel').forEach(p=>p.style.display='none'); pan.style.display=open?'none':'block'; }
+    function _obPickSelect(id,val,label){ const h=document.querySelector('input[type="hidden"][data-ob="'+id+'"]'); if(h) h.value=val; const v=document.querySelector('[data-cs-val="'+id+'"]'); if(v) v.textContent=label; const pan=document.querySelector('[data-cs-panel="'+id+'"]'); if(pan) pan.style.display='none'; _obSaveDraftDebounced(); }
+    function _obSyncSelects(){ document.querySelectorAll('.ob-cs').forEach(cs=>{ const h=cs.querySelector('input[type="hidden"][data-ob]'); if(!h||!h.value) return; const opt=cs.querySelector('[data-cs-value="'+CSS.escape(h.value)+'"]'); const v=cs.querySelector('[data-cs-val]'); if(opt&&v) v.textContent=opt.textContent; }); }
+
+    // ---- repeatable rows ----
+    function _obRepAdd(rep){ const cont=document.getElementById(rep==='creators'?'obCreators':'obClips'); if(!cont) return; if(cont.querySelectorAll('.ob-rep-row').length>=8){ _obFlash('That\'s plenty for now.'); return; } cont.insertAdjacentHTML('beforeend', _obRepRowHtml(rep)); }
+    function _obRepRemove(x){ const row=x.closest('.ob-rep-row'); if(!row) return; const cont=row.parentElement; const rep=cont.id==='obCreators'?'creators':'clips'; row.remove(); if(!cont.querySelector('.ob-rep-row')) cont.insertAdjacentHTML('beforeend', _obRepRowHtml(rep, true)); _obSaveDraftDebounced(); }
+
+    function _obAddCreatorRow(){ _obRepAdd('creators'); }
+
+    function _obToggleAi(v){ const b=document.getElementById('obAiFields'); if(b) b.style.display=(v==='yes')?'block':'none'; if(v==='yes') _obTogglePodcast(); }
+    function _obTogglePodcast(){
+      const wrap=document.querySelector('[data-ob-multi="ai_content_style"]'); const q=document.querySelector('[data-ob-q="ai_podcast_setting"]'); if(!wrap||!q) return;
+      const podcast=!!Array.from(wrap.querySelectorAll('input:checked')).find(i=>i.value==='podcast'); q.style.display=podcast?'':'none';
+    }
+
+    function _obFieldVal(id){ const el=document.querySelector('[data-ob="'+id+'"]'); return el?el.value.trim():''; }
+    function _obUpdateLikeness(){
+      const wrap=document.getElementById('obAiLikenessWrap'); if(!wrap) return;
+      const hasClip=!!_obFieldVal('sample_clip'); const hasPhotos=!!_obFieldVal('photos_link'); const already=hasClip||hasPhotos;
+      const shared=[hasClip?'the clip':null, hasPhotos?'photos':null].filter(Boolean).join(' and ');
+      let html='<label class="ob-label">What we\'ll build your avatar from</label>';
+      if(already){
+        html+='<div class="ob-help">You already shared '+shared+' earlier — can we use that to build your avatar?</div>'+
+          '<div class="ob-radios" data-ob-radio="ai_use_existing"><label class="ob-pill-opt"><input type="radio" name="ai_use_existing" value="yes" data-ob="ai_use_existing"><span>Yes, use those</span></label>'+
+          '<label class="ob-pill-opt"><input type="radio" name="ai_use_existing" value="no" data-ob="ai_use_existing"><span>No, I\'ll send new ones</span></label></div>'+
+          '<div id="obAiNew" style="display:none;margin-top:10px"><div class="ob-help">Record ~30 seconds of you talking to the camera like a normal video, and paste the link.</div>'+
+          '<input class="ob-input" type="url" data-ob="ai_new_likeness" placeholder="https://…">'+OB_DRIVE_NOTE+'</div>';
+      } else {
+        html+='<div class="ob-help">Record ~30 seconds of you talking to the camera like a normal video, and paste the link.</div>'+
+          '<input class="ob-input" type="url" data-ob="ai_new_likeness" placeholder="https://…">'+OB_DRIVE_NOTE;
+      }
+      const prev=_obFieldVal('ai_new_likeness'); const prevUse=(document.querySelector('input[name="ai_use_existing"]:checked')||{}).value;
+      wrap.innerHTML=html;
+      if(prev){ const e=wrap.querySelector('[data-ob="ai_new_likeness"]'); if(e) e.value=prev; }
+      if(prevUse){ const r=wrap.querySelector('input[name="ai_use_existing"][value="'+prevUse+'"]'); if(r) r.checked=true; }
+      _obUpdateLikenessVisibility();
+    }
+    function _obUpdateLikenessVisibility(){ const n=document.getElementById('obAiNew'); if(!n) return; const use=(document.querySelector('input[name="ai_use_existing"]:checked')||{}).value; n.style.display=(use==='no')?'block':'none'; }
+
+    // ---- music preview (hosted local clips) ----
+    let _obAudio=null, _obPlayingBtn=null;
+    function _obMusicUrl(key){ return 'onboarding-audio/'+key+'.mp3'; }
+    function _obResetPlay(){ if(_obAudio){ try{_obAudio.pause();}catch(e){} } if(_obPlayingBtn){ _obPlayingBtn.innerHTML=OB_PLAY_SVG; _obPlayingBtn.classList.remove('ob-playing'); _obPlayingBtn=null; } }
+    function _obPlayMusic(btn){
+      if(!_obAudio){ _obAudio=new Audio(); _obAudio.addEventListener('ended',_obResetPlay); _obAudio.addEventListener('error',_obResetPlay); }
+      if(_obPlayingBtn===btn && !_obAudio.paused){ _obResetPlay(); return; }
+      _obResetPlay();
+      _obAudio.src=_obMusicUrl(btn.getAttribute('data-ob-play')); _obPlayingBtn=btn;
+      btn.innerHTML=OB_PAUSE_SVG; btn.classList.add('ob-playing');
+      const p=_obAudio.play(); if(p&&p.catch) p.catch(()=>{ _obResetPlay(); _obFlash('Could not play that sample'); });
+    }
+
+    function _obZoom(url){
+      let ov=document.getElementById('obZoom');
+      if(!ov){ ov=document.createElement('div'); ov.id='obZoom'; ov.className='ob-zoom-ov'; ov.addEventListener('click',()=>{ ov.classList.remove('show'); ov.innerHTML=''; }); document.body.appendChild(ov); }
+      const isVid=/\.(mp4|webm|mov|m4v)(\?|$)/i.test(url);
+      ov.innerHTML=(isVid?'<video src="'+_obEsc(url)+'" controls autoplay loop playsinline></video>':'<img src="'+_obEsc(url)+'" alt="Example">')+'<span class="ob-zoom-x">✕</span>';
+      ov.classList.add('show');
+    }
+
+    let _obFlashT=null;
+    function _obFlash(msg){ let el=document.getElementById('obFlash'); if(!el){ el=document.createElement('div'); el.id='obFlash'; el.className='ob-flash'; document.body.appendChild(el); } el.textContent=msg; el.classList.add('show'); clearTimeout(_obFlashT); _obFlashT=setTimeout(()=>el.classList.remove('show'),1700); }
+
+    function _obSerialize(){
+      const form=document.getElementById('obForm'); const out={};
+      form.querySelectorAll('[data-ob]').forEach(el=>{ out[el.getAttribute('data-ob')]=el.value.trim(); });
+      form.querySelectorAll('[data-ob-radio]').forEach(g=>{ const n=g.getAttribute('data-ob-radio'); const s=g.querySelector('input:checked'); out[n]=s?s.value:''; });
+      form.querySelectorAll('[data-ob-multi]').forEach(g=>{ const n=g.getAttribute('data-ob-multi'); out[n]=Array.from(g.querySelectorAll('input:checked')).map(i=>i.value); });
+      form.querySelectorAll('[data-ob-toggle]').forEach(t=>{ out[t.getAttribute('data-ob-toggle')]=t.checked; });
+      ['creators'].forEach(rep=>{
+        const cont=document.getElementById('obCreators'); if(!cont) return;
+        const rows=[]; cont.querySelectorAll('.ob-rep-row').forEach(r=>{ const o={}; r.querySelectorAll('[data-rep-k]').forEach(inp=>{ o[inp.getAttribute('data-rep-k')]=inp.value.trim(); }); if(Object.keys(o).some(k=>o[k])) rows.push(o); });
+        out[rep]=rows;
+      });
+      return out;
+    }
+
+    function _obValidate(d){
+      const miss=[];
+      ['first_name','last_name','email','phone','ideal_customer','pain_points','desired_outcomes','process','success'].forEach(k=>{ if(!d[k]) miss.push(k); });
+      if(!d.subtitle_style) miss.push('subtitle_style');
+      if(d.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email)) miss.push('email');
+      if(OB_VARIANT==='ai' || d.ai_avatar==='yes'){
+        ['ai_personality','ai_setting','ai_voice_link'].forEach(k=>{ if(!d[k]) miss.push(k); });
+        if(!d.ai_content_style||!d.ai_content_style.length) miss.push('ai_content_style');
+        if(!d.ai_text_driven) miss.push('ai_text_driven');
+        if(!d.ai_framing) miss.push('ai_framing');
+        if(!d.ai_clothing||!d.ai_clothing.length) miss.push('ai_clothing');
+        if(!((d.ai_use_existing==='yes')||!!d.ai_new_likeness)) miss.push('ai_likeness');
+      }
+      return miss;
+    }
+
+    function _obSubmit(){
+      const err=document.getElementById('obErr'); const d=_obSerialize(); const miss=_obValidate(d);
+      if(miss.length){
+        err.style.display='block'; err.textContent='Please fill the highlighted fields ('+miss.length+' left).';
+        document.querySelectorAll('.ob-q.ob-missing').forEach(q=>q.classList.remove('ob-missing'));
+        let first=null; miss.forEach(k=>{ const q=document.querySelector('[data-ob-q="'+k+'"]'); if(q){ q.classList.add('ob-missing'); const sec=q.closest('.ob-sec'); if(sec) sec.classList.remove('collapsed'); const sg=q.closest('.ob-subgroup'); if(sg) sg.classList.remove('collapsed'); if(!first) first=q; } });
+        if(first) first.scrollIntoView({behavior:'smooth',block:'center'}); return;
+      }
+      err.style.display='none';
+      const btn=document.getElementById('obSubmit'); btn.disabled=true; btn.textContent='Submitting…';
+      const slug=(typeof wlNormalizeClient==='function')?wlNormalizeClient((d.first_name+' '+d.last_name).trim()):'';
+      const now=new Date().toISOString();
+      const _aiFunnel = (OB_VARIANT==='ai');
+      const submission={ id:_obSubId(), slug:slug, first_name:d.first_name, last_name:d.last_name, email:d.email, phone:d.phone, ai_avatar:(_aiFunnel?'yes':'no'), funnel:(_aiFunnel?'ai':'standard'), answers:d, source:(_aiFunnel?'syncview-ai-onboarding':'syncview-onboarding'), created_at:now, updated_at:now };
+      const primaryUrl=_aiFunnel?AI_ONBOARDING_SUBMIT_URL:ONBOARDING_SUBMIT_URL;
+      const finish=(via)=>{
+        try{ localStorage.removeItem(OB_DRAFT_KEY); }catch(e){}
+        _obClearSubId();
+        // On primary success, park a `submitted` copy in the fallback store too —
+        // every submission then exists outside Supabase. Fire-and-forget.
+        if(via==='primary'){ try{ _obBackupSend({ kind:'submitted', id:submission.id, funnel:submission.funnel, note:'primary submit succeeded', submission }, 8000).catch(()=>{}); }catch(e){} }
+        _obThankYou(d);
+      };
+      // Primary (retry once for transient blips) -> Edge capture -> n8n fallback -> hard fail.
+      // A fallback capture still counts as delivered: it is durably stored and alerts the team.
+      _obPost(primaryUrl, { submission }, 20000)
+        .then(()=>finish('primary'))
+        .catch(()=> new Promise(res=>setTimeout(res,1500))
+          .then(()=>_obPost(primaryUrl, { submission }, 20000))
+          .then(()=>finish('primary'))
+          .catch(e2=>_obBackupSend({ kind:'submit-fallback', id:submission.id, funnel:submission.funnel, note:'primary submit failed: '+((e2&&e2.message)||'network'), submission }, 15000)
+            .then(()=>finish('fallback'))
+            .catch(e3=>_obSubmitFailed(btn, err, d, e3))));
+    }
+
+    function _obDraftWorks(){ try{ const k='__ob_probe__'; localStorage.setItem(k,'1'); localStorage.removeItem(k); return true; }catch(e){ return false; } }
+    function _obSubmitFailed(btn, err, d, e){
+      btn.disabled=false; btn.textContent='Submit';
+      err.style.display='block';
+      // Honest copy: only promise a saved draft when localStorage actually works
+      // (in-app browsers / private mode silently drop it). The download is the
+      // zero-infrastructure last resort that works when every endpoint is down.
+      err.innerHTML='We couldn\'t send the form right now'+(_obDraftWorks()?' — your answers are saved in this browser, please try again in a few minutes':'')+'.'+
+        '<span class="ob-dl-wrap"><button type="button" class="ob-dl" id="obDownload">Download my answers</button>'+
+        '<span class="ob-dl-note">or email the downloaded file to <a href="mailto:house@synchrosocial.com">house@synchrosocial.com</a> and we\'ll take it from there.</span></span>';
+      const dl=document.getElementById('obDownload'); if(dl) dl.addEventListener('click', function(){ _obDownloadAnswers(d); });
+      console.error('[onboarding] submit failed on every path', e);
+    }
+    function _obDownloadAnswers(d){
+      try{
+        const blob=new Blob([JSON.stringify({ funnel:(OB_VARIANT==='ai'?'ai':'standard'), saved_at:new Date().toISOString(), answers:d }, null, 2)], {type:'application/json'});
+        const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+        a.download='synchrosocial-onboarding-'+String(d.first_name||'answers').toLowerCase().replace(/[^a-z0-9]+/g,'-')+'.json';
+        document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+      }catch(e){ console.error('[onboarding] download failed', e); }
+    }
+
+    let _obDone=false;
+    function _obThankYou(d){
+      _obDone=true;
+      _obResetPlay();
+      const card=document.getElementById('obCard'); if(!card) return;
+      const t=document.getElementById('obTop'); if(t) t.remove();
+      card.innerHTML='<div class="ob-thanks"><div class="ob-thanks-ico">✓</div><h1>Thanks'+(d.first_name?(', '+_obEsc(d.first_name)):'')+'!</h1>'+
+        '<p>Your form is in — your team gets everything right away. You can close this page.</p></div>';
+      window.scrollTo({top:0,behavior:'instant'});
+    }
+
+    let _obDraftT=null;
+    function _obSaveDraftDebounced(){ clearTimeout(_obDraftT); _obDraftT=setTimeout(_obSaveDraft,600); _obQueueDraftSync(); }
+    function _obSaveDraft(){ try{ localStorage.setItem(OB_DRAFT_KEY, JSON.stringify(_obSerialize())); }catch(e){} }
+
+    // ---- draft backup sync ----
+    // The localStorage draft only lives on the client's device (and silently doesn't
+    // exist in private mode / in-app browsers), so meaningful drafts are also synced
+    // to the fallback store (throttled), and flushed via sendBeacon when the tab
+    // hides/closes. One upserted row per submission id; a later submit marks it
+    // `submit-fallback`/`submitted`, so nothing is ever only-on-device for long.
+    const OB_DRAFT_SYNC_MS=25000;
+    let _obDraftSyncTimer=null, _obDraftSyncAt=0, _obLastSyncBody='';
+    function _obDraftPayload(){
+      if(_obDone) return null;
+      let d=null; try{ d=_obSerialize(); }catch(e){ return null; }
+      if(!d || !(d.first_name||d.last_name||d.email||d.phone)) return null;
+      return { kind:'draft', id:_obSubId(), funnel:(OB_VARIANT==='ai'?'ai':'standard'), note:'autosaved draft', draft:d };
+    }
+    function _obQueueDraftSync(){
+      if(_obDraftSyncTimer||_obDone) return;
+      const wait=Math.max(1200, OB_DRAFT_SYNC_MS-(Date.now()-_obDraftSyncAt));
+      _obDraftSyncTimer=setTimeout(_obDraftSync, wait);
+    }
+    function _obDraftSync(){
+      _obDraftSyncTimer=null; _obDraftSyncAt=Date.now();
+      const p=_obDraftPayload(); if(!p) return;
+      const body=JSON.stringify(p); if(body===_obLastSyncBody) return;
+      try{ _obBackupSend(p, 10000).then(function(){ _obLastSyncBody=body; }).catch(function(){}); }catch(e){}
+    }
+    function _obDraftBeacon(){
+      const p=_obDraftPayload(); if(!p) return;
+      const body=JSON.stringify(p); if(body===_obLastSyncBody) return;
+      let sent=false;
+      // text/plain keeps the beacon preflight-free; the fallback webhook parses it.
+      try{ if(navigator.sendBeacon) sent=navigator.sendBeacon(ONBOARDING_FALLBACK_URL, new Blob([body], {type:'text/plain'})); }catch(e){}
+      if(!sent){ try{ fetch(ONBOARDING_FALLBACK_URL, {method:'POST', headers:{'Content-Type':'text/plain'}, body:body, keepalive:true}).catch(function(){}); }catch(e){} }
+      _obLastSyncBody=body;
+    }
+    function _obRebuildRep(rep, arr){
+      const cont=document.getElementById(rep==='creators'?'obCreators':'obClips'); if(!cont||!Array.isArray(arr)||!arr.length) return;
+      cont.innerHTML=''; arr.forEach((o,i)=>{ cont.insertAdjacentHTML('beforeend', _obRepRowHtml(rep, i===0)); const row=cont.lastElementChild; row.querySelectorAll('[data-rep-k]').forEach(inp=>{ const k=inp.getAttribute('data-rep-k'); if(o[k]!=null) inp.value=o[k]; }); });
+    }
+    function _obRestoreDraft(){
+      let d=null; try{ d=JSON.parse(localStorage.getItem(OB_DRAFT_KEY)||'null'); }catch(e){}
+      if(!d) return; const form=document.getElementById('obForm'); if(!form) return;
+      _obRebuildRep('creators', d.creators);
+      if(d.ai_avatar){ _obToggleAi(d.ai_avatar); }
+      _obUpdateLikeness();
+      form.querySelectorAll('[data-ob]').forEach(el=>{ const k=el.getAttribute('data-ob'); if(d[k]!=null && typeof d[k]!=='object') el.value=d[k]; });
+      form.querySelectorAll('[data-ob-radio]').forEach(g=>{ const v=d[g.getAttribute('data-ob-radio')]; if(v){ const i=g.querySelector('input[value="'+v+'"]'); if(i) i.checked=true; } });
+      form.querySelectorAll('[data-ob-multi]').forEach(g=>{ const arr=d[g.getAttribute('data-ob-multi')]; if(Array.isArray(arr)) arr.forEach(v=>{ const i=g.querySelector('input[value="'+v+'"]'); if(i) i.checked=true; }); });
+      form.querySelectorAll('[data-ob-toggle]').forEach(t=>{ if(d[t.getAttribute('data-ob-toggle')]) t.checked=true; });
+      const af=document.querySelector('[data-ob="ai_accessories_other"]'); const ao=document.querySelector('[data-ob-multi="ai_accessories"] input[value="other"]'); if(af&&ao) af.style.display=ao.checked?'block':'none';
+      _obStyleSel(); _obBrollSync(); _obThumbSync(); _obThumbBuildSync();
+      _obSyncSelects(); _obUpdateLikeness(); _obTogglePodcast();
+    }
+
+    function _obInjectStyles(){
+      if(document.getElementById('obStyles')) return;
+      const css = `
+      body.onboarding-mode{
+        background:var(--bg);
+        /* Dark theme — scoped to the onboarding page only (the dashboard keeps :root light). */
+        --bg:#101216; --white:#181b21;
+        --text-primary:#eceef2; --text-secondary:#a4abb8; --text-muted:#6c7480;
+        --border:#2a2f39; --border-light:#21252d;
+        --ig:#f4708a; --up:#34d399; --up-bg:#11261d; --dn:#f87171; --dn-bg:#2a1619;
+        --ob-accent:#6366f1;
+      }
+      .ob-wrap{ max-width:680px; margin:0 auto; padding:26px 18px 120px; font-family:'Plus Jakarta Sans',sans-serif; color:var(--text-primary); }
+      .ob-card{ background:var(--white); border:1px solid var(--border); border-radius:18px; padding:30px 28px; box-shadow:0 1px 3px var(--sv-shadow-rgba-0-0-0-0_05); }
+      .ob-kicker{ font-size:0.7rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-muted); }
+      .ob-brand{ display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom:22px; }
+      .ob-logo-wrap{ position:relative; flex-shrink:0; display:inline-flex; }
+      .ob-logo-wrap::after{ content:''; position:absolute; inset:-14px -18px; background:radial-gradient(closest-side, var(--sv-bg-rgba-162-28-230-0_34), var(--sv-bg-rgba-162-28-230-0) 74%); filter:blur(11px); z-index:-1; }
+      .ob-logo{ width:116px; height:auto; display:block; filter:drop-shadow(0 4px 16px var(--sv-shadow-rgba-162-28-230-0_38)); }
+      .ob-brand-kicker{ padding-left:2px; }
+      .ob-title{ font-size:1.6rem; font-weight:800; margin:8px 0 8px; letter-spacing:-0.02em; }
+      .ob-sub{ font-size:0.9rem; line-height:1.5; color:var(--text-secondary); margin:0; }
+      .ob-rail{ display:flex; flex-wrap:wrap; gap:6px; margin:20px 0 4px; }
+      .ob-rail-btn{ font-family:inherit; font-size:0.72rem; font-weight:600; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:99px; padding:6px 12px; cursor:pointer; transition:all 0.13s; }
+      .ob-rail-btn:hover{ color:var(--text-primary); border-color:var(--text-muted); }
+      /* Each main section carries its own colour: a left rail + the numbered badge.
+         The 8 section hues form a calm blue->violet->magenta->rose gradient (all in the
+         brand's purple family, never a rainbow); a section's sub-groups use analogous
+         neighbours of its hue, so a section + its children read as one family. */
+      .ob-sec{ position:relative; padding:24px 0 4px 20px; border-top:1px solid var(--border-light); margin-top:10px; }
+      /* The coloured rail on the left is a clickable handle: click it to collapse/expand its
+         section (or sub-group). It widens + brightens on hover so it reads as interactive. */
+      .ob-crail{ position:absolute; left:0; top:0; bottom:0; width:14px; cursor:pointer; z-index:3; display:block; -webkit-tap-highlight-color:transparent; }
+      .ob-crail::before{ content:''; position:absolute; left:0; top:0; bottom:0; border-radius:0 3px 3px 0; transition:width 0.14s ease, filter 0.14s ease; }
+      .ob-sec > .ob-crail::before{ width:3px; background:var(--sec-rail, var(--border)); }
+      .ob-subgroup > .ob-crail::before{ width:2px; background:var(--sg-rail, var(--border)); }
+      .ob-crail:hover::before, .ob-crail:focus-visible::before{ width:6px; filter:brightness(1.25); }
+      .ob-crail:focus-visible{ outline:none; }
+      .ob-sec:first-of-type{ border-top:none; }
+      .ob-sec-h{ display:flex; align-items:center; gap:10px; margin:0 0 8px; padding:5px 8px 5px 4px; border-radius:10px; cursor:pointer; user-select:none; transition:background 0.13s; }
+      .ob-sec-h:hover{ background:var(--bg); }
+      .ob-sec-h:focus-visible{ outline:2px solid var(--ob-accent); outline-offset:1px; }
+      .ob-sec-n{ display:inline-flex; align-items:center; justify-content:center; width:23px; height:23px; border-radius:99px; background:var(--sec-rail, var(--ob-accent)); color:var(--sv-fg-fff); font-size:0.76rem; font-weight:700; flex-shrink:0; }
+      .ob-sec-h h2{ font-size:1.14rem; font-weight:700; margin:0; letter-spacing:-0.01em; }
+      .ob-sec-chev{ margin-left:auto; color:var(--text-muted); flex-shrink:0; transition:transform 0.28s cubic-bezier(.4,0,.2,1); }
+      .ob-sec-h:hover .ob-sec-chev{ color:var(--text-secondary); }
+      .ob-sec.collapsed .ob-sec-chev{ transform:rotate(-90deg); }
+      .ob-sec-body{ display:grid; grid-template-rows:1fr; transition:grid-template-rows 0.3s cubic-bezier(.4,0,.2,1); }
+      .ob-sec.collapsed .ob-sec-body{ grid-template-rows:0fr; }
+      .ob-sec-inner{ min-height:0; overflow:hidden; }
+      .ob-sec-intro{ font-size:0.85rem; line-height:1.5; color:var(--text-secondary); margin:2px 0 14px; }
+      /* Nested sub-groups: a thin coloured rail makes the Section -> group -> field
+         hierarchy readable at a glance, kept low-key so it reads almost subconsciously. */
+      .ob-subgroup{ position:relative; padding-left:17px; margin:22px 0 6px; }
+      .ob-subgroup + .ob-subgroup{ margin-top:18px; }
+      .ob-subhead{ display:flex; align-items:center; gap:8px; font-size:0.95rem; font-weight:700; letter-spacing:-0.01em; margin:0 -8px 11px; padding:5px 8px; border-radius:8px; color:var(--text-primary); cursor:pointer; user-select:none; transition:background 0.13s; }
+      .ob-subhead:hover{ background:var(--bg); }
+      .ob-subhead:hover .ob-sg-chev{ color:var(--text-secondary); }
+      .ob-subhead:focus-visible{ outline:2px solid var(--sg-rail, var(--ob-accent)); outline-offset:1px; }
+      .ob-sg-dot{ width:7px; height:7px; border-radius:50%; background:var(--sg-dot, var(--text-muted)); flex-shrink:0; }
+      .ob-sg-chev{ margin-left:auto; color:var(--text-muted); flex-shrink:0; transition:transform 0.25s cubic-bezier(.4,0,.2,1); }
+      .ob-subgroup.collapsed .ob-sg-chev{ transform:rotate(-90deg); }
+      .ob-sg-body{ display:grid; grid-template-rows:1fr; transition:grid-template-rows 0.28s cubic-bezier(.4,0,.2,1); }
+      .ob-subgroup.collapsed .ob-sg-body{ grid-template-rows:0fr; }
+      .ob-sg-inner{ min-height:0; overflow:visible; }
+      .ob-subgroup.collapsed .ob-sg-inner{ overflow:hidden; }
+      .ob-q{ margin:0 0 16px; }
+      .ob-label{ display:block; font-size:0.88rem; font-weight:600; margin-bottom:5px; line-height:1.4; }
+      .ob-req{ color:var(--ig); margin-left:3px; }
+      .ob-help{ font-size:0.78rem; line-height:1.45; color:var(--text-secondary); margin-bottom:8px; }
+      .ob-drivenote{ font-size:0.72rem; color:var(--text-muted); margin-top:6px; display:flex; align-items:center; gap:6px; }
+      .ob-lock-ic{ flex-shrink:0; opacity:0.9; }
+      .ob-input{ width:100%; font-family:inherit; font-size:0.9rem; color:var(--text-primary); padding:10px 13px; border:1.5px solid var(--border); border-radius:10px; background:var(--white); box-sizing:border-box; transition:border-color 0.13s; }
+      .ob-input:focus{ outline:none; border-color:var(--ob-accent); box-shadow:0 0 0 3px var(--sv-shadow-rgba-99-102-241-0_22); }
+      .ob-input::placeholder{ color:var(--text-muted); }
+      .ob-ta{ resize:vertical; min-height:42px; line-height:1.5; }
+      .ob-radios,.ob-checks{ display:flex; flex-wrap:wrap; gap:8px; }
+      .ob-opt-wrap{ display:inline-flex; align-items:center; gap:4px; }
+      .ob-pill-opt{ display:inline-flex; align-items:center; font-size:0.85rem; padding:10px 16px; border:1.5px solid var(--border); border-radius:10px; cursor:pointer; transition:all 0.13s; background:var(--white); user-select:none; position:relative; }
+      .ob-pill-opt:hover{ border-color:var(--text-muted); background:var(--bg); }
+      .ob-pill-opt input{ position:absolute; opacity:0; width:0; height:0; }
+      .ob-pill-opt:has(input:checked){ border-color:var(--ob-accent); background:var(--ob-accent); color:var(--sv-fg-fff); font-weight:600; }
+      .ob-i{ display:inline-flex; align-items:center; justify-content:center; vertical-align:middle; width:20px; height:20px; padding:0; border:none; background:none; color:var(--text-muted); cursor:pointer; transition:color 0.12s; }
+      .ob-i:hover{ color:var(--text-primary); }
+      .ob-i svg{ display:block; }
+      .ob-other-field{ }
+      .ob-rep{ display:flex; flex-direction:column; gap:8px; }
+      .ob-rep-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+      .ob-rep-row .ob-input{ flex:1 1 140px; min-width:0; }
+      .ob-rep-x{ flex-shrink:0; width:26px; height:26px; padding:0; border:none; background:none; color:var(--text-muted); font-size:1.25rem; line-height:1; cursor:pointer; border-radius:6px; transition:color 0.12s,background 0.12s; }
+      .ob-rep-x:hover{ color:var(--dn); background:var(--bg); }
+      .ob-add{ margin-top:8px; font-family:inherit; font-size:0.8rem; font-weight:600; color:var(--text-secondary); background:none; border:none; cursor:pointer; padding:2px 0; }
+      .ob-add:hover{ color:var(--text-primary); }
+      .ob-cs{ position:relative; }
+      .ob-cs-btn{ width:100%; display:flex; align-items:center; justify-content:space-between; font-family:inherit; font-size:0.9rem; color:var(--text-primary); padding:10px 13px; border:1.5px solid var(--border); border-radius:10px; background:var(--white); cursor:pointer; text-align:left; transition:border-color 0.13s; }
+      .ob-cs-btn:hover{ border-color:var(--text-muted); }
+      .ob-cs-val{ color:var(--text-primary); }
+      .ob-cs-arrow{ width:9px; height:9px; border-right:2px solid var(--text-secondary); border-bottom:2px solid var(--text-secondary); transform:translateY(-2px) rotate(45deg); flex-shrink:0; margin-left:10px; }
+      .ob-cs-panel{ position:absolute; left:0; right:0; top:calc(100% + 5px); background:var(--white); border:1.5px solid var(--border); border-radius:10px; box-shadow:0 8px 24px var(--sv-shadow-rgba-0-0-0-0_12); z-index:50; overflow:hidden; padding:4px; }
+      .ob-cs-opt{ display:block; width:100%; text-align:left; font-family:inherit; font-size:0.88rem; color:var(--text-primary); padding:9px 11px; border:none; background:none; border-radius:7px; cursor:pointer; }
+      .ob-cs-opt:hover{ background:var(--bg); }
+      .ob-genres{ display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+      .ob-genre{ display:flex; align-items:center; gap:6px; padding:5px 7px 5px 12px; border:1.5px solid var(--border); border-radius:10px; transition:all 0.12s; }
+      .ob-genre:hover{ border-color:var(--text-muted); }
+      .ob-genre:has(input:checked){ border-color:var(--ob-accent); background:var(--bg); }
+      .ob-genre-pick{ display:flex; align-items:center; gap:8px; flex:1; font-size:0.85rem; cursor:pointer; min-width:0; }
+      .ob-genre-pick input{ position:absolute; opacity:0; width:0; height:0; }
+      .ob-chk{ flex-shrink:0; width:19px; height:19px; border-radius:6px; border:1.6px solid var(--border); background:var(--white); position:relative; transition:all 0.13s; }
+      .ob-genre-pick:hover .ob-chk{ border-color:var(--text-muted); }
+      .ob-genre-pick input:checked + .ob-chk{ background:var(--ob-accent); border-color:var(--ob-accent); }
+      .ob-genre-pick input:checked + .ob-chk::after{ content:''; position:absolute; left:6px; top:2.5px; width:4px; height:8px; border:solid var(--sv-border-fff); border-width:0 2px 2px 0; transform:rotate(45deg); }
+      .ob-genre-pick input:focus-visible + .ob-chk{ outline:2px solid var(--ob-accent); outline-offset:2px; }
+      .ob-genre-name{ font-weight:600; }
+      .ob-play{ flex-shrink:0; width:27px; height:27px; border-radius:50%; border:1.5px solid var(--border); background:var(--white); color:var(--text-primary); cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; transition:all 0.12s; }
+      .ob-play svg{ display:block; margin-left:1px; }
+      .ob-play.ob-playing svg{ margin-left:0; }
+      .ob-play:hover{ border-color:var(--ob-accent); }
+      .ob-play.ob-playing{ background:var(--ob-accent); color:var(--sv-fg-fff); border-color:var(--ob-accent); }
+      .ob-sub-grid{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+      .ob-sub-card{ display:flex; gap:10px; align-items:center; padding:10px 11px; border:1.5px solid var(--border); border-radius:12px; transition:all 0.12s; }
+      .ob-sub-card:hover{ border-color:var(--text-muted); }
+      .ob-sub-card:has(input:checked){ border-color:var(--ob-accent); background:var(--bg); }
+      .ob-sub-pick{ display:flex; align-items:center; gap:10px; min-width:0; flex:1; cursor:pointer; }
+      .ob-sub-pick input{ position:absolute; opacity:0; width:0; height:0; }
+      .ob-sub-dot{ flex-shrink:0; width:18px; height:18px; border-radius:50%; border:1.6px solid var(--border); background:var(--white); position:relative; transition:all 0.12s; }
+      .ob-sub-card:has(input:checked) .ob-sub-dot{ border-color:var(--ob-accent); }
+      .ob-sub-card:has(input:checked) .ob-sub-dot::after{ content:''; position:absolute; inset:3.5px; border-radius:50%; background:var(--ob-accent); }
+      .ob-sub-text{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+      .ob-sub-name{ font-size:0.84rem; font-weight:600; }
+      .ob-sub-desc{ font-size:0.72rem; color:var(--text-secondary); line-height:1.35; }
+      .ob-sub-thumb{ position:relative; width:50px; height:68px; border-radius:8px; overflow:hidden; flex-shrink:0; background:var(--border-light); border:none; padding:0; cursor:pointer; }
+      .ob-sub-thumb img,.ob-sub-thumb video{ width:100%; height:100%; object-fit:cover; display:block; }
+      .ob-sub-noimg{ display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.6rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; cursor:default; }
+      .ob-stgrid{ display:flex; flex-direction:column; gap:10px; }
+      .ob-stcard{ border:1.5px solid var(--border); border-radius:12px; padding:12px 14px; transition:all 0.12s; }
+      .ob-stcard:hover{ border-color:var(--text-muted); }
+      .ob-stcard:has(input:checked){ border-color:var(--ob-accent); background:var(--bg); }
+      .ob-stcard-head{ display:flex; align-items:center; gap:10px; cursor:pointer; }
+      .ob-stcard-head input{ position:absolute; opacity:0; width:0; height:0; }
+      .ob-stcard:has(input:checked) .ob-sub-dot{ border-color:var(--ob-accent); }
+      .ob-stcard:has(input:checked) .ob-sub-dot::after{ content:''; position:absolute; inset:3.5px; border-radius:50%; background:var(--ob-accent); }
+      .ob-stp-row{ display:flex; gap:14px; margin-top:11px; }
+      .ob-stp{ display:flex; flex-direction:column; align-items:center; gap:5px; flex:0 0 auto; }
+      .ob-stp .ob-sub-thumb{ width:112px; height:199px; cursor:pointer; }
+      .ob-stp-cap{ font-size:0.7rem; font-weight:600; color:var(--text-muted); }
+      /* Selectable pick under each preview (Standard / +Highlight): a radio dot that fills. */
+      .ob-stp-pick{ display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:0.74rem; font-weight:600; color:var(--text-secondary); user-select:none; }
+      .ob-stp-pick input{ position:absolute; opacity:0; width:0; height:0; }
+      .ob-stp-dot{ flex-shrink:0; width:15px; height:15px; border-radius:50%; border:1.7px solid var(--border); position:relative; transition:all 0.12s; }
+      .ob-stp-pick:hover .ob-stp-dot{ border-color:var(--text-muted); }
+      .ob-stp-pick input:checked + .ob-stp-dot{ border-color:var(--ob-accent); }
+      .ob-stp-pick input:checked + .ob-stp-dot::after{ content:''; position:absolute; inset:3px; border-radius:50%; background:var(--ob-accent); }
+      .ob-stp-pick input:checked ~ .ob-stp-pk-txt{ color:var(--ob-accent); }
+      .ob-stp-pick input:focus-visible + .ob-stp-dot{ outline:2px solid var(--ob-accent); outline-offset:2px; }
+      /* AI "which look" — selectable image previews (multi-select, one or both). */
+      .ob-look-row{ flex-wrap:wrap; }
+      .ob-look-row .ob-stp .ob-sub-thumb{ width:150px; height:266px; }
+      .ob-look-pick{ flex:0 0 auto; align-items:flex-start; max-width:160px; line-height:1.3; }
+      .ob-look-pick .ob-chk{ margin-top:1px; }
+      .ob-look-row .ob-stp:has(input:checked) .ob-sub-thumb{ outline:2.5px solid var(--ob-accent); outline-offset:2px; }
+      /* Live thumbnail picker — preview left, tight controls right (minimal cursor travel). */
+      .ob-tp-buildrow{ margin-bottom:14px; }
+      .ob-tp-buildlbl{ font-size:0.88rem; font-weight:600; }
+      .ob-tp{ display:flex; gap:20px; align-items:flex-start; margin-top:4px; }
+      .ob-tp-prev{ position:relative; flex:0 0 auto; width:186px; padding:0; border:none; background:var(--border-light); border-radius:13px; overflow:hidden; cursor:pointer; line-height:0; box-shadow:0 2px 10px var(--sv-shadow-rgba-0-0-0-0_25); }
+      .ob-tp-img{ width:186px; height:auto; display:block; transition:opacity 0.12s ease; }
+      .ob-tp-ctrls{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:15px; padding-top:2px; }
+      .ob-tp-row{ display:flex; flex-direction:column; gap:8px; }
+      .ob-tp-lbl{ font-size:0.74rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); }
+      .ob-tp-hlrow{ flex-direction:row; align-items:center; justify-content:flex-start; gap:14px; }
+      .ob-seg{ display:flex; flex-wrap:wrap; gap:6px; }
+      .ob-seg-btn{ font-family:inherit; font-size:0.82rem; font-weight:600; color:var(--text-secondary); background:var(--white); border:1.5px solid var(--border); border-radius:9px; padding:8px 13px; cursor:pointer; transition:all 0.12s; }
+      .ob-seg-btn:hover{ border-color:var(--text-muted); color:var(--text-primary); }
+      .ob-seg-btn.sel{ background:var(--ob-accent); border-color:var(--ob-accent); color:var(--sv-fg-fff); }
+      @media(max-width:560px){ .ob-tp{ flex-direction:column; align-items:center; } .ob-tp-ctrls{ width:100%; } }
+      .ob-toggle-q.ob-disabled{ opacity:0.5; }
+      .ob-toggle-q.ob-disabled .ob-switch{ pointer-events:none; }
+      /* Preview affordance: normal pointer cursor + a centred play/expand icon that fades in
+         with a soft scrim on hover/focus — so it's clear you can play a clip or open the
+         thumbnail full screen, without a magnifier cursor. */
+      .ob-zoom-ic{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) scale(0.8); z-index:2; width:38px; height:38px; border-radius:50%; background:var(--sv-bg-rgba-0-0-0-0_5); color:var(--sv-fg-fff); display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.16s ease, transform 0.16s ease, background 0.16s ease; pointer-events:none; }
+      .ob-zoom-ic--play{ padding-left:2px; }
+      .ob-zoom-ic svg{ display:block; }
+      .ob-sub-thumb::after,.ob-tp-prev::after{ content:''; position:absolute; inset:0; z-index:1; background:var(--sv-bg-rgba-0-0-0-0); transition:background 0.16s ease; pointer-events:none; }
+      .ob-sub-thumb:hover::after,.ob-sub-thumb:focus-visible::after,.ob-tp-prev:hover::after,.ob-tp-prev:focus-visible::after{ background:var(--sv-bg-rgba-0-0-0-0_30); }
+      .ob-sub-thumb:hover .ob-zoom-ic,.ob-sub-thumb:focus-visible .ob-zoom-ic,.ob-tp-prev:hover .ob-zoom-ic,.ob-tp-prev:focus-visible .ob-zoom-ic{ opacity:1; transform:translate(-50%,-50%) scale(1); background:var(--sv-bg-rgba-0-0-0-0_62); }
+      .ob-zoom-ov{ position:fixed; inset:0; background:var(--sv-bg-rgba-0-0-0-0_82); display:none; align-items:center; justify-content:center; z-index:10000; cursor:zoom-out; padding:24px; }
+      .ob-zoom-ov.show{ display:flex; }
+      .ob-zoom-ov img,.ob-zoom-ov video{ max-width:92vw; max-height:88vh; border-radius:10px; box-shadow:0 10px 40px var(--sv-shadow-rgba-0-0-0-0_4); }
+      .ob-zoom-x{ position:fixed; top:18px; right:22px; color:var(--sv-fg-fff); font-size:1.4rem; opacity:0.8; }
+      .ob-toggle-q{ display:flex; align-items:center; justify-content:space-between; gap:14px; }
+      .ob-switch{ position:relative; display:inline-block; width:44px; height:26px; flex-shrink:0; cursor:pointer; }
+      .ob-switch input{ opacity:0; width:0; height:0; }
+      .ob-switch-track{ position:absolute; inset:0; background:var(--border); border-radius:99px; transition:0.18s; }
+      .ob-switch-track::before{ content:''; position:absolute; height:20px; width:20px; left:3px; top:3px; background:var(--sv-bg-fff); border-radius:50%; transition:0.18s; box-shadow:0 1px 2px var(--sv-shadow-rgba-0-0-0-0_2); }
+      .ob-switch input:checked + .ob-switch-track{ background:var(--ob-accent); }
+      .ob-switch input:checked + .ob-switch-track::before{ transform:translateX(18px); }
+      .ob-info-panel{ font-size:0.82rem; line-height:1.5; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:11px 13px; margin:4px 0 10px; }
+      .ob-tp-note{ margin:18px 0 22px; }
+      /* Step-4 worked example: video preview + copy, side by side (stacks + centres on mobile). */
+      .ob-sample-eg{ display:flex; gap:16px; align-items:center; background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:14px 15px; }
+      .ob-sample-eg-thumb{ width:120px; height:213px; border-radius:10px; flex-shrink:0; }
+      .ob-sample-eg-body{ display:flex; flex-direction:column; gap:6px; min-width:0; }
+      .ob-sample-eg-title{ font-size:0.9rem; font-weight:700; color:var(--text-primary); }
+      .ob-sample-eg-desc{ font-size:0.82rem; line-height:1.5; color:var(--text-secondary); }
+      @media(max-width:560px){ .ob-sample-eg{ flex-direction:column; align-items:center; text-align:center; } }
+      .ob-lp-check{ align-items:flex-start; gap:10px; line-height:1.45; }
+      .ob-lp-check .ob-chk{ margin-top:1px; }
+      .ob-ai-fields{ margin-top:6px; }
+      .ob-script{ font-size:0.8rem; line-height:1.55; color:var(--text-primary); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:13px 15px; margin-bottom:10px; }
+      .ob-script p{ margin:0 0 8px; } .ob-script p:last-child{ margin-bottom:0; }
+      .ob-footer{ margin-top:28px; padding-top:20px; border-top:1px solid var(--border); }
+      .ob-err{ font-size:0.83rem; color:var(--dn); background:var(--dn-bg); border:1px solid var(--dn); border-radius:9px; padding:10px 13px; margin-bottom:12px; }
+      .ob-dl-wrap{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:9px; }
+      .ob-dl{ appearance:none; border:1px solid var(--ob-accent); background:transparent; color:var(--ob-accent); font:inherit; font-size:0.8rem; font-weight:600; border-radius:8px; padding:6px 11px; cursor:pointer; }
+      .ob-dl:hover{ background:var(--ob-accent); color:var(--sv-fg-fff); }
+      .ob-dl-note{ font-size:0.78rem; color:var(--text-secondary); }
+      .ob-dl-note a{ color:var(--ob-accent); }
+      .ob-submit{ width:100%; font-family:inherit; font-size:0.95rem; font-weight:700; color:var(--sv-fg-fff); background:var(--ob-accent); border:none; border-radius:11px; padding:14px; cursor:pointer; transition:opacity 0.13s; }
+      .ob-submit:hover{ opacity:0.88; } .ob-submit:disabled{ opacity:0.5; cursor:default; }
+      .ob-q.ob-missing .ob-input,.ob-q.ob-missing .ob-radios,.ob-q.ob-missing .ob-checks,.ob-q.ob-missing .ob-genres,.ob-q.ob-missing .ob-sub-grid,.ob-q.ob-missing .ob-stgrid,.ob-q.ob-missing .ob-cs-btn{ box-shadow:0 0 0 2px var(--dn); border-radius:10px; }
+      .ob-q.ob-missing .ob-label{ color:var(--dn); }
+      .ob-thanks{ text-align:center; padding:40px 10px; }
+      .ob-thanks-ico{ width:54px; height:54px; border-radius:99px; background:var(--up-bg); color:var(--up); display:flex; align-items:center; justify-content:center; font-size:1.7rem; margin:0 auto 16px; }
+      .ob-thanks h1{ font-size:1.45rem; font-weight:800; margin:0 0 10px; }
+      .ob-thanks p{ font-size:0.92rem; line-height:1.55; color:var(--text-secondary); max-width:400px; margin:0 auto; }
+      .ob-flash{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--ob-accent); color:var(--sv-fg-fff); font-size:0.82rem; font-weight:600; padding:10px 18px; border-radius:99px; opacity:0; pointer-events:none; transition:all 0.2s; z-index:9999; }
+      .ob-flash.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+      .ob-top{ position:fixed; bottom:22px; right:22px; width:42px; height:42px; border-radius:50%; border:1px solid var(--border); background:var(--white); color:var(--text-primary); cursor:pointer; box-shadow:0 4px 14px var(--sv-shadow-rgba-0-0-0-0_3); opacity:0; pointer-events:none; transform:translateY(10px); transition:all 0.2s; z-index:9998; display:flex; align-items:center; justify-content:center; }
+      .ob-top.show{ opacity:1; pointer-events:auto; transform:translateY(0); }
+      .ob-top:hover{ border-color:var(--text-muted); }
+      @media(max-width:560px){ .ob-card{ padding:24px 16px; } .ob-genres,.ob-sub-grid{ grid-template-columns:1fr; } }
+      `;
+      const st=document.createElement('style'); st.id='obStyles'; st.textContent=css; document.head.appendChild(st);
+    }
+
+    /* ============================================================
+       CONTENT CALENDAR MODULE
+       Backed by n8n workflows (additive, do not edit existing):
+         GET  /webhook/calendar-get?client=<slug>
+         POST /webhook/calendar-upsert-post  { client, post }
+         POST /webhook/calendar-delete-post  { client, id }
+         POST /webhook/calendar-reorder      { client, items[{id,order_index}] }
+       Storage: SyncView Calendar Sheet, one tab per client named Calendar_<slug>
+       (slug = wlNormalizeClient, e.g. "Baya Voce" -> "bayavoce").
+       Schema: id, order_index, scheduled_date, name, asset_url, thumbnail_url,
+       caption, caption_alt, caption_alt_platform, cta, tweaks, status,
+       linear_issue_id, kasper_approved_at,
+       posted_at, updated_at,
+       video_status, graphic_status, caption_status,
+       graphic_linear_issue_id,
+       video_tweaks, graphic_tweaks, caption_tweaks,
+       client_video_approved_at, client_graphic_approved_at, client_caption_approved_at.
+       Per-component tweaks columns hold a JSON-encoded array of threaded
+       comment objects: { id, parent_id, author, role, body, created_at,
+       done, done_at, done_by }. The legacy `tweaks` column mirrors
+       `video_tweaks` during the back-compat window. Overall `status` is
+       always recomputed from the three sub-statuses (lower-priority wins,
+       with Tweaks Needed lowest).
+       ============================================================ */
+    const CALENDAR_GET_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-get';
+    const CALENDAR_UPSERT_N8N_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
+    const CALENDAR_UPSERT_URL  = CALENDAR_UPSERT_N8N_URL; // legacy fallback alias; do not fetch directly
+    const CALENDAR_UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert';
+    const CALENDAR_APPEND_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-append-post';
+    const CALENDAR_DELETE_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-delete-post';
+    const CALENDAR_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder';
+    const CALENDAR_REORDER_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-reorder';
+    // Batched reorder: same contract, but the workflow writes every
+    // order_index in ONE values:batchUpdate (3 fixed API calls instead of
+    // one per row). Falls back to CALENDAR_REORDER_URL when unavailable.
+    const CALENDAR_REORDER_BATCH_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder-batch';
+    // Batched Kasper-queue read: every Calendar_<slug> tab in one POST
+    // (2 Google API calls server-side). The FE falls back to per-client
+    // CALENDAR_GET_URL calls whenever this endpoint fails.
+    const KASPER_QUEUE_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/kasper-queue';
+    const LINEAR_SUBISSUES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-subissues';
+    const LINEAR_SET_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-set-status';
+    const LINEAR_STATUSES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issue-statuses';
+    const LINEAR_ADD_COMMENT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-add-comment';
+    const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';
+    const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
+    const CAPTION_PROMPTS_SAVE_URL   = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save';
+    /* Caption-job tracking. The generate-caption workflow upserts a row per
+       run into the caption_jobs n8n data table (status: running/done/error/
+       cancelled, stage: scraping → transcribing → writing → done). The UI
+       polls the status webhook so the button/progress chip mirror the real
+       backend state — surviving refreshes, tab switches and dropped
+       connections — and posts cancel_requested to the update webhook. */
+    const CAPTION_JOB_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-status';
+    const CAPTION_JOB_UPDATE_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-update';
+    const CAPTION_PROMPTS_SAVE_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-prompts-save';
+    /* "URGENT TWEAKS NEEDED" ping. The front-end sends only the video
+       sub-issue's Linear URL + client name; the send-urgent-slack workflow
+       validates the URL, resolves the editor from Linear, maps them to a Slack
+       user via the Video Editors sheet tab, and posts to #video-editing as the
+       SyncView Bot. The editor/mention is never trusted from the client. */
+    const URGENT_SLACK_URL = 'https://synchrosocial.app.n8n.cloud/webhook/send-urgent-slack';
+    /* "URGENT — WAITING ON YOU" ping for a card parked at Kasper Approval. The
+       twin of the one above, aimed the other way: the SMM fires it when a card
+       has been sitting in Kasper's queue too long, and the send-urgent-kasper-slack
+       workflow DMs Kasper as the SyncView Bot with a link straight to his review
+       tab. As with the editor ping the front-end sends only card context — the
+       recipient is resolved inside the workflow and is never trusted from the
+       browser. */
+    const URGENT_KASPER_SLACK_URL = 'https://synchrosocial.app.n8n.cloud/webhook/send-urgent-kasper-slack';
+    /* ============================================================
+       CALENDAR v2 (Supabase realtime) — Phase 2 config
+       See docs/archive/CALENDAR_REALTIME_MIGRATION.md. Hidden behind ?v2=1
+       (sticky in localStorage; ?v2=0 clears it). Two gates:
+         _calV2Enabled() — flag only. Turns on field-level patch
+            writes (the upsert workflow already accepts partial
+            patches). No backend dependency; reads stay on n8n.
+         _calV2Ready()   — flag AND the anon key below is set.
+            Switches reads to Supabase REST + opens the realtime
+            subscription.
+       ACTIVATION (Sidney, in Supabase — SQL in the migration doc):
+         1) anon SELECT policy on public.calendar_posts
+         2) add the table to the supabase_realtime publication
+         3) paste the anon (publishable) key into CAL_SUPABASE_ANON_KEY
+       Until (3) is filled in, _calV2Ready() is false and nothing
+       touches Supabase — the flag only enables patch writes. The
+       anon/publishable key is a browser key (same exposure as
+       today's open calendar webhooks); commit it ONLY once the RLS
+       policy in (1) is live. */
+    const CAL_SUPABASE_URL      = 'https://uzltbbrjidmjwwfakwve.supabase.co';
+    const CAL_SUPABASE_ANON_KEY = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA'; // browser-safe publishable key; read-only via RLS
+    const CAL_SUPABASE_LIB_URL  = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; // UMD → window.supabase
+    const WORKLOAD_PLAN_URL = CAL_SUPABASE_URL + '/functions/v1/workload-plan';
+    const WORKLOAD_LINEAR_URL = CAL_SUPABASE_URL + '/functions/v1/workload-linear';
+    const CLIENT_TOKEN_VERIFY_URL = CAL_SUPABASE_URL + '/functions/v1/client-token-verify';
+    const SYNCVIEW_CLIENT_ENTRY_PROTOCOL = 'syncview-client-entry-v1';
+    const CLIENT_REVIEW_LINK_URL = CAL_SUPABASE_URL + '/functions/v1/client-review-link';
+    const STAFF_KEY_VERIFY_URL = CAL_SUPABASE_URL + '/functions/v1/key-verify';
+    const THUMBNAIL_FOLDER_RESOLVE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/thumbnail-folder-resolve';
+    const THUMBNAIL_REVISION_READ_EF_URL = CAL_SUPABASE_URL + '/functions/v1/thumbnail-revision-read';
+    const SMM_WEEKLY_REPORTS_URL = CAL_SUPABASE_URL + '/functions/v1/smm-weekly-reports';
+    const PTO_EF_URL = CAL_SUPABASE_URL + '/functions/v1/pto';
+    const PTO_FLAG_KEY = 'pto_v1';
+    const SYNCVIEW_STAFF_IDENTITY_KEY = 'syncview_staff_identity_v1';
+    const SYNCVIEW_STAFF_PROMPT_SESSION_KEY = 'syncview_staff_identity_prompted_v1';
+    const SYNCVIEW_STAFF_LEGACY_IDENTITY_KEYS = Object.freeze([
+        'syncview_client_credentials_identity_v1',
+        'syncview_filming_plans_identity_v1'
+    ]);
+    let _syncviewStaffIdentityMem = null;
+    let _syncviewStaffIdentityLoaded = false;
+    let _syncviewStaffIdentityVerified = false;
+    let _syncviewStaffVerificationEpoch = 0;
+    let _syncviewStaffRosterCache = null;
+    let _syncviewStaffPromptPromise = null;
+    let _syncviewStaffBootPromise = null;
+    let _syncviewStaffAwaitBootPromise = null;
+
+    function _syncviewStaffEsc(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+    function _syncviewStaffIdentitySignature(identity) {
+        return identity && identity.key && identity.member && identity.member.id
+            ? [String(identity.key), String(identity.role || ''), String(identity.member.id)].join('\u0000')
+            : '';
+    }
+    function _syncviewStaffClearLegacyIdentityStorage() {
+        try { SYNCVIEW_STAFF_LEGACY_IDENTITY_KEYS.forEach(key => localStorage.removeItem(key)); } catch (e) {}
+    }
+    function _syncviewStaffIdentityLoad() {
+        if (_syncviewStaffIdentityLoaded) return _syncviewStaffIdentityMem;
+        try { _syncviewStaffIdentityMem = JSON.parse(localStorage.getItem(SYNCVIEW_STAFF_IDENTITY_KEY) || 'null') || null; }
+        catch (e) { _syncviewStaffIdentityMem = null; }
+        _syncviewStaffIdentityLoaded = true;
+        return _syncviewStaffIdentityMem;
+    }
+    function _syncviewStaffIdentitySave(identity) {
+        _syncviewStaffIdentityMem = identity || null;
+        _syncviewStaffIdentityLoaded = true;
+        try {
+            if (identity) localStorage.setItem(SYNCVIEW_STAFF_IDENTITY_KEY, JSON.stringify(identity));
+            else localStorage.removeItem(SYNCVIEW_STAFF_IDENTITY_KEY);
+        } catch (e) {}
+        if (identity && _syncviewStaffIdentityVerified) {
+            try {
+                if (typeof wlRefreshSensitiveStateSilent === 'function') wlRefreshSensitiveStateSilent();
+            } catch (e) {}
+        }
+    }
+    function _syncviewInvalidateStaffVerification() {
+        _syncviewStaffIdentityVerified = false;
+        _syncviewStaffVerificationEpoch++;
+    }
+    function _syncviewAcceptStaffVerification() {
+        _syncviewStaffVerificationEpoch++;
+        _syncviewStaffIdentityVerified = true;
+        // A verification accepted while the gate is up IS the gate coming down,
+        // whatever path produced it (the entry form, boot re-verification, or a
+        // sibling tab signing back in).
+        try {
+            if (typeof _syncviewStaffGateRequired === 'function' && _syncviewStaffGateRequired()
+                && _syncviewStaffIdentityValid()) _syncviewLiftStaffGate();
+        } catch (e) {}
+    }
+    function _syncviewStaffIdentityClear() {
+        _syncviewStaffPurgeSensitiveState();
+        if (typeof _syncviewInvalidateStaffVerification === 'function') _syncviewInvalidateStaffVerification();
+        else _syncviewStaffIdentityVerified = false;
+        _syncviewStaffIdentitySave(null);
+        try { if (typeof _prodComments !== 'undefined') _prodComments.clear(); } catch (e) {}
+        _syncviewStaffClearLegacyIdentityStorage();
+        _syncviewStaffRefreshChrome();
+        if (typeof _syncviewStaffGateRequired === 'function' && _syncviewStaffGateRequired()) _syncviewOpenStaffGate();
+    }
+    function _syncviewStaffIdentityValid() {
+        const identity = _syncviewStaffIdentityLoad();
+        return !!(_syncviewStaffIdentityVerified && identity && identity.key && identity.member && identity.member.id && identity.member.name && identity.role);
+    }
+    function _syncviewStaffIdentityForHeaders() {
+        return _syncviewStaffIdentityValid() ? _syncviewStaffIdentityLoad() : null;
+    }
+    /* ---- Staff entry gate ----------------------------------------------
+       ADMISSION (may the app shell be opened) and VERIFICATION (may this
+       action touch data) are separate, and BOTH now require the key-verify
+       Edge Function to agree. Nothing the browser holds is ever treated as
+       proof: a stored identity is writable by hand in devtools, so it decides
+       only what to PAINT before the server answers.
+
+       An earlier revision of this change admitted the shell during a verifier
+       outage when the stored identity carried a recent `verified_at`, so that
+       a Supabase blip would not lock the team out. Codex caught it in review
+       and was right: `verified_at` is a field in that same hand-writable blob,
+       so anyone could set it to now, block ONLY the verifier request, and walk
+       into the shell -- the outage was manufacturable, which made the grace
+       window a bypass rather than a cushion. It also bought less than it
+       looked: every read the shell performs goes to the same Supabase host as
+       key-verify, so a genuine outage leaves the app empty anyway. The only
+       case it covered was key-verify alone being broken, which is precisely
+       the case an attacker can produce on demand. There is no offline proof to
+       replace it with -- an unforgeable one would have to be server-issued and
+       server-checked, which is what key-verify already is -- so the gate now
+       fails closed on every verification failure. */
+    function _syncviewStaffIdentityStorageChanged(event) {
+        if (!event || event.key !== SYNCVIEW_STAFF_IDENTITY_KEY) return;
+        try { if (event.storageArea && event.storageArea !== localStorage) return; } catch (e) {}
+        let next = null;
+        try { next = event.newValue ? JSON.parse(event.newValue) : null; } catch (e) {}
+        const current = _syncviewStaffIdentityLoad();
+        const currentSignature = _syncviewStaffIdentitySignature(current);
+        const nextSignature = _syncviewStaffIdentitySignature(next);
+        _syncviewStaffIdentityMem = next || null;
+        _syncviewStaffIdentityLoaded = true;
+        if (!nextSignature) {
+            _syncviewStaffPurgeSensitiveState();
+            if (typeof _syncviewInvalidateStaffVerification === 'function') _syncviewInvalidateStaffVerification();
+            else _syncviewStaffIdentityVerified = false;
+            try { if (typeof _prodComments !== 'undefined') _prodComments.clear(); } catch (e) {}
+            _syncviewStaffClearLegacyIdentityStorage();
+            _syncviewStaffRefreshChrome();
+            // typeof-guarded like the calls around it: this handler is lifted
+            // into an isolated VM by test/workload-plan-failclosed.js, where the
+            // gate helpers are not defined.
+            if (typeof _syncviewStaffGateRequired === 'function' && _syncviewStaffGateRequired()) _syncviewOpenStaffGate();
+            return;
+        }
+        if (nextSignature === currentSignature && _syncviewStaffIdentityVerified) return;
+        if (nextSignature !== currentSignature) _syncviewStaffPurgeSensitiveState();
+        if (typeof _syncviewInvalidateStaffVerification === 'function') _syncviewInvalidateStaffVerification();
+        else _syncviewStaffIdentityVerified = false;
+        if (nextSignature !== currentSignature) {
+            try { if (typeof _prodComments !== 'undefined') _prodComments.clear(); } catch (e) {}
+        }
+        _syncviewStaffRefreshChrome();
+        const verifyCurrentStoredIdentity = () => {
+            if (_syncviewStaffIdentitySignature(_syncviewStaffIdentityLoad()) !== nextSignature || _syncviewStaffIdentityValid()) return;
+            _syncviewStaffIdentityBoot();
+        };
+        if (_syncviewStaffBootPromise) {
+            _syncviewStaffBootPromise.finally(() => setTimeout(verifyCurrentStoredIdentity, 0));
+        } else verifyCurrentStoredIdentity();
+    }
+    window.addEventListener('storage', _syncviewStaffIdentityStorageChanged);
+    function _syncviewStaffRoleValue(identity) {
+        return String(identity && identity.role || '').trim().toLowerCase();
+    }
+    function _syncviewStaffRoleLabel(role) {
+        const value = String(role || '').trim().toLowerCase();
+        if (value === 'admin') return 'Admin';
+        if (value === 'smm') return 'SMM';
+        if (value === 'creative') return 'Creative';
+        return value ? value.charAt(0).toUpperCase() + value.slice(1) : 'Staff';
+    }
+    function _syncviewStaffCan(capability) {
+        const identity = _syncviewStaffIdentityForHeaders();
+        const role = _syncviewStaffRoleValue(identity);
+        if (capability === 'credentials') return role === 'admin' || role === 'smm';
+        if (capability === 'review-link') return role === 'admin' || role === 'smm';
+        if (capability === 'intake') return role === 'admin' || role === 'smm';
+        if (capability === 'onboarding') return role === 'admin' || role === 'smm' || role === 'creative';
+        if (capability === 'weekly-report-submit') return role === 'admin' || role === 'smm';
+        if (capability === 'weekly-report-manage') return role === 'admin';
+        if (capability === 'hiring') return role === 'admin';
+        if (capability === 'pto-admin') return role === 'admin';
+        if (capability === 'quiz-leads') return role === 'admin';
+        if (capability === 'workload-plan-read') return role === 'admin' || role === 'smm' || role === 'creative';
+        if (capability === 'workload-plan') return role === 'admin' || role === 'smm';
+        if (capability === 'workload-linear-read') return role === 'admin' || role === 'smm' || role === 'creative';
+        if (capability === 'workload-linear') return role === 'admin' || role === 'smm';
+        return !!identity;
+    }
+    async function _syncviewRequireStaffIdentity(capability) {
+        let identity = _syncviewStaffIdentityForHeaders();
+        if (!identity) {
+            await _syncviewOpenStaffIdentity({ reason: 'required' });
+            identity = _syncviewStaffIdentityForHeaders();
+        }
+        if (!identity) throw new Error('Staff sign-in required.');
+        if (!_syncviewStaffCan(capability)) {
+            let message = 'This action requires an Admin account. Sign out first to use another authorized account.';
+            if (capability === 'credentials') message = 'Client credentials are available to Admin or SMM accounts. Sign out first to use another authorized account.';
+            else if (capability === 'review-link') message = 'Client links are available to Admin or SMM accounts. Sign out first to use another authorized account.';
+            else if (capability === 'intake') message = 'Production submissions require an Admin or SMM account. Sign out first to use another authorized account.';
+            else if (capability === 'onboarding') message = 'Onboarding is available to Admin, SMM, or Creative accounts. Sign out first to use another authorized account.';
+            else if (capability === 'weekly-report-submit') message = 'Weekly reports are available to Admin or SMM accounts. Sign out first to use another authorized account.';
+            else if (capability === 'weekly-report-manage') message = 'Weekly report management requires an Admin account. Sign out first to use another authorized account.';
+            else if (capability === 'hiring') message = 'Hiring Process requires an Admin account. Sign out first to use another authorized account.';
+            else if (capability === 'pto-admin') message = 'Time Off approvals and setup require an Admin account. Sign out first to use another authorized account.';
+            else if (capability === 'workload-plan-read') message = 'The shared Workload calendar requires an Admin, SMM, or Creative account. Sign out first to use another authorized account.';
+            else if (capability === 'workload-plan') message = 'Work-day planning requires an Admin or SMM account. Sign out first to use another authorized account.';
+            else if (capability === 'workload-linear-read') message = 'Workload labels require an Admin, SMM, or Creative account. Sign out first to use another authorized account.';
+            else if (capability === 'workload-linear') message = 'Linear due-date editing requires an Admin or SMM account. Sign out first to use another authorized account.';
+            const error = new Error(message);
+            error.status = 403;
+            throw error;
+        }
+        return identity;
+    }
+    function _syncviewOfferStaffSignIn(capability) {
+        if (!_syncviewStaffIdentityForHeaders()) {
+            _syncviewOpenStaffIdentity({ reason: 'required' });
+            return false;
+        }
+        const message = capability === 'credentials'
+            ? 'Client credentials need an Admin or SMM account. Sign out first to use another authorized account.'
+            : (capability === 'pto-admin'
+                ? 'Time Off approvals and setup need an Admin account. Sign out first to use another authorized account.'
+                : 'This action needs an Admin account. Sign out first to use another authorized account.');
+        try { showToast(message); } catch (e) {}
+        return false;
+    }
+    function _syncviewProdDirectPreview() {
+        try { return new URLSearchParams(location.search).get('prod') === '1'; }
+        catch (e) { return false; }
+    }
+    function _syncviewStaffEligible() {
+        try {
+            return !_isClientLink && !_isIntake && !_isOnboarding;
+        } catch (e) { return false; }
+    }
+    function _syncviewStaffSetChecking(checking) {
+        const button = document.getElementById('headerMenuButton');
+        if (!button) return;
+        button.classList.toggle('is-checking', !!checking);
+        if (checking) {
+            button.setAttribute('aria-busy', 'true');
+            button.title = 'Checking saved staff sign-in';
+            button.setAttribute('aria-label', 'Checking saved staff sign-in');
+        } else button.removeAttribute('aria-busy');
+    }
+    function _syncviewStaffRefreshChrome() {
+        const identity = _syncviewStaffIdentityForHeaders();
+        const valid = !!identity;
+        const role = _syncviewStaffRoleValue(identity);
+        const button = document.getElementById('headerMenuButton');
+        const wrap = document.getElementById('staffIdentityWrap');
+        const eligible = _syncviewStaffEligible();
+        if (wrap) wrap.hidden = !eligible;
+        if (button) {
+            button.hidden = !eligible;
+            button.classList.toggle('is-valid', valid);
+            const displayRole = valid ? _syncviewStaffRoleLabel(identity.member && identity.member.role || role) : '';
+            const label = valid ? ('Open staff menu for ' + identity.member.name + ' · ' + displayRole) : 'Open staff menu';
+            button.title = label;
+            button.setAttribute('aria-label', label);
+            button.setAttribute('aria-haspopup', 'menu');
+            if (!valid && document.getElementById('staffAccountPopover')?.hidden) button.setAttribute('aria-expanded', 'false');
+        }
+        try { document.documentElement.setAttribute('data-staff-role', valid ? role : ''); } catch (e) {}
+        document.querySelectorAll('[data-staff-capability]').forEach(element => {
+            element.hidden = !_syncviewStaffCan(element.getAttribute('data-staff-capability'));
+        });
+        if (!valid) {
+            _syncviewCloseStaffAccount();
+            // Purging the in-memory PTO caches is not enough: immediately
+            // replace any mounted HR view so previous staff data never
+            // remains visible after sign-out, a cross-tab identity change, or
+            // an expired-key 401.
+            try {
+                if (typeof currentNav !== 'undefined' && currentNav === 'time-off' && typeof _ptoPaint === 'function') _ptoPaint();
+                if (typeof currentNav !== 'undefined' && currentNav === 'kasper'
+                    && typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'time-off'
+                    && typeof _ptoRenderAdmin === 'function') _ptoRenderAdmin();
+            } catch (e) {}
+        } else {
+            // A cross-tab identity replacement first purges the mounted HR
+            // view. Rehydrate it only after the replacement is verified.
+            try {
+                if (typeof currentNav !== 'undefined' && currentNav === 'time-off'
+                    && typeof _ptoLoadOverview === 'function' && typeof _ptoState !== 'undefined'
+                    && !_ptoState.overview && !_ptoState.loading) _ptoLoadOverview(true);
+                if (typeof currentNav !== 'undefined' && currentNav === 'kasper'
+                    && typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'time-off'
+                    && typeof _ptoRenderAdmin === 'function') _ptoRenderAdmin();
+            } catch (e) {}
+        }
+        try {
+            const tab = typeof _kasperState !== 'undefined' && _kasperState ? _kasperState.tab : '';
+            const blocked = (tab === 'client-credentials' && !_syncviewStaffCan('credentials'))
+                || (tab === 'onboarding' && !_syncviewStaffCan('onboarding'))
+                || (tab === 'filming' && !valid);
+            if (blocked) {
+                _kasperFallbackToReview();
+                if (typeof currentNav !== 'undefined' && currentNav === 'kasper' && typeof _kasperRenderTab === 'function') _kasperRenderTab();
+            }
+        } catch (e) {}
+        try {
+            if (valid && typeof _thumbCompareScheduleAvailability === 'function') {
+                if (typeof currentNav !== 'undefined' && currentNav === 'calendar') _thumbCompareScheduleAvailability('calendar');
+                else if (typeof currentNav !== 'undefined' && currentNav === 'sample-reviews') _thumbCompareScheduleAvailability('samples');
+            }
+        } catch (e) {}
+    }
+    async function _syncviewStaffRoster() {
+        if (_syncviewStaffRosterCache) return _syncviewStaffRosterCache;
+        const url = CAL_SUPABASE_URL + '/rest/v1/team_members?active=eq.true&select=id,name,role,team&order=name.asc';
+        const response = await fetch(url, {
+            headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
+        });
+        if (!response.ok) throw new Error('Could not load the staff roster');
+        const rows = await response.json();
+        _syncviewStaffRosterCache = (Array.isArray(rows) ? rows : [])
+            .filter(row => row && row.id && row.name && row.active !== false)
+            .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+        return _syncviewStaffRosterCache;
+    }
+    async function _syncviewVerifyStaffIdentity(candidate, surface) {
+        const response = await fetch(STAFF_KEY_VERIFY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': String(candidate && candidate.key || '') },
+            body: JSON.stringify({ surface: surface || 'staff-login', member: { id: candidate && candidate.member && candidate.member.id } })
+        });
+        let json = null;
+        try { json = await response.json(); } catch (e) {}
+        if (!response.ok || !json || json.ok !== true || !json.member) {
+            const error = new Error(response.status === 401 ? 'That role key does not match the selected name.' : 'Could not verify this sign-in right now.');
+            error.status = response.status;
+            throw error;
+        }
+        return {
+            key: String(candidate.key || ''),
+            role: String(json.role || ''),
+            member: {
+                id: String(json.member.id || ''),
+                name: String(json.member.name || ''),
+                role: String(json.member.role || ''),
+                team: json.member.team == null ? null : String(json.member.team)
+            },
+            verified_at: new Date().toISOString()
+        };
+    }
+    function _syncviewStaffInitials(name) {
+        const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+        return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] || 'S').slice(0, 2)).toUpperCase();
+    }
+    function _syncviewStaffPurgeSensitiveState() {
+        try { if (typeof wlPurgePlanSensitiveState === 'function') wlPurgePlanSensitiveState(); } catch (e) {}
+        try { if (typeof _linearIntakePurgeSensitiveState === 'function') _linearIntakePurgeSensitiveState(); } catch (e) {}
+        try { if (typeof _fpPurgeSensitiveState === 'function') _fpPurgeSensitiveState(); } catch (e) {}
+        try { if (typeof _prodSmmPurgeSensitiveState === 'function') _prodSmmPurgeSensitiveState(); } catch (e) {}
+        try { if (typeof _hpPurgeSensitiveState === 'function') _hpPurgeSensitiveState(); } catch (e) {}
+        try { if (typeof _ptoCalResetView === 'function') _ptoCalResetView(); } catch (e) {}
+        try { if (typeof _ccCloseModal === 'function') _ccCloseModal(); } catch (e) {}
+        try { if (typeof _ccRevTeardown === 'function') _ccRevTeardown(); } catch (e) {}
+        try { document.querySelectorAll('#ccOverlay, .cc-sensitive-overlay').forEach(element => element.remove()); } catch (e) {}
+        try {
+            _ccState.kasper.credentials = [];
+            _ccState.kasper.error = null;
+            _ccState.kasper.loaded = false;
+            _ccState.kasper.loading = false;
+            _ccState.modal.credentials = [];
+            _ccState.modal.error = null;
+            _ccState.modal.loaded = false;
+            _ccState.modal.loading = false;
+            _ccState.modal.open = false;
+            _ccState.modal.client = '';
+        } catch (e) {}
+        try { _ccRevealed.clear(); } catch (e) {}
+        try { _ccExpanded.clear(); } catch (e) {}
+        try {
+            if (_obvMode === 'full') {
+                _obvSubs = null;
+                _obvSelected = null;
+                _obvError = '';
+                _obvWarn = '';
+                _obvLoadedAt = 0;
+                _obvLoading = false;
+                _obvMode = 'edge';
+            }
+        } catch (e) {}
+        try {
+            if (typeof _prodState !== 'undefined' && _prodState) {
+                _prodState.commentDrafts.clear();
+                _prodState.writes.clear();
+                _prodState.labels.clear();
+                _prodState.createCatalogToken++;
+                _prodState.createCatalog = [];
+                _prodState.createAssignees = [];
+                _prodState.createCatalogStatus = 'idle';
+                _prodState.createCatalogError = '';
+                _prodState.createDraft = null;
+                _prodState.createSubmitting = false;
+                _prodState.createError = '';
+                try { sessionStorage.removeItem(PROD_CREATE_DRAFT_KEY); } catch (e) {}
+                try {
+                    if (document.querySelector('[data-prod-create-modal]') && typeof _prodClearLayer === 'function') {
+                        _prodClearLayer();
+                    }
+                } catch (e) {}
+                // The Production first-paint snapshot is an authorized-session
+                // copy; drop it on sign-out so the next paint cannot seed from a
+                // prior identity's cached clients/deliverables/authority.
+                if (typeof _prodCachePurge === 'function') _prodCachePurge();
+                // Archive asset repair holds cached archive comments and rescued
+                // private links. Clear it, invalidate its in-flight request
+                // tokens, and remove its overlay so no signed-out session keeps
+                // protected history visible in ?prod=1 preview mode.
+                if (_prodState.archiveRepair) {
+                    _prodState.archiveRepair.listRequestToken = Number(_prodState.archiveRepair.listRequestToken || 0) + 1;
+                    _prodState.archiveRepair.detailRequestToken = Number(_prodState.archiveRepair.detailRequestToken || 0) + 1;
+                    _prodState.archiveRepair = null;
+                    try {
+                        if (document.querySelector('[data-prod-archive-modal]') && typeof _prodClearLayer === 'function') {
+                            _prodClearLayer();
+                        }
+                    } catch (e) {}
+                }
+            }
+        } catch (e) {}
+        try {
+            if (typeof _ptoInvalidateOverviewCaches === 'function') _ptoInvalidateOverviewCaches();
+        } catch (e) {}
+    }
+    function _syncviewCloseStaffAccount(options) {
+        options = options || {};
+        const popover = document.getElementById('staffAccountPopover');
+        const button = document.getElementById('headerMenuButton');
+        if (!popover || popover.hidden) return;
+        if (popover._syncviewOutside) document.removeEventListener('mousedown', popover._syncviewOutside, true);
+        if (popover._syncviewKeydown) document.removeEventListener('keydown', popover._syncviewKeydown, true);
+        popover._syncviewOutside = null;
+        popover._syncviewKeydown = null;
+        popover.classList.remove('is-open');
+        popover.hidden = true;
+        if (button) button.setAttribute('aria-expanded', 'false');
+        if (options.restoreFocus && button) button.focus();
+    }
+    function _syncviewOpenStaffAccount() {
+        const identity = _syncviewStaffIdentityForHeaders();
+        const popover = document.getElementById('staffAccountPopover');
+        const button = document.getElementById('headerMenuButton');
+        const wrap = document.getElementById('staffIdentityWrap');
+        if (!popover || !button || !wrap || !_syncviewStaffEligible()) return false;
+        if (!popover.hidden) { _syncviewCloseStaffAccount({ restoreFocus: true }); return true; }
+        const name = String(identity && identity.member && identity.member.name || 'Staff');
+        const role = _syncviewStaffRoleLabel(identity && identity.member && identity.member.role || _syncviewStaffRoleValue(identity));
+        const summary = popover.querySelector('#staffAccountSummary');
+        const identityAction = popover.querySelector('#staffIdentitySignOut');
+        const identityLabel = popover.querySelector('#staffIdentityMenuLabel');
+        const timeOffAction = popover.querySelector('#headerTimeOffMenuItem');
+        if (identity) {
+            popover.setAttribute('aria-label', 'Signed in as ' + name + ' · ' + role);
+            if (summary) summary.innerHTML = '<span class="staff-account-avatar" aria-hidden="true">' + _syncviewStaffEsc(_syncviewStaffInitials(name)) + '</span>'
+                + '<div class="staff-account-copy"><div class="staff-account-line">Signed in as ' + _syncviewStaffEsc(name) + ' · ' + _syncviewStaffEsc(role) + '</div><div class="staff-account-note">Verified on this device</div></div>';
+            if (identityLabel) identityLabel.textContent = 'Sign out';
+            if (identityAction) identityAction.onclick = _syncviewStaffSignOut;
+        } else {
+            popover.setAttribute('aria-label', 'Staff menu');
+            if (summary) summary.innerHTML = '<span class="staff-account-avatar" aria-hidden="true">SV</span>'
+                + '<div class="staff-account-copy"><div class="staff-account-line">SyncView staff</div><div class="staff-account-note">Sign in to use staff-only tools</div></div>';
+            if (identityLabel) identityLabel.textContent = 'Staff sign in';
+            if (identityAction) identityAction.onclick = () => {
+                _syncviewCloseStaffAccount();
+                _syncviewOpenStaffIdentity({ reason: 'required' });
+            };
+        }
+        if (timeOffAction) timeOffAction.hidden = !(typeof _ptoEnabled === 'function' && _ptoEnabled());
+        _syncviewApplyStatusPalette(_syncviewStoredStatusPalette());
+        _syncviewApplyTheme(_syncviewStoredTheme(), false);
+        popover.hidden = false;
+        popover.classList.add('is-open');
+        button.setAttribute('aria-expanded', 'true');
+        popover._syncviewOutside = event => { if (!wrap.contains(event.target)) _syncviewCloseStaffAccount(); };
+        popover._syncviewKeydown = event => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                _syncviewCloseStaffAccount({ restoreFocus: true });
+                return;
+            }
+            if (event.key === 'Tab') {
+                setTimeout(() => { if (!wrap.contains(document.activeElement)) _syncviewCloseStaffAccount(); }, 0);
+            }
+        };
+        document.addEventListener('keydown', popover._syncviewKeydown, true);
+        const action = popover.querySelector('#staffIdentitySignOut');
+        if (action) action.focus();
+        setTimeout(() => { if (!popover.hidden) document.addEventListener('mousedown', popover._syncviewOutside, true); }, 0);
+        return true;
+    }
+    function _syncviewStaffSignOut() {
+        _syncviewCloseStaffAccount();
+        _syncviewStaffIdentityClear();
+        try { showToast('Signed out'); } catch (e) {}
+        const button = document.getElementById('headerMenuButton');
+        if (button) button.focus();
+    }
+    function _syncviewCloseStaffIdentity(value, options) {
+        options = options || {};
+        const overlay = document.getElementById('staffIdentityOverlay');
+        if (!overlay) return;
+        overlay._syncviewClosed = true;
+        if (overlay._syncviewKeydown) document.removeEventListener('keydown', overlay._syncviewKeydown, true);
+        try { if (typeof _ccCloseSelect === 'function') _ccCloseSelect('staffIdentityMember'); } catch (e) {}
+        document.getElementById('staffGateOverlay')?.classList.remove('is-carded');
+        const done = overlay._syncviewResolve;
+        if (overlay) overlay.remove();
+        if (typeof done === 'function') done(value || null);
+        if (options.restoreFocus !== false) {
+            const button = document.getElementById('headerMenuButton');
+            if (button) button.focus();
+        }
+    }
+    function _syncviewToggleStaffRoleKey(button) {
+        _ccTogglePasswordField('staffIdentityKey', button);
+        const input = document.getElementById('staffIdentityKey');
+        if (!input || !button) return;
+        const label = input.type === 'text' ? 'Hide role key' : 'Show role key';
+        button.setAttribute('aria-label', label);
+        button.title = label;
+    }
+    function _syncviewBindStaffIdentityOverlay(overlay, entry) {
+        overlay._syncviewEntry = !!entry;
+        // Entry mode IS the door: there is nothing behind it to dismiss to,
+        // so backdrop clicks and Escape must not close it.
+        overlay.onclick = event => { if (event.target === overlay && overlay._backdropPressBegan && !overlay._syncviewEntry) _syncviewCloseStaffIdentity(null); };
+        overlay._syncviewKeydown = event => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                try {
+                    if (typeof _ccOpenSelectId !== 'undefined' && _ccOpenSelectId === 'staffIdentityMember') {
+                        _ccCloseSelect('staffIdentityMember');
+                        document.getElementById('staffIdentityMemberBtn')?.focus();
+                        return;
+                    }
+                } catch (e) {}
+                if (!overlay._syncviewEntry) _syncviewCloseStaffIdentity(null);
+                return;
+            }
+            if (event.key !== 'Tab') return;
+            const focusable = Array.from(overlay.querySelectorAll('button:not([disabled]), input:not([disabled]):not([type="hidden"]), [href], [tabindex]:not([tabindex="-1"])'))
+                .filter(element => !element.hidden && element.getClientRects().length);
+            if (!focusable.length) {
+                event.preventDefault();
+                overlay.querySelector('[role="dialog"]')?.focus();
+                return;
+            }
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        };
+        document.addEventListener('keydown', overlay._syncviewKeydown, true);
+    }
+    function _syncviewRenderStaffIdentityForm(overlay, roster, entry) {
+        const current = _syncviewStaffIdentityLoad();
+        const selectedId = current && current.member ? String(current.member.id || '') : '';
+        const memberItems = [{ value: '', label: 'Choose your name' }].concat(roster.map(member => ({ value: String(member.id), label: String(member.name) })));
+        const memberSelectHtml = _ccSelectHtml('staffIdentityMember', memberItems, selectedId, 'Choose your name');
+        overlay.innerHTML = '<form class="staff-auth-card" id="staffIdentityForm" role="dialog" aria-modal="true" aria-labelledby="staffIdentityTitle" aria-describedby="staffIdentityIntro staffIdentitySecure">'
+            + '<div class="staff-auth-head"><span class="staff-auth-mark" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none"><path d="M9 2.2 14.2 4v4.1c0 3.4-2 5.9-5.2 7.7-3.2-1.8-5.2-4.3-5.2-7.7V4L9 2.2Z" stroke="currentColor" stroke-width="1.45" stroke-linejoin="round"/><path d="m6.8 8.8 1.5 1.5 3-3.1" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
+            + '<div class="staff-auth-title-wrap"><div class="staff-auth-eyebrow">SyncView staff</div><h2 id="staffIdentityTitle">Staff sign in</h2></div></div>'
+            + '<p class="staff-auth-intro" id="staffIdentityIntro">' + (entry
+                ? 'Choose your name and enter your personal role key to open SyncView.'
+                : 'Choose your roster name and enter the role key for your work.') + '</p>'
+            + '<div class="staff-auth-fields">'
+            + '<div class="staff-auth-field"><label for="staffIdentityMemberBtn">Your name</label>' + memberSelectHtml + '</div>'
+            + '<div class="staff-auth-field"><label for="staffIdentityKey">Role key</label><div class="cc-password-wrap"><input id="staffIdentityKey" type="password" autocomplete="current-password" placeholder="Enter role key" aria-describedby="staffIdentityError" required><button class="cc-pass-toggle" type="button" id="staffIdentityKeyToggle" title="Show role key" aria-label="Show role key" aria-pressed="false" onclick="_syncviewToggleStaffRoleKey(this)">' + CC_ICON_EYE + '</button></div></div>'
+            + '</div><div class="staff-auth-error" id="staffIdentityError" role="alert"></div><div class="staff-auth-status" id="staffIdentityStatus" role="status" aria-live="polite"></div>'
+            + '<div class="staff-auth-secure" id="staffIdentitySecure"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.2 7V5.2a2.8 2.8 0 0 1 5.6 0V7"/></svg><span>Your role key stays on this device and is sent only to SyncView secure functions.</span></div>'
+            + '<div class="staff-auth-actions">' + (entry ? '' : '<button class="cal-import-btn-ghost" type="button" id="staffIdentityCancel">Not now</button>')
+            + '<button class="cal-import-btn-primary" type="submit" id="staffIdentitySubmit">Continue</button></div>'
+            + '</form>';
+        const form = overlay.querySelector('#staffIdentityForm');
+        const memberInput = overlay.querySelector('#staffIdentityMember');
+        const memberTrigger = overlay.querySelector('#staffIdentityMemberBtn');
+        const key = overlay.querySelector('#staffIdentityKey');
+        const toggle = overlay.querySelector('#staffIdentityKeyToggle');
+        const submit = overlay.querySelector('#staffIdentitySubmit');
+        const error = overlay.querySelector('#staffIdentityError');
+        const status = overlay.querySelector('#staffIdentityStatus');
+        const showError = (message, target) => {
+            error.textContent = message || '';
+            status.textContent = '';
+            key.removeAttribute('aria-invalid');
+            memberTrigger.removeAttribute('aria-invalid');
+            if (target) {
+                target.setAttribute('aria-invalid', 'true');
+                target.focus();
+            }
+        };
+        const clearError = () => {
+            if (!error.textContent) return;
+            error.textContent = '';
+            key.removeAttribute('aria-invalid');
+            memberTrigger.removeAttribute('aria-invalid');
+        };
+        const setBusy = busy => {
+            form.setAttribute('aria-busy', busy ? 'true' : 'false');
+            submit.disabled = busy;
+            memberTrigger.disabled = busy;
+            key.disabled = busy;
+            toggle.disabled = busy;
+            submit.innerHTML = busy ? '<span class="staff-auth-spinner" aria-hidden="true"></span>Verifying…' : 'Continue';
+            status.textContent = busy ? 'Verifying your identity…' : '';
+        };
+        const cancel = overlay.querySelector('#staffIdentityCancel');
+        if (cancel) cancel.onclick = () => _syncviewCloseStaffIdentity(null);
+        memberInput.addEventListener('change', clearError);
+        key.addEventListener('input', clearError);
+        form.onsubmit = async event => {
+            event.preventDefault();
+            const member = roster.find(row => String(row.id) === String(memberInput.value));
+            const roleKey = key.value.trim();
+            if (!member) { showError('Choose your name.', memberTrigger); return; }
+            if (!roleKey) { showError('Enter your role key.', key); return; }
+            showError('');
+            setBusy(true);
+            try {
+                const verified = await _syncviewVerifyStaffIdentity({ key: roleKey, member }, 'staff-login');
+                if (!overlay.isConnected || overlay._syncviewClosed) return;
+                _syncviewAcceptStaffVerification();
+                _syncviewStaffIdentitySave(verified);
+                _syncviewStaffRefreshChrome();
+                _syncviewCloseStaffIdentity(verified);
+                if (typeof _writeUiResumeLegacyQueues === 'function') _writeUiResumeLegacyQueues('staff-verified');
+                if (entry) _syncviewLiftStaffGate();
+            } catch (e) {
+                if (!overlay.isConnected || overlay._syncviewClosed) return;
+                setBusy(false);
+                showError(e && e.message ? e.message : 'Could not verify this sign-in.', key);
+                key.select();
+            }
+        };
+        setTimeout(() => { if (overlay.isConnected) (selectedId ? key : memberTrigger).focus(); }, 20);
+    }
+    function _syncviewOpenStaffIdentity(options) {
+        options = options || {};
+        if (!_syncviewStaffEligible()) return Promise.resolve(null);
+        const stored = _syncviewStaffIdentityLoad();
+        if (_syncviewStaffBootPromise && _syncviewStaffIdentitySignature(stored) && !options._afterBoot) {
+            if (!_syncviewStaffAwaitBootPromise) {
+                const afterBootOptions = Object.assign({}, options, { _afterBoot: true });
+                _syncviewStaffAwaitBootPromise = _syncviewStaffBootPromise.then(result => {
+                    if (result && _syncviewStaffIdentityValid()) {
+                        _syncviewOpenStaffAccount();
+                        return _syncviewStaffIdentityLoad();
+                    }
+                    return _syncviewOpenStaffIdentity(afterBootOptions);
+                }).finally(() => { _syncviewStaffAwaitBootPromise = null; });
+            }
+            return _syncviewStaffAwaitBootPromise;
+        }
+        const identity = _syncviewStaffIdentityForHeaders();
+        if (identity) {
+            if (!options.entry) _syncviewOpenStaffAccount();
+            return Promise.resolve(identity);
+        }
+        _syncviewCloseStaffAccount();
+        if (_syncviewStaffPromptPromise) return _syncviewStaffPromptPromise;
+        _syncviewStaffPromptPromise = (async () => {
+            const overlay = document.createElement('div');
+            overlay.id = 'staffIdentityOverlay';
+            overlay.className = 'cal-import-overlay open staff-auth-overlay';
+            if (typeof overlay.setAttribute === 'function') overlay.setAttribute('data-backdrop-dismiss', '');
+            const result = new Promise(resolve => { overlay._syncviewResolve = resolve; });
+            overlay.innerHTML = '<div class="staff-auth-card" role="dialog" aria-modal="true" aria-label="Preparing staff sign in" aria-busy="true" tabindex="-1"><div class="staff-auth-loading"><span class="staff-auth-spinner" aria-hidden="true"></span><strong>Preparing secure sign-in</strong><span>Loading the active staff roster…</span></div></div>';
+            document.body.appendChild(overlay);
+            // .cal-import-overlay's z-index (260) is declared later in the
+            // sheet than .staff-auth-overlay's, so it wins. Entry mode has to
+            // sit ON the gate cover (9990), and only entry mode does.
+            if (options.entry) { overlay.style.zIndex = '9995'; overlay.classList.add('is-entry'); }
+            _syncviewBindStaffIdentityOverlay(overlay, options.entry);
+            setTimeout(() => overlay.querySelector('[role="dialog"]')?.focus(), 0);
+            try {
+                const roster = await _syncviewStaffRoster();
+                if (!overlay.isConnected || overlay._syncviewClosed) return await result;
+                if (!roster.length) throw new Error('No active staff roster rows are available');
+                _syncviewRenderStaffIdentityForm(overlay, roster, options.entry);
+                if (options.entry) document.getElementById('staffGateOverlay')?.classList.add('is-carded');
+                return await result;
+            } catch (error) {
+                _syncviewCloseStaffIdentity(null, { restoreFocus: !options.silent });
+                throw error;
+            }
+        })().catch(error => {
+            if (!options.silent) {
+                try { showNotify('Staff sign-in unavailable', error && error.message ? error.message : 'Try again shortly.'); } catch (e) {}
+            }
+            return null;
+        }).finally(() => { _syncviewStaffPromptPromise = null; });
+        return _syncviewStaffPromptPromise;
+    }
+    /* The gate cover itself. Painted pre-boot by html.boot-gate (see the
+       <head> boot script); these lift it, drop it back, or park it on an
+       error state. Surfaces with their own access model (client share links,
+       ?intake=1, the onboarding funnels, the SMM weekly entry) never gate. */
+    function _syncviewStaffGateRequired() {
+        try {
+            if (_isSmmWeeklyEntry || _isOnboardingView) return false;
+        } catch (e) {}
+        return _syncviewStaffEligible();
+    }
+    function _syncviewSetStaffGateNote(text, retry) {
+        const note = document.getElementById('staffGateNote');
+        if (note) note.textContent = text;
+        const button = document.getElementById('staffGateRetry');
+        if (button) button.hidden = !retry;
+    }
+    function _syncviewLiftStaffGate() {
+        // An entry-mode sign-in card is part of the gate, so it goes with it.
+        // (Verification can arrive from a sibling tab while this card is open.)
+        try {
+            const prompt = document.getElementById('staffIdentityOverlay');
+            if (prompt && prompt._syncviewEntry) _syncviewCloseStaffIdentity(_syncviewStaffIdentityLoad(), { restoreFocus: false });
+        } catch (e) {}
+        document.documentElement.classList.remove('boot-gate');
+        const overlay = document.getElementById('staffGateOverlay');
+        if (overlay) overlay.style.display = 'none';
+        if (!_syncviewAppBooted) { _syncviewAppBooted = true; try { init(); } catch (e) { console.error('[SyncView] boot failed', e); } }
+    }
+    /* Drop the gate back over a running app. Sensitive state is purged by the
+       identity clear/invalidate paths that call this, so what sits behind the
+       cover is inert. */
+    function _syncviewShowStaffGate() {
+        document.documentElement.classList.add('boot-gate');
+        const overlay = document.getElementById('staffGateOverlay');
+        if (overlay) overlay.style.display = 'flex';
+        _syncviewSetStaffGateNote('Preparing secure sign-in…', false);
+    }
+    let _syncviewGatePromptOpen = false;
+    function _syncviewOpenStaffGate() {
+        if (!_syncviewStaffGateRequired()) { _syncviewLiftStaffGate(); return Promise.resolve(null); }
+        _syncviewShowStaffGate();
+        if (_syncviewGatePromptOpen) return Promise.resolve(null);
+        _syncviewGatePromptOpen = true;
+        return _syncviewOpenStaffIdentity({ entry: true, silent: true })
+            .then(result => {
+                if (!result) _syncviewSetStaffGateNote('Sign-in could not start. Check your connection and try again.', true);
+                return result;
+            })
+            .finally(() => { _syncviewGatePromptOpen = false; });
+    }
+    function _syncviewScheduleStaffPrompt() {
+        if (!_syncviewStaffEligible() || _syncviewProdDirectPreview() || _syncviewStaffIdentityLoad()) return;
+        try {
+            if (sessionStorage.getItem(SYNCVIEW_STAFF_PROMPT_SESSION_KEY) === '1') return;
+            sessionStorage.setItem(SYNCVIEW_STAFF_PROMPT_SESSION_KEY, '1');
+        } catch (e) {}
+        setTimeout(() => _syncviewOpenStaffIdentity({ silent: true }), 700);
+    }
+    function _syncviewStaffIdentityBoot() {
+        if (_syncviewStaffBootPromise) return _syncviewStaffBootPromise;
+        _syncviewStaffBootPromise = (async () => {
+            if (!_syncviewStaffEligible()) { _syncviewStaffRefreshChrome(); return null; }
+            // The entry card just verified this identity and lifted the gate,
+            // which starts init(), which lands here. A second POST for the same
+            // key can only lose: a rate-limit or a transient 5xx would now bounce
+            // someone back to the gate moments after they signed in successfully.
+            if (_syncviewStaffIdentityValid()) {
+                _syncviewStaffRefreshChrome();
+                return _syncviewStaffIdentityLoad();
+            }
+            const current = _syncviewStaffIdentityLoad();
+            if (!current || !current.key || !current.member || !current.member.id) {
+                if (typeof _syncviewInvalidateStaffVerification === 'function') _syncviewInvalidateStaffVerification();
+                else _syncviewStaffIdentityVerified = false;
+                _syncviewStaffRefreshChrome();
+                if (_syncviewStaffGateRequired()) _syncviewOpenStaffGate();
+                else _syncviewScheduleStaffPrompt();
+                return null;
+            }
+            const currentSignature = _syncviewStaffIdentitySignature(current);
+            _syncviewStaffSetChecking(true);
+            try {
+                const verified = await _syncviewVerifyStaffIdentity(current, 'staff-boot');
+                if (_syncviewStaffIdentitySignature(_syncviewStaffIdentityLoad()) !== currentSignature) return null;
+                _syncviewAcceptStaffVerification();
+                _syncviewStaffIdentitySave(verified);
+                _syncviewStaffRefreshChrome();
+                if (typeof _writeUiResumeLegacyQueues === 'function') _writeUiResumeLegacyQueues('staff-verified');
+                if (_syncviewStaffGateRequired()) _syncviewLiftStaffGate();
+                return verified;
+            } catch (e) {
+                if (_syncviewStaffIdentitySignature(_syncviewStaffIdentityLoad()) !== currentSignature) return null;
+                if (e && e.status === 401) {
+                    // Definitively not one of ours (or a hand-written
+                    // localStorage blob): clear it and put the gate back.
+                    _syncviewStaffIdentityClear();
+                    if (_syncviewStaffGateRequired()) _syncviewOpenStaffGate();
+                    else _syncviewScheduleStaffPrompt();
+                } else {
+                    if (typeof _syncviewInvalidateStaffVerification === 'function') _syncviewInvalidateStaffVerification();
+                    else _syncviewStaffIdentityVerified = false;
+                    _syncviewStaffRefreshChrome();
+                    console.warn('[SyncView] staff key verifier unavailable; keeping auth permissive', e);
+                    // Verifier unreachable and the key was NOT rejected. The
+                    // door still fails closed: the only thing that could admit
+                    // here is the stored blob, and the stored blob is not
+                    // proof of anything (see the entry-gate note above).
+                    if (_syncviewStaffGateRequired()) _syncviewOpenStaffGate();
+                }
+                return null;
+            }
+        })().finally(() => {
+            _syncviewStaffSetChecking(false);
+            _syncviewStaffBootPromise = null;
+        });
+        return _syncviewStaffBootPromise;
+    }
+
+    /* ============================================================
+       PTO / TIME OFF  — staff surface + Kasper administration
+       All HR records stay behind the pto Edge Function. The browser reads only
+       the public mode flag directly; it never reads PTO tables or computes a
+       balance. Prefix every module symbol with _pto/PTO_ to keep this additive.
+       ============================================================ */
+    let _ptoFlagValue = { mode: 'off' };
+    let _ptoFlagPromise = null;
+    let _ptoFlagChannel = null;
+    let _ptoFlagGeneration = 0;
+    let _ptoOverviewGeneration = 0;
+    let _ptoAdminOverviewGeneration = 0;
+    let _ptoQuoteGeneration = 0;
+    const PTO_API_TIMEOUT_MS = 20000;
+    const _ptoState = {
+        overview: null,
+        loading: false,
+        error: '',
+        month: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+        monthInitialized: false,
+        writeOutcomeUnknown: false,
+    };
+    const _ptoAdminState = {
+        overview: null,
+        loading: false,
+        error: '',
+        writeOutcomeUnknown: false,
+        // Kasper calendar view state. Kept out of the payload cache so
+        // browsing months never re-fetches or re-renders the whole tab.
+        month: null,
+        monthInitialized: false,
+        calView: 'month',
+        selectedDay: '',
+        calFocusDay: '',
+    };
+
+    function _ptoInvalidateOverviewCaches() {
+        _ptoOverviewGeneration += 1;
+        _ptoAdminOverviewGeneration += 1;
+        _ptoQuoteGeneration += 1;
+        _ptoState.overview = null;
+        _ptoState.error = '';
+        _ptoState.loading = false;
+        _ptoAdminState.overview = null;
+        _ptoAdminState.error = '';
+        _ptoAdminState.loading = false;
+    }
+    function _ptoUnknownWrite(error) {
+        return !!(error && error.ptoWriteOutcomeUnknown);
+    }
+    function _ptoStateConflict(error) {
+        return ['request_state_changed', 'request_not_pending', 'decision_conflict', 'cancel_not_allowed', 'request_not_found']
+            .includes(String(error && error.code || ''));
+    }
+    function _ptoShowToast(message) {
+        showToast(message);
+        const toast = _toastEl;
+        const viewport = window.visualViewport;
+        if (!toast || !viewport) return;
+        const placeInVisibleViewport = () => {
+            if (!toast.isConnected) return;
+            const current = window.visualViewport;
+            if (!current) return;
+            const centerDelta = current.offsetLeft + (current.width / 2) - (window.innerWidth / 2);
+            const bottomInset = Math.max(0, window.innerHeight - (current.offsetTop + current.height));
+            toast.style.left = 'calc(50% + ' + centerDelta + 'px)';
+            toast.style.maxWidth = 'min(calc(100vw - 24px), ' + Math.max(0, current.width - 24) + 'px)';
+            toast.style.top = 'auto';
+            toast.style.bottom = (bottomInset + 24) + 'px';
+        };
+        const syncVisibleViewport = () => {
+            placeInVisibleViewport();
+            requestAnimationFrame(placeInVisibleViewport);
+        };
+        syncVisibleViewport();
+        viewport.addEventListener('resize', syncVisibleViewport);
+        viewport.addEventListener('scroll', syncVisibleViewport);
+        window.addEventListener('resize', syncVisibleViewport);
+        setTimeout(() => {
+            viewport.removeEventListener('resize', syncVisibleViewport);
+            viewport.removeEventListener('scroll', syncVisibleViewport);
+            window.removeEventListener('resize', syncVisibleViewport);
+        }, 4000);
+    }
+    function _ptoBlockWrites(surface) {
+        const state = surface === 'admin' ? _ptoAdminState : _ptoState;
+        if (!state.writeOutcomeUnknown) return false;
+        _ptoShowToast('Refresh Time Off to confirm the last change before trying another update.');
+        return true;
+    }
+    async function _ptoRefreshAfterConflict(surface, message) {
+        _ptoShowToast(message || 'Time Off changed. Refreshing the latest state.');
+        _ptoInvalidateOverviewCaches();
+        if (surface === 'admin') await _ptoLoadAdmin(true);
+        else await _ptoLoadOverview(true);
+    }
+
+    function _ptoEsc(value) {
+        return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+    function _ptoAttr(value) { return _ptoEsc(value); }
+    const SV_ICON_CHEV = '<span class="sv-control-icon sv-select-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg></span>';
+    const SV_ICON_CALENDAR = '<span class="sv-control-icon" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="13" height="11" rx="2"/><path d="M5.5 2.5v3M12.5 2.5v3M2.5 7h13"/></svg></span>';
+    const SV_ICON_CHECK = '<svg class="sv-option-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 8 3 3 6-6"/></svg>';
+    let _svOpenSelectId = null;
+    let _svSelectTypeahead = '';
+    let _svSelectTypeaheadTimer = 0;
+
+    function _svExplainLabel(key, label, text, className) {
+        const explanation = String(text || '').trim();
+        const classes = ['sv-explain-label', String(className || '').trim()].filter(Boolean).join(' ');
+        return '<span class="' + _ptoAttr(classes) + '" tabindex="0" data-sv-explain data-pto-explain="' + _ptoAttr(key) + '" data-tip="' + _ptoAttr(explanation) + '">' + _ptoEsc(label) + '</span>';
+    }
+    function _svTone(value) {
+        value = String(value || '').toLowerCase();
+        return ['wellness', 'sick', 'floating', 'unpaid'].includes(value) ? value : '';
+    }
+    function _svSelectHtml(id, items, selectedValue, placeholder, opts) {
+        opts = opts || {};
+        items = Array.isArray(items) ? items : [];
+        const active = items.find(item => String(item.value) === String(selectedValue) && !item.disabled) || items.find(item => String(item.value) === String(selectedValue));
+        const label = active ? active.label : (placeholder || 'Choose');
+        const tone = _svTone(active && active.tone);
+        const disabled = opts.disabled ? ' is-disabled' : '';
+        const change = opts.onchange ? ' onchange="' + _ptoAttr(opts.onchange) + '"' : '';
+        const options = items.length ? items.map((item, index) => {
+            const on = !!active && String(item.value) === String(active.value);
+            const itemTone = _svTone(item.tone);
+            const dot = itemTone ? '<span class="sv-option-dot ' + itemTone + '" aria-hidden="true"></span>' : '';
+            return '<button class="sv-select-option' + (on ? ' active' : '') + '" id="' + _ptoAttr(id) + 'Option' + index + '" type="button" role="option" aria-selected="' + (on ? 'true' : 'false') + '" aria-disabled="' + (item.disabled ? 'true' : 'false') + '" tabindex="-1" data-sv-select-option data-value="' + _ptoAttr(item.value) + '" data-label="' + _ptoAttr(item.label) + '" data-tone="' + itemTone + '" onclick="_svSelectPick(event,' + _jsAttrArg(id) + ',' + _jsAttrArg(item.value) + ',' + _jsAttrArg(item.label) + ',' + _jsAttrArg(itemTone) + ')">' + dot + '<span>' + _ptoEsc(item.label) + '</span>' + (on ? SV_ICON_CHECK : '') + '</button>';
+        }).join('') : '<div class="sv-select-option" aria-disabled="true">No options</div>';
+        const triggerDot = tone ? '<span class="sv-option-dot ' + tone + '" aria-hidden="true"></span>' : '';
+        return '<div class="sv-select' + disabled + '" id="' + _ptoAttr(id) + 'Wrap" data-sv-select onkeydown="_svSelectKeydown(event,' + _jsAttrArg(id) + ')"><button class="sv-select-trigger" type="button" role="combobox" id="' + _ptoAttr(id) + 'Btn" aria-haspopup="listbox" aria-controls="' + _ptoAttr(id) + 'Menu" aria-expanded="false"' + (opts.disabled ? ' disabled' : '') + ' onclick="_svSelectToggle(event,' + _jsAttrArg(id) + ')">' + triggerDot + '<span id="' + _ptoAttr(id) + 'Label">' + _ptoEsc(label) + '</span>' + SV_ICON_CHEV + '</button><input type="hidden" id="' + _ptoAttr(id) + '" value="' + _ptoAttr(active ? active.value : '') + '" data-label="' + _ptoAttr(label) + '" data-tone="' + tone + '"' + change + '><div class="sv-select-menu" id="' + _ptoAttr(id) + 'Menu" role="listbox" aria-labelledby="' + _ptoAttr(id) + 'Btn">' + options + '</div></div>';
+    }
+    function _svSelectOptions(id) {
+        const menu = document.getElementById(id + 'Menu');
+        return menu ? Array.from(menu.querySelectorAll('[data-sv-select-option]')).filter(option => option.getAttribute('aria-disabled') !== 'true') : [];
+    }
+    function _svSelectClose(id, returnFocus) {
+        id = id || _svOpenSelectId;
+        if (!id) return;
+        const wrap = document.getElementById(id + 'Wrap');
+        const button = document.getElementById(id + 'Btn');
+        const menu = document.getElementById(id + 'Menu');
+        if (wrap) wrap.classList.remove('open', 'open-up');
+        if (menu) menu.style.removeProperty('max-height');
+        if (button) {
+            button.setAttribute('aria-expanded', 'false');
+            button.removeAttribute('aria-activedescendant');
+            if (returnFocus) button.focus();
+        }
+        if (_svOpenSelectId === id) {
+            document.removeEventListener('mousedown', _svSelectOutside, true);
+            _svOpenSelectId = null;
+        }
+        _svSelectTypeahead = '';
+        if (_svSelectTypeaheadTimer) { clearTimeout(_svSelectTypeaheadTimer); _svSelectTypeaheadTimer = 0; }
+    }
+    function _svSelectOutside(event) {
+        if (!event.target.closest || !event.target.closest('[data-sv-select]')) _svSelectClose();
+    }
+    function _svSelectFocus(id, index) {
+        const options = _svSelectOptions(id);
+        if (!options.length) return;
+        const safe = (Number(index) % options.length + options.length) % options.length;
+        const option = options[safe];
+        option.focus();
+        document.getElementById(id + 'Btn')?.setAttribute('aria-activedescendant', option.id);
+    }
+    function _svSelectPlace(id) {
+        const wrap = document.getElementById(id + 'Wrap');
+        const button = document.getElementById(id + 'Btn');
+        const menu = document.getElementById(id + 'Menu');
+        if (!wrap || !button || !menu) return;
+        wrap.classList.remove('open-up');
+        menu.style.removeProperty('max-height');
+        const rect = button.getBoundingClientRect();
+        const edge = 8;
+        const gap = 7;
+        const below = Math.max(0, window.innerHeight - rect.bottom - edge - gap);
+        const above = Math.max(0, rect.top - edge - gap);
+        const naturalHeight = menu.scrollHeight;
+        const openUp = below < Math.min(naturalHeight, 180) && above > below;
+        wrap.classList.toggle('open-up', openUp);
+        const available = openUp ? above : below;
+        menu.style.maxHeight = Math.max(84, Math.min(270, available)) + 'px';
+    }
+    function _svSelectOpen(id, focusMode) {
+        const wrap = document.getElementById(id + 'Wrap');
+        const button = document.getElementById(id + 'Btn');
+        if (!wrap || !button || button.disabled || wrap.classList.contains('is-disabled')) return;
+        if (_svOpenSelectId && _svOpenSelectId !== id) _svSelectClose(_svOpenSelectId);
+        wrap.classList.add('open');
+        _svSelectPlace(id);
+        button.setAttribute('aria-expanded', 'true');
+        _svOpenSelectId = id;
+        setTimeout(() => document.addEventListener('mousedown', _svSelectOutside, true), 0);
+        if (focusMode) {
+            const options = _svSelectOptions(id);
+            const selected = options.findIndex(option => option.getAttribute('aria-selected') === 'true');
+            _svSelectFocus(id, focusMode === 'last' ? options.length - 1 : (selected >= 0 ? selected : 0));
+        }
+    }
+    function _svSelectToggle(event, id) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        const wrap = document.getElementById(id + 'Wrap');
+        if (!wrap) return;
+        if (wrap.classList.contains('open')) _svSelectClose(id, true);
+        else _svSelectOpen(id, false);
+    }
+    function _svSelectKeydown(event, id) {
+        const key = event.key;
+        const wrap = document.getElementById(id + 'Wrap');
+        if (!wrap) return;
+        const open = wrap.classList.contains('open');
+        const options = _svSelectOptions(id);
+        const focused = options.indexOf(document.activeElement);
+        if (key === 'Escape' && open) { event.preventDefault(); _svSelectClose(id, true); return; }
+        if (key === 'Tab') { if (open) _svSelectClose(id, false); return; }
+        if (key === 'ArrowDown' || key === 'ArrowUp') {
+            event.preventDefault();
+            if (!open) { _svSelectOpen(id, key === 'ArrowUp' ? 'last' : 'first'); return; }
+            _svSelectFocus(id, focused < 0 ? (key === 'ArrowUp' ? options.length - 1 : 0) : focused + (key === 'ArrowUp' ? -1 : 1));
+            return;
+        }
+        if ((key === 'Home' || key === 'End') && open) { event.preventDefault(); _svSelectFocus(id, key === 'Home' ? 0 : options.length - 1); return; }
+        if ((key === 'Enter' || key === ' ') && open && focused >= 0) { event.preventDefault(); options[focused].click(); return; }
+        if ((key === 'Enter' || key === ' ') && event.target.id === id + 'Btn') { event.preventDefault(); _svSelectOpen(id, 'first'); return; }
+        if (open && key.length === 1 && !event.altKey && !event.ctrlKey && !event.metaKey) {
+            _svSelectTypeahead += key.toLowerCase();
+            if (_svSelectTypeaheadTimer) clearTimeout(_svSelectTypeaheadTimer);
+            _svSelectTypeaheadTimer = setTimeout(() => { _svSelectTypeahead = ''; }, 650);
+            const match = options.findIndex(option => String(option.getAttribute('data-label') || '').toLowerCase().startsWith(_svSelectTypeahead));
+            if (match >= 0) { event.preventDefault(); _svSelectFocus(id, match); }
+        }
+    }
+    function _svSelectPick(event, id, value, label, tone) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        const option = event && event.currentTarget;
+        if (option && option.getAttribute('aria-disabled') === 'true') return;
+        const input = document.getElementById(id);
+        const labelEl = document.getElementById(id + 'Label');
+        const menu = document.getElementById(id + 'Menu');
+        const button = document.getElementById(id + 'Btn');
+        if (input) {
+            input.value = value;
+            input.dataset.label = label || '';
+            input.dataset.tone = _svTone(tone);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (labelEl) labelEl.textContent = label || '';
+        if (button) {
+            button.querySelector('.sv-option-dot')?.remove();
+            const safeTone = _svTone(tone);
+            if (safeTone) button.insertAdjacentHTML('afterbegin', '<span class="sv-option-dot ' + safeTone + '" aria-hidden="true"></span>');
+        }
+        if (menu) menu.querySelectorAll('[data-sv-select-option]').forEach(item => {
+            const on = item.getAttribute('data-value') === String(value);
+            item.classList.toggle('active', on);
+            item.setAttribute('aria-selected', on ? 'true' : 'false');
+            item.querySelector('.sv-option-check')?.remove();
+            if (on) item.insertAdjacentHTML('beforeend', SV_ICON_CHECK);
+        });
+        _svSelectClose(id, true);
+    }
+    function _svDateLabel(value, placeholder) {
+        const date = _ptoDate(value);
+        return date ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date) : (placeholder || 'Choose date');
+    }
+    function _svDateHtml(id, value, opts) {
+        opts = opts || {};
+        const label = _svDateLabel(value, opts.placeholder);
+        const disabled = opts.disabled ? ' is-disabled' : '';
+        const change = opts.onchange ? ' onchange="' + _ptoAttr(opts.onchange) + '"' : '';
+        const requiredDescription = opts.required ? '<span class="sr-only" id="' + _ptoAttr(id) + 'Required">Required field.</span>' : '';
+        return '<div class="sv-date' + disabled + '" id="' + _ptoAttr(id) + 'Wrap" data-sv-date-picker><button class="sv-date-trigger" type="button" id="' + _ptoAttr(id) + 'Btn" data-sv-date-trigger data-placeholder="' + _ptoAttr(opts.placeholder || 'Choose date') + '" aria-haspopup="dialog" aria-controls="svDatePickerPopup" aria-expanded="false"' + (opts.required ? ' aria-describedby="' + _ptoAttr(id) + 'Required"' : '') + (opts.disabled ? ' disabled' : '') + '>' + SV_ICON_CALENDAR + '<span data-sv-date-label class="' + (value ? '' : 'sv-date-placeholder') + '">' + _ptoEsc(label) + '</span>' + SV_ICON_CHEV + '</button>' + requiredDescription + '<input class="sv-date-value" id="' + _ptoAttr(id) + '" type="date" tabindex="-1" aria-hidden="true" value="' + _ptoAttr(value || '') + '"' + (opts.min ? ' min="' + _ptoAttr(opts.min) + '"' : '') + (opts.max ? ' max="' + _ptoAttr(opts.max) + '"' : '') + (opts.today ? ' data-sv-today="' + _ptoAttr(opts.today) + '"' : '') + (opts.todayPolicy ? ' data-sv-today-policy="' + _ptoAttr(opts.todayPolicy) + '"' : '') + (opts.required ? ' data-required="true"' : '') + (opts.disabled ? ' disabled' : '') + change + '></div>';
+    }
+    function _svSyncDateControl(id) {
+        const input = document.getElementById(id);
+        const wrap = document.getElementById(id + 'Wrap');
+        if (!input || !wrap) return;
+        const label = wrap.querySelector('[data-sv-date-label]');
+        const button = document.getElementById(id + 'Btn');
+        if (label) {
+            label.textContent = _svDateLabel(input.value, button && button.dataset.placeholder || 'Choose date');
+            label.classList.toggle('sv-date-placeholder', !input.value);
+        }
+        wrap.classList.toggle('is-disabled', !!input.disabled);
+        if (button) button.disabled = !!input.disabled;
+    }
+    function _svStepperHtml(id, value, opts) {
+        opts = opts || {};
+        const step = Number(opts.step) || 1;
+        const disabled = opts.disabled ? ' is-disabled' : '';
+        const inputAttrs = (opts.min != null ? ' min="' + _ptoAttr(opts.min) + '"' : '') + (opts.max != null ? ' max="' + _ptoAttr(opts.max) + '"' : '') + (opts.required ? ' required' : '') + (opts.disabled ? ' disabled' : '') + (opts.placeholder ? ' placeholder="' + _ptoAttr(opts.placeholder) + '"' : '');
+        const change = opts.onchange ? ' onchange="' + _ptoAttr(opts.onchange) + '"' : '';
+        return '<div class="sv-stepper' + disabled + '" id="' + _ptoAttr(id) + 'Wrap"><button class="sv-stepper-btn" id="' + _ptoAttr(id) + 'Down" type="button" aria-label="Decrease by ' + _ptoAttr(step) + '" aria-controls="' + _ptoAttr(id) + '" data-tip="' + _ptoAttr(opts.downTip || 'Decrease by ' + step) + '" onclick="_svStepNumber(' + _jsAttrArg(id) + ',-' + step + ')">−</button><input class="sv-stepper-input" id="' + _ptoAttr(id) + '" type="number" inputmode="decimal" step="' + _ptoAttr(step) + '" value="' + _ptoAttr(value == null ? '' : value) + '"' + inputAttrs + change + ' oninput="_svSyncStepper(' + _jsAttrArg(id) + ')"><button class="sv-stepper-btn" id="' + _ptoAttr(id) + 'Up" type="button" aria-label="Increase by ' + _ptoAttr(step) + '" aria-controls="' + _ptoAttr(id) + '" data-tip="' + _ptoAttr(opts.upTip || 'Increase by ' + step) + '" onclick="_svStepNumber(' + _jsAttrArg(id) + ',' + step + ')">+</button></div>';
+    }
+    function _svSyncStepper(id) {
+        const input = document.getElementById(id);
+        const wrap = document.getElementById(id + 'Wrap');
+        if (!input) return;
+        const value = Number(input.value);
+        const min = input.min === '' ? -Infinity : Number(input.min);
+        const max = input.max === '' ? Infinity : Number(input.max);
+        const down = document.getElementById(id + 'Down');
+        const up = document.getElementById(id + 'Up');
+        if (wrap) wrap.classList.toggle('is-disabled', !!input.disabled);
+        if (down) down.disabled = !!input.disabled || (Number.isFinite(value) && value <= min);
+        if (up) up.disabled = !!input.disabled || (Number.isFinite(value) && value >= max);
+    }
+    function _svStepNumber(id, delta) {
+        const input = document.getElementById(id);
+        if (!input || input.disabled) return;
+        const step = Number(input.step) || Math.abs(Number(delta)) || 1;
+        const min = input.min === '' ? -Infinity : Number(input.min);
+        const max = input.max === '' ? Infinity : Number(input.max);
+        const current = input.value === '' ? 0 : Number(input.value);
+        if (!Number.isFinite(current)) return;
+        let next = current + Number(delta || 0);
+        next = Math.min(max, Math.max(min, next));
+        next = Math.round(next / step) * step;
+        input.value = String(Math.round(next * 1000) / 1000);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        _svSyncStepper(id);
+    }

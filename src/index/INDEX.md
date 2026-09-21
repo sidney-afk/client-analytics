@@ -14,4 +14,9 @@
 | 6 | `040-shared-briefs.js.part` | 2363 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1581 | Market Research Brief Tab Renderers |
 | 8 | `060-templates-filming.js.part` | 1788 | Multiple links per link field (client photos, thumbnail, reference reel) |
-| 9 | `999-remainder.html.part` | 71851 | Workload Calendar |
+| 9 | `070-workload-source.js.part` | 3223 | Workload Calendar |
+| 10 | `080-workload-render.js.part` | 3333 | WHAT THE BOARD DECIDED NOT TO SHOW, and why. |
+| 11 | `090-workload-popovers-navigation.js.part` | 2613 | Sub-issue popover |
+| 12 | `100-onboarding-staff-controls.js.part` | 2252 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
+| 13 | `110-time-off-reports.js.part` | 2024 | Kasper Time Off calendar |
+| 14 | `999-remainder.html.part` | 58406 | The members a flag value offers, or null when it offers no member list at |

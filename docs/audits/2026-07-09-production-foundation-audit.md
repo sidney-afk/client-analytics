@@ -603,3 +603,28 @@ sub-issue section (`_prodChildrenOf`) already ordered them per the owner's
 `_prodChildOrder`, called from both readers. This widens no capability: it
 changes display order only, includes no row that was not already returned,
 excludes none that was, and touches no write path, grant or Edge Function.
+
+## Addendum, 2026-09-21 — batch-view real-parent routing, and what it does not widen
+
+`_prodOpenBatch`, `_prodPrimeFromUrl`, and `_prodApplyDeepLinkFallback` now
+check `_prodBatchParentIssue(batch)` before settling on the plain batch view
+(`?prod=1&batch=<id>`): when a batch imported from Linear has exactly one
+real hierarchy-parent row, the reader lands on that row's own detail
+(`?prod=1&d=<identifier>`) instead. `_prodBatchDetail` also now draws its
+deliverables list with `_prodSubIssueRowHTML`, the same row renderer the
+parent view's own sub-issue section uses, in place of a second plainer
+markup string.
+
+This widens no capability. `_prodBatchParentIssue` only reads
+`linear_parent_ids` (already loaded via `PROD_BATCH_SELECT`) and resolves
+through `_prodIssue()`, which already indexes every row the reader can see;
+it adds no new read, grant, or Edge Function call. It never routes to a
+synthetic batch-mint node (`syntheticBatchParent === true`) even when one
+resolves, and a batch with two distinct team parents (or none) is left on
+the batch view exactly as before. The three Workload deep links that
+deliberately send a native batch to the batch view — `wlParentUrl`, the
+client-groups `syncUrl`, and the popover `parentSyncUrl` — are untouched;
+this only changes what `_prodOpenBatch`/the `?batch=` URL route/the boot
+deep-link fallback do on their own. `_prodSubIssueRowHTML` was already the
+parent view's row renderer for the identical row shape; reusing it in the
+batch view changes markup, not data access.

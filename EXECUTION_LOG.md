@@ -7670,3 +7670,44 @@ improvement), and the batch view's asset-prefetch picks the numerically-first
 row instead of an arbitrary one (harmless). Verified by
 `test/prod-batch-detail-order.js` (synthetic 16-video/16-thumbnail batch in
 shuffled fetch order; red on `origin/main`, green after).
+
+## 2026-09-21 — Production: batch view opens a batch's real parent card, and draws batch rows like sub-issues
+
+Browser-only change, no live write. Owner report: opening a batch parent
+from the Workload calendar landed on the plain batch view
+(`?prod=1&batch=<id>`, a status chip and "Deliverables N"), while the parent
+card's own detail view (`?prod=1&d=<identifier>`, "Sub-issues N" with client
+chip, link, due date, assignee) is the correct page. A batch imported from
+Linear has a real parent deliverable row (`isHierarchyParent` true, not the
+read-only synthetic node a batch mints for its own children); a native
+post-cutoff batch does not.
+
+Added `_prodBatchParentIssue(batch)`: reads `linear_parent_ids` (keyed by
+team, same vocabulary `_calNativeBatchParentTeams` reads), resolves each
+named id through `_prodIssue()`, keeps only real hierarchy parents, and
+answers with the row only when exactly one resolves — two team parents, or
+none, means no single card and the caller stays on the batch view. Consulted
+before the batch view is entered from three places: `_prodOpenBatch` (click),
+`_prodPrimeFromUrl` (the `?batch=` URL prime, when data is already warm), and
+the authoritative wanted-id branch of `_prodApplyDeepLinkFallback` (the boot
+read, once live data lands — also corrects the URL from `?batch=` to
+`?d=<identifier>` via `_prodSetQuery(..., false)`, a replace rather than a
+push since nobody navigated to the redirect). The three Workload deep links
+that send a native batch to the batch view on purpose (`wlParentUrl`, the
+client-groups `syncUrl`, the popover `parentSyncUrl`) are untouched — this is
+the one place every other deep link into a batch benefits from the redirect.
+
+`_prodBatchDetail` now renders its deliverables list with
+`_prodSubIssueRowHTML` (the parent view's own row: client chip, due date,
+assignee, file pill) instead of a second, plainer `prod-subrow` markup string
+— one client's 32-deliverable batch was the case checked, and its batch view
+and its parent's sub-issue section now render byte-identical rows for the
+same deliverable.
+
+Verified by `test/prod-batch-parent-route.js` (one real parent resolves →
+routes to detail; two team parents or none → batch view stays; a synthetic
+batch-mint node never counts even when it resolves; source assertions that
+all three call sites consult the helper and that `_prodBatchDetail` calls
+`_prodSubIssueRowHTML`; red on `origin/main`, green after), plus
+`test/prod-batch-detail-order.js`, `test/prod-batch-parent-panels.js`, and
+`docs/syncview-design/tests/prod-write-gateway-browser.js` (all still green).

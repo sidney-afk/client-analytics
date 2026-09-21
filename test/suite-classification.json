@@ -388,6 +388,7 @@
     "prod-backend-bridge.js",
     "prod-batch-detail-order.js",
     "prod-batch-parent-panels.js",
+    "prod-batch-parent-route.js",
     "prod-batches-keyset-paging.js",
     "prod-boot-payload-diet.js",
     "prod-client-composer-present.js",

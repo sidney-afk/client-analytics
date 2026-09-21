@@ -77,6 +77,7 @@ function build(rows) {
   const body = constant('PROD_TEAM_ORDER') + '\n'
     + extract('_prodWriteTeam') + '\n'
     + extract('_prodChildTeamRank') + '\n'
+    + extract('_prodChildOrder') + '\n'
     + extract('_prodChildrenOf') + '\n'
     + 'return _prodChildrenOf;';
   const childrenOf = new Function('_prodIssues', body)(() => rows);

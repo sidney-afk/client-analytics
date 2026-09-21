@@ -246,9 +246,11 @@ const seed = new Function('deps', `
    * service-role prober. The fallback is what makes this safe to ship: with no
    * usable child the parent still renders itself, and section 1 above proves
    * that path still says Unavailable rather than Missing. */
+  const eligibleSrc = grabFunc('_prodAssetEligibleRow');
   const sourceSrc = grabFunc('_prodBatchAssetSource');
   const makeSource = (rows, roster) => new Function('deps', `
     const { _prodChildrenOf, _prodClient, PROD_ATTRIBUTION_NEEDS, PROD_ATTRIBUTION_CONFLICT } = deps;
+    ${eligibleSrc}
     ${sourceSrc}
     return _prodBatchAssetSource;
   `)({

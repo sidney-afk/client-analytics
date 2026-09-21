@@ -26,6 +26,12 @@
 > without entering the sales flow. `hiring_invites_enabled` is currently `false` and the dedicated
 > invitation dispatcher is inactive, so no candidate can receive an interview invitation
 > automatically.
+>
+> **Correction 2026-09-21: invitations and practical tests ARE sent automatically for the editor
+> hire.** Read-only that day, `hiring_invites_enabled` reads `{"enabled": true}` (since 2026-08-28)
+> and `hiring_practical_tests_enabled` reads `{"enabled": true}` (since 2026-09-16); the invitation
+> dispatcher `su5afuhg17V2xhgh` and the practical-test dispatcher `eiisSbHsD1OnnNdQ` are both active
+> on 5-minute polls (`docs/truth/N8N.md`). The owner intends to switch both off once the hire closes.
 
 ## Purpose
 

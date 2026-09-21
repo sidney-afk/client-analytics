@@ -8,7 +8,10 @@
 > is source-only until its first path-triggered deploy on main — `production-archive` and
 > `kasper-ad-performance-read` are deployed and callable from `main`; both hiring functions are
 > deployed with a private sidecar, application capture and reviewer alerts are live, and
-> `hiring_invites_enabled=false` keeps candidate email default-off; #850 write gateway remains
+> `hiring_invites_enabled=false` keeps candidate email default-off — **corrected 2026-09-21:
+> `hiring_invites_enabled` and `hiring_practical_tests_enabled` both read `{"enabled": true}` and
+> both dispatchers are active for the editor hire, so candidate email IS sent; see
+> `docs/truth/N8N.md`**; #850 write gateway remains
 > deployed dark)
 
 **Machine-enforced:** `test/truth-sync.js` re-derives the n8n-webhook and Edge-Function sets

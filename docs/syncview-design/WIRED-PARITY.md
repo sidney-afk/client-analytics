@@ -1308,3 +1308,16 @@ said so.
   palette search, sort, deep links) still use `_prodIssueLabel` and the real id.
 - **Parity note:** Linear never showed such a node at all; this is a native
   affordance with no reference to match, kept deliberately plain.
+
+## 2026-09-21 — batch detail view orders deliverables like the parent view
+
+- **Observed:** the batch detail view (`?prod=1&batch=<id>`) rendered
+  deliverables in fetch order, so a 16-video batch showed videos and
+  thumbnails interleaved and out of numeric order. The parent view's
+  sub-issue section was already correct.
+- **Now:** the comparator used by the parent view's `_prodChildrenOf` is
+  lifted into a shared `_prodChildOrder(a, b)`; `_prodBatchRows` sorts with
+  it too, so both views agree (video team first, then graphics, numeric
+  title compare, stable id tiebreak — owner ruling 2026-08-19).
+- **Parity note:** matches how Linear's own sub-issue lists read; no
+  reference-page behavior changes.

@@ -593,3 +593,13 @@ field, sort comparators and every `title || label` fallback call. `_prodIssue()`
 resolves by `id`/`displayId` and never by the label, so no deep link, no
 selection and no write path changes. Codex raised the identity/presentation
 split on #1455 and the split is now explicit in the helper names.
+
+## Addendum, 2026-09-21 — batch detail view ordering, and what it does not widen
+
+`_prodBatchRows` only filtered by `batchId`; it never sorted, so the batch
+detail view showed deliverables in fetch order while the parent view's
+sub-issue section (`_prodChildrenOf`) already ordered them per the owner's
+2026-08-19 ruling. The two comparators are now one function,
+`_prodChildOrder`, called from both readers. This widens no capability: it
+changes display order only, includes no row that was not already returned,
+excludes none that was, and touches no write path, grant or Edge Function.

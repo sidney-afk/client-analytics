@@ -59,7 +59,13 @@ function browser(response=fixture()) {
  workloadByIssueId:new Map(),dueAuthorityByIssueId:new Map(),nativeDueTargetByIssueId:new Map(),linearMetadataStatus:'unknown',editorRoster:[],editorRosterStatus:'unknown'};
  const context={console,URL,Date,Map,Set,JSON,Promise,Error,AbortController,setTimeout,clearTimeout,
  WL_PLAN_READ_TIMEOUT_MS:500,WORKLOAD_PLAN_URL:'https://fixture.invalid/functions/v1/workload-plan',
- CAL_SUPABASE_URL:'https://fixture.invalid',_wlPlanSessionGeneration:1,_wlPlanWriteGeneration:0,_wlPlanLoadGeneration:0,
+ CAL_SUPABASE_URL:'https://fixture.invalid',
+ // Deliberately no anon key: _wlFetchArchiveMarkerRows's own guard then
+ // returns no rows without ever calling fetch, so the archived-in-Linear
+ // check (test/workload-archived-hidden.js covers it directly) makes no
+ // extra request here and leaves this file's `calls` assertions unchanged.
+ CAL_SUPABASE_ANON_KEY:undefined,
+ _wlPlanSessionGeneration:1,_wlPlanWriteGeneration:0,_wlPlanLoadGeneration:0,
  _wlPlanWriteInFlight:new Map(),_wlDueWriteInFlight:new Map(),_wlPlanLastWriteGeneration:new Map(),
  _wlBackgroundRefreshPromise:null,_wlNativeDueReceiptRetryPromise:null,wlScheduleNativeDueReceiptRetry:()=>{},wlState:state,
  identity:{key:'fixture-key',role:'admin',member:{id:'fixture-member'}},
@@ -110,6 +116,7 @@ function browser(response=fixture()) {
  vm.runInContext(WL_CONSTS+'\n'+WL_BUCKETER,context);
  ['_wlV2MapRow','wlIssueClientAllowed','wlIssueEditorAllowed','wlSnapshotIdentity','wlProductionAuthorityValue',
  'wlProductionAuthorityFingerprint','wlMetadataTeamBucket','wlNativeWorkloadLabel','wlNativeDueDate','wlValidRfc3339Timestamp','wlNativeMetadataRow',
+ '_wlFetchArchiveMarkerRows','_wlArchivedNativeIds',
  'wlFetchNativeSnapshot','loadLinearIssues','wlAdoptPlanRows','wlLoadSnapshot','wlRefetchSilent','wlIsFresh',
  'wlExcludedSummaryText','wlVisibleSubCount','wlDroppedPlanWarningText','renderWorkloadPlanStatus','wlManualRefresh']
  .forEach(name=>vm.runInContext(extract(html,name),context));

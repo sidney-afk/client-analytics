@@ -14999,6 +14999,84 @@
         const value = _syncviewStaffIdentityForHeaders();
         return value ? JSON.stringify([value.key, value.role, value.member && value.member.id]) : '';
     }
+    /* The exact columns `_prodDeliverableLive` reads; the note explaining why this
+       read exists at all lives inside `_wlFetchArchiveMarkerRows` below, so that
+       test/deliverable-counts-exclude-parents.js attributes every mention of the
+       view to the function that actually queries it. */
+    const WL_ARCHIVE_MARKER_SELECT = 'id,status,raw_issue_archived_at,raw_issue_canceled_at,raw_webhook_delete,raw_deleted,raw_delete,raw_removed,raw_archived';
+    async function _wlFetchArchiveMarkerRows(ids) {
+        /* OPEN_REPAIRS 95 / 224 / 229 / docs/ops/WORKLOAD_NATIVE_SOURCE.md:
+           workload_native_snapshot_v1() excludes a row only when its BATCH is archived
+           (workload_issues_native_v1.active). It carries no per-issue Linear
+           archive/delete state at all, so a deliverable whose own Linear issue was
+           archived -- while its batch stays active -- reaches this board as live work,
+           exactly as Production's mirror was refusing it. Production already has the
+           rule (`_prodDeliverableLive`, src/index/210-production-state-writes.js.part)
+           reading the same markers `production_deliverables_browser_v1` already projects
+           and already grants `anon`/`authenticated` select on -- so this is a second,
+           independent browser-side read of that same public view for the native
+           sub-issue ids this snapshot returned. No new SQL, no Edge Function change.
+           `_prodDeliverableLive` is called directly rather than reimplemented: every
+           file from 040 through 340 shares one top-level <script>
+           (src/index/manifest.txt), so it is hoisted and callable here even though 210
+           concatenates after 070. Registered in
+           test/deliverable-counts-exclude-parents.js as EXEMPT: callers pass only
+           is_sub_issue rows, so a batch parent never reaches it. */
+        const wanted = [...new Set((ids || []).map(id => String(id || '').trim()).filter(Boolean))];
+        if (!wanted.length || !CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return [];
+        const CHUNK = 120; // id=in.(...) has a URL-length ceiling; same chunk shape as _kedRestIn.
+        const chunks = [];
+        for (let i = 0; i < wanted.length; i += CHUNK) chunks.push(wanted.slice(i, i + CHUNK));
+        const pages = await Promise.all(chunks.map(async slice => {
+            const list = slice.map(v => '"' + String(v).split('"').join('\\"') + '"').join(',');
+            const url = CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select='
+                + encodeURIComponent(WL_ARCHIVE_MARKER_SELECT) + '&id=in.(' + encodeURIComponent(list) + ')';
+            // Same bounded timeout as the primary workload-plan fetch: an
+            // auxiliary read that hangs (overloaded/half-open connection) must
+            // still resolve so the caller's fail-open catch actually runs,
+            // instead of leaving Promise.all -- and a cold Workload load --
+            // pending indefinitely.
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), WL_PLAN_READ_TIMEOUT_MS);
+            let response;
+            try {
+                response = await fetch(url, { cache: 'no-store', headers: _prodHeaders(), signal: controller.signal });
+            } finally {
+                clearTimeout(timer);
+            }
+            if (!response.ok) throw new Error('archive-marker read failed: HTTP ' + response.status);
+            const rows = await response.json();
+            if (!Array.isArray(rows)) throw new Error('archive-marker read returned an unexpected shape');
+            return rows;
+        }));
+        return pages.flat();
+    }
+    /* Native sub-issue ids whose own Linear issue is archived/deleted, exactly as
+       Production's _prodDeliverableLive refuses them -- independent of the row's
+       BATCH also being archived (workload_issues_native_v1's own `active` gate,
+       which this does not replace or duplicate). A read failure never blanks or
+       shrinks the board: it leaves every row exactly as unfiltered as it was before
+       this check existed, because this guard can only ever HIDE a row, never show
+       one that should stay hidden -- the permissive default AGENTS.md asks for
+       whenever a guard could go either way. */
+    async function _wlArchivedNativeIds(rows) {
+        const ids = (rows || [])
+            .filter(r => r && r.source === 'native' && r.is_sub_issue === true && typeof r.id === 'string' && r.id)
+            .map(r => r.id);
+        if (!ids.length) return new Set();
+        try {
+            const markerRows = await _wlFetchArchiveMarkerRows(ids);
+            const archived = new Set();
+            markerRows.forEach(row => {
+                const id = String(row && row.id || '').trim();
+                if (id && !_prodDeliverableLive(row)) archived.add(id);
+            });
+            return archived;
+        } catch (e) {
+            console.warn('[Workload] archive-state check failed; leaving rows as read', e);
+            return new Set();
+        }
+    }
     async function wlFetchNativeSnapshot() {
         await _syncviewRequireStaffIdentity('workload-plan-read');
         const owner = wlSnapshotIdentity(), session = _wlPlanSessionGeneration;
@@ -15038,8 +15116,18 @@
                 rosterIds.add(member.id);
             }
             const fingerprint = wlProductionAuthorityFingerprint(authority);
+            // Excluded entirely, before any bucketing -- never folded into the
+            // "no assignee and no work day or deadline" strip or its footer
+            // count (OPEN_REPAIRS 87 / test/workload-excluded-reported.js).
+            // That strip is for rows the board admits and cannot place; an
+            // archived-in-Linear row is not admitted at all.
+            const archivedNativeIds = await _wlArchivedNativeIds(value.rows);
+            const rows = archivedNativeIds.size
+                ? value.rows.filter(row => !(row && row.source === 'native' && row.is_sub_issue === true
+                    && archivedNativeIds.has(row.id)))
+                : value.rows;
             const seen = new Set(), metadata = [], issues = [], unprovableNativeIds = [];
-            for (const row of value.rows) {
+            for (const row of rows) {
                 if (!row || typeof row.id !== 'string' || !row.id || seen.has(row.id)
                     || !['native','legacy'].includes(row.source) || typeof row.is_sub_issue !== 'boolean') {
                     throw new Error('Workload row identities are incomplete.');

@@ -6859,6 +6859,8 @@ Owner intent recorded 2026-09-01: remove everything Linear within the week. That
 is not reachable while this holds. **Scoped separately in
 `docs/ops/WORKLOAD_NATIVE_SOURCE.md`.**
 
+**See item 229** for the code-level fix, once the native snapshot existed to fix.
+
 ---
 
 ## 96. [2026-09-01] The hand-rolled `grabFunc` in 77 test files mis-extracts, and a mis-extraction can pass
@@ -27305,6 +27307,11 @@ late archive in Linear could still arrive and would still not cross. After the
 revoke there is no Linear side and the class closes by construction. Re-measure
 once with the same query after the revoke; if 0, mark FIXED-by-retirement.
 
+**See item 229**: the Workload board itself no longer needs a manual archive to stay
+truthful. It now reads a deliverable's own Linear archive state directly, so a card
+matching this item's shape is excluded from the board even while it is still
+mid-flight through the inbound webhook path this item watches.
+
 ## 225. [2026-09-21, OPEN] The write-refusal receipt table has never recorded a refusal
 
 **Found while investigating the archive-park report (see the session entry
@@ -27461,3 +27468,63 @@ untouched — they are historical records of what was true when written, and
 rewriting them destroys the evidence the deletion rests on.
 
 No live behaviour, flag, database row or credential is involved.
+
+## 229. [2026-09-21, FIXED] Workload's native read never checked a deliverable's own Linear archive state -- only its batch's
+
+**See also item 95** (the original discovery, on the pre-native `workload_issues`
+mirror) and **item 224** (the same class recurring on the native snapshot, watched
+rather than fixed because it was cleared by hand). This entry closes the class at
+the code level.
+
+**Root cause, verified in the actual board load path, not the `wlNativeDiff`
+diagnostic.** The real Workload board reads `wlFetchNativeSnapshot()` (POSTing
+`action: 'native_snapshot'` to the `workload-plan` Edge Function), which calls
+`workload_native_snapshot_v1()`. That RPC excludes a row only when its BATCH is
+archived (`workload_issues_native_v1.active`, itself `batches.status is distinct
+from 'archived'`). It carries no per-issue Linear archive/delete state at all --
+the view was never asked to project it (`migrations/2026-09-02-workload-native-view.sql`
+lists this as a deliberate, undecided gap, not an oversight). So a deliverable whose
+own Linear issue was archived, while its batch stayed active, reached the board as
+live work under any open status, while Production already refused the identical row
+via `_prodDeliverableLive` (`src/index/210-production-state-writes.js.part`), reading
+`raw_issue_archived_at` / `raw_webhook_delete` / `raw_deleted` / `raw_delete` /
+`raw_removed` / `raw_archived` off the public `production_deliverables_browser_v1`
+view.
+
+**Measured on the live database, excluding the test client.** Deliverables carrying
+`raw_issue_archived_at` while their `status` is still an open one: 71 backlog, 32
+in_progress, 24 todo, 4 posted -- matching the figures this fix was asked to
+reproduce exactly. A second, wider measurement using every marker
+`_prodDeliverableLive` checks (adding `raw_webhook_delete` etc.) found 4 additional
+`todo` rows (28 total) that the narrower archivedAt-only count does not catch; all 4
+already have their own batch archived, so they were already invisible on the board
+through the unrelated batch-`active` gate before this fix, and remain so after it --
+recorded here as a verified discrepancy between the two possible measures, not
+silently reconciled to the smaller number. Cross-referencing `workload_issues_native_v1.active`
+for the 71/32/24/4 class itself found that all but 4 (the `posted` rows, which
+`wlIsActiveStatus` already parks off the active board as `completed`) already carry
+an archived batch as of 2026-09-21 -- most of this class was already incidentally
+hidden by item 224's manual Storage cleanup on 2026-09-20, not by any code fix. The
+fix is still required: it is the only thing that holds for a row like
+`VID-13343`/`del_63090331-...` (one active-batch, archived-issue, `in_progress` card
+on the test client, used to verify the mechanism end to end) whose batch nobody has
+archived by hand.
+
+**Fix.** `wlFetchNativeSnapshot` (`src/index/070-workload-source.js.part`) now runs
+a second, independent browser-side read of `production_deliverables_browser_v1` --
+already `select`-granted to `anon`/`authenticated`, no new SQL, no Edge Function
+change -- for the native sub-issue ids the snapshot returned, and calls
+`_prodDeliverableLive` directly to decide which are archived. This is a literal
+shared function call, not a second copy of the rule: `src/index/040-shared-briefs.js.part`
+through `340-editors-date-picker.js.part` are all concatenated inside ONE top-level
+`<script>` (see `src/index/manifest.txt`), so `_prodDeliverableLive` (defined in
+210, which assembles after 070) is hoisted and callable from 070's code at runtime
+with no extraction needed. Archived native rows are dropped from the array before
+`wlApplyData` ever buckets it, so they are excluded from the board entirely rather
+than folded into the "no assignee and no work day or deadline" footer count
+(`test/workload-excluded-reported.js` already pins that bucket to exactly two
+reasons; this fix adds no third one). A failed archive-marker read fails open
+(leaves every row exactly as unfiltered as before this fix existed) rather than
+blanking the board, matching AGENTS.md's permissive-guard rule for a check that can
+only ever hide a row, never wrongly show one. Pinned by
+`test/workload-archived-hidden.js`.

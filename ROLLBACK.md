@@ -1326,3 +1326,41 @@ Revert the single commit, or restore these fifteen lines to
 Nothing else is involved: no database row, runtime flag, Edge Function or
 n8n workflow. Restoring the code restores the previous behaviour exactly,
 which was that nothing called it. GitHub Pages redeploys on push.
+
+## 2026-09-21 — inverse for Workload's per-issue Linear archive check (browser only)
+
+Revert this change's commit. By hand: delete `_wlFetchArchiveMarkerRows`,
+`_wlArchivedNativeIds` and the `WL_ARCHIVE_MARKER_SELECT` constant from
+`src/index/070-workload-source.js.part`; in `wlFetchNativeSnapshot`, drop the
+`archivedNativeIds` / `rows` computation and change the row loop back to
+`for (const row of value.rows) {`. No database, flag, Edge Function or n8n
+state is involved; the read is a plain `select` against an already-public
+view. GitHub Pages redeploys on push.
+
+## 2026-09-21 — inverse for the B1-1 Samples re-assert deletion (browser only)
+
+Revert the single commit, or restore these fifteen lines to
+`src/index/290-samples-writes-review.js.part` immediately before the
+`/* ── Realtime subscription` comment and run `npm run build:index`:
+
+```js
+    const _sxrLinearReassertAt = new Map();
+    const SXR_LINEAR_REASSERT_MS = 20 * 1000;
+    function _sxrReassertLinearStatus(post, comp) {
+        if (!post || (comp !== 'video' && comp !== 'graphic')) return;
+        const url = String((comp === 'graphic' ? post.graphic_linear_issue_id : post.linear_issue_id) || '').trim();
+        const nativeId = _writeUiNativeId(post, comp);
+        if (!url && !nativeId) return;
+        const st = _sxrNormStatus(post[comp + '_status'] || '');
+        if (!st) return;
+        const key = (nativeId || url) + '|' + st, now = Date.now();
+        if (now - (_sxrLinearReassertAt.get(key) || 0) < SXR_LINEAR_REASSERT_MS) return;
+        _sxrLinearReassertAt.set(key, now);
+        _sxrPushStatusToLinear(url, st, { post, component: comp, sourceEditedAt: post.updated_at })
+            .catch(e => _writeUiReportFailure('sxr', 'status', e));
+    }
+```
+
+Nothing else is involved: no database row, runtime flag, Edge Function or
+n8n workflow. Restoring the code restores the previous behaviour exactly,
+which was that nothing called it. GitHub Pages redeploys on push.

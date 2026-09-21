@@ -7738,7 +7738,37 @@ that corrects the URL. `test/prod-batch-parent-route.js` updated to assert
 the negative (`_prodPrimeFromUrl` does not call `_prodBatchParentIssue`) in
 place of the removed assertion.
 
-## 2026-09-21 — Workload's native read now checks a deliverable's own Linear archive state, not only its batch's (OPEN_REPAIRS 228, browser only)
+## 2026-09-21 — B1-1: the orphan Samples Linear re-assert cluster removed
+
+First deletion of roadmap phase B1
+(`docs/plans/2026-09-21-post-modularization-roadmap.md`), taken from the A2
+inventory's suggested PR order, item 1
+(`docs/audits/2026-09-21-base-audit/A2-dead-code-inventory.md`).
+
+Removed from `src/index/290-samples-writes-review.js.part`:
+`_sxrLinearReassertAt`, `SXR_LINEAR_REASSERT_MS` and
+`_sxrReassertLinearStatus` — fifteen lines, the whole cluster.
+
+Proof of deadness, re-measured on `b08377ca` before the edit rather than
+taken from the audit: the three symbols had exactly five references in the
+assembled page (74814, 74815, 74816, 74824, 74825) and all five were the
+cluster's own declarations and internals. No executable caller existed
+anywhere in `index.html`, and no timer, event handler, `window` export or
+string reference reached it. After the deletion the assembled page contains
+zero references to any of the three.
+
+The Calendar twin `_calReassertLinearStatus` is NOT touched: it is live and
+called. A2's suggested order says so explicitly and the two are easy to
+confuse by name.
+
+Page bytes 5,776,430 → 5,775,541 (−889). New assembled sha256
+`a0c2a6064cf9b52e548860a0bb6802d840004ebeb71c6f14d42067abe5091850`.
+
+Gates: `npm run check:index`, `node test/run-all.js`,
+`node docs/syncview-design/tests/prod-write-gateway-browser.js`,
+`node scripts/repo-identity-exposure-check.js --diff="origin/main"`.
+
+## 2026-09-21 — Workload's native read now checks a deliverable's own Linear archive state, not only its batch's (OPEN_REPAIRS 229, browser only)
 
 `wlFetchNativeSnapshot` (`src/index/070-workload-source.js.part`) walked the
 real board load path, not the `window.wlNativeDiff` diagnostic: it POSTs

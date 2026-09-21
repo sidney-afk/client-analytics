@@ -6859,7 +6859,7 @@ Owner intent recorded 2026-09-01: remove everything Linear within the week. That
 is not reachable while this holds. **Scoped separately in
 `docs/ops/WORKLOAD_NATIVE_SOURCE.md`.**
 
-**See item 228** for the code-level fix, once the native snapshot existed to fix.
+**See item 229** for the code-level fix, once the native snapshot existed to fix.
 
 ---
 
@@ -27307,7 +27307,7 @@ late archive in Linear could still arrive and would still not cross. After the
 revoke there is no Linear side and the class closes by construction. Re-measure
 once with the same query after the revoke; if 0, mark FIXED-by-retirement.
 
-**See item 228**: the Workload board itself no longer needs a manual archive to stay
+**See item 229**: the Workload board itself no longer needs a manual archive to stay
 truthful. It now reads a deliverable's own Linear archive state directly, so a card
 matching this item's shape is excluded from the board even while it is still
 mid-flight through the inbound webhook path this item watches.
@@ -27443,7 +27443,33 @@ exact readback command each, and remove the struck Linear text to `docs/archive/
 Until then, the supervisor session runs the readback before a new client's first real
 card or a new hire's first assignment.
 
-## 228. [2026-09-21, FIXED] Workload's native read never checked a deliverable's own Linear archive state -- only its batch's
+## 228. B1 deletions: the truth docs name symbols, so each deletion must sweep them
+
+Opened 2026-09-21 by the supervisor while executing B1-1 (the orphan Samples
+Linear re-assert cluster).
+
+`node test/truth-sync.js` failed on the first phase-B deletion, not because
+the deletion was wrong but because `docs/truth/APP.md` asserted that
+`_sxrReassertLinearStatus()` EXISTS in the code while documenting that it is
+never called. The gate proves the truth docs and the code agree in both
+directions, so every symbol a B1 PR removes has to be swept out of the
+current-state truth docs in the same commit.
+
+This is not a defect in the gate; it is the gate doing its job. It is
+recorded here because the remaining B1 PRs (the 200/060 Submit chain, the
+080/160/270 anchors, the 120/140 and 280/290 transport legs) name far more
+symbols than this one did, and each will hit the same wall.
+
+Standing instruction for every later B1 PR: after deleting, run
+`grep -rn '<symbol>' docs/ --include=*.md`, correct the CURRENT-state docs
+(`docs/truth/*`, `docs/features/*`, runbooks) in place with a dated note, and
+leave the DATED audits (`docs/audits/2026-07-05-*`, the A2 inventory itself)
+untouched — they are historical records of what was true when written, and
+rewriting them destroys the evidence the deletion rests on.
+
+No live behaviour, flag, database row or credential is involved.
+
+## 229. [2026-09-21, FIXED] Workload's native read never checked a deliverable's own Linear archive state -- only its batch's
 
 **See also item 95** (the original discovery, on the pre-native `workload_issues`
 mirror) and **item 224** (the same class recurring on the native snapshot, watched

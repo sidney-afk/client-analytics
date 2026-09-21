@@ -27312,6 +27312,37 @@ truthful. It now reads a deliverable's own Linear archive state directly, so a c
 matching this item's shape is excluded from the board even while it is still
 mid-flight through the inbound webhook path this item watches.
 
+**Most of the second half closed 2026-09-21 by the social media managers themselves,
+not by a write -- but FOUR ROWS ARE STILL WRONG.** The phase-1 read of 2026-09-21
+found 25 `todo` cards across 17 posts whose Linear issues were archived between
+2026-08-17 and 2026-09-17, plus 9 more mid-review. Rather than have Storage bulk-park
+them, the owner listed them per manager with their SyncView links and asked.
+
+Four managers held cards in that set. THREE were asked and all three replied the same
+afternoon, moving their own cards to Backlog by hand. The FOURTH manager was
+deliberately left out of the message, because her four cards (`VID-13468`,
+`VID-13542`, `VID-13543`, `VID-13544`, all August) carry a Linear-era `archivedAt` and
+are therefore hidden on every surface -- so nobody would have seen them to act on.
+
+That reasoning was right about visibility and wrong about the ledger. Re-measured
+2026-09-21 at close: all four rows still read `status = 'todo'`, unchanged since
+2026-08-27. They are invisible, not corrected. Item 229 keeps them off the board, so
+no person is misled by them today, but the native status is still stale and any future
+report that counts `todo` rows will count them.
+
+So: no bulk write was executed, the prepared rollback SQL was never used, and the
+21 rows the three managers owned are correctly statused at the source by the people
+who own them -- a better outcome than a scripted park, because it also corrected those
+managers' own picture of their queues. The four remaining rows are NOT closed. Either
+ask the fourth manager the same way the other three were asked, or park those four ids
+specifically once the owner says so. Do not mark this item FIXED until they read
+something other than `todo`.
+
+The watch above also stands: the inbound webhook stays enabled until the STEP 7 revoke,
+so a NEW late archive can still arrive. Item 229 hides such a row from the board on
+arrival, so the watch is about data correctness, no longer about anyone seeing
+phantom work.
+
 ## 225. [2026-09-21, OPEN] The write-refusal receipt table has never recorded a refusal
 
 **Found while investigating the archive-park report (see the session entry

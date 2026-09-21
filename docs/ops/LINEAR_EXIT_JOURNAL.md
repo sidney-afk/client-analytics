@@ -13913,3 +13913,64 @@ nothing depends on memory:
 9. Modularization: Step 0 per `docs/plans/2026-09-21-modularization-plan.md`;
    during Step 0 also add a VS Code `files.associations` for `*.part` and
    note in the PR body that `git blame` on fragments points at the cut.
+
+## 2026-09-21 (evening) — supervisor close-out: phase A done, phase B started, two live bugs fixed
+
+Written at the end of the day this journal's split landed, so the next session
+starts from what is true rather than from the plan.
+
+**The split is finished and phase A is finished.** `index.html` is assembled
+from 37 ordered fragments in `src/index/`; the remainder file is retired. The
+base audit ran as four parallel sessions and all four reports are on main:
+docs freshness (#1480), the dead-code inventory (#1478), the junk inventory
+(#1479) and, added during the day, native assignee eligibility (#1482) and the
+boot baseline (#1483). 58 stale pull requests were closed and three unused
+images deleted.
+
+**Phase B has started.** B1-1 (#1484) removed the orphan Samples Linear
+re-assert cluster: `_sxrLinearReassertAt`, `SXR_LINEAR_REASSERT_MS` and
+`_sxrReassertLinearStatus`. B1-2, the orphan legacy Submit sender chain, is
+built and awaiting publication at the time of writing.
+
+**The boot number phase C has to beat.** Measured anonymously against the live
+page from a data centre, five runs each: cold first paint 10,704 ms, cold load
+10,972 ms, warm first paint 152 ms, 1,447,754 bytes transferred either way.
+Read the cold figure as a ceiling inflated by the measurement path, not as a
+real visitor's experience, which nobody has measured yet. The shape is the
+finding: the wait is transfer before first paint, not script execution.
+
+**Two live bugs were found by the owner using the app and both are fixed.**
+A parent issue opened from the Workload calendar showed the batch view instead
+of the issue view (#1471), and the Workload calendar showed cards that are
+archived in Linear and hidden everywhere else (#1485, OPEN_REPAIRS 229). The
+second had been recorded twice as an accepted difference, in items 95 and 224,
+and was only ever treated as a bug once a person hit it.
+
+**What the day taught about executor sessions.** Codex refused to publish three
+times, twice describing a deletion of already-public code as a release of client
+data. The refusal is not negotiable from inside that session. Two workarounds
+both worked: have it emit `git format-patch` for the supervisor to apply, or have
+the supervisor do the work directly. B1-1 was done the second way in about ten
+minutes after its executor had spent fifty producing nothing.
+
+**A trap every later B1 PR will hit.** `test/truth-sync.js` reads a backticked
+`symbol()` in a truth doc as a claim the code contains that symbol, so deleting
+code breaks the gate until the current-state docs are swept in the same commit.
+Recorded as OPEN_REPAIRS 228. Dated audits are left alone; they are the evidence
+the deletion rests on.
+
+**The archived-cards cleanup is MOSTLY, not fully, closed.** Three of the four
+managers holding those cards were asked and all three moved their own rows to Backlog
+the same afternoon, so no bulk write was needed. The fourth was left out of the message
+on purpose, because her four August rows carry a Linear-era archive mark and are hidden
+on every surface, so she would have had nothing to look at. Re-measured at close, those
+four still read `todo`. They are invisible, not corrected. OPEN_REPAIRS 224 now says so
+plainly and must not be marked FIXED until they read something else. Found by the Codex
+review on #1486, which caught that this journal said four managers and the ledger said
+three replied.
+
+**Still open at close.** STEP 7, the Linear credential revoke, has no date; the
+standing recommendation is 2026-09-27. The n8n weekday re-measure is due
+tomorrow morning. The hiring pollers stay on until the editor hire closes.
+OPEN_REPAIRS 227's onboarding measurements are answered for assignee
+eligibility (#1482) but the runbooks still need their native steps written.

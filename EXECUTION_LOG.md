@@ -7737,3 +7737,56 @@ honest first paint and the one code path that redirects is also the one
 that corrects the URL. `test/prod-batch-parent-route.js` updated to assert
 the negative (`_prodPrimeFromUrl` does not call `_prodBatchParentIssue`) in
 place of the removed assertion.
+
+## 2026-09-21 — Workload's native read now checks a deliverable's own Linear archive state, not only its batch's (OPEN_REPAIRS 228, browser only)
+
+`wlFetchNativeSnapshot` (`src/index/070-workload-source.js.part`) walked the
+real board load path, not the `window.wlNativeDiff` diagnostic: it POSTs
+`action: 'native_snapshot'` to `workload-plan` and calls
+`workload_native_snapshot_v1()`, which excludes a row only when its BATCH is
+archived (`workload_issues_native_v1.active`). It carries no per-issue Linear
+archive/delete state at all, so a deliverable whose own Linear issue was
+archived -- while its batch stayed active -- reached the board as live work
+under any open status, exactly the same class of row `_prodDeliverableLive`
+already refuses on Production
+(`src/index/210-production-state-writes.js.part`).
+
+Measured on the live database, excluding the test client: deliverables
+carrying `raw_issue_archived_at` (`production_deliverables_browser_v1`) with
+an open status: 71 backlog, 32 in_progress, 24 todo, 4 posted -- matching the
+figures the fix was measured against. Fetching the fuller `_prodDeliverableLive`
+marker set (also `raw_webhook_delete`, `raw_deleted`, `raw_delete`,
+`raw_removed`, `raw_archived`) finds 4 more `todo` rows; all 4 already carry
+an archived batch and were already invisible on the board through the
+existing (unrelated) batch-`active` gate, both before and after this change --
+recorded rather than silently reconciled. Cross-checking
+`workload_issues_native_v1.active` for the full 71/32/24/4 set found that all
+but the 4 `posted` rows (already parked off the active board by
+`wlIsActiveStatus`, since `posted` is workflow type `completed`) already had
+an archived batch as of 2026-09-21, from OPEN_REPAIRS 224's manual Storage
+cleanup the day before -- so most of the measured class was already
+incidentally hidden, and the fix's directly-verified live effect is the class
+item 224 called a "phantom" row: an active-batch, archived-issue deliverable
+under an open status that nobody has archived by hand.
+
+Fix: `wlFetchNativeSnapshot` now runs a second, independent browser-side read
+of `production_deliverables_browser_v1` (already `select`-granted to
+`anon`/`authenticated`; no new SQL, no Edge Function change) for the native
+sub-issue ids the snapshot returned, and calls `_prodDeliverableLive` directly
+to decide which are archived -- a literal shared function call, not a second
+copy of the rule, since `src/index/040-...` through `340-...` are one
+top-level `<script>` and `_prodDeliverableLive` is hoisted across the file
+split. Archived rows are dropped before `wlApplyData` buckets anything, so
+they are excluded from the board entirely rather than folded into the "no
+assignee and no work day or deadline" footer count. A failed archive-marker
+read fails open (leaves rows unfiltered) rather than blanking the board.
+
+Verified: `npm run build:index`, `npm run check:index`, `node test/run-all.js`,
+`node docs/syncview-design/tests/prod-write-gateway-browser.js`,
+`node docs/syncview-design/tests/prod-boot-budget.js`, and the new
+`test/workload-archived-hidden.js` (archived row excluded; live row kept; a
+post-2026-09-20-cutoff native row with no archive state at all is unaffected;
+a failed marker read fails open). `test/workload-native-membership.js` updated
+so its isolated fixture (no anon key configured) takes the same fail-open
+path with no new network call, keeping its existing `calls.length` assertions
+true.

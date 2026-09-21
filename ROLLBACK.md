@@ -1298,3 +1298,13 @@ deliverables list to
 `rows.map(d => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status, d.id) + _prodIssueIdHTML(d) + '<span class="prod-title"' + _prodTitleAttrs(d.title || '') + '><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-chip">' + _calEsc(_prodStatusLabel(d.status)) + '</span></div>').join('')`
 in place of `rows.map(_prodSubIssueRowHTML).join('')`. No database, flag,
 Edge Function or n8n state is involved; GitHub Pages redeploys on push.
+
+## 2026-09-21 — inverse for Workload's per-issue Linear archive check (browser only)
+
+Revert this change's commit. By hand: delete `_wlFetchArchiveMarkerRows`,
+`_wlArchivedNativeIds` and the `WL_ARCHIVE_MARKER_SELECT` constant from
+`src/index/070-workload-source.js.part`; in `wlFetchNativeSnapshot`, drop the
+`archivedNativeIds` / `rows` computation and change the row loop back to
+`for (const row of value.rows) {`. No database, flag, Edge Function or n8n
+state is involved; the read is a plain `select` against an already-public
+view. GitHub Pages redeploys on push.

@@ -14999,21 +14999,29 @@
         const value = _syncviewStaffIdentityForHeaders();
         return value ? JSON.stringify([value.key, value.role, value.member && value.member.id]) : '';
     }
-    /* OPEN_REPAIRS 95 / 224 / docs/ops/WORKLOAD_NATIVE_SOURCE.md: workload_native_snapshot_v1()
-       excludes a row only when its BATCH is archived (workload_issues_native_v1.active).
-       It carries no per-issue Linear archive/delete state at all, so a deliverable whose
-       own Linear issue was archived -- while its batch stays active -- reaches this board
-       as live work, exactly as Production's mirror was refusing it. Production already
-       has the rule (`_prodDeliverableLive`, src/index/210-production-state-writes.js.part)
-       reading the same markers `production_deliverables_browser_v1` already projects and
-       already grants `anon`/`authenticated` select on -- so this is a second, independent
-       browser-side read of that same public view for the native sub-issue ids this
-       snapshot returned. No new SQL, no Edge Function change. `_prodDeliverableLive` is
-       called directly rather than reimplemented: every file from 040 through 340 shares one
-       top-level <script> (src/index/manifest.txt), so it is hoisted and callable here even
-       though 210 concatenates after 070. */
+    /* The exact columns `_prodDeliverableLive` reads; the note explaining why this
+       read exists at all lives inside `_wlFetchArchiveMarkerRows` below, so that
+       test/deliverable-counts-exclude-parents.js attributes every mention of the
+       view to the function that actually queries it. */
     const WL_ARCHIVE_MARKER_SELECT = 'id,status,raw_issue_archived_at,raw_issue_canceled_at,raw_webhook_delete,raw_deleted,raw_delete,raw_removed,raw_archived';
     async function _wlFetchArchiveMarkerRows(ids) {
+        /* OPEN_REPAIRS 95 / 224 / 229 / docs/ops/WORKLOAD_NATIVE_SOURCE.md:
+           workload_native_snapshot_v1() excludes a row only when its BATCH is archived
+           (workload_issues_native_v1.active). It carries no per-issue Linear
+           archive/delete state at all, so a deliverable whose own Linear issue was
+           archived -- while its batch stays active -- reaches this board as live work,
+           exactly as Production's mirror was refusing it. Production already has the
+           rule (`_prodDeliverableLive`, src/index/210-production-state-writes.js.part)
+           reading the same markers `production_deliverables_browser_v1` already projects
+           and already grants `anon`/`authenticated` select on -- so this is a second,
+           independent browser-side read of that same public view for the native
+           sub-issue ids this snapshot returned. No new SQL, no Edge Function change.
+           `_prodDeliverableLive` is called directly rather than reimplemented: every
+           file from 040 through 340 shares one top-level <script>
+           (src/index/manifest.txt), so it is hoisted and callable here even though 210
+           concatenates after 070. Registered in
+           test/deliverable-counts-exclude-parents.js as EXEMPT: callers pass only
+           is_sub_issue rows, so a batch parent never reaches it. */
         const wanted = [...new Set((ids || []).map(id => String(id || '').trim()).filter(Boolean))];
         if (!wanted.length || !CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return [];
         const CHUNK = 120; // id=in.(...) has a URL-length ceiling; same chunk shape as _kedRestIn.

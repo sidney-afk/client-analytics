@@ -1,0 +1,2176 @@
+        function _prodManualRefresh() {
+            // The press must be visibly acknowledged: the refresh itself is a
+            // silent background delta, and a button that does nothing on
+            // screen reads as broken (the interaction inventory rightly
+            // refuses silent no-ops).
+            _prodToast('Refreshing production data\u2026');
+            _prodDeltaRefresh({ force: true, full: true });
+            return false;
+        }
+        // A background tick must never repaint under the user's hands. An open
+        // picker/menu layer or an in-flight write means "try again next tick";
+        // an explicit Retry press bypasses only the layer check, because the
+        // press itself closes the layer.
+        function _prodRefreshBusy() {
+            if (_prodState.writes && _prodState.writes.size) return true;
+            const layer = document.getElementById('prodLayer');
+            if (layer && layer.childElementCount) return true;
+            /* AND TYPING COUNTS, which is the case this guard was missing.
+
+               An open menu and an in-flight write already deferred the tick;
+               someone with a caret in a field did not. `_prodRender()` rebuilds
+               `#prodRoot` wholesale, so a tick landing mid-keystroke replaces
+               the node being typed into: the caret and the selection go with
+               it, and the board's own filter and search inputs have nothing
+               protecting them at all. Workload has guarded its search box this
+               way since it shipped (`document.activeElement !== searchInput`)
+               and Calendar defers on the same condition (`_calIsCalBusy`);
+               Production is the last of the three to get it.
+
+               This is deliberately the SAME answer a menu gets -- skip this
+               tick, try the next one -- rather than a second mechanism that
+               reads the data and defers the paint. Nothing is lost by waiting:
+               the next tick is 30 seconds away, the freshness age keeps
+               counting so the delay is visible, and an explicit Retry or the
+               Refresh button passes `force` straight past this check.
+
+               Scoped to the board. A field focused somewhere else on the page
+               is not this surface's business and must not freeze it. */
+            const el = document.activeElement;
+            if (!el) return false;
+            const typing = el.tagName === 'INPUT'
+                || el.tagName === 'TEXTAREA'
+                || el.isContentEditable === true;
+            if (!typing) return false;
+            const root = document.getElementById('prodRoot');
+            return !!(root && root.contains(el));
+        }
+        function _prodSyncFreshnessControl() {
+            const button = document.querySelector('[data-prod-refresh="1"]');
+            if (button) button.disabled = !!_prodState.refreshInFlight;
+            const ageEl = document.querySelector('[data-prod-freshness-age]');
+            if (ageEl) {
+                ageEl.textContent = _prodState.lastSyncError
+                    ? 'Update failed · ' + _prodRefreshAgeLabel()
+                    : _prodRefreshAgeLabel();
+            }
+            const wrap = document.querySelector('[data-prod-freshness]');
+            if (wrap) wrap.setAttribute('data-prod-freshness', _prodRefreshDegraded() ? 'degraded' : 'fresh');
+        }
+        async function _prodDeltaRefresh(options) {
+            const opts = options || {};
+            if (!_prodEnabled() || !_prodState.loaded || _prodState.loading) return null;
+            if (_prodState.refreshInFlight) return null;
+            if (_prodState.writes && _prodState.writes.size) return null;
+            if (!opts.force && _prodRefreshBusy()) return null;
+            const watermark = _prodDeliverableWatermark(_prodState.deliverables);
+            const needsFull = !!opts.full
+                || !watermark
+                || (Date.now() - Number(_prodState.lastFullSyncAt || 0)) >= PROD_FULL_RECONCILE_MS;
+            _prodState.refreshInFlight = true;
+            _prodSyncFreshnessControl();
+            const hadError = !!_prodState.lastSyncError;
+            // A background tick repaints only when something actually changed.
+            // Repainting on every tick would rebuild the surface under the
+            // user's pointer for no reason.
+            let repaint = false;
+            try {
+                if (needsFull) {
+                    // _prodLoadData renders its own result, and now reports
+                    // whether it got one. A silent failure used to resolve
+                    // indistinguishably from a success and be stamped as a
+                    // completed full sync; the throw here routes it into the
+                    // same catch arm a delta failure already uses, so the
+                    // failure counter, the backoff and the visible notice all
+                    // behave as they always have for a read that did not land.
+                    if (await _prodLoadData({ silent: true }) === false) {
+                        /* Read and CLEAR. A single-use baton cannot go stale
+                           into a later, unrelated failure the way a field left
+                           standing would -- and carrying the status is what
+                           lets an expired session be told to sign in again
+                           rather than to keep retrying. */
+                        const failed = new Error('production_full_refresh_failed');
+                        failed.status = Number(_prodState.lastSilentLoadStatus || 0);
+                        _prodState.lastSilentLoadStatus = 0;
+                        throw failed;
+                    }
+                    _prodState.lastFullSyncAt = Date.now();
+                } else {
+                    /* Deliverables only. A batch delta used to ride along here
+                       so a filming day planned since the last read appeared
+                       within 30s instead of at the ten-minute reconcile. It is
+                       gone, and removing it is the point rather than a casualty.
+
+                       It forced `batches.updated_at` to stop meaning "the CAS
+                       clock for this row" and start meaning "freshness of the
+                       last complete read", and those two readings fought across
+                       five findings on #1364: a complete row at the same stamp
+                       looked unchanged, the marker for that built a 30-second
+                       refetch loop, an older snapshot could overwrite a newer
+                       row, the CAS then sent pre-save clocks, and the separate
+                       clock added to fix THAT had its own lifecycle holes. Every
+                       one was a consequence of adding this read, and none of
+                       them touched the two changes this PR is actually for.
+
+                       So the row stamp goes back to meaning exactly what the
+                       gateway always took it to mean, and batches refresh where
+                       they always did: the ten-minute full reconcile, the manual
+                       Refresh, and any full load. The cost is bounded and
+                       stated -- a batch created elsewhere can be up to ten
+                       minutes stale in an open tab. Worth having back one day,
+                       as its own change with its own design. */
+                    const rows = await _prodBrowserProjectionRows(
+                        PROD_DELIVERABLE_SELECT,
+                        'updated_at=gte.' + encodeURIComponent(watermark)
+                    );
+                    const changedIds = _prodMergeDeliverableRows(rows);
+                    if (changedIds.length) {
+                        repaint = true;
+                        _prodInvalidateScopedReadsFor(changedIds);
+                        _prodState.adapter = _prodAdapter(_prodState);
+                        _prodCacheWrite({
+                            clients: _prodState.clients,
+                            members: _prodState.members,
+                            batches: _prodState.batches,
+                            deliverables: _prodState.deliverables,
+                            authority: _prodState.authority
+                        });
+                    }
+                    if (_prodState.view === 'detail' && _prodState.openId) {
+                        // The open thread is operational data too; refresh()
+                        // preserves the composer draft and scroll position.
+                        _prodComments.refresh(_prodOpenRowId());
+                    }
+                }
+                _prodState.lastSyncAt = Date.now();
+                _prodState.lastSyncError = '';
+                _prodState.refreshFailures = 0;
+                return true;
+            } catch (error) {
+                _prodState.refreshFailures = Number(_prodState.refreshFailures || 0) + 1;
+                const status = Number(error && error.status);
+                _prodState.lastSyncError = status === 401 || status === 403
+                    ? 'Live updates stopped: this session is no longer authorized.'
+                    : 'Live updates are failing. Retry to catch up.';
+                console.warn('[Production] operational refresh failed', error);
+                return false;
+            } finally {
+                _prodState.refreshInFlight = false;
+                if (hadError !== !!_prodState.lastSyncError) repaint = true;
+                if (repaint && document.getElementById('prodRoot')) _prodRender();
+                else _prodSyncFreshnessControl();
+            }
+        }
+        let _prodOperationalTimer = 0;
+        function _prodOperationalRefreshDelay() {
+            const failures = Number(_prodState.refreshFailures || 0);
+            if (!failures) return PROD_DELTA_REFRESH_MS;
+            return Math.min(PROD_REFRESH_MAX_BACKOFF_MS, PROD_DELTA_REFRESH_MS * Math.pow(2, failures));
+        }
+        function _prodStartOperationalRefresh() {
+            if (_prodOperationalTimer) return;
+            let nextAt = Date.now() + PROD_DELTA_REFRESH_MS;
+            _prodOperationalTimer = setInterval(() => {
+                // The age keeps counting even when no read runs, so a hidden or
+                // blocked tab still shows an honest last-success age instead of
+                // a frozen one. This touches text only; it never re-renders.
+                if (document.getElementById('prodRoot') && currentNav === 'production') {
+                    _prodSyncFreshnessControl();
+                }
+                if (document.hidden || currentNav !== 'production' || !document.getElementById('prodRoot')) return;
+                if (Date.now() < nextAt) return;
+                nextAt = Date.now() + _prodOperationalRefreshDelay();
+                _prodDeltaRefresh({});
+            }, 5000);
+        }
+        /* WHICH ITEM IS ACTUALLY ON SCREEN, asked of the DOM rather than of state.
+           `_prodState.openId` answers where the reader is GOING; the pane still
+           standing in the document is where they have BEEN, and between those
+           two the capture below has to mean the second one. Every detail
+           container stamps its own id, so the painted pane can say who it is. */
+        function _prodPaintedDetailKey(root) {
+            const detail = root && root.querySelector ? root.querySelector('.prod-detail-main') : null;
+            const owner = detail && detail.closest ? detail.closest('[data-prod-detail],[data-prod-batch-detail],[data-prod-project-detail]') : null;
+            if (!owner || !owner.getAttribute) return '';
+            return String(owner.getAttribute('data-prod-detail')
+                || owner.getAttribute('data-prod-batch-detail')
+                || owner.getAttribute('data-prod-project-detail') || '');
+        }
+        function _prodCaptureListScroll(root) {
+            root = root || document.getElementById('prodRoot');
+            const list = root && root.querySelector ? root.querySelector('.prod-listwrap') : null;
+            if (list) _prodState.listScrollTop = list.scrollTop || 0;
+            /* The detail pane is rebuilt by every render (description/comments/
+               assets arriving, the 30s delta tick, authority changes), and an
+               innerHTML swap resets its scroll to 0 — so a reader partway down a
+               long issue was yanked back to the top. Capture per open id so the
+               restore never applies a stale offset to a different issue.
+
+               THE KEY COMES FROM THE PAINTED PANE, and reading it from state
+               instead is owner report 2026-09-02: opening a sub-issue and going
+               back to its parent painted the parent SCROLLED DOWN and then
+               snapped it to the top.
+
+               `_prodRender` calls this AFTER the navigation has already written
+               the new id into `_prodState.openId`, and one line before the
+               innerHTML swap. So the offset read here belongs to the OUTGOING
+               item while the key stamped beside it named the INCOMING one. The
+               restore below then matched — it compares the same state to itself
+               — and pasted the sub-issue's offset onto the parent's fresh pane.
+               `_prodScrollDetailToTop`'s deferred reset undid it a tick later,
+               which is the snap: two correct-looking mechanisms, one mismatched
+               label, and a visible flash where there should have been nothing.
+
+               Asking the DOM cannot drift, because the thing being measured and
+               the thing being named are then the same element. */
+            const detail = root && root.querySelector ? root.querySelector('.prod-detail-main') : null;
+            if (detail) {
+                _prodState.detailScrollTop = detail.scrollTop || 0;
+                _prodState.detailScrollKey = _prodPaintedDetailKey(root);
+            }
+        }
+        function _prodScrollDetailToTop() {
+            /* No key is stamped here on purpose. A zero offset is never
+               restored — the restore is guarded on a truthy `detailScrollTop`
+               — so a key beside it would name nothing, and the one it used to
+               copy (`openId`) is the string the URL asked for, which for a deep
+               link is the Linear identifier and not the canonical row id the
+               pane stamps. Keeping it would have reintroduced exactly the
+               mislabelling above, one indirection further away. */
+            _prodState.detailScrollTop = 0;
+            _prodState.detailScrollKey = '';
+            setTimeout(() => {
+                const detailMain = document.querySelector('#prodRoot .prod-detail-main');
+                if (detailMain) detailMain.scrollTop = 0;
+                window.scrollTo({ top: 0, left: 0 });
+            }, 0);
+        }
+        function _prodRender() {
+            const root = document.getElementById('prodRoot');
+            if (!root) return;
+            const descriptionFocus = _prodCaptureDescriptionFocus(root);
+            /* The description capture answers only for an OPEN EDITOR, because
+               it also writes the caret back into description state. Every other
+               focusable control in the tab -- the asset URL inputs, the Edit and
+               Refresh buttons, the comment composer, the sidebar -- is covered
+               by the general snapshot below. */
+            const focusSnapshot = _prodCaptureFocus(root);
+            _prodEnsureOverlays();
+            _prodHideTip();
+            _prodCaptureListScroll(root);
+            root.innerHTML = _prodSidebar() + '<div class="prod-main">' + _prodTopbar() + '<div class="prod-content">' + _prodBody() + '</div></div>';
+            const list = root.querySelector('.prod-listwrap');
+            if (list && _prodState.listScrollTop) list.scrollTop = _prodState.listScrollTop;
+            /* Symmetric with the capture: the pane that just painted is asked
+               who it is, and the offset is only put back on the same item it
+               was taken from. An empty key restores nothing, which also closes
+               a quieter version of the same defect — a project view stamped
+               `''` (its slug lives in neither openId nor openBatchId), so every
+               project matched every other project's saved offset. */
+            const detailPane = root.querySelector('.prod-detail-main');
+            if (detailPane && _prodState.detailScrollTop && _prodState.detailScrollKey) {
+                const painted = _prodPaintedDetailKey(root);
+                if (painted && painted === _prodState.detailScrollKey) detailPane.scrollTop = _prodState.detailScrollTop;
+            }
+            if (_prodState.view === 'detail' && _prodState.openId) {
+                const openRowId = _prodOpenRowId();
+                _prodComments.ensure(openRowId);
+                _prodLoadLinearRawFor(openRowId);
+                _prodEnsureLabels(openRowId, false);
+                _prodEnsureDescription(openRowId, false);
+                _prodEnsureAssets(openRowId, false);
+                /* A batch parent takes its own one-row read inside the call
+                   above (it has no deliverable row to authorize against). The
+                   panel it paints is the CHILD row, so the read that fills it
+                   has to be asked for by id. Ensure is idempotent and cached
+                   per row, so opening the parent and then the child costs one
+                   read between them, not two. */
+                const batchAssetSource = _prodBatchAssetSource(_prodIssue(openRowId));
+                if (batchAssetSource) _prodEnsureAssets(batchAssetSource.id, false);
+                /* The file pills on the sub-issue list. Asked for once per
+                   BATCH ROW OF THE POST, only where a list is actually drawn --
+                   a row with a parent renders no sub-issue section, so it needs
+                   none.
+
+                   Per post rather than per row since 2026-09-05. batch_files_read
+                   answers `deliverables where batch_id = <one id>`, and this
+                   asked for the open parent's own batch only -- so on a post
+                   whose children sit on a different batch row (44 of 1,138
+                   measured) the response carried the parent and nothing else,
+                   _prodBatchFileFor found no entry for any sub-issue, and every
+                   pill was omitted. Reported by the owner as pills that used to
+                   be there: they were never there for these posts, and are for
+                   the other 1,027.
+
+                   Deliberately several calls to the EXISTING read rather than a
+                   new post-scoped one: the read is already cached and
+                   generation-keyed per batch id, the common case still makes
+                   exactly one request, and this half then ships with the page
+                   instead of waiting on a gateway deploy. */
+                const openIssue = _prodIssue(openRowId);
+                if (openIssue && !openIssue.parent) {
+                    const asked = new Set();
+                    _prodPostRows(openIssue).forEach(row => {
+                        const rowBatchId = String(row && row.batchId || '').trim();
+                        if (!rowBatchId || asked.has(rowBatchId)) return;
+                        asked.add(rowBatchId);
+                        /* The scope is taken from the row that NAMES the batch,
+                           not from the parent. They are the same client on every
+                           shape measured, but the gateway pins on client_slug and
+                           answers a mismatch with a flat 403 -- so asking under
+                           the scope that owns the row is the question that can
+                           succeed rather than the one that assumes. */
+                        const scope = String(
+                            row.authorityProject || row.storedClientSlug || ''
+                        ).trim();
+                        /* The two attribution SENTINELS are excluded for the
+                           reason _prodBatchAssetSource excludes them: a row with
+                           no attribution carries `__needs_attribution__` or
+                           `__attribution_conflict__`, and sending one as a
+                           client slug is a guaranteed 403. A request whose
+                           refusal is already known is a failed call in the
+                           console and in the audit, for an answer nobody
+                           gains. */
+                        if (!scope
+                            || scope === PROD_ATTRIBUTION_NEEDS
+                            || scope === PROD_ATTRIBUTION_CONFLICT) return;
+                        _prodEnsureBatchFiles(rowBatchId, scope);
+                    });
+                }
+            }
+            if (_prodState.view === 'batch' && _prodState.openBatchId) {
+                const batchRows = _prodBatchRows(_prodState.openBatchId);
+                // Prefetch for whichever row the panel will actually ask about
+                // (attribution-eligible), not necessarily the display-first one.
+                const assetRow = _prodAssetEligibleRow(batchRows) || batchRows[0];
+                if (assetRow) _prodEnsureAssets(assetRow.id, false);
+                /* This view renders `batch.description` straight off the row and
+                   the boot read no longer carries it, so it needs its own read;
+                   _prodEnsureDescription serves the DETAIL view only. It belongs
+                   in this block rather than a second one above the detail
+                   branch: test/prod-deep-link-open-id-key.js slices that branch
+                   as detail-start up to the first `view === 'batch'`, so a block
+                   placed ahead of it makes that slice empty and the whole
+                   canonical-row-id section vacuous. */
+                _prodEnsureBatchDescription(_prodState.openBatchId, false);
+            }
+            /* Description first: its snapshot carries the caret from description
+               state, which tracks edits the live element no longer shows. The
+               general restore is the fallback for everything else, and for a
+               description editor whose panel did not come back. */
+            if (!_prodRestoreDescriptionFocus(descriptionFocus)) _prodRestoreFocus(focusSnapshot, root);
+        }
+        function _prodNavItem(icon, label, active, onClick, cls, tip) {
+            return '<button class="prod-nav-btn' + (cls ? ' ' + cls : '') + (active ? ' active' : '') + '" type="button" data-prod-tip="' + _calEscAttr(tip || label) + '" onclick="' + onClick + '"><span class="prod-nav-ico">' + icon + '</span><span>' + _calEsc(label) + '</span></button>';
+        }
+        // PORT-DELTA: sidebar structure follows renderSidebar with host class names.
+        function _prodSidebar() {
+            const favIssues = _prodIssues().filter(d => d.favorite || d.fav);
+            const favHTML = favIssues.length
+                ? '<button class="prod-nav-section' + (_prodState.secOpen.fav ? '' : ' collapsed') + '" type="button" data-prod-tip="Favorites" onclick="_prodToggleSection(' + _jsAttrArg('fav') + ')"><span class="prod-section-label">Favorites</span><span class="prod-section-chev">' + _prodIcon('chevD') + '</span></button>'
+                    + (_prodState.secOpen.fav ? '<div class="prod-nav">' + favIssues.slice(0, 6).map(d => _prodNavItem(_prodStatusSVG(d.status), d.title || _prodIssueLabel(d), _prodState.openId === d.id, '_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')', 'child')).join('') + '</div>' : '')
+                : '';
+            const teamBlock = team => {
+                const open = _prodState.teamOpen[team] !== false;
+                const label = _prodTeamLabel(team);
+                const emoji = team === 'video' ? '📽️' : '🎨';
+                return '<div class="prod-nav"><button class="prod-team-hd' + (open ? '' : ' collapsed') + '" type="button" data-prod-tip="' + _calEscAttr(label + ' team') + '" onclick="_prodToggleTeam(' + _jsAttrArg(team) + ')"><span class="prod-team-emoji">' + emoji + '</span><span class="prod-team-name">' + label + '</span><span class="prod-section-chev">' + _prodIcon('chevD') + '</span></button>'
+                    + (open
+                        ? _prodNavItem(_prodIcon('issues'), 'Issues', (_prodState.view === 'list' && _prodState.team === team), '_prodOpenTeamView(' + _jsAttrArg(team) + ',' + _jsAttrArg('list') + ')', 'child')
+                            + _prodNavItem(_prodIcon('project'), 'Projects', (_prodState.view === 'board' && _prodState.team === team), '_prodOpenTeamView(' + _jsAttrArg(team) + ',' + _jsAttrArg('board') + ')', 'child')
+                        : '')
+                    + '</div>';
+            };
+            return '<aside class="prod-side"><div class="prod-side-top"><div class="prod-brand" aria-label="SyncView workspace"><span class="prod-brand-mark">S</span><span class="prod-brand-name">SyncView</span><span class="prod-preview-chip">' + _prodModeText() + '</span></div><button class="prod-search-btn" type="button" onclick="_prodOpenPalette()" title="Search workspace (/)" data-prod-tip="Search workspace|/">' + _prodIcon('search') + '</button></div>'
+                + '<div class="prod-side-scroll"><div class="prod-nav">'
+                + _prodNavItem(_prodIcon('issues'), 'My issues', _prodState.view === 'my', '_prodSetView(' + _jsAttrArg('my') + ')')
+                + '</div>' + favHTML
+                + '<button class="prod-nav-section' + (_prodState.secOpen.ws ? '' : ' collapsed') + '" type="button" data-prod-tip="Workspace" onclick="_prodToggleSection(' + _jsAttrArg('ws') + ')"><span class="prod-section-label">Workspace</span><span class="prod-section-chev">' + _prodIcon('chevD') + '</span></button>'
+                + (_prodState.secOpen.ws ? '<div class="prod-nav">' + _prodNavItem(_prodIcon('project'), 'Projects', _prodState.view === 'board' && _prodState.team === 'all', '_prodOpenTeamView(' + _jsAttrArg('all') + ',' + _jsAttrArg('board') + ')', '', 'All projects') + '</div>' : '')
+                + '<button class="prod-nav-section' + (_prodState.secOpen.teams ? '' : ' collapsed') + '" type="button" data-prod-tip="Your teams" onclick="_prodToggleSection(' + _jsAttrArg('teams') + ')"><span class="prod-section-label">Your teams</span><span class="prod-section-chev">' + _prodIcon('chevD') + '</span></button>'
+                + (_prodState.secOpen.teams ? teamBlock('video') + teamBlock('graphics') : '')
+                + '</div></aside>';
+        }
+        function _prodTopbar() {
+            if (_prodState.view === 'project') return _prodProjectTopbar();
+            if (_prodState.view === 'detail' || _prodState.view === 'batch') return _prodDetailTopbar();
+            const viewName = _prodState.view === 'board' ? 'Projects' : _prodState.view === 'my' ? 'My issues' : 'Issues';
+            const clientFilter = _prodClientFilterLabel();
+            const crumb = '<div class="prod-crumb"><button class="prod-crumb-link" type="button" data-prod-crumb-root="1" onclick="_prodOpenTeamView(' + _jsAttrArg('all') + ',' + _jsAttrArg(_prodState.view === 'board' ? 'board' : 'list') + ')" data-prod-tip="Production">' + 'Production' + '</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-team="' + _calEscAttr(_prodState.team || 'all') + '" onclick="return _prodOpenTeamScopeMenu(event,' + _jsAttrArg(_prodState.view === 'board' ? 'board' : 'list') + ')" data-prod-tip="Switch team scope">' + _calEsc(_prodTeamLabel(_prodState.team)) + '</button>' + (clientFilter ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-client="' + _calEscAttr(_prodState.clientSlug) + '" onclick="_prodOpenProject(' + _jsAttrArg(_prodState.clientSlug) + ')" data-prod-tip="Open project">' + _calEsc(clientFilter) + '</button>' : '') + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span>' + _calEsc(viewName) + '</span></div>';
+            const tabs = _prodState.view === 'board'
+                ? '<div class="prod-tabs"><span class="prod-tab prod-tab-static active" data-prod-static-scope="projects">All projects</span></div>'
+                : '<div class="prod-tabs"><button class="prod-tab' + (_prodState.tab === 'active' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('active') + ')">Active</button><button class="prod-tab' + (_prodState.tab === 'backlog' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('backlog') + ')">Backlog</button><button class="prod-tab' + (_prodState.tab === 'all' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('all') + ')">All issues</button></div>';
+            const filterPills = '<button class="prod-filter-pill prod-scope-pill" type="button" data-prod-scope-team="' + _calEscAttr(_prodState.team || 'all') + '" onclick="return _prodOpenTeamScopeMenu(event,' + _jsAttrArg(_prodState.view === 'board' ? 'board' : 'list') + ')" data-prod-tip="Switch team scope">' + _prodIcon('filter') + '<span>' + _calEsc(_prodTeamLabel(_prodState.team)) + '</span></button>'
+                + (clientFilter ? '<button class="prod-filter-pill prod-scope-pill" type="button" data-prod-scope-project="' + _calEscAttr(_prodState.clientSlug) + '" onclick="_prodOpenProject(' + _jsAttrArg(_prodState.clientSlug) + ')" data-prod-tip="Open project">' + _prodIcon('project') + '<span>' + _calEsc(clientFilter) + '</span></button>' : '')
+                + _prodPillsHTML();
+            const subbar = '<div class="prod-subbar">' + tabs + '<div class="prod-filter-pills">' + filterPills + '</div><div class="prod-spacer"></div><button class="prod-icon-btn' + ((_prodState.filters || []).length ? ' active' : '') + '" id="prodFilterBtn" type="button" onclick="return _prodOpenFilterMenu(event)" aria-label="Filter" data-prod-tip="Filter">' + _prodIcon('filter') + '</button><button class="prod-icon-btn" id="prodGroupBtn" type="button" onclick="return _prodOpenGroupMenu(event)" aria-label="Display options" data-prod-tip="Display options">' + _prodIcon('display') + '</button></div>';
+            const createClient = _prodState.clientSlug && _prodClient(_prodState.clientSlug) ? _prodState.clientSlug : '';
+            const createTeam = _prodState.team === 'video' || _prodState.team === 'graphics' ? _prodState.team : '';
+            return '<div class="prod-topbar">' + crumb + '<div class="prod-spacer"></div>' + _prodFreshnessHTML() + '<button class="prod-icon-btn" type="button" onclick="return _prodOpenArchiveRepair()" aria-label="Archive asset repair" data-prod-tip="Archive asset repair">' + _prodIcon('issues') + '</button>' + _prodCreateTopbarButton(createClient, createTeam) + '</div>' + subbar;
+        }
+        function _prodProjectTopbar() {
+            const c = _prodClient(_prodState.openProjectId);
+            const title = c ? (c.name || c.id) : 'Project';
+            const team = _prodProjectScopeTeam(c);
+            const detailBtn = '<button class="prod-icon-btn' + (_prodState.projectDetailsOpen === false ? '' : ' active') + '" type="button" data-prod-project-details-toggle="1" onclick="_prodToggleProjectDetails()" title="Project details" data-prod-tip="Project details">' + _prodIcon('project') + '</button>';
+            const subbar = '<div class="prod-subbar" data-prod-project-subbar="1"><div class="prod-filter-pills">' + _prodPillsHTML() + '</div><div class="prod-spacer"></div><button class="prod-icon-btn' + ((_prodState.filters || []).length ? ' active' : '') + '" id="prodFilterBtn" type="button" onclick="return _prodOpenFilterMenu(event)" aria-label="Filter" data-prod-tip="Filter">' + _prodIcon('filter') + '</button>' + detailBtn + '<button class="prod-icon-btn" id="prodGroupBtn" type="button" onclick="return _prodOpenGroupMenu(event)" aria-label="Display options" data-prod-tip="Display options">' + _prodIcon('display') + '</button></div>';
+            return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('board') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb"><button class="prod-crumb-link" type="button" data-prod-crumb-root="1" onclick="_prodOpenTeamView(' + _jsAttrArg('all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Production">Production</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-team="' + _calEscAttr(team || 'all') + '" onclick="_prodOpenTeamView(' + _jsAttrArg(team || 'all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Open team projects">' + _calEsc(_prodTeamLabel(team)) + '</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>Project</b><span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div>' + _prodFreshnessHTML() + _prodCreateTopbarButton(c ? c.id : '', team) + '<button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c ? c.id : '') + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>' + subbar;
+        }
+        function _prodDetailTopbar() {
+            const d = _prodState.openId ? _prodIssue(_prodState.openId) : null;
+            const batch = _prodState.openBatchId ? _prodBatch(_prodState.openBatchId) : d ? _prodBatch(d.batchId) : null;
+            const parent = d && d.parent ? _prodIssue(d.parent) : null;
+            const clientSlug = d ? d.project : batch ? batch.client_slug : '';
+            const title = d ? (d.title || _prodIssueLabel(d)) : batch ? (batch.name || 'Batch') : 'Detail';
+            const showParent = !!parent;
+            const ctxKind = d ? 'issue' : 'batch';
+            const ctxId = d ? d.id : batch ? batch.id : '';
+            const currentKind = d ? (showParent ? 'Sub-issue' : 'Issue') : 'Batch';
+            const currentId = d && !showParent ? '<b>' + _calEsc(_prodIssueDisplayLabel(d)) + '</b>' : !d ? '<b>Batch</b>' : '';
+            // Sibling navigation (owner 2026-08-18): inside a sub-issue, step to
+            // the previous/next sibling without going back to the parent. Order
+            // matches the parent's sub-issue section (_prodChildrenOf).
+            let siblingNav = '';
+            if (showParent) {
+                const siblings = _prodChildrenOf(parent.id);
+                const at = siblings.findIndex(k => k && k.id === d.id);
+                const prev = at > 0 ? siblings[at - 1] : null;
+                const next = at >= 0 && at < siblings.length - 1 ? siblings[at + 1] : null;
+                // The prev arrow is chevD rotated by CSS: PROD_ICON stays an
+                // exact copy of the design artifact (port-fidelity-check).
+                const navBtn = (target, dir, label) => target
+                    ? '<button class="prod-icon-btn" type="button" data-prod-sibling-nav="' + dir + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(target.id) + ')" aria-label="' + label + '" data-prod-tip="' + label + '">' + _prodIcon('chevD') + '</button>'
+                    : '<button class="prod-icon-btn" type="button" data-prod-sibling-nav="' + dir + '" disabled aria-label="' + label + '" data-prod-tip="' + label + '">' + _prodIcon('chevD') + '</button>';
+                siblingNav = (at >= 0 && siblings.length > 1
+                    ? '<span class="prod-sibling-pos" data-prod-sibling-pos="' + (at + 1) + '/' + siblings.length + '">' + (at + 1) + '/' + siblings.length + '</span>'
+                    : '')
+                    + navBtn(prev, 'prev', 'Previous sub-issue')
+                    + navBtn(next, 'next', 'Next sub-issue');
+            }
+            return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb">'
+                + '<button class="prod-crumb-link" type="button" data-prod-crumb-client="' + _calEscAttr(clientSlug) + '" data-prod-crumb-project="' + _calEscAttr(clientSlug) + '" onclick="_prodOpenProject(' + _jsAttrArg(clientSlug) + ')" data-prod-tip="Open project"><span style="font-size:12px">' + _prodProjectGlyph(clientSlug) + '</span><span>' + _calEsc(_prodDisplayClient(clientSlug)) + '</span></button>'
+                + (showParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">Issue</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(parent.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</button>' : '')
+                + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">' + currentKind + '</span>' + currentId + '<span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div>' + _prodFreshnessHTML() + siblingNav + '<button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
+        }
+        function _prodBody() {
+            if (_prodState.loading) return _svLoadingSkeletonHtml('production');
+            if (_prodState.error) return '<div class="prod-error"><strong>Production preview could not load.</strong><br>' + _calEsc(_prodState.error) + '<br><button class="prod-tab" type="button" onclick="_prodRefresh()">Retry</button></div>';
+            if (!_prodState.loaded) return _svLoadingSkeletonHtml('production');
+            if (_prodState.view === 'board') return _prodBoard();
+            if (_prodState.view === 'detail') return _prodDetail();
+            if (_prodState.view === 'batch') return _prodBatchDetail();
+            if (_prodState.view === 'project') return _prodProjectDetail();
+            return _prodList();
+        }
+        function _prodWireBulkCommandMenu(pop, ids) {
+            /* `proj` is NOT here any more. It used to open the submenu that built
+               a searchable list of every client and then refused the pick, and it
+               was reachable three ways -- click, Enter, and the P accelerator. */
+            const hasSub = { assign: 1, status: 1, due: 1 };
+            const rows = Array.from(pop.querySelectorAll('[data-prod-ctx]'));
+            const refusedRow = el => !!(el && el.hasAttribute('data-prod-disabled'));
+            const visible = () => rows.filter(el => el.style.display !== 'none');
+            /* -1 means NOTHING is highlighted, and that state has to exist. A
+               refused row is searchable and hoverable but is never the Enter
+               target: the arrows step OVER it in the direction of travel, and a
+               search that matches only refused rows leaves no target at all.
+               Without a real -1 the old `visible()[sel] || visible()[0]` would
+               quietly fire whichever command happened to be first, which is a
+               worse outcome than the one this change set out to fix. */
+            let sel = -1;
+            const nextEnabled = (shown, from, step) => {
+                for (let i = from; i >= 0 && i < shown.length; i += step) {
+                    if (!refusedRow(shown[i])) return i;
+                }
+                return -1;
+            };
+            const hi = (n, dir) => {
+                const shown = visible();
+                const paint = () => shown.forEach((el, i) => el.classList.toggle('sel', i === sel));
+                if (!shown.length) { sel = -1; return; }
+                const step = dir < 0 ? -1 : 1;
+                const start = Math.max(0, Math.min(n, shown.length - 1));
+                let ix = nextEnabled(shown, start, step);
+                if (ix < 0) ix = nextEnabled(shown, start, -step);
+                sel = ix;
+                paint();
+                if (sel >= 0) shown[sel].scrollIntoView({ block: 'nearest' });
+            };
+            const activate = row => {
+                if (!row) return;
+                if (refusedRow(row)) {
+                    /* Echo the tip this row already shows on hover. The menu
+                       deliberately STAYS open: closing it on a refusal is what
+                       made the old Delete feel like it had done something. */
+                    _prodReadonlyGuard(row.getAttribute('data-prod-tip'));
+                    return;
+                }
+                const act = row.getAttribute('data-prod-ctx');
+                if (hasSub[act]) {
+                    _prodOpenSub(row, act, ids);
+                    return;
+                }
+                if (act === 'copy-id') {
+                    _prodClearLayer();
+                    _prodCopyIssueIds(ids);
+                }
+            };
+            rows.forEach(el => {
+                el.addEventListener('mouseenter', () => {
+                    const shown = visible();
+                    const ix = shown.indexOf(el);
+                    if (ix < 0) { _prodCloseSub(); return; }
+                    /* Hovering a refused row surfaces its tip and clears the
+                       highlight entirely. Leaving the previous row highlighted
+                       would mean Enter fires a command the cursor is not on. */
+                    sel = refusedRow(el) ? -1 : ix;
+                    shown.forEach((row, i) => row.classList.toggle('sel', i === sel));
+                    _prodCloseSub();
+                });
+                el.addEventListener('click', e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    activate(el);
+                });
+            });
+            const inp = pop.querySelector('[data-prod-search]');
+            if (inp) {
+                inp.addEventListener('input', () => {
+                    const q = inp.value.trim().toLowerCase();
+                    let shown = 0;
+                    rows.forEach(el => {
+                        const label = (el.getAttribute('data-prod-bulk-label') || el.textContent || '').toLowerCase();
+                        const match = !q || label.includes(q);
+                        el.style.display = match ? '' : 'none';
+                        if (match) shown++;
+                    });
+                    _prodCloseSub();
+                    _prodPickerEmptyState(pop, shown);
+                    hi(0);
+                });
+                inp.addEventListener('keydown', e => {
+                    e.stopPropagation();
+                    if (e.key === 'Tab') { e.preventDefault(); return; }
+                    if (e.key === 'Escape') { e.preventDefault(); _prodClearLayer(); return; }
+                    if (e.key === 'ArrowDown') { e.preventDefault(); hi(sel < 0 ? 0 : sel + 1, 1); return; }
+                    if (e.key === 'ArrowUp') { e.preventDefault(); hi(sel < 0 ? 0 : sel - 1, -1); return; }
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        /* No `|| visible()[0]` fallback. With nothing
+                           highlighted, Enter must do nothing rather than run
+                           whatever sorted first. */
+                        if (sel >= 0) activate(visible()[sel]);
+                    }
+                });
+                try { inp.focus(); } catch (e) {}
+                setTimeout(() => { try { inp.focus(); } catch (e) {} }, 20);
+            }
+            hi(0);
+        }
+        function _prodOpenBulkActions(ev, id) {
+            if (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }
+            const bar = ev && ev.currentTarget && ev.currentTarget.closest ? ev.currentTarget.closest('.prod-actionbar') : null;
+            const r = bar ? bar.getBoundingClientRect() : null;
+            const ids = _prodTargetIds(id);
+            const count = ids.length || 1;
+            const plural = count !== 1;
+            const command = (label, icon, act, kbd, chev, danger) =>
+                '<div class="prod-mi' + (danger ? ' danger' : '') + '" data-prod-ctx="' + _calEscAttr(act) + '" data-prod-bulk-label="' + _calEscAttr(label) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + (chev ? '<span class="chev">' + _prodIcon('chevR') + '</span>' : '') + '</div>';
+            /* A refused row KEEPS data-prod-ctx, which looks wrong and is the
+               whole point. This palette has a search box and arrow-key
+               navigation, both of which iterate [data-prod-ctx]; a disabled row
+               built without it stays on screen while the search hides everything
+               around it, and shifts nothing in the highlight index that would
+               explain why. So it stays in the index and is refused at the two
+               places that act -- activate() and hi() -- instead. */
+            const refused = (label, icon, act, kbd, reason, danger) =>
+                '<div class="prod-mi disabled' + (danger ? ' danger' : '') + '" data-prod-ctx="' + _calEscAttr(act) + '" data-prod-disabled="bulk-' + _calEscAttr(act) + '" data-prod-bulk-label="' + _calEscAttr(label) + '" title="' + _calEscAttr(reason) + '" data-prod-tip="' + _calEscAttr(reason) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + '</div>';
+            const html = '<div class="prod-bulk-head"><span class="prod-bulk-chip">' + count + ' ' + (plural ? 'issues' : 'issue') + '</span><span class="prod-bulk-ask">Ask Linear <kbd>Tab</kbd></span></div><div class="prod-pop-search"><input data-prod-search placeholder="Type a command or search..."></div><div class="prod-pop-list">'
+                + command('Assign to...', _prodIcon('assign'), 'assign', 'A', true)
+                + command('Change status...', _prodIcon('issues'), 'status', 'S', true)
+                /* Not a command. It built a searchable list of every client and
+                   then refused the pick; nothing writes client_slug, so there is
+                   no permission that would turn this on. */
+                + refused('Move to project...', _prodIcon('project'), 'proj', 'P', PROD_PROJECT_MOVE_UNSUPPORTED)
+                + command(plural ? 'Copy issue IDs' : 'Copy issue ID', _prodIcon('copy'), 'copy-id', 'C', false)
+                + command('Change due date...', _prodIcon('cal'), 'due', 'D', true)
+                + '<div class="prod-msep"></div>'
+                /* Styled live and wired to a toast was the worst of both: the
+                   identical Delete one menu away is greyed and explained, so the
+                   palette read as the surface where it DOES work -- and post-flip
+                   the palette really does write, on the four rows above. */
+                + refused(plural ? 'Delete issues' : 'Delete issue', _prodIcon('trash'), 'delete', '', PROD_DELETE_UNSUPPORTED, true)
+                + '</div>';
+            const pop = _prodLayerPop(html, r ? r.left : innerWidth / 2, r ? r.top - 8 : 160);
+            if (pop && r) {
+                pop.setAttribute('data-prod-bulkcmd', '1');
+                pop.setAttribute('data-prod-actioncmd', '1');
+                pop.setAttribute('data-prod-anchor-top', String(r.top));
+                const pr = pop.getBoundingClientRect();
+                _prodPlacePop(pop, (innerWidth - pr.width) / 2, r.top - pr.height - 14);
+            }
+            if (pop) _prodWireBulkCommandMenu(pop, ids);
+            return false;
+        }
+        function _prodSelectionBar() {
+            if (_prodState.view === 'board' && _prodState.cardSel && _prodState.cardSel.size) {
+                const n = _prodState.cardSel.size;
+                return '<div class="prod-actionbar" data-prod-card-actionbar><span class="cnt" data-prod-card-select-count>' + n + ' selected</span>'
+                    + '<button class="abtn abq" type="button" id="cb-status" onclick="return _prodOpenCardBulk(' + _jsAttrArg('pstatus') + ',event)" title="' + _prodPreviewText() + '" data-prod-tip="Status · S">' + _prodIcon('issues') + '</button>'
+                    + '<button class="abtn abq" type="button" id="cb-lead" onclick="return _prodOpenCardBulk(' + _jsAttrArg('plead') + ',event)" title="' + _prodPreviewText() + '" data-prod-tip="Lead · A">' + _prodIcon('assign') + '</button>'
+                    + '<button class="abtn abq" type="button" id="cb-target" onclick="return _prodOpenCardBulk(' + _jsAttrArg('ptarget') + ',event)" title="' + _prodPreviewText() + '" data-prod-tip="Target · ⇧D">' + _prodIcon('cal') + '</button>'
+                    + '<button class="ax" type="button" id="cb-clear" onclick="_prodState.cardSel.clear(); _prodState.cardAnchor=' + _jsAttrArg('') + '; _prodState.focusCard=' + _jsAttrArg('') + '; _prodRender();" data-prod-tip="Clear · Esc">×</button></div>';
+            }
+            const n = _prodState.selected ? _prodState.selected.size : 0;
+            if (!n) return '';
+            const first = Array.from(_prodState.selected)[0] || '';
+            return '<div class="prod-actionbar" data-prod-actionbar><span class="cnt" data-prod-select-count>' + n + ' selected</span>'
+                /* This said "Preview - read-only" over a menu whose Assign,
+                   Change status and Change due date rows all write for real
+                   post-flip. It labelled the whole surface by its most-refused
+                   row; each row now carries its own answer instead. */
+                + '<button class="abtn" type="button" id="prodBulkActions" onclick="return _prodOpenBulkActions(event,' + _jsAttrArg(first) + ')" title="Bulk actions for the selected issues"><span style="font-size:13px">⌘</span> Actions</button>'
+                + '<button class="ax" type="button" id="prodBulkClear" onclick="_prodState.selected.clear(); _prodState.selAnchor=' + _jsAttrArg('') + '; _prodState.focusRow=' + _jsAttrArg('') + '; _prodState.hoverRow=' + _jsAttrArg('') + '; _prodRender();" data-prod-tip="Clear · Esc">×</button></div>';
+        }
+        // PORT-DELTA: renderList consumes _prodAdapter live rows and preserves host type scale/classes.
+        function _prodList() {
+            const rows = _prodIssueRows();
+            if (!rows.length) {
+                let msg = 'No issues here yet.';
+                // F37: an unverified or off-roster session must say so instead
+                // of showing an "empty personal queue" that looks like real data.
+                const myGate = _prodState.view === 'my' ? _prodMyQueueUnavailableText() : '';
+                // The cached first paint deliberately carries no completed
+                // work, so on the tab that shows it an empty list is this
+                // snapshot's silence, not an answer. Saying "no issues" here
+                // would be the same lie F37 exists to prevent, one source
+                // further back.
+                const historyPending = _prodState.cachePartial && _prodState.tab === 'all';
+                if (historyPending && !myGate) msg = 'Loading completed work...';
+                else if (myGate) msg = myGate;
+                else if (_prodState.filters && _prodState.filters.length) msg = 'No issues match your filters.';
+                else if (_prodState.view === 'my') msg = 'No issues assigned to you.';
+                else if (_prodState.tab === 'backlog') msg = 'Nothing in the backlog.';
+                else if (_prodState.tab === 'active') msg = 'No active issues.';
+                const emptyHTML = '<div class="prod-empty-state" data-prod-empty-state><span class="es-ico">' + (_prodState.view === 'my' ? _prodIcon('issues') : _prodIcon('issues')) + '</span><span>' + _calEsc(msg) + '</span>' + ((_prodState.filters || []).length ? '<button class="es-clear" type="button" onclick="_prodClearFilters()">Clear filters</button>' : '') + '</div>';
+                // Only wrap when there is actually a notice to carry: prod-content
+                // is a flex row, so the empty state must stay the single child,
+                // and the unwrapped markup is what every pixel run measures.
+                const emptyNotice = _prodDeepLinkNoticeHTML();
+                return emptyNotice
+                    ? '<div class="prod-listwrap" tabindex="0" aria-label="Issues list">' + emptyNotice + emptyHTML + '</div>'
+                    : emptyHTML;
+            }
+            const selected = _prodState.selected || new Set();
+            return '<div class="prod-listwrap" tabindex="0" aria-label="Issues list">' + _prodDeepLinkNoticeHTML() + _prodGroupsFor(rows).map(group => {
+                const items = group.items || [];
+                const collapsed = _prodState.collapsed.has(group.key);
+                const selectedCount = items.filter(i => selected.has(i.id)).length;
+                const checkClass = selectedCount === items.length && items.length ? ' on' : selectedCount ? ' partial' : '';
+                const projectNav = (_prodState.groupBy || 'status') === 'client'
+                    && group.key && group.key !== '_'
+                    && group.key !== PROD_ATTRIBUTION_NEEDS
+                    && group.key !== PROD_ATTRIBUTION_CONFLICT;
+                const title = projectNav
+                    ? '<span class="prod-group-title navp" data-prod-project="' + _calEscAttr(group.key) + '" data-prod-tip="Open project" onclick="event.stopPropagation(); _prodOpenProject(' + _jsAttrArg(group.key) + ')">' + _calEsc(group.title) + '</span>'
+                    : '<span class="prod-group-title">' + _calEsc(group.title) + '</span>';
+                return '<div class="prod-group' + (collapsed ? ' collapsed' : '') + '" data-prod-group="' + _calEscAttr(group.key) + '" onclick="_prodToggleGroup(' + _jsAttrArg(group.key) + ')"><span class="prod-group-chev" data-prod-group-toggle="' + _calEscAttr(group.key) + '">' + _prodIcon('chevD') + '</span><span class="prod-group-check' + checkClass + '" data-prod-group-check="' + _calEscAttr(group.key) + '" onclick="event.stopPropagation(); return _prodGuardGroupSelection(' + _jsAttrArg(group.key) + ')" data-prod-tip="' + _calEscAttr(PROD_GROUP_SELECT_UNSUPPORTED) + '"></span><span class="prod-group-ico prod-status">' + group.icon + '</span>' + title + '<span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span></div>'
+                    + (collapsed ? '' : items.map(_prodRow).join(''));
+            }).join('') + '</div>' + _prodSelectionBar();
+        }
+        // PORT-DELTA: rowHTML uses live ids/displayIds and read-only picker hooks.
+        function _prodRow(d) {
+            const assignee = _prodMember(d.assignee);
+            const parent = d.parent ? _prodIssue(d.parent) : null;
+            const sub = _prodSubProgress(d);
+            const isHierarchyParent = !!d.isHierarchyParent;
+            const childCount = sub ? sub.total : 0;
+            const selected = _prodState.selected && _prodState.selected.has(d.id);
+            const focused = _prodState.focusRow === d.id;
+            const assigneeTip = assignee ? ('Assignee: ' + assignee.name) : 'Unassigned';
+            const dueWriteAttrs = _prodWriteGateAttrs(d, 'due', d.due
+                ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodRowOverdueText(d), tip: 'Change due date · ⇧D' }
+                : { tip: 'Set due date|⇧D' });
+            const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { title: assignee ? assignee.name : 'Unassigned', info: assigneeTip, tip: 'Assign · A' });
+            return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + (selected ? ' selected' : '') + (focused ? ' kfocus' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.project || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" data-prod-child-count="' + childCount + '" onclick="return _prodRowClick(event,' + _jsAttrArg(d.id) + ')" onmousemove="_prodSetFocusRow(' + _jsAttrArg(d.id) + ',false)" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
+                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ', false, event)" aria-hidden="true"></span>'
+                + _prodIssueIdHTML(d)
+                + _prodStatusIcon(d.status, d.id)
+                + '<span class="prod-title"' + _prodTitleAttrs(parent ? (d.title || 'Untitled deliverable') + ' › ' + (parent.title || '') : (d.title || 'Untitled deliverable')) + '><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
+                + (sub ? '<span class="prod-subchip" data-prod-tip="' + sub.done + ' of ' + sub.total + ' sub-issues done">' + _prodStatusSVG(sub.done === sub.total && sub.total > 0 ? 'approved' : 'todo') + sub.done + '/' + sub.total + '</span>' : '')
+                + '<span class="prod-spacer"></span>' + _prodIssueProjectChipHTML(d)
+                + (d.due ? '<span class="prod-due' + (_prodRowOverdue(d) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '</span>')
+                + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '"' + assigneeWriteAttrs + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '</span>'
+                + (d.created ? '<span class="prod-created" data-prod-tip="Created ' + _calEscAttr(_prodFmtDateFull(d.createdRaw)) + '">' + _calEsc(d.created) + '</span>' : '<span class="prod-created"></span>')
+                + '</div>';
+        }
+        function _prodProjectStatusIcon(status) {
+            status = _prodBoardStatus(status);
+            const color = status === 'backlog' ? '#d9863a' : status === 'prog' ? '#e0b83a' : status === 'completed' ? '#5e6ad2' : status === 'canceled' ? '#8a8f98' : '#a5a6ab';
+            const extra = status === 'prog' ? '<circle cx="7" cy="7" r="2.4" fill="' + color + '"/>'
+                : status === 'completed' ? '<path d="M4.6 7.1 6.2 8.7 9.4 5.3" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+                : status === 'paused' ? '<rect x="5.4" y="5" width="1.4" height="4" rx=".6" fill="' + color + '"/><rect x="7.6" y="5" width="1.4" height="4" rx=".6" fill="' + color + '"/>'
+                : status === 'canceled' ? '<path d="M5.4 5.4 8.6 8.6M8.6 5.4 5.4 8.6" stroke="' + color + '" stroke-width="1.4" stroke-linecap="round"/>'
+                : '';
+            const dash = status === 'backlog' ? ' stroke-dasharray="1.65 1.35"' : '';
+            return '<svg width="16" height="16" viewBox="-1 -1 16 16" aria-hidden="true"><path d="M2.95778 3.02069L5.70777 1.36023C6.50244 0.88041 7.49756 0.88041 8.29223 1.36024L11.0422 3.02074C11.7918 3.47336 12.25 4.2852 12.25 5.16086V8.84803C12.25 9.7251 11.7904 10.5381 11.0388 10.9902L8.29114 12.6433C7.49693 13.1211 6.50355 13.1203 5.71011 12.6412L2.95775 10.9792C2.20815 10.5266 1.75 9.7148 1.75 8.83911V5.16082C1.75 4.28516 2.20816 3.47332 2.95778 3.02069Z" fill="none" stroke="' + color + '" stroke-width="1.4" stroke-linejoin="round"' + dash + '/>' + extra + '</svg>';
+        }
+        // PORT-DELTA: renderProjects reads live client cards while the read-only preview omits create/options column chrome.
+        function _prodBoard() {
+            const byClient = _prodBoardCardCounts();
+            const filtered = !!((_prodState.filters || []).length);
+            const emptyText = filtered ? 'No matching projects' : 'No projects';
+            const columns = PROD_BOARD_ORDER.map(status => ({
+                status,
+                cards: _prodBoardCardsForStatus(status, byClient),
+                collapsed: _prodState.colCollapsed.has(status)
+            }));
+            const visibleColumns = filtered && columns.some(col => col.cards.length) ? columns.filter(col => col.cards.length) : columns;
+            return '<div class="prod-board">' + visibleColumns.map(col => {
+                const status = col.status;
+                const cards = col.cards;
+                const collapsed = col.collapsed;
+                return '<section class="prod-col' + (cards.length ? ' has-cards' : ' is-empty') + (collapsed ? ' collapsed' : '') + '" data-prod-col="' + _calEscAttr(status) + '"><div class="prod-col-head"><button class="prod-col-collapse" type="button" data-prod-pcolcollapse="' + _calEscAttr(status) + '" onclick="_prodToggleBoardColumn(' + _jsAttrArg(status) + ')" data-prod-tip="' + (collapsed ? 'Expand column' : 'Collapse column') + '">' + _prodIcon('chevD') + '</button><span class="prod-card-status" data-prod-tip="' + _calEscAttr(_prodBoardLabel(status)) + '">' + _prodProjectStatusIcon(status) + '</span><span class="prod-col-title">' + _calEsc(_prodBoardLabel(status)) + '</span><span class="prod-group-count">' + cards.length + '</span><span class="prod-spacer"></span></div>' + (collapsed ? '<div class="prod-col-rail">' + _calEsc(_prodBoardLabel(status)) + ' ' + cards.length + '</div>' : '<div class="prod-cards">'
+                    + (cards.length ? cards.map(c => _prodClientCard(c, byClient.get(c.id) || 0)).join('') : '<div class="prod-empty" data-prod-board-empty="' + (filtered ? 'filtered' : 'plain') + '" style="margin:0;padding:16px;text-align:left;">' + _calEsc(emptyText) + '</div>')
+                    + '</div>') + '</section>';
+            }).join('') + '</div>' + _prodSelectionBar();
+        }
+        function _prodClientCard(c, count) {
+            const lead = _prodMember(c.lead);
+            const status = c.status || 'prog';
+            const id = c.id || '';
+            const selected = _prodState.cardSel && _prodState.cardSel.has(id);
+            const focused = _prodState.focusCard === id;
+            const title = c.name || c.id;
+            const filtered = !!((_prodState.filters || []).length);
+            const countLabel = count + (filtered ? ' matching issue' : ' issue') + (count === 1 ? '' : 's');
+            // Was a hand-rolled copy of _prodTitleAttrs, threshold and all, so
+            // the two drifted as one place changed. Use the helper.
+            const titleAttrs = _prodTitleAttrs(title);
+            const targetHtml = c.target
+                ? '<span class="prod-card-target" data-prod-ptarget="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Target: ' + _calEscAttr(_prodFmtDateFull(c.targetRaw) || c.target) + '">' + _prodIcon('cal') + '<span>' + _calEsc(c.target) + '</span></span>'
+                : '<span class="prod-card-target is-empty" data-prod-ptarget="' + _calEscAttr(id) + '" data-prod-target-empty="true" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Set target" aria-label="Set target">' + _prodIcon('cal') + '</span>';
+            return '<article class="prod-card pcard' + (focused ? ' pcard-kfocus' : '') + (selected ? ' pcard-sel' : '') + '" draggable="true" data-prod-client-card="' + _calEscAttr(id) + '" data-project="' + _calEscAttr(id) + '" onclick="return _prodCardClick(event,' + _jsAttrArg(id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')"><div class="prod-card-head"><span class="prod-card-check pcard-check' + (selected ? ' on' : '') + '" data-prod-cardcheck="' + _calEscAttr(id) + '" data-cardcheck="' + _calEscAttr(id) + '" onclick="event.stopPropagation(); _prodToggleCardSelection(' + _jsAttrArg(id) + ', !!event.shiftKey)" aria-hidden="true"></span><span class="prod-card-ico pcard-ico">' + _prodProjectGlyph(c) + '</span><span class="prod-card-title pcard-nm" data-prod-card-title="' + _calEscAttr(id) + '"' + titleAttrs + '>' + _calEsc(title) + '</span><span class="prod-card-status" data-prod-pstatus="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(_prodBoardLabel(status)) + '">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" onclick="event.stopPropagation(); return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')" data-prod-tip="Options">' + _prodIcon('dots') + '</button><span class="prod-card-lead" data-prod-plead="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectLeadPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(lead ? ('Lead: ' + lead.name) : 'No lead') + '">' + _prodAvatar(lead, 17) + '</span></div>'
+                + '<div class="prod-card-meta"><span data-prod-card-count="' + _calEscAttr(id) + '">' + _calEsc(countLabel) + '</span><span class="prod-spacer"></span>' + targetHtml + '</div></article>';
+        }
+        function _prodAttributionChipOnlyHTML(issue) {
+            const attribution = issue && issue.attribution;
+            if (!attribution) return '';
+            if (_prodAttributionSyncPending(issue)) {
+                return '<span class="prod-chip optional prod-attribution-chip is-syncing" data-prod-attribution-chip="syncing" data-prod-tip="Created here a moment ago and still being mirrored into Linear. It becomes editable once Linear answers.">Syncing to Linear</span>';
+            }
+            if (attribution.state === 'resolved' && attribution.repairRequired) {
+                return '<span class="prod-chip optional prod-attribution-chip is-needs" data-prod-attribution-chip="repair" data-prod-tip="The client is resolved, but its project mapping still needs repair">Mapping repair</span>';
+            }
+            if (attribution.state === 'provisional_child_family') {
+                return '<span class="prod-chip optional prod-attribution-chip is-provisional" data-prod-attribution-chip="provisional" data-prod-tip="Provisional client inferred from one unanimous child family; repair is required">Provisional · repair</span>';
+            }
+            if (attribution.state === 'conflict') {
+                return '<span class="prod-chip optional prod-attribution-chip is-conflict" data-prod-attribution-chip="conflict" data-prod-tip="Client attribution conflicts across this issue family">Attribution conflict</span>';
+            }
+            if (attribution.state === 'needs_attribution') {
+                return '<span class="prod-chip optional prod-attribution-chip is-needs" data-prod-attribution-chip="needs" data-prod-tip="No active-roster client mapping could be verified">Needs attribution</span>';
+            }
+            return '';
+        }
+        function _prodIssueProjectChipHTML(issue) {
+            const attribution = issue && issue.attribution;
+            const project = issue && issue.project || '';
+            const label = _prodDisplayClient(project);
+            if (_prodAttributionSyncPending(issue)) {
+                /* Name the client SyncView stored, so the card the SMM just
+                   filed still reads as that client's while Linear catches up. */
+                const syncLabel = _prodAttributionSyncClientLabel(issue);
+                return '<span class="prod-chip optional prod-attribution-chip is-syncing" data-prod-attribution-chip="syncing" data-prod-tip="Created here a moment ago and still being mirrored into Linear. It becomes editable once Linear answers."><span class="prod-client-dot">' + _prodProjectGlyph(String(issue.storedClientSlug || '')) + '</span><span>' + _calEsc(syncLabel) + ' · syncing</span></span>';
+            }
+            if (!attribution || attribution.state === 'resolved') {
+                return '<span class="prod-chip optional prod-chip-client" data-prod-crumbclient="' + _calEscAttr(project) + '" onclick="event.stopPropagation(); _prodOpenProject(' + _jsAttrArg(project) + ')" data-prod-tip="Project: ' + _calEscAttr(label) + '"><span class="prod-client-dot">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(label) + '</span></span>'
+                    + _prodAttributionChipOnlyHTML(issue);
+            }
+            if (attribution.state === 'provisional_child_family') {
+                return '<span class="prod-chip optional prod-attribution-chip is-provisional" data-prod-attribution-chip="provisional" data-prod-tip="Provisional client inferred from child issues; this does not open a writable project"><span class="prod-client-dot">' + _prodProjectGlyph(project) + '</span><span>' + _calEsc(label) + ' · provisional</span></span>';
+            }
+            return _prodAttributionChipOnlyHTML(issue);
+        }
+        function _prodProjectChipHTML(issue) {
+            return _prodIssueProjectChipHTML(issue);
+        }
+        function _prodAttributionNoticeHTML(issue) {
+            if (issue && issue.identityRepair && issue.identityRepair.required) {
+                return '<div class="prod-attribution-notice is-conflict" data-prod-identity-repair-notice="required"><b>Linear identity repair required.</b> This saved issue is read-only so no status, description, label, due date, assignee, comment, or sub-issue write can reach the conflicting Linear issue. No second issue was created.</div>';
+            }
+            const attribution = issue && issue.attribution;
+            if (!attribution || (attribution.state === 'resolved' && !attribution.repairRequired)) return '';
+            if (_prodAttributionSyncPending(issue)) {
+                return '<div class="prod-attribution-notice" data-prod-attribution-notice="syncing"><b>Syncing to Linear.</b> This card was created in SyncView and is waiting for Linear to answer, which normally takes a few seconds. It becomes editable as soon as it does; reload the tab if it stays this way.</div>';
+            }
+            const reason = String(attribution.reason || '').replace(/_/g, ' ');
+            if (attribution.state === 'provisional_child_family') {
+                return '<div class="prod-attribution-notice" data-prod-attribution-notice="provisional"><b>Provisional client attribution.</b> The active-roster client shown here is inferred from one unanimous child family. This issue is read-only until the mapping is repaired.</div>';
+            }
+            if (attribution.state === 'conflict') {
+                return '<div class="prod-attribution-notice is-conflict" data-prod-attribution-notice="conflict"><b>Client attribution conflict.</b> This issue family is read-only and queued for repair' + (reason ? ' (' + _calEsc(reason) + ')' : '') + '.</div>';
+            }
+            if (attribution.state === 'needs_attribution') {
+                return '<div class="prod-attribution-notice" data-prod-attribution-notice="needs"><b>Client attribution needs repair.</b> No active-roster mapping was verified; the stored client value is not being used.</div>';
+            }
+            return '<div class="prod-attribution-notice" data-prod-attribution-notice="repair"><b>Project mapping needs repair.</b> Client attribution is resolved, but its mapping metadata still requires review.</div>';
+        }
+        function _prodAttributionProjectControlHTML(issue) {
+            const attribution = issue && issue.attribution;
+            const project = issue && issue.project || '';
+            const client = _prodClient(project);
+            if (!attribution || attribution.state === 'resolved') {
+                /* Not a button. Every other row in this side card is a control
+                   that writes; this one never could, and rendering it
+                   identically is what made a reader open a picker of every
+                   client and press one. It now states the project and explains
+                   itself on hover, the same shape the unresolved branch below
+                   has always used. */
+                return '<span class="prod-prop-btn" data-prod-prop="project" aria-disabled="true" title="' + _calEscAttr(PROD_PROJECT_MOVE_UNSUPPORTED) + '" data-prod-tip="' + _calEscAttr(PROD_PROJECT_MOVE_UNSUPPORTED) + '"><span class="prod-card-ico">' + _prodProjectGlyph(client) + '</span><span>' + _calEsc(_prodDisplayClient(project)) + '</span></span>' + _prodAttributionChipOnlyHTML(issue);
+            }
+            const syncing = _prodAttributionSyncPending(issue);
+            const shownSlug = syncing ? String(issue.storedClientSlug || '') : project;
+            const shownLabel = syncing ? _prodAttributionSyncClientLabel(issue) : _prodDisplayClient(project);
+            return '<span class="prod-prop-btn" data-prod-prop="project" data-prod-attribution-project="' + _calEscAttr(syncing ? 'syncing' : attribution.state) + '" aria-disabled="true"><span class="prod-card-ico">' + _prodProjectGlyph(shownSlug) + '</span><span>' + _calEsc(shownLabel) + '</span></span>' + _prodAttributionChipOnlyHTML(issue);
+        }
+        /* _prodAddSubIssueButtonHTML was removed outright (not merely
+           gated) -- see the note beside PROD_CREATE_CLOSED_TEXT. Sub-issue
+           creation must not be reachable from Production at all, per
+           CLAUDE.md's standing rule; only the content calendar creates. */
+        function _prodSubIssueContextHTML(d, parent) {
+            if (!parent) return '';
+            const progress = _prodSubProgress(parent);
+            const projectLabel = _prodDisplayClient(d.project);
+            const parentTitle = (parent.title || _prodIssueLabel(parent));
+            const projectContext = _prodAttributionResolved(d)
+                ? '<button class="prod-context-project" type="button" onclick="_prodOpenProject(' + _jsAttrArg(d.project || '') + ')" data-prod-tip="Open project"><span class="prod-card-ico">' + _prodProjectGlyph(d.project) + '</span><span>' + _calEsc(projectLabel) + '</span></button>' + _prodAttributionChipOnlyHTML(d)
+                : _prodIssueProjectChipHTML(d);
+            return '<div class="prod-detail-context" data-prod-subissue-of="' + _calEscAttr(parent.id) + '"><span>Sub-issue of</span>'
+                + '<button class="prod-detail-context-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<b>' + _calEsc(_prodIssueLabel(parent)) + ' ' + _calEsc(parentTitle) + '</b></button>'
+                + (progress ? '<span class="prod-subchip" data-prod-tip="' + progress.done + ' of ' + progress.total + ' sub-issues done">' + _prodStatusSVG(progress.done === progress.total && progress.total > 0 ? 'approved' : 'todo') + progress.done + '/' + progress.total + '</span>' : '')
+                + '<span class="prod-spacer"></span>' + projectContext + '</div>';
+        }
+        function _prodSubIssueRowHTML(k) {
+            const ka = _prodMember(k.assignee);
+            const title = k.title || 'Untitled sub-issue';
+            const selected = _prodState.selected && _prodState.selected.has(k.id);
+            const assigneeTip = ka ? ('Assignee: ' + ka.name) : 'Unassigned';
+            const dueWriteAttrs = _prodWriteGateAttrs(k, 'due', k.due
+                ? { info: 'Due ' + _prodFmtDateFull(k.dueRaw) + _prodRowOverdueText(k) }
+                : { tip: 'Set due date' });
+            const assigneeWriteAttrs = _prodWriteGateAttrs(k, 'assignee', { info: assigneeTip });
+            const kFile = _prodBatchFileFor(k.id, k);
+            return '<div class="prod-subrow prod-subissue-row' + (selected ? ' selected' : '') + '" data-prod-subrow="' + _calEscAttr(k.id) + '" data-prod-attribution-state="' + _calEscAttr(k.attribution && k.attribution.state || '') + '" onclick="return _prodRowClick(event,' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">'
+                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(k.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(k.id) + ', false, event)" aria-hidden="true"></span>'
+                + _prodStatusIcon(k.status, k.id)
+                + '<span class="prod-title"' + _prodTitleAttrs(title) + '><b>' + _calEsc(title) + '</b></span>'
+                + '<span class="prod-spacer"></span>'
+                + _prodProjectChipHTML(k)
+                /* The file pill, next to the project and due-date pills the
+                   owner asked it to sit beside. It is absent, never disabled,
+                   when the sub-issue has no file: a control that does nothing
+                   is the dead end this tab has spent a week removing. The click
+                   is stopped from bubbling because the row itself opens the
+                   sub-issue, and a pill that opened a different thing than the
+                   one it names would be worse than no pill. */
+                + (kFile
+                    ? '<a class="prod-subrow-file" href="' + _calEscAttr(kFile.url) + '" target="_blank" rel="noopener noreferrer"'
+                        + ' data-prod-subrow-file="' + _calEscAttr(k.id) + '"'
+                        + ' data-prod-tip="' + _calEscAttr(_prodFileLinkLabel(kFile.url)
+                            + (kFile.source === 'calendar_card' ? ' (from the content calendar)'
+                                : kFile.source === 'samples_card' ? ' (from the samples card)' : '')) + '"'
+                        + ' onclick="event.stopPropagation();">' + PROD_FILE_LINK_ICON + '</a>'
+                    : '')
+                + (k.due ? '<span class="prod-due' + (_prodRowOverdue(k) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(k.id) + ')">' + _prodIcon('cal') + _calEsc(k.due) + '</span>' : '<span class="prod-due optional"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(k.id) + ')">' + _prodIcon('cal') + '</span>')
+                + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(k.id) + '"' + assigneeWriteAttrs + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(k.id) + ')">' + _prodAvatar(ka, 18) + '</span></div>';
+        }
+        function _prodSubIssuesSectionHTML(kids) {
+            // No Add-sub-issue affordance in either state: sub-issue creation
+            // is not reachable from Production (CLAUDE.md standing rule) --
+            // only the content calendar creates. An empty parent with no
+            // kids and nothing to offer renders nothing at all.
+            if (!kids.length) return '';
+            return '<div class="prod-subsection" data-prod-section="subissues"><div class="prod-subhead"><span class="prod-subhead-title">' + _prodIcon('issues') + ' Sub-issues <span class="prod-group-count">' + kids.length + '</span></span></div>' + kids.map(_prodSubIssueRowHTML).join('') + '</div>';
+        }
+        function _prodProjectIssueRowHTML(d) {
+            const assignee = _prodMember(d.assignee);
+            const parent = d.parent ? _prodIssue(d.parent) : null;
+            const title = d.title || 'Untitled issue';
+            const selected = _prodState.selected && _prodState.selected.has(d.id);
+            const assigneeTip = assignee ? ('Assignee: ' + assignee.name) : 'Unassigned';
+            const dueWriteAttrs = _prodWriteGateAttrs(d, 'due', d.due
+                ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodRowOverdueText(d) }
+                : { tip: 'Add due date' });
+            const assigneeWriteAttrs = _prodWriteGateAttrs(d, 'assignee', { info: assigneeTip });
+            return '<div class="prod-subrow prod-project-issue-row' + (selected ? ' selected' : '') + '" data-prod-project-issue="' + _calEscAttr(d.id) + '" data-prod-project-parent="' + _calEscAttr(d.parent || '') + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" onclick="return _prodRowClick(event,' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
+                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ', false, event)" aria-hidden="true"></span>'
+                + _prodStatusIcon(d.status, d.id)
+                + _prodIssueIdHTML(d)
+                + '<span class="prod-title prod-project-issue-title"' + _prodTitleAttrs(parent ? title + ' › ' + (parent.title || '') : title) + '><b>' + _calEsc(title) + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
+                + _prodAttributionChipOnlyHTML(d) + '<span class="prod-spacer"></span>'
+                + (d.due ? '<span class="prod-due' + (_prodRowOverdue(d) ? ' over' : '') + '"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional" data-prod-empty-due="label"' + dueWriteAttrs + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>Add date</span></span>')
+                + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '"' + assigneeWriteAttrs + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '</span>'
+                + (d.created ? '<span class="prod-created optional" data-prod-tip="Created ' + _calEscAttr(_prodFmtDateFull(d.createdRaw)) + '">' + _calEsc(d.created) + '</span>' : '<span class="prod-created optional"></span>') + '</div>';
+        }
+        function _prodProjectGroupHTML(group) {
+            const items = group.items || [];
+            const collapsed = _prodState.collapsed.has(group.key);
+            return '<div class="prod-group prod-project-group' + (collapsed ? ' collapsed' : '') + '" data-prod-project-group="' + _calEscAttr(group.key) + '" data-prod-group="' + _calEscAttr(group.key) + '" onclick="_prodToggleGroup(' + _jsAttrArg(group.key) + ')"><span class="prod-group-chev" data-prod-group-toggle="' + _calEscAttr(group.key) + '">' + _prodIcon('chevD') + '</span><span class="prod-group-ico prod-status">' + group.icon + '</span><span class="prod-group-title">' + _calEsc(group.title) + '</span><span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span></div>'
+                + (collapsed ? '' : items.map(_prodProjectIssueRowHTML).join(''));
+        }
+        function _prodProjectRowsHTML(rows, empty, allCount, projectName) {
+            if (!rows.length) {
+                if ((_prodState.filters || []).length && Number(allCount || 0) > 0) {
+                    return '<div class="prod-inline-empty" data-prod-project-filter-empty="1"><span class="prod-inline-empty-title">No issues match your filters.</span><span>Clear filters to see ' + _calEsc(String(allCount)) + ' issue' + (Number(allCount) === 1 ? '' : 's') + ' for ' + _calEsc(projectName || 'this project') + '.</span><br><button class="prod-inline-empty-action" type="button" onclick="_prodClearFilters()">Clear filters</button></div>';
+                }
+                return '<div class="prod-inline-empty" data-prod-project-empty="1">' + _calEsc(empty) + '</div>';
+            }
+            return '<div class="prod-project-groups" data-prod-project-groups="' + _calEscAttr(_prodState.groupBy || 'status') + '">' + _prodGroupsFor(rows).map(_prodProjectGroupHTML).join('') + '</div>';
+        }
+        /* THE PANE'S ANSWER WHEN THE ROW SET IS INCOMPLETE, shared by all three
+           detail panes so they cannot drift apart the way they already did.
+
+           Two incomplete states, two different sentences, and the difference is
+           the whole of OPEN_REPAIRS 108. PENDING means the tail is still coming
+           and the row may be one moment away, so a skeleton is the truth. FAILED
+           means the tail ran and threw: this tab does not know whether the row
+           exists, and saying "not found" would state something it cannot know --
+           the class item 87 spent a week removing. It offers a retry instead,
+           because a retry is the only thing that changes the answer.
+
+           Returns '' when the row set is complete, so the caller falls through
+           to its own genuine not-found copy. */
+        /* IS THE ROW SET ACTUALLY COMPLETE?
+
+           `terminalTailPending` answers "is a tail running", which is NOT the
+           same question and was the whole of the 2026-09-03 report: refresh a
+           link to a posted row and you got skeleton, then "Deliverable not
+           found", then skeleton again, then the row. Four states for one wait.
+
+           The middle one is this predicate's absence. The pending flag is
+           raised by the phase-one SUCCESS path, so for the entire live read
+           before it -- and for the cached first paint before that, which never
+           holds a terminal row because `_prodCacheWrite` runs on the phase-one
+           set -- pending was false, failed was false, and a row that had simply
+           not been fetched yet was reported missing. Then phase one landed, the
+           flag went up, and the pane went back to a skeleton it should never
+           have left.
+
+           A tail that has LANDED is the only thing that makes absence mean
+           anything, so that is what gets asked. Before the first one lands the
+           answer is "not yet" from the first frame onward, which is one
+           continuous wait instead of four. */
+        function _prodRowSetComplete() {
+            return !!_prodState.terminalTailLoadedAt
+                && !_prodState.terminalTailPending
+                && !_prodState.terminalTailFailed;
+        }
+        /* SHIMMER THAT DOES NOT RESTART. `_prodRender` replaces the whole of
+           prodRoot, so every repaint during the wait builds a brand-new
+           skeleton node and CSS starts its animation over -- the owner's
+           "sometimes I have a double animation", which is really the same
+           animation seen twice from the top.
+
+           A negative delay taken from the document clock puts each new node in
+           at the phase the old one was leaving at, so a replaced skeleton
+           continues rather than jumps. `performance.now()` is zero at
+           navigation start, which is also when the static boot skeleton in the
+           markup starts its own cycle, so the two agree without being told
+           about each other. */
+        const PROD_SKELETON_PERIOD_MS = 1350;   // keep in sync with .prod-skeleton
+        function _prodSkeletonPhaseStyle() {
+            let t = 0;
+            try { t = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0; } catch (e) { t = 0; }
+            const phase = ((t % PROD_SKELETON_PERIOD_MS) + PROD_SKELETON_PERIOD_MS) % PROD_SKELETON_PERIOD_MS;
+            return 'animation-delay:-' + phase.toFixed(0) + 'ms;';
+        }
+        function _prodIncompletePaneHTML(noun) {
+            /* FAILED IS ASKED FIRST, because a tail that ran and threw is a
+               state this tab knows something about, and the incomplete branch
+               below would otherwise swallow it -- nothing ever stamped
+               `terminalTailLoadedAt`, so it reads as incomplete forever and the
+               reader waits on a skeleton for a read that is not running. */
+            if (_prodState.terminalTailFailed) {
+                return '<div class="prod-empty" data-prod-detail-unavailable="1" role="status">'
+                    + '<div>This ' + _calEsc(noun) + ' could not be loaded \u2014 the read that finishes the list failed.</div>'
+                    + '<div class="prod-empty-sub">It has not been checked for, so it may well be here. Refresh to try again.</div>'
+                    + '<button type="button" class="prod-btn" onclick="return _prodRefresh({})">Refresh</button></div>';
+            }
+            if (!_prodRowSetComplete()) {
+                /* A SKELETON, NOT A SENTENCE. The first version of this put one
+                   thin bar above the words "Loading this item…", which the owner
+                   saw on a real card and disliked on sight: a line of prose in
+                   the middle of an empty pane reads as an error, and it replaced
+                   a shimmer that used to say the same thing without saying
+                   anything. It also arrives on EVERY terminal deep link, so it
+                   is not a rare state and does not get to be ugly.
+
+                   Shaped like the detail it is standing in for -- title, meta
+                   row, body lines -- so the pane does not visibly change layout
+                   when the real thing lands. `aria-busy` carries the meaning
+                   for a screen reader, which is where the sentence belonged. */
+                const phase = _prodSkeletonPhaseStyle();
+                const bar = (w, h, mt) => '<span class="prod-skeleton" style="display:block;height:' + h
+                    + 'px;width:' + w + ';margin-top:' + mt + 'px;' + phase + '"></span>';
+                return '<div class="prod-detail-skeleton" data-prod-detail-settling="1" role="status" aria-busy="true"'
+                    + ' aria-label="Loading this ' + _calEscAttr(noun) + '">'
+                    + bar('42%', 13, 0) + bar('68%', 24, 14)
+                    + bar('30%', 12, 18) + bar('96%', 11, 22) + bar('88%', 11, 10)
+                    + bar('93%', 11, 10) + bar('61%', 11, 10)
+                    + '</div>';
+            }
+            return '';
+        }
+        // PORT-DELTA: renderDetail uses native comments and team-authority-gated writes.
+        function _prodDetail() {
+            const d = _prodIssue(_prodState.openId);
+            /* NOT FOUND vs NOT LOADED YET -- the same distinction the deep-link
+               fallback learned, at the second exit from the same room.
+
+               The boot read is two-phase: phase one holds nothing in
+               PROD_CACHE_TERMINAL, and _prodLoadTerminalTail fetches the
+               approved / posted / archived / canceled / duplicate rows behind
+               it. Gating the eviction on `terminalTailPending` stopped the
+               reader being thrown back to the list mid-load, which is what it
+               was asked to do -- and left them here instead, on a blank pane
+               reading "Deliverable not found" about a row that arrives a moment
+               later. Owner report, minutes after that fix shipped, and it is
+               the fix's own doing: before it, this state was unreachable
+               because the eviction had already changed the view.
+
+               Fixing one exit from a room with two is how a bug appears to move
+               rather than close. While the tail is pending an unresolved id
+               means NOT YET here too, and says so; once it lands, a genuinely
+               absent row still reports absent. */
+            if (!d) {
+                const incomplete = _prodIncompletePaneHTML('item');
+                if (incomplete) return incomplete;
+            }
+            if (!d) return '<div class="prod-empty">Deliverable not found.</div>';
+            _prodLoadEventsFor(d.id);
+            const assignee = _prodMember(d.assignee);
+            const kids = _prodChildrenOf(d.id);
+            const parent = d.parent ? _prodIssue(d.parent) : null;
+            const isHierarchyParent = !!d.isHierarchyParent;
+            const batchAssetSource = _prodBatchAssetSource(d);
+            const subSection = d.parent ? '' : _prodSubIssuesSectionHTML(kids);
+            /* A REAL hierarchy parent is a container too (owner, 2026-09-05:
+               "I don't think we need a deliverable file row on the parent
+               issue asset grid because there is no deliverable file for
+               that"). The videos are the sub-issues, and the file belongs on
+               each of them; an empty slot on the parent was a prompt to attach
+               one in the wrong place. The Linear parent IS imported as a
+               deliverable row, though, so it can carry a file_url from before
+               this rule -- and a value that exists is never hidden. The row is
+               dropped only while it has nothing to show. The synthetic batch
+               parent keeps its own branch below, which decides the same three
+               slots for a different reason and adds read-only. */
+            const parentAsset = isHierarchyParent && d.syntheticBatchParent !== true
+                ? _prodAssetState(d.id, d).assets.deliverable_file
+                : null;
+            const parentSlots = isHierarchyParent && d.syntheticBatchParent !== true
+                ? ['filming_plan', 'raw_footage', 'delivery_folder']
+                    .concat(String(parentAsset && parentAsset.url || '').trim() ? ['deliverable_file'] : [])
+                : null;
+            return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
+                + '<div class="prod-detail-id">' + _calEsc(_prodIssueDisplayLabel(d)) + '</div>'
+                + _prodSubIssueContextHTML(d, parent)
+                + '<h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
+                + _prodAttributionNoticeHTML(d)
+                + _prodDescriptionPanelHTML(d)
+                /* A synthesized batch parent is a container, not a deliverable:
+                   deliverable_file is hardcoded empty for it by construction and
+                   can never be anything else, so the row was pure noise. The
+                   other three are genuinely post-level, and a child of the same
+                   batch can actually READ them (see _prodBatchAssetSource), so
+                   the panel renders against that child and shows the real Drive
+                   and Frame links instead of a hedge about who may look. With
+                   no readable child it falls back to the parent row, which
+                   still says Unavailable rather than inventing Missing. Same
+                   borrow the batch detail view already makes. */
+                + _prodAssetsPanelHTML(batchAssetSource || d, d.syntheticBatchParent === true
+                    /* Read-only only when there is nobody to ask. With a
+                       readable child the two folder links are as editable here
+                       as on any sub-issue -- they are one batch row, and the
+                       parent is where a reader looks for what belongs to the
+                       whole post. The filming plan carries no write operation,
+                       so it stays uneditable on every surface without needing
+                       to be named here. */
+                    ? { slots: ['filming_plan', 'raw_footage', 'delivery_folder'], readOnly: !batchAssetSource }
+                    : parentSlots ? { slots: parentSlots } : undefined)
+                + subSection
+                + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Feedback &amp; tweaks</span><span class="prod-spacer"></span></div>' + _prodComments.render(d.id) + _prodComposerHTML(d) + '</div>'
+                + '</div></div><aside class="prod-right">' + _prodProps(d, parent, assignee, d.file || '') + '</aside></div>'
+                + _prodSelectionBar();
+        }
+        function _prodProjectDetail() {
+            const c = _prodClient(_prodState.openProjectId);
+            /* The sibling panes were never given this guard, and the fallback
+               defers openProjectId and openBatchId exactly as it defers openId
+               -- so a deep link at either one spent the whole tail window being
+               told it did not exist. Found by audit, not by a reader, which is
+               the only reason it is cheap. */
+            if (!c) return _prodIncompletePaneHTML('project') || '<div class="prod-empty">Project not found.</div>';
+            const lead = _prodMember(c.lead);
+            const projectTeam = _prodProjectScopeTeam(c);
+            const allRows = _prodProjectAllRows(c);
+            const rows = _prodProjectRows(c);
+            const empty = (_prodState.filters || []).length ? 'No issues match your filters.' : 'No issues in this view yet.';
+            const rowHTML = _prodProjectRowsHTML(rows, empty, allRows.length, c.name || c.id);
+            const filteredCount = (_prodState.filters || []).length && allRows.length && rows.length !== allRows.length;
+            const issueCountLabel = filteredCount ? rows.length + ' of ' + allRows.length : String(rows.length);
+            const side = _prodState.projectDetailsOpen === false ? '' : '<aside class="prod-right"><div class="prod-props">'
+                + '<div class="prod-side-card" data-prod-detail-card="properties"><div class="prod-side-card-head"><span>Properties</span></div>'
+                + '<div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-pstatus="' + _calEscAttr(c.id) + '" data-pstatus="' + _calEscAttr(c.id) + '" data-prod-tip="Status: ' + _calEscAttr(_prodBoardLabel(c.status)) + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(c.id) + ')">' + _prodProjectStatusIcon(c.status) + '<span>' + _calEsc(_prodBoardLabel(c.status)) + '</span></button></div>'
+                + '<div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-plead="' + _calEscAttr(c.id) + '" data-plead="' + _calEscAttr(c.id) + '" data-prod-tip="' + _calEscAttr(lead ? ('Lead: ' + lead.name) : 'No lead') + '" onclick="return _prodOpenProjectLeadPicker(event,' + _jsAttrArg(c.id) + ')">' + _prodAvatar(lead, 18) + '<span class="' + (lead ? '' : 'muted') + '">' + _calEsc(lead ? lead.name : 'No lead') + '</span></button></div>'
+                + '<div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-ptarget="' + _calEscAttr(c.id) + '" data-ptarget="' + _calEscAttr(c.id) + '" data-prod-tip="' + _calEscAttr(c.target ? 'Target ' + _prodFmtDateFull(c.targetRaw) : 'Target date') + '" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(c.id) + ')">' + _prodIcon('cal') + '<span class="' + (c.target ? '' : 'muted') + '">' + _calEsc(c.target || 'No target') + '</span></button></div>'
+                + '</div>'
+                + '<div class="prod-side-card" data-prod-detail-card="project-issues"><div class="prod-side-card-head"><span>Issues</span></div><div class="prod-side-row muted">' + _calEsc(String(rows.length)) + ' issue' + (rows.length === 1 ? '' : 's') + '</div></div></div></aside>';
+            return '<div class="prod-detail prod-project-detail" data-prod-project-detail="' + _calEscAttr(c.id) + '"><div class="prod-detail-main"><div class="prod-detail-inner">'
+                + '<div class="prod-detail-id">' + _calEsc(_prodTeamLabel(projectTeam)) + ' project</div><h1 class="prod-detail-title">' + _calEsc(c.name || c.id) + '</h1>'
+                + '<div class="prod-desc">' + _prodDescriptionHTML(c.desc, !!c.descLoaded, 'No project description.', false) + '</div>'
+                + '<div class="prod-subsection"><div class="prod-subhead">' + _prodIcon('issues') + ' Issues <span class="prod-group-count">' + _calEsc(issueCountLabel) + '</span></div>'
+                + rowHTML + '</div></div></div>' + side + '</div>' + _prodSelectionBar();
+        }
+        function _prodBatchDetail() {
+            const batch = _prodBatch(_prodState.openBatchId);
+            if (!batch) return _prodIncompletePaneHTML('batch') || '<div class="prod-empty">Batch not found.</div>';
+            const rows = _prodBatchRows(batch.id);
+            // The panel's data source is chosen by ATTRIBUTION eligibility, not
+            // by display position -- rows[0] is now always the numerically
+            // first deliverable, and that row is not guaranteed to be the one
+            // with a usable client scope (Codex, PR #1467).
+            const assetRow = _prodAssetEligibleRow(rows) || rows[0];
+            const descField = _prodHasOwn(batch, 'description') ? 'description' : _prodHasOwn(batch, 'desc') ? 'desc' : '';
+            const desc = descField ? (batch[descField] == null ? '' : batch[descField]) : '';
+            /* An absent column means "not read yet" and paints a skeleton, which
+               is honest only while a read is actually coming. Once the read has
+               failed, the same skeleton becomes a promise the view cannot keep,
+               so it says so instead. */
+            const descReadFailed = !descField && _prodState.batchDescriptionReads.get(String(batch.id || '')) === 'error';
+            return '<div class="prod-detail" data-prod-batch-detail="' + _calEscAttr(batch.id) + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('batch') + ',' + _jsAttrArg(batch.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner"><div class="prod-detail-id">' + _calEsc(batch.team || 'mixed') + ' batch</div><h1 class="prod-detail-title">' + _calEsc(batch.name || 'Untitled batch') + '</h1>'
+                + '<div class="prod-desc">' + _prodDescriptionHTML(desc, !!descField || descReadFailed, descReadFailed ? 'Description could not load.' : 'No batch description.', false) + '</div>'
+                + (assetRow ? _prodAssetsPanelHTML(assetRow, { slots: ['filming_plan','raw_footage','delivery_folder'], readOnly: true }) : '')
+                + '<div class="prod-subsection"><div class="prod-subhead">Deliverables <span class="prod-group-count">' + rows.length + '</span></div>' + rows.map(_prodSubIssueRowHTML).join('') + '</div></div></div><aside class="prod-right"><div class="prod-props">'
+                + '<div class="prod-prop"><span class="prod-prop-label">Client</span><span>' + _calEsc(_prodDisplayClient(batch.client_slug)) + '</span></div>'
+                + '<div class="prod-prop"><span class="prod-prop-label">Team</span><span>' + _calEsc(_prodTeamLabel(batch.team)) + '</span></div>'
+                + '<div class="prod-prop"><span class="prod-prop-label">Status</span><span>' + _calEsc(batch.status || 'active') + '</span></div>'
+                + '<div class="prod-prop"><span class="prod-prop-label">Updated</span><span data-prod-tip="Updated ' + _calEscAttr(_prodFmtDateFull(batch.updated_at)) + '">' + _calEsc(_prodFmtDate(batch.updated_at)) + '</span></div>'
+                + '</div></aside></div>';
+        }
+        /* WHO RUNS THIS CLIENT.
+
+           The roster lives in a Google Sheet the owner edits, and a nightly n8n
+           job mirrors it into social_media_managers. So this reads the mirror
+           rather than keeping a second copy here: edit the sheet, and this line
+           follows within a day. Nothing to maintain in the app.
+
+           TWO THINGS THIS DELIBERATELY DOES NOT DO.
+
+           It does not call _srpApi. That wrapper routes through
+           _syncviewRequireStaffIdentity, which OPENS A SIGN-IN DIALOG when the
+           viewer has no staff key -- and a passive line in a properties column
+           must never be the reason a dialog appears. So it checks for an
+           identity that already exists and returns silently when there is none.
+
+           And it does not weaken the endpoint. ?action=options is Admin/SMM, and
+           it stays that way; a Creative or an unsigned preview simply does not
+           see this row, exactly as they do not see the rest of that endpoint.
+           The alternative -- opening the table to anonymous reads -- would undo
+           the F88 revocation, and a manager roster is not worth that. */
+        /* Bounded, and NOT permanent. The nightly sheet sync can change an
+           assignment while a tab stays open, so a directory cached forever
+           would make "the line follows within a day" quietly require a reload.
+           A failure is not cached forever either: one transient 401 or 500
+           would otherwise hide the row for the rest of the session. It does
+           give up after PROD_SMM_MAX_FAILURES, because a key the endpoint keeps
+           refusing will not start working, and retrying it every minute for an
+           afternoon is just noise against the backend. */
+        const PROD_SMM_TTL_MS = 5 * 60 * 1000;
+        const PROD_SMM_RETRY_MS = 60 * 1000;
+        const PROD_SMM_MAX_FAILURES = 3;
+        let _prodSmmDir = null;
+        let _prodSmmDirAt = 0;
+        let _prodSmmFailures = 0;
+        let _prodSmmLoading = false;
+        /* The roster is Admin/SMM-only data. Sign-out and an account switch
+           must drop it, or the next reader keeps seeing a protected
+           client-to-manager assignment their identity could not fetch. Every
+           other sensitive surface is cleared this way; this one joins them
+           (see _syncviewStaffPurgeSensitiveState). */
+        function _prodSmmPurgeSensitiveState() {
+            _prodSmmDir = null;
+            _prodSmmDirAt = 0;
+            _prodSmmFailures = 0;
+            _prodSmmLoading = false;
+            try { _srpState.managers = []; _srpState.managersLoaded = false; } catch (e) {}
+        }
+        function _prodSmmDirFrom(managers) {
+            const dir = new Map();
+            for (const m of (Array.isArray(managers) ? managers : [])) {
+                const name = String(m && m.name || '').trim();
+                if (!name) continue;
+                const owned = Array.isArray(m.source_clients) ? m.source_clients : [];
+                for (const c of owned) {
+                    /* The sheet names clients the way a person writes them; this
+                       app keys them by slug. One normalizer for both sides, the
+                       same one the workload uses. */
+                    const key = wlNormalizeClient(c);
+                    if (key && !dir.has(key)) dir.set(key, { name: name });
+                }
+            }
+            return dir;
+        }
+        async function _prodLoadSmmDirectory() {
+            if (_prodSmmLoading) return;
+            const ttl = _prodSmmFailures ? PROD_SMM_RETRY_MS : PROD_SMM_TTL_MS;
+            if (_prodSmmDir && (Date.now() - _prodSmmDirAt) < ttl) return;
+            if (_prodSmmFailures >= PROD_SMM_MAX_FAILURES) return;
+            /* If the roster is already in memory -- the weekly-reports page
+               loads it through _srpLoadOptions -- build from that and make no
+               request at all. This is not only an optimisation: the Production
+               tab makes NO unprompted staff-authenticated read (descriptions
+               hydrate on demand, _prodLoadBriefs is a marker), and a read that
+               can 401 is a read this tab's console audit counts as a failure.
+               So a request happens only when nothing has answered yet, and its
+               answer is cached where the other surface will find it too. */
+            if (!_prodSmmDir && _srpState.managersLoaded) {
+                _prodSmmDir = _prodSmmDirFrom(_srpState.managers);
+                _prodSmmDirAt = Date.now();
+                return;
+            }
+            const ident = _syncviewStaffIdentityForHeaders();
+            if (!ident || !_syncviewStaffCan('weekly-report-submit')) return;
+            _prodSmmLoading = true;
+            try {
+                const resp = await fetch(SMM_WEEKLY_REPORTS_URL + '?action=options', {
+                    headers: {
+                        Accept: 'application/json',
+                        apikey: CAL_SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                        'X-Syncview-Key': ident.key
+                    }
+                });
+                let data = null;
+                try { data = await resp.json(); } catch (e) {}
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const managers = data && Array.isArray(data.managers) ? data.managers : [];
+                _srpState.managers = managers;
+                _srpState.managersLoaded = true;
+                _prodSmmDir = _prodSmmDirFrom(managers);
+                _prodSmmDirAt = Date.now();
+                _prodSmmFailures = 0;
+            } catch (e) {
+                /* Count it and back off, rather than caching the failure as an
+                   answer. An empty directory renders no row, which is the same
+                   as not knowing -- but "not knowing" must not become permanent
+                   on one bad response. */
+                _prodSmmFailures++;
+                _prodSmmDir = _prodSmmDir || new Map();
+                _prodSmmDirAt = Date.now();
+            }
+            _prodSmmLoading = false;
+            _prodRender();
+        }
+        function _prodSmmCardHTML(d) {
+            _prodLoadSmmDirectory();
+            if (!_prodSmmDir || !_prodSmmDir.size) return '';
+            const project = d && d.project || '';
+            /* Match on the slug, and fall back to the display name, because a
+               project key and what the sheet calls the client are not always
+               spelled the same. */
+            const hit = _prodSmmDir.get(wlNormalizeClient(project))
+                || _prodSmmDir.get(wlNormalizeClient(_prodDisplayClient(project)));
+            if (!hit) return '';
+            /* NO PROVENANCE LINE. It said "Sheet, synced <date>" under the
+               name and the owner asked for it gone -- twice. It was added to
+               make staleness legible, but the roster syncs nightly and the
+               name is the answer the reader came for; a second line of
+               bookkeeping under every sub-issue is noise on the surface he
+               actually uses. If staleness ever needs surfacing again, surface
+               it where it is actionable -- when the sync FAILS -- not on every
+               card forever. */
+            return '<div class="prod-side-card" data-prod-detail-card="smm"><div class="prod-side-card-head"><span>Social media manager</span></div>'
+                + '<div class="prod-side-row"><span class="prod-prop-btn" data-prod-prop="smm" aria-disabled="true">'
+                + _prodIcon('assign') + '<span>' + _calEsc(hit.name) + '</span></span></div></div>';
+        }
+        function _prodProps(d, parent, assignee, file) {
+            const statusHistory = _prodStatusBreakdown((_prodState.events && _prodState.events.get ? _prodState.events.get(d.id) : null) || [], d.createdRaw);
+            const sideRow = (value, cls) => '<div class="prod-side-row' + (cls ? ' ' + cls : '') + '">' + value + '</div>';
+            const muted = text => '<span class="muted">' + _calEsc(text) + '</span>';
+            return '<div class="prod-props">'
+                + '<div class="prod-side-card" data-prod-detail-card="properties"><div class="prod-side-card-head"><span>Properties</span></div>'
+                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="status"' + _prodWriteGateAttrs(d, 'status', { info: (statusHistory ? statusHistory : 'Status: ' + _prodStatusLabel(d.status) + (_prodStatusAge(d) ? ' ' + _prodStatusAge(d) : '')) }) + ' onclick="return _prodOpenStatusMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status) + '<span>' + _calEsc(_prodStatusLabel(d.status)) + '</span></button>')
+                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="assignee"' + _prodWriteGateAttrs(d, 'assignee', { info: assignee ? ('Assignee: ' + assignee.name) : 'Unassigned' }) + ' onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '<span>' + _calEsc(assignee ? assignee.name : 'No assignee') + '</span></button>')
+                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="due"' + _prodWriteGateAttrs(d, 'due', d.due ? { info: 'Due ' + _prodFmtDateFull(d.dueRaw) + _prodRowOverdueText(d) } : { tip: 'Set due date' }) + ' onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>' + (d.due ? _calEsc(d.due) : muted('Add due date')) + '</span></button>', d.due && _prodRowOverdue(d) ? 'dueover' : '')
+                + sideRow(_prodLabelsButtonHTML(d))
+                + '</div>'
+                + (parent ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<span>' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</span></button></div></div>' : '')
+                + '<div class="prod-side-card" data-prod-detail-card="project"><div class="prod-side-card-head"><span>Project</span></div><div class="prod-side-row">' + _prodAttributionProjectControlHTML(d) + '</div></div>'
+                + _prodSmmCardHTML(d)
+                + '</div>';
+        }
+        function _prodActivity(events) {
+            if (!events || !events.length) return '<div class="prod-act-empty">No activity yet.</div>';
+            return events.slice(0, 12).map(e => {
+                const actor = e.actor || e.role || e.source || 'system';
+                const label = e.action === 'status_change'
+                    ? 'changed status from ' + _prodStatusLabel(e.from_status) + ' to ' + _prodStatusLabel(e.to_status)
+                    : String(e.action || 'updated').replace(/_/g, ' ');
+                return '<div class="prod-act"><span>' + _prodAvatar(null, 16) + '</span><span class="prod-act-text"><b>' + _calEsc(actor) + '</b> ' + _calEsc(label) + ' <span class="prod-act-time">- ' + _calEsc(_prodFmtDate(e.ts)) + '</span></span></div>';
+            }).join('');
+        }
+        // no-hardcoded-colors: allow-end
+
+       async function init(clientEntryRun){
+        try{
+            const _clientEntryStillCurrent=()=>!_isClientLink||_syncviewClientEntryRunCurrent(clientEntryRun);
+            if(!_clientEntryStillCurrent())return;
+            // The staff identity IS the door (2026-09-10), so this both
+            // verifies and gates. Painting the cover is not enough: Codex
+            // caught that in review. init() used to run on past this await, so
+            // a forged stored identity plus a blocked verifier still reached
+            // fetchAll() and pulled the anon-readable staff datasets in behind
+            // the cover, where the responses are visible in devtools and the
+            // overlay is one node removal away. Nothing loads until the server
+            // has confirmed who this is.
+            if (!_isClientLink) {
+                const verifiedIdentity = await _syncviewStaffIdentityBoot();
+                if (!verifiedIdentity && _syncviewStaffGateRequired()) {
+                    // Release the boot latch so a successful sign-in on the
+                    // gate can start the app that this return abandoned.
+                    _syncviewAppBooted = false;
+                    return;
+                }
+            }
+            _syncviewAppBooted = true;
+            const _ptoFlagReady = _isClientLink ? Promise.resolve(null) : _ptoPrimeFlag();
+            // Resume any calendar-card write job a previous session left
+            // unfinished (tab closed during the post-submit write window).
+            // Scheduled as a delayed macrotask so it runs on EVERY boot path
+            // (deep links, fast tabs, Kasper, analytics) after all top-level
+            // module bindings are initialized, without blocking first paint.
+            setTimeout(() => {
+                if (_isClientLink || _prodEnabled()) return;
+                try { _resumePendingCalCardJobs(); }
+                catch (e) { console.warn('[SyncView] calendar card job resume failed:', e); }
+            }, 8000);
+            const qp = new URLSearchParams(location.search);
+            const hashRaw = decodeURIComponent(location.hash.replace('#',''));
+            const hashRoute = hashRaw.split('?')[0];
+            // >>> SXR_BEGIN
+            // Samples (Review) refresh/deep-link landing. Its own backend (no
+            // analytics dependency), so route immediately and skip the analytics
+            // await. Deferred to a macrotask so module bindings declared later in
+            // the file (sxrState / _sxrEnabled / mountSxrView) are initialized
+            // first — the same TDZ guard the onboarding boot uses (see ~24716).
+            // The flag is read INLINE (no SXR symbols) so this is safe even though
+            // it runs before the SXR module block evaluates.
+            if (!_isClientLink && (hashRaw === 'sample-reviews' || hashRaw.startsWith('sample-reviews/'))) {
+                let _sxrOn = true; // GA default-ON; a storage throw leaves it on, matching _sxrEnabled() (F73)
+                try { const _q = new URLSearchParams(location.search).get('sxr'); _sxrOn = (_q === '1' || _q === 'true') || (_q !== '0' && _q !== 'false' && localStorage.getItem('syncview_sxr_off') !== '1'); } catch (e) {}
+                if (_sxrOn) { try { window.__sxrDeepHash = hashRaw; } catch (e) {} setTimeout(function () { try { navTo('sample-reviews', false); } catch (e) {} }, 0); return; }
+            }
+            // <<< SXR_END
+            let savedNav = localStorage.getItem(NAV_KEY);
+            if (_isSmmWeeklyRoute(savedNav)) {
+                try { localStorage.removeItem(NAV_KEY); } catch (e) {}
+                savedNav = null;
+            }
+            const stateNav = history.state && history.state.nav;
+            const stateClient = history.state && history.state.client;
+            let _ptoSavedKasperSub = false;
+            try { _ptoSavedKasperSub = localStorage.getItem('syncview_kasper_subtab_v1') === 'time-off'; } catch (e) {}
+            if (hashRoute === 'time-off' || hashRaw === 'kasper/time-off' || savedNav === 'time-off' || stateNav === 'time-off' || (savedNav === 'kasper' && _ptoSavedKasperSub)) await _ptoFlagReady;
+            const hashIsFastTab = FAST_TABS.includes(hashRaw)
+                || FAST_TABS.includes(hashRoute)
+                || hashRaw.startsWith('calendar/')
+                || hashRaw.startsWith('samples/')
+                || hashRaw.startsWith('templates/');
+            const restoreFastNav = _isSmmWeeklyRoute(stateNav) ? savedNav : (stateNav || savedNav);
+            const fallbackFast = !hashRaw && !stateClient && RESTORABLE_FAST_TABS.includes(restoreFastNav);
+            // Kasper has no analytics dependency — every sub-tab fetches its own
+            // data over webhooks. So a refresh straight onto Kasper (when the tab
+            // is already unlocked for this session) should mount immediately
+            // instead of flashing the analytics tab + "Loading analytics…" first.
+            const _kasperSessionUnlocked = (() => { try { return sessionStorage.getItem(KASPER_UNLOCK_KEY) === 'ok'; } catch (e) { return false; } })();
+            const _kasperHashLanding = (hashRaw === 'kasper' || hashRaw.startsWith('kasper/'))
+                && (_kasperSessionUnlocked || qp.get('Kasper') === '1');
+            // Same fast-mount treatment for the gated TikTok Pilot tab — it has
+            // no analytics dependency (it talks to its own ttp-* webhooks), so a
+            // refresh straight onto #tiktok-pilot (when unlocked for this session)
+            // should mount immediately instead of flashing the analytics tab.
+            const _ttpSessionUnlocked = (() => { try { return sessionStorage.getItem(TTP_UNLOCK_KEY) === 'ok'; } catch (e) { return false; } })();
+            const _ttpHashLanding = (hashRaw === 'tiktok-pilot')
+                && (_ttpSessionUnlocked || qp.get('ttpilot') === '1');
+            // ?c=<client> needs allData to validate the token + render — never
+            // a fast-tab refresh. history.state.client also needs allData.
+            const skipAwait = !qp.get('c') && !stateClient && (hashIsFastTab || fallbackFast || _kasperHashLanding || _ttpHashLanding);
+            // Client share link landing on the calendar tab: we only need
+            // essentials (metrics for clientHistory, clients for roster resolution)
+            // to mount; the analytics-heavy extras stream in afterwards so
+            // the calendar paints fast.
+            const isClientCalendarLink = !!(_syncviewClientEntryCapability && _syncviewClientEntryCapability.view === 'calendar');
+            // Make the boot loader honest about what's actually loading. The
+            // analytics data only matters for the analytics view, so don't
+            // claim "Loading analytics…" when the visitor is refreshing
+            // straight onto the content calendar (or any non-analytics tab).
+            const _setBootLoadingText = (t) => { const el = document.getElementById('bootLoadingText'); if (el) el.textContent = t; };
+            const _landingIsCalendar = isClientCalendarLink
+                || hashRaw === 'calendar' || hashRaw.startsWith('calendar/');
+            if (_landingIsCalendar) _setBootLoadingText('Loading content calendar…');
+            else if ((_syncviewClientEntryCapability && _syncviewClientEntryCapability.view === 'sample-reviews') || hashRaw === 'samples' || hashRaw.startsWith('samples/')) _setBootLoadingText('Loading sample reviews…');
+            else if (hashRaw === 'filming-plans') _setBootLoadingText('Loading filming plans...');
+            else if (hashRaw === 'time-off') _setBootLoadingText('Loading Time Off...');
+            else if (_kasperHashLanding) _setBootLoadingText('Loading Kasper…');
+            else if (_prodEnabled()) _setBootLoadingText('Loading Production preview...');
+
+            if (!_isClientLink && _prodEnabled()) {
+                setTimeout(function () { try { navTo('production', false); } catch (e) { console.error('[Production] mount failed', e); } }, 0);
+                fetchEssentials().then(() => {
+                    try { _resumePendingBriefPolling(); } catch (e) {}
+                    _applyAllDataDependentChrome();
+                }, err => {
+                    console.warn('[SyncView] Production preview background essentials failed', err);
+                });
+                return;
+            }
+
+            if (isClientCalendarLink) {
+                _syncviewWatchClientExtras(fetchExtras(clientEntryRun),clientEntryRun);
+                await fetchEssentials(clientEntryRun);
+                if(!_clientEntryStillCurrent())return;
+                await Promise.resolve();
+                if(!_clientEntryStillCurrent())return;
+                _applyAllDataDependentChrome();
+                const _calLinkClient = _syncviewClientEntryCapability && _syncviewClientEntryCapability.client;
+                if (!(await _syncviewVerifyClientLinkAccess(_calLinkClient))) return;
+                if(!_clientEntryStillCurrent())return;
+                document.getElementById('selectorWrap').style.display = 'none';
+                document.getElementById('pageSub').style.display = 'none';
+                document.getElementById('pageTitle').textContent = 'Your Analytics';
+                document.querySelector('header.header').style.display = 'none';
+                clientViewTab[_calLinkClient] = 'calendar';
+                render(_calLinkClient, true);
+                return;
+            }
+
+            // >>> SXR_BEGIN
+            // Legacy v=samples is canonicalized to this route only after the
+            // strict token verdict. Mount the exact verified client directly;
+            // generic SXR preferences/pins never get a chance to rebind it.
+            if (_isClientLink && _syncviewClientEntryCapability && _syncviewClientEntryCapability.view === 'sample-reviews') {
+                await Promise.resolve();
+                if(!_clientEntryStillCurrent())return;
+                const _sxrLink = _syncviewClientEntryCapability.client;
+                if (!(await _syncviewVerifyClientLinkAccess(_sxrLink))) return;
+                if(!_clientEntryStillCurrent())return;
+                const _h = document.querySelector('header.header'); if (_h) _h.style.display = 'none';
+                const _sw = document.getElementById('selectorWrap'); if (_sw) _sw.style.display = 'none';
+                const _ps = document.getElementById('pageSub'); if (_ps) _ps.style.display = 'none';
+                const _pt = document.getElementById('pageTop'); if (_pt) _pt.style.display = 'none';
+                mountSxrClientView(_sxrLink);
+                return;
+            }
+            // <<< SXR_END
+            // Kasper unlock must run BEFORE the skipAwait branch so the nav
+            // button is visible regardless of which navigation path init()
+            // takes. Previously this lived after the fast-path return, so
+            // refreshing on /?Kasper=1#calendar (or any other fast-tab hash)
+            // never ran it — the nav button stayed hidden and the user lost
+            // their Kasper access on every reload. ?Kasper=1 sets a
+            // sessionStorage flag that persists for the tab's lifetime, so
+            // subsequent navigations within the same browser tab keep
+            // Kasper unlocked even after the search param has dropped off.
+            let _kasperArrivedFromUnlockParam=false;
+            try{
+                // Drop any persistent unlock left over from the old localStorage scheme.
+                localStorage.removeItem(KASPER_UNLOCK_KEY);
+                // "Just arrived" means this is the FIRST time we've seen
+                // ?Kasper=1 in this browser tab — i.e. sessionStorage wasn't
+                // already holding the unlock. On subsequent refreshes the
+                // sessionStorage flag is still there, so we leave the
+                // arrived-flag false: the user is mid-session and the redirect
+                // to Kasper below shouldn't yank them out of whatever tab
+                // they're currently looking at.
+                const _kasperAlreadyUnlocked = sessionStorage.getItem(KASPER_UNLOCK_KEY) === 'ok';
+                if(qp.get('Kasper')==='1'){
+                    sessionStorage.setItem(KASPER_UNLOCK_KEY,'ok');
+                    _kasperArrivedFromUnlockParam = !_kasperAlreadyUnlocked;
+                }
+                if(sessionStorage.getItem(KASPER_UNLOCK_KEY)==='ok'){
+                    _kasperUnlocked=true;
+                    const navKp=document.getElementById('navKasper');
+                    if(navKp) navKp.style.display='';
+                    _navPillSync(false);   // a revealed tab reflows the strip
+                }
+            }catch(e){}
+
+            // TikTok Pilot unlock — same hidden-tab pattern as Kasper. The gated
+            // first-party Direct-Post flow lives behind ?ttpilot=1 so the
+            // production Post-For-Me Upload tab stays the only visible TikTok tab
+            // until the new app passes TikTok's audit. ?ttpilot=1 sets a per-tab
+            // sessionStorage flag and reveals the nav button on every init path.
+            try{
+                if(qp.get('ttpilot')==='1') sessionStorage.setItem(TTP_UNLOCK_KEY,'ok');
+                if(sessionStorage.getItem(TTP_UNLOCK_KEY)==='ok'){
+                    _ttpUnlocked=true;
+                    const navTtp=document.getElementById('navTiktokPilot');
+                    if(navTtp) navTtp.style.display='';
+                    _navPillSync(false);   // a revealed tab reflows the strip
+                }
+            }catch(e){}
+            // Calendar can mount immediately on the fast path, before the
+            // Clients Info roster has populated its saved client. Reconcile as
+            // soon as essentials land; analytics extras must never hold the
+            // More / multi-select / zoom toolbar recovery hostage.
+            const dataLoad = fetchAll(_isClientLink?clientEntryRun:null);
+            const dataPromise = dataLoad.complete;
+            dataLoad.essentials.then(() => {
+                if(_clientEntryStillCurrent())_applyAllDataDependentChrome();
+            }, () => {});
+
+            if (skipAwait) {
+                // Bare /?Kasper=1 with no hash — drop straight into Kasper
+                // from the fast path too, matching the full-path behaviour
+                // below. Any other URL (with a hash) lets the hash router
+                // decide which tab to mount; the Kasper nav button was
+                // already revealed unconditionally above.
+                if (_kasperArrivedFromUnlockParam && _kasperUnlocked && !hashRaw) {
+                    await Promise.resolve();
+                    _resumePendingBriefPolling();
+                    loadTemplates();
+                    navTo('kasper', false);
+                    dataPromise.catch(err => console.warn('[SyncView] background fetchAll failed', err));
+                    return;
+                }
+                // Yield one microtask so any top-level let/const declarations
+                // below init()'s call site (e.g. _tkPollTimer down in the
+                // TikTok module) finish initializing before navTo touches
+                // them — _tkTeardown reads _tkPollTimer and would otherwise
+                // hit a TDZ error on a direct calendar refresh.
+                await Promise.resolve();
+                // Paint immediately; fetchAll fills the global chrome when it lands.
+                _resumePendingBriefPolling();
+                loadTemplates();
+                if (hashRaw.startsWith('calendar/')) {
+                    const rest = hashRaw.slice('calendar/'.length);
+                    const sl = rest.indexOf('/');
+                    const slug = sl >= 0 ? rest.slice(0, sl) : rest;
+                    const cardId = sl >= 0 ? decodeURIComponent(rest.slice(sl+1)) : '';
+                    const match = WL_CLIENT_NAMES.find(n => wlNormalizeClient(n) === slug);
+                    if (match) _calSetFocusRequest({ client: match, cardId: cardId || null });
+                    // Sheet-only client (e.g. a calendar link shared by another
+                    // SMM): the allowlist is still seed-only on this fast path, so
+                    // the slug won't have matched above. Resolve and open it as a
+                    // tab once fetchAll folds in the Clients Info sheet.
+                    else if (slug) {
+                        _calSetPendingDeepLink({ slug, cardId: cardId || null });
+                        // Listen to essentials itself, not the full analytics
+                        // bundle: once the sheet roster is merged this route can
+                        // resolve even if extras are still pending or fail. A
+                        // rejected essentials load takes the graceful fallback.
+                        dataLoad.essentials.then(_calResolvePendingDeepLink, _calResolvePendingDeepLink);
+                    }
+                    navTo('calendar', false);
+                } else if (hashRaw.startsWith('samples/')) {
+                    const rest = hashRaw.slice('samples/'.length);
+                    const sl = rest.indexOf('/');
+                    const slug = sl >= 0 ? rest.slice(0, sl) : rest;
+                    const cardId = sl >= 0 ? decodeURIComponent(rest.slice(sl+1)) : '';
+                    const match = WL_CLIENT_NAMES.find(n => wlNormalizeClient(n) === slug);
+                    if (match) _smFocusRequest = { client: match, cardId: cardId || null };
+                    navTo('samples', false);
+                } else if (hashRaw.startsWith('templates/')) {
+                    // Open straight to the deep-linked client so a refresh doesn't
+                    // flash the templates index first, and restore the exact tab.
+                    // hashRaw is ALREADY decoded (do not decode again); history.state
+                    // survives a reload and carries the exact client + tab when set,
+                    // so prefer it over the hash. Canonicalize / drop once the client
+                    // roster (allData) has loaded.
+                    let seed = hashRaw.slice('templates/'.length);
+                    const st = history.state || {};
+                    if (st.templatesClient) seed = st.templatesClient;
+                    if (seed) _templatesSelected = seed;
+                    if (st.templatesTab === 'reels' || st.templatesTab === 'thumbnails') _templatesActiveTab = st.templatesTab;
+                    navTo('templates', false);
+                    dataPromise.then(() => {
+                        if (wlIsAllowedClient(_templatesSelected)) {
+                            const canon = wlCanonicalClient(_templatesSelected);
+                            if (canon && canon !== _templatesSelected) { _templatesSelected = canon; navTo('templates', false); }
+                        } else if (_templatesSelected) {
+                            // Deep-link no longer resolves to a real client → index.
+                            _templatesSelected = null; navTo('templates', false);
+                        }
+                    });
+                } else if (hashRoute === 'smm-weekly-report' || hashRoute === 'smm-weekly-reports') {
+                    navTo(hashRoute, false);
+                } else if (hashRaw === 'kasper' || hashRaw.startsWith('kasper/')) {
+                    // Already unlocked for this session (gated by _kasperHashLanding).
+                    if (hashRaw.startsWith('kasper/')) {
+                        const sub = hashRaw.slice('kasper/'.length);
+                        if (KASPER_SUBTABS.some(t => t.key === sub)) _kasperState.tab = sub;
+                    }
+                    navTo('kasper', false);
+                } else if (hashRaw === 'tiktok-pilot' && _ttpUnlocked) {
+                    navTo('tiktok-pilot', false);
+                } else if (hashRaw === 'time-off') {
+                    navTo('time-off', false);
+                } else if (hashIsFastTab) {
+                    navTo(hashRaw, false);
+                } else {
+                    navTo(restoreFastNav, false);
+                }
+                // Bubble fetch errors to the user, but only if they actually
+                // navigate somewhere that needs data — for a clean calendar
+                // session a transient analytics fetch failure isn't fatal.
+                dataPromise.catch(err => {
+                    console.warn('[SyncView] background fetchAll failed', err);
+                });
+                return;
+            }
+
+            // Stale-while-revalidate: paint the dashboard instantly from the
+            // last session's snapshot and let fetchAll() refresh behind it.
+            // Client share links (?c=…) always await fresh data — their token
+            // gate must check the live sheet, not yesterday's copy.
+            let _paintedFromCache = false;
+            if (!qp.get('c')) _paintedFromCache = _analyticsHydrateFromCache();
+            if (_paintedFromCache) {
+                const _fpAtPaint = _analyticsAppliedFp.ess + '|' + _analyticsAppliedFp.ext;
+                dataPromise.then(() => {
+                    if (_analyticsAppliedFp.ess + '|' + _analyticsAppliedFp.ext !== _fpAtPaint) _analyticsRefreshCurrentView();
+                }, err => console.warn('[SyncView] background analytics revalidate failed:', err));
+            } else {
+                await dataPromise;
+            }
+            if(!_clientEntryStillCurrent())return;
+            if(!_isClientLink)_resumePendingBriefPolling();
+            // Content summaries now generate lazily — only when the user opens a specific client's profile.
+            // See buildContentSummarySection for the per-profile auto-trigger.
+            // Load shared client templates from the Apps Script backend (non-blocking).
+            if(!_isClientLink)loadTemplates();
+            _applyAllDataDependentChrome();
+            const clientNames=getClientRoster();
+            if(_isClientLink){
+                const clientEntry=_syncviewClientEntryCapability;
+                if(!clientEntry||!clientEntry.verified){_syncviewInvalidClientLinkScreen();return;}
+                if(!(await _syncviewVerifyClientLinkAccess(clientEntry.client))) return;
+                if(!_clientEntryStillCurrent())return;
+                document.getElementById('selectorWrap').style.display='none';
+                document.getElementById('pageSub').style.display='none';
+                document.getElementById('pageTitle').textContent='Your Analytics';
+                document.querySelector('header.header').style.display='none';
+                clientViewTab[clientEntry.client]=clientEntry.view==='brief'?'brief':'analytics';
+                render(clientEntry.client,true);return;
+            }
+            // hash is hashRaw from the top of init() — alias kept for the
+            // existing routing branches below. The Kasper unlock setup now
+            // lives above the skipAwait branch so it runs on every path.
+            const hash = hashRaw;
+            if(_kasperArrivedFromUnlockParam && _kasperUnlocked && !hash){
+                // Bare /?Kasper=1 — drop straight into Kasper as a one-step
+                // unlock. If the URL also carries a hash (e.g. someone
+                // bookmarked /?Kasper=1#calendar so Kasper stays unlocked
+                // while they're working in the calendar) the hash router
+                // below decides which tab to land on; the Kasper nav
+                // button was already revealed unconditionally above, so
+                // it stays visible from any tab.
+                navTo('kasper',false);return;
+            }
+            // On page refresh, restore exact state from history.state
+            if(history.state&&history.state.client&&wlIsAllowedClient(history.state.client)){
+                const s=history.state,c=wlCanonicalClient(s.client);
+                const tab=s.clientTab||'analytics';
+                clientViewTab[c]=tab;
+                if(s.briefSection)activeBriefSection[c]=s.briefSection;
+                if(s.briefTab)activeBriefTab[c]=s.briefTab;
+                if(s.mrBriefTab)activeMRBriefTab[c]=s.mrBriefTab;
+                render(c,false);return;
+            }
+            if(hash==='linear'){navTo(hash,false);return;}
+            if(hash==='workload'){navTo(hash,false);return;}
+            if(hash==='calendar'){navTo(hash,false);return;}
+            if(hash==='samples'){navTo(hash,false);return;}
+            if(hash==='templates'){navTo(hash,false);return;}
+            if(hash==='filming-plans'){navTo(hash,false);return;}
+            if(hash==='tiktok-upload'){navTo(hash,false);return;}
+            if(hash==='time-off'){navTo('time-off',false);return;}
+            if(hash==='tiktok-pilot' && _ttpUnlocked){navTo('tiktok-pilot',false);return;}
+            if(hashRoute==='smm-weekly-report'){navTo('smm-weekly-report',false);return;}
+            if(hashRoute==='smm-weekly-reports'){navTo('smm-weekly-reports',false);return;}
+            if(hash==='kasper' && _kasperUnlocked){navTo('kasper',false);return;}
+            if(hash.startsWith('kasper/') && _kasperUnlocked){
+                const sub=hash.slice('kasper/'.length);
+                if(KASPER_SUBTABS.some(t=>t.key===sub)) _kasperState.tab=sub;
+                navTo('kasper',false);return;
+            }
+            if(hash.startsWith('calendar/')){
+                const rest=hash.slice('calendar/'.length);
+                const sl=rest.indexOf('/');
+                const slug=sl>=0?rest.slice(0,sl):rest;
+                const cardId=sl>=0?decodeURIComponent(rest.slice(sl+1)):'';
+                // Prefer the full allowlist (WL_CLIENT_NAMES has merged the
+                // Clients Info sheet by now) over the analytics-only client list,
+                // so a calendar-only client with no analytics row still resolves.
+                const match=WL_CLIENT_NAMES.find(n=>wlNormalizeClient(n)===slug)||clientNames.find(n=>wlNormalizeClient(n)===slug);
+                if(match){_calSetFocusRequest({client:match,cardId:cardId||null});navTo('calendar',false);return;}
+                navTo('calendar',false);return;
+            }
+            if(hash.startsWith('samples/')){
+                const rest=hash.slice('samples/'.length);
+                const sl=rest.indexOf('/');
+                const slug=sl>=0?rest.slice(0,sl):rest;
+                const cardId=sl>=0?decodeURIComponent(rest.slice(sl+1)):'';
+                const match=WL_CLIENT_NAMES.find(n=>wlNormalizeClient(n)===slug);
+                if(match){_smFocusRequest={client:match,cardId:cardId||null};}
+                navTo('samples',false);return;
+            }
+            if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(wlIsAllowedClient(tn)){_templatesSelected=wlCanonicalClient(tn);navTo('templates',false);return;}}
+            if(hash&&wlIsAllowedClient(hash)){render(wlCanonicalClient(hash),false);return;}
+            // Only restore savedNav on page refresh (history.state exists), not new tabs
+            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||savedNav==='time-off'||(savedNav==='kasper'&&_kasperUnlocked)||(savedNav==='tiktok-pilot'&&_ttpUnlocked))){navTo(savedNav,false);return;}
+            navTo('home',false);
+        }catch(err){
+            if(_isClientLink){
+                if(!_syncviewClientEntryRunCurrent(clientEntryRun))return;
+                _syncviewInvalidClientLinkScreen({retryable:true});
+                return;
+            }
+            // Lift the pre-paint boot gate too: routing died before
+            // navTo()/render() could, and the error card should show on the
+            // normal chrome, not a half-gated one.
+            document.documentElement.removeAttribute('data-boot-nav');
+            document.documentElement.removeAttribute('data-boot-subtab');
+            document.getElementById('content').innerHTML=`<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:var(--sv-fg-aaa)">${err.message}</small></div>`;
+        }
+    }
+
+    // The shared staff password (localStorage 'syncview_auth_v1') was retired
+    // on 2026-09-10: it was one secret for everyone, readable in this page's
+    // source, and it identified nobody. Staff entry is now the same verified
+    // roster-name + personal role key that already gated every capability.
+    // The stale marker is swept so no browser carries a dead credential.
+    const _LEGACY_AUTH_KEY = 'syncview_auth_v1';
+    try { localStorage.removeItem(_LEGACY_AUTH_KEY); } catch (e) {}
+    let _syncviewAppBooted = false;
+    const SYNCVIEW_CLIENT_ENTRY_VIEWS = Object.freeze(['analytics', 'calendar', 'brief', 'samples', 'sample-reviews']);
+    const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr']);
+    let _syncviewClientEntryCapability = null;
+    let _syncviewClientEntryGeneration = 0;
+    let _syncviewClientEntryDataController = null;
+    let _syncviewClientEntryDataRun = null;
+
+    function _syncviewStaleClientEntryError() {
+        const error = new Error('Stale client entry');
+        error.name = 'AbortError';
+        return error;
+    }
+    function _syncviewAbortClientEntryDataRun() {
+        const controller = _syncviewClientEntryDataController;
+        _syncviewClientEntryDataController = null;
+        _syncviewClientEntryDataRun = null;
+        try { if (controller) controller.abort(); } catch (e) {}
+    }
+    function _syncviewClientEntryRunCurrent(run) {
+        if (!_isClientLink) return !run;
+        const cap = _syncviewClientEntryCapability;
+        return !!(run
+            && run === _syncviewClientEntryDataRun
+            && !run.signal.aborted
+            && run.generation === _syncviewClientEntryGeneration
+            && run.href === location.href
+            && cap
+            && cap.verified
+            && cap.slug === run.slug);
+    }
+    function _syncviewCreateClientEntryDataRun(generation, slug) {
+        _syncviewAbortClientEntryDataRun();
+        const controller = new AbortController();
+        const run = {
+            generation,
+            href: location.href,
+            slug,
+            signal: controller.signal
+        };
+        _syncviewClientEntryDataController = controller;
+        _syncviewClientEntryDataRun = run;
+        return run;
+    }
+    function _syncviewSyncClientEntryRunHref() {
+        const run = _syncviewClientEntryDataRun;
+        const cap = _syncviewClientEntryCapability;
+        if (run && cap && cap.verified && cap.slug === run.slug) run.href = location.href;
+    }
+
+    function _syncviewClientEntrySlug(value) {
+        try { return wlNormalizeClient(value); }
+        catch (e) { return String(value || '').trim().toLowerCase().replace(/^dr\.?\s+/, '').replace(/\s+(?:and|&)\s+/g, '&').replace(/[^a-z0-9&]+/g, ''); }
+    }
+    function _syncviewClientEntryEnvelope() {
+        let q;
+        try { q = new URLSearchParams(location.search); } catch (e) { return { ok: false, reason: 'malformed_query' }; }
+        const keys = Array.from(q.keys());
+        if (keys.some(key => !SYNCVIEW_CLIENT_ENTRY_KEYS.includes(key))) return { ok: false, reason: 'mixed_entry' };
+        for (const key of SYNCVIEW_CLIENT_ENTRY_KEYS) {
+            if (q.getAll(key).length > 1) return { ok: false, reason: 'duplicate_' + key };
+        }
+        if (q.getAll('c').length !== 1 || q.getAll('t').length !== 1) return { ok: false, reason: 'missing_credential' };
+        const client = String(q.get('c') || '').trim();
+        const token = String(q.get('t') || '').trim();
+        const slug = _syncviewClientEntrySlug(client);
+        if (!client || !slug || !token || client.length > 160 || token.length > 512 || /[\u0000-\u001f\u007f]/.test(client + token)) {
+            return { ok: false, reason: 'malformed_credential' };
+        }
+        let view = String(q.get('v') || 'analytics').trim().toLowerCase();
+        if (!SYNCVIEW_CLIENT_ENTRY_VIEWS.includes(view)) return { ok: false, reason: 'unsupported_view' };
+        const sxr = q.get('sxr');
+        if (view === 'sample-reviews') {
+            if (sxr !== '1') return { ok: false, reason: 'invalid_samples_entry' };
+        } else if (sxr !== null) {
+            return { ok: false, reason: 'mixed_samples_entry' };
+        }
+        let hash = '';
+        try { hash = decodeURIComponent(location.hash.replace(/^#/, '')); } catch (e) { return { ok: false, reason: 'malformed_hash' }; }
+        // Current-main client tabs wrote a same-client hash. It has no routing
+        // authority and is accepted only as a migration input; strict token
+        // verification succeeds first, then the hash is removed in-place.
+        if (hash && hash !== client) return { ok: false, reason: 'mixed_hash' };
+        let state = null; try { state = history.state; } catch (e) {}
+        if (state && state.client && _syncviewClientEntrySlug(state.client) !== slug) {
+            return { ok: false, reason: 'mismatched_history' };
+        }
+        if (state && !state.client && state.nav) return { ok: false, reason: 'staff_history' };
+        if ((view === 'analytics' || !q.get('v')) && state && state.client && _syncviewClientEntrySlug(state.client) === slug) {
+            if (state.clientTab === 'calendar' || state.clientTab === 'brief') view = state.clientTab;
+        }
+        return { ok: true, client, slug, token, view, legacyHash: !!hash };
+    }
+    function _writeUiCancelClientLegacyRetryTimers() {
+        if (!_isClientLink) return;
+        if (_linearOutboxFlushTimer) {
+            clearTimeout(_linearOutboxFlushTimer);
+            _linearOutboxFlushTimer = null;
+        }
+        if (_sxrLinearOutboxTimer) {
+            clearTimeout(_sxrLinearOutboxTimer);
+            _sxrLinearOutboxTimer = null;
+        }
+    }
+    function _syncviewPurgeClientEntrySurface() {
+        _writeUiCancelClientLegacyRetryTimers();
+        try { if (typeof _syncviewCancelBriefWork === 'function') _syncviewCancelBriefWork(); } catch (e) {}
+        try { if (typeof _calV2Teardown === 'function') _calV2Teardown(); } catch (e) {}
+        try { if (typeof _sxrAbortActiveLoad === 'function') _sxrAbortActiveLoad(); } catch (e) {}
+        try { if (typeof _sxrV2Teardown === 'function') _sxrV2Teardown(); } catch (e) {}
+        try { if (typeof _smV2Teardown === 'function') _smV2Teardown(); } catch (e) {}
+        try { if (growthChart) { growthChart.destroy(); growthChart = null; } } catch (e) {}
+        try { if (viewsChart) { viewsChart.destroy(); viewsChart = null; } } catch (e) {}
+        try {
+            allData = []; clientMap = {}; topVideos = []; briefs = []; mrBriefs = [];
+            currentClientHistory = []; clientViewTab = {};
+            contentSummaryState = {}; generalBriefState = {}; tabSummaryCache = {};
+            pendingBriefs = {}; briefPollingState = {};
+            _fetchExtrasPromise = null;
+            ++_fetchExtrasAttempt;
+            _fetchExtrasState = { status: 'idle', run: null };
+            _autoSummaryAttempted.clear();
+        } catch (e) {}
+        try {
+            _calLoadSeq++;
+            _calSetClient(null); calState.posts = []; calState.loading = false; calState.error = null;
+            _calSetFocusRequest(null); _calSetPendingDeepLink(null);
+        } catch (e) {}
+        try {
+            _sxrLoadSeq++;
+            sxrState.client = null; sxrState.posts = []; sxrState.loading = false; sxrState.error = null;
+            sxrState.embedded = false; sxrState.previewId = null; sxrState.focusCard = null;
+        } catch (e) {}
+        try {
+            smState.client = null; smState.samples = []; smState.loading = false; smState.error = null;
+            smState.embedded = false; smState.focusCard = null; _smFocusRequest = null;
+        } catch (e) {}
+        document.body.classList.remove('cal-page', 'sm-modal-open', 'cal-modal-open');
+    }
+    function _syncviewClientEntrySlugHint() {
+        const cap = _syncviewClientEntryCapability;
+        if (cap && cap.slug) return cap.slug;
+        try { return _syncviewClientEntrySlug(new URLSearchParams(location.search).get('c')); }
+        catch (e) { return ''; }
+    }
+    function _syncviewClearClientEntryCaches(slug) {
+        try { localStorage.removeItem(ANALYTICS_CACHE_KEY); } catch (e) {}
+        try { localStorage.removeItem('syncview_contentSummaryState_v1'); } catch (e) {}
+        try { localStorage.removeItem('syncview_generalBriefState_v5'); } catch (e) {}
+        if (!slug) return;
+        try { localStorage.removeItem(CAL_CACHE_KEY_PREFIX + slug); } catch (e) {}
+        try { localStorage.removeItem(SXR_CACHE_PREFIX + slug); } catch (e) {}
+        try { localStorage.removeItem(SM_CACHE_PREFIX + slug); } catch (e) {}
+    }
+    function _syncviewFlushClientEntryPending() {
+        try { if (typeof _calFlushAllPending === 'function') _calFlushAllPending(); } catch (e) {}
+        try { if (typeof _sxrFlushAllPending === 'function') _sxrFlushAllPending(); } catch (e) {}
+    }
+    function _syncviewClientEntryValidationSurface() {
+        document.documentElement.setAttribute('data-boot-nav', 'client');
+        document.documentElement.setAttribute('data-boot-subtab', 'verify');
+        const h = document.querySelector('header.header'); if (h) h.style.display = 'none';
+        const pt = document.getElementById('pageTop'); if (pt) pt.style.display = 'none';
+        const content = document.getElementById('content');
+        if (content) content.innerHTML = _svLoadingSkeletonHtml('client-verify');
+    }
+    function _syncviewInvalidClientLinkScreen(opts) {
+        opts = opts || {};
+        const cacheSlug = _syncviewClientEntrySlugHint();
+        ++_syncviewClientEntryGeneration;
+        _syncviewAbortClientEntryDataRun();
+        _syncviewFlushClientEntryPending();
+        _syncviewClientEntryCapability = null;
+        _syncviewPurgeClientEntrySurface();
+        _syncviewClearClientEntryCaches(cacheSlug);
+        document.documentElement.removeAttribute('data-boot-nav');
+        document.documentElement.removeAttribute('data-boot-subtab');
+        const h = document.querySelector('header.header'); if (h) h.style.display = 'none';
+        const pt = document.getElementById('pageTop'); if (pt) pt.style.display = 'none';
+        const content = document.getElementById('content');
+        const retry = opts.retryable
+            ? `<button type="button" class="share-btn" onclick="_syncviewStartClientEntry(true)" style="margin-top:4px;">Try again</button>`
+            : '';
+        const title = opts.retryable ? 'We could not verify this link' : `This link isn't valid`;
+        const copy = opts.retryable
+            ? 'Check your connection and try again. No client data was loaded.'
+            : 'Please ask your social media manager for an updated link.';
+        if (content) content.innerHTML = `<div data-client-entry-state="${opts.retryable ? 'retry' : 'invalid'}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:14px;padding:40px;text-align:center;font-family:'Plus Jakarta Sans',sans-serif;">
+            <div style="font-size:1.15rem;font-weight:700;color:var(--sv-fg-111);">${title}</div>
+            <div style="font-size:0.9rem;color:var(--sv-fg-777);max-width:380px;line-height:1.45;">${copy}</div>
+            ${retry}
+        </div>`;
+    }
+    function _syncviewClientEntryLoader(entry,opts) {
+        const content = document.getElementById('content');
+        if (!content || !entry) return;
+        opts=opts||{};
+        let kind = 'analytics-client';
+        let label = 'Loading your analytics...';
+        if (entry.view === 'calendar') { kind = 'calendar'; label = 'Loading content calendar...'; }
+        else if (entry.view === 'brief') { kind = 'client-brief'; label = 'Loading your brief...'; }
+        else if (entry.view === 'samples' || entry.view === 'sample-reviews') { kind = 'review'; label = 'Loading sample reviews...'; }
+        const extrasAttr=opts.extras?' data-client-extras-state="loading"':'';
+        content.innerHTML = `<div data-client-entry-loading="${entry.view}"${extrasAttr}>${_svLoadingSkeletonHtml(kind, { label, name: entry.client })}</div>`;
+    }
+    function _syncviewClientExtrasErrorScreen(entry) {
+        const content=document.getElementById('content');
+        if(!content||!entry)return;
+        const subject=entry.view==='brief'?'brief':'analytics';
+        content.innerHTML=`<div data-client-extras-state="error" data-client-extras-view="${entry.view}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:14px;padding:40px;text-align:center;font-family:'Plus Jakarta Sans',sans-serif;">
+            <div style="font-size:1.15rem;font-weight:700;color:var(--sv-fg-111);">We could not load your ${subject}</div>
+            <div style="font-size:0.9rem;color:var(--sv-fg-777);max-width:420px;line-height:1.45;">Your data was not replaced with an empty result. Check your connection and try again.</div>
+            <button type="button" class="share-btn" onclick="_syncviewRetryClientExtras()" style="margin-top:4px;">Try again</button>
+        </div>`;
+    }
+    function _syncviewCanonicalizeClientEntry(entry) {
+        const q = new URLSearchParams(location.search);
+        let view = entry.view;
+        if (view === 'samples') view = 'sample-reviews';
+        if (view === 'analytics') q.delete('v'); else q.set('v', view);
+        if (view === 'sample-reviews') q.set('sxr', '1'); else q.delete('sxr');
+        const tab = view === 'sample-reviews' ? 'sample-reviews' : view;
+        const prev = history.state && _syncviewClientEntrySlug(history.state.client) === entry.slug ? history.state : {};
+        const state = Object.assign({}, prev, {
+            nav: null,
+            client: entry.client,
+            clientSlug: entry.slug,
+            clientTab: tab,
+            clientEntryView: view
+        });
+        const url = location.pathname + '?' + q.toString();
+        history.replaceState(state, '', url);
+        return Object.freeze({ client: entry.client, slug: entry.slug, view, verified: true });
+    }
+    async function _syncviewPreflightClientEntry(generation, href) {
+        const entry = _syncviewClientEntryEnvelope();
+        if (!entry.ok) return { kind: 'invalid', reason: entry.reason };
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        const timer = controller ? setTimeout(() => controller.abort(), 8000) : null;
+        try {
+            const resp = await fetch(CLIENT_TOKEN_VERIFY_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                cache: 'no-store',
+                signal: controller ? controller.signal : undefined,
+                body: JSON.stringify({ client: entry.client, slug: entry.slug, token: entry.token, view: entry.view, strict: true })
+            });
+            let json = null; try { json = await resp.json(); } catch (e) {}
+            if (generation !== _syncviewClientEntryGeneration || href !== location.href) return { kind: 'stale' };
+            if (!resp.ok) return { kind: resp.status >= 500 || resp.status === 429 || resp.status === 408 ? 'retry' : 'invalid' };
+            const responseSlug = _syncviewClientEntrySlug(json && json.slug);
+            const responseView = String(json && json.view || '');
+            if (!json
+                || json.ok !== true
+                || json.valid !== true
+                || json.active !== true
+                || json.strict !== true
+                || json.protocol !== SYNCVIEW_CLIENT_ENTRY_PROTOCOL
+                || responseSlug !== entry.slug
+                || responseView !== entry.view) {
+                return { kind: 'invalid' };
+            }
+            const canonicalClient = String(json.display_name || '').trim();
+            if (!canonicalClient || _syncviewClientEntrySlug(canonicalClient) !== entry.slug) return { kind: 'invalid' };
+            entry.client = canonicalClient;
+            return { kind: 'ok', entry };
+        } catch (e) {
+            if (generation !== _syncviewClientEntryGeneration || href !== location.href) return { kind: 'stale' };
+            return { kind: 'retry' };
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
+    }
+    function _syncviewStartClientEntry(isRetry) {
+        _syncviewAbortClientEntryDataRun();
+        const generation = ++_syncviewClientEntryGeneration;
+        const href = location.href;
+        if (isRetry) _syncviewClientEntryValidationSurface();
+        Promise.resolve().then(async () => {
+            const verdict = await _syncviewPreflightClientEntry(generation, href);
+            if (!verdict || verdict.kind === 'stale') return;
+            if (verdict.kind !== 'ok') {
+                _syncviewInvalidClientLinkScreen({ retryable: verdict.kind === 'retry' });
+                return;
+            }
+            _syncviewClientEntryCapability = _syncviewCanonicalizeClientEntry(verdict.entry);
+            _syncviewClientEntryLoader(_syncviewClientEntryCapability);
+            const dataRun = _syncviewCreateClientEntryDataRun(generation, _syncviewClientEntryCapability.slug);
+            Promise.resolve(init(dataRun)).catch(() => {});
+            if (_syncviewClientEntryRunCurrent(dataRun)) {
+                _writeUiResumeLegacyQueues('client-verified', dataRun).catch(() => {});
+            }
+        }).catch(() => _syncviewInvalidClientLinkScreen({ retryable: true }));
+    }
+    function _syncviewSuspendClientEntry() {
+        if (!_isClientLink) return;
+        // Calendar's earlier pagehide listener has already flushed its queue.
+        // SXR registers later after async capability mount, so flush it here
+        // exactly once before clearing the restored client state.
+        try { if (typeof _sxrFlushAllPending === 'function') _sxrFlushAllPending(); } catch (e) {}
+        ++_syncviewClientEntryGeneration;
+        _syncviewAbortClientEntryDataRun();
+        try { if (typeof _sxrAbortActiveLoad === 'function') _sxrAbortActiveLoad(); } catch (e) {}
+        _syncviewClientEntryCapability = null;
+        _syncviewPurgeClientEntrySurface();
+        _syncviewClientEntryValidationSurface();
+    }
+    function _syncviewResumeClientEntry(event) {
+        if (!_isClientLink || !event || event.persisted !== true) return;
+        // Capture + stop prevents Calendar/SXR/pageshow refresh listeners from
+        // issuing a read against the restored capability before revalidation.
+        event.stopImmediatePropagation();
+        _syncviewClientEntryValidationSurface();
+        _syncviewStartClientEntry(false);
+    }
+    async function _syncviewVerifyClientLinkAccess(clientName) {
+        if (!_isClientLink) return true;
+        const cap = _syncviewClientEntryCapability;
+        if (cap && cap.verified && _syncviewClientEntrySlug(clientName) === cap.slug) return true;
+        _syncviewInvalidClientLinkScreen();
+        return false;
+    }
+    const _clientEntryParams = new URLSearchParams(location.search);
+    const _isClientLink = _clientEntryParams.has('c');
+    const _isIntake=(new URLSearchParams(location.search).get('intake')==='1');
+    const _entryHash=(()=>{try{return decodeURIComponent(location.hash.replace('#','')).split('/')[0].split('?')[0];}catch(e){return location.hash.replace('#','').split('/')[0].split('?')[0];}})();
+    const _isSmmWeeklyEntry=_isSmmWeeklyRoute(_entryHash);
+    const _obParam=new URLSearchParams(location.search).get('onboarding');
+    // AI funnel lives at /ai_onboarding_form (or ?onboarding=ai); the standard
+    // funnel at /onboarding_form (or ?onboarding=<anything-else>). The /ai_ path
+    // can't match the standard regex (no '/' before 'onboarding_form'), so order
+    // doesn't matter, but we detect AI explicitly to set the variant.
+    const _isAiOnboarding=(_obParam==='ai') || /\/ai_onboarding_form\/?$/i.test(location.pathname);
+    const _isOnboarding=_isAiOnboarding || (_obParam!==null) || /\/onboarding_form\/?$/i.test(location.pathname);
+    const _isOnboardingView=!!new URLSearchParams(location.search).get('onboarding_view');
+    if(_isIntake&&!_isClientLink){document.body.classList.add('intake-mode');}
+    if(_isOnboarding&&!_isClientLink){document.body.classList.add('onboarding-mode');}
+    if(_isSmmWeeklyEntry&&!_isClientLink){document.body.classList.add('smm-weekly-mode');}
+    if(_isClientLink){
+        // A client query never enters a staff/special-mode route directly.
+        // Keep the neutral validation skeleton and staff chrome lock in place
+        // until the server binds one active client + current token.
+        _syncviewClientEntryValidationSurface();
+        window.addEventListener('pagehide', _syncviewSuspendClientEntry);
+        window.addEventListener('pageshow', _syncviewResumeClientEntry, true);
+        _syncviewStartClientEntry(false);
+    } else if(_isOnboarding){
+        // Standalone onboarding form (?onboarding=…): no staff password and no
+        // dashboard data load. Hide all workspace chrome and mount only the
+        // onboarding page; navTo is locked to 'onboarding' so the link can't
+        // reach any other tab.
+        // Pick the funnel variant BEFORE the form mounts. The AI funnel shows the
+        // AI-avatar section and drops the sample-video section; the standard funnel
+        // is the reverse. Each keeps its own autosave draft key so the two forms
+        // never clobber each other's localStorage.
+        OB_VARIANT = _isAiOnboarding ? 'ai' : 'normal';
+        OB_DRAFT_KEY = _isAiOnboarding ? 'syncview_ai_onboarding_draft_v1' : 'syncview_onboarding_draft_v1';
+        OB_SUBID_KEY = _isAiOnboarding ? 'syncview_ai_onboarding_subid_v1' : 'syncview_onboarding_subid_v1';
+        // Both onboarding forms carry SynchroSocial branding (tab title + favicon),
+        // distinct from the SyncView dashboard chrome.
+        try {
+            document.title = 'SynchroSocial';
+            let _fav = document.querySelector('link[rel="icon"]');
+            if (!_fav) { _fav = document.createElement('link'); _fav.rel = 'icon'; document.head.appendChild(_fav); }
+            _fav.type = 'image/png';
+            _fav.href = 'synchro-social-favicon.png';
+        } catch (e) {}
+        const _h=document.querySelector('header.header'); if(_h) _h.style.display='none';
+        const _pt=document.getElementById('pageTop'); if(_pt) _pt.style.display='none';
+        // Defer to a macrotask so the whole script finishes initializing its
+        // module-level bindings first — navTo() calls teardown fns that read
+        // `let`s declared later in the file, so calling it synchronously here
+        // would hit a temporal-dead-zone ReferenceError.
+        setTimeout(function(){ try{ navTo('onboarding', false); }catch(e){ console.error('[onboarding] mount failed', e); } }, 0);
+    } else if(_isOnboardingView){
+        // Standalone per-client onboarding viewer (new tab from a client's template
+        // profile). Read-only and credential-free, with no dashboard data load;
+        // the onboarding reader opens verified admin staff sign-in before fetch.
+        document.body.classList.add('onboarding-view-mode');
+        try { document.title = 'Onboarding — SynchroSocial'; } catch(e){}
+        const _hV=document.querySelector('header.header'); if(_hV) _hV.style.display='none';
+        const _ptV=document.getElementById('pageTop'); if(_ptV) _ptV.style.display='none';
+        setTimeout(function(){ try{ _obvMountStandalone(new URLSearchParams(location.search).get('onboarding_view')); }catch(e){ console.error('[onboarding_view] mount failed', e); } }, 0);
+    } else if(_isSmmWeeklyEntry||_isIntake||!!_syncviewStaffIdentityLoad()){
+        // A saved identity boots the app optimistically so signed-in staff
+        // never see the gate flash. It grants nothing: _syncviewStaffIdentityBoot()
+        // runs inside init() and drops the gate back if it does not verify.
+        if(_isSmmWeeklyEntry){
+            document.documentElement.classList.remove('boot-gate');
+            const _pwS=document.getElementById('staffGateOverlay'); if(_pwS) _pwS.style.display='none';
+            const _hS=document.querySelector('header.header'); if(_hS) _hS.style.display='none';
+            const _ptS=document.getElementById('pageTop'); if(_ptS) _ptS.style.display='none';
+        }
+        if(_isIntake){
+            // Client intake link (?intake=1): expose ONLY the Linear submission
+            // flow. Bypass the staff password, hide all workspace chrome, and
+            // force the Linear page. navTo() is hard-locked to 'linear' so no
+            // other tab/page is reachable from this link.
+            const _h=document.querySelector('header.header'); if(_h) _h.style.display='none';
+            const _pt=document.getElementById('pageTop'); if(_pt) _pt.style.display='none';
+            try{localStorage.setItem(NAV_KEY,'linear');}catch(e){}
+            history.replaceState({nav:'linear',client:null},'',location.pathname+location.search+'#linear');
+        }
+        _syncviewAppBooted = true;
+        init();
+        if(_isIntake){
+            try{ navTo('linear', false); }catch(e){}
+            setTimeout(function(){
+                try{ _linearResumeSubmissionHold('startup').catch(function(){}); }catch(e){}
+            }, 0);
+        }
+    } else {
+        // No saved identity on a staff surface: the gate is the whole page
+        // until a role key verifies. init() runs from _syncviewLiftStaffGate().
+        _syncviewOpenStaffGate();
+    }
+

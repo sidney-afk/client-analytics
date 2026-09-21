@@ -1,0 +1,2743 @@
+        function _prodLayerPop(html, x, y) {
+            _prodEnsureOverlays();
+            const layer = document.getElementById('prodLayer');
+            layer.innerHTML = '';
+            layer.style.pointerEvents = 'auto';
+            const bd = document.createElement('div');
+            bd.className = 'prod-pop-bd';
+            bd.addEventListener('click', e => {
+                const x = e.clientX;
+                const y = e.clientY;
+                const root = document.getElementById('prodRoot');
+                layer.style.pointerEvents = 'none';
+                const next = document.elementFromPoint(x, y);
+                layer.style.pointerEvents = 'auto';
+                const target = next && next.closest ? next.closest('#prodFilterBtn, #prodGroupBtn, [data-prod-prop], .prod-status[data-st], .prod-due, .prod-assign-hot, [data-prod-pstatus], [data-prod-plead], [data-prod-ptarget]') : null;
+                _prodClearLayer();
+                if (target && (target.id === 'prodFilterBtn' || target.id === 'prodGroupBtn')) return;
+                if (target && root && root.contains(target)) {
+                    setTimeout(() => {
+                        target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+                    }, 0);
+                }
+            });
+            bd.addEventListener('contextmenu', e => { e.preventDefault(); _prodClearLayer(); });
+            layer.appendChild(bd);
+            const pop = document.createElement('div');
+            pop.className = 'prod-pop';
+            pop.innerHTML = html;
+            pop.style.visibility = 'hidden';
+            pop.addEventListener('click', e => e.stopPropagation());
+            pop.addEventListener('contextmenu', e => e.preventDefault());
+            layer.appendChild(pop);
+            _prodPlacePop(pop, x, y);
+            pop.style.visibility = 'visible';
+            return pop;
+        }
+        let _prodSubPop = null;
+        function _prodCloseSub() {
+            if (_prodSubPop) {
+                _prodSubPop.remove();
+                _prodSubPop = null;
+            }
+        }
+        function _prodWirePlainMenu(pop) {
+            const visible = () => Array.from(pop.querySelectorAll('.prod-mi')).filter(el => el.style.display !== 'none');
+            let sel = -1;
+            const hi = n => {
+                const rows = visible();
+                if (!rows.length) return;
+                sel = ((n % rows.length) + rows.length) % rows.length;
+                rows.forEach((el, i) => el.classList.toggle('sel', i === sel));
+                rows[sel].scrollIntoView({ block: 'nearest' });
+            };
+            pop.querySelectorAll('.prod-mi').forEach(el => el.addEventListener('mousemove', () => {
+                const rows = visible();
+                const ix = rows.indexOf(el);
+                if (ix >= 0 && ix !== sel) {
+                    sel = ix;
+                    rows.forEach((o, i) => o.classList.toggle('sel', i === sel));
+                }
+            }));
+            pop.addEventListener('keydown', e => {
+                if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); hi(sel + 1); return; }
+                if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); hi(sel < 0 ? -1 : sel - 1); return; }
+                if (e.key === 'Enter' || e.key === 'ArrowRight') {
+                    const rows = visible();
+                    const row = rows[sel >= 0 ? sel : 0];
+                    if (row) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        row.click();
+                    }
+                    return;
+                }
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    _prodClearLayer();
+                }
+            });
+            pop.setAttribute('tabindex', '-1');
+            setTimeout(() => { try { pop.focus(); } catch (e) {} }, 0);
+        }
+        function _prodTargetIds(id) {
+            const sid = String(id || '');
+            const selected = _prodState.selected || new Set();
+            if (sid && selected.has(sid) && selected.size > 1) {
+                // Same surface the selection was made on -- _prodFlatOrder is the
+                // grouped top-level list and silently dropped every sub-issue
+                // when the bulk action was raised from a detail or batch view.
+                const visible = new Set(_prodVisibleRowOrder());
+                const ids = Array.from(selected).filter(x => visible.has(x));
+                if (ids.length) return ids;
+            }
+            return [sid].filter(Boolean);
+        }
+        function _prodCurVal(kind, id) {
+            const it = _prodIssue(id);
+            if (!it) return null;
+            if (kind === 'status') return it.status;
+            if (kind === 'assign') return it.assignee || '_';
+            if (kind === 'proj') return it.project;
+            if (kind === 'due') return it.due || '';
+            return null;
+        }
+        /* F50 DISCLOSURE — say when a status has no word on the card.
+           Owner ruling 2026-08-10: the five statuses with no card equivalent
+           keep the card exactly as it is, "and the UI states plainly that the
+           change is not reflected on the calendar". The keep-the-card half
+           shipped with _calMapNativeStatusStrict; this is the other half, which
+           stayed a code comment until now. The ruling also fixed WHY: the card
+           vocabulary is deliberately small so the team is not confused by it,
+           so the answer is never to add the missing word, only to say it is
+           missing.
+
+           Derived from the mapper rather than from a hand-kept list of
+           triage/canceled/duplicate, so the sentence can never disagree with
+           what the projection actually does -- including the surface-specific
+           case, where Scheduled and Posted are real calendar words but have no
+           equivalent on a samples sheet.
+
+           It lives in the picker, before the choice, rather than in a toast
+           afterwards: a person deciding between Canceled and Duplicate should
+           know what each one will and will not do, and one more notification
+           after the fact is exactly the noise the owner asked to be rid of. */
+        function _prodCardSurfaceFor(issue) {
+            return String(issue && issue.origin || '').trim().toLowerCase() === 'samples' ? 'samples' : 'calendar';
+        }
+        function _prodStatusCardBlindNote(artifactKey, targets) {
+            const native = PROD_STATUS_FROM_ARTIFACT[String(artifactKey || '').trim()] || '';
+            if (!native) return '';
+            // Only a card-linked deliverable has a card to be out of step with.
+            const linked = (targets || []).filter(t => String(t && t.card_id || '').trim());
+            if (!linked.length) return '';
+            const blind = linked.filter(t => !_calMapNativeStatusStrict(native, _prodCardSurfaceFor(t)));
+            if (!blind.length) return '';
+            const surfaces = new Set(blind.map(_prodCardSurfaceFor));
+            const where = surfaces.size > 1
+                ? 'the calendar or the samples sheet'
+                : (surfaces.has('samples') ? 'the samples sheet' : 'the calendar');
+            if (blind.length === linked.length) {
+                return linked.length > 1
+                    ? 'Not shown on ' + where + ' — those cards keep the status they have now.'
+                    : 'Not shown on ' + where + ' — the card keeps the status it has now.';
+            }
+            return blind.length + ' of these are not shown on ' + where + ' — those cards keep the status they have now.';
+        }
+        function _prodPickerSpec(kind, ids) {
+            const issue = ids && ids.length ? _prodIssue(ids[0]) : null;
+            if (kind === 'status') {
+                const identity = _syncviewStaffIdentityForHeaders();
+                const role = String(identity && identity.role || '').trim().toLowerCase();
+                // F136: the offered set is the intersection of what every
+                // selected row's current state permits, so a multi-select never
+                // offers a transition the gateway would refuse on one of them.
+                const targets = (ids || []).map(_prodIssue).filter(Boolean);
+                const creativeAllowed = targets.length
+                    ? targets.map(target => new Set(_prodCreativeNextStatuses(target)
+                        .map(status => PROD_STATUS_TO_ARTIFACT[status] || status)))
+                        .reduce((acc, set) => new Set([...acc].filter(key => set.has(key))))
+                    : new Set();
+                const statusOrder = role === 'creative'
+                    ? PROD_STATUS_ORDER.filter(key => creativeAllowed.has(key))
+                    : PROD_STATUS_ORDER;
+                const smmGate = (ids || []).map(_prodIssue).filter(Boolean)
+                    .map(_prodSmmArtifactGate).find(gate => !gate.ok);
+                return {
+                    hd: 'Change status...',
+                    search: true,
+                    items: statusOrder.map((k, n) => {
+                      const blindNote = _prodStatusCardBlindNote(k, targets);
+                      return {
+                        v: k,
+                        label: _prodStatusLabel(k),
+                        // The gateway probes the artifact itself on every SMM
+                        // approval and refuses with a message that names the
+                        // problem. Disabling the option here on top of that
+                        // demanded a manual Assets refresh within the last five
+                        // minutes before the designer could even TRY, which is
+                        // what she reported on 2026-08-17: "sale refresh access
+                        // in assets cuando quiero marcarlo". The option stays
+                        // selectable; the gate keeps its advisory hint, and the
+                        // server remains the authority that can actually refuse.
+                        disabled: false,
+                        guidance: k === 'smm' && smmGate ? smmGate.guidance : blindNote,
+                        html: '<span class="mic">' + _prodStatusSVG(k) + '</span><span class="mlbl">' + _calEsc(_prodStatusLabel(k))
+                            + (k === 'smm' && smmGate ? '<small>Needs a deliverable link</small>'
+                                : blindNote ? '<small>' + _calEsc(blindNote) + '</small>' : '')
+                            + '</span><span class="kbd">' + (n < 10 ? (n + 1) % 10 : '') + '</span>'
+                      };
+                    })
+                };
+            }
+            if (kind === 'assign') {
+                // F94: candidates come only from the gateway's eligible-assignee
+                // projection. Loading, refused, and unavailable states offer no
+                // selectable member — the picker never guesses from the roster.
+                const editors = _prodEditors();
+                const state = issue ? _prodAssigneeOptionsState(issue.id) : null;
+                const ready = !!state && state.status === 'ready';
+                const notice = !state || state.status === 'loading'
+                    ? 'Checking who can be assigned…'
+                    : state.status === 'error'
+                        ? state.error || 'Eligible assignees could not be loaded.'
+                        : ready && !state.candidates.length
+                            ? 'No eligible assignee for this team.'
+                            : '';
+                const unassigned = {
+                    v: '_',
+                    label: 'Unassigned',
+                    disabled: !ready,
+                    guidance: notice,
+                    html: '<span class="mic">' + _prodIcon('assign') + '</span><span class="mlbl">Unassigned</span>'
+                };
+                const candidates = ready
+                    ? state.candidates.map(candidate => ({
+                        v: candidate.id,
+                        label: candidate.name || (editors[candidate.id] && editors[candidate.id].name) || 'Unnamed team member',
+                        html: '<span class="mic">' + _prodAvatar(editors[candidate.id] || { name: candidate.name, init: _prodInitials(candidate.name) }, 16)
+                            + '</span><span class="mlbl">' + _calEsc(candidate.name || 'Unnamed team member') + '</span>'
+                    }))
+                    : [];
+                return {
+                    hd: 'Assign to...',
+                    search: true,
+                    notice,
+                    noticeRetry: !!state && state.status === 'error' && !!issue,
+                    noticeRetryId: issue ? issue.id : '',
+                    items: [unassigned].concat(candidates)
+                };
+            }
+            if (kind === 'proj') {
+                const projects = _prodProjects();
+                return {
+                    hd: 'Move to project...',
+                    search: true,
+                    items: Object.keys(projects).sort((a, b) => String(projects[a].name).localeCompare(String(projects[b].name))).map(k => ({
+                        v: k,
+                        label: projects[k].name,
+                        html: '<span class="mic">' + _prodProjectGlyph(projects[k]) + '</span><span class="mlbl">' + _calEsc(projects[k].name) + '</span>'
+                    }))
+                };
+            }
+            return {
+                hd: 'Set due date...',
+                ph: 'Type a date, e.g. Jul 20 2027',
+                custom: true,
+                items: [
+                    ['Today', _prodPolicyTodayISO()],
+                    ['Tomorrow', _prodIsoFromDate(_prodAddDays(_prodToday(), 1))],
+                    ['Next week', _prodIsoFromDate(_prodAddDays(_prodToday(), 7))],
+                    ['No due date', '']
+                ].map(o => ({ v: o[1], label: o[0], html: '<span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">' + _calEsc(o[0]) + '</span>' }))
+            };
+        }
+        function _prodPickerHTML(kind, cur, ids) {
+            const d = _prodPickerSpec(kind, ids);
+            const search = d.search || d.custom;
+            const notice = d.notice
+                ? '<div class="prod-pop-empty" data-prod-picker-notice>' + _calEsc(d.notice)
+                    + (d.noticeRetry
+                        ? ' <button class="prod-label-retry" type="button" data-prod-picker-retry="'
+                            + _calEscAttr(d.noticeRetryId || '') + '">Retry</button>'
+                        : '')
+                    + '</div>'
+                : '';
+            return (search ? '<div class="prod-pop-search"><input data-prod-search placeholder="' + _calEscAttr(d.ph || d.hd) + '"></div>' : '<div class="prod-pop-hd">' + _calEsc(d.hd) + '</div>')
+                + notice
+                + '<div class="prod-pop-list">' + d.items.map((it, i) => '<div class="prod-mi" data-prod-pick="' + i + '" aria-disabled="' + (it.disabled ? 'true' : 'false') + '"'
+                    + (it.guidance ? ' title="' + _calEscAttr(it.guidance) + '" data-prod-tip="' + _calEscAttr(it.guidance) + '"' : '') + '>'
+                    + it.html + (it.v === cur ? '<span class="tick">' + _prodIcon('check') + '</span>' : '') + '</div>').join('') + '</div>';
+        }
+        function _prodWirePicker(pop, kind, ids) {
+            const d = _prodPickerSpec(kind, ids);
+            if (kind === 'assign' && ids && ids.length) {
+                // Tag the live popup so an in-flight projection can repaint it
+                // in place without closing the menu under the pointer.
+                pop.setAttribute('data-prod-assign-pop', String(ids[0]));
+            }
+            pop.querySelectorAll('[data-prod-picker-retry]').forEach(el => el.addEventListener('click', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                _prodEnsureAssigneeOptions(el.getAttribute('data-prod-picker-retry'), true);
+            }));
+            const pick = element => {
+                const row = element || visible()[sel] || visible()[0];
+                const item = row && d.items[+row.getAttribute('data-prod-pick')];
+                if (item && item.disabled) {
+                    _prodToast(item.guidance || 'Refresh asset access before requesting SMM approval.');
+                    const blocked = (ids || []).map(_prodIssue).filter(Boolean)
+                        .map(_prodSmmArtifactGate).find(gate => !gate.ok);
+                    if (blocked) _prodEnsureAssets(blocked.issue.id, true);
+                    return;
+                }
+                _prodClearLayer();
+                if (!item || kind === 'proj') return _prodReadonlyGuard();
+                _prodRunPickerWrite(kind, ids, item.v);
+            };
+            pop.querySelectorAll('[data-prod-pick]').forEach(el => el.addEventListener('click', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                pick(el);
+            }));
+            const visible = () => Array.from(pop.querySelectorAll('[data-prod-pick]')).filter(el => el.style.display !== 'none');
+            let sel = 0;
+            const hi = n => {
+                const rows = visible();
+                if (!rows.length) return;
+                sel = Math.max(0, Math.min(n, rows.length - 1));
+                rows.forEach((el, i) => el.classList.toggle('sel', i === sel));
+                rows[sel].scrollIntoView({ block: 'nearest' });
+            };
+            pop.querySelectorAll('[data-prod-pick]').forEach(el => el.addEventListener('mousemove', () => {
+                const rows = visible();
+                const ix = rows.indexOf(el);
+                if (ix >= 0 && ix !== sel) {
+                    sel = ix;
+                    rows.forEach((o, i) => o.classList.toggle('sel', i === sel));
+                }
+            }));
+            const inp = pop.querySelector('[data-prod-search]');
+            if (inp) {
+                inp.addEventListener('input', () => {
+                    const q = inp.value.toLowerCase();
+                    let shown = 0;
+                    pop.querySelectorAll('[data-prod-pick]').forEach(el => {
+                        const it = d.items[+el.getAttribute('data-prod-pick')];
+                        const match = it.label.toLowerCase().includes(q);
+                        el.style.display = match ? '' : 'none';
+                        if (match) shown++;
+                    });
+                    _prodPickerEmptyState(pop, shown);
+                    hi(0);
+                });
+                inp.addEventListener('keydown', e => {
+                    e.stopPropagation();
+                    if (e.key === 'Tab') { e.preventDefault(); return; }
+                    if (e.key === 'Escape') { if (_prodSubPop && _prodSubPop === pop) _prodCloseSub(); else _prodClearLayer(); return; }
+                    if (e.key === 'ArrowDown') { e.preventDefault(); hi(sel + 1); return; }
+                    if (e.key === 'ArrowUp') { e.preventDefault(); hi(sel - 1); return; }
+                    if (kind === 'status' && /^[0-9]$/.test(e.key)) {
+                        const idx = e.key === '0' ? 9 : (+e.key - 1);
+                        if (idx >= 0 && idx < d.items.length) {
+                            e.preventDefault();
+                            pick(visible()[idx]);
+                            return;
+                        }
+                    }
+                    if (e.key === 'Enter') { e.preventDefault(); pick(visible()[sel] || visible()[0]); }
+                });
+                try { inp.focus(); } catch (e) {}
+                setTimeout(() => { try { inp.focus(); } catch (e) {} }, 20);
+            }
+            const rows = visible();
+            const tick = rows.findIndex(el => !!el.querySelector('.tick'));
+            hi(tick >= 0 ? tick : 0);
+        }
+        // PORT-DELTA: submenu opens artifact pickers but routes selections to the read-only guard.
+        function _prodOpenSub(parentEl, kind, ids) {
+            _prodCloseSub();
+            if (kind !== 'proj') {
+                /* Act on the writable rows instead of refusing the whole batch
+                   because ONE row cannot take the write. Owner report
+                   2026-08-20: selecting a batch parent together with its
+                   sub-issues made Change status silently unavailable, reporting
+                   "This is the post's batch parent" -- true of the parent, and
+                   irrelevant to the twenty sub-issues selected with it.
+
+                   A synthetic batch parent has no deliverable row, so it really
+                   cannot be written; the mistake was letting it veto everything
+                   else. Now it is skipped and SAID ALOUD, because a bulk action
+                   that quietly touches fewer rows than were selected is worse
+                   than one that refuses. Only a selection with nothing writable
+                   still refuses outright, and it explains why using the first
+                   blocked row's own reason. */
+                const operation = kind === 'assign' ? 'assignee' : kind;
+                const all = (ids || []).map(_prodIssue).filter(Boolean);
+                const writable = all.filter(issue => _prodCanWrite(issue, operation));
+                if (!writable.length) {
+                    _prodToast(_prodWriteGateText(all[0] || _prodIssue((ids || [])[0]), operation));
+                    return;
+                }
+                if (writable.length < all.length) {
+                    const skipped = all.length - writable.length;
+                    _prodToast('Applying to ' + writable.length + ' of ' + all.length
+                        + ' — ' + skipped + ' cannot take this change'
+                        + (all.some(i => i.syntheticBatchParent === true) ? ' (batch parents have no status of their own)' : ''));
+                }
+                ids = writable.map(issue => issue.id);
+            }
+            const p = document.createElement('div');
+            p.className = 'prod-pop' + (kind === 'due' ? ' prod-duepop' : '');
+            p.style.visibility = 'hidden';
+            p.addEventListener('click', e => e.stopPropagation());
+            document.getElementById('prodLayer').appendChild(p);
+            const r = parentEl.getBoundingClientRect();
+            if (kind === 'due') {
+                _prodBuildDue(p, _prodIssue(ids[0]), ids, { x: r.right - 4, y: r.top - 6, flipX: r.left });
+                _prodSubPop = p;
+                return;
+            }
+            p.innerHTML = _prodPickerHTML(kind, ids.length === 1 ? _prodCurVal(kind, ids[0]) : null, ids);
+            if (kind === 'assign' && ids.length) _prodEnsureAssigneeOptions(ids[0], false);
+            const pr = p.getBoundingClientRect();
+            let x = r.right - 4;
+            let y = r.top - 6;
+            if (x + pr.width > innerWidth - 8) x = r.left - pr.width + 4;
+            const actionPop = parentEl.closest && parentEl.closest('[data-prod-actioncmd]');
+            const actionTop = actionPop ? Number(actionPop.getAttribute('data-prod-anchor-top') || 0) : 0;
+            if (actionTop) {
+                p.style.maxHeight = Math.max(160, actionTop - 16) + 'px';
+                p.style.overflowY = 'auto';
+                _prodPlacePop(p, Math.max(8, r.left), actionTop - pr.height - 8);
+            } else {
+                _prodPlacePop(p, x, y);
+            }
+            p.style.visibility = 'visible';
+            _prodWirePicker(p, kind, ids);
+            _prodSubPop = p;
+        }
+        function _prodOpenPicker(kind, ev, id) {
+            if (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }
+            const ids = _prodTargetIds(id);
+            /* `proj` never opens. It used to build the whole thing -- a
+               searchable list of every client, the current one ticked -- and
+               then hard-return the read-only guard from the pick handler, so
+               the reader chose a project, pressed it, and got a sentence about
+               a preview. There is no gateway operation that writes client_slug,
+               on any surface, for any role: moving a deliverable between
+               clients is not a supported write, and no authority flip or
+               permission will make this picker act. Refusing at the door, with
+               the reason, is the only honest shape.
+
+               Refused HERE rather than at each caller because there are four --
+               the side-card row, the context menu, the bulk palette and Shift+P
+               -- and gating three of them would leave the fourth opening a
+               picker that still cannot act. The refusal keeps the ratified
+               `Preview - read-only` wording out of it: that string is the
+               correct answer for a surface awaiting authority, and pixel and
+               parity lanes assert it verbatim, but it is the wrong answer here,
+               where the control is not waiting for anything. */
+            if (kind === 'proj') {
+                _prodToast(PROD_PROJECT_MOVE_UNSUPPORTED);
+                return false;
+            }
+            {
+                const operation = kind === 'assign' ? 'assignee' : kind;
+                const blocked = ids.map(_prodIssue).filter(Boolean).find(issue => !_prodCanWrite(issue, operation));
+                if (blocked) {
+                    _prodToast(_prodWriteGateText(blocked, operation));
+                    return false;
+                }
+            }
+            const actionbar = ev && ev.currentTarget && ev.currentTarget.closest && ev.currentTarget.closest('.prod-actionbar');
+            const anchor = actionbar ? ev.currentTarget.getBoundingClientRect() : null;
+            const anchorBar = actionbar ? actionbar.getBoundingClientRect() : null;
+            const anchorTop = anchorBar ? anchorBar.top : anchor ? anchor.top : null;
+            const p = _prodLayerPop('', anchor ? anchor.left : (ev ? ev.clientX : innerWidth / 2), anchorTop != null ? anchorTop - 8 : (ev ? ev.clientY : 160), true);
+            if (kind === 'due') {
+                p.classList.add('prod-duepop');
+                _prodBuildDue(p, _prodIssue(ids[0]), ids, anchor ? { x: anchor.left, y: anchorTop, above: true } : { x: ev ? ev.clientX : innerWidth / 2, y: ev ? ev.clientY : 160 });
+            } else {
+                p.innerHTML = _prodPickerHTML(kind, ids.length === 1 ? _prodCurVal(kind, ids[0]) : null, ids);
+                if (kind === 'assign' && ids.length) _prodEnsureAssigneeOptions(ids[0], false);
+                if (anchor) {
+                    p.style.maxHeight = Math.max(160, anchorTop - 16) + 'px';
+                    p.style.overflowY = 'auto';
+                    const pr = p.getBoundingClientRect();
+                    _prodPlacePop(p, anchor.left, anchorTop - pr.height - 8);
+                } else {
+                    _prodPlacePop(p, ev ? ev.clientX : innerWidth / 2, ev ? ev.clientY : 160);
+                }
+                _prodWirePicker(p, kind, ids);
+            }
+            return false;
+        }
+        function _prodOpenStatusMenu(ev, id) { return _prodOpenPicker('status', ev, id); }
+        function _prodOpenAssignMenu(ev, id) { return _prodOpenPicker('assign', ev, id); }
+        function _prodOpenDueMenu(ev, id) { return _prodOpenPicker('due', ev, id); }
+        function _prodOpenProjectMenu(ev, id) { return _prodOpenPicker('proj', ev, id); }
+        // PORT-DELTA: artifact project pickers are preserved as read-only card/client controls.
+        function _prodProjectPickerSpec(kind) {
+            if (kind === 'pstatus') {
+                return {
+                    hd: 'Change status...',
+                    items: PROD_BOARD_ORDER.map(k => ({
+                        v: k,
+                        label: _prodBoardLabel(k),
+                        html: '<span class="mic">' + _prodProjectStatusIcon(k) + '</span><span class="mlbl">' + _calEsc(_prodBoardLabel(k)) + '</span>'
+                    }))
+                };
+            }
+            if (kind === 'plead') {
+                const editors = _prodEditors();
+                return {
+                    hd: 'Set lead...',
+                    items: [{ v: '_', label: 'No lead', html: '<span class="mic">' + _prodIcon('assign') + '</span><span class="mlbl">No lead</span>' }]
+                        .concat(Object.keys(editors).sort((a, b) => String(editors[a].name).localeCompare(String(editors[b].name))).map(k => ({
+                            v: k,
+                            label: editors[k].name,
+                            html: '<span class="mic">' + _prodAvatar(editors[k], 16) + '</span><span class="mlbl">' + _calEsc(editors[k].name) + '</span>'
+                        })))
+                };
+            }
+            return {
+                hd: 'Set target...',
+                items: [
+                    { v: '', label: 'No target', html: '<span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">No target</span>' },
+                    { v: _prodFmtDue(_prodAddDays(new Date(), 1)), label: 'Tomorrow', html: '<span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Tomorrow</span>' },
+                    { v: _prodFmtDue(_prodAddDays(new Date(), 7)), label: 'Next week', html: '<span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Next week</span>' }
+                ]
+            };
+        }
+        function _prodOpenProjectPicker(kind, ev, slug) {
+            if (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }
+            const client = _prodClient(slug);
+            if (!client) return false;
+            const d = _prodProjectPickerSpec(kind);
+            const cur = kind === 'pstatus' ? (client.status || 'prog') : kind === 'plead' ? (client.lead || '_') : (client.target || '');
+            const p = _prodLayerPop('<div class="prod-pop-search"><input data-prod-search placeholder="' + _calEscAttr(d.hd) + '"></div><div class="prod-pop-list">'
+                + d.items.map((it, i) => '<div class="prod-mi" data-prod-pick="' + i + '" data-prod-ppick="' + i + '">' + it.html + (it.v === cur ? '<span class="tick">' + _prodIcon('check') + '</span>' : '') + '</div>').join('')
+                + '</div>', ev ? ev.clientX : innerWidth / 2, ev ? ev.clientY : 160);
+            const visible = () => Array.from(p.querySelectorAll('[data-prod-ppick]')).filter(el => el.style.display !== 'none');
+            let sel = Math.max(0, visible().findIndex(el => !!el.querySelector('.tick')));
+            const hi = n => {
+                const rows = visible();
+                if (!rows.length) return;
+                sel = Math.max(0, Math.min(n, rows.length - 1));
+                rows.forEach((el, i) => el.classList.toggle('sel', i === sel));
+                rows[sel].scrollIntoView({ block: 'nearest' });
+            };
+            const pick = () => {
+                _prodReadonlyGuard();
+                _prodClearLayer();
+            };
+            p.querySelectorAll('[data-prod-ppick]').forEach(el => {
+                el.addEventListener('click', e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    pick();
+                });
+                el.addEventListener('mousemove', () => {
+                    const rows = visible();
+                    const ix = rows.indexOf(el);
+                    if (ix >= 0 && ix !== sel) {
+                        sel = ix;
+                        rows.forEach((o, i) => o.classList.toggle('sel', i === sel));
+                    }
+                });
+            });
+            const inp = p.querySelector('[data-prod-search]');
+            if (inp) {
+                inp.addEventListener('input', () => {
+                    const q = inp.value.toLowerCase();
+                    let shown = 0;
+                    p.querySelectorAll('[data-prod-ppick]').forEach(el => {
+                        const it = d.items[+el.getAttribute('data-prod-ppick')];
+                        const match = it.label.toLowerCase().includes(q);
+                        el.style.display = match ? '' : 'none';
+                        if (match) shown++;
+                    });
+                    _prodPickerEmptyState(p, shown);
+                    hi(0);
+                });
+                inp.addEventListener('keydown', e => {
+                    e.stopPropagation();
+                    if (e.key === 'Tab') { e.preventDefault(); return; }
+                    if (e.key === 'Escape') { _prodClearLayer(); return; }
+                    if (e.key === 'ArrowDown') { e.preventDefault(); hi(sel + 1); return; }
+                    if (e.key === 'ArrowUp') { e.preventDefault(); hi(sel - 1); return; }
+                    if (e.key === 'Enter') { e.preventDefault(); pick(); }
+                });
+                try { inp.focus(); } catch (e) {}
+                setTimeout(() => { try { inp.focus(); } catch (e) {} }, 20);
+            }
+            hi(sel);
+            return false;
+        }
+        function _prodOpenProjectStatusPicker(ev, slug) { return _prodOpenProjectPicker('pstatus', ev, slug); }
+        function _prodOpenProjectLeadPicker(ev, slug) { return _prodOpenProjectPicker('plead', ev, slug); }
+        function _prodOpenProjectTargetPicker(ev, slug) { return _prodOpenProjectPicker('ptarget', ev, slug); }
+        const PROD_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const PROD_MON_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const PROD_WK = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        function _prodIsoParts(value) {
+            const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
+            if (!match) return null;
+            const year = Number(match[1]);
+            const month = Number(match[2]);
+            const day = Number(match[3]);
+            const date = new Date(Date.UTC(year, month - 1, day));
+            if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+            return { year, month, day, iso: match[0] };
+        }
+        function _prodIsoDayNumber(value) {
+            const parts = _prodIsoParts(value);
+            return parts ? Math.floor(Date.UTC(parts.year, parts.month - 1, parts.day) / 864e5) : NaN;
+        }
+        function _prodIsoFromParts(year, month, day) {
+            const iso = String(year).padStart(4, '0') + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+            return _prodIsoParts(iso) ? iso : '';
+        }
+        function _prodIsoFromDate(date) {
+            if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+            return _prodIsoFromParts(date.getFullYear(), date.getMonth() + 1, date.getDate());
+        }
+        function _prodDateFromIso(value) {
+            const parts = _prodIsoParts(value);
+            return parts ? new Date(parts.year, parts.month - 1, parts.day) : null;
+        }
+        function _prodPolicyTodayISO(now) {
+            return wlWorkloadTodayISO(now || new Date());
+        }
+        function _prodToday(now) {
+            return _prodDateFromIso(_prodPolicyTodayISO(now));
+        }
+        function _prodAddDays(d, n) {
+            const x = new Date(d);
+            x.setDate(x.getDate() + n);
+            return x;
+        }
+        function _prodFmtDue(d) {
+            return PROD_MON[d.getMonth()] + ' ' + d.getDate();
+        }
+        function _prodFmtWk(d) {
+            return PROD_WK[d.getDay()] + ', ' + d.getDate() + ' ' + PROD_MON[d.getMonth()];
+        }
+        function _prodParseDue(s, now) {
+            const raw = String(s || '').trim();
+            s = raw.toLowerCase();
+            if (!s) return '';
+            const exact = _prodIsoParts(raw);
+            if (exact) return exact.iso;
+            const todayIso = _prodPolicyTodayISO(now);
+            const today = _prodDateFromIso(todayIso);
+            const M = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+            let m;
+            if (s === 'today') return todayIso;
+            if (s === 'tomorrow') return _prodIsoFromDate(_prodAddDays(today, 1));
+            if (m = s.match(/^(\d+)\s*(d|day|days|h|hr|hrs|hour|hours)$/)) {
+                const n = +m[1];
+                return _prodIsoFromDate(_prodAddDays(today, /^h/.test(m[2]) ? Math.max(1, Math.round(n / 24)) : n));
+            }
+            if (m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)) {
+                return _prodIsoFromParts(+m[3], +m[1], +m[2]);
+            }
+            if (m = s.match(/^([a-z]{3,})\.?\s+(\d{1,2})(?:,\s*|\s+)(\d{4})$/)) {
+                const mo = M[m[1].slice(0, 3)];
+                return mo == null ? '' : _prodIsoFromParts(+m[3], mo + 1, +m[2]);
+            }
+            if (m = s.match(/^(\d{1,2})\s+([a-z]{3,})\.?(?:,\s*|\s+)(\d{4})$/)) {
+                const mo = M[m[2].slice(0, 3)];
+                return mo == null ? '' : _prodIsoFromParts(+m[3], mo + 1, +m[1]);
+            }
+            if (m = s.match(/^([a-z]{3,})\.?\s+(\d{1,2})$/)) {
+                const mo = M[m[1].slice(0, 3)];
+                if (mo != null) return _prodIsoFromParts(today.getFullYear(), mo + 1, +m[2]);
+            }
+            if (m = s.match(/^(\d{1,2})\s+([a-z]{3,})$/)) {
+                const mo = M[m[2].slice(0, 3)];
+                if (mo != null) return _prodIsoFromParts(today.getFullYear(), mo + 1, +m[1]);
+            }
+            if (m = s.match(/^(\d{1,2})$/)) return _prodIsoFromParts(today.getFullYear(), today.getMonth() + 1, +m[1]);
+            return '';
+        }
+        let _prodPolicyDayTimer = 0;
+        let _prodPolicyDaySnapshot = '';
+        function _prodMsUntilPolicyDayChange(now) {
+            const start = now instanceof Date ? now.getTime() : Date.now();
+            const currentDay = _prodPolicyTodayISO(new Date(start));
+            let low = start;
+            let high = start + 36 * 60 * 60 * 1000;
+            if (_prodPolicyTodayISO(new Date(high)) === currentDay) return 60 * 60 * 1000;
+            while (high - low > 250) {
+                const middle = low + Math.floor((high - low) / 2);
+                if (_prodPolicyTodayISO(new Date(middle)) === currentDay) low = middle;
+                else high = middle;
+            }
+            return Math.max(250, high - start + 50);
+        }
+        function _prodRefreshPolicyDay() {
+            const nextDay = _prodPolicyTodayISO();
+            const changed = !!_prodPolicyDaySnapshot && _prodPolicyDaySnapshot !== nextDay;
+            _prodPolicyDaySnapshot = nextDay;
+            clearTimeout(_prodPolicyDayTimer);
+            _prodPolicyDayTimer = setTimeout(_prodRefreshPolicyDay, _prodMsUntilPolicyDayChange());
+            if (changed && document.getElementById('prodRoot')) _prodRender();
+            return changed;
+        }
+        function _prodStartPolicyDayClock() {
+            if (_prodPolicyDayTimer) return;
+            _prodRefreshPolicyDay();
+        }
+        // PORT-DELTA: due calendar structure is artifact-derived; native writes
+        // still pass through the per-team authority gate and Production gateway.
+        function _prodBuildDue(pop, cur, ids, anchor) {
+            let view = 'quick';
+            const selectedIso = _prodDueIso(cur && (cur.dueRaw || cur.due));
+            const parsed = _prodDateFromIso(selectedIso);
+            const todayIso = _prodPolicyTodayISO();
+            const todayRef = _prodToday();
+            let calM = new Date((parsed || todayRef).getFullYear(), (parsed || todayRef).getMonth(), 1);
+            let focusDay = parsed || new Date(todayRef);
+            const apply = value => {
+                _prodClearLayer();
+                _prodRunPickerWrite('due', ids, _prodDueIso(value));
+            };
+            const quick = () => {
+                let h = '<div class="prod-pop-search"><input data-prod-search placeholder="Try: 2027-02-09, Feb 9 2027"></div><div class="prod-pop-list">';
+                if (cur && cur.due) h += '<div class="prod-mi" data-prod-set="__remove__"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Remove due date</span><span class="dres">' + _calEsc(cur.due) + '</span></div>';
+                h += '<div class="prod-mi" data-prod-set="__custom__"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Custom…</span></div>';
+                [['Tomorrow', _prodAddDays(todayRef, 1)], ['End of this week', _prodAddDays(todayRef, (5 - todayRef.getDay() + 7) % 7 || 7)], ['In one week', _prodAddDays(todayRef, 7)]].forEach(o => {
+                    h += '<div class="prod-mi" data-prod-day="' + _calEscAttr(_prodIsoFromDate(o[1])) + '"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">' + _calEsc(o[0]) + '</span><span class="dres">' + _calEsc(_prodFmtWk(o[1])) + '</span></div>';
+                });
+                return h + '</div>';
+            };
+            const cal = () => {
+                const start = new Date(calM).getDay();
+                const dim = new Date(calM.getFullYear(), calM.getMonth() + 1, 0).getDate();
+                let cells = '';
+                for (let i = 0; i < start; i++) cells += '<div class="prod-cal-d empty"></div>';
+                for (let d = 1; d <= dim; d++) {
+                    const dt = new Date(calM.getFullYear(), calM.getMonth(), d);
+                    const dayIso = _prodIsoFromDate(dt);
+                    const today = dayIso === todayIso;
+                    const selected = selectedIso === dayIso;
+                    const focused = focusDay && dt.toDateString() === focusDay.toDateString();
+                    cells += '<div class="prod-cal-d' + (today ? ' today' : '') + (selected ? ' sel' : '') + (focused ? ' focus' : '') + '" data-prod-day="' + _calEscAttr(dayIso) + '">' + d + '</div>';
+                }
+                return '<div class="prod-pop-search"><input data-prod-search placeholder="Type a date, e.g. Jul 20 2027"></div><div class="prod-cal"><div class="prod-cal-hd"><button class="prod-cal-nav" type="button" data-prod-cal="-1">&lsaquo;</button><span class="prod-cal-mo">' + PROD_MON_FULL[calM.getMonth()] + ' ' + calM.getFullYear() + '</span><button class="prod-cal-nav" type="button" data-prod-cal="1">&rsaquo;</button></div><div class="prod-cal-wk"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div><div class="prod-cal-grid">' + cells + '</div></div>';
+            };
+            const pos = () => {
+                const pr = pop.getBoundingClientRect();
+                let nx = anchor.x;
+                let ny = anchor.above ? anchor.y - pr.height - 8 : anchor.y;
+                if (nx + pr.width > innerWidth - 8) nx = anchor.flipX != null ? Math.max(8, anchor.flipX - pr.width + 4) : innerWidth - pr.width - 8;
+                if (ny + pr.height > innerHeight - 8) ny = Math.max(8, innerHeight - pr.height - 8);
+                ny = Math.max(8, ny);
+                pop.style.left = nx + 'px';
+                pop.style.top = ny + 'px';
+            };
+            const draw = () => {
+                pop.innerHTML = view === 'quick' ? quick() : cal();
+                pop.querySelectorAll('[data-prod-day]').forEach(el => el.addEventListener('click', e => {
+                    e.stopPropagation();
+                    apply(el.getAttribute('data-prod-day'));
+                }));
+                pop.querySelectorAll('[data-prod-set]').forEach(el => el.addEventListener('click', e => {
+                    e.stopPropagation();
+                    if (el.getAttribute('data-prod-set') === '__custom__') {
+                        view = 'calendar';
+                        draw();
+                    } else {
+                        apply('');
+                    }
+                }));
+                pop.querySelectorAll('[data-prod-cal]').forEach(el => el.addEventListener('click', e => {
+                    e.stopPropagation();
+                    calM = new Date(calM.getFullYear(), calM.getMonth() + (+el.getAttribute('data-prod-cal')), 1);
+                    const day = focusDay ? Math.min(focusDay.getDate(), new Date(calM.getFullYear(), calM.getMonth() + 1, 0).getDate()) : 1;
+                    focusDay = new Date(calM.getFullYear(), calM.getMonth(), day);
+                    draw();
+                }));
+                const inp = pop.querySelector('[data-prod-search]');
+                if (inp) {
+                    inp.addEventListener('keydown', e => {
+                        e.stopPropagation();
+                        if (e.key === 'Escape') { _prodClearLayer(); return; }
+                        if (view === 'calendar' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                            e.preventDefault();
+                            const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowDown' ? 7 : -7;
+                            focusDay = _prodAddDays(focusDay || new Date(calM.getFullYear(), calM.getMonth(), 1), step);
+                            calM = new Date(focusDay.getFullYear(), focusDay.getMonth(), 1);
+                            draw();
+                            return;
+                        }
+                    if (e.key === 'Enter') {
+                        const selected = view === 'calendar' ? focusDay : _prodParseDue(inp.value);
+                        if (selected) apply(selected);
+                    }
+                });
+                    try { inp.focus(); } catch (e) {}
+                    setTimeout(() => { try { inp.focus(); } catch (e) {} }, 20);
+                }
+                pop.style.visibility = 'visible';
+                pos();
+            };
+            pop.style.visibility = 'hidden';
+            draw();
+        }
+        // PORT-DELTA: context menu uses artifact item order with Copy active and mutating entries guarded.
+        function _prodOpenContextMenu(ev, kind, id) {
+            if (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }
+            const preview = _prodPreviewText();
+            // `proj` is gone from here: a submenu chevron on an entry that
+            // cannot act is the same promise the picker used to make.
+            const hasSub = { status: 1, assign: 1, due: 1 };
+            const menuItem = (label, icon, kbd, act) =>
+                '<div class="prod-mi" data-prod-ctx="' + _calEscAttr(act) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + (hasSub[act] ? '<span class="chev">' + _prodIcon('chevR') + '</span>' : '') + '</div>';
+            /* `reason` defaults to the preview sentence, which is right for a
+               control waiting on authority and wrong for one that can never
+               act. The Project entry passes its own. */
+            const disabled = (label, icon, kbd, danger, chev, reason) => {
+                const why = String(reason || preview);
+                return '<div class="prod-mi disabled' + (danger ? ' danger' : '') + '" data-prod-disabled="context-' + _calEscAttr(label.toLowerCase().replace(/\s+/g, '-')) + '" title="' + _calEscAttr(why) + '" data-prod-tip="' + _calEscAttr(why) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + (chev ? '<span class="chev">' + _prodIcon('chevR') + '</span>' : '') + '</div>';
+            };
+            const active = (label, icon, act) =>
+                '<div class="prod-mi" data-prod-ctx="' + _calEscAttr(act) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span></div>';
+            const projectAction = (label, icon, kbd, act) =>
+                '<div class="prod-mi" data-prod-pctx="' + _calEscAttr(act) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + '</div>';
+            const issueMenu = [
+                menuItem('Status', _prodIcon('issues'), 'S', 'status'),
+                menuItem('Assignee', _prodIcon('assign'), 'A', 'assign'),
+                menuItem('Due date', _prodIcon('cal'), '⇧D', 'due'),
+                disabled('Project', _prodIcon('project'), '⇧P', false, false, PROD_PROJECT_MOVE_UNSUPPORTED),
+                '<div class="prod-msep"></div>',
+                active('Copy link', _prodIcon('copy'), 'copy'),
+                disabled('Move', _prodIcon('move'), '', false, true, PROD_MOVE_UNSUPPORTED),
+                '<div class="prod-msep"></div>',
+                disabled('Delete', _prodIcon('trash'), 'Ctrl ⌫', true, false, PROD_DELETE_UNSUPPORTED)
+            ];
+            const projectMenu = [
+                projectAction('Change status', _prodIcon('issues'), 'S', 'pstatus'),
+                projectAction('Set lead', _prodIcon('assign'), 'A', 'plead'),
+                projectAction('Set target', _prodIcon('cal'), '⇧D', 'ptarget'),
+                '<div class="prod-msep"></div>',
+                active('Copy link', _prodIcon('copy'), 'copy')
+            ];
+            const pop = _prodLayerPop((kind === 'client' ? projectMenu : issueMenu).join(''), ev ? ev.clientX : innerWidth / 2, ev ? ev.clientY : 160);
+            pop.querySelectorAll('[data-prod-ctx]').forEach(el => {
+                const act = el.getAttribute('data-prod-ctx');
+                if (hasSub[act]) {
+                    el.addEventListener('mouseenter', () => _prodOpenSub(el, act, _prodTargetIds(id)));
+                    el.addEventListener('click', e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        _prodOpenSub(el, act, _prodTargetIds(id));
+                    });
+                    return;
+                }
+                if (act === 'copy') el.addEventListener('click', () => {
+                    _prodClearLayer();
+                    const copyKind = kind === 'client' ? 'client' : kind === 'batch' ? 'batch' : 'issue';
+                    const copyIds = copyKind === 'issue' ? _prodTargetIds(id) : [id];
+                    _prodCopyLink(copyKind, copyIds.length > 1 ? copyIds : id);
+                });
+            });
+            pop.querySelectorAll('[data-prod-pctx]').forEach(el => {
+                el.addEventListener('mouseenter', _prodCloseSub);
+                el.addEventListener('click', e => {
+                    const act = el.getAttribute('data-prod-pctx');
+                    if (!act) return;
+                    _prodOpenProjectPicker(act, e, id);
+                });
+            });
+            pop.querySelectorAll('[data-prod-disabled]').forEach(el => {
+                el.addEventListener('mouseenter', _prodCloseSub);
+                el.addEventListener('click', e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    /* The row already carries its reason in the tip it shows on
+                       hover. Echo THAT, not the preview sentence, or clicking
+                       contradicts hovering. */
+                    _prodReadonlyGuard(el.getAttribute('data-prod-tip'));
+                });
+            });
+            _prodWirePlainMenu(pop);
+            return false;
+        }
+        function _prodTabAllows(status) {
+            if (_prodState.tab === 'backlog') return status === 'backlog' || status === 'triage';
+            if (_prodState.tab === 'all') return true;
+            // Active hides approved (owner decision 2026-07-18) - matches the artifact active set.
+            return ['todo','prog','smm','kasper','client','tweak','scheduled'].includes(_prodArtifactStatus(status));
+        }
+        // F37 — "My issues" and "Assigned to me" bind to the member id the staff
+        // sign-in verified, never to a name heuristic. The previous projection
+        // picked a specially named assignee if present, else the first active
+        // assignee in name order, so every browser saw one identity's queue.
+        // A signed-out, unverified, revoked, inactive, or off-roster session
+        // resolves to no personal identity and therefore to no personal queue.
+        function _prodMyMemberId() {
+            const identity = _syncviewStaffIdentityForHeaders();
+            const id = String(identity && identity.member && identity.member.id || '').trim();
+            if (!id) return '';
+            const member = _prodEditors()[id];
+            // Before the roster loads there is nothing to contradict the
+            // verified identity, so it stands; once loaded, an absent or
+            // deactivated row revokes the personal queue.
+            if (_prodState.loaded && (!member || member.active === false)) return '';
+            return id;
+        }
+        function _prodMyQueueUnavailableText() {
+            if (!_syncviewStaffIdentityForHeaders()) return 'Sign in with your staff account to see your issues.';
+            if (!_prodMyMemberId()) return 'This account is not an active member of the current roster.';
+            return '';
+        }
+        function _prodIssueRows() {
+            const rows = _prodUniqueRows(_prodApplySubIssueVisibility(_prodCurIssuesUnfiltered().filter(_prodMatchFilters)));
+            return rows
+                .sort(_prodIssueOrderCompare);
+        }
+        function _prodProjectRows(project) {
+            return _prodUniqueRows(_prodApplySubIssueVisibility(_prodProjectAllRows(project)))
+                .filter(_prodMatchFilters)
+                .sort(_prodIssueOrderCompare);
+        }
+        function _prodProjectScopeTeam(project) {
+            const active = _prodState.team;
+            if (active === 'video' || active === 'graphics') return active;
+            const team = project && project.team;
+            return team === 'video' || team === 'graphics' ? team : 'all';
+        }
+        function _prodProjectAllRows(project) {
+            const id = String(project && project.id || '');
+            if (!id) return [];
+            const scope = _prodProjectScopeTeam(project);
+            return _prodIssues().filter(d => d.project === id && (scope === 'all' || d.team === scope));
+        }
+        // PORT-DELTA: groupsFor accepts live rows and supports client-project grouping through adapter projects.
+        function _prodGroupsFor(rows) {
+            const grouped = new Map();
+            const projects = _prodProjects();
+            const editors = _prodEditors();
+            const groupBy = _prodState.groupBy || 'status';
+            rows.forEach(r => {
+                const key = groupBy === 'assignee'
+                    ? (r.assignee || '_')
+                    : groupBy === 'client'
+                        ? (r.project || '_')
+                        : (_prodArtifactStatus(r.status) || 'unknown');
+                if (!grouped.has(key)) grouped.set(key, []);
+                grouped.get(key).push(r);
+            });
+            if (groupBy === 'assignee') {
+                return [...grouped.keys()].sort((a, b) => {
+                    const an = a === '_' ? 'No assignee' : editors[a] ? editors[a].name : a;
+                    const bn = b === '_' ? 'No assignee' : editors[b] ? editors[b].name : b;
+                    return an.localeCompare(bn);
+                }).map(key => ({ key, title: key === '_' ? 'No assignee' : editors[key] ? editors[key].name : key, icon: key === '_' ? _prodIcon('assign') : _prodAvatar(editors[key], 16), items: grouped.get(key) || [] }));
+            }
+            if (groupBy === 'client') {
+                return [...grouped.keys()].sort((a, b) => _prodDisplayClient(a).localeCompare(_prodDisplayClient(b))).map(key => ({ key, title: _prodDisplayClient(key), icon: _prodProjectGlyph(projects[key] || key), items: grouped.get(key) || [] }));
+            }
+            const keys = PROD_STATUS_ORDER.filter(k => grouped.has(k)).concat([...grouped.keys()].filter(k => !PROD_STATUS_ORDER.includes(k)));
+            return keys.map(key => ({ key, title: _prodStatusLabel(key), icon: _prodStatusSVG(key), items: grouped.get(key) || [] }));
+        }
+        function _prodFlatOrder() {
+            const out = [];
+            _prodGroupsFor(_prodIssueRows()).forEach(g => {
+                if (!_prodState.collapsed.has(g.key)) g.items.forEach(i => out.push(i.id));
+            });
+            return out;
+        }
+        function _prodBoardCardCounts() {
+            const byClient = new Map();
+            _prodIssueRows().forEach(d => byClient.set(d.project, (byClient.get(d.project) || 0) + 1));
+            return byClient;
+        }
+        function _prodBoardCardsForStatus(status, counts) {
+            const byClient = counts || _prodBoardCardCounts();
+            return _prodClients().filter(c => (c.status || 'prog') === status && byClient.has(c.id));
+        }
+        function _prodBoardCols() {
+            const counts = _prodBoardCardCounts();
+            return PROD_BOARD_ORDER.map(status => ({
+                key: status,
+                ids: _prodState.colCollapsed.has(status) ? [] : _prodBoardCardsForStatus(status, counts).map(c => c.id)
+            })).filter(c => c.ids.length);
+        }
+        function _prodBoardFlat() {
+            return _prodBoardCols().reduce((out, c) => out.concat(c.ids), []);
+        }
+        function _prodBoardLoc(cols, slug) {
+            const id = String(slug || '');
+            for (let c = 0; c < cols.length; c++) {
+                const r = cols[c].ids.indexOf(id);
+                if (r >= 0) return { c, r };
+            }
+            return null;
+        }
+        function _prodCardFocusValid() {
+            return !!(_prodState.focusCard && _prodBoardLoc(_prodBoardCols(), _prodState.focusCard));
+        }
+        /* The hover title is ALWAYS emitted, and the 120-character threshold it
+           used to carry is gone.
+
+           That threshold measured the wrong thing. Whether a title is readable
+           depends on the width of the column it renders in, not on how many
+           characters it has -- and the sub-issue rows are the narrowest column
+           in the tab. Owner report 2026-09-02, on a parent whose eight children
+           are named "<client> | <date range> | Reel N": every one is ~44
+           characters, so not one of them qualified for a tooltip, and all eight
+           truncated to an identical prefix. The list was unreadable precisely
+           because the titles were SHORT enough to be judged fine.
+
+           `data-fulltitle` stays because it is already emitted here and at the
+           row renderer, but note it has no reader anywhere -- no CSS rule and
+           no script consumes it. The working tooltip is, and always was, the
+           native `title`. */
+        function _prodTitleAttrs(text) {
+            const s = String(text || '');
+            return ' data-fulltitle="' + _calEscAttr(s) + '" title="' + _calEscAttr(s) + '"';
+        }
+        function _prodReconcileSelection() {
+            // Selection now also lives on project-view rows and the parent
+            // sub-issue section, so those rows count as visible in their views;
+            // otherwise switching views would silently drop the selection.
+            const visible = new Set(_prodIssueRows().map(i => i.id));
+            if (_prodState.view === 'project') {
+                const project = _prodClient(_prodState.openProjectId);
+                if (project) _prodProjectRows(project).forEach(i => visible.add(i.id));
+            }
+            if (_prodState.view === 'detail' && _prodState.openId) {
+                _prodChildrenOf(_prodState.openId).forEach(i => visible.add(i.id));
+                const openIssue = _prodIssue(_prodState.openId);
+                if (openIssue && openIssue.parent) _prodChildrenOf(openIssue.parent).forEach(i => visible.add(i.id));
+            }
+            Array.from(_prodState.selected || []).forEach(id => {
+                if (!visible.has(id)) _prodState.selected.delete(id);
+            });
+            if (_prodState.focusRow && !visible.has(_prodState.focusRow)) _prodState.focusRow = '';
+            if (_prodState.hoverRow && !visible.has(_prodState.hoverRow)) _prodState.hoverRow = '';
+            const cardVisible = new Set(_prodBoardFlat());
+            Array.from(_prodState.cardSel || []).forEach(id => {
+                if (!cardVisible.has(id)) _prodState.cardSel.delete(id);
+            });
+            if (_prodState.focusCard && !cardVisible.has(_prodState.focusCard)) _prodState.focusCard = '';
+            if (_prodState.cardAnchor && !cardVisible.has(_prodState.cardAnchor)) _prodState.cardAnchor = '';
+        }
+        function renderProductionView() {
+            return '<div class="prod-view" id="prodRoot">' + _svLoadingSkeletonHtml('production') + '</div>';
+        }
+        function mountProductionView() {
+            _prodPrimeFromUrl();
+            _prodStartAuthorityRefresh();
+            _prodStartOperationalRefresh();
+            _prodStartPolicyDayClock();
+            // Stale-while-revalidate: paint instantly from the last snapshot,
+            // then revalidate in the background. On a cold cache this is a no-op
+            // and the normal foreground load runs below.
+            let hydrated = false;
+            if (!_prodState.loaded && !_prodState.loading) hydrated = _prodHydrateFromCache();
+            _prodRender();
+            if (hydrated) _prodLoadData({ silent: true });
+            else if (!_prodState.loaded && !_prodState.loading) _prodLoadData();
+        }
+        function _prodPrimeFromUrl() {
+            try {
+                const statePrefs = history.state && history.state.prod ? history.state.prod : null;
+                if (statePrefs) _prodApplyDisplayPrefs(statePrefs);
+                else _prodLoadDisplayPrefs();
+                const q = new URLSearchParams(location.search);
+                const group = q.get('group');
+                if (PROD_GROUP_KEYS.has(group)) _prodState.groupBy = group;
+                const order = q.get('order');
+                if (PROD_ORDER_KEYS.has(order)) _prodState.orderBy = order;
+                const subs = q.get('subs');
+                if (subs === '0' || subs === 'false') _prodState.showSubIssues = false;
+                else if (subs === '1' || subs === 'true') _prodState.showSubIssues = true;
+                const team = q.get('team');
+                if (team === 'video' || team === 'graphics') _prodState.team = team;
+                const view = q.get('view');
+                if (view === 'my' || view === 'board' || view === 'list' || view === 'project') _prodState.view = view === 'board' ? 'board' : view === 'my' ? 'my' : view === 'project' ? 'project' : 'list';
+                const tab = q.get('issues');
+                if (tab === 'active' || tab === 'backlog' || tab === 'all') _prodState.tab = tab;
+                const pdetails = q.get('pdetails');
+                if (pdetails === '0' || pdetails === 'false') _prodState.projectDetailsOpen = false;
+                else if (pdetails === '1' || pdetails === 'true') _prodState.projectDetailsOpen = true;
+                const client = q.get('client');
+                _prodState.clientSlug = client || '';
+                _prodState.openProjectId = '';
+                if (view === 'project' && client) { _prodState.openProjectId = client; _prodState.clientSlug = ''; }
+                const d = q.get('d');
+                const batch = q.get('batch');
+                if (d) { _prodState.openId = d; _prodState.openBatchId = ''; _prodState.view = 'detail'; }
+                // The batch-to-real-parent redirect is deliberately NOT resolved
+                // here (Codex, #1471): priming this state before `deepLink` is
+                // recorded below would make `_prodApplyDeepLinkFallback`'s
+                // `openedElsewhere` guard read the redirect as the reader having
+                // already navigated away, skip its own redirect branch, and leave
+                // `?batch=` in the URL while a `?d=` detail was shown. The
+                // authoritative pass is the one place with both a settled read
+                // and the URL-correction call, so the batch view is the honest
+                // first paint and that pass alone performs the redirect.
+                else if (batch) { _prodState.openBatchId = batch; _prodState.openId = ''; _prodState.view = 'batch'; }
+                else {
+                    _prodState.openId = '';
+                    _prodState.openBatchId = '';
+                    if (view !== 'my' && view !== 'board' && view !== 'project') _prodState.view = 'list';
+                }
+                // Remember what the URL asked for. The first paint may come from
+                // a cached snapshot that predates the target, and losing the
+                // request there is what made these links look broken.
+                _prodState.deepLink = d ? { kind: 'issue', id: d }
+                    : batch ? { kind: 'batch', id: batch }
+                    : (view === 'project' && client) ? { kind: 'project', id: client }
+                    : null;
+                _prodState.deepLinkMissing = '';
+                _prodState.deepLinkMissingKind = '';
+            } catch (e) {}
+        }
+        /*
+         * A deep link has to survive the stale first paint.
+         *
+         * OWNER REPORT 2026-08-24, opening a Workload rollup and following its
+         * "Open SyncView" link: "it just goes to the old team's issues, but it
+         * doesn't open it". The link itself was fine. mountProductionView paints from the
+         * localStorage snapshot first (stale-while-revalidate), and the guard
+         * that ran there cleared openId whenever the target was absent from
+         * THAT snapshot -- so a batch created after the reader's last visit was
+         * dropped before the live read ever arrived, and the live read found
+         * openId already empty and had nothing left to open. The reader was
+         * left looking at the cached list: old data, and no item.
+         *
+         * So the fallback now runs in two modes. On the cached paint it only
+         * picks a view to show and keeps the request pending. On the first
+         * authoritative read it RE-APPLIES the request against live data, and
+         * only then decides the target does not exist -- and says so, rather
+         * than dropping the reader on a list that looks like a broken link.
+         *
+         * Re-applying is once-only and conditional on the reader not having
+         * navigated in the meantime: a background refresh minutes later must
+         * never yank someone out of whatever they opened.
+         */
+        function _prodApplyDeepLinkFallback(authoritative) {
+            const wanted = _prodState.deepLink;
+            const sameAsWanted = id => !!wanted && !!id && String(id) === String(wanted.id);
+            const openedElsewhere = !!((_prodState.openId && !sameAsWanted(_prodState.openId))
+                || (_prodState.openBatchId && !sameAsWanted(_prodState.openBatchId))
+                || (_prodState.openProjectId && !sameAsWanted(_prodState.openProjectId)));
+            // A batch deep link whose real parent resolves lands the reader on
+            // that parent's detail instead (owner report 2026-09-21) -- a
+            // different id than `wanted.id`, so `sameAsWanted` below can never
+            // call it "opened". This flag is the same escape hatch
+            // `openedElsewhere` already is for a reader who navigated away.
+            let redirectedToParent = false;
+            if (wanted && authoritative && !openedElsewhere) {
+                if (wanted.kind === 'issue' && _prodIssue(wanted.id)) {
+                    _prodState.openId = wanted.id; _prodState.openBatchId = ''; _prodState.view = 'detail';
+                } else if (wanted.kind === 'batch' && _prodBatch(wanted.id)) {
+                    const parent = _prodBatchParentIssue(_prodBatch(wanted.id));
+                    if (parent) {
+                        _prodState.openId = parent.displayId || parent.id;
+                        _prodState.openBatchId = '';
+                        _prodState.view = 'detail';
+                        redirectedToParent = true;
+                        // The URL still names the batch; correct it to the
+                        // parent's identifier now that this is authoritative,
+                        // without pushing a new history entry for a redirect
+                        // nobody navigated to.
+                        _prodSetQuery({ d: _prodState.openId }, false);
+                    } else {
+                        _prodState.openBatchId = wanted.id; _prodState.openId = ''; _prodState.view = 'batch';
+                    }
+                } else if (wanted.kind === 'project' && _prodClient(wanted.id)) {
+                    _prodState.openProjectId = wanted.id; _prodState.clientSlug = ''; _prodState.view = 'project';
+                }
+            }
+            /* AUTHORITATIVE IS NOT THE SAME AS COMPLETE, and treating it as
+               complete is what evicted readers from finished work.
+
+               The boot read is deliberately two-phase: phase one fetches
+               PROD_LIVE_FILTER (everything NOT in PROD_CACHE_TERMINAL) so the
+               board is interactive fast, and `_prodLoadTerminalTail` fetches
+               the approved / posted / archived / canceled / duplicate rows
+               behind it. Phase one COMPLETES -- it is a real, finished,
+               authoritative read -- while deliberately holding none of the
+               ~3,975 terminal rows.
+
+               So between the two phases every lookup below answers null for any
+               finished item, and these three lines then clear what the reader
+               opened and force them to the list. Owner report 2026-09-02:
+               opening a POSTED parent bounced to the unfiltered issue list "at
+               random times", and a refresh fixed it -- random being whether the
+               tail had landed yet, and the refresh being the next boot winning
+               the race. `_prodApplyDeepLinkFallback` then also published the
+               "has no row in Production" notice for a row the tab could see
+               perfectly well one second later (OPEN_REPAIRS 108).
+
+               `terminalTailPending` is exactly the missing distinction and was
+               already tracked; it simply was not consulted here. While it is
+               set, an unresolved id means NOT YET, not GONE, so nothing is
+               cleared and no notice is published. The eviction still runs, one
+               tail later, for a target that is genuinely absent. */
+            /* SETTLING covers two different reasons the row set is incomplete,
+               and only one of them was modelled.
+
+               `terminalTailPending` means the tail has not finished. But a tail
+               that finished by THROWING leaves the row set just as incomplete,
+               and the repair shipped on 2026-09-02 called the fallback on that
+               exit anyway -- "let the fallback publish an honest result". It is
+               not honest: the read established nothing, so the three evictions
+               below fire on a row that very likely exists, and the notice
+               accuses it of having no row in Production off the back of a
+               request that failed. Reproduced by execution: a reader sitting on
+               a posted deliverable was moved to the list, and a deep link at it
+               was told it did not exist.
+
+               That is the FIFTH round of this same bug, and every round has had
+               the identical shape: a state the code could not represent, so two
+               different situations shared one answer. NOT YET and GONE was the
+               first four. This one is I DO NOT KNOW. */
+            /* A CACHED PAINT KNOWS NOTHING, and that is the third situation this
+               guard had to learn.
+
+               Owner report, with a screenshot: opening a deep link shows the
+               unfiltered "All teams" issue list FIRST, before the item. The
+               comment above already promised the opposite -- "on the cached
+               paint it only picks a view to show and keeps the request pending"
+               -- but the eviction below ran anyway, because it was gated only on
+               the tail. `mountProductionView` paints from the localStorage
+               snapshot before any network read exists, so at that moment the
+               tail is neither pending nor failed and `settling` was false. A row
+               merely absent from a stale snapshot was therefore treated as GONE,
+               the view was forced to 'list', and the reader watched the whole
+               board flash past on the way to the thing they clicked.
+
+               `authoritative` is the missing term. Absence is only evidence when
+               the answer came from the server. */
+            /* Same predicate as the pane, deliberately: an eviction and a
+               "not found" are the same claim made in two places, and they drifted
+               apart once already (item 108, five rounds). `_prodRowSetComplete`
+               is strictly the more cautious of the two old terms -- it also
+               refuses while no tail has landed at all -- which is the direction
+               AGENTS.md asks a guard to fall when it could go either way. */
+            const settling = !authoritative || !_prodRowSetComplete();
+            if (!settling) {
+                if (_prodState.openId && !_prodIssue(_prodState.openId)) { _prodState.openId = ''; _prodState.view = 'list'; }
+                if (_prodState.openBatchId && !_prodBatch(_prodState.openBatchId)) { _prodState.openBatchId = ''; _prodState.view = 'list'; }
+                if (_prodState.openProjectId && !_prodClient(_prodState.openProjectId)) { _prodState.openProjectId = ''; _prodState.view = 'list'; }
+            }
+            if (!authoritative || !wanted || settling) return;
+            const opened = redirectedToParent
+                || sameAsWanted(_prodState.openId)
+                || sameAsWanted(_prodState.openBatchId)
+                || sameAsWanted(_prodState.openProjectId);
+            /* The KIND rides along. `deepLinkMissing` holds only an identifier,
+               and the notice below is shared by all three link kinds, so copy
+               written for one of them is definitively wrong for the other two.
+               Raised by review on the PR that rewrote that copy. */
+            _prodState.deepLinkMissing = opened || openedElsewhere ? '' : String(wanted.id || '');
+            _prodState.deepLinkMissingKind = _prodState.deepLinkMissing ? String(wanted.kind || '') : '';
+            _prodState.deepLink = null;
+        }
+        function _prodDeepLinkNoticeHTML() {
+            const missing = String(_prodState.deepLinkMissing || '');
+            if (!missing) return '';
+            /* WHAT THIS NOTICE MAY CLAIM, AND FOR WHICH LINK.
+               It used to offer two guesses for every missing target -- "may
+               live only in Linear, or belong to a client this view does not
+               cover" -- and a video editor escalated one on 2026-09-01 where
+               the SECOND was provably false: the client was on the active
+               roster, fully covered, and the issue simply had no row here.
+
+               The first rewrite of this copy replaced both guesses with the one
+               true cause for HER link and then said it about every link, which
+               review caught: `_prodApplyDeepLinkFallback` renders this same
+               notice for `?d=`, `?batch=` and `?view=project&client=`, so
+               "issues created in Linear are not imported" is wrong advice on
+               two of the three. It carries the KIND now and says something true
+               for each.
+
+               And for an ISSUE it separates two cases the reader cannot tell
+               apart but the page can: a row that EXISTS and was filtered out as
+               archived (`_prodDeliverableLive`) is not a row that was never
+               imported, and telling someone to import an archived issue sends
+               them to create a duplicate. The raw rows are still in state; only
+               the adapter filters them.
+
+               No Linear link and no Retry on any branch: the page has no Linear
+               credential to check with, and a button that re-asks a question
+               already answered is the dead end this notice exists to replace. */
+            const kind = String(_prodState.deepLinkMissingKind || '');
+            /* BOTH identifier columns, tested independently. `identifier` is
+               the b1 import's snapshot and `linear_identifier` is the value
+               Linear maintains; a team move leaves them different (see the
+               adapter's displayId note), so `identifier || linear_identifier`
+               asked only about the retired number and answered "never imported"
+               for an archived row linked by its current one. */
+            const archived = kind === 'issue' && (_prodState.deliverables || []).some(row => {
+                const names = [row && row.id, row && row.identifier, row && row.linear_identifier]
+                    .map(v => String(v || ''));
+                return names.includes(missing) && !_prodDeliverableLive(row);
+            });
+            const guidance = archived
+                ? ' It is archived, so it is hidden here on purpose — nothing needs importing.'
+                : kind === 'batch'
+                    ? ' A post disappears from here when every one of its sub-issues is archived, or when it belongs to a client that is no longer active.'
+                    : kind === 'project'
+                        ? ' That client is not on the active roster, so its work is not shown here.'
+                        /* AMENDED 2026-09-01, hours after the first version, because
+                           the owner was right and I was wrong. That copy asserted
+                           ONE cause -- "created directly in Linear" -- and the very
+                           issue that prompted it was created by SyncView: its post
+                           was dropped because two batch rows claimed the same Linear
+                           parent. Twice now this notice has stated a cause it cannot
+                           establish, so it stops doing that. It names the two things
+                           that actually produce it, in the order they actually occur,
+                           and sends the reader to someone who can look. */
+                        : ' Most often its post could not be resolved here; it may also never have been imported.'
+                            + ' Ask an Admin to look it up.';
+            const subject = archived ? ' is not shown in Production.'
+                : kind === 'batch' ? ' is not a post in Production.'
+                : kind === 'project' ? ' is not a client this view covers.'
+                : ' has no row in Production.';
+            return '<div class="prod-deeplink-missing" data-prod-deeplink-missing="' + _calEscAttr(missing) + '"'
+                + (kind ? ' data-prod-deeplink-kind="' + _calEscAttr(kind) + '"' : '') + '>'
+                + '<b>' + _calEsc(missing) + '</b>' + subject
+                + guidance
+                + ' Showing the full list instead.'
+                + '<button class="prod-deeplink-dismiss" type="button" aria-label="Dismiss"'
+                + ' onclick="_prodDismissDeepLinkNotice()">Dismiss</button></div>';
+        }
+        function _prodDismissDeepLinkNotice() {
+            _prodState.deepLinkMissing = '';
+            _prodState.deepLinkMissingKind = '';
+            _prodRender();
+            return false;
+        }
+        function _prodSetQuery(extra, push) {
+            if (!_prodEnabled()) return;
+            /*
+             * Any deliberate navigation retires BOTH the unresolved-deep-link
+             * notice and the pending request itself.
+             *
+             * Caught in review of #1129. Clearing only the notice left
+             * _prodState.deepLink pending, and `openedElsewhere` is computed
+             * from openId/openBatchId/openProjectId alone — so a reader who
+             * switched team, tab, grouping, or filter while still on the LIST
+             * had all three empty, `openedElsewhere` stayed false, and the
+             * authoritative read yanked them into the original deep-link
+             * target. The window is not only the second or two before the
+             * first read: if that read FAILS, the request stays pending and
+             * any later successful refresh fires it.
+             *
+             * Safe to clear here because every caller is either a person
+             * clicking something, or the one deep-link-load exception:
+             * _prodApplyDeepLinkFallback's batch-to-real-parent redirect,
+             * which calls this with push=false only once it has already
+             * decided the link IS resolved (2026-09-21) — clearing the
+             * pending request here is exactly what that resolution means,
+             * not a premature drop of it.
+             */
+            _prodState.deepLinkMissing = '';
+            _prodState.deepLinkMissingKind = '';
+            _prodState.deepLink = null;
+            try {
+                const q = new URLSearchParams(location.search);
+                q.set('prod', '1');
+                q.delete('d');
+                q.delete('batch');
+                q.delete('team');
+                q.delete('client');
+                q.delete('view');
+                q.delete('issues');
+                q.delete('ptab');
+                q.delete('pdetails');
+                q.delete('group');
+                q.delete('order');
+                q.delete('subs');
+                if (_prodState.team !== 'all') q.set('team', _prodState.team);
+                if (_prodState.view === 'project' && _prodState.openProjectId) q.set('client', _prodState.openProjectId);
+                else if (_prodState.clientSlug) q.set('client', _prodState.clientSlug);
+                if (_prodState.view === 'my') q.set('view', 'my');
+                if (_prodState.view === 'board') q.set('view', 'board');
+                if (_prodState.view === 'project') q.set('view', 'project');
+                if (_prodState.tab !== 'active' && (_prodState.view === 'list' || _prodState.view === 'my')) q.set('issues', _prodState.tab);
+                if (_prodState.view === 'project' && _prodState.projectDetailsOpen === false) q.set('pdetails', '0');
+                if ((_prodState.groupBy || 'status') !== 'status') q.set('group', _prodState.groupBy);
+                if ((_prodState.orderBy || 'due') !== 'due') q.set('order', _prodState.orderBy);
+                if (_prodState.showSubIssues === false) q.set('subs', '0');
+                Object.entries(extra || {}).forEach(([k, v]) => { if (v) q.set(k, v); });
+                const url = location.pathname + '?' + q.toString() + '#production';
+                const state = { nav: 'production', client: null, prod: { groupBy: _prodState.groupBy || 'status', orderBy: _prodState.orderBy || 'due', showSubIssues: _prodState.showSubIssues !== false } };
+                if (push) history.pushState(state, '', url);
+                else history.replaceState(state, '', url);
+            } catch (e) {}
+        }
+        /* Phase two of the boot read: the finished work, fetched AFTER the board
+           is already interactive and merged in behind it.
+
+           Nothing is dropped -- the two filters are exact complements, so the
+           row set once this settles is the same set the single read produced.
+           What changes is the order: the 2,206 rows somebody can act on arrive
+           first, and the ~3,975 approved/posted/archived rows stop standing
+           between the reader and their own board.
+
+           Guarded on projectionGeneration: a delta refresh or a manual reload
+           during the tail read bumps it, and a tail that lands afterwards must
+           not paste a stale archive over newer state. It is dropped instead --
+           the next full read will fetch it again. */
+        /* The targeted read behind a deep link. Bounded on purpose: one id, one
+           request, no retry, and it never touches freshness or authority state
+           -- it only adds a row the board was going to load anyway. If it fails
+           or the id is already present, the tail covers it as before, so this
+           can only make the wait shorter and never make the answer wrong. */
+        /* The one-row filter, shared by the boot-time fast paint and the
+           post-phase-one catch-up so the two cannot drift apart.
+
+           THREE columns, not two. Review on PR 1242 caught the third: a link
+           copied off a row whose `identifier` is null carries the LINEAR
+           identifier and matched nothing here -- the one case this shortcut
+           exists for, silently falling back to the four-thousand-row wait it
+           was written to skip. All three stay, and they are the same three
+           `_prodIssue` resolves (canonical id, displayId, retired alias), which
+           is what keeps a row this fetches from being called missing once it
+           lands -- the 2026-09-07 report. Returns '' for an id the filter grammar
+           cannot carry safely, and the callers then leave it to the tail. */
+        function _prodDeepLinkRowQuery(wanted) {
+            /* \x22 and \x27 are the two quote characters; spelled as escapes so
+               the comment-and-quote scanner the source tests use to slice this
+               function out does not read a regex as the start of a string. */
+            const safe = String(wanted || '').replace(/[(),\x22\x27]/g, '');
+            if (!safe || safe !== wanted) return '';
+            const cols = ['id', 'identifier', 'linear_identifier'];
+            return 'or=(' + cols.map(c => c + '.eq.' + encodeURIComponent(safe)).join(',') + ')';
+        }
+        /* The boot-time fast paint. See the call site in _prodLoadData for why
+           it exists; this is what it does and what it refuses to do.
+
+           It reads the linked row beside phase one, then -- in one more round
+           trip, all in parallel -- the row's batch (the crumb and the asset
+           source read it), its parent (a sub-issue's crumb names it, and a
+           row whose parent is unresolved renders as a parent itself, with an
+           empty sub-issues section it does not own), and the two small tables
+           phase one was already fetching, awaited off the SAME promises so
+           nothing is requested twice. Everything is merged into whatever the
+           snapshot already holds, never replacing it, and the pane is marked
+           `loaded` so `_prodBody` stops showing the skeleton. `refreshing`
+           stays true because phase one is still running, which is also what
+           keeps the auto-refresh from starting a second load on top of it.
+
+           Three things it will not do. It never consumes the deep link --
+           `_prodApplyDeepLinkFallback(true)` after phase one is still the one
+           place that happens, so the consumed-exactly-once contract in
+           test/production-deep-link-survives-cache.js is unchanged. It never
+           writes the cache: a one-row snapshot painted over a later boot would
+           be the stale-first-paint bug all over again. And it never publishes
+           absence: an empty read here means "not yet", and the tail decides. */
+        let _prodDeepLinkFastRows = null;
+        async function _prodDeepLinkFastPaint(reads) {
+            const link = _prodState.deepLink;
+            const wanted = link && link.kind === 'issue' ? String(link.id || '').trim() : '';
+            if (!wanted) return false;
+            if (_prodIssue(wanted)) return false;              // the snapshot already shows it
+            if (_prodDeepLinkFastRows && _prodDeepLinkFastRows.id === wanted) return false;
+            const query = _prodDeepLinkRowQuery(wanted);
+            if (!query) return false;
+            const generation = _prodState.projectionGeneration;
+            const record = { id: wanted, generation, rows: null };
+            _prodDeepLinkFastRows = record;
+            const settled = () => generation !== _prodState.projectionGeneration || _prodDeepLinkFastRows !== record;
+            try {
+                const rows = await _prodLoadDeliverableProjection(query);
+                if (settled()) return false;
+                if (!Array.isArray(rows) || !rows.length) return false;
+                const safeIds = list => Array.from(new Set(list.map(v => String(v || '').trim())
+                    .filter(v => v && !/[(),\x22\x27]/.test(v))));   // quotes as escapes, see _prodDeepLinkRowQuery
+                const batchIds = safeIds(rows.map(row => row && row.batch_id));
+                const parentIds = safeIds(rows.map(row => row && row.raw_issue_parent_id));
+                const inList = ids => 'in.(' + ids.map(encodeURIComponent).join(',') + ')';
+                const [clients, members, batches, parents] = await Promise.all([
+                    reads.clients,
+                    reads.members,
+                    batchIds.length
+                        ? _prodRestRows('batches', PROD_BATCH_SELECT, 'id=' + inList(batchIds), 1000, 1).catch(() => [])
+                        : [],
+                    parentIds.length
+                        ? _prodLoadDeliverableProjection('linear_issue_uuid=' + inList(parentIds)).catch(() => [])
+                        : []
+                ]);
+                if (settled()) return false;
+                const seenRows = new Set((_prodState.deliverables || []).map(row => String(row && row.id || '')));
+                const added = [];
+                rows.concat(Array.isArray(parents) ? parents : []).forEach(row => {
+                    const id = String(row && row.id || '');
+                    if (!row || !id || seenRows.has(id)) return;
+                    seenRows.add(id);
+                    added.push(row);
+                });
+                if (!added.length) return false;
+                const seenBatches = new Set((_prodState.batches || []).map(b => String(b && b.id || '')));
+                const newBatches = (Array.isArray(batches) ? batches : []).filter(b => b && b.id && !seenBatches.has(String(b.id)));
+                _prodState.clients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
+                _prodState.members = members;
+                _prodState.batches = (_prodState.batches || []).concat(newBatches);
+                _prodState.deliverables = (_prodState.deliverables || []).concat(added);
+                _prodState.adapter = _prodAdapter({
+                    clients: _prodState.clients,
+                    members: _prodState.members,
+                    batches: _prodState.batches,
+                    deliverables: _prodState.deliverables
+                });
+                _prodState.loaded = true;
+                _prodState.loading = false;
+                _prodState.cachePartial = true;                // the board is not here yet
+                record.rows = added;
+                if (document.getElementById('prodRoot')) _prodRender();
+                return true;
+            } catch (e) {
+                // Silent by design: phase one and the tail cover it as before.
+                return false;
+            } finally {
+                if (_prodDeepLinkFastRows === record && record.rows === null) _prodDeepLinkFastRows = null;
+            }
+        }
+        /* Phase one replaces the deliverable set wholesale. A row the fast
+           paint put on screen that phase one does not carry -- a finished one,
+           excluded by PROD_LIVE_FILTER -- would vanish at that moment and the
+           pane would drop back to a skeleton until the post-phase-one read put
+           it back: the flash this whole path exists to remove. Rows are only
+           carried within the generation that read them, so a stale paint can
+           never outlive the read that supersedes it. */
+        function _prodCarryDeepLinkRows(fresh) {
+            const carried = _prodDeepLinkFastRows;
+            _prodDeepLinkFastRows = null;
+            const list = Array.isArray(fresh) ? fresh : [];
+            if (!carried || carried.generation !== _prodState.projectionGeneration || !Array.isArray(carried.rows)) return list;
+            const seen = new Set(list.map(row => String(row && row.id || '')));
+            const keep = carried.rows.filter(row => row && !seen.has(String(row.id || '')));
+            return keep.length ? list.concat(keep) : list;
+        }
+        let _prodDeepLinkFetchInFlight = '';
+        async function _prodFetchDeepLinkRow() {
+            const wanted = String(_prodState.openId || (_prodState.deepLink && _prodState.deepLink.id) || '').trim();
+            if (!wanted || _prodDeepLinkFetchInFlight === wanted) return false;
+            if (_prodIssue(wanted)) return false;              // already on the board
+            _prodDeepLinkFetchInFlight = wanted;
+            const generation = _prodState.projectionGeneration;
+            try {
+                /* Matched on either column, because a pasted link carries the
+                   LINEAR IDENTIFIER while the row is keyed by its canonical id --
+                   the same two-names-for-one-row split OPEN_REPAIRS recorded when
+                   a shared link hung the comment thread. */
+                const query = _prodDeepLinkRowQuery(wanted);
+                if (!query) return false;
+                const rows = await _prodLoadDeliverableProjection(query);
+                if (generation !== _prodState.projectionGeneration) return false;
+                if (!Array.isArray(rows) || !rows.length) return false;
+                const seen = new Set((_prodState.deliverables || []).map(row => String(row && row.id || '')));
+                const added = rows.filter(row => row && !seen.has(String(row.id || '')));
+                if (!added.length) return false;
+                _prodState.deliverables = (_prodState.deliverables || []).concat(added);
+                _prodState.adapter = _prodAdapter({
+                    clients: _prodState.clients,
+                    members: _prodState.members,
+                    batches: _prodState.batches,
+                    deliverables: _prodState.deliverables
+                });
+                if (document.getElementById('prodRoot')) _prodRender();
+                return true;
+            } catch (e) {
+                // Silent by design: the tail is still coming and will cover it.
+                return false;
+            } finally {
+                _prodDeepLinkFetchInFlight = '';
+            }
+        }
+        let _prodTerminalTailRunning = false;
+        /* A tail asked for while one is already running. Set rather than
+           dropped, because the running tail belongs to the PREVIOUS generation
+           and is about to discard itself for exactly that reason -- so without
+           this, the generation that asked never gets a tail at all. */
+        let _prodTerminalTailRerun = false;
+        async function _prodLoadTerminalTail(opts) {
+            if (_prodTerminalTailRunning) { _prodTerminalTailRerun = true; return false; }
+            _prodTerminalTailRunning = true;
+            _prodTerminalTailRerun = false;
+            const generation = _prodState.projectionGeneration;
+            _prodState.terminalTailPending = true;
+            /* Did this run actually resolve the deferred deep link? Only the
+               success path below does. Every other exit -- a failed read, a
+               generation that moved, an answer that is not an array -- clears
+               the pending flag in `finally` and used to stop there, leaving the
+               pane painted with "Loading this item..." for a read that is no
+               longer running. Raised on PR 1236 as two findings; both are the
+               same missing step seen from two exits. */
+            let settled = false;
+            /* A full pass is the FIRST tail of a projection, anything the reader
+               asked for by hand (boot and the Refresh button both arrive here
+               non-silently), and one pass an hour so a hard delete converges.
+               Everything else -- the ten-minute background reconcile -- reads
+               only what moved. `terminalTailLoadedAt` gates on having a tail at
+               all: without one there is nothing for a watermark to be relative
+               to, and an incremental read would leave the archive empty. */
+            const fullPass = !!(opts && opts.full);
+            /* An empty watermark still falls back to the full read. That is the
+               belt to the caller's braces: without a stamp there is nothing for
+               an incremental read to be relative to, and reading incrementally
+               anyway would leave the archive empty rather than merely stale. */
+            const watermark = fullPass ? '' : _prodTerminalWatermark();
+            const filter = watermark
+                ? PROD_TERMINAL_FILTER + '&updated_at=gte.' + encodeURIComponent(watermark)
+                : PROD_TERMINAL_FILTER;
+            try {
+                const tail = await _prodLoadDeliverableProjection(filter);
+                if (generation !== _prodState.projectionGeneration) return false;
+                if (!Array.isArray(tail)) return false;
+                const scopeBefore = _prodScopeSignatures(_prodState.adapter);
+                if (watermark) {
+                    /* UPDATE in place, do not append blind. The full pass below
+                       may append only what it has never seen, because the live
+                       half it is joining is the fresher of the two. This read is
+                       the opposite: every row it returns moved AFTER the copy
+                       held here, so a row already present is exactly the one
+                       that must be replaced. `_prodMergeDeliverableRows` is the
+                       merge the 30-second delta already uses, and it assigns
+                       `_prodState.deliverables` itself. */
+                    _prodMergeDeliverableRows(
+                        _prodDropSupersededRows(tail, _prodState.deliverables));
+                } else {
+                    // De-duplicate by id rather than concatenating blind: a status
+                    // edited between the two reads can legitimately appear in both
+                    // halves, and the live half is the fresher of the two.
+                    const seen = new Set((_prodState.deliverables || []).map(row => String(row && row.id || '')));
+                    _prodState.deliverables = (_prodState.deliverables || [])
+                        .concat(tail.filter(row => row && !seen.has(String(row.id || ''))));
+                    _prodState.terminalTailFullAt = Date.now();
+                }
+                const merged = _prodState.deliverables;
+                _prodState.adapter = _prodAdapter({
+                    clients: _prodState.clients,
+                    members: _prodState.members,
+                    batches: _prodState.batches,
+                    deliverables: merged
+                });
+                /* NOT _prodInvalidateScopedReads(), and that blanket call was
+                   the second refresh.
+
+                   Invalidating every row here threw away every asset read phase
+                   one had just completed and forced a second one, so every
+                   single load of the tab said "checking" twice in a row.
+                   Reported 2026-08-31 as the tab refreshing twice for no
+                   visible reason. That was the reason; it arrived with the
+                   two-phase boot the night before and nothing else changed.
+
+                   But "phase two only appends, so nothing can change scope" --
+                   which is how this was first written -- is FALSE, and the
+                   review that caught it was right. _prodAdapter drops only
+                   ARCHIVED rows (_prodDeliverableLive), so approved, posted,
+                   canceled and duplicate rows all enter the adapter's row set
+                   when the tail lands. _prodResolveAttributions walks ancestors
+                   through a rowById built from that set: a LIVE child whose
+                   nearest mapped ancestor is an approved parent finds nothing
+                   in phase one and resolves to needs_attribution, then finds
+                   the ancestor in phase two and resolves to that ancestor's
+                   client. authorityProject changes under the row.
+
+                   requestStillCurrent() does not cover that. It refuses a
+                   response still IN FLIGHT; a read that already completed under
+                   the phase-one scope has landed in _prodState.assets and would
+                   simply be redrawn under the new client. So the scope is
+                   stamped before and after the merge and the rows whose stamp
+                   actually moved are invalidated -- normally none of them, so
+                   the double refresh stays gone, and exactly the leaking rows
+                   pay for a recheck when there are any.
+
+                   The file-pill STATUS is cleared unconditionally, because a
+                   terminal row joining a batch legitimately changes which pills
+                   that batch draws, and dropping the status is what makes the
+                   next render of a parent re-ask. The entries stay: they are
+                   the pills on screen, and _prodBatchFileFor refuses one whose
+                   row has moved (2026-09-05, with the asset-state change). */
+                const rescoped = [];
+                const scopeAfter = _prodScopeSignatures(_prodState.adapter);
+                scopeBefore.forEach((signature, id) => {
+                    if (scopeAfter.get(id) !== signature) rescoped.push(id);
+                });
+                if (rescoped.length) _prodInvalidateScopedReadsFor(rescoped);
+                _prodState.batchFilesStatus.clear();
+                _prodState.terminalTailLoadedAt = Date.now();
+                /* The row set is only now COMPLETE, so this is the first moment
+                   a deep link at finished work can be honoured -- and the first
+                   moment an unresolved one is genuinely missing rather than not
+                   yet loaded. `_prodApplyDeepLinkFallback` defers both the open
+                   and the missing-notice while `terminalTailPending` is set, so
+                   without this call a link to an approved or posted row would
+                   be deferred and then never applied. Cleared BEFORE the call,
+                   because the flag is what tells it to defer. */
+                _prodState.terminalTailPending = false;
+                // A landed tail re-establishes the row set, so an earlier
+                // failure no longer describes what this tab knows.
+                _prodState.terminalTailFailed = false;
+                _prodApplyDeepLinkFallback(true);
+                if (document.getElementById('prodRoot')) _prodRender();
+                settled = true;
+                return true;
+            } catch (e) {
+                // The board is already usable without it; a failed tail is not a
+                // failed load and must not overwrite the freshness state the
+                // successful live read just earned.
+                console.warn('[Production] archived-tail read failed', e);
+                return false;
+            } finally {
+                _prodTerminalTailRunning = false;
+                _prodState.terminalTailPending = false;
+                /* NEITHER LEAVE THE READER ON A SPINNER, NOR STRAND A GENERATION
+                   WITH NO TAIL.
+
+                   The comment on the caller used to argue that an overlapping
+                   load was covered because "that run's own finally clears the
+                   flag". Clearing the flag is not the same as covering the
+                   case, and the review that said so was right. When a second
+                   phase-one read lands while this tail is in flight, it bumps
+                   `projectionGeneration`, its own `_prodLoadTerminalTail()` call
+                   returns early, and then THIS run discards itself at the
+                   generation check -- so the new generation holds no terminal
+                   rows, nothing re-renders, and a deep link to an approved or
+                   posted row sits on "Loading this item..." until a later full
+                   refresh happens to fix it.
+
+                   So: if someone asked while we were busy AND the generation
+                   really did move, hand the current generation its own tail. The
+                   flag is re-set synchronously by that call before any paint, so
+                   there is no frame in between. Otherwise, if this run did not
+                   settle the deep link -- a failed read, a non-array answer --
+                   stop claiming to load and let the fallback publish an honest
+                   result. A failed read is deliberately NOT retried here: the
+                   30s operational refresh is the retry, and a tail that retried
+                   itself on failure would spin against a backend that is down. */
+                if (_prodTerminalTailRerun && generation !== _prodState.projectionGeneration) {
+                    _prodTerminalTailRerun = false;
+                    /* A new projection generation has no tail of its own yet, so
+                       this rerun is a first tail whatever the displaced call
+                       was: ask for the full pass rather than a watermark
+                       relative to a row set that belongs to the old scope. */
+                    _prodLoadTerminalTail({ full: true });
+                } else if (!settled) {
+                    /* STOP CLAIMING TO LOAD, WITHOUT STARTING TO ACCUSE.
+                       The previous version called `_prodApplyDeepLinkFallback(true)`
+                       here and described it as publishing an honest result. It is
+                       the opposite: this exit is reached when the read FAILED or
+                       came back unusable, so nothing about which rows exist was
+                       established, and an authoritative fallback then evicts the
+                       reader from a row that is probably fine and tells a deep
+                       link that the row has no place in Production.
+                       The flag replaces the call. The pane stops spinning because
+                       `terminalTailFailed` renders its own state, and the
+                       evictions stay deferred because absence still means
+                       nothing. The next tail that lands clears it. */
+                    _prodTerminalTailRerun = false;
+                    _prodState.terminalTailFailed = true;
+                    if (document.getElementById('prodRoot')) _prodRender();
+                }
+            }
+        }
+        async function _prodLoadData(opts) {
+            const silent = !!(opts && opts.silent && _prodState.loaded);
+            _prodState.loading = !silent;
+            _prodState.refreshing = true;
+            _prodState.error = '';
+            _prodState.briefsLoaded = false;
+            _prodState.briefsLoading = false;
+            if (!silent) _prodRender();
+            try {
+                /* Authority is ONE small row, and it decides whether every write
+                   control on screen is live. It used to be awaited inside this
+                   group, so the answer -- which arrives in a few hundred ms --
+                   was withheld until the deliverable projection finished
+                   downloading beside it. Reported 2026-08-31: on a slow
+                   connection that is tens of seconds during which every control
+                   reads "Write controls are unavailable while authority is
+                   being checked", a sentence that was true of the first instant
+                   and a lie for the rest of it.
+                   Settling it on its own promise changes no gate: the value is
+                   the same value, assigned by the same code path, just not held
+                   hostage by an unrelated read. The group below still awaits it,
+                   so the post-load assignment stays exactly as it was. */
+                const authorityPromise = _prodFetchAuthority();
+                authorityPromise.then(early => {
+                    // Never overwrite a newer answer: a delta refresh or the
+                    // 30s poll may already have landed while this was in flight.
+                    if (_prodState.authorityReadAt) return;
+                    _prodState.authority = early;
+                    _prodState.authorityLoaded = true;
+                    _prodState.authorityReadAt = Date.now();
+                    if (document.getElementById('prodRoot')) _prodRender();
+                }).catch(() => {});
+                /* Same shape, same reason: which teams' native intake has cut
+                   over decides whether an empty linear_issue_uuid still means
+                   "syncing" (see _prodNativeEpochOn / _prodAttributionSyncPending),
+                   and that answer must not gate the board on its own read. A
+                   failed or still-in-flight read only ever LEAVES the previous
+                   answer in place -- never resets it to null -- so a transient
+                   miss on a silent refresh cannot un-cut-over a team that a
+                   prior successful read already confirmed. */
+                _prodFetchNativeEpochTeams().then(teams => {
+                    if (teams instanceof Set) {
+                        _prodState.nativeEpochTeams = teams;
+                        if (document.getElementById('prodRoot')) _prodRender();
+                    }
+                }).catch(() => {});
+                const clientsRead = _prodClientRows();
+                const membersRead = _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10);
+                /* A DEEP LINK IS PAINTED FROM ITS OWN READ, not from the board's.
+
+                   Owner report 2026-09-05: following the calendar card's
+                   "Open the SyncView Production video sub-issue" link "always
+                   takes a lot of time to load. way too much time". The link
+                   opens a fresh tab, so there is no warm state: the pane waited
+                   here, on the whole live projection (thousands of rows, paged
+                   in sequence) plus every batch, before the one row it was
+                   asked for could be looked up at all. The one-row read below
+                   (`_prodFetchDeepLinkRow`) only ever ran AFTER this await, so
+                   the comment promising it "in parallel" was true of the tail
+                   and false of the wait that actually hurt.
+
+                   This starts the one-row read now, beside phase one rather
+                   than behind it, and paints the detail the moment that row,
+                   its batch, its parent, and the two small tables have landed.
+                   Phase one keeps running underneath and takes over when it
+                   arrives; a row it does not carry (a finished one) is carried
+                   across by `_prodCarryDeepLinkRows` so the pane never flashes
+                   back to a skeleton. It cannot make the answer wrong: the row
+                   is the same row from the same projection, a read that lands
+                   late is discarded by the generation check exactly as the
+                   post-phase-one read is, and a failure leaves the old path
+                   untouched. Not awaited on purpose. */
+                _prodDeepLinkFastPaint({ clients: clientsRead, members: membersRead });
+                const [clients, members, batches, deliverables, authority] = await Promise.all([
+                    clientsRead,
+                    membersRead,
+                    /* PAGED BY PRIMARY KEY, like the deliverable projection beside
+                       it, and for the same two reasons in the same order.
+
+                       CORRECTNESS FIRST. This read paged with OFFSET over
+                       `order=created_at.desc`, and `created_at` is not unique
+                       here: 85 of the 1,665 batches share their timestamp with
+                       another batch, in 39 groups of up to 5. Postgres gives no
+                       order within a tie and no promise that two executions
+                       resolve one the same way, so a tie group lying across the
+                       1,000-row page boundary can hand back a row twice or not
+                       at all -- and "not at all" is a filming day that is simply
+                       missing from SyncLinear, with no error anywhere. It has
+                       not bitten yet because today's boundary happens to fall
+                       between two distinct timestamps; that is luck, and it
+                       moves every time a batch is created. `id` is unique, so a
+                       keyset walk cannot express the bug.
+
+                       WASTE SECOND. The offset pager fires page 0, then bursts
+                       four more. 1,665 rows need two pages, so every boot also
+                       issued offset=2000, 3000 and 4000 -- three requests
+                       returning two bytes each, and three full ORDER BY /
+                       OFFSET scans of the relation (~0.8s of database time per
+                       boot, measured). The keyset walk asks for exactly the two
+                       pages that exist.
+
+                       Arrival order is not load-bearing: `_prodAdapter` keys
+                       batches into a map by id and `_prodPreserveProjectedFields`
+                       merges by id. Proven rather than assumed -- booting the
+                       real app over these rows in server order and in a shuffled
+                       order produces the identical batch set, issue set and
+                       rendered list. `order=` is dropped by the keyset branch,
+                       so it is not passed here rather than passed and ignored. */
+                    _prodRestRows('batches', PROD_BATCH_SELECT, '', 1000, 25, { keysetColumn: 'id' }),
+                    _prodLoadDeliverableProjection(PROD_LIVE_FILTER),
+                    authorityPromise
+                ]);
+                const mergedClients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
+                const mergedBatches = _prodCarryBatchDescriptions(batches, _prodState.batches);
+                /* Decided BEFORE the projection is replaced, and the carry
+                   below depends on it. `_prodState.deliverables` still holds
+                   the previous set at this point, archive included. */
+                const tailFull = _prodTerminalTailFullDue(silent);
+                const mergedDeliverables = tailFull
+                    ? _prodCarryDeepLinkRows(deliverables)
+                    : _prodCarryTerminalRows(_prodCarryDeepLinkRows(deliverables), _prodState.deliverables);
+                _prodState.projectionGeneration++;
+                _prodInvalidateScopedReads();
+                _prodState.clients = mergedClients;
+                _prodState.members = members;
+                _prodState.batches = mergedBatches;
+                /* And no remembered batch-description read outlives a full load.
+                   This is the RETRY for a failed one: the visible topbar Refresh
+                   runs _prodManualRefresh -> _prodDeltaRefresh({full:true}) ->
+                   here, and never touches _prodMarkDescriptionsStale, so an
+                   'error' left by a failed read survived the very button offered
+                   to clear it -- the batch view kept saying "Description could
+                   not load." until a page reload. Raised by Codex on #1364.
+                   The shared helper rather than a bare clear(), so a read still
+                   in the air is retired rather than left able to land on the new
+                   projection. */
+                _prodInvalidateBatchDescriptionReads(null);
+                _prodState.deliverables = mergedDeliverables;
+                _prodState.authority = authority;
+                _prodState.authorityLoaded = true;
+                _prodState.authorityReadAt = Date.now();
+                _prodState.adapter = _prodAdapter({ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables });
+                _prodState.loaded = true;
+                _prodState.loading = false;
+                _prodState.refreshing = false;
+                _prodState.fromCache = false;
+                _prodState.cachePartial = false;
+                // F95: a full projection read is also a successful operational
+                // sync, so the freshness age and any degraded state clear here.
+                _prodState.lastSyncAt = Date.now();
+                _prodState.lastFullSyncAt = _prodState.lastSyncAt;
+                _prodState.lastSyncError = '';
+                _prodState.refreshFailures = 0;
+                // Persist this snapshot so the next visit paints instantly.
+                _prodCacheWrite({ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables, authority });
+                /* The tail is PENDING from here, not from when it starts.
+
+                   This ordering is the whole bug the previous two fixes missed.
+                   `_prodApplyDeepLinkFallback` runs BEFORE `_prodLoadTerminalTail`,
+                   and the pending flag used to be set inside the tail — so at
+                   the one moment the eviction fires, phase one has finished,
+                   every PROD_CACHE_TERMINAL row is still absent, and the flag
+                   that means "absent only means not yet" is still false. The
+                   guard added for exactly this could therefore never engage on
+                   the path that actually matters, which is why the owner kept
+                   being thrown out of a posted parent after both fixes shipped.
+
+                   Setting it here closes the window rather than narrowing it.
+                   It cannot latch on: every exit from `_prodLoadTerminalTail`
+                   clears it in a `finally`, and the load's own `catch` clears it
+                   too, so a throw between this line and the tail call cannot
+                   suppress the missing-target notice for the rest of the session.
+
+                   An earlier version of this comment went further and claimed
+                   the early return for an already-running tail was COVERED by
+                   that run's `finally`. It is not, and PR 1236's review was
+                   right to say so: clearing the flag is not the same as giving
+                   the new generation a tail. `_prodLoadTerminalTail` now records
+                   the overlapping request and re-runs itself for the current
+                   generation. */
+                _prodState.terminalTailPending = true;
+                _prodState.terminalTailFailed = false;
+                /* FETCH THE ONE ROW THE READER ASKED FOR, rather than making them
+                   wait for the other four thousand.
+
+                   Phase one deliberately excludes every terminal status, so a
+                   link to an approved or posted item shows a skeleton until the
+                   whole tail lands -- "a couple of seconds", in the owner's
+                   words, on every such link. The tail is the right way to fill
+                   the BOARD and the wrong way to answer one question.
+                   This asks for exactly the linked id in parallel, so the pane
+                   fills as soon as that single row returns and the tail keeps
+                   running behind it for everything else. */
+                _prodFetchDeepLinkRow();
+                // Authoritative: re-apply a deep link the cached paint could not
+                // resolve, and only now conclude that a target does not exist.
+                _prodApplyDeepLinkFallback(true);
+                _prodRender();
+                /* `silent` is the honest signal for "nobody asked for this".
+                   Boot and the Refresh button both reach here non-silently and
+                   get the full archive; only the ten-minute background
+                   reconcile is silent, and that is precisely the caller that
+                   was re-downloading 4,098 finished rows nobody had asked to
+                   see. */
+                _prodLoadTerminalTail({ full: tailFull });
+                setTimeout(() => _prodLoadBriefs({ silent: true }), 6500);
+                return true;
+            } catch (e) {
+                _prodState.loading = false;
+                _prodState.refreshing = false;
+                /* The settling flag is set by the success path just above,
+                   and the only way out of it is a tail that runs. If anything
+                   between that line and the tail call throws, we land here with
+                   it latched on -- which would suppress the missing-target
+                   notice for the rest of the session. Clearing it costs nothing
+                   on the ordinary failure path, where it was never set. */
+                _prodState.terminalTailPending = false;
+                // A refused live read means the current session is no longer
+                // authorized for this data; drop the stale first-paint snapshot
+                // so it cannot seed a subsequent paint.
+                const status = Number(e && e.status);
+                if (status === 401 || status === 403) _prodCachePurge();
+                if (silent) {
+                    /* Returns FALSE rather than throwing, and the difference is
+                       the whole repair. An async function that catches and
+                       returns RESOLVES, so _prodDeltaRefresh went on to stamp
+                       lastFullSyncAt, clear lastSyncError and reset the failure
+                       counter -- recording a successful sync for a read that
+                       never happened, and ERASING a failure notice the tab had
+                       already earned. The freshness control then re-rendered as
+                       clean, saying Production refreshes automatically while
+                       this tab is open, over data that had stopped refreshing.
+                       Rethrowing here would be the tempting fix and the wrong
+                       one: three other callers (the tab-return refresh and the
+                       two post-create reloads) rely on this never rejecting,
+                       and an unhandled rejection fails the boot probes on their
+                       zero-console-error contract. A return value costs those
+                       callers nothing -- they already ignore it.
+
+                       The STATUS is handed over separately, as a single-use
+                       baton, because a boolean cannot carry it and widening the
+                       return type would cost the three callers that ignore it
+                       the one property that makes this repair safe: two
+                       outcomes, trivially distinguishable. Without it a 401 or
+                       403 full refresh reached _prodDeltaRefresh as a bare
+                       Error and landed on the generic "Live updates are
+                       failing. Retry to catch up." -- telling an expired
+                       session to retry forever, while the sentence that fits it
+                       sat unreachable in the same branch. */
+                    _prodState.lastSilentLoadStatus = status || 0;
+                    console.warn('[Production] background refresh failed', e);
+                    return false;
+                }
+                _prodState.error = e && e.message ? e.message : String(e);
+                _prodRender();
+                return false;
+            }
+        }
+        async function _prodLoadEventsFor(id) {
+            if (!id || _prodState.events.has(id)) return;
+            _prodState.events.set(id, []);
+            try {
+                const rows = await _prodRestRows('deliverable_events', 'id,deliverable_id,batch_id,client_slug,ts,actor,role,action,from_status,to_status,source,payload', 'deliverable_id=eq.' + encodeURIComponent(id) + '&order=ts.desc', 30, 2);
+                _prodState.events.set(id, rows);
+            } catch (e) {
+                console.warn('[Production] deliverable event read failed', e);
+                _prodState.events.set(id, []);
+            }
+            _prodRender();
+        }
+        async function _prodLoadLinearRawFor(id) {
+            if (!id || _prodState.linearRaw.has(id)) return;
+            // The browser-safe projection already carries the exact scalar
+            // identity/attribution/archive fields Production consumes. Never
+            // hydrate the legacy body JSON into an anonymous browser again.
+            _prodState.linearRaw.set(id, {});
+        }
+        async function _prodLoadBriefs(opts) {
+            if (_prodState.briefsLoaded || _prodState.briefsLoading || !_prodState.loaded) return;
+            // Descriptions are hydrated only on demand through the guarded,
+            // no-store production-write read. This marker merely ends legacy
+            // bulk-preload skeletons without fetching body text.
+            _prodState.briefsLoaded = true;
+            _prodState.briefsLoading = false;
+            if (!opts || !opts.silent || _prodState.view === 'detail') _prodRender();
+        }
+        function _prodSetTeam(team) {
+            _prodCaptureListScroll();
+            if (team !== 'video' && team !== 'graphics') team = 'all';
+            _prodState.team = team;
+            _prodState.clientSlug = '';
+            if (_prodState.view !== 'board') _prodState.view = 'list';
+            _prodState.openId = '';
+            _prodState.openBatchId = '';
+            _prodState.openProjectId = '';
+            _prodState.focusRow = '';
+            _prodState.hoverRow = '';
+            _prodState.selAnchor = '';
+            _prodState.focusCard = '';
+            _prodState.cardSel.clear();
+            _prodState.cardAnchor = '';
+            _prodSetQuery({}, true);
+            _prodRender();
+        }
+        function _prodSetView(view) {
+            _prodCaptureListScroll();
+            _prodState.view = view === 'board' ? 'board' : view === 'my' ? 'my' : 'list';
+            if (_prodState.view === 'board') _prodState.clientSlug = '';
+            _prodState.openId = '';
+            _prodState.openBatchId = '';
+            _prodState.openProjectId = '';
+            _prodState.focusRow = '';
+            _prodState.hoverRow = '';
+            _prodState.selected.clear();
+            _prodState.selAnchor = '';
+            if (_prodState.view !== 'board') {
+                _prodState.focusCard = '';
+                _prodState.cardSel.clear();
+                _prodState.cardAnchor = '';
+            }
+            _prodSetQuery({}, true);
+            _prodRender();
+        }
+        function _prodSetTab(tab) {
+            _prodState.tab = tab === 'backlog' ? 'backlog' : tab === 'all' ? 'all' : 'active';
+            _prodState.openId = '';
+            _prodState.openBatchId = '';
+            _prodState.openProjectId = '';
+            _prodReconcileSelection();
+            _prodSetQuery({}, true);
+            _prodRender();
+        }
+        function _prodToggleProjectDetails() {
+            _prodState.projectDetailsOpen = _prodState.projectDetailsOpen === false;
+            _prodSetQuery({}, true);
+            _prodRender();
+        }
+        function _prodSetFocusRow(id, renderNow) {
+            if (!_prodIssue(id)) return;
+            if (renderNow) {
+                _prodState.focusRow = id;
+                _prodState.hoverRow = '';
+                _prodRender();
+            } else {
+                _prodState.hoverRow = id;
+            }
+        }
+        function _prodMoveFocus(delta, extend) {
+            // Same surface as _prodRangeSelectRow: shift+Arrow extends a
+            // selection, so walking a different list would reintroduce the
+            // off-screen range through the keyboard.
+            const order = _prodVisibleRowOrder();
+            if (!order.length) return;
+            const cur = order.indexOf(_prodState.focusRow);
+            const prev = cur >= 0 ? _prodState.focusRow : order[0];
+            if (extend && !_prodState.selAnchor) _prodState.selAnchor = prev;
+            const next = cur < 0 ? (delta > 0 ? 0 : order.length - 1) : Math.max(0, Math.min(order.length - 1, cur + delta));
+            _prodState.focusRow = order[next];
+            _prodState.hoverRow = '';
+            if (extend) _prodRangeSelectRow(_prodState.focusRow);
+            _prodRender();
+            setTimeout(() => {
+                const el = document.querySelector('[data-prod-row="' + CSS.escape(_prodState.focusRow) + '"]');
+                if (el) el.scrollIntoView({ block: 'nearest' });
+            }, 0);
+        }
+        function _prodToggleGroup(key) {
+            if (_prodState.collapsed.has(key)) _prodState.collapsed.delete(key);
+            else _prodState.collapsed.add(key);
+            _prodRender();
+        }
+        function _prodToggleRowSelection(id, keepFocus, ev) {
+            if (!_prodIssue(id)) return;
+            /* Shift on the CHECKBOX must range-select exactly like shift on the
+               row. It did not: the checkbox's inline onclick called this with
+               only an id, so the event -- and the shift key with it -- was
+               dropped. Shift-clicking the row text selected a range while
+               shift-clicking its own checkbox toggled a single row: one gesture,
+               two behaviours, and the affordance that LOOKS like the selection
+               control was the one that did not do it. Owner report 2026-08-20.
+               _prodRangeSelectRow owns the anchor fallback, so a shift-click
+               with nothing anchored still degrades to selecting just this row. */
+            if (ev && ev.shiftKey) {
+                _prodRangeSelectRow(id);
+                if (!keepFocus) { _prodState.focusRow = ''; _prodState.hoverRow = ''; }
+                _prodRender();
+                return;
+            }
+            if (_prodState.selected.has(id)) _prodState.selected.delete(id);
+            else _prodState.selected.add(id);
+            _prodState.selAnchor = id;
+            if (!keepFocus) {
+                _prodState.focusRow = '';
+                _prodState.hoverRow = '';
+            }
+            _prodRender();
+        }
+        /* The ordered ids of the rows the ACTIVE surface is actually showing.
+           _prodFlatOrder is the grouped top-level list, which is right for the
+           list / my / project views (_prodCurIssuesUnfiltered is already
+           project-aware) but wrong for the two surfaces that render their own
+           row set. In a detail view the screen shows only that parent's
+           sub-issues, and in a batch view only that batch -- so a range taken
+           from the flat order would sweep in issues BETWEEN the two clicked
+           ids that are not on screen at all, and the next bulk action would
+           mutate them invisibly. Range selection must never reach a row the
+           user cannot see. */
+        function _prodVisibleRowOrder() {
+            if (_prodState.view === 'detail' && _prodState.openId) {
+                // A sub-issue's own detail renders no child list, so nothing is
+                // selectable there and an empty order is the honest answer.
+                /* Resolve through _prodIssue and then use ITS id, never the raw
+                 * openId. `openId` may be a Linear identifier -- the Workload
+                 * popover's parent link is built as ?prod=1&d=<identifier>, and
+                 * that is the main way anyone reaches a parent -- while a child's
+                 * `parent` field holds the deliverable UUID. Passing the raw
+                 * identifier to _prodChildrenOf matched nothing, so this returned
+                 * [] on exactly the surface it exists to make selectable, and both
+                 * reported bugs stayed live on the deep-link path. */
+                const open = _prodIssue(_prodState.openId);
+                if (open && open.parent) return [];
+                return _prodChildrenOf(open ? open.id : _prodState.openId)
+                    .map(row => row && row.id).filter(Boolean);
+            }
+            if (_prodState.view === 'batch' && _prodState.openBatchId) {
+                return _prodBatchRows(_prodState.openBatchId).map(row => row && row.id).filter(Boolean);
+            }
+            // The project view paints its own grouped rows through
+            // _prodProjectIssueRowHTML; without this branch it fell through to
+            // the top-level list order, which is a different set of rows.
+            if (_prodState.view === 'project' && _prodState.openProjectId) {
+                const out = [];
+                _prodGroupsFor(_prodIssueRows()).forEach(g => {
+                    if (!_prodState.collapsed.has(g.key)) (g.items || []).forEach(i => out.push(i.id));
+                });
+                return out;
+            }
+            return _prodFlatOrder();
+        }
+        function _prodRangeSelectRow(id) {
+            if (!_prodIssue(id)) return;
+            const order = _prodVisibleRowOrder();
+            const anchor = _prodState.selAnchor || _prodState.focusRow || Array.from(_prodState.selected || [])[0] || id;
+            let a = order.indexOf(anchor);
+            let b = order.indexOf(id);
+            if (a < 0 || b < 0) {
+                _prodState.selected.add(id);
+                _prodState.selAnchor = id;
+                return;
+            }
+            if (a > b) { const t = a; a = b; b = t; }
+            _prodState.selected.clear();
+            for (let i = a; i <= b; i++) _prodState.selected.add(order[i]);
+        }
+        function _prodRowClick(ev, id) {
+            if (ev && (ev.shiftKey || ev.metaKey || ev.ctrlKey)) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                if (ev.shiftKey) _prodRangeSelectRow(id);
+                else {
+                    if (_prodState.selected.has(id)) _prodState.selected.delete(id);
+                    else _prodState.selected.add(id);
+                    _prodState.selAnchor = id;
+                }
+                _prodState.focusRow = '';
+                _prodState.hoverRow = '';
+                _prodRender();
+                return false;
+            }
+            _prodOpenDeliverable(id);
+            return false;
+        }
+        function _prodStatusIconClick(ev, id) {
+            if (ev && (ev.shiftKey || ev.metaKey || ev.ctrlKey)) return _prodRowClick(ev, id);
+            return _prodOpenStatusMenu(ev, id);
+        }
+        function _prodSetFocusCard(slug, renderNow) {
+            if (!_prodClient(slug)) return;
+            _prodState.focusCard = String(slug || '');
+            if (renderNow) _prodRender();
+        }
+        function _prodScrollCardIntoView() {
+            setTimeout(() => {
+                if (!_prodState.focusCard) return;
+                const el = document.querySelector('[data-prod-client-card="' + CSS.escape(_prodState.focusCard) + '"]');
+                if (el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            }, 0);
+        }
+        function _prodMoveCardFocus(dx, dy) {
+            const cols = _prodBoardCols();
+            if (!cols.length) {
+                _prodState.focusCard = '';
+                return;
+            }
+            const loc = _prodState.focusCard ? _prodBoardLoc(cols, _prodState.focusCard) : null;
+            if (!loc) {
+                _prodState.focusCard = cols[0].ids[0];
+                _prodRender();
+                _prodScrollCardIntoView();
+                return;
+            }
+            let c = loc.c;
+            let r = loc.r;
+            if (dy) r = Math.max(0, Math.min(cols[c].ids.length - 1, r + dy));
+            if (dx) {
+                c = Math.max(0, Math.min(cols.length - 1, c + dx));
+                r = Math.min(r, cols[c].ids.length - 1);
+            }
+            _prodState.focusCard = cols[c].ids[r];
+            _prodRender();
+            _prodScrollCardIntoView();
+        }
+        function _prodToggleCardSelection(slug, shift, keepFocus) {
+            const id = String(slug || '');
+            if (!_prodClient(id)) return;
+            if (shift && _prodState.cardAnchor) {
+                const order = _prodBoardFlat();
+                let a = order.indexOf(_prodState.cardAnchor);
+                let b = order.indexOf(id);
+                if (a >= 0 && b >= 0) {
+                    if (a > b) { const t = a; a = b; b = t; }
+                    for (let i = a; i <= b; i++) _prodState.cardSel.add(order[i]);
+                } else {
+                    _prodState.cardSel.add(id);
+                    _prodState.cardAnchor = id;
+                }
+            } else {
+                if (_prodState.cardSel.has(id)) _prodState.cardSel.delete(id);
+                else _prodState.cardSel.add(id);
+                _prodState.cardAnchor = id;
+            }
+            _prodState.focusCard = keepFocus ? id : '';
+            _prodRender();
+        }
+        function _prodCardClick(ev, slug) {
+            if (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }
+            if (ev && (ev.shiftKey || ev.metaKey || ev.ctrlKey)) {
+                _prodToggleCardSelection(slug, !!ev.shiftKey, false);
+                return false;
+            }
+            _prodState.cardSel.clear();
+            _prodState.cardAnchor = '';
+            _prodOpenProject(slug);
+            return false;
+        }
+        function _prodOpenCardBulk(kind, ev) {
+            const first = Array.from(_prodState.cardSel || [])[0] || _prodState.focusCard || _prodBoardFlat()[0] || '';
+            if (!first) return false;
+            return _prodOpenProjectPicker(kind, ev, first);
+        }
+        function _prodGuardGroupSelection(key) {
+            _prodReadonlyGuard(PROD_GROUP_SELECT_UNSUPPORTED);
+            return false;
+        }
+        function _prodToggleBoardColumn(status) {
+            status = _prodBoardStatus(status);
+            if (_prodState.colCollapsed.has(status)) _prodState.colCollapsed.delete(status);
+            else _prodState.colCollapsed.add(status);
+            _prodRender();
+        }
+        function _prodToggleSection(section) {
+            if (!_prodState.secOpen[section]) _prodState.secOpen[section] = true;
+            else _prodState.secOpen[section] = false;
+            _prodRender();
+        }
+        function _prodToggleTeam(team) {
+            if (!_prodState.teamOpen[team]) _prodState.teamOpen[team] = true;
+            else _prodState.teamOpen[team] = false;
+            _prodRender();
+        }
+        function _prodOpenTeamView(team, view) {
+            _prodCaptureListScroll();
+            _prodState.team = team === 'video' || team === 'graphics' ? team : 'all';
+            _prodState.view = view === 'board' ? 'board' : 'list';
+            _prodState.clientSlug = '';
+            _prodState.openId = '';
+            _prodState.openBatchId = '';
+            _prodState.openProjectId = '';
+            _prodState.focusRow = '';
+            _prodState.hoverRow = '';
+            _prodState.selected.clear();
+            _prodState.selAnchor = '';
+            _prodState.focusCard = '';
+            _prodState.cardSel.clear();
+            _prodState.cardAnchor = '';
+            _prodSetQuery({}, true);
+            _prodRender();
+        }
+        function _prodOpenClient(slug) {
+            _prodCaptureListScroll();
+            _prodState.clientSlug = String(slug || '');
+            _prodState.view = 'list';
+            _prodState.openId = '';
+            _prodState.openBatchId = '';
+            _prodState.openProjectId = '';
+            _prodState.focusRow = '';
+            _prodState.hoverRow = '';
+            _prodState.selected.clear();
+            _prodState.selAnchor = '';
+            _prodState.focusCard = '';
+            _prodState.cardSel.clear();
+            _prodState.cardAnchor = '';
+            _prodSetQuery({}, true);
+            _prodRender();
+        }
+        function _prodOpenDeliverable(id) {
+            _prodCaptureListScroll();
+            _prodState.openId = id;
+            _prodState.openBatchId = '';
+            _prodState.openProjectId = '';
+            _prodState.view = 'detail';
+            _prodState.selected.clear();
+            _prodState.selAnchor = '';
+            _prodState.focusCard = '';
+            _prodState.cardSel.clear();
+            _prodState.cardAnchor = '';
+            _prodSetQuery({ d: id }, true);
+            _prodRender();
+            _prodScrollDetailToTop();
+            _prodComments.ensure(id);
+            _prodComments.refresh(id);
+            _prodLoadLinearRawFor(id);
+        }
+        function _prodOpenBatch(id) {
+            // A batch imported from Linear has a real parent card -- Sub-issues N,
+            // client chip, link, due date, assignee -- and that card is the
+            // correct landing page. Only a native post-cutoff batch, which has
+            // no such row, stays on the plain batch view (owner report
+            // 2026-09-21). The three Workload deep links that send a native
+            // batch here on purpose (wlParentUrl, the client-groups syncUrl,
+            // the popover parentSyncUrl) are untouched -- this is the one place
+            // every OTHER deep link into a batch benefits from the redirect.
+            const parent = _prodBatchParentIssue(_prodBatch(id));
+            if (parent) return _prodOpenDeliverable(parent.displayId || parent.id);
+            _prodState.openBatchId = id;
+            _prodState.openId = '';
+            _prodState.openProjectId = '';
+            _prodState.view = 'batch';
+            _prodState.selected.clear();
+            _prodState.selAnchor = '';
+            _prodState.focusCard = '';
+            _prodState.cardSel.clear();
+            _prodState.cardAnchor = '';
+            _prodSetQuery({ batch: id }, true);
+            _prodRender();
+            _prodScrollDetailToTop();
+        }
+        function _prodOpenProject(slug) {
+            const id = String(slug || '');
+            if (id === PROD_ATTRIBUTION_NEEDS || id === PROD_ATTRIBUTION_CONFLICT) {
+                _prodToast('This is an attribution repair group, not a client project.');
+                return false;
+            }
+            if (!_prodClient(id)) return _prodOpenClient(id);
+            _prodCaptureListScroll();
+            _prodState.openProjectId = id;
+            _prodState.openId = '';
+            _prodState.openBatchId = '';
+            _prodState.clientSlug = '';
+            _prodState.projectDetailsOpen = true;
+            _prodState.view = 'project';
+            _prodState.selected.clear();
+            _prodState.selAnchor = '';
+            _prodState.cardSel.clear();
+            _prodState.cardAnchor = '';
+            _prodSetQuery({}, true);
+            _prodRender();
+            _prodScrollDetailToTop();
+        }
+        function _prodOpenTeamScopeMenu(ev, view) {
+            if (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }
+            const nextView = view === 'board' || _prodState.view === 'board' || _prodState.view === 'project' ? 'board' : 'list';
+            const current = _prodState.team || 'all';
+            const rows = [
+                ['all', 'All teams'],
+                ['video', 'Video'],
+                ['graphics', 'Graphics']
+            ];
+            const p = _prodLayerPop('<div class="prod-pop-hd">Team scope</div><div class="prod-pop-list">' + rows.map(row => '<div class="prod-mi" data-prod-team-scope="' + row[0] + '"><span class="mic">' + (row[0] === 'all' ? _prodIcon('issues') : row[0] === 'video' ? '📽️' : '🎨') + '</span><span class="mlbl">' + row[1] + '</span>' + (current === row[0] ? '<span class="tick">' + _prodIcon('check') + '</span>' : '') + '</div>').join('') + '</div>', ev ? ev.clientX : innerWidth / 2, ev ? ev.clientY : 120);
+            p.querySelectorAll('[data-prod-team-scope]').forEach(el => el.addEventListener('click', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                const team = el.getAttribute('data-prod-team-scope') || 'all';
+                _prodClearLayer();
+                _prodOpenTeamView(team, nextView);
+            }));
+            _prodWirePlainMenu(p);
+            return false;
+        }
+        function _prodRefresh(opts) {
+            const silent = !!(opts && opts.silent && _prodState.loaded);
+            /* A return to the tab asks for what CHANGED, not for everything.
+               Until 2026-09-08 `_prodAutoRefreshOnReturn` came through the full
+               path below: every batch and every live deliverable again, in
+               sequential pages (about 2 MB compressed), every time the tab was
+               left for 30 seconds -- the single most repeated download in the
+               app, and the one the owner felt as "sometimes really slow". The
+               30-second operational tick already knew how to do better:
+               `_prodDeltaRefresh` reads rows stamped since the last watermark
+               and falls back to a full reconcile once every
+               PROD_FULL_RECONCILE_MS. A tab return now takes that route.
+               Authority is still re-read (one tiny row) because a flipped gate
+               must not wait for a row to change, and the open thread's comments
+               are refreshed here only on the full-reconcile turn -- the delta
+               branch refreshes them itself. The manual Refresh button keeps
+               the full path. */
+            if (silent && opts && opts.incremental) {
+                _prodRefreshAuthority({ silent: true });
+                const reconcileDue = (Date.now() - Number(_prodState.lastFullSyncAt || 0)) >= PROD_FULL_RECONCILE_MS;
+                if (reconcileDue && _prodState.view === 'detail' && _prodState.openId) _prodComments.refresh(_prodOpenRowId());
+                _prodDeltaRefresh({ force: true });
+                return;
+            }
+            // Quarantine every protected response synchronously, before the
+            // replacement projection request can resolve. A held old-scope
+            // response therefore cannot land during the refresh window.
+            _prodInvalidateScopedReads();
+            if (!silent) _prodState.loaded = false;
+            _prodState.adapter = null;
+            _prodState.events = new Map();
+            _prodMarkDescriptionsStale();
+            /* The asset cache is NOT rebuilt here any more, and that line was
+               the whole reported bug on this path.
+
+               _prodInvalidateScopedReads above already decides what survives a
+               refresh -- it preserves a completed, scope-stamped read so the
+               links stay on screen while they revalidate. This line then threw
+               all of it away one statement later, keeping only rows with a
+               pending attachment write, so every tab return still walked the
+               panel back through the skeleton. Raised on #1201 review, and it
+               is the path that actually fires: _prodAutoRefreshOnReturn calls
+               _prodRefresh, not _prodLoadData.
+
+               The pending-attachment-write case it existed for is now one of
+               the preserve conditions inside the invalidation, so nothing is
+               lost by deleting it -- there is one rule instead of two that
+               disagreed. */
+            _prodState.labels = new Map([..._prodState.labels].filter(([id]) =>
+                _prodState.writes.has(String(id || '') + ':labels')));
+            if (_prodState.view === 'detail' && _prodState.openId) _prodComments.refresh(_prodOpenRowId());
+            _prodRefreshAuthority({ silent: true });
+            _prodLoadData({ silent });
+        }
+        let _prodLastAutoRefreshAt = 0;
+        function _prodAutoRefreshOnReturn() {
+            if (!_prodEnabled() || document.hidden) return;
+            _prodRefreshPolicyDay();
+            /*
+             * A CACHED PAINT MADE THIS FIRE ON EVERY WARM BOOT.
+             *
+             * `pageshow` arrives right after mount, and mount now hydrates from
+             * the snapshot -- which sets `loaded` before this listener runs,
+             * while `loading` stays false because the revalidation it started
+             * is silent. Both guards therefore passed and every warm load ran
+             * TWO complete reads of clients, members, batches and the whole
+             * paged deliverable projection: measured 2026-08-26, the second one
+             * opened 740ms after the first and doubled the work of the load the
+             * cache exists to avoid.
+             *
+             * `refreshing` is the honest question -- is a load already running
+             * -- and it is cleared on both the success and the failure path, so
+             * a refresh that fails cannot wedge the tab out of ever refreshing
+             * on return again.
+             */
+            if (!_prodState.loaded || _prodState.loading || _prodState.refreshing) return;
+            const now = Date.now();
+            if (now - _prodLastAutoRefreshAt < 30000) return;
+            _prodLastAutoRefreshAt = now;
+            _prodRefresh({ silent: true, incremental: true });
+        }
+        // ---- F95: bounded foreground operational refresh --------------------
+        // Production loaded operational rows once at mount and re-read them only
+        // on focus/visibility/pageshow return; the one repeating timer refreshed
+        // authority, not work data. A continuously foreground queue or issue
+        // could therefore hold cached assignment/status/due/artifact/comment
+        // state indefinitely, with no last-success age, no visible degraded
+        // state, and no manual Refresh.
+        //
+        // The tick is a delta read, not a re-pull: it asks only for rows at or
+        // after the highest updated_at already held. The 2026-07-25 read-path
+        // probe measured that delta at 27-39 ms upstream against ~1.2 s for one
+        // full page, so a tick costs roughly 3% of a single boot page. A slower
+        // full reconcile still runs so hard deletions and any missed row
+        // converge, and every tick is skipped while the tab is hidden, while a
+        // write is in flight, or while a foreground load is already running.
+        const PROD_DELTA_REFRESH_MS = 30000;
+        const PROD_FULL_RECONCILE_MS = 600000;
+        /* How often the FINISHED half is re-read in full.
+
+           It used to be re-read on every full reconcile, so an open tab
+           downloaded all of it six times an hour. Measured live 2026-09-09:
+           4,098 terminal rows, 182 KB compressed per page of 1,000, five
+           strictly sequential pages -- about 0.9 MB and several seconds, for
+           work that is done and by definition not moving. Over an eight-hour
+           day that is ~43 MB of re-downloading the archive.
+
+           It does not need the reconcile's cadence. The 30-second delta reads
+           `updated_at >= watermark` with NO status filter, so a row that
+           CHANGES -- including one that just became approved or posted --
+           already arrives on the next tick. The only thing a full re-read adds
+           is convergence for a hard DELETE, which no watermark read can see.
+           So the full pass survives at its own, much slower cadence, and the
+           reconcile takes a watermarked read instead. */
+        const PROD_TERMINAL_FULL_MS = 3600000;
+        const PROD_REFRESH_MAX_BACKOFF_MS = 300000;
+        const PROD_STALE_AFTER_MS = 120000;
+        function _prodRowUpdatedMs(row) {
+            const value = String(row && row.updated_at || '');
+            const parsed = value ? Date.parse(value) : NaN;
+            return Number.isFinite(parsed) ? parsed : -1;
+        }
+        function _prodDeliverableWatermark(rows) {
+            let best = '';
+            let bestMs = -1;
+            (rows || []).forEach(row => {
+                const ms = _prodRowUpdatedMs(row);
+                if (ms > bestMs) {
+                    bestMs = ms;
+                    best = String(row.updated_at || '');
+                }
+            });
+            return best;
+        }
+        /* The newest stamp among the FINISHED rows this tab holds.
+
+           Deliberately not `_prodDeliverableWatermark(_prodState.deliverables)`:
+           the live half moves every few minutes and the finished half does not,
+           so the whole-projection stamp is almost always newer than every
+           terminal row. Reading from it would skip the rows this is for. */
+        /* Drop a tail row that is OLDER than the copy already held.
+
+           `_prodMergeDeliverableRows` replaces on any timestamp DIFFERENCE, not
+           only on a newer one. That is safe for the 30-second delta, whose
+           watermark is the max over the whole projection, so no response it
+           returns can predate a row already held. It is NOT safe here: this
+           read's watermark is the ARCHIVE's, which is routinely older than a
+           live row, and the read itself spans several seconds.
+
+           The case that bites is a row LEAVING the archive. The tail selects it
+           while it is still `approved`; a delta or a user write moves it to
+           `in_progress` while the read is in flight; the late response then
+           reverts the row's status in the open tab until a later refresh, and
+           someone can act on that stale state. Raised by Codex on #1366.
+
+           A row with no parseable stamp on either side is kept: absence of
+           proof that it is stale is not proof that it is. */
+        function _prodDropSupersededRows(rows, previous) {
+            const incoming = Array.isArray(rows) ? rows : [];
+            if (!incoming.length) return incoming;
+            const held = new Map((Array.isArray(previous) ? previous : [])
+                .map(row => [String(row && row.id || ''), row])
+                .filter(([id]) => id));
+            return incoming.filter(row => {
+                const current = held.get(String(row && row.id || ''));
+                if (!current) return true;
+                return _prodRowUpdatedMs(row) >= _prodRowUpdatedMs(current);
+            });
+        }
+        function _prodTerminalWatermark() {
+            return _prodDeliverableWatermark(
+                (_prodState.deliverables || []).filter(_prodCacheIsTerminal));
+        }
+        /* Is the NEXT tail a full pass? Decided here rather than inside the
+           tail, because `_prodLoadData` has to know the answer BEFORE it
+           replaces the projection: a full pass re-reads the archive and must
+           not carry a stale copy of it, an incremental pass carries the copy
+           and reads only what moved. Two callers, one rule. */
+        function _prodTerminalTailFullDue(silent) {
+            return !silent
+                || !Number(_prodState.terminalTailLoadedAt || 0)
+                || (Date.now() - Number(_prodState.terminalTailFullAt || 0)) >= PROD_TERMINAL_FULL_MS;
+        }
+        /* Carry the finished rows across phase one.
+
+           Phase one reads the LIVE half only and replaces the projection with
+           it, which drops every terminal row; phase two then re-read all 4,098
+           of them, which is exactly what made that re-read look necessary.
+           An incremental phase two cannot rebuild the archive from a
+           watermarked read, so the archive has to survive phase one instead.
+
+           The live half WINS on a collision: a row that has just left a
+           terminal status appears in `live` with its new value, and the copy
+           held here is by definition the older one. (Raised by Codex on #1366,
+           which caught that computing the watermark after the replacement
+           always yielded '' and silently fell back to the full read.) */
+        function _prodCarryTerminalRows(live, previous) {
+            const rows = Array.isArray(live) ? live : [];
+            const held = (Array.isArray(previous) ? previous : []).filter(_prodCacheIsTerminal);
+            if (!held.length) return rows;
+            const liveIds = new Set(rows.map(row => String(row && row.id || '')));
+            return rows.concat(held.filter(row => row && !liveIds.has(String(row.id || ''))));
+        }
+        function _prodInvalidateScopedReadsFor(ids) {
+            const targets = new Set((ids || []).map(id => String(id || '')).filter(Boolean));
+            if (!targets.size) return;
+            targets.forEach(id => {
+                _prodState.assetRequestTokens.set(id, Number(_prodState.assetRequestTokens.get(id) || 0) + 1);
+                _prodState.descriptionRequestTokens.set(id, Number(_prodState.descriptionRequestTokens.get(id) || 0) + 1);
+                _prodState.labelRequestTokens.set(id, Number(_prodState.labelRequestTokens.get(id) || 0) + 1);
+                _prodState.assigneeOptionRequestTokens.set(id, Number(_prodState.assigneeOptionRequestTokens.get(id) || 0) + 1);
+                _prodState.assigneeOptions.delete(id);
+                _prodState.events.delete(id);
+                _prodState.linearRaw.delete(id);
+                const asset = _prodState.assets.get(id);
+                /* Marked stale, never deleted (2026-09-05). This is the delta
+                   tick's invalidation, and deleting here was one of the "two
+                   or three times" the owner counted a link vanish and come
+                   back on a single tab return: the row's projection changed,
+                   its cached read was dropped, and the next render reseeded a
+                   skeleton for values about to be read back identical. The
+                   stamped values stay on screen while _prodEnsureAssets
+                   re-reads, and _prodAssetState refuses them at use time if
+                   the row's scope is what changed. The open-editor branch
+                   already worked this way; now there is one rule. */
+                if (asset) { asset.status = 'idle'; asset.complete = false; asset.error = ''; asset.remoteChanged = true; }
+                const label = _prodState.labels.get(id);
+                if (label && !label.saving) _prodState.labels.delete(id);
+                const description = _prodState.descriptions.get(id);
+                if (description && !description.editing && !description.saving) _prodState.descriptions.delete(id);
+                else if (description) {
+                    description.refreshing = false;
+                    description.status = description.hasValue ? 'stale' : 'idle';
+                    description.refreshError = '';
+                    description.remoteChanged = true;
+                }
+            });
+        }
+        function _prodMergeDeliverableRows(changed) {
+            const rows = Array.isArray(changed) ? changed : [];
+            if (!rows.length) return [];
+            const byId = new Map((_prodState.deliverables || [])
+                .map(row => [String(row && row.id || ''), row])
+                .filter(([id]) => id));
+            const changedIds = [];
+            rows.forEach(row => {
+                const id = String(row && row.id || '');
+                if (!id) return;
+                const previous = byId.get(id);
+                // An unchanged echo (the watermark boundary is inclusive so no
+                // same-timestamp row can slip through) must not churn caches.
+                if (previous && String(previous.updated_at || '') === String(row.updated_at || '')) {
+                    byId.set(id, row);
+                    return;
+                }
+                changedIds.push(id);
+                byId.set(id, row);
+            });
+            _prodState.deliverables = Array.from(byId.values());
+            return changedIds;
+        }
+        function _prodRefreshAgeMs() {
+            return _prodState.lastSyncAt ? Math.max(0, Date.now() - _prodState.lastSyncAt) : -1;
+        }
+        function _prodRefreshDegraded() {
+            const age = _prodRefreshAgeMs();
+            return !!_prodState.lastSyncError || (age >= 0 && age > PROD_STALE_AFTER_MS);
+        }
+        function _prodRefreshAgeLabel() {
+            const age = _prodRefreshAgeMs();
+            if (age < 0) return 'not yet synced';
+            if (age < 60000) return 'updated ' + Math.max(1, Math.round(age / 1000)) + 's ago';
+            if (age < 3600000) return 'updated ' + Math.round(age / 60000) + 'm ago';
+            return 'updated ' + Math.round(age / 3600000) + 'h ago';
+        }
+        function _prodFreshnessHTML() {
+            const degraded = _prodRefreshDegraded();
+            const label = _prodRefreshAgeLabel();
+            const detail = _prodState.lastSyncError
+                ? _prodState.lastSyncError
+                : degraded
+                    ? 'Live updates are behind. Refresh to catch up.'
+                    : 'Production refreshes automatically while this tab is open.';
+            return '<div class="prod-freshness" data-prod-freshness="' + (degraded ? 'degraded' : 'fresh') + '">'
+                + '<span class="prod-freshness-age" data-prod-freshness-age aria-live="polite">'
+                + _calEsc(_prodState.lastSyncError ? 'Update failed · ' + label : label) + '</span>'
+                + '<button class="prod-icon-btn" type="button" data-prod-refresh="1"'
+                + (_prodState.refreshInFlight ? ' disabled' : '')
+                + ' aria-label="Refresh Production data" title="' + _calEscAttr(detail)
+                + '" data-prod-tip="' + _calEscAttr(label + '|' + detail) + '" onclick="return _prodManualRefresh()">'
+                + PROD_REFRESH_ICON + '</button></div>';
+        }

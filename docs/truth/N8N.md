@@ -65,7 +65,13 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   `https://synchrosocial.com/?Kasper=1#kasper/hiring-process`. Both the Slack and Telegram alert
   paths use that link; the old `/kasper/hiring-process` path is absent. The dedicated invitation
   dispatcher `su5afuhg17V2xhgh` remains inactive and `hiring_invites_enabled` remains exactly
-  `false`, so no candidate email is automatically released.
+  `false`, so no candidate email is automatically released. **Corrected 2026-09-21: that last
+  sentence is history as of 2026-08-25.** Candidate email IS live for the editor hire: read-only
+  on 2026-09-21, `hiring_invites_enabled` reads `{"enabled": true}` (set 2026-08-28T23:49Z) and
+  `hiring_practical_tests_enabled` reads `{"enabled": true}` (set 2026-09-16T14:21Z), and both the
+  invitation dispatcher `su5afuhg17V2xhgh` and the practical-test dispatcher `eiisSbHsD1OnnNdQ` are
+  active (5-minute polls, see the 2026-09-20 hiring pollers bullet below). The kill switch in
+  `ROLLBACK.md` still works: set `hiring_invites_enabled` back to `{"enabled": false}`.
 - The existing active `Sales — Call Booked (iClosed)` receiver `xoPqojySDriQ8Mzh` is at version
   `a82e2ce1-d062-4997-a812-7621b5c1b635`. A first strict gate accepts only
   `client-success-content-manager-interview` with a nonblank iClosed contact ID and booking ID,

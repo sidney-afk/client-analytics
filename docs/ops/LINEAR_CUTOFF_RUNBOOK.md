@@ -1,6 +1,6 @@
 # Linear cutoff runbook
 
-**Status: EXECUTED 2026-09-20, with the STEP 6 order corrected on 2026-09-21.**
+**Status: STEPS 1–6 EXECUTED 2026-09-20 (STEP 6 order corrected on 2026-09-21). STEP 7, the credential revoke, is NOT executed and is the one open step; its date is the owner's call and OPEN_REPAIRS 224 waits on it.**
 The cutoff ran on the night of 2026-09-20 (see `LINEAR_EXIT_JOURNAL.md`, entries
 dated 2026-09-20 and 2026-09-21). The line below this one used to say "prepared,
 not executed"; the steps are kept as written because they are the restore path.

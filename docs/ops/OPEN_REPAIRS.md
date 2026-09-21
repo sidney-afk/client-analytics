@@ -27312,21 +27312,28 @@ that follows this one).** `supabase/functions/_shared/write-refusal-diagnostics.
 builds a hashed receipt for every gateway refusal and calls
 `production_write_refusal_record_v1`, which inserts into
 `write_refusal_diagnostics.receipts_v1`. **That table holds 0 rows, ever**
-(read-only count 2026-09-21). Refusals certainly happened in that period —
-the gate's own tests exercise 4xx paths and OPEN_REPAIRS 101 exists because a
-refused write leaves only a browser-side ring — so the recorder is not
-reaching the table: either the 500 ms race in `reportGatewayRefusal` resolves
-`unknown` before the RPC lands, the RPC's shape check raises on the receipt
-the gateway actually builds, or the grant on the schema refuses the service
-role. The header the gateway sets on a refusal (`x-write-diagnostic-status`)
-would say which, but no client stores it.
+(read-only count 2026-09-21). **Cause, corrected the same day after the Codex
+review of the PR that added this entry:** the recorder was never wired in.
+The deployed `supabase/functions/production-write/index.ts` does not import or
+call `reportGatewayRefusal`; the only thing that adds that call is
+`scripts/linear-exit-write-diagnostics-compose.js`, and
+`docs/ops/WRITE_REFUSAL_DIAGNOSTICS_PREPARATION_20260912.md` says plainly that
+the composed gateway was prepared and tested in isolation but not merged,
+deployed or activated. So the zero-row count is expected, not a failing RPC,
+race or grant; those remain unmeasured because nothing has ever called the RPC
+from a live refusal.
 
 **Why it matters.** This was the one server-side trace that could have told us,
 in seconds, whether the archive-park request reached the gateway and was
 refused or never arrived. It is exactly the observability OPEN_REPAIRS 101 asked
-for, and it has been silently off since it shipped.
+for, and it has never been switched on: the schema, RPC and module shipped, the
+gateway that would call them did not.
 
-**Fix, owed.** From the owner's machine, call the RPC once with a receipt the
-gateway would build (a fixture, hashed identifiers) and read the error; fix the
-mismatch; then add a post-deploy probe that asserts one synthetic refusal
-produces one row. Report the count only, never the identifiers.
+**Fix, owed.** Merge and deploy the prepared composition: run
+`scripts/linear-exit-write-diagnostics-compose.js` against `production-write`
+(and the browser half it composes), review the composed source, deploy it through
+the Section 4 lane (capture first, per `CLAUDE.md`), then add a post-deploy
+probe that asserts one synthetic refusal produces one row in
+`write_refusal_diagnostics.receipts_v1`. Only if that probe still reads 0 does
+the RPC shape, the 500 ms race or the schema grant become the question. Report
+the count only, never the identifiers.

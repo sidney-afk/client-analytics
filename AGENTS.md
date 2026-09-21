@@ -57,6 +57,8 @@
 
 This repo is a single-file SyncView app served by GitHub Pages from `index.html`.
 
+index.html is a build output; edit src/index/ fragments and run npm run build:index, never edit index.html directly
+
 **When telling the owner to run a GitHub Actions workflow, always give the
 direct link to it** (owner directive, 2026-09-01, after being asked twice in
 one session): `https://github.com/sidney-afk/client-analytics/actions/workflows/<file>.yml`

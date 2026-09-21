@@ -1,5 +1,7 @@
 # SyncView — session context
 
+index.html is a build output; edit src/index/ fragments and run npm run build:index, never edit index.html directly
+
 Single-file SPA (`index.html`) + Supabase Edge Functions + Postgres migrations,
 deployed to `syncview.synchrosocial.com` by GitHub Pages on every push to `main`.
 `AGENTS.md` is the house standard and outranks this file; `REPO_MAP.md` is the

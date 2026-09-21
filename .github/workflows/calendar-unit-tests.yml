@@ -52,6 +52,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Check index.html is exactly the assembled src/index/ fragments
+        run: npm run check:index
       - name: Run unit suite (test/*.js)
         run: node test/run-all.js
 

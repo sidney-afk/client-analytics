@@ -82,6 +82,14 @@ const EXPECTED_CLOSURE_PATHS = Object.freeze([
   'scripts/prod-authority-guard.js',
 ].sort());
 const REVIEWED_BLOB_SHA256 = Object.freeze({
+  // Re-pinned 2026-09-21 for the index.html modularization Step 0: ONE blob,
+  // `package.json`, gained two npm aliases (`build:index`, `check:index`) and
+  // nothing else. Closure membership UNCHANGED: no file entered or left, no
+  // new dependency, no new entrypoint, no reconcile/apply/flag/authority path
+  // touched. Hash comes from `git show HEAD:package.json | sha256sum` on the
+  // commit that made the change, never typed by hand. (Previous pin:
+  // 3f0e7d8d...)
+  //
   // Re-pinned 2026-09-20 for the Linear cutoff's STEP 6, exactly the double drift
   // the `NOTE for whoever retires reconciler_pager` below predicted. Two blobs
   // moved and nothing else: WORKFLOW_PATH lost its `cron:` block (commented out,
@@ -123,7 +131,7 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   '.github/workflows/linear-deliverables-reconcile.yml':
     'c906a47ca54a4e35092ddc7886402da0a78804b8e2bbaf0ffcf6414bc3ba23f8',
   'package.json':
-    '3f0e7d8dd25a3954ab2107764f025613180568fde8ecbeb1d60080a7af7d8c62',
+    '2ecb2fb69d4ec39a64a7051cd19c0b706de465e946d80a5ad942e2854109ca84',
   // Re-pinned 2026-08-17: the linkage backfill's authority guard was split so
   // that filling a card's NULL deliverable slot is allowed under SyncView
   // authority (it only resolves a link the card already carries) while archive

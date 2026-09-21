@@ -69,7 +69,7 @@ const allowed = [
   /function addedPathsContaining\(term, base\) \{/,
   /const out = git\(\[.*term\], \{ termInArgs: true \}\);/,
   /const needle = term\.toLowerCase\(\);/,
-  /line\.includes\(term\)\) count\+\+;/,
+  /if \(line\.startsWith\(''\) && !line\.startsWith\(''\) && line\.includes\(term\)\) \{/,
   /for \(const \{ kind, term \} of terms\)/,
   /\? addedLinesContaining\(term, DIFF_BASE\)\.map\(h => h\.file\)\.concat\(addedPathsContaining\(term, DIFF_BASE\)\)/,
   /: filesContaining\(term\)\.concat\(pathsContaining\(term\)\);/,

@@ -216,9 +216,33 @@ function pathsContaining(term) {
    Scanning the ADDED LINES of a change needs no committed baseline, catches a
    swap exactly, and stays privacy-preserving. So it is what CI runs, and any
    roster term in an added line or an added path fails it. */
+/* A LINE MOVED, NOT A LINE ADDED. `git diff` cannot tell a line that is
+   genuinely new from one whose bytes simply landed at a new path -- a source
+   split that copies `index.html` verbatim into new fragment files makes every
+   one of those bytes look "added" to diff, term for term, even though not one
+   of them became newly public: the whole file was already tracked and public
+   at `base`. Owner-ratified 2026-09-21: an added line whose bytes are exactly
+   a line already present in `base`'s `index.html` is not new exposure and
+   does not count. This is intentionally narrow -- an EXACT full-line byte
+   match against `index.html` at the diff base only, nothing normalized,
+   nothing fuzzy, and no name- or path-based exemption of any kind. A change
+   that reflows, retypes or introduces a roster term on a line that did not
+   already read that way in `base`'s `index.html` is still caught. */
+let baseIndexHtmlLineSet = null;
+let baseIndexHtmlLineSetBase = null;
+function baseIndexHtmlLines(base) {
+  if (baseIndexHtmlLineSetBase !== base) {
+    const out = git(['show', `${base}:index.html`], {});
+    baseIndexHtmlLineSet = new Set(out === null ? [] : out.split('\n'));
+    baseIndexHtmlLineSetBase = base;
+  }
+  return baseIndexHtmlLineSet;
+}
+
 function addedLinesContaining(term, base) {
   const out = git(['diff', '--unified=0', base + '...HEAD'], {});
   if (out === null) return [];
+  const preexisting = baseIndexHtmlLines(base);
   const hits = [];
   let current = null, count = 0;
   const flush = () => { if (current && count) hits.push({ file: current, count }); current = null; count = 0; };
@@ -226,7 +250,17 @@ function addedLinesContaining(term, base) {
     if (line.startsWith('+++ b/')) { flush(); current = line.slice(6).trim(); continue; }
     if (line.startsWith('+++ ')) { flush(); current = null; continue; }
     if (!current) continue;
-    if (line.startsWith('+') && !line.startsWith('+++') && line.includes(term)) count++;
+    if (line.startsWith('+') && !line.startsWith('+++') && line.includes(term)) {
+      /* Owner-tightened 2026-09-21 (Codex P1 on #1464): the exemption below is
+         scoped to a verified fragment cut, not any destination whatsoever —
+         only a line landing in a `src/index/*.part` fragment can be a moved
+         byte of the modularization split; a roster term reaching any other
+         file is new exposure regardless of whether the same line happens to
+         already exist somewhere in `index.html`. */
+      const isFragmentDestination = current.startsWith('src/index/') && current.endsWith('.part');
+      if (isFragmentDestination && preexisting.has(line.slice(1))) continue; // moved verbatim from base's index.html into a fragment — not new exposure
+      count++;
+    }
   }
   flush();
   return hits;

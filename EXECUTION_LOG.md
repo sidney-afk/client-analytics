@@ -7653,3 +7653,20 @@ date before):
 Single guarded update (`where issue_id = any($1) and plan_date is not null`),
 row count verified equal to 6 before commit. Re-running the corrected
 read-only query afterward returns **0**. No client name in this entry.
+
+## 2026-09-21 — Production: batch detail view orders deliverables like the parent view
+
+Browser-only change, no live write. `_prodBatchDetail` (`?prod=1&batch=<id>`)
+rendered `_prodBatchRows(batchId)` as-is, and that function only filtered —
+it never sorted — so a 16-video batch showed videos and thumbnails
+interleaved and out of numeric order. The parent view's sub-issue section
+already orders correctly via `_prodChildrenOf` (owner ruling 2026-08-19:
+video team first, then graphics, titles compared numerically, stable id
+tiebreak). The comparator is now lifted into a shared `_prodChildOrder(a, b)`,
+used by both `_prodChildrenOf` and `_prodBatchRows`, so the two views agree.
+Other `_prodBatchRows` callers checked: the keyboard-selectable-order list
+now matches what the batch view displays (was arbitrary fetch order, an
+improvement), and the batch view's asset-prefetch picks the numerically-first
+row instead of an arbitrary one (harmless). Verified by
+`test/prod-batch-detail-order.js` (synthetic 16-video/16-thumbnail batch in
+shuffled fetch order; red on `origin/main`, green after).

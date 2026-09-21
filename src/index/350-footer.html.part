@@ -1,0 +1,398 @@
+</script>
+
+<!-- Transcript preview modal -->
+<div id="transcriptOverlay" class="transcript-overlay" data-backdrop-dismiss onclick="closeTranscriptModal(event)">
+    <div class="transcript-modal" onclick="event.stopPropagation()">
+        <div class="transcript-modal-header">
+            <div>
+                <div class="transcript-modal-title" id="transcriptModalTitle">Transcript</div>
+                <div class="transcript-modal-meta" id="transcriptModalMeta"></div>
+            </div>
+            <button class="transcript-modal-close" onclick="closeTranscriptModal()">
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+        </div>
+        <div class="transcript-modal-body" id="transcriptModalBody"></div>
+    </div>
+</div>
+
+<!-- ── App auto-update nudge ──────────────────────────────────────────────
+     SyncView is a single index.html on GitHub Pages with no build step, so a
+     browser tab left open keeps running whatever version it loaded — a new
+     deploy is NOT picked up until the page is reloaded. SMMs (and clients) keep
+     the tab open for days, so they can silently run stale code: e.g. a thumbnail
+     rendering change that shipped after they last loaded looks "broken" to them
+     while everyone on a fresh load sees it work. This polls the deployed file's
+     version token (the GitHub Pages ETag / Last-Modified, which changes on every
+     deploy) and, when it changes, acts on the reader's behalf.
+
+     WHAT IT DOES DEPENDS ON WHERE THE READER IS (owner ruling, 2026-08-24):
+     *"a tab should reload itself when a new version is shipped, if it's in the
+     background. But if someone is in the tab, then they should just propose to
+     reload it."* A backgrounded tab is the one nobody is looking at and the one
+     that goes stale for days, so it reloads itself; a tab someone is actually
+     in only ever gets the bar.
+
+     The self-reload is conditional, and deliberately so. A reader who tabs away
+     mid-compose has left work in the page that a reload would silently destroy,
+     and they would come back to an empty form with no explanation — a worse
+     failure than the staleness this exists to fix. So a hidden tab reloads only
+     when nothing typed is uncommitted and nothing is open on top of the page;
+     otherwise it falls back to the bar, which is waiting when they return. -->
+<script>
+(function appUpdateNudge(){
+    // Only meaningful when served over HTTP from the deploy host. Skip file://
+    // (local opens) so unit/e2e harnesses and offline opens never poll or nudge.
+    if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+    /*
+     * Skip a LOOPBACK host, not the Production tab.
+     *
+     * This used to read `if (?prod=1) return;` (#779, July 2026, when the
+     * Production tab was an in-development preview). The reason was almost
+     * certainly the browser suites: they serve this file over
+     * http://127.0.0.1, so the protocol guard above does not skip them, and a
+     * poll plus a possible banner mid-run is exactly the nondeterminism a
+     * pixel comparison cannot survive.
+     *
+     * That guard aimed at the wrong thing. It silenced the nudge for every
+     * REAL user of ?prod=1 while leaving it running in the harnesses that load
+     * the page without that flag. And at F1 the Production tab becomes the
+     * whole video team's daily surface — the one place a week-old tab does the
+     * most damage, and the only one with no stale-tab warning. A week-old tab
+     * is what produced 30 rows born "In Progress" on 2026-08-24 (OPEN_REPAIRS
+     * item 35).
+     *
+     * A loopback test covers strictly more: every harness serves from
+     * 127.0.0.1 or localhost, so all of them stay silent, and it matches what
+     * the line above already says — this is only meaningful when served from
+     * the DEPLOY HOST. A locally served copy has no deploy to compare against.
+     */
+    if (/^(?:localhost|127(?:\.\d{1,3}){3}|\[::1\]|::1|0\.0\.0\.0)$/i.test(location.hostname)) return;
+    var POLL_MS = 5 * 60 * 1000;          // re-check every 5 min (and on tab focus)
+    // A background tab now polls too — that is the whole point of the
+    // self-reload — so a stuck deploy token could otherwise reload it on every
+    // tick forever. One auto-reload per tab per half hour, and the stamp lives
+    // in sessionStorage: it survives the reload it just caused (which is what
+    // breaks the loop) and is scoped to THIS tab, so a second tab is not
+    // silenced by the first one's reload.
+    var AUTO_MIN_GAP_MS = 30 * 60 * 1000;
+    var AUTO_KEY = 'svAutoReloadedAt';
+    var baseline = null;                   // the version token this tab is running
+    /*
+     * THE VERSION FLOOR (owner request 2026-08-27): the banner above is polite
+     * by design, and "polite" is how one SMM ran a pre-fix tab for days —
+     * dismiss adopts the new token, so a dismissed build never nags again.
+     * Two escalations close that hole, both ending in a full-screen reload
+     * wall a tab cannot dismiss:
+     *
+     *   1. STALE TOO LONG — a tab that has known about a newer version for
+     *      ESCALATE_MS and still runs the old one gets the wall. No owner
+     *      action needed; this is the default protection.
+     *   2. THE FLOOR FLAG — `app_version_floor` `{"at":"<RFC3339>"}` in
+     *      syncview_runtime_flags. When set to a time that has passed, every
+     *      STALE tab gets the wall immediately: the owner's "everyone off the
+     *      old build NOW" switch after a critical fix.
+     *
+     * Invariant either way: a CURRENT tab (token matches the one it loaded
+     * with) can never see the wall — both triggers require staleness first,
+     * so a bad flag value can never lock the fleet out of a healthy build.
+     * And the wall defers to `wouldLoseWork()` exactly like the self-reload:
+     * an unsaved caption downgrades it to the banner until the edit clears.
+     */
+    var ESCALATE_MS = 4 * 60 * 60 * 1000;  // stale + ignored this long -> wall
+    var FLOOR_TTL_MS = 10 * 60 * 1000;     // floor flag re-read at most this often
+    var firstBaseline = null;              // load-time token; dismiss never touches it
+    var docBornMs = Date.parse(document.lastModified || '') || 0; // when THIS document was served
+    var staleSince = 0;                    // when this tab first saw a newer deploy
+    var floorAtMs = 0;                     // parsed app_version_floor.at, 0 = none
+    var floorCheckedAt = 0;
+    function floorVerdict(nowMs, staleSinceMs, floorMs, stale){
+        if (!stale) return 'none';
+        if (floorMs > 0 && nowMs >= floorMs) return 'block';
+        if (staleSinceMs > 0 && (nowMs - staleSinceMs) >= ESCALATE_MS) return 'block';
+        return 'banner';
+    }
+    function refreshFloor(){
+        if (Date.now() - floorCheckedAt < FLOOR_TTL_MS) return;
+        floorCheckedAt = Date.now();
+        try {
+            if (typeof CAL_SUPABASE_URL !== 'string' || !CAL_SUPABASE_URL
+                || typeof CAL_SUPABASE_ANON_KEY !== 'string' || !CAL_SUPABASE_ANON_KEY) return;
+            fetch(CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.app_version_floor&limit=1', {
+                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
+            }).then(function(resp){ return resp.ok ? resp.json() : []; }).then(function(rows){
+                var at = rows && rows[0] && rows[0].value && rows[0].value.at;
+                var ms = Date.parse(String(at || ''));
+                floorAtMs = isFinite(ms) && ms > 0 ? ms : 0;
+            }).catch(function(){});
+        } catch (e) {}
+    }
+    function tokenOf(resp){ return resp.headers.get('etag') || resp.headers.get('last-modified') || ''; }
+    function visibleEl(el){
+        if (!el) return false;
+        var r = el.getBoundingClientRect();
+        if (r.width <= 0 && r.height <= 0) return false;
+        var cs = window.getComputedStyle(el);
+        return cs.display !== 'none' && cs.visibility !== 'hidden' && cs.opacity !== '0';
+    }
+    /* Is this control on a surface the reader can actually see?
+     *
+     * Judged from the PARENT, never the control itself, because every SyncView
+     * control that carries a value is invisible by construction: sv-select
+     * keeps its value in a `type=hidden` input (display:none from the UA
+     * sheet), and sv-date keeps its in a 1px `opacity:0` input. Testing the
+     * control's own box would answer "not visible" for all of them and skip
+     * exactly the fields most likely to hold a reader's unsaved choice. The
+     * visible wrapper is the honest thing to ask about.
+     */
+    function onRenderedSurface(el){
+        var node = el && el.parentElement;
+        while (node && node.nodeType === 1) {
+            var cs = window.getComputedStyle(node);
+            if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+            var r = node.getBoundingClientRect();
+            if (r.width > 0 || r.height > 0) return true;
+            node = node.parentElement;
+        }
+        return false;
+    }
+    /* Would reloading right now throw away something the reader typed?
+     *
+     * Deliberately generic. The alternative — asking each surface whether it is
+     * busy — means every new composer has to remember to opt in, and the one
+     * that forgets is the one that eats someone's caption. This asks the DOM
+     * instead: a field whose value has moved off its default, or anything
+     * sitting open on top of the page, both mean work in progress regardless of
+     * which surface put it there.
+     *
+     * It errs toward "dirty" on purpose. A false dirty costs a self-reload the
+     * reader gets offered as a banner instead; a false clean costs them a
+     * half-written caption with no explanation, which is the failure mode this
+     * whole file keeps having to apologise for. The known false dirty is
+     * Workload's client filter, which is set through .value (so it reads as
+     * moved off its default) whenever a client is selected -- a filtered
+     * Workload tab gets the banner rather than a silent reload, and its filter
+     * survives. That is the trade in the right direction.
+     */
+    /* A branded control's value is invisible to defaultValue.
+     *
+     * sv-select stores its value in a `type=hidden` input, and hidden inputs
+     * use HTML's "default" value mode: assigning `.value` writes the content
+     * attribute too, so `defaultValue` moves with it and can never disagree.
+     * Comparing them says "unchanged" no matter what the reader picked, which
+     * is precisely how a leave request -- a select, two dates, a tick, none of
+     * them a plain text field -- could be reloaded away.
+     *
+     * So the reader's own interaction is recorded where a re-render will clean
+     * it up: a marker on the element. `_svSelectPick` dispatches bubbling
+     * `input` and `change` events, as do the stepper and the date picker, so
+     * one capture-phase listener sees every branded control without any of
+     * them opting in. When the app re-renders that surface -- which is what a
+     * successful save does -- the element is replaced and the marker goes with
+     * it, so the tab becomes eligible again without anyone clearing a flag.
+     */
+    var EDIT_MARK = 'svUnsavedEdit';
+    function markEdited(event){
+        var el = event && event.target;
+        if (!el || el.nodeType !== 1 || !el.dataset) return;
+        var type = String(el.type || '').toLowerCase();
+        if (type === 'button' || type === 'submit' || type === 'reset' || type === 'image') return;
+        el.dataset[EDIT_MARK] = '1';
+    }
+    document.addEventListener('input', markEdited, true);
+    document.addEventListener('change', markEdited, true);
+    function wouldLoseWork(){
+        var edited = document.querySelectorAll('[data-sv-unsaved-edit]');
+        for (var k = 0; k < edited.length; k++) if (onRenderedSurface(edited[k])) return true;
+        var fields = document.querySelectorAll('input, textarea, select, [contenteditable="true"]');
+        for (var i = 0; i < fields.length; i++) {
+            var el = fields[i];
+            if (el.isContentEditable) {
+                if (visibleEl(el) && String(el.textContent || '').trim()) return true;
+                continue;
+            }
+            var type = String(el.type || 'text').toLowerCase();
+            if (type === 'button' || type === 'submit' || type === 'reset' || type === 'image') continue;
+            if (!onRenderedSurface(el)) continue;
+            /* A tick is a choice too. Skipping checkboxes lost "PTO enabled" on
+             * the member-setup form, which is a checkbox and nothing else. */
+            if (type === 'checkbox' || type === 'radio') {
+                if (el.checked !== el.defaultChecked) return true;
+                continue;
+            }
+            if (String(el.value == null ? '' : el.value)
+                !== String(el.defaultValue == null ? '' : el.defaultValue)) return true;
+        }
+        var open = document.querySelectorAll('[role="dialog"], [aria-modal="true"], dialog[open]');
+        for (var j = 0; j < open.length; j++) if (visibleEl(open[j])) return true;
+        return false;
+    }
+    // No storage means no loop guard, so no self-reload either. Failing to the
+    // bar costs a click; failing the other way reloads forever.
+    function mayAutoReload(){
+        try {
+            var raw = window.sessionStorage.getItem(AUTO_KEY);
+            if (!raw) return true;
+            var at = parseInt(raw, 10);
+            return !(at > 0 && (Date.now() - at) < AUTO_MIN_GAP_MS);
+        } catch (e) { return false; }
+    }
+    function stampAutoReload(){
+        try { window.sessionStorage.setItem(AUTO_KEY, String(Date.now())); return true; }
+        catch (e) { return false; }
+    }
+    function check(){
+        // HEAD the app's own URL (path only — strips any ?client=… share params)
+        // with no-store so we read the live deployed headers, not a cached copy.
+        fetch(location.pathname, { method: 'HEAD', cache: 'no-store' })
+            .then(function(resp){
+                if (!resp.ok) return;
+                var t = tokenOf(resp);
+                if (!t) return;                                   // host gave us nothing to compare
+                if (baseline === null) { baseline = t; firstBaseline = t; return; } // first poll = the running version
+                /* Staleness is judged against the LOADED DOCUMENT, not the
+                 * first poll (Codex review, 2026-08-27): a tab restored from
+                 * cache after a deploy runs OLD JavaScript while its first
+                 * HEAD already returns the NEW token, so a token-only baseline
+                 * calls that tab current forever. document.lastModified is the
+                 * header of the response that produced THIS document — cached
+                 * or not — so comparing it against the deploy's Last-Modified
+                 * catches the restored tab too. The token comparison remains
+                 * the fallback for a host that sends no parseable dates, and
+                 * dismiss still cannot touch either clock. One minute of slack
+                 * absorbs serving jitter.
+                 */
+                var lmMs = Date.parse(resp.headers.get('last-modified') || '') || 0;
+                var stale = (docBornMs > 0 && lmMs > 0)
+                    ? (lmMs - docBornMs > 60 * 1000)
+                    : (t !== firstBaseline);
+                if (!stale) { staleSince = 0; }
+                else if (!staleSince) { staleSince = Date.now(); }
+                if (stale) refreshFloor();
+                if (floorVerdict(Date.now(), staleSince, floorAtMs, stale) === 'block') {
+                    if (!wouldLoseWork()) { showFloor(); return; }
+                    /* The wall is deferred for unsaved work — but a deferred
+                     * wall must never mean silence (Codex review): a dismissed
+                     * build plus a permanently dirty control (the Workload
+                     * filter false-positive is the known one) would otherwise
+                     * run stale forever with no warning at all. Keep the
+                     * banner up while the wall waits. */
+                    if (!document.getElementById('svUpdateBar')) showBar(t);
+                    return;
+                }
+                /* A document-stale tab gets the banner even when the token
+                 * cannot tell it apart (the cache-restore case above) — there
+                 * dismiss re-arms next poll, which is the honest trade: this
+                 * tab IS running old code. */
+                if (t === baseline && !stale) return;
+                // Nobody is looking, and nothing would be lost -> just take it.
+                if (document.hidden && mayAutoReload() && !wouldLoseWork() && stampAutoReload()) {
+                    location.reload();
+                    return;
+                }
+                if (!document.getElementById('svUpdateBar')) showBar(t);
+            })
+            .catch(function(){});            // offline / transient — just try again next tick
+    }
+    function injectStyle(){
+        if (document.getElementById('svUpdateStyle')) return;
+        var s = document.createElement('style');
+        s.id = 'svUpdateStyle';
+        s.textContent =
+            '#svUpdateBar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:2147483000;'
+            + 'display:flex;align-items:center;gap:14px;max-width:calc(100vw - 32px);padding:11px 12px 11px 18px;'
+            + 'border-radius:12px;background:var(--sv-bg-111110);color:var(--sv-fg-fff);font-family:"Plus Jakarta Sans",system-ui,sans-serif;'
+            + 'font-size:0.84rem;font-weight:500;box-shadow:0 12px 36px var(--sv-shadow-rgba-0-0-0-0_30);animation:svUpIn .28s ease}'
+            + '@keyframes svUpIn{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}'
+            + '#svUpdateBar .sv-up-txt{line-height:1.3}'
+            + '#svUpdateBar button{font-family:inherit;cursor:pointer;border:none;border-radius:8px}'
+            + '#svUpdateBar .sv-up-reload{background:var(--sv-bg-fff);color:var(--sv-fg-111110);font-weight:700;font-size:0.8rem;padding:7px 15px;white-space:nowrap}'
+            + '#svUpdateBar .sv-up-reload:hover{background:var(--sv-bg-ececea)}'
+            + '#svUpdateBar .sv-up-x{background:transparent;color:var(--sv-fg-b4b4ae);font-size:1.15rem;line-height:1;padding:2px 8px}'
+            + '#svUpdateBar .sv-up-x:hover{color:var(--sv-fg-fff)}'
+            + '#svUpdateWall{position:fixed;inset:0;z-index:2147483200;display:flex;align-items:center;justify-content:center;'
+            + 'background:var(--sv-bg-rgba-17-17-16-0_82);animation:svWallIn .22s ease}'
+            + '@keyframes svWallIn{from{opacity:0}to{opacity:1}}'
+            + '#svUpdateWall .sv-wall-card{max-width:420px;margin:16px;padding:28px 30px;border-radius:16px;'
+            + 'background:var(--sv-bg-111110);color:var(--sv-fg-fff);font-family:"Plus Jakarta Sans",system-ui,sans-serif;'
+            + 'box-shadow:0 24px 64px var(--sv-shadow-rgba-0-0-0-0_30);text-align:center}'
+            + '#svUpdateWall .sv-wall-head{font-size:1.02rem;font-weight:700;line-height:1.35;margin:0 0 8px}'
+            + '#svUpdateWall .sv-wall-body{font-size:0.86rem;font-weight:500;color:var(--sv-fg-b4b4ae);line-height:1.5;margin:0 0 18px}'
+            + '#svUpdateWall .sv-up-reload{background:var(--sv-bg-fff);color:var(--sv-fg-111110);font-weight:700;'
+            + 'font-size:0.84rem;padding:9px 22px;border:none;border-radius:9px;cursor:pointer;font-family:inherit}'
+            + '#svUpdateWall .sv-up-reload:hover{background:var(--sv-bg-ececea)}';
+        document.head.appendChild(s);
+    }
+    /* The reload wall. Deliberately has NO dismiss control, no Escape handler
+     * and no click-through: by the time it appears the tab is provably stale
+     * past the grace window (or past an owner-set floor), and every dismissal
+     * affordance here is another day of a pre-fix tab writing through
+     * yesterday's rules. Nothing typed is thrown away — the wall only shows
+     * when wouldLoseWork() said the surface is clean. */
+    function showFloor(){
+        injectStyle();
+        if (document.getElementById('svUpdateWall')) return;
+        var bar = document.getElementById('svUpdateBar');
+        if (bar) bar.remove();
+        var wall = document.createElement('div');
+        wall.id = 'svUpdateWall';
+        wall.setAttribute('role', 'alertdialog');
+        wall.setAttribute('aria-modal', 'true');
+        wall.setAttribute('aria-label', 'Update required');
+        var card = document.createElement('div');
+        card.className = 'sv-wall-card';
+        var head = document.createElement('p');
+        head.className = 'sv-wall-head';
+        head.textContent = 'This tab is running an outdated version of SyncView.';
+        var body = document.createElement('p');
+        body.className = 'sv-wall-body';
+        body.textContent = 'Reload to keep working. Everything you saved is safe.';
+        var reload = document.createElement('button');
+        reload.type = 'button'; reload.className = 'sv-up-reload'; reload.textContent = 'Reload now';
+        reload.addEventListener('click', function(){ location.reload(); });
+        card.appendChild(head); card.appendChild(body); card.appendChild(reload);
+        wall.appendChild(card);
+        /* aria-modal is a promise, not a spell (Codex review): without a trap,
+         * Tab walks straight out of the wall into the stale page underneath,
+         * where every control still works. One focusable exists, so the trap
+         * is total: Tab of either direction stays on the button, and focus
+         * that lands outside (mouse, script, devtools) is walked back. Escape
+         * is deliberately NOT handled — there is nothing to close. */
+        wall.addEventListener('keydown', function(ev){
+            if (ev.key === 'Tab') { ev.preventDefault(); try { reload.focus(); } catch (e) {} }
+        });
+        document.addEventListener('focusin', function(ev){
+            var live = document.getElementById('svUpdateWall');
+            if (live && ev.target && !live.contains(ev.target)) { try { reload.focus(); } catch (e) {} }
+        });
+        document.body.appendChild(wall);
+        try { reload.focus(); } catch (e) {}
+    }
+    function showBar(t){
+        injectStyle();
+        var bar = document.createElement('div');
+        bar.id = 'svUpdateBar';
+        bar.setAttribute('role', 'status');
+        var msg = document.createElement('span');
+        msg.className = 'sv-up-txt';
+        msg.textContent = 'A new version of SyncView is available — reload to get the latest.';
+        var reload = document.createElement('button');
+        reload.type = 'button'; reload.className = 'sv-up-reload'; reload.textContent = 'Reload';
+        reload.addEventListener('click', function(){ location.reload(); });
+        var dismiss = document.createElement('button');
+        dismiss.type = 'button'; dismiss.className = 'sv-up-x'; dismiss.textContent = '×';
+        dismiss.setAttribute('aria-label', 'Dismiss');
+        // Dismiss = "I've seen this build" — adopt the new token so we only nudge
+        // again if a YET newer version ships, instead of re-popping every poll.
+        dismiss.addEventListener('click', function(){ baseline = t; bar.remove(); });
+        bar.appendChild(msg); bar.appendChild(reload); bar.appendChild(dismiss);
+        document.body.appendChild(bar);
+    }
+    setTimeout(check, 4000);               // capture the baseline shortly after load
+    setInterval(check, POLL_MS);
+    document.addEventListener('visibilitychange', function(){ if (!document.hidden) check(); });
+    window.addEventListener('focus', check);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1288 @@
+    function _kedPaint() {
+        const data = _kasperState.editorsData;
+        const body = document.getElementById('kedBody');
+        if (!body || !data) return;
+        // Historical attribution must retain inactive/removed roster identity.
+        // This view is history, not a current staffing picker.
+        const editors = Array.isArray(data.editors) ? data.editors : [];
+        const unattributed = data.unattributed || {};
+        const unknown = Number(unattributed.unknown || 0);
+        const unassigned = Number(unattributed.unassigned || 0);
+        const attributionNote = (unknown || unassigned)
+            ? `<div class="ked-empty-sub">${unknown ? `${unknown} status ${unknown === 1 ? 'change has' : 'changes have'} no event-time assignee proof and ${unknown === 1 ? 'is' : 'are'} not credited.` : ''}${unknown && unassigned ? ' ' : ''}${unassigned ? `${unassigned} ${unassigned === 1 ? 'change was' : 'changes were'} unassigned at the event and ${unassigned === 1 ? 'is' : 'are'} not credited.` : ''}</div>`
+            : '';
+
+        const weekEl = document.getElementById('kedWeekLabel');
+        if (weekEl) weekEl.textContent = data.weekLabel || 'Last week';
+
+        if (!editors.length) {
+            body.innerHTML = `<div class="ked-empty-msg">No editor deliveries with event-time attribution last week.${attributionNote}</div>`;
+            return;
+        }
+
+        // Shared y-axis across all editors so per-day bars are visually comparable.
+        let globalDailyMax = 1;
+        for (const ed of editors) {
+            const perDay = _kedEditorStats(ed).perDay;
+            for (const k of Object.keys(perDay)) {
+                if (perDay[k] > globalDailyMax) globalDailyMax = perDay[k];
+            }
+        }
+        const weekDates = _kedWeekDateKeys(data.weekStart);
+        const anyWeekendActivity = editors.some(ed => {
+            const pd = _kedEditorStats(ed).perDay;
+            const sat = weekDates[5] && pd[weekDates[5].key];
+            const sun = weekDates[6] && pd[weekDates[6].key];
+            return (sat || 0) + (sun || 0) > 0;
+        });
+
+        const rows = editors.map(ed => _kedRow(ed, weekDates, globalDailyMax, anyWeekendActivity)).join('');
+        body.innerHTML = `<div class="ked-list">${rows}</div>${attributionNote}`;
+    }
+
+    function _kedWeekDateKeys(weekStartISO) {
+        // weekStartISO is UTC midnight that corresponds to Chicago Monday.
+        // We want the 7 date keys in America/Chicago (Mon..Sun) so they
+        // match the keys that the server stamps onto perDay.
+        const TZ = 'America/Chicago';
+        const labels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+        const start = new Date(weekStartISO);
+        const out = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(start.getTime() + i * 86400000);
+            const key = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+            out.push({ key, label: labels[i], date: d });
+        }
+        return out;
+    }
+
+    function _kedInitials(name) {
+        const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+        if (!parts.length) return '?';
+        if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+
+    function _kedDayLong(short) {
+        return { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' }[short] || short;
+    }
+
+    // ── Editor work model ───────────────────────────────────────────
+    // "How much did an editor ship?" is counted in DELIVERIES. A delivery is
+    // the editor handing a video off for review: a transition whose TARGET is
+    // a review column (For SMM / Kasper / Client approval) and whose PREVIOUS
+    // state was one the editor was holding the video in (In Progress, Todo,
+    // Backlog, Tweak Needed).
+    //   • from Tweak Needed  → a tweak round (re-work delivered)
+    //   • from anything else → a first cut   (new work delivered)
+    // Reviewer / pipeline moves are NOT deliveries and never count as editor
+    // work: review→review (SMM→Kasper, Kasper→Client), review→Tweak Needed
+    // (reviewer asking for changes), →Approved/Posted (sign-off), Todo→In
+    // Progress (just picking it up). Finishes (reached Approved/Posted) and
+    // work-in-progress (started, not yet delivered) are tracked separately as
+    // outcomes — they are not folded into the work number.
+    //
+    // Real Linear statuses carry quirks — trailing spaces ("Tweak Needed ")
+    // and mixed case ("For SMM approval" vs "For Client Approval") — so every
+    // comparison normalises through _kedNorm first.
+    function _kedNorm(s) { return String(s == null ? '' : s).trim().toLowerCase(); }
+
+    // Target of a delivery. Loose keyword match (robust to "For SMM approval"
+    // and future "SMM Approval" style renames). Only meaningful paired with the
+    // from-is-a-work-state check below — on its own it also matches a reviewer
+    // moving a video INTO a review column.
+    function _kedReviewTarget(norm) {
+        if (/smm/.test(norm))           return 'smm';
+        if (/kasper|casper/.test(norm)) return 'kasper';
+        if (/client/.test(norm))        return 'client';
+        return null;
+    }
+    function _kedIsTweakState(norm) {
+        return norm === 'tweak needed' || norm === 'tweaks needed';
+    }
+    // States the editor holds a video in; a move OUT of one INTO a review
+    // column is the editor delivering.
+    function _kedIsWorkState(norm) {
+        return norm === 'in progress'
+            || norm === 'todo' || norm === 'to do'
+            || norm === 'backlog'
+            || _kedIsTweakState(norm);
+    }
+    function _kedIsFinishState(norm) {
+        return norm === 'approved' || norm === 'posted';
+    }
+
+    // The deliveries for one video, de-bounced. Status-flip noise (a video
+    // toggled in and out of a review column several times the same day) is
+    // collapsed to at most one delivery per (day, kind), so a couple of stray
+    // clicks don't read as extra rounds. Memoised on the video object.
+    function _kedVideoDeliveries(v) {
+        if (v && v._kedDeliveries) return v._kedDeliveries;
+        const trs = ((v && v.transitions) || []).slice()
+            .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+        const seen = new Set();
+        const out = [];
+        for (const t of trs) {
+            if (!_kedReviewTarget(_kedNorm(t.status))) continue; // must land in a review column
+            const from = _kedNorm(t.from);
+            if (!_kedIsWorkState(from)) continue;                // must come from an editor-held state
+            const dayKey = t.dayKey || String(t.at || '').slice(0, 10);
+            const kind = _kedIsTweakState(from) ? 'tweak' : 'firstcut';
+            const key = dayKey + '|' + kind;
+            if (seen.has(key)) continue;                         // de-bounce same (day, kind)
+            seen.add(key);
+            out.push({ at: t.at, dayKey, kind });
+        }
+        if (v) { try { Object.defineProperty(v, '_kedDeliveries', { value: out, enumerable: false }); } catch (e) { v._kedDeliveries = out; } }
+        return out;
+    }
+    function _kedVideoFinished(v) {
+        return ((v && v.transitions) || []).some(t => _kedIsFinishState(_kedNorm(t.status)));
+    }
+    // Started but not delivered: has an In Progress transition, no delivery
+    // this week, and never reached a finish state.
+    function _kedVideoIsWip(v) {
+        if (_kedVideoDeliveries(v).length) return false;
+        if (_kedVideoFinished(v)) return false;
+        return ((v && v.transitions) || []).some(t => _kedNorm(t.status) === 'in progress');
+    }
+
+    // "In his court" = the ball is with the editor: actively editing (In
+    // Progress) or owing a fix (Tweaks Needed). Waiting on a reviewer, done,
+    // or sitting in Todo is NOT his court.
+    function _kedIsCourtState(norm) {
+        return norm === 'in progress' || _kedIsTweakState(norm);
+    }
+    // How long a video sat in his court during the week — the "load" signal.
+    // Reconstructed from the transition timeline: the state before the first
+    // in-window event holds from weekStart; each event flips the state until
+    // weekEnd. editingMs (In Progress) and tweakMs (Tweaks Needed) are the time
+    // the ball was with him; endInCourt = still parked on him at week's end.
+    // (Only sees videos that had ≥1 in-window transition — a video that sat
+    // untouched all week isn't in the payload at all; richer once the server
+    // selection widens.)
+    function _kedVideoCourt(v, weekStartMs, weekEndMs) {
+        const trs = ((v && v.transitions) || []).slice()
+            .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+        if (!trs.length || !(weekEndMs > weekStartMs)) return { editingMs: 0, tweakMs: 0, endInCourt: false };
+        let editingMs = 0, tweakMs = 0, cursor = weekStartMs, state = _kedNorm(trs[0].from);
+        const add = (st, fromMs, toMs) => {
+            const dur = Math.min(toMs, weekEndMs) - Math.max(fromMs, weekStartMs);
+            if (dur <= 0) return;
+            if (st === 'in progress') editingMs += dur;
+            else if (_kedIsTweakState(st)) tweakMs += dur;
+        };
+        for (const t of trs) {
+            const tMs = Date.parse(t.at);
+            if (!isNaN(tMs)) { add(state, cursor, tMs); cursor = tMs; }
+            state = _kedNorm(t.status);
+        }
+        add(state, cursor, weekEndMs);
+        return { editingMs, tweakMs, endInCourt: _kedIsCourtState(state) };
+    }
+
+    // Roll a video list up into the numbers a row renders. All headline numbers
+    // are VIDEO counts. On his plate = loadVideos (every video he worked on),
+    // split into newVideos + tweakVideos + inProgVideos (which add up to it).
+    // finishes = reached Approved/Posted; stillOpen = still in his court at
+    // week's end. perDay counts sends per Chicago day for the bars. Per-video
+    // rework (how many times a video was re-sent) is shown in the drill-down,
+    // not here — see _kedVideoCard.
+    function _kedSplitVideos(videos, weekStartMs, weekEndMs) {
+        let firstCuts = 0, tweakRounds = 0, finishes = 0, wip = 0, touched = 0;
+        let loadVideos = 0, newVideos = 0, tweakVideos = 0, inProgVideos = 0, stillOpen = 0;
+        const perDay = {};
+        for (const v of (videos || [])) {
+            const ds = _kedVideoDeliveries(v);
+            const fin = _kedVideoFinished(v);
+            const isWip = _kedVideoIsWip(v);
+            for (const d of ds) {
+                if (d.kind === 'tweak') tweakRounds++; else firstCuts++;
+                perDay[d.dayKey] = (perDay[d.dayKey] || 0) + 1;
+            }
+            if (fin) finishes++;
+            else if (isWip) wip++;
+            const court = _kedVideoCourt(v, weekStartMs, weekEndMs);
+            const worked = court.editingMs > 0 || court.tweakMs > 0 || ds.length > 0;
+            if (worked) {
+                loadVideos++;
+                // Every worked-on video is exactly one of: new (delivered a
+                // first cut), tweak (only tweak fixes), or in progress (not
+                // sent yet). The three add up to loadVideos.
+                if (ds.length) { if (ds.some(d => d.kind === 'firstcut')) newVideos++; else tweakVideos++; }
+                else inProgVideos++;
+            }
+            if (worked || fin) touched++;
+            if (court.endInCourt) stillOpen++;
+        }
+        return { firstCuts, tweakRounds, finishes, wip, touched, perDay,
+                 loadVideos, newVideos, tweakVideos, inProgVideos, stillOpen };
+    }
+
+    // Per-editor stats, memoised on the editor object so _kedPaint (shared
+    // y-axis) and _kedRow (bars + headline) compute them once.
+    function _kedEditorStats(ed) {
+        if (ed && ed._kedStats) return ed._kedStats;
+        const data = _kasperState.editorsData || {};
+        const wsMs = Date.parse(data.weekStart), weMs = Date.parse(data.weekEnd);
+        const s = _kedSplitVideos((ed && ed.videos) || [], wsMs, weMs);
+        if (ed) { try { Object.defineProperty(ed, '_kedStats', { value: s, enumerable: false }); } catch (e) { ed._kedStats = s; } }
+        return s;
+    }
+
+    // Plain-English hover copy for each number — explains what it counts, for
+    // someone who doesn't know the internal vocabulary. Same in either view.
+    const _KED_TIPS = {
+        plate:    "How many different videos he worked on last week — new edits, tweak fixes, and ones still in progress (these add up to this number).",
+        finished: "Videos that got fully approved or posted last week — they crossed the finish line.",
+        open:     "Videos still on his plate at the end of the week — not yet finished or sent back.",
+        newCut:   "Brand-new videos he edited and sent on for review for the first time.",
+        tweakFix: "Videos that came back for changes, which he fixed and re-sent.",
+        inProg:   "Videos he was still working on and hadn't sent for review yet.",
+    };
+
+    function _kedRow(ed, weekDates, globalDailyMax, showWeekend) {
+        const key = ed.id || ed.email || ed.name;
+        const expanded = !!_kasperState.editorsExpanded[key];
+        const dayFilter = _kasperState.editorsDayFilter[key] || null;
+        const days = showWeekend ? weekDates : weekDates.slice(0, 5);
+        const stats = _kedEditorStats(ed);
+        const avatarHtml = ed.avatarUrl
+            ? `<img loading="lazy" src="${_calEscAttr(ed.avatarUrl)}" alt="" onerror="this.replaceWith(_kedAvatarFallback(${_jsAttrArg(ed.name || '')}))">`
+            : _calEsc(_kedInitials(ed.name));
+        const bars = days.map(d => {
+            const count = stats.perDay[d.key] || 0;
+            const pct = Math.max(0, Math.min(1, count / globalDailyMax));
+            const heightPct = count > 0 ? Math.max(0.12, pct) * 100 : 0;
+            const seg = count > 0 ? `<div class="ked-bar-seg" style="height:${heightPct.toFixed(2)}%;"></div>` : '';
+            const isSel = dayFilter === d.key;
+            const stackCls = ['ked-bar-stack', count === 0 ? 'is-empty' : 'is-clickable', isSel ? 'is-selected' : ''].filter(Boolean).join(' ');
+            const dayLong = _kedDayLong(d.label);
+            const sentLbl = `${count} video${count === 1 ? '' : 's'} sent for review`;
+            const tipText = count === 0
+                ? `${dayLong} · nothing sent for review`
+                : isSel
+                    ? `${dayLong} · ${sentLbl} — click to clear`
+                    : `${dayLong} · ${sentLbl} — click to view`;
+            const onclickAttr = count > 0
+                ? ` onclick="event.stopPropagation();_kasperToggleEditorDay('${_calEscAttr(key)}','${d.key}')"`
+                : '';
+            return `<div class="ked-bar">
+                <div class="ked-bar-count${count === 0 ? ' is-empty' : ''}">${count || '·'}</div>
+                <div class="${stackCls}" data-tip="${_calEscAttr(tipText)}"${onclickAttr}>
+                    ${seg}
+                </div>
+                <div class="ked-bar-label">${d.label}</div>
+            </div>`;
+        }).join('');
+
+        const avg = !!_kasperState.editorsAvgMode;        // Totals vs Per-day toggle
+        const tipAttr = k => ` data-tip="${_calEscAttr(_KED_TIPS[k])}"`;
+        const perWk = n => avg ? Math.round(n / 5) : n;   // per-workday average (rounded) when toggled
+
+        // ON HIS PLATE — every video he worked on, split new / tweaks / still in
+        // progress. The three add up to the plate number.
+        const loadParts = [];
+        if (stats.newVideos)    loadParts.push(`<span${tipAttr('newCut')}>${perWk(stats.newVideos)} new</span>`);
+        if (stats.tweakVideos)  loadParts.push(`<span${tipAttr('tweakFix')}>${perWk(stats.tweakVideos)} tweaks</span>`);
+        if (stats.inProgVideos) loadParts.push(`<span${tipAttr('inProg')}>${perWk(stats.inProgVideos)} in progress</span>`);
+        if (!loadParts.length)  loadParts.push('—');
+        const loadSub = loadParts.join(' <span class="ked-id-sep">·</span> ');
+        const loadBig = perWk(stats.loadVideos);
+        const loadLabel = avg ? 'on his plate / day' : 'on his plate';
+
+        // FINISHED and STILL OPEN are outcome counts — always weekly totals.
+        const finBig = stats.finishes;
+        const openBig = stats.stillOpen;
+
+        const videosBlock = expanded ? _kedVideos(ed.videos || [], dayFilter, ed.weekStart || (_kasperState.editorsData && _kasperState.editorsData.weekStart), ed.weekEnd || (_kasperState.editorsData && _kasperState.editorsData.weekEnd), key, days) : '';
+        return `<div class="ked-row${expanded ? ' expanded' : ''}${dayFilter ? ' is-day-filtered' : ''}" data-ked-key="${_calEscAttr(key)}">
+            <div class="ked-row-head" onclick="_kasperToggleEditor(${_jsAttrArg(key)})">
+                <div class="ked-avatar">${avatarHtml}</div>
+                <div class="ked-id">
+                    <div class="ked-name">${_calEsc(ed.name || 'Unknown')}</div>
+                </div>
+                <div class="ked-row-stats">
+                    <div class="ked-stat is-load">
+                        <span class="ked-stat-val">${loadBig}</span>
+                        <span class="ked-stat-label"${tipAttr('plate')}>${loadLabel}</span>
+                        <div class="ked-stat-sub">${loadSub}</div>
+                    </div>
+                    <div class="ked-stat-sep"></div>
+                    <div class="ked-stat is-finished">
+                        <span class="ked-stat-val">${finBig}</span>
+                        <span class="ked-stat-label"${tipAttr('finished')}>finished</span>
+                    </div>
+                    <div class="ked-stat-sep"></div>
+                    <div class="ked-stat is-open">
+                        <span class="ked-stat-val">${openBig}</span>
+                        <span class="ked-stat-label"${tipAttr('open')}>still open</span>
+                    </div>
+                </div>
+                <svg class="ked-row-chev" width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="ked-bars${showWeekend ? ' with-weekend' : ''}">${bars}</div>
+            ${videosBlock}
+        </div>`;
+    }
+
+    // Map a Linear state name to a stable slug used for the colour palette.
+    function _kedStatusSlug(name) {
+        const n = String(name || '').toLowerCase().trim();
+        if (!n) return 'other';
+        if (/^in\s*progress/.test(n))     return 'in-progress';
+        if (/smm/.test(n))                return 'smm';
+        if (/kasper/.test(n))             return 'kasper';
+        if (/client/.test(n))             return 'client';
+        if (/tweak\s*needed/.test(n))     return 'tweak-needed';
+        if (/^approved/.test(n))          return 'approved';
+        if (/^posted/.test(n))            return 'posted';
+        if (/^todo|^to do|^triage/.test(n)) return 'todo';
+        if (/^backlog/.test(n))           return 'backlog';
+        if (/^cancel|^duplicate/.test(n)) return 'canceled';
+        return 'other';
+    }
+    const _KED_STATUS_LABELS = {
+        'in-progress':   'In Progress',
+        'smm':           'For SMM',
+        'kasper':        'For Kasper',
+        'client':        'For Client',
+        'tweak-needed':  'Tweak Needed',
+        'approved':      'Approved',
+        'posted':        'Posted',
+        'todo':          'Todo',
+        'backlog':       'Backlog',
+        'canceled':      'Canceled',
+        'other':         '—'
+    };
+
+    // Classify each status by how it should render on the timeline strip:
+    //   work     — coloured time-occupying segment
+    //   instant  — thin marker at the transition point (no time width)
+    //   terminal — small cap at the transition point; line ends here
+    //   hidden   — not rendered at all (the strip just doesn't exist for that span)
+    function _kedClassifyKind(slug) {
+        if (slug === 'todo' || slug === 'backlog')                           return 'hidden';
+        if (slug === 'in-progress')                                          return 'work';
+        if (slug === 'approved' || slug === 'posted' || slug === 'canceled') return 'terminal';
+        return 'marker';
+    }
+
+    // Build the render-ready segments. Hidden states are dropped (creating
+    // a gap on the strip). Work segments stretch from their actual start
+    // to the next visible segment's start, so they visually abut the next
+    // marker — no awkward empty time between them. Markers/terminals are
+    // returned with widthPct = 0; the CSS sets their visual width.
+    function _kedBuildSegments(transitions, weekStartMs, weekEndMs) {
+        if (!transitions || !transitions.length) return [];
+        const total = weekEndMs - weekStartMs;
+        if (total <= 0) return [];
+        const raw = [];
+        const first = transitions[0];
+        const firstMs = Math.max(weekStartMs, Math.min(weekEndMs, Date.parse(first.at)));
+        if (first.from && firstMs > weekStartMs) {
+            raw.push({ status: first.from, startMs: weekStartMs, endMs: firstMs });
+        }
+        for (let i = 0; i < transitions.length; i++) {
+            const t = transitions[i];
+            const start = Math.max(weekStartMs, Math.min(weekEndMs, Date.parse(t.at)));
+            const end = i < transitions.length - 1
+                ? Math.max(weekStartMs, Math.min(weekEndMs, Date.parse(transitions[i + 1].at)))
+                : weekEndMs;
+            raw.push({ status: t.status, startMs: start, endMs: end });
+        }
+
+        // Drop hidden states (Todo/Backlog don't count as workload).
+        const visible = raw
+            .map(s => ({ ...s, slug: _kedStatusSlug(s.status), kind: _kedClassifyKind(_kedStatusSlug(s.status)) }))
+            .filter(s => s.kind !== 'hidden');
+
+        const segs = [];
+        for (let i = 0; i < visible.length; i++) {
+            const s = visible[i];
+            const startPct = ((s.startMs - weekStartMs) / total) * 100;
+            if (s.kind === 'terminal') {
+                segs.push({ status: s.status, slug: s.slug, kind: 'terminal', startMs: s.startMs, endMs: s.startMs, startPct, widthPct: 0 });
+                break; // line ends at the terminal cap
+            }
+            if (s.kind === 'marker') {
+                segs.push({ status: s.status, slug: s.slug, kind: 'marker', startMs: s.startMs, endMs: s.startMs, startPct, widthPct: 0 });
+                continue;
+            }
+            // work — extend to the next visible segment's start (or the end of the week)
+            const next = visible[i + 1];
+            const visualEndMs = next ? next.startMs : weekEndMs;
+            const widthPct = Math.max(0.4, ((visualEndMs - s.startMs) / total) * 100);
+            segs.push({ status: s.status, slug: s.slug, kind: 'work', startMs: s.startMs, endMs: visualEndMs, startPct, widthPct });
+        }
+        return segs;
+    }
+
+    // Per-client per-day breakdown for the day-filter summary chips: the
+    // deliveries (first cuts / tweak rounds) that landed on the selected day.
+    // Same delivery model as the bars, so `Σ chip counts === bar count`.
+    function _kedClientDaySummary(videos, dayKey) {
+        let firstCuts = 0, tweakRounds = 0;
+        for (const v of (videos || [])) {
+            for (const d of _kedVideoDeliveries(v)) {
+                if (d.dayKey !== dayKey) continue;
+                if (d.kind === 'tweak') tweakRounds++; else firstCuts++;
+            }
+        }
+        return { firstCuts, tweakRounds };
+    }
+
+    // A video is "in the day's filter" iff it had a delivery on that day —
+    // i.e. it contributed to that day's bar count.
+    function _kedVideoContributedOnDay(v, dayKey) {
+        return _kedVideoDeliveries(v).some(d => d.dayKey === dayKey);
+    }
+
+    function _kedClientIsExpanded(editorKey, clientName, defaultExpanded) {
+        const ed = _kasperState.editorsClientExpanded[editorKey];
+        if (!ed || !(clientName in ed)) return defaultExpanded;
+        return !!ed[clientName];
+    }
+
+    function _kedVideos(videos, dayFilter, weekStartISO, weekEndISO, editorKey, days) {
+        if (!videos || !videos.length) {
+            return `<div class="ked-vid-empty">No videos to show.</div>`;
+        }
+        const weekStartMs = Date.parse(weekStartISO);
+        const weekEndMs = Date.parse(weekEndISO);
+
+        // When a day is selected, show only the sub-issues that contributed
+        // to that day's bar count. The selected bar in the chart above acts
+        // as the visual filter indicator — click it again to clear.
+        const filtered = dayFilter
+            ? videos.filter(v => _kedVideoContributedOnDay(v, dayFilter))
+            : videos;
+
+        const dayLabelsHtml = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+            .map((lbl, i) => `<span class="ked-vid-axis-day" style="left:${((i + 0.5) / 7) * 100}%;">${lbl}</span>`)
+            .join('');
+
+        // Always group by client. Whole-week view defaults each group to
+        // expanded (Kasper wants to see the strips immediately). Day-filter
+        // view defaults each group to collapsed with a summary chip row so
+        // the page reads as a compact "who/what" table.
+        const defaultExpanded = !dayFilter;
+        const groups = new Map();
+        for (const v of filtered) {
+            const c = v.clientName || 'No client';
+            if (!groups.has(c)) groups.set(c, []);
+            groups.get(c).push(v);
+        }
+        const sortedClients = Array.from(groups.keys()).sort((a, b) => {
+            if (a === 'No client') return 1;
+            if (b === 'No client') return -1;
+            return a.localeCompare(b);
+        });
+
+        // "Expand all / Collapse all" depends on what proportion of clients
+        // are currently expanded. If they're all expanded, the toggle
+        // collapses everything; otherwise it expands everything.
+        const expandedCount = sortedClients.reduce((n, c) =>
+            n + (_kedClientIsExpanded(editorKey, c, defaultExpanded) ? 1 : 0), 0);
+        const allExpanded = expandedCount === sortedClients.length;
+        const toolbarHtml = sortedClients.length > 1 ? `
+            <div class="ked-vid-toolbar">
+                <span class="ked-vid-toolbar-meta">${sortedClients.length} client${sortedClients.length === 1 ? '' : 's'}${dayFilter ? ' · ' + _kedDayLong((days || []).find(d => d.key === dayFilter)?.label || '') : ''}</span>
+                <button type="button" class="ked-vid-toolbar-btn" onclick="_kasperToggleAllClients(${_jsAttrArg(editorKey)})">
+                    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        ${allExpanded
+                            ? '<path d="M2 7l4-3 4 3"/><path d="M2 10l4-3 4 3"/>'
+                            : '<path d="M2 5l4 3 4-3"/><path d="M2 2l4 3 4-3"/>'}
+                    </svg>
+                    ${allExpanded ? 'Collapse all' : 'Expand all'}
+                </button>
+            </div>` : '';
+
+        const bodyHtml = sortedClients.map(c => {
+            const vids = groups.get(c);
+            vids.sort((a, b) => String(b.latestAt).localeCompare(String(a.latestAt)));
+            const expanded = _kedClientIsExpanded(editorKey, c, defaultExpanded);
+            let summaryHtml = '';
+            if (dayFilter) {
+                const sum = _kedClientDaySummary(vids, dayFilter);
+                const chips = [];
+                if (sum.firstCuts)   chips.push(`<span class="ked-group-chip" data-tip="First cuts delivered for review that day"><span class="ked-chip-n">${sum.firstCuts}</span> first cut${sum.firstCuts === 1 ? '' : 's'}</span>`);
+                if (sum.tweakRounds) chips.push(`<span class="ked-group-chip" data-tip="Tweak rounds delivered for review that day"><span class="ked-chip-n">${sum.tweakRounds}</span> tweak${sum.tweakRounds === 1 ? '' : 's'}</span>`);
+                summaryHtml = chips.length ? `<div class="ked-group-summary">${chips.join('')}</div>` : '';
+            }
+            const headCls = expanded ? 'ked-vid-group-head is-expanded' : 'ked-vid-group-head';
+            const bodyContent = expanded
+                ? `<div class="ked-vid-group-body">${vids.map(v => _kedVideoCard(v, weekStartMs, weekEndMs, dayFilter)).join('')}</div>`
+                : '';
+            return `<div class="ked-vid-group${expanded ? ' is-expanded' : ''}">
+                <button type="button" class="${headCls}" onclick="_kasperToggleClient(${_jsAttrArg(editorKey)},${_jsAttrArg(c)})">
+                    <svg class="ked-group-chev" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5l4 3.5-4 3.5"/></svg>
+                    <span class="ked-group-name">${_calEsc(c)}</span>
+                    <span class="ked-vid-group-count">${vids.length}</span>
+                    ${summaryHtml}
+                </button>
+                ${bodyContent}
+            </div>`;
+        }).join('');
+
+        return `<div class="ked-vid-list">
+            ${toolbarHtml}
+            <div class="ked-vid-axis">
+                <div class="ked-vid-axis-track">${dayLabelsHtml}</div>
+            </div>
+            ${bodyHtml}
+        </div>`;
+    }
+
+    function _kedVideoCard(v, weekStartMs, weekEndMs, dayFilter) {
+        const segs = _kedBuildSegments(v.transitions || [], weekStartMs, weekEndMs);
+        const segHtml = segs.length
+            ? segs.map(s => {
+                const labelName = _KED_STATUS_LABELS[s.slug] || s.status;
+                const style = s.kind === 'work'
+                    ? `left:${s.startPct.toFixed(3)}%;width:${s.widthPct.toFixed(3)}%;`
+                    : `left:${s.startPct.toFixed(3)}%;`;
+                return `<div class="ked-strip-seg" data-status="${s.slug}" data-kind="${s.kind}" data-tip="${_calEscAttr(labelName)}" style="${style}"></div>`;
+            }).join('')
+            : '';
+        const clientHtml = v.clientName
+            ? `<div class="ked-vid-client">${_calEsc(v.clientName)}</div>`
+            : '';
+        const titleHtml = v.url
+            ? `<a class="ked-vid-title" href="${_calEscAttr(v.url)}" target="_blank" rel="noopener">${_calEsc(v.title || 'Untitled')}</a>`
+            : `<span class="ked-vid-title">${_calEsc(v.title || 'Untitled')}</span>`;
+        // Per-video rework: how many times it was sent on for review. Only the
+        // grinders (2+) get a badge, so a one-and-done video stays clean.
+        const rounds = _kedVideoDeliveries(v).length;
+        const roundsHtml = rounds >= 2
+            ? `<span class="ked-vid-rounds" data-tip="Sent on for review ${rounds} times last week — it kept coming back for changes.">${rounds} rounds</span>`
+            : '';
+        return `<article class="ked-vid">
+            <div class="ked-vid-meta">
+                ${clientHtml}
+                ${titleHtml}
+                ${roundsHtml}
+            </div>
+            <div class="ked-vid-strip">
+                <div class="ked-strip-track">${segHtml}</div>
+            </div>
+        </article>`;
+    }
+
+    // Editor-tab tooltips (day bars, strip segments, the Load/Deliveries
+    // stats) ride the shared global tooltip — see setupGlobalTooltip. The old
+    // bespoke .ked-tip handler was removed: it also fired on [data-tip], so
+    // every editor tooltip was painting twice (once here, once globally).
+
+    function _kedAvatarFallback(name) {
+        const span = document.createElement('span');
+        span.textContent = _kedInitials(name);
+        return span;
+    }
+
+    function _kasperToggleEditor(key) {
+        const wasOpen = !!_kasperState.editorsExpanded[key];
+        _kasperState.editorsExpanded[key] = !wasOpen;
+        if (wasOpen) _kasperState.editorsDayFilter[key] = null;
+        _kedPaint();
+    }
+    function _kasperToggleEditorDay(key, dayKey) {
+        const current = _kasperState.editorsDayFilter[key] || null;
+        if (current === dayKey) {
+            // Clicking the same day twice clears the filter (stays expanded).
+            _kasperState.editorsDayFilter[key] = null;
+        } else {
+            _kasperState.editorsDayFilter[key] = dayKey;
+            _kasperState.editorsExpanded[key] = true;
+        }
+        // Switching between whole-week and day-filter views resets the
+        // per-client expanded state so each view starts at its natural
+        // default (whole-week → all expanded; day-filter → all collapsed
+        // with summary chips).
+        _kasperState.editorsClientExpanded[key] = {};
+        _kedPaint();
+    }
+    function _kasperClearEditorDay(key) {
+        _kasperState.editorsDayFilter[key] = null;
+        _kasperState.editorsClientExpanded[key] = {};
+        _kedPaint();
+    }
+    function _kasperToggleClient(editorKey, clientName) {
+        const inDayFilter = !!_kasperState.editorsDayFilter[editorKey];
+        const defaultExpanded = !inDayFilter;
+        const ed = _kasperState.editorsClientExpanded[editorKey] = _kasperState.editorsClientExpanded[editorKey] || {};
+        const curr = (clientName in ed) ? ed[clientName] : defaultExpanded;
+        ed[clientName] = !curr;
+        _kedPaint();
+    }
+    function _kasperToggleAllClients(editorKey) {
+        const data = _kasperState.editorsData;
+        if (!data) return;
+        const ed = (data.editors || []).find(e => (e.email || e.name) === editorKey);
+        if (!ed) return;
+        const inDayFilter = !!_kasperState.editorsDayFilter[editorKey];
+        const defaultExpanded = !inDayFilter;
+        const filtered = inDayFilter
+            ? (ed.videos || []).filter(v => _kedVideoContributedOnDay(v, _kasperState.editorsDayFilter[editorKey]))
+            : (ed.videos || []);
+        const clients = Array.from(new Set(filtered.map(v => v.clientName || 'No client')));
+        const explicit = _kasperState.editorsClientExpanded[editorKey] || {};
+        const allExpanded = clients.every(c => (c in explicit) ? explicit[c] : defaultExpanded);
+        const next = {};
+        for (const c of clients) next[c] = !allExpanded;
+        _kasperState.editorsClientExpanded[editorKey] = next;
+        _kedPaint();
+    }
+
+    // Expose handlers called from inline HTML.
+    window._kasperGotoTab = _kasperGotoTab;
+    window._kasperLoadReview = _kasperLoadReview;
+    window._kasperToggleCard = _kasperToggleCard;
+    window._kasperApproveComp = _kasperApproveComp;
+    window._kasperRequestTweakComp = _kasperRequestTweakComp;
+    window._kasperAddCommentComp = _kasperAddCommentComp;
+    window._kasperApproveAfterTweaksComp = _kasperApproveAfterTweaksComp;
+    window._kasperOnPanelDraftInput = _kasperOnPanelDraftInput;
+    window._kasperDismiss = _kasperDismiss;
+    window._kasperClose = _kasperClose;
+    window._kasperMarkRepliesRead = _kasperMarkRepliesRead;
+    window._kasperRepliesReply = _kasperRepliesReply;
+    window._kasperRepliesToggleAll = _kasperRepliesToggleAll;
+    window._kasperRepliesDraftInput = _kasperRepliesDraftInput;
+    window._kasperOpenLightbox = _kasperOpenLightbox;
+    window._kasperCloseLightbox = _kasperCloseLightbox;
+    window._kasperToggleHistory = _kasperToggleHistory;
+    window._kasperHistoryThumbFallback = _kasperHistoryThumbFallback;
+    window._kasperLoadEditors = _kasperLoadEditors;
+    window._kasperToggleEditor = _kasperToggleEditor;
+    window._kasperToggleEditorDay = _kasperToggleEditorDay;
+    window._kasperClearEditorDay = _kasperClearEditorDay;
+    window._kasperToggleClient = _kasperToggleClient;
+    window._kasperToggleAllClients = _kasperToggleAllClients;
+    window._kedAvatarFallback = _kedAvatarFallback;
+    window._kedToggleInfo = _kedToggleInfo;
+    window._kasperSetEditorsAvg = _kasperSetEditorsAvg;
+
+    /* ──────────────────────────────────────────────────────────────────
+       Global styled tooltip — replaces every browser-native title popup
+       with the dark pill used for the Collaborative mode "i" icon.
+
+       Why: native tooltips are ugly, inconsistent across OSes, can't be
+       styled, and have a long mystery delay. The dark pill matches the
+       rest of the app's design language and renders identically on
+       every machine.
+
+       How it works:
+       - On mouseover the handler walks up from e.target until it finds
+         an element with `title` or `data-tip` and isn't opted out.
+       - It removes the `title` attribute while the custom tip is shown
+         so the browser's native popup never appears alongside it (and
+         restores the title on mouseout so screen readers and any
+         future hover still see the same text).
+       - Positions a single shared tip element (portaled to <body>) above
+         the trigger, flips below when it would go off-screen, and the
+         arrow tracks the trigger horizontally so a tip near the edge
+         still points at the right element.
+
+       Opt-out is intentional and easy:
+       - Add `data-no-tip` to any element (or wrap an area in it).
+       - Form fields (input / textarea / select / option), SVG <title>
+         elements, and contenteditable areas are skipped automatically.
+       - Elements with no title/data-tip content are skipped (so empty
+         tooltips never paint a stub).
+
+       Existing custom tooltips (e.g. .cal-kebab-info-tip on the Collab
+       mode icon) keep working as-is — they don't use `title` so this
+       handler never targets them. */
+    (function setupGlobalTooltip() {
+        'use strict';
+        const SHOW_DELAY_MS = 0;   // instant — matches the snappy feel of the old editor tooltip
+        const TIP_CLASS = 'global-tip';
+        const TIP_ID = 'globalTooltip';
+        let tipEl = null;
+        let activeTarget = null;
+        let savedTitle = null;
+        let savedDescribedBy;
+        let showTimer = 0;
+        let touchTapStartedActive = false;
+        let touchPinnedTarget = null;
+        let lastPointerType = '';
+
+        function ensureTipEl() {
+            if (tipEl) return tipEl;
+            tipEl = document.createElement('div');
+            tipEl.id = TIP_ID;
+            tipEl.className = TIP_CLASS;
+            tipEl.setAttribute('role', 'tooltip');
+            return tipEl;
+        }
+
+        function getTipText(el) {
+            const t = (el.getAttribute('data-tip') || el.getAttribute('title') || '');
+            return t.trim();
+        }
+
+        function isOptedOut(el) {
+            if (!el || el.nodeType !== 1) return true;
+            if (el.hasAttribute('data-no-tip')) return true;
+            // .closest is the cheap way to check ancestors too. The wrap
+            // around the Collab info icon (and any other custom tooltip
+            // area) sets data-no-tip so the global handler doesn't
+            // double up on its hover.
+            if (el.closest && el.closest('[data-no-tip]')) return true;
+            // Production preview owns its artifact-style tooltip layer through
+            // data-prod-tip; the global title tooltip would double-paint there.
+            if (el.closest && el.closest('.prod-view, .prod-layer, .prod-tip, .prod-toast, .prod-cmd-bd')) return true;
+            const tag = el.tagName;
+            // Form fields: title may be used for HTML5 validation messages
+            // or accessibility hints — leave them alone.
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'OPTION') return true;
+            // SVG <title> is a child node read by assistive tech, never
+            // an interactive trigger.
+            if (tag === 'TITLE') return true;
+            if (el.isContentEditable) return true;
+            return false;
+        }
+
+        function findBearer(start) {
+            let el = start;
+            while (el && el !== document.body) {
+                if (el.nodeType === 1 && !isOptedOut(el) && getTipText(el)) return el;
+                el = el.parentElement;
+            }
+            return null;
+        }
+
+        function isNoHoverDevice() {
+            return Number(navigator.maxTouchPoints || 0) > 0
+                && !!(window.matchMedia && window.matchMedia('(hover: none)').matches);
+        }
+
+        function position(el, target) {
+            const rect = target.getBoundingClientRect();
+            // Measure with current content but no positional constraints,
+            // so we know the natural width/height before clamping.
+            el.style.top = '0px';
+            el.style.left = '0px';
+            const tipRect = el.getBoundingClientRect();
+            const margin = 8;
+            const edge = 6;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            let top, placement;
+            // Prefer above; fall back to below when the trigger sits
+            // near the top of the viewport.
+            if (rect.top - tipRect.height - margin >= edge) {
+                top = rect.top - tipRect.height - margin;
+                placement = 'above';
+            } else {
+                top = Math.min(vh - tipRect.height - edge, rect.bottom + margin);
+                placement = 'below';
+            }
+            let left = rect.left + rect.width / 2 - tipRect.width / 2;
+            left = Math.max(edge, Math.min(vw - tipRect.width - edge, left));
+            el.style.top = top + 'px';
+            el.style.left = left + 'px';
+            el.dataset.placement = placement;
+            // Arrow tracks the trigger's centre so a tip clamped to the
+            // edge still points at the right element instead of floating
+            // adrift.
+            const arrowLeft = Math.max(10, Math.min(tipRect.width - 10, rect.left + rect.width / 2 - left));
+            el.style.setProperty('--arrow-left', arrowLeft + 'px');
+        }
+
+        function show(target) {
+            if (!target || target === activeTarget) return;
+            hide();
+            const text = getTipText(target);
+            if (!text) return;
+            activeTarget = target;
+            // Suppress the browser's native popup by temporarily peeling
+            // the title attribute off. Restored on hide so a11y / future
+            // hovers keep their text.
+            if (target.hasAttribute('title')) {
+                savedTitle = target.getAttribute('title');
+                target.removeAttribute('title');
+            }
+            const el = ensureTipEl();
+            el.textContent = text;
+            el.dataset.labelExplainer = target.hasAttribute('data-sv-explain') ? 'true' : 'false';
+            document.body.appendChild(el);
+            if (target.hasAttribute('data-sv-explain')) {
+                savedDescribedBy = target.getAttribute('aria-describedby');
+                const ids = String(savedDescribedBy || '').split(/\s+/).filter(Boolean);
+                if (!ids.includes(TIP_ID)) ids.push(TIP_ID);
+                target.setAttribute('aria-describedby', ids.join(' '));
+            }
+            position(el, target);
+        }
+
+        function hide() {
+            if (showTimer) { clearTimeout(showTimer); showTimer = 0; }
+            if (!activeTarget) return;
+            if (savedTitle !== null) {
+                activeTarget.setAttribute('title', savedTitle);
+                savedTitle = null;
+            }
+            if (savedDescribedBy !== undefined) {
+                if (savedDescribedBy === null) activeTarget.removeAttribute('aria-describedby');
+                else activeTarget.setAttribute('aria-describedby', savedDescribedBy);
+                savedDescribedBy = undefined;
+            }
+            if (tipEl && tipEl.parentNode) tipEl.parentNode.removeChild(tipEl);
+            activeTarget = null;
+            touchPinnedTarget = null;
+        }
+
+        document.addEventListener('mouseover', function (e) {
+            // Garbage-collect: if the active trigger has been removed from
+            // the DOM by a re-render, drop the stale tip silently.
+            if (activeTarget && !document.contains(activeTarget)) hide();
+            const bearer = findBearer(e.target);
+            if (!bearer) return;
+            if (bearer.hasAttribute('data-sv-explain') && isNoHoverDevice()) return;
+            if (bearer === activeTarget) return;
+            if (bearer.hasAttribute('data-sv-explain')) {
+                show(bearer);
+                return;
+            }
+            if (showTimer) clearTimeout(showTimer);
+            showTimer = setTimeout(function () { show(bearer); }, SHOW_DELAY_MS);
+        }, true);
+
+        document.addEventListener('mouseout', function (e) {
+            if (!activeTarget && !showTimer) return;
+            if (touchPinnedTarget && activeTarget === touchPinnedTarget) return;
+            const next = e.relatedTarget;
+            // Moving inside the bearer (e.g., over its icon child) is
+            // not a leave — keep the tip showing.
+            if (activeTarget && next && activeTarget.contains(next)) return;
+            // Same idea for the queued show: the trigger we were about to
+            // show is what e.target leads to, but if the cursor is still
+            // inside the trigger area, don't cancel.
+            const stillInsideBearer = activeTarget && next && next === activeTarget;
+            if (stillInsideBearer) return;
+            hide();
+        }, true);
+
+        // Keyboard and touch users receive the same supplemental explanation
+        // when a focusable help trigger gains focus. Essential validation copy
+        // remains visible in the form; these tips only remove repetitive noise.
+        document.addEventListener('focusin', function (e) {
+            const bearer = findBearer(e.target);
+            if (bearer) show(bearer);
+        }, true);
+        document.addEventListener('focusout', function (e) {
+            if (!activeTarget) return;
+            const next = e.relatedTarget;
+            if (next && activeTarget.contains(next)) return;
+            hide();
+        }, true);
+
+        // Explainable labels opt into touch pinning. The pointer-down snapshot
+        // lets a second tap toggle the current explanation without making the
+        // first tap disappear after focusin. Preventing the label's default
+        // click keeps a help tap from opening or changing its form control.
+        document.addEventListener('pointerdown', function (e) {
+            const bearer = findBearer(e.target);
+            lastPointerType = String(e.pointerType || (isNoHoverDevice() ? 'touch' : 'mouse'));
+            if (lastPointerType === 'touch' && bearer && bearer.hasAttribute('data-sv-explain')) {
+                touchTapStartedActive = bearer === touchPinnedTarget
+                    && bearer === activeTarget && !!(tipEl && tipEl.parentNode);
+                if (bearer !== activeTarget) hide();
+                return;
+            }
+            touchTapStartedActive = false;
+            hide();
+        }, true);
+        document.addEventListener('click', function (e) {
+            const touchClick = lastPointerType === 'touch'
+                || (!lastPointerType && isNoHoverDevice());
+            lastPointerType = '';
+            if (!touchClick) return;
+            const bearer = findBearer(e.target);
+            if (!bearer || !bearer.hasAttribute('data-sv-explain')) return;
+            e.preventDefault();
+            if (touchTapStartedActive) {
+                touchTapStartedActive = false;
+                hide();
+                return;
+            }
+            touchTapStartedActive = false;
+            if (document.activeElement !== bearer) {
+                try { bearer.focus({ preventScroll: true }); } catch (_) { bearer.focus(); }
+            }
+            if (bearer !== activeTarget) show(bearer);
+            else if (tipEl && tipEl.parentNode) position(tipEl, bearer);
+            touchPinnedTarget = bearer;
+        }, true);
+
+        function viewportChange() {
+            // Focusing an off-screen help control can itself scroll the page.
+            // Keep keyboard help attached to its focused trigger; ordinary
+            // hover tips still dismiss as soon as their viewport moves.
+            const focusInside = activeTarget && (document.activeElement === activeTarget
+                || activeTarget.contains(document.activeElement));
+            if (focusInside && tipEl && tipEl.parentNode) position(tipEl, activeTarget);
+            else hide();
+        }
+
+        // Any click / keyboard escape should drop the tip immediately.
+        // Viewport changes preserve only a keyboard-focused explanation.
+        document.addEventListener('mousedown', function (e) {
+            if (activeTarget && activeTarget.hasAttribute('data-sv-explain')
+                && activeTarget.contains(e.target) && lastPointerType === 'touch') return;
+            hide();
+        }, true);
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hide(); });
+        window.addEventListener('scroll', viewportChange, true);
+        window.addEventListener('resize', viewportChange);
+        // When the page is hidden (tab switch) drop the tip so it
+        // doesn't reappear stale when the tab is restored.
+        document.addEventListener('visibilitychange', function () { if (document.hidden) hide(); });
+    })();
+
+    /* ──────────────────────────────────────────────────────────────────
+       Modern date picker — replaces the OS-rendered native popup that
+       <input type="date"> opens with a styled in-app calendar. One
+       shared popover, portaled to <body>, opened when the user clicks
+       a .cal-date-chip and dismissed on outside click / Esc. While open,
+       scroll and resize events keep it anchored to its trigger.
+
+       It treats the existing <input type="date"> purely as the storage
+       sink + change-event source: the chip's click bubbles into the
+       picker (clicks on the input itself are disabled via
+       pointer-events:none in CSS), and selecting a date writes
+       input.value + dispatches a change event so _calOnDateChange and
+       the rest of the save plumbing run unchanged. Clearing the date
+       sets input.value to '' and dispatches the same event.
+
+       Read-only date chips (.cal-fld-date-wrap.is-readonly — the client
+       view when Collaborative mode is off) skip the open path entirely,
+       matching the readonly attribute that used to suppress the native
+       popup. */
+    (function setupDatePicker() {
+        'use strict';
+        let dpEl = null;
+        let focusedISO = null;
+        let minISO = null;
+        let maxISO = null;
+        let dpInput = null;        // hidden <input type="date"> driving the chip
+        let dpTriggerEl = null;    // the .cal-date-chip we opened from
+        let cursorISO = null;      // 'YYYY-MM-01' — the month currently in view
+        let selectedISO = null;    // 'YYYY-MM-DD' or null
+        let dpPositionFrame = 0;
+        let dpDisconnectObserver = null;
+
+        function pad(n) { return String(n).padStart(2, '0'); }
+        function todayISO() {
+            const policy = dpInput && String(dpInput.dataset && dpInput.dataset.svTodayPolicy || '');
+            if (policy === 'workload' && typeof wlWorkloadTodayISO === 'function') {
+                return wlWorkloadTodayISO();
+            }
+            const pinned = dpInput && String(dpInput.dataset && dpInput.dataset.svToday || '');
+            if (/^\d{4}-\d{2}-\d{2}$/.test(pinned)) return pinned;
+            const d = new Date();
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        }
+        function isoOf(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+        function dateOf(iso) {
+            const match = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12) : null;
+        }
+        function inBounds(iso) { return !!iso && (!minISO || iso >= minISO) && (!maxISO || iso <= maxISO); }
+        function clampISO(iso) {
+            if (minISO && iso < minISO) return minISO;
+            if (maxISO && iso > maxISO) return maxISO;
+            return iso;
+        }
+        function shiftDay(iso, delta) {
+            const d = dateOf(iso);
+            if (!d) return iso;
+            d.setDate(d.getDate() + delta);
+            return isoOf(d);
+        }
+        function shiftFocusedMonth(iso, delta) {
+            const d = dateOf(iso);
+            if (!d) return iso;
+            const day = d.getDate();
+            const target = new Date(d.getFullYear(), d.getMonth() + delta, 1, 12);
+            const last = new Date(target.getFullYear(), target.getMonth() + 1, 0, 12).getDate();
+            target.setDate(Math.min(day, last));
+            return isoOf(target);
+        }
+        function firstOfMonth(iso) { return iso.slice(0, 7) + '-01'; }
+        function shiftMonth(iso, delta) {
+            const [y, m] = iso.split('-').map(Number);
+            const d = new Date(y, m - 1 + delta, 1);
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`;
+        }
+
+        function ensureEl() {
+            if (dpEl) return dpEl;
+            dpEl = document.createElement('div');
+            dpEl.className = 'dp-popup';
+            dpEl.id = 'svDatePickerPopup';
+            dpEl.setAttribute('role', 'dialog');
+            dpEl.setAttribute('aria-label', 'Pick a date');
+            return dpEl;
+        }
+
+        function position() {
+            if (!dpEl || !dpTriggerEl) return;
+            // Reset, measure, then place.
+            dpEl.style.top = '0px';
+            dpEl.style.left = '0px';
+            const t = dpTriggerEl.getBoundingClientRect();
+            const r = dpEl.getBoundingClientRect();
+            const viewport = window.visualViewport;
+            const viewportLeft = viewport ? viewport.offsetLeft : 0;
+            const viewportTop = viewport ? viewport.offsetTop : 0;
+            const viewportWidth = viewport ? viewport.width : (document.documentElement.clientWidth || window.innerWidth);
+            const viewportHeight = viewport ? viewport.height : (document.documentElement.clientHeight || window.innerHeight);
+            const viewportRight = viewportLeft + viewportWidth;
+            const viewportBottom = viewportTop + viewportHeight;
+            const margin = 6, edge = 8;
+            // Prefer below the chip; flip above when there isn't room.
+            let top = t.bottom + margin;
+            if (top + r.height > viewportBottom - edge) {
+                top = Math.max(viewportTop + edge, t.top - r.height - margin);
+            }
+            let left = t.left;
+            if (left + r.width > viewportRight - edge) left = viewportRight - r.width - edge;
+            if (left < viewportLeft + edge) left = viewportLeft + edge;
+            dpEl.style.top = top + 'px';
+            dpEl.style.left = left + 'px';
+        }
+
+        function render(focusDay) {
+            if (!dpEl) return;
+            const [y, m] = cursorISO.split('-').map(Number);
+            const monthLabel = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            // First-day-of-month dow (Sunday=0); fill 6 weeks for stable height.
+            const firstDow = new Date(y, m - 1, 1).getDay();
+            const days = [];
+            for (let i = 0; i < 42; i++) {
+                const d = new Date(y, m - 1, 1 - firstDow + i);
+                days.push(d);
+            }
+            const today = todayISO();
+            const dows = ['S','M','T','W','T','F','S'];
+            const cellHtml = days.map(function (d) {
+                const dIso = isoOf(d);
+                const isOut = d.getMonth() !== (m - 1);
+                const isToday = dIso === today;
+                const isSelected = dIso === selectedISO;
+                const isDisabled = !inBounds(dIso);
+                const cls = ['dp-day'];
+                if (isOut) cls.push('is-out');
+                if (isToday) cls.push('is-today');
+                if (isSelected) cls.push('is-selected');
+                return `<button type="button" class="${cls.join(' ')}" data-dp-day="${dIso}" aria-label="${d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}" aria-pressed="${isSelected ? 'true' : 'false'}"${isToday ? ' aria-current="date"' : ''} tabindex="${dIso === focusedISO ? '0' : '-1'}"${isDisabled ? ' disabled' : ''}>${d.getDate()}</button>`;
+            }).join('');
+            dpEl.innerHTML = `
+                <div class="dp-head">
+                    <div class="dp-head-label">${monthLabel}</div>
+                    <div class="dp-head-nav">
+                        <button type="button" class="dp-nav-btn" data-dp-nav="-1" aria-label="Previous month"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4l-4 4 4 4"/></svg></button>
+                        <button type="button" class="dp-nav-btn" data-dp-nav="1" aria-label="Next month"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l4 4-4 4"/></svg></button>
+                    </div>
+                </div>
+                <div class="dp-grid" role="group" aria-label="${monthLabel}">
+                    ${dows.map(function (d) { return `<div class="dp-dow" aria-hidden="true">${d}</div>`; }).join('')}
+                    ${cellHtml}
+                </div>
+                <div class="dp-foot">
+                    <button type="button" class="dp-foot-btn" data-dp-act="clear">Clear</button>
+                    <button type="button" class="dp-foot-btn is-primary" data-dp-act="today"${inBounds(today) ? '' : ' disabled'}>Today</button>
+                </div>`;
+            // Reposition AFTER innerHTML in case content height changed
+            // (the grid is always 6 rows so this is mostly a no-op).
+            position();
+            if (focusDay) {
+                const day = dpEl.querySelector(`[data-dp-day="${focusedISO}"]`);
+                if (day) {
+                    try { day.focus({ preventScroll: true }); }
+                    catch (_) { day.focus(); }
+                }
+            }
+        }
+
+        function commit(iso) {
+            if (!dpInput) return;
+            if (iso && !inBounds(iso)) return;
+            dpInput.value = iso || '';
+            dpInput.dispatchEvent(new Event('input', { bubbles: true }));
+            // bubbles:true so any delegated change listeners still fire.
+            dpInput.dispatchEvent(new Event('change', { bubbles: true }));
+            if (typeof _svSyncDateControl === 'function' && dpInput.id) _svSyncDateControl(dpInput.id);
+        }
+
+        function close(returnFocus) {
+            const trigger = dpTriggerEl;
+            if (trigger && trigger.hasAttribute('aria-expanded')) trigger.setAttribute('aria-expanded', 'false');
+            if (dpPositionFrame) cancelAnimationFrame(dpPositionFrame);
+            dpPositionFrame = 0;
+            if (dpDisconnectObserver) dpDisconnectObserver.disconnect();
+            dpDisconnectObserver = null;
+            if (dpEl && dpEl.parentNode) dpEl.parentNode.removeChild(dpEl);
+            dpEl = null;
+            dpInput = null;
+            dpTriggerEl = null;
+            cursorISO = null;
+            selectedISO = null;
+            focusedISO = null;
+            minISO = null;
+            maxISO = null;
+            document.removeEventListener('mousedown', outsideMouse, true);
+            document.removeEventListener('keydown', keyHandler);
+            window.removeEventListener('scroll', viewportChange, true);
+            window.removeEventListener('resize', viewportChange);
+            if (window.visualViewport) {
+                window.visualViewport.removeEventListener('scroll', viewportChange);
+                window.visualViewport.removeEventListener('resize', viewportChange);
+            }
+            if (returnFocus && trigger && document.contains(trigger)) trigger.focus();
+        }
+        function viewportChange() {
+            if (!dpEl || !dpTriggerEl || !document.contains(dpTriggerEl)) {
+                close(false);
+                return;
+            }
+            if (dpPositionFrame) cancelAnimationFrame(dpPositionFrame);
+            dpPositionFrame = requestAnimationFrame(function () {
+                dpPositionFrame = 0;
+                if (!dpEl || !dpTriggerEl || !document.contains(dpTriggerEl)) close(false);
+                else position();
+            });
+        }
+
+        function open(chip) {
+            const wrap = chip && chip.closest('.cal-fld-date-wrap, [data-sv-date-picker]');
+            if (!wrap || wrap.classList.contains('is-readonly') || wrap.classList.contains('is-disabled') || chip.disabled) return;
+            const input = wrap.querySelector('input[type="date"]');
+            if (!input || input.disabled) return;
+            close(false);   // any previous one
+            dpInput = input;
+            dpTriggerEl = chip;
+            minISO = /^\d{4}-\d{2}-\d{2}$/.test(input.min || '') ? input.min : null;
+            maxISO = /^\d{4}-\d{2}-\d{2}$/.test(input.max || '') ? input.max : null;
+            const startIso = clampISO((input.value || '').slice(0, 10) || todayISO());
+            selectedISO = (input.value || '').slice(0, 10) || null;
+            focusedISO = startIso;
+            cursorISO = firstOfMonth(startIso);
+            ensureEl();
+            if (chip.hasAttribute('aria-expanded')) chip.setAttribute('aria-expanded', 'true');
+            document.body.appendChild(dpEl);
+            render(true);
+            // Clicks on the popover itself shouldn't bubble to the outside
+            // handler — but plain delegation handles the inner buttons.
+            dpEl.addEventListener('click', onPopupClick);
+            document.addEventListener('mousedown', outsideMouse, true);
+            document.addEventListener('keydown', keyHandler);
+            // Keep the body-portaled popover attached during mobile/ancestor
+            // scrolling, and close it if a rerender removes its trigger.
+            window.addEventListener('scroll', viewportChange, true);
+            window.addEventListener('resize', viewportChange);
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('scroll', viewportChange);
+                window.visualViewport.addEventListener('resize', viewportChange);
+            }
+            dpDisconnectObserver = new MutationObserver(function () {
+                if (dpTriggerEl && !document.contains(dpTriggerEl)) close(false);
+            });
+            dpDisconnectObserver.observe(document.body, { childList: true, subtree: true });
+        }
+
+        function onPopupClick(e) {
+            const t = e.target.closest('[data-dp-day], [data-dp-nav], [data-dp-act]');
+            if (!t) return;
+            if (t.hasAttribute('data-dp-day')) {
+                selectedISO = t.getAttribute('data-dp-day');
+                commit(selectedISO);
+                close(true);
+            } else if (t.hasAttribute('data-dp-nav')) {
+                const delta = Number(t.getAttribute('data-dp-nav')) || 0;
+                focusedISO = clampISO(shiftFocusedMonth(focusedISO, delta));
+                cursorISO = firstOfMonth(focusedISO);
+                render(true);
+            } else if (t.hasAttribute('data-dp-act')) {
+                const act = t.getAttribute('data-dp-act');
+                if (act === 'clear') { commit(''); close(true); }
+                else if (act === 'today') {
+                    const today = todayISO();
+                    if (inBounds(today)) { commit(today); close(true); }
+                }
+            }
+        }
+
+        function outsideMouse(e) {
+            if (!dpEl) return;
+            if (dpEl.contains(e.target)) return;
+            // Re-clicking the same chip should toggle closed (and let the
+            // chip-open handler reopen) instead of leaving a stale popup.
+            if (dpTriggerEl && dpTriggerEl.contains(e.target)) return;
+            close(false);
+        }
+
+        function keyHandler(e) {
+            if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
+            if (!dpEl || !dpEl.contains(e.target)) return;
+            if (e.key === 'Tab') {
+                const focusable = Array.from(dpEl.querySelectorAll('button:not([disabled])'));
+                if (!focusable.length) { e.preventDefault(); return; }
+                const activeIndex = focusable.indexOf(document.activeElement);
+                if (e.shiftKey && activeIndex <= 0) {
+                    e.preventDefault();
+                    focusable[focusable.length - 1].focus();
+                } else if (!e.shiftKey && activeIndex === focusable.length - 1) {
+                    e.preventDefault();
+                    focusable[0].focus();
+                }
+                return;
+            }
+            if (!focusedISO) return;
+            const dayTarget = e.target.closest && e.target.closest('[data-dp-day]');
+            if (!dayTarget) return;
+            let next = null;
+            if (e.key === 'ArrowLeft') next = shiftDay(focusedISO, -1);
+            else if (e.key === 'ArrowRight') next = shiftDay(focusedISO, 1);
+            else if (e.key === 'ArrowUp') next = shiftDay(focusedISO, -7);
+            else if (e.key === 'ArrowDown') next = shiftDay(focusedISO, 7);
+            else if (e.key === 'Home') {
+                const d = dateOf(focusedISO);
+                next = shiftDay(focusedISO, -(d ? d.getDay() : 0));
+            } else if (e.key === 'End') {
+                const d = dateOf(focusedISO);
+                next = shiftDay(focusedISO, 6 - (d ? d.getDay() : 0));
+            } else if (e.key === 'PageUp') next = shiftFocusedMonth(focusedISO, -1);
+            else if (e.key === 'PageDown') next = shiftFocusedMonth(focusedISO, 1);
+            else if ((e.key === 'Enter' || e.key === ' ') && e.target.closest && e.target.closest('[data-dp-day]')) {
+                e.preventDefault();
+                commit(focusedISO);
+                close(true);
+                return;
+            }
+            if (next) {
+                e.preventDefault();
+                focusedISO = clampISO(next);
+                cursorISO = firstOfMonth(focusedISO);
+                render(true);
+            }
+        }
+
+        // Capture-phase click on date chips. The chip is inside a card and
+        // may have other click handlers attached to ancestors, so we
+        // catch in the capture phase and stop propagation to keep the
+        // open() call clean.
+        document.addEventListener('click', function (e) {
+            const chip = e.target && e.target.closest && e.target.closest('.cal-date-chip, [data-sv-date-trigger]');
+            if (!chip) return;
+            const wrap = chip.closest('.cal-fld-date-wrap, [data-sv-date-picker]');
+            if (!wrap || wrap.classList.contains('is-readonly') || wrap.classList.contains('is-disabled') || chip.disabled) return;
+            e.preventDefault();
+            e.stopPropagation();
+            if (chip === dpTriggerEl || chip.getAttribute('aria-expanded') === 'true') { close(true); return; }
+            open(chip);
+        }, true);
+    })();

@@ -1,0 +1,2778 @@
+    // KASPER_UNLOCK_KEY + _kasperUnlocked were hoisted up to before init()
+    // (search for "Kasper unlock state — declared early") so the unlock
+    // block at the top of init() can touch _kasperUnlocked without hitting
+    // a TDZ; their old declarations have been removed from this spot.
+    const KASPER_SUBTABS = [
+        { key: 'review',  label: 'Review Session', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8s2.2-4.5 6-4.5S14 8 14 8s-2.2 4.5-6 4.5S2 8 2 8z"/><circle cx="8" cy="8" r="2"/></svg>' },
+        { key: 'replies', label: 'Messages',       icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>' },
+        { key: 'editors', label: 'Editors',        showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3.5" width="12" height="9" rx="1.4"/><path d="M2 6h12M2 10h12M4.5 3.5v9M11.5 3.5v9"/></svg>' },
+        { key: 'filming', label: 'Filming Plans',  icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="8.5" height="7" rx="1.2"/><path d="M11 7l2.5-1.6v5.2L11 9z"/></svg>' },
+        { key: 'time-off', label: 'Time Off', showCount: true, hideZero: true, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="3.25" width="11.5" height="10.5" rx="1.6"/><path d="M2.5 6.5h11M5 1.8v3M11 1.8v3"/><path d="m5.2 9 1.4 1.4 3.4-3.2"/></svg>' },
+        { key: 'sales-intake', label: 'Sales Intake', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h7l3 3V13.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M8 6v5M6.3 10.1c.4.5 1 .8 1.7.8 1 0 1.7-.5 1.7-1.3 0-1.6-3.3-.9-3.3-2.5 0-.8.7-1.3 1.6-1.3.7 0 1.3.3 1.6.7"/></svg>' },
+        { key: 'hiring-process', label: 'Hiring Process', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13.5V3.8A1.3 1.3 0 0 1 4.3 2.5h7.4A1.3 1.3 0 0 1 13 3.8v9.7"/><path d="M5.2 6.2h5.6M5.2 8.7h5.6M5.2 11.2h3"/><circle cx="12.5" cy="12.5" r="2.1"/><path d="m11.6 12.5.6.6 1.3-1.4"/></svg>' },
+        { key: 'onboarding', label: 'Onboarding', showCount: true, hideZero: true, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h6l2.5 2.5v8.3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M9.5 2.5V5h2.5"/><path d="M6 8.2h4M6 10.6h4"/></svg>' },
+        { key: 'client-credentials', label: 'Client Credentials', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="11" height="7" rx="1.4"/><path d="M5 7V5.2a3 3 0 0 1 6 0V7"/><path d="M8 10v1.5"/></svg>' },
+        { key: 'ad-performance', label: 'Ad Performance', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13.5h12"/><rect x="3.3" y="8.5" width="2.3" height="5"/><rect x="6.85" y="5.5" width="2.3" height="8"/><rect x="10.4" y="3" width="2.3" height="10.5"/></svg>' },
+        { key: 'quiz-leads', label: 'Quiz Leads', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8s2.2-4.5 6-4.5S14 8 14 8s-2.2 4.5-6 4.5S2 8 2 8z"/><path d="M6.3 6.6a1.7 1.7 0 1 1 2.2 1.6c-.5.2-.8.6-.8 1.1"/><circle cx="8" cy="10.6" r=".2" fill="currentColor"/></svg>' }
+    ];
+    if (typeof _sxrEnabled === 'function' && _sxrEnabled()) KASPER_SUBTABS.splice(1, 0, { key: 'samples', label: 'Samples', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2"/><path d="M5 8.2L7 10.2L11 5.8"/></svg>' }); // SXR_LINE
+    const KASPER_PRIMARY_SUBTAB_KEYS = ['review', 'samples', 'replies', 'filming'];
+    const KASPER_PRIMARY_SHORT_LABELS = { review: 'Review', samples: 'Samples', replies: 'Messages', filming: 'Filming' };
+    const KASPER_MORE_GROUPS = [
+        { label: 'Team', keys: ['editors', 'time-off'] },
+        { label: 'Pipeline & Admin', keys: ['sales-intake', 'hiring-process', 'onboarding', 'quiz-leads', 'client-credentials'] },
+        { label: 'Analytics', keys: ['ad-performance'] },
+    ];
+    const KASPER_MORE_NOTIFICATION_KEYS = ['time-off', 'onboarding'];
+    const KASPER_MORE_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="3" cy="8" r=".8" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r=".8" fill="currentColor" stroke="none"/><circle cx="13" cy="8" r=".8" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="6.5"/></svg>';
+    const KASPER_MORE_CHEVRON = '<svg class="kasper-more-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>';
+    const KASPER_SMM_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Social%20Media%20Managers`;
+    // Optional override — if your workspace's primary domain is known, set it here.
+    // Without it the Slack button falls back to opening Slack and searching the SMM's name.
+    const KASPER_SLACK_TEAM_DOMAIN = '';
+
+    const _kasperState = {
+        tab: 'review',
+        loading: false,
+        loadingSMM: false,
+        items: [],            // [{ post, client, slug, smm, _expanded, _saving, _saveError, _draft }]
+        replies: [],          // [{ post, client, slug, smm, _replyDraft }] — unread-reply inbox
+        history: [],          // [{ id, client, slug, name, asset_url, thumbnail_url, approvedAt }]
+        unloaded: [],         // [clientName] — whose calendar read FAILED this load. Their cards
+                              // are missing from the queue, which looks exactly like having no
+                              // work; item 86 made that state say so instead.
+        stranded: [],         // [{ id, client, slug, name, native }] — at Kasper Approval with
+                              // NO video and NO thumbnail: reported above the queue rather than
+                              // dropped, so a hand-off cannot fail silently on either side.
+        dismissed: {},        // pid -> true: SAME-DEVICE fallback for "Finish reviewing".
+                              // The cross-device source of truth is the persisted
+                              // kasper_finished_at stamp on the card; this local mirror
+                              // only keeps behaviour correct on this browser until the
+                              // backend column is live (see _kasperIsFinished).
+        closed: {},           // pid -> true: cards Kasper explicitly closed via the X on
+                              // the card (top-right). Unlike "Done reviewing", this needs
+                              // no decision — it just hides the card. It stays hidden across
+                              // refreshes (even while the component is still at Kasper
+                              // Approval) and only comes back when the card leaves Kasper's
+                              // queue entirely and is later re-routed back to Kasper Approval
+                              // — i.e. a genuine change of status. Pruned on every load for
+                              // any id no longer in the fetched queue (see _kasperLoadReview).
+        // Approved history and the Kasper-already-tweaked section both
+        // default to collapsed — they're "what I've already done" buckets
+        // that shouldn't visually compete with the live review queue.
+        historyCollapsed: true,
+        tweaksCollapsed: true,
+        urgentCollapsed: false,
+        waitingCollapsed: false,
+        smmByClient: null,    // slug -> { name, slack_user_id, slack_team_id }
+        error: null,
+        lastLoaded: 0,
+        editorsData: null,    // { weekLabel, editors[], … } from _kedFetchNativeWeek
+        editorsLoading: false,
+        editorsError: null,
+        editorsLoadedAt: 0,
+        editorsExpanded: {},  // editorKey -> true (expanded video list visible)
+        editorsDayFilter: {}, // editorKey -> 'YYYY-MM-DD' when filtered to a single day
+        editorsClientExpanded: {}, // editorKey -> { clientName -> bool }; absent = use view default
+        editorsAvgMode: false, // false = weekly totals, true = per-workday averages
+        filmingData: null,    // { rows:[{client,slug,docUrl,docId,notes,months:Set,contentTotal,tabRead,tabTitles,latestPlanMonth,nextPlanMonth,status,reason}], loadedAt }
+        filmingLoading: false,
+        filmingError: null,
+        filmingLoadedAt: 0,
+        filmingExpanded: {},  // clientName -> true (month strip visible)
+    };
+    const KASPER_HISTORY_KEY = 'syncview_kasper_approved_log_v1';
+    const KASPER_HISTORY_CAP = 200;
+    const KASPER_SUBTAB_KEY = 'syncview_kasper_subtab_v1';
+    const KASPER_ONBOARDING_SEEN_KEY = 'syncview_kasper_onboarding_seen_v1';
+    const KASPER_CACHE_KEY = 'syncview_kasper_review_cache_v1';
+    const KASPER_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;   // sanity bound; staleness is fine, ancient data is not
+    // "Last week's editor labour" never changes once a week has passed, so
+    // cache the workflow response in localStorage. The cache survives across
+    // page reloads (until the user clicks Refresh or the calendar crosses
+    // into a new "last week").
+    const KASPER_EDITORS_CACHE_KEY = 'syncview_kasper_editors_v3';
+    const KASPER_EDITORS_CACHE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000; // 2 weeks — pure sanity bound
+    const KASPER_FILMING_CACHE_KEY = 'syncview_kasper_filming_v3';
+    const KASPER_FILMING_CACHE_MAX_AGE_MS = 30 * 60 * 1000; // 30 min — content/coverage drift slowly
+    // Content-bank thresholds. These are intentionally counts, not an assumed
+    // posting cadence: every client can see exactly how much active calendar
+    // content is available, whether or not it already has a calendar date.
+    const FILMING_CONTENT_RED_COUNT = 10;
+    const FILMING_CONTENT_COVERED_COUNT = 21;
+    const FILMING_PLAN_SOON_DAYS = 14;
+    function _kasperFallbackToReview() {
+        _kasperState.tab = 'review';
+        try { localStorage.setItem(KASPER_SUBTAB_KEY, 'review'); } catch (e) {}
+        try {
+            if (typeof currentNav !== 'undefined' && currentNav === 'kasper') {
+                history.replaceState({ nav: 'kasper' }, '', location.pathname + location.search + '#kasper');
+            }
+        } catch (e) {}
+        if (typeof _kasperSyncTabNav === 'function') _kasperSyncTabNav();
+    }
+    try {
+        const _kSavedSub = localStorage.getItem(KASPER_SUBTAB_KEY);
+        if (_kSavedSub && KASPER_SUBTABS.some(t => t.key === _kSavedSub)) _kasperState.tab = _kSavedSub;
+    } catch (e) {}
+
+    function renderKasperView() {
+        if (_kasperState.tab === 'time-off' && (!_ptoEnabled() || !_syncviewStaffCan('pto-admin'))) _kasperFallbackToReview();
+        if (_kasperState.tab === 'hiring-process' && !_syncviewStaffCan('hiring')) _kasperFallbackToReview();
+        const visibleTabs = KASPER_SUBTABS.filter(t => t.key !== 'time-off' || _ptoEnabled());
+        const tabButtonHtml = (t, inMore) => {
+            const capability = t.key === 'client-credentials' ? 'credentials' : (t.key === 'onboarding' ? 'onboarding' : (t.key === 'time-off' ? 'pto-admin' : ''));
+            const gatedCapability = t.key === 'hiring-process' ? 'hiring'
+                : (t.key === 'quiz-leads' ? 'quiz-leads' : capability);
+            const gated = gatedCapability ? ` data-staff-capability="${gatedCapability}"${_syncviewStaffCan(gatedCapability) ? '' : ' hidden'}` : '';
+            const active = _kasperState.tab === t.key;
+            const count = t.showCount === false ? '' : `<span class="kasper-tab-count" data-kasper-count="${t.key}"${t.hideZero ? ' data-kasper-hide-zero' : ''}>·</span>`;
+            const shortLabel = KASPER_PRIMARY_SHORT_LABELS[t.key] || t.label;
+            return `
+            <button type="button" class="kasper-subtab ${inMore ? 'kasper-more-item' : 'kasper-primary-tab'}${active ? ' active' : ''}" data-kasper-tab="${t.key}"${gated}${inMore ? ' role="menuitem" tabindex="-1"' : ''}${active ? ' aria-current="page"' : ''} title="${_calEsc(t.label)}" onclick="_kasperGotoTab('${t.key}')">
+                ${t.icon}<span class="kasper-tab-label-full">${_calEsc(t.label)}</span><span class="kasper-tab-label-short">${_calEsc(shortLabel)}</span>${count}
+            </button>`;
+        };
+        const primaryTabs = KASPER_PRIMARY_SUBTAB_KEYS
+            .map(key => visibleTabs.find(t => t.key === key))
+            .filter(Boolean);
+        const primaryTabsHtml = primaryTabs.map(t => tabButtonHtml(t, false)).join('');
+        const moreGroupsHtml = KASPER_MORE_GROUPS.map(group => {
+            const groupTabs = group.keys.map(key => visibleTabs.find(t => t.key === key)).filter(Boolean);
+            if (!groupTabs.length) return '';
+            return `<div class="kasper-more-group" role="presentation">
+                <div class="kasper-more-heading">${_calEsc(group.label)}</div>
+                ${groupTabs.map(t => tabButtonHtml(t, true)).join('')}
+            </div>`;
+        }).join('');
+        const moreKeys = new Set(KASPER_MORE_GROUPS.flatMap(group => group.keys));
+        const activeMoreTab = visibleTabs.find(t => t.key === _kasperState.tab && moreKeys.has(t.key));
+        const moreIcon = activeMoreTab ? activeMoreTab.icon : KASPER_MORE_ICON;
+        const moreLabel = activeMoreTab ? activeMoreTab.label : 'More';
+        return `<div class="kasper-wrap">
+            <div class="kasper-head">
+                <div class="kasper-title">Kasper</div>
+                <div class="kasper-sub">Things waiting for your call.</div>
+            </div>
+            <nav class="kasper-subtabs" aria-label="Kasper sections">
+                ${primaryTabsHtml}
+                <div class="kasper-more" onkeydown="_kasperOnMoreKeydown(event)">
+                    <button type="button" class="kasper-subtab kasper-more-trigger${activeMoreTab ? ' active' : ''}" data-kasper-more-trigger aria-haspopup="menu" aria-expanded="false" aria-controls="kasperMoreMenu"${activeMoreTab ? ' aria-current="page"' : ''} onclick="_kasperToggleMore(event)">
+                        <span class="kasper-more-icon" data-kasper-more-icon aria-hidden="true">${moreIcon}</span>
+                        <span data-kasper-more-label>${_calEsc(moreLabel)}</span>
+                        <span class="kasper-tab-count kasper-more-count" data-kasper-more-count hidden aria-label="notifications"></span>
+                        ${KASPER_MORE_CHEVRON}
+                    </button>
+                    <div class="kasper-more-menu" id="kasperMoreMenu" role="menu" aria-label="More Kasper sections" hidden>
+                        ${moreGroupsHtml}
+                    </div>
+                </div>
+            </nav>
+            <div id="kasperContent"></div>
+            <div class="kasper-lightbox" id="kasperLightbox" onclick="_kasperCloseLightbox()">
+                <img alt="" onclick="event.stopPropagation()">
+                <button class="kasper-lightbox-close" type="button" onclick="_kasperCloseLightbox()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+            </div>
+        </div>`;
+    }
+
+    let _kasperMoreWired = false;
+    function _kasperVisibleMoreItems() {
+        return [...document.querySelectorAll('#kasperMoreMenu .kasper-more-item:not([hidden])')];
+    }
+    function _kasperSetMoreOpen(open, focusMenu, restoreTrigger) {
+        const wrap = document.querySelector('.kasper-more');
+        const trigger = document.querySelector('[data-kasper-more-trigger]');
+        const menu = document.getElementById('kasperMoreMenu');
+        if (!wrap || !trigger || !menu) return;
+        const shouldOpen = !!open;
+        wrap.classList.toggle('open', shouldOpen);
+        trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        menu.hidden = !shouldOpen;
+        const items = _kasperVisibleMoreItems();
+        if (!shouldOpen) {
+            items.forEach(item => { item.tabIndex = -1; });
+            if (restoreTrigger) trigger.focus();
+            return;
+        }
+        if (focusMenu && items.length) {
+            const target = items.find(item => item.getAttribute('aria-current') === 'page') || items[0];
+            items.forEach(item => { item.tabIndex = item === target ? 0 : -1; });
+            target.focus();
+        }
+    }
+    function _kasperToggleMore(event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        const trigger = document.querySelector('[data-kasper-more-trigger]');
+        _kasperSetMoreOpen(!trigger || trigger.getAttribute('aria-expanded') !== 'true', false, false);
+    }
+    function _kasperFocusMoreItem(items, index) {
+        if (!items.length) return;
+        const next = (index + items.length) % items.length;
+        items.forEach((item, itemIndex) => { item.tabIndex = itemIndex === next ? 0 : -1; });
+        items[next].focus();
+    }
+    function _kasperOnMoreKeydown(event) {
+        if (!event) return;
+        const key = event.key;
+        const trigger = event.target.closest && event.target.closest('[data-kasper-more-trigger]');
+        const menu = document.getElementById('kasperMoreMenu');
+        const items = _kasperVisibleMoreItems();
+        if (trigger && (key === 'Enter' || key === ' ')) {
+            event.preventDefault();
+            _kasperSetMoreOpen(true, true, false);
+            return;
+        }
+        if (trigger && (key === 'ArrowDown' || key === 'ArrowUp')) {
+            event.preventDefault();
+            _kasperSetMoreOpen(true, false, false);
+            _kasperFocusMoreItem(items, key === 'ArrowUp' ? items.length - 1 : 0);
+            return;
+        }
+        if (!menu || menu.hidden || !menu.contains(event.target)) return;
+        const current = items.indexOf(event.target.closest('.kasper-more-item'));
+        if (key === 'ArrowDown' || key === 'ArrowUp') {
+            event.preventDefault();
+            _kasperFocusMoreItem(items, current + (key === 'ArrowDown' ? 1 : -1));
+        } else if (key === 'Home' || key === 'End') {
+            event.preventDefault();
+            _kasperFocusMoreItem(items, key === 'Home' ? 0 : items.length - 1);
+        } else if (key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            _kasperSetMoreOpen(false, false, true);
+        } else if (key === 'Tab') {
+            _kasperSetMoreOpen(false, false, false);
+        }
+    }
+    function _kasperDismissMore(event) {
+        const wrap = document.querySelector('.kasper-more');
+        if (wrap && !wrap.contains(event.target)) _kasperSetMoreOpen(false, false, false);
+    }
+    function _kasperMoreDocumentKeydown(event) {
+        const menu = document.getElementById('kasperMoreMenu');
+        if (event.key === 'Escape' && menu && !menu.hidden) {
+            event.preventDefault();
+            _kasperSetMoreOpen(false, false, true);
+        }
+    }
+    function _kasperWireMoreNav() {
+        if (_kasperMoreWired) return;
+        document.addEventListener('pointerdown', _kasperDismissMore, true);
+        document.addEventListener('keydown', _kasperMoreDocumentKeydown);
+        _kasperMoreWired = true;
+    }
+    function _kasperUnwireMoreNav() {
+        if (!_kasperMoreWired) return;
+        document.removeEventListener('pointerdown', _kasperDismissMore, true);
+        document.removeEventListener('keydown', _kasperMoreDocumentKeydown);
+        _kasperMoreWired = false;
+    }
+    function _kasperSyncTabNav() {
+        const activeKey = _kasperState.tab;
+        document.querySelectorAll('.kasper-subtab[data-kasper-tab]').forEach(button => {
+            const active = button.getAttribute('data-kasper-tab') === activeKey;
+            button.classList.toggle('active', active);
+            if (active) button.setAttribute('aria-current', 'page');
+            else button.removeAttribute('aria-current');
+        });
+        const activeMoreTab = KASPER_SUBTABS.find(tab => tab.key === activeKey && !KASPER_PRIMARY_SUBTAB_KEYS.includes(tab.key));
+        const trigger = document.querySelector('[data-kasper-more-trigger]');
+        if (trigger) {
+            const icon = trigger.querySelector('[data-kasper-more-icon]');
+            const label = trigger.querySelector('[data-kasper-more-label]');
+            if (icon) icon.innerHTML = activeMoreTab ? activeMoreTab.icon : KASPER_MORE_ICON;
+            if (label) label.textContent = activeMoreTab ? activeMoreTab.label : 'More';
+            trigger.classList.toggle('active', !!activeMoreTab);
+            trigger.title = activeMoreTab ? activeMoreTab.label : 'More sections';
+            if (activeMoreTab) trigger.setAttribute('aria-current', 'page');
+            else trigger.removeAttribute('aria-current');
+        }
+        _kasperSyncMoreNotificationCount();
+        _kasperSetMoreOpen(false, false, false);
+    }
+
+    function _kasperOpenLightbox(pid) {
+        const it = _kasperState.items.find(x => x.post.id === pid);
+        if (!it) return;
+        const info = _calDeriveThumbInfo(it.post);
+        if (!info || !info.url) return;
+        const ovl = document.getElementById('kasperLightbox');
+        if (!ovl) return;
+        const img = ovl.querySelector('img');
+        img.src = info.url;
+        ovl.classList.add('open');
+    }
+    function _kasperCloseLightbox() {
+        const ovl = document.getElementById('kasperLightbox');
+        if (ovl) ovl.classList.remove('open');
+    }
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            const ovl = document.getElementById('kasperLightbox');
+            if (ovl && ovl.classList.contains('open')) _kasperCloseLightbox();
+        }
+    });
+
+    function mountKasperView() {
+        _kasperWireMoreNav();
+        _kasperSyncTabNav();
+        // Hydrate cached state once per page-load so the very first visit
+        // shows last-known cards while the network re-validation is in
+        // flight. Subsequent tab switches in the same page reuse the
+        // in-memory state.
+        if (!_kasperState.lastLoaded) _kasperHydrateCache();
+        _kasperRenderTab();
+        // Paint every subtab's count from whatever state we already have (review
+        // comes straight from the entry cache), then fetch the rest in the
+        // background so all the pills show a real number — not the placeholder dot —
+        // without the user having to open each tab.
+        _kasperRefreshTabCounts();
+        _kasperEnsureAllTabCounts();
+        _kasperEnsureAutoRefresh();
+    }
+
+    /* Background poll for the Kasper review — same cadence as the client
+       calendar (30 s) plus a refresh on tab/window focus, so a card the
+       SMM just moved to "Kasper Approval" appears here without needing
+       Kasper to hit the Refresh button. Only fires while the Kasper view
+       is actually mounted and the tab is visible. */
+    let _kasperPollTimer = null;
+    let _kasperWiredVisibility = false;
+    /* Generation counter — bumped on every user mutation so an in-flight
+       background load whose response arrives AFTER a click can detect that
+       it's stale and skip applying its result. Without this, a poll fired
+       just before the user approves a card can finish 200 ms later and
+       repaint with the pre-approval state, making the card "snap back". */
+    let _kasperLoadGen = 0;
+    let _kasperLastLocalWriteAt = 0;   // last local Kasper action — used to ignore the realtime echo of our own writes
+    function _kasperInvalidateInFlightLoad() { _kasperLoadGen++; _kasperLastLocalWriteAt = Date.now(); }
+    /* Click-eaten-by-re-render guard. The queue repaints by rebuilding DOM
+       (_kasperPaintReview rebuilds the whole list; _kasperRepaintCard replaces a
+       card). A background repaint — a realtime echo of ANY client's change, a
+       tab-focus refresh, a slow save landing — can fire in the instant Kasper has
+       a button pressed, tearing that button out between pointerdown and click so
+       the click never registers. "Finish reviewing" then silently no-ops and he
+       has to click again. While a pointer is held on a control in the Kasper view
+       we defer background repaints and let the existing retry timer catch up the
+       moment it's released. A user action's OWN repaint is unaffected: its onclick
+       runs only after pointerup, when this flag is already clear. */
+    let _kasperPointerHeld = false;
+    let _kasperPointerSafetyTimer = null;
+    function _kasperOnPointerDown(e) {
+        const t = e && e.target;
+        if (!t || !t.closest) return;
+        // Only guard presses on actual controls inside the queue — those are the
+        // clicks a rebuild can swallow. A press on inert text shouldn't freeze
+        // live updates.
+        if (!t.closest('#kasperContent')) return;
+        if (!t.closest('button, a, [onclick], input, label')) return;
+        _kasperPointerHeld = true;
+        if (_kasperPointerSafetyTimer) clearTimeout(_kasperPointerSafetyTimer);
+        // Safety net: a missed pointerup (drag-off, context menu, alert) must
+        // never freeze the queue's live updates. Auto-release shortly after.
+        _kasperPointerSafetyTimer = setTimeout(_kasperReleasePointer, 1500);
+    }
+    function _kasperReleasePointer() {
+        if (_kasperPointerSafetyTimer) { clearTimeout(_kasperPointerSafetyTimer); _kasperPointerSafetyTimer = null; }
+        _kasperPointerHeld = false;
+        // No explicit flush here on purpose: any repaint deferred while held armed
+        // its own short retry (see the _kasperPointerHeld guards in
+        // _kasperPaintReview / _kasperRepaintCard), which catches up now that the
+        // flag is clear. Kasper's OWN action repaints immediately anyway — its
+        // onclick runs after this pointerup, when the flag is already false — so a
+        // blanket repaint-on-every-release would only add a redundant full rebuild
+        // (and would clobber the clean-approve fade-out).
+    }
+    function _kasperIsReviewMounted() {
+        return _kasperState.tab === 'review' && !!document.getElementById('kasperContent');
+    }
+    function _kasperMaybeBackgroundRefresh() {
+        if (document.visibilityState === 'hidden') return;
+        // Refresh on the Review AND Replies tabs (both mount into #kasperContent).
+        // Replies was excluded before, so the inbox stayed frozen until you left
+        // the tab and came back — incoming SMM/client replies never arrived live.
+        if (!document.getElementById('kasperContent')) return;
+        // Samples sub-tab: same tab-return catch-up as Review/Replies below —
+        // without it the samples queue had NO refetch on any return path (its
+        // realtime socket can suspend in a backgrounded tab and miss events),
+        // so cards the SMM routed to Kasper while he was away never appeared
+        // until a manual reload.
+        if (_kasperState.tab === 'samples') {
+            if (typeof _sxrKasperState === 'undefined' || !_sxrKasperState || _sxrKasperState.loading) return;
+            const ta = document.activeElement;
+            if (ta && ta.tagName === 'TEXTAREA' && ta.closest && ta.closest('#kasperContent')) return;
+            if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue();
+            return;
+        }
+        if (_kasperState.tab !== 'review' && _kasperState.tab !== 'replies') return;
+        if (_kasperState.loading) return;
+        // Skip while the user is actively typing in a panel textarea so a
+        // background paint doesn't yank focus out of the draft mid-keystroke.
+        const a = document.activeElement;
+        if (a && a.tagName === 'TEXTAREA' && a.closest && a.closest('#kasperContent')) return;
+        // Force a real refetch — the per-client cache otherwise returns up
+        // to 5 minutes of stale data, so a tab-switch refresh wouldn't see
+        // anything new the SMM did in the meantime.
+        _kasperLoadReview(true);
+    }
+    function _kasperEnsureAutoRefresh() {
+        // No periodic poll — visibility/focus/pageshow events are the
+        // only refresh triggers, matching the SMM calendar's behaviour.
+        // Wasting an n8n execution every 30 s while Kasper has the tab
+        // open in the background just to find nothing changed isn't
+        // worth it.
+        if (!_kasperWiredVisibility) {
+            document.addEventListener('visibilitychange', _kasperMaybeBackgroundRefresh);
+            window.addEventListener('focus', _kasperMaybeBackgroundRefresh);
+            window.addEventListener('pageshow', _kasperMaybeBackgroundRefresh);
+            // Click-eaten-by-re-render guard (see _kasperPointerHeld): track a
+            // pressed pointer on a queue control so a background repaint can't tear
+            // the button out mid-click. Capture phase, so we see the press first.
+            document.addEventListener('pointerdown', _kasperOnPointerDown, true);
+            document.addEventListener('pointerup', _kasperReleasePointer, true);
+            document.addEventListener('pointercancel', _kasperReleasePointer, true);
+            _kasperWiredVisibility = true;
+        }
+        // Under v2 the queue is also live: a realtime subscription pushes a
+        // throttled refresh when any calendar_posts row changes, so a card the
+        // SMM moves to Kasper Approval appears without waiting for a focus
+        // event. Push-only — an idle tab makes no n8n calls. No-op under v1.
+        _kasperV2EnsureSubscribed();
+        // Same live push for the Samples sub-tab queue (sample_reviews). Self-gates
+        // on _sxrReady(), so it's a no-op unless the samples feature is enabled.
+        if (typeof _sxrKasperV2EnsureSubscribed === 'function') _sxrKasperV2EnsureSubscribed();
+    }
+    /* Stop the Kasper background poller + detach its visibility listeners
+       when leaving the Kasper page. Mirrors how the TikTok upload tab tears
+       its own poller down. Called from navTo() on every navigation away. */
+    function _kasperTeardown() {
+        _kasperSetMoreOpen(false, false, false);
+        _kasperUnwireMoreNav();
+        if (_kasperPollTimer) { clearInterval(_kasperPollTimer); _kasperPollTimer = null; }
+        if (_kasperWiredVisibility) {
+            document.removeEventListener('visibilitychange', _kasperMaybeBackgroundRefresh);
+            window.removeEventListener('focus', _kasperMaybeBackgroundRefresh);
+            window.removeEventListener('pageshow', _kasperMaybeBackgroundRefresh);
+            document.removeEventListener('pointerdown', _kasperOnPointerDown, true);
+            document.removeEventListener('pointerup', _kasperReleasePointer, true);
+            document.removeEventListener('pointercancel', _kasperReleasePointer, true);
+            _kasperWiredVisibility = false;
+        }
+        _kasperReleasePointer();
+        _kasperV2Teardown();
+        if (typeof _sxrKasperV2Teardown === 'function') _sxrKasperV2Teardown();
+        if (typeof _ccRevTeardown === 'function') _ccRevTeardown('kasper');
+    }
+
+    /* Kasper queue realtime (v2). The review queue spans every client, so a
+       single channel subscribes to ALL calendar_posts changes and triggers the
+       same throttled background refresh the focus/visibility path uses (which
+       itself skips when hidden / not on the review tab / mid-typing / already
+       loading, and force-refreshes from Supabase — cheap, no n8n). Debounced so
+       a burst of row changes (a reorder, a Linear sync) coalesces into one
+       refresh. Reuses the shared supabase-js client. Scoped to the Kasper view:
+       opened from _kasperEnsureAutoRefresh, torn down in _kasperTeardown. A
+       backgrounded tab whose socket suspends and misses events self-heals via
+       the existing focus/visibility refresh on return. No-op unless v2 is fully
+       configured, so v1 makes zero Supabase calls. */
+    let _kasperV2Channel = null;
+    let _kasperV2RtTimer = null;
+    const KASPER_RT_SELF_ECHO_MS = 5000;
+    function _kasperViewBusy() {
+        // True while Kasper is actively working: a recent local action (its own
+        // realtime echo is still incoming), a save in flight, a draft being
+        // written, or a textarea focused. The realtime refresh waits until he's
+        // settled so it never reloads thumbnails or drops his caret mid-review.
+        if (Date.now() - _kasperLastLocalWriteAt < KASPER_RT_SELF_ECHO_MS) return true;
+        const items = (_kasperState && _kasperState.items) || [];
+        for (const it of items) {
+            if (it._saving && (it._saving.video || it._saving.graphic || it._saving.caption)) return true;
+            if (it._drafts && (String(it._drafts.video || '').trim() || String(it._drafts.graphic || '').trim() || String(it._drafts.caption || '').trim() || String(it._drafts.title || '').trim())) return true;
+            if (it._replyDraft && String(it._replyDraft).trim()) return true;
+        }
+        // Reply drafts live on _kasperState.replies (the Replies inbox), NOT on the
+        // queue items above — so scan them too, or a realtime refresh can blow away
+        // a half-typed reply now that the Replies tab refreshes live.
+        const replies = (_kasperState && _kasperState.replies) || [];
+        for (const it of replies) {
+            if (it._replyDraft && String(it._replyDraft).trim()) return true;
+        }
+        const a = document.activeElement;
+        if (a && a.tagName === 'TEXTAREA' && a.closest && a.closest('#kasperContent')) return true;
+        return false;
+    }
+    async function _kasperV2EnsureSubscribed() {
+        if (!_calV2Ready() || _kasperV2Channel) return;
+        const client = await _calV2Client();
+        if (!client || _kasperV2Channel) return; // re-check: a teardown/second mount may have raced the lib load
+        try {
+            _kasperV2Channel = client
+                .channel('kasper-cal')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_posts' }, () => {
+                    if (_kasperV2RtTimer) clearTimeout(_kasperV2RtTimer);
+                    _kasperV2RtTimer = setTimeout(function tick() {
+                        _kasperV2RtTimer = null;
+                        // Don't rebuild the queue (reloads thumbnails + drops the
+                        // textarea caret) on Kasper's OWN action echoes or while
+                        // he's mid-review. Re-arm until he's settled; a teammate's
+                        // change while he's idle still comes through.
+                        if (_kasperViewBusy()) { _kasperV2RtTimer = setTimeout(tick, 2000); return; }
+                        _kasperMaybeBackgroundRefresh();
+                    }, 1500);
+                })
+                .subscribe();
+        } catch (e) {
+            console.warn('[Kasper v2] realtime subscribe failed', e);
+            _kasperV2Channel = null;
+        }
+    }
+    function _kasperV2Teardown() {
+        if (_kasperV2RtTimer) { clearTimeout(_kasperV2RtTimer); _kasperV2RtTimer = null; }
+        if (_kasperV2Channel) {
+            try {
+                if (_calV2ClientObj && typeof _calV2ClientObj.removeChannel === 'function') _calV2ClientObj.removeChannel(_kasperV2Channel);
+                else if (typeof _kasperV2Channel.unsubscribe === 'function') _kasperV2Channel.unsubscribe();
+            } catch {}
+        }
+        _kasperV2Channel = null;
+    }
+
+    function _kasperHydrateCache() {
+        try {
+            const raw = localStorage.getItem(KASPER_CACHE_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== 'object') return;
+            const stale = !parsed.savedAt || Date.now() - parsed.savedAt > KASPER_CACHE_MAX_AGE_MS;
+            // Display state expires after 24h, but a native-acknowledged source
+            // repair is durable debt. Hydrate only those repair subsets from an
+            // aged cache so a fresh queue load cannot erase them.
+            const items = (Array.isArray(parsed.items) ? parsed.items : [])
+                .filter(x => x && x.post && x.post.id && (!stale || x.post._writeUiRetrySourceAt));
+            for (const it of items) {
+                // Reset transient UI state — saving/error flags must not survive a reload.
+                it._saving = { video: false, graphic: false, caption: false };
+                it._errors = { video: null, graphic: null, caption: null };
+                if (typeof it._expanded !== 'boolean') it._expanded = false;
+                if (!it._drafts || typeof it._drafts !== 'object') it._drafts = { video: '', graphic: '', caption: '' };
+                it._touchedComps = Array.isArray(it._touchedComps) ? new Set(it._touchedComps) : new Set();
+                if (!Array.isArray(it.post.comments)) it.post.comments = _calLoadComments(it.post);
+                _calMigratePostShape(it.post);
+            }
+            _kasperState.items = items;
+            _kasperState.history = !stale && Array.isArray(parsed.history) ? parsed.history : [];
+            _kasperState.dismissed = !stale && parsed.dismissed && typeof parsed.dismissed === 'object' ? parsed.dismissed : {};
+            _kasperState.closed = !stale && parsed.closed && typeof parsed.closed === 'object' ? parsed.closed : {};
+            _kasperState.smmByClient = !stale && parsed.smmByClient
+                ? new Map(parsed.smmByClient)
+                : new Map();
+            _kasperState.sxrRepairs = Array.isArray(parsed.sxrRepairs) ? parsed.sxrRepairs : [];
+            _kasperState.lastLoaded = stale ? 0 : parsed.savedAt;
+        } catch (e) { /* corrupt cache — ignore */ }
+    }
+
+    function _kasperPersistCache() {
+        try {
+            const payload = {
+                savedAt: Date.now(),
+                items: _kasperState.items.map(it => ({
+                    post: it.post,
+                    client: it.client,
+                    slug: it.slug,
+                    smm: it.smm,
+                    // Cards always rehydrate collapsed from cache. Kasper
+                    // opens the day fresh and decides which to dig into;
+                    // resuming with five cards already expanded under
+                    // each other is just visual noise.
+                    _expanded: false,
+                    _drafts: it._drafts || { video: '', graphic: '', caption: '' },
+                    // _touchedComps is a Set in memory — serialize to array
+                    // so the cache survives JSON. Without this, a page
+                    // reload loses the "Kasper has been reviewing this"
+                    // flag and the card disappears on the next refresh,
+                    // since its sub-status is no longer at Kasper Approval.
+                    _touchedComps: it._touchedComps ? Array.from(it._touchedComps) : [],
+                })),
+                history: _kasperState.history,
+                dismissed: _kasperState.dismissed || {},
+                closed: _kasperState.closed || {},
+                smmByClient: _kasperState.smmByClient ? [..._kasperState.smmByClient.entries()] : [],
+                sxrRepairs: _kasperState.sxrRepairs || [],
+            };
+            localStorage.setItem(KASPER_CACHE_KEY, JSON.stringify(payload));
+            return true;
+        } catch (e) { return false; }
+    }
+
+    function _kasperGotoTab(tab) {
+        if (!KASPER_SUBTABS.some(t => t.key === tab)) return;
+        if (tab === 'time-off' && !_ptoEnabled()) return;
+        if (tab === 'time-off' && !_syncviewStaffCan('pto-admin')) return;
+        if (tab === 'client-credentials' && !_syncviewStaffCan('credentials')) { _syncviewOfferStaffSignIn('credentials'); return; }
+        if (tab === 'onboarding' && !_syncviewStaffCan('onboarding')) { _syncviewOfferStaffSignIn('onboarding'); return; }
+        if (tab === 'hiring-process' && !_syncviewStaffCan('hiring')) { _syncviewOfferStaffSignIn('hiring'); return; }
+        if (tab === 'quiz-leads' && !_syncviewStaffCan('quiz-leads')) { _syncviewOfferStaffSignIn('quiz-leads'); return; }
+        if (tab === 'time-off') {
+            _ptoInvalidateOverviewCaches();
+        }
+        const returnFocusToMore = !!(document.activeElement && document.activeElement.closest && document.activeElement.closest('.kasper-more-item'));
+        _kasperSetMoreOpen(false, false, false);
+        _kasperState.tab = tab;
+        try { localStorage.setItem(KASPER_SUBTAB_KEY, tab); } catch (e) {}
+        try { history.replaceState({ nav: 'kasper' }, '', location.pathname + location.search + '#kasper' + (tab === 'review' ? '' : '/' + tab)); } catch {}
+        _kasperSyncTabNav();
+        _kasperRenderTab();
+        if (returnFocusToMore) {
+            const trigger = document.querySelector('[data-kasper-more-trigger]');
+            if (trigger) trigger.focus();
+        }
+    }
+
+    function _kasperRenderTab() {
+        if (_kasperState.tab === 'time-off' && !_ptoEnabled()) _kasperFallbackToReview();
+        if (_kasperState.tab === 'time-off' && !_syncviewStaffCan('pto-admin')) _kasperFallbackToReview();
+        if (_kasperState.tab === 'client-credentials' && !_syncviewStaffCan('credentials')) {
+            _syncviewOfferStaffSignIn('credentials'); _kasperFallbackToReview();
+        }
+        if (_kasperState.tab === 'onboarding' && !_syncviewStaffCan('onboarding')) {
+            _syncviewOfferStaffSignIn('onboarding'); _kasperFallbackToReview();
+        }
+        if (_kasperState.tab === 'hiring-process' && !_syncviewStaffCan('hiring')) {
+            _syncviewOfferStaffSignIn('hiring'); _kasperFallbackToReview();
+        }
+        if (_kasperState.tab === 'quiz-leads' && !_syncviewStaffCan('quiz-leads')) {
+            _syncviewOfferStaffSignIn('quiz-leads'); _kasperFallbackToReview();
+        }
+        _kasperSyncTabNav();
+        if (_kasperState.tab === 'samples' && typeof _sxrKasperRenderQueue === 'function') return _sxrKasperRenderQueue(); // SXR_LINE
+        if (_kasperState.tab === 'review')  return _kasperRenderReview();
+        if (_kasperState.tab === 'replies') return _kasperRenderReplies();
+        if (_kasperState.tab === 'editors') return _kasperRenderEditors();
+        if (_kasperState.tab === 'filming') return _kasperRenderFilming();
+        if (_kasperState.tab === 'time-off') return _ptoRenderAdmin();
+        if (_kasperState.tab === 'sales-intake') return _kasperRenderSalesIntake();
+        if (_kasperState.tab === 'hiring-process') return _kasperRenderHiringProcess();
+        if (_kasperState.tab === 'onboarding') return _kasperRenderOnboarding();
+        if (_kasperState.tab === 'client-credentials') return _ccKasperRender();
+        if (_kasperState.tab === 'ad-performance') return _kasperRenderAdPerformance();
+        if (_kasperState.tab === 'quiz-leads') return _kasperRenderQuizLeads();
+    }
+
+    // Kasper Ad Performance: read-only summary of Meta spend + iClosed
+    // bookings for Kasper's own prospecting campaign, broken out by day, by
+    // ad, and per-lead HubSpot funnel status. Staff-authenticated GET against
+    // kasper-ad-performance-read; an n8n workflow writes the underlying
+    // tables twice a day. This panel never writes anything. The date-range
+    // toggle recomputes CPC/conversion-rate/cost-per-booking client-side over
+    // just the visible rows (mirroring the Edge Function's own formulas
+    // exactly) so switching ranges needs no extra fetch.
+    const KASPER_AD_PERF_EF_URL = CAL_SUPABASE_URL + '/functions/v1/kasper-ad-performance-read';
+    const KASPER_AD_PERF_HUBSPOT_PORTAL = '245312721';
+    const KASPER_AD_PERF_RANGE_KEY = 'syncview_kasper_ad_perf_range_v1';
+    const KASPER_AD_PERF_CAMPAIGN_KEY = 'syncview_kasper_ad_perf_campaign_v1';
+    const KASPER_AD_PERF_RANGES = [
+        { key: '7d', label: '7d', days: 7 },
+        { key: '14d', label: '14d', days: 14 },
+        { key: '30d', label: '30d', days: 30 },
+        { key: 'all', label: 'All', days: null },
+    ];
+    const _kadState = { loading: false, loaded: false, error: null, rows: [], byAd: [], leads: [], unfinishedLeads: [], campaignDaily: [], campaigns: [], campaign: 'all', chart: null, range: 'all' };
+    try {
+        const _kadSavedRange = localStorage.getItem(KASPER_AD_PERF_RANGE_KEY);
+        if (_kadSavedRange && KASPER_AD_PERF_RANGES.some(r => r.key === _kadSavedRange)) _kadState.range = _kadSavedRange;
+        try {
+            const savedCampaign = localStorage.getItem(KASPER_AD_PERF_CAMPAIGN_KEY);
+            if (savedCampaign) _kadState.campaign = savedCampaign;
+        } catch (e) {}
+    } catch (e) {}
+
+    function _kasperRenderAdPerformance() {
+        const root = document.getElementById('kasperContent');
+        if (!root) return;
+        root.innerHTML = '<div class="kad-wrap"><div class="kad-card-head"><div><div class="kad-card-title">Ad Performance</div><div class="kad-card-sub">Meta spend and iClosed bookings for the prospecting campaign. Updates twice daily.</div></div><button class="kad-refresh" type="button" onclick="_kadLoad(false)">Refresh</button></div><div id="kadBody" class="kad-wrap"></div></div>';
+        _kadPaint();
+        if (!_kadState.loaded && !_kadState.loading) _kadLoad(false);
+        else if (_kadState.loaded && !_kadState.loading) _kadLoad(true);
+    }
+
+    async function _kadLoad(background) {
+        if (_kadState.loading) return;
+        _kadState.loading = true;
+        if (!background) { _kadState.error = null; _kadPaint(); }
+        try {
+            const resp = await fetch(KASPER_AD_PERF_EF_URL, { headers: _syncviewEfHeaders({}, KASPER_AD_PERF_EF_URL) });
+            const data = await resp.json().catch(() => null);
+            if (!resp.ok || !data || data.ok !== true) throw new Error((data && data.error) || ('HTTP ' + resp.status));
+            _kadState.rows = Array.isArray(data.rows) ? data.rows : [];
+            _kadState.byAd = Array.isArray(data.by_ad) ? data.by_ad : [];
+            _kadState.leads = Array.isArray(data.leads) ? data.leads : [];
+            _kadState.unfinishedLeads = Array.isArray(data.unfinished_leads) ? data.unfinished_leads : [];
+            _kadState.campaignDaily = Array.isArray(data.campaign_daily) ? data.campaign_daily : [];
+            _kadState.campaigns = Array.isArray(data.campaigns) ? data.campaigns : [];
+            // A selected campaign that no longer exists in the data would silently
+            // show an empty panel, so fall back to All rather than stay on it.
+            if (_kadState.campaign !== 'all' && !_kadState.campaigns.some(c => c.campaign_id === _kadState.campaign)) _kadState.campaign = 'all';
+            _kadState.loaded = true;
+        } catch (e) {
+            _kadState.error = e && e.message ? e.message : String(e);
+        } finally {
+            _kadState.loading = false;
+            _kadPaint();
+        }
+    }
+
+    function _kadFmtMoney(n) { return n == null ? '—' : ('$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })); }
+    function _kadFmtPct(n) { return n == null ? '—' : ((n * 100).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%'); }
+    function _kadFmtNum(n) { return n == null ? '—' : Number(n).toLocaleString(); }
+    function _kadFmtDate(d) { if (!d) return '—'; const dt = new Date(d + 'T00:00:00Z'); return isNaN(dt) ? d : dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
+
+    function _kadCardHtml(label, value, sub) {
+        return '<div class="kad-card kad-stat"><div class="kad-stat-label">' + _calEsc(label) + '</div><div class="kad-stat-value">' + _calEsc(value) + '</div>' + (sub ? '<div class="kad-stat-sub">' + _calEsc(sub) + '</div>' : '') + '</div>';
+    }
+
+    // Guards every division below: 0/0 must render as "no data yet" (null),
+    // never NaN/Infinity — mirrors the Edge Function's safeDivide exactly,
+    // since this recomputes the same formulas over a client-selected range
+    // instead of refetching.
+    function _kadSafeDivide(numerator, denominator) { return denominator > 0 ? numerator / denominator : null; }
+
+    function _kadRangeCutoff() {
+        const range = KASPER_AD_PERF_RANGES.find(r => r.key === _kadState.range) || KASPER_AD_PERF_RANGES[KASPER_AD_PERF_RANGES.length - 1];
+        if (!range.days) return null;
+        const cutoff = new Date();
+        cutoff.setUTCDate(cutoff.getUTCDate() - (range.days - 1));
+        return cutoff.toISOString().slice(0, 10);
+    }
+
+    // 'all' reads kasper_ad_performance_daily, the whole-account rollup that
+    // predates multi-campaign and so carries the full history unbroken. A named
+    // campaign reads kasper_ad_campaign_daily instead, which is keyed per
+    // campaign per day. Both expose the same field names, so everything
+    // downstream (summary cards, chart) is unchanged either way.
+    function _kadRowsInRange() {
+        const cutoff = _kadRangeCutoff();
+        const source = _kadState.campaign === 'all'
+            ? _kadState.rows
+            : _kadState.campaignDaily.filter(r => r.campaign_id === _kadState.campaign);
+        return cutoff ? source.filter(r => r.date >= cutoff) : source;
+    }
+
+    function _kadSetCampaign(id) {
+        _kadState.campaign = id;
+        try { localStorage.setItem(KASPER_AD_PERF_CAMPAIGN_KEY, id); } catch (e) {}
+        _kadPaint();
+    }
+
+    function _kadCampaignLabel(id) {
+        const hit = _kadState.campaigns.find(c => c.campaign_id === id);
+        return hit ? hit.campaign_name : id;
+    }
+
+    function _kadCampaignToggleHtml() {
+        // One campaign is the normal case for most of this account's life - a
+        // selector with a single option is noise, so it only renders once there
+        // is genuinely something to choose between. A dropdown rather than a
+        // button row: once the account passed a handful of campaigns the tab
+        // row overflowed the toolbar and got visually clipped (owner report,
+        // 2026-09-09). Uses the shared sv-select primitive rather than a native
+        // <select> - UI_DESIGN_STANDARDS.md requires it on branded surfaces
+        // (native popups can't carry SyncView's keyboard/theme/tooltip/mobile
+        // states); _svSelectPick dispatches a real change event on the hidden
+        // input, so the same this.value onchange contract applies.
+        if (_kadState.campaigns.length < 2) return '';
+        const items = [{ value: 'all', label: 'All campaigns' }].concat(
+            _kadState.campaigns.map(c => ({ value: c.campaign_id, label: c.campaign_name }))
+        );
+        return _svSelectHtml('kadCampaignSelect', items, _kadState.campaign, 'Choose campaign', { onchange: '_kadSetCampaign(this.value)' });
+    }
+
+    function _kadSummarizeRows(rows) {
+        const totals = rows.reduce((acc, r) => ({
+            spend: acc.spend + Number(r.spend || 0),
+            impressions: acc.impressions + Number(r.impressions || 0),
+            clicks: acc.clicks + Number(r.clicks || 0),
+            landing_page_views: acc.landing_page_views + Number(r.landing_page_views || 0),
+            bookings_all: acc.bookings_all + Number(r.bookings_all || 0),
+            bookings_held: acc.bookings_held + Number(r.bookings_held || 0),
+        }), { spend: 0, impressions: 0, clicks: 0, landing_page_views: 0, bookings_all: 0, bookings_held: 0 });
+        return {
+            ...totals,
+            cpc: _kadSafeDivide(totals.spend, totals.clicks),
+            landing_page_view_rate: _kadSafeDivide(totals.landing_page_views, totals.clicks),
+            conversion_rate: _kadSafeDivide(totals.bookings_all, totals.landing_page_views),
+            cost_per_booking_all: _kadSafeDivide(totals.spend, totals.bookings_all),
+            cost_per_booking_held: _kadSafeDivide(totals.spend, totals.bookings_held),
+        };
+    }
+
+    function _kadSetRange(key) {
+        _kadState.range = key;
+        try { localStorage.setItem(KASPER_AD_PERF_RANGE_KEY, key); } catch (e) {}
+        _kadPaint();
+    }
+
+    function _kadRangeToggleHtml() {
+        return '<div class="kad-range-toggle" role="group" aria-label="Date range">' + KASPER_AD_PERF_RANGES.map(r =>
+            '<button type="button" class="kad-range-btn' + (r.key === _kadState.range ? ' active' : '') + '" onclick="_kadSetRange(\'' + r.key + '\')">' + _calEsc(r.label) + '</button>'
+        ).join('') + '</div>';
+    }
+
+    function _kadByAdInRange() {
+        const cutoff = _kadRangeCutoff();
+        const scoped = _kadState.campaign === 'all'
+            ? _kadState.byAd
+            : _kadState.byAd.filter(r => r.campaign_id === _kadState.campaign);
+        const rows = cutoff ? scoped.filter(r => r.date >= cutoff) : scoped;
+        const byName = new Map();
+        rows.forEach(r => {
+            const key = r.ad_name || '(no ad tag)';
+            if (!byName.has(key)) byName.set(key, { ad_name: key, spend: 0, clicks: 0, impressions: 0, landing_page_views: 0, bookings_all: 0, bookings_held: 0 });
+            const bucket = byName.get(key);
+            bucket.spend += Number(r.spend || 0);
+            bucket.clicks += Number(r.clicks || 0);
+            bucket.impressions += Number(r.impressions || 0);
+            bucket.landing_page_views += Number(r.landing_page_views || 0);
+            bucket.bookings_all += Number(r.bookings_all || 0);
+            bucket.bookings_held += Number(r.bookings_held || 0);
+        });
+        return Array.from(byName.values()).map(r => ({
+            ...r,
+            cpc: _kadSafeDivide(r.spend, r.clicks),
+            cost_per_booking_all: _kadSafeDivide(r.spend, r.bookings_all),
+        })).sort((a, b) => {
+            const aRank = a.cost_per_booking_all == null ? Infinity : a.cost_per_booking_all;
+            const bRank = b.cost_per_booking_all == null ? Infinity : b.cost_per_booking_all;
+            return aRank - bRank || b.spend - a.spend;
+        });
+    }
+
+    function _kadByAdTableHtml() {
+        const ads = _kadByAdInRange();
+        if (!ads.length) return '<div class="kasper-empty"><div class="kasper-empty-sub">No ad-level data in this range yet.</div></div>';
+        const rows = ads.map(a => '<tr><td>' + _calEsc(a.ad_name) + '</td><td>' + _kadFmtMoney(a.spend) + '</td><td>' + _kadFmtNum(a.clicks) + '</td><td>' + _kadFmtMoney(a.cpc) + '</td><td>' + _kadFmtNum(a.bookings_all) + '</td><td>' + _kadFmtMoney(a.cost_per_booking_all) + '</td></tr>').join('');
+        return '<div class="kad-table-scroll-cue">Swipe sideways to view all columns →</div><div class="kad-table-scroll" tabindex="0" aria-label="Ad breakdown; scroll horizontally to view all columns"><table class="kad-table"><thead><tr><th>Ad</th><th>Spend</th><th>Clicks</th><th>CPC</th><th>Bookings</th><th>Cost / booking</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    }
+
+    function _kadLeadsInRange() {
+        const cutoff = _kadRangeCutoff();
+        return cutoff ? _kadState.leads.filter(l => l.booked_date >= cutoff) : _kadState.leads;
+    }
+
+    function _kadLeadStatusHtml(lead) {
+        const stage = lead.hubspot_lifecyclestage;
+        const tone = stage === 'customer' ? 'kad-lead-won' : (lead.iclosed_status === 'disqualified' ? 'kad-lead-lost' : 'kad-lead-open');
+        const label = stage === 'customer' ? 'Customer' : (lead.iclosed_status ? (lead.iclosed_status.charAt(0).toUpperCase() + lead.iclosed_status.slice(1)) : (stage || 'Unknown'));
+        return '<span class="kad-lead-status ' + tone + '">' + _calEsc(label) + '</span>' + (lead.cancelled ? ' <span class="kad-lead-cancelled">cancelled</span>' : '');
+    }
+
+    function _kadLeadsListHtml() {
+        const leads = _kadLeadsInRange();
+        if (!leads.length) return '<div class="kasper-empty"><div class="kasper-empty-sub">No booked leads in this range yet.</div></div>';
+        const rows = leads.map(l => {
+            const hubspotUrl = l.hubspot_contact_id ? ('https://app.hubspot.com/contacts/' + KASPER_AD_PERF_HUBSPOT_PORTAL + '/record/0-1/' + encodeURIComponent(l.hubspot_contact_id)) : '';
+            const nameCell = hubspotUrl
+                ? '<a href="' + _calEsc(hubspotUrl) + '" target="_blank" rel="noopener">' + _calEsc(l.lead_name) + '</a>'
+                : _calEsc(l.lead_name);
+            return '<tr><td>' + _kadFmtDate(l.booked_date) + '</td><td>' + nameCell + '</td><td><a href="mailto:' + _calEsc(l.lead_email) + '">' + _calEsc(l.lead_email) + '</a></td><td>' + _calEsc(l.ad_name || '—') + '</td><td>' + _calEsc(l.campaign_name || '—') + '</td><td>' + _kadLeadStatusHtml(l) + '</td></tr>';
+        }).join('');
+        return '<div class="kad-table-scroll-cue">Swipe sideways to view all columns →</div><div class="kad-table-scroll" tabindex="0" aria-label="Booked leads; scroll horizontally to view all columns"><table class="kad-table"><thead><tr><th>Booked</th><th>Name</th><th>Email</th><th>Ad</th><th>Campaign</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    }
+
+    function _kadUnfinishedLeadsInRange() {
+        const cutoff = _kadRangeCutoff();
+        return cutoff ? _kadState.unfinishedLeads.filter(l => l.captured_at.slice(0, 10) >= cutoff) : _kadState.unfinishedLeads;
+    }
+
+    function _kadUnfinishedLeadStatusHtml(lead) {
+        const label = lead.iclosed_status ? (lead.iclosed_status.charAt(0).toUpperCase() + lead.iclosed_status.slice(1)) : 'Unknown';
+        return '<span class="kad-lead-status kad-lead-open">' + _calEsc(label) + '</span>';
+    }
+
+    function _kadUnfinishedLeadFollowUpHtml(lead) {
+        // Every non-finisher now gets BOTH channels when we hold an email and
+        // a phone (owner decision, 2026-09-04) - email_sent_at and
+        // sms_sent_at can both be set on the same lead. The old chain
+        // returned on the first truthy channel, so a lead who got an email
+        // AND a text only ever showed "Email sent", silently hiding the text
+        // (owner report, 2026-09-09). Report each channel that applies to
+        // this lead independently instead of first-match-wins.
+        const dueDate = lead.follow_up_due_at ? _kadFmtDate(lead.follow_up_due_at.slice(0, 10)) : null;
+        const parts = [];
+        if (lead.email) {
+            parts.push(lead.email_sent_at
+                ? '<span class="kad-lead-status kad-lead-won">Email sent</span> ' + _kadFmtDate(lead.email_sent_at.slice(0, 10))
+                : (dueDate ? '<span class="kad-lead-status kad-lead-open">Email due</span> ' + dueDate : '<span class="kad-lead-cancelled">Email pending</span>'));
+        }
+        if (lead.phone) {
+            parts.push(lead.sms_sent_at
+                ? '<span class="kad-lead-status kad-lead-won">Text sent</span> ' + _kadFmtDate(lead.sms_sent_at.slice(0, 10))
+                : (dueDate ? '<span class="kad-lead-status kad-lead-open">Text due</span> ' + dueDate : '<span class="kad-lead-cancelled">Text pending</span>'));
+        }
+        return parts.length ? parts.join('<br>') : '<span class="kad-lead-cancelled">—</span>';
+    }
+
+    function _kadUnfinishedLeadsListHtml() {
+        const leads = _kadUnfinishedLeadsInRange();
+        if (!leads.length) return '<div class="kasper-empty"><div class="kasper-empty-sub">No unfinished leads in this range.</div></div>';
+        const rows = leads.map(l => {
+            const name = ((l.first_name || '') + ' ' + (l.last_name || '')).trim() || '(no name)';
+            const emailCell = l.email ? '<a href="mailto:' + _calEsc(l.email) + '">' + _calEsc(l.email) + '</a>' : '—';
+            const phoneCell = l.phone ? '<a href="tel:' + _calEsc(l.phone) + '">' + _calEsc(l.phone) + '</a>' : '—';
+            return '<tr><td>' + _kadFmtDate(l.captured_at.slice(0, 10)) + '</td><td>' + _calEsc(name) + '</td><td>' + emailCell + '</td><td>' + phoneCell + '</td><td>' + _calEsc(l.campaign_name || '—') + '</td><td>' + _kadUnfinishedLeadStatusHtml(l) + '</td><td>' + _kadUnfinishedLeadFollowUpHtml(l) + '</td></tr>';
+        }).join('');
+        return '<div class="kad-table-scroll-cue">Swipe sideways to view all columns →</div><div class="kad-table-scroll" tabindex="0" aria-label="Unfinished leads; scroll horizontally to view all columns"><table class="kad-table"><thead><tr><th>Captured</th><th>Name</th><th>Email</th><th>Phone</th><th>Campaign</th><th>Status</th><th>Follow-up</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    }
+
+    function _kadPaint() {
+        const body = document.getElementById('kadBody');
+        if (!body) return;
+        if (_kadState.loading && !_kadState.loaded) { body.innerHTML = _calLoaderHtml('Loading ad performance'); return; }
+        if (_kadState.error && !_kadState.loaded) {
+            body.innerHTML = '<div class="kasper-empty"><div class="kasper-empty-title">Could not load ad performance</div><div class="kasper-empty-sub">' + _calEsc(_kadState.error) + '</div><button class="kad-refresh" type="button" onclick="_kadLoad(false)">Try again</button></div>';
+            return;
+        }
+        if (!_kadState.loaded || !_kadState.rows.length) {
+            body.innerHTML = '<div class="kasper-empty"><div class="kasper-empty-title">No data yet</div><div class="kasper-empty-sub">The n8n pull writes here twice a day — check back after the next run.</div></div>';
+            return;
+        }
+        const rangeRows = _kadRowsInRange();
+        const summary = _kadSummarizeRows(rangeRows);
+        const cards = [
+            _kadCardHtml('Total spend', _kadFmtMoney(summary.spend)),
+            _kadCardHtml('Cost per click', _kadFmtMoney(summary.cpc)),
+            _kadCardHtml('Landing page views', _kadFmtNum(summary.landing_page_views), _kadFmtPct(summary.landing_page_view_rate) + ' of clicks'),
+            _kadCardHtml('Conversion rate', _kadFmtPct(summary.conversion_rate), 'landing page views → booked calls'),
+            _kadCardHtml('Cost per booking (all)', _kadFmtMoney(summary.cost_per_booking_all), summary.bookings_all + ' booked'),
+            _kadCardHtml('Cost per booking (held)', _kadFmtMoney(summary.cost_per_booking_held), summary.bookings_held + ' held, excl. cancelled'),
+        ].join('');
+        const campaignNote = _kadState.campaign === 'all' ? '' : ' Showing <b>' + _calEsc(_kadCampaignLabel(_kadState.campaign)) + '</b>; the lead tables below always show every campaign.';
+        body.innerHTML = '<div class="kad-toolbar">' + _kadRangeToggleHtml() + _kadCampaignToggleHtml() + '</div>'
+            + '<div class="kad-stats">' + cards + '</div>'
+            + '<div class="kad-card full"><div class="kad-section-title">Spend &amp; bookings by day</div><div class="chart-wrap"><canvas id="kadChart"></canvas></div></div>'
+            + '<div class="kad-card full"><div class="kad-section-title">By ad</div><div class="kad-section-sub">Sorted by cost per booking (cheapest first); ads with no bookings sort last.</div>' + _kadByAdTableHtml() + '</div>'
+            + (campaignNote ? '<div class="kad-section-sub" style="margin:-4px 0 12px">' + campaignNote + '</div>' : '')
+            + '<div class="kad-card full"><div class="kad-section-title">Booked leads</div><div class="kad-section-sub">Status and stage come from the matching HubSpot contact. Names link to HubSpot when matched. Never filtered by the campaign selector.</div>' + _kadLeadsListHtml() + '</div>'
+            + '<div class="kad-card full"><div class="kad-section-title">Unfinished leads</div><div class="kad-section-sub">Started booking a call but never finished — potential/qualified only, disqualified excluded. Follow-up shows whether the recovery email and text have gone out yet.</div>' + _kadUnfinishedLeadsListHtml() + '</div>';
+        _kadRenderChart(rangeRows);
+    }
+
+    function _kadRenderChart(rows) {
+        const ctx = document.getElementById('kadChart');
+        if (!ctx || typeof Chart === 'undefined') return;
+        if (_kadState.chart) { _kadState.chart.destroy(); _kadState.chart = null; }
+        const spendRgb = _svRgb('--chart-spend');
+        _kadState.chart = new Chart(ctx, {
+            data: {
+                labels: rows.map(r => r.date),
+                datasets: [
+                    { type: 'bar', label: 'Spend', data: rows.map(r => Number(r.spend || 0)), backgroundColor: `rgba(${spendRgb.r},${spendRgb.g},${spendRgb.b},0.55)`, yAxisID: 'y', order: 2 },
+                    { type: 'line', label: 'Bookings', data: rows.map(r => Number(r.bookings_all || 0)), borderColor: _svCss('--up'), backgroundColor: _svCss('--up'), tension: 0.3, yAxisID: 'y1', order: 1 },
+                ],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    y: { position: 'left', beginAtZero: true, title: { display: true, text: 'Spend ($)' } },
+                    y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: 'Bookings' }, ticks: { precision: 0 } },
+                },
+            },
+        });
+    }
+
+    // Kasper Quiz Leads: read-only inbox for synchrosocial.com/quiz submissions
+    // (Growth Bottleneck Quiz). Staff-authenticated GET against quiz_responses
+    // via quiz-leads-list, admin-only (decision log, 2026-08-24) — quiz answers
+    // carry less sensitivity than onboarding's stored credentials, but access
+    // is scoped the same way the leave-management admin capability is, not
+    // opened to every role like the Onboarding inbox. This panel never writes anything.
+    // Question labels are a short display-only mirror of the quiz copy in the
+    // synchrosocial repo (src/data/growthQuizQuestions.js) — separate repos,
+    // so there is no shared source; keep the two in sync by hand if questions
+    // change.
+    const KASPER_QUIZ_LEADS_EF_URL = CAL_SUPABASE_URL + '/functions/v1/quiz-leads-list';
+    const KQL_CATEGORY_LABELS = { reach: 'Reach', positioning: 'Positioning', profile: 'Profile', consistency: 'Consistency' };
+    const KQL_QUESTION_LABELS = {
+        q1: '% of views from non-followers', q2: 'Hook strength',
+        q3: 'Content targets one audience', q4: 'Distinctive point of view',
+        q5: 'Profile visits per 1,000 views', q6: 'Profile explains who you help',
+        q7: 'Publishing consistency', q8: 'Repurposing per idea',
+    };
+    const _kqlState = { loading: false, loaded: false, error: null, leads: [], search: '' };
+
+    function _kasperRenderQuizLeads() {
+        const root = document.getElementById('kasperContent');
+        if (!root) return;
+        root.innerHTML = '<div class="kql-wrap"><div class="kql-card-head"><div><div class="kql-card-title">Quiz Leads</div><div class="kql-card-sub">Growth Bottleneck Quiz submissions from synchrosocial.com/quiz, newest first.</div></div><button class="kql-refresh" type="button" onclick="_kqlLoad(false)">Refresh</button></div><input type="search" class="kql-search" placeholder="Search name or email" value="' + _calEsc(_kqlState.search) + '" oninput="_kqlFilter(this.value)"><div id="kqlBody"></div></div>';
+        _kqlPaint();
+        if (!_kqlState.loaded && !_kqlState.loading) _kqlLoad(false);
+        else if (_kqlState.loaded && !_kqlState.loading) _kqlLoad(true);
+    }
+
+    async function _kqlLoad(background) {
+        if (_kqlState.loading) return;
+        _kqlState.loading = true;
+        if (!background) { _kqlState.error = null; _kqlPaint(); }
+        try {
+            const resp = await fetch(KASPER_QUIZ_LEADS_EF_URL, { headers: _syncviewEfHeaders({}, KASPER_QUIZ_LEADS_EF_URL) });
+            const data = await resp.json().catch(() => null);
+            if (!resp.ok || !data || data.ok !== true) throw new Error((data && data.error) || ('HTTP ' + resp.status));
+            _kqlState.leads = Array.isArray(data.leads) ? data.leads : [];
+            _kqlState.loaded = true;
+        } catch (e) {
+            _kqlState.error = e && e.message ? e.message : String(e);
+        } finally {
+            _kqlState.loading = false;
+            _kqlPaint();
+        }
+    }
+
+    function _kqlFilter(value) {
+        _kqlState.search = value || '';
+        const needle = _kqlState.search.trim().toLowerCase();
+        document.querySelectorAll('[data-kql-row]').forEach((row) => {
+            const hay = row.getAttribute('data-kql-search') || '';
+            row.style.display = !needle || hay.indexOf(needle) !== -1 ? '' : 'none';
+        });
+    }
+
+    function _kqlToggle(id) {
+        const detail = document.getElementById('kql-detail-' + id);
+        if (detail) detail.hidden = !detail.hidden;
+    }
+
+    function _kqlInjectStyles() {
+        if (document.getElementById('kqlStyles')) return;
+        const style = document.createElement('style');
+        style.id = 'kqlStyles';
+        style.textContent = '.kql-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:16px}' +
+            '.kql-card-title{color:var(--text-primary);font-size:0.9rem;font-weight:800;letter-spacing:-0.015em}' +
+            '.kql-card-sub{margin-top:4px;color:var(--text-muted);font-size:0.68rem;line-height:1.45}' +
+            '.kql-refresh{min-height:36px;border:1px solid var(--border);border-radius:10px;padding:8px 13px;background:var(--white);color:var(--text-secondary);font:inherit;font-size:0.72rem;font-weight:750;cursor:pointer}' +
+            '.kql-refresh:hover{border-color:var(--text-muted);color:var(--text-primary)}' +
+            '.kql-refresh:disabled{opacity:0.55;cursor:wait}' +
+            '.kql-search{width:100%;max-width:360px;height:34px;margin:12px 0;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font:inherit}' +
+            '.kql-stats{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}' +
+            '.kql-stat{padding:8px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2)}' +
+            '.kql-stat b{font-size:16px}' +
+            '.kql-row{border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden}' +
+            '.kql-row-head{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:10px 12px;background:none;border:0;text-align:left;cursor:pointer;color:inherit;font:inherit}' +
+            '.kql-row-head:hover{background:var(--surface-2)}' +
+            '.kql-row-name{font-weight:600}' +
+            '.kql-row-sub{font-size:12px;color:var(--text-2)}' +
+            '.kql-badge{padding:2px 8px;border-radius:100px;font-size:11px;font-weight:600;background:var(--surface-2);color:var(--accent)}' +
+            '.kql-detail{padding:10px 12px 14px;border-top:1px solid var(--border)}' +
+            '.kql-qa{display:grid;grid-template-columns:1fr auto;gap:4px 10px;font-size:13px;margin-bottom:10px}' +
+            '.kql-qa div:nth-child(odd){color:var(--text-2)}' +
+            '.kql-attr{font-size:12px;color:var(--text-2)}';
+        document.head.appendChild(style);
+    }
+
+    function _kqlSummaryHtml(leads) {
+        const counts = { reach: 0, positioning: 0, profile: 0, consistency: 0 };
+        leads.forEach((l) => { if (counts[l.result_category] !== undefined) counts[l.result_category]++; });
+        const stats = ['<div class="kql-stat">Total<br><b>' + leads.length + '</b></div>']
+            .concat(Object.keys(KQL_CATEGORY_LABELS).map((k) =>
+                '<div class="kql-stat">' + _calEsc(KQL_CATEGORY_LABELS[k]) + '<br><b>' + counts[k] + '</b></div>'));
+        return '<div class="kql-stats">' + stats.join('') + '</div>';
+    }
+
+    function _kqlRowHtml(lead) {
+        const id = _calEsc(lead.response_id);
+        const search = ((lead.contact_name || '') + ' ' + (lead.contact_email || '')).toLowerCase();
+        const category = KQL_CATEGORY_LABELS[lead.result_category] || lead.result_category || '—';
+        const when = lead.created_at ? new Date(lead.created_at).toLocaleString() : '';
+        const qa = Object.keys(KQL_QUESTION_LABELS).map((q) => {
+            const val = lead.answers && lead.answers[q];
+            if (val == null) return '';
+            return '<div>' + _calEsc(KQL_QUESTION_LABELS[q]) + '</div><div>' + _calEsc(String(val)) + '/5</div>';
+        }).join('');
+        const attrFields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'referrer'];
+        const attr = attrFields.filter((f) => lead[f]).map((f) => f + '=' + lead[f]).join(' · ');
+        return '<div class="kql-row" data-kql-row data-kql-search="' + _calEsc(search) + '">' +
+            '<button type="button" class="kql-row-head" onclick="_kqlToggle(\'' + id + '\')">' +
+            '<span><span class="kql-row-name">' + _calEsc(lead.contact_name || '(no name)') + '</span> · ' + _calEsc(lead.contact_email || '') +
+            '<div class="kql-row-sub">' + _calEsc(when) + (lead.headline_variant && lead.headline_variant !== 'control' ? ' · headline: ' + _calEsc(lead.headline_variant) : '') + '</div></span>' +
+            '<span class="kql-badge">' + _calEsc(category) + '</span></button>' +
+            '<div class="kql-detail" id="kql-detail-' + id + '" hidden>' +
+            (qa ? '<div class="kql-qa">' + qa + '</div>' : '') +
+            (attr ? '<div class="kql-attr">' + _calEsc(attr) + '</div>' : '<div class="kql-attr">No ad attribution on this session (direct/organic).</div>') +
+            '</div></div>';
+    }
+
+    function _kqlPaint() {
+        _kqlInjectStyles();
+        const body = document.getElementById('kqlBody');
+        if (!body) return;
+        if (_kqlState.loading && !_kqlState.loaded) { body.innerHTML = _calLoaderHtml('Loading quiz leads'); return; }
+        if (_kqlState.error && !_kqlState.loaded) {
+            body.innerHTML = '<div class="kasper-empty"><div class="kasper-empty-title">Could not load quiz leads</div><div class="kasper-empty-sub">' + _calEsc(_kqlState.error) + '</div><button class="kql-refresh" type="button" onclick="_kqlLoad(false)">Try again</button></div>';
+            return;
+        }
+        if (!_kqlState.leads.length) {
+            body.innerHTML = '<div class="kasper-empty"><div class="kasper-empty-title">No quiz leads yet</div><div class="kasper-empty-sub">Submissions from /quiz will show up here once the funnel is live.</div></div>';
+            return;
+        }
+        body.innerHTML = _kqlSummaryHtml(_kqlState.leads) + _kqlState.leads.map(_kqlRowHtml).join('');
+        _kqlFilter(_kqlState.search);
+    }
+
+    // Sales Intake lives as a Kasper subtab (it's Kasper's post-close paperwork
+    // trigger, so it belongs with everything else waiting on him). The form
+    // module itself (_si*/SI_*) is defined next to the other page modules —
+    // this is just the subtab mount. Background review repaints can't clobber
+    // the form: _kasperPaintReview writes into #kasperReviewBody, which doesn't
+    // exist while this subtab is showing.
+    function _kasperRenderSalesIntake() {
+        const el = document.getElementById('kasperContent');
+        if (!el) return;
+        el.innerHTML = renderSalesIntakeView();
+        mountSalesIntakeView();
+    }
+
+    function _kasperRenderHiringProcess() {
+        const el = document.getElementById('kasperContent');
+        if (!el) return;
+        if (!_syncviewStaffCan('hiring')) { _syncviewOfferStaffSignIn('hiring'); _kasperFallbackToReview(); return; }
+        el.innerHTML = renderHiringProcessView();
+        _hpPaint();
+        _hpLoadList(false);
+    }
+
+    // Onboarding subtab — the full three-section inbox (Standard / AI / Old forms +
+    // search), fed by the Kasper-gated onboarding-full edge function so everything is
+    // visible: names, emails, phones, and account credentials. _obvMode='full' makes
+    // _obvEnsureLoaded call the gated endpoint and the detail render the Account access
+    // section. A background review repaint can't clobber this: _kasperPaintReview writes
+    // into #kasperReviewBody, which doesn't exist while this subtab is showing.
+    function _kasperRenderOnboarding() {
+        const el = document.getElementById('kasperContent');
+        if (!el) return;
+        _obvMode = 'full';
+        if (Array.isArray(_obvSubs)) _kasperMarkOnboardingSeen();
+        _obvInjectStyles();
+        el.innerHTML = renderOnboardingInbox();
+        _obvEnsureLoaded();
+    }
+
+
+    /* ── Client Credentials ─────────────────────────────────────────
+       Staff-only credentials source of truth. Requests reuse the verified
+       roster identity and role key; no second credentials prompt is shown. */
+    const CC_EDGE_URL = CAL_SUPABASE_URL + '/functions/v1/client-credentials';
+    const CC_MASK = '••••••';
+    const CC_RT_SELF_ECHO_MS = 4500;
+    const CC_PLATFORM_OPTIONS = ['instagram', 'tiktok', 'facebook', 'linkedin', 'youtube', 'threads', 'x', 'pinterest', 'website'];
+    const CC_ICON_CHEV = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5 6 7.5l3-3"/></svg>';
+    const CC_ICON_CHECK = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.2 5 8.7 9.5 3.5"/></svg>';
+    const CC_ICON_COPY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="5" width="7" height="8" rx="1.5"/><path d="M3 10.5V4a1.5 1.5 0 0 1 1.5-1.5H10"/></svg>';
+    const CC_ICON_EYE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.7 8s2.4-4 6.3-4 6.3 4 6.3 4-2.4 4-6.3 4-6.3-4-6.3-4Z"/><circle cx="8" cy="8" r="1.8"/></svg>';
+    const CC_ICON_EYE_OFF = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.2 2.2 13.8 13.8"/><path d="M6.7 4.2A6.9 6.9 0 0 1 8 4c3.9 0 6.3 4 6.3 4a9.3 9.3 0 0 1-1.8 2.2"/><path d="M9.4 11.8A7 7 0 0 1 8 12c-3.9 0-6.3-4-6.3-4a9.6 9.6 0 0 1 2-2.3"/></svg>';
+    const CC_ICON_HISTORY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.2 5.2a5.3 5.3 0 1 1 .5 6"/><path d="M3 2.5v3h3"/><path d="M8 5.5V8l1.8 1.2"/></svg>';
+    const CC_ICON_EDIT = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.7 2.7 13.3 5.3 6 12.6l-3.2.6.6-3.2 7.3-7.3Z"/><path d="m9.7 3.7 2.6 2.6"/></svg>';
+    const CC_ICON_ARCHIVE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5h10"/><rect x="3.8" y="4.5" width="8.4" height="8.2" rx="1.5"/><path d="M6.2 7.2h3.6"/></svg>';
+    const CC_ICON_X = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg>';
+    const _ccState = {
+        kasper: { credentials: [], loading: false, error: null, loaded: false, search: '' },
+        modal: { open: false, client: '', credentials: [], loading: false, error: null, loaded: false },
+    };
+    const _ccRevealed = new Set();
+    // Which client cards are expanded in the Kasper list. Empty = every client
+    // collapsed by default (the list opens as a tidy client index); a slug is
+    // added when the user opens that card and survives background repaints.
+    const _ccExpanded = new Set();
+    let _ccRevKasperChannel = null, _ccRevModalChannel = null, _ccRevModalSlug = null;
+    let _ccRevKasperTimer = null, _ccRevModalTimer = null;
+    let _ccLastLocalWriteAt = 0;
+    let _ccOpenSelectId = null;
+
+    function _ccEsc(s) { return _calEsc(s); }
+    function _ccEscAttr(s) { return _calEscAttr(s); }
+    function _ccKnownClients() { return WL_CLIENT_NAMES.slice().sort((a, b) => a.localeCompare(b)); }
+    function _ccClientNameForSlug(slug) { return WL_CLIENT_CANONICAL.get(String(slug || '').replace(/^unmatched:/, '')) || slug || ''; }
+    /* Two different states that the header must not conflate (owner report
+       2026-08-21: after the onboarding import, every correctly-matched client
+       showed as "Unmatched / needs review", which reads as a filing failure).
+       UNMATCHED means the row is parked under a slug no client owns -- a real
+       problem needing a reassign. NEEDS REVIEW is the deliberate landing state
+       of every import: filed correctly, awaiting a human glance. */
+    function _ccIsTrulyUnmatched(r) { return String(r.client_slug || '').startsWith('unmatched:'); }
+    function _ccIsUnmatched(r) { return _ccIsTrulyUnmatched(r) || r.status === 'needs_review'; }
+    function _ccPrettyDate(v) { if (!v) return 'never'; const d = new Date(v); return isNaN(d) ? String(v) : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+    function _ccPlatformLabel(v) { return String(v || 'account').replace(/[_-]+/g, ' '); }
+    function _ccSelectItemsFromValues(values) { return values.map(v => ({ value: v, label: _ccPlatformLabel(v) })); }
+    function _ccClientSelectItems(selectedSlug) { return _ccKnownClients().map(n => ({ value: wlNormalizeClient(n) + '|' + n, label: n, active: wlNormalizeClient(n) === selectedSlug })); }
+    function _ccSelectHtml(id, items, selectedValue, placeholder) {
+        items = Array.isArray(items) ? items : [];
+        let active = items.find(x => String(x.value) === String(selectedValue)) || items.find(x => x.active) || items[0] || { value: '', label: placeholder || 'Choose' };
+        const opts = items.map(x => {
+            const on = String(x.value) === String(active.value);
+            return `<button class="cc-select-option${on ? ' active' : ''}" type="button" role="option" aria-selected="${on ? 'true' : 'false'}" data-cc-select-option data-value="${_ccEscAttr(x.value)}" onclick="_ccPickSelect(event, ${_jsAttrArg(id)}, ${_jsAttrArg(x.value)}, ${_jsAttrArg(x.label)})"><span>${_ccEsc(x.label)}</span>${on ? CC_ICON_CHECK : ''}</button>`;
+        }).join('');
+        return `<div class="cc-select" id="${_ccEscAttr(id)}Wrap" data-cc-select><button class="cc-select-trigger" type="button" id="${_ccEscAttr(id)}Btn" aria-haspopup="listbox" aria-controls="${_ccEscAttr(id)}Menu" aria-expanded="false" onclick="_ccToggleSelect(event, ${_jsAttrArg(id)})"><span id="${_ccEscAttr(id)}Label">${_ccEsc(active.label || placeholder || 'Choose')}</span>${CC_ICON_CHEV}</button><input type="hidden" id="${_ccEscAttr(id)}" value="${_ccEscAttr(active.value)}"><div class="cc-select-menu" id="${_ccEscAttr(id)}Menu" role="listbox" aria-labelledby="${_ccEscAttr(id)}Btn">${opts}</div></div>`;
+    }
+    function _ccCloseSelect(id) {
+        id = id || _ccOpenSelectId;
+        if (!id) return;
+        const wrap = document.getElementById(id + 'Wrap');
+        const btn = document.getElementById(id + 'Btn');
+        if (wrap) wrap.classList.remove('open');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+        if (_ccOpenSelectId === id) {
+            document.removeEventListener('mousedown', _ccSelectOutside);
+            document.removeEventListener('keydown', _ccSelectKeydown);
+            _ccOpenSelectId = null;
+        }
+    }
+    function _ccSelectOutside(e) { if (!e.target.closest('[data-cc-select]')) _ccCloseSelect(); }
+    function _ccSelectKeydown(e) {
+        if (e.key !== 'Escape' || !_ccOpenSelectId) return;
+        e.preventDefault();
+        const id = _ccOpenSelectId;
+        _ccCloseSelect(id);
+        document.getElementById(id + 'Btn')?.focus();
+    }
+    function _ccToggleSelect(e, id) {
+        if (e) e.stopPropagation();
+        const wrap = document.getElementById(id + 'Wrap');
+        const btn = document.getElementById(id + 'Btn');
+        if (!wrap || !btn) return;
+        const opening = !wrap.classList.contains('open');
+        if (_ccOpenSelectId && _ccOpenSelectId !== id) _ccCloseSelect(_ccOpenSelectId);
+        wrap.classList.toggle('open', opening);
+        btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+        if (opening) {
+            _ccOpenSelectId = id;
+            setTimeout(() => document.addEventListener('mousedown', _ccSelectOutside), 0);
+            document.addEventListener('keydown', _ccSelectKeydown);
+        } else _ccCloseSelect(id);
+    }
+    function _ccPickSelect(e, id, value, label) {
+        if (e) e.stopPropagation();
+        const input = document.getElementById(id);
+        const lab = document.getElementById(id + 'Label');
+        const menu = document.getElementById(id + 'Menu');
+        if (input) { input.value = value; input.dispatchEvent(new Event('change', { bubbles: true })); }
+        if (lab) lab.textContent = label;
+        if (menu) menu.querySelectorAll('[data-cc-select-option]').forEach(btn => {
+            const on = btn.getAttribute('data-value') === String(value);
+            btn.classList.toggle('active', on);
+            btn.setAttribute('aria-selected', on ? 'true' : 'false');
+            const span = btn.querySelector('span');
+            btn.innerHTML = (span ? span.outerHTML : `<span>${_ccEsc(label)}</span>`) + (on ? CC_ICON_CHECK : '');
+        });
+        _ccCloseSelect(id);
+    }
+    function _ccTogglePasswordField(id, btn) {
+        const input = document.getElementById(id); if (!input) return;
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        if (btn) { btn.innerHTML = show ? CC_ICON_EYE_OFF : CC_ICON_EYE; btn.setAttribute('aria-pressed', show ? 'true' : 'false'); btn.title = show ? 'Hide password' : 'Show password'; }
+    }
+    function _ccFind(id) { return (_ccState.kasper.credentials || []).concat(_ccState.modal.credentials || []).find(r => r.id === id) || null; }
+    /* Resolve from the list the person is actually looking at.
+       The Kasper store holds every client's rows and the per-client modal holds
+       one client's, so the SAME id can sit in both -- and _ccFind always
+       returns the Kasper copy, which may have been loaded much earlier. A write
+       built from it replaces the whole row, so a stale password, handle, note
+       or label would silently overwrite the fresher one the modal is showing.
+       Found in review 2026-08-22. */
+    function _ccFindIn(id, scope) {
+        const first = scope === 'modal' ? _ccState.modal.credentials : _ccState.kasper.credentials;
+        const second = scope === 'modal' ? _ccState.kasper.credentials : _ccState.modal.credentials;
+        return (first || []).find(r => r.id === id) || (second || []).find(r => r.id === id) || null;
+    }
+    async function _ccEnsureIdentity() {
+        return _syncviewRequireStaffIdentity('credentials');
+    }
+
+    async function _ccApi(action, payload, opts) {
+        opts = opts || {};
+        const ident = await _ccEnsureIdentity();
+        const body = Object.assign({}, payload || {}, { action, actor: { name: ident.member.name, role: ident.role } });
+        const resp = await fetch(CC_EDGE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
+            body: JSON.stringify(body),
+        });
+        let json = null;
+        try { json = await resp.json(); } catch { json = null; }
+        if (resp.status === 401) {
+            const active = _syncviewStaffIdentityForHeaders();
+            if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(ident)) throw new Error('Staff sign-in changed.');
+            _syncviewStaffIdentityClear();
+            if (opts._retried) throw new Error((json && json.error) || 'Staff sign-in expired.');
+            const replacement = await _syncviewOpenStaffIdentity({ reason: 'expired' });
+            if (!replacement) throw new Error('Staff sign-in required.');
+            return _ccApi(action, payload, Object.assign({}, opts, { _retried: true }));
+        }
+        const active = _syncviewStaffIdentityForHeaders();
+        if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(ident)) throw new Error('Staff sign-in changed.');
+        if (resp.status === 403) throw new Error('Client credentials need an Admin or SMM account. Sign out first to use another authorized account.');
+        if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || 'Credentials request failed');
+        return json;
+    }
+
+    function _ccKasperRender() {
+        const el = document.getElementById('kasperContent');
+        if (!el) return;
+        el.innerHTML = `<div class="cc-wrap">
+            <div class="cc-topbar">
+                <div><h2 class="cc-title">Client Credentials</h2><p class="cc-sub">The one place for client Instagram, TikTok, Facebook, LinkedIn, YouTube, and custom account logins. Password reveals and every edit are audited.</p></div>
+                <div class="cc-actions">
+                    <input class="cc-search" id="ccKasperSearch" placeholder="Search client, platform, handle, notes…" value="${_ccEscAttr(_ccState.kasper.search)}" oninput="_ccSetKasperSearch(this.value)">
+                    <button class="cc-btn" type="button" onclick="_ccLoadKasper(false)">Refresh</button>
+                    ${_syncviewStaffRoleValue(_syncviewStaffIdentityForHeaders()) === 'admin'
+                        ? '<button class="cc-btn" type="button" onclick="_ccOpenOnboardingImport()">Import from onboarding</button>'
+                        : ''}
+                    <button class="cc-btn primary" type="button" onclick="_ccOpenEdit('', 'kasper')">Add credential</button>
+                </div>
+            </div>
+            <div class="cc-body" id="ccKasperBody"></div>
+        </div>`;
+        _ccPaintKasper();
+        _ccRevEnsureSubscribed('kasper');
+        if (!_ccState.kasper.loaded && !_ccState.kasper.loading) _ccLoadKasper(false);
+        // Returning to the tab with data already in hand: refresh in the
+        // background so any peer add/edit/archive that landed while Kasper was on
+        // another subtab (when the rev ping was ignored) surfaces without a
+        // manual Refresh. No loader flash — the current rows stay up until the
+        // fetch lands.
+        else if (_ccState.kasper.loaded && !_ccState.kasper.loading) _ccLoadKasper(true);
+    }
+
+    function _ccSetKasperSearch(v) { _ccState.kasper.search = v || ''; _ccPaintKasper(); }
+
+    async function _ccLoadKasper(background) {
+        if (_ccState.kasper.loading) return;
+        _ccState.kasper.loading = true; _ccState.kasper.error = null;
+        if (!background) _ccPaintKasper();
+        try {
+            const json = await _ccApi('list', {});
+            _ccState.kasper.credentials = Array.isArray(json.credentials) ? json.credentials : [];
+            _ccState.kasper.loaded = true;
+        } catch (e) {
+            _ccState.kasper.error = e && e.message ? e.message : String(e);
+        } finally {
+            _ccState.kasper.loading = false;
+            _ccPaintKasper();
+        }
+    }
+
+    function _ccFilteredKasperRows() {
+        const q = String(_ccState.kasper.search || '').trim().toLowerCase();
+        let rows = (_ccState.kasper.credentials || []).slice();
+        if (q) rows = rows.filter(r => [r.client_name, r.platform, r.label, r.handle, r.notes, r.status].some(v => String(v || '').toLowerCase().includes(q)));
+        rows.sort((a, b) => {
+            const au = _ccIsUnmatched(a) ? 0 : 1, bu = _ccIsUnmatched(b) ? 0 : 1;
+            if (au !== bu) return au - bu;
+            return String(a.client_name || '').localeCompare(String(b.client_name || '')) || String(a.platform || '').localeCompare(String(b.platform || ''));
+        });
+        return rows;
+    }
+
+    function _ccPaintKasper() {
+        const body = document.getElementById('ccKasperBody');
+        if (!body) return;
+        if (_ccState.kasper.loading && !_ccState.kasper.loaded) { body.innerHTML = _calLoaderHtml('Loading credentials…'); return; }
+        if (_ccState.kasper.error) { body.innerHTML = `<div class="cc-empty"><strong>Could not load credentials.</strong><br>${_ccEsc(_ccState.kasper.error)}</div>`; return; }
+        const rows = _ccFilteredKasperRows();
+        if (!rows.length) { body.innerHTML = `<div class="cc-empty">No credentials found yet.${_ccState.kasper.search ? '<br>Try a different search.' : '<br>Use Add credential to start.'}</div>`; return; }
+        const grouped = new Map();
+        rows.forEach(r => {
+            const key = String(r.client_slug || 'unknown');
+            if (!grouped.has(key)) grouped.set(key, []);
+            grouped.get(key).push(r);
+        });
+        body.innerHTML = `<div class="cc-grid">${Array.from(grouped.entries()).map(([slug, list]) => _ccClientCardHtml(slug, list, 'kasper')).join('')}</div>`;
+    }
+
+    function _ccClientCardHtml(slug, rows, scope) {
+        const first = rows[0] || {};
+        const unmatched = rows.some(_ccIsTrulyUnmatched);
+        const needsReview = !unmatched && rows.some(r => r.status === 'needs_review');
+        const clientName = first.client_name || _ccClientNameForSlug(slug);
+        const addClientArg = _jsAttrArg(slug);
+        const slugArg = _jsAttrArg(slug);
+        // In the Kasper list every client is collapsed by default; the header
+        // acts as a disclosure control (the client name, credential count and
+        // any "needs review" chip stay visible while collapsed). The modal
+        // (single client) is never collapsible.
+        const collapsible = scope === 'kasper';
+        const open = !collapsible || _ccExpanded.has(slug);
+        const titleHtml = `<div><div class="cc-client">${unmatched ? 'Unmatched: ' : ''}${_ccEsc(clientName)}</div><div class="cc-client-meta"><span>${rows.length} credential${rows.length === 1 ? '' : 's'}</span>${unmatched ? '<span class="cc-chip warn">no matching client — reassign</span>' : (needsReview ? '<span class="cc-chip">imported — glance &amp; confirm</span>' : '')}</div></div>`;
+        const headMain = collapsible
+            ? `<button class="cc-card-toggle" type="button" aria-expanded="${open ? 'true' : 'false'}" aria-label="Expand or collapse ${_ccEscAttr(clientName)}" onclick="_ccToggleCard(${slugArg}, this)">${CC_ICON_CHEV}${titleHtml}</button>`
+            : titleHtml;
+        return `<div class="cc-card${unmatched ? ' needs-review' : ''}${collapsible ? ' cc-collapsible' : ''}${open ? ' cc-open' : ''}">
+            <div class="cc-card-head">
+                ${headMain}
+                <div class="cc-actions">
+                    ${scope === 'kasper' ? `<button class="cc-btn" type="button" onclick="_ccOpenHistory('', ${addClientArg})">History</button><button class="cc-btn" type="button" onclick="_ccOpenEdit('', 'kasper', ${addClientArg})">Add</button>` : `<button class="cc-btn" type="button" onclick="_ccOpenEdit('', 'modal')">Add</button>`}
+                </div>
+            </div>
+            <div class="cc-rows">${rows.map(r => _ccRowHtml(r, scope)).join('')}</div>
+        </div>`;
+    }
+    function _ccToggleCard(slug, btn) {
+        const card = btn && btn.closest ? btn.closest('.cc-card') : null;
+        if (!card) return;
+        const willOpen = !card.classList.contains('cc-open');
+        if (willOpen) _ccExpanded.add(slug); else _ccExpanded.delete(slug);
+        card.classList.toggle('cc-open', willOpen);
+        btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    }
+
+    function _ccRowHtml(r, scope) {
+        const idArg = _jsAttrArg(r.id || '');
+        const scopeArg = _jsAttrArg(scope || 'kasper');
+        const hasPw = String(r.password || '').length > 0;
+        const revealed = _ccRevealed.has(r.id);
+        const pass = hasPw ? (revealed ? _ccEsc(r.password) : CC_MASK) : 'empty';
+        const statusChip = r.status === 'needs_review' ? '<span class="cc-chip warn">needs review</span>' : (r.status === 'archived' ? '<span class="cc-chip">archived</span>' : '');
+        // The inline "Updated {time} by {person}" line was removed for every role —
+        // clicking History gives the full, audited change log. Only the notes (and
+        // the reassign control for unmatched rows) remain under the platform.
+        const reassign = (scope === 'kasper' && _ccIsUnmatched(r)) ? _ccReassignHtml(r) : '';
+        const metaHtml = r.notes ? _ccEsc(r.notes) : '';
+        const footHtml = (metaHtml || reassign) ? `<div class="cc-updated">${metaHtml}${reassign}</div>` : '';
+        return `<div class="cc-row" data-cc-id="${_ccEscAttr(r.id)}">
+            <div class="cc-platform"><strong>${_ccEsc(_ccPlatformLabel(r.platform))}</strong>${statusChip ? `<span>${statusChip}</span>` : ''}</div>
+            <div class="cc-handle"><code>${r.handle ? _ccEsc(r.handle) : 'no handle'}</code>${r.handle ? `<button class="cc-mini" type="button" title="Copy handle" aria-label="Copy handle" onclick="_ccCopyText(${_jsAttrArg(r.handle)}, 'Handle copied')">${CC_ICON_COPY}</button>` : ''}</div>
+            <div class="cc-secret"><code>${pass}</code>${hasPw ? `<button class="cc-mini${revealed ? ' is-active' : ''}" type="button" title="${revealed ? 'Hide password' : 'Reveal password'}" aria-label="${revealed ? 'Hide password' : 'Reveal password'}" onclick="_ccReveal(${idArg}, ${scopeArg})">${revealed ? CC_ICON_EYE_OFF : CC_ICON_EYE}</button><button class="cc-mini" type="button" title="Copy password" aria-label="Copy password" onclick="_ccCopyPassword(${idArg}, ${scopeArg})">${CC_ICON_COPY}</button>` : ''}</div>
+            <div class="cc-row-actions">${r.status === 'needs_review' ? `<button class="cc-mini" type="button" title="Mark reviewed" aria-label="Mark reviewed" onclick="_ccMarkReviewed(${idArg}, ${scopeArg})">${CC_ICON_CHECK}</button>` : ''}<button class="cc-mini" type="button" title="History" aria-label="History" onclick="_ccOpenHistory(${idArg})">${CC_ICON_HISTORY}</button><button class="cc-mini" type="button" title="Edit" aria-label="Edit" onclick="_ccOpenEdit(${idArg}, ${scopeArg})">${CC_ICON_EDIT}</button><button class="cc-mini" type="button" title="Archive" aria-label="Archive" onclick="_ccArchive(${idArg}, ${scopeArg})">${CC_ICON_ARCHIVE}</button></div>
+            ${footHtml}
+        </div>`;
+    }
+
+    function _ccReassignHtml(r) {
+        const selId = 'ccReassign_' + String(r.id || '').replace(/[^a-zA-Z0-9_-]/g, '');
+        return `<div style="margin-top:8px;display:flex;gap:7px;align-items:center;flex-wrap:wrap;"><div style="width:220px;">${_ccSelectHtml(selId, _ccClientSelectItems(''), '', 'Assign client')}</div><button class="cc-btn" type="button" onclick="_ccReassign(${_jsAttrArg(r.id)}, ${_jsAttrArg(selId)})">Assign to client</button></div>`;
+    }
+
+    async function _ccCopyText(text, msg) {
+        const s = String(text || '');
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(s); showToast(msg || 'Copied'); return; }
+        } catch (e) { /* fall through to the no-popup fallback */ }
+        // Fallback without a native prompt: a hidden textarea + execCommand copy.
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = s; ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed'; ta.style.top = '-1000px'; ta.style.opacity = '0'; ta.style.pointerEvents = 'none';
+            document.body.appendChild(ta); ta.select();
+            try { ta.setSelectionRange(0, s.length); } catch (e) {}
+            const ok = document.execCommand && document.execCommand('copy');
+            document.body.removeChild(ta);
+            showToast(ok ? (msg || 'Copied') : 'Press Ctrl/Cmd+C to copy');
+        } catch (e) { showToast('Could not copy'); }
+    }
+
+    function _ccReveal(id, scope) {
+        const row = _ccFind(id); if (!row || !row.password) return;
+        // Reveal must be INSTANT. The password is already in hand (it came down
+        // with the list), so flip the mask + repaint synchronously first; the
+        // ~2s stall was the log_reveal round-trip being awaited before the
+        // repaint. Only the SHOW direction is audited, fire-and-forget — a
+        // failed audit call never blocks or reverts the reveal the user asked
+        // for (and hiding needs no server call at all).
+        const revealing = !_ccRevealed.has(id);
+        if (revealing) _ccRevealed.add(id); else _ccRevealed.delete(id);
+        if (scope === 'modal') _ccPaintModal(); else _ccPaintKasper();
+        if (revealing) { try { _ccApi('log_reveal', { credential_id: id }).catch(() => {}); } catch (e) {} }
+    }
+
+    async function _ccCopyPassword(id, scope) {
+        const row = _ccFind(id); if (!row || !row.password) return;
+        if (!_ccRevealed.has(id)) await _ccReveal(id, scope);
+        await _ccCopyText(row.password, 'Password copied');
+    }
+
+    function _ccKnownClientOptions(selectedSlug) {
+        return _ccKnownClients().map(n => {
+            const slug = wlNormalizeClient(n);
+            return `<option value="${_ccEscAttr(slug + '|' + n)}"${slug === selectedSlug ? ' selected' : ''}>${_ccEsc(n)}</option>`;
+        }).join('');
+    }
+
+    function _ccOpenEdit(id, scope, clientSlug) {
+        scope = scope || 'kasper';
+        const row = id ? _ccFind(id) : null;
+        const fixedClient = scope === 'modal' ? calClientSlug(_ccState.modal.client) : (clientSlug || (row && row.client_slug) || '');
+        const fixedName = scope === 'modal' ? _ccState.modal.client : ((row && row.client_name) || _ccClientNameForSlug(fixedClient));
+        const platformValue = String((row && row.platform) || 'instagram').trim().toLowerCase();
+        const platformItems = (CC_PLATFORM_OPTIONS.includes(platformValue) ? CC_PLATFORM_OPTIONS : [platformValue].concat(CC_PLATFORM_OPTIONS)).filter(Boolean);
+        const ov = document.createElement('div');
+        ov.className = 'cal-import-overlay open cc-sensitive-overlay';
+        if (typeof ov.setAttribute === 'function') ov.setAttribute('data-backdrop-dismiss', '');
+        ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true">
+            <div class="cal-import-head"><button class="cal-import-x" type="button" id="ccEditClose">×</button><h3>${row ? 'Edit credential' : 'Add credential'}</h3><p>${scope === 'modal' ? _ccEsc(_ccState.modal.client) : 'Kasper credentials store'}</p></div>
+            <div class="cal-import-body">
+                <div class="cc-form-grid">
+                    <div class="cc-field full" ${fixedClient ? 'style="display:none;"' : ''}><label>Client</label>${_ccSelectHtml('ccEditClient', _ccClientSelectItems(fixedClient), '', 'Choose client')}</div>
+                    <div class="cc-field"><label>Platform</label>${_ccSelectHtml('ccEditPlatform', _ccSelectItemsFromValues(platformItems), platformValue, 'Choose platform')}</div>
+                    <div class="cc-field"><label>Handle</label><input id="ccEditHandle" value="${_ccEscAttr((row && row.handle) || '')}" placeholder="@client"></div>
+                    <div class="cc-field full"><label>Password</label><div class="cc-password-wrap"><input id="ccEditPassword" type="password" value="${_ccEscAttr((row && row.password) || '')}" placeholder="Password"><button class="cc-pass-toggle" type="button" title="Show password" aria-label="Show password" aria-pressed="false" onclick="_ccTogglePasswordField('ccEditPassword', this)">${CC_ICON_EYE}</button></div></div>
+                    <div class="cc-field full"><label>Notes</label><textarea id="ccEditNotes" placeholder="2FA, backup codes, login quirks…">${_ccEsc((row && row.notes) || '')}</textarea></div>
+                </div>
+            </div>
+            <div class="cal-import-foot"><button class="cal-import-btn-ghost" type="button" id="ccEditCancel">Cancel</button><button class="cal-import-btn-primary" type="button" id="ccEditSave">Save</button></div>
+        </div>`;
+        document.body.appendChild(ov);
+        const close = () => { _ccCloseSelect(); ov.remove(); };
+        ov.querySelector('#ccEditClose').onclick = close;
+        ov.querySelector('#ccEditCancel').onclick = close;
+        ov.onclick = e => { if (e.target === ov && ov._backdropPressBegan) close(); };
+        ov.querySelector('#ccEditSave').onclick = async () => {
+            const btn = ov.querySelector('#ccEditSave'); btn.disabled = true;
+            try {
+                let slug = fixedClient, name = fixedName;
+                if (!slug) {
+                    const parts = String(ov.querySelector('#ccEditClient').value || '').split('|');
+                    slug = parts[0]; name = parts.slice(1).join('|');
+                }
+                const credential = {
+                    id: row && row.id,
+                    client_slug: slug,
+                    client_name: name,
+                    platform: ov.querySelector('#ccEditPlatform').value.trim(),
+                    // The dialog has no label field, and sending '' here WIPED the
+                    // label of every row anyone edited -- which is why the manual
+                    // rows all carry an empty label while the imported ones do not,
+                    // and why the 2026-08-21 protection lookup could not key on it.
+                    // Carry the stored label through untouched.
+                    label: (row && row.label) || '',
+                    handle: ov.querySelector('#ccEditHandle').value.trim(),
+                    password: ov.querySelector('#ccEditPassword').value,
+                    status: (row && row.status) || 'active',
+                    notes: ov.querySelector('#ccEditNotes').value.trim(),
+                    source: row && row.source ? row.source : 'manual',
+                };
+                // Same rule as the label above, for the same reason: the
+                // gateway replaces the row, so a field this dialog does not
+                // show still has to be carried or it is deleted. raw_import is
+                // the import provenance behind every needs_review row.
+                if (row && typeof row.raw_import !== 'undefined') credential.raw_import = row.raw_import;
+                await _ccApi('upsert', { credential });
+                _ccLastLocalWriteAt = Date.now();
+                close(); showToast('Credential saved');
+                if (scope === 'modal') _ccLoadModal(true); else _ccLoadKasper(true);
+            } catch (e) { showToast((e && e.message) || 'Could not save'); btn.disabled = false; }
+        };
+    }
+
+    function _ccArchive(id, scope) {
+        scope = scope || 'kasper';
+        if (!id) return;
+        // Styled in-app confirm (showConfirm, z-index 9999 so it layers above the
+        // SMM credentials modal) instead of the native browser confirm() dialog.
+        showConfirm('Archive credential', 'Archive this credential? It will disappear from the active list but stay in audit history.', async () => {
+            try {
+                await _ccApi('delete', { credential_id: id });
+                _ccLastLocalWriteAt = Date.now();
+                showToast('Credential archived');
+                if (scope === 'modal') _ccLoadModal(true); else _ccLoadKasper(true);
+            } catch (e) { showToast((e && e.message) || 'Could not archive'); }
+        }, 'Archive');
+    }
+
+    /* MARK REVIEWED (owner request 2026-08-22).
+       Every imported credential lands `needs_review` on purpose -- a wrong guess
+       about a credential is worse than no guess -- but nothing could ever clear
+       that state: the edit dialog re-sends whatever status the row already had,
+       so a reviewed row stayed flagged for ever and the queue only grew. 47 rows
+       were stuck this way. This is the missing half of that deliberate design.
+
+       It rides the existing `upsert`, which the gateway treats as a FULL row
+       replace, not a patch -- so the row's own password has to be sent back
+       verbatim. If a future list ever stops returning it, sending the absent
+       value would silently NULL the secret, so refuse instead of guessing: an
+       absent password property is a bug, an empty one is a real empty. */
+    async function _ccMarkReviewed(id, scope) {
+        scope = scope || 'kasper';
+        const row = _ccFindIn(id, scope);
+        if (!row || row.status !== 'needs_review') return;
+        /* The gateway REPLACES the whole row: materializeCredential turns an
+           omitted field into null and includes it in the update. So a partial
+           row here is not a partial write, it is a deletion. Every field the
+           replacement carries must therefore be present on the row we read --
+           including raw_import, which is the imported provenance and its audit
+           diff, and which every one of the 47 needs_review rows carries. This
+           button exists to be clicked on exactly those rows.
+           Same shape as the importer defect fixed the same day: absent meant
+           NULL, not "no opinion". */
+        if (typeof row.password === 'undefined' || typeof row.raw_import === 'undefined') {
+            showToast('Cannot confirm this row from here -- reload and try again');
+            return;
+        }
+        try {
+            await _ccApi('upsert', {
+                credential: {
+                    id: row.id,
+                    client_slug: row.client_slug,
+                    client_name: row.client_name,
+                    platform: row.platform,
+                    label: row.label || '',
+                    handle: row.handle || '',
+                    password: row.password || '',
+                    status: 'active',
+                    notes: row.notes || '',
+                    source: row.source || 'manual',
+                    raw_import: row.raw_import === null ? null : row.raw_import,
+                },
+            });
+            _ccLastLocalWriteAt = Date.now();
+            showToast('Marked reviewed');
+            if (scope === 'modal') _ccLoadModal(true); else _ccLoadKasper(true);
+        } catch (e) { showToast((e && e.message) || 'Could not update'); }
+    }
+
+    async function _ccReassign(id, selectId) {
+        const el = document.getElementById(selectId); if (!el) return;
+        const parts = String(el.value || '').split('|');
+        const client_slug = parts[0], client_name = parts.slice(1).join('|');
+        try {
+            await _ccApi('reassign', { credential_id: id, client_slug, client_name });
+            _ccLastLocalWriteAt = Date.now();
+            showToast('Assigned to ' + client_name);
+            _ccLoadKasper(true);
+        } catch (e) { showToast((e && e.message) || 'Could not reassign'); }
+    }
+
+    function _ccOpenHistory(id, clientSlug) {
+        const ov = document.createElement('div');
+        ov.className = 'cal-import-overlay open cc-sensitive-overlay';
+        if (typeof ov.setAttribute === 'function') ov.setAttribute('data-backdrop-dismiss', '');
+        ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true"><div class="cal-import-head"><button class="cal-import-x" type="button" id="ccHistClose">×</button><h3>Credential history</h3><p>Every change, reveal, import, and reassignment.</p></div><div class="cal-import-body" id="ccHistBody">${_calLoaderHtml('Loading history…')}</div></div>`;
+        document.body.appendChild(ov);
+        const close = () => ov.remove();
+        ov.querySelector('#ccHistClose').onclick = close;
+        ov.onclick = e => { if (e.target === ov && ov._backdropPressBegan) close(); };
+        _ccApi('history', id ? { credential_id: id } : { client_slug: clientSlug })
+            .then(json => { const body = ov.querySelector('#ccHistBody'); const events = json.events || []; body.innerHTML = events.length ? `<div class="cc-history-list">${events.map(_ccEventHtml).join('')}</div>` : '<div class="cc-empty">No history yet.</div>'; })
+            .catch(e => { const body = ov.querySelector('#ccHistBody'); body.innerHTML = `<div class="cc-empty">${_ccEsc((e && e.message) || 'Could not load history')}</div>`; });
+    }
+
+    function _ccEventHtml(ev) {
+        const field = ev.field ? `<span class="cc-chip">${_ccEsc(ev.field)}</span>` : '';
+        const diff = ev.field ? `<div class="cc-diff"><code>${_ccEsc(ev.old_value || 'empty')}</code><span>→</span><code>${_ccEsc(ev.new_value || 'empty')}</code></div>` : '';
+        const where = [ev.ip, ev.country].filter(Boolean).join(' · ');
+        return `<div class="cc-event"><div class="cc-event-head"><span>${_ccEsc(ev.action)} ${field}</span><span>${_ccPrettyDate(ev.event_at)}</span></div><div class="cc-event-meta">${_ccEsc(ev.actor || 'unknown')} · ${_ccEsc(ev.actor_role || 'staff')}${where ? ' · ' + _ccEsc(where) : ''}</div>${diff}</div>`;
+    }
+
+    /* Import the credentials clients already gave us at onboarding.
+
+       Clients type their logins into the onboarding form and that is where the
+       answers have been sitting: 19 submissions, 90 answers, while this store
+       held 12 rows across 5 clients and 32 active clients had nothing at all.
+       The gateway could already do this -- an onboarding_import action existed,
+       fully written, with no caller. This is the caller.
+
+       REVIEW IS THE POINT, not a formality. The values are free text a client
+       typed, so a third of them cannot be parsed into a handle and a password,
+       and some are not credentials at all ("Working on getting this for you!").
+       Every row is previewed, every row is deselectable, nothing is written
+       until Import is pressed, and everything written lands needs_review.
+
+       Passwords are NOT rendered here. A reviewer is checking that the row is
+       the right client, platform and account -- not reading the secret -- and
+       this screen would otherwise put every client password on one screen at
+       once. The store has an audited per-credential reveal for that. */
+    const CC_ONBOARDING_FLAG_TEXT = {
+        no_answer: 'client left this blank',
+        access_note: 'note, not a login',
+        backup_code: 'backup code',
+        needs_review: 'could not read a password',
+        unknown_client: 'client not recognised',
+        existing_manual: 'already saved by hand — kept',
+    };
+    /* Describe an unreadable answer by SHAPE so a reviewer can act on it
+       without the text being printed. Each branch maps to a different remedy:
+       a missing separator is a human split away from usable, a sentence needs
+       reading, a promise needs the CLIENT chasing. */
+    function _ccObUnreadReason(text) {
+        const value = String(text || '').trim();
+        if (!value) return 'the client left this empty';
+        const words = value.split(/\s+/).length;
+        if (/^\+?[\d()\s.-]{7,}$/.test(value)) return 'looks like a phone number with no password beside it';
+        if (!value.includes('/') && !/:|\bpassword\b|\bpass\b|\bpw\b/i.test(value) && words <= 3) {
+            return 'one value with no separator -- cannot tell the account from the password';
+        }
+        if (words > 12) return 'a long sentence -- the details may be in there, but not in a shape we can split';
+        if (words > 3) return 'written as a sentence rather than account and password';
+        return 'no recognisable account-and-password pair';
+    }
+    function _ccObReveal(btn) {
+        if (!btn) return;
+        const raw = btn.getAttribute('data-cc-ob-raw') || '';
+        const holder = document.createElement('span');
+        holder.className = 'cc-ob-revealed';
+        holder.textContent = raw;
+        btn.replaceWith(holder);
+    }
+    function _ccOnboardingRowUsable(row) {
+        const flags = (row && row.flags) || [];
+        if (flags.includes('no_answer') || flags.includes('access_note')) return false;
+        if (flags.includes('unknown_client')) return false;
+        /* A credential someone typed by hand is protected server-side and will
+           not be overwritten (owner ruling 2026-08-20 -- the manual value may
+           be NEWER than the onboarding answer). Not pre-ticking it as well
+           keeps the screen honest: a ticked row that silently does nothing
+           reads as a bug. It stays selectable so the count is never a lie. */
+        if (flags.includes('existing_manual')) return false;
+        return !!(row && (row.password || row.handle));
+    }
+    async function _ccOpenOnboardingImport() {
+        const ov = document.createElement('div');
+        ov.className = 'cal-import-overlay open cc-sensitive-overlay';
+        if (typeof ov.setAttribute === 'function') ov.setAttribute('data-backdrop-dismiss', '');
+        ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true">
+            <div class="cal-import-head"><button class="cal-import-x" type="button" id="ccObClose">&times;</button><h3>Import from onboarding</h3><p>Credentials clients entered on the onboarding form. Nothing is saved until you press Import, and everything imported is marked <strong>needs review</strong>.</p></div>
+            <div class="cal-import-body"><div class="cal-import-progress" id="ccObBody">Reading onboarding submissions...</div></div>
+            <div class="cal-import-foot"><span class="cc-ob-summary" id="ccObSummary"></span><button class="cal-import-btn-ghost" type="button" id="ccObAllBtn" disabled onclick="_ccObAll(true)">Select all</button><button class="cal-import-btn-ghost" type="button" id="ccObNoneBtn" disabled onclick="_ccObAll(false)">Select none</button><button class="cal-import-btn-primary" type="button" id="ccObImportBtn" disabled>Import selected</button></div>
+        </div>`;
+        document.body.appendChild(ov);
+        const close = () => ov.remove();
+        ov.querySelector('#ccObClose').onclick = close;
+        ov.onclick = e => { if (e.target === ov && ov._backdropPressBegan) close(); };
+        const body = ov.querySelector('#ccObBody');
+        const importBtn = ov.querySelector('#ccObImportBtn');
+        const summary = ov.querySelector('#ccObSummary');
+
+        let groups = [];
+        try {
+            const full = await _obvFetchFull();
+            if (full && full.error) throw new Error(full.error);
+            /* onboarding-full returns THREE funnel shapes and they do not agree.
+               A legacy row carries a `credentials` array; a standard or AI row
+               carries flat per-platform keys on `answers` and no credentials
+               array at all. Filtering on `credentials` alone silently dropped
+               every current-funnel submission -- so the screen could only ever
+               have imported the legacy backlog, never a new client.
+
+               Identity differs too: none of the three sends `client_name` or
+               `client_slug`. They send `slug`, `first_name` and `last_name`.
+               Reading the wrong fields left every row with an empty name, which
+               flagged the whole import `unknown_client` and would have filed
+               anything manually selected under "(unnamed)". The n8n workflow
+               that posts on submit already composes the name the same way; this
+               matches it rather than inventing a second convention. */
+            const subs = (full && Array.isArray(full.submissions) ? full.submissions : [])
+                .map(sub => {
+                    const answers = (sub && sub.answers && typeof sub.answers === 'object') ? sub.answers : {};
+                    return {
+                        slug: String((sub && sub.slug) || '').trim(),
+                        name: [sub && sub.first_name, sub && sub.last_name].filter(Boolean).join(' ').trim(),
+                        credentials: Array.isArray(sub && sub.credentials) ? sub.credentials : null,
+                        answers,
+                    };
+                })
+                .filter(sub => (sub.credentials && sub.credentials.length)
+                    || Object.keys(sub.answers).length);
+            if (!subs.length) { body.innerHTML = '<div class="cc-empty">No onboarding submission carries credentials.</div>'; return; }
+            /* Preview each submission through the SAME gateway action that will
+               write it, so what is reviewed is what lands -- not a second
+               parser in the browser that could drift from the real one. */
+            for (const sub of subs) {
+                let preview = [];
+                try {
+                    const res = await _ccApi('onboarding_import', {
+                        client_name: sub.name, client_slug: sub.slug,
+                        credentials: sub.credentials || undefined, answers: sub.answers,
+                        known_clients: _ccKnownClients(), dry_run: true,
+                    });
+                    preview = (res && res.preview) || [];
+                } catch (e) { preview = []; }
+                if (preview.length) groups.push({ name: sub.name || sub.slug || '(unnamed)', slug: sub.slug, rows: preview });
+            }
+        } catch (e) {
+            body.innerHTML = '<div class="cc-empty">' + _ccEsc((e && e.message) || 'Could not read onboarding.') + '</div>';
+            return;
+        }
+        if (!groups.length) { body.innerHTML = '<div class="cc-empty">Nothing importable found.</div>'; return; }
+
+        const chosen = new Set();
+        groups.forEach((g, gi) => g.rows.forEach((r, ri) => { if (_ccOnboardingRowUsable(r)) chosen.add(gi + ':' + ri); }));
+        const key = (gi, ri) => gi + ':' + ri;
+        window._ccObToggle = (gi, ri, on) => {
+            if (on) chosen.add(key(gi, ri)); else chosen.delete(key(gi, ri));
+            paint(true);
+        };
+        /* Bulk toggles. The default selection is already the sensible one, but
+           with dozens of clients on screen a reviewer who disagrees with it
+           should not have to click every row to say so. Selecting ALL is
+           allowed to include rows the default skipped -- a human overruling
+           the heuristic is exactly what this screen is for -- EXCEPT rows
+           already saved by hand, which stay unselectable because the server
+           will refuse them anyway and a tick that does nothing is a lie. */
+        const selectable = (gi, ri) => !(groups[gi].rows[ri].flags || []).includes('existing_manual');
+        window._ccObGroup = (gi) => {
+            const rows = groups[gi].rows;
+            const all = rows.every((r, ri) => chosen.has(key(gi, ri)) || !selectable(gi, ri));
+            rows.forEach((r, ri) => {
+                if (!selectable(gi, ri)) return;
+                if (all) chosen.delete(key(gi, ri)); else chosen.add(key(gi, ri));
+            });
+            paint(true);
+        };
+        window._ccObAll = (on) => {
+            groups.forEach((g, gi) => g.rows.forEach((r, ri) => {
+                if (!selectable(gi, ri)) return;
+                if (on) chosen.add(key(gi, ri)); else chosen.delete(key(gi, ri));
+            }));
+            paint(true);
+        };
+        function paint(keepScroll) {
+            const top = keepScroll ? body.scrollTop : 0;
+            body.innerHTML = groups.map((g, gi) => `<div class="cc-ob-group"><div class="cc-ob-client">${_ccEsc(g.name)}<button class="cc-ob-groupsel" type="button" onclick="event.preventDefault();_ccObGroup(${gi})">${g.rows.every((r, ri) => chosen.has(key(gi, ri))) ? 'none' : 'all'}</button></div>${g.rows.map((r, ri) => {
+                const flags = (r.flags || []).map(f => `<span class="cc-chip${_ccOnboardingRowUsable(r) ? '' : ' warn'}">${_ccEsc(CC_ONBOARDING_FLAG_TEXT[f] || f)}</span>`).join('');
+                const secret = r.password ? '<span class="cc-ob-has">secret captured</span>' : '<span class="cc-ob-none">no secret</span>';
+                /* Say WHY we could not read it -- without printing it.
+                   "Could not read a password" with no explanation is an
+                   accusation with no evidence: the reviewer cannot tell a
+                   client who wrote prose around a real password from one who
+                   said they would send it later, and those need opposite
+                   actions. But printing the answer was the wrong way to supply
+                   that evidence, and review of this PR was right to stop it: a
+                   parse fails PRECISELY BECAUSE the parser could not recognise
+                   the secret, so an unread answer is MORE likely to contain a
+                   loose password, not less. Measured on the real data: 2 of the
+                   18 unreadable answers carry a password- or code-shaped token,
+                   and this screen would have printed them in bulk, right under
+                   its own promise not to show passwords.
+
+                   So the default is a SHAPE, never the text. The one-row
+                   reveal below is deliberate, one at a time, and never part of
+                   a bulk scan. */
+                const showRaw = !r.password && (r.raw || r.notes);
+                const rawText = String(r.raw || r.notes || '');
+                const rawLine = showRaw
+                    ? `<div class="cc-ob-raw"><span>why:</span> ${_ccEsc(_ccObUnreadReason(rawText))}<button class="cc-ob-reveal" type="button" onclick="event.preventDefault();event.stopPropagation();_ccObReveal(this)" data-cc-ob-raw="${_ccEscAttr(rawText.slice(0, 300))}">show answer</button></div>`
+                    : '';
+                const locked = (r.flags || []).includes('existing_manual');
+                return `<label class="cc-ob-row${showRaw ? ' has-raw' : ''}${locked ? ' is-locked' : ''}"><input type="checkbox" ${chosen.has(key(gi, ri)) ? 'checked' : ''}${locked ? ' disabled' : ''} onchange="_ccObToggle(${gi},${ri},this.checked)">
+                    <span class="cc-ob-plat">${_ccEsc(r.platform || 'account')}</span>
+                    <span class="cc-ob-label">${_ccEsc(r.label || '')}</span>
+                    <span class="cc-ob-handle">${_ccEsc(r.handle || '--')}</span>
+                    ${secret}<span class="cc-flags">${flags}</span>${rawLine}</label>`;
+            }).join('')}</div>`).join('');
+            body.scrollTop = top;
+            const n = chosen.size;
+            summary.textContent = n + (n === 1 ? ' credential selected' : ' credentials selected');
+            importBtn.disabled = !n;
+            /* Enabled only here, once the groups exist and the handlers are
+               assigned. They ship disabled in the shell markup: previews load
+               sequentially, and _ccObAll is not defined until that finishes --
+               so an early click threw a ReferenceError, and any path that
+               returned early (a load error, no submissions, nothing
+               importable) left them enabled and permanently dead. */
+            const allBtn = ov.querySelector('#ccObAllBtn');
+            const noneBtn = ov.querySelector('#ccObNoneBtn');
+            if (allBtn) allBtn.disabled = false;
+            if (noneBtn) noneBtn.disabled = false;
+        }
+        paint(false);
+
+        importBtn.onclick = async () => {
+            importBtn.disabled = true; importBtn.textContent = 'Importing...';
+            let imported = 0, failed = 0, keptManual = 0;
+            for (let gi = 0; gi < groups.length; gi++) {
+                const g = groups[gi];
+                /* Send only the SELECTED rows, re-expressed as the labelled
+                   {label, value} pairs the preview derived. Re-sending the
+                   PREVIEW's own output rather than the raw submission is what
+                   keeps this correct across all three funnel shapes: whatever
+                   the gateway understood on the way in, it re-parses
+                   identically on the way out, so what was reviewed is exactly
+                   what lands. The selection is enforced by narrowing the
+                   payload, never by asking the server to filter. */
+                const picked = g.rows
+                    .filter((r, ri) => chosen.has(key(gi, ri)))
+                    .map(r => ({ label: r.label || '', value: r.raw || r.notes || '' }))
+                    .filter(entry => entry.label || entry.value);
+                if (!picked.length) continue;
+                try {
+                    const res = await _ccApi('onboarding_import', {
+                        client_name: g.name, client_slug: g.slug || '', credentials: picked,
+                        known_clients: _ccKnownClients(), dry_run: false,
+                    });
+                    imported += (res && res.imported) || 0;
+                    keptManual += (res && res.skipped_existing_manual) || 0;
+                } catch (e) { failed++; }
+            }
+            _ccLastLocalWriteAt = Date.now();
+            close();
+            const keptText = keptManual ? `, kept ${keptManual} existing manual` : '';
+            showToast(failed
+                ? `Imported ${imported}${keptText}; ${failed} client${failed === 1 ? '' : 's'} failed`
+                : `Imported ${imported} credential${imported === 1 ? '' : 's'} for review${keptText}`);
+            _ccLoadKasper(true);
+        };
+    }
+
+    function _ccOpenBulkImport() {
+        const ov = document.createElement('div');
+        ov.className = 'cal-import-overlay open cc-sensitive-overlay';
+        if (typeof ov.setAttribute === 'function') ov.setAttribute('data-backdrop-dismiss', '');
+        ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true">
+            <div class="cal-import-head"><button class="cal-import-x" type="button" id="ccBulkClose">×</button><h3>Bulk import credentials</h3><p>Paste one account per line: Client name | platform | handle | password | notes</p></div>
+            <div class="cal-import-body"><div class="cc-field full"><label>Paste credentials</label><textarea id="ccBulkText" style="min-height:170px;" placeholder="Jane Doe | instagram | @janedoe | password123 | 2FA backup…"></textarea></div><div id="ccBulkPreview"></div></div>
+            <div class="cal-import-foot"><button class="cal-import-btn-ghost" type="button" id="ccBulkPreviewBtn">Preview</button><button class="cal-import-btn-primary" type="button" id="ccBulkImportBtn" disabled>Import</button></div>
+        </div>`;
+        document.body.appendChild(ov);
+        const close = () => ov.remove();
+        ov.querySelector('#ccBulkClose').onclick = close;
+        ov.onclick = e => { if (e.target === ov && ov._backdropPressBegan) close(); };
+        let preview = null;
+        const renderPreview = (rows) => {
+            const box = ov.querySelector('#ccBulkPreview');
+            preview = rows || [];
+            ov.querySelector('#ccBulkImportBtn').disabled = !preview.length;
+            box.innerHTML = preview.length ? `<div class="cc-bulk-preview"><div class="cc-bulk-row"><div>#</div><div>Client</div><div>Platform</div><div>Handle</div><div>Flags</div></div>${preview.map(r => `<div class="cc-bulk-row"><div>${r.line}</div><div>${_ccEsc(r.client_name)}</div><div>${_ccEsc(r.platform)}</div><div>${_ccEsc(r.handle || 'empty')}</div><div class="cc-flags">${(r.flags || []).length ? r.flags.map(f => `<span class="cc-chip${f.includes('unknown') || f.includes('missing') ? ' warn' : ''}">${_ccEsc(f)}</span>`).join('') : '<span class="cc-chip">ok</span>'}</div></div>`).join('')}</div>` : '<div class="cc-empty" style="margin-top:12px;">No valid lines found.</div>';
+        };
+        ov.querySelector('#ccBulkPreviewBtn').onclick = async () => {
+            try {
+                const json = await _ccApi('bulk_import', { text: ov.querySelector('#ccBulkText').value, dry_run: true, known_clients: _ccKnownClients() });
+                renderPreview(json.preview || []);
+            } catch (e) { showToast((e && e.message) || 'Preview failed'); }
+        };
+        ov.querySelector('#ccBulkImportBtn').onclick = async () => {
+            if (!preview || !preview.length) return;
+            const btn = ov.querySelector('#ccBulkImportBtn'); btn.disabled = true;
+            try {
+                const json = await _ccApi('bulk_import', { text: ov.querySelector('#ccBulkText').value, dry_run: false, known_clients: _ccKnownClients() });
+                _ccLastLocalWriteAt = Date.now();
+                close(); showToast(`Imported ${json.imported || 0} credentials`); _ccLoadKasper(true);
+            } catch (e) { showToast((e && e.message) || 'Import failed'); btn.disabled = false; }
+        };
+    }
+
+    async function _ccOpenModal(clientName) {
+        if (_isClientLink) return;
+        if (!clientName) return;
+        try { await _ccEnsureIdentity(); }
+        catch (e) { if (e && e.status === 403) { try { showToast(e.message); } catch (_) {} } return; }
+        _ccState.modal.open = true; _ccState.modal.client = clientName; _ccState.modal.loaded = false; _ccState.modal.credentials = [];
+        let ov = document.getElementById('ccOverlay');
+        if (!ov) {
+            ov = document.createElement('div'); ov.id = 'ccOverlay'; ov.className = 'cal-import-overlay cc-overlay cc-sensitive-overlay open';
+            if (typeof ov.setAttribute === 'function') ov.setAttribute('data-backdrop-dismiss', '');
+            document.body.appendChild(ov);
+        }
+        ov.classList.add('open');
+        ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true"><div class="cal-import-head"><button class="cal-import-x" type="button" onclick="_ccCloseModal()">×</button><h3>${_ccEsc(clientName)} credentials</h3><p>View, copy, and update this client's account access.</p></div><div class="cal-import-body" id="ccModalBody"></div><div class="cal-import-foot"><button class="cal-import-btn-primary" type="button" onclick="_ccOpenEdit('', 'modal')">Add credential</button></div></div>`;
+        ov.onclick = e => { if (e.target === ov && ov._backdropPressBegan) _ccCloseModal(); };
+        _ccPaintModal(); _ccLoadModal(false); _ccRevEnsureSubscribed('modal');
+    }
+
+    function _ccCloseModal() {
+        const ov = document.getElementById('ccOverlay'); if (ov) ov.remove();
+        _ccState.modal.open = false; _ccRevTeardown('modal');
+    }
+
+    async function _ccLoadModal(background) {
+        if (!_ccState.modal.open || _ccState.modal.loading) return;
+        _ccState.modal.loading = true; _ccState.modal.error = null;
+        if (!background) _ccPaintModal();
+        try {
+            const slug = calClientSlug(_ccState.modal.client);
+            const json = await _ccApi('list', { client_slug: slug });
+            _ccState.modal.credentials = Array.isArray(json.credentials) ? json.credentials : [];
+            _ccState.modal.loaded = true;
+        } catch (e) { _ccState.modal.error = e && e.message ? e.message : String(e); }
+        finally { _ccState.modal.loading = false; _ccPaintModal(); }
+    }
+
+    function _ccPaintModal() {
+        const body = document.getElementById('ccModalBody'); if (!body) return;
+        if (_ccState.modal.loading && !_ccState.modal.loaded) { body.innerHTML = _calLoaderHtml('Loading credentials…'); return; }
+        if (_ccState.modal.error) { body.innerHTML = `<div class="cc-empty">${_ccEsc(_ccState.modal.error)}</div>`; return; }
+        const rows = _ccState.modal.credentials || [];
+        if (!rows.length) { body.innerHTML = '<div class="cc-empty">No credentials saved for this client yet.<br>Use Add credential to create the first one.</div>'; return; }
+        body.innerHTML = `<div class="cc-card"><div class="cc-rows">${rows.map(r => _ccRowHtml(r, 'modal')).join('')}</div></div>`;
+    }
+
+    async function _ccRevEnsureSubscribed(scope) {
+        if (!_calV2Ready()) return;
+        const client = await _calV2Client(); if (!client) return;
+        if (scope === 'kasper') {
+            if (_ccRevKasperChannel) return;
+            try {
+                _ccRevKasperChannel = client.channel('client-credentials-rev-kasper').on('postgres_changes', { event: '*', schema: 'public', table: 'client_credentials_rev' }, () => _ccRevChanged('kasper')).subscribe();
+            } catch (e) { console.warn('[Client credentials] realtime subscribe failed', e); _ccRevKasperChannel = null; }
+        } else if (scope === 'modal') {
+            const slug = calClientSlug(_ccState.modal.client);
+            if (!slug) return;
+            if (_ccRevModalChannel && _ccRevModalSlug === slug) return;
+            _ccRevTeardown('modal'); _ccRevModalSlug = slug;
+            try {
+                _ccRevModalChannel = client.channel('client-credentials-rev-' + slug).on('postgres_changes', { event: '*', schema: 'public', table: 'client_credentials_rev', filter: 'client_slug=eq.' + slug }, () => _ccRevChanged('modal')).subscribe();
+            } catch (e) { console.warn('[Client credentials] modal realtime subscribe failed', e); _ccRevModalChannel = null; _ccRevModalSlug = null; }
+        }
+    }
+
+    function _ccRevChanged(scope) {
+        const timerName = scope === 'kasper' ? '_ccRevKasperTimer' : '_ccRevModalTimer';
+        if (scope === 'kasper' && _ccRevKasperTimer) clearTimeout(_ccRevKasperTimer);
+        if (scope === 'modal' && _ccRevModalTimer) clearTimeout(_ccRevModalTimer);
+        const run = function tick() {
+            const since = Date.now() - _ccLastLocalWriteAt;
+            if (since < CC_RT_SELF_ECHO_MS) {
+                const wait = CC_RT_SELF_ECHO_MS - since;
+                if (scope === 'kasper') _ccRevKasperTimer = setTimeout(tick, wait);
+                else _ccRevModalTimer = setTimeout(tick, wait);
+                return;
+            }
+            // Don't rebuild the list out from under an open client/platform
+            // picker (the reassign dropdown) — defer briefly and re-check.
+            if (_ccOpenSelectId) {
+                if (scope === 'kasper') _ccRevKasperTimer = setTimeout(tick, 1200);
+                else _ccRevModalTimer = setTimeout(tick, 1200);
+                return;
+            }
+            if (scope === 'kasper') { _ccRevKasperTimer = null; if (_kasperState.tab === 'client-credentials') _ccLoadKasper(true); }
+            else { _ccRevModalTimer = null; if (_ccState.modal.open) _ccLoadModal(true); }
+        };
+        if (scope === 'kasper') _ccRevKasperTimer = setTimeout(run, 900);
+        else _ccRevModalTimer = setTimeout(run, 900);
+    }
+
+    function _ccRevTeardown(scope) {
+        if ((scope === 'kasper' || !scope) && _ccRevKasperTimer) { clearTimeout(_ccRevKasperTimer); _ccRevKasperTimer = null; }
+        if ((scope === 'modal' || !scope) && _ccRevModalTimer) { clearTimeout(_ccRevModalTimer); _ccRevModalTimer = null; }
+        if ((scope === 'kasper' || !scope) && _ccRevKasperChannel) {
+            try { if (_calV2ClientObj && _calV2ClientObj.removeChannel) _calV2ClientObj.removeChannel(_ccRevKasperChannel); else if (_ccRevKasperChannel.unsubscribe) _ccRevKasperChannel.unsubscribe(); } catch {}
+            _ccRevKasperChannel = null;
+        }
+        if ((scope === 'modal' || !scope) && _ccRevModalChannel) {
+            try { if (_calV2ClientObj && _calV2ClientObj.removeChannel) _calV2ClientObj.removeChannel(_ccRevModalChannel); else if (_ccRevModalChannel.unsubscribe) _ccRevModalChannel.unsubscribe(); } catch {}
+            _ccRevModalChannel = null; _ccRevModalSlug = null;
+        }
+    }
+
+    /* ── Filming Plans ─────────────────────────────────────────────
+       One row per client. The content bank counts every active calendar card
+       that is either undated or dated today/future; archived and past-dated
+       cards are excluded. This makes undated, already-created content visible
+       without pretending it has a calendar slot. Plan months come from the
+       Docs-tabs webhook when configured, else optional `plan_months` data.
+       Source of Doc links: Supabase filming_plans rows. */
+    function _filmsTodayISO() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+    function _filmsMonthKey(iso) { return String(iso || '').slice(0, 7); }       // 'YYYY-MM'
+    function _filmsAddMonth(key, n) {
+        const [y, m] = key.split('-').map(Number);
+        const d = new Date(y, (m - 1) + n, 1);
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    }
+    function _filmsDaysUntil(iso) {
+        if (!iso) return null;
+        const a = new Date(_filmsTodayISO() + 'T00:00:00');
+        const b = new Date(iso + 'T00:00:00');
+        if (isNaN(b)) return null;
+        return Math.round((b - a) / 86400000);
+    }
+    function _filmsMonthShort(key) {
+        const [y, m] = key.split('-').map(Number);
+        if (!m) return key;
+        return new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'short' });
+    }
+    function _filmsMonthLong(key) {
+        const [y, m] = key.split('-').map(Number);
+        if (!m) return key;
+        return new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    }
+    function _filmsDatePretty(iso) {
+        if (!iso) return '—';
+        const d = new Date(iso + 'T00:00:00');
+        if (isNaN(d)) return iso;
+        return d.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+    }
+    function _filmsDocId(url) {
+        const m = String(url || '').match(/\/d\/([A-Za-z0-9_-]+)/);
+        return m ? m[1] : '';
+    }
+    // Best-effort 'YYYY-MM' from a Doc tab/section title like "July 2026",
+    // "Jul '26", "2026-07", "07/2026", or a bare "July" (assume current year).
+    function _filmsParseMonth(title) {
+        const t = String(title || '').toLowerCase();
+        const names = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+        let y = null, mo = null;
+        let m = t.match(/(20\d{2})[-\/.](\d{1,2})/);
+        if (m) { y = +m[1]; mo = +m[2]; }
+        if (mo == null) { m = t.match(/\b(\d{1,2})[-\/.](20\d{2})\b/); if (m) { mo = +m[1]; y = +m[2]; } }
+        if (mo == null) {
+            for (const k in names) { if (t.includes(k)) { mo = names[k]; break; } }
+            let ym = t.match(/(20\d{2})/);
+            if (ym) y = +ym[1];
+            else { ym = t.match(/'(\d{2})\b/); if (ym) y = 2000 + +ym[2]; }
+        }
+        if (!mo || mo < 1 || mo > 12) return null;
+        if (!y) y = new Date().getFullYear();
+        return `${y}-${String(mo).padStart(2,'0')}`;
+    }
+
+    // Limited-concurrency runner so we don't fire 24 calendar fetches at once.
+    async function _filmsMapLimit(items, limit, fn) {
+        const out = new Array(items.length);
+        let idx = 0;
+        async function worker() {
+            while (idx < items.length) {
+                const i = idx++;
+                try { out[i] = await fn(items[i], i); }
+                catch (e) { out[i] = null; }
+            }
+        }
+        await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+        return out;
+    }
+
+    // Active content = every non-archived card which has not passed its
+    // scheduled date. Undated cards count because they are content waiting to
+    // be scheduled; past-dated cards are treated as already consumed.
+    async function _filmsFetchContentBank(slug) {
+        try {
+            // v2: read this client's posts from Supabase instead of the Sheet
+            // (gated on _calV2Ready() so v1 is byte-identical). _calV2FetchPosts
+            // already falls back to the n8n calendar-get webhook on any Supabase
+            // error, so the content bank can never blank. The bank is a computed
+            // summary, so a refresh-on-open is enough —
+            // no realtime subscription needed here.
+            let json;
+            if (_calV2Ready()) {
+                json = await _calV2FetchPosts(slug);
+            } else {
+                const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+                if (!resp.ok) return null;
+                json = await resp.json();
+            }
+            if (!json || !json.ok || !Array.isArray(json.posts)) return null;
+            const today = _filmsTodayISO();
+            let total = 0;
+            for (const p of json.posts) {
+                if ((p.status || '').toLowerCase() === 'archived') continue;
+                const d = _calCoerceDate(p.scheduled_date);
+                if (!d || d >= today) total++;
+            }
+            return total;
+        } catch (e) { return null; }
+    }
+
+    // Plan months for one doc via the optional Docs-tabs webhook. Keep the
+    // returned titles too: a changed response shape or an unrecognised title
+    // must not silently turn into the misleading word "unknown".
+    async function _filmsFetchTabMonths(docId) {
+        const empty = { months: [], titles: [], read: false, error: '' };
+        if (!FILMING_PLAN_TABS_URL || !docId) return empty;
+        try {
+            const resp = await fetch(FILMING_PLAN_TABS_URL + '?doc=' + encodeURIComponent(docId) + '&_t=' + Date.now());
+            if (!resp.ok) return Object.assign({}, empty, { error: `Tab lookup failed (${resp.status})` });
+            const json = await resp.json();
+            // The webhook currently returns { tabs }, but accept the common
+            // wrapper and raw Google Docs shapes as well so title data cannot
+            // be dropped during a workflow response change.
+            const tabs = Array.isArray(json) ? json
+                : (json && (json.tabs
+                    || (json.data && (json.data.tabs || json.data))
+                    || (json.document && json.document.tabs)));
+            if (!Array.isArray(tabs)) return Object.assign({}, empty, { error: 'Tab lookup returned no tab list' });
+            const months = [];
+            const titles = [];
+            for (const tb of tabs) {
+                const title = String(tb && (tb.title || tb.name || (tb.tabProperties && tb.tabProperties.title)) || '').trim();
+                if (title) titles.push(title);
+                const mk = _filmsParseMonth(title);
+                if (mk) months.push(mk);
+            }
+            return { months, titles, read: true, error: '' };
+        } catch (e) { return Object.assign({}, empty, { error: 'Tab lookup failed' }); }
+    }
+
+    function _filmsLatestPlanMonth(row) {
+        const months = Array.from((row && row.months) || []).filter(mk => /^20\d{2}-\d{2}$/.test(mk));
+        return months.sort().pop() || '';
+    }
+
+    function _filmsPlanDetails(row) {
+        const latestPlanMonth = _filmsLatestPlanMonth(row);
+        if (!row.docUrl) return { latestPlanMonth: '', nextPlanMonth: '', daysUntilPlan: null, state: 'missing-doc' };
+        if (!latestPlanMonth) {
+            const state = row.tabRead ? 'unrecognised' : 'unavailable';
+            return { latestPlanMonth: '', nextPlanMonth: '', daysUntilPlan: null, state };
+        }
+        // A June filming plan supplies July content, so the next plan is due in
+        // August. A new tab then advances the cycle by another two months.
+        const nextPlanMonth = _filmsAddMonth(latestPlanMonth, 2);
+        const daysUntilPlan = _filmsDaysUntil(nextPlanMonth + '-01');
+        return {
+            latestPlanMonth,
+            nextPlanMonth,
+            daysUntilPlan,
+            state: daysUntilPlan <= 0 ? 'overdue' : (daysUntilPlan <= FILMING_PLAN_SOON_DAYS ? 'soon' : 'covered'),
+        };
+    }
+
+    function _filmsClassify(row) {
+        const contentTotal = row.contentTotal;
+        const plan = _filmsPlanDetails(row);
+        Object.assign(row, plan);
+        if (plan.state === 'missing-doc') return { status: 'red', reason: 'No filming Doc linked' };
+        if (contentTotal == null) return { status: 'amber', reason: 'Content total unavailable' };
+        if (contentTotal <= FILMING_CONTENT_RED_COUNT) return { status: 'red', reason: `${contentTotal} pieces of content` };
+        if (plan.state === 'overdue') return { status: 'red', reason: `${_filmsMonthShort(plan.nextPlanMonth)} plan overdue` };
+        if (plan.state === 'unavailable') return { status: 'amber', reason: row.tabError || 'Could not read filming-plan tabs' };
+        if (plan.state === 'unrecognised') return { status: 'amber', reason: 'No dated filming-plan tab found' };
+        if (plan.state === 'soon') return { status: 'amber', reason: `${_filmsMonthShort(plan.nextPlanMonth)} plan due in ${plan.daysUntilPlan}d` };
+        if (contentTotal < FILMING_CONTENT_COVERED_COUNT) return { status: 'amber', reason: `${contentTotal} pieces of content` };
+        return { status: 'green', reason: `Next plan: ${_filmsMonthShort(plan.nextPlanMonth)}` };
+    }
+
+    const _FILMS_RANK = { red: 0, amber: 1, green: 2 };
+
+    function _filmsParseSheet(csvText) {
+        const rows = parseCSV(csvText);
+        const out = [];
+        for (const r of rows) {
+            const client = (r.client_name || r.client || '').trim();
+            if (!client) continue;
+            const docUrl = (r.doc_url || r.url || '').trim();
+            const months = new Set();
+            const manual = (r.plan_months || '').trim();
+            if (manual) manual.split(/[,;|]/).forEach(s => { const mk = _filmsParseMonth(s) || (/^20\d{2}-\d{2}$/.test(s.trim()) ? s.trim() : null); if (mk) months.add(mk); });
+            out.push({
+                client, docUrl,
+                docId: _filmsDocId(docUrl),
+                notes: (r.notes || '').trim(),
+                slug: calClientSlug(client),
+                months,                 // may be augmented by the tabs webhook
+                contentTotal: null,
+                tabRead: false,
+                tabTitles: [],
+                tabError: '',
+                latestPlanMonth: '',
+                nextPlanMonth: '',
+                daysUntilPlan: null,
+                status: 'amber',
+                reason: '',
+            });
+        }
+        return out;
+    }
+    function _filmsRowsFromPlans(planRows) {
+        const out = [];
+        for (const plan of (planRows || [])) {
+            const client = String(plan.clientName || plan.client_name || '').trim();
+            if (!client) continue;
+            const docUrl = String(plan.docUrl || plan.doc_url || '').trim();
+            const months = new Set();
+            const manual = String(plan.planMonths || plan.plan_months || '').trim();
+            if (manual) manual.split(/[,;|]/).forEach(s => { const mk = _filmsParseMonth(s) || (/^20\d{2}-\d{2}$/.test(s.trim()) ? s.trim() : null); if (mk) months.add(mk); });
+            out.push({
+                client, docUrl,
+                docId: String(plan.docId || plan.doc_id || _filmsDocId(docUrl) || '').trim(),
+                notes: String(plan.notes || '').trim(),
+                slug: calClientSlug(client),
+                months,
+                contentTotal: null,
+                tabRead: false,
+                tabTitles: [],
+                tabError: '',
+                latestPlanMonth: '',
+                nextPlanMonth: '',
+                daysUntilPlan: null,
+                status: 'amber',
+                reason: '',
+            });
+        }
+        return out;
+    }
+
+    function _filmsLoadCache() {
+        if (!_syncviewStaffIdentityForHeaders()) return null;
+        try {
+            const raw = localStorage.getItem(KASPER_FILMING_CACHE_KEY);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || !parsed.fetchedAt || Date.now() - parsed.fetchedAt > KASPER_FILMING_CACHE_MAX_AGE_MS) return null;
+            (parsed.rows || []).forEach(r => { r.months = new Set(r.months || []); });
+            return parsed.rows || null;
+        } catch (e) { return null; }
+    }
+    function _filmsSaveCache(rows) {
+        try {
+            const slim = rows.map(r => Object.assign({}, r, { months: Array.from(r.months || []) }));
+            localStorage.setItem(KASPER_FILMING_CACHE_KEY, JSON.stringify({ rows: slim, fetchedAt: Date.now() }));
+        } catch (e) {}
+    }
+
+    async function _kasperRenderFilming() {
+        const root = document.getElementById('kasperContent');
+        if (!root) return;
+        root.innerHTML = `
+            <div class="kasper-toolbar">
+                <div class="ked-meta-week" id="kfilmTitle">Filming Plans</div>
+                <div class="ked-toolbar-actions">
+                    <button type="button" class="ked-info-btn" id="kfilmInfoBtn" onclick="_filmsToggleInfo()" aria-label="About this view" title="About this view">
+                        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="5.5"/><path d="M7 9.7V6.4M7 4.5v.05"/></svg>
+                    </button>
+                    <button type="button" class="kasper-refresh-btn" id="kfilmRefresh" onclick="_kasperLoadFilming(true)">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8a6 6 0 0 1 10.5-4M14 8a6 6 0 0 1-10.5 4"/><path d="M12.5 1.5V4h-2.5M3.5 14.5V12H6"/></svg>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="ked-info-panel" id="kfilmInfoPanel" hidden>
+                <p><strong>What this is.</strong> One row per client, sorted by who needs a new filming plan soonest.</p>
+                <p><strong>The dot.</strong>
+                    <span class="kfilm-dot kfilm-red"></span> needs a plan now —
+                    <span class="kfilm-dot kfilm-amber"></span> start one soon —
+                    <span class="kfilm-dot kfilm-green"></span> covered.</p>
+                <p><strong>Content</strong> is every active calendar card that is still available: undated cards and cards scheduled today or later. Archived and past-dated cards do not count.</p>
+                <p><strong>The alert</strong> goes red for very low content or an overdue filming plan, amber when content is getting low or the next plan is due within two weeks. A monthly tab is treated as creating content for the following month.</p>
+                <p class="ked-info-note">Plan links live in the <strong>Filming Plans</strong> source-of-truth tab. Month coverage is read from each Doc's tabs when the tabs webhook is configured; otherwise from an optional <code>plan_months</code> value.</p>
+            </div>
+            <div id="kfilmBody">${_svLoadingSkeletonHtml('kasper', { label: 'Loading filming plans' })}</div>`;
+        const fresh = _kasperState.filmingData && (Date.now() - _kasperState.filmingLoadedAt < KASPER_FILMING_CACHE_MAX_AGE_MS);
+        if (fresh) { _filmsPaint(); return; }
+        await _kasperLoadFilming(false);
+    }
+
+    function _filmsToggleInfo() {
+        const panel = document.getElementById('kfilmInfoPanel');
+        if (panel) panel.hidden = !panel.hidden;
+    }
+    function _filmsToggleClient(idx) {
+        const rows = _kasperState.filmingData && _kasperState.filmingData.rows;
+        if (!rows || !rows[idx]) return;
+        const client = rows[idx].client;
+        _kasperState.filmingExpanded[client] = !_kasperState.filmingExpanded[client];
+        _filmsPaint();
+    }
+
+    async function _kasperLoadFilming(forceRefresh) {
+        const body = document.getElementById('kfilmBody');
+        const btn  = document.getElementById('kfilmRefresh');
+
+        if (!forceRefresh) {
+            const cached = _filmsLoadCache();
+            if (cached) {
+                _kasperState.filmingData = { rows: cached };
+                _kasperState.filmingLoadedAt = Date.now();
+                _filmsPaint();
+                _kasperRefreshTabCounts();
+                return;
+            }
+        }
+
+        if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
+        if (body && (forceRefresh || !_kasperState.filmingData)) body.innerHTML = _svLoadingSkeletonHtml('kasper', { label: forceRefresh ? 'Refreshing filming plans' : 'Loading filming plans' });
+        _kasperState.filmingLoading = true;
+        _kasperState.filmingError = null;
+        try {
+            const plans = await _fpEnsureLoaded(!!forceRefresh);
+            const rows = _filmsRowsFromPlans(plans.rows || []);
+            if (!rows.length) {
+                _kasperState.filmingData = { rows: [] };
+                _kasperState.filmingLoadedAt = Date.now();
+                _filmsPaint();
+                return;
+            }
+            // Content bank (per client) + optional Doc-tab months (per doc), bounded concurrency.
+            await _filmsMapLimit(rows, 5, async (row) => {
+                const [contentTotal, tabResult] = await Promise.all([
+                    _filmsFetchContentBank(row.slug),
+                    _filmsFetchTabMonths(row.docId),
+                ]);
+                row.contentTotal = contentTotal;
+                row.tabRead = !!(tabResult && tabResult.read);
+                row.tabTitles = (tabResult && Array.isArray(tabResult.titles)) ? tabResult.titles : [];
+                row.tabError = (tabResult && tabResult.error) || '';
+                if (tabResult && Array.isArray(tabResult.months)) tabResult.months.forEach(mk => row.months.add(mk));
+                const cls = _filmsClassify(row);
+                row.status = cls.status;
+                row.reason = cls.reason;
+            });
+            rows.sort((a, b) => (_FILMS_RANK[a.status] - _FILMS_RANK[b.status])
+                || ((a.contentTotal == null ? 1e9 : a.contentTotal) - (b.contentTotal == null ? 1e9 : b.contentTotal))
+                || a.client.localeCompare(b.client));
+            _kasperState.filmingData = { rows };
+            _kasperState.filmingLoadedAt = Date.now();
+            _filmsSaveCache(rows);
+            _filmsPaint();
+        } catch (e) {
+            _kasperState.filmingError = e && e.message ? e.message : String(e);
+            const b = document.getElementById('kfilmBody');
+            if (b) b.innerHTML = `<div class="kasper-empty">
+                <div class="kasper-empty-title">Couldn't load filming plans</div>
+                <div class="kasper-empty-sub">${_calEsc(_kasperState.filmingError)}</div>
+                <div class="kasper-empty-sub" style="margin-top:8px;">Check the <strong>Filming Plans</strong> source-of-truth tab, then refresh.</div>
+            </div>`;
+        } finally {
+            _kasperState.filmingLoading = false;
+            if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
+            // Covers the empty-rows and success paths (and is a harmless no-op on
+            // error, where filmingData is guarded) — the Filming pill updates even
+            // when the user is on another Kasper tab.
+            _kasperRefreshTabCounts();
+        }
+    }
+
+    function _filmsPaint() {
+        const data = _kasperState.filmingData;
+        const body = document.getElementById('kfilmBody');
+        if (!body || !data) return;
+        const rows = Array.isArray(data.rows) ? data.rows : [];
+        if (!rows.length) {
+            body.innerHTML = `<div class="ked-empty-msg">
+                No filming plans yet. Add client master Doc links in the <strong>Filming Plans</strong> source-of-truth tab, then refresh.
+            </div>`;
+            return;
+        }
+        // Month columns for the overview grid: last 4 + this month + next.
+        const thisMonth = _filmsMonthKey(_filmsTodayISO());
+        const gridMonths = [];
+        for (let i = -4; i <= 1; i++) gridMonths.push(_filmsAddMonth(thisMonth, i));
+
+        const counts = rows.reduce((a, r) => { a[r.status] = (a[r.status] || 0) + 1; return a; }, {});
+        const summary = `<div class="kfilm-summary">
+            <span class="kfilm-pill kfilm-red">${counts.red || 0} need a plan</span>
+            <span class="kfilm-pill kfilm-amber">${counts.amber || 0} soon</span>
+            <span class="kfilm-pill kfilm-green">${counts.green || 0} covered</span>
+        </div>`;
+
+        const list = rows.map((r, i) => {
+            const expanded = !!_kasperState.filmingExpanded[r.client];
+            const open = r.docUrl
+                ? `<a class="kfilm-open" href="${_calEscAttr(r.docUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Open Doc ↗</a>`
+                : `<span class="kfilm-nodoc">No Doc linked</span>`;
+            const calUrl = `${location.pathname}#calendar/${encodeURIComponent(r.slug)}`;
+            const calBtn = `<a class="kfilm-open kfilm-cal" href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Calendar ↗</a>`;
+            const contentTxt = r.contentTotal == null
+                ? `<span class="kfilm-muted">Content total unavailable</span>`
+                : `<strong>${r.contentTotal}</strong> piece${r.contentTotal === 1 ? '' : 's'} of content`;
+            const rawTab = !r.latestPlanMonth && r.tabTitles && r.tabTitles.length ? r.tabTitles[0] : '';
+            const planTxt = r.latestPlanMonth
+                ? `Latest filming plan: <strong>${_filmsMonthShort(r.latestPlanMonth)}</strong> · ${_calEsc(r.reason)}`
+                : (rawTab ? `Filming Doc tab: <strong>${_calEsc(rawTab)}</strong> · ${_calEsc(r.reason)}` : _calEsc(r.reason));
+            let strip = '';
+            if (expanded) {
+                const cells = gridMonths.map(mk => {
+                    const has = r.months && r.months.has(mk);
+                    const cls = has ? 'kfilm-cell kfilm-cell--on' : 'kfilm-cell';
+                    const inner = has && r.docUrl
+                        ? `<a href="${_calEscAttr(r.docUrl)}" target="_blank" rel="noopener" title="${_calEscAttr(_filmsMonthLong(mk))}">${_filmsMonthShort(mk)}</a>`
+                        : `<span title="${_calEscAttr(_filmsMonthLong(mk))}">${_filmsMonthShort(mk)}</span>`;
+                    return `<div class="${cls}">${inner}</div>`;
+                }).join('');
+                const note = r.notes ? `<div class="kfilm-note">${_calEsc(r.notes)}</div>` : '';
+                const cov = (r.months && r.months.size)
+                    ? ''
+                    : `<div class="kfilm-note">No month data yet — ${FILMING_PLAN_TABS_URL ? 'the Doc has no recognisable monthly tabs' : 'connect the tabs webhook or add a plan_months column to see coverage'}.</div>`;
+                strip = `<div class="kfilm-strip"><div class="kfilm-grid">${cells}</div>${note}${cov}</div>`;
+            }
+            return `<div class="kfilm-row kfilm-${r.status}${expanded ? ' open' : ''}" onclick="_filmsToggleClient(${i})">
+                <div class="kfilm-main">
+                    <span class="kfilm-dot kfilm-${r.status}"></span>
+                    <div class="kfilm-name">${_calEsc(r.client)}</div>
+                    <div class="kfilm-runway">${contentTxt}</div>
+                    <div class="kfilm-reason">${planTxt}</div>
+                    <div class="kfilm-actions">${calBtn}${open}<span class="kfilm-caret">${expanded ? '▾' : '▸'}</span></div>
+                </div>
+                ${strip}
+            </div>`;
+        }).join('');
+
+        body.innerHTML = summary + `<div class="kfilm-list">${list}</div>`;
+    }
+
+    /* ── Replies ───────────────────────────────────────────────────
+       An inbox of cards (including ones he's already approved) where the SMM
+       or client replied on one of Kasper's internal threads since he last
+       caught up. Self-contained: shows the conversation and lets him reply or
+       mark it read, without touching the approval-queue machinery. */
+    function _kasperUpdateReplyCount() {
+        const n = (_kasperState.replies || []).length;
+        const el = document.querySelector('[data-kasper-count="replies"]');
+        if (el) el.textContent = String(n);
+    }
+    /* Subtab count pills. Each tab's own render path only refreshes its OWN pill
+       while that tab is mounted (e.g. _kasperPaintReview bails when the review
+       body isn't on screen), so every OTHER tab sat on the placeholder dot until
+       you visited it. These keep a real number on EVERY tab at all times:
+       _kasperRefreshTabCounts paints from current state and touches ONLY the tiny
+       count pills — never #kasperContent — so it's safe to call from any tab or a
+       background load; _kasperEnsureAllTabCounts fetches the data behind every
+       counted tab once on entry so the numbers appear without opening each tab. */
+    function _kasperSetTabCount(key, n) {
+        document.querySelectorAll('[data-kasper-count="' + key + '"]').forEach(el => {
+            el.textContent = String(n);
+            if (el.hasAttribute('data-kasper-hide-zero')) el.hidden = Number(n) === 0;
+        });
+        _kasperSyncMoreNotificationCount();
+    }
+    function _kasperSyncMoreNotificationCount() {
+        const badge = document.querySelector('[data-kasper-more-count]');
+        const trigger = document.querySelector('[data-kasper-more-trigger]');
+        if (!badge || !trigger) return;
+        let total = 0;
+        KASPER_MORE_NOTIFICATION_KEYS.forEach(key => {
+            const el = document.querySelector('[data-kasper-count="' + key + '"]');
+            if (el && !el.hidden) total += Math.max(0, Number(el.textContent) || 0);
+        });
+        badge.textContent = String(total);
+        badge.hidden = total === 0;
+        const activeLabel = trigger.querySelector('[data-kasper-more-label]');
+        const label = activeLabel ? activeLabel.textContent : 'More';
+        trigger.title = total ? label + ' — ' + total + ' notification' + (total === 1 ? '' : 's') : (label === 'More' ? 'More sections' : label);
+        trigger.setAttribute('aria-label', total ? label + ', ' + total + ' notification' + (total === 1 ? '' : 's') : label);
+    }
+    function _kasperOnboardingStamp(submission) {
+        return String(submission && (submission.created_at || submission.submitted_on || submission.updated_at) || '');
+    }
+    function _kasperOnboardingUnreadCount() {
+        if (!Array.isArray(_obvSubs)) return null;
+        let seen = '';
+        try { seen = localStorage.getItem(KASPER_ONBOARDING_SEEN_KEY) || ''; } catch (e) {}
+        return _obvSubs.filter(submission => _kasperOnboardingStamp(submission) > seen).length;
+    }
+    function _kasperMarkOnboardingSeen() {
+        if (!Array.isArray(_obvSubs)) return;
+        const newest = _obvSubs.reduce((stamp, submission) => {
+            const next = _kasperOnboardingStamp(submission);
+            return next > stamp ? next : stamp;
+        }, '');
+        try { if (newest) localStorage.setItem(KASPER_ONBOARDING_SEEN_KEY, newest); } catch (e) {}
+        _kasperSetTabCount('onboarding', 0);
+    }
+    function _kasperRefreshTabCounts() {
+        // review = cards still waiting on Kasper's decision. _kasperState.items is
+        // also restored from cache on entry, so a returning Kasper sees a real
+        // number before the network round-trip even finishes.
+        if (Array.isArray(_kasperState.items) && _kasperState.lastLoaded) {
+            // Urgent is carved OUT of waiting, so the tab pill has to add it
+            // back -- otherwise pinging a card silently decrements the count of
+            // work he still owes.
+            const _parts = _kasperPartitionItems(_kasperState.items);
+            _kasperSetTabCount('review', _parts.urgent.length + _parts.waiting.length);
+        }
+        // replies = unread message threads — owned by _kasperUpdateReplyCount, which
+        // every load already calls. Deliberately NOT painted here: it isn't part of
+        // the entry cache, so doing so would flash a stale 0 before the first fetch.
+        // samples = samples awaiting review (only present when that subtab exists).
+        // Count only the WAITING partition — finished/"Tweaks pending" cards are
+        // not awaiting Kasper, same rule as the review count above.
+        if (typeof _sxrKasperState !== 'undefined' && _sxrKasperState && _sxrKasperState.loaded) {
+            // urgent + waiting, for the same reason as the review pill: a ping
+            // relocates a card inside his queue, it does not clear it.
+            const _sxrParts = _sxrKasperPartitionItems(_sxrKasperState.items || []);
+            _kasperSetTabCount('samples', _sxrParts.urgent.length + _sxrParts.waiting.length);
+        }
+        // filming = clients not yet covered (a plan is needed now or soon).
+        const fd = _kasperState.filmingData;
+        if (fd && Array.isArray(fd.rows)) {
+            _kasperSetTabCount('filming', fd.rows.filter(r => r && r.status !== 'green').length);
+        }
+        if (_ptoEnabled() && _ptoAdminState.overview) {
+            _kasperSetTabCount('time-off', _ptoAdminPending(_ptoAdminState.overview).length);
+        }
+        const onboardingUnread = _kasperOnboardingUnreadCount();
+        if (onboardingUnread !== null) _kasperSetTabCount('onboarding', onboardingUnread);
+    }
+    function _kasperEnsureAllTabCounts() {
+        // The active tab's render path already kicked its own load and set a loading
+        // flag synchronously (before its first await), so the loading/loaded guards
+        // below dedupe it — we never double-fetch the tab that's showing. Each loader
+        // calls _kasperRefreshTabCounts() when it lands.
+        if (!_kasperState.loading) _kasperLoadReview(true);           // feeds review + replies
+        if (typeof _sxrKasperLoadQueue === 'function'
+            && KASPER_SUBTABS.some(t => t.key === 'samples')
+            && !_sxrKasperState.loading && !_sxrKasperState.loaded) {
+            _sxrKasperLoadQueue();
+        }
+        if (!_kasperState.filmingLoading && !_kasperState.filmingData) _kasperLoadFilming(false);
+        if (_ptoEnabled() && _syncviewStaffCan('pto-admin') && !_ptoAdminState.loading && !_ptoAdminState.overview) _ptoLoadAdmin(false);
+        if (_syncviewStaffCan('onboarding') && !_obvLoading && !Array.isArray(_obvSubs)) {
+            _obvMode = 'full';
+            _obvEnsureLoaded();
+        }
+    }
+    let _kasperRepliesPaintRetry = null;
+    function _kasperRenderReplies() {
+        const root = document.getElementById('kasperContent');
+        if (!root) return;
+        // Don't rebuild the inbox out from under a reply being typed — the draft
+        // survives in item._replyDraft, but an innerHTML rebuild drops focus/caret
+        // mid-keystroke. Defer until the compose box blurs (mirrors _kasperPaintReview).
+        const _ae = document.activeElement;
+        if (_ae && _ae.tagName === 'TEXTAREA' && _ae.closest && _ae.closest('#kasperContent')) {
+            if (_kasperRepliesPaintRetry) clearTimeout(_kasperRepliesPaintRetry);
+            _kasperRepliesPaintRetry = setTimeout(_kasperRenderReplies, 1200);
+            return;
+        }
+        if (_kasperRepliesPaintRetry) { clearTimeout(_kasperRepliesPaintRetry); _kasperRepliesPaintRetry = null; }
+        _kasperUpdateReplyCount();
+        // Landing straight on Replies (persisted tab) with nothing loaded yet —
+        // kick a fetch; it re-renders this tab when done.
+        if (!_kasperState.lastLoaded && !_kasperState.loading) _kasperLoadReview(true);
+        // Newest conversation first: an inbox reads top-down, most-recent at the
+        // top. Rank by the newest message's created_at (not updated_at) so that
+        // resolving/editing an old thread doesn't bump a stale card to the top.
+        // Sort a copy — _kasperState.replies order is preserved for everything else.
+        const list = (_kasperState.replies || []).slice().sort((a, b) =>
+            String(_calLatestMsgCreatedAt(b.post) || '').localeCompare(String(_calLatestMsgCreatedAt(a.post) || '')));
+        if (!list.length) {
+            const loadingNote = _kasperState.loading && !_kasperState.lastLoaded
+                ? _svLoadingSkeletonHtml('kasper', { label: 'Checking for messages' })
+                : `<div class="kasper-empty">
+                    <div class="kasper-empty-icon"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg></div>
+                    <div class="kasper-empty-title">No new messages</div>
+                    <div class="kasper-empty-sub">When the SMM or client replies to one of your notes or tweaks, it shows up here.</div>
+                </div>`;
+            root.innerHTML = loadingNote;
+            return;
+        }
+        root.innerHTML = `<div class="kasper-replies-list">${list.map(_kasperRepliesCardHtml).join('')}</div>`;
+    }
+    function _kasperRepliesCardHtml(item) {
+        const p = item.post;
+        const pid = p.id;
+        const thumb = _calDeriveThumb(p);
+        const seen = _kasperGetSeenAt(pid);
+        // Group internal messages into threads (root + replies). Only threads
+        // Kasper is part of (he authored or replied on) — a fresh SMM note or
+        // change-request he never touched is not his conversation and stays out
+        // of his Messages inbox, mirroring the inbox gate (_kasperHasUnreadReply).
+        const threads = [];
+        for (const c of _calComponentsFor(p)) {
+            const list = _calCommentsFor(p, c);
+            if (!Array.isArray(list)) continue;
+            const byId = new Map();
+            for (const m of list) if (m && m.id) byId.set(m.id, m);
+            const owned = _kasperOwnedThreadRoots(list, byId);
+            for (const m of list) {
+                if (!m || m.deleted || m.parent_id) continue;           // roots only
+                if (_calMsgAudience(m) !== 'internal') continue;        // internal threads only
+                if (!owned.has(m.id)) continue;                         // only Kasper's own conversations
+                const replies = list.filter(r => r && !r.deleted && r.parent_id === m.id)
+                    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+                threads.push({ root: m, replies, comp: c });
+            }
+        }
+        threads.sort((a, b) => String(a.root.created_at || '').localeCompare(String(b.root.created_at || '')));
+        // A thread is "unread" if it carries a non-Kasper message newer than the
+        // last time he caught up. By default only those show; his own threads
+        // with no new reply are hidden behind a "Show all" toggle.
+        const isUnreadThread = (t) => [t.root, ...t.replies].some(m =>
+            m && m.role !== 'kasper' && String(m.updated_at || m.created_at || '') > seen);
+        const showAll = !!item._showAllReplies;
+        const unreadThreads = threads.filter(isUnreadThread);
+        const shown = showAll ? threads : unreadThreads;
+        const hiddenCount = threads.length - unreadThreads.length;
+        const renderMsg = (m, isReply) => {
+            const author = m.author || (m.role === 'client' ? 'Client' : m.role === 'kasper' ? 'Kasper' : 'SMM');
+            const isNew = m.role !== 'kasper' && String(m.updated_at || m.created_at || '') > seen;
+            const typeTag = (!isReply && _calMsgIsTweak(m))
+                ? `<span class="cal-cm-type-tag is-tweak">Tweak${m.round ? ' #' + m.round : ''}</span>`
+                : '';
+            return `<div class="cal-review-comment cal-cm-${m.role || 'smm'}${isReply ? ' is-reply' : ''}${isNew ? ' is-new' : ''}">
+                <div class="cal-review-comment-head"><strong>${_calEsc(author)}</strong>${typeTag}<span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(m.created_at))}</span></div>
+                <div class="cal-review-comment-body">${_calEsc(m.body || '')}</div>
+            </div>`;
+        };
+        const toggleHtml = showAll
+            ? `<button type="button" class="kasper-replies-showall" onclick="_kasperRepliesToggleAll('${_calEscAttr(pid)}')">Show only new</button>`
+            : (hiddenCount ? `<button type="button" class="kasper-replies-showall" onclick="_kasperRepliesToggleAll('${_calEscAttr(pid)}')">Show all messages</button>` : '');
+        const threadHtml = toggleHtml + shown.map(t =>
+            renderMsg(t.root, false) + t.replies.map(r => renderMsg(r, true)).join('')
+        ).join('');
+        const draft = item._replyDraft || '';
+        const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
+        return `<div class="kasper-replies-card" data-kasper-replies-pid="${_calEscAttr(pid)}">
+            <div class="kasper-replies-head">
+                ${thumb ? `<img class="kasper-replies-thumb" src="${_calEscAttr(thumb)}" alt="" onerror="this.style.display='none'">` : ''}
+                <div class="kasper-replies-meta">
+                    <div class="kasper-replies-client">${_calEsc(item.client)}${(() => {
+                        const roles = new Set();
+                        unreadThreads.forEach(t => [t.root, ...t.replies].forEach(m => {
+                            if (m && m.role !== 'kasper' && String(m.updated_at || m.created_at || '') > seen) roles.add(m.role === 'client' ? 'client' : 'team');
+                        }));
+                        if (!roles.size) return '';
+                        const who = [...roles].map(r => r === 'client' ? 'Client' : 'Team').join(' & ');
+                        return `<span class="kasper-replies-newfrom">New from ${_calEsc(who)}</span>`;
+                    })()}</div>
+                    <div class="kasper-replies-title">${_calEsc(p.name || 'Untitled')}</div>
+                </div>
+                <a class="kasper-replies-open" href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener" title="Open this card in the content calendar (new tab)">Open<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h6.5V10M12.5 3.5L6.5 9.5M11 9v3.5H3.5V5H7"/></svg></a>
+                <button type="button" class="kasper-replies-read" onclick="_kasperMarkRepliesRead('${_calEscAttr(pid)}')" title="Mark this conversation as read and clear it from your messages">Mark as read</button>
+            </div>
+            <div class="kasper-replies-thread">${threadHtml || '<div class="cal-review-comment-empty">No messages.</div>'}</div>
+            <div class="cal-review-panel-compose kasper-replies-compose">
+                <textarea class="cal-review-textarea" placeholder="Reply to the team…" oninput="_kasperRepliesDraftInput(this,'${_calEscAttr(pid)}')">${_calEsc(draft)}</textarea>
+                <button type="button" class="cal-review-tweak-btn" ${draft.trim() ? '' : 'disabled'} onclick="_kasperRepliesReply('${_calEscAttr(pid)}')">${sendIco}Reply</button>
+            </div>
+        </div>`;
+    }
+    function _kasperRepliesToggleAll(pid) {
+        const item = (_kasperState.replies || []).find(x => x.post.id === pid);
+        if (!item) return;
+        item._showAllReplies = !item._showAllReplies;
+        _kasperRenderReplies();
+    }
+    function _kasperRepliesDraftInput(ta, pid) {
+        const item = (_kasperState.replies || []).find(x => x.post.id === pid);
+        if (item) item._replyDraft = ta.value;
+        const card = ta.closest('.kasper-replies-card');
+        const btn = card && card.querySelector('.cal-review-tweak-btn');
+        if (btn) btn.disabled = !ta.value.trim();
+    }
+    function _kasperMarkRepliesRead(pid) {
+        const item = (_kasperState.replies || []).find(x => x.post.id === pid);
+        if (item) _kasperMarkSeenAt(pid, _kasperRepliesSeenBasis(item.post) || _calLatestMsgAt(item.post));
+        _kasperState.replies = (_kasperState.replies || []).filter(x => x.post.id !== pid);
+        _kasperRenderReplies();
+    }
+    async function _kasperRepliesReply(pid) {
+        const item = (_kasperState.replies || []).find(x => x.post.id === pid);
+        if (!item) return;
+        const body = String(item._replyDraft || '').trim();
+        if (!body) return;
+        // Continue the conversation on whichever component carries the latest
+        // internal thread, and attach it AS A REPLY under that thread's root so
+        // it stays threaded instead of starting a fresh comment.
+        const comp = _kasperLatestInternalComp(item.post) || 'video';
+        const list = _calCommentsFor(item.post, comp).slice();
+        const byId = new Map();
+        for (const m of list) if (m && m.id) byId.set(m.id, m);
+        const owned = _kasperOwnedThreadRoots(list, byId);
+        let parentRootId = null, latestT = '';
+        for (const m of list) {
+            if (!m || m.deleted) continue;
+            const root = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
+            if (_calMsgAudience(root) !== 'internal') continue;
+            if (!owned.has(root.id)) continue;   // thread the inbox card to one of Kasper's own conversations
+            const t = String(m.updated_at || m.created_at || '');
+            if (t > latestT) { latestT = t; parentRootId = root.id; }
+        }
+        const now = new Date().toISOString();
+        list.push({
+            id: _calMintCommentId(), parent_id: parentRootId, author: 'Kasper', role: 'kasper',
+            is_tweak: false, audience: 'internal', body: body,
+            created_at: now, updated_at: now, done: false, done_at: '', done_by: '',
+        });
+        _calSetCommentsFor(item.post, comp, list);
+        item.post.updated_at = now;
+        item._replyDraft = '';
+        // Replying means he's caught up — clear it from the inbox.
+        _kasperMarkSeenAt(pid, now);
+        _kasperState.replies = (_kasperState.replies || []).filter(x => x.post.id !== pid);
+        _kasperRenderReplies();
+        try { await _kasperPersistPost(item); } catch (e) { /* surfaced on next load */ }
+    }
+
+    /* ── Review Session ─────────────────────────────────────────── */

@@ -1,0 +1,2442 @@
+    async function _kasperRenderReview() {
+        const root = document.getElementById('kasperContent');
+        if (!root) return;
+        const hasCached = !!_kasperState.lastLoaded;
+        root.innerHTML = `
+            <span class="app-refresh-pill" id="kasperReviewRefreshPill" hidden><span class="cal-refresh-spin"></span>Refreshing…</span>
+            <span id="kasperReviewCount" hidden></span>
+            <div id="kasperReviewBody">${hasCached
+                ? '' /* paint cached state right after the toolbar */
+                : _svLoadingSkeletonHtml('kasper', { label: 'Loading Kasper review' })}</div>`;
+        if (hasCached) _kasperPaintReview();
+        // Always force-refresh on entry. The 5-minute per-client cache
+        // is fine for in-session navigation but on the initial Kasper
+        // page load — exactly when an SMM has likely been making
+        // changes elsewhere — we want fresh sheet data, not whatever
+        // was cached during a previous session. The pill shows during
+        // the fetch so the SMM/Kasper can see what's happening.
+        _kasperLoadReview(true);
+    }
+
+    async function _kasperLoadReview(forceRefresh) {
+        const body = document.getElementById('kasperReviewBody');
+        const btn  = document.getElementById('kasperReviewRefresh');
+        if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
+        // Only blank the body to a spinner when there's literally nothing to
+        // show. Once cached/loaded cards are on screen, refreshes surface
+        // through the same glass pill the SMM calendar uses (top-center,
+        // sliding in over the toolbar) so the affordance is consistent
+        // across the app — plus the spinning Refresh button.
+        const hasContent = _kasperState.items.length > 0 || _kasperState.history.length > 0;
+        if (!hasContent && body) body.innerHTML = _svLoadingSkeletonHtml('kasper', { label: 'Loading Kasper review' });
+        else { const pill = document.getElementById('kasperReviewRefreshPill'); if (pill) pill.hidden = false; }
+
+        _kasperState.loading = true;
+        _kasperState.error = null;
+        // Capture the current generation so a user mutation during the
+        // await can invalidate this load before its results are applied.
+        const myGen = ++_kasperLoadGen;
+
+        try {
+            // SMM sheet + every client's calendar in parallel.
+            // forceRefresh propagates so the Refresh button bypasses the 5-min cache.
+            const [smmMap, fetched] = await Promise.all([
+                _kasperLoadSMMMap(),
+                _kasperFetchAllRelevantPosts(forceRefresh),
+            ]);
+            // If the user clicked approve / submit tweak / dismiss while we
+            // were fetching, _kasperLoadGen was bumped past myGen. Discard
+            // this stale response — the next load (triggered by the
+            // mutation's persist or the next poll tick) will repaint with
+            // fresh data.
+            if (myGen !== _kasperLoadGen) return;
+            _kasperState.smmByClient = smmMap;
+            // Honour explicit "Done reviewing" dismissals across refreshes.
+            // The fetch re-includes any card with an unresolved Kasper tweak,
+            // so without this a dismissed card would pop straight back into
+            // the queue. Prune dismissals whose card has fully left Kasper's
+            // purview (tweak resolved / status moved on) so the set can't
+            // grow without bound — those ids are simply absent from the fetch.
+            if (!_kasperState.dismissed || typeof _kasperState.dismissed !== 'object') _kasperState.dismissed = {};
+            if (!_kasperState.closed || typeof _kasperState.closed !== 'object') _kasperState.closed = {};
+            const _fetchedIds = new Set(fetched.queue.map(it => it.post.id));
+            for (const id of Object.keys(_kasperState.dismissed)) {
+                if (!_fetchedIds.has(id)) delete _kasperState.dismissed[id];
+            }
+            // Explicit X-closed cards: keep them hidden while they're still in
+            // the fetched queue (the component is sitting at Kasper Approval and
+            // nothing changed), but drop the "closed" flag the moment the card
+            // falls out of the queue — the SMM moved it past/back from Kasper.
+            // When it later returns to Kasper Approval it's a fresh ask, so it
+            // reappears. This is the "change of status" rule the user asked for.
+            for (const id of Object.keys(_kasperState.closed)) {
+                if (!_fetchedIds.has(id)) delete _kasperState.closed[id];
+            }
+            // Finished cards stay in the queue (they bucket into "Tweaks pending"
+            // via _kasperIsFinished); only X-closed cards are filtered out here.
+            const items = fetched.queue.filter(it => !_kasperIsClosed(it.post));
+            // Decorate posts with SMM info.
+            for (const it of items) {
+                const slug = wlNormalizeClient(it.client);
+                it.smm = smmMap.get(slug) || null;
+            }
+            // Stable sort: scheduled date first (nulls last), then client name.
+            items.sort((a, b) => {
+                const da = String(a.post.scheduled_date || '').slice(0,10);
+                const db = String(b.post.scheduled_date || '').slice(0,10);
+                if (da && db && da !== db) return da < db ? -1 : 1;
+                if (da && !db) return -1;
+                if (!da && db) return 1;
+                return String(a.client).localeCompare(String(b.client));
+            });
+            // Preserve expanded / drafts / touched-comps across refreshes.
+            // Also use last-write-wins for the post itself: if local stamped
+            // updated_at after the sheet's, keep the local post — but only
+            // while the local stamp is very recent. The point of preferring
+            // local was to protect an in-flight tweak/approve submit from
+            // being briefly overwritten by a slower server response on the
+            // same load cycle. Long-lived local state (cache resurrected
+            // hours later, or a save that never got reconciled) silently
+            // hides server-side status progressions and was the bug behind
+            // panels still saying "Changes requested" after the SMM had
+            // already moved the component past Kasper. We cap the
+            // local-preference window at 30 s.
+            const KASPER_LOCAL_PREFER_MS = 30 * 1000;
+            const nowMs = Date.now();
+            const prevById = new Map(_kasperState.items.map(x => [x.post.id, x]));
+            for (const it of items) {
+                const local = prevById.get(it.post.id);
+                if (!local) continue;
+                if (local._expanded) it._expanded = true;
+                if (local._drafts) it._drafts = Object.assign({ video: '', graphic: '', caption: '' }, local._drafts);
+                if (local._touchedComps) it._touchedComps = local._touchedComps;
+                // Last-write-wins on the post itself, time-bound.
+                const lT = Date.parse((local.post && local.post.updated_at) || '');
+                const fT = Date.parse(it.post.updated_at || '');
+                const localRecent = isFinite(lT) && (nowMs - lT) < KASPER_LOCAL_PREFER_MS;
+                if (local.post && local.post._writeUiRetrySourceAt) it.post = local.post;
+                else if (localRecent && isFinite(fT) && lT > fT) it.post = local.post;
+            }
+            // No more rescue loop: the fresh-fetch filter above already
+            // accepts both Kasper Approval AND Tweaks-Needed-with-tweak
+            // cards via _calPostKasperVisible. Re-injecting old items
+            // from _kasperState.items only ever re-injects stale post
+            // data — exactly the bug that left "Changes requested"
+            // panels lingering after the SMM had moved a component to
+            // Client Approval. Fresh server state is the source of
+            // truth on every refresh.
+            _kasperState.items = items;
+            // Replies inbox — decorate with SMM info and preserve any in-flight
+            // reply draft across the refresh. Not filtered by dismissals; it's
+            // an inbox of unread conversation, independent of the approval queue.
+            const repliesIn = (fetched.replies || []);
+            for (const it of repliesIn) it.smm = smmMap.get(wlNormalizeClient(it.client)) || null;
+            const _prevReplies = new Map((_kasperState.replies || []).map(x => [x.post.id, x]));
+            for (const it of repliesIn) {
+                const lo = _prevReplies.get(it.post.id);
+                if (lo && lo._replyDraft) it._replyDraft = lo._replyDraft;
+            }
+            _kasperState.replies = repliesIn;
+            // Merge server-known history with the local log so a refresh keeps
+            // recent approvals visible even if the sheet doesn't have a column
+            // for kasper_approved_at yet.
+            _kasperState.history = _kasperMergeHistory(fetched.history, _kasperLoadHistoryLog());
+            // Cards nominally at Kasper Approval with nothing attached. Not
+            // review work -- reported so the hand-off cannot fail in silence.
+            _kasperState.stranded = Array.isArray(fetched.stranded) ? fetched.stranded : [];
+            // Clients whose calendar could not be read at all. Their cards are
+            // not in the queue and nobody can tell by looking, so say it.
+            _kasperState.unloaded = Array.isArray(fetched.unloaded) ? fetched.unloaded : [];
+            _kasperState.lastLoaded = Date.now();
+            _kasperPersistCache();
+            _kasperPaintReview();
+            _kasperUpdateReplyCount();
+            _kasperRefreshTabCounts();   // keep review/samples/filming pills live even when those tabs aren't mounted
+            if (_kasperState.tab === 'replies') _kasperRenderReplies();
+        } catch (e) {
+            _kasperState.error = e && e.message ? e.message : String(e);
+            const body2 = document.getElementById('kasperReviewBody');
+            if (body2) body2.innerHTML = `<div class="kasper-empty"><div class="kasper-empty-title">Couldn't load the queue</div><div class="kasper-empty-sub">${_calEsc(_kasperState.error)}</div></div>`;
+        } finally {
+            _kasperState.loading = false;
+            if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
+            const pill = document.getElementById('kasperReviewRefreshPill');
+            if (pill) pill.hidden = true;
+        }
+    }
+
+    async function _kasperLoadSMMMap() {
+        // The "Social Media Managers" tab: client_name, social_media_manager,
+        // optional slack_user_id / slack_team_id (the script ignores anything
+        // it doesn't recognise so adding columns later is non-breaking).
+        try {
+            const resp = await fetch(KASPER_SMM_URL + '&_t=' + Date.now());
+            const text = await resp.text();
+            const rows = parseCSV(text);
+            const map = new Map();
+            for (const r of rows) {
+                const name = (r.client_name || r.client || '').trim();
+                if (!name) continue;
+                const slug = wlNormalizeClient(name);
+                if (!slug) continue;
+                map.set(slug, {
+                    name: (r.social_media_manager || r.smm_name || r.smm || '').trim(),
+                    slack_profile_url: (r.slack_profile_url || r.slack_url || r.slack_link || '').trim(),
+                    slack_user_id: (r.slack_user_id || r.smm_slack_id || '').trim(),
+                    slack_team_id: (r.slack_team_id || '').trim(),
+                });
+            }
+            return map;
+        } catch (e) {
+            console.warn('[Kasper] SMM sheet load failed:', e);
+            return new Map();
+        }
+    }
+
+    const KASPER_CAL_CACHE_TTL = 5 * 60 * 1000;
+    const KASPER_CAL_CONCURRENCY = 5;             // Sheets-backed calendar-get hits Google's per-user quota beyond ~5 in flight.
+    function _kasperCalCacheKey(slug) { return 'syncview_kasper_cal_' + slug + '_v1'; }
+    function _kasperCalCacheRead(slug) {
+        try {
+            const raw = localStorage.getItem(_kasperCalCacheKey(slug));
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || !parsed.savedAt || !parsed.data) return null;
+            if (Date.now() - parsed.savedAt >= KASPER_CAL_CACHE_TTL) return null;
+            return parsed.data;
+        } catch { return null; }
+    }
+    /* ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts
+       walks EVERY allowed client and writes a full calendar payload for each, so
+       the store grew with the roster and never shrank -- a client seen once in
+       July still held a payload in August. The round-3 tester measured 34 of
+       these alongside a 4.6MB cache, which together reached the ~10MB Chrome
+       per-origin ceiling and broke Create Post outright (PR 1186). Round 1 saw
+       the same pressure as a harmless console warning; it escalated to blocking
+       a core write path because nothing here was bounded.
+
+       Two bounds, because either alone leaves a hole. AGE clears what the
+       reader would refuse anyway -- entries past the TTL are already dead
+       weight. COUNT is what actually caps growth, since a roster larger than
+       the cap would otherwise stay live and unbounded. Newest kept, oldest
+       dropped, and the slug being written is never a candidate for eviction. */
+    const KASPER_CAL_CACHE_MAX_CLIENTS = 8;
+    function _kasperCalCachePrune(keepSlug) {
+        const keepKey = _kasperCalCacheKey(String(keepSlug || ''));
+        const entries = [];
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (!key || key === keepKey) continue;
+                if (!/^syncview_kasper_cal_.*_v1$/.test(key)) continue;
+                let savedAt = 0;
+                try { savedAt = Number(JSON.parse(localStorage.getItem(key) || '{}').savedAt) || 0; } catch {}
+                entries.push({ key, savedAt });
+            }
+        } catch { return; }
+        const now = Date.now();
+        const stale = entries.filter(e => !e.savedAt || now - e.savedAt >= KASPER_CAL_CACHE_TTL);
+        const live = entries.filter(e => !stale.includes(e)).sort((a, b) => b.savedAt - a.savedAt);
+        // keepSlug is excluded above, so it holds one of the allowed slots.
+        const overflow = live.slice(Math.max(0, KASPER_CAL_CACHE_MAX_CLIENTS - 1));
+        stale.concat(overflow).forEach(e => { try { localStorage.removeItem(e.key); } catch {} });
+    }
+    function _kasperCalCacheWrite(slug, json) {
+        const payload = JSON.stringify({ data: json, savedAt: Date.now() });
+        _kasperCalCachePrune(slug);
+        try {
+            localStorage.setItem(_kasperCalCacheKey(slug), payload);
+        } catch {
+            /* Still full after pruning: something else owns the space. Drop this
+               this client stale entry and give up on caching rather than
+               leaving a half-written key -- a cache miss costs one fetch, while
+               a full store costs Create Post. */
+            try { localStorage.removeItem(_kasperCalCacheKey(slug)); } catch {}
+        }
+    }
+
+    async function _kasperFetchAllRelevantPosts(forceRefresh) {
+        // Fetch every allowed client's calendar and split the result into the
+        // live review queue ("Kasper Approval") and a history slice (anything
+        // Kasper has previously approved, identified by either an explicit
+        // kasper_approved_at timestamp on the row or — fallback for sheets
+        // without that column yet — a status that comes after Kasper Approval
+        // in the lifecycle). Throttled to KASPER_CAL_CONCURRENCY in-flight to
+        // avoid stampeding the Google-Sheets-backed calendar-get webhook.
+        const extract = (client, json) => {
+            const slug = wlNormalizeClient(client);
+            // Filter Archived BEFORE the Linear-issue dedupe — otherwise
+            // an old archived row can win the dedupe (highest order_index)
+            // over a freshly re-imported row sharing the same Linear URL,
+            // hiding the active card from Kasper's queue entirely. We
+            // ALSO load the per-client archive ledger so cards the SMM
+            // just archived (where the sheet hasn't yet propagated
+            // status=Archived) are excluded inside the loop below.
+            const archivedRefs = _calArchivedRefs(slug);
+            const rawPosts = _calDedupeByLinearIssue(((json && json.posts) || [])
+                .filter(p => (p && p.status || '').toLowerCase() !== 'archived'));
+            const queue = [];
+            const history = [];
+            const replies = [];
+            const stranded = [];
+            const seenIds = new Set();
+            for (const raw of rawPosts) {
+                if (!raw || !raw.id || seenIds.has(raw.id)) continue;
+                seenIds.add(raw.id);
+                const status = _calNormStatus(raw.status);
+                raw.status = status;
+                if (status === 'Archived' || _calIsArchivedRef(raw, archivedRefs)) continue;
+                raw.scheduled_date = _calCoerceDate(raw.scheduled_date);
+                raw.comments = _calLoadComments(raw);
+                // Per-component gating, driven by the same _calPostKasperVisible
+                // rule the card body uses: a card lands in Kasper's queue
+                // when at least one component is still at Kasper Approval,
+                // OR it's at Tweaks Needed with an unresolved Kasper tweak.
+                // Anything else (For SMM Approval, Client Approval, Approved,
+                // Posted) drops the card immediately — even if Kasper hasn't
+                // hit Done reviewing yet — because the SMM has moved it past
+                // Kasper's purview.
+                _calMigratePostShape(raw);
+                // Base watermark for the server's 3-way comment merge: the
+                // server version this browser last saw.
+                raw._baseAt = String(raw.updated_at || '');
+                // Scalar snapshot for the field-level persist patch (so Kasper's
+                // write only carries the columns HE changes — see _kasperPatchSnapshot).
+                raw._patchBase = _kasperPatchSnapshot(raw);
+                const hasKasperWork = _calPostKasperVisible(raw);
+                // Content gate: skip cards that have NEITHER a video
+                // (asset_url) NOR a graphic/thumbnail (thumbnail_url).
+                // These are usually freshly-synced Linear sub-issues whose
+                // SMM hasn't dropped the actual deliverable into the
+                // calendar yet — Kasper has nothing to actually review.
+                const hasAsset = String(raw.asset_url || '').trim() !== '';
+                const hasThumb = String(raw.thumbnail_url || '').trim() !== '';
+                /* WHICH waiting component needs a file, and does it have one?
+                 *
+                 * Owner report 2026-09-03: four cards sat in the "waiting on a
+                 * file, not on you" notice, and three of them were waiting on
+                 * the CAPTION with the caption already written -- one of them a
+                 * caption-only card whose video and thumbnail are both N/A.
+                 * Nothing was missing; there was nothing to add. The notice told
+                 * the SMM to attach a file for work that needs no file, and
+                 * Kasper could not approve a caption that was sitting there
+                 * finished.
+                 *
+                 * The old gate asked one question about the whole card -- does
+                 * it carry ANY media -- and a caption cannot answer it. So ask
+                 * it per component instead: a video needs `asset_url`, a
+                 * thumbnail needs `thumbnail_url`, a caption needs `caption` or
+                 * `caption_alt`, and a title needs `name`. Each component is
+                 * asked for the thing it is actually reviewed by; none of them
+                 * is exempt from being asked.
+                 *
+                 * `_kasperRenderCard` was already built for this. It falls back
+                 * to a placeholder when there is no thumbnail, disables the
+                 * watch button when there is no video, and its own comment says
+                 * the single-panel hero layout "applies to video, thumbnail, and
+                 * caption alike". Only this gate upstream was hiding the card. */
+                const kasperComps = _calComponentsFor(raw).filter(c => _calCompKasperVisible(raw, c));
+                const anyReviewable = kasperComps.some(c => _kasperCompReviewable(raw, c));
+                if (hasKasperWork && !anyReviewable) {
+                    // Flip-day tester finding E, corrected. The card the tester
+                    // drove to Kasper Approval never appeared, and the queue was
+                    // read as blind to natively-created cards. It is not: the
+                    // Supabase-first read above covers every client, and native
+                    // cards WITH media do render. This gate dropped it, silently,
+                    // because both media columns were empty.
+                    //
+                    // Pre-flip that silence was nearly harmless: a media-less card
+                    // at Kasper Approval was a freshly-synced Linear stub nobody
+                    // had handed over on purpose. Post-flip the Production tab
+                    // moves status without touching media, so an ordinary status
+                    // change now strands a card in a state where the SMM believes
+                    // it is with Kasper and Kasper is never told it exists.
+                    //
+                    // The card still stays OUT of the review list -- there is
+                    // genuinely nothing to review, and the card UI is built around
+                    // media -- but it is now REPORTED instead of discarded.
+                    stranded.push({
+                        id: String(raw.id || ''),
+                        client,
+                        slug,
+                        name: String(raw.name || 'Untitled post'),
+                        native: !!(raw.video_deliverable_id || raw.graphic_deliverable_id),
+                    });
+                }
+                if (hasKasperWork && anyReviewable) {
+                    queue.push({
+                        post: raw, client, slug, smm: null,
+                        _expanded: false,
+                        _saving:   { video: false, graphic: false, caption: false },
+                        _drafts:   { video: '',    graphic: '',    caption: '' },
+                        _errors:   { video: null,  graphic: null,  caption: null },
+                    });
+                }
+                const approvedAt = String(raw.kasper_approved_at || '').trim();
+                if (approvedAt) {
+                    history.push(_kasperHistoryEntryFromPost(raw, client, slug, approvedAt));
+                }
+                // Replies inbox: any card (incl. already-approved/posted) with
+                // an unread reply on one of Kasper's internal threads. Not gated
+                // by the queue's media/status rules — it's a conversation inbox.
+                if (_kasperHasUnreadReply(raw)) {
+                    replies.push({ post: raw, client, slug, smm: null, _replyDraft: '' });
+                }
+            }
+            return { queue, history, replies, stranded };
+        };
+        const fetchOne = async (client) => {
+            const slug = wlNormalizeClient(client);
+            if (!forceRefresh) {
+                const cached = _kasperCalCacheRead(slug);
+                if (cached && cached.ok) return extract(client, cached);
+            }
+            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+            if (!resp.ok) throw new Error('Bad response for ' + client);
+            const json = await resp.json();
+            /* item 86, the queue half. This used to cache whatever came back and
+               return an empty queue for a not-ok answer, so a client whose
+               webhook read failed looked exactly like a client with no work --
+               the worst possible failure mode for a review queue, and invisible.
+               A zero-row answer now THROWS into the rejection path, which the
+               caller counts and reports; only a non-empty truth is cached. */
+            if (!json || !json.ok || !Array.isArray(json.posts)) throw new Error('calendar_get_unusable_payload for ' + client);
+            if (!json.posts.length) throw new Error('calendar_get_zero_posts for ' + client);
+            _kasperCalCacheWrite(slug, json);
+            return extract(client, json);
+        };
+        // Fast path: ONE batched webhook call covers every client needing a
+        // network read (two Google API calls server-side) instead of a
+        // calendar-get round trip per client. The 5-min cache is honoured
+        // exactly as before, and any batch failure falls back to the
+        // per-client fan-out below — the batch is purely an upgrade.
+        const settled = [];
+        let remaining = WL_CLIENT_NAMES.slice();
+        if (!forceRefresh) {
+            remaining = [];
+            for (const client of WL_CLIENT_NAMES) {
+                const cached = _kasperCalCacheRead(wlNormalizeClient(client));
+                if (cached && cached.ok) settled.push({ status: 'fulfilled', value: extract(client, cached) });
+                else remaining.push(client);
+            }
+        }
+        // v2: every client lives in ONE Supabase table, so ONE paginated REST
+        // read covers all of them — no per-client calendar-get fan-out, no n8n
+        // load. Group rows by their client column and reuse the same extract()
+        // the Sheet path uses. On ANY Supabase error we leave `remaining`
+        // untouched and fall through to the kasper-queue batch + per-client
+        // fan-out below, so the queue can never blank. Gated on _calV2Ready() so
+        // v1 is byte-identical. _calSupabaseFetchAllRows pages past PostgREST's
+        // 1000-row max-rows cap, so the queue stays complete as the table grows
+        // (the unpaginated single read silently dropped every row past 1000,
+        // hiding freshly-added cards from Kasper once the table crossed 1000).
+        if (remaining.length && _calV2Ready()) {
+            try {
+                const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+                const timer = ctrl ? setTimeout(() => ctrl.abort(), 30000) : null;
+                let allRows;
+                try {
+                    allRows = await _calSupabaseFetchAllRows(CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&or=(status.is.null,status.neq.Archived)', ctrl ? ctrl.signal : undefined);
+                } finally { if (timer) clearTimeout(timer); }
+                if (!Array.isArray(allRows)) throw new Error('Supabase: unexpected payload');
+                const byClient = new Map();
+                for (const r of allRows) {
+                    const c = String((r && r.client) || '');
+                    if (!c) continue;
+                    if (!byClient.has(c)) byClient.set(c, []);
+                    byClient.get(c).push(r);
+                }
+                const covered = [];
+                for (const client of remaining) {
+                    const shaped = { ok: true, posts: byClient.get(wlNormalizeClient(client)) || [] };
+                    _kasperCalCacheWrite(wlNormalizeClient(client), shaped);
+                    settled.push({ status: 'fulfilled', value: extract(client, shaped) });
+                    covered.push(client);
+                }
+                remaining = remaining.filter(c => !covered.includes(c));
+            } catch (e) {
+                console.warn('[Kasper] Supabase read failed — falling back to kasper-queue/calendar-get', e);
+            }
+        }
+        if (remaining.length) {
+            try {
+                const slugByClient = new Map(remaining.map(c => [c, wlNormalizeClient(c)]));
+                const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+                const timer = ctrl ? setTimeout(() => ctrl.abort(), 30000) : null;
+                const resp = await fetch(KASPER_QUEUE_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ slugs: [...slugByClient.values()] }),
+                    signal: ctrl ? ctrl.signal : undefined,
+                });
+                if (timer) clearTimeout(timer);
+                const json = await resp.json();
+                if (!resp.ok || !json || !json.ok || !json.clients) throw new Error('kasper-queue not ok');
+                const missing = new Set(Array.isArray(json.missing) ? json.missing : []);
+                const covered = [];
+                for (const [client, slug] of slugByClient) {
+                    const entry = json.clients[slug];
+                    // A slug in `missing` has no Calendar tab — same outcome
+                    // as the fan-out's empty read, so treat it as covered.
+                    const shaped = (entry && Array.isArray(entry.posts))
+                        ? { ok: true, posts: entry.posts }
+                        : (missing.has(slug) ? { ok: true, posts: [] } : null);
+                    if (!shaped) continue;
+                    _kasperCalCacheWrite(slug, shaped);
+                    settled.push({ status: 'fulfilled', value: extract(client, shaped) });
+                    covered.push(client);
+                }
+                remaining = remaining.filter(c => !covered.includes(c));
+            } catch (e) {
+                console.warn('[Kasper] batch queue fetch failed — falling back to per-client loads', e);
+            }
+        }
+        // Per-client fan-out for whatever the batch didn't cover
+        // (everything, when the batch endpoint is down).
+        const pending = remaining;
+        const worker = async () => {
+            while (pending.length) {
+                const client = pending.shift();
+                try { settled.push({ status: 'fulfilled', value: await fetchOne(client) }); }
+                catch (reason) {
+                    // item 86: name the client. An anonymous rejection was
+                    // dropped by the aggregator below without a word, so a
+                    // client whose read failed was indistinguishable from a
+                    // client with no work -- in a review queue, that is the
+                    // worst way to fail.
+                    console.warn('[Kasper] client load failed:', client, reason);
+                    settled.push({ status: 'rejected', reason, client });
+                }
+            }
+        };
+        const workerCount = Math.min(KASPER_CAL_CONCURRENCY, pending.length);
+        if (workerCount > 0) await Promise.all(Array.from({ length: workerCount }, worker));
+        const queueOut = [];
+        const historyOut = [];
+        const repliesOut = [];
+        const queueIds = new Set();
+        const repliesIds = new Set();
+        const strandedOut = [];
+        const strandedIds = new Set();
+        const unloadedOut = [];
+        for (const s of settled) {
+            if (s.status === 'rejected' && s.client && !unloadedOut.includes(s.client)) unloadedOut.push(s.client);
+            if (s.status === 'fulfilled' && s.value) {
+                for (const it of s.value.queue) {
+                    if (queueIds.has(it.post.id)) continue;
+                    queueIds.add(it.post.id);
+                    queueOut.push(it);
+                }
+                historyOut.push(...s.value.history);
+                for (const it of (s.value.replies || [])) {
+                    if (repliesIds.has(it.post.id)) continue;
+                    repliesIds.add(it.post.id);
+                    repliesOut.push(it);
+                }
+                for (const it of (s.value.stranded || [])) {
+                    if (!it || !it.id || strandedIds.has(it.id)) continue;
+                    strandedIds.add(it.id);
+                    strandedOut.push(it);
+                }
+            }
+        }
+        return { queue: queueOut, history: historyOut, replies: repliesOut, stranded: strandedOut, unloaded: unloadedOut };
+    }
+
+    function _kasperHistoryEntryFromPost(post, client, slug, approvedAt) {
+        return {
+            id: post.id,
+            client, slug,
+            name: post.name || 'Untitled post',
+            asset_url: String(post.asset_url || ''),
+            thumbnail_url: String(post.thumbnail_url || ''),
+            scheduled_date: String(post.scheduled_date || ''),
+            approvedAt,
+        };
+    }
+
+    function _kasperLoadHistoryLog() {
+        try {
+            const raw = localStorage.getItem(KASPER_HISTORY_KEY);
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed.filter(x => x && x.id && x.approvedAt) : [];
+        } catch { return []; }
+    }
+    function _kasperSaveHistoryLog(list) {
+        try { localStorage.setItem(KASPER_HISTORY_KEY, JSON.stringify(list.slice(0, KASPER_HISTORY_CAP))); } catch {}
+    }
+    function _kasperRecordHistory(entry) {
+        const log = _kasperLoadHistoryLog().filter(x => x.id !== entry.id);
+        log.unshift(entry);
+        _kasperSaveHistoryLog(log);
+    }
+    function _kasperMergeHistory(serverList, localList) {
+        // Server wins when the same id appears in both (its approvedAt is
+        // authoritative once the sheet has the column populated).
+        const seen = new Set();
+        const merged = [];
+        for (const e of (serverList || [])) {
+            if (!e || !e.id || seen.has(e.id)) continue;
+            seen.add(e.id);
+            merged.push(e);
+        }
+        for (const e of (localList || [])) {
+            if (!e || !e.id || seen.has(e.id)) continue;
+            seen.add(e.id);
+            merged.push(e);
+        }
+        // Latest first.
+        merged.sort((a, b) => String(b.approvedAt || '').localeCompare(String(a.approvedAt || '')));
+        return merged;
+    }
+
+    /* Split the queue into two buckets:
+         • Waiting — at least one component is still at Kasper Approval
+           (Kasper needs to make a call).
+         • Tweaks pending — no component at Kasper Approval, but at
+           least one component sits at Tweaks Needed with an unresolved
+           Kasper tweak (Kasper has already commented; ball is in the
+           SMM's court, but he might want to add follow-up tweaks before
+           hitting Done reviewing).
+       The count chip at the top reflects only the Waiting bucket — that's
+       what "needs your attention right now" means. */
+    /* ── Is a card "finished" / "closed" right now? ──────────────────────
+       Both are GLOBAL + cross-device: the durable signal is a persisted
+       timestamp ON THE CARD — `kasper_finished_at` / `kasper_closed_at` — that
+       rides the upsert echo + Supabase realtime to every device, exactly like
+       `kasper_approved_at`. The per-browser `_kasperState.dismissed` / `.closed`
+       flags are kept only as a SAME-DEVICE continuity fallback. The backend
+       columns and allowlist are deployed; the current contract is recorded in
+       docs/features/KASPER_REVIEW_GLOBAL_ROLLOUT.md. */
+    function _kasperFinishedAt(post) { return String((post && post.kasper_finished_at) || ''); }
+    /* "Finish reviewing" hand-off. A finished card sits in "Tweaks pending"
+       until a genuine fresh ask supersedes it:
+         • an ACTIONABLE component is back at Kasper Approval — gated by
+           _kasperUndecidedComps, so a component he cannot act on does NOT
+           count: an unlinked-thumbnail graphic, or a video or thumbnail whose
+           file never arrived. This is the SAME set the Finish gate reads, and
+           it has to be: any daylight between them is a card that can be
+           finished and never reads as finished; or
+         • a message landed after he finished (the SMM replied / client commented).
+       `kasper_finished_at` doubles as his "seen up to here" stamp, so the second
+       test is just latestMsg > kasper_finished_at. */
+    function _kasperIsFinished(post) {
+        if (!post) return false;
+        const stampedAt = _kasperFinishedAt(post);
+        const localFin = !!(_kasperState.dismissed && _kasperState.dismissed[post.id]);
+        if (!stampedAt && !localFin) return false;
+        // Once finished, a card STAYS in "Tweaks pending" and returns to "Waiting"
+        // ONLY when a component is genuinely re-sent to Kasper Approval. A later
+        // message — even a client tweak — updates the card in place but must NOT pull
+        // it back into his queue (product rule: Finish means finished until an explicit
+        // For-Kasper-Approval re-route; the earlier reply-re-surfaces-it behaviour was
+        // the friction — a client tweak kept bouncing finished cards back into
+        // "Waiting"). Gated on a SERVER-CONFIRMED finish (stamp present) so a mid-write
+        // stale read can't bounce a freshly-finished card; _kasperUndecidedComps applies
+        // the unlinked-thumbnail gate (a graphic stuck at KA with no GRA sub-issue
+        // doesn't count).
+        if (stampedAt && _kasperUndecidedComps(post).length > 0) return false;   // fresh ask: a component re-sent to Kasper Approval
+        return true;
+    }
+    /* X-close (top-right X) — no decision, just hide it. Re-surfaces when a new
+       message arrives after the close (a fresh "look again"). Pre-backend it
+       falls back to the local flag + the queue-membership prune (today's rule). */
+    function _kasperIsClosed(post) {
+        if (!post) return false;
+        const closedAt = String((post && post.kasper_closed_at) || '');
+        const localClosed = !!(_kasperState.closed && _kasperState.closed[post.id]);
+        if (!closedAt && !localClosed) return false;
+        if (closedAt) {
+            const latest = _calLatestMsgCreatedAt(post);                 // created-at: a resolve bump must not un-hide a closed card
+            if (latest && latest > closedAt) return false;
+        }
+        return true;
+    }
+    function _kasperPartitionItems(items) {
+        // Bucket on whether Kasper has FINISHED the card (handed it to the SMM),
+        // sourced from the global kasper_finished_at stamp (local flag fallback),
+        // NOT live component status — writing a tweak flips a component to Tweaks
+        // Needed, but the card must STAY in "Waiting" so he can keep layering
+        // decisions; it moves to "Tweaks pending" only when he explicitly
+        // finishes, and returns to "Waiting" on a fresh ask (see _kasperIsFinished).
+        // The Urgent bucket is a SPLIT OF WAITING, not a fourth kind of card:
+        // an urgent card is a waiting card someone has pinged him about, and it
+        // behaves like every other waiting card in every other respect (same
+        // render, same actions, same finish path). Splitting here rather than
+        // anywhere downstream is what keeps that true -- nothing else in the
+        // review tab has to learn the word "urgent".
+        const urgent = [], waiting = [], tweaks = [];
+        for (const it of items) {
+            if (_kasperIsFinished(it.post)) tweaks.push(it);
+            else if (_calKasperUrgentActive(it.post)) urgent.push(it);
+            else waiting.push(it);
+        }
+        return { urgent, waiting, tweaks };
+    }
+
+    let _kasperPaintRetry = null;
+    function _kasperPaintReview() {
+        const body = document.getElementById('kasperReviewBody');
+        const count = document.getElementById('kasperReviewCount');
+        if (!body) return;
+        // Never wipe a textarea Kasper is typing in. EVERY caller (realtime echo,
+        // reload, post-save) defers here until focus leaves — the data is already
+        // in _kasperState, so a short re-arm catches up the moment he blurs. This
+        // is the central guard; per-caller guards elsewhere are belt-and-braces.
+        const _ae = document.activeElement;
+        if (_ae && _ae.tagName === 'TEXTAREA' && _ae.closest && _ae.closest('#kasperContent')) {
+            if (_kasperPaintRetry) clearTimeout(_kasperPaintRetry);
+            _kasperPaintRetry = setTimeout(_kasperPaintReview, 1200);
+            return;
+        }
+        // Don't rebuild the list out from under a pressed button — the click
+        // would land on a removed node and be lost (see _kasperPointerHeld).
+        // Short re-arm; _kasperReleasePointer also flushes on pointerup.
+        if (_kasperPointerHeld) {
+            if (_kasperPaintRetry) clearTimeout(_kasperPaintRetry);
+            _kasperPaintRetry = setTimeout(_kasperPaintReview, 200);
+            return;
+        }
+        if (_kasperPaintRetry) { clearTimeout(_kasperPaintRetry); _kasperPaintRetry = null; }
+        const { urgent, waiting, tweaks } = _kasperPartitionItems(_kasperState.items);
+        // Both counters cover urgent + waiting: the ping changes where a card
+        // SITS, never whether it is still his to do.
+        const openCount = urgent.length + waiting.length;
+        if (count) count.textContent = String(openCount);
+        const tabCount = document.querySelector('[data-kasper-count="review"]');
+        if (tabCount) tabCount.textContent = String(openCount);
+        // Waiting section uses the same collapsible-style head as Tweaks
+        // pending and Approved history so the three buckets feel like
+        // siblings rather than "the main queue plus two add-ons". Waiting
+        // defaults to open since it's where Kasper actually works.
+        const waitingCollapsedCls = _kasperState.waitingCollapsed ? ' collapsed' : '';
+        const waitingBodyHtml = waiting.length
+            ? `<div class="kasper-list">${waiting.map(_kasperRenderCard).join('')}</div>`
+            : `<div class="kasper-empty">
+                <div class="kasper-empty-icon"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg></div>
+                <div class="kasper-empty-title">You're all caught up</div>
+                <div class="kasper-empty-sub">Nothing is waiting for your review right now.</div>
+            </div>`;
+        const waitingHtml = `<div class="kasper-history-wrap kasper-waiting-wrap${waitingCollapsedCls}" id="kasperWaitingWrap">
+            <div class="kasper-history-head" onclick="_kasperToggleWaiting()">
+                <span class="kasper-history-title">Waiting for your review</span>
+                <span class="kasper-history-count">${waiting.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body">${waitingBodyHtml}</div>
+        </div>`;
+        const _thumbs = _kcardHarvestThumbs(body, 'data-kasper-pid');
+        body.innerHTML = _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + _kasperRenderUrgentSection(urgent) + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection();
+        _kcardRestoreThumbs(body, _thumbs, 'data-kasper-pid');
+    }
+
+    /* Clients whose calendar could not be read on this load. Without this the
+       queue simply renders without them, which is indistinguishable from those
+       clients having no work -- the failure mode item 86 was filed for. Renders
+       nothing when every client loaded. */
+    function _kasperRenderUnloadedNotice() {
+        const list = Array.isArray(_kasperState.unloaded) ? _kasperState.unloaded : [];
+        if (!list.length) return '';
+        const names = list.slice(0, 8).map(n => _calEsc(n)).join(', ');
+        const more = list.length > 8 ? ` and ${list.length - 8} more` : '';
+        const verb = list.length === 1 ? 'client could not be loaded' : 'clients could not be loaded';
+        return `<div class="kasper-unloaded" data-kasper-unloaded="${list.length}">
+            <div class="kasper-stranded-title">${list.length} ${verb}</div>
+            <div class="kasper-stranded-sub">Any cards these clients have are missing from the queue below, not absent: ${names}${more}. Refresh to try again.</div>
+        </div>`;
+    }
+
+    /* Cards sitting at Kasper Approval where not one waiting component has the
+       thing it is reviewed by -- no video file, no thumbnail, no caption text,
+       no title text. They are not review work, so they stay out of the list --
+       but the SMM has handed them over and Kasper is the only person who can
+       tell them the content never arrived. Before this, the queue discarded
+       them without a word, which is how the flip-day tester read an empty queue
+       as "Kasper cannot see natively-created cards at all". Renders nothing
+       when the bucket is empty, so a healthy day is unchanged.
+
+       The copy says CONTENT, not "a file", deliberately: an empty caption or
+       title lands here too, and telling the SMM to attach a file for a caption
+       is the exact wrong instruction the 2026-09-03 owner report was about. */
+    function _kasperRenderStrandedNotice() {
+        const list = Array.isArray(_kasperState.stranded) ? _kasperState.stranded : [];
+        if (!list.length) return '';
+        const rows = list.slice(0, 12).map(it => `<li><strong>${_calEsc(it.client)}</strong> · ${_calEsc(it.name)}</li>`).join('');
+        const more = list.length > 12 ? `<li>and ${list.length - 12} more</li>` : '';
+        const noun = list.length === 1 ? 'card is' : 'cards are';
+        return `<div class="kasper-stranded" data-kasper-stranded="${list.length}">
+            <div class="kasper-stranded-title">${list.length} ${noun} waiting on content, not on you</div>
+            <div class="kasper-stranded-sub">Every part still with you is empty — a video or thumbnail that was never attached, or a caption or title that was never written — so there is nothing to review yet. The moment any one of them lands, the card joins the queue above.</div>
+            <ul class="kasper-stranded-list">${rows}${more}</ul>
+        </div>`;
+    }
+
+    /* Cards somebody has explicitly pinged Kasper about — the ones that could
+       not wait for his next pass. Sits ABOVE "Waiting for your review" because
+       that is the entire point of it, and is otherwise the same section as its
+       three siblings: same collapsible chrome, same _kasperRenderCard, same
+       actions. A card leaves on its own the moment the ping stops being live
+       (he decides the component, or it leaves Kasper Approval) — see
+       _calKasperUrgentActive — so nothing has to be cleared by hand.
+
+       Hidden entirely when empty, like Tweaks pending: a permanent empty
+       "Urgent" header would train him to ignore the one thing it exists to
+       make unignorable. */
+    /* Keyboard + AT semantics for a collapsible section head. The heads are
+       styled `div`s, so without this they are mouse-only: not focusable, not
+       announced as controls, and with no way to report collapsed state. New
+       visible UI has to carry keyboard, focus and ARIA as part of the feature
+       (AGENTS.md; docs/features/UI_DESIGN_STANDARDS.md), so the Urgent heads
+       below take these attributes and _svSectionHeadKey handles Enter/Space.
+
+       Emitted as attributes rather than by swapping the element for a <button>
+       on purpose: the three sibling heads (Waiting / Tweaks pending / Approved
+       history) share `.kasper-history-head`'s styling, and a <button> there
+       would need its own reset to keep the four identical. Those three still
+       lack this and are unchanged here -- widening an urgent-ping PR into them
+       is a separate change. (Codex P2 on PR 1370.) */
+    function _svSectionHeadA11y(expanded) {
+        return ` role="button" tabindex="0" aria-expanded="${expanded ? 'true' : 'false'}" onkeydown="_svSectionHeadKey(event)"`;
+    }
+    function _svSectionHeadKey(ev) {
+        if (!ev || (ev.key !== 'Enter' && ev.key !== ' ' && ev.key !== 'Spacebar')) return;
+        ev.preventDefault();                       // Space must not scroll the queue
+        if (ev.currentTarget && ev.currentTarget.click) ev.currentTarget.click();
+    }
+    window._svSectionHeadKey = _svSectionHeadKey;
+    function _kasperRenderUrgentSection(urgent) {
+        if (!urgent.length) return '';
+        const collapsedCls = _kasperState.urgentCollapsed ? ' collapsed' : '';
+        const cards = urgent.map(_kasperRenderCard).join('');
+        return `<div class="kasper-history-wrap kasper-urgent-wrap${collapsedCls}" id="kasperUrgentWrap">
+            <div class="kasper-history-head" onclick="_kasperToggleUrgent()"${_svSectionHeadA11y(!_kasperState.urgentCollapsed)}>
+                <span class="kasper-history-title">Urgent</span>
+                <span class="kasper-history-count">${urgent.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body"><div class="kasper-list">${cards}</div></div>
+        </div>`;
+    }
+    function _kasperToggleUrgent() {
+        _kasperState.urgentCollapsed = !_kasperState.urgentCollapsed;
+        const wrap = document.getElementById('kasperUrgentWrap');
+        if (wrap) {
+            wrap.classList.toggle('collapsed', _kasperState.urgentCollapsed);
+            // A stale aria-expanded is worse than none: it tells a screen reader
+            // the section is open while it is collapsed.
+            const head = wrap.querySelector('.kasper-history-head');
+            if (head) head.setAttribute('aria-expanded', _kasperState.urgentCollapsed ? 'false' : 'true');
+        }
+    }
+    window._kasperToggleUrgent = _kasperToggleUrgent;
+
+    /* Cards Kasper has already tweaked but hasn't hit Done reviewing on
+       yet. Shares the same collapsible chrome as the Approved history
+       section. Hidden entirely when the bucket is empty so the page
+       doesn't carry empty headers. */
+    function _kasperRenderTweaksSection(tweaks) {
+        if (!tweaks.length) return '';
+        const collapsedCls = _kasperState.tweaksCollapsed ? ' collapsed' : '';
+        const cards = tweaks.map(_kasperRenderCard).join('');
+        return `<div class="kasper-history-wrap${collapsedCls}" id="kasperTweaksWrap">
+            <div class="kasper-history-head" onclick="_kasperToggleTweaks()">
+                <span class="kasper-history-title">Tweaks pending</span>
+                <span class="kasper-history-count">${tweaks.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body"><div class="kasper-list">${cards}</div></div>
+        </div>`;
+    }
+
+    function _kasperToggleTweaks() {
+        _kasperState.tweaksCollapsed = !_kasperState.tweaksCollapsed;
+        const wrap = document.getElementById('kasperTweaksWrap');
+        if (wrap) wrap.classList.toggle('collapsed', _kasperState.tweaksCollapsed);
+    }
+    window._kasperToggleTweaks = _kasperToggleTweaks;
+    function _kasperToggleWaiting() {
+        _kasperState.waitingCollapsed = !_kasperState.waitingCollapsed;
+        const wrap = document.getElementById('kasperWaitingWrap');
+        if (wrap) wrap.classList.toggle('collapsed', _kasperState.waitingCollapsed);
+    }
+    window._kasperToggleWaiting = _kasperToggleWaiting;
+
+    function _kasperHistoryDayKey(iso) {
+        const t = Date.parse(iso || '');
+        if (!isFinite(t)) return '';
+        const d = new Date(t);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+    function _kasperHistoryDayLabel(key) {
+        if (!key) return 'Earlier';
+        const today = _kasperHistoryDayKey(new Date().toISOString());
+        const yest = new Date(); yest.setDate(yest.getDate() - 1);
+        const yKey = _kasperHistoryDayKey(yest.toISOString());
+        if (key === today) return 'Today';
+        if (key === yKey) return 'Yesterday';
+        const [y, m, d] = key.split('-').map(Number);
+        const dt = new Date(y, (m || 1) - 1, d || 1);
+        return dt.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    }
+
+    function _kasperRenderHistorySection() {
+        const list = _kasperState.history || [];
+        if (!list.length) return '';
+        const groups = new Map();
+        for (const e of list) {
+            const key = _kasperHistoryDayKey(e.approvedAt);
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(e);
+        }
+        const dayKeys = [...groups.keys()].sort((a, b) => b.localeCompare(a));
+        const daysHtml = dayKeys.map(k => {
+            const rows = groups.get(k).map(e => {
+                const thumb = e.thumbnail_url || e.asset_url || '';
+                const thumbHtml = thumb
+                    ? `<img loading="lazy" src="${_calEscAttr(thumb)}" alt="" onerror="this.replaceWith(_kasperHistoryThumbFallback())">`
+                    : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 11l3 3 5-5"/></svg>`;
+                const calUrl = `${location.pathname}#calendar/${encodeURIComponent(e.slug)}/${encodeURIComponent(e.id)}`;
+                const videoBtn = e.asset_url
+                    ? `<a href="${_calEscAttr(e.asset_url)}" target="_blank" rel="noopener">Video</a>`
+                    : '';
+                const t = Date.parse(e.approvedAt);
+                const timeStr = isFinite(t) ? new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+                return `<div class="kasper-history-row">
+                    <div class="kasper-history-thumb">${thumbHtml}</div>
+                    <div class="kasper-history-main">
+                        <div class="kasper-history-line1">${_calEsc(e.name)}</div>
+                        <div class="kasper-history-line2"><span class="kasper-history-client">${_calEsc(e.client)}</span>${timeStr ? ` · approved ${_calEsc(timeStr)}` : ''}</div>
+                    </div>
+                    <div class="kasper-history-actions">${videoBtn}<a href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener">Open</a></div>
+                </div>`;
+            }).join('');
+            return `<div class="kasper-history-day">
+                <div class="kasper-history-day-label">${_calEsc(_kasperHistoryDayLabel(k))}<span class="kasper-day-count">· ${groups.get(k).length} approved</span></div>
+                ${rows}
+            </div>`;
+        }).join('');
+        const collapsedCls = _kasperState.historyCollapsed ? ' collapsed' : '';
+        return `<div class="kasper-history-wrap${collapsedCls}" id="kasperHistoryWrap">
+            <div class="kasper-history-head" onclick="_kasperToggleHistory()">
+                <span class="kasper-history-title">Approved history</span>
+                <span class="kasper-history-count">${list.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body">${daysHtml}</div>
+        </div>`;
+    }
+
+    function _kasperHistoryThumbFallback() {
+        const span = document.createElement('span');
+        span.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 11l3 3 5-5"/></svg>`;
+        return span.firstElementChild;
+    }
+
+    function _kasperToggleHistory() {
+        _kasperState.historyCollapsed = !_kasperState.historyCollapsed;
+        const wrap = document.getElementById('kasperHistoryWrap');
+        if (wrap) wrap.classList.toggle('collapsed', _kasperState.historyCollapsed);
+    }
+
+    function _kasperFmtDateNice(iso) {
+        if (!iso) return '';
+        const s = String(iso).slice(0, 10);
+        const d = new Date(s + 'T00:00:00');
+        if (isNaN(d)) return s;
+        return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+
+    function _kasperRenderCard(item) {
+        const p   = item.post;
+        const pid = p.id;
+        const title = p.name || 'Untitled post';
+        const dateNice = _kasperFmtDateNice(p.scheduled_date);
+        const thumbInfo = _calDeriveThumbInfo(p);
+        const hasThumbUrl = !!thumbInfo.url;
+        const thumbHtml = hasThumbUrl
+            ? _calThumbImgTag(thumbInfo, '_calOnMiniThumbError')
+            : thumbInfo.frame
+                ? _calMiniLinkBadgeHtml('kcard-thumb-fallback', thumbInfo.frameKind)
+                : `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 17l-5-5L5 21"/></svg>`;
+        const zoomBtnHtml = hasThumbUrl
+            ? `<button class="kcard-thumb-zoom" type="button" onclick="event.stopPropagation();_kasperOpenLightbox('${_calEscAttr(pid)}')" title="View thumbnail full screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-8 8M3 21l8-8"/></svg></button>`
+            : thumbInfo.frame
+                ? `<a class="kcard-thumb-zoom" href="${_calEscAttr(thumbInfo.frame)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="${_calEscAttr(_calOpenCardMeta(thumbInfo.frameKind).title)}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5H13.5V6.5"/><path d="M13.5 2.5L7.5 8.5"/></svg></a>`
+                : '';
+        const videoUrl = String(p.asset_url || '').trim();
+        // SMM row — Slack link removed 2026-08-20; see the samples twin above.
+        const smm = item.smm;
+        const smmHtml = smm && smm.name
+            ? `<span class="kcard-smm" onclick="event.stopPropagation();"><span class="kcard-smm-avatar">${_calEsc(smm.name.charAt(0).toUpperCase())}</span>${_calEsc(smm.name)}</span>`
+            : '';
+        const watchBtn = videoUrl
+            ? `<a class="kcard-watch-btn" href="${_calEscAttr(videoUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>Watch video</a>`
+            : `<span class="kcard-watch-btn is-disabled" title="No video URL on this card"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>No video URL</span>`;
+        // "Finish reviewing" — Kasper's explicit "I'm done with this card"
+        // exit. Always shown, but enabled only once EVERY component has had an
+        // explicit action (approve / request change / comment). There is no
+        // implicit approval, so the end state can't depend on click order.
+        // Clicking it changes no status (each component already carries its
+        // decision): all-approved → logged Approved; any change request →
+        // handed to the SMM; any open comment → waiting on the SMM's reply.
+        const undecidedComps = _kasperUndecidedComps(p);
+        const canFinish = undecidedComps.length === 0;
+        const isFinished = _kasperIsFinished(p);
+        const finishTitle = canFinish
+            ? 'Finish reviewing — hand this card to the SMM. Approved components go to the client; change requests move to "Tweaks pending"; anything you only commented on waits for their reply. Nothing is approved unless you approved it.'
+            : 'Decide on the ' + undecidedComps.map(c => COMP_LABELS[c]).join(' & ') + ' first — approve it or request a change to finish. (A comment is just a question; it doesn\'t count as a decision.)';
+        // While Kasper is still reviewing (not finished) he gets the Finish
+        // action; once finished the card sits in "Tweaks pending", so show its
+        // handed-off state instead (it returns to Waiting if the SMM replies or
+        // sends a component back to Kasper Approval).
+        const doneBtn = isFinished
+            ? `<button type="button" class="kcard-done-btn" disabled title="Finished — these tweaks are with the SMM. This card returns to your queue if they reply or send a component back to you."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Sent to SMM</button>`
+            : `<button type="button" class="kcard-done-btn" ${canFinish ? '' : 'disabled'} onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="${_calEscAttr(finishTitle)}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Finish reviewing</button>`;
+        // URGENT ping — the same affordance as the SMM's calendar button, surfaced
+        // in Kasper's queue so he can flag a video tweak straight to the editor in
+        // Slack (#video-editing) himself instead of waiting on the SMM to click it.
+        // Same gate as the calendar (_calShowUrgent): video at Tweaks Needed with a
+        // linked sub-issue to resolve the editor from. Routes through
+        // _kasperSendUrgentSlack, which resolves the post from the (cross-client)
+        // review queue rather than calState.posts.
+        const urgentBtn = _calShowUrgent(p, 'video')
+            ? _calUrgentButtonHtml(_calEscAttr(pid), '_kasperSendUrgentSlack', p, 'kcard-urgent-btn', true)
+            : '';
+        const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
+        const openTweaks = _kasperOpenTweakCount(p);
+        const tweaksChip = openTweaks > 0
+            ? `<span class="kcard-tweaks-chip" title="${openTweaks} open tweak${openTweaks === 1 ? '' : 's'}"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>${openTweaks}</span>`
+            : '';
+        const aatChip = _calComponentsFor(p).some(c => _calShowApprovedAfterTweaks(p, c))
+            ? `<span class="kcard-aat-chip" title="No more tweaks needed — pre-cleared for the client"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>`
+            : '';
+        const dateHtml = dateNice
+            ? `<span class="kcard-date"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>${_calEsc(dateNice)}</span>`
+            : `<span class="kcard-date is-empty">No date</span>`;
+        const expandedHtml = item._expanded ? _kasperRenderExpanded(item) : '';
+        return `<div class="kcard${item._expanded ? ' expanded' : ''}" data-kasper-pid="${_calEscAttr(pid)}">
+            <button class="kcard-close-btn" type="button" onclick="event.stopPropagation();_kasperClose('${_calEscAttr(pid)}')" title="Hide this card. It comes back if someone posts a new message on it." aria-label="Close card"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+            <div class="kcard-strip" onclick="_kasperToggleCard('${_calEscAttr(pid)}')">
+                <div class="kcard-thumb${hasThumbUrl || thumbInfo.frame ? '' : ' is-no-image'}">${thumbHtml}${zoomBtnHtml}</div>
+                <div class="kcard-main">
+                    <div class="kcard-line1">
+                        <span class="kcard-client">${_calEsc(item.client)}</span>
+                        <span class="kcard-dot">·</span>
+                        ${dateHtml}
+                        ${tweaksChip}
+                        ${aatChip}
+                        ${_kasperHasUnreadReply(p) ? '<span class="kcard-newreply-chip">New message</span>' : ''}
+                        ${undecidedComps.length ? `<span class="kcard-comp-pills" title="Awaiting your decision">${undecidedComps.map(c => `<span class="kcard-comp-pill">${_calEsc(COMP_LABELS[c])}</span>`).join('')}</span>` : ''}
+                    </div>
+                    <div class="kcard-title">${_calEsc(title)}</div>
+                    <div class="kcard-meta-row">${smmHtml}</div>
+                </div>
+                <div class="kcard-actions" onclick="event.stopPropagation();">
+                    ${urgentBtn}
+                    ${doneBtn}
+                    ${watchBtn}
+                    <button class="kcard-expand-btn" type="button" onclick="_kasperToggleCard('${_calEscAttr(pid)}')" aria-label="${item._expanded ? 'Collapse' : 'Expand'} card"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
+                </div>
+            </div>
+            ${expandedHtml}
+        </div>`;
+    }
+
+    /* Kasper's URGENT ping. Mirrors the SMM calendar button, but the review
+       queue is CROSS-CLIENT, so the post can't be looked up in calState.posts
+       (that's only the actively-loaded client) — it's resolved from
+       _kasperState.items / .replies instead, and the card's own client is sent.
+       Everything else (confirm, latch, toast) is the shared dispatch, so the
+       Slack message is identical to an SMM-triggered ping. */
+    function _kasperSendUrgentSlack(event, pid) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        const btn = (event && event.currentTarget) ? event.currentTarget : null;
+        if (btn && btn.dataset.urgentSent === '1') {
+            showNotify('Already sent', 'An urgent ping for this video was already sent in this session.');
+            return;
+        }
+        const item = (_kasperState.items || []).find(x => x && x.post && x.post.id === pid)
+                  || (_kasperState.replies || []).find(x => x && x.post && x.post.id === pid);
+        if (!item || !item.post) return;
+        const issue = String(item.post.linear_issue_id || '').trim();
+        if (!issue && !String(item.post.video_deliverable_id || '').trim()) {
+            showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.');
+            return;
+        }
+        const client = String(item.client || wlCanonicalClient(item.slug) || '').trim();
+        _calUrgentSlackDispatch(btn, issue, client, item.post.name, {
+            native: String(item.post.video_deliverable_id || '').trim() ? { action: 'native_urgent_dispatch', client_slug: String(item.slug || calClientSlug(client)),
+                deliverable_id: _writeUiNativeId(item.post, 'video'), card_id: String(item.post.id), surface: 'calendar', video_status_at: String(item.post.video_status_at || '') } : null,
+            currentClientSlug: () => String(((_kasperState.items || []).concat(_kasperState.replies || []).find(x => x && x.post && x.post.id === pid) || {}).slug || ''),
+            currentPost: () => ((_kasperState.items || []).concat(_kasperState.replies || []).find(x => x && x.post && x.post.id === pid) || {}).post,
+            persist: (ping) => _calPersistUrgentSentForPost(item.slug || client, item.post, ping)
+        });
+    }
+    window._kasperSendUrgentSlack = _kasperSendUrgentSlack;
+
+    function _kasperRenderExpanded(item /*, comments, videoUrl, calUrl */) {
+        const p = item.post;
+        // Two reasons to show a panel: (1) the component is at Kasper
+        // Approval — his decision is pending; (2) Kasper has at least one
+        // unresolved tweak on this component — he may want to add more
+        // notes, and the panel doubles as a thread view. Data-driven, so
+        // it survives reloads natively without session-only flags.
+        // Tightened: a stale tweak comment alone is no longer enough to
+        // pin a panel open — the sub-status must still be Kasper Approval
+        // OR Tweaks Needed-with-unresolved-tweak. Anything past that and
+        // the panel drops out (handled by _calCompKasperVisible).
+        // Which components those are, and why only the pending-decision ones
+        // are content-gated, lives on _kasperPanelComps — the SAME function the
+        // open-tweak chip tallies, so the badge and this card cannot disagree.
+        const activeComps = _kasperPanelComps(p);
+        if (!activeComps.length) {
+            return `<div class="cal-review-body kasper-review-body"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing pending Kasper approval on this card.</div></div>`;
+        }
+        // Hero layout: a single pending panel gets the cinematic treatment
+        // — preview on the left, action column on the right. Applies to
+        // video, thumbnail, and caption alike so the visual weight stays
+        // consistent regardless of which single component Kasper is
+        // looking at.
+        if (activeComps.length === 1) {
+            return `<div class="cal-review-body kasper-review-body is-hero" onclick="event.stopPropagation();">${_kasperHeroPanel(item, activeComps[0])}</div>`;
+        }
+        const panels = activeComps.map(comp => _kasperPanelHtml(item, comp)).join('');
+        const cols = activeComps.length;
+        const gridCols = cols >= 4 ? 2 : cols;   // 4 comps (title review on) → 2×2
+        return `<div class="cal-review-body kasper-review-body" style="grid-template-columns: repeat(${gridCols}, minmax(0, 1fr));" onclick="event.stopPropagation();">${panels}</div>`;
+    }
+
+    function _kasperHeroPreviewHtml(p, comp) {
+        const playIco = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>`;
+        const zoomIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-8 8M3 21l8-8"/></svg>`;
+        if (comp === 'video') {
+            const url = String(p.asset_url || '').trim();
+            const thumbUrl = _calDeriveThumb(p);
+            if (!url) return `<div class="kasper-hero-poster kasper-hero-poster-empty"><span class="kasper-hero-play-label">No video yet</span></div>`;
+            if (thumbUrl) {
+                return `<a class="kasper-hero-poster" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><img class="kasper-hero-poster-bg" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'"><span class="kasper-hero-poster-overlay"><span class="kasper-hero-play">${playIco}</span><span class="kasper-hero-play-label">Open video</span></span></a>`;
+            }
+            return `<a class="kasper-hero-poster kasper-hero-poster-blank" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><span class="kasper-hero-poster-overlay"><span class="kasper-hero-play">${playIco}</span><span class="kasper-hero-play-label">Open video</span></span></a>`;
+        }
+        if (comp === 'graphic') {
+            const raw = String(p.thumbnail_url || '').trim();
+            if (!raw) return `<div class="kasper-hero-poster kasper-hero-poster-empty"><span class="kasper-hero-play-label">No thumbnail yet</span></div>`;
+            const imgUrl = _calDeriveThumb(p);
+            // Frame.io links (no public image, block embedding) and folder-of-
+            // images links (a Story's frames) can't render as a real <img> and
+            // the lightbox can't show them either — give Kasper the same branded
+            // click-to-open card the client and calendar surfaces use so he can
+            // open it in a new tab.
+            if (!imgUrl) {
+                const linkKind = _calIsFrameLink(raw) ? 'frame' : (_calIsFolderLink(raw) ? 'folder' : '');
+                if (linkKind) {
+                    const openUrl = linkKind === 'folder' ? _calFolderOpenUrl(raw) : _calFrameOpenUrl(raw);
+                    return _calReviewFrameHtml(openUrl, 'hero', linkKind);
+                }
+            }
+            const escPid = _calEscAttr(p.id);
+            return `<button type="button" class="kasper-hero-poster kasper-hero-poster-graphic" onclick="_kasperOpenLightbox('${escPid}')" aria-label="Open thumbnail full screen" title="Open full size"><img class="kasper-hero-poster-fg" src="${_calEscAttr(imgUrl || raw)}" alt="" onerror="this.parentElement.classList.add('kasper-hero-poster-empty');"><span class="kasper-hero-zoom-chip" aria-hidden="true">${zoomIco}</span></button>`;
+        }
+        if (comp === 'title') {
+            const t = String(p.name || '').trim();
+            return `<div class="kasper-hero-caption-card${t ? '' : ' kasper-hero-caption-empty'}">${t ? _calEsc(t) : 'No title yet.'}</div>`;
+        }
+        // caption
+        const cap = String(p.caption || '').trim();
+        const alt = String(p.caption_alt || '').trim();
+        if (!cap && !alt) return `<div class="kasper-hero-caption-card kasper-hero-caption-empty">No caption yet.</div>`;
+        if (!alt) return `<div class="kasper-hero-caption-card">${_calEsc(cap)}</div>`;
+        const sec = (which, text) => {
+            const m = _calCapSecMeta(which, p);
+            return `<div class="kasper-hero-cap-sec"><div class="kasper-hero-cap-head"><span class="cal-review-cap-ico" style="background:${m.color}">${m.ico}</span>${_calEsc(m.label)}</div><div class="kasper-hero-cap-text">${text ? _calEsc(text) : '<em>No caption yet.</em>'}</div></div>`;
+        };
+        return `<div class="kasper-hero-caption-card kasper-hero-caption-multi">${sec('main', cap)}${sec('alt', alt)}</div>`;
+    }
+
+    /* Render a Kasper review thread, collapsed to the most recent few with a
+       Show more / Show less toggle so a long history doesn't dominate the panel.
+       Expand state lives on the item, per component. */
+    function _kasperRenderThread(item, comp, comments) {
+        if (!comments || !comments.length) return `<div class="cal-review-comment-empty">No comments yet.</div>`;
+        const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
+        const row = (c) => {
+            const author = c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM');
+            const isResolved = !!c.done;
+            const resolvedBadge = isResolved ? `<span class="cal-review-resolved-pill">${resolvedIco}Resolved</span>` : '';
+            return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${c.parent_id ? ' is-reply' : ''}${isResolved ? ' is-resolved' : ''}">
+                    <div class="cal-review-comment-head">
+                        <strong>${_calEsc(author)}</strong>
+                        <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
+                        ${resolvedBadge}
+                    </div>
+                    <div class="cal-review-comment-body">${_calEsc(c.body || '')}</div>
+                </div>`;
+        };
+        const COLLAPSE_AT = 3;
+        const total = comments.length;
+        if (total <= COLLAPSE_AT) return comments.map(row).join('');
+        const escId = _calEscAttr(item.post.id);
+        const escComp = _calEscAttr(comp);
+        const toggle = (label) => `<button type="button" class="cal-review-thread-toggle" onclick="_kasperToggleThread('${escId}','${escComp}')">${label}</button>`;
+        if (item._threadOpen && item._threadOpen[comp]) return comments.map(row).join('') + toggle('Show less');
+        const hidden = total - COLLAPSE_AT;
+        return toggle(`Show ${hidden} earlier ${hidden === 1 ? 'message' : 'messages'}`) + comments.slice(total - COLLAPSE_AT).map(row).join('');
+    }
+    function _kasperToggleThread(pid, comp) {
+        const item = _kasperState.items.find(x => x.post && x.post.id === pid);
+        if (!item) return;
+        if (!item._threadOpen) item._threadOpen = {};
+        item._threadOpen[comp] = !item._threadOpen[comp];
+        _kasperRepaintCard(pid);
+    }
+    function _kasperHeroPanel(item, comp) {
+        const p = item.post;
+        const escId = _calEscAttr(p.id);
+        const escComp = _calEscAttr(comp);
+        const subStatus = _calNormStatus(p[comp + '_status'] || '');
+        const state = subStatus === 'Tweaks Needed' ? 'tweaks'
+                    : (subStatus === 'Approved' ? 'approved'
+                    : (subStatus === 'Scheduled' ? 'scheduled'
+                    : (subStatus === 'Posted' ? 'posted' : 'pending')));
+        const inTweaks = state === 'tweaks';
+        const isApproved = state === 'approved' || state === 'scheduled' || state === 'posted';
+        const draft = (item._drafts && item._drafts[comp]) || '';
+        const saving = !!(item._saving && item._saving[comp]);
+        const err = (item._errors && item._errors[comp]) || '';
+        // Linear chat: render the thread in time order (the comment merge can
+        // reorder the stored array) so an SMM reply always lands beneath the
+        // message it answers instead of jumping around.
+        const comments = _calCommentsFor(p, comp).filter(c => c && !c.deleted && !c.hidden)
+            .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+        const hasDraft = !!draft.trim();
+        const approveEnabled = !saving && !hasDraft && !inTweaks && !isApproved;
+        const showApprove = !inTweaks && !isApproved;
+        const tweakEnabled = !saving && hasDraft;
+        const placeholder = inTweaks ? 'Anything else to add?' : 'Add a note or request a change…';
+        const stateLabel = inTweaks ? 'Changes requested' : '';
+        const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
+        const sendIco  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
+        const previewHtml = _kasperHeroPreviewHtml(p, comp);
+        const threadHtml = _kasperRenderThread(item, comp, comments);
+        return `<div class="cal-review-panel kasper-hero-panel" data-comp="${escComp}" data-state="${state}">
+            <div class="kasper-hero-left">${previewHtml}</div>
+            <div class="kasper-hero-right">
+                <div class="kasper-hero-head">
+                    <span class="kasper-hero-title">${_calEsc(COMP_LABELS[comp])}</span>
+                    ${stateLabel ? `<span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>` : ''}
+                </div>
+                ${showApprove ? `<div class="cal-review-approve-split">
+                    <button type="button" class="cal-review-approve-btn cal-review-approve-main kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} data-idle-title="" title="${hasDraft ? _calEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">${saving ? 'Saving…' : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>
+                </div>` : ''}
+                <div class="cal-review-panel-compose">
+                    <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
+                    <div class="cal-review-tweak-actions">
+                        <button type="button" class="cal-review-comment-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperAddCommentComp('${escId}','${escComp}')" title="Leave a comment or question — internal only. Doesn't change the status or notify the editor; the card stays awaiting your approval."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Comment</button>
+                        <button type="button" class="cal-review-aat-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperApproveAfterTweaksComp('${escId}','${escComp}')" title="Send these tweaks and pre-approve for the client — the editor fixes it, then it goes straight to the client (no Kasper re-review)">${checkIco}Approve after tweaks</button>
+                        <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Request change</button>
+                    </div>
+                </div>
+                ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
+                <div class="cal-review-thread">${threadHtml}</div>
+            </div>
+        </div>`;
+    }
+
+    function _kasperPanelHtml(item, comp) {
+        const p = item.post;
+        const escId = _calEscAttr(p.id);
+        const escComp = _calEscAttr(comp);
+        const subStatus = _calNormStatus(p[comp + '_status'] || '');
+        const state = subStatus === 'Tweaks Needed' ? 'tweaks'
+                    : (subStatus === 'Approved' ? 'approved'
+                    : (subStatus === 'Scheduled' ? 'scheduled'
+                    : (subStatus === 'Posted' ? 'posted' : 'pending')));
+        const inTweaks = state === 'tweaks';
+        const isApproved = state === 'approved' || state === 'scheduled' || state === 'posted';
+        const draft = (item._drafts && item._drafts[comp]) || '';
+        const saving = !!(item._saving && item._saving[comp]);
+        const err = (item._errors && item._errors[comp]) || '';
+        // Linear chat: render the thread in time order (the comment merge can
+        // reorder the stored array) so an SMM reply always lands beneath the
+        // message it answers instead of jumping around.
+        const comments = _calCommentsFor(p, comp).filter(c => c && !c.deleted && !c.hidden)
+            .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+        const hasDraft = !!draft.trim();
+        const approveEnabled = !saving && !hasDraft && !inTweaks && !isApproved;
+        // Approve hides once Kasper has already sent the work back (TN) or
+        // signed off — only the "Mark reviewed" / Submit comment paths are
+        // relevant from there.
+        const showApprove = !inTweaks && !isApproved;
+        const tweakEnabled = !saving && hasDraft;
+        const placeholder = inTweaks ? 'Anything else to add?' : 'Add a note or request a change…';
+        const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
+        const sendIco  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
+        const previewHtml = _calReviewComponentPreview(p, comp);
+        const threadHtml = _kasperRenderThread(item, comp, comments);
+        const stateLabel = inTweaks ? 'Changes requested' : '';
+        return `<div class="cal-review-panel" data-comp="${escComp}" data-state="${state}">
+            <div class="cal-review-panel-head">
+                <span class="cal-review-panel-title">${_calEsc(COMP_LABELS[comp])}</span>
+                ${stateLabel ? `<span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>` : ''}
+            </div>
+            <div class="cal-review-panel-preview">${previewHtml}</div>
+            ${showApprove ? `<div class="cal-review-approve-split">
+                <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${approveEnabled ? '' : 'disabled'} data-idle-title="" title="${hasDraft ? _calEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">${saving ? 'Saving…' : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>
+            </div>` : ''}
+            <div class="cal-review-panel-compose">
+                <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
+                <div class="cal-review-tweak-actions">
+                    <button type="button" class="cal-review-comment-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperAddCommentComp('${escId}','${escComp}')" title="Leave a comment or question — internal only. Doesn't change the status or notify the editor; the card stays awaiting your approval."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Comment</button>
+                    <button type="button" class="cal-review-aat-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperApproveAfterTweaksComp('${escId}','${escComp}')" title="Send these tweaks and pre-approve for the client — the editor fixes it, then it goes straight to the client (no Kasper re-review)">${checkIco}Approve after tweaks</button>
+                    <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Request change</button>
+                </div>
+            </div>
+            ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
+            <div class="cal-review-thread">${threadHtml}</div>
+        </div>`;
+    }
+
+    function _kasperToggleCard(pid) {
+        const it = _kasperState.items.find(x => x.post.id === pid);
+        if (!it) return;
+        it._expanded = !it._expanded;
+        _kasperRepaintCard(pid);
+    }
+
+    function _kasperRepaintCard(pid) {
+        const item = _kasperState.items.find(x => x.post.id === pid);
+        const el = document.querySelector('.kcard[data-kasper-pid="' + (window.CSS && CSS.escape ? CSS.escape(pid) : pid) + '"]');
+        if (!item || !el) return;
+        // Same click-eaten guard as _kasperPaintReview: a slow save landing while
+        // Kasper has a button pressed must not replace this card's DOM mid-click.
+        // Retry once the pointer is released. (A user action's own synchronous
+        // repaint runs from onclick, i.e. after pointerup, so it's never held.)
+        if (_kasperPointerHeld) { setTimeout(function () { _kasperRepaintCard(pid); }, 200); return; }
+        // Preserve the caret across the rebuild. If Kasper is typing in one of
+        // this card's textareas when an after-save repaint fires (e.g. the
+        // "thumbnail approved — sent to client" path repaints while he's already
+        // writing a caption note), a bare replaceWith destroys that textarea and
+        // kicks focus out. The draft text itself survives via item._drafts, so
+        // capture the focused textarea (by its unique oninput = pid+comp) + the
+        // caret, rebuild, then restore focus to the same box.
+        let _restore = null;
+        const _a = document.activeElement;
+        if (_a && _a.tagName === 'TEXTAREA' && el.contains(_a)) {
+            _restore = { sig: _a.getAttribute('oninput') || '', start: _a.selectionStart, end: _a.selectionEnd };
+        }
+        const tmp = document.createElement('div');
+        tmp.innerHTML = _kasperRenderCard(item);
+        const newEl = tmp.firstElementChild;
+        _kcardReuseThumbInto(el, newEl);   // keep the decoded thumbnail — no blink/reflow on approve/request-change
+        el.replaceWith(newEl);
+        if (_restore && _restore.sig) {
+            const ta = Array.from(newEl.querySelectorAll('textarea')).find(t => (t.getAttribute('oninput') || '') === _restore.sig);
+            if (ta) { try { ta.focus(); ta.setSelectionRange(_restore.start, _restore.end); } catch {} }
+        }
+    }
+
+
+    /* Save a post to the calendar sheet via the existing upsert webhook.
+       Mirrors how the calendar view saves cards: comments get serialised
+       into the `tweaks` column on the wire. After the save lands, push
+       the status change to Linear so the sub-issue follows. */
+    /* The scalar (non-comment) columns Kasper's persist may touch. Used to send
+       a FIELD-LEVEL PATCH instead of the whole row: only the scalars that
+       changed vs the snapshot the card was loaded with go on the wire, so a
+       concurrent change to a DIFFERENT component (e.g. the client approving the
+       caption) that Kasper's row still carries a stale value for is NOT
+       clobbered. (`status` is derived and handled separately from
+       computeOverallStatus; comment cells are always sent and server-merged.) */
+    /* ROLLING BACK A REFUSED WRITE HAS TO UNDO BOTH FORMS OF A COMMENT LIST.
+
+       `_calSetCommentsFor` deliberately writes the parsed array AND the
+       `*_tweaks` wire string, because `_calMigratePostShape` re-parses the
+       array back OUT of the string on every load (cache hydrate, poll, tab
+       return). The two rollbacks below restored only the arrays -- and never
+       `title_comments` at all -- so a refused note disappeared from the pane
+       and stayed in the string, and the next hydrate parsed it straight back
+       onto a card whose write had been refused.
+
+       `client_title_approved_at` is here for the same reason: the optimistic
+       path clears it through `_calClearStaleApprovals`, which handles title
+       separately from CAL_COMPONENTS, and neither rollback put it back.
+
+       Found while repairing the caption refusal it sits next to, not by it:
+       the refusal is what made these paths run at all. OPEN_REPAIRS 127. */
+    function _kasperCommentSnapshot(post) {
+        const snap = { comments: post && post.comments, tweaks: post && post.tweaks,
+            client_title_approved_at: post && post.client_title_approved_at };
+        for (const comp of ['video', 'graphic', 'caption', 'title']) {
+            snap[comp + '_comments'] = post && post[comp + '_comments'];
+            snap[comp + '_tweaks'] = post && post[comp + '_tweaks'];
+        }
+        return snap;
+    }
+    const KASPER_PATCH_SCALARS = ['order_index','scheduled_date','name','asset_url','thumbnail_url','caption','caption_alt','caption_alt_platform','post_url','cta','linear_issue_id','video_deliverable_id','kasper_approved_at','posted_at','platform','platforms','color','video_status','graphic_status','caption_status','graphic_linear_issue_id','graphic_deliverable_id','client_video_approved_at','client_graphic_approved_at','client_caption_approved_at','title_status','client_title_approved_at','kasper_seen','kasper_approved_after_tweaks','thumb_rev','kasper_finished_at','kasper_closed_at','kasper_finish_log'];
+    function _kasperPatchSnapshot(post) {
+        const s = {};
+        for (const k of KASPER_PATCH_SCALARS) s[k] = (post && post[k] != null) ? String(post[k]) : '';
+        s.status = (post && post.status != null) ? String(post.status) : '';
+        return s;
+    }
+    // Serialize writes per card. The button locks above are PER-COMPONENT
+    // (item._saving[comp]); chaining each write after the previous keeps the
+    // per-card writes strictly ordered so a slower response can't revert a
+    // fresher one. The payload is now a field-level patch (see KASPER_PATCH_SCALARS)
+    // rather than the whole row, so two overlapping component writes no longer
+    // clobber each other's status — but the chain is kept as belt-and-suspenders.
+    function _kasperPersistPost(item, repairContext) {
+        // Capture only the acknowledgements causally owned by this queued
+        // persist. Later component actions may add refs while this request is
+        // in flight; they belong to their own chained write.
+        const context = {
+            precommitted: !!(repairContext && repairContext.precommitted),
+            refs: (Array.isArray(repairContext && repairContext.refs) ? repairContext.refs : [])
+                .filter(ref => ref && ref.key && ref.token)
+                .map(ref => ({ key: ref.key, token: ref.token })),
+            companions: JSON.parse(JSON.stringify(Array.isArray(repairContext && repairContext.companions)
+                ? repairContext.companions : []))
+        };
+        const run = () => _kasperPersistPostWrite(item, context);
+        const chain = (item._persistChain || Promise.resolve()).then(run, run);
+        // Stored link must never reject or it would poison every later .then.
+        item._persistChain = chain.catch(() => {});
+        return chain;
+    }
+    function _kasperResumeSourceRepairs() {
+        const principal = _writeUiPrincipalKey();
+        if (!principal || typeof _kasperState === 'undefined' || !_kasperState) return Promise.resolve();
+        (_kasperState.items || []).filter(item => item && item.post
+            && item.post._writeUiRetrySourceAt
+            && item.post._writeUiRetryPrincipal === principal
+            && !_writeUiJournalCoversRepairRefs(item.post, 'calendar', 'kasper-calendar', item.slug, principal)).forEach(item => {
+                item._errors = item._errors || { video: null, graphic: null, caption: null };
+                item._errors.video = 'Source repair receipt missing; explicit review required';
+                _writeUiQueueDiagnostic('calendar', 'cache_only_repair_held', { kind: 'kasper-source-repair' });
+            });
+        return Promise.resolve();
+    }
+    async function _kasperPersistPostWrite(item, repairContext) {
+        const retryPrincipal = _writeUiPrincipalKey();
+        if (item.post._writeUiRetrySourceAt
+            && (item.post._writeUiRetryPrincipal !== retryPrincipal
+                || !_writeUiJournalCoversRepairRefs(item.post, 'calendar', 'kasper-calendar', item.slug, retryPrincipal))) {
+            _writeUiQueueDiagnostic('calendar', 'cache_only_repair_blocked', { kind: 'kasper-source-repair' });
+            throw _writeUiGatewayError(409, 'source_repair_receipt_required');
+        }
+        // Stamp updated_at locally so a background poll racing this write
+        // can't fetch the still-stale sheet row and clobber the freshly
+        // submitted comment / status flip.
+        item.post.updated_at = String(item.post._writeUiRetrySourceAt || new Date().toISOString());
+        const recoveringWriteUiSource = !!item.post._writeUiRetrySourceAt;
+        const sourceRepairRefsForWrite = [];
+        (Array.isArray(repairContext && repairContext.refs) ? repairContext.refs : [])
+            .forEach(ref => _writeUiAppendRepairRef(sourceRepairRefsForWrite, ref));
+        let gatewayCommitted = !!(repairContext && repairContext.precommitted);
+        const companionRepairsForWrite = Array.isArray(repairContext && repairContext.companions)
+            ? repairContext.companions : [];
+        const checkpointCommittedSource = () => {
+            if (!gatewayCommitted) return;
+            item.post._writeUiRetrySourceAt = item.post.updated_at;
+            item.post._writeUiRetryPrincipal = _writeUiPrincipalKey();
+            if (!_kasperPersistCache()) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
+        };
+        checkpointCommittedSource();
+        const overall = computeOverallStatus(item.post);
+        // Field-level patch: send the id, the comment cells (always — the upsert
+        // 3-way-merges them), and ONLY the scalar columns that changed since this
+        // card was loaded (item.post._patchBase). A concurrent change to a
+        // component Kasper DIDN'T touch is therefore never on his wire, so it
+        // can't be clobbered. If no snapshot is available (older cached item),
+        // fall back to the whole row — identical to the previous behaviour, so a
+        // missing snapshot is never WORSE than before, only the patch is an
+        // improvement. (p42 cross-component clobber fix.)
+        const base = item.post._patchBase;
+        const wire = { id: item.post.id };
+        wire.video_tweaks   = _calStringifyComments(_calCommentsFor(item.post, 'video'));
+        wire.graphic_tweaks = _calStringifyComments(_calCommentsFor(item.post, 'graphic'));
+        wire.caption_tweaks = _calStringifyComments(_calCommentsFor(item.post, 'caption'));
+        wire.title_tweaks   = _calStringifyComments(_calCommentsFor(item.post, 'title'));
+        wire.tweaks = wire.video_tweaks;
+        for (const k of KASPER_PATCH_SCALARS) {
+            const cur = item.post[k] == null ? '' : String(item.post[k]);
+            if (!base || cur !== (base[k] == null ? '' : String(base[k]))) wire[k] = cur;
+        }
+        // overall status rides along only when it actually moved (or no snapshot)
+        if (!base || overall !== (base.status == null ? '' : String(base.status))) wire.status = overall;
+        for (const comp of ['video', 'graphic']) {
+            const statusKey = comp + '_status';
+            const current = String(item.post[statusKey] || '');
+            const previous = base && String(base[statusKey] || '');
+            const companion = companionRepairsForWrite.find(row => row
+                && row.operation === 'status' && row.component === comp) || null;
+            if (!current || (base && current === previous && !companion)) continue;
+            let reconciled = false;
+            if (companion) {
+                reconciled = await _writeUiReconcileReplayStatus({ edits: wire, source_at: companion.source_at }, companion.intent, item.post);
+                if (reconciled) gatewayCommitted = true;
+            }
+            if (!reconciled) {
+                const acknowledgement = await _calPushStatusToLinear(_calLinearUrlFor(item.post, comp), current, {
+                    post: item.post, component: comp, sourceEditedAt: companion ? companion.source_at : item.post.updated_at,
+                    clientSlug: item.slug, repairLane: 'kasper-calendar', repairEdits: wire,
+                    repairRecord: companion && companion.record
+                });
+                _writeUiAdoptRepairAck(item.post, acknowledgement);
+                _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
+                gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
+                if ((!acknowledgement || acknowledgement.native_committed !== true)
+                    && !(acknowledgement && acknowledgement.skipped === true && !companion)) {
+                    throw _writeUiGatewayError(503, 'status_commit_required');
+                }
+                const adopted = _writeUiAdoptReplayStatus(item.post, comp, acknowledgement, recoveringWriteUiSource, 'calendar');
+                if (adopted) {
+                    wire[statusKey] = adopted;
+                    wire.status = computeOverallStatus(item.post);
+                }
+            }
+            checkpointCommittedSource();
+        }
+        const resp = await _calUpsertFetch(item.slug, { client: item.slug, post: wire, comments_base_at: String(item.post._baseAt || '') });
+        const json = await resp.json().catch(() => ({}));
+        if (!json || !json.ok) throw new Error((json && json.error) || 'Save failed');
+        if (await _writeUiCompleteSourceRepairRefs(sourceRepairRefsForWrite)) _writeUiRemoveCompletedRepairRefs(item.post, sourceRepairRefsForWrite);
+        delete item.post._writeUiRetrySourceAt;
+        delete item.post._writeUiRetryPrincipal;
+        if (Array.isArray(item.post._writeUiRepairRefs) && item.post._writeUiRepairRefs.length) item.post._writeUiPrecommittedNative = true;
+        else delete item.post._writeUiPrecommittedNative;
+        _kasperPersistCache();
+        // Advance the merge base + adopt the server-merged comment cells so a
+        // concurrent comment that the server merged in shows up locally too.
+        const echo = json.post;
+        if (echo && typeof echo === 'object') {
+            _calMigratePostShape(echo);
+            for (const comp of _calComponentsFor(item.post)) {
+                if (!((comp + '_tweaks') in echo)) continue;
+                // Union, don't replace: keep any comment added locally between
+                // this chained write and its echo while still adopting the
+                // concurrent comments the server merged in.
+                _calSetCommentsFor(item.post, comp, _calMergeCommentLists(_calCommentsFor(item.post, comp), _calCommentsFor(echo, comp)));
+            }
+            item.post._baseAt = String(echo.updated_at || item.post._baseAt || '');
+        }
+        // The patch base now reflects the row we just persisted, so the NEXT
+        // Kasper write on this card diffs against the post-write state (sequential
+        // approvals on different components each patch only their own column).
+        item.post.status = overall;
+        item.post._patchBase = _kasperPatchSnapshot(item.post);
+    }
+
+    function _kasperOnPanelDraftInput(ta, pid, comp) {
+        const item = _kasperState.items.find(x => x.post.id === pid);
+        if (!item) return;
+        if (!item._drafts) item._drafts = { video: '', graphic: '', caption: '' };
+        item._drafts[comp] = ta.value;
+        const nowHasDraft = !!ta.value.trim();
+        // Don't repaint — that would yank the textarea out of focus mid-
+        // keystroke. Approve / Submit are always rendered now; just toggle
+        // their disabled attribute inline.
+        const sel = window.CSS && CSS.escape ? CSS.escape(pid) : pid;
+        const card = document.querySelector('.kcard[data-kasper-pid="' + sel + '"]');
+        if (!card) return;
+        const saving = !!(item._saving && item._saving[comp]);
+        // Find the panel for this comp (hero panel has no data-comp filter
+        // but uses the same component).
+        const panel = card.querySelector('.cal-review-panel[data-comp="' + comp + '"]');
+        if (!panel) return;
+        panel.querySelectorAll('.cal-review-approve-btn, .cal-review-approve-alt').forEach(b => {
+            b.disabled = saving || nowHasDraft;
+            b.title = nowHasDraft ? REVIEW_APPROVE_DRAFT_TITLE : (b.getAttribute('data-idle-title') || '');
+        });
+        // Comment + both tweak actions (Request change, Approve after tweaks) require a draft.
+        panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-aat-btn, .cal-review-comment-btn').forEach(b => { b.disabled = saving || !nowHasDraft; });
+    }
+
+    async function _kasperApproveComp(pid, comp, dest) {
+        const item = _kasperState.items.find(x => x.post.id === pid);
+        if (!item) return;
+        if (!item._saving) item._saving = { video: false, graphic: false, caption: false };
+        if (!item._errors) item._errors = { video: null, graphic: null, caption: null };
+        if (!item._touchedComps) item._touchedComps = new Set();
+        if (item._saving[comp]) return;
+        /* The Approve button is already disabled for a component he cannot
+           review, but a button is a courtesy and this is the handler: a panel
+           rendered before the video URL was cleared still carries a live
+           onclick. Same rule as every other writer that targets a review
+           status, asked here rather than trusted to the render. */
+        const _blocked = _calReviewBlockReason(item.post, comp, 'Client Approval');
+        if (_blocked) {
+            item._errors[comp] = _blocked;
+            _kasperRepaintCard(pid);
+            return;
+        }
+        _kasperInvalidateInFlightLoad();
+        item._touchedComps.add(comp);
+        const subKey = comp + '_status';
+        const prev = {
+            [subKey]: item.post[subKey],
+            status: item.post.status,
+            kasper_approved_at: item.post.kasper_approved_at,
+            kasper_seen: item.post.kasper_seen,
+        };
+        // Kasper approval always forwards the component to the client now (the
+        // old "send back to SMM" route was removed — that case is covered by
+        // "Approve after tweaks"). Record kasper_seen (cross-device) and stamp
+        // the kasper_approved_at sign-off.
+        _calRecordKasperSeenOnPost(item.post, comp);
+        item.post[subKey] = 'Client Approval';
+        item.post.status = computeOverallStatus(item.post);
+        item.post.kasper_approved_at = item.post.kasper_approved_at || new Date().toISOString();
+        item._saving[comp] = true;
+        item._errors[comp] = null;
+        _kasperRepaintCard(pid);
+        try {
+            await _kasperPersistPost(item);
+            item._saving[comp] = false;
+            _kasperPersistCache();
+            // Card-stays rule: keep the card while ANY component is still
+            // at Kasper Approval OR Kasper still has unresolved tweaks
+            // (those need to live until SMM resolves them, or Kasper
+            // explicitly dismisses via Done reviewing).
+            const stillKasper = _calComponentsFor(item.post).some(c => _calNormStatus(item.post[c + '_status'] || '') === 'Kasper Approval');
+            // Scoped to what Kasper can actually still see: a component he
+            // pre-cleared with "approve after tweaks" is no longer his, so its
+            // unresolved tweak must not hold the card in his list after he
+            // approves the rest of it.
+            const stillHasTweaks = _calComponentsFor(item.post)
+                .some(c => _calCompKasperVisible(item.post, c) && _calCompHasUnresolvedKasperTweak(item.post, c));
+            const _undoCtx = { item: item, comp: comp, prev: prev, entry: null, idx: -1, at: Date.now() };
+            if (!stillKasper && !stillHasTweaks) {
+                const stamp = item.post.kasper_approved_at || new Date().toISOString();
+                const entry = _kasperHistoryEntryFromPost(item.post, item.client, item.slug, stamp);
+                _undoCtx.entry = entry;
+                _undoCtx.idx = _kasperState.items.findIndex(x => x.post.id === pid);
+                _kasperRecordHistory(entry);
+                _kasperState.history = _kasperMergeHistory([entry], _kasperState.history);
+                _kasperRemoveItem(pid);
+            } else {
+                _kasperRepaintCard(pid);
+            }
+            showToast(COMP_LABELS[comp] + ' approved — sent to client', { actionLabel: 'Undo', onAction: () => _kasperUndoApprove(pid, _undoCtx) });
+        } catch (e) {
+            if (!item.post._writeUiRetrySourceAt) Object.assign(item.post, prev);
+            else _kasperPersistCache();
+            item._saving[comp] = false;
+            item._errors[comp] = _writeUiFailureSentence(e);
+            _kasperRepaintCard(pid);
+        }
+    }
+
+    /* Compensating write for an accidental Approve: restore the snapshot the
+       approve took, re-sync the sheet (and Linear, via the same persist path),
+       and put the card back in the queue if the approve had completed it.
+       If the approve's removal animation is still in flight (240ms), defer —
+       its timeout filter would silently drop the just-restored card. */
+    async function _kasperUndoApprove(pid, ctx) {
+        const item = ctx && ctx.item;
+        if (!item) return;
+        if (Date.now() - (ctx.at || 0) < 320) { setTimeout(() => _kasperUndoApprove(pid, ctx), 350); return; }
+        if (item._saving && item._saving[ctx.comp]) return;
+        _kasperInvalidateInFlightLoad();
+        Object.assign(item.post, ctx.prev);
+        if (item._touchedComps) item._touchedComps.delete(ctx.comp);
+        if (ctx.entry) {
+            _kasperState.history = (_kasperState.history || []).filter(e => e && e.id !== ctx.entry.id);
+            _kasperSaveHistoryLog(_kasperLoadHistoryLog().filter(e => e && e.id !== ctx.entry.id));
+        }
+        if (!_kasperState.items.some(x => x.post.id === pid)) {
+            const at = (ctx.idx >= 0 && ctx.idx <= _kasperState.items.length) ? ctx.idx : 0;
+            _kasperState.items.splice(at, 0, item);
+        }
+        if (!item._saving) item._saving = { video: false, graphic: false, caption: false };
+        item._saving[ctx.comp] = true;
+        _kasperPersistCache();
+        _kasperPaintReview();
+        try {
+            await _kasperPersistPost(item);
+            item._saving[ctx.comp] = false;
+            _kasperPersistCache();
+            _kasperRepaintCard(pid);
+            showToast('Approval undone');
+        } catch (e) {
+            item._saving[ctx.comp] = false;
+            _kasperRepaintCard(pid);
+            showNotify('Undo failed', 'Could not write the revert to the sheet (' + ((e && e.message) || 'error') + '). Refresh the queue and check the card before retrying.');
+        }
+    }
+
+    // Send the tweak straight back to the client after the editor applies it,
+    // skipping a Kasper re-review. Same flow as a normal tweak request, plus
+    // the persistent "Approved after tweaks" flag.
+    async function _kasperApproveAfterTweaksComp(pid, comp) {
+        return _kasperRequestTweakComp(pid, comp, true);
+    }
+
+    // Kasper leaves a plain comment / question. It lands in the thread as an
+    // internal (team-only) note — unlike "Request change" it does NOT flip the
+    // component to Tweaks Needed and does NOT ping the editor on Linear, so the
+    // card stays exactly where it is (still awaiting his approval). The client
+    // never sees it (role:'kasper' + audience:'internal').
+    async function _kasperAddCommentComp(pid, comp) {
+        const item = _kasperState.items.find(x => x.post.id === pid);
+        if (!item) return;
+        if (!item._saving) item._saving = { video: false, graphic: false, caption: false };
+        if (!item._errors) item._errors = { video: null, graphic: null, caption: null };
+        if (!item._drafts) item._drafts = { video: '', graphic: '', caption: '' };
+        if (!item._touchedComps) item._touchedComps = new Set();
+        const body = String(item._drafts[comp] || '').trim();
+        if (!body || item._saving[comp]) return;
+        _kasperInvalidateInFlightLoad();
+        const prev = Object.assign({ updated_at: item.post.updated_at },
+            _kasperCommentSnapshot(item.post));
+        const list = _calCommentsFor(item.post, comp).slice();
+        const _now = new Date().toISOString();
+        list.push({
+            id: _calMintCommentId(),
+            parent_id: null,
+            author: 'Kasper',
+            role: 'kasper',
+            is_tweak: false,
+            audience: 'internal',
+            body: body,
+            created_at: _now,
+            updated_at: _now,
+            done: false,
+            done_at: '',
+            done_by: '',
+        });
+        _calSetCommentsFor(item.post, comp, list);
+        // No status change and no approval clearing — a comment isn't a tweak.
+        item.post.updated_at = _now;
+        item._touchedComps.add(comp);   // keep the card pinned in his queue
+        item._drafts[comp] = '';
+        item._saving[comp] = true;
+        item._errors[comp] = null;
+        _kasperRepaintCard(pid);
+        try {
+            await _kasperPersistPost(item);
+            // Deliberately NO _calPostLinearComment — plain notes don't ping the editor.
+            item._saving[comp] = false;
+            _kasperPersistCache();
+            _kasperRepaintCard(pid);
+        } catch (e) {
+            Object.assign(item.post, prev);
+            item._saving[comp] = false;
+            item._errors[comp] = _writeUiFailureSentence(e);
+            _kasperRepaintCard(pid);
+        }
+    }
+
+    async function _kasperRequestTweakComp(pid, comp, approveAfterTweaks) {
+        const item = _kasperState.items.find(x => x.post.id === pid);
+        if (!item) return;
+        if (!item._saving) item._saving = { video: false, graphic: false, caption: false };
+        if (!item._errors) item._errors = { video: null, graphic: null, caption: null };
+        if (!item._drafts) item._drafts = { video: '', graphic: '', caption: '' };
+        if (!item._touchedComps) item._touchedComps = new Set();
+        const body = String(item._drafts[comp] || '').trim();
+        if (!body || item._saving[comp]) return;
+        _kasperInvalidateInFlightLoad();
+        // Mirrors the client-review submit: comment lands in the thread,
+        // sub-status flips to Tweaks Needed, but the card STAYS in Kasper's
+        // queue (locally pinned via _touchedComps) so he can keep layering
+        // comments. Removal happens explicitly via "Mark reviewed" or via
+        // Approve on a still-KA component.
+        const subKey = comp + '_status';
+        const prev = Object.assign({
+            [subKey]: item.post[subKey],
+            status: item.post.status,
+            updated_at: item.post.updated_at,
+            client_video_approved_at:   item.post.client_video_approved_at,
+            client_graphic_approved_at: item.post.client_graphic_approved_at,
+            client_caption_approved_at: item.post.client_caption_approved_at,
+            kasper_approved_at:         item.post.kasper_approved_at,
+            kasper_approved_after_tweaks: item.post.kasper_approved_after_tweaks,
+        }, _kasperCommentSnapshot(item.post));
+        const list = _calCommentsFor(item.post, comp).slice();
+        const _now = new Date().toISOString();
+        const newComment = {
+            id: _calMintCommentId(),
+            parent_id: null,
+            author: 'Kasper',
+            role: 'kasper',
+            is_tweak: true,
+            round: _calNextTweakRound(item.post, comp),
+            audience: 'internal',
+            body: body,
+            created_at: _now,
+            updated_at: _now,
+            done: false,
+            done_at: '',
+            done_by: '',
+        };
+        list.push(newComment);
+        _calSetCommentsFor(item.post, comp, list);
+        item.post[subKey] = 'Tweaks Needed';
+        item.post.status = computeOverallStatus(item.post);
+        // "Approve after tweaks" pre-clears this component for the client: the
+        // editor applies the fix and routes back to For SMM Approval, where the
+        // badge tells the SMM it's already cleared by Kasper. A plain "Send"
+        // (re-review) supersedes any prior pre-clearance on this component.
+        if (approveAfterTweaks) _calRecordApprovedAfterTweaks(item.post, comp);
+        else _calClearApprovedAfterTweaks(item.post, comp);
+        // Kasper just moved a sub to TN — any prior client_<comp>_approved_at
+        // and possibly kasper_approved_at are now stale. Clear them so the
+        // sheet row doesn't read "approved at <date>" on a card now in
+        // Tweaks Needed. (Persist passes through pending=null since
+        // _kasperPersistPost writes the whole row, not a pending diff.)
+        _calClearStaleApprovals(item.post, null);
+        item.post.updated_at = new Date().toISOString();
+        item._touchedComps.add(comp);
+        item._drafts[comp] = '';
+        item._saving[comp] = true;
+        item._errors[comp] = null;
+        _kasperRepaintCard(pid);
+        let nativeCommentCommitted = false;
+        try {
+            const linUrl = _calLinearUrlFor(item.post, comp);
+            const acknowledgement = await _calPostLinearComment(linUrl, body, 'Kasper', {
+                post: item.post, component: comp, comment: newComment, audience: 'internal',
+                isTweak: true, round: newComment.round, clientSlug: item.slug,
+                repairLane: 'kasper-calendar',
+                repairEdits: {
+                    [comp + '_status']: item.post[comp + '_status'],
+                    status: item.post.status,
+                    [comp + '_tweaks']: _calStringifyComments(_calCommentsFor(item.post, comp))
+                },
+                reserveStatusIntent: { status: item.post[comp + '_status'] }
+            });
+            nativeCommentCommitted = !!(acknowledgement && acknowledgement.native_committed);
+            _writeUiAdoptRepairAck(item.post, acknowledgement);
+            const companions = _writeUiRepairCompanions(acknowledgement && acknowledgement.source_repair);
+            await _kasperPersistPost(item, {
+                precommitted: nativeCommentCommitted,
+                refs: acknowledgement && acknowledgement.source_repair ? [acknowledgement.source_repair] : [],
+                companions
+            });
+            item._saving[comp] = false;
+            // Persist now so a page reload before the next 30 s poll still
+            // remembers the touched flag + TN status.
+            _kasperPersistCache();
+            _kasperRepaintCard(pid);
+        } catch (e) {
+            if (!nativeCommentCommitted) {
+                Object.assign(item.post, prev);
+                item._drafts[comp] = body;
+                _writeUiReportFailure('calendar', 'comment', e);
+            } else {
+                _kasperPersistCache();
+                showNotify('Card sync incomplete', 'The native comment is safe; Calendar source sync will retry automatically.');
+            }
+            item._saving[comp] = false;
+            item._errors[comp] = _writeUiFailureSentence(e);
+            _kasperRepaintCard(pid);
+        }
+    }
+
+    /* Append one durable, self-describing record per "Finish reviewing" hand-off to
+       kasper_finish_log (a JSON array in a text column, like graphic_tweaks).
+       kasper_finished_at is a SINGLE OVERWRITTEN stamp (and it stores the latest
+       MESSAGE time, not the click time), so on its own it can't show that a finished
+       card came back and was finished AGAIN — the fingerprint of the recurring
+       re-surface. Each entry is rich enough to CLASSIFY a recurrence without a manual
+       Linear lookup:
+         • at / prev / gap_min — this click, the previous finish, minutes between.
+         • why — 'initial' on the first finish; otherwise, judged vs the prior finish:
+             'new-message'  someone OTHER than Kasper replied after he finished;
+             'new-round'    a fresh tweak round ran since the previous logged finish
+                            (a genuine re-review cycle — the editor reworked + re-asked);
+             'recheck'      re-finished with NO new message and NO new round: the card
+                            came back with nothing new for him to act on. THIS is the
+                            bug-candidate bucket — likely a spurious re-surface; verify
+                            in Linear via `links`.
+         • statuses / status_at — each component's decision at finish, plus the Linear
+           sync change-time for the two synced components (video/graphic).
+         • rounds — max tweak round per component (durable; drives 'new-round').
+         • links — the Linear issue ids, so a recurrence is one click from its history.
+         • last_msg — the newest message {at, role, round, comp} (drives 'new-message').
+       Note: 'status-reentered' was dropped — at re-finish the component has already
+       been re-decided, so status_at>prev is trivially true and tells us nothing. The
+       tweak-round delta is the durable signal instead. Called BEFORE kasper_finished_at
+       is overwritten so `prev` is the prior finish. Capped at 50 entries. Additive +
+       append-only; SAME column (no migration) — rides KASPER_PATCH_SCALARS. */
+    function _kasperAppendFinishLog(post) {
+        if (!post) return;
+        let log = [];
+        try { const a = JSON.parse(post.kasper_finish_log || '[]'); if (Array.isArray(a)) log = a; } catch (e) { log = []; }
+        const prev = String(post.kasper_finished_at || '');
+        const nowIso = new Date().toISOString();
+        // One pass over every component's thread: newest message + max tweak round.
+        let comps = [];
+        try { comps = _calComponentsFor(post) || []; } catch (e) { comps = ['video', 'graphic', 'caption']; }
+        const rounds = {}, statuses = {};
+        let lastMsg = null;
+        for (const c of comps) {
+            try { statuses[c] = _calNormStatus(post[c + '_status'] || '') || null; } catch (e) { statuses[c] = post[c + '_status'] || null; }
+            let list = [];
+            try { list = _calCommentsFor(post, c) || []; } catch (e) { list = []; }
+            let maxRound = 0;
+            for (const m of list) {
+                if (!m || m.deleted) continue;
+                if (m.is_tweak && (Number(m.round) || 0) > maxRound) maxRound = Number(m.round) || 0;
+                const at = String(m.created_at || '');
+                if (at && (!lastMsg || at > lastMsg.at)) lastMsg = { at: at, role: m.role || null, round: (Number(m.round) || null), comp: c };
+            }
+            rounds[c] = maxRound;
+        }
+        const vAt = String(post.video_status_at || '');
+        const gAt = String(post.graphic_status_at || '');
+        let why = 'initial';
+        if (prev) {
+            const newMsg = !!(lastMsg && lastMsg.at > prev && lastMsg.role && lastMsg.role !== 'kasper');
+            const prevEntry = log.length ? log[log.length - 1] : null;
+            const roundsGrew = !!(prevEntry && prevEntry.rounds && comps.some(c =>
+                (Number(rounds[c]) || 0) > (Number(prevEntry.rounds[c]) || 0)));
+            why = newMsg ? 'new-message' : (roundsGrew ? 'new-round' : 'recheck');
+        }
+        log.push({
+            at: nowIso,
+            prev: prev || null,
+            gap_min: prev ? Math.round((Date.parse(nowIso) - Date.parse(prev)) / 60000) : null,
+            kind: 'handoff',
+            why: why,
+            statuses: statuses,
+            status_at: { video: vAt || null, graphic: gAt || null },
+            rounds: rounds,
+            links: { video: post.linear_issue_id || null, graphic: post.graphic_linear_issue_id || null },
+            last_msg: lastMsg,
+            overall: post.status || null
+        });
+        if (log.length > 50) log = log.slice(-50);
+        post.kasper_finish_log = JSON.stringify(log);
+    }
+
+    /* "Finish reviewing" — Kasper's explicit "I'm done with this card" exit.
+       The button is disabled until every component has an explicit decision
+       (approve or request a change); a comment does NOT count, so a card he
+       has only commented on can't be finished and stays in his queue. There is
+       NO implicit approval and NO status write here:
+         • No unresolved tweaks → he approved everything → logged to Approved.
+         • Has unresolved tweaks → handed off to the SMM, stamped
+           kasper_finished_at (persisted, cross-device) so a refresh on any
+           device doesn't drag it back. It returns only when the SMM explicitly
+           re-routes an actionable component to Kasper Approval. Replies update
+           the thread in place and do not re-open the Waiting bucket. See
+           _kasperIsFinished / kasper_finished_at. */
+    async function _kasperDismiss(pid) {
+        const item = _kasperState.items.find(x => x.post.id === pid);
+        if (!item) return;
+        const post = item.post;
+        // Guard: every component must carry an explicit decision first. No
+        // implicit approval — a component still at Kasper Approval with no
+        // message from him is undecided and blocks finishing.
+        if (_kasperUndecidedComps(post).length) return;
+        _kasperInvalidateInFlightLoad();
+        // Finish writes NO sub-status (each component already holds its explicit
+        // decision: approved → Client Approval, or change requested → Tweaks
+        // Needed). Because the guard above blocks finishing while anything is
+        // still at Kasper Approval, there are no "parked comment" components to
+        // worry about here.
+        const anyTweak = _calPostHasUnresolvedKasperTweak(post);
+        if (!anyTweak) {
+            // Clean approve: he approved everything, nothing outstanding.
+            const finalStamp = post.kasper_approved_at || new Date().toISOString();
+            const entry = _kasperHistoryEntryFromPost(post, item.client, item.slug, finalStamp);
+            _kasperRecordHistory(entry);
+            _kasperState.history = _kasperMergeHistory([entry], _kasperState.history);
+            _kasperRemoveItem(pid);
+        } else {
+            // Outstanding change requests, handed to the SMM. Stamp the card
+            // FINISHED on the card itself (kasper_finished_at) and PERSIST it —
+            // the durable, cross-device hand-off marker that rides the upsert
+            // echo + Supabase realtime to every device (like kasper_approved_at),
+            // so a refresh on ANY device keeps it in "Tweaks pending". A later
+            // reply updates the thread but does not re-surface it; only an explicit
+            // actionable Kasper Approval re-route does (see _kasperIsFinished).
+            // The local dismissed flag + seen stamp remain continuity fallbacks;
+            // the persisted column is deployed (KASPER_REVIEW_GLOBAL_ROLLOUT.md).
+            // It does NOT leave the queue: it moves to "Tweaks pending" and stays
+            // until the SMM addresses it or a fresh ask supersedes it. Not logged
+            // as Approved — it's a hand-off.
+            const stamp = _calLatestMsgCreatedAt(post) || new Date().toISOString();
+            // Record THIS click durably before we overwrite the single stamp, so a
+            // re-finish hours later is visible (kasper_finish_log), with enough context
+            // to classify why it came back. The column already ships in the upsert
+            // allow-list + Supabase, so this persists end-to-end.
+            _kasperAppendFinishLog(post);
+            post.kasper_finished_at = stamp;
+            _kasperMarkSeenAt(pid, stamp);
+            _kasperState.dismissed[pid] = true;
+            _kasperPersistCache();
+            _kasperPaintReview();
+            try { await _kasperPersistPost(item); } catch (e) { /* same-device fallback holds; next successful write reconciles */ }
+        }
+    }
+
+    /* Explicit close (the X on a card, top-right). No decision required and no
+       sub-status is written — it just hides the card. Now GLOBAL + cross-device
+       via the persisted kasper_closed_at stamp (see _kasperIsClosed): it stays
+       hidden on every device and re-surfaces when a new message lands after the
+       close. Pre-backend it falls back to the local _kasperState.closed flag +
+       the queue-membership prune in _kasperLoadReview (today's rule: stays gone
+       while still parked at Kasper Approval, reappears once re-routed back). */
+    function _kasperClose(pid) {
+        const item = _kasperState.items.find(x => x.post.id === pid);
+        if (!item) return;
+        _kasperInvalidateInFlightLoad();
+        // Durable, cross-device close marker (kasper_closed_at), persisted like
+        // the finish stamp so the card stays hidden on every device; the local
+        // `closed` flag is a same-device continuity fallback; the column is live.
+        item.post.kasper_closed_at = new Date().toISOString();
+        if (!_kasperState.closed || typeof _kasperState.closed !== 'object') _kasperState.closed = {};
+        _kasperState.closed[pid] = true;
+        _kasperPersistCache();
+        _kasperRemoveItem(pid);
+        _kasperPersistPost(item).catch(() => {});   // background write; local fallback holds on failure
+    }
+
+    function _kasperRemoveItem(pid) {
+        _kasperInvalidateInFlightLoad();
+        const sel = window.CSS && CSS.escape ? CSS.escape(pid) : pid;
+        const el = document.querySelector('.kcard[data-kasper-pid="' + sel + '"]');
+        if (el) {
+            el.classList.add('is-removing');
+            setTimeout(() => {
+                _kasperState.items = _kasperState.items.filter(x => x.post.id !== pid);
+                _kasperPersistCache();
+                _kasperPaintReview();
+            }, 240);
+        } else {
+            _kasperState.items = _kasperState.items.filter(x => x.post.id !== pid);
+            _kasperPersistCache();
+            _kasperPaintReview();
+        }
+    }
+
+    /* Build a Slack target URL from whatever the sheet provides. Three
+       inputs are accepted, picked in order of reliability:
+         • A full Slack profile/DM URL (starts with http/https/slack:).
+           Paste from Slack profile → ⋮ → "Copy link to profile".
+         • A bare Member ID like "U0ACW93FS30" (or W…). We wrap it in
+           Slack's universal app_redirect URL so it opens the right DM
+           regardless of workspace, as long as the visitor is logged in.
+         • A slack_user_id column with the same Member ID format. */
+
+
+    /* ── Editors (weekly labor) ─────────────────────────────────────
+       Reads public.deliverable_events — every video deliverable with a status
+       transition in the previous calendar week (Mon→Sun, America/Chicago),
+       grouped per event-time assignee, each carrying only that owner's within-week history.
+       See _kedFetchNativeWeek for the shaper and its two correctness traps.
+       Work is measured client-side as DELIVERIES (see _kedSplitVideos): the
+       editor handing a video off for review (into For SMM / Kasper / Client
+       approval) from a state they were holding it in — a first cut (from In
+       Progress / Todo) or a tweak round (from Tweak Needed). Reviewer/pipeline
+       moves don't count; finishes and work-in-progress are shown separately.
+       Cycles weekly: each Monday, "last week" advances by 7 days, so there's
+       no continuous logging to maintain. */
+
+    async function _kasperRenderEditors() {
+        const root = document.getElementById('kasperContent');
+        if (!root) return;
+        root.innerHTML = `
+            <div class="kasper-toolbar">
+                <div class="ked-meta-week" id="kedWeekLabel">&nbsp;</div>
+                <div class="ked-toolbar-actions">
+                    <div class="ked-avgtoggle" role="group" aria-label="Show totals or per-day averages">
+                        <button type="button" class="ked-avgtoggle-btn${_kasperState.editorsAvgMode ? '' : ' is-active'}" data-mode="total" onclick="_kasperSetEditorsAvg(false)">Totals</button>
+                        <button type="button" class="ked-avgtoggle-btn${_kasperState.editorsAvgMode ? ' is-active' : ''}" data-mode="avg" onclick="_kasperSetEditorsAvg(true)">Per day</button>
+                    </div>
+                    <button type="button" class="ked-info-btn" id="kedInfoBtn" onclick="_kedToggleInfo()" aria-label="About this view" title="About this view">
+                        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="5.5"/><path d="M7 9.7V6.4M7 4.5v.05"/></svg>
+                    </button>
+                    <button type="button" class="kasper-refresh-btn" id="kedRefresh" onclick="_kasperLoadEditors(true)">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8a6 6 0 0 1 10.5-4M14 8a6 6 0 0 1-10.5 4"/><path d="M12.5 1.5V4h-2.5M3.5 14.5V12H6"/></svg>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="ked-info-panel" id="kedInfoPanel" hidden>
+                <p><strong>What this is.</strong> Last week, one row per editor — two numbers side by side: how much was <strong>on his plate</strong> and how much he <strong>pushed through</strong>. The gap between them is the story.</p>
+                <p><strong>On his plate (load).</strong> How many videos sat in his court during the week — being edited, or waiting on his tweaks. This is the "how buried was he" number: a video stuck in tweaks for days counts here even if he never got to hand it off. "Still open" = videos that ended the week still parked on him.</p>
+                <p><strong>Pushed through (deliveries).</strong> Videos he actually handed off for review that week — a <strong>first cut</strong> (new work) or a <strong>tweak round</strong> (fixed and sent back), to the SMM, Kasper, or the client. <strong>High plate + low pushed-through = blocked or buried, not idle.</strong> <em>Finished</em> (got fully approved) is shown as a separate outcome.</p>
+                <p><strong>The bars.</strong> Each bar is one weekday; the number above is how many deliveries landed that day. Higher = busier day.</p>
+                <p class="ked-info-note">Heads up: load only counts videos that changed status at least once during the week, so a video that sat completely untouched won't show yet.</p>
+                <p><strong>Click an editor.</strong> See every video they touched last week, grouped by client. Each video gets a tiny timeline showing what happened to it across the week.</p>
+                <p><strong>Click a single day's bar.</strong> Zoom in on just that day — which clients the editor worked on and how many first cuts vs tweak rounds they delivered.</p>
+                <p><strong>Reading the timeline.</strong></p>
+                <ul class="ked-info-list">
+                    <li><span class="ked-legend-swatch" data-status="in-progress"></span> <strong>Yellow band</strong> — the editor was actively editing.</li>
+                    <li><span class="ked-legend-swatch ked-legend-swatch--marker" data-status="smm"></span> <strong>Coloured notch</strong> — a status changed at that moment (sent for SMM / Kasper / client, or tweaks needed).</li>
+                    <li><span class="ked-legend-swatch ked-legend-swatch--marker" data-status="approved"></span> <strong>Blue or dark blue cap on the right</strong> — approved or posted. The line ends there.</li>
+                    <li><span class="ked-legend-swatch" data-status="todo" style="opacity:0.5"></span> <strong>Empty gap</strong> — the video was sitting in Todo or Backlog. No editor work happening.</li>
+                </ul>
+                <p class="ked-info-note">Hover any notch or band for the status name.</p>
+            </div>
+            <div id="kedBody">${_svLoadingSkeletonHtml('kasper', { label: "Loading last week's event-attributed work" })}</div>`;
+        const fresh = _kasperState.editorsData && (Date.now() - _kasperState.editorsLoadedAt < 10 * 60 * 1000);
+        if (fresh) { _kedPaint(); return; }
+        await _kasperLoadEditors(false);
+    }
+
+    function _kedToggleInfo() {
+        const panel = document.getElementById('kedInfoPanel');
+        if (!panel) return;
+        panel.hidden = !panel.hidden;
+    }
+
+    // Flip the whole tab between weekly totals and per-workday averages.
+    function _kasperSetEditorsAvg(on) {
+        _kasperState.editorsAvgMode = !!on;
+        document.querySelectorAll('.ked-avgtoggle-btn').forEach(b =>
+            b.classList.toggle('is-active', (b.dataset.mode === 'avg') === !!on));
+        _kedPaint();
+    }
+
+    // YYYY-MM-DD for last week's Monday in Chicago time. The workflow's
+    // weekStart ISO encodes Chicago midnight Monday, so its UTC date portion
+    // matches this string — we use it to invalidate the cache when a new
+    // "last week" begins.
+    function _kedExpectedLastWeekMondayDate() {
+        const TZ = 'America/Chicago';
+        const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
+        const parts = fmt.formatToParts(new Date()).reduce((a, p) => { if (p.type !== 'literal') a[p.type] = p.value; return a; }, {});
+        const wkMap = { Sun: 7, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+        const wd = wkMap[parts.weekday];
+        const d = new Date(Date.UTC(+parts.year, +parts.month - 1, +parts.day));
+        d.setUTCDate(d.getUTCDate() - (wd - 1) - 7);
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const da = String(d.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${da}`;
+    }
+    function _kedLoadEditorsCache() {
+        try {
+            const raw = localStorage.getItem(KASPER_EDITORS_CACHE_KEY);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || !parsed.data || !parsed.data.weekStart) return null;
+            if (Date.now() - (parsed.fetchedAt || 0) > KASPER_EDITORS_CACHE_MAX_AGE_MS) return null;
+            const cachedMon = String(parsed.data.weekStart).split('T')[0];
+            if (cachedMon !== _kedExpectedLastWeekMondayDate()) return null;
+            return parsed.data;
+        } catch (e) { return null; }
+    }
+    function _kedSaveEditorsCache(data) {
+        try { localStorage.setItem(KASPER_EDITORS_CACHE_KEY, JSON.stringify({ data, fetchedAt: Date.now() })); } catch (e) {}
+    }
+
+    /* ── editors-week, natively ──────────────────────────────────────
+       Replaces the retired editors-week n8n call (Linear-backed) with a
+       direct read of public.deliverable_events, the installed status-transition
+       ledger (migrations/2026-07-06-b1-linear-data-model.sql:87, anon-readable
+       per its policy at :683). The panel's maths is UNCHANGED: this shaper
+       emits exactly the payload _kedPaint/_kedSplitVideos/_kedVideoCourt
+       already consume, so every number keeps its existing definition.
+
+       Two things it must get right, both of which silently corrupt the week
+       if they are wrong:
+
+       1. dayKey MUST be an America/Chicago calendar date. _kedVideoDeliveries
+          falls back to `String(t.at).slice(0,10)` — a UTC date — when dayKey
+          is absent, but _kedWeekDateKeys builds the seven bar buckets in
+          America/Chicago. Anything after ~19:00 Chicago would land on the next
+          day's bar, and Sunday-evening work would fall outside the week's keys
+          entirely: counted in the totals, invisible in the bars.
+       2. Native status values are not the Linear labels the _ked* predicates
+          match on. `tweak` in particular must become 'Tweak Needed' or it
+          matches neither _kedIsTweakState (so a tweak round is miscounted as
+          a first cut) nor _kedStatusSlug (so the timeline strip loses its
+          colour). The map below is the whole translation layer. */
+    const _KED_NATIVE_TZ = 'America/Chicago';
+    // deliverables.status domain (migrations/2026-07-06-b1-linear-data-model.sql:39-41)
+    // → the Linear-shaped label the existing predicates already understand.
+    // 'scheduled' has no Linear equivalent and deliberately matches no
+    // predicate: it is a post-approval publishing state, not editor work.
+    const _KED_NATIVE_STATUS_LABEL = {
+        triage:           'Triage',
+        backlog:          'Backlog',
+        todo:             'Todo',
+        in_progress:      'In Progress',
+        smm_approval:     'For SMM Approval',
+        kasper_approval:  'For Kasper Approval',
+        client_approval:  'For Client Approval',
+        tweak:            'Tweak Needed',
+        approved:         'Approved',
+        scheduled:        'Scheduled',
+        posted:           'Posted',
+        canceled:         'Canceled',
+        duplicate:        'Duplicate'
+    };
+    function _kedNativeLabel(status) {
+        const raw = String(status == null ? '' : status).trim();
+        if (!raw) return '';
+        return _KED_NATIVE_STATUS_LABEL[raw.toLowerCase()] || raw;
+    }
+
+    // Minutes that America/Chicago is offset from UTC at a given instant
+    // (-300 on CDT, -360 on CST). Derived from Intl rather than hard-coded so
+    // the DST boundary inside a week cannot shift a day.
+    function _kedTzOffsetMinutes(date) {
+        const dtf = new Intl.DateTimeFormat('en-US', {
+            timeZone: _KED_NATIVE_TZ, hour12: false,
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+        const p = {};
+        for (const part of dtf.formatToParts(date)) { if (part.type !== 'literal') p[part.type] = part.value; }
+        const asUTC = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second);
+        return Math.round((asUTC - date.getTime()) / 60000);
+    }
+    // The UTC instant of 00:00 America/Chicago on a YYYY-MM-DD date. Two
+    // passes so a date whose naive-UTC guess lands on the other side of a DST
+    // transition still resolves to the right wall-clock midnight.
+    function _kedChicagoMidnightMs(dateStr) {
+        const naive = Date.parse(String(dateStr) + 'T00:00:00Z');
+        if (isNaN(naive)) return NaN;
+        let ms = naive - _kedTzOffsetMinutes(new Date(naive)) * 60000;
+        ms = naive - _kedTzOffsetMinutes(new Date(ms)) * 60000;
+        return ms;
+    }
+    const _kedDayKeyFmt = new Intl.DateTimeFormat('en-CA', {
+        timeZone: _KED_NATIVE_TZ, year: 'numeric', month: '2-digit', day: '2-digit'
+    });
+    // The same key _kedWeekDateKeys stamps on the seven buckets.
+    function _kedChicagoDayKey(iso) {
+        const ms = Date.parse(iso);
+        if (isNaN(ms)) return '';
+        return _kedDayKeyFmt.format(new Date(ms));
+    }
+    function _kedWeekLabel(startMs, endMs) {
+        const f = new Intl.DateTimeFormat('en-US', { timeZone: _KED_NATIVE_TZ, month: 'short', day: 'numeric' });
+        return f.format(new Date(startMs)) + ' – ' + f.format(new Date(endMs - 1));
+    }
+
+    // PostgREST paging. The window routinely exceeds the 1000-row default,
+    // and a truncated read is indistinguishable from a quiet week.
+    //
+    // THE CEILING THROWS RATHER THAN TRUNCATING (Codex, 2026-09-08). This loop
+    // used to run a fixed twenty iterations and return whatever it had, so a
+    // query matching 20,000 rows or more handed the panel the first 20,000 as
+    // if they were all of them -- the SAME silent undercount the pager exists
+    // to remove, moved from 1,000 up to 20,000 and made rarer, which is worse,
+    // not better: rare and silent is how a wrong number survives long enough to
+    // be trusted. It now runs until it OBSERVES a terminal page (a short one,
+    // or an empty one when the total is an exact multiple of PAGE), and the
+    // ceiling is an assertion rather than a stop: reaching it means the caller
+    // asked for a window no week of status events can fill, which is a bug in
+    // the query and not a big week. Throwing is right because every caller of
+    // this is a COUNT the owner reads as fact -- and the panel already renders
+    // a thrown read as an error, where it renders a short one as a quiet week.
+    async function _kedRestPage(path) {
+        const out = [];
+        const PAGE = 1000;
+        const MAX_PAGES = 50;              // 50,000 rows; a real week is ~10^2
+        for (let page = 0; ; page++) {
+            if (page >= MAX_PAGES) {
+                // Only the table name -- `path` carries filter values, and this
+                // string can reach a console in a PUBLIC repo's CI output.
+                throw new Error('_kedRestPage: over ' + (MAX_PAGES * PAGE)
+                    + ' rows from ' + String(path).split('?')[0]
+                    + '; refusing to report a truncated count');
+            }
+            const offset = page * PAGE;
+            const url = CAL_SUPABASE_URL + '/rest/v1/' + path
+                + (path.indexOf('?') === -1 ? '?' : '&') + 'limit=' + PAGE + '&offset=' + offset;
+            const resp = await fetch(url, {
+                headers: {
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    Accept: 'application/json'
+                }
+            });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            if (!Array.isArray(rows) || !rows.length) break;
+            for (const r of rows) out.push(r);
+            if (rows.length < PAGE) break;
+        }
+        return out;
+    }
+    // `id=in.(...)` has a URL-length ceiling, so ids go out in chunks.
+    async function _kedRestIn(table, select, column, ids) {
+        const out = [];
+        const CHUNK = 120;
+        for (let i = 0; i < ids.length; i += CHUNK) {
+            const slice = ids.slice(i, i + CHUNK).filter(Boolean);
+            if (!slice.length) continue;
+            const list = slice.map(v => '"' + String(v).split('"').join('\\"') + '"').join(',');
+            const rows = await _kedRestPage(table + '?select=' + select
+                + '&' + column + '=in.(' + encodeURIComponent(list) + ')');
+            for (const r of rows) out.push(r);
+        }
+        return out;
+    }
+
+    /* Build the editors-week payload from public.deliverable_events.
+       Shape returned is byte-compatible with what the retired n8n endpoint
+       returned, so nothing downstream changes:
+         { weekLabel, weekStart, weekEnd, source, editors:[
+             { id, name, email, avatarUrl, videos:[
+                 { id, title, clientName, url, transitions:[{at,dayKey,from,status}] } ] } ] } */
+    async function _kedFetchNativeWeek() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('native_source_unavailable');
+        const mondayDate = _kedExpectedLastWeekMondayDate();
+        const weekStartMs = _kedChicagoMidnightMs(mondayDate);
+        if (isNaN(weekStartMs)) throw new Error('week_window_unresolved');
+        // Exclusive end: 00:00 Chicago on the following Monday. Derived from
+        // the date seven days on rather than +7*86400000 so a DST week keeps
+        // its wall-clock boundary.
+        const nextMondayDate = _kedDayKeyFmt.format(new Date(weekStartMs + 7 * 86400000 + 12 * 3600000));
+        const weekEndMs = _kedChicagoMidnightMs(nextMondayDate);
+        const startISO = new Date(weekStartMs).toISOString();
+        const endISO = new Date(weekEndMs).toISOString();
+
+        // Event ownership is a server-side snapshot, not the deliverable's
+        // current assignee. The migration labels rows without that proof as
+        // `unknown`, and a truly unassigned status change as `unassigned`.
+        // Keep both visible in `unattributed` below; do not guess from the
+        // current deliverable or from an import/mirror source timestamp.
+        const events = await _kedRestPage(
+            'deliverable_events?select=deliverable_id,ts,from_status,to_status,event_assignee_id,event_assignee_attribution'
+            + '&action=in.(status_change,mirror_in_status_change)'
+            + '&ts=gte.' + encodeURIComponent(startISO)
+            + '&ts=lt.' + encodeURIComponent(endISO)
+            + '&order=ts.asc');
+
+        const byDeliverable = new Map();
+        for (const ev of events) {
+            const did = ev && ev.deliverable_id;
+            if (!did) continue;
+            if (!byDeliverable.has(did)) byDeliverable.set(did, []);
+            byDeliverable.get(did).push({
+                at: ev.ts,
+                dayKey: _kedChicagoDayKey(ev.ts),
+                from: _kedNativeLabel(ev.from_status),
+                status: _kedNativeLabel(ev.to_status),
+                ownerId: ev.event_assignee_id || '',
+                attribution: ev.event_assignee_attribution || 'unknown'
+            });
+        }
+        const ids = Array.from(byDeliverable.keys());
+        const envelope = (editors, unattributed) => ({
+            weekLabel: _kedWeekLabel(weekStartMs, weekEndMs),
+            weekStart: startISO,
+            weekEnd: endISO,
+            source: 'native-event-assignee-v1',
+            editors,
+            unattributed
+        });
+        if (!ids.length) return envelope([], { unknown: 0, unassigned: 0 });
+
+        // Do not use deliverables.assignee_id here. It is the CURRENT owner,
+        // so doing so would move a prior editor's work after reassignment.
+        let deliverables = (await _kedRestIn(
+            'deliverables', 'id,title,client_slug,kind,linear_issue_url', 'id', ids))
+            .filter(d => d && d.kind === 'video');
+        if (!deliverables.length) return envelope([], { unknown: 0, unassigned: 0 });
+
+        const clientSlugs = Array.from(new Set(deliverables.map(d => d.client_slug).filter(Boolean)));
+        const clients = clientSlugs.length
+            ? await _kedRestIn('clients', 'slug,display_name,kind', 'slug', clientSlugs)
+            : [];
+        const clientBySlug = new Map(clients.map(c => [c.slug, c.display_name]));
+        /* TEST AND INTERNAL CLIENTS ARE NOT EDITOR PRODUCTION. Exclude by
+           `kind`, not `active`: offboarded real work stays in history, while
+           a missing registry row is retained under the permissive UI rule. */
+        const nonProductionSlugs = new Set(clients
+            .filter(c => ['test', 'internal'].includes(String(c && c.kind || '').trim().toLowerCase()))
+            .map(c => c.slug));
+        if (nonProductionSlugs.size) deliverables = deliverables.filter(d => !nonProductionSlugs.has(d.client_slug));
+        if (!deliverables.length) return envelope([], { unknown: 0, unassigned: 0 });
+
+        const ownerIds = Array.from(new Set(
+            deliverables.flatMap(d => (byDeliverable.get(d.id) || [])
+                .filter(t => t.attribution === 'native_transaction' && t.ownerId)
+                .map(t => t.ownerId))));
+        // `active` is display metadata only. Inactive people retain their
+        // earned history; a deleted roster row gets a neutral former-editor
+        // label without reconstructing a name or email.
+        const members = ownerIds.length
+            ? await _kedRestIn('team_members', 'id,name,role,active', 'id', ownerIds)
+            : [];
+        const memberById = new Map(members.map(m => [m.id, m]));
+        const byEditor = new Map();
+        const unattributed = { unknown: 0, unassigned: 0 };
+
+        for (const d of deliverables) {
+            const perOwner = new Map();
+            for (const t of (byDeliverable.get(d.id) || [])) {
+                if (t.attribution === 'native_transaction' && t.ownerId) {
+                    if (!perOwner.has(t.ownerId)) perOwner.set(t.ownerId, []);
+                    perOwner.get(t.ownerId).push(t);
+                } else if (t.attribution === 'unassigned') {
+                    unattributed.unassigned++;
+                } else {
+                    unattributed.unknown++;
+                }
+            }
+            for (const [ownerId, transitions] of perOwner) {
+                const m = memberById.get(ownerId);
+                if (!byEditor.has(ownerId)) {
+                    byEditor.set(ownerId, m
+                        ? { id: m.id, name: m.name, email: '', avatarUrl: null, inactive: m.active === false, videos: [] }
+                        : { id: ownerId, name: 'Former editor', email: '', avatarUrl: null, inactive: true, removed: true, videos: [] });
+                }
+                byEditor.get(ownerId).videos.push({
+                    id: d.id,
+                    title: d.title,
+                    clientName: clientBySlug.get(d.client_slug) || '',
+                    url: d.linear_issue_url || '',
+                    transitions: transitions.slice().sort((a, b) => String(a.at).localeCompare(String(b.at)))
+                });
+            }
+        }
+        return envelope(Array.from(byEditor.values()), unattributed);
+    }
+
+    async function _kasperLoadEditors(forceRefresh) {
+        const body = document.getElementById('kedBody');
+        const btn  = document.getElementById('kedRefresh');
+
+        // Last week's data never changes — hit localStorage first unless the
+        // user explicitly hit Refresh. Cross-week boundary invalidates.
+        if (!forceRefresh) {
+            const cached = _kedLoadEditorsCache();
+            if (cached) {
+                _kasperState.editorsData = cached;
+                _kasperState.editorsLoadedAt = Date.now();
+                _kedPaint();
+                return;
+            }
+        }
+
+        if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
+        if (body && (forceRefresh || !_kasperState.editorsData)) body.innerHTML = _svLoadingSkeletonHtml('kasper', { label: forceRefresh ? 'Refreshing editor work' : "Loading last week's work" });
+        _kasperState.editorsLoading = true;
+        _kasperState.editorsError = null;
+        try {
+            const json = await _kedFetchNativeWeek();
+            if (!json || json.ok === false) throw new Error((json && json.error) || 'Unknown error');
+            _kasperState.editorsData = json;
+            _kasperState.editorsLoadedAt = Date.now();
+            _kedSaveEditorsCache(json);
+            _kedPaint();
+        } catch (e) {
+            _kasperState.editorsError = e && e.message ? e.message : String(e);
+            const b = document.getElementById('kedBody');
+            if (b) b.innerHTML = `<div class="kasper-empty">
+                <div class="kasper-empty-title">Couldn't load editor stats</div>
+                <div class="kasper-empty-sub">${_calEsc(_kasperState.editorsError)}</div>
+            </div>`;
+        } finally {
+            _kasperState.editorsLoading = false;
+            if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
+        }
+    }
+

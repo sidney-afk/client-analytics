@@ -5,7 +5,7 @@ Split the app into ordered source fragments while preserving every deployed byte
 Keep `index.html` committed; GitHub Pages continues serving it unchanged on pushes to main.
 Use plain concatenation: no bundler, framework, TypeScript, runtime ES modules or externalized assets.
 Do not rename, reformat, clean up, remove dead code, change features or finish Linear retirement.
-One session and one split PR at a time; no concurrent PR touching `index.html` or `src/index/`.
+One session and one split PR at a time; ordinary fixes may proceed, but never two open PRs touching the same fragment.
 
 ## The gate
 
@@ -20,23 +20,21 @@ From the repository root, Step 0 adds these exact npm aliases:
 | `npm run build:index` | `node scripts/build-index.js` |
 | `npm run check:index` | `node scripts/check-index.js` |
 
-`build-index.js` reads the manifest in order, reads fragments as raw Buffers, concatenates without separators and writes `index.html`.
+`build-index.js` reads the manifest in order, reads fragments as raw Buffers, concatenates without separators and writes `index.html` plus the generated `src/index/INDEX.md` map.
 `check-index.js` assembles in memory without overwriting anything and fails unless all of these match byte-for-byte:
 assembled bytes, working-tree `index.html`, and the committed blob returned by `git show HEAD:index.html`.
-It also checks SHA-256 against `src/index/baseline.sha256`, frozen in Step 0, and prints the full expected/actual hashes and byte lengths.
-This fixed hash prevents a simultaneous change to source and committed output from passing as a structural cut.
+Print the full SHA-256 and byte length of each compared value as evidence; hashes are diagnostic, never a frozen baseline or additional CI constraint.
+The output-identity gate is only assembled bytes = working-tree page = committed page; ordinary fixes may change all three together.
 Missing, duplicate, unlisted or out-of-folder fragment paths fail; enumerate fragments only to validate coverage, never to choose order.
-The manifest and hash are metadata and never included in output.
+The manifest and `INDEX.md` are metadata and never included in output or the fragment-coverage set.
 
 In `.github/workflows/calendar-unit-tests.yml`, add `npm run check:index` to the existing `unit` job before `node test/run-all.js`, on PRs and main, without path filters or conditional skips.
 That check assembles in memory for verification; Pages needs no deployment build step.
-After a local build, `git diff --exit-code -- index.html` must be empty; after committing, `git diff --exit-code origin/main...HEAD -- index.html` must also be empty.
-No later cut may change the scripts, fixed hash, CI wiring or output file.
+The cut-only unchanged-page rule is enforced by the executor and supervisor below, not by an immutable hash in CI.
+No later structural cut changes the scripts or CI wiring; ordinary fixes follow their own workflow below.
 
-Measured main baseline: `81f2bfa40cba48f9a15877a933ed21dc15e2f39c`; `wc -l index.html` = **86,122**.
-Its SHA-256 is `5990e9fc9495c7420dad4bf55f4699f61a964f802be2927a513103efe28de745`.
-Step 0 must remeasure freshly fetched main before freezing its baseline; if the page changed, refresh the boundary measurements before starting.
-After Step 0, defer changes to the app until the split finishes; unrelated work may continue.
+Boundary measurements were taken at `81f2bfa40cba48f9a15877a933ed21dc15e2f39c`; `wc -l index.html` = **86,122**.
+Step 0 and every cut PR start from freshly fetched main; refresh affected boundary measurements when ordinary fixes change the page.
 
 **Line endings and trailing newline:** `index.html` is already `text eol=lf`; preserve LF and its final newline.
 Add `src/index/** text eol=lf` in Step 0, not broad `-text` exemptions.
@@ -50,7 +48,7 @@ Preserve those bytes exactly; only the assembled document must retain the origin
 index.html                         # committed, served build output
 src/index/
   manifest.txt                     # one relative fragment filename per line
-  baseline.sha256                  # fixed output digest, not a fragment
+  INDEX.md                         # generated navigation table, not a fragment
   000-head.html.part
   005-head-boot.html.part
   010-styles-foundation.css.part
@@ -69,7 +67,12 @@ Numeric prefixes describe document order, not execution order; the explicit mani
 Use `.part` because these are byte fragments, sometimes containing tags or spanning an existing scope, not independently executable files.
 Keep every original style/script tag, comment, declaration, wrapper and inline handler in the same output position.
 During extraction the uncut tail is `999-remainder.html.part`, always explicitly listed; replace only the relevant manifest entry or entries.
-Step 0 documents `src/` and the tooling in `REPO_MAP.md`; later cuts do not create per-file paperwork.
+Step 0 documents `src/` and the tooling in `REPO_MAP.md`, including one row pointing to `src/index/INDEX.md`; later cuts regenerate the map without per-file paperwork.
+`INDEX.md` has one row per manifest fragment: order, filename, line count and first banner comment found in that fragment (or an em dash if absent).
+For a deterministic map, count LF-delimited lines plus a final nonempty unterminated line; select the first standalone HTML/block comment or decorated line-comment banner in source order.
+Use its first nonempty descriptive line, excluding delimiters/decoration; escape Markdown table characters and omit timestamps.
+Document that narrow banner rule in the builder; fragments without a banner need no source edits to supply one.
+`test/index-build.js` independently derives the expected rows from the manifest and fragments and fails if `INDEX.md` differs, so the unit lane catches a stale map.
 
 ## Step 0, the proof
 
@@ -78,10 +81,13 @@ Split at the literal `<` of the first `<script>`, at line 27, including its four
 This is the early boot script, not the Chart.js tag at line 232 or the main app script at line 8585.
 The manifest lists those two names in that order. Do not extract CSS or any function yet.
 
-Only this PR adds build/check scripts, npm aliases, unit-job wiring, the LF attribute, fixed hash and gate tests.
+Only this PR adds build/check scripts, npm aliases, unit-job wiring, generated-map support, attributes and gate tests.
+Add `index.html linguist-generated=true` to `.gitattributes` while preserving its LF rule, so GitHub collapses the generated page diff.
+Add this exact line to both `CLAUDE.md` and `AGENTS.md`: "index.html is a build output; edit src/index/ fragments and run npm run build:index, never edit index.html directly".
 Prove the positive case with build/check, empty output diff and the two fast suites named below.
 In disposable fixtures, prove the check rejects a changed byte, reordered/missing/duplicate part, line-ending conversion and altered EOF newline.
-Also prove a matching source/output edit still fails against the fixed baseline hash; restore every sabotage before committing.
+In a disposable Git fixture, prove a source/output edit passes once both are committed; an uncommitted output change still fails against HEAD.
+Prove a stale `INDEX.md` fails the map test after a manifest/fragment change and passes after regeneration; restore every sabotage before committing.
 Record the full hash, commands and results in the PR body; run one Codex round and merge only on green.
 No new logs, journal entries, ledger allocation, runtime flags, database work or live drills are needed.
 
@@ -100,7 +106,9 @@ Quoted shortened comments are literal matching prefixes. Preserve attached text 
 CSS first: cut 1 extracts its first range from the middle of the remainder, retaining the prefix as `005-head-boot.html.part`.
 That retained prefix covers the first script token at L27 through L232 (about 206 lines), ending before "`<style>`" at L233.
 The Step-0 head remains about 26 lines plus four spaces. Cut 2 extracts the rest of CSS; cut 3 extracts the shell.
-Then cut JavaScript in existing order. Each numbered row is one PR; each subsequent row splits the current tail.
+Then cut JavaScript in existing order; each subsequent row splits the current tail.
+Step 0 and cut 1 each get a single PR. Once both have merged, group 3–5 consecutive numbered cuts per PR; check byte identity after every individual cut.
+Prefer seven batches for cuts 2–34: 2–6, 7–11, 12–16, 17–21, 22–26, 27–30 and 31–34.
 Cut 34 also renames the final tail to `350-footer.html.part`; it does not need a separate PR.
 
 | Cut | Start anchor → exclusive end anchor | Baseline lines; approximate size | Result in `src/index/` |
@@ -149,22 +157,32 @@ Do not relocate constants or hoisted unlock state to their apparent owner; do no
 The footer retains the original main-script closing tag, intervening HTML, last inline script and document closing tags together.
 All final content fragments are below 5,000 lines (largest: 3,997); the temporary remainder exceeds that until extraction finishes.
 
+## Changing the site during the split
+
+An ordinary fix edits the relevant fragment (including `999-remainder.html.part` while that region is uncut), runs `npm run build:index`, and commits the fragment and `index.html` together, plus regenerated `INDEX.md` if changed.
+Run `npm run check:index` after committing: it passes because assembled bytes equal the working-tree and committed page, even though the page differs from main.
+Run the tests and review required for the fix; it is a separate PR, never mixed into a structural cut batch.
+Cut PRs always start from latest main. Never have two open PRs touching the same fragment; the executor checks open PR paths before starting.
+Disjoint fixes can proceed alongside the one split PR; resolve generated `index.html`/`INDEX.md` conflicts by rebuilding from merged fragments, never hand-editing the outputs.
+If main advances during a cut PR, incorporate latest main, re-cut from its current fragments as needed, and repeat the cut-only empty-diff check and tests before merge.
+Keep this scheduling check human and explicit; no new locking service or workflow is needed.
+
 ## Per-cut procedure
 
-1. Fetch main successfully, start a clean branch from it, and confirm no other PR touches the page/source folder; the session performs this coordination check.
-2. Cut the next listed contiguous bytes, preserve the remainder, and update only the ordered manifest and affected fragments.
-3. Run `npm run build:index`, `npm run check:index`, then `git diff --exit-code -- index.html`.
-4. Run `node test/run-all.js` and `node docs/syncview-design/tests/prod-write-gateway-browser.js`; retain existing CI gates.
+1. Fetch main successfully, start a clean branch from latest main, and confirm one split PR only and no other open PR touches the planned fragments.
+2. Cut the next listed contiguous bytes, preserve the remainder, and update the ordered manifest and affected fragments.
+3. Run `npm run build:index`, `npm run check:index`, then `git diff --exit-code -- index.html`; repeat steps 2–3 for each of the PR's 3–5 cuts after the two single-PR pilots.
+4. Run `node test/run-all.js` (including the generated-map test) and `node docs/syncview-design/tests/prod-write-gateway-browser.js` once per completed batch; retain existing CI gates.
 5. Commit; run `npm run check:index`, `git diff --exit-code origin/main...HEAD -- index.html` and `node scripts/repo-identity-exposure-check.js --diff="origin/main"`.
-6. Push and open the cut PR; put the cut number, output hash, empty-diff result and fast-suite results in its body.
+6. Push and open the cut PR; put the cut range, output hash, empty-diff result and fast-suite results in its body.
 7. Complete one Codex review round on the candidate; address findings before merge, with a focused re-review only if a correction requires it.
-8. Merge on green with no unresolved findings, fetch main, then start the next cut; never stack split PRs.
+8. Before merging, refresh main and incorporate any intervening fixes, rerun checks if changed; merge on green, fetch main, then start the next batch; never stack split PRs.
 
 ## Supervisor checklist for each PR
 
-1. Check the changed-path list: after Step 0, only expected fragments/manifest; `index.html`, fixed hash and tooling have no diff against main.
-2. Read the unit job's byte-check result: expected/output SHA-256 match, committed output matches, and both fast suites are green on the final commit.
-3. Confirm the cut's bounded anchors/order, completed Codex round with no unresolved findings, and no competing page/source PR.
+1. Check the paths: after Step 0, only expected fragments/manifest/generated `INDEX.md`; run `git diff --exit-code origin/main...HEAD -- index.html` against freshly fetched, incorporated main and require an empty diff.
+2. Read the unit results: assembled/working-tree/committed bytes match, `INDEX.md` matches the fragments, and both fast suites are green on the final commit.
+3. Confirm the cut range's anchors/order, one completed Codex round with no unresolved findings, one split PR only, and no other open PR touching its fragments.
 
 These are under-a-minute checks of recorded evidence, not another test run or full-file review.
 A failure is investigated at the failing assertion against freshly fetched main; a similarly red baseline is not permission to merge.
@@ -183,12 +201,12 @@ Revert the cut with `git revert`; rerun build/check to prove the restored source
 
 ## Done criteria and a rough count
 
-Done means all 34 numbered cuts merged, no `999-remainder.html.part`, 37 content fragments in manifest order, no fragment over 5,000 lines, and the same frozen output SHA-256 throughout.
-There are **39 files under `src/index/` including the manifest and hash**, plus the two scripts and one gate test created in Step 0; `index.html` remains committed.
-Budget **35 implementation PRs**: Step 0 plus 34 cuts; **36 including this strategy PR**.
-Estimate **4–6 working days** for one session doing one cut per PR, roughly 6–9 sequential green merges per day including CI and one Codex round.
-This assumes a working baseline and no exposure finding or review queue delay; resolve an actual blocker rather than adding speculative phases.
-After completion, feature authors edit fragments and regenerate the committed output; any later behavioral improvement is a separate project and must deliberately retire/update the split-only frozen hash.
+Done means all 34 numbered cuts merged, no `999-remainder.html.part`, 37 content fragments in manifest order, no fragment over 5,000 lines, an up-to-date generated map, and every cut PR leaving the page unchanged against its current main base.
+There are **39 files under `src/index/` including the manifest and `INDEX.md`**, plus the two scripts and one gate test created in Step 0; `index.html` remains committed.
+Budget **9–13 implementation PRs**: Step 0 and cut 1 singly, then 7–11 PRs carrying the remaining 33 cuts in groups of 3–5; **10–14 including this strategy PR**.
+The preferred seven-batch schedule needs **9 implementation PRs**. Estimate **2–3 working days** for one session, including CI and one Codex round per PR.
+This assumes a working baseline and no exposure finding, review queue delay or substantial rework from intervening fixes; fix PRs and optional later passes are excluded from the budget.
+After completion, feature authors continue editing fragments and regenerating the committed output and map; the three-way byte check remains useful for ordinary changes.
 
 ## What changed from the existing plan and why
 
@@ -197,7 +215,16 @@ Starting point: [draft PR #1389](https://github.com/sidney-afk/client-analytics/
 - **Replace external CSS/classic scripts and later ES modules with offline concatenation into the same document.** Externalization changes loading; modules change scope. Neither is necessary to split source files.
 - **Keep ES modules and state ownership out of scope because of D28.** The [retrospective](../retrospectives/2026-09-20-linear-exit-retrospective.md#what-actually-caught-bugs) records extracted `applySettledWorld` referencing an out-of-scope `j` while export/call/single-source assertions passed. It does not say ES modules caused D28; it demonstrates why changing scope is separate work. Here no execution boundary changes.
 - **Replace the exhaustive globals/handlers/dependency census with verified contiguous cuts and a two-file proof.** Nothing changes ownership, handlers or evaluation order, so a census would delay this mechanical task.
-- **Strengthen textual move integrity into whole-output byte identity with a fixed SHA-256.** The old warning remains correct for code moved into a different runtime scope; it does not invalidate concatenating the identical complete document.
+- **Strengthen textual move integrity into whole-output byte identity.** Compare assembled, working-tree and committed bytes; do not freeze a baseline digest. The old scope warning remains correct; the cut-only main diff proves that a structural PR preserves the complete document.
 - **Keep the 249 slicing tests unchanged and retain both fast suites plus one Codex round.** Remove new temporal-rule projects, visual-baseline projects and feature-specific acceptance expansion; no behavior or pixels change.
-- **Replace concurrent feature/refactor work with a single owner and serialized page/source PRs.** Freeze the artifact during the split instead of repeatedly reconciling functional changes.
+- **Serialize split PRs while allowing ordinary fixes to distinct fragments.** Start cuts from latest main, regenerate shared outputs after merging fixes, and never overlap open PRs on a fragment.
+- **Batch 3–5 cuts after two single-PR proofs and generate the source map.** This reduces review/CI cycles without losing per-cut byte checks; unit coverage prevents navigation metadata from going stale.
 - **Use one PR evidence record, not repeated Production/journal/ledger updates.** The retrospective found real coordination cost in duplicated status and numbering. Existing public-identity and required CI protections remain.
+
+## Second pass, decided after the split
+
+Optional future work only; neither pass is part of this plan's implementation, acceptance or budget.
+First, consider sub-splitting any fragment over 2,000 lines at function boundaries, preserving order under the same three-way byte-identity gate and the cut-only empty diff against main.
+Separately, consider a tidy pass moving functions from the four mixed fragments `090-workload-popovers-navigation.js.part`, `100-onboarding-staff-controls.js.part`, `260-production-refresh-boot.js.part` and `310-tiktok-pilot-sales.js.part` into their family fragment.
+That reordering changes output bytes and can change scope, initialization or execution order: use a different behavior-preservation gate (tests plus a real page load exercising the moved functions), not a claim of unchanged output.
+Keep the three-way assembly-consistency check, but do not require the tidy PR's page to equal main; decide scope and acceptance separately after the split, with D28 in mind.

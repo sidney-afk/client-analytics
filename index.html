@@ -56525,7 +56525,7 @@
             return p && p.emoji ? _calEsc(p.emoji) : _prodIcon('project');
         }
         function _prodBatchRows(batchId) {
-            return _prodIssues().filter(d => batchId && d.batchId === batchId);
+            return _prodIssues().filter(d => batchId && d.batchId === batchId).sort(_prodChildOrder);
         }
         /* Sub-issues group by TEAM first, then read alphabetically inside each
            group -- video work (Reel 1..12, Video 1..12) then graphics work
@@ -56538,26 +56538,27 @@
            meant to fix.
 
            Sorting here rather than at the render site is deliberate -- the
-           sub-issue section AND the prev/next sibling navigation both read
-           this function, and the two must stay in lock-step or the arrows walk
-           a different order than the list shows. */
+           sub-issue section, the prev/next sibling navigation, AND the batch
+           detail view all read this same comparator, and they must stay in
+           lock-step or the arrows walk a different order than the list shows. */
         const PROD_TEAM_ORDER = { video: 0, graphics: 1 };
         function _prodChildTeamRank(d) {
             const rank = PROD_TEAM_ORDER[_prodWriteTeam(d && d.team)];
             // Anything untyped sorts last rather than colliding with video.
             return rank == null ? 2 : rank;
         }
+        function _prodChildOrder(a, b) {
+            const byTeam = _prodChildTeamRank(a) - _prodChildTeamRank(b);
+            if (byTeam) return byTeam;
+            const byTitle = String((a && a.title) || '').localeCompare(
+                String((b && b.title) || ''), undefined, { numeric: true, sensitivity: 'base' });
+            if (byTitle) return byTitle;
+            // Stable, deterministic tail so equal titles never reshuffle
+            // between renders (which would move the sibling arrows).
+            return String((a && a.id) || '').localeCompare(String((b && b.id) || ''));
+        }
         function _prodChildrenOf(id) {
-            return _prodIssues().filter(d => d.parent === id).sort((a, b) => {
-                const byTeam = _prodChildTeamRank(a) - _prodChildTeamRank(b);
-                if (byTeam) return byTeam;
-                const byTitle = String((a && a.title) || '').localeCompare(
-                    String((b && b.title) || ''), undefined, { numeric: true, sensitivity: 'base' });
-                if (byTitle) return byTitle;
-                // Stable, deterministic tail so equal titles never reshuffle
-                // between renders (which would move the sibling arrows).
-                return String((a && a.id) || '').localeCompare(String((b && b.id) || ''));
-            });
+            return _prodIssues().filter(d => d.parent === id).sort(_prodChildOrder);
         }
         /* WHO CAN READ THE THREE POST-LEVEL SLOTS OF A BATCH PARENT.
          *

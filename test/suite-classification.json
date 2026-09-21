@@ -386,6 +386,7 @@
     "prod-attribution-sync-pending-copy.js",
     "prod-authority-guard.js",
     "prod-backend-bridge.js",
+    "prod-batch-detail-order.js",
     "prod-batch-parent-panels.js",
     "prod-batches-keyset-paging.js",
     "prod-boot-payload-diet.js",

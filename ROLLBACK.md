@@ -1272,3 +1272,11 @@ Revert the #1455 squash commit on `main`, or restore the three call sites in
 `.prod-detail-id` header) from `_prodIssueDisplayLabel(d)` to
 `_prodIssueLabel(d)` and delete `_prodIssueDisplayLabel`. No database, flag,
 Edge Function or n8n state is involved; GitHub Pages redeploys on push.
+
+## 2026-09-21 — inverse for batch-detail deliverable ordering (browser only)
+
+Revert this change's commit, or restore `_prodBatchRows` to
+`_prodIssues().filter(d => batchId && d.batchId === batchId)` (drop the
+`.sort(_prodChildOrder)`) and inline `_prodChildOrder`'s body back into
+`_prodChildrenOf` if a future edit wants them decoupled again. No database,
+flag, Edge Function or n8n state is involved; GitHub Pages redeploys on push.

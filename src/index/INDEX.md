@@ -7,4 +7,4 @@
 | Order | Fragment | Lines | Banner |
 |---|---|---|---|
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
-| 2 | `999-remainder.html.part` | 86096 | NOT render-blocking, and the reason is measured rather than assumed. |
+| 2 | `999-remainder.html.part` | 86097 | NOT render-blocking, and the reason is measured rather than assumed. |

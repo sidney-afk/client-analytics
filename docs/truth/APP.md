@@ -301,7 +301,9 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 
 - Logic map: `docs/audits/2026-07-05-logic-samples.md`.
 - SXR rejects pushing Scheduled/Posted to Linear (unlike calendar).
-- `_sxrReassertLinearStatus()` is **defined but never called** (dead drift-protection). Samples
+- `_sxrReassertLinearStatus` was **defined but never called** (dead drift-protection) and was
+  DELETED 2026-09-21 with `_sxrLinearReassertAt` and `SXR_LINEAR_REASSERT_MS`, as roadmap phase
+  B1's first deletion. The Calendar twin `_calReassertLinearStatus` is live and untouched. Samples
   reconciliation is currently on twice—pager dispatch plus its own GitHub schedule—so remove one
   cadence, not both. Until F132 closes, retain the independent schedule and remove the pager dispatch
   first if burn must fall (see `docs/truth/N8N.md`). The browser also has a 5-minute local-fresh merge guard.
@@ -841,13 +843,16 @@ referenced by `test/app-update-nudge.js`, so it is NOT dead and is excluded.
 
 **Do not bulk-delete.** Several are likely staged-but-unwired feature work, not cruft — triage
 per group before removing anything. Verify each is still unreferenced at removal time (this is a
-fast-moving file). Confirmed-dead example already documented: `_sxrReassertLinearStatus()`.
+fast-moving file). The confirmed-dead example this list used to cite, `_sxrReassertLinearStatus`,
+was deleted 2026-09-21 and is no longer a candidate. Note for later deletions: a truth doc writes a
+symbol with `()` only while it still exists, because `test/truth-sync.js` reads that form as a claim
+that the code contains it (OPEN_REPAIRS 228).
 
 | Group | Candidates |
 |---|---|
 | Calendar | `_calClientPossessive` `_calCommentTotal` `_calLinkLabel` `_calOnTextareaInput` `_calOnUrlInput` `_calOpenUrlField` `_calStatusChip` `_calZoomHintHtml` |
 | Linear mirror (internal `production`; `?prod=1`) — **check active prod sprint before touching** | `_prodById` `_prodClientEmoji` `_prodOpenBatch` `_prodSetFocusCard` `_prodSetTeam` |
-| Samples/SXR | `_sxrReassertLinearStatus` `_sxrReorderUrlForClient` `_sxrSetAllSettable` |
+| Samples/SXR | `_sxrReorderUrlForClient` `_sxrSetAllSettable` (`_sxrReassertLinearStatus` deleted 2026-09-21) |
 | Onboarding | `_obAddCreatorRow` `_obToggle` `_obvToggle` |
 | Market-research tab (looks unwired) | `_mrHookBadge` `renderMRTab_landscape` `renderMRTab_topics` |
 | Client credentials | `_ccKnownClientOptions` `_ccOpenBulkImport` |

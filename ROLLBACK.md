@@ -1298,3 +1298,31 @@ deliverables list to
 `rows.map(d => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status, d.id) + _prodIssueIdHTML(d) + '<span class="prod-title"' + _prodTitleAttrs(d.title || '') + '><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-chip">' + _calEsc(_prodStatusLabel(d.status)) + '</span></div>').join('')`
 in place of `rows.map(_prodSubIssueRowHTML).join('')`. No database, flag,
 Edge Function or n8n state is involved; GitHub Pages redeploys on push.
+
+## 2026-09-21 — inverse for the B1-1 Samples re-assert deletion (browser only)
+
+Revert the single commit, or restore these fifteen lines to
+`src/index/290-samples-writes-review.js.part` immediately before the
+`/* ── Realtime subscription` comment and run `npm run build:index`:
+
+```js
+    const _sxrLinearReassertAt = new Map();
+    const SXR_LINEAR_REASSERT_MS = 20 * 1000;
+    function _sxrReassertLinearStatus(post, comp) {
+        if (!post || (comp !== 'video' && comp !== 'graphic')) return;
+        const url = String((comp === 'graphic' ? post.graphic_linear_issue_id : post.linear_issue_id) || '').trim();
+        const nativeId = _writeUiNativeId(post, comp);
+        if (!url && !nativeId) return;
+        const st = _sxrNormStatus(post[comp + '_status'] || '');
+        if (!st) return;
+        const key = (nativeId || url) + '|' + st, now = Date.now();
+        if (now - (_sxrLinearReassertAt.get(key) || 0) < SXR_LINEAR_REASSERT_MS) return;
+        _sxrLinearReassertAt.set(key, now);
+        _sxrPushStatusToLinear(url, st, { post, component: comp, sourceEditedAt: post.updated_at })
+            .catch(e => _writeUiReportFailure('sxr', 'status', e));
+    }
+```
+
+Nothing else is involved: no database row, runtime flag, Edge Function or
+n8n workflow. Restoring the code restores the previous behaviour exactly,
+which was that nothing called it. GitHub Pages redeploys on push.

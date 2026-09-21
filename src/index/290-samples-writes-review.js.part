@@ -933,21 +933,6 @@
         _sxrFlushCardSave(pid);
         _sxrRenderBody({ preserveScroll: true });
     }
-    const _sxrLinearReassertAt = new Map();
-    const SXR_LINEAR_REASSERT_MS = 20 * 1000;
-    function _sxrReassertLinearStatus(post, comp) {
-        if (!post || (comp !== 'video' && comp !== 'graphic')) return;
-        const url = String((comp === 'graphic' ? post.graphic_linear_issue_id : post.linear_issue_id) || '').trim();
-        const nativeId = _writeUiNativeId(post, comp);
-        if (!url && !nativeId) return;
-        const st = _sxrNormStatus(post[comp + '_status'] || '');
-        if (!st) return;
-        const key = (nativeId || url) + '|' + st, now = Date.now();
-        if (now - (_sxrLinearReassertAt.get(key) || 0) < SXR_LINEAR_REASSERT_MS) return;
-        _sxrLinearReassertAt.set(key, now);
-        _sxrPushStatusToLinear(url, st, { post, component: comp, sourceEditedAt: post.updated_at })
-            .catch(e => _writeUiReportFailure('sxr', 'status', e));
-    }
 
     /* ── Realtime subscription (channel sxr-<slug> on sample_reviews) ── */
     let _sxrV2ClientObj = null, _sxrV2ClientPromise = null;

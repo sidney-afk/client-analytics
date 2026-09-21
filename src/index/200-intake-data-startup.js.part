@@ -1,0 +1,2022 @@
+    function renderLinearView() {
+        const saved = loadLinearForm();
+        const heldSubmission = _linearSubmissionHoldRead();
+        const savedClient = saved.client || '';
+        const savedClientSlug = saved.clientSlug || '';
+        const savedGeneralDrive = saved.generalDrive || '';
+
+        // Restore video count from saved data
+        const savedVideoCount = saved.videos?.length || LINEAR_DEFAULT_VIDEO_COUNT;
+        linearVideoCount = Math.max(savedVideoCount, 1);
+
+        let videoCards = '';
+        for (let i = 1; i <= linearVideoCount; i++) {
+            const v = saved.videos?.[i - 1] || {};
+            videoCards += renderVideoCard(i, v);
+        }
+
+        let titleDisplay = 'Select a client…';
+        if (heldSubmission && heldSubmission.client_name === String(savedClient).trim()
+            && heldSubmission.client_slug === String(savedClientSlug).trim()) {
+            titleDisplay = heldSubmission.computed_title;
+        } else if (savedClient) {
+            const d = new Date();
+            titleDisplay = `${savedClient} · ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+        }
+
+        const receivedBanner = linearJustCreated === 'received';
+        const successBanner = linearJustCreated ? `<div class="linear-success-banner" id="linearSuccessBanner">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8L6 12L14 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            ${receivedBanner ? 'Production work received. Our team will complete an internal setup step; no action is needed from you.' : 'Production work created!'}
+        </div>` : '';
+        linearJustCreated = false;
+
+        return `<div class="linear-view">
+            ${successBanner}
+            <div class="linear-form-title">Create production work</div>
+            <div class="linear-form-sub">Create native video and graphics deliverables</div>
+            <div class="linear-form">
+                <div class="linear-field">
+                    <label class="linear-label">Client</label>
+                    <div class="linear-search-wrap" id="linearSearchWrap">
+                        <div class="linear-search-pill">
+                            <input class="linear-search-input" id="linearClientSearch" type="text"
+                                placeholder="Search clients…"
+                                value="${savedClient.replace(/"/g, '&quot;')}"
+                                data-client-slug="${String(savedClientSlug).replace(/"/g, '&quot;')}"
+                                oninput="onLinearSearchInput()" onkeydown="onLinearSearchKey(event)"
+                                onfocus="onLinearSearchFocus()" autocomplete="off">
+                            <div class="linear-search-ghost" id="linearSearchGhost"></div>
+                        </div>
+                        <div class="linear-search-dropdown" id="linearSearchDropdown">
+                            <div id="linearSearchResults"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="linear-field">
+                    <label class="linear-label">Title</label>
+                    <div class="linear-title-display ${savedClient ? '' : 'empty'}" id="linearTitleDisplay">${titleDisplay}</div>
+                </div>
+                <div class="linear-field" id="linearFilmingPlansField">
+                    <label class="linear-label">Filming Plans</label>
+                    <div class="linear-title-display empty" id="linearFilmingPlansDisplay">Select a client…</div>
+                </div>
+                <div class="linear-field">
+                    <label class="linear-label">General Drive</label>
+                    <input class="linear-input" id="linearGeneralDrive" type="url" placeholder="General drive link…" value="${savedGeneralDrive.replace(/"/g, '&quot;')}" oninput="saveLinearForm()">
+                </div>
+                <div class="linear-field">
+                    <label class="linear-label">Notes</label>
+                    <textarea class="linear-textarea" id="linearNotes" placeholder="Additional notes…" oninput="saveLinearForm()">${saved.notes || ''}</textarea>
+                </div>
+                <div class="linear-field">
+                    <label class="linear-label">Videos</label>
+                    <div class="linear-videos-section" id="linearVideos">${videoCards}</div>
+                    <button class="linear-add-video-btn" onclick="addLinearVideo()" type="button">
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><line x1="6" y1="1" x2="6" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="1" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        Add Video
+                    </button>
+                </div>
+                <div class="linear-submit-btns">
+                    <button class="linear-submit-btn linear-submit-primary" id="linearSubmitBtnBoth" onclick="submitLinearForm('both')">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        <span class="linear-submit-primary-text">
+                            <span class="linear-submit-primary-label">Create deliverables</span>
+                            <span class="linear-submit-primary-sub">Video + graphic issue</span>
+                        </span>
+                    </button>
+                </div>
+                <!--
+                  Video-only and Thumbnail-only were already built, but sat
+                  behind an "Advanced" disclosure, so in practice every
+                  submission created BOTH. That is why 60 calendar cards carry a
+                  video deliverable and an empty "Video 1" graphics placeholder
+                  nobody asked for. The choice is not advanced -- it is the
+                  question the form is asking -- so it is on the surface now.
+                -->
+                <div class="linear-submit-btns linear-submit-scope">
+                    <button class="linear-submit-btn secondary" id="linearSubmitBtnVideo" onclick="submitLinearForm('video')">Video issue only</button>
+                    <button class="linear-submit-btn secondary" id="linearSubmitBtnThumbnail" onclick="submitLinearForm('thumbnail')">Thumbnail issue only</button>
+                </div>
+                <div class="linear-status" id="linearStatus"></div>
+            </div>
+        </div>`;
+    }
+
+        function renderVideoCard(num, data) {
+        data = data || {};
+        return `<div class="linear-video-card" id="videoCard_${num}">
+            <div class="linear-video-header">
+                <span class="linear-video-num">Video ${num}</span>
+                <button class="linear-video-remove" onclick="removeLinearVideo(${num})" title="Remove">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                </button>
+            </div>
+            <div class="linear-video-fields">
+                <input class="linear-input" id="vid_main_${num}" type="url" placeholder="Main camera link" value="${(data.main_cam || '').replace(/"/g, '&quot;')}"
+                    oninput="onVideoLinkInput(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
+                <input class="linear-input" id="vid_side_${num}" type="url" placeholder="Side camera link" value="${(data.side_cam || '').replace(/"/g, '&quot;')}"
+                    oninput="onVideoLinkInput(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
+                <input class="linear-input" id="vid_audio_${num}" type="url" placeholder="Audio link" value="${(data.audio || '').replace(/"/g, '&quot;')}"
+                    oninput="onVideoLinkInput(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
+                <textarea class="linear-textarea linear-video-notes" id="vid_notes_${num}" rows="3"
+                    placeholder="Notes for this video (becomes the Linear description)"
+                    oninput="saveLinearForm()">${_calEsc(data.notes || '')}</textarea>
+            </div>
+            <span class="video-link-hint">⇧ Shift — paste last link</span>
+        </div>`;
+    }
+
+    function removeLinearVideo(num) {
+        const cards = document.querySelectorAll('[id^="videoCard_"]');
+        if (cards.length <= 1) return; // Keep at least 1 video
+        const card = document.getElementById('videoCard_' + num);
+        if (!card) return;
+        card.remove();
+        renumberVideoCards();
+        linearVideoCount = document.querySelectorAll('[id^="videoCard_"]').length;
+        saveLinearForm();
+    }
+
+    function renumberVideoCards() {
+        const cards = document.querySelectorAll('[id^="videoCard_"]');
+        cards.forEach((card, idx) => {
+            const newNum = idx + 1;
+            const oldNum = card.id.replace('videoCard_', '');
+            card.id = 'videoCard_' + newNum;
+            card.querySelector('.linear-video-num').textContent = 'Video ' + newNum;
+            card.querySelector('.linear-video-remove').setAttribute('onclick', 'removeLinearVideo(' + newNum + ')');
+            // Rename input IDs
+            const main = card.querySelector('[id^="vid_main_"]');
+            const side = card.querySelector('[id^="vid_side_"]');
+            const audio = card.querySelector('[id^="vid_audio_"]');
+            const notes = card.querySelector('[id^="vid_notes_"]');
+            if (main) main.id = 'vid_main_' + newNum;
+            if (side) side.id = 'vid_side_' + newNum;
+            if (audio) audio.id = 'vid_audio_' + newNum;
+            if (notes) notes.id = 'vid_notes_' + newNum;
+        });
+    }
+
+    function addLinearVideo() {
+        const container = document.getElementById('linearVideos');
+        if (!container) return;
+        linearVideoCount++;
+        const html = renderVideoCard(linearVideoCount, {});
+        container.insertAdjacentHTML('beforeend', html);
+        saveLinearForm();
+    }
+
+    function onVideoLinkInput(el) {
+        if (el.value.trim()) saveLastLink(el.value.trim());
+        saveLinearForm();
+    }
+
+    function onVideoLinkBlur(el) {
+        if (el.value.trim()) saveLastLink(el.value.trim());
+    }
+
+    function onVideoLinkKeydown(e, el) {
+        if (e.key === 'Shift') {
+            const last = getLastLink();
+            if (last) {
+                e.preventDefault();
+                el.value = last;
+                saveLastLink(last);
+                saveLinearForm();
+            }
+        }
+    }
+
+    function _linearIntakeRequestId(surface) {
+        const lane = String(surface || '').toLowerCase() === 'calendar' ? 'calendar' : 'submission';
+        try { return lane + ':' + crypto.randomUUID(); }
+        catch (e) { return lane + ':' + Date.now().toString(36) + ':' + Math.random().toString(36).slice(2); }
+    }
+
+    function _linearIntakeWithLock(callback) {
+        if (typeof navigator === 'undefined' || !navigator.locks || typeof navigator.locks.request !== 'function') {
+            return Promise.reject(_linearIntakeActorError(503, 'native_intake_lock_unavailable'));
+        }
+        return navigator.locks.request('syncview-native-intake', { mode: 'exclusive' }, callback);
+    }
+
+    function _linearIntakeRead() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(NATIVE_INTAKE_PENDING_KEY) || 'null');
+            return saved && saved.payload ? saved : null;
+        } catch (e) { return null; }
+    }
+    function _linearIntakeJobId(job) { return String(job && job.payload && job.payload.request_id || ''); }
+    function _linearIntakeWrite(job, options) {
+        try {
+            const requestId = _linearIntakeJobId(job);
+            if (!requestId) return false;
+            const current = _linearIntakeRead();
+            if (current && _linearIntakeJobId(current) !== requestId) return false;
+            if (!current && !(options && options.allowCreate === true)) return false;
+            const payload = JSON.stringify(job);
+            try {
+                localStorage.setItem(NATIVE_INTAKE_PENDING_KEY, payload);
+            } catch (quota) {
+                /* THE PERSON WHO IS ALREADY STUCK NEVER VISITS KASPER.
+                   Capping the per-client calendar cache at its own write fixes
+                   the growth, and fixes nothing for the browser that is ALREADY
+                   at the ceiling: that store only shrinks when a Kasper view
+                   happens to rewrite a cache, and someone who opens Create Post
+                   directly never triggers one. Their Create Post stays broken
+                   until they clear site data by hand -- which is exactly the
+                   state the round-3 tester was in, and exactly the workaround
+                   they had to use. Codex flagged the gap on PR 1187.
+                   So the reclaim runs HERE too, at the moment the space is
+                   actually needed, and the write is retried once. Pruning is
+                   cheap and idempotent; a second failure is a genuinely full
+                   store that this cache does not own, and it reports honestly
+                   through native_intake_storage_unavailable. */
+                if (typeof _kasperCalCachePrune === 'function') _kasperCalCachePrune('');
+                localStorage.setItem(NATIVE_INTAKE_PENDING_KEY, payload);
+            }
+            return _linearIntakeJobId(_linearIntakeRead()) === requestId;
+        } catch (e) { return false; }
+    }
+    function _linearIntakeRemoveIfCurrent(requestId) {
+        try {
+            const current = _linearIntakeRead();
+            if (!current || _linearIntakeJobId(current) !== String(requestId || '')) return false;
+            localStorage.removeItem(NATIVE_INTAKE_PENDING_KEY);
+            return true;
+        } catch (e) { return false; }
+    }
+    function _linearIntakeActorContext(identity) {
+        return {
+            initiating_actor_id: String(identity && identity.member && identity.member.id || ''),
+            initiating_actor_role: _syncviewStaffRoleValue(identity)
+        };
+    }
+    function _linearIntakeActorError(status, code) {
+        const error = new Error(code);
+        error.status = status;
+        error.code = code;
+        return error;
+    }
+    function _linearIntakeRequireActor(job) {
+        /*
+         * This guard binds a resumed intake to the SAME staff member who began
+         * it, so an interrupted job cannot be finished by a different account.
+         * On the client link there is no staff member to bind to and never can
+         * be — `_syncviewStaffEligible()` is false in intake mode, so no
+         * identity can be stored — which means every branch below could only
+         * ever THROW here, never pass. Returning early is therefore
+         * behaviour-preserving for staff and is what lets a client resume their
+         * own interrupted submission at all.
+         *
+         * The authorization this gives up on the client link was never doing
+         * the work: the job lives in that browser's own storage, and the server
+         * is the real gate — `production-write` decides a credential-less
+         * intake on its own flag, rate limit and surface check, and marks what
+         * it accepts `public-intake`.
+         */
+        // `typeof` rather than a bare read: this runs from job-resume paths, and
+        // an uninitialised flag must resolve to "not the client link" so the
+        // strict staff binding below still applies. Fails CLOSED, never open.
+        if (typeof _isIntake !== 'undefined' && _isIntake) return null;
+        const context = job && job.context || {};
+        const actorId = String(context.initiating_actor_id || '');
+        if (!actorId) throw _linearIntakeActorError(403, 'native_intake_actor_unbound');
+        const identity = _syncviewStaffIdentityForHeaders();
+        if (!identity) throw _linearIntakeActorError(401, 'native_intake_actor_required');
+        if (String(identity.member && identity.member.id || '') !== actorId) {
+            throw _linearIntakeActorError(403, 'native_intake_actor_mismatch');
+        }
+        const role = _syncviewStaffRoleValue(identity);
+        if (role !== 'admin' && role !== 'smm') {
+            throw _linearIntakeActorError(403, 'native_intake_actor_forbidden');
+        }
+        return identity;
+    }
+    function _linearIntakeRecoveryCopy(job) {
+        const payload = job && job.payload || {};
+        const result = job && job.result || {};
+        return {
+            version: 3,
+            signature: 'recovery:' + String(payload.request_id || ''),
+            recovery_only: true,
+            suspended: true,
+            payload: {
+                operation: 'intake_create', surface: String(payload.surface || 'submission'),
+                request_id: String(payload.request_id || ''),
+                source_edited_at: String(payload.source_edited_at || ''),
+                client_slug: String(payload.client_slug || ''),
+                batch_id: String(payload.batch_id || ''),
+                expected_batch_updated_at: String(payload.expected_batch_updated_at || ''),
+                items: (Array.isArray(payload.items) ? payload.items : []).map(item => ({
+                    team: String(item.team || ''), videoNumber: Number(item.videoNumber),
+                    card_id: String(item.card_id || '')
+                }))
+            },
+            context: {
+                initiating_actor_id: String(job && job.context && job.context.initiating_actor_id || ''),
+                initiating_actor_role: String(job && job.context && job.context.initiating_actor_role || ''),
+                clientSlug: String(job && job.context && job.context.clientSlug || payload.client_slug || ''),
+                mode: String(job && job.context && job.context.mode || ''),
+                surface: String(job && job.context && job.context.surface || payload.surface || 'submission'),
+                materialization_source: String(job && job.context && job.context.materialization_source || ''),
+                batch_choice: String(job && job.context && job.context.batch_choice || '')
+            },
+            result: {
+                ok: true, native_committed: true,
+                batch: result.batch && result.batch.id ? { id: result.batch.id } : null,
+                items: (Array.isArray(result.items) ? result.items : []).map(item => ({
+                    item_index: Number(item.item_index), id: String(item.id || ''),
+                    team: String(item.team || ''), card_id: String(item.card_id || ''),
+                    linear_issue_url: String(item.linear_issue_url || ''),
+                    title: String(item.title || ''), video_number: Number(item.video_number || 0)
+                })),
+                mirror_pending: result.mirror_pending === true
+            },
+            completed_card_ids: Array.isArray(job && job.completed_card_ids) ? job.completed_card_ids.slice() : [],
+            stage: String(job && job.stage || 'materializing_cards'),
+            telemetry_sent: job && job.telemetry_sent === true
+        };
+    }
+    function _linearIntakePersistRecovery(job) {
+        if (!_linearIntakeWrite(_linearIntakeRecoveryCopy(job))) throw new Error('native_intake_checkpoint_failed');
+    }
+    function _linearIntakeCheckpointOrSuspend(job) {
+        try { _linearIntakeRequireActor(job); }
+        catch (error) {
+            if (job && job.result && job.result.native_committed === true) _linearIntakePersistRecovery(job);
+            throw error;
+        }
+        job.version = 3;
+        job.suspended = false;
+        if (!_linearIntakeWrite(job)) throw new Error('native_intake_checkpoint_failed');
+    }
+    function _linearIntakePurgeSensitiveState() {
+        try { localStorage.removeItem(LINEAR_FORM_KEY); } catch (e) {}
+        try { localStorage.removeItem(LAST_LINK_KEY); } catch (e) {}
+        // A held Submit contains the same private draft fields as the ordinary
+        // form plus its preallocated request identity. It must never survive a
+        // staff sign-out and resume under the next verified principal.
+        try { localStorage.removeItem(LINEAR_INTAKE_HOLD_KEY); } catch (e) {}
+        const purge = () => {
+            const job = _linearIntakeRead();
+            if (!job) return;
+            try {
+                if (job.result && job.result.native_committed === true) _linearIntakePersistRecovery(job);
+                else _linearIntakeRemoveIfCurrent(_linearIntakeJobId(job));
+            } catch (e) {
+                // Fail closed if the browser cannot write a scrubbed recovery:
+                // do not leave the sensitive uncommitted/full payload behind.
+                _linearIntakeRemoveIfCurrent(_linearIntakeJobId(job));
+            }
+        };
+        if (typeof navigator === 'undefined' || !navigator.locks || typeof navigator.locks.request !== 'function') {
+            // Current-version creation is disabled without Web Locks, so there
+            // cannot be a concurrent current-version job. Remove any older
+            // sensitive payload rather than retaining it after sign-out.
+            try { localStorage.removeItem(NATIVE_INTAKE_PENDING_KEY); } catch (e) {}
+            return Promise.resolve();
+        }
+        return _linearIntakeWithLock(purge).catch(() => {
+            try { localStorage.removeItem(NATIVE_INTAKE_PENDING_KEY); } catch (e) {}
+        });
+    }
+    function _linearIntakePending(signature, makePayload, context, seed) {
+        const saved = _linearIntakeRead();
+        if (saved) {
+            if (saved.signature !== signature) {
+                // A recovery copy blocks under its own code: it is not an
+                // intake the user can go back and finish, so the generic
+                // pending-conflict copy sends them looking for a dialog that
+                // does not exist. It clears itself after repeated failures.
+                const code = saved.recovery_only === true
+                    ? 'native_intake_recovery_pending' : 'native_intake_pending_conflict';
+                const error = new Error(code);
+                error.code = code;
+                throw error;
+            }
+            if (!saved.context || !saved.context.initiating_actor_id) {
+                saved.context = Object.assign({}, saved.context || {}, context || {});
+            }
+            _linearIntakeRequireActor(saved);
+            saved.version = 3;
+            saved.context = saved.context || context || {};
+            saved.completed_card_ids = Array.isArray(saved.completed_card_ids) ? saved.completed_card_ids : [];
+            saved.stage = saved.stage || (saved.result ? 'materializing_cards' : 'request_pending');
+            _linearIntakeWrite(saved);
+            return saved;
+        }
+        const requestId = String(seed && seed.request_id || '') || _linearIntakeRequestId(context && context.surface);
+        const sourceEditedAt = String(seed && seed.source_edited_at || '') || new Date().toISOString();
+        const payload = makePayload(requestId, sourceEditedAt);
+        const pending = {
+            version: 3, signature, payload, context: context || {}, result: null,
+            completed_card_ids: [], stage: 'request_pending', telemetry_sent: false
+        };
+        if (!_linearIntakeWrite(pending, { allowCreate: true })) throw new Error('native_intake_storage_unavailable');
+        return pending;
+    }
+
+    /* The per-video Notes box (owner request 2026-08-21) is the human half of
+       the brief and leads, because the editor reads the ask before the assets.
+       The footage lines follow unchanged. */
+    function _linearVideoBrief(video) {
+        const notes = String(video && video.notes || '').trim();
+        const assets = [
+            video.main_cam ? 'Main camera: ' + video.main_cam : '',
+            video.side_cam ? 'Side camera: ' + video.side_cam : '',
+            video.audio ? 'Audio: ' + video.audio : ''
+        ].filter(Boolean).join('\n');
+        return [notes, assets].filter(Boolean).join('\n\n');
+    }
+    /* The thumbnail child gets the SAME note as the video (restored
+       2026-09-08). It briefly returned nothing at all, because forwarding it
+       used to outrank the server's generated thumbnail text outright (the
+       note alone became the whole description, and the generator was never
+       even asked to run) -- but the owner does not want the note dropped
+       either; he wants BOTH, the note as a baseline the designer always sees,
+       with a generated title appended below it when one is available. The
+       server now owns combining the two (see THUMBNAIL_TEXT_AI_LABEL and the
+       brief expression in handleIntakeCreate): a caller-supplied note no
+       longer blocks generation, it is joined with a labelled generated line
+       instead of being replaced by or replacing it. */
+    function _linearThumbnailBrief(video) {
+        return String(video && video.notes || '').trim();
+    }
+
+    function _linearIntakeBatchTitle(clientName, surface) {
+        const name = String(clientName || '').trim();
+        if (!name) return '';
+        const formatted = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        // The batch name becomes the Linear PARENT issue's title, so a samples
+        // batch says so in the middle where it cannot be truncated away
+        // (owner 2026-08-19: the parent must mention it is a sample).
+        return name + (surface === 'sxr' ? ' · Samples · ' : ' · ') + formatted;
+    }
+    function _linearIntakeItems(mode, videos, requestId, surface, videoAssigneeId) {
+        const safeRequest = String(requestId || '').replace(/[^a-z0-9]+/gi, '').toLowerCase().slice(-28);
+        // Samples children are titled 'Sample Video N' (owner 2026-08-19); the
+        // gateway composes the graphics half and prefixes it the same way.
+        const titlePrefix = surface === 'sxr' ? 'Sample ' : '';
+        const items = [];
+        (Array.isArray(videos) ? videos : []).forEach((video, index) => {
+            const number = Number(video && (video.number || video.videoNumber) || index + 1);
+            const cardId = 'p_native_' + safeRequest + '_' + number;
+            /* The post name (owner 2026-09-07) rides on BOTH halves as `name`,
+               and the gateway composes each title from it plus the ordinal it
+               allocates. The video `title` below stays a full string only
+               because the Submit tab has always sent one and the create path
+               still honours it; on an append the gateway overwrites it, which
+               is correct -- the batch owns the number, not this file. */
+            const postName = String(video && video.name || '').trim();
+            const named = suffix => postName ? suffix + CAL_NATIVE_TITLE_SEPARATOR + postName : suffix;
+            /* The chosen editor rides on the VIDEO item only. Graphics assigns
+               by its single default designer and the gateway refuses an
+               override there, so sending one would fail the whole submission.
+               Omitted entirely when nothing was chosen, which keeps the payload
+               byte-identical to the pre-picker shape. */
+            const chosenEditor = String(videoAssigneeId || '');
+            if (mode === 'video' || mode === 'both') items.push({
+                team: 'video', videoNumber: number, title: named(titlePrefix + 'Video ' + number),
+                brief: _linearVideoBrief(video || {}), due_date: video && video.dueDate || null,
+                status: PROD_CREATED_STATUS, card_id: cardId, sort_key: index,
+                ...(postName ? { name: postName } : {}),
+                ...(chosenEditor ? { assignee_id: chosenEditor } : {})
+            });
+            if (mode === 'thumbnail' || mode === 'both') items.push({
+                team: 'graphics', videoNumber: number, brief: _linearThumbnailBrief(video || {}),
+                due_date: video && video.dueDate || null,
+                status: PROD_CREATED_STATUS, card_id: cardId, sort_key: index,
+                ...(postName ? { name: postName } : {})
+            });
+        });
+        return items;
+    }
+
+    function _linearStableJson(value) {
+        if (value === null || typeof value !== 'object') return JSON.stringify(value);
+        if (Array.isArray(value)) return '[' + value.map(_linearStableJson).join(',') + ']';
+        return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + _linearStableJson(value[key])).join(',') + '}';
+    }
+
+    async function _linearPayloadHash(value) {
+        if (!globalThis.crypto || !globalThis.crypto.subtle || typeof TextEncoder === 'undefined') {
+            throw new Error('Secure submission hashing is unavailable in this browser. Reload SyncView and retry.');
+        }
+        const bytes = new TextEncoder().encode(_linearStableJson(value));
+        const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+        return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+
+    function _linearStorageError(message) {
+        const error = new Error(message);
+        error.linearStorageError = true;
+        return error;
+    }
+
+    function _linearDraftSnapshot(client, heldDraftRaw) {
+        try {
+            // A held retry replays the filming-plan link preserved in the hold
+            // (never the live lookup), so the derived plan field must not decide
+            // the exact-bytes comparison below. On a reload, routing can finish
+            // while loadLinearPlanMap() is still pending, leaving the resolved
+            // URL empty; re-saving the form then would overwrite the held link
+            // and report a false held_submission_conflict. Restore the held
+            // value first; every user-editable field still compares exactly.
+            if (typeof heldDraftRaw === 'string' && heldDraftRaw) {
+                let heldPlan = '';
+                try { heldPlan = String(JSON.parse(heldDraftRaw).filmingPlans || ''); } catch (e) {}
+                _linearResolvedPlanUrl = heldPlan;
+            }
+            const expected = saveLinearForm();
+            const raw = localStorage.getItem(LINEAR_FORM_KEY);
+            if (!raw || !expected || _linearStableJson(JSON.parse(raw)) !== _linearStableJson(expected)) {
+                throw new Error('draft readback mismatch');
+            }
+            if (String(expected.client || '').trim() !== String(client || '').trim()) {
+                throw new Error('draft client mismatch');
+            }
+            return { form_raw: raw, last_link_raw: localStorage.getItem(LAST_LINK_KEY) };
+        } catch (error) {
+            throw _linearStorageError('SyncView could not safely save and verify this draft in your browser.');
+        }
+    }
+
+    function _linearSubmissionHoldSnapshot() {
+        let raw;
+        try { raw = localStorage.getItem(LINEAR_INTAKE_HOLD_KEY); }
+        catch (error) { return null; }
+        if (!raw) return null;
+        try {
+            const hold = JSON.parse(raw);
+            if (!hold || hold.version !== 1 || !hold.mode || typeof hold.draft_raw !== 'string') return null;
+            if (!hold.request_id || !hold.source_edited_at || !hold.client_name) return null;
+            if (!Array.isArray(hold.legacy_receipt_keys)) return null;
+            if (typeof hold.legacy_receipt_present !== 'boolean') return null;
+            if (!hold.computed_title || !Array.isArray(hold.computed_due_dates)
+                || hold.computed_due_dates.some(value => typeof value !== 'string' || !value)) return null;
+            return { hold, raw };
+        } catch (error) { return null; }
+    }
+    function _linearSubmissionHoldRead() {
+        const snapshot = _linearSubmissionHoldSnapshot();
+        return snapshot && snapshot.hold || null;
+    }
+    function _linearSubmissionHoldReceiptKeys(raw) {
+        if (!raw) return [];
+        try {
+            const parsed = JSON.parse(raw);
+            const receipts = parsed && parsed.version === 1 && parsed.receipts && typeof parsed.receipts === 'object'
+                ? Object.values(parsed.receipts) : [];
+            return receipts.map(receipt => String(receipt && receipt.receipt_key || '').trim())
+                .filter(key => /^linear-intake-v1:[a-z]+:[a-f0-9]{64}$/i.test(key)).sort();
+        } catch (error) { return []; }
+    }
+    function _linearSubmissionHoldMessage(hold) {
+        const keys = Array.isArray(hold && hold.legacy_receipt_keys) ? hold.legacy_receipt_keys : [];
+        if (hold && hold.legacy_receipt_present) {
+            const identity = keys.length ? ' under ' + keys.map(key => 'Recovery ID: ' + key).join('; ') : '';
+            return 'This submission is saved and held' + identity
+                + '. SyncView will retry recovery itself on the next page load. This older receipt cannot be moved to the native route without same-identity backend recovery; nothing was sent to Linear.';
+        }
+        return 'This submission is saved. SyncView will send it itself on the next page load when the safe native route is available. Nothing was sent to Linear.';
+    }
+    function _linearSubmissionHoldComputed() {
+        const todayISO = wlTodayISO();
+        const dueDates = [];
+        document.querySelectorAll('[id^="videoCard_"]').forEach((_card, index) => {
+            dueDates.push(wlAddWorkingDays(todayISO, (Math.floor(index / 5) + 1) * 5));
+        });
+        return { title: buildLinearTitle(), due_dates: dueDates };
+    }
+    function _linearHoldSubmission(mode, reason, options) {
+        const input = document.getElementById('linearClientSearch');
+        const status = document.getElementById('linearStatus');
+        const clientName = String(input && input.value || '').trim();
+        const clientSlug = String(input && input.dataset && input.dataset.clientSlug || '').trim();
+        if (!clientName) {
+            const message = 'Please select a client.';
+            if (status) status.textContent = message;
+            return { ok: false, held: false, reason: 'client_required', error: message };
+        }
+        const prior = _linearSubmissionHoldSnapshot();
+        let draft;
+        try { draft = _linearDraftSnapshot(clientName, prior && prior.hold.draft_raw); }
+        catch (error) {
+            const message = 'Nothing was sent. SyncView could not verify browser storage, so this submission cannot safely send itself. Keep this page open and restore site storage before retrying.';
+            if (status) status.textContent = message;
+            return { ok: false, held: false, reason, error: message };
+        }
+        const legacyReceiptKeys = _linearSubmissionHoldReceiptKeys(options && options.legacy_receipts_raw);
+        if (prior && (prior.hold.mode !== mode || prior.hold.client_name !== clientName
+            || prior.hold.client_slug !== clientSlug || prior.hold.draft_raw !== draft.form_raw)) {
+            const message = 'A different submission is already saved and will send itself. Reload this page to resume it before starting another.';
+            if (status) status.textContent = message;
+            return { ok: false, held: true, reason: 'held_submission_conflict', error: message };
+        }
+        let computed;
+        try { computed = prior ? {
+            title: prior.hold.computed_title,
+            due_dates: prior.hold.computed_due_dates.slice()
+        } : _linearSubmissionHoldComputed(); }
+        catch (error) {
+            const message = 'Nothing was sent. SyncView could not preserve this submission\'s exact schedule for automatic retry. Keep this page open and retry after reloading.';
+            if (status) status.textContent = message;
+            return { ok: false, held: false, reason, error: message };
+        }
+        const hold = Object.assign({}, prior && prior.hold || {}, {
+            version: 1,
+            mode,
+            reason: String(reason || 'native_route_unavailable'),
+            request_id: prior && prior.hold.request_id || _linearIntakeRequestId('submission'),
+            source_edited_at: prior && prior.hold.source_edited_at || new Date().toISOString(),
+            client_name: clientName,
+            client_slug: clientSlug,
+            draft_raw: draft.form_raw,
+            last_link_raw: draft.last_link_raw,
+            computed_title: computed.title,
+            computed_due_dates: computed.due_dates,
+            legacy_receipt_keys: legacyReceiptKeys.length
+                ? legacyReceiptKeys : (prior && prior.hold.legacy_receipt_keys || []),
+            legacy_receipt_present: !!(options && options.legacy_receipts_raw)
+                || !!(prior && prior.hold.legacy_receipt_present),
+            created_at: prior && prior.hold.created_at || new Date().toISOString(),
+            created_load_id: LINEAR_INTAKE_LOAD_ID
+        });
+        const encoded = _linearStableJson(hold);
+        try {
+            localStorage.setItem(LINEAR_INTAKE_HOLD_KEY, encoded);
+            if (localStorage.getItem(LINEAR_INTAKE_HOLD_KEY) !== encoded) throw new Error('hold readback mismatch');
+        } catch (error) {
+            const message = 'Nothing was sent. Your draft is still on this page, but SyncView could not save an automatic retry. Restore site storage, then retry.';
+            if (status) status.textContent = message;
+            return { ok: false, held: false, reason, error: message };
+        }
+        const message = _linearSubmissionHoldMessage(hold);
+        if (status) status.textContent = message;
+        return { ok: false, held: true, reason, request_id: hold.request_id,
+            recovery_ids: hold.legacy_receipt_keys.slice(), message };
+    }
+
+    function _linearReceiptStoreRead() {
+        let raw;
+        try { raw = localStorage.getItem(LINEAR_RECEIPTS_KEY); }
+        catch (error) { throw _linearStorageError('SyncView could not read the saved submission receipt.'); }
+        if (!raw) return { version: 1, receipts: {} };
+        try {
+            const store = JSON.parse(raw);
+            if (!store || store.version !== 1 || !store.receipts || typeof store.receipts !== 'object' || Array.isArray(store.receipts)) {
+                throw new Error('invalid receipt store');
+            }
+            return store;
+        } catch (error) {
+            throw _linearStorageError('The saved submission receipt is unreadable. No request was sent.');
+        }
+    }
+
+    function _linearReceiptStoreWrite(store) {
+        const encoded = _linearStableJson(store);
+        try {
+            localStorage.setItem(LINEAR_RECEIPTS_KEY, encoded);
+            const readback = localStorage.getItem(LINEAR_RECEIPTS_KEY);
+            if (readback !== encoded || _linearStableJson(JSON.parse(readback)) !== encoded) {
+                throw new Error('receipt readback mismatch');
+            }
+            return encoded;
+        } catch (error) {
+            throw _linearStorageError('SyncView could not safely save and verify the submission receipt.');
+        }
+    }
+
+    function _linearTargetForTeam(team) {
+        if (team === 'video') return { team, label: 'Video', url: VIDEO_FORM_WEBHOOK };
+        if (team === 'graphics') return { team, label: 'Graphics', url: GRAPHIC_FORM_WEBHOOK };
+        return null;
+    }
+
+    function _linearSelectedTeams(mode) {
+        const teams = [];
+        if (mode === 'video' || mode === 'both') teams.push('video');
+        if (mode === 'thumbnail' || mode === 'both') teams.push('graphics');
+        return teams;
+    }
+
+    function _linearReceiptKey(team, payloadHash) {
+        return 'linear-intake-v1:' + team + ':' + payloadHash;
+    }
+
+    function _linearUuid(value) {
+        const id = String(value || '').trim();
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id) ? id : '';
+    }
+
+    function _linearResponseParentId(result) {
+        const parent = result && (result.parent || result.parent_issue || result.issue) || {};
+        return _linearUuid(result && (result.parent_id || result.parentId)) || _linearUuid(parent.id);
+    }
+
+    function _linearConfirmedCreate(result, receipt) {
+        if (!result || result.ok !== true || String(result.status || '').toLowerCase() !== 'created') return false;
+        if (String(result.ledger_status || '').toLowerCase() !== 'created') return false;
+        if (String(result.team || '') !== receipt.team || String(result.payload_hash || '') !== receipt.payload_hash) return false;
+        if (String(result.receipt_key || '') !== receipt.receipt_key) return false;
+        if (result.idempotency_key != null && String(result.idempotency_key) !== receipt.receipt_key) return false;
+        if (!_linearResponseParentId(result)) return false;
+        const children = Array.isArray(result.child_issue_ids) ? result.child_issue_ids.map(_linearUuid) : [];
+        const expectedChildren = Array.isArray(receipt.payload && receipt.payload.videos) ? receipt.payload.videos.length : 0;
+        return expectedChildren > 0
+            && children.length === expectedChildren
+            && children.every(Boolean)
+            && new Set(children).size === expectedChildren;
+    }
+
+    function _linearConfirmedReceived(result, receipt) {
+        if (!result || result.ok !== true || String(result.status || '').toLowerCase() !== 'received') return false;
+        if (result.durable_capture !== true || result.triage_required !== true) return false;
+        if (String(result.team || '') !== receipt.team || String(result.payload_hash || '') !== receipt.payload_hash) return false;
+        if (String(result.receipt_key || '') !== receipt.receipt_key) return false;
+        if (String(result.idempotency_key || '') !== receipt.receipt_key) return false;
+        const ledgerStatus = String(result.ledger_status || '').toLowerCase();
+        if (!['pending', 'failed', 'partial'].includes(ledgerStatus)) return false;
+        const codes = Array.isArray(result.triage_reason_codes) ? result.triage_reason_codes : [];
+        return codes.length > 0 && codes.every(code => /^[a-z0-9_:-]{1,120}$/i.test(String(code || '')));
+    }
+
+    function _linearSafeReceiptRef(receipt, result, status) {
+        const rawId = String(result && (result.receipt_id || result.receipt_ref) || '');
+        const receiptId = /^[A-Za-z0-9:_-]{1,200}$/.test(rawId) ? rawId : '';
+        return {
+            team: receipt.team,
+            payload_hash: receipt.payload_hash,
+            receipt_key: receipt.receipt_key,
+            receipt_id: receiptId || null,
+            status: String(status || 'pending').slice(0, 40),
+            parent_id: _linearResponseParentId(result) || null
+        };
+    }
+
+    function _linearReceiptFailure(message, receipt, result, status) {
+        const error = new Error(message);
+        error.linearReceiptRef = _linearSafeReceiptRef(receipt, result, status);
+        error.linearReceiptStatus = status || 'failed';
+        return error;
+    }
+
+    function _linearCreateError(result, response, label) {
+        const detail = result && (result.error || result.detail || (response && !response.ok && result.message));
+        if (detail) return String(detail);
+        if (response && !response.ok) return label + ' creation failed (HTTP ' + response.status + ').';
+        if (result && result.ok === true && String(result.status || '').toLowerCase() === 'created') {
+            return label + ' returned a stale or mismatched receipt confirmation.';
+        }
+        return label + ' creation was not confirmed by the server.';
+    }
+
+    function _linearRecoveryIdText(items, includeCreated) {
+        return (items || []).filter(item => item && item.receipt_key && (includeCreated || !item.ok)).map(item => {
+            const target = _linearTargetForTeam(item.team);
+            return (target ? target.label + ' ' : '') + 'Recovery ID: ' + String(item.receipt_key);
+        }).join('; ');
+    }
+
+    async function _linearPrepareReceipts(client, selectedTeams, draftSnapshot, payloadFactory) {
+        let store = _linearReceiptStoreRead();
+        const storeSnapshotJson = _linearStableJson(store);
+        let existing = Object.values(store.receipts).filter(Boolean);
+        let payload = null;
+        let payloadHash = '';
+        let originalDraft = draftSnapshot;
+
+        if (existing.length) {
+            payload = existing[0].payload;
+            originalDraft = {
+                form_raw: existing[0].draft_raw,
+                last_link_raw: existing[0].last_link_raw == null ? null : existing[0].last_link_raw
+            };
+            if (!payload || typeof originalDraft.form_raw !== 'string') {
+                throw _linearStorageError('The saved submission receipt failed its integrity check.');
+            }
+            payloadHash = await _linearPayloadHash(payload);
+            const storedPayloadJson = _linearStableJson(payload);
+            const invalidExisting = Object.entries(store.receipts).some(([slot, receipt]) => !receipt
+                || slot !== receipt.team
+                || !_linearTargetForTeam(receipt.team)
+                || receipt.payload_hash !== payloadHash
+                || receipt.receipt_key !== _linearReceiptKey(receipt.team, payloadHash)
+                || _linearStableJson(receipt.payload) !== storedPayloadJson
+                || receipt.draft_raw !== originalDraft.form_raw
+                || (receipt.last_link_raw == null ? null : receipt.last_link_raw) !== originalDraft.last_link_raw);
+            if (invalidExisting) throw _linearStorageError('The saved submission receipt failed its integrity check.');
+
+            const currentLastLink = draftSnapshot.last_link_raw == null ? null : draftSnapshot.last_link_raw;
+            const draftChanged = draftSnapshot.form_raw !== originalDraft.form_raw
+                || currentLastLink !== originalDraft.last_link_raw;
+            // A durably received submission is terminal for the client even
+            // when an internal prerequisite still needs staff triage. Do not
+            // let that receipt block a later, genuinely new draft.
+            const allTerminal = existing.every(receipt => (receipt.status === 'created' && _linearUuid(receipt.parent_id))
+                || receipt.status === 'received');
+            if (allTerminal && draftChanged) {
+                const currentPayload = payloadFactory();
+                const currentPayloadHash = await _linearPayloadHash(currentPayload);
+                // The old set is already terminal, but another tab may have
+                // replaced it while hashing. Re-read immediately before the
+                // one-write replacement and fail closed on any divergence.
+                if (_linearStableJson(_linearReceiptStoreRead()) !== storeSnapshotJson) {
+                    throw _linearStorageError('The submission receipt changed in another tab. Review its latest result before retrying.');
+                }
+                store = { version: 1, receipts: {} };
+                existing = [];
+                payload = currentPayload;
+                payloadHash = currentPayloadHash;
+                originalDraft = draftSnapshot;
+            }
+        } else {
+            payload = payloadFactory();
+            payloadHash = await _linearPayloadHash(payload);
+        }
+        if (String(payload.clientName || '').trim() !== String(client || '').trim()) {
+            throw _linearStorageError('A different client has a pending submission receipt. Finish or recover it before starting another.');
+        }
+        const allTeams = [...new Set(existing.map(receipt => receipt.team).concat(selectedTeams))];
+        const now = new Date().toISOString();
+        for (const team of allTeams) {
+            if (!_linearTargetForTeam(team)) throw _linearStorageError('The pending submission receipt contains an unknown team.');
+            const expectedKey = _linearReceiptKey(team, payloadHash);
+            const receipt = store.receipts[team];
+            if (receipt) {
+                if (receipt.team !== team || receipt.payload_hash !== payloadHash || receipt.receipt_key !== expectedKey
+                    || _linearStableJson(receipt.payload) !== _linearStableJson(payload)
+                    || receipt.draft_raw !== originalDraft.form_raw
+                    || (receipt.last_link_raw == null ? null : receipt.last_link_raw) !== originalDraft.last_link_raw) {
+                    throw _linearStorageError('The saved ' + team + ' submission receipt failed its integrity check.');
+                }
+                continue;
+            }
+            store.receipts[team] = {
+                version: 1,
+                team,
+                payload,
+                payload_hash: payloadHash,
+                receipt_key: expectedKey,
+                status: 'pending',
+                draft_raw: originalDraft.form_raw,
+                last_link_raw: originalDraft.last_link_raw,
+                created_at: now,
+                updated_at: now,
+                safe_ref: _linearSafeReceiptRef({ team, payload_hash: payloadHash, receipt_key: expectedKey }, null, 'pending')
+            };
+        }
+        const raw = _linearReceiptStoreWrite(store);
+        return { store, raw, teams: allTeams, payload, draftSnapshot: originalDraft };
+    }
+
+    async function _linearAwaitCreate(target, receipt) {
+        const controller = new AbortController();
+        let timeoutId = null;
+        const body = Object.assign({}, receipt.payload, {
+            team: receipt.team,
+            payload_hash: receipt.payload_hash,
+            receipt_key: receipt.receipt_key,
+            idempotency_key: receipt.receipt_key
+        });
+        const request = (async () => {
+            let response;
+            try {
+                response = await fetch(target.url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                    signal: controller.signal
+                });
+            } catch (error) {
+                if (error && error.name === 'AbortError') {
+                    throw _linearReceiptFailure(target.label + ' creation timed out before confirmation.', receipt, null, 'timeout');
+                }
+                throw _linearReceiptFailure(target.label + ' creation could not be confirmed (' + ((error && error.message) || 'network error') + ').', receipt, null, 'failed');
+            }
+            let result = null;
+            try { result = await response.json(); } catch (error) {}
+            const created = _linearConfirmedCreate(result, receipt);
+            const received = !created && _linearConfirmedReceived(result, receipt);
+            if (!response.ok || (!created && !received)) {
+                throw _linearReceiptFailure(_linearCreateError(result, response, target.label), receipt, result, 'failed');
+            }
+            return {
+                kind: created ? 'created' : 'received',
+                result,
+                parent_id: created ? _linearResponseParentId(result) : null,
+                receipt_ref: _linearSafeReceiptRef(receipt, result, created ? 'created' : 'received')
+            };
+        })();
+        const timeout = new Promise((resolve, reject) => {
+            timeoutId = setTimeout(() => {
+                controller.abort();
+                reject(_linearReceiptFailure(target.label + ' creation timed out before confirmation.', receipt, null, 'timeout'));
+            }, LINEAR_SUBMIT_TIMEOUT_MS);
+        });
+        try { return await Promise.race([request, timeout]); }
+        finally { clearTimeout(timeoutId); }
+    }
+
+    function _linearApplyReceiptOutcomes(outcomes) {
+        const store = _linearReceiptStoreRead();
+        const now = new Date().toISOString();
+        outcomes.forEach(outcome => {
+            const receipt = store.receipts[outcome.team];
+            if (!receipt || receipt.receipt_key !== outcome.receipt_key || receipt.payload_hash !== outcome.payload_hash) {
+                throw _linearStorageError('The ' + outcome.team + ' receipt changed while this request was running.');
+            }
+            // A slower failure must never downgrade a terminal result written by
+            // another tab using the same idempotent receipt.
+            const terminal = outcome.kind === 'created' || outcome.kind === 'received';
+            if (receipt.status === 'created' && _linearUuid(receipt.parent_id) && outcome.kind !== 'created') return;
+            if (receipt.status === 'received' && outcome.kind === 'failed') return;
+            receipt.status = outcome.kind === 'created' ? 'created'
+                : (outcome.kind === 'received' ? 'received' : outcome.status);
+            receipt.parent_id = outcome.kind === 'created' ? outcome.parent_id : (receipt.parent_id || null);
+            receipt.last_error = terminal ? null : outcome.error;
+            receipt.safe_ref = outcome.receipt_ref;
+            receipt.updated_at = now;
+        });
+        const raw = _linearReceiptStoreWrite(store);
+        return { store, raw };
+    }
+
+    function _linearCompareRemove(key, expectedRaw) {
+        try {
+            if (localStorage.getItem(key) === expectedRaw) localStorage.removeItem(key);
+        } catch (error) {}
+    }
+
+    function _linearRestoreSubmitButtons(states) {
+        states.forEach(state => {
+            state.button.disabled = state.disabled;
+            if (state.label) state.label.textContent = state.text;
+            else state.button.textContent = state.text;
+        });
+    }
+
+    function submitLinearForm(mode) {
+        // Install the lock before hashing/fetch can yield, so same-tick double
+        // clicks share one request, one receipt, and one terminal result.
+        if (linearSubmitInFlight) return linearSubmitInFlight;
+        const request = _submitLinearFormRoutedOnce(mode);
+        const guarded = request.finally(() => {
+            if (linearSubmitInFlight === guarded) linearSubmitInFlight = null;
+        });
+        linearSubmitInFlight = guarded;
+        return guarded;
+    }
+
+    async function _submitLinearFormOnce(mode) {
+        const client = document.getElementById('linearClientSearch')?.value?.trim();
+        const allBtns = ['linearSubmitBtnVideo', 'linearSubmitBtnThumbnail', 'linearSubmitBtnBoth'].map(id => document.getElementById(id));
+        const buttonStates = allBtns.filter(Boolean).map(button => {
+            const label = button.querySelector('.linear-submit-primary-label');
+            return { button, label, disabled: button.disabled, text: label ? label.textContent : button.textContent };
+        });
+        const status = document.getElementById('linearStatus');
+        if (!client) {
+            if (status) status.textContent = 'Please select a client.';
+            return { ok: false, error: 'Please select a client.' };
+        }
+        const selectedTeams = _linearSelectedTeams(mode);
+        if (!selectedTeams.length) {
+            if (status) status.textContent = 'Choose a valid submission type and retry.';
+            return { ok: false, error: 'Choose a valid submission type and retry.' };
+        }
+        allBtns.forEach(b => { if (b) b.disabled = true; });
+        const activeBtn = document.getElementById(mode === 'video' ? 'linearSubmitBtnVideo' : mode === 'thumbnail' ? 'linearSubmitBtnThumbnail' : 'linearSubmitBtnBoth');
+        if (activeBtn) {
+            const label = activeBtn.querySelector('.linear-submit-primary-label');
+            if (label) label.textContent = 'Submitting...';
+            else activeBtn.textContent = 'Submitting...';
+        }
+        if (status) status.textContent = '';
+
+        let prepared = null;
+        let networkStarted = false;
+        try {
+            const draftSnapshot = _linearDraftSnapshot(client);
+            prepared = await _linearPrepareReceipts(client, selectedTeams, draftSnapshot, () => {
+                const title = buildLinearTitle();
+                const notes = document.getElementById('linearNotes')?.value?.trim();
+                const filmingPlans = String(_linearResolvedPlanUrl || '').trim();
+                const generalDrive = document.getElementById('linearGeneralDrive')?.value?.trim() || '';
+                const descParts = [];
+                if (filmingPlans) descParts.push('Filming Plan: ' + filmingPlans);
+                if (generalDrive) descParts.push('General Drive: ' + generalDrive);
+                if (descParts.length && notes) descParts.push('');
+                if (notes) descParts.push(notes);
+
+                const videos = [];
+                const videoNotes = [];
+                let num = 1;
+                const todayISO = wlTodayISO();
+                document.querySelectorAll('[id^="videoCard_"]').forEach(card => {
+                    const id = card.id.replace('videoCard_', '');
+                    const batchIndex = Math.floor((num - 1) / 5);
+                    const number = num++;
+                    // Read by the OWN id suffix of the card, like every field beside
+                    // it: the sequence number and the suffix agree only after a
+                    // renumber, and a stale pairing would file the note of one video
+                    // under the name of another.
+                    const note = String(document.getElementById('vid_notes_' + id)?.value || '').trim();
+                    if (note) videoNotes.push('Video ' + number + ' notes: ' + note);
+                    videos.push({
+                        number,
+                        main_cam: document.getElementById('vid_main_' + id)?.value?.trim() || '',
+                        side_cam: document.getElementById('vid_side_' + id)?.value?.trim() || '',
+                        audio: document.getElementById('vid_audio_' + id)?.value?.trim() || '',
+                        dueDate: wlAddWorkingDays(todayISO, (batchIndex + 1) * 5)
+                    });
+                });
+                /* Per-video notes ride the BATCH note on this lane, never the
+                   video objects. The five video fields below are frozen by the
+                   deployed receipt contract -- migrations pin
+                   array['audio','dueDate','main_cam','number','side_cam'] and
+                   the database recomputes the canonical payload hash from
+                   exactly those keys, so a sixth key would make every legacy
+                   submission fail its own idempotency check. Folding the notes
+                   into the parent description keeps the text with the work
+                   instead of dropping it silently when a stale receipt or an
+                   unenrolled client routes here. */
+                if (videoNotes.length) {
+                    if (descParts.length) descParts.push('');
+                    descParts.push(...videoNotes);
+                }
+                // This exact five-field object is the canonical server payload.
+                // UI mode and transport receipt metadata are deliberately absent.
+                return { clientName: client, filmingPlans, notes: descParts.join('\n'), title, videos };
+            });
+
+            // Keep the legacy Sheet log as best-effort telemetry. The durable
+            // per-team receipts above are already saved and read back first.
+            const webhookJson = JSON.stringify(prepared.teams.map(team => ({
+                headers: { 'content-type': 'application/json' },
+                params: {},
+                query: {},
+                body: Object.assign({}, prepared.payload, {
+                    team,
+                    payload_hash: prepared.store.receipts[team].payload_hash,
+                    receipt_key: prepared.store.receipts[team].receipt_key
+                }),
+                webhookUrl: _linearTargetForTeam(team).url,
+                executionMode: 'production'
+            })));
+            try {
+                Promise.resolve(fetch(LOG_SUBMISSION_WEBHOOK, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        timestamp: new Date().toISOString(),
+                        clientName: client,
+                        mode,
+                        receipt_keys: prepared.teams.map(team => prepared.store.receipts[team].receipt_key),
+                        webhookJson
+                    })
+                })).catch(() => {});
+            } catch (error) {}
+
+            const receipts = prepared.teams.map(team => prepared.store.receipts[team]);
+            networkStarted = true;
+            const settled = await Promise.allSettled(receipts.map(receipt => {
+                if (receipt.status === 'created' && _linearUuid(receipt.parent_id)) {
+                    return Promise.resolve({
+                        kind: 'created',
+                        parent_id: receipt.parent_id,
+                        receipt_ref: receipt.safe_ref || _linearSafeReceiptRef(receipt, { parent_id: receipt.parent_id }, 'created'),
+                        from_store: true
+                    });
+                }
+                if (receipt.status === 'received') {
+                    return Promise.resolve({
+                        kind: 'received',
+                        parent_id: null,
+                        receipt_ref: receipt.safe_ref || _linearSafeReceiptRef(receipt, null, 'received'),
+                        from_store: true
+                    });
+                }
+                return _linearAwaitCreate(_linearTargetForTeam(receipt.team), receipt);
+            }));
+            const outcomes = settled.map((entry, index) => {
+                const receipt = receipts[index];
+                if (entry.status === 'fulfilled') {
+                    const kind = entry.value.kind || 'created';
+                    return {
+                        ok: kind === 'created',
+                        kind,
+                        team: receipt.team,
+                        payload_hash: receipt.payload_hash,
+                        receipt_key: receipt.receipt_key,
+                        parent_id: kind === 'created' ? entry.value.parent_id : null,
+                        status: kind,
+                        receipt_ref: entry.value.receipt_ref
+                    };
+                }
+                const reason = entry.reason || {};
+                return {
+                    ok: false,
+                    kind: 'failed',
+                    team: receipt.team,
+                    payload_hash: receipt.payload_hash,
+                    receipt_key: receipt.receipt_key,
+                    parent_id: null,
+                    status: reason.linearReceiptStatus || 'failed',
+                    error: String(reason.message || 'creation was not confirmed'),
+                    receipt_ref: reason.linearReceiptRef || _linearSafeReceiptRef(receipt, null, reason.linearReceiptStatus || 'failed')
+                };
+            });
+
+            let applied;
+            try { applied = _linearApplyReceiptOutcomes(outcomes); }
+            catch (error) {
+                const summary = outcomes.map(outcome => (_linearTargetForTeam(outcome.team).label + ': ' + (outcome.kind === 'created' ? 'created' : outcome.kind === 'received' ? 'received for staff review' : outcome.error))).join('; ');
+                const recoveryIds = _linearRecoveryIdText(outcomes, true);
+                if (status) status.textContent = 'The server requests settled, but SyncView could not save their receipt results. ' + summary
+                    + (recoveryIds ? '. ' + recoveryIds : '') + '. Confirm the work before retrying.';
+                _linearRestoreSubmitButtons(buttonStates);
+                return {
+                    ok: false,
+                    error: error.message + (recoveryIds ? '. ' + recoveryIds : ''),
+                    storage_error: true,
+                    recovery_ids: outcomes.map(outcome => outcome.receipt_key),
+                    outcomes
+                };
+            }
+
+            const failures = outcomes.filter(outcome => outcome.kind === 'failed');
+            if (failures.length) {
+                const summary = outcomes.map(outcome => (_linearTargetForTeam(outcome.team).label + ': ' + (outcome.kind === 'created' ? 'created' : outcome.kind === 'received' ? 'received for staff review' : outcome.error))).join('; ');
+                const recoveryIds = _linearRecoveryIdText(outcomes, false);
+                if (status) status.textContent = 'Submission incomplete — ' + summary + (recoveryIds ? '. ' + recoveryIds : '')
+                    + '. Your draft and receipt are still saved. Retry to continue the same submission.';
+                _linearRestoreSubmitButtons(buttonStates);
+                return {
+                    ok: false,
+                    error: summary + (recoveryIds ? '. ' + recoveryIds : ''),
+                    partial: outcomes.some(outcome => outcome.kind === 'created' || outcome.kind === 'received'),
+                    recovery_ids: failures.map(outcome => outcome.receipt_key),
+                    outcomes
+                };
+            }
+
+            const hasReceived = outcomes.some(outcome => outcome.kind === 'received');
+            const completedMode = prepared.teams.includes('video') && prepared.teams.includes('graphics')
+                ? 'both' : (prepared.teams.includes('graphics') ? 'thumbnail' : 'video');
+            const payload = prepared.payload;
+            const videos = payload.videos;
+            const title = payload.title;
+            mode = completedMode;
+            if (!hasReceived) {
+                const cardJob = _calCardJobCreate(client, videos, title, mode);
+                _writeLinearVideoCardsToCalendar(client, videos, title, { mode, job: cardJob }).catch(error => {
+                    console.warn('[SyncView] Background calendar write failed:', error);
+                showNotify('Calendar sync issue', 'The Linear issues were created, but adding the matching cards to the content calendar failed. SyncView will retry automatically next time the app is opened — or open the calendar and use Create Post to add them now.');
+                });
+            }
+
+            // Another tab (or edits made while the request was in flight) may
+            // have saved newer work. Delete only the exact draft versions that
+            // produced this receipt; never erase a newer form or pasted link.
+            _linearCompareRemove(LINEAR_FORM_KEY, prepared.draftSnapshot.form_raw);
+            _linearCompareRemove(LAST_LINK_KEY, prepared.draftSnapshot.last_link_raw);
+            const allStoredTerminal = Object.values(applied.store.receipts).filter(Boolean)
+                .every(receipt => (receipt.status === 'created' && _linearUuid(receipt.parent_id)) || receipt.status === 'received');
+            if (allStoredTerminal) _linearCompareRemove(LINEAR_RECEIPTS_KEY, applied.raw);
+
+            linearJustCreated = hasReceived ? 'received' : true;
+            navTo('linear');
+            return { ok: true, status: hasReceived ? 'received' : 'created', outcomes };
+        } catch (error) {
+            const message = String((error && error.message) || 'Submission failed.');
+            const recoveryItems = prepared ? prepared.teams.map(team => ({
+                ok: false,
+                team,
+                receipt_key: prepared.store.receipts[team] && prepared.store.receipts[team].receipt_key
+            })) : [];
+            const recoveryIds = networkStarted ? _linearRecoveryIdText(recoveryItems, true) : '';
+            if (status) status.textContent = networkStarted
+                ? message + (recoveryIds ? ' ' + recoveryIds + '.' : '') + ' Confirm the work before retrying.'
+                : message + ' No create request was sent. SyncView cannot promise recovery until storage succeeds.';
+            _linearRestoreSubmitButtons(buttonStates);
+            return {
+                ok: false,
+                error: message + (recoveryIds ? ' ' + recoveryIds : ''),
+                recovery_ids: recoveryItems.map(item => item.receipt_key).filter(Boolean)
+            };
+        }
+    }
+
+    async function _submitLinearFormLegacy(mode) {
+        return _submitLinearFormOnce(mode);
+    }
+
+    async function _submitLinearFormRoutedOnce(mode) {
+        // A native job already owns its request id and accepted epoch. It stays
+        // on that exact recovery path even if the cohort changes while the
+        // browser is offline; never split a straddling batch between routes.
+        const pendingNativeIntake = _linearIntakeRead();
+        let legacyReceiptsRaw = '';
+        if (!pendingNativeIntake) {
+            try { legacyReceiptsRaw = localStorage.getItem(LINEAR_RECEIPTS_KEY) || ''; }
+            catch (error) { return _linearHoldSubmission(mode, 'legacy_receipt_read_failed'); }
+            // A receipt created before native intake may already represent a
+            // provider request. Posting it to the native gateway could create
+            // the same batch twice, while replaying its webhook would bypass
+            // outbound-off. Keep its original receipt identities in a visible
+            // hold until same-identity backend recovery exists.
+            if (legacyReceiptsRaw) {
+                return _linearHoldSubmission(mode, 'saved_legacy_receipt', { legacy_receipts_raw: legacyReceiptsRaw });
+            }
+        }
+        // A partially cached shell is not allowed to choose the old webhook.
+        // The durable hold retries after a full page load instead.
+        if (typeof _writeUiRerouteUseGatewayWhenReady !== 'function') {
+            return _linearHoldSubmission(mode, 'routing_helper_missing');
+        }
+        const input = document.getElementById('linearClientSearch');
+        const status = document.getElementById('linearStatus');
+        const clientName = input?.value?.trim() || '';
+        const selectedClientSlug = String(input?.dataset.clientSlug || '').trim();
+        const selectionStillCurrent = () => {
+            const current = document.getElementById('linearClientSearch');
+            return current === input
+                && String(current?.value || '').trim() === clientName
+                && String(current?.dataset.clientSlug || '').trim() === selectedClientSlug;
+        };
+        const useGateway = pendingNativeIntake
+            ? true
+            : await _writeUiRerouteUseGatewayWhenReady(selectedClientSlug || clientName);
+        if (!selectionStillCurrent()) {
+            if (status) status.textContent = 'The client selection changed. Review it and submit again.';
+            return;
+        }
+        if (!useGateway) {
+            return _linearHoldSubmission(mode, 'native_routing_unavailable');
+        }
+        if (!linearClientRows.length) await fetchLinearProjects();
+        if (!selectionStillCurrent()) {
+            if (status) status.textContent = 'The client selection changed. Review it and submit again.';
+            return;
+        }
+        const client = _linearResolveClientRow(clientName, selectedClientSlug);
+        if (!client) { status.textContent = 'Select one client from the native client list.'; return; }
+
+        /*
+         * The client link submits WITHOUT a staff identity (owner decision
+         * 2026-08-24). Clients and videographers use this link to send footage
+         * and are not staff, so demanding staff sign-in here is a dead end —
+         * `_syncviewStaffEligible()` is deliberately false in intake mode, so
+         * the dialog never opens and the require below could only ever throw.
+         * That is exactly what happened from the 2026-08-14 full-roster
+         * enrollment until this change: the gate is keyed on ENROLLMENT rather
+         * than authority, so once every client was enrolled every client took
+         * this branch and read `Staff sign-in required.` with nothing to click.
+         *
+         * The server is the real gate and is unchanged for everyone else:
+         * `production-write` admits a credential-less caller for `intake_create`
+         * on the `submission` surface only, behind a default-off runtime flag,
+         * rate-limited and marked `public-intake`. A STAFF submission from the
+         * normal tab still authenticates exactly as before — the identity is
+         * required below whenever this is not the client link.
+         */
+        let identity = null;
+        if (!(typeof _isIntake !== 'undefined' && _isIntake)) {
+            try { identity = await _syncviewRequireStaffIdentity('intake'); }
+            catch (error) { status.textContent = (error && error.message) || 'Admin or SMM sign-in required.'; return; }
+        }
+        if (!selectionStillCurrent()) {
+            if (status) status.textContent = 'The client selection changed. Review it and submit again.';
+            return;
+        }
+
+        const heldSnapshot = _linearSubmissionHoldSnapshot();
+        if (heldSnapshot && heldSnapshot.hold.legacy_receipt_present) {
+            return _linearHoldSubmission(mode, 'saved_legacy_receipt');
+        }
+        let heldDraft = null;
+        if (heldSnapshot) {
+            let currentDraft;
+            try { currentDraft = _linearDraftSnapshot(clientName, heldSnapshot.hold.draft_raw); }
+            catch (error) { return _linearHoldSubmission(mode, 'held_draft_unavailable'); }
+            if (heldSnapshot.hold.mode !== mode
+                || heldSnapshot.hold.client_name !== clientName
+                || heldSnapshot.hold.client_slug !== selectedClientSlug
+                || heldSnapshot.hold.draft_raw !== currentDraft.form_raw) {
+                return _linearHoldSubmission(mode, 'held_submission_conflict');
+            }
+            heldDraft = JSON.parse(currentDraft.form_raw);
+        }
+        const title = heldSnapshot ? heldSnapshot.hold.computed_title : buildLinearTitle();
+        const notes = document.getElementById('linearNotes')?.value?.trim() || '';
+        const filmingPlans = heldSnapshot
+            ? String(heldDraft && heldDraft.filmingPlans || '').trim()
+            : (_linearResolvedPlanUrl || '');
+        const generalDrive = document.getElementById('linearGeneralDrive')?.value?.trim() || '';
+        const videos = [];
+        let number = 1;
+        const todayISO = heldSnapshot ? '' : wlTodayISO();
+        document.querySelectorAll('[id^="videoCard_"]').forEach(card => {
+            const id = card.id.replace('videoCard_', '');
+            const batchIndex = Math.floor((number - 1) / 5);
+            const dueDate = heldSnapshot
+                ? heldSnapshot.hold.computed_due_dates[number - 1]
+                : wlAddWorkingDays(todayISO, (batchIndex + 1) * 5);
+            videos.push({
+                number: number++,
+                main_cam: document.getElementById('vid_main_' + id)?.value?.trim() || '',
+                side_cam: document.getElementById('vid_side_' + id)?.value?.trim() || '',
+                audio: document.getElementById('vid_audio_' + id)?.value?.trim() || '',
+                notes: document.getElementById('vid_notes_' + id)?.value?.trim() || '',
+                dueDate
+            });
+        });
+        if (heldSnapshot && (videos.length !== heldSnapshot.hold.computed_due_dates.length
+            || videos.some(video => !video.dueDate))) {
+            return _linearHoldSubmission(mode, 'held_submission_conflict');
+        }
+        const description = [
+            filmingPlans ? 'Filming Plan: ' + filmingPlans : '',
+            generalDrive ? 'General Drive: ' + generalDrive : '',
+            notes
+        ].filter(Boolean).join('\n\n');
+        /*
+         * Say it here, not after a refusal. The cap applies to the
+         * credential-less client link only -- a signed-in staff submission goes
+         * through the authenticated path and is not counted -- so the check is
+         * keyed on the same condition the server uses: no identity.
+         */
+        const publicIntake = !identity;
+        const intakeItemCount = videos.length * _linearIntakeItemsPerVideo(mode);
+        if (publicIntake && intakeItemCount > LINEAR_INTAKE_MAX_ITEMS) {
+            status.textContent = _linearIntakeTooLargeMessage(mode, intakeItemCount);
+            return;
+        }
+        const signature = JSON.stringify({
+            mode, client_slug: client.slug, title, description, videos,
+            actor_id: identity && identity.member && identity.member.id
+        });
+        let pending;
+        try {
+            pending = await _linearIntakeWithLock(() => _linearIntakePending(signature, (requestId, sourceEditedAt) => {
+            return {
+                operation: 'intake_create', surface: 'submission', client_slug: client.slug,
+                request_id: requestId, source_edited_at: sourceEditedAt,
+                batch: {
+                    name: title, description, notes,
+                    filming_doc_url: filmingPlans || null,
+                    footage_folder_url: generalDrive || null
+                },
+                items: _linearIntakeItems(mode, videos, requestId)
+            };
+            }, {
+                surface: 'submission', materialization_source: 'submission-native', batch_choice: 'new',
+                clientSlug: client.slug,
+                clientName,
+                mode,
+                videos: videos.map(video => ({ number: video.number })),
+                ..._linearIntakeActorContext(identity)
+            }, heldSnapshot && {
+                request_id: heldSnapshot.hold.request_id,
+                source_edited_at: heldSnapshot.hold.source_edited_at
+            }));
+            // The native pending job now durably owns the same preallocated
+            // identity. Remove only the exact hold version we consumed.
+            if (heldSnapshot) _linearCompareRemove(LINEAR_INTAKE_HOLD_KEY, heldSnapshot.raw);
+        } catch (error) {
+            status.textContent = error && error.code === 'native_intake_pending_conflict'
+                ? 'Finish the previously saved submission before starting a different one.'
+                : 'This submission could not be saved safely in this browser.';
+            return;
+        }
+
+        const buttons = ['linearSubmitBtnVideo', 'linearSubmitBtnThumbnail', 'linearSubmitBtnBoth']
+            .map(id => document.getElementById(id)).filter(Boolean);
+        const buttonHtml = buttons.map(button => button.innerHTML);
+        buttons.forEach(button => { button.disabled = true; });
+        const activeButton = document.getElementById(mode === 'video' ? 'linearSubmitBtnVideo' : mode === 'thumbnail' ? 'linearSubmitBtnThumbnail' : 'linearSubmitBtnBoth');
+        const activeLabel = activeButton?.querySelector('.linear-submit-primary-label');
+        if (activeLabel) activeLabel.textContent = 'Submitting…';
+        else if (activeButton) activeButton.textContent = 'Submitting…';
+        status.textContent = '';
+
+        let nativeResult = pending.result || null;
+        try {
+            const result = await _resumeNativeIntakeJob('submit', pending);
+            nativeResult = result;
+            localStorage.removeItem(LINEAR_FORM_KEY);
+            localStorage.removeItem(LAST_LINK_KEY);
+            linearJustCreated = true;
+            navTo('linear');
+            if (result.mirror_pending === true) showNotify('Production created', 'Native work is saved; its Linear mirror is still draining.');
+            if (result.filming_plan_missing === true) {
+                showNotify('Filming plan needs attention', 'Production work was created and visibly marked for SMM follow-up. Add or repair the protected filming-plan mapping.');
+            } else if (result.filming_plan_alert) {
+                showNotify('Filming plan needs review', String(result.filming_plan_alert));
+            }
+        } catch (error) {
+            console.warn('[SyncView] Native production submission failed:', error);
+            const savedJob = _linearIntakeRead();
+            /* A refusal the server can name is worth naming. Retrying an
+               oversized submission cannot succeed, so the generic "retry to
+               resume safely" is actively wrong for this one. */
+            status.textContent = String(error && error.code || '') === 'public_intake_too_large'
+                ? _linearIntakeTooLargeMessage(mode, videos.length * _linearIntakeItemsPerVideo(mode))
+                : (nativeResult && nativeResult.native_committed === true) || (savedJob && savedJob.result)
+                ? 'Production work is saved, but Calendar cards are incomplete. Retry to resume the same request safely.'
+                : 'Submission was not completed. Your exact request is saved; retry to resume safely.';
+        } finally {
+            buttons.forEach((button, index) => { button.disabled = false; button.innerHTML = buttonHtml[index]; });
+        }
+    }
+
+    let _linearSubmissionHoldResumePromise = null;
+    let _linearSubmissionHoldBootAttempted = false;
+    function _linearResumeSubmissionHold(reason) {
+        if (typeof _isClientLink !== 'undefined' && _isClientLink) return Promise.resolve(null);
+        const bootReason = ['startup', 'resume', 'staff-verified', 'client-verified'].includes(String(reason || ''));
+        if (!bootReason || _linearSubmissionHoldBootAttempted) return Promise.resolve(null);
+        const snapshot = _linearSubmissionHoldSnapshot();
+        if (!snapshot || snapshot.hold.created_load_id === LINEAR_INTAKE_LOAD_ID) return Promise.resolve(null);
+        _linearSubmissionHoldBootAttempted = true;
+        if (_linearSubmissionHoldResumePromise) return _linearSubmissionHoldResumePromise;
+        _linearSubmissionHoldResumePromise = Promise.resolve().then(async () => {
+            if (currentNav !== 'linear' || !document.getElementById('linearStatus')) navTo('linear', false);
+            const status = document.getElementById('linearStatus');
+            if (snapshot.hold.legacy_receipt_present) {
+                // Browser-only code cannot prove whether an old webhook request
+                // committed. Keep every original receipt identity intact and
+                // report the concrete backend limitation instead of guessing.
+                snapshot.hold.created_load_id = LINEAR_INTAKE_LOAD_ID;
+                const encoded = _linearStableJson(snapshot.hold);
+                try {
+                    localStorage.setItem(LINEAR_INTAKE_HOLD_KEY, encoded);
+                    if (localStorage.getItem(LINEAR_INTAKE_HOLD_KEY) !== encoded) throw new Error('hold readback mismatch');
+                } catch (error) {}
+                if (status) status.textContent = _linearSubmissionHoldMessage(snapshot.hold);
+                return { ok: false, held: true, reason: 'same_identity_backend_recovery_required' };
+            }
+            return _submitLinearFormRoutedOnce(snapshot.hold.mode);
+        }).finally(() => { _linearSubmissionHoldResumePromise = null; });
+        return _linearSubmissionHoldResumePromise;
+    }
+
+    function _linearIntakeValidateResult(job, result) {
+        const request = job && job.payload;
+        const requested = Array.isArray(request && request.items) ? request.items : [];
+        const returned = Array.isArray(result && result.items) ? result.items : [];
+        if (!result || result.ok !== true || result.native_committed !== true || !requested.length) throw new Error('native_create_failed');
+        const byIndex = new Map();
+        returned.forEach(item => {
+            const index = Number(item && item.item_index);
+            if (!Number.isInteger(index) || byIndex.has(index)) throw new Error('invalid_native_item_mapping');
+            byIndex.set(index, item);
+        });
+        const mapped = requested.map((item, index) => {
+            const row = byIndex.get(index);
+            if (!row || !row.id || String(row.team || '') !== String(item.team || '')
+                || String(row.card_id || '') !== String(item.card_id || '')) throw new Error('incomplete_native_item_mapping');
+            return { request: item, row };
+        });
+        if (mapped.length !== requested.length || returned.length !== requested.length) throw new Error('incomplete_native_item_mapping');
+        const cards = new Map();
+        mapped.forEach(item => {
+            const cardId = String(item.request.card_id || '');
+            const returnedNumber = Number(item.row && item.row.video_number);
+            const number = Number.isInteger(returnedNumber) && returnedNumber > 0
+                ? returnedNumber : Number(item.request.videoNumber);
+            if (!cardId || !Number.isInteger(number) || number < 1) throw new Error('invalid_native_card_mapping');
+            const card = cards.get(cardId) || { cardId, number, video: null, graphic: null };
+            if (card.number !== number) throw new Error('invalid_native_card_mapping');
+            if (item.request.team === 'video') card.video = item;
+            else if (item.request.team === 'graphics') card.graphic = item;
+            else throw new Error('invalid_native_card_mapping');
+            cards.set(cardId, card);
+        });
+        if (!cards.size) throw new Error('incomplete_native_card_mapping');
+        return { mapped, cards: Array.from(cards.values()).sort((a, b) => a.number - b.number) };
+    }
+
+    async function _writeNativeSubmissionCardsToCalendar(job) {
+        _linearIntakeRequireActor(job);
+        const result = job && job.result;
+        const validated = _linearIntakeValidateResult(job, result);
+        const clientSlug = String(job.payload.client_slug || '');
+        const completed = new Set(Array.isArray(job.completed_card_ids) ? job.completed_card_ids : []);
+
+        /* Samples run this EXACT path, not a twin of it (owner 2026-08-19:
+           "the samples tab behaves exactly like the calendar tab"). The gateway
+           half is already surface-driven; the only thing that differs down here
+           is which table the finished card lands in and which view re-renders.
+           A parallel copy would drift the moment either side changed, which is
+           the whole reason the two tabs disagree today. */
+        const isSamples = String(job && job.payload && job.payload.surface || '') === 'sxr';
+        const cached = isSamples ? _sxrCacheRead(clientSlug) : _calCacheRead(clientSlug);
+        const baseOrder = cached && Array.isArray(cached.posts) && cached.posts.length
+            ? cached.posts.reduce((max, post) => Math.max(max, Number(post.order_index || 0)), 0)
+            : Math.floor(Date.now() / 1000);
+        for (const card of validated.cards) {
+            const number = card.number;
+            const video = card.video;
+            const graphic = card.graphic;
+            const cardId = card.cardId;
+            if (completed.has(cardId)) continue;
+            const returnedTitle = String(video && video.row && video.row.title || graphic && graphic.row && graphic.row.title || '').trim();
+            const post = {
+                id: cardId, order_index: baseOrder + number, name: returnedTitle || 'Video ' + number,
+                scheduled_date: '', status: 'In Progress', video_status: 'In Progress',
+                graphic_status: 'In Progress', caption_status: 'In Progress', asset_url: '',
+                thumbnail_url: '', caption: '', cta: '', tweaks: '', video_tweaks: '',
+                graphic_tweaks: '', caption_tweaks: '',
+                linear_issue_id: video && video.row.linear_issue_url || '',
+                video_deliverable_id: video && video.row.id || '',
+                graphic_linear_issue_id: graphic && graphic.row.linear_issue_url || '',
+                graphic_deliverable_id: graphic && graphic.row.id || ''
+            };
+            _linearIntakeRequireActor(job);
+            const materializationSource = String(job && job.context && job.context.materialization_source
+                || (job && job.payload && job.payload.surface === 'calendar' ? 'calendar-native' : 'submission-native'));
+            /* A sample row carries creative_direction where a calendar post
+               carries the scheduling/caption fields, but the NATIVE LINKAGE --
+               both Linear issue urls and both deliverable ids -- is identical,
+               and sample_reviews already has those four columns. That is what
+               lets the samples tab produce the same parent + video sub-issue +
+               thumbnail sub-issue structure the calendar does. */
+            const row = isSamples
+                ? {
+                    id: cardId, order_index: baseOrder + number, name: returnedTitle || 'Video ' + number,
+                    creative_direction: '', hide_creative_direction: '',
+                    status: 'In Progress', video_status: 'In Progress', graphic_status: 'In Progress',
+                    asset_url: '', thumbnail_url: '',
+                    linear_issue_id: video && video.row.linear_issue_url || '',
+                    video_deliverable_id: video && video.row.id || '',
+                    graphic_linear_issue_id: graphic && graphic.row.linear_issue_url || '',
+                    graphic_deliverable_id: graphic && graphic.row.id || ''
+                }
+                : post;
+            const response = isSamples
+                ? await _sxrUpsertFetch(clientSlug, { client: clientSlug, sample: row, comments_base_at: '' }, materializationSource)
+                : await _calUpsertFetch(clientSlug, { client: clientSlug, post: row }, materializationSource);
+            const json = await response.json().catch(() => ({}));
+            if (!response.ok || !json || json.ok !== true) {
+                throw new Error(isSamples ? 'sample_card_write_failed' : 'calendar_card_write_failed');
+            }
+            if (isSamples) {
+                if (typeof sxrState !== 'undefined' && sxrState && typeof sxrClientSlug === 'function'
+                    && sxrClientSlug(sxrState.client) === clientSlug) {
+                    const savedSample = Object.assign({}, row,
+                        json.sample && typeof json.sample === 'object' ? json.sample : {});
+                    const existingIndex = sxrState.posts.findIndex(item => item && item.id === cardId);
+                    if (existingIndex >= 0) sxrState.posts[existingIndex] = Object.assign({}, sxrState.posts[existingIndex], savedSample);
+                    else sxrState.posts.push(savedSample);
+                    try { _sxrCacheWrite(clientSlug, sxrState.posts); } catch (e) {}
+                    try { _sxrRenderBody(); } catch (e) {}
+                    try { _sxrAdoptLinksAfterCreate(clientSlug); } catch (e) {}
+                }
+            } else if (typeof calState !== 'undefined' && calState && typeof calClientSlug === 'function'
+                && calClientSlug(calState.client) === clientSlug) {
+                const savedPost = Object.assign({}, row, json.post && typeof json.post === 'object' ? json.post : {});
+                const existingIndex = calState.posts.findIndex(item => item && item.id === cardId);
+                if (existingIndex >= 0) calState.posts[existingIndex] = Object.assign({}, calState.posts[existingIndex], savedPost);
+                else calState.posts.push(savedPost);
+                calState.focusPid = cardId;
+                try { _calCacheWrite(clientSlug, calState.posts); } catch (e) {}
+                try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+            }
+            completed.add(cardId);
+            job.completed_card_ids = Array.from(completed);
+            job.stage = 'materializing_cards';
+            _linearIntakeCheckpointOrSuspend(job);
+        }
+    }
+
+    function _linearIntakeSendTelemetry(job) {
+        if (job.telemetry_sent) return;
+        const result = job.result || {};
+        const telemetry = {
+            source: 'production-write', request_id: job.payload.request_id,
+            batch_id: result.batch && result.batch.id,
+            items: (result.items || []).map(item => ({ item_index: item.item_index, id: item.id, team: item.team })),
+            mirror_pending: result.mirror_pending === true
+        };
+        // Checkpoint before dispatch so a crash cannot produce duplicate
+        // submission telemetry. Card materialization remains independently
+        // resumable from the stored native response.
+        _linearIntakeRequireActor(job);
+        job.telemetry_sent = true;
+        _linearIntakeCheckpointOrSuspend(job);
+        fetch(LOG_SUBMISSION_WEBHOOK, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                timestamp: new Date().toISOString(),
+                clientName: job.context && job.context.clientName || '',
+                mode: job.context && job.context.mode || '',
+                webhookJson: JSON.stringify(telemetry)
+            })
+        }).catch(() => {});
+    }
+
+    /*
+     * THE FALLBACK HAS TO BE WRITTEN BEFORE THE THING IT IS A FALLBACK FOR.
+     *
+     * The `Linear Submissions` sheet was only ever appended AFTER the gateway
+     * accepted a submission (_linearIntakeSendTelemetry, below, which logs the
+     * native ids it got back). So the one case where a human needs the raw
+     * submission -- the gateway refused it and the person who typed it has gone
+     * home -- was the exact case that wrote nothing. On 2026-08-26 a
+     * videographer was refused eleven times and the only copy of his work was
+     * in his own browser; the owner could not finish it by hand without going
+     * back to him.
+     *
+     * So the request is logged FIRST, before the gateway is called at all, and
+     * the post-success telemetry row still follows. Fire-and-forget on purpose:
+     * this must never delay or fail a submission that would otherwise succeed.
+     *
+     * At-least-once, not exactly-once. The in-memory flag stops a retry inside
+     * one page session from appending twice; a resume after a reload may append
+     * a second row, and for a fallback log that is the right direction to err --
+     * the row carries the request_id, so duplicates are recognisable, and a
+     * missing row is the failure this exists to prevent.
+     */
+    function _linearIntakeLogSubmissionRequest(job) {
+        try {
+            if (!job || !job.payload || job.request_logged) return;
+            job.request_logged = true;
+            const payload = job.payload;
+            fetch(LOG_SUBMISSION_WEBHOOK, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    timestamp: new Date().toISOString(),
+                    clientName: (job.context && job.context.clientName) || payload.client_slug || '',
+                    mode: (job.context && job.context.mode) || '',
+                    webhookJson: JSON.stringify({
+                        kind: 'submission_request',
+                        request_id: payload.request_id,
+                        client_slug: payload.client_slug,
+                        surface: payload.surface,
+                        batch: payload.batch,
+                        items: payload.items
+                    })
+                })
+            }).catch(() => {});
+        } catch (error) {}
+    }
+
+    async function _runNativeIntakeJob(job) {
+        _linearIntakeRequireActor(job);
+        // Before the gateway, so a refusal still leaves the owner the work.
+        _linearIntakeLogSubmissionRequest(job);
+        let result = job.result;
+        if (!result) {
+            const response = await fetch(PROD_WRITE_EF_URL, {
+                method: 'POST', cache: 'no-store',
+                headers: _syncviewEfHeaders({
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    Accept: 'application/json', 'Content-Type': 'application/json'
+                }, PROD_WRITE_EF_URL),
+                body: JSON.stringify(job.payload)
+            });
+            result = await response.json().catch(() => ({}));
+            if (!response.ok || !result || result.ok !== true || result.native_committed !== true) {
+                const error = new Error(String(result && result.error || 'native_create_failed'));
+                error.status = response.status;
+                error.code = String(result && result.error || 'native_create_failed');
+                throw error;
+            }
+            // Validate and durably checkpoint the returned native IDs before
+            // telemetry or the first Calendar materialization write.
+            _linearIntakeValidateResult(job, result);
+            job.result = result;
+            job.stage = 'materializing_cards';
+            _linearIntakeCheckpointOrSuspend(job);
+        } else {
+            _linearIntakeValidateResult(job, result);
+            _linearIntakeRequireActor(job);
+        }
+        _linearIntakeRequireActor(job);
+        _linearIntakeSendTelemetry(job);
+        await _writeNativeSubmissionCardsToCalendar(job);
+        _linearIntakeRequireActor(job);
+        job.stage = 'complete';
+        _linearIntakeCheckpointOrSuspend(job);
+        _linearIntakeRemoveIfCurrent(job.payload.request_id);
+        return result;
+    }
+
+    /* Discard a resumed job the server has terminally refused.
+     *
+     * A saved intake whose payload the gateway permanently rejects used to be
+     * re-POSTed on every page load, forever: the boot resume swallowed the
+     * error and left the job armed, and no surface offered a discard. One SMM
+     * carried an eleven-day-old refused job that 409ed on every boot and
+     * blocked every other Create Post with the pending-conflict error.
+     *
+     * Scope is deliberately narrow:
+     *  - resumes only -- on a live click the user is present to retry or fix;
+     *  - HTTP 4xx only, and never 401/403, because signing back in can make
+     *    an auth-refused job succeed;
+     *  - never when anything committed -- a job with a native result is real
+     *    work mid-materialization and must keep resuming;
+     *  - two strikes, persisted on the job, so one transiently wrong 409
+     *    (a paused team, a mid-deploy stance) does not delete anything.
+     * The discard is announced, not silent. (No apostrophes in this comment:
+     * the test slicers track quotes, not comments.)
+     */
+    function _linearIntakeDiscardTerminallyRefused(reason, requestId, error) {
+        // Background reasons whose resumes count terminal-refusal strikes.
+        // Live clicks ('submit', 'calendar-create-post') are deliberately
+        // absent: the user is present to retry. 2026-08-18: the original
+        // check demanded the literal 'resume', but a fresh page load defers
+        // its pageshow resume (identity not yet verified) and the run that
+        // actually reaches the server comes from 'staff-verified' -- so no
+        // strike ever counted and a dead job could block Create Post
+        // forever. Every background lifecycle reason now counts.
+        const strikeReasons = ['resume', 'startup', 'focus', 'visible', 'online', 'staff-verified', 'client-verified'];
+        if (strikeReasons.indexOf(String(reason || '')) < 0) return false;
+        const saved = _linearIntakeRead();
+        if (!saved || _linearIntakeJobId(saved) !== String(requestId || '')) return false;
+        // A recovery copy is what sign-out leaves behind for a job whose native
+        // write already committed: the batch and its deliverables are safe on
+        // the server and the only work left is the calendar card upsert, which
+        // is idempotent and re-derivable from the deliverable rows. Sign-out
+        // rewrites the job with a 'recovery:' signature that can never match a
+        // fresh post, so a recovery copy that cannot finish blocks every later
+        // Create Post with the pending-conflict error, refuses to discard
+        // because it committed, and survives the next sign-out by being
+        // rewritten again. Nothing on the page could clear it. Recovery copies
+        // therefore get a bounded life too: every resume failure counts, with
+        // or without an HTTP status, because a card write rejected by the
+        // network carries no status and would otherwise never strike.
+        const recoveryOnly = saved.recovery_only === true;
+        const status = Number(error && error.status);
+        if (status === 401 || status === 403) return false;
+        // 2026-08-18: a 500 was treated as always transient and never counted.
+        // But an append whose database function was never installed returns
+        // 500 on every single attempt, forever, and that job then blocks every
+        // later Create Post with the pending-conflict error -- the exact wedge
+        // an SMM hit today. A server error now counts too, with two guards so
+        // a real outage cannot spend the allowance: only a fresh page load
+        // counts it (a refocused tab does not), and the budget is far larger
+        // than the one a 4xx refusal gets.
+        const serverError = status >= 500;
+        const bootReasons = ['resume', 'startup', 'staff-verified', 'client-verified'];
+        if (serverError && bootReasons.indexOf(String(reason || '')) < 0) return false;
+        if (!recoveryOnly) {
+            if (!((status >= 400 && status < 500) || serverError)) return false;
+            if (saved.result && saved.result.native_committed === true) return false;
+        }
+        // Recovery copies are held longer than refused payloads: their debt is
+        // a real card, so a passing outage must not spend both strikes. A
+        // server error is held longest of all -- the payload is the only copy
+        // of what the user typed, so it is discarded only once the failure has
+        // survived six separate page loads.
+        const limit = recoveryOnly ? 4 : (serverError ? 6 : 2);
+        const refusals = Number(saved.resume_refusals || 0) + 1;
+        if (refusals < limit) {
+            saved.resume_refusals = refusals;
+            _linearIntakeWrite(saved);
+            return false;
+        }
+        _linearIntakeRemoveIfCurrent(requestId);
+        const client = String(saved.payload && saved.payload.client_slug || 'a client');
+        try {
+            if (recoveryOnly) showNotify('A finished post stopped retrying',
+                'The post already created for "' + client + '" could not write its calendar card after '
+                + String(limit) + ' tries (' + String(error && error.code || error && error.message || 'error')
+                + '). The post itself is safe in Production; add its calendar card by hand if it is missing.');
+            else showNotify('A saved post was discarded',
+                'A post saved in this browser for "' + client + '" failed ' + String(limit)
+                + ' times (' + String(error && error.code || 'error')
+                + ') and is not going to succeed. It has been discarded; create it again when ready.');
+        } catch (e) {}
+        return true;
+    }
+
+    let _nativeIntakeResumePromise = null;
+    function _resumeNativeIntakeJob(reason, suppliedJob) {
+        if (_nativeIntakeResumePromise) return _nativeIntakeResumePromise;
+        const job = suppliedJob || _linearIntakeRead();
+        if (!job) return Promise.resolve(null);
+        const requestId = _linearIntakeJobId(job);
+        const runCurrent = () => {
+            const current = _linearIntakeRead();
+            if (!current || _linearIntakeJobId(current) !== requestId) {
+                throw _linearIntakeActorError(409, 'native_intake_job_replaced');
+            }
+            return _runNativeIntakeJob(current);
+        };
+        _nativeIntakeResumePromise = _linearIntakeWithLock(runCurrent)
+            .catch(error => {
+                _writeUiQueueDiagnostic(String(job && job.payload && job.payload.surface || 'submission'), 'native_intake_resume_failed', { kind: reason || 'resume' }, error);
+                _linearIntakeDiscardTerminallyRefused(reason, requestId, error);
+                throw error;
+            })
+            .finally(() => { _nativeIntakeResumePromise = null; });
+        return _nativeIntakeResumePromise;
+    }
+
+    /* After the Linear form is submitted, write a calendar card per video.
+       Runs in the background. Each card is written via /calendar-upsert-post
+       using a DETERMINISTIC id derived from the Linear sub-issue
+       (p_lin_<identifier>), so re-running the import — a double-fire, a manual
+       re-import, or a retry — updates the same row instead of appending a
+       second one. This is what prevents duplicate rows that share a
+       linear_issue_id: two such rows collapse to a single card in the UI, so
+       archiving one would leave the other behind and the card would reappear
+       on the next refresh. Waits ~15s after submit so Linear has time to
+       create the sub-issues, then matches them by title and writes each card
+       with its Linear URL pre-filled. */
+    /* RETIRED 2026-09-20 (LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md, "what needs
+       code" item 2). This used to poll Linear directly (the removed
+       `wlDiscoverProviderIssues`) for the parent/sub-issues n8n had just
+       created, then write one calendar card per video with the Linear URLs
+       it found. Every active client is native-enrolled now
+       (`write_ui_reroute_clients`, 43 of 43 measured 2026-09-20), and a
+       native submission links its calendar cards through
+       `_writeNativeSubmissionCardsToCalendar` from its own create-response
+       IDs -- it never asks Linear anything, so it does not go through here.
+       The only way this function is still reached is a client the native
+       cohort does not (yet) cover: a stale persisted job queued before that
+       client enrolled (`_resumePendingCalCardJobs`), or the retained
+       rollback submission entry point (`_submitLinearFormOnce` /
+       `_submitLinearFormLegacy`). Neither may silently fall back to a live
+       Linear discovery read for that case -- so this holds visibly instead
+       of writing anything, and never calls Linear. */
+    async function _writeLinearVideoCardsToCalendar(clientName, videos, formTitle, opts) {
+        const slug = wlNormalizeClient(clientName);
+        if (!slug || !Array.isArray(videos) || !videos.length) return;
+        const job = (opts && opts.job) || null;
+        if (job) _calCardJobRemove(job.id);
+        showNotify('Calendar cards not created', 'SyncView no longer links Linear issues to calendar '
+            + 'cards automatically here — that connector was retired. Add the ' + videos.length
+            + ' card' + (videos.length === 1 ? '' : 's') + ' for ' + clientName
+            + ' from the calendar with Create Post.');
+    }
+
+    /* ── Durable calendar-card write jobs ──
+       The post-submit card write above lives in the submitting tab's memory
+       for ~15-120s (fixed wait + Linear polling) before the first POST even
+       fires. Closing or refreshing the tab in that window used to lose every
+       card silently — Linear issues created, zero calendar cards (Jesse
+       Israel, 2026-06-30). Each submission now records a job in localStorage,
+       marks video numbers off as their cards land, and any unfinished job is
+       resumed on the next app load. Resumes can't duplicate cards: numbers in
+       done are skipped, and matched cards use deterministic p_lin_ ids so a
+       re-send updates the same row. */
+    const CAL_CARD_JOBS_KEY = 'syncview_calCardJobs_v1';
+    const CAL_CARD_JOB_MAX_AGE_MS = 48 * 60 * 60 * 1000;    // give up after 2 days…
+    const CAL_CARD_JOB_MAX_RUNS = 5;                        // …or 5 attempts
+    const CAL_CARD_JOB_LIVE_HEARTBEAT_MS = 3 * 60 * 1000;   // fresher ⇒ another tab owns it
+
+    function _calCardJobsRead() {
+        try {
+            const list = JSON.parse(localStorage.getItem(CAL_CARD_JOBS_KEY) || '[]');
+            return Array.isArray(list) ? list : [];
+        } catch { return []; }
+    }
+    function _calCardJobsWrite(list) {
+        try { localStorage.setItem(CAL_CARD_JOBS_KEY, JSON.stringify(list)); } catch {}
+    }
+    function _calCardJobSave(job) {
+        const list = _calCardJobsRead().filter(j => j && j.id !== job.id);
+        list.push(job);
+        _calCardJobsWrite(list);
+    }
+    function _calCardJobRemove(jobId) {
+        _calCardJobsWrite(_calCardJobsRead().filter(j => j && j.id !== jobId));
+    }
+    function _calCardJobCreate(clientName, videos, formTitle, mode) {
+        const job = {
+            id: 'ccj_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7),
+            clientName,
+            formTitle,
+            mode,
+            videos: videos.map((v, i) => ({ number: Number(v && v.number) || (i + 1) })),
+            done: [],
+            runs: 0,
+            createdAt: Date.now(),
+            heartbeatAt: 0
+        };
+        _calCardJobSave(job);
+        return job;
+    }
+    let _calCardJobsResumePromise = null;
+    function _calCardJobTeams(job) {
+        const mode = String(job && job.mode || 'video').toLowerCase();
+        if (mode === 'thumbnail') return ['graphics'];
+        if (mode === 'both') return ['video', 'graphics'];
+        return ['video'];
+    }
+    function _resumePendingCalCardJobs(authority) {
+        if (_calCardJobsResumePromise) return _calCardJobsResumePromise;
+        _calCardJobsResumePromise = (async () => {
+        authority = authority || await _writeUiRefreshAuthority();
+        if (!authority) return; // fail closed and preserve the queue for a later live read
+        const now = Date.now(), runs = [];
+        _calCardJobsRead().forEach(job => {
+            if (!job || !job.clientName || !Array.isArray(job.videos) || !job.videos.length) {
+                if (job && job.id) _calCardJobRemove(job.id);
+                return;
+            }
+            const teams = _calCardJobTeams(job);
+            if (teams.some(team => authority[team] !== 'linear')) {
+                /* OPEN_REPAIRS item 65: this discard is correct -- the job
+                   writes cards through the Linear submission lane, and that
+                   lane is closed for a SyncView-authoritative team -- but it
+                   used to be SILENT. The queue diagnostic below goes to a
+                   localStorage ring nobody reads, while the retry-cap branch a
+                   few lines down, which drops strictly less work, does notify.
+                   Post-flip this branch catches every job rather than some, so
+                   the one path that discarded without a word became the only
+                   path that runs. Measured: three seeded jobs, zero survive,
+                   zero notices.
+
+                   Deliberately does NOT repeat the retry-cap copy pointing at
+                   Import from Linear. That tool now seals itself when video
+                   authority is syncview (OPEN_REPAIRS item 66), but sending a
+                   syncview-authoritative team there still just hands them a
+                   refusal screen instead of the recovery they need -- Create
+                   Post is the one recommendation that works regardless of
+                   authority state, so every "backfill via Import" message in
+                   this file (the retry-cap branch a few lines down included)
+                   was changed to point there instead. */
+                const unwritten = (job.videos || []).filter(v => !(job.done || []).includes(v.number)).length;
+                _calCardJobRemove(job.id);
+                _writeUiQueueDiagnostic('submission', 'discarded_authority', { kind: 'calendar_cards', id: job.id });
+                if (unwritten) {
+                    showNotify('Calendar cards were not written', unwritten + ' calendar card(s) for '
+                        + job.clientName + ' were queued through the Linear submission lane, which is closed'
+                        + ' now that this team runs on SyncView. They have not been created. Add them from'
+                        + ' the calendar with Create Post.');
+                }
+                return;
+            }
+            const remaining = job.videos.filter(v => !(job.done || []).includes(v.number));
+            if (!remaining.length) { _calCardJobRemove(job.id); return; }
+            if ((now - job.createdAt) > CAL_CARD_JOB_MAX_AGE_MS || (job.runs || 0) >= CAL_CARD_JOB_MAX_RUNS) {
+                _calCardJobRemove(job.id);
+                showNotify('Calendar cards missing', 'A Linear submission for ' + job.clientName
+                    + ' still has ' + remaining.length + ' calendar card(s) unwritten and automatic'
+                    + ' retries have stopped. Open the calendar and use Create Post to add them.');
+                return;
+            }
+            // A fresh heartbeat means another open tab is mid-run on this job.
+            if (job.heartbeatAt && (now - job.heartbeatAt) < CAL_CARD_JOB_LIVE_HEARTBEAT_MS) return;
+            console.log('[SyncView] Resuming calendar card job', job.id, 'for', job.clientName,
+                '(' + remaining.length + '/' + job.videos.length + ' cards outstanding)');
+            runs.push(_writeLinearVideoCardsToCalendar(job.clientName, job.videos, job.formTitle, { mode: job.mode, job })
+                .catch(e => console.warn('[SyncView] Resumed calendar card job failed:', e)));
+        });
+        await Promise.all(runs);
+        })().finally(() => { _calCardJobsResumePromise = null; });
+        return _calCardJobsResumePromise;
+    }
+
+
+
+        // Tabs that fetch their own data sources (n8n webhooks, Apps Script
+        // etc.) and don't need the analytics CSVs to mount. When the user
+        // refreshes (or arrives) directly on one of these we kick off
+        // fetchAll in the background so the page paints immediately instead
+        // of blocking on the analytics roundtrip.
+        const FAST_TABS = ['linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'smm-weekly-report', 'smm-weekly-reports'];
+        const RESTORABLE_FAST_TABS = FAST_TABS.filter(tab => !_isSmmWeeklyRoute(tab));
+
+        function _applyAllDataDependentChrome() {
+            try { renderPins(); } catch {}
+            try { _calResolveClientAfterDataReady(); } catch {}
+        }
+
+        function _resumePendingBriefPolling() {
+            Object.entries(pendingBriefs).forEach(([key,{triggerISO,type}])=>{
+                const triggerTime=new Date(triggerISO);
+                const sep=key.lastIndexOf('__');
+                const clientName=sep>-1?key.substring(0,sep):key;
+                const briefType=type||(sep>-1?key.substring(sep+2):'comp');
+                const briefList=briefType==='mr'?mrBriefs:briefs;
+                const alreadyDone=briefList.find(b=>b.client_name===clientName&&b.raw_json&&new Date(b.id)>triggerTime);
+                if(alreadyDone){delete pendingBriefs[key];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}return;}
+                briefPollingState[key]={loading:true,triggerTime,intervalId:null,lastChecked:null};
+                startBriefPolling(clientName,triggerTime,briefType);
+            });
+        }
+
+        // Kasper unlock state — declared early so the unlock block near the
+        // top of init() can assign to _kasperUnlocked without triggering a
+        // TDZ ReferenceError that the surrounding try/catch would swallow
+        // (which is exactly what was happening when this lived next to
+        // the Kasper module further down the file — the unlock silently
+        // failed and the nav button stayed hidden on every refresh).
+        const KASPER_UNLOCK_KEY = 'syncview_kasper_unlocked';
+        let _kasperUnlocked = false;
+        // TikTok Pilot unlock state — declared alongside Kasper's (and early)
+        // for the same TDZ reason: the unlock block near the top of init()
+        // assigns _ttpUnlocked, and navTo's teardown reads it, before the
+        // _ttp* module further down the file has run its own declarations.
+        const TTP_UNLOCK_KEY = 'syncview_ttpilot_unlocked';
+        let _ttpUnlocked = false;
+

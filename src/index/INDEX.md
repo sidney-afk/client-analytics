@@ -24,4 +24,9 @@
 | 16 | `140-calendar-legacy-outbox.js.part` | 3145 | OPEN_REPAIRS item 63: the direct-delivery branch below posts to the |
 | 17 | `150-calendar-hydration-import.js.part` | 2876 | For a card linked to a real sub-issue (not a parent), return which of |
 | 18 | `160-calendar-organize-ui.js.part` | 2717 | Lighter path for the Order switch: update the chrome in place so the |
-| 19 | `999-remainder.html.part` | 44071 | Move a Linear sub-issue link from the old card onto the new one. The |
+| 19 | `170-calendar-links-status.js.part` | 2634 | Move a Linear sub-issue link from the old card onto the new one. The |
+| 20 | `180-calendar-native-post-media.js.part` | 2680 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
+| 21 | `190-calendar-approval-comments.js.part` | 2966 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 22 | `200-intake-data-startup.js.part` | 2022 | Video-only and Thumbnail-only were already built, but sat |
+| 23 | `210-production-state-writes.js.part` | 3002 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
+| 24 | `999-remainder.html.part` | 30767 | An ABSENT persisted slug is missing evidence, not |

@@ -1,0 +1,2634 @@
+    function _calMoveLinkConfirm(pid) {
+        const mv = _calPendingLinkMove[pid];
+        if (!mv) return;
+        delete _calPendingLinkMove[pid];
+        _calMoveLink(mv.oldPid, pid, mv.which, mv.val);
+    }
+    /* Move a Linear sub-issue link from the old card onto the new one. The
+       order matters and is load-bearing: clear the OLD card's slot and AWAIT
+       that write before setting the new card. The upsert's duplicate-link guard
+       strips an incoming link that another NON-archived row still owns — so if
+       both writes raced, the new card's link would be rejected and the old card
+       would keep it (the "I clicked Move and nothing happened" bug). Awaiting
+       the clear means the old card no longer owns the link when the new write's
+       twin-check runs. The clear is sent as __CLEAR_LINK__ by _calFlushCardSave
+       (a bare '' is ignored by the link-clobber guard). Linear itself is
+       untouched — only WHICH card points at the issue changes; the new card's
+       status fills in from Linear via _calSyncStatusFromLinear. */
+    async function _calMoveLink(oldPid, newPid, which, val) {
+        if (_isClientLink) return;   // moving a Linear link is SMM-only
+        /* Moving a link SETS one on the receiving card, so it is the same write
+           the seal refuses -- gated here too rather than relying on the commit
+           path having already checked. The repo's own lesson from the sub-issue
+           multi-select bug is that a guard which lives only on the surface that
+           usually calls it is a guard with a hole in it. */
+        const moveSeal = await _writeUiLinkSlotSealedLive(which);
+        if (moveSeal.sealed) {
+            const notice = _writeUiLinkSlotSealedNotice(which, moveSeal.reason);
+            showNotify(notice[0], notice[1]);
+            return;
+        }
+        const slug = calClientSlug(calState.client);
+        const key = _calLinkKey(val);
+        const newFld = which === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id';
+        const oldPost = calState.posts.find(p => p.id === oldPid);
+        if (oldPost) {
+            let cleared = false;
+            ['linear_issue_id', 'graphic_linear_issue_id'].forEach(f => {
+                if (_calLinkKey(oldPost[f]) === key) {
+                    oldPost[f] = '';
+                    if (!_calPendingEdits[oldPid]) _calPendingEdits[oldPid] = {};
+                    _calPendingEdits[oldPid][f] = '';
+                    cleared = true;
+                }
+            });
+            if (cleared) {
+                _calRenderBody({ preserveScroll: true });   // show the old card unlinked right away
+                try { await _calFlushCardSave(oldPid); } catch (e) {}
+            }
+        }
+        // The receiving card may be a brand-new BLANK card the user just added
+        // (it isn't in calState.posts until its first save). Mirror
+        // _calLinearCommit: queue the edit + flush regardless of whether the row
+        // exists locally yet — the flush promotes the blank card and carries the
+        // link onto the freshly-minted row.
+        const newPost = calState.posts.find(p => p.id === newPid);
+        if (newPost) newPost[newFld] = val;
+        if (!_calPendingEdits[newPid]) _calPendingEdits[newPid] = {};
+        _calPendingEdits[newPid][newFld] = val;
+        _calFlushCardSave(newPid);
+        if (val) _calArchivedRemove(slug, [val]);
+        _calRenderBody({ preserveScroll: true });
+        if (val) _calSyncStatusFromLinear(newPid, val, which);
+    }
+
+    function _calRenderInlineCard(p, isBlank, isCurrent) {
+        const pid = _calEscAttr(p.id);
+        // Client-link view locks existing posts, but blank cards the client
+        // just added stay editable so they can fill them in. `ro` still
+        // governs the MEDIA surface (video / thumbnail / Linear / status /
+        // platforms) — clients never touch those, in either mode.
+        const ro = _isClientLink && !isBlank;
+        // Collaborative mode opens up the TEXT fields (title, date, caption,
+        // CTA) for the client on existing cards. Blank cards have always
+        // been client-editable (the Suggest-a-post flow). SMM is never
+        // locked. This is the only flag that diverges from `ro` when collab
+        // is on, so it stays scoped to the four text inputs and nowhere else.
+        const editableText = !_isClientLink || isBlank || _calIsCollabOn();
+        const selectable = calState.selectMode && !ro && !isBlank;
+        // Drag-to-reorder works for the SMM and clients alike (desktop native
+        // DnD). The `ro` flag keeps the client's media/status surface read-only
+        // but must NOT gate reordering — clients can reorder regardless of
+        // collaborative mode. Blank "suggest a post" cards and SMM select-mode
+        // stay non-draggable. So does every card while the Sheet is
+        // auto-organized by date: the drop handler derives order_index from DOM
+        // order, so a drag under a date sort would overwrite the manual order
+        // with the date order and there'd be nothing to switch back to.
+        const autoSorted = _calIsAutoSortOn();
+        const draggable = (isBlank || selectable || autoSorted) ? 'false' : 'true';
+        const dateIso = String(p.scheduled_date || '').slice(0,10);
+        const dateFmt = _calFmtDateShort(dateIso);
+        const currentStatus = p.status || 'In Progress';
+        const isPosted = String(p.status || '').toLowerCase() === 'posted';
+        const dateHtml = !editableText
+            ? `<div class="cal-fld-date-wrap is-readonly">
+                        <div class="cal-date-chip${dateFmt ? '' : ' is-empty'}">
+                            <svg class="cal-cal-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>
+                            <span class="cal-date-txt">${dateFmt ? _calEsc(dateFmt) : 'No date set'}</span>
+                        </div>
+                    </div>`
+            : `<div class="cal-fld-date-wrap">
+                        <div class="cal-date-chip${dateFmt ? '' : ' is-empty'}" data-date-display="${pid}">
+                            <svg class="cal-cal-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>
+                            <span class="cal-date-txt">${dateFmt ? _calEsc(dateFmt) : 'Add date'}</span>
+                            <svg class="cal-chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"/></svg>
+                        </div>
+                        <input class="cal-fld-date-input" type="date" data-pid="${pid}" data-fld="scheduled_date" value="${_calEscAttr(dateIso)}" onchange="_calOnDateChange(this)">
+                    </div>`;
+        // Per the SMM, the only surface where a client should approve is the
+        // Review tab — the Sheet tab is now read-only for them. Approval
+        // lives in _calReviewCardBody / _calReviewPanelHtml exclusively.
+        const canApprove = false;
+        const needsLinear = !ro && !isBlank && !_writeUiLinkSlotSealed('video') && !String(p.linear_issue_id || '').trim();
+        // Other active cards that point at this card's Linear sub-issue(s) — drives the
+        // duplicate warning banner. Computed here (render) from the live card list.
+        const dupePeers = (!_isClientLink && !isBlank) ? _calLinkDuplicatePeers(p) : [];
+        // Linked, but to a parent issue — same orange banner, different ask.
+        // Video takes precedence if both slots are parent-linked.
+        /* "Parent issue linked -- paste the sub-issue link instead" is an
+           instruction to perform exactly the write the seal now refuses, so a
+           sealed component drops out of this banner entirely. The video half is
+           unaffected while video stays Linear-authoritative. */
+        const parentComp = (!ro && !isBlank && !needsLinear)
+            ? (_calIsParentLinked(p.linear_issue_id) && !_writeUiLinkSlotSealed('video') ? 'video'
+                : (_calIsParentLinked(p.graphic_linear_issue_id) && !_writeUiLinkSlotSealed('graphic') ? 'graphic' : ''))
+            : '';
+        // Linked to a real sub-issue, but the sub-issue itself is missing
+        // project / due date / editor on Linear — same orange thumb banner,
+        // clicks open the Linear issue so the SMM can fill the gap.
+        const linearMissing = (!ro && !isBlank && !needsLinear && !parentComp)
+            ? _calLinearMissingForCard(p)
+            : null;
+        const subStatusHtml = (ro || _isClientLink) ? '' : CAL_COMPONENTS.map(c => {
+            // Don't fall back to overall — overall is lower-priority-wins,
+            // so seeding a blank sub from it would lie about state. Migrate
+            // already guarantees a value, so a blank reaching this point is
+            // a genuine "not set yet" and should read In Progress.
+            const cs = _calNormStatus(p[c + '_status'] || 'In Progress');
+            const lock = (c !== 'caption' && c !== 'title' && !_calCompLinked(p, c)) ? ' is-locked' : '';
+            /* The SMM reads N/A too (owner ruling 2026-08-20, extending the
+               client-view rule). A locked pill was already greyed and disabled,
+               but its LABEL still said "In Progress" — the same untrue claim the
+               client used to get, just dimmer. Show what is actually true: there
+               is no sub-issue, so there is no work item to be in progress.
+
+               The tooltip beside it was stale in its own way and was corrected
+               on 2026-08-31: it read "Link a Linear sub-issue first", naming an
+               affordance the flip deleted, so a reader who took the instruction
+               was sent hunting for a control that does not exist on any surface.
+               WRITE_UI_NO_WORK_ITEM_TEXT carries the replacement, and the lock
+               itself is unchanged -- it was always correct.
+
+               DISPLAY ONLY, and narrower than it looks:
+                 - `cs` and `data-val` keep the STORED status, so every
+                   in-place updater and the status menu still read the truth.
+                   Only the visible class and label change.
+                 - It applies solely to a LOCKED pill, which is `disabled` — so
+                   there is no path from this substitution to a write.
+                 - A finished state is never masked, matching the client rule:
+                   an Approved component that lost its link still reads
+                   Approved rather than disappearing behind N/A. */
+            const shownStatus = _calPillDisplayStatus(p, c, cs);
+            const slug = _calStatusSlug(shownStatus);
+            // URGENT ping. Two flavours, never both at once because their
+            // statuses are mutually exclusive: Video at Tweaks Needed pings the
+            // editor; ANY component at Kasper Approval pings Kasper. Shared
+            // predicates so the in-place updater stays in lockstep.
+            const showUrgent = _calShowUrgent(p, c);
+            const showKasperUrgent = !showUrgent && _calShowKasperUrgent(p, c);
+            const urgentBtn = showUrgent
+                ? _calUrgentButtonHtml(pid, '_calSendUrgentSlack', p)
+                : showKasperUrgent
+                    ? _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', p, '', false, 'kasper')
+                    : '';
+            return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${(showUrgent || showKasperUrgent) ? ' has-urgent' : ''}" data-val="${_calEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_calStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ` disabled title="${_calEscAttr(WRITE_UI_NO_WORK_ITEM_TEXT)}"` : ''}>
+                    <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
+                    <span class="cal-fld-substatus-comp">${_calEsc(COMP_LABELS[c])}</span>
+                    <span class="cal-fld-substatus-label">${_calEsc(_calCompStatusLabel(p, c, shownStatus))}</span>
+                </button>${urgentBtn}
+            </div>`;
+        }).join('');
+        // "Set all to..." pill — chain-link icon signals the three components
+        // are about to move together. Hidden on blank cards (no statuses yet
+        // to set) and the client view. Always rendered for SMM cards even
+        // when some components are locked: the writer will quietly skip the
+        // locked ones, matching the "click each pill" semantics.
+        const setAllHtml = (ro || _isClientLink || isBlank) ? '' : `<button type="button" class="cal-fld-setall" onclick="_calOpenSetAllMenu(event,'${pid}',this)" title="Set all three statuses to the same value">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg>
+            <span class="cal-fld-setall-label">Set all to…</span>
+            <svg class="cal-fld-setall-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>
+        </button>`;
+        const statusHtml = ro
+            ? `<div class="cal-client-status">${_calClientCompPillsHtml(p)}</div>`
+            : `${(setAllHtml || subStatusHtml) ? `<div class="cal-card-substatus-row">${setAllHtml}${subStatusHtml}</div>` : ''}`;
+        const selChk = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
+        return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}${isCurrent ? ' cal-card-current' : ''}${isPosted ? ' cal-card-posted' : ''}${ro ? ' cal-card-ro' : ''}${selectable ? ' cal-card-selectable' : ''}${selectable && calState.selected.has(p.id) ? ' cal-card-selected' : ''}" data-pid="${pid}" draggable="${draggable}">
+            ${selectable ? `<div class="cal-card-select-overlay" onclick="_calCardSelectClick(event,'${pid}')"><span class="cal-card-select-check">${selChk}</span></div>` : ''}
+            ${isBlank ? '' : `<span class="cal-card-grip${autoSorted ? ' is-locked' : ''}" title="${autoSorted ? 'Auto-organized by date — switch Order back to Manual to drag cards' : 'Drag to reorder'}"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>`}
+            ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-link" type="button" data-card-link="${pid}" onclick="_calCopyCardLink(event,'${pid}')" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>`}
+            ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
+            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : (parentComp ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}'${parentComp === 'graphic' ? ",'graphic'" : ''})" title="This card links the parent issue — statuses pushed there never reach the editor’s Workload. Paste the ${parentComp === 'graphic' ? 'GRA (graphic)' : 'VID (video)'} sub-issue link instead."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Parent issue linked — link the sub-issue</button>` : (linearMissing ? `<a class="cal-thumb-linear-warn" href="${_calEscAttr(/^https?:\/\//i.test(linearMissing.url) ? linearMissing.url : 'https://' + linearMissing.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="This Linear ${linearMissing.comp === 'graphic' ? 'graphic' : 'video'} sub-issue has no ${linearMissing.missing.join(', no ')} set. Open it on Linear to fix."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Sub-issue has no ${linearMissing.missing.join(', no ')}</a>` : ''))}${_calThumbContent(p)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}${_isClientLink ? '' : _calSmmWarnOverlayHtml(p)}${(_isClientLink || ro) ? '' : _calLinearPileHtml(pid, p)}</div>
+            <div class="cal-card-body">
+                ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_calEscAttr(_calDupeWarnText(dupePeers))}. Two cards can't own the same Linear sub-issue — archive one of them, or change one card's link.">⚠ ${_calEsc(_calDupeWarnText(dupePeers))} — archive one or change its link</div>` : ''}
+                <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro, editableText)}</div>
+                <div class="cal-meta-row">${dateHtml}</div>
+                ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, _isClientLink && !isBlank, p)}
+                ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro, _isClientLink && !isBlank, p)}
+                <div class="cal-capblock" data-capblock="${pid}">${_calCapBlockHtml(pid, p, editableText, isBlank)}</div>
+                <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${!editableText ? ' readonly' : ''}>
+                ${canApprove ? `<button class="cal-approve-bar" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve post</button>` : ''}
+                <div class="cal-card-foot">
+                    ${_calCommentsBtnHtml(p, pid)}
+                    ${p._saveError
+                        ? `<button type="button" class="cal-card-saving is-error" data-saving="${pid}" onclick="_calRetrySave('${pid}')" title="${_calEscAttr(typeof p._saveError === 'string' ? p._saveError : 'Save failed')} — click to retry">Save failed · Retry</button>`
+                        : `<span class="cal-card-saving" data-saving="${pid}" hidden></span>`}
+                </div>
+                <div class="cal-card-status-row">${statusHtml}</div>
+            </div>
+        </div>`;
+    }
+
+    /* Custom status dropdown — replaces the native <select> popup with the
+       same nice menu pattern used by the rest of the app. The menu is
+       portaled to <body> so the card's overflow:hidden can't clip it. */
+    let _calOpenStatusMenu = null;
+    /* The slug becomes a CSS class suffix, so every character that is illegal
+       in a class name has to collapse to a dash: "N/A" would otherwise emit
+       `cal-fld-status-n/a`, which no stylesheet can match and which silently
+       renders the chip unstyled. Existing statuses are unchanged -- they only
+       ever contained letters and spaces. */
+    function _calStatusSlug(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+    function _calCloseStatusMenu() {
+        if (!_calOpenStatusMenu) return;
+        const m = _calOpenStatusMenu.el;
+        if (m && m.parentNode) m.parentNode.removeChild(m);
+        _calOpenStatusMenu = null;
+    }
+    function _calStatusToggleMenu(event, pid, triggerEl, comp) {
+        event.stopPropagation();
+        event.preventDefault();
+        const which = comp || '';
+        const menuKey = pid + (which ? '|' + which : '');
+        if (_calOpenStatusMenu && _calOpenStatusMenu.key === menuKey) { _calCloseStatusMenu(); return; }
+        _calCloseStatusMenu();
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        // Make sure the pill the user is opening from agrees with the
+        // value the menu is about to highlight. If a background poll or
+        // auto-status mutated post.* while the user wasn't actively
+        // editing, the pill DOM may be stale relative to calState.posts.
+        _calUpdateCardStatusDisplay(pid);
+        const currentStatus = which
+            ? (post[which + '_status'] || 'In Progress')
+            : (post.status || 'In Progress');
+        const menu = document.createElement('div');
+        menu.className = 'cal-fld-status-menu';
+        /* A status this component cannot be sent to is DISABLED here rather
+           than refused after the click. The gate has to stay in _calStatusPick
+           regardless -- it is the handler, and Set all, the auto-router and the
+           approve paths all reach the same rule without going through this menu
+           -- but being told "no" after choosing is the worse half of a correct
+           refusal, and the owner asked for the cosmetic half (2026-09-05).
+           The note names the escape hatch: N/A is never gated, and N/A is
+           excluded from CAL_PRIORITY, so a lane that will never have content
+           stops holding the whole card's status down. */
+        const _menuBlocked = {};
+        if (which) {
+            for (const s of (which === 'title' ? CAL_TITLE_STATUSES : CAL_STATUSES)) {
+                const reason = _calReviewBlockReason(post, which, s);
+                if (reason) _menuBlocked[s] = reason;
+            }
+        }
+        menu.innerHTML = (which === 'title' ? CAL_TITLE_STATUSES : CAL_STATUSES).map(s => {
+            const blocked = _menuBlocked[s];
+            return `<button type="button" class="cal-fld-status-item cal-fld-status-${_calStatusSlug(s)}${s === currentStatus ? ' active' : ''}"${blocked ? ` disabled title="${_calEscAttr(blocked)}"` : ''} onclick="_calStatusPick('${_calEscAttr(pid)}','${_calEscAttr(s)}','${_calEscAttr(which)}')">${_calEsc(_calStatusLabel(s))}</button>`;
+        }).join('')
+            + (Object.keys(_menuBlocked).length
+                ? `<div class="cal-fld-status-note">${_calEsc(_calMenuBlockedNote(which))}</div>`
+                : '');
+        document.body.appendChild(menu);
+        const rect = triggerEl.getBoundingClientRect();
+        const menuW = Math.max(menu.offsetWidth, 200);
+        const menuH = menu.offsetHeight;
+        let left = rect.left;
+        const maxLeft = window.innerWidth - menuW - 10;
+        if (left > maxLeft) left = maxLeft;
+        if (left < 10) left = 10;
+        menu.style.left = left + 'px';
+        // Open downward by default; flip upward when the trigger sits near
+        // the bottom edge and there's more room above it. Clamps so the menu
+        // never escapes the viewport.
+        const gap = 5;
+        const spaceBelow = window.innerHeight - rect.bottom - 10;
+        const spaceAbove = rect.top - 10;
+        let top;
+        if (menuH <= spaceBelow || spaceBelow >= spaceAbove) {
+            /* Math.max floor: with a menu taller than the viewport the inner
+               Math.min goes NEGATIVE and the top of the list leaves the screen.
+               The CSS cap above makes that unreachable in practice; this is the
+               second line of defence, because the cap depends on a stylesheet
+               rule and this does not. */
+            top = Math.max(10, Math.min(rect.bottom + gap, window.innerHeight - menuH - 10));
+        } else {
+            top = Math.max(10, rect.top - menuH - gap);
+        }
+        menu.style.top = top + 'px';
+        menu.style.minWidth = Math.max(rect.width, 200) + 'px';
+        requestAnimationFrame(() => menu.classList.add('open'));
+        _calOpenStatusMenu = { pid, key: menuKey, comp: which, el: menu, triggerEl };
+    }
+    function _calStatusPick(pid, status, comp) {
+        if (_isClientLink) return;   // status control is SMM-only (client review uses _calReviewApprove)
+        _calCloseStatusMenu();
+        const which = comp || '';
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        /* The pending bucket is created only once the move is definitely going
+           ahead. An EMPTY bucket is not harmless: _calFlushCardSave treats the
+           presence of a bucket as "this card has something to write" and, with
+           no field-level edits in it, resends the whole card from this tab's
+           snapshot -- which can overwrite a field another tab changed in the
+           meantime. Every early return below therefore has to happen before
+           the bucket exists, not after. */
+        if (which) {
+            const key = which + '_status';
+            if (post[key] === status) return;
+            /* Refuse to send an empty component for review. */
+            const blocked = _calReviewBlockReason(post, which, status);
+            if (blocked) {
+                showNotify('Nothing to review yet', blocked);
+                return;
+            }
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            post[key] = status;
+            _calPendingEdits[pid][key] = status;
+            // Title is independent of the overall card status — never fold it in.
+            if (which !== 'title') {
+                post.status = computeOverallStatus(post);
+                _calPendingEdits[pid].status = post.status;
+            }
+            _calMarkLocalStatus(pid, which);
+        } else {
+            if (post.status === status) return;
+            // Main status dropdown is a bulk override — set every sub-status
+            // so the lower-wins overall computation lands on the chosen value.
+            /* ...except a component with nothing in it, which is skipped rather
+               than failing the whole action: sending two of three for review is
+               what the reader asked for, and refusing all three because one
+               caption is blank would be the more annoying answer. */
+            const movable = CAL_COMPONENTS.filter(c => !_calReviewBlockReason(post, c, status));
+            const held = CAL_COMPONENTS.filter(c => !movable.includes(c));
+            if (!movable.length) {
+                showNotify('Nothing to review yet', 'Every part of this card is still empty, so there is nothing to send for approval.');
+                return;
+            }
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            for (const c of movable) {
+                post[c + '_status'] = status;
+                _calPendingEdits[pid][c + '_status'] = status;
+            }
+            /* Compute the overall from what actually moved rather than
+               asserting the requested value. With nothing held back the two
+               are identical (every component is now `status`, and lower-wins
+               over three equal values returns it). With a component held back
+               they differ, and the computed one is the true one: a card whose
+               caption is still In Progress is not "in Kasper Approval", and
+               claiming it is would put the header pill and the component pills
+               in open disagreement. */
+            post.status = computeOverallStatus(post);
+            _calPendingEdits[pid].status = post.status;
+            if (held.length) {
+                showNotify('Sent without ' + held.map(c => String(CAL_COMP_LABEL[c] || c).toLowerCase()).join(' and '),
+                    'Those are still empty, so they stayed where they were. Add the content and set them separately.');
+            }
+            _calMarkLocalStatus(pid);
+        }
+        // If any sub regressed below Client Approval, the matching
+        // client_<comp>_approved_at and/or kasper_approved_at no longer
+        // reflect reality. Clear them so the row's audit trail stays
+        // truthful (no "approved at <date>" on a card now in Tweaks Needed).
+        _calClearStaleApprovals(post, _calPendingEdits[pid]);
+        post.updated_at = new Date().toISOString();
+        _calRenderBody({ preserveScroll: true });
+        _calFlushCardSave(pid);
+    }
+
+    /* "Set all to…" — opens the same status menu as the per-component pills
+       but the selection writes to every component the SMM is allowed to
+       change in one atomic save. Equivalent to clicking each pill in turn:
+       caption is always settable; video/graphic are skipped when they have
+       no Linear sub-issue linked (same lock the per-component pill enforces).
+       Per-component Linear pushes ride on the regular _calFlushCardSave
+       path, so each Linear sub-issue receives ONLY its own sub-status — no
+       repeat of the old "overall status leaks onto the video issue" bug. */
+    function _calOpenSetAllMenu(event, pid, triggerEl) {
+        event.stopPropagation();
+        event.preventDefault();
+        const menuKey = pid + '|__setall__';
+        if (_calOpenStatusMenu && _calOpenStatusMenu.key === menuKey) { _calCloseStatusMenu(); return; }
+        _calCloseStatusMenu();
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const menu = document.createElement('div');
+        menu.className = 'cal-fld-status-menu';
+        // Header row reuses the menu's chrome to spell out exactly what
+        // "Set all" will do for this card — so an SMM with one component
+        // unlinked sees that the unlinked one will be skipped before they
+        // pick a status, not after.
+        const settable = CAL_COMPONENTS.filter(c => _calSetAllSettable(post, c));
+        const skipped = CAL_COMPONENTS.filter(c => !settable.includes(c));
+        const headLabel = skipped.length
+            ? `Apply to ${settable.map(c => COMP_LABELS[c]).join(', ')} — ${skipped.map(c => COMP_LABELS[c]).join(' & ')} ${skipped.length === 1 ? 'is' : 'are'} not linked`
+            : 'Apply to all three components';
+        menu.innerHTML = `<div class="cal-fld-setall-menu-head">${_calEsc(headLabel)}</div>`
+            + CAL_STATUSES.map(s => `<button type="button" class="cal-fld-status-item cal-fld-status-${_calStatusSlug(s)}" onclick="_calSetAllStatus('${_calEscAttr(pid)}','${_calEscAttr(s)}')">${_calEsc(_calStatusLabel(s))}</button>`).join('');
+        document.body.appendChild(menu);
+        const rect = triggerEl.getBoundingClientRect();
+        const menuW = Math.max(menu.offsetWidth, 220);
+        const menuH = menu.offsetHeight;
+        let left = rect.left;
+        const maxLeft = window.innerWidth - menuW - 10;
+        if (left > maxLeft) left = maxLeft;
+        if (left < 10) left = 10;
+        let top = rect.bottom + 6;
+        if (top + menuH > window.innerHeight - 10) top = Math.max(10, rect.top - menuH - 6);
+        menu.style.left = left + 'px';
+        menu.style.top  = top + 'px';
+        requestAnimationFrame(() => menu.classList.add('open'));
+        _calOpenStatusMenu = { el: menu, key: menuKey, triggerEl };
+    }
+    /* Settable means "the pill for this component is not locked", so the ONE
+       predicate has to be the one the pill uses. This tested the Linear URL
+       alone, while the lock beside it uses _calCompLinked (url OR native
+       deliverable id) -- so a native-only card would have an unlocked, working
+       pill and be silently skipped by Set all. Today that is latent rather than
+       live (0 samples and 0 live calendar cards carry a deliverable id with no
+       url), which is exactly why it had to be fixed before it stopped being
+       latent: post-flip, native-only IS the shape new work arrives in. */
+    /* ONE RULE FOR "DOES THIS COMPONENT HAVE THE THING IT IS ASKING TO BE
+       REVIEWED", and every surface that needs the answer asks HERE.
+
+       It already existed three times over: Kasper's queue asked it to decide
+       what he can act on (_kasperCompReviewable), the calendar asked a narrower
+       version of it to draw the "No video linked" warning (_calSmmMediaGap),
+       and nothing asked it before letting the status move. That last gap is why
+       cards keep arriving in Kasper's stranded notice: a status can be sent for
+       review while the thing to review is empty, so the SMM believes it is with
+       him and he opens a card with nothing on it.
+
+       Owner, 2026-09-05: "if the caption is empty or there is no thumbnail URL
+       or no video URL then it shouldn't go to Kasper Approval."
+
+       A component is reviewable when its OWN content is present -- video needs
+       a file, thumbnail needs an image, caption needs either caption body. */
+    function _calCompHasContent(post, comp) {
+        /* Delegates to Kasper's definition rather than copying it, so what he
+           can review and what may be sent to him cannot drift apart. The
+           direction matters: his is the one six suites compile in isolation,
+           so it stays dependency-free and this side does the reaching. */
+        return _kasperCompReviewable(post, comp);
+    }
+    /* The statuses that mean "somebody is being asked to look at this". Only
+       these are gated. Tweaks Needed is a REJECTION -- the content may well be
+       missing, that is often the point -- and the terminal three are left alone
+       deliberately: blocking Approved/Scheduled/Posted would break bulk edits on
+       legacy cards that were completed before the calendar carried media at all,
+       which is a real workflow, not a hypothetical. */
+    const CAL_REVIEW_STATUSES = new Set(['For SMM Approval', 'Kasper Approval', 'Client Approval']);
+    function _calStatusNeedsContent(status) {
+        return CAL_REVIEW_STATUSES.has(_calNormStatus(status || ''));
+    }
+    /* '' when the move is allowed, otherwise the reason, phrased the way the
+       existing media warning phrases it so the two agree. */
+    function _calReviewBlockReason(post, comp, status) {
+        if (!_calStatusNeedsContent(status)) return '';
+        if (_calCompHasContent(post, comp)) return '';
+        if (comp === 'video') return 'Add the video URL before sending it for approval.';
+        if (comp === 'graphic') return 'Add the thumbnail URL before sending it for approval.';
+        if (comp === 'caption') return 'Write the caption before sending it for approval.';
+        if (comp === 'title') return 'Write the title before sending it for approval.';
+        return '';
+    }
+    const CAL_COMP_LABEL = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'Title' };
+    /* What the greyed-out review statuses mean, and the way out. N/A is named
+       because that is the answer for a lane this post will never have -- and
+       N/A is deliberately absent from CAL_PRIORITY, so marking it stops the
+       empty lane holding the card's overall status down.
+
+       But ONLY where N/A is actually on the menu. CAL_TITLE_STATUSES has no
+       N/A, so offering it on a title would be the same dead instruction this
+       repo keeps finding: a fix the reader is told to apply through a control
+       that isn't there. Derived from the list rather than hardcoded, so adding
+       or removing N/A from either vocabulary keeps the sentence honest. */
+    function _calMenuBlockedNote(comp) {
+        const what = comp === 'video' ? 'a video'
+            : comp === 'graphic' ? 'a thumbnail'
+            : comp === 'caption' ? 'a caption'
+            : comp === 'title' ? 'a title'
+            : 'anything';
+        const menu = comp === 'title' ? CAL_TITLE_STATUSES : CAL_STATUSES;
+        return 'The review statuses need ' + what + ' first.'
+            + (menu.indexOf('N/A') >= 0 ? ' If this post will never have one, set it to N/A.' : '');
+    }
+    /* Where an SMM approval sends the component. Extracted because two places
+       need it and they must not drift: _calReviewApplyApprove decides the real
+       destination, and _calReviewApprove has to know the same destination
+       BEFORE it resolves the SMM's ticked change-requests -- resolving first
+       and being refused second marks tweaks done for an approval that never
+       happened. */
+    function _calSmmApproveTo(dest) {
+        return dest === 'client' ? 'Client Approval' : (dest === 'approved' ? 'Approved' : 'Kasper Approval');
+    }
+    /* Where the RESOLVE CHOOSER's auto-route lands. Note the default differs
+       from _calSmmApproveTo above -- there, an unrecognised dest means Kasper;
+       here it means the client. That is not a bug to tidy: the chooser's three
+       buttons are Kasper / client / Approved and its recommendation logic
+       already picked one, whereas an approve-onward with no dest is the
+       brand-new-post case that goes to Kasper. Two rules, so two functions,
+       each named for the path it serves. Extracted for the same reason
+       _calSmmApproveTo was: the guard in _calResolveLastTweak has to know where
+       the route is going BEFORE it resolves anything. */
+    function _calAutoResolveDestStatus(dest) {
+        return (dest === 'kasper') ? 'Kasper Approval'
+             : (dest === 'approved') ? 'Approved'
+             : 'Client Approval';
+    }
+
+    function _calSetAllSettable(post, comp) {
+        if (!post) return false;
+        if (comp === 'caption') return true;
+        return _calCompLinked(post, comp);
+    }
+    const _CAL_SETALL_TERMINAL = new Set(['Approved', 'Scheduled', 'Posted']);
+    function _calSetAllSkipKey(status) {
+        return 'cal-skip-setall-confirm-' + String(status).toLowerCase().replace(/\s+/g, '-');
+    }
+    function _calSetAllStatus(pid, status) {
+        if (_isClientLink) return;   // SMM-only bulk status control
+        _calCloseStatusMenu();
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        /* Same rule as the pill: a component with no content is not settable to
+           a review status. Filtered here rather than inside apply() so the
+           confirm dialog counts what will actually move. */
+        const settable = CAL_COMPONENTS.filter(c => _calSetAllSettable(post, c)
+            && !_calReviewBlockReason(post, c, status));
+        const heldEmpty = CAL_COMPONENTS.filter(c => _calSetAllSettable(post, c)
+            && _calReviewBlockReason(post, c, status));
+        if (!settable.length && heldEmpty.length) {
+            showNotify('Nothing to review yet', 'Every part you can set is still empty, so there is nothing to send for approval.');
+            return;
+        }
+        if (!settable.length) {
+            // Was "link the Linear sub-issues first" -- the same dead-control
+            // instruction the locked pill carried, in a third place the sweep
+            // did not list. See WRITE_UI_NO_WORK_ITEM_TEXT.
+            showNotify('Nothing to set', 'None of the components on this card have a work item behind them, so there is nothing here to update.');
+            return;
+        }
+        const apply = (dontAskAgain) => {
+            if (dontAskAgain) {
+                try { localStorage.setItem(_calSetAllSkipKey(status), '1'); } catch {}
+            }
+            /* Staged off to the side so the "nothing to do" return below
+               leaves no bucket behind. An empty _calPendingEdits entry is read
+               by _calFlushCardSave as a card to write and becomes a full-card
+               resend of this tab's snapshot. */
+            const staged = {};
+            let changed = false;
+            for (const c of settable) {
+                const key = c + '_status';
+                if (_calNormStatus(post[key] || '') === status) continue;
+                post[key] = status;
+                staged[key] = status;
+                changed = true;
+            }
+            if (!changed) return;   // nothing to do — every settable component already at this status
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            const edits = Object.assign(_calPendingEdits[pid], staged);
+            // Recompute overall from the new sub-statuses. The overall is
+            // NEVER pushed to Linear (the historical bug); only the
+            // per-component *_status edits in this patch will, via the
+            // existing _calFlushCardSave Linear push code.
+            post.status = computeOverallStatus(post);
+            edits.status = post.status;
+            // Mark the whole card as locally-changed so the post-load
+            // reconcile against Linear won't clobber any of these in the
+            // 5-minute grace window while Linear's state catches up.
+            _calMarkLocalStatus(pid);
+            _calClearStaleApprovals(post, edits);
+            post.updated_at = new Date().toISOString();
+            _calRenderBody({ preserveScroll: true });
+            _calFlushCardSave(pid);
+            /* heldEmpty was computed to keep the confirm honest; it has to be
+               said out loud too. "Set all" that quietly moves two of three is
+               indistinguishable from one that moved all three, and the reader
+               finds out when the third never reaches the reviewer. */
+            if (heldEmpty.length) {
+                showNotify('Set without ' + heldEmpty.map(c => String(COMP_LABELS[c] || c).toLowerCase()).join(' and '),
+                    'Those are still empty, so they stayed where they were. Add the content and set them separately.');
+            }
+        };
+        // Confirm before flipping into a "terminal" / client-visible state.
+        // Other states (mid-workflow) go through silently — they're cheap
+        // to undo.
+        let skip = false;
+        try { skip = localStorage.getItem(_calSetAllSkipKey(status)) === '1'; } catch {}
+        if (_CAL_SETALL_TERMINAL.has(status) && !skip) {
+            const settableLabel = settable.map(c => COMP_LABELS[c]).join(', ');
+            /* Two distinct reasons a component is not in `settable`, and they
+               must not be reported as one: "not linked to Linear" was the only
+               reason before the empty-content gate existed, and telling the
+               reader an empty-but-linked component needs a link sends them to
+               fix something that is not broken. */
+            const unlinkedLabel = CAL_COMPONENTS.filter(c => !_calSetAllSettable(post, c)).map(c => COMP_LABELS[c]).join(' and ');
+            const emptyLabel = heldEmpty.map(c => COMP_LABELS[c]).join(' and ');
+            const msg = `Set ${settableLabel} to "${status}".`
+                + (unlinkedLabel ? ` (${unlinkedLabel} not linked to Linear — skipped.)` : '')
+                + (emptyLabel ? ` (${emptyLabel} still empty — skipped.)` : '');
+            showConfirm(`Set all to "${status}"?`, msg, apply, status, "Don't ask me again");
+        } else {
+            apply(false);
+        }
+    }
+
+    document.addEventListener('click', (e) => {
+        if (!_calOpenStatusMenu) return;
+        if (_calOpenStatusMenu.el && _calOpenStatusMenu.el.contains(e.target)) return;
+        if (_calOpenStatusMenu.triggerEl && _calOpenStatusMenu.triggerEl.contains(e.target)) return;
+        _calCloseStatusMenu();
+    }, true);
+    window.addEventListener('resize', _calCloseStatusMenu);
+    window.addEventListener('scroll', _calCloseStatusMenu, true);
+    /* Client-link view — the only status action a client can take is to
+       approve a post. Flips the status to "Approved" and saves it. */
+    function _calClientApprove(pid) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const doApprove = () => {
+            const stamp = new Date().toISOString();
+            post.video_status   = 'Approved';
+            post.graphic_status = 'Approved';
+            post.caption_status = 'Approved';
+            post.status = 'Approved';
+            post.client_video_approved_at   = stamp;
+            post.client_graphic_approved_at = stamp;
+            post.client_caption_approved_at = stamp;
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            Object.assign(_calPendingEdits[pid], {
+                status: 'Approved',
+                video_status: 'Approved',
+                graphic_status: 'Approved',
+                caption_status: 'Approved',
+                client_video_approved_at: stamp,
+                client_graphic_approved_at: stamp,
+                client_caption_approved_at: stamp,
+            });
+            _calFlushCardSave(pid);
+            _calRenderBody({ preserveScroll: true });
+        };
+        let skip = false;
+        try { skip = localStorage.getItem('cal-skip-approve-confirm') === '1'; } catch (e) {}
+        if (skip) { doApprove(); return; }
+        showConfirm('Approve this post?', 'This marks the video as approved. If you need changes instead, leave a comment in the tweaks field.', (dontAskAgain) => {
+            if (dontAskAgain) { try { localStorage.setItem('cal-skip-approve-confirm', '1'); } catch (e) {} }
+            doApprove();
+        }, 'Approve', "Don't ask me again");
+    }
+    function _calOnTextareaInput(el) {
+        el.style.height = 'auto';
+        el.style.height = Math.max(el.scrollHeight, parseInt(getComputedStyle(el).minHeight) || 0) + 2 + 'px';
+        _calOnFieldInput(el);
+    }
+    /* Caption field — collapsed (≈5 lines) by default, expands on focus or
+       via the toggle, collapses again on blur unless the user pinned it. */
+    function _calCapCollapsedH(ta) {
+        const cs = getComputedStyle(ta);
+        const lh = parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) * 1.5);
+        const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)
+                  + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+        return Math.round(lh * (ta.rows || 3) + pad);
+    }
+    function _calRefreshCaption(ta, focused) {
+        if (!ta) return;
+        // Not rendered (e.g. the inactive caption tab's textarea) — heights
+        // would compute as 0/NaN. _calCapTabSwitch re-runs this on reveal.
+        if (!ta.getClientRects().length) return;
+        const wrap = ta.closest('.cal-cap-wrap');
+        const expanded = !!(wrap && wrap.classList.contains('expanded'));
+        ta.style.height = 'auto';
+        const full = ta.scrollHeight + 2;
+        const collapsedH = _calCapCollapsedH(ta);
+        const overflowing = full > collapsedH + 1;
+        // Collapsed always sits at exactly the default (rows) height, so an
+        // empty field and a collapsed-with-content field look identical.
+        const target = (focused || expanded) ? Math.max(full, collapsedH) : collapsedH;
+        ta.style.height = target + 'px';
+        ta.style.overflowY = 'hidden';   // collapsed clips; expanded grows to fit — never a scrollbar
+        if (wrap) {
+            const open = expanded || focused;
+            // Drives the bottom fade gradient + "tap to read more" cursor: the
+            // caption is clamped only when it overflows AND is currently
+            // collapsed (not expanded, not focused-open).
+            wrap.classList.toggle('is-clamped', overflowing && !open);
+            const btn = wrap.querySelector('.cal-cap-toggle');
+            if (btn) {
+                btn.hidden = !overflowing;
+                // Collapsed → "Show more" pill; expanded → just the up-chevron
+                // (CSS hides the label) so it doesn't cover the caption's end.
+                btn.classList.toggle('is-expanded', open);
+            }
+        }
+    }
+    /* Whole collapsed caption is a click target to expand — but only for the
+       read-only (client / locked) caption. Editable captions already expand on
+       focus while you type, so hijacking the click would fight cursor
+       placement. Explicit controls (the Show more/less pill, Generate) handle
+       their own clicks. Collapse again via the pill. */
+    function _calCaptionWrapClick(e, wrap) {
+        if (!wrap || (e && e.target && e.target.closest('button, a'))) return;
+        const ta = wrap.querySelector('textarea');
+        if (!ta || !ta.readOnly || wrap.classList.contains('expanded')) return;
+        // Pin it open (clicking the box focuses the read-only textarea, which
+        // already cleared is-clamped, so gate on the toggle: it's shown iff
+        // there's hidden text). Collapse again via the Show less pill.
+        const btn = wrap.querySelector('.cal-cap-toggle');
+        if (btn && btn.hidden) return;
+        wrap.classList.add('expanded');
+        _calRefreshCaption(ta, document.activeElement === ta);
+    }
+    function _calOnCaptionInput(ta) { _calRefreshCaption(ta, document.activeElement === ta); _calOnFieldInput(ta); }
+    function _calOnCaptionFocus(ta) { _calCaptionDragLock(ta, true); _calRefreshCaption(ta, true); }
+    function _calOnCaptionBlur(ta)  { _calCaptionDragLock(ta, false); _calRefreshCaption(ta, false); _calOnFieldBlur(ta); }
+    /* While a caption textarea has focus, switch the card's native HTML5 drag
+       OFF so click-dragging to SELECT text inside the caption can't grab and
+       reorder the whole card ("I'm in the caption and it drags the card").
+       The dragstart guard in _calWireDragOnCard can't catch this case: when the
+       draggable card is itself the drag source the event target is the card,
+       not the textarea, so the closest('textarea') check never fires. Clearing
+       `draggable` stops the browser starting the card drag in the first place.
+       The pre-focus value is stashed and restored on blur so blank / select-
+       mode cards (draggable="false") and normal cards (draggable="true") each
+       get the right value back — and grabbing the grip still works, since
+       mousedown there blurs the caption (restoring drag) before dragstart. */
+    function _calCaptionDragLock(ta, lock) {
+        const card = ta && ta.closest('.cal-card');
+        if (!card) return;
+        if (lock) {
+            if (card.dataset.dragPrev == null) card.dataset.dragPrev = card.getAttribute('draggable') || 'false';
+            card.setAttribute('draggable', 'false');
+        } else if (card.dataset.dragPrev != null) {
+            card.setAttribute('draggable', card.dataset.dragPrev);
+            delete card.dataset.dragPrev;
+        }
+    }
+    /* Escape inside a caption field defocuses it and collapses it back to the
+       resting (clamped) state — "let me out of here". The blur flushes the
+       save exactly like clicking away, so nothing typed is lost; removing
+       `expanded` first also unpins a Show-more expand so the field truly
+       returns to rest. stopPropagation keeps this Escape from also tripping
+       the document-level handlers (e.g. exiting multi-select). */
+    function _calOnCaptionKey(e, ta) {
+        if (!e) return;
+        e.stopPropagation();
+        if (e.key !== 'Escape' || !ta) return;
+        e.preventDefault();
+        const wrap = ta.closest('.cal-cap-wrap');
+        if (wrap) wrap.classList.remove('expanded');
+        ta.blur();
+    }
+    function _calToggleCaption(btn) {
+        const wrap = btn.closest('.cal-cap-wrap');
+        if (!wrap) return;
+        wrap.classList.toggle('expanded');
+        const ta = wrap.querySelector('textarea');
+        _calRefreshCaption(ta, document.activeElement === ta);
+    }
+    /* Re-measure captions when they actually get a size — fixes the "I entered
+       a long caption but no Show-more appears / it won't expand" report. The
+       overflow check in _calRefreshCaption early-returns when the textarea
+       isn't laid out (hidden tab, off-screen mount, pre-layout) and never
+       re-ran on reveal / width change / orientation flip. A ResizeObserver
+       catches those; a one-shot document.fonts.ready pass catches the case
+       where the first measure ran before the webfont swapped (which changes the
+       line-height the clamp is computed from). */
+    let _calCapRO = null;
+    function _calCapResizeObs() {
+        if (_calCapRO || typeof ResizeObserver === 'undefined') return _calCapRO;
+        _calCapRO = new ResizeObserver(entries => {
+            for (const e of entries) {
+                const ta = e.target;
+                if (!ta.isConnected) { _calCapRO.unobserve(ta); continue; }
+                // Only re-measure on a WIDTH change (reveal 0→W, resize, rotate).
+                // Our own height writes don't change width, so this can't loop.
+                const w = Math.round(ta.clientWidth);
+                if (ta._capLastW === w) continue;
+                ta._capLastW = w;
+                _calRefreshCaption(ta, document.activeElement === ta);
+            }
+        });
+        return _calCapRO;
+    }
+    let _calCapFontsHooked = false;
+    function _calCapHookFonts() {
+        if (_calCapFontsHooked || !document.fonts || !document.fonts.ready) return;
+        _calCapFontsHooked = true;
+        document.fonts.ready.then(() => { try { _calAutosizeTextareas(document); } catch (e) {} });
+    }
+    function _calAutosizeTextareas(container) {
+        _calCapHookFonts();
+        const root = container || document;
+        const ro = _calCapResizeObs();
+        root.querySelectorAll('.cal-fld-cap, .cal-fld-tweaks').forEach(t => _calRefreshCaption(t, false));
+        if (ro) root.querySelectorAll('.cal-fld-cap').forEach(t => {
+            if (t.dataset.capRo !== '1') { t.dataset.capRo = '1'; ro.observe(t); }
+        });
+    }
+    function _calThumbClick(e, pid) {
+        // Only the image itself or the zoom button open the lightbox —
+        // clicking the padded stage around it does nothing.
+        if (e.target.tagName === 'IMG' || e.target.closest('.cal-thumb-zoom')) _calOpenThumbLightbox(pid);
+    }
+    function _calOpenThumbLightbox(pid) {
+        let info = null;
+        const post = calState.posts.find(p => p.id === pid);
+        if (post) {
+            info = _calDeriveThumbInfo(post);
+        } else {
+            const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+            if (card) {
+                const t = card.querySelector('[data-fld="thumbnail_url"]');
+                const a = card.querySelector('[data-fld="asset_url"]');
+                info = _calDeriveThumbInfo({ thumbnail_url: t ? t.value : '', asset_url: a ? a.value : '' });
+            }
+        }
+        if (!info || !info.url) return;
+        const ovl = document.getElementById('calLightbox');
+        if (!ovl) return;
+        const img = ovl.querySelector('img');
+        img.src = info.url;
+        ovl.classList.add('open');
+        document.body.classList.add('cal-modal-open');
+    }
+    function closeCalLightbox() {
+        const ovl = document.getElementById('calLightbox');
+        if (ovl) { ovl.classList.remove('open'); const img = ovl.querySelector('img'); if (img) img.src = ''; }
+        document.body.classList.remove('cal-modal-open');
+    }
+    function _calOpenUrlField(btn) {
+        const wrap = btn.closest('.cal-fld-url-wrap');
+        const input = wrap ? wrap.querySelector('input') : null;
+        const val = input ? input.value.trim() : '';
+        if (!val) return;
+        let url = val;
+        if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+        window.open(url, '_blank', 'noopener,noreferrer');
+    }
+    function _calRefreshUrlWrapState(input) {
+        const wrap = input.closest('.cal-fld-url-wrap');
+        if (!wrap) return;
+        wrap.classList.toggle('has-value', !!input.value.trim());
+    }
+
+    function _calOnDateChange(el) {
+        if (_calClientFieldEditBlocked()) return;
+        const pid = el.dataset.pid;
+        const card = el.closest('.cal-card');
+        const chip = card ? card.querySelector(`[data-date-display="${pid}"]`) : null;
+        const fmt = _calFmtDateShort(el.value);
+        if (chip) {
+            const txt = chip.querySelector('.cal-date-txt');
+            if (txt) txt.textContent = fmt || 'Add date';
+            chip.classList.toggle('is-empty', !fmt);
+        }
+        _calOnFieldBlur(el);
+        // The Sheet strip is filtered by scheduled month (default: the current
+        // month). Scheduling a card for a different month would drop it out of
+        // that filter on the next re-render — so it looks like the card you just
+        // created vanished. Follow the post to its month so it stays in view.
+        const monthBefore = calState.monthFilter;
+        _calRevealMonthForDate(el.value);
+        // Under the date sort the new date changes where this card belongs in
+        // the strip, so the strip has to be rebuilt for it to move. Skipped
+        // when the reveal above already re-rendered (it changed the filter).
+        if (calState.monthFilter === monthBefore && _calIsAutoSortOn()) {
+            _calRenderBody({ preserveScroll: true });
+        }
+    }
+    /* If a single specific month is being filtered and `iso` falls outside it,
+       switch the filter to that date's month so a just-scheduled card doesn't
+       silently disappear from the strip. No-op on the "All months" filter or
+       when the date is empty / already in the active month. */
+    function _calRevealMonthForDate(iso) {
+        const cur = _calNormMonthFilter(calState.monthFilter);
+        if (cur === 'all') return;
+        const ym = String(iso || '').slice(0, 7);
+        if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(ym)) return;
+        if (ym === cur) return;
+        onCalMonthFilterChange(ym);
+    }
+    function _calOnUrlInput(el) {
+        _calOnFieldInput(el);
+        _calRefreshUrlWrapState(el);
+        _calLivePreviewThumb(el.dataset.pid);
+    }
+    function _calLivePreviewThumb(pid) {
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+        if (!card) return;
+        const thumbInput = card.querySelector('[data-fld="thumbnail_url"]');
+        const assetInput = card.querySelector('[data-fld="asset_url"]');
+        // Carry the saved post's updated_at so the derived src matches the
+        // rendered img's cache-busted src when the link is unchanged — keeps
+        // the early-return below working and avoids a needless refetch on the
+        // first keystroke in either URL field.
+        const saved = (calState.posts || []).find(x => x.id === pid);
+        // id lets the derived src carry the same _r as the rendered img, so the
+        // exact-match early-return below still fires when the link is unchanged.
+        const preview = { id: pid, thumbnail_url: thumbInput ? thumbInput.value : '', asset_url: assetInput ? assetInput.value : '', updated_at: saved ? saved.updated_at : '' };
+        const info = _calDeriveThumbInfo(preview);
+        const thumbDiv = card.querySelector('.cal-card-thumb');
+        if (!thumbDiv) return;
+        if (info.url) {
+            const existing = thumbDiv.querySelector('img');
+            if (existing && existing.getAttribute('src') === info.url) return;
+            _calSetThumbMedia(thumbDiv, _calThumbImgTag(info, '_calOnThumbImgError'));
+        } else if (info.frame) {
+            const existing = thumbDiv.querySelector('.cal-thumb-frame');
+            if (existing && existing.getAttribute('href') === info.frame) return;
+            _calSetThumbMedia(thumbDiv, _calThumbFrameHtml(info.frame, info.frameKind));
+        } else if (thumbDiv.querySelector('img') || thumbDiv.querySelector('.cal-thumb-frame')) {
+            _calSetThumbMedia(thumbDiv, _calThumbIconHtml());
+        }
+    }
+    /* Re-evaluate the "no media linked" warning overlay for a card from what's
+       currently typed in its URL fields, so the banner clears the instant a
+       video / thumbnail URL is pasted instead of lingering until a refresh.
+       Reads the live input values (the debounced save hasn't written back to
+       calState.posts yet) and merges them over the post's saved state — only
+       the media URLs change here, the approval sub-statuses come from the post. */
+    function _calRefreshMediaWarning(pid) {
+        if (_isClientLink) return;   // overlay is SMM-only — never shown in the client view
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+        if (!card) return;
+        const thumbDiv = card.querySelector('.cal-card-thumb');
+        if (!thumbDiv) return;
+        const p = (calState.posts || []).find(x => x.id === pid);
+        if (!p) return;
+        const thumbInput = card.querySelector('[data-fld="thumbnail_url"]');
+        const assetInput = card.querySelector('[data-fld="asset_url"]');
+        const view = Object.assign({}, p, {
+            thumbnail_url: thumbInput ? thumbInput.value : p.thumbnail_url,
+            asset_url:     assetInput ? assetInput.value : p.asset_url,
+        });
+        const existing = thumbDiv.querySelector('.cal-smm-warn-overlay');
+        if (existing) existing.remove();
+        const html = _calSmmWarnOverlayHtml(view);
+        if (html) thumbDiv.insertAdjacentHTML('beforeend', html);
+    }
+
+    // Editing card text (name / caption / CTA / alt-caption) and the date is allowed for
+    // the SMM always, and for a client only in Collaborative mode (mirrors the editableText
+    // gate that sets the readonly attribute). These handler-level checks stop a read-only
+    // client persisting an edit by bypassing the UI gate (e.g. a direct handler call).
+    function _calClientFieldEditBlocked() { return _isClientLink && !_calIsCollabOn(); }
+    function _calOnFieldInput(el) {
+        if (_calClientFieldEditBlocked()) return;
+        const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
+        if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+        _calPendingEdits[pid][fld] = val;
+        // Optimistically mirror the edit into local state (parity with the SXR
+        // twin _sxrOnFieldInput). Without this, the in-flight save's echo-adopt
+        // queued-edit guard (merged[k] = calState.posts[i2][k]) restores a STALE
+        // value, and the wasNewRow re-render repaints the card with it — the
+        // user's typing visibly reverts while the DB ends up with the new value
+        // (rename-during-create-save divergence, found by qa/probes/p89 2026-07-02).
+        const post = calState.posts.find(p => p.id === pid);
+        if (post) {
+            post[fld] = val;
+            if (fld === 'thumbnail_url') _calClearThumbnailFolderMeta(post);
+        }
+        if (_calSaveTimers[pid]) clearTimeout(_calSaveTimers[pid]);
+        _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, CAL_SAVE_DEBOUNCE_MS);
+    }
+    function _calOnFieldBlur(el) {
+        if (_calClientFieldEditBlocked()) return;
+        const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
+        if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+        _calPendingEdits[pid][fld] = val;
+        // Same optimistic state mirror as _calOnFieldInput (SXR parity).
+        const post = calState.posts.find(p => p.id === pid);
+        if (post) {
+            post[fld] = val;
+            if (fld === 'thumbnail_url') _calClearThumbnailFolderMeta(post);
+        }
+        if (_calSaveTimers[pid]) { clearTimeout(_calSaveTimers[pid]); _calSaveTimers[pid] = null; }
+        _calFlushCardSave(pid);
+    }
+
+    /* Fields that get rolled back to their pre-edit values when the upsert
+       fails. These are STRUCTURAL — status/order/links/approval-stamps —
+       and would silently de-sync from the sheet if left in their optimistic
+       state after a write error. Free-text fields (caption, name, cta,
+       asset/thumbnail urls, tweak comments) are intentionally NOT in here:
+       rolling them back would erase what the user just typed, which is
+       worse than the de-sync. The 'error' chip stays on the card so the
+       user knows to retry. */
+    const _CAL_ROLLBACK_FIELDS = [
+        'video_status', 'graphic_status', 'caption_status', 'title_status', 'status',
+        'order_index', 'scheduled_date',
+        'linear_issue_id', 'video_deliverable_id', 'graphic_linear_issue_id', 'graphic_deliverable_id',
+        'client_video_approved_at', 'client_graphic_approved_at', 'client_caption_approved_at',
+        'kasper_approved_at', 'posted_at', 'kasper_approved_after_tweaks',
+    ];
+
+    /* Backend sentinel for an intentional Linear-link clear. The calendar-upsert
+       workflow's link-clobber guard treats a bare empty string as a stale
+       full-card save and carries the STORED link forward — so a plain '' never
+       actually clears a link (and a "move" can't free it off the old card). The
+       workflow clears the column only when it receives this exact value. */
+    const CAL_CLEAR_LINK_SENTINEL = '__CLEAR_LINK__';
+    const CAL_LINK_CLEAR_FIELDS = ['linear_issue_id', 'graphic_linear_issue_id', 'video_deliverable_id', 'graphic_deliverable_id'];
+    function _calApplyClearSentinels(wirePost, touched) {
+        CAL_LINK_CLEAR_FIELDS.forEach(lk => {
+            if (!Object.prototype.hasOwnProperty.call(wirePost, lk)) return;
+            if (touched && !Object.prototype.hasOwnProperty.call(touched, lk)) return;
+            if (String(wirePost[lk] == null ? '' : wirePost[lk]).trim() === '') {
+                wirePost[lk] = CAL_CLEAR_LINK_SENTINEL;
+            }
+        });
+    }
+
+    async function _calAwaitCardSave(pid) {
+        for (;;) {
+            const active = _calSaveInFlight[pid];
+            if (active) { await active; continue; }
+            if (_calPendingEdits[pid]) { await _calFlushCardSave(pid); continue; }
+            return;
+        }
+    }
+    async function _calFlushCardSave(pid) {
+        let edits = _calPendingEdits[pid];
+        if (!edits) return;
+        // Do not inspect or consume the shared pending bucket while another
+        // save owns this card. The owner will dequeue the complete trailing
+        // batch (including its repair refs) from finally.
+        if (_calSaveInFlight[pid]) return _calAwaitCardSave(pid);
+        const retryPost = calState.posts.find(p => p.id === pid);
+        const _saveSlug = calClientSlug(calState.client);
+        const retryPrincipal = _writeUiPrincipalKey();
+        if (retryPost && retryPost._writeUiRetrySourceAt
+            && retryPost._writeUiRetryPrincipal !== retryPrincipal) {
+            delete _calPendingEdits[pid];
+            retryPost._saveError = 'Source repair belongs to another signed-in actor';
+            try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+            return;
+        }
+        if (retryPost && retryPost._writeUiRetrySourceAt
+            && !_writeUiJournalCoversRepairRefs(retryPost, 'calendar', 'card', _saveSlug, retryPrincipal)) {
+            retryPost._writeUiHeldSourceEdits = Object.assign({}, retryPost._writeUiHeldSourceEdits || {},
+                _writeUiSourceEditsOnly(retryPost._writeUiRetryEdits), _writeUiSourceEditsOnly(edits));
+            retryPost._saveError = 'Source repair receipt missing; explicit review required';
+            delete _calPendingEdits[pid];
+            _calCacheWrite(_saveSlug, calState.posts);
+            _writeUiQueueDiagnostic('calendar', 'cache_only_repair_blocked', { kind: 'source-repair' });
+            try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+            return;
+        }
+        if (retryPost && (retryPost._writeUiRetryEdits || retryPost._writeUiHeldSourceEdits)) {
+            edits = Object.assign({}, retryPost._writeUiRetryEdits || {}, retryPost._writeUiHeldSourceEdits || {}, edits);
+        }
+        const sourceRepairRefsForWrite = [];
+        (Array.isArray(edits._writeUiRepairRefs) ? edits._writeUiRepairRefs : []).forEach(ref => _writeUiAppendRepairRef(sourceRepairRefsForWrite, ref));
+        if (retryPost && retryPost._writeUiRetrySourceAt) {
+            _writeUiSnapshotRepairRefs(retryPost).forEach(ref => _writeUiAppendRepairRef(sourceRepairRefsForWrite, ref));
+        }
+        const precommittedForWrite = edits._writeUiPrecommittedNative === true
+            || !!(retryPost && retryPost._writeUiRetrySourceAt);
+        const companionRepairsForWrite = (Array.isArray(edits._writeUiCompanionRepairs) ? edits._writeUiCompanionRepairs : []).slice();
+        const deferLegacyStatusForWrite = edits._writeUiDeferLegacyStatusUntilSourceSave === true;
+        const pinnedSourceTransportForWrite = String(edits._writeUiPinnedSourceTransport || '');
+        delete edits._writeUiRepairRefs;
+        delete edits._writeUiPrecommittedNative;
+        delete edits._writeUiCompanionRepairs;
+        delete edits._writeUiDeferLegacyStatusUntilSourceSave;
+        delete edits._writeUiPinnedSourceTransport;
+        // Pin the destination client at the moment the save starts, BEFORE any
+        // await. calClientSlug(calState.client) read later (post-await) could
+        // resolve to a DIFFERENT client if the user switched tabs while this
+        // debounced save was queued — which is exactly how an edit leaked into
+        // another client's Calendar_<slug> tab and created a cross-tab phantom
+        // row. A client switch now flushes pending saves first (see
+        // _calFlushAllPending callers), so this captured slug is the correct one.
+        // Serialize per card. If a save is already running for this id, leave
+        // the accumulated edits queued — the in-flight save re-flushes them on
+        // completion (see the finally below), so writes to the same sheet row
+        // stay strictly ordered and a stale echo can't revert a fresh change.
+        delete _calPendingEdits[pid];
+        let _releaseSave;
+        _calSaveInFlight[pid] = new Promise(res => { _releaseSave = res; });
+        let realId = pid;
+        try {
+        const isBlank = _calIsBlankId(pid);
+        const hasContent = Object.values(edits).some(v => String(v).trim() !== '');
+        if (isBlank && !hasContent) return;
+
+        if (isBlank) {
+            realId = _calMintId();
+            _calPromoteBlankCard(pid, realId);
+            // Edits made during this save land under the new real id, so the
+            // lock must cover it too or the re-flush would race this request.
+            _calSaveInFlight[realId] = _calSaveInFlight[pid];
+        }
+        let post;
+        const idx = calState.posts.findIndex(p => p.id === realId);
+        const prevSnapshot = idx >= 0 ? Object.assign({}, calState.posts[idx]) : null;
+        const wasNewRow    = idx < 0;
+        if (idx < 0) {
+            const blank = { id: realId, order_index: calState.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0) + 1, name: '', scheduled_date: '', status: 'In Progress', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '', comments: [] };
+            post = Object.assign({}, blank, edits);
+            calState.posts.push(post);
+        } else {
+            post = Object.assign({}, calState.posts[idx], edits);
+            calState.posts[idx] = post;
+        }
+        // Local updated_at stamp so a background poll racing this write
+        // (sheet hasn't reflected the change yet) keeps our optimistic
+        // state instead of snapping the card back to its pre-mutation
+        // value. The merge in loadCalendarPosts compares local vs fetched
+        // updated_at — newer wins.
+        const writeUiSourceAt = String(post._writeUiRetrySourceAt || new Date().toISOString());
+        const recoveringWriteUiSource = !!post._writeUiRetrySourceAt;
+        post.updated_at = writeUiSourceAt;
+        // A media link write, or a graphic leaving Tweaks Needed, means the
+        // visible thumbnail may have changed even when the Drive URL stayed the
+        // same. Bump the persisted rev so this tab and every realtime viewer
+        // drop the stale decoded image for this card only.
+        const bumpThumbRev = ('thumbnail_url' in edits || 'asset_url' in edits)
+            || _calShouldBumpThumbRevForGraphicStatus(edits, prevSnapshot, post);
+        if (bumpThumbRev) post.thumb_rev = _calBumpThumbRev(realId);
+        // Clear any stale "Save failed" flag now that a fresh attempt is in
+        // flight, so a mid-save re-render shows "Saving…" rather than the old
+        // error (the flag is re-set in the catch if this attempt also fails).
+        delete post._saveError;
+        _calSetCardStatus(realId, 'saving');
+        const suppressAll      = _calNoLinearPush.has(realId) || _calNoLinearPush.has(pid);
+        const suppressVideo    = suppressAll || _calNoLinearPush.has(realId + '|video')    || _calNoLinearPush.has(pid + '|video');
+        const suppressGraphic  = suppressAll || _calNoLinearPush.has(realId + '|graphic')  || _calNoLinearPush.has(pid + '|graphic');
+        _calNoLinearPush.delete(realId);
+        _calNoLinearPush.delete(pid);
+        _calNoLinearPush.delete(realId + '|video');
+        _calNoLinearPush.delete(pid + '|video');
+        _calNoLinearPush.delete(realId + '|graphic');
+        _calNoLinearPush.delete(pid + '|graphic');
+
+        let gatewayAttempted = false;
+        // A review tweak commits its native comment before entering this save
+        // funnel. Treat that acknowledgement as a committed gateway mutation
+        // so a later status/source failure becomes a durable source repair,
+        // never an optimistic rollback that hides the committed comment.
+        let gatewayCommitted = precommittedForWrite;
+        const deferredLegacyStatusPushes = [];
+        const checkpointCommittedSource = () => {
+            if (!gatewayCommitted) return;
+            post._writeUiRetryEdits = Object.assign({}, edits);
+            post._writeUiRetrySourceAt = writeUiSourceAt;
+            post._writeUiRetryPrincipal = _writeUiPrincipalKey();
+            if (!_calCacheWrite(_saveSlug, calState.posts)) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
+        };
+        try {
+            checkpointCommittedSource();
+            // Comments now live in per-component columns: video_tweaks,
+            // graphic_tweaks, caption_tweaks. We also keep writing the
+            // legacy `tweaks` column (mirroring video comments) for the
+            // back-compat transition period.
+            _writeUiApplyOverallStatus('calendar', post, edits, wasNewRow, false);
+            for (const companion of companionRepairsForWrite) {
+                if (!companion || companion.operation !== 'status') continue;
+                const key = companion.component + '_status';
+                const suppressed = companion.component === 'graphic' ? suppressGraphic : suppressVideo;
+                if (!(key in edits) || suppressed) throw _writeUiGatewayError(409, 'repair_status_not_applied');
+            }
+            if ('video_status' in edits && !suppressVideo) {
+                const companion = companionRepairsForWrite.find(row => row && row.operation === 'status' && row.component === 'video');
+                const reconciled = companion && await _writeUiReconcileReplayStatus({ edits, source_at: companion.source_at }, companion.intent, post);
+                if (!reconciled) {
+                    const gatewayAttemptedBefore = gatewayAttempted;
+                    gatewayAttempted = true;
+                    const sourceEditedAt = companion ? companion.source_at : post.updated_at;
+                    const acknowledgement = await _calPushStatusToLinear(post.linear_issue_id, post.video_status, {
+                        post, component: 'video', sourceEditedAt,
+                        // Preserve only this action's sign-off edit, never invent one from a status.
+                        repairEdits: 'client_video_approved_at' in edits ? { client_video_approved_at: edits.client_video_approved_at } : {},
+                        repairRecord: companion && companion.record,
+                        deferLegacyUntilSourceSave: deferLegacyStatusForWrite
+                    });
+                    if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                        gatewayAttempted = gatewayAttemptedBefore;
+                        deferredLegacyStatusPushes.push({ component: 'video', sourceEditedAt });
+                    }
+                    _writeUiAdoptRepairAck(post, acknowledgement);
+                    _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
+                    gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
+                    const current = _writeUiAdoptReplayStatus(post, 'video', acknowledgement, recoveringWriteUiSource, 'calendar');
+                    if (current) edits.video_status = current;
+                    /* Adopting a replay status IS a sub-status change, so the
+                       stale-stamp rule owes this path too. Without it a client
+                       approval whose source upsert failed, retried after the
+                       native row moved on, writes the newer status while
+                       KEEPING edits.client_video_approved_at -- a card reading
+                       Tweaks Needed with a client sign-off on it. The journal
+                       replay has its own guard; the click-Retry path
+                       (_calRetrySave -> _calFlushCardSave) never reaches it.
+                       Reusing _calClearStaleApprovals rather than restating the
+                       status list keeps one definition of "below client
+                       approval" in the file. */
+                    _calClearStaleApprovals(post, edits);
+                }
+                checkpointCommittedSource();
+            }
+            if ('graphic_status' in edits && !suppressGraphic) {
+                const companion = companionRepairsForWrite.find(row => row && row.operation === 'status' && row.component === 'graphic');
+                const reconciled = companion && await _writeUiReconcileReplayStatus({ edits, source_at: companion.source_at }, companion.intent, post);
+                if (!reconciled) {
+                    const gatewayAttemptedBefore = gatewayAttempted;
+                    gatewayAttempted = true;
+                    const sourceEditedAt = companion ? companion.source_at : post.updated_at;
+                    const acknowledgement = await _calPushStatusToLinear(post.graphic_linear_issue_id, post.graphic_status, {
+                        post, component: 'graphic', sourceEditedAt,
+                        // Preserve only this action's sign-off edit, never invent one from a status.
+                        repairEdits: 'client_graphic_approved_at' in edits ? { client_graphic_approved_at: edits.client_graphic_approved_at } : {},
+                        repairRecord: companion && companion.record,
+                        deferLegacyUntilSourceSave: deferLegacyStatusForWrite
+                    });
+                    if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                        gatewayAttempted = gatewayAttemptedBefore;
+                        deferredLegacyStatusPushes.push({ component: 'graphic', sourceEditedAt });
+                    }
+                    _writeUiAdoptRepairAck(post, acknowledgement);
+                    _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
+                    gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
+                    const current = _writeUiAdoptReplayStatus(post, 'graphic', acknowledgement, recoveringWriteUiSource, 'calendar');
+                    if (current) edits.graphic_status = current;
+                    // Same rule, same reason as the video branch above.
+                    _calClearStaleApprovals(post, edits);
+                }
+                checkpointCommittedSource();
+            }
+            // A replay may have adopted a newer native component state above.
+            // Derive the source shadow overall status from those current
+            // component values before constructing the field patch.
+            _writeUiApplyOverallStatus('calendar', post, edits, wasNewRow, true);
+            // Build the payload. v1 (and any brand-new row, regardless of
+            // flag) sends the whole card. v2 sends a FIELD-LEVEL PATCH — only
+            // the columns this edit touched — which is exactly what the upsert
+            // workflow's "Build Row From Patch" + autoMapInputData expects
+            // (it writes only the keys present in `post`, matched on id, and
+            // leaves every other column untouched). Patching is what deletes
+            // the whole-card clobber bug class: two people editing different
+            // fields of the same card no longer overwrite each other.
+            let wirePost;
+            // Empty `edits` means a forced full re-send (e.g. _calRetrySave) —
+            // keep whole-card semantics there even under v2.
+            if (_calV2Enabled() && !wasNewRow && Object.keys(edits).length > 0) {
+                wirePost = { id: post.id };
+                for (const k of Object.keys(edits)) {
+                    if (k === 'comments' || k === 'tweaks' || /_tweaks$/.test(k)) continue;
+                    wirePost[k] = post[k];
+                }
+                // Per-component comment threads: send only the component(s)
+                // whose thread changed, re-derived from the live arrays so
+                // coalesced edits stay consistent. Mirror the legacy `tweaks`
+                // column when the video thread changed.
+                CAL_REVIEW_COMPONENTS.forEach(comp => {
+                    const fk = comp + '_tweaks';
+                    if (fk in edits) {
+                        wirePost[fk] = _calStringifyComments(_calCommentsFor(post, comp));
+                        if (comp === 'video') wirePost.tweaks = wirePost[fk];
+                    }
+                });
+                // Overall status only moves when a sub-status changes, and
+                // those edits always carry it; send the recomputed value then.
+                if ('video_status' in edits || 'graphic_status' in edits || 'caption_status' in edits) wirePost.status = post.status;
+                // Patch through the persisted cache-bust token so the echo +
+                // realtime carry the fresh thumbnail URL to every viewer.
+                if (bumpThumbRev) wirePost.thumb_rev = post.thumb_rev;
+                // An intentionally-cleared Linear link must reach the backend as
+                // the explicit __CLEAR_LINK__ sentinel, not a bare '' (which the
+                // upsert's link-clobber guard carries the stored link forward
+                // over, silently no-opping the clear). Safe to do only on the
+                // field-level patch: a link column is present here only when it
+                // was actually edited, so an empty value is unambiguously a real
+                // clear — not a stale whole-card echo.
+                _calApplyClearSentinels(wirePost);
+            } else {
+                wirePost = Object.assign({}, post);
+                wirePost.video_tweaks   = _calStringifyComments(_calCommentsFor(post, 'video'));
+                wirePost.graphic_tweaks = _calStringifyComments(_calCommentsFor(post, 'graphic'));
+                wirePost.caption_tweaks = _calStringifyComments(_calCommentsFor(post, 'caption'));
+                wirePost.title_tweaks   = _calStringifyComments(_calCommentsFor(post, 'title'));
+                wirePost.tweaks = wirePost.video_tweaks;
+                delete wirePost.comments;
+                delete wirePost.video_comments;
+                delete wirePost.graphic_comments;
+                delete wirePost.caption_comments;
+                delete wirePost.title_comments;
+                delete wirePost._baseAt;
+                delete wirePost._saveError;
+                delete wirePost._writeUiRetryEdits;
+                delete wirePost._writeUiHeldSourceEdits;
+                delete wirePost._writeUiRetrySourceAt;
+                delete wirePost._writeUiRetryPrincipal;
+                delete wirePost._writeUiPrecommittedNative;
+                delete wirePost._writeUiRepairRefs;
+                _calStripThumbnailFolderFields(wirePost);
+                _calApplyClearSentinels(wirePost, edits);
+            }
+            // comments_base_at = the sheet's updated_at this browser last saw.
+            // The upsert workflow 3-way-merges each *_tweaks cell against this
+            // base so a concurrent comment from another browser (e.g. the
+            // client added a caption tweak while the SMM was acting) survives
+            // our whole-cell write instead of being clobbered.
+            //
+            // v2 reads from Supabase, so post._baseAt is SUPABASE's updated_at —
+            // but the upsert's scalar-conflict guard compares it against the
+            // Google SHEET's updated_at. Those two drift (backfill, mirror lag,
+            // the un-mirrored reorder fallback), which made the guard reject
+            // every v2 scalar save as a false "conflict" — status snapped back
+            // (it's in _CAL_ROLLBACK_FIELDS) while caption silently didn't save.
+            // v2 doesn't need that guard: field-level patches mean a save only
+            // touches the field(s) changed, and realtime surfaces a concurrent
+            // edit within ~1s. Send no base → the scalar-conflict check is
+            // skipped; the comment 3-way merge still unions correctly (baseAt
+            // empty keeps both sides' comments).
+            const _baseAtToSend = _calV2Enabled() ? '' : String(post._baseAt || '');
+            // Mark this as a local write so the realtime ECHO of it (arriving a
+            // second or two later) doesn't flicker the strip or race a delete.
+            _calLastLocalWriteAt = Date.now();
+            _calV2Log('SAVE → upsert', _saveSlug, '|', JSON.stringify(wirePost), '| base:', _baseAtToSend);
+            const resp = await _calUpsertFetchPinned(
+                _saveSlug,
+                { client: _saveSlug, post: wirePost, comments_base_at: _baseAtToSend },
+                'ui',
+                pinnedSourceTransportForWrite
+            );
+            // A non-2xx (n8n down, 500 HTML page) would otherwise surface as a
+            // cryptic JSON-parse error in the card's save chip.
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const json = await resp.json();
+            if (!json.ok) throw new Error(json.error || 'save failed');
+            if (await _writeUiCompleteSourceRepairRefs(sourceRepairRefsForWrite)) _writeUiRemoveCompletedRepairRefs(post, sourceRepairRefsForWrite);
+            const saved = json.post || post;
+            const i2 = calState.posts.findIndex(p => p.id === realId);
+            if (i2 >= 0) {
+                // Merge the echo onto the full local row BEFORE migrating.
+                // Under v2 the upsert echo (json.post) is a FIELD-LEVEL PATCH
+                // — it carries only the columns this save wrote (e.g. {id,
+                // updated_at, caption_status, status}) and NOT the untouched
+                // sub-statuses. Running _calMigratePostShape on that partial
+                // echo by itself was the status-revert bug: once any one sub is
+                // present, its isLegacyOnly guard is false, so it SEEDS the
+                // absent video_status/graphic_status to 'In Progress', and the
+                // Object.assign below then overlaid those invented values onto
+                // the correct local ones — silently flipping a freshly-set
+                // video/graphic back to "In Progress". (The editing tab's
+                // recent-save guard then preferred that clobbered local copy
+                // over the correct Supabase row on the realtime reload, so the
+                // revert stuck until a hard refresh.) Overlaying the echo's
+                // keys onto the full local row first, then migrating the MERGED
+                // row, means every sub-status is present → nothing is invented,
+                // and a column the echo omits keeps its correct local value.
+                const merged = Object.assign({}, calState.posts[i2], saved);
+                _calMigratePostShape(merged);
+                // Don't let this request's server echo overwrite fields the
+                // user has already changed again (queued for the next flush).
+                // Their newer local value must survive until the re-flush
+                // persists it, otherwise the card would flicker back to the
+                // value this save was carrying.
+                const queued = _calPendingEdits[realId];
+                if (queued) for (const k in queued) merged[k] = calState.posts[i2][k];
+                // The server echo only reflects the comments THIS request
+                // carried. A comment added to another component while this
+                // save was in flight (e.g. video tweak still saving when the
+                // caption tweak lands) lives only in our local copy, not the
+                // echo. Because the wire builder re-derives each *_tweaks cell
+                // from the *_comments arrays, a plain field-copy from the echo
+                // would drop that comment — and the very next (trailing) save
+                // would then persist its loss to the sheet. Union the comment
+                // threads (newer-stamp wins per id) so locally-held comments
+                // survive the echo adoption instead of being clobbered.
+                _calMergePostComments(merged, calState.posts[i2]);
+                // The echo is the freshly-merged server row, so advance the
+                // comment-merge base to its updated_at.
+                merged._baseAt = String(saved.updated_at || merged.updated_at || merged._baseAt || '');
+                calState.posts[i2] = merged;
+                _calV2Log('ECHO adopt →', realId, '| echo keys:', Object.keys(saved).join(','),
+                    '| MERGED v/g/c/t/overall:', merged.video_status + '/' + merged.graphic_status + '/' + merged.caption_status + '/' + merged.title_status + '/' + merged.status);
+            }
+            // Record this successful local write so the next background
+            // merge can detect a remote overwrite (someone else saved AFTER
+            // us). Clears its own old entries on read.
+            _calLocalRecentSaves.set(realId, Date.now());
+            // Remember what we just wrote + the pre-save base for each sub-status
+            // so a v2 background merge can adopt a genuinely new status from
+            // another actor (Kasper) while still riding out a stale Linear
+            // round-trip. Paired with _calLocalRecentSaves (same lifetime).
+            _calRecentSaveFields.set(realId, {
+                wrote: { video_status: post.video_status, graphic_status: post.graphic_status, caption_status: post.caption_status, title_status: post.title_status },
+                base: prevSnapshot
+                    ? { video_status: prevSnapshot.video_status, graphic_status: prevSnapshot.graphic_status, caption_status: prevSnapshot.caption_status, title_status: prevSnapshot.title_status }
+                    : {}
+            });
+            _calLastLocalWriteAt = Date.now();   // refresh the self-echo window: the realtime echo fires just after this success
+            // Save landed — drop any failed-create flag so the "Save failed"
+            // chip clears and the poll-merge no longer force-keeps the card on
+            // that basis (the recent-save guard now covers it).
+            _calFailedNewCards.delete(realId);
+            const _okPost = calState.posts.find(p => p.id === realId);
+                if (_okPost) {
+                    if (_okPost._saveError) delete _okPost._saveError;
+                    delete _okPost._writeUiRetryEdits;
+                    delete _okPost._writeUiHeldSourceEdits;
+                delete _okPost._writeUiRetrySourceAt;
+                delete _okPost._writeUiRetryPrincipal;
+                if (Array.isArray(_okPost._writeUiRepairRefs) && _okPost._writeUiRepairRefs.length) _okPost._writeUiPrecommittedNative = true;
+                else delete _okPost._writeUiPrecommittedNative;
+            }
+            if (_okPost) {
+                deferredLegacyStatusPushes.forEach(push => {
+                    const isGraphic = push.component === 'graphic';
+                    _calLegacyPushStatusToLinear(
+                        isGraphic ? _okPost.graphic_linear_issue_id : _okPost.linear_issue_id,
+                        _okPost[(isGraphic ? 'graphic' : 'video') + '_status'],
+                        { post: _okPost, component: push.component, sourceEditedAt: push.sourceEditedAt }
+                    );
+                });
+            }
+            _calCacheWrite(_saveSlug, calState.posts, { clearRepairIds: [realId] });
+            _calSetCardStatus(realId, 'saved');
+            // Only repaint the thumbnail when this save intentionally bumped
+            // thumb_rev. Other saves can still move updated_at / _cb, but the
+            // base-URL guard keeps those from re-decoding the image.
+            if (bumpThumbRev) _calRefreshCardThumb(realId);
+            if ('thumbnail_url' in edits) {
+                const thumbPost = calState.posts.find(p => p.id === realId);
+                if (thumbPost) _calResolveThumbnailFolder('calendar', _saveSlug, realId, thumbPost.thumbnail_url, thumbPost);
+            }
+            // A freshly-promoted blank card carries the blank-time layout in
+            // the DOM (no media slots, no status pills, etc.) — _calPromoteBlankCard
+            // only rewrites identifiers, not the visual shape. Without a
+            // re-render the client wouldn't see the "Video (coming soon)"
+            // placeholder appear when they tab/click out of the new post.
+            // Only re-render when focus is NOT inside this card so a
+            // mid-edit textarea doesn't lose its caret.
+            if (isBlank && wasNewRow) {
+                const focusInThisCard = document.activeElement
+                    && document.activeElement.closest
+                    && document.activeElement.closest(`.cal-card[data-pid="${realId}"]`);
+                if (!focusInThisCard) {
+                    try { _calRenderBody({ preserveScroll: true }); } catch {}
+                }
+            }
+            const savedPost = calState.posts.find(p => p.id === realId);
+            if (savedPost) {
+                // NOTE: there is deliberately no "push the overall status to
+                // the video issue" path here. The video Linear issue must only
+                // ever receive `video_status`, and the graphic issue only
+                // `graphic_status` (handled above). An older back-compat branch
+                // pushed the recomputed overall `status` to the video issue
+                // whenever an edit carried `status` without a `video_status`
+                // — which is exactly the shape of a caption-only change (the
+                // caption has no Linear issue of its own). That leaked the
+                // overall status (e.g. "Tweaks Needed") onto the video issue
+                // and clobbered a freshly approved video, which the post-load
+                // reconcile then read back as a revert. The overall-status
+                // dropdown that the branch was meant to serve no longer exists,
+                // so the branch is gone entirely.
+            }
+        } catch (e) {
+            console.warn('[Calendar] save failed', e);
+            if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('calendar', 'status', e);
+            _calSetCardStatus(realId, 'error', e.message || 'save failed');
+            // Roll back structural fields the upsert failed to persist.
+            // Text fields (caption / name / cta / tweak comments / asset
+            // urls) keep their optimistic value so the user's typing isn't
+            // erased; they'll re-save on the next blur.
+            //
+            // A `_saveError` flag is stamped on the card so the "Save failed"
+            // chip survives the re-render below (the DOM-only chip set by
+            // _calSetCardStatus would be wiped) and the next background poll.
+            // A brand-new card whose first save failed is KEPT on screen (not
+            // deleted) and marked in _calFailedNewCards so the poll-merge's
+            // local-card preservation holds onto it — a failed create should be
+            // a visible, retryable state, not a silent vanish. The user can
+            // click the chip (or just edit the card) to retry.
+            const iErr = calState.posts.findIndex(p => p.id === realId);
+            if (wasNewRow) {
+                _calFailedNewCards.add(realId);
+                if (iErr >= 0) calState.posts[iErr]._saveError = _writeUiFailureSentence(e, 'save failed');
+            } else if (prevSnapshot && iErr >= 0) {
+                const cur = calState.posts[iErr];
+                if (!gatewayCommitted) {
+                    _CAL_ROLLBACK_FIELDS.forEach(k => {
+                        if (k in edits) cur[k] = prevSnapshot[k];
+                    });
+                }
+                // updated_at must also revert so the next background
+                // merge doesn't see a phantom "we wrote newer" stamp.
+                cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
+                cur._saveError = _writeUiFailureSentence(e, 'save failed');
+                if (gatewayCommitted) {
+                    cur._writeUiRetryEdits = Object.assign({}, edits);
+                    cur._writeUiRetrySourceAt = writeUiSourceAt;
+                    cur._writeUiRetryPrincipal = _writeUiPrincipalKey();
+                    delete cur._writeUiPrecommittedNative;
+                    _calCacheWrite(_saveSlug, calState.posts);
+                }
+            }
+            try { _calRenderBody({ preserveScroll: true }); } catch {}
+        }
+        } finally {
+            // Release the per-card lock and, if the user kept editing while
+            // this save was in flight, flush the queued edits now — strictly
+            // after this request finished, so writes to the same sheet row
+            // never overlap. Edits may sit under the original pid or, for a
+            // freshly promoted blank card, the minted realId.
+            delete _calSaveInFlight[pid];
+            delete _calSaveInFlight[realId];
+            if (_releaseSave) _releaseSave();
+            if (_calPendingEdits[realId]) _calFlushCardSave(realId);
+            else if (realId !== pid && _calPendingEdits[pid]) _calFlushCardSave(pid);
+        }
+    }
+
+    /* Retry a card whose save failed. Queues an empty edit bucket so the flush
+       re-sends the card's current full row (built from calState.posts) and
+       runs it through the normal save funnel — _calFlushCardSave clears the
+       _saveError flag on success or re-stamps it on another failure. */
+    function _calRetrySave(pid) {
+        if (!pid) return;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!_calPendingEdits[pid]) _calPendingEdits[pid] = Object.assign({}, post && post._writeUiRetryEdits || {});
+        _calSetCardStatus(pid, 'saving');
+        _calFlushCardSave(pid);
+    }
+    /* ── Reusable modern save indicator ───────────────────────────────────
+       An icon-only, circular save-state indicator, built as ONE component so
+       other surfaces (samples, templates) can adopt it later; wired ONLY into
+       the calendar card title row in this pass. States:
+         saving → an animated rotating ring
+         saved  → the ring completes, turns green with a brief check, then fades
+                  out after ~2s
+         error  → turns red and PERSISTS, carrying the save-error detail in its
+                  tooltip (title) + aria-label
+       Respects prefers-reduced-motion (CSS drops the rotation; state reads by
+       colour only) and is themed entirely through CSS variables (light + dark). */
+    function _svSaveIndHtml(id, attr, errorDetail) {
+        const a = attr || 'data-sv-save-ind';
+        // When the surface persists a save-error flag, render the indicator
+        // ALREADY in its error state: a failed save re-renders the card (the
+        // element is destroyed and re-emitted), so a plain hidden span would
+        // drop the red ring before it ever paints. Rendering the error state
+        // from the persisted flag — exactly like the foot Save-failed chip —
+        // makes it survive that re-render. With no error it starts hidden and
+        // _svSaveIndApply drives the live saving/saved transitions.
+        const err = errorDetail ? String(errorDetail) : '';
+        const open = err
+            ? `<span class="sv-save-ind is-error" ${a}="${_calEscAttr(id)}" role="status" aria-live="polite" title="${_calEscAttr(err)}" aria-label="${_calEscAttr('Save failed: ' + err)}">`
+            : `<span class="sv-save-ind" ${a}="${_calEscAttr(id)}" role="status" aria-live="polite" hidden>`;
+        return open
+            + `<svg class="sv-save-ind-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">`
+            + `<circle class="sv-save-ind-track" cx="12" cy="12" r="9" stroke-width="2.4"/>`
+            + `<circle class="sv-save-ind-arc" cx="12" cy="12" r="9" stroke-width="2.4" stroke-linecap="round"/>`
+            + `<path class="sv-save-ind-check" d="M7.6 12.4l2.7 2.7 6-6.4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`
+            + `<path class="sv-save-ind-bang" d="M12 7.4v4.7" stroke-width="2.2" stroke-linecap="round"/>`
+            + `<path class="sv-save-ind-bang" d="M12 15.7v.06" stroke-width="2.4" stroke-linecap="round"/>`
+            + `</svg></span>`;
+    }
+    function _svSaveIndApply(el, state, msg) {
+        if (!el) return;
+        if (el._svFadeTimer) { clearTimeout(el._svFadeTimer); el._svFadeTimer = null; }
+        el.classList.remove('is-saving', 'is-saved', 'is-error', 'is-fading');
+        if (state === 'saving') {
+            el.hidden = false;
+            el.removeAttribute('title');
+            el.classList.add('is-saving');
+            el.setAttribute('aria-label', 'Saving…');
+        } else if (state === 'saved') {
+            el.hidden = false;
+            // Optional tooltip on success (e.g. Samples-Old's "Saved on device").
+            const savedMsg = (msg && String(msg)) || '';
+            if (savedMsg) el.setAttribute('title', savedMsg); else el.removeAttribute('title');
+            el.classList.add('is-saved');
+            el.setAttribute('aria-label', savedMsg || 'Saved');
+            // Hold the green check ~1.6s, then fade out over ~0.4s (≈2s total).
+            el._svFadeTimer = setTimeout(() => {
+                if (!el.classList.contains('is-saved')) { el._svFadeTimer = null; return; }
+                el.classList.add('is-fading');
+                el._svFadeTimer = setTimeout(() => {
+                    el._svFadeTimer = null;
+                    if (el.classList.contains('is-saved')) {
+                        el.hidden = true;
+                        el.classList.remove('is-saved', 'is-fading');
+                        el.removeAttribute('aria-label');
+                    }
+                }, 420);
+            }, 1600);
+        } else if (state === 'error') {
+            el.hidden = false;
+            el.classList.add('is-error');
+            const detail = (msg && String(msg)) || 'Save failed';
+            el.setAttribute('title', detail);
+            el.setAttribute('aria-label', 'Save failed: ' + detail);
+        } else {
+            el.hidden = true;
+            el.removeAttribute('title');
+            el.removeAttribute('aria-label');
+        }
+    }
+
+    function _calSetCardStatus(pid, state, msg) {
+        // Modern icon-only indicator at the END of the card title row.
+        _svSaveIndApply(document.querySelector(`[data-sv-save-ind="${pid}"]`), state, msg);
+        // The foot element stays the Save-failed·Retry affordance. It no longer
+        // carries the transient "Saving…"/"Saved" TEXT (that moved to the icon),
+        // but it must still surface a failure inline; the catch's subsequent
+        // _calRenderBody swaps in the full clickable retry button. Never reduce
+        // the visibility of a save failure.
+        const tag = document.querySelector(`[data-saving="${pid}"]`);
+        if (tag) {
+            tag.classList.remove('is-saved', 'is-error');
+            if (state === 'error') {
+                tag.hidden = false; tag.textContent = msg || 'Save failed'; tag.classList.add('is-error');
+            } else {
+                tag.hidden = true; tag.textContent = '';
+            }
+        }
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+        if (card) { card.classList.toggle('is-saving', state === 'saving'); card.classList.toggle('is-error', state === 'error'); }
+    }
+
+    function _calPromoteBlankCard(oldPid, newId) {
+        const strip = document.getElementById('calStrip');
+        if (!strip) return;
+        const blank = strip.querySelector(`.cal-card[data-pid="${oldPid}"]`);
+        if (!blank) return;
+        blank.classList.remove('is-blank');
+        // Promotion happens IN PLACE (no re-render), so it has to honour the
+        // current ordering mode itself. Hardcoding draggable=true here left a
+        // freshly-created card as the only draggable one on an auto-organized
+        // strip — draggable, gripped "Drag to reorder", and wired — while every
+        // other card was correctly locked. Dragging it then reached the strip's
+        // drop handler, which is meant to be unreachable under the date sort.
+        const autoSorted = _calIsAutoSortOn();
+        blank.setAttribute('draggable', autoSorted ? 'false' : 'true');
+        // Rewrite every reference to the old blank pid on this card — data-pid,
+        // data-title-row, data-status-pid, data-substatus-pid, inline onclick
+        // strings, etc. The previous code surgically updated a handful of
+        // attributes by class/name and missed others (data-title-row, the
+        // cal-linear-btn / substatus / generate-caption / copy-link onclicks),
+        // so a click on those before the next full re-render fired with the
+        // stale blank pid. _calFlushCardSave then minted a SECOND fresh id and
+        // pushed a ghost row to the sheet, with the original card looking
+        // unlinked because the edit was applied to the wrong post.
+        const oldEsc = oldPid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp(oldEsc, 'g');
+        const walk = (el) => {
+            if (!el || !el.attributes) return;
+            for (let i = 0; i < el.attributes.length; i++) {
+                const a = el.attributes[i];
+                if (typeof a.value === 'string' && a.value.indexOf(oldPid) !== -1) {
+                    el.setAttribute(a.name, a.value.replace(re, newId));
+                }
+            }
+            for (let i = 0; i < el.children.length; i++) walk(el.children[i]);
+        };
+        walk(blank);
+        if (!blank.querySelector('.cal-card-grip')) {
+            const grip = document.createElement('span');
+            grip.className = 'cal-card-grip' + (autoSorted ? ' is-locked' : '');
+            grip.title = autoSorted
+                ? 'Auto-organized by date — switch Order back to Manual to drag cards'
+                : 'Drag to reorder';
+            grip.innerHTML = `<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg>`;
+            blank.insertBefore(grip, blank.firstChild);
+        }
+        if (!blank.querySelector('.cal-card-del')) {
+            const del = document.createElement('button');
+            del.className = 'cal-card-del'; del.type = 'button'; del.title = 'Archive';
+            del.addEventListener('click', () => archiveCalPost(newId));
+            del.innerHTML = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg>';
+            blank.insertBefore(del, blank.firstChild);
+        }
+        if (_calPendingEdits[oldPid]) {
+            _calPendingEdits[newId] = Object.assign(_calPendingEdits[newId] || {}, _calPendingEdits[oldPid]);
+            delete _calPendingEdits[oldPid];
+        }
+        if (!autoSorted) _calWireDragOnCard(blank);
+    }
+
+    /* Normalize a thumbnail src for "same underlying image?" checks — the harvest
+       / restore key and the in-place refresh guard — by stripping the per-save
+       _cb token (the post's updated_at, bumped on EVERY save). Two srcs differing
+       only by _cb point at the same image, so the decoded <img> must NOT be torn
+       down and re-decoded; otherwise every caption/status/date save (each a new
+       _cb) reloaded the thumbnail — the visible per-save flash. _cb still does its
+       real job: forcing a refetch across a full page reload when a file behind an
+       unchanged Drive link was replaced.
+       _r is deliberately NOT stripped — it changes only when the link is actually
+       edited (see _calThumbRev), so keeping it in the key is exactly what makes a
+       link change reload the picture on every render path without a hard refresh. */
+    function _calThumbSrcBase(u) {
+        let s = String(u || '').replace(/[?&]_cb=[^&]*/g, '').replace(/[?&]$/, '');
+        // If _cb had been the leading "?" param, stripping it can leave the query
+        // starting with "&"; restore the canonical "?" so the key is identical
+        // whether or not a _cb was present (a query needs a "?" before any "&").
+        if (!s.includes('?') && s.includes('&')) s = s.replace('&', '?');
+        return s;
+    }
+    function _calRefreshCardThumb(pid) {
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+        if (!card) return;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const info = _calDeriveThumbInfo(post);
+        const thumbDiv = card.querySelector('.cal-card-thumb');
+        if (!thumbDiv) return;
+        const existing = thumbDiv.querySelector('img');
+        if (info.url) {
+            if (existing && _calThumbSrcBase(existing.getAttribute('src')) === _calThumbSrcBase(info.url)) return;
+            _calSetThumbMedia(thumbDiv, _calThumbImgTag(info, '_calOnThumbImgError'));
+        } else if (info.frame) {
+            const existingFrame = thumbDiv.querySelector('.cal-thumb-frame');
+            if (existingFrame && existingFrame.getAttribute('href') === info.frame) return;
+            _calSetThumbMedia(thumbDiv, _calThumbFrameHtml(info.frame, info.frameKind));
+        } else if (existing || thumbDiv.querySelector('.cal-thumb-frame')) {
+            _calSetThumbMedia(thumbDiv, _calThumbIconHtml());
+        }
+    }
+
+    /* Force this card's thumbnail <img> to re-fetch right now — even when the
+       link TEXT didn't change (e.g. the file behind an unchanged Google Drive
+       share link was replaced). Bumping the card's thumbnail rev gives the URL a
+       fresh _r, which guarantees a cache miss so the browser / Drive CDN can't
+       keep serving the previously loaded image (the stale preview that used to
+       need a manual cache clear) AND — because the harvest keeps _r in its key —
+       makes the fresh image survive the next re-render instead of being replaced
+       by the old decoded node. (The flush's synchronous bump usually fires first;
+       bumping again here is harmless and covers the rare in-flight-save path where
+       the flush early-returned without bumping.) This is a pure in-place <img>
+       swap — only the thumbnail reloads, the page does not. Reads the live
+       URL-field values so a just-typed link is honored before the debounced save
+       writes it back to calState. Cross-reload freshness is carried separately by
+       the updated_at-based _cb token, which the save advances and persists. */
+    function _calForceThumbRefresh(pid) {
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+        if (!card) return;
+        const thumbDiv = card.querySelector('.cal-card-thumb');
+        if (!thumbDiv) return;
+        const thumbInput = card.querySelector('[data-fld="thumbnail_url"]');
+        const assetInput = card.querySelector('[data-fld="asset_url"]');
+        const saved = (calState.posts || []).find(x => x.id === pid);
+        _calBumpThumbRev(pid);
+        const info = _calDeriveThumbInfo({
+            id:            pid,
+            thumbnail_url: thumbInput ? thumbInput.value : (saved ? saved.thumbnail_url : ''),
+            asset_url:     assetInput ? assetInput.value : (saved ? saved.asset_url : ''),
+            updated_at:    saved ? saved.updated_at : ''
+        });
+        if (!info.url) {
+            if (info.frame) {
+                const existingFrame = thumbDiv.querySelector('.cal-thumb-frame');
+                if (!existingFrame || existingFrame.getAttribute('href') !== info.frame) _calSetThumbMedia(thumbDiv, _calThumbFrameHtml(info.frame, info.frameKind));
+            } else if (thumbDiv.querySelector('img') || thumbDiv.querySelector('.cal-thumb-frame')) {
+                _calSetThumbMedia(thumbDiv, _calThumbIconHtml());
+            }
+            return;
+        }
+        // info.url already carries the freshly-bumped _r (plus _cb) from
+        // _calCacheBustThumb, so it's a guaranteed cache miss.
+        const existing = thumbDiv.querySelector('img');
+        if (existing) {
+            // Keep the drive flag in sync with the new link so the load-error
+            // fallback (_calOnThumbImgError) stays correct if the link type
+            // changed (e.g. a Drive link swapped for a direct image URL).
+            if (info.isDrive) existing.setAttribute('data-drive', '1');
+            else existing.removeAttribute('data-drive');
+            existing.setAttribute('src', info.url);
+        } else {
+            _calSetThumbMedia(thumbDiv, _calThumbImgTag(info, '_calOnThumbImgError'));
+        }
+    }
+
+    function _calInsertLocalBlankCard() {
+        // Client "Suggest a post" remains the existing calendar-only draft.
+        // The public caller keeps this helper behind Collaborative mode.
+        const strip = document.getElementById('calStrip');
+        if (!strip) return;
+        strip.classList.remove('is-empty');
+        const addBtn = strip.querySelector('.cal-card-add');
+        if (addBtn && addBtn.classList.contains('cal-card-add-hero')) {
+            addBtn.classList.remove('cal-card-add-hero');
+            addBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+        }
+        const wrap = document.createElement('div');
+        wrap.innerHTML = _calRenderInlineCard(_calBlankPost(), true).trim();
+        const newCard = wrap.firstChild;
+        strip.insertBefore(newCard, addBtn);
+        const nameInput = newCard.querySelector('.cal-fld-name');
+        if (nameInput) {
+            // Centre the new card in the viewport instead of pinning it to
+            // the right edge — paired with the strip's right-side runway
+            // (.cal-organizer-strip::after) so there's always enough empty
+            // canvas to actually reach the centred position.
+            newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            setTimeout(() => nameInput.focus(), 80);
+        }
+    }
+
+    let _calNativePostState = null;
+    function _calCloseNativePost(force) {
+        const overlay = document.getElementById('calNativePostOverlay');
+        if (!force && overlay && overlay.dataset.busy === '1') return;
+        if (overlay) overlay.remove();
+        document.body.classList.remove('cal-modal-open');
+        _calNativePostState = null;
+    }
+    function _calNativeBatchStartMeta(value, withTime) {
+        const parsed = Date.parse(String(value || ''));
+        if (!Number.isFinite(parsed)) return '';
+        const when = new Date(parsed);
+        const day = when.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        if (!withTime) return 'started ' + day;
+        return 'started ' + day + ', ' + when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    }
+    function _calNativeBatchDisplayName(batch) {
+        return String(batch && batch.name || '').trim() || 'Current batch';
+    }
+    const CAL_NATIVE_MODE_TEAMS = {
+        video: ['video'],
+        thumbnail: ['graphics'],
+        both: ['video', 'graphics'],
+    };
+    /*
+     * WHO EDITS THIS POST — the Create Post editor picker.
+     *
+     * Owner request 2026-08-24: "there should be a drop-down for the editor. By
+     * default, it should be the one that is the freest, and it should disclaim
+     * it, but people should be able to choose a different video editor."
+     *
+     * Before this, the gateway picked silently and nobody creating a post could
+     * see who was about to receive it, let alone say otherwise.
+     *
+     * The list of live statuses below is a COPY of INTAKE_LOAD_LIVE_STATUSES in
+     * supabase/functions/production-write/index.ts, and it has to stay one: the
+     * dialog names a person and a number, then sends that person explicitly, so
+     * a browser counting different work from the server would show a suggestion
+     * the server would not have made. Pinned by
+     * test/native-post-editor-picker.js.
+     *
+     * Graphics is deliberately not offered. That team assigns by its single
+     * default_for_team designer, so there is nothing to choose between, and the
+     * gateway still refuses a graphics override outright.
+     */
+    const CAL_NATIVE_LIVE_VIDEO_STATUSES = ['todo', 'in_progress', 'tweak'];
+    const CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS = 4000;
+    /* GATEWAY FIRST. The picker used to read the roster and the open-load
+       counts straight out of PostgREST, which forced the browser to reproduce
+       the gateway's eligibility rule (a non-null Linear mapping) in order to
+       agree with it. Once assignment is native that rule is wrong, so the
+       decision moves to the server: `intake_editor_options` answers with the
+       lane it is actually in and, in the native lane, with the ranked editors
+       it would itself assign. The PostgREST read below survives as the
+       PROVIDER-lane picker and is unchanged. */
+    async function _calNativeVideoEditorPool() {
+        const state = _calNativePostState;
+        const identity = _syncviewStaffIdentityForHeaders();
+        const clientSlug = String(state && state.clientSlug || '');
+        const surface = String(state && state.surface || '');
+        const actorId = String(identity && identity.member && identity.member.id || '');
+        const actorKey = String(identity && identity.key || '');
+        const actorRole = String(identity && identity.role || '');
+        const current = () => {
+            const now = _syncviewStaffIdentityForHeaders();
+            return state && state === _calNativePostState
+                && state.surface === surface && state.clientSlug === clientSlug
+                && _nativePostViewSlug(surface) === clientSlug
+                && actorId && now && actorKey === now.key && actorRole === now.role
+                && now.member && actorId === now.member.id;
+        };
+        if (!current() || !['admin', 'smm'].includes(actorRole)) throw new Error('editor scope unavailable');
+        const url = CAL_SUPABASE_URL + '/functions/v1/production-write';
+        const response = await fetch(url, {
+            method: 'POST', cache: 'no-store',
+            headers: _syncviewEfHeaders({ apikey: CAL_SUPABASE_ANON_KEY,
+                Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                Accept: 'application/json', 'Content-Type': 'application/json' }, url),
+            body: JSON.stringify({ action: 'intake_editor_options', surface, client_slug: clientSlug }),
+        });
+        /* A 400 IS THE PROVIDER LANE, NOT AN ERROR. This file ships to Pages on
+           merge; the gateway that knows this action ships later, on the F27
+           Section 4 dispatch. In between, the deployed gateway answers
+           `400 unsupported_action` -- and a 400 is the one status no retry and
+           no later state can turn into an answer, because the request shape
+           itself was refused. Throwing here would break the picker for every
+           SMM for the length of that window; degrading to the provider picker
+           keeps it working exactly as it does today. The gateway still decides
+           the real assignment at submission either way, so a browser guessing
+           "provider" cannot make a native assignment happen or not happen. */
+        if (response.status === 400) {
+            const editors = await _calLegacyVideoEditorPool();
+            if (!current()) throw new Error('editor scope changed');
+            return editors;
+        }
+        const result = await response.json();
+        if (!current() || !response.ok || !result || result.ok !== true || result.complete !== true
+            || result.contract !== 'intake-editor-options-v1' || result.surface !== surface
+            || result.client_slug !== clientSlug || result.team !== 'video') {
+            throw new Error('editor options unavailable');
+        }
+        // Only a successful current provider decision may use the old picker.
+        // An unreadable epoch or malformed result never guesses this lane.
+        // Submission still independently validates its current policy.
+        if (result.lane === 'provider' && result.editors === undefined) {
+            const editors = await _calLegacyVideoEditorPool();
+            if (!current()) throw new Error('editor scope changed');
+            return editors;
+        }
+        if (result.lane !== 'native' || !Array.isArray(result.editors) || !result.editors.length
+            || result.editors.some(editor => !editor || typeof editor.id !== 'string' || !editor.id.trim()
+                || typeof editor.name !== 'string' || !editor.name.trim()
+                || !Number.isSafeInteger(editor.openCount) || editor.openCount < 0)
+            || new Set(result.editors.map(editor => editor.id)).size !== result.editors.length) {
+            throw new Error('editor options incomplete');
+        }
+        return result.editors.map(editor => ({ id: editor.id, name: editor.name, openCount: editor.openCount }));
+    }
+    async function _calLegacyVideoEditorPool() {
+        /*
+         * ELIGIBILITY, not just the roster. Caught in review: the shared
+         * `_syncviewStaffRoster` cache selects id/name/role/team and nothing
+         * else, while autoAssigneeForIntake requires a `linear_user_id` and
+         * assertEligibleAssignee rejects an override without one. An active
+         * video editor who is not mapped to Linear therefore appeared here --
+         * and, having no rows assigned to them, scored ZERO open videos and
+         * sorted FIRST. The dialog would have suggested exactly the person the
+         * gateway can never assign: on the default path it silently assigns
+         * somebody else, and picking that name explicitly fails the whole
+         * submission. So this read is its own, and it applies the gateway's
+         * own filter rather than trusting a projection built for sign-in.
+         */
+        /* Both reads spell their table LITERALLY in the URL rather than
+           composing the REST base with a table variable. Composing reads
+           better and is worse here: system-map-sync inventories literal REST
+           tables and records variable call sites separately, so routing these
+           through a variable would hide both tables from the map.
+           (This comment deliberately does not spell that composition out --
+           the gate scans source text, so writing the pattern here would
+           register this very comment as a call site.) */
+        const readRows = async (url) => {
+            const response = await fetch(url, {
+                cache: 'no-store',
+                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
+            });
+            if (!response.ok) throw new Error('editor pool read ' + response.status);
+            const rows = await response.json();
+            return Array.isArray(rows) ? rows : [];
+        };
+        const editorRows = await readRows(CAL_SUPABASE_URL + '/rest/v1/team_members?select=id,name'
+            + '&active=eq.true&team=eq.video&role=eq.editor&linear_user_id=not.is.null'
+            + '&order=name.asc&limit=200');
+        const editors = editorRows
+            .map(row => ({ id: String(row && row.id || ''), name: String(row && row.name || '').trim() || 'Editor' }))
+            .filter(row => row.id);
+        if (!editors.length) return [];
+        // Open video work per editor. A failure here is not fatal: the picker
+        // still lists everyone eligible, it just cannot say who is freest.
+        let counts = null;
+        try {
+            const rows = await readRows(CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select=assignee_id,linear_issue_uuid'
+                + '&team=eq.video&status=in.(' + CAL_NATIVE_LIVE_VIDEO_STATUSES.join(',') + ')&limit=5000');
+            /* A batch PARENT is not on anyone's plate — same rule, same reason
+               as the gateway (2026-08-27: 75 of 535 open rows were parent
+               containers, ~30 assigned). A row is a parent when another row
+               names its issue as raw_issue_parent_id; children may sit in any
+               status, so the parent set is read over the whole team. Both
+               sides MUST count identically, or the dialog names one person and
+               the default path assigns another. A failed parent read leaves
+               the count uncorrected rather than absent — a slightly skewed
+               suggestion beats a picker that cannot rank at all. */
+            let parentUuids = new Set();
+            try {
+                const parentRows = await readRows(CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select=raw_issue_parent_id'
+                    + '&team=eq.video&raw_issue_parent_id=not.is.null&limit=5000');
+                parentRows.forEach(row => {
+                    const uuid = String(row && row.raw_issue_parent_id || '').trim();
+                    if (uuid) parentUuids.add(uuid);
+                });
+            } catch (error) { parentUuids = new Set(); }
+            counts = new Map(editors.map(editor => [editor.id, 0]));
+            rows.forEach(row => {
+                if (parentUuids.has(String(row && row.linear_issue_uuid || '').trim())) return;
+                const id = String(row && row.assignee_id || '').trim();
+                if (counts.has(id)) counts.set(id, counts.get(id) + 1);
+            });
+        } catch (error) { counts = null; }
+        const withLoad = editors.map(editor => ({
+            id: editor.id,
+            name: editor.name,
+            openCount: counts ? Number(counts.get(editor.id) || 0) : null,
+        }));
+        /* Same ordering rule as the gateway: fewest open first, then name, then
+           id -- so the browser's suggestion and the server's fallback agree. */
+        withLoad.sort((left, right) => {
+            if (counts) {
+                const delta = left.openCount - right.openCount;
+                if (delta) return delta;
+            }
+            return left.name.localeCompare(right.name) || left.id.localeCompare(right.id);
+        });
+        return withLoad;
+    }
+    /* One Create Post submission can mint several posts (owner request
+       2026-08-20: "if it's 12 posts, it would be 12 sub-issues. But if it's
+       video plus thumbnail, it would be 24").
+
+       The gateway ALREADY accepts many — _linearIntakeItems maps over a list
+       of videos and emits one item per team per video, all sharing a card id.
+       The dialog was the only thing hard-coding the list to a single entry.
+
+       The ceiling is the gateway's own MAX_INTAKE_ITEMS = 100, counted in
+       ITEMS, not posts — so "Video + Thumbnail" tops out at 50 posts while a
+       single-team mode allows 100. Mirrored here so the browser refuses before
+       the round trip rather than surfacing a 400 invalid_intake_payload the
+       SMM cannot interpret. Keep in step with production-write. */
+    const CAL_NATIVE_MAX_INTAKE_ITEMS = 100;
+    function _calNativePostTeamsPer(mode) {
+        return (CAL_NATIVE_MODE_TEAMS[mode] || CAL_NATIVE_MODE_TEAMS.both).length;
+    }
+    function _calNativePostCountMax(mode) {
+        return Math.floor(CAL_NATIVE_MAX_INTAKE_ITEMS / _calNativePostTeamsPer(mode));
+    }
+    function _calNativePostCount(state) {
+        const raw = Math.floor(Number(state && state.postCount));
+        if (!Number.isFinite(raw) || raw < 1) return 1;
+        const mode = ['video', 'thumbnail', 'both'].includes(state && state.mode) ? state.mode : 'both';
+        return Math.min(raw, _calNativePostCountMax(mode));
+    }
+    /* The plain-language echo under the input. It states the sub-issue total
+       BEFORE submitting, because that total is the thing that surprises: 12
+       posts is 24 Linear issues in "Video + Thumbnail". */
+    function _calNativePostCountHint(mode, count) {
+        const per = _calNativePostTeamsPer(mode);
+        const posts = count === 1 ? '1 post' : count + ' posts';
+        const subs = count * per;
+        const subsText = subs === 1 ? '1 sub-issue' : subs + ' sub-issues';
+        if (per === 1) return posts + ' \u2192 ' + subsText;
+        return posts + ' \u2192 ' + subsText + ' (' + count + ' video, ' + count + ' thumbnail)';
+    }
+    /*
+     * NAMING WHAT YOU JUST MADE (owner request 2026-09-07).
+     *
+     * Two names, and they are not the same kind of thing:
+     *
+     *   * The BATCH name is the Linear PARENT issue title. The gateway has
+     *     always taken it from the browser verbatim (`batch.name`), so this
+     *     half is a dialog change and nothing else -- it was only ever
+     *     hard-coded because nothing asked.
+     *   * A POST name is a SUFFIX on both of its sub-issue titles:
+     *     'Video 4 — Launch hook' and 'Thumbnail 4 — Launch hook'.
+     *
+     * The suffix shape is deliberate and is the owner's own earlier ruling
+     * defending itself. On 2026-08-17 he read a test post as "two video
+     * sub-issues" because both halves were titled the same; a free-form title
+     * rebuilds that the first time somebody names a post "Morning routine".
+     * The number is load-bearing too -- it is the ONLY record of a post's
+     * ordinal (there is no column for it), and both planAppendIntakeItems and
+     * production_intake_append re-derive the next number by reading it back
+     * out of the titles already in the batch. Keeping kind and number in front
+     * keeps every one of those readers working; the name rides behind.
+     *
+     * THE SERVER COMPOSES THE TITLE, not this file. The browser sends `name`
+     * and the gateway builds 'Video N — name' from the ordinal it allocates,
+     * because on an append the browser does not know N -- the batch does.
+     */
+    const CAL_NATIVE_TITLE_SEPARATOR = ' — ';
+    /* Titles are capped at 500 by the gateway and the kind/number/separator
+       eat a dozen of those. 160 leaves the cap unreachable by a name alone
+       while being longer than anything a person types into one of these. */
+    const CAL_NATIVE_NAME_MAX = 160;
+    /* Newlines and runs of whitespace are flattened rather than refused: a
+       name pasted out of a filming plan carries both, and refusing the paste
+       would teach people to stop pasting rather than teach them to tidy. */
+    function _calNativeCleanName(value) {
+        return String(value == null ? '' : value)
+            .replace(/[\s\u00a0]+/g, ' ')
+            .trim()
+            .slice(0, CAL_NATIVE_NAME_MAX);
+    }
+    /* The per-post names, normalised to exactly `count` entries. Held long so
+       that stepping 3 -> 1 -> 3 gives the third name back rather than losing
+       it; only what is submitted is clamped. */
+    function _calNativePostNamesFor(state, count) {
+        const held = Array.isArray(state && state.postNames) ? state.postNames : [];
+        return Array.from({ length: Math.max(0, count) }, (unused, index) =>
+            _calNativeCleanName(held[index]));
+    }
+    /* The batch title the parent issue will actually carry: what was typed, or
+       the generated default when the field is untouched. The default is not
+       written into the input -- it is its placeholder -- so an SMM who clears
+       the box gets the default back instead of an empty parent. */
+    function _calNativeBatchNameFor(state) {
+        const typed = _calNativeCleanName(state && state.batchName);
+        const surface = state && state.surface;
+        if (!typed) return _linearIntakeBatchTitle(state && state.clientName, surface);
+        /* A SAMPLES parent still has to say it is a sample -- owner ruling
+           2026-08-19, which is why the generated title carries ' · Samples · '
+           in the middle where truncation cannot reach it. A typed name would
+           silently drop that, so the marker is added back unless the name
+           already carries the word. It is appended rather than injected, and
+           the preview line under the field shows the result, so nobody is
+           surprised by what the parent ends up called. */
+        if (surface === 'sxr' && !/sample/i.test(typed)) return typed + ' · Samples';
+        return typed;
+    }
+    /*
+     * WHAT THIS SUBMISSION WILL CREATE (owner pick 2026-09-08, option A).
+     *
+     * Three of the dialog's four hint blocks were prose renderings of one
+     * thing: the issue tree about to be written. The count hint said how many
+     * sub-issues, the name hint gave a worked example of a composed title, and
+     * the new-batch meta quoted the parent's name. A receipt states all three
+     * at once, from the real state, and answers the question none of them
+     * could: on an APPEND, which ordinals this post actually gets. Until now
+     * that was invisible until the issues existed in Linear.
+     *
+     * The ordinal is mirrored from the gateway rather than counted. A batch's
+     * post COUNT is not its highest ordinal -- delete a card and they diverge
+     * for good -- and the number lives only in the title, so it is read the
+     * way `production_intake_append` reads it. This is a PREVIEW: the server
+     * still allocates, and it still fails closed if the two ever disagree.
+     */
+    const CAL_NATIVE_ORDINAL_RE = /^(?:Sample )?(?:Video|Thumbnail) ([1-9][0-9]*)(?: \u2014 .+)?$/;
+    const CAL_NATIVE_RECEIPT_ROWS = 8;
+    function _calNativeTitleOrdinal(title) {
+        const found = CAL_NATIVE_ORDINAL_RE.exec(String(title == null ? '' : title).trim());
+        return found ? Number(found[1]) : null;
+    }
+    /* null means UNKNOWN -- the bounded read never landed, or never covered
+       this batch -- and only that renders as an ellipsis. A measured zero is a
+       real answer and must stay zero, or an empty batch previews `Video …`
+       while the RPC allocates `Video 1`. */
+    function _calNativeBatchMaxOrdinal(state, batchId) {
+        const map = state && state.batchMaxOrdinals;
+        if (!(map instanceof Map)) return null;
+        const found = map.get(String(batchId || ''));
+        return Number.isFinite(found) && found >= 0 ? found : null;
+    }
+    function _calNativeBatchById(state, batchId) {
+        const wanted = String(batchId || '');
+        return ((state && state.batchOptions) || []).find(batch => String(batch && batch.id || '') === wanted) || null;
+    }
+    /* Prefers the live radio over the captured one, so a receipt redrawn on a
+       keystroke reflects the tab the user is actually on. */
+    function _calNativeCurrentBatchChoice(state) {
+        const selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
+        if (selected) return { value: selected.value, batchId: String(selected.dataset.batchId || '') };
+        const prior = state && state.batchChoice;
+        return prior ? { value: prior.value, batchId: prior.batchId } : { value: 'new', batchId: '' };
+    }
+    function _calNativeReceiptHtml(state, choice) {
+        const mode = ['video', 'thumbnail', 'both'].includes(state && state.mode) ? state.mode : 'both';
+        const teams = CAL_NATIVE_MODE_TEAMS[mode] || CAL_NATIVE_MODE_TEAMS.both;
+        const count = _calNativePostCount(state);
+        const names = _calNativePostNamesFor(state, count);
+        const prefix = state && state.surface === 'sxr' ? 'Sample ' : '';
+        const appending = !!(choice && choice.value === 'batch');
+        /* null means the bounded count read did not land, which is the same
+           degraded path the batch subtext already tolerates. An unknown
+           ordinal renders as an ellipsis rather than a guess -- a wrong number
+           here would be worse than the hint this replaces. */
+        const max = appending ? _calNativeBatchMaxOrdinal(state, choice.batchId) : 0;
+        const base = appending ? (max === null ? null : max + 1) : 1;
+        const batch = appending ? _calNativeBatchById(state, choice.batchId) : null;
+        const parent = appending
+            ? (batch ? _calNativeBatchDisplayName(batch) : 'the batch you picked')
+            : _calNativeBatchNameFor(state);
+        const rows = [];
+        for (let index = 0; index < count; index++) {
+            for (let slot = 0; slot < teams.length; slot++) {
+                if (rows.length >= CAL_NATIVE_RECEIPT_ROWS) break;
+                const team = teams[slot];
+                const kind = team === 'graphics' ? 'Thumbnail' : 'Video';
+                const ordinal = base === null ? '\u2026' : String(base + index);
+                const name = names[index];
+                rows.push('<li><span class="cal-native-receipt-dot is-' + team + '"></span>'
+                    + _calEsc(prefix + kind + ' ' + ordinal)
+                    + (name ? '<span class="cal-native-receipt-name">'
+                        + _calEsc(CAL_NATIVE_TITLE_SEPARATOR + name) + '</span>' : '')
+                    + '</li>');
+            }
+        }
+        const total = count * teams.length;
+        const hidden = total - rows.length;
+        if (hidden > 0) rows.push('<li class="cal-native-receipt-more">+ ' + hidden + ' more</li>');
+        return '<div class="cal-native-receipt-cap">Creates<em>'
+            + (total === 1 ? '1 sub-issue' : total + ' sub-issues') + '</em></div>'
+            + '<div class="cal-native-receipt-parent">' + _calEsc(parent)
+            + (appending ? ' \u00b7 existing batch' : '') + '</div>'
+            + '<ul class="cal-native-receipt-kids">' + rows.join('') + '</ul>';
+    }
+    /* ONE LINE, AFTER TYPING STOPS. The receipt itself is NOT a live region
+       (Codex P1 on PR 1353): it is rewritten on every keystroke of every name,
+       so announcing it would queue the whole tree per character and leave a
+       screen-reader user behind their own typing. The visual preview still
+       updates instantly; what is spoken is this summary, once the field
+       settles, and it says the shape rather than reciting six titles. */
+    const CAL_NATIVE_RECEIPT_SPEAK_MS = 700;
+    let _calNativeReceiptSpeakTimer = null;
+    function _calNativeReceiptSummary(state, choice) {
+        const mode = ['video', 'thumbnail', 'both'].includes(state && state.mode) ? state.mode : 'both';
+        const teams = CAL_NATIVE_MODE_TEAMS[mode] || CAL_NATIVE_MODE_TEAMS.both;
+        const count = _calNativePostCount(state);
+        const total = count * teams.length;
+        const appending = !!(choice && choice.value === 'batch');
+        const max = appending ? _calNativeBatchMaxOrdinal(state, choice.batchId) : 0;
+        const base = appending ? (max === null ? null : max + 1) : 1;
+        const where = appending
+            ? 'in ' + (_calNativeBatchDisplayName(_calNativeBatchById(state, choice.batchId)) || 'the batch you picked')
+            : 'in a new batch';
+        const numbers = base === null
+            ? ''
+            : ', numbered ' + base + (count > 1 ? ' to ' + (base + count - 1) : '');
+        return 'Creates ' + (total === 1 ? '1 sub-issue' : total + ' sub-issues') + ' ' + where + numbers + '.';
+    }
+    /* Surgical, like the names list: every keystroke reaches this, and a full
+       re-render would take the caret with it. */
+    function _calNativeSyncReceipt() {
+        const state = _calNativePostState;
+        const host = document.getElementById('calNativeReceipt');
+        if (!state || !host) return;
+        const choice = _calNativeCurrentBatchChoice(state);
+        host.innerHTML = _calNativeReceiptHtml(state, choice);
+        if (_calNativeReceiptSpeakTimer) clearTimeout(_calNativeReceiptSpeakTimer);
+        _calNativeReceiptSpeakTimer = setTimeout(() => {
+            const live = document.getElementById('calNativeReceiptStatus');
+            if (!live || !_calNativePostState) return;
+            live.textContent = _calNativeReceiptSummary(_calNativePostState,
+                _calNativeCurrentBatchChoice(_calNativePostState));
+        }, CAL_NATIVE_RECEIPT_SPEAK_MS);
+    }
+    function _calNativePostNamesHtml(state, count, mode) {
+        const names = _calNativePostNamesFor(state, count);
+        const numbered = count > 1;
+        const rows = names.map((name, index) => `
+                        <div class="cal-native-name-item${numbered ? ' is-numbered' : ''}">
+                            ${numbered ? `<span class="cal-native-name-index" aria-hidden="true">${index + 1}</span>` : ''}
+                            <input type="text" class="cal-native-name-input" maxlength="${CAL_NATIVE_NAME_MAX}"
+                                value="${_calEscAttr(name)}" placeholder="${_calEscAttr(numbered ? 'Name for post ' + (index + 1) : 'Name this post')}"
+                                aria-label="${_calEscAttr('Optional name for post ' + (index + 1))}" autocomplete="off"
+                                oninput="_calSetNativePostName(${index}, this.value)">
+                        </div>`).join('');
+        return `<div class="cal-native-name-list">${rows}</div>`;
+    }
+    function _calNativePostNameHint(mode) {
+        const example = mode === 'thumbnail' ? 'Thumbnail 4' : 'Video 4';
+        return 'Optional. It goes after the number: a post named “Launch hook” becomes “'
+            + example + CAL_NATIVE_TITLE_SEPARATOR + 'Launch hook”, and one left blank stays “'
+            + example + '”.'
+            + (mode === 'both' ? ' Both sub-issues of a post share the name.' : '');
+    }
+    /* State only -- never a re-render. Every keystroke runs through here, and
+       rebuilding the modal body would drop focus and the caret on each one. */
+    function _calSetNativePostName(index, value) {
+        const state = _calNativePostState;
+        const slot = Math.floor(Number(index));
+        if (!state || !Number.isFinite(slot) || slot < 0) return;
+        if (!Array.isArray(state.postNames)) state.postNames = [];
+        state.postNames[slot] = String(value == null ? '' : value);
+        _calNativeSyncReceipt();
+    }
+    function _calSetNativeBatchName(value) {
+        const state = _calNativePostState;
+        if (!state) return;
+        state.batchName = String(value == null ? '' : value);
+        _calNativeSyncReceipt();
+    }
+    /* Switching tab re-renders, exactly as the mode toggle does, and captures
+       the radio first so the re-render restores the branch just chosen. */
+    function _calSetNativeBatchChoice() {
+        const state = _calNativePostState;
+        if (!state) return;
+        const selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
+        state.batchChoice = selected
+            ? { value: selected.value, batchId: String(selected.dataset.batchId || '') }
+            : null;
+        /* The re-render destroys the radio that is currently focused, and
+           focus would land on the body -- so a keyboard user loses the
+           segmented control mid-choice and cannot arrow back (Codex P1 on
+           PR 1353). Re-aim it at the replacement of the same tab. */
+        const wasFocused = document.activeElement
+            && document.activeElement.name === 'calNativeBatchChoice';
+        _calRenderNativePostChoice();
+        if (!wasFocused) return;
+        const again = document.getElementById(
+            state.batchChoice && state.batchChoice.value === 'batch'
+                ? 'calNativePrevBatchRadio' : 'calNativeNewBatchRadio');
+        if (again) again.focus();
+    }
+    /* A label does not forward a click on an interactive descendant to its
+       radio, so typing a batch name would otherwise leave "Add to a previous
+       batch" selected and the name unused. Same explicit hook the batch
+       dropdown beside it already needs. */
+    function _calNativeNewBatchPick() {
+        const radio = document.getElementById('calNativeNewBatchRadio');
+        if (radio) radio.checked = true;
+    }
+    /* Which teams a batch can actually PARENT, read from linear_parent_ids
+       with the same key vocabulary the gateway's parentIdsForTeam accepts. */
+    function _calNativeBatchParentTeams(batch) {
+        const parents = batch && batch.linear_parent_ids;
+        const teams = new Set();
+        if (!parents || typeof parents !== 'object') return teams;
+        Object.keys(parents).forEach(key => {
+            const k = String(key || '').trim().toLowerCase();
+            if (k === 'video' || k === 'vid') teams.add('video');
+            else if (k === 'graphics' || k === 'graphic' || k === 'gra') teams.add('graphics');
+        });
+        return teams;
+    }
+    function _calNativeBatchCompatible(batch, mode) {
+        if (!batch) return false;
+        /* PARENTS DECIDE THIS, NOT THE `team` COLUMN (2026-08-26).
+         *
+         * This used to end `return false` for mode `both` whenever the batch
+         * carried ANY team stamp, and to require an exact stamp match for the
+         * single-team modes. That mirrored a gateway rule which has now been
+         * removed, because the column cannot answer the question being asked:
+         * it describes the batch's EXISTING CHILDREN — the B1 import derives it
+         * as "the one team all my children share, or null when they span both"
+         * — while the parent map keys come from each child's PARENT's team. The
+         * import says at b1-linear-backfill.js:848-865 that the two
+         * "legitimately disagree — a graphics child can hang off a video batch
+         * card".
+         *
+         * So a batch that had only ever held video work was refused a
+         * Video + Thumbnail post however complete its parent map was, and the
+         * post-hoc repair (clear the column) was undone by the next import,
+         * which recomputes it from those same children. Two SMMs reported it on
+         * one day as batches "not appearing in the list"; 143 of 397 active
+         * batches were affected.
+         *
+         * What is asked instead is the one thing the picker can actually
+         * establish from the row in front of it: every team this post needs has
+         * a parent recorded. That is the same requirement `parentIdsForTeam`
+         * enforces in the gateway before it resolves a route.
+         *
+         * IT DOES NOT SECOND-GUESS THE OWNER TEAM, and the first version of this
+         * rule was wrong to try (caught in review, 2026-08-27). synthesizeParentMap
+         * can mirror one team's parent into the other's slot with `owner_team`
+         * recorded, and the gateway then validates that issue against the
+         * REQUESTING team's project. For the 28 clients whose Video and Graphics
+         * both map to the same Linear project — verified live for every client in
+         * the reports that prompted this work — those projects are identical, so
+         * the gateway ACCEPTS the append. Rejecting every cross-owned primary
+         * here therefore hid batches the server would have taken, which is the
+         * exact symptom this change exists to end.
+         *
+         * The picker has no access to the client's project mappings on this
+         * path, so it cannot tell a shared-project client from one of the 3
+         * split ones. Given that, the honest default is to offer and let the
+         * server decide: for a split client with a mirrored parent the gateway
+         * refuses with `batch_parent_mapping_missing`, which the dialog already
+         * renders as a specific, actionable sentence. A visible refusal beats an
+         * invisible absence — an absence is the one thing a user cannot debug.
+         */
+        const needed = CAL_NATIVE_MODE_TEAMS[mode] || CAL_NATIVE_MODE_TEAMS.both;
+        // A fresh native capability read can offer a parentless batch. The
+        // gateway still validates its retained parent receipt and ownership.
+        if (Array.isArray(batch._nativeAppendTeams) && needed.every(t => batch._nativeAppendTeams.includes(t))) return true;
+        const parentTeams = _calNativeBatchParentTeams(batch);
+        if (!needed.every(t => parentTeams.has(t))) return false;
+        return true;
+    }
+
+    function _calNativeBatchHasLinearParents(batch) {
+        if (batch && Array.isArray(batch._nativeAppendTeams) && batch._nativeAppendTeams.length) return true;
+        // Orphan filter for the Create Post picker. Appending to a batch
+        // nests its Linear issues under the parents recorded in
+        // linear_parent_ids or, while the mirror is still draining, under a
+        // live batch-create outbox row. A batch with NEITHER makes the
+        // gateway refuse the whole append with 409 batch_parent_mapping_missing
+        // - see parentRouteForAppend in production-write - so offering such a
+        // row here could only ever produce an error. The 2026-08-07 outage
+        // left about 52 exactly-such orphans, tracked as docs/ops/OPEN_REPAIRS.md
+        // items 1-2; this filter keeps them out of BOTH picker lists. The
+        // trade is the drain window: a healthy just-created batch is briefly
+        // parentless and reappears as soon as applyCreateLinkage records its
+        // parent ids.
+        const parents = batch && batch.linear_parent_ids;
+        if (!parents || typeof parents !== 'object') return false;
+        return Object.keys(parents).length > 0;
+    }
+    function _calNativeBatchLists(options, mode, counts) {
+        const eligible = (options || []).filter(_calNativeBatchHasLinearParents);
+        /* EMPTY BATCHES RANK LAST (2026-08-20). Duplicate same-name batches are
+           common — one client has seven, five of them empty — and the picker
+           orders by created_at desc, so the newest EMPTY twin was offered as
+           "last batch" while the real one holding the work sat below it or off
+           the five-row slice entirely. Rank rather than filter: an empty batch
+           is still a legitimate target, it is just never the one you meant when
+           a populated sibling exists. Counts are best-effort and arrive
+           asynchronously; with no counts map this is a no-op and the order is
+           exactly what it was. Sort is stable in every engine we target, so
+           equal-rank rows keep their newest-first order. */
+        const emptyRank = batch => {
+            if (!(counts instanceof Map)) return 0;
+            const total = counts.get(String((batch && batch.id) || ''));
+            return Number.isFinite(total) && total === 0 ? 1 : 0;
+        };
+        const ranked = eligible.slice().sort((a, b) => emptyRank(a) - emptyRank(b));
+        /* NO CAP on the compatible list (2026-08-26). It used to `.slice(0, 5)`.
+           When that was written the median client had 5 eligible batches, so
+           the cap was invisible. It is not any more: 15 of 37 clients now have
+           batches hidden by it and the worst hides 28 — and an SMM reported the
+           exact symptom, that a batch she could see in Linear simply was not in
+           the dropdown. Nothing said "5 of 25"; they were just gone.
+           This is the list of batches you may add to. Silently dropping most of
+           them is the defect, and the ranking above already puts the useful
+           ones first. The control is a <select>, which scrolls, and long lists
+           are handled by the filter box rather than by hiding rows.
+           `incompatible` keeps its cap: that list is advisory, never chosen
+           from, and exists only to explain an absence. */
+        return {
+            compatible: ranked.filter(batch => _calNativeBatchCompatible(batch, mode)),
+            incompatible: ranked.filter(batch => !_calNativeBatchCompatible(batch, mode)).slice(0, 3)
+        };
+    }
+    /* The post-shape choice (owner ruling 2026-08-16: creation must ask).
+       Mode changes re-render the picker because batch compatibility depends
+       on the mode; the batch the user already chose survives the re-render
+       when it is still offered. */
+    /* Typing in the count must NOT re-render the dialog — a full re-render
+       rebuilds the input and the caret jumps to the end mid-keystroke. So this
+       updates state plus the one hint line, and nothing else. Mode changes DO
+       re-render (the batch list depends on mode), which is why the clamp lives
+       in _calNativePostCount rather than only here: switching to
+       "Video + Thumbnail" with 80 posts staged must come back as 50. */
+    /*
+     * The number input's own spinner is two ~7px arrows stacked inside the
+     * field: a hard target on a trackpad, invisible on touch, and the reason
+     * the owner called it "this horrible up and down thing".
+     *
+     * The replacement is `sv-stepper`, the house primitive -- NOT a second
+     * implementation of it. The first draft of this change hand-rolled 36px
+     * buttons and its own min/max disabling, which review caught: AGENTS.md
+     * says browser-native number spinners are unacceptable on branded surfaces
+     * and to REUSE the documented SyncView controls, and `_svStepperHtml` had
+     * already been carrying a 44px-target stepper with `_svStepNumber` for the
+     * clamp and `_svSyncStepper` for the disabled ends. Writing it again meant
+     * a control that was 36px on touch and a second copy of logic that can
+     * drift from the original.
+     *
+     * The wiring uses `opts.onchange`, which the primitive ALREADY has --
+     * `_svStepperHtml` is not modified by a single byte. It cannot be: the
+     * leave-lifecycle evidence packet is fingerprinted over the PTO source
+     * slice, this function is inside it, and any edit here stales a published
+     * 101-screenshot packet whose only sanctioned repair is a human re-reviewing
+     * all 101. An additive `oninput` option looked free and was not; see
+     * test/leave-evidence-fingerprint-coupling.js, which caught it.
+     *
+     * `onchange` is enough because `_svStepNumber` dispatches a bubbling
+     * `change` after it writes, so a button press reaches this setter by the
+     * same path a typed value does. The one difference is that a TYPED value
+     * commits on blur or Enter rather than per keystroke, so the sub-issue hint
+     * settles a moment later when someone types instead of pressing. That is
+     * the correct trade against forking a primitive.
+     */
+    function _calSetNativePostCount(raw) {
+        const state = _calNativePostState;
+        if (!state) return;
+        const mode = ['video', 'thumbnail', 'both'].includes(state.mode) ? state.mode : 'both';
+        const max = _calNativePostCountMax(mode);
+        const parsed = Math.floor(Number(raw));
+        state.postCount = (!Number.isFinite(parsed) || parsed < 1) ? 1 : Math.min(parsed, max);
+        /* One field per post, so the list has to follow the count. This is a
+           surgical rebuild rather than _calRenderNativePostChoice() because the
+           stepper can be held down: a full re-render per repeat would throw the
+           dialog away under the pointer. Typed names survive it -- they live in
+           state.postNames, and _calNativePostNamesFor keeps the ones the count
+           has stepped past, so 3 -> 1 -> 3 gives the third name back. */
+        const namesLabel = document.getElementById('calNativePostNamesLabel');
+        if (namesLabel) namesLabel.innerHTML = (state.postCount === 1 ? 'Post name' : 'Post names')
+            + '<span class="cal-native-name-optional">optional</span>';
+        const names = document.getElementById('calNativePostNames');
+        if (names) names.innerHTML = _calNativePostNamesHtml(state, state.postCount, mode);
+        const input = document.getElementById('calNativePostCount');
+        if (input && String(state.postCount) !== String(input.value) && document.activeElement !== input) {
+            input.value = String(state.postCount);
+        }
+        // A button that cannot do anything must look like it. `_svSyncStepper`
+        // reads min/max off the input and disables each end, and it runs LAST
+        // here -- after the clamp above may have rewritten the value -- so the
+        // disabled state can never describe a value that is no longer there.
+        if (typeof _svSyncStepper === 'function') _svSyncStepper('calNativePostCount');
+        _calNativeSyncReceipt();
+    }
+    function _calSetNativePostMode(mode) {
+        const state = _calNativePostState;
+        if (!state || !['video', 'thumbnail', 'both'].includes(mode)) return;
+        const selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
+        state.batchChoice = selected
+            ? { value: selected.value, batchId: String(selected.dataset.batchId || '') }
+            : null;
+        state.mode = mode;
+        _calRenderNativePostChoice();
+    }
+    function _calSetNativePostEditor() {
+        const state = _calNativePostState;
+        if (!state) return;
+        // sv-select writes the chosen value into a hidden input named by its id.
+        const input = document.getElementById('calNativeEditor');
+        const chosen = String(input && input.value || '');
+        if (chosen && !(state.videoEditors || []).some(editor => editor.id === chosen)) return;
+        // Preserve the batch radio the same way the mode switch does, since
+        // this also re-renders the whole dialog body.
+        const selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
+        state.batchChoice = selected
+            ? { value: selected.value, batchId: String(selected.dataset.batchId || '') }
+            : null;
+        state.videoEditorId = chosen;
+        _calRenderNativePostChoice();
+    }
+    /* Option E (2026-08-18): the previous-batch dropdown is the source of
+       truth for WHICH batch; this keeps the card's radio carrying the same
+       data-batch-id the submit path has always read. Touching the dropdown
+       also selects the card, so picking a batch never needs a second click.
+       A label does not forward clicks on an interactive descendant to its
+       radio, hence the explicit mousedown hook. */
+    function _calNativePrevBatchPick(sel, check) {
+        const radio = document.getElementById('calNativePrevBatchRadio');
+        if (!radio || !sel) return;
+        radio.dataset.batchId = String(sel.value || '');
+        if (check) radio.checked = true;
+        /* A REFUSAL OUTLIVES THE THING IT REFUSED (Codex P2 on PR 1353).
+           Nothing hid this box again except a full re-render, so after Create
+           said the search matched no batches, clearing the query re-aimed the
+           radio and left the dialog showing a chosen batch above a message
+           insisting none was chosen. Every complaint the box can hold here is
+           about the batch that WAS aimed at -- no target, or one this post
+           shape cannot use -- so re-aiming is exactly the moment it stops
+           being true. The tab switch already clears it: the render emits this
+           element hidden. */
+        const errorBox = document.getElementById('calNativePostError');
+        if (errorBox) { errorBox.hidden = true; errorBox.textContent = ''; }
+        _calNativeSyncReceipt();
+    }
+    /*
+     * FILTER THE BATCH LIST BY NAME (owner request 2026-08-26: "could we make
+     * it so people can also search by name").
+     *
+     * A <select> already type-aheads, but only by PREFIX — and every option
+     * here begins with the same client name ("Jenna Phillips Ballard · …",
+     * "JENNA PB | …"), so typing J cycles uselessly through all of them. What
+     * people actually know is the middle of the name: "episode 09".
+     *
+     * Rebuilds the option list rather than hiding <option> elements, because
+     * `display:none` on an option is ignored by Safari — hiding would look
+     * right in Chrome and silently do nothing on a Mac, which is the same
+     * class of bug as the cap this replaces.
+     */
+    function _calNativeBatchMatches(batch, query) {
+        const q = String(query || '').trim().toLowerCase();
+        if (!q) return true;
+        const name = _calNativeBatchDisplayName(batch).toLowerCase();
+        // Every whitespace-separated term must appear somewhere in the name, so
+        // "ep 09" and "09 episode" both find "JENNA PB | Episode 09".
+        return q.split(/\s+/).filter(Boolean).every(term => name.includes(term));
+    }
+    function _calNativeBatchFilter(input) {
+        const state = _calNativePostState;
+        if (!state || !input) return;
+        state.batchFilter = String(input.value || '');
+        const select = document.querySelector('.cal-native-batch-select');
+        const empty = document.getElementById('calNativeBatchFilterEmpty');
+        if (!select) return;
+        const mode = ['video', 'thumbnail', 'both'].includes(state.mode) ? state.mode : 'both';
+        const all = _calNativeBatchLists(state.batchOptions, mode, state.batchPostCounts).compatible;
+        const shown = all.filter(batch => _calNativeBatchMatches(batch, state.batchFilter));
+        const keep = String(select.value || '');
+        select.innerHTML = _calNativeBatchOptionsHtml(shown, all, state.batchPostCounts,
+            shown.some(batch => String(batch.id || '') === keep) ? keep : String(shown.length ? shown[0].id || '' : ''));
+        select.disabled = !shown.length;
+        if (empty) empty.style.display = shown.length ? 'none' : '';
+        // Keep the radio pointing at whatever the select now shows, so a
+        // filtered-then-submitted post cannot append to a batch nobody sees.
+        if (shown.length) { _calNativePrevBatchPick(select, false); _calNativeSyncReceipt(); return; }
+        /* ZERO MATCHES LEFT A LIVE TARGET (Codex P1 on PR 1353). Disabling the
+           select was not enough: the radio kept the id of the last batch the
+           list showed and stayed checked, so Create still appended the post to
+           a batch the no-match line said was not there. Clearing the id is the
+           safety half -- the submit path's own guard then refuses, because it
+           resolves the batch by that id before it writes anything. */
+        const stale = document.getElementById('calNativePrevBatchRadio');
+        if (stale) stale.dataset.batchId = '';
+        _calNativeSyncReceipt();
+    }
+    /* Below this many batches the list is short enough to read at a glance and
+       a search box is just another control in the way. Above it, scanning is
+       the problem the box exists to solve. */
+    const CAL_NATIVE_BATCH_FILTER_MIN = 6;
+    /* Assigned during render and reused by the filter, so the filtered list and
+       the first paint can never drift into two different option formats. */
+    let _calNativeBatchOptionsHtml = () => '';
+    const CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS = 4000;
+    /* Every uuid these batches record as a PARENT.
+     *
+     * The B1 import writes a deliverable row for the parent issue itself and
+     * files it inside the batch, so a batch parent is indistinguishable from
+     * work by row shape alone. This set is the distinguisher, and it is read
+     * from the batch rows already in hand, so no consumer needs a second
+     * network round trip to be correct. */
+    function _calNativeParentUuids(batches) {
+        const uuids = new Set();
+        (Array.isArray(batches) ? batches : []).forEach(batch => {
+            const parents = batch && batch.linear_parent_ids;
+            if (!parents || typeof parents !== 'object') return;
+            const entries = Array.isArray(parents) ? parents : Object.keys(parents).map(key => parents[key]);
+            entries.forEach(entry => {
+                const uuid = String(entry && (entry.uuid || entry.id || entry.linear_issue_id) || '').trim();
+                if (uuid) uuids.add(uuid);
+            });
+        });
+        return uuids;
+    }

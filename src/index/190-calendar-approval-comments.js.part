@@ -1,0 +1,2966 @@
+    function _calHasMedia(p) {
+        return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim());
+    }
+    // What media is still missing on a post awaiting SMM approval. Returns
+    // null when there's nothing to flag (not awaiting approval, or both URLs
+    // present); otherwise { video, thumb } booleans naming exactly what's
+    // absent so the warning can say whether it's the video, the thumbnail, or
+    // both. Drives the warning overlay on the card / banner on the preview /
+    // dot on the month + week pills.
+    function _calSmmMediaGap(p) {
+        if (!p) return null;
+        // A component is flagged once its sub-status moves past In Progress —
+        // i.e. it's been sent for any kind of approval (For SMM Approval,
+        // Kasper Approval, Client Approval, …) or beyond. At that point the
+        // matching media URL must already be linked, so warn while it's empty.
+        // The video sub-status governs the video URL; the thumbnail (graphic)
+        // sub-status governs the thumbnail URL — each is independent.
+        const beyondProgress = s => _calNormStatus(s || '') !== 'In Progress';
+        const video = beyondProgress(p.video_status)   && !String(p.asset_url || '').trim();
+        const thumb = beyondProgress(p.graphic_status) && !String(p.thumbnail_url || '').trim();
+        if (!video && !thumb) return null;
+        return { video, thumb };
+    }
+    function _calSmmMissingMedia(p) { return !!_calSmmMediaGap(p); }
+    // Headline / body / tooltip tailored to the specific gap.
+    function _calSmmWarnParts(gap) {
+        if (!gap) return null;
+        if (gap.video && gap.thumb) return {
+            strong: 'No media linked.',
+            rest: 'Add a video and a thumbnail URL before this can go for approval.',
+            title: 'Sent for approval but neither the video nor the thumbnail is linked yet — add the URLs before this can be reviewed.'
+        };
+        if (gap.video) return {
+            strong: 'No video linked.',
+            rest: 'Add the video URL before this can go for approval.',
+            title: "Sent for approval but the video isn't linked yet — add the video URL before this can be reviewed."
+        };
+        return {
+            strong: 'No thumbnail linked.',
+            rest: 'Add the thumbnail URL before this can go for approval.',
+            title: "Sent for approval but the thumbnail isn't linked yet — add the thumbnail URL before this can be reviewed."
+        };
+    }
+    function _calSmmWarnIconSvg() {
+        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+    }
+    // Inline banner — used in the read-only preview popover where stacking it
+    // in the body flow is fine.
+    function _calSmmWarnBannerHtml(p) {
+        const parts = _calSmmWarnParts(_calSmmMediaGap(p));
+        if (!parts) return '';
+        return `<div class="cal-smm-warn" title="${_calEscAttr(parts.title)}">${_calSmmWarnIconSvg()}<span><strong>${_calEsc(parts.strong)}</strong> ${_calEsc(parts.rest)}</span></div>`;
+    }
+    // Overlay variant — pinned in front of the card's thumbnail so the warning
+    // never changes the card's height (it sits over the missing media instead
+    // of pushing the body down).
+    function _calSmmWarnOverlayHtml(p) {
+        const parts = _calSmmWarnParts(_calSmmMediaGap(p));
+        if (!parts) return '';
+        return `<div class="cal-smm-warn cal-smm-warn-overlay" title="${_calEscAttr(parts.title)}">${_calSmmWarnIconSvg()}<span><strong>${_calEsc(parts.strong)}</strong> ${_calEsc(parts.rest)}</span></div>`;
+    }
+    function _calSmmWarnDotHtml(p) {
+        const parts = _calSmmWarnParts(_calSmmMediaGap(p));
+        const title = parts ? parts.title : 'Sent for approval but no media linked yet.';
+        return `<span class="cal-smm-warn-dot" title="${_calEscAttr(title)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>`;
+    }
+
+    /* Count of posts actually awaiting this surface's sign-off — i.e. at least
+       one component sitting at the review status (Tweaks-Needed cards are
+       waiting on the editor, not the reviewer, so they don't count). Drives
+       the little number badge on the Review tab. Honours the SMM tab's
+       no-media rule so the badge matches what the tab will actually show. */
+    function _calApprovalBadgeCount(mode) {
+        const reviewStatus = _CAL_REVIEW_CFG[mode].reviewStatus;
+        return (calState.posts || []).reduce((n, p) => {
+            /* Media-stranded cards are deliberately NOT counted here, and the
+               choice is on the record because it looks like an oversight.
+               This badge means "items you can review", and the list length is
+               what a reader checks it against; counting cards the queue cannot
+               render would make the two disagree and turn the badge into
+               "items needing attention", which is a different promise. The
+               stranded work is reported instead by the notice above the queue,
+               which carries its own count -- see _calReviewStrandedNoticeHtml. */
+            if (mode === 'smm' && !_calHasMedia(p)) return n;
+            const awaiting = _calComponentsFor(p).some(c => _calNormStatus(p[c + '_status'] || '') === reviewStatus);
+            return n + (awaiting ? 1 : 0);
+        }, 0);
+    }
+    // Refresh the Review tab's badge in place (the toolbar isn't re-rendered on
+    // every approve/tweak, so we patch the badge node directly).
+    function _calUpdateReviewBadge() {
+        document.querySelectorAll('.cal-view-btn').forEach(btn => {
+            const v = btn.dataset.calView;
+            if (v !== 'review' && v !== 'smmreview') return;
+            const count = _calApprovalBadgeCount(v === 'smmreview' ? 'smm' : 'client');
+            let badge = btn.querySelector('.cal-view-badge');
+            if (count > 0) {
+                if (!badge) { badge = document.createElement('span'); badge.className = 'cal-view-badge'; btn.appendChild(badge); }
+                badge.textContent = String(count);
+            } else if (badge) {
+                badge.remove();
+            }
+        });
+    }
+
+    function _calReviewItems() {
+        const mode = _calReviewMode();
+        return (calState.posts || []).filter(p => {
+            const s = _calNormStatus(p.status || '');
+            // The YouTube title is excluded from the overall status, so a card can
+            // read Approved/Scheduled/Posted overall while its title is still
+            // awaiting review on THIS surface. Don't hide those — otherwise a
+            // title-only review never reaches the queue once the other three are
+            // already approved.
+            const surf = (mode === 'smm') ? 'smm' : 'client';
+            const titlePending = _calIsYouTubeCard(p) && _calReviewComponentActive(p, 'title', surf);
+            if ((s === 'Approved' || s === 'Scheduled' || s === 'Posted') && !titlePending) return false;
+            // SMM Review tab: only posts with a component awaiting SMM
+            // approval (or sent back for tweaks), AND that actually have
+            // something to look at — a post with no video and no thumbnail
+            // isn't ready for sign-off, so it stays hidden until media lands.
+            if (mode === 'smm') {
+                if (!_calHasMedia(p)) return false;
+                return _calComponentsFor(p).some(c => _calReviewComponentActive(p, c, 'smm'));
+            }
+            // A real tokened client sees only components exactly at Client
+            // Approval. Tweaks Needed is retained only by the internal
+            // non-client preview in _calReviewComponentActive; the real client
+            // queue drops it until the revised work returns for approval.
+            if (_isClientLink) {
+                return _calComponentsFor(p).some(c => _calReviewComponentActive(p, c, 'client'));
+            }
+            return true;
+        }).slice().sort((a, b) => {
+            const ad = String(a.scheduled_date || '').slice(0,10);
+            const bd = String(b.scheduled_date || '').slice(0,10);
+            if (ad && bd) return ad.localeCompare(bd);
+            if (ad && !bd) return -1;
+            if (!ad && bd) return 1;
+            return Number(a.order_index || 0) - Number(b.order_index || 0);
+        });
+    }
+
+    /* Cards that ARE at SMM approval and are held out of the queue only because
+       no media has landed yet.
+
+       The gate is correct and stays: _calReviewCardHtml is built around media,
+       so admitting one would render a review card offering approve and tweak
+       on something there is nothing to look at. What was wrong is that the
+       queue then said "Nothing waiting on SMM approval right now" and the badge
+       said zero -- an absence claim about work that exists and is waiting.
+
+       Measured 2026-08-30 over 695 non-archived posts: 11 have a component at
+       For SMM Approval and exactly 1 is hidden this way. That one is a live
+       client's only awaiting card, scheduled for the next working day, so for
+       that client the queue was 100% wrong and the badge agreed with it. */
+    function _calReviewStrandedForMedia() {
+        if (_calReviewMode() !== 'smm') return [];
+        return (calState.posts || []).filter(p => {
+            if (!p) return false;
+            const s = _calNormStatus(p.status || '');
+            const titlePending = _calIsYouTubeCard(p) && _calReviewComponentActive(p, 'title', 'smm');
+            if ((s === 'Approved' || s === 'Scheduled' || s === 'Posted') && !titlePending) return false;
+            if (_calHasMedia(p)) return false;
+            return _calComponentsFor(p).some(c => _calReviewComponentActive(p, c, 'smm'));
+        });
+    }
+    function _calReviewStrandedNoticeHtml() {
+        const stranded = _calReviewStrandedForMedia();
+        if (!stranded.length) return '';
+        const n = stranded.length;
+        const names = stranded.slice(0, 4).map(p => _calEsc(String(p.name || p.id || 'Untitled'))).join(', ');
+        const more = n > 4 ? ' and ' + (n - 4) + ' more' : '';
+        return '<div class="cal-review-stranded" data-cal-review-stranded="' + n + '">'
+            + n + (n === 1 ? ' post is' : ' posts are') + ' waiting on SMM approval but cannot be reviewed here yet, '
+            + 'because no video or thumbnail has landed on ' + (n === 1 ? 'it' : 'them') + ' — '
+            + names + more + '.</div>';
+    }
+    function renderCalReview() {
+        const items = _calReviewItems();
+        /* The notice sits ABOVE the queue in both states. An empty queue with
+           stranded work is the case that made this necessary; a non-empty queue
+           that is quietly missing a card is the same lie, just harder to see. */
+        const stranded = _calReviewStrandedNoticeHtml();
+        if (!items.length) {
+            const msg = _calReviewMode() === 'smm'
+                ? (stranded
+                    ? 'Nothing can be reviewed here right now.'
+                    : 'Nothing waiting on SMM approval right now — posts with a linked video or thumbnail will appear here when they reach the SMM Approval stage.')
+                : 'Nothing to review right now — every post is either fully approved or already posted.';
+            return `<div class="cal-review-wrap">${stranded}<div class="cal-empty">${msg}</div></div>`;
+        }
+        const cards = items.map(p => _calReviewCardHtml(p)).join('');
+        return `<div class="cal-review-wrap">${stranded}<div class="cal-review-list">${cards}</div></div>`;
+    }
+
+    /* Plain-English summary of what the client needs to do (or what's being
+       worked on for them) on this card. Drives the line that sits right
+       under the title on the review card so a glance at the collapsed card
+       answers "why is this in my queue?" without expanding. Bolds the
+       component names so they stand out from the connecting words. */
+    function _calReviewPendingLabel(p) {
+        const mode = _calReviewMode();
+        const reviewStatus = _CAL_REVIEW_CFG[mode].reviewStatus;
+        // In-flight (Tweaks Needed) work is no longer surfaced to the client —
+        // the same gate as _calReviewComponentActive, so the label never
+        // advertises a component the client's queue itself has hidden. (The SMM
+        // surface and the internal client-mode preview still see in-flight work.)
+        const showInFlight = mode !== 'client' || !_isClientLink;
+        const awaiting = [], inFlight = [];
+        for (const c of _calComponentsFor(p)) {
+            const cs = _calNormStatus(p[c + '_status'] || '');
+            if (cs === reviewStatus) awaiting.push(c);
+            else if (showInFlight && cs === 'Tweaks Needed') inFlight.push(c);
+        }
+        if (!awaiting.length && !inFlight.length) return '';
+        const human = (list) => {
+            const labels = list.map(c => `<span class="kcard-pending-strong">${_calEsc(COMP_LABELS[c])}</span>`);
+            if (labels.length === 1) return labels[0];
+            if (labels.length === 2) return labels[0] + ' and ' + labels[1];
+            return labels.slice(0, -1).join(', ') + ', and ' + labels.slice(-1)[0];
+        };
+        const parts = [];
+        if (awaiting.length) {
+            const verb = awaiting.length === 1 ? ' needs' : ' need';
+            parts.push(human(awaiting) + verb + (mode === 'smm' ? ' SMM approval' : ' your review'));
+        }
+        if (inFlight.length) {
+            parts.push(mode === 'smm'
+                ? ('tweaks requested on ' + human(inFlight))
+                : ("we're working on your tweaks for " + human(inFlight)));
+        }
+        // First letter uppercase on the final sentence.
+        const joined = parts.join(' · ');
+        return joined.charAt(0).toUpperCase() + joined.slice(1);
+    }
+
+    function _calReviewCardHtml(p) {
+        const pid = p.id;
+        const escId = _calEscAttr(pid);
+        const expanded = _calReviewState.expanded.has(pid);
+        const info = _calDeriveThumbInfo(p);
+        const thumbHtml = info.url
+            ? _calThumbImgTag(info, '_calOnMiniThumbError')
+            : info.frame
+                ? _calMiniLinkBadgeHtml('kcard-thumb-fallback', info.frameKind)
+                : `<span class="kcard-thumb-fallback">${_calThumbIconSvg()}</span>`;
+        // Weekday included so the client can place the date without doing
+        // mental arithmetic ("Sat 21 Jun 2026" reads faster than "21 Jun 2026").
+        const dateStr = p.scheduled_date
+            ? _calParseIso(String(p.scheduled_date).slice(0, 10)).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+            : 'Unscheduled';
+        const pendingLabel = _calReviewPendingLabel(p);
+        // Component pills are gated by Collaborative mode — when off, only
+        // finished states render here, so the pill row will usually be empty
+        // for cards in the review queue. The pending label above carries
+        // the same information in plain English regardless.
+        const compPills = _calClientCompPillsHtml(p);
+        const body = expanded ? _calReviewCardBody(p) : '';
+        return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-cal-review-pid="${escId}">
+            <div class="kcard-strip" onclick="_calReviewToggleCard('${escId}')">
+                <div class="kcard-thumb">${thumbHtml}</div>
+                <div class="kcard-main">
+                    <div class="kcard-title">${_calEsc(p.name || 'Untitled')}</div>
+                    ${pendingLabel ? `<div class="kcard-pending">${pendingLabel}</div>` : ''}
+                    <div class="kcard-line1"><span class="kcard-date">${_calEsc(dateStr)}</span></div>
+                    ${compPills ? `<div class="cal-review-sub-row">${compPills}</div>` : ''}
+                </div>
+                <div class="kcard-actions" onclick="event.stopPropagation();">
+                    ${_thumbCompareSlotHtml('calendar', p, true, 'review')}
+                    <button class="kcard-open-sheet" type="button" onclick="_calReviewOpenInSheet('${escId}')" title="Open this card in the Sheet" aria-label="Open in Sheet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6h11M6.5 6v7"/></svg></button>
+                    <button class="kcard-expand-btn" type="button" onclick="_calReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
+                </div>
+            </div>
+            ${body}
+        </div>`;
+    }
+
+    function _calReviewCardBody(p) {
+        const escId = _calEscAttr(p.id);
+        // A real tokened client gets panels only for components exactly at
+        // Client Approval. The internal non-client preview may also retain
+        // Tweaks Needed, as defined by _calReviewComponentActive.
+        const _reviewMode = _calReviewMode();
+        const activeComps = (_reviewMode === 'smm')
+            ? _calComponentsFor(p).filter(c => _calReviewComponentActive(p, c, 'smm'))
+            : (_isClientLink
+                ? _calComponentsFor(p).filter(c => _calReviewComponentActive(p, c, 'client'))
+                : _calComponentsFor(p));
+        if (!activeComps.length) {
+            return `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing left to review on this post.</div></div>`;
+        }
+        const panels = activeComps.map(comp => _calReviewPanelHtml(p, comp)).join('');
+        const cols = activeComps.length;
+        // 4 components (a YouTube card with title review on) lay out 2×2 instead
+        // of a cramped 4-wide row; 1–3 keep their natural column count.
+        const gridCols = cols >= 4 ? 2 : cols;
+        return `<div class="cal-review-body" style="grid-template-columns: repeat(${gridCols}, minmax(0, 1fr));" onclick="event.stopPropagation();">
+            ${panels}
+        </div>`;
+    }
+
+    /* Sweep item 87.7. Approve greys out the instant a reviewer types into the
+       draft box, and until now nothing said why -- the button just went
+       unclickable under the cursor. The gate itself is correct and stays: an
+       unsent draft and an approval are two different intents, and letting
+       both fire at once is the actual defect this prevents. What was missing
+       is the sentence, and it has to travel to two places for each of the
+       four review surfaces -- the initial render AND the three per-keystroke
+       updaters that toggle `disabled` without repainting -- or the title
+       lies the moment someone types.
+       Deliberately narrow: this fires ONLY for the draft-caused disablement.
+       A surface that renders Approve disabled for another reason (already
+       mid-tweak-cycle, saving) keeps its title empty exactly as before --
+       stating "there is an unsent note" when there is none would be a new
+       false claim in the same spot this fix is removing one from. */
+    const REVIEW_APPROVE_DRAFT_TITLE = 'Approve is off while this note is unsent below — press Comment to send it, or clear the text, to approve.';
+    function _calReviewPanelHtml(p, comp) {
+        const escId = _calEscAttr(p.id);
+        const escComp = _calEscAttr(comp);
+        const subStatus = _calNormStatus(p[comp + '_status'] || '');
+        const state = subStatus === 'Approved' ? 'approved'
+                    : (subStatus === 'Tweaks Needed' ? 'tweaks'
+                    : (subStatus === 'Scheduled' ? 'scheduled'
+                    : (subStatus === 'Posted' ? 'posted' : 'pending')));
+        // _calCommentsForView hides Kasper-role tweaks from the client-link
+        // surface; SMM/Kasper sessions still see everything.
+        const comments = _calCommentsForView(p, comp);
+        // The per-panel Linear icon was visual noise — dropped. Linear linking
+        // still lives on the Sheet/organizer cards for the SMM.
+        const linkBadge = '';
+        // Approved (and Posted) collapse to a single, minimal line — no
+        // preview / no compose / no thread-by-default. Approving is
+        // terminal from the client's seat; surfacing it as a full panel
+        // wastes real estate. A click toggles back to the full view if
+        // they want to see past comments or the asset link again.
+        if (state === 'approved' || state === 'posted' || state === 'scheduled') {
+            const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
+            const wordAction = state === 'posted' ? 'Posted' : (state === 'scheduled' ? 'Scheduled' : 'Approved');
+            const sub = state === 'posted' ? 'Live on the channel'
+                      : (state === 'scheduled' ? 'Queued — going out on its scheduled date'
+                      : 'Locked in — ready to schedule');
+            return `<div class="cal-review-panel cal-review-panel-mini" data-comp="${escComp}" data-state="${state}">
+                <span class="cal-review-mini-icon">${checkIco}</span>
+                <span class="cal-review-mini-label">${_calEsc(COMP_LABELS[comp])} ${wordAction.toLowerCase()}</span>
+                <span class="cal-review-mini-sub">${_calEsc(sub)}</span>
+            </div>`;
+        }
+        const previewHtml = _calReviewComponentPreview(p, comp);
+        const draftKey = p.id + '|' + comp;
+        const draft = _calReviewState.drafts[draftKey] || '';
+        const saving = !!_calReviewState.saving[draftKey];
+        const err = _calReviewState.errors[draftKey] || '';
+        // The reviewer can act only while the component is sitting at their
+        // surface's approval status (or has been sent back for tweaks). On the
+        // SMM Review tab that's "For SMM Approval"; on the client link it's
+        // "Client Approval". A plain SMM Sheet view (no review surface) can
+        // always act, matching the legacy behaviour.
+        const _reviewMode = _calReviewMode();
+        const _reviewStatus = _CAL_REVIEW_CFG[_reviewMode].reviewStatus;
+        const canActClient = (_reviewMode === 'smm' || _isClientLink)
+            ? (subStatus === _reviewStatus || subStatus === 'Tweaks Needed')
+            : true;
+        const hasDraft = !!draft.trim();
+        const inTweaks = subStatus === 'Tweaks Needed';
+        // Approve button is ALWAYS rendered when the client could in
+        // principle approve (not yet Approved/Posted) — but it stays
+        // disabled while they're drafting a tweak or while a tweak is
+        // already pending the editor's revision, so the affordance is
+        // visible without being misclickable. Removing it on draft was
+        // jarring: the button vanished, then came back when she cleared
+        // the textarea, which broke muscle memory.
+        const showApprove = canActClient && subStatus !== 'Approved' && subStatus !== 'Scheduled' && subStatus !== 'Posted';
+        const approveEnabled = showApprove && !saving && !hasDraft && !inTweaks;
+        const tweakEnabled = canActClient && !saving && hasDraft;
+        // Friendlier status copy: clients see "Awaiting your approval"
+        // instead of the raw "Client Approval" enum, which reads like a
+        // workflow term, not a prompt for action.
+        const stateLabel = inTweaks ? 'Changes requested'
+                         : (subStatus === 'Client Approval' ? 'Awaiting your approval'
+                         : (subStatus === 'For SMM Approval' ? 'Awaiting SMM approval'
+                         : subStatus));
+        // Reword the compose placeholder once a tweak is already pending —
+        // emphasises that the request was received and invites follow-ups.
+        const placeholder = inTweaks
+            ? 'The team is working on it. Anything else to add?'
+            : 'Add a note or request a change…';
+        const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
+        const sendIco  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
+        const threadHtml = comments && comments.length
+            ? comments.map(c => {
+                const author = c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM');
+                const isResolved = !!c.done;
+                const resolvedBadge = isResolved
+                    ? `<span class="cal-review-resolved-pill" title="Marked done${c.done_by ? ' by ' + _calEsc(c.done_by) : ''}${c.done_at ? ' · ' + _calEsc(_calFmtCommentTime(c.done_at)) : ''}">${resolvedIco}Resolved</span>`
+                    : '';
+                return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${c.parent_id ? ' is-reply' : ''}${isResolved ? ' is-resolved' : ''}">
+                    <div class="cal-review-comment-head">
+                        <strong>${_calEsc(author)}</strong>
+                        <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
+                        ${resolvedBadge}
+                    </div>
+                    <div class="cal-review-comment-body">${_calEsc(c.body || '')}</div>
+                </div>`;
+            }).join('')
+            : `<div class="cal-review-comment-empty">No comments yet.</div>`;
+        // The "awaiting approval" pill is just noise on every review surface —
+        // the whole tab is the approval queue. Only keep the pill when it's
+        // carrying real signal ("Changes requested" for a tweaks state).
+        const statusPill = !inTweaks
+            ? ''
+            : `<span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>`;
+        // SMM only: has Kasper seen this yet? A brand-new component gets a
+        // "First review" flag and the approve default points at Kasper; once
+        // Kasper has touched it, the default flips to the client. The smart
+        // default is the prominent button; the other route is the small
+        // attached segment, so it's a one-click choice either way.
+        const _seenByKasper = _reviewMode === 'smm' && _calHasBeenToKasper(p, comp);
+        const firstReviewBadge = (_reviewMode === 'smm' && showApprove && !_seenByKasper)
+            ? `<span class="cal-review-firstpass" title="This hasn't been sent to Kasper for approval yet">First review</span>`
+            : '';
+        // Tells the SMM this component was pre-cleared by Kasper when he asked
+        // for the tweak — verify the edit was applied, then send to the client
+        // (no Kasper re-review needed). SMM surface only.
+        const aatBadge = (_reviewMode === 'smm' && _calShowApprovedAfterTweaks(p, comp))
+            ? `<span class="cal-review-aat-pill" title="No more tweaks needed — Kasper pre-cleared this for the client."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>`
+            : '';
+        let approveControl = '';
+        if (showApprove) {
+            if (_reviewMode === 'smm') {
+                const primary = _seenByKasper ? 'client' : 'kasper';
+                const alt = _seenByKasper ? 'kasper' : 'client';
+                const lbl = d => d === 'kasper' ? 'Kasper' : 'Client';
+                const dis = approveEnabled ? '' : 'disabled';
+                // data-idle-title is the title this control shows WITHOUT a
+                // draft in flight -- '' for the main segment, the routing
+                // hint for the alt segment. The updater restores exactly this
+                // on every keystroke, rather than guessing or blanking it.
+                const mainIdle = '';
+                const altIdle = 'Approve & send to ' + lbl(alt) + ' instead';
+                approveControl = `<div class="cal-review-approve-split">
+                    <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${dis} data-idle-title="${_calEscAttr(mainIdle)}" title="${hasDraft ? _calEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : _calEscAttr(mainIdle)}" onclick="_calReviewApprove('${escId}','${escComp}','${primary}')">${checkIco}<span class="cal-ap-verb">Approve</span><span class="cal-ap-route">${lbl(primary)}</span></button>
+                    <button type="button" class="cal-review-approve-alt" ${dis} data-idle-title="${_calEscAttr(altIdle)}" title="${hasDraft ? _calEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : _calEscAttr(altIdle)}" onclick="_calReviewApprove('${escId}','${escComp}','${alt}')">${lbl(alt)}</button>
+                </div>`;
+            } else {
+                approveControl = `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} data-idle-title="" title="${hasDraft ? _calEscAttr(REVIEW_APPROVE_DRAFT_TITLE) : ''}" onclick="_calReviewApprove('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>`;
+            }
+        }
+        return `<div class="cal-review-panel" data-comp="${escComp}" data-state="${state}">
+            <div class="cal-review-panel-head">
+                <span class="cal-review-panel-title">${_calEsc(COMP_LABELS[comp])}</span>
+                ${firstReviewBadge}
+                ${aatBadge}
+                <div class="cal-review-panel-head-right">${statusPill}${linkBadge}</div>
+            </div>
+            <div class="cal-review-panel-preview">${previewHtml}</div>
+            ${approveControl}
+            <div class="cal-review-panel-compose">
+                <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" data-cal-review-draft="${escId}|${escComp}" oninput="_calReviewOnDraftInput(this,'${escId}','${escComp}')" ${canActClient ? '' : 'readonly'}>${_calEsc(draft)}</textarea>
+                <div class="cal-review-tweak-actions">
+                    <button type="button" class="cal-review-comment-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_calReviewComment('${escId}','${escComp}')" title="Leave a comment or question — won't change the status"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Comment</button>
+                    <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_calReviewRequestTweak('${escId}','${escComp}')">${sendIco}Request change</button>
+                </div>
+            </div>
+            ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
+            <div class="cal-review-thread">${threadHtml}</div>
+        </div>`;
+    }
+
+    function _calReviewComponentPreview(p, comp) {
+        if (comp === 'video') {
+            const url = String(p.asset_url || '').trim();
+            if (!url) return `<div class="cal-review-preview-empty">No video yet.</div>`;
+            // Use the same thumbnail image as the graphic panel, blurred,
+            // with "Open video" overlaid — keeps the video column the same
+            // visual weight as the thumbnail column so the Approve buttons
+            // line up across all three panels instead of the video row
+            // collapsing to a tiny black button.
+            const thumbUrl = _calDeriveThumb(p);
+            if (!thumbUrl) {
+                // No image to blur — fall back to a styled stand-in tile
+                // so the column still has the same height.
+                return `<a class="cal-review-video-tile cal-review-video-tile-blank" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span><span class="cal-review-video-label">Open video ↗</span></span></a>`;
+            }
+            return `<a class="cal-review-video-tile" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><img class="cal-review-video-bg" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'"><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span><span class="cal-review-video-label">Open video ↗</span></span></a>`;
+        }
+        if (comp === 'graphic') {
+            const raw = String(p.thumbnail_url || '').trim();
+            if (!raw) return `<div class="cal-review-preview-empty">No thumbnail yet.</div>`;
+            const info = _calDeriveThumbInfo(p);
+            const imgUrl = info.url;
+            // Frame.io share/review links (no public image, block embedding) and
+            // folder-of-images links (a Story's frames — no single image to show)
+            // can't render as an <img> the way a Drive file link can. Surface the
+            // same branded click-to-open card used on the calendar thumbnails so
+            // the client can open it in a new tab.
+            if (!imgUrl) {
+                const linkKind = _calIsFrameLink(raw) ? 'frame' : (_calIsFolderLink(raw) ? 'folder' : '');
+                if (linkKind) {
+                    const openUrl = linkKind === 'folder' ? _calFolderOpenUrl(raw) : _calFrameOpenUrl(raw);
+                    return `<div class="cal-review-preview-thumb">${_calReviewFrameHtml(openUrl, undefined, linkKind)}</div>`;
+                }
+            }
+            // Click opens a full-screen lightbox of the thumbnail rather
+            // than the Drive sharing URL — the client shouldn't be jumping
+            // into Drive just to see a bigger version.
+            const escPid = _calEscAttr(p.id);
+            const imgInfo = imgUrl ? info : { url: raw, isDrive: /drive\.google\.com|docs\.google\.com/i.test(raw) };
+            return `<div class="cal-review-preview-thumb"><button type="button" class="cal-review-preview-thumb-btn" onclick="_calOpenThumbLightbox('${escPid}')" aria-label="Open thumbnail full screen">${_calThumbImgTag(imgInfo, '_calOnReviewThumbError')}</button></div>`;
+        }
+        if (comp === 'title') {
+            const t = String(p.name || '').trim();
+            if (!t) return `<div class="cal-review-preview-empty">No title yet.</div>`;
+            return `<div class="cal-review-preview-caption cal-review-preview-title">${_calEsc(t)}</div>`;
+        }
+        const cap = String(p.caption || '').trim();
+        const alt = String(p.caption_alt || '').trim();
+        if (!cap && !alt) return `<div class="cal-review-preview-empty">No caption yet.</div>`;
+        if (!alt) return `<div class="cal-review-preview-caption">${_calEsc(cap)}</div>`;
+        // Two captions — both belong to the same caption component, so one
+        // Approve / Request change covers both. Each gets its own boxed,
+        // icon-labelled card so the split is unmissable.
+        return `<div class="cal-review-preview-captions">
+            ${_calReviewCapCardHtml('main', p, cap)}
+            ${_calReviewCapCardHtml('alt', p, alt)}
+        </div>`;
+    }
+
+    function _calWireReviewExpand(/* root */) { /* no-op — handlers are inline */ }
+
+    function _calReviewToggleCard(pid) {
+        if (_calReviewState.expanded.has(pid)) _calReviewState.expanded.delete(pid);
+        else _calReviewState.expanded.add(pid);
+        _calReviewRepaintCard(pid);
+    }
+
+    function _calReviewRepaintCard(pid) {
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
+        const el = document.querySelector('.cal-review-card[data-cal-review-pid="' + sel + '"]');
+        const post = calState.posts.find(p => p.id === pid);
+        if (!el || !post) return;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = _calReviewCardHtml(post);
+        if (tmp.firstElementChild) {
+            _kcardReuseThumbInto(el, tmp.firstElementChild);   // keep the decoded thumbnail — no blink on approve/request-change
+            el.replaceWith(tmp.firstElementChild);
+        }
+        _calUpdateReviewBadge();
+    }
+
+    /* Drop a review card out of the queue cleanly — used when the client's
+       last outstanding action on a post is done, so the card has no reason
+       to linger. Fades/collapses the card out, then removes it; if it was
+       the last card in the list, re-renders the body so the empty state
+       shows in its place. No intermediate "nothing left to review" stub. */
+    function _calReviewRemoveCard(pid) {
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
+        const el = document.querySelector('.cal-review-card[data-cal-review-pid="' + sel + '"]');
+        if (!el) return;
+        const list = el.closest('.cal-review-list');
+        const finish = () => {
+            el.remove();
+            // If that was the final card, swap in the empty state rather than
+            // leaving the list blank.
+            if (!list || !list.querySelector('.cal-review-card')) {
+                _calRenderBody({ preserveScroll: true });
+            }
+            _calUpdateReviewBadge();
+        };
+        // Collapse the card's height + fade it so the removal reads as
+        // intentional. Falls back to an instant remove if the element can't
+        // be measured (e.g. already detached).
+        const h = el.offsetHeight;
+        if (!h) { finish(); return; }
+        el.style.overflow = 'hidden';
+        el.style.height = h + 'px';
+        el.style.transition = 'height .2s ease, opacity .15s ease, margin .2s ease';
+        // Force a reflow so the starting height is committed before we
+        // transition to zero.
+        void el.offsetHeight;
+        el.style.opacity = '0';
+        el.style.height = '0px';
+        el.style.marginTop = '0px';
+        el.style.marginBottom = '0px';
+        let done = false;
+        const onEnd = () => { if (done) return; done = true; finish(); };
+        el.addEventListener('transitionend', onEnd, { once: true });
+        // Safety net in case transitionend doesn't fire.
+        setTimeout(onEnd, 280);
+    }
+
+    function _calReviewOnDraftInput(ta, pid, comp) {
+        const key = pid + '|' + comp;
+        _calReviewState.drafts[key] = ta.value;
+        delete _calReviewState.draftActionIds[key];
+        const nowHasDraft = !!ta.value.trim();
+        // Don't repaint on every keystroke — just toggle the two action
+        // buttons in place. Approve is gated off while a draft is in
+        // flight (it's visible but unclickable), Request tweaks lights
+        // up the instant there's text to send.
+        const card = ta.closest('.cal-review-card');
+        if (!card) return;
+        const panel = card.querySelector('.cal-review-panel[data-comp="' + comp + '"]');
+        if (!panel) return;
+        panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-comment-btn').forEach(b => {
+            b.disabled = !nowHasDraft || !!_calReviewState.saving[key];
+        });
+        // Disable every approve control (the plain button, or both segments of
+        // the SMM split button) while a tweak is being drafted.
+        panel.querySelectorAll('.cal-review-approve-btn, .cal-review-approve-alt').forEach(b => {
+            b.disabled = nowHasDraft || !!_calReviewState.saving[key];
+            // data-idle-title is what render put there for the NON-draft
+            // state (the alt segment routing hint, or empty for the others),
+            // read back rather than reconstructed -- so restoring it can
+            // never drift from what the render function actually said, and
+            // clearing the draft returns the exact title that was there
+            // before it existed.
+            b.title = nowHasDraft ? REVIEW_APPROVE_DRAFT_TITLE : (b.getAttribute('data-idle-title') || '');
+        });
+    }
+
+    /* Review-tab "Approve & send". When the SMM routes a component that still
+       carries open change-requests, resolve them as part of the send — otherwise
+       they linger in Notes demanding a second, redundant "mark done" (the exact
+       redundancy this addresses). The chooser lets her tick which are actually
+       handled (un-ticking any that aren't) and pick where it goes next: Kasper,
+       the client, or straight to Approved. With NO open change-requests it routes
+       directly, exactly as before — so status-only approvals are unchanged. The
+       client surface never resolves tweaks (_calCanResolveComment is SMM-only). */
+    function _calReviewApprove(pid, comp, dest) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        if (_calReviewMode() === 'smm' && _calCanResolveComment()) {
+            const open = _calOpenTweaksForComp(post, comp);
+            if (open.length) {
+                const key = pid + '|' + comp;
+                if (_calReviewState.saving[key]) return;
+                _calShowResolveDest({
+                    comp: comp,
+                    recommend: dest === 'client' ? 'client' : (dest === 'approved' ? 'approved' : 'kasper'),
+                    reason: _calResolveDestReason(post, comp),
+                    openTweaks: open,
+                    fromReview: true,
+                    onChoose: (pickDest, ids) => {
+                        /* Refuse BEFORE anything is mutated. _calReviewApplyApprove
+                           runs the same check, but by then _calResolveTweaksDone
+                           has already marked the ticked requests done and staged
+                           them -- so a refused approve would leave the thread
+                           resolved and the status where it was, which is the one
+                           outcome nobody asked for. */
+                        if (pickDest !== 'stay') {
+                            const _blocked = _calReviewBlockReason(post, comp, _calSmmApproveTo(pickDest));
+                            if (_blocked) {
+                                showNotify('Nothing to review yet', _blocked
+                                    + ' Nothing was changed — the change requests are still open.');
+                                return;
+                            }
+                        }
+                        const resolvedBefore = {
+                            video_comments: post.video_comments,
+                            graphic_comments: post.graphic_comments,
+                            caption_comments: post.caption_comments,
+                            title_comments: post.title_comments
+                        };
+                        // Resolve the ticked change-requests. If the SMM chose
+                        // "don't change the status" (dest 'stay') it's a plain
+                        // mark-done — flush + repaint, no approve. Otherwise run the
+                        // real approve, so the tweaks JSON and the status flip ride
+                        // the same flush.
+                        _calResolveTweaksDone(post, comp, ids);
+                        if (pickDest === 'stay') {
+                            _calWatchNoteSave(pid);
+                            _calRefreshCommentsBtn(pid);
+                            _calUpdateCardStatusDisplay(pid);
+                            _calReviewRepaintCard(pid);
+                        } else {
+                            _calReviewApplyApprove(pid, comp, pickDest, resolvedBefore);
+                        }
+                    }
+                });
+                return;
+            }
+        }
+        _calReviewApplyApprove(pid, comp, dest);
+    }
+    function _calReviewApplyApprove(pid, comp, dest, resolvedBefore) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const key = pid + '|' + comp;
+        if (_calReviewState.saving[key]) return;
+        const mode = _calReviewMode();
+        const subKey = comp + '_status';
+        // A client can only approve a component sitting on THEIR review surface
+        // (Client Approval) or one they sent back for tweaks — never one still in
+        // internal review (For SMM / Kasper Approval). Without this, a direct
+        // _calReviewApprove call lets a client force a component straight to
+        // Approved, skipping Kasper + the SMM's routing. The UI already hides the
+        // button off-surface; this guards the handler. (SMM keeps its full control.)
+        if (_isClientLink) {
+            const cur = String(post[subKey] || '').trim().toLowerCase();
+            if (cur !== 'client approval' && cur !== 'tweaks needed') return;
+        }
+        const prev = Object.assign({
+            [subKey]: post[subKey],
+            status: post.status,
+            [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`],
+            kasper_seen: post.kasper_seen,
+        }, resolvedBefore || {});
+        // Client approval is terminal (→ Approved). SMM approval routes the
+        // component to the next reviewer the SMM picked: Kasper (default for a
+        // brand-new post) or straight to the client. Only a client approval
+        // stamps the client_<comp>_approved_at sign-off timestamp.
+        let approveTo = _CAL_REVIEW_CFG[mode].approveTo;
+        if (mode === 'smm') approveTo = _calSmmApproveTo(dest);
+        // Routing to Kasper means this component has now appeared in Kasper
+        // review — record it on the post's cross-device kasper_seen column so
+        // every device (each SMM, Kasper) treats it as no-longer-brand-new.
+        /* Approving a component ONTO someone else is still sending it for
+           review, so it obeys the same rule. Guarded before the kasper_seen
+           stamp, or the card would be marked seen for a review that never
+           happened. */
+        const _reviewBlocked = _calReviewBlockReason(post, comp, approveTo);
+        if (_reviewBlocked) {
+            showNotify('Nothing to review yet', _reviewBlocked);
+            return false;
+        }
+        let _kasperSeenCsv = null;
+        if (approveTo === 'Kasper Approval') _kasperSeenCsv = _calRecordKasperSeenOnPost(post, comp);
+        post[subKey] = approveTo;
+        _calV2Log('REVIEW approve →', pid, '| comp:', comp, '| →', approveTo, '| mode:', mode, 'dest:', dest);
+        if (mode === 'client') post[`client_${comp}_approved_at`] = new Date().toISOString();
+        post.status = computeOverallStatus(post);
+        // Stamp updated_at locally so a background poll racing this write
+        // can't fetch the still-stale row from the sheet and clobber the
+        // optimistic state.
+        post.updated_at = new Date().toISOString();
+        _calReviewState.saving[key] = true;
+        _calReviewState.errors[key] = '';
+        delete _calReviewState.errorActionIds[key];
+        // Stamp the local-mutation clock so the post-load Linear reconcile
+        // doesn't immediately revert this change if Linear is still showing
+        // the stale state.
+        _calMarkLocalStatus(pid, comp);
+        // If this approval was the LAST piece owed on this card (no component
+        // left in play for this review surface), the card drops out of the
+        // queue entirely — so remove it outright rather than first repainting
+        // it to the collapsed "nothing left to review" mini-stub and waiting
+        // on a delayed re-render. That collapse-then-vanish transition read as
+        // a glitch. Otherwise just repaint the card so the approved component
+        // lands as an instant mini panel.
+        const clearsCard = (mode === 'smm' || _isClientLink)
+            && !_calComponentsFor(post).some(c => _calReviewComponentActive(post, c, mode));
+        // Keep the card mounted until the gateway acknowledges the status.
+        // A failed native write must leave its retry surface visible.
+        _calReviewRepaintCard(pid);
+        // Fire-and-forget the save. The pending-edits map carries the
+        // change, and _calFlushCardSave also handles the Linear push. We
+        // surface errors via a repaint only if the network actually fails.
+        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, {
+            [subKey]: post[subKey],
+            status: post.status,
+        }, mode === 'client' ? { [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`] } : {},
+        _kasperSeenCsv != null ? { kasper_seen: _kasperSeenCsv } : {});
+        Promise.resolve(_calFlushCardSave(pid)).then(() => {
+            _calReviewState.saving[key] = false;
+            const current = calState.posts.find(p => p.id === pid) || post;
+            if (current._saveError) {
+                if (!current._writeUiRetrySourceAt) Object.assign(current, prev);
+                _calReviewState.errors[key] = current._saveError || 'Save failed';
+                _calReviewRepaintCard(pid);
+                return;
+            }
+            if (clearsCard) _calReviewRemoveCard(pid);
+            else _calReviewRepaintCard(pid);
+        });
+    }
+
+    /* Leave a plain comment from a review panel — a conversation message that
+       does NOT change the component's status and does NOT ping the editor.
+       Mirrors _calReviewRequestTweak but without the Tweaks-Needed flip / Linear
+       push. Client comments are client-visible; SMM comments default to internal
+       (team-only) since the panel has no audience toggle. */
+    function _calReviewComment(pid, comp) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const key = pid + '|' + comp;
+        const body = String(_calReviewState.drafts[key] || '').trim();
+        if (!body || _calReviewState.saving[key]) return;
+        const role = _calCommentRole();
+        const list = _calCommentsFor(post, comp).slice();
+        const _now = new Date().toISOString();
+        list.push({
+            id: _calMintCommentId(),
+            parent_id: null,
+            author: _calCurrentAuthor(),
+            role: role,
+            is_tweak: false,
+            audience: (role === 'client') ? 'client' : 'internal',
+            body: body,
+            created_at: _now,
+            updated_at: _now,
+            done: false, done_at: '', done_by: '',
+        });
+        _calSetCommentsFor(post, comp, list);
+        post.updated_at = _now;                 // no status change — it's a comment
+        _calV2Log('REVIEW comment →', pid, '| comp:', comp, '| role:', _calCommentRole());
+        _calReviewState.drafts[key] = '';
+        _calReviewState.saving[key] = true;
+        _calReviewState.errors[key] = '';
+        delete _calReviewState.draftActionIds[key];
+        delete _calReviewState.errorActionIds[key];
+        _calReviewRepaintCard(pid);
+        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, {
+            [comp + '_tweaks']: _calStringifyComments(list),
+        });
+        Promise.resolve(_calFlushCardSave(pid)).then(() => {
+            _calReviewState.saving[key] = false;
+        }).catch(e => {
+            _calReviewState.saving[key] = false;
+            _calReviewState.errors[key] = _writeUiFailureSentence(e);
+            _calReviewRepaintCard(pid);
+        });
+    }
+    function _calReviewRequestTweak(pid, comp) {
+        const initialPost = calState.posts.find(p => p.id === pid);
+        if (!initialPost) return;
+        const key = pid + '|' + comp;
+        const rawDraft = String(_calReviewState.drafts[key] || '');
+        const body = rawDraft.trim();
+        if (!body || _calReviewState.saving[key]) return;
+        if (_isClientLink) {
+            const cur = String(initialPost[comp + '_status'] || '').trim().toLowerCase();
+            if (cur !== 'client approval' && cur !== 'tweaks needed') return;
+        }
+        const _legacySlug = _writeUiSourceClientSlug('calendar', { post: initialPost });
+        let attemptId = '';
+        let action = null;
+        let deferredLegacyAttempt = false;
+        let deferredLegacySourceOnly = false;
+        let deferredLegacyOutboxIds = [];
+        _calReviewState.saving[key] = true;
+        _calReviewState.errors[key] = '';
+        delete _calReviewState.errorActionIds[key];
+        _calReviewRepaintCard(pid);
+
+        // Begin the exact-target lock before reading ownership or constructing
+        // any source snapshot. A waiting tab therefore cannot commit a list
+        // captured before the first tab request became visible.
+        Promise.resolve().then(() => _writeUiLegacyTargetWithLock(
+            'calendar',
+            _legacySlug,
+            pid,
+            comp,
+            async () => {
+                const post = calState.posts.find(p => p.id === pid);
+                if (!post) throw new Error('This review item is no longer available');
+                if (_isClientLink) {
+                    const currentStatus = String(post[comp + '_status'] || '').trim().toLowerCase();
+                    if (currentStatus !== 'client approval' && currentStatus !== 'tweaks needed') {
+                        throw new Error('This item changed while your request was waiting. Your draft is preserved.');
+                    }
+                }
+                attemptId = String(_calReviewState.draftActionIds[key] || '')
+                    || _calMintCommentId();
+                let inspection = await _writeUiLegacyInspectTargetTweak(
+                    'calendar', _legacySlug, pid, comp, post, body, attemptId
+                );
+                inspection = await _writeUiLegacyRefreshActiveTweak('calendar', inspection);
+                if (inspection.state === 'conflict') {
+                    return { state: 'conflict', conflict: inspection, attempt_id: attemptId };
+                }
+                if (inspection.state === 'committed') {
+                    return {
+                        state: 'committed',
+                        item: inspection.item,
+                        ids: inspection.ids || [],
+                        comment_id: inspection.comment_id,
+                        source_only: inspection.source_only === true
+                    };
+                }
+
+                const retryGate = inspection.state === 'active'
+                    && inspection.pair && inspection.pair.gate
+                    ? inspection.pair.gate
+                    : null;
+                const commentId = retryGate
+                    ? String(retryGate.comment_id || '')
+                    : attemptId;
+                const role = retryGate ? String(retryGate.comment_role || '') : _calCommentRole();
+                const author = retryGate ? String(retryGate.comment_author || '') : _calCurrentAuthor();
+                const audience = retryGate
+                    ? String(retryGate.comment_audience || '')
+                    : (role === 'client' ? 'client' : 'internal');
+                const list = _calCommentsFor(post, comp).slice();
+                const existing = list.find(comment =>
+                    comment && String(comment.id || '') === commentId);
+                if (existing && (
+                    String(existing.body || '').trim() !== body
+                    || String(existing.author || '') !== author
+                    || String(existing.role || '') !== role
+                    || String(existing.audience || '') !== audience
+                    || existing.is_tweak !== true
+                )) {
+                    return {
+                        state: 'conflict',
+                        conflict: {
+                            state: 'conflict',
+                            comment_id: commentId,
+                            delivered: false,
+                            item: inspection.item || null,
+                            reason: 'local_comment_signature_mismatch'
+                        },
+                        attempt_id: attemptId
+                    };
+                }
+
+                const _now = retryGate && inspection.item && inspection.item.queuedAt
+                    ? new Date(Number(inspection.item.queuedAt)).toISOString()
+                    : new Date().toISOString();
+                const newComment = existing || {
+                    id: commentId,
+                    parent_id: null,
+                    author,
+                    role,
+                    is_tweak: true,
+                    audience,
+                    round: _calNextTweakRound(post, comp),
+                    body,
+                    created_at: _now,
+                    updated_at: _now,
+                    done: false,
+                    done_at: '',
+                    done_by: ''
+                };
+                const previousComments = list.map(comment => Object.assign({}, comment));
+                const previousFields = {
+                    [comp + '_status']: post[comp + '_status'],
+                    status: post.status,
+                    client_video_approved_at: post.client_video_approved_at,
+                    client_graphic_approved_at: post.client_graphic_approved_at,
+                    client_caption_approved_at: post.client_caption_approved_at,
+                    client_title_approved_at: post.client_title_approved_at,
+                    kasper_approved_at: post.kasper_approved_at,
+                    updated_at: post.updated_at
+                };
+                if (!existing) list.push(newComment);
+                _calSetCommentsFor(post, comp, list);
+                post[comp + '_status'] = 'Tweaks Needed';
+                _calV2Log('REVIEW request-change →', pid, '| comp:', comp, '| role:', role);
+                post.status = computeOverallStatus(post);
+                post.updated_at = new Date().toISOString();
+                _calReviewState.drafts[key] = '';
+                delete _calReviewState.draftActionIds[key];
+                const localStatusMarker = _writeUiRequestTweakMarkLocalStatus('calendar', pid, comp);
+                const repairEdits = {
+                    [comp + '_status']: post[comp + '_status'],
+                    status: post.status,
+                    [comp + '_tweaks']: _calStringifyComments(list)
+                };
+                _calClearStaleApprovals(post, repairEdits);
+                const optimisticFields = {};
+                Object.keys(previousFields).forEach(field => {
+                    optimisticFields[field] = post[field];
+                });
+                const mode = _calReviewMode();
+                const clearsCard = (mode === 'smm' || _isClientLink)
+                    && !_calComponentsFor(post).some(component =>
+                        _calReviewComponentActive(post, component, mode));
+                action = {
+                    post,
+                    newComment,
+                    comment_id: commentId,
+                    insertedComment: !existing,
+                    previousComments,
+                    previousFields,
+                    optimisticFields,
+                    localStatusMarker,
+                    clearsCard,
+                    rollbackApplied: false
+                };
+                _calReviewRepaintCard(pid);
+
+                const acknowledgement = inspection.state === 'active'
+                    || inspection.rearmed_team_delivery === true
+                    ? { skipped: true, legacy_transport: true, deferred_until_source_save: true }
+                    : await _calPostLinearComment(_calLinearUrlFor(post, comp), body, newComment.author, {
+                        post,
+                        component: comp,
+                        comment: newComment,
+                        audience: _calMsgAudience(newComment),
+                        isTweak: _calMsgIsTweak(newComment),
+                        round: newComment.round,
+                        repairEdits: Object.assign({}, repairEdits),
+                        reserveStatusIntent: { status: post[comp + '_status'] },
+                        deferLegacyUntilSourceSave: true
+                    });
+                const deferredLegacyComment =
+                    !!(acknowledgement && acknowledgement.deferred_until_source_save);
+                deferredLegacyAttempt = deferredLegacyComment;
+                const committedBatch = Object.assign({}, repairEdits);
+                _writeUiBindRepairAck(post, committedBatch, acknowledgement);
+                if (deferredLegacyComment) {
+                    const staged = await _writeUiQueueDeferredLegacyTweak(
+                        'calendar',
+                        post,
+                        comp,
+                        newComment,
+                        body,
+                        newComment.author,
+                        repairEdits,
+                        inspection
+                    );
+                    if (staged.state === 'conflict') {
+                        return {
+                            state: 'conflict',
+                            conflict: staged,
+                            attempt_id: attemptId,
+                            action
+                        };
+                    }
+                    deferredLegacySourceOnly = staged.source_only === true;
+                    deferredLegacyOutboxIds = staged.ids || [];
+                    if (staged.state === 'committed') {
+                        return {
+                            state: 'committed',
+                            item: staged.item,
+                            ids: deferredLegacyOutboxIds,
+                            comment_id: staged.comment_id,
+                            source_only: deferredLegacySourceOnly,
+                            action
+                        };
+                    }
+                    committedBatch._writeUiPinnedSourceTransport =
+                        _writeUiLegacyPinnedSourceTransport('calendar', deferredLegacyOutboxIds);
+                }
+
+                const pending = _calPendingEdits[pid] || (_calPendingEdits[pid] = {});
+                _writeUiMergeCommittedBatch(pending, committedBatch);
+                if (deferredLegacyOutboxIds.length) _calNoLinearPush.add(pid + '|' + comp);
+                await _calFlushCardSave(pid);
+                return {
+                    state: 'saved',
+                    action,
+                    ids: deferredLegacyOutboxIds,
+                    deferred: deferredLegacyComment,
+                    source_only: deferredLegacySourceOnly
+                };
+            }
+        )).then(async outcome => {
+            _calReviewState.saving[key] = false;
+            const current = calState.posts.find(p => p.id === pid)
+                || (action && action.post)
+                || initialPost;
+            if (outcome && outcome.state === 'conflict') {
+                const targetConflict = outcome.conflict || {};
+                if (outcome.action) {
+                    _writeUiRollbackRequestTweak('calendar', current, comp, outcome.action);
+                    outcome.action.rollbackApplied = true;
+                }
+                if (targetConflict.delivered
+                    && targetConflict.item
+                    && targetConflict.source_superseded !== true) {
+                    _writeUiLegacyReconcileCommittedTweak('calendar', targetConflict.item);
+                } else if (targetConflict.source_superseded !== true) {
+                    _writeUiScheduleDeferredLegacyTweak('calendar');
+                }
+                _calReviewState.drafts[key] = rawDraft;
+                _calReviewState.errors[key] = targetConflict.source_superseded === true
+                    ? 'This request was saved, but a newer status was applied. Review the latest status before retrying.'
+                    : (targetConflict.delivered
+                        ? 'A change request from another tab was saved first. Your draft is preserved; review the latest status and retry.'
+                        : 'Another change request for this item is still being confirmed. Your draft is preserved; retry after it finishes.');
+                const failedActionId = String(outcome.action && outcome.action.comment_id
+                    || outcome.attempt_id
+                    || attemptId);
+                _calReviewState.draftActionIds[key] = failedActionId;
+                _calReviewState.errorActionIds[key] = failedActionId;
+                _calRenderBody({ preserveScroll: true });
+                return;
+            }
+            if (outcome && outcome.state === 'committed') {
+                if (outcome.action) {
+                    _writeUiRollbackRequestTweak('calendar', current, comp, outcome.action);
+                    outcome.action.rollbackApplied = true;
+                }
+                let committedDeliveryOutcome = null;
+                let committedDeliveryPending = false;
+                if (outcome.ids && outcome.ids.length) {
+                    try {
+                        committedDeliveryOutcome = await _writeUiFlushDeferredLegacyTweak(
+                            'calendar', outcome.ids
+                        );
+                    } catch (error) {
+                        if (String(error && error.code || '') === 'legacy_tweak_delivery_unconfirmed') {
+                            throw error;
+                        }
+                        committedDeliveryPending = true;
+                        _writeUiScheduleDeferredLegacyTweak('calendar');
+                        _writeUiReportFailure('calendar', 'comment', error);
+                    }
+                }
+                if ((outcome.item && outcome.item.team_delivery_superseded === true)
+                    || (committedDeliveryOutcome && committedDeliveryOutcome.state === 'superseded')) {
+                    _writeUiApplySupersededTeamDelivery(
+                        'calendar', current, comp, outcome.action || action, key, rawDraft,
+                        outcome.comment_id || attemptId
+                    );
+                    return;
+                }
+                const sourceOnlySuperseded =
+                    (outcome.item && outcome.item.source_only_superseded === true)
+                    || (committedDeliveryOutcome
+                        && committedDeliveryOutcome.state === 'source_only_superseded');
+                _calReviewState.drafts[key] = '';
+                _calReviewState.errors[key] = '';
+                delete _calReviewState.draftActionIds[key];
+                delete _calReviewState.errorActionIds[key];
+                if (outcome.item) _writeUiLegacyReconcileCommittedTweak('calendar', outcome.item);
+                _calRenderBody({ preserveScroll: true });
+                showToast(sourceOnlySuperseded
+                    ? 'Change request saved — a newer status was applied'
+                    : (outcome.source_only
+                        ? 'Change request already saved'
+                        : (committedDeliveryPending
+                            ? 'Change request saved — team delivery is being confirmed'
+                            : 'Change request already saved')));
+                return;
+            }
+            if (current._saveError) {
+                const confirmed = _writeUiLegacyCommittedTweak(
+                    'calendar', _legacySlug, pid, comp, current
+                );
+                if (confirmed && confirmed.delivered === true
+                    && confirmed.team_delivery_superseded !== true && action
+                    && confirmed.comment_id === String(action.comment_id || '')) {
+                    if (!action.rollbackApplied) {
+                        _writeUiRollbackRequestTweak('calendar', current, comp, action);
+                        action.rollbackApplied = true;
+                    }
+                    _calReviewState.drafts[key] = '';
+                    _calReviewState.errors[key] = '';
+                    delete _calReviewState.draftActionIds[key];
+                    delete _calReviewState.errorActionIds[key];
+                    _writeUiLegacyReconcileCommittedTweak('calendar', confirmed.item);
+                    _calRenderBody({ preserveScroll: true });
+                    return;
+                }
+                if (deferredLegacyAttempt) _writeUiScheduleDeferredLegacyTweak('calendar');
+                if (!current._writeUiRetrySourceAt && action) {
+                    _writeUiRollbackRequestTweak('calendar', current, comp, action);
+                    action.rollbackApplied = true;
+                }
+                _calReviewState.drafts[key] = rawDraft;
+                _calReviewState.errors[key] = current._saveError || 'Save failed';
+                _calReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
+                _calReviewState.errorActionIds[key] = String(action && action.comment_id || attemptId);
+                _calRenderBody({ preserveScroll: true });
+                return;
+            }
+            let deliveryPending = false;
+            let deliveryOutcome = null;
+            if (deferredLegacyOutboxIds.length) {
+                try {
+                    deliveryOutcome = await _writeUiFlushDeferredLegacyTweak(
+                        'calendar', deferredLegacyOutboxIds
+                    );
+                } catch (error) {
+                    if (String(error && error.code || '') === 'legacy_tweak_delivery_unconfirmed') {
+                        throw error;
+                    }
+                    deliveryPending = true;
+                    _writeUiScheduleDeferredLegacyTweak('calendar');
+                    _writeUiReportFailure('calendar', 'comment', error);
+                }
+            }
+            if (deliveryOutcome && deliveryOutcome.state === 'superseded') {
+                _writeUiApplySupersededTeamDelivery(
+                    'calendar', current, comp, action, key, rawDraft,
+                    action && action.comment_id || attemptId
+                );
+                return;
+            }
+            if (deliveryOutcome && deliveryOutcome.state === 'source_only_superseded') {
+                if (!action.rollbackApplied) {
+                    _writeUiRollbackRequestTweak('calendar', current, comp, action);
+                    action.rollbackApplied = true;
+                }
+                _calReviewState.drafts[key] = '';
+                _calReviewState.errors[key] = '';
+                delete _calReviewState.draftActionIds[key];
+                delete _calReviewState.errorActionIds[key];
+                _writeUiLegacyReconcileCommittedTweak('calendar', deliveryOutcome.item);
+                _calRenderBody({ preserveScroll: true });
+                showToast('Change request saved — a newer status was applied');
+                return;
+            }
+            if (action && action.clearsCard) _calReviewRemoveCard(pid);
+            else _calReviewRepaintCard(pid);
+            if (_calCommentRole() === 'client' && !current._saveError) {
+                showToast(deferredLegacySourceOnly
+                    ? (deliveryPending
+                        ? 'Change request saved — confirmation is still pending'
+                        : 'Change request sent')
+                    : (deliveryPending
+                        ? 'Change request saved — team delivery is being confirmed'
+                        : 'Change request sent — the team has been notified'));
+            }
+        }).catch(error => {
+            if (deferredLegacyAttempt || deferredLegacyOutboxIds.length) {
+                _writeUiScheduleDeferredLegacyTweak('calendar');
+            }
+            _calReviewState.saving[key] = false;
+            const current = calState.posts.find(p => p.id === pid)
+                || (action && action.post)
+                || initialPost;
+            const confirmed = _writeUiLegacyCommittedTweak(
+                'calendar', _legacySlug, pid, comp, current
+            );
+            if (confirmed
+                && confirmed.delivered === true
+                && confirmed.team_delivery_superseded !== true
+                && String(error && error.code || '') !== 'legacy_tweak_delivery_unconfirmed'
+                && action
+                && confirmed.comment_id === String(action.comment_id || '')) {
+                if (!action.rollbackApplied) {
+                    _writeUiRollbackRequestTweak('calendar', current, comp, action);
+                    action.rollbackApplied = true;
+                }
+                _calReviewState.drafts[key] = '';
+                _calReviewState.errors[key] = '';
+                delete _calReviewState.draftActionIds[key];
+                delete _calReviewState.errorActionIds[key];
+                _writeUiLegacyReconcileCommittedTweak('calendar', confirmed.item);
+                _calRenderBody({ preserveScroll: true });
+                return;
+            }
+            if (action && !action.rollbackApplied && !current._writeUiRetrySourceAt) {
+                _writeUiRollbackRequestTweak('calendar', current, comp, action);
+                action.rollbackApplied = true;
+            }
+            _calReviewState.drafts[key] = rawDraft;
+            _writeUiReportFailure('calendar', 'comment', error);
+            _calReviewState.errors[key] = _writeUiFailureSentence(error);
+            _calReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
+            _calReviewState.errorActionIds[key] = String(action && action.comment_id || attemptId);
+            _calRenderBody({ preserveScroll: true });
+        });
+    }
+
+    /* ── Read-only preview popover (Month/Week → click) ──────────── */
+    function openCalPreview(id) {
+        const p = calState.posts.find(x => x.id === id);
+        if (!p) return;
+        calState.previewId = id;
+        const ovl = document.getElementById('calPreviewOverlay');
+        const box = document.getElementById('calPreview');
+        if (!ovl || !box) return;
+        const thumb = _calDeriveThumb(p);
+        const dateStr = p.scheduled_date
+            ? _calParseIso(String(p.scheduled_date).slice(0, 10)).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+            : 'Unscheduled';
+        const linkify = (u) => {
+            const v = String(u || '').trim();
+            if (!v) return '<span class="empty">—</span>';
+            return `<a href="${_calEscAttr(v)}" target="_blank" rel="noopener">${_calEsc(v)}</a>`;
+        };
+        const valOrEmpty = (v) => {
+            const s = String(v || '').trim();
+            return s ? _calEsc(s) : '<span class="empty">—</span>';
+        };
+        box.innerHTML = `
+            ${thumb ? `<div class="cal-preview-thumb"><img src="${_calEscAttr(thumb)}" alt="" onerror="this.parentElement.style.display='none'"></div>` : ''}
+            <div class="cal-preview-body">
+                <div class="cal-preview-head">
+                    <div class="cal-preview-title">${_calEsc(p.name || 'Untitled')}</div>
+                    <button class="cal-preview-close" onclick="closeCalPreview()" title="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+                </div>
+                <div class="cal-preview-meta">${_calClientCompPillsHtml(p)}<span>${_calEsc(dateStr)}</span></div>
+                ${(!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnBannerHtml(p) : ''}
+                <div class="cal-preview-row"><div class="cal-preview-label">Asset URL</div><div class="cal-preview-val">${linkify(p.asset_url)}</div></div>
+                <div class="cal-preview-row"><div class="cal-preview-label">Thumbnail URL</div><div class="cal-preview-val">${linkify(p.thumbnail_url)}</div></div>
+                <div class="cal-preview-row"><div class="cal-preview-label">Caption</div><div class="cal-preview-val">${valOrEmpty(p.caption)}</div></div>
+                <div class="cal-preview-row"><div class="cal-preview-label">CTA</div><div class="cal-preview-val">${valOrEmpty(p.cta)}</div></div>
+            </div>
+            <div class="cal-preview-foot">
+                <button class="cal-btn cal-btn-secondary" onclick="closeCalPreview()">Close</button>
+                <button class="cal-btn cal-btn-secondary" onclick="closeCalPreview();openCalComments('${_calEscAttr(p.id)}')">Notes${_calOpenCommentCount(p) ? ` · ${_calOpenCommentCount(p)} open` : ''}</button>
+                <button class="cal-btn cal-btn-primary" onclick="editInOrganizerFromPreview('${_calEscAttr(p.id)}')">Edit in Organizer</button>
+            </div>
+        `;
+        ovl.classList.add('open');
+        document.body.classList.add('cal-modal-open');
+    }
+
+    function closeCalPreview() {
+        const ovl = document.getElementById('calPreviewOverlay');
+        if (ovl) ovl.classList.remove('open');
+        calState.previewId = null;
+        document.body.classList.remove('cal-modal-open');
+    }
+
+    /* From a review card → jump to the Sheet and centre that card. Sets a
+       transient focus pid so the Sheet shows the card even if the client's
+       "ready only" filter (or an active month filter) would otherwise hide an
+       in-review post; the focus clears when the user leaves the Sheet. */
+    function _calReviewOpenInSheet(pid) {
+        calState.focusPid = pid;
+        if (calState.view !== 'organizer') {
+            calState.view = 'organizer';
+            _calSavePrefs();
+            document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === 'organizer'));
+        }
+        _calRenderBody();
+        setTimeout(() => {
+            const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+            if (!card) return;
+            // Centre the card horizontally within the Sheet's strip only. The
+            // Sheet is a horizontal rail, so we scroll the strip — never the
+            // page vertically (scrollIntoView's block:center was yanking the
+            // whole page down, which is what we don't want).
+            const strip = document.getElementById('calStrip');
+            if (strip) {
+                const sRect = strip.getBoundingClientRect();
+                const cRect = card.getBoundingClientRect();
+                const target = strip.scrollLeft + (cRect.left - sRect.left) - (strip.clientWidth - card.offsetWidth) / 2;
+                strip.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+            }
+            card.classList.add('cal-card-flash');
+            setTimeout(() => card.classList.remove('cal-card-flash'), 1700);
+        }, 60);
+    }
+
+    function editInOrganizerFromPreview(id) {
+        closeCalPreview();
+        if (calState.view !== 'organizer') {
+            calState.view = 'organizer';
+            _calSavePrefs();
+            document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === 'organizer'));
+            _calRenderBody();
+        }
+        setTimeout(() => {
+            const card = document.querySelector(`.cal-card[data-pid="${id}"]`);
+            if (card) {
+                card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                const nameInput = card.querySelector('.cal-fld-name');
+                if (nameInput) nameInput.focus();
+            }
+        }, 50);
+    }
+
+    /* ── Threaded comments ─────────────────────────────────────────────
+       Both the social media manager (internal view) and the client (share
+       link) can comment, reply, and mark threads done. The role is
+       auto-detected from the view: internal → SMM, share link → Client.
+
+       Storage piggybacks on the existing `tweaks` column — the array is
+       serialized to JSON inside that cell, so no new spreadsheet column is
+       required. Legacy plaintext `tweaks` content is preserved by
+       seeding it as the first comment on load.
+
+       The modal is a Slack/Discord-style continuous feed: avatar + author +
+       body, hover-revealed Reply/Mark-done actions, and a sticky composer
+       at the bottom that lives on the same surface as the conversation. */
+    let _calOpenCommentsPid = null;
+    /* Reply form state survives re-renders inside the modal so typing into a
+       reply box isn't wiped by a save round-trip. */
+    let _calReplyTarget = null;
+    const _calReplyDrafts = Object.create(null);
+    /* AND THEY SURVIVE THE TAB, because a refused reply is the one thing in
+       OPEN_REPAIRS 101 that cannot be reconstructed from anywhere else.
+
+       A new ROOT note has been mirrored to sessionStorage per card since the
+       modal gained drafts; a REPLY never was, and `openCalComments` wipes
+       `_calReplyDrafts` wholesale on every open. So a reply whose write was
+       refused survived only until the person closed the modal -- and closing
+       the modal is exactly what someone does when a save fails and they go
+       looking for why. The client's words were then gone, and the 50-row
+       diagnostic ring does not carry the body, so nothing anywhere held them.
+
+       One key per card holding a parentId -> text map, mirroring the
+       `sv_noteDraft_<pid>` convention next to it rather than inventing a second
+       one. Capped at REPLY_DRAFT_MAX parents, evicting the least recently
+       written, because a card with a long thread could otherwise accumulate a
+       draft per parent for the life of the tab. The TEXT is never truncated:
+       a silently shortened draft is a worse outcome than a dropped one, since
+       the person cannot see that it happened. */
+    const CAL_REPLY_DRAFTS_PREFIX = 'sv_replyDrafts_';
+    const CAL_REPLY_DRAFT_MAX = 20;
+    function _calReplyDraftsLoad(pid) {
+        if (!pid) return {};
+        try {
+            const raw = JSON.parse(sessionStorage.getItem(CAL_REPLY_DRAFTS_PREFIX + pid) || '{}');
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+            const out = Object.create(null);
+            for (const k of Object.keys(raw)) if (typeof raw[k] === 'string' && raw[k]) out[k] = raw[k];
+            return out;
+        } catch (e) { return {}; }
+    }
+    function _calReplyDraftsPersist(pid) {
+        if (!pid) return;
+        try {
+            /* Object key order is insertion order for string keys, so trimming
+               from the FRONT drops the least recently written -- a re-write of
+               an existing parent does not move it, which is the behaviour we
+               want: the cap is about how many threads are held, not about
+               punishing someone for editing one of them. */
+            const keys = Object.keys(_calReplyDrafts).filter(k => _calReplyDrafts[k]);
+            const kept = keys.slice(-CAL_REPLY_DRAFT_MAX);
+            if (!kept.length) { sessionStorage.removeItem(CAL_REPLY_DRAFTS_PREFIX + pid); return; }
+            const map = {};
+            for (const k of kept) map[k] = _calReplyDrafts[k];
+            sessionStorage.setItem(CAL_REPLY_DRAFTS_PREFIX + pid, JSON.stringify(map));
+        } catch (e) {}
+    }
+    let _calEditTarget = null;
+    const _calEditDrafts = Object.create(null);
+    let _calRootDraft = '';
+    /* Audience for the NEXT new root note an SMM sends from the Notes modal:
+       'internal' (team-only — you + Kasper, hidden from the client) or 'client'
+       (shared with the client). Defaults to 'internal' so nothing reaches the
+       client unless it's deliberately shared. Resets each time the modal opens.
+       Replies don't use this — they inherit their thread root's audience. */
+    let _calComposeAudience = 'internal';
+    /* Whether the NEXT new root the CLIENT sends is a change request (→ Tweaks
+       Needed) or a plain comment (no status change). Defaults to comment, so a
+       reply or a question never moves the status. SMM modal posts are always
+       comments (they request changes from the review panel). Resets on open. */
+    let _calComposeIsTweak = false;
+    /* Component the NEXT new root note targets, chosen in the Notes composer's
+       picker (Part B): video | graphic | caption | title. Default 'video'
+       (preserves the old hardcoded target + the SMM's muscle memory). Replies
+       ignore this — they inherit their parent thread's component. Resets to
+       'video' each time the modal opens. */
+    let _calComposeComp = 'video';
+    function _calSetComposeAudience(val) {
+        _calComposeAudience = (val === 'client') ? 'client' : 'internal';
+        const seg = document.querySelector('[data-cm-toggle="audience"]');
+        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b =>
+            b.classList.toggle('is-active', b.dataset.aud === _calComposeAudience));
+        // Keep the composer prompt in sync so it's obvious who the message
+        // goes to as the toggle flips.
+        const ta = document.getElementById('calCommentComposer');
+        if (ta && !_calReplyTarget) ta.placeholder = _calComposePlaceholder('smm');
+    }
+    function _calSetComposeIsTweak(val) {
+        _calComposeIsTweak = !!val;
+        const seg = document.querySelector('[data-cm-toggle="tweak"]');
+        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b =>
+            b.classList.toggle('is-active', (b.dataset.tweak === '1') === _calComposeIsTweak));
+        const ta = document.getElementById('calCommentComposer');
+        if (ta && !_calReplyTarget) ta.placeholder = _calComposeIsTweak ? 'Describe the change you need…' : _calComposePlaceholder('client');
+    }
+    /* Pick which deliverable the next new root note is about (Part B picker).
+       Validated against the card's ACTIVE review components (_calComponentsFor)
+       so the picker can never target a component the card doesn't have — and a
+       note can't land on a thread that wouldn't render in the feed. */
+    function _calSetComposeComp(val) {
+        const post = calState.posts.find(p => p.id === _calOpenCommentsPid);
+        const allowed = post ? _calComponentsFor(post) : CAL_COMPONENTS;
+        _calComposeComp = (allowed.indexOf(val) >= 0) ? val : 'video';
+        const seg = document.querySelector('[data-cm-toggle="comp"]');
+        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b =>
+            b.classList.toggle('is-active', b.dataset.comp === _calComposeComp));
+    }
+    /* Resolved (done) change-requests are history — hidden from the live feed
+       until the user opens the history toggle (top-right of the modal). */
+    let _calShowResolved = false;
+    function _calToggleShowResolved() {
+        _calShowResolved = !_calShowResolved;
+        _calCaptureModalDrafts();
+        _calRenderCommentsModal();
+    }
+    /* Composer prompt that names the recipient, so picking the toggle visibly
+       changes who you're writing to. */
+    function _calComposePlaceholder(role) {
+        if (role === 'client') return 'Message your Synchro Social team…';
+        return _calComposeAudience === 'client' ? 'Message to the client…' : 'Message to Kasper / the team…';
+    }
+
+    function _calStringifyComments(arr) {
+        const list = Array.isArray(arr) ? arr.filter(c => c && c.id) : [];
+        return list.length ? JSON.stringify(list) : '';
+    }
+    /* Per-comment last-write-wins clock. Comments live in a single per-component
+       cell that both the client and the SMM/Kasper rewrite wholesale, so the
+       same comment can exist in two browsers' copies with divergent resolution
+       state. Each comment carries an updated_at that bumps on every change;
+       merges keep the copy with the newer stamp. (Falls back to created_at for
+       legacy comments written before this field existed.) */
+    function _calCommentStamp(c) { return String((c && (c.updated_at || c.created_at)) || ''); }
+    /* Union two comment lists by id for DISPLAY. For an id on both sides keep
+       the newer-stamped copy (so a stale write can't un-resolve a comment or
+       drop a fresh edit); ids on only one side are kept (a comment the other
+       surface just added). The server upsert is authoritative for deletions —
+       it 3-way-merges against each writer's last-seen base — so this client
+       union may briefly show a just-deleted comment until the next fetch, which
+       is strictly safer than the old whole-cell overwrite that silently lost
+       comments. */
+    function _calMergeCommentLists(a, b) {
+        const out = new Map();
+        const absorb = (list) => {
+            if (!Array.isArray(list)) return;
+            for (const c of list) {
+                if (!c || !c.id) continue;
+                const prev = out.get(c.id);
+                if (!prev || _calCommentStamp(c) >= _calCommentStamp(prev)) {
+                    if (prev && prev.deleted && !c.deleted) _calV2Log('COMMENT resurrection →', c.id, '| a live copy (stamp', _calCommentStamp(c), ') overrode a tombstone (stamp', _calCommentStamp(prev), ')');
+                    out.set(c.id, c);
+                }
+            }
+        };
+        absorb(a); absorb(b);
+        return Array.from(out.values());
+    }
+    /* Merge the per-component comment threads of `other` into `winner` in place
+       so neither side's comments/resolutions are lost when a poll picks one row
+       over the other. Returns winner. */
+    function _calMergePostComments(winner, other) {
+        if (!winner || !other) return winner;
+        for (const comp of _calComponentsFor(winner)) {
+            const merged = _calMergeCommentLists(_calCommentsFor(winner, comp), _calCommentsFor(other, comp));
+            _calSetCommentsFor(winner, comp, merged);
+        }
+        if (Array.isArray(winner.video_comments)) winner.comments = winner.video_comments;
+        return winner;
+    }
+    /* Returns the canonical comments array for a post. Reads from
+       `post.comments` (in-memory, already parsed) if present; otherwise
+       parses the `tweaks` storage cell. Legacy plaintext tweaks are
+       converted into a single seeded note so existing data isn't lost. */
+    function _calLoadComments(post) {
+        if (Array.isArray(post.video_comments)) return post.video_comments.filter(c => c && c.id);
+        if (Array.isArray(post.comments)) return post.comments.filter(c => c && c.id);
+        const fromVideoCol = String(post.video_tweaks == null ? '' : post.video_tweaks).trim();
+        const raw = fromVideoCol || String(post.tweaks == null ? '' : post.tweaks).trim();
+        if (!raw) return [];
+        if (raw.startsWith('[')) {
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) return parsed.filter(c => c && c.id);
+            } catch {}
+        }
+        return [{
+            id: 'c_legacy_' + Math.random().toString(36).slice(2, 8),
+            parent_id: null,
+            author: 'Legacy import — please send to Sidney before deleting',
+            role: 'smm',
+            body: raw, created_at: '', done: false, done_at: '', done_by: '',
+            source: 'legacy_tweaks_column_seed',
+            source_field: fromVideoCol ? 'video_tweaks' : 'tweaks',
+            seeded_at: new Date().toISOString()
+        }];
+    }
+    function _calCommentRole() { return _isClientLink ? 'client' : 'smm'; }
+    function _calCurrentAuthor() {
+        if (_isClientLink) return calState.client ? String(calState.client) : 'Client';
+        return 'Synchro Social';
+    }
+    function _calMintCommentId() { return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
+    function _calCommentRoots(arr) {
+        return arr.filter(c => !c.parent_id && (!c.deleted || c.canonical) && !c.hidden)
+            .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+    }
+    function _calCommentReplies(arr, rootId) {
+        return arr.filter(c => c.parent_id === rootId && (!c.deleted || c.canonical) && !c.hidden)
+            .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+    }
+    /* Count open / total threads across all three components (video, graphic,
+       caption). Older code only looked at post.comments, missing client
+       tweak requests on the thumbnail/caption components — so the SMM card
+       showed "0 open" even after the client had requested changes. */
+    function _calAllCommentLists(post) {
+        if (!post) return [];
+        const lists = [];
+        for (const c of _calComponentsFor(post)) {
+            // Use the view-filtered reader so the client's "Tweaks" badge
+            // / open-comment count doesn't include Kasper-only entries.
+            const list = _calCommentsForView(post, c);
+            if (Array.isArray(list) && list.length) lists.push(list);
+        }
+        // Safety: the badge MUST walk the same source the modal renders from.
+        // The old fallback to post.comments here let stale legacy data
+        // (post.comments out-of-sync with the per-component arrays after a
+        // manual Google-Sheets cell deletion, for example) produce a badge
+        // counting comments the modal couldn't see — the "I see 2 tweaks but
+        // when I open it nothing is there" bug. The per-component arrays are
+        // the single source of truth; if all three are empty, there are no
+        // tweaks to count, period.
+        return lists;
+    }
+    /* Safety harness: count open tweak THREADS the same way the modal
+       renders them — _calCommentRoots filters out deleted, hidden, and
+       (in client view) Kasper-only entries before counting. Going through
+       the same helper guarantees the badge can never overcount past what
+       the modal will actually show, which was the root cause of the
+       "Tweaks (N)" badge with an empty panel reported on Dr. Sonia's
+       calendar after she cleared comment cells directly in Google Sheets. */
+    function _calOpenCommentCount(post) {
+        if (!post) return 0;
+        let n = 0;
+        for (const c of _calComponentsFor(post)) {
+            const list = _calCommentsForView(post, c);
+            if (!Array.isArray(list) || !list.length) continue;
+            for (const root of _calCommentRoots(list)) {
+                // Count only open change-requests (tweaks). A plain comment is
+                // a conversation, not an open task, so it never adds to the
+                // "N open" badge and isn't something to resolve.
+                if (!root.deleted && _calMsgIsTweak(root) && !root.done) n++;
+            }
+        }
+        return n;
+    }
+    /* Per-component: does this component carry at least one unresolved
+       Kasper-authored tweak? Used by the Kasper review to decide whether
+       the panel sticks around (Kasper has comments awaiting SMM action)
+       even after the sub-status flipped to Tweaks Needed. */
+    function _calCompHasUnresolvedKasperTweak(post, comp) {
+        const list = _calCommentsFor(post, comp);
+        if (!Array.isArray(list)) return false;
+        // Only actual change-requests count — a plain Kasper comment (is_tweak
+        // false) is discussion, not a tweak, so it must not masquerade as one
+        // here (otherwise it inflates the tweak chip, lands the card in the
+        // "tweaks pending" partition, and routes Finish as a hand-off).
+        return list.some(x => x && x.role === 'kasper' && _calMsgIsTweak(x) && !x.done && !x.deleted);
+    }
+    /* Per-component visibility on the Kasper review queue. A panel
+       only shows when (a) the component's sub-status is still at
+       Kasper Approval, OR (b) the SMM has flipped it to Tweaks
+       Needed but Kasper still has an unresolved tweak on it (the
+       "re-review" hand-off). Anything past that — For SMM Approval,
+       Client Approval, Approved, Posted — drops the component out
+       of Kasper's view even if a stale tweak comment lingers, so
+       SMM-driven status progressions can't be silently un-done. */
+    function _calCompKasperVisible(post, comp) {
+        // An unlinked thumbnail slot is not reviewable — mirror the SMM card,
+        // which locks the pill until a GRA sub-issue is linked. Without this
+        // gate a junk "Kasper Approval" graphic_status (e.g. written by the
+        // Linear status sync through a since-removed wrong link) drags a
+        // thumbnail panel into Kasper's queue that nobody can act on.
+        // Caption is exempt (it never has a Linear issue) and video keeps its
+        // status-only rule: the video file itself (asset_url) is reviewable
+        // even when the Linear link is missing.
+        if (comp === 'graphic' && !_calCompLinked(post, comp)) return false;
+        const cs = _calNormStatus(post[comp + '_status'] || '');
+        if (cs === 'Kasper Approval') return true;
+        if (cs === 'Tweaks Needed' && _calCompHasUnresolvedKasperTweak(post, comp)) {
+            // "Approve after tweaks" is Kasper's explicit pre-clearance: he is
+            // done with this component and has consented to skip his own
+            // re-review, so his tweak must NOT drag it back into his queue.
+            // Without this the card returns the moment he clicks, because
+            // "approve after tweaks" writes exactly the pair this clause
+            // matches -- Tweaks Needed plus an unresolved tweak of his own.
+            // The clause still earns its keep for a plain "Request change",
+            // where he does want the card in front of him; and a later
+            // request-change calls _calClearApprovedAfterTweaks, so a real
+            // re-review hand-off keeps the card visible again.
+            if (_calShowApprovedAfterTweaks(post, comp)) return false;
+            return true;
+        }
+        return false;
+    }
+    function _calPostKasperVisible(post) {
+        return _calComponentsFor(post).some(c => _calCompKasperVisible(post, c));
+    }
+    /* THE COMPONENTS KASPER'S EXPANDED CARD ACTUALLY RENDERS — the one
+       definition, so the badge and the card can never disagree.
+
+       _calCompKasperVisible answers "is this Kasper's work" and admits a
+       component for one of two reasons: (1) it is at Kasper Approval and his
+       decision is pending, or (2) it sits at Tweaks Needed carrying an
+       unresolved tweak of his, where the panel is a thread view. Only reason
+       (1) needs the content itself: there is no honest Approve over a video
+       that was never attached or a caption nobody wrote, so an unreviewable
+       component pending decision keeps its panel closed (and
+       _kasperUndecidedComps scopes it out of the Finish gate in the same
+       breath). Reason (2) is a conversation, and a conversation needs no file
+       — its Approve button is already hidden by `showApprove`.
+
+       Applying the content rule to BOTH reasons was caught by Codex on PR 1252:
+       it re-created the very defect the tweak chip was written to kill — the
+       badge saying "3" while the expanded card shows two threads. That is why
+       the chip and the renderer read this function and not their own copy. */
+    function _kasperPanelComps(post) {
+        return _calComponentsFor(post).filter(c => {
+            if (!_calCompKasperVisible(post, c)) return false;
+            if (_calNormStatus(post[c + '_status'] || '') === 'Kasper Approval') return _kasperCompReviewable(post, c);
+            return true;
+        });
+    }
+    /* Open-tweak count for Kasper's review-card chip. Same tally as
+       _calOpenCommentCount, but SCOPED to the components Kasper can actually
+       see/act on (_calCompKasperVisible) — i.e. those at Kasper Approval or
+       carrying an unresolved tweak of his. A client change-request on a
+       component that never reached him (e.g. a thumbnail still at Tweaks
+       Needed with no tweak of his) is correctly hidden from his expanded
+       card, so it must not inflate the chip either: otherwise the badge says
+       "3" while opening the card shows only 2 (the bug Kasper hit on Alli
+       Schaper's Lion's Mane card). The shared _calOpenCommentCount stays
+       whole-card for the SMM calendar, which does show every component. */
+    function _kasperOpenTweakCount(post) {
+        if (!post) return 0;
+        let n = 0;
+        for (const c of _kasperPanelComps(post)) {
+            const list = _calCommentsForView(post, c);
+            if (!Array.isArray(list) || !list.length) continue;
+            for (const root of _calCommentRoots(list)) {
+                if (_calMsgIsTweak(root) && !root.done) n++;
+            }
+        }
+        return n;
+    }
+    /* Whole-card: any unresolved Kasper tweak across any component. Used
+       for the Done-reviewing button visibility and the card-stays rule. */
+    function _calPostHasUnresolvedKasperTweak(post) {
+        return _calComponentsFor(post).some(c => _calCompHasUnresolvedKasperTweak(post, c));
+    }
+    /* Newest message timestamp across every component (ignores tombstones).
+       Used to detect "has anyone replied since Kasper last caught up?". */
+    function _calLatestMsgAt(post) {
+        let max = '';
+        for (const c of _calComponentsFor(post)) {
+            const list = _calCommentsFor(post, c);
+            if (!Array.isArray(list)) continue;
+            for (const m of list) {
+                if (!m || m.deleted) continue;
+                const t = String(m.updated_at || m.created_at || '');
+                if (t > max) max = t;
+            }
+        }
+        return max;
+    }
+    /* Like _calLatestMsgAt but ranks by created_at ONLY — "when was the newest
+       message CREATED", ignoring later updated_at bumps. Resolving a tweak
+       (mark-done) bumps its updated_at to now; that must NOT read as a brand-new
+       message for Kasper's finish/close re-surface checks, or a finished card
+       bounces back to "Waiting" the instant the SMM resolves an old comment while
+       another component is still in tweaks. Used ONLY by the finish/close
+       re-surface logic + the finish stamp (kept symmetric so "seen up to here" and
+       "is there something newer?" use the same basis); _calLatestMsgAt stays the
+       updated_at-based merge / seen / unread clock everywhere else. */
+    function _calLatestMsgCreatedAt(post) {
+        let max = '';
+        for (const c of _calComponentsFor(post)) {
+            const list = _calCommentsFor(post, c);
+            if (!Array.isArray(list)) continue;
+            for (const m of list) {
+                if (!m || m.deleted) continue;
+                const t = String(m.created_at || '');
+                if (t > max) max = t;
+            }
+        }
+        return max;
+    }
+    /* Components Kasper still owes a DECISION on: anything still at Kasper
+       Approval. Only an explicit decision clears it — approving (moves it past
+       Kasper Approval) or requesting a change (flips it to Tweaks Needed). A
+       comment does NOT count: it's just a question, the component is still
+       genuinely pending his call, so the card stays in his queue (never
+       finished into limbo) until he actually decides — typically after the SMM
+       answers. This is what keeps "Finish reviewing" honest and order-proof. */
+    /* Is this component reviewable RIGHT NOW — as distinct from
+     * `_calCompKasperVisible`, which asks whether it is Kasper's WORK.
+     *
+     * EVERY component needs the thing it is reviewed BY; only where that thing
+     * is stored differs. A video is watched, so it needs its `asset_url`; a
+     * thumbnail is looked at, so it needs its `thumbnail_url`; a caption and a
+     * title are READ, so they need their text — `caption` or `caption_alt`
+     * for the caption, `name` for the title. Before this existed the question
+     * was asked once about the whole card ("does it carry any media"), which a
+     * caption cannot answer — see OPEN_REPAIRS 135. The first fix for that
+     * over-corrected and let text through unconditionally, which Codex caught
+     * on #1252: an empty caption at Kasper Approval was admitted, so Kasper was
+     * offered an enabled Approve over the "No caption yet." placeholder and
+     * could sign off content nobody had written. Missing is missing; the
+     * storage is an implementation detail.
+     *
+     * It has to be applied in all THREE places or it makes things worse rather
+     * than better: admission to the queue, which panels render, and which
+     * components block "Finish reviewing". Admitting a card on its caption and
+     * then rendering an enabled Approve over a video that does not exist would
+     * trap Kasper on a card he cannot finish — caught in review. The
+     * unlinked-graphic clause in _kasperUndecidedComps is the same shape and
+     * the precedent for it, and that function's comment records why the finish
+     * gate and the fresh-ask test must read one set and not two. */
+    /* THE canonical answer to "does this component have the thing it is asking
+       to be reviewed". Deliberately self-contained: six suites compile this
+       function in isolation, so a dependency here breaks them all. The
+       calendar's status gate delegates TO this rather than the other way round
+       (_calCompHasContent). */
+    function _kasperCompReviewable(post, comp) {
+        if (comp === 'video') return String((post && post.asset_url) || '').trim() !== '';
+        if (comp === 'graphic') return String((post && post.thumbnail_url) || '').trim() !== '';
+        if (comp === 'title') return String((post && post.name) || '').trim() !== '';
+        if (comp === 'caption') {
+            return String((post && post.caption) || '').trim() !== ''
+                || String((post && post.caption_alt) || '').trim() !== '';
+        }
+        return true;
+    }
+    /* THE COMPONENTS KASPER STILL HAS TO DECIDE — one question, not two.
+     *
+     * Two gates, same rule: a component he cannot act on is not undecided, it
+     * is out of scope. A graphic slot with no GRA sub-issue is out of scope
+     * (the SMM cannot even re-route it — the pill is locked without a link),
+     * and a video or thumbnail whose file never arrived is out of scope for the
+     * same reason: there is nothing to watch or look at.
+     *
+     * THIS WAS BRIEFLY SPLIT IN TWO AND THAT WAS WRONG. The idea was that "has
+     * something been re-sent to me?" and "what stops me finishing?" were
+     * different questions, the first media-blind. They are not, and the split
+     * created a limbo Codex caught on #1252: on a card with a written caption
+     * and a fileless video both at Kasper Approval, deciding the caption
+     * emptied the (media-aware) finish gate, so Finish was allowed — while the
+     * (media-blind) finished test still saw the video as a fresh re-route and
+     * returned false forever. The card could never leave Waiting, and clicking
+     * Finish again could not help. The no-tweak branch was worse: it removed
+     * the card and logged it Approved with a component still undecided.
+     *
+     * The suite already stated the rule the split ignored: its G3 case is "an
+     * ACTIONABLE component is back at Kasper Approval → fresh ask", and G4 is
+     * the unlinked graphic that is NOT actionable and must not un-finish the
+     * card. A fileless video is G4, not G3. Nothing is lost by scoping it out:
+     * _kasperRenderStrandedNotice reports it to the SMM by name, which is the
+     * person who can fix it. See OPEN_REPAIRS 135. */
+    function _kasperUndecidedComps(post) {
+        return _calComponentsFor(post).filter(c =>
+            !(c === 'graphic' && !_calCompLinked(post, c))
+            && _kasperCompReviewable(post, c)
+            && _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
+    }
+    function _calCommentTotal(post) {
+        let n = 0;
+        for (const list of _calAllCommentLists(post)) n += list.length;
+        return n;
+    }
+    function _calFmtCommentTime(iso) {
+        const t = Date.parse(iso || '');
+        if (!isFinite(t)) return '';
+        const diff = Date.now() - t;
+        const mins = Math.round(diff / 60000);
+        if (mins < 1) return 'just now';
+        if (mins < 60) return mins + 'm ago';
+        const hrs = Math.round(mins / 60);
+        if (hrs < 24) return hrs + 'h ago';
+        const days = Math.round(hrs / 24);
+        if (days < 7) return days + 'd ago';
+        const d = new Date(t);
+        return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+    function _calAvatarInitial(name, role) {
+        const s = String(name || '').trim();
+        if (s) return s.charAt(0).toUpperCase();
+        return role === 'client' ? 'C' : 'S';
+    }
+
+    // "Approved after tweaks" badge — rendered to the right of the Tweaks pill
+    // on a card. Shows when ANY component is currently pre-cleared by Kasper and
+    // still in flight (see _calShowApprovedAfterTweaks; hidden once Approved/
+    // Scheduled/Posted, though the flag stays in the sheet as history).
+    function _calAatBadgeHtml(post) {
+        if (!post || !_calComponentsFor(post).some(c => _calShowApprovedAfterTweaks(post, c))) return '';
+        return `<span class="cal-aat-badge" title="No more tweaks needed — Kasper pre-cleared this for the client. Verify the edit was applied, then send to the client."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>`;
+    }
+    function _calCommentsBtnHtml(post, pid) {
+        const open = _calOpenCommentCount(post);
+        const unread = _calHasUnreadNotes(post);
+        const cls  = (open > 0 ? ' has-open' : '') + (unread ? ' has-unread' : '');
+        const tip  = unread ? 'New replies — open Notes'
+                   : (open > 0 ? `${open} open tweak${open === 1 ? '' : 's'}` : 'Notes');
+        const ico  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
+        // Tweaks pill + "Approved after tweaks" badge are kept in one left-
+        // aligned group so the badge sits right next to the pill (the footer is
+        // space-between, which would otherwise fling the badge to the far right).
+        return `<span class="cal-foot-tweaks" data-comments-wrap="${pid}"><button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="${_calEscAttr(tip)}">${ico}<span class="cal-comments-label">Notes</span>${unread ? '<span class="cal-comments-dot" aria-label="New replies"></span>' : ''}<span class="cal-comments-count">${open}</span></button>${_calAatBadgeHtml(post)}</span>`;
+    }
+    function _calRefreshCommentsBtn(pid) {
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
+        const wrap = document.querySelector(`.cal-foot-tweaks[data-comments-wrap="${sel}"]`);
+        if (!wrap) return;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        _calV2Log('BADGE refresh →', pid, '| unread:', _calHasUnreadNotes(post), '| open:', _calOpenCommentCount(post));
+        const tmp = document.createElement('div');
+        tmp.innerHTML = _calCommentsBtnHtml(post, pid);
+        wrap.replaceWith(tmp.firstElementChild);
+    }
+
+    function openCalComments(pid) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        _calOpenCommentsPid = pid;
+        _calReplyTarget = null;
+        _calEditTarget = null;
+        for (const k of Object.keys(_calReplyDrafts)) delete _calReplyDrafts[k];
+        for (const k of Object.keys(_calEditDrafts)) delete _calEditDrafts[k];
+        /* Wiped first because the map is shared across cards and its keys are
+           comment ids from whichever card was open last, then refilled from
+           THIS card's own store. An edit draft is deliberately not restored:
+           it is a change to text the server already holds, so losing it costs a
+           retype and never costs the only copy of anything. */
+        Object.assign(_calReplyDrafts, _calReplyDraftsLoad(pid));
+        // A half-written note survives an accidental close (Esc, mis-click on
+        // the backdrop): the draft is kept per card for the tab's lifetime
+        // and cleared on send.
+        _calRootDraft = '';
+        try { _calRootDraft = sessionStorage.getItem('sv_noteDraft_' + pid) || ''; } catch (e) {}
+        _calComposeAudience = 'internal';   // safe default each open
+        _calComposeIsTweak = false;         // default to a plain comment
+        _calComposeComp = 'video';          // Part B: picker defaults to Video
+        _calShowResolved = false;           // start on the live feed, not history
+        _notesMarkSeen(pid);                // opening = caught up; clears the unread dot
+        _prodProjectCanonicalCardComments('calendar', pid);
+        const ovl = document.getElementById('calCommentsOverlay');
+        if (!ovl) return;
+        ovl.classList.add('open');
+        document.body.classList.add('cal-modal-open');
+        _calRenderCommentsModal();
+        // Auto-scroll the feed to the latest message and focus the composer.
+        setTimeout(() => {
+            const feed = document.getElementById('calCommentsFeed');
+            if (feed) feed.scrollTop = feed.scrollHeight;
+            const ta = document.getElementById('calCommentComposer');
+            if (ta) ta.focus();
+        }, 30);
+    }
+    function closeCalComments() {
+        _calCaptureModalDrafts();
+        const ovl = document.getElementById('calCommentsOverlay');
+        if (ovl) ovl.classList.remove('open');
+        document.body.classList.remove('cal-modal-open');
+        const pid = _calOpenCommentsPid;
+        _calOpenCommentsPid = null;
+        _calReplyTarget = null;
+        _calEditTarget = null;
+        // Caught up while it was open — re-stamp seen and refresh the button so
+        // the unread dot clears immediately.
+        if (pid) { _notesMarkSeen(pid); _calRefreshCommentsBtn(pid); }
+    }
+    function _calCaptureModalDrafts() {
+        const root = document.getElementById('calCommentsModal');
+        if (!root) return;
+        const composer = root.querySelector('#calCommentComposer');
+        if (composer) {
+            if (_calEditTarget) _calEditDrafts[_calEditTarget] = composer.value;
+            else if (_calReplyTarget) {
+                _calReplyDrafts[_calReplyTarget] = composer.value;
+                _calReplyDraftsPersist(_calOpenCommentsPid);
+            }
+            else _calRootDraft = composer.value;
+        }
+    }
+
+    function _calRenderCommentsModal() {
+        const pid = _calOpenCommentsPid;
+        const modal = document.getElementById('calCommentsModal');
+        if (!modal || !pid) return;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) { closeCalComments(); return; }
+        const videoComments = Array.isArray(post.comments) ? post.comments : _calLoadComments(post);
+        post.comments = videoComments;
+        // Build a per-component view: each component contributes its own
+        // thread set, tagged so the SMM can see (and reply to / resolve)
+        // tweak requests from the client across video, thumbnail, and caption
+        // in one feed. _calCommentsForView strips Kasper-role entries when
+        // the viewer is on the client-link surface.
+        const compThreads = _calComponentsFor(post).flatMap(c => {
+            const list = _calCommentsForView(post, c);
+            if (!Array.isArray(list) || !list.length) return [];
+            return _calCommentRoots(list).map(r => ({ comp: c, list, root: r }));
+        });
+        // Sort all roots chronologically across components.
+        compThreads.sort((a, b) => String(a.root.created_at || '').localeCompare(String(b.root.created_at || '')));
+        // Resolved threads (done change-requests) are history — hidden from the
+        // live feed unless the user opens history via the top-right icon.
+        const resolvedCount = compThreads.filter(e => e.root.done).length;
+        const visibleThreads = _calShowResolved ? compThreads : compThreads.filter(e => !e.root.done);
+        const postName = _calEsc(post.name || 'Untitled post');
+
+        const renderRow = (c, isReply, comp) => {
+            const roleCls = c.role === 'client' ? 'is-client' : 'is-smm';
+            const author  = c.author || (c.role === 'client' ? 'Client' : 'SMM');
+            const initial = _calAvatarInitial(author, c.role);
+            const doneTag = (!isReply && c.done) ? `<span class="cal-cm-done-tag">Resolved</span>` : '';
+            // Which deliverable — named, pushed to the top-right of the row to
+            // use the empty space there instead of a cryptic colour dot.
+            const compLabel = (!isReply && comp) ? `<span class="cal-cm-comp-label cal-cm-comp-${comp}">${_calEsc(COMP_LABELS[comp])}</span>` : '';
+            // Internal threads get a bare lock icon — no word. No lock = the
+            // client can see it.
+            const lock = (!isReply && !_isClientLink && _calMsgAudience(c) === 'internal')
+                ? `<span class="cal-cm-lock" title="Internal — the client can't see this"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg></span>`
+                : '';
+            // Only change-requests get a tag — sits right after the name.
+            const typeTag = (!isReply && _calMsgIsTweak(c))
+                ? `<span class="cal-cm-type-tag is-tweak" title="Change request — moves the card to Tweaks Needed">Tweak${c.round ? ' #' + c.round : ''}</span>`
+                : '';
+            const editedTag = c.edited ? '<span class="prod-comment-edited">(edited)</span>' : '';
+            const attachments = Array.isArray(c.attachments) && c.attachments.length
+                ? '<div class="prod-comment-attachments">' + c.attachments.map(item =>
+                    '<a class="prod-comment-attachment" href="' + _calEscAttr(item.url) + '" target="_blank" rel="noopener noreferrer">' + _calEsc(item.name || 'Attachment') + '</a>'
+                ).join('') + '</div>'
+                : '';
+            return `<div class="cal-cm-row${isReply ? ' is-reply' : ''}" data-cm-row="${c.id}">
+                <div class="cal-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
+                <div class="cal-cm-body-col">
+                    <div class="cal-cm-head-line">
+                        <span class="cal-cm-author">${_calEsc(author)}</span>
+                        ${typeTag}
+                        ${lock}
+                        <span class="cal-cm-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
+                        ${doneTag}
+                        ${compLabel}
+                    </div>
+                    <div class="cal-cm-row-body">${c.deleted ? 'Comment deleted.' : _calEsc(c.body || '')}${editedTag}${attachments}</div>
+                </div>
+                ${_calCommentActionsHtml(c, isReply)}
+            </div>`;
+        };
+
+        const renderThread = (entry) => {
+            const replies = _calCommentReplies(entry.list, entry.root.id);
+            return `<div class="cal-cm-thread${entry.root.done ? ' is-done' : ''}" data-thread="${entry.root.id}">
+                ${renderRow(entry.root, false, entry.comp)}
+                ${replies.map(r => renderRow(r, true, entry.comp)).join('')}
+            </div>`;
+        };
+        const roots = visibleThreads;
+        const comments = videoComments;
+
+        const emptyMsg = _calShowResolved
+            ? `<div class="cal-comments-empty"><div class="cal-comments-empty-title">Nothing here</div>No resolved items.</div>`
+            : (resolvedCount
+                ? `<div class="cal-comments-empty"><div class="cal-comments-empty-title">All clear</div>No open notes — resolved items are in history (top right).</div>`
+                : `<div class="cal-comments-empty"><div class="cal-comments-empty-title">No notes yet</div>Start the conversation — type below.</div>`);
+        const feedHtml = roots.length ? roots.map(renderThread).join('') : emptyMsg;
+
+        // History toggle (top-right): hidden unless there's something resolved.
+        const histBtn = resolvedCount
+            ? `<button class="cal-comments-hist${_calShowResolved ? ' is-active' : ''}" type="button" onclick="_calToggleShowResolved()" title="${_calShowResolved ? 'Hide resolved' : 'Show resolved (' + resolvedCount + ')'}" aria-label="Toggle resolved history"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.5V8l2.5 1.5"/><path d="M2.6 8a5.4 5.4 0 1 0 1.5-3.7M2.5 3v2.2h2.2"/></svg>${_calShowResolved ? '' : `<span class="cal-comments-hist-count">${resolvedCount}</span>`}</button>`
+            : '';
+        const actionFailure = post._canonicalCommentActionError
+            ? _writeUiCommentActionFailureHtml(
+                post._canonicalCommentActionError,
+                '_writeUiRetryCardCommentAction(\'calendar\',' + _jsAttrArg(pid) + ')'
+            )
+            : '';
+
+        modal.innerHTML = `
+            <div class="cal-comments-head">
+                <div class="cal-comments-head-text">
+                    <h3 id="calCommentsTitle">${_calShowResolved ? 'Resolved' : 'Notes'}</h3>
+                    <p>${postName}</p>
+                </div>
+                ${histBtn}
+                <button class="cal-comments-close" type="button" onclick="closeCalComments()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+            </div>
+            ${actionFailure}
+            <div class="cal-comments-feed" id="calCommentsFeed">
+                <div class="cal-comments-feed-inner">${feedHtml}</div>
+            </div>
+            ${_calComposerHtml(post, comments)}`;
+        const ta = document.getElementById('calCommentComposer');
+        if (ta) {
+            _calAutosizeComposer(ta);
+            ta.focus();
+            const v = ta.value; ta.value = ''; ta.value = v;
+        }
+    }
+
+    function _calCanDeleteComment(c) {
+        // SMM can delete anything; the client can only delete their own.
+        return _calCommentRole() === 'smm' || c.role === 'client';
+    }
+    function _calCanResolveComment() {
+        // Only the SMM resolves threads — the client never marks anything done.
+        return _calCommentRole() === 'smm';
+    }
+    function _calCommentActionsHtml(c, isReply) {
+        if (c.deleted) return '';
+        const replyIco  = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"/></svg>`;
+        const checkIco  = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
+        const undoIco   = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3.5L2 7l3.5 3.5M2 7h7a3.5 3.5 0 0 1 0 7"/></svg>`;
+        const trashIco  = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8.5h6L10.5 4M6 6.5v4M8 6.5v4"/></svg>`;
+        // Replies share the parent thread's "done" state — only the root gets
+        // the resolve toggle, and only the SMM ever sees that toggle.
+        const rootId = isReply ? c.parent_id : c.id;
+        const replyBtn = c.done ? '' : `<button class="cal-cm-action" type="button" onclick="_calBeginReply(${_jsAttrArg(rootId)})" title="Reply">${replyIco}<span>Reply</span></button>`;
+        const editBtn = c.canonical && c.can_edit
+            ? `<button class="cal-cm-action" type="button" onclick="_calBeginCommentEdit(${_jsAttrArg(c.id)})" title="Edit"><span>Edit</span></button>`
+            : '';
+        // Resolve toggle is only meaningful on a change-request (tweak). A plain
+        // comment is a conversation, not a task, so it gets no "Mark done".
+        const canResolve = c.canonical ? c.can_resolve : (_calCanResolveComment() && _calMsgIsTweak(c));
+        const doneBtn  = (!isReply && canResolve)
+            ? (c.done
+                ? `<button class="cal-cm-action is-done-on" type="button" onclick="_calToggleCommentDone(${_jsAttrArg(c.id)})" title="Reopen">${undoIco}<span>Reopen</span></button>`
+                : `<button class="cal-cm-action" type="button" onclick="_calToggleCommentDone(${_jsAttrArg(c.id)})" title="Mark thread done">${checkIco}<span>Mark done</span></button>`)
+            : '';
+        const canDelete = c.canonical ? c.can_delete : _calCanDeleteComment(c);
+        const delBtn = canDelete
+            ? `<button class="cal-cm-action is-danger" type="button" onclick="_calDeleteComment(${_jsAttrArg(c.id)})" title="Delete">${trashIco}<span>Delete</span></button>`
+            : '';
+        if (!replyBtn && !editBtn && !doneBtn && !delBtn) return '';
+        return `<div class="cal-cm-actions">${replyBtn}${editBtn}${doneBtn}${delBtn}</div>`;
+    }
+
+    function _calComposerHtml(post, comments) {
+        const role     = _calCommentRole();
+        const author   = _calCurrentAuthor();
+        const initial  = _calAvatarInitial(author, role);
+        const roleCls  = role === 'client' ? 'is-client' : 'is-smm';
+        const isReply  = !!_calReplyTarget;
+        const isEdit   = !!_calEditTarget;
+        // Reply target may live on any component's thread — look across all.
+        const allLists = _calComponentsFor(post).map(c => c === 'video'
+            ? (Array.isArray(post.comments) ? post.comments : _calLoadComments(post))
+            : _calCommentsFor(post, c));
+        const targetId = isEdit ? _calEditTarget : _calReplyTarget;
+        const target   = targetId
+            ? allLists.flatMap(l => l).find(c => c && c.id === targetId)
+            : null;
+        const draft    = isEdit
+            ? (_calEditDrafts[_calEditTarget] || '')
+            : isReply ? (_calReplyDrafts[_calReplyTarget] || '') : (_calRootDraft || '');
+        const placeholder = isEdit
+            ? 'Edit this note...'
+            : isReply
+            ? `Reply to ${target ? (target.author || 'thread') : 'thread'}…`
+            : _calComposePlaceholder(role);
+        const replyingTo = target
+            ? `<div class="cal-cm-replying-to">${isEdit ? 'Editing' : 'Replying to'} <strong>${_calEsc(target.author || 'thread')}</strong> <button class="cal-cm-cancel-reply" type="button" onclick="${isEdit ? '_calBeginCommentEdit(null)' : '_calBeginReply(null)'}" title="Cancel"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button></div>`
+            : '';
+        const lockIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg>`;
+        // SMM starting a NEW thread picks who can see it. A reply inherits its
+        // root's audience, so the toggle only shows on a fresh root; the client
+        // has no toggle (everything they post is shared with them by nature).
+        const canonicalGate = _prodCanonicalCommentGate(post, (isReply || isEdit) && target
+            ? _calFindCompForCommentId(post, target.id)
+            : _calComposeComp);
+        if (canonicalGate.linked && !canonicalGate.ready) {
+            return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">'
+                + (canonicalGate.status === 'error' ? 'Notes could not load' : 'Loading canonical notes')
+                + '</div>' + (canonicalGate.status === 'error'
+                    ? '<button type="button" class="prod-comment-state-action" onclick="_prodProjectCanonicalCardComments(\'calendar\',' + _jsAttrArg(post.id) + ')">Retry</button>'
+                    : 'The composer unlocks after this exact deliverable is authorized.')
+                + '</div>';
+        }
+        const audienceToggle = (!isReply && !isEdit && role !== 'client' && canonicalGate.client)
+            ? `<div class="cal-cm-audience" data-cm-toggle="audience" role="group" aria-label="Who can see this note">
+                <span class="cal-cm-audience-cap">Who sees this?</span>
+                <div class="cal-cm-aud-seg">
+                    <button type="button" class="cal-cm-aud-btn${_calComposeAudience === 'internal' ? ' is-active' : ''}" data-aud="internal" onclick="_calSetComposeAudience('internal')" title="Team only — you and Kasper. The client never sees it.">${lockIco}Kasper / team</button>
+                    <button type="button" class="cal-cm-aud-btn${_calComposeAudience === 'client' ? ' is-active' : ''}" data-aud="client" onclick="_calSetComposeAudience('client')" title="Shared — the client can see this too.">Client</button>
+                </div>
+            </div>`
+            : '';
+        // Client picks comment vs change request. Default comment, so a reply or
+        // a question never flips the post to Tweaks Needed.
+        const changeToggle = (!isReply && !isEdit && role === 'client')
+            ? `<div class="cal-cm-audience" data-cm-toggle="tweak" role="group" aria-label="Comment or change request">
+                <span class="cal-cm-audience-cap">This is a…</span>
+                <div class="cal-cm-aud-seg">
+                    <button type="button" class="cal-cm-aud-btn${!_calComposeIsTweak ? ' is-active' : ''}" data-tweak="0" onclick="_calSetComposeIsTweak(false)" title="A comment or question — won't change the status">Comment</button>
+                    <button type="button" class="cal-cm-aud-btn${_calComposeIsTweak ? ' is-active' : ''}" data-tweak="1" onclick="_calSetComposeIsTweak(true)" title="Request a change — moves the post to Tweaks Needed">Request a change</button>
+                </div>
+            </div>`
+            : '';
+        // Component picker (Part B) — which deliverable this NEW root note is
+        // about. Shown on a fresh root for the SMM and the client alike; replies
+        // inherit their thread's component so they get no picker. Offers the
+        // card's active review components (Title appears once the title is an
+        // engaged review component); defaults to Video.
+        const compPicker = !isReply && !isEdit
+            ? `<div class="cal-cm-audience" data-cm-toggle="comp" role="group" aria-label="Which deliverable is this note about">
+                <span class="cal-cm-audience-cap">About the…</span>
+                <div class="cal-cm-aud-seg">${_calComponentsFor(post).map(c =>
+                    `<button type="button" class="cal-cm-aud-btn${_calComposeComp === c ? ' is-active' : ''}" data-comp="${c}" onclick="_calSetComposeComp('${c}')" title="This note is about the ${_calEscAttr(String(COMP_LABELS[c] || c).toLowerCase())}">${_calEsc(COMP_LABELS[c] || c)}</button>`
+                ).join('')}</div>
+            </div>`
+            : '';
+        const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        return `<div class="cal-cm-composer-wrap">
+            ${replyingTo}
+            ${compPicker}
+            ${audienceToggle}
+            ${changeToggle}
+            <div class="cal-cm-composer">
+                <div class="cal-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_calEsc(initial)}</div>
+                <textarea id="calCommentComposer" rows="1" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnComposerInput(this)" onkeydown="_calOnComposerKey(event)">${_calEsc(draft)}</textarea>
+                <div class="cal-cm-composer-actions">
+                    <button class="cal-cm-send" type="button" onclick="_calSubmitComposer()" title="${isEdit ? 'Save edit' : 'Send'} (Enter)" ${draft.trim() ? '' : 'disabled'}>${sendIco}</button>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    function _calAutosizeComposer(ta) {
+        ta.style.height = 'auto';
+        ta.style.height = Math.min(ta.scrollHeight, 160) + 'px';
+    }
+    function _calOnComposerInput(ta) {
+        _calAutosizeComposer(ta);
+        if (_calEditTarget) _calEditDrafts[_calEditTarget] = ta.value;
+        else if (_calReplyTarget) {
+            _calReplyDrafts[_calReplyTarget] = ta.value;
+            _calReplyDraftsPersist(_calOpenCommentsPid);
+        }
+        else {
+            _calRootDraft = ta.value;
+            try {
+                if (ta.value) sessionStorage.setItem('sv_noteDraft_' + _calOpenCommentsPid, ta.value);
+                else sessionStorage.removeItem('sv_noteDraft_' + _calOpenCommentsPid);
+            } catch (e) {}
+        }
+        const wrap = ta.closest('.cal-cm-composer');
+        if (!wrap) return;
+        const sendBtn = wrap.querySelector('.cal-cm-send');
+        if (sendBtn) sendBtn.disabled = !ta.value.trim();
+    }
+    function _calOnComposerKey(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            _calSubmitComposer();
+        } else if (e.key === 'Escape' && (_calReplyTarget || _calEditTarget)) {
+            e.preventDefault();
+            if (_calEditTarget) _calBeginCommentEdit(null);
+            else _calBeginReply(null);
+        }
+    }
+    function _calBeginReply(rootId) {
+        _calCaptureModalDrafts();
+        _calEditTarget = null;
+        _calReplyTarget = rootId || null;
+        // Hitting Reply re-renders the feed, which would otherwise reset its
+        // scroll to the top. Keep the reader exactly where they were.
+        const feed = document.getElementById('calCommentsFeed');
+        const prevScroll = feed ? feed.scrollTop : null;
+        _calRenderCommentsModal();
+        const feed2 = document.getElementById('calCommentsFeed');
+        if (feed2 && prevScroll != null) feed2.scrollTop = prevScroll;
+    }
+    function _calBeginCommentEdit(commentId) {
+        _calCaptureModalDrafts();
+        const post = calState.posts.find(p => p.id === _calOpenCommentsPid);
+        const comp = post && commentId ? _calFindCompForCommentId(post, commentId) : '';
+        const list = post && comp ? _calCommentsFor(post, comp) : [];
+        const target = Array.isArray(list) ? list.find(c => c && c.id === commentId) : null;
+        _calReplyTarget = null;
+        _calEditTarget = target && target.canonical && target.can_edit ? commentId : null;
+        if (_calEditTarget && _calEditDrafts[_calEditTarget] == null) {
+            _calEditDrafts[_calEditTarget] = String(target.body || '');
+        }
+        _calRenderCommentsModal();
+        return false;
+    }
+    async function _calSubmitComposer() {
+        const pid = _calOpenCommentsPid;
+        if (!pid) return;
+        _calCaptureModalDrafts();
+        const body = (_calEditTarget
+            ? (_calEditDrafts[_calEditTarget] || '')
+            : _calReplyTarget ? (_calReplyDrafts[_calReplyTarget] || '') : (_calRootDraft || '')).trim();
+        if (!body) return;
+        if (_calEditTarget) {
+            const editId = _calEditTarget;
+            if (!await _calSaveCommentEdit(pid, editId, body)) return;
+            delete _calEditDrafts[editId];
+            _calEditTarget = null;
+            _calRenderCommentsModal();
+            return;
+        }
+        const parentId = _calReplyTarget;
+        const saved = await _calAppendComment(pid, parentId, body);
+        if (!saved) return;
+        if (parentId) { delete _calReplyDrafts[parentId]; _calReplyDraftsPersist(pid); }
+        else {
+            _calRootDraft = '';
+            try { sessionStorage.removeItem('sv_noteDraft_' + pid); } catch (e) {}
+        }
+        _calReplyTarget = null;
+        _calRenderCommentsModal();
+        setTimeout(() => {
+            const feed = document.getElementById('calCommentsFeed');
+            if (feed) feed.scrollTop = feed.scrollHeight;
+        }, 0);
+    }
+    /* Flush a comment-carrying save and, if it failed while the Notes modal is
+       still open on that card, tell the user. The card's "Save failed" chip is
+       the normal failure surface, but the open modal covers it — without this
+       the user closes the modal believing the note was sent. The note itself
+       is checkpointed in the v2 cache after native acknowledgement and rides
+       the normal source-repair path across refreshes. */
+    function _calWatchNoteSave(pid) {
+        return Promise.resolve(_calFlushCardSave(pid)).then(() => {
+            const p = calState.posts.find(x => x.id === pid);
+            if (p && p._saveError && _calOpenCommentsPid === pid) {
+                showNotify('Note source sync pending', 'The native note is safe. Calendar sync will retry automatically (' + p._saveError + ').');
+            }
+        });
+    }
+    async function _calAppendComment(pid, parentId, body) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        // Replies inherit the component of the parent thread so a reply to a
+        // thumbnail tweak lands in graphic_tweaks (not video). A NEW root targets
+        // the component the SMM/client picked in the composer (Part B), validated
+        // against the card's active review components (default 'video').
+        const comp = parentId
+            ? _calFindCompForCommentId(post, parentId)
+            : (_calComponentsFor(post).indexOf(_calComposeComp) >= 0 ? _calComposeComp : 'video');
+        const canonicalGate = _prodCanonicalCommentGate(post, comp);
+        if (canonicalGate.linked && !canonicalGate.ready) {
+            showNotify('Notes are still loading', 'Retry the canonical thread before sending.');
+            return false;
+        }
+        const arr = comp === 'video'
+            ? (Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post))
+            : _calCommentsFor(post, comp).slice();
+        const role = _calCommentRole();
+        const _now = new Date().toISOString();
+        const isRoot = !parentId;
+        let nativeCommentCommitted = false;
+        let committedBatch = null;
+        const msg = {
+            id: _calMintCommentId(),
+            parent_id: parentId || null,
+            author: _calCurrentAuthor(),
+            role: role,
+            body: body,
+            created_at: _now,
+            updated_at: _now,
+            done: false,
+            done_at: '',
+            done_by: ''
+        };
+        // Audience + type live on the thread ROOT; replies inherit them via the
+        // root (the view filter resolves a reply's audience from its root), and a
+        // reply is NEVER a change request. For a root: the SMM picks audience and
+        // always posts a plain comment (they request changes from the review
+        // panel); the client posts a comment by default and only flips status
+        // when they explicitly pick "Request a change".
+        if (isRoot) {
+            msg.audience = (role === 'client') ? 'client' : _calComposeAudience;
+            msg.is_tweak = (role === 'client') ? _calComposeIsTweak : false;
+            if (msg.is_tweak) msg.round = _calNextTweakRound(post, comp);
+        }
+        if (comp === 'video' || comp === 'graphic') {
+            const rootMsg = isRoot ? msg : arr.find(c => c && c.id === parentId);
+            try {
+                /* CANONICAL-WHERE-LINKED, LEGACY-WHERE-NOT — the add lane's
+                   half of a rule its siblings already keep.
+
+                   A card whose crosswalk does not validate has two comment
+                   stores, and which one a message lands in was decided by two
+                   different rules. The READ side, `_calToggleCommentDone` and
+                   the delete confirm all branch on
+                   `_prodCanonicalCommentGate(post, comp).linked` and hold an
+                   unlinked card on the legacy card store — the rationale beside
+                   the coverage hold says it outright: the legacy path "is the
+                   one that still works on an uncovered card". ADD did not: it
+                   routed on `_writeUiUseGatewayWhenReady` alone, i.e. on the
+                   reroute allowlist, which knows a client slug and nothing
+                   about this card.
+
+                   That split is what breaks a thread in half. A client's root
+                   on such a card fails `_prodClientCommentGatewayContext` and
+                   is written to the card store, with no canonical row behind
+                   it. A staff REPLY to that root is then routed to the gateway
+                   by slug alone, the gateway looks for the parent it was never
+                   given, and the reply is refused — while the catch below
+                   discards the typed text before the local append can keep it.
+                   Same card, same thread, two transports, and only the second
+                   one fails.
+
+                   So the answer travels with the write, computed HERE because
+                   this is where the component the write actually uses is known
+                   — a reply inherits `comp` from its parent thread, while the
+                   transport collapses caption and title onto video — and
+                   answered by `_prodCommentAddRoutesLegacy`, which asks the
+                   CROSSWALK rather than the gate. The distinction is the whole
+                   of the safety argument: the gate also says "not linked" for a
+                   card with no deliverable id (whose refusal is deliberate) and
+                   for a valid link the coverage invariant is holding, and
+                   neither may be rerouted. Read the helper for the three states
+                   it excludes and why. A callsite that passes no answer at all
+                   — the review-tweak lane, the repair drain, Kasper — is
+                   untouched. */
+                const canonicalUnlinked = await _prodCommentAddRoutesLegacy('calendar', post, comp);
+                const acknowledgement = await _calPostLinearComment(_calLinearUrlFor(post, comp), body, msg.author, {
+                    post, component: comp, comment: msg, parentId: msg.parent_id,
+                    audience: _calMsgAudience(rootMsg), isTweak: isRoot && _calMsgIsTweak(msg),
+                    round: rootMsg && Number.isInteger(rootMsg.round) ? rootMsg.round : null,
+                    canonicalUnlinked
+                });
+                committedBatch = {};
+                _writeUiBindRepairAck(post, committedBatch, acknowledgement);
+                nativeCommentCommitted = !!(acknowledgement && acknowledgement.native_committed);
+            } catch (e) {
+                _writeUiReportFailure('calendar', 'comment', e);
+                return false;
+            }
+        }
+        arr.push(msg);
+        _calSetCommentsFor(post, comp, arr);
+        if (comp === 'video') post.comments = arr;
+        const fieldKey = comp + '_tweaks';
+        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [fieldKey]: _calStringifyComments(arr) });
+        // Only a client's explicit change-REQUEST root flips status — a plain
+        // comment or any reply leaves the status untouched.
+        if (isRoot && role === 'client' && msg.is_tweak) _calApplyAutoStatus(pid, 'client_added', comp);
+        if (committedBatch) _writeUiMergeCommittedBatch(_calPendingEdits[pid], committedBatch);
+        // Part B — route a video/thumbnail note to its Linear sub-issue so the
+        // editor / designer sees every piece of feedback in their inbox: BOTH
+        // plain comments AND change-requests, roots AND replies (replies route
+        // via the inherited parent component). Caption & title have no Linear —
+        // gate explicitly on video/graphic so _calLinearUrlFor's video fallback
+        // can never leak a caption/title note onto the video issue. Create-only
+        // (edits/resolves/deletes never sync); audience-independent;
+        // _calPostLinearComment no-ops on an unlinked issue (empty url).
+        await _calWatchNoteSave(pid);
+        _calRefreshCommentsBtn(pid);
+        _calUpdateCardStatusDisplay(pid);
+        return true;
+    }
+    /* Find which component (video / graphic / caption) owns a given comment
+       id. Lets SMM resolve / delete comments on any component's thread from
+       the unified modal feed. */
+    function _calFindCompForCommentId(post, commentId) {
+        // Iterate the FULL review component set (not just the card's currently
+        // active ones) so a reply always resolves to the right thread — e.g. a
+        // title note routes back to 'title' even if the title later carries no
+        // status. (Part B: keeps reply→component + Linear routing correct.)
+        for (const c of CAL_REVIEW_COMPONENTS) {
+            const list = c === 'video'
+                ? (Array.isArray(post.comments) ? post.comments : _calLoadComments(post))
+                : _calCommentsFor(post, c);
+            if (Array.isArray(list) && list.some(x => x.id === commentId)) return c;
+        }
+        return 'video';
+    }
+    async function _calSaveCommentEdit(pid, commentId, body, retryCursor) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return false;
+        const comp = _calFindCompForCommentId(post, commentId);
+        const target = _calCommentsFor(post, comp).find(c => c && c.id === commentId);
+        const gate = _prodCanonicalCommentGate(post, comp);
+        if (!target || !target.canonical || !target.can_edit || !gate.linked || !gate.ready) return false;
+        const receipt = await _writeUiCommitCardCommentLifecycle(
+            'calendar', post, comp, target, 'edit', body, retryCursor
+        );
+        if (!receipt) return false;
+        await _writeUiPersistCanonicalCommentProjection('calendar', post, comp);
+        return true;
+    }
+    function _calRetryCommentEdit(commentId, body, retryCursor) {
+        const pid = _calOpenCommentsPid;
+        if (!pid) return false;
+        _calEditTarget = commentId;
+        _calReplyTarget = null;
+        _calEditDrafts[commentId] = String(body || '');
+        _calSaveCommentEdit(pid, commentId, _calEditDrafts[commentId], retryCursor).then(saved => {
+            if (!saved) {
+                _calRenderCommentsModal();
+                return;
+            }
+            delete _calEditDrafts[commentId];
+            _calEditTarget = null;
+            _calRenderCommentsModal();
+        });
+        return false;
+    }
+    function _calToggleCommentDone(rootId) {
+        const pid = _calOpenCommentsPid;
+        if (!pid) return;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const comp = _calFindCompForCommentId(post, rootId);
+        const list = comp === 'video'
+            ? (Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post))
+            : _calCommentsFor(post, comp).slice();
+        const root = list.find(c => c.id === rootId && !c.parent_id);
+        if (!root) return;
+        const wasDone = !!root.done;
+        // Resolving the LAST open SMM change-request routes the component onward
+        // (client or Kasper) — the SMM must pick which FIRST. Defer the WHOLE
+        // resolution (mark-done + status flip) until they confirm in the chooser,
+        // so the comment doesn't vanish before the choice and Cancel can't
+        // silently swallow it (nothing is applied on cancel). Count the OTHER
+        // still-open change-requests, with this root excluded.
+        const otherOpen = list.filter(c => !c.parent_id && !c.done && !c.deleted && _calMsgIsTweak(c) && c.id !== rootId).length;
+        const deferToChooser = !wasDone && _calCommentRole() === 'smm' && otherOpen === 0;
+        const canonicalGate = _prodCanonicalCommentGate(post, comp);
+        if (canonicalGate.linked) {
+            if (deferToChooser) {
+                _calResolveLastTweak(pid, comp, rootId);
+                return;
+            }
+            _writeUiCommitCardCommentLifecycle('calendar', post, comp, root, wasDone ? 'unresolve' : 'resolve')
+                .then(receipt => receipt && _writeUiPersistCanonicalCommentProjection('calendar', post, comp));
+            return;
+        }
+
+        // Flip the comment's done state (data only).
+        const mutate = () => {
+            if (wasDone) { root.done = false; root.done_at = ''; root.done_by = ''; }
+            else { root.done = true; root.done_at = new Date().toISOString(); root.done_by = _calCurrentAuthor(); }
+            // Bump the per-comment merge clock so this resolution change wins over
+            // any stale copy another browser holds (cross-surface comment merge).
+            root.updated_at = new Date().toISOString();
+            _calSetCommentsFor(post, comp, list);
+            if (comp === 'video') post.comments = list;
+            _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [comp + '_tweaks']: _calStringifyComments(list) });
+        };
+        // Persist + refresh the modal/card after a mutation.
+        const refresh = () => {
+            _calWatchNoteSave(pid);
+            _calRefreshCommentsBtn(pid);
+            _calUpdateCardStatusDisplay(pid);
+            _calCaptureModalDrafts();
+            _calRenderCommentsModal();
+            // Re-rendering rebuilds the feed and resets its scroll to the top. Keep
+            // it pinned to the bottom (where the action happened and the composer
+            // lives) — mirrors the post-send behaviour in _calSubmitComposer.
+            setTimeout(() => {
+                const feed = document.getElementById('calCommentsFeed');
+                if (feed) feed.scrollTop = feed.scrollHeight;
+            }, 0);
+        };
+
+        if (deferToChooser) {
+            // Chooser first; the resolve (mark-done) + status flip + refresh happen
+            // only on a route pick. Closing leaves the comment exactly as it was
+            // (open) — the chooser owns the mark-done so cancel can't half-apply.
+            _calResolveLastTweak(pid, comp, rootId);
+            return;
+        }
+        mutate();
+        refresh();
+    }
+
+    /* Delete a comment. SMM can delete anything; the client can only
+       delete their own messages — this is enforced both here and in the
+       button-visibility rules. Deleting a root cascades into its replies
+       so the thread doesn't leave orphans. If an SMM delete clears the
+       last open thread, the same Client-Approval auto-status applies. */
+    function _calDeleteComment(commentId) {
+        const pid = _calOpenCommentsPid;
+        if (!pid) return;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const comp = _calFindCompForCommentId(post, commentId);
+        const arr = comp === 'video'
+            ? (Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post))
+            : _calCommentsFor(post, comp).slice();
+        const target = arr.find(c => c.id === commentId);
+        if (!target || (target.canonical ? !target.can_delete : !_calCanDeleteComment(target))) return;
+        const isRoot = !target.parent_id;
+        const msg = target.canonical
+            ? (isRoot
+                ? "Delete this note? Replies remain in the thread under a deleted-note marker. This can't be undone."
+                : "Delete this reply? A deleted-note marker remains. This can't be undone.")
+            : isRoot
+                ? "This deletes the message and every reply in this thread. This can't be undone."
+                : "Delete this reply? This can't be undone.";
+        showConfirm('Delete tweak?', msg, async () => {
+            const canonicalGate = _prodCanonicalCommentGate(post, comp);
+            if (canonicalGate.linked) {
+                const receipt = await _writeUiCommitCardCommentLifecycle('calendar', post, comp, target, 'delete');
+                if (receipt) await _writeUiPersistCanonicalCommentProjection('calendar', post, comp);
+                return;
+            }
+            // Soft-delete (tombstone) instead of dropping the comment. A bare
+            // removal can be resurrected by any later merge that still carries
+            // the live copy (a laggy background poll, the save echo, or the
+            // other surface's row) — a union can't tell "deleted" from "not
+            // yet seen". A tombstone carries a fresh updated_at, so newer-wins
+            // keeps it dead everywhere; render/count filters hide it.
+            const _delAt = new Date().toISOString();
+            const next = arr.map(c => (
+                (c.id === commentId || c.parent_id === commentId)
+                    ? Object.assign({}, c, { deleted: true, updated_at: _delAt })
+                    : c
+            ));
+            _calSetCommentsFor(post, comp, next);
+            if (comp === 'video') post.comments = next;
+            _calV2Log('COMMENT delete →', pid, '| comp:', comp, '| id:', commentId, '| live before/after:', arr.filter(c => !c.deleted).length, '→', next.filter(c => !c.deleted).length);
+            const fieldKey = comp + '_tweaks';
+            _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [fieldKey]: _calStringifyComments(next) });
+            // Deleting a tweak just deletes it — it must NOT open the
+            // resolve-destination chooser ("where to go next?"). That modal is
+            // only for an explicit resolve/mark-done (see _calToggleCommentDone).
+            // The component's status is left untouched here; the SMM moves it via
+            // the status pill when ready.
+            _calWatchNoteSave(pid);
+            _calRefreshCommentsBtn(pid);
+            _calUpdateCardStatusDisplay(pid);
+            _calCaptureModalDrafts();
+            _calRenderCommentsModal();
+        }, 'Delete');
+    }
+
+    /* Resolve-tweaks destination chooser. When the SMM closes the last open
+       change-request on a component, the cleared work no longer auto-routes to
+       the client — she picks Kasper (internal re-review) or the client. The
+       recommended route mirrors the SMM Review tab's smart default: if Kasper
+       has already cleared this (his "approve after tweaks" pre-clearance) or
+       has seen it before, default to the client; a component that's never been
+       to Kasper defaults to Kasper. */
+    let _calResolveDestCb = null;
+    function _calResolveDestRecommend(post, comp) {
+        if (!post) return 'client';
+        if (_calShowApprovedAfterTweaks(post, comp)) return 'client';
+        if (_calHasBeenToKasper(post, comp)) return 'client';
+        return 'kasper';
+    }
+    /* Why the chooser recommends Kasper or the client — shown in the dialog so
+       the SMM isn't second-guessing the default. Mirrors the recommend logic. */
+    function _calResolveDestReason(post, comp) {
+        if (!post) return '';
+        if (_calShowApprovedAfterTweaks(post, comp)) return 'Kasper pre-cleared this after tweaks, so it can skip his re-review.';
+        if (_calHasBeenToKasper(post, comp)) return 'Kasper has already reviewed this once.';
+        return 'This hasn’t been to Kasper yet.';
+    }
+    /* Open (unresolved, undeleted) root change-requests on a component — the
+       ones a route-onward should offer to mark done. Plain conversation comments
+       (is_tweak false) are NOT change-requests and are never touched, so they
+       can't be silently hidden by a resolve. */
+    function _calOpenTweaksForComp(post, comp) {
+        if (!post) return [];
+        const list = _calCommentsFor(post, comp);
+        if (!Array.isArray(list)) return [];
+        return list.filter(c => c && !c.parent_id && !c.deleted && !c.done && _calMsgIsTweak(c));
+    }
+    /* Mark the given root change-requests done on a component — stamp
+       done/done_by/done_at, bump the per-comment merge clock, and queue the
+       component's tweaks JSON for the next save. Only the ids passed are
+       touched, so the SMM's tick-selection in the chooser is honoured: an
+       un-ticked change-request stays open. Returns true if anything changed. */
+    function _calResolveTweaksDone(post, comp, ids) {
+        if (!post || !Array.isArray(ids) || !ids.length) return false;
+        const list = comp === 'video'
+            ? (Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post))
+            : _calCommentsFor(post, comp).slice();
+        const want = new Set(ids);
+        const at = new Date().toISOString();
+        const by = _calCurrentAuthor();
+        let changed = false;
+        for (const c of list) {
+            if (c && !c.parent_id && want.has(c.id) && !c.done && !c.deleted) {
+                c.done = true; c.done_at = at; c.done_by = by; c.updated_at = at; changed = true;
+            }
+        }
+        if (!changed) return false;
+        _calSetCommentsFor(post, comp, list);
+        if (comp === 'video') post.comments = list;
+        _calPendingEdits[post.id] = Object.assign(_calPendingEdits[post.id] || {}, { [comp + '_tweaks']: _calStringifyComments(list) });
+        return true;
+    }
+    function _calShowResolveDest(opts) {
+        opts = opts || {};
+        const overlay = document.getElementById('resolveDestOverlay');
+        const msg = document.getElementById('resolveDestMsg');
+        const checklist = document.getElementById('resolveDestChecklist');
+        const kBtn = document.getElementById('resolveDestKasper');
+        const cBtn = document.getElementById('resolveDestClient');
+        const aBtn = document.getElementById('resolveDestApprove');
+        const openTweaks = (Array.isArray(opts.openTweaks) ? opts.openTweaks : []).filter(Boolean);
+        // No overlay (e.g. a stripped DOM) → fall back to the recommended route and
+        // resolve everything, so the caller still completes.
+        if (!overlay || !kBtn || !cBtn || !aBtn) { if (opts.onChoose) opts.onChoose(opts.recommend || 'client', openTweaks.map(t => t.id)); return; }
+        const compLabel = (COMP_LABELS[opts.comp] || 'this').toLowerCase();
+        // The checklist earns its keep only when there's a genuine choice (2+
+        // open). With one, the single change-request is implied by the route, so
+        // we hide it and resolve that one — no extra friction.
+        if (checklist) {
+            if (openTweaks.length >= 2) {
+                checklist.innerHTML = openTweaks.map(t => {
+                    const body = String(t.body || '').replace(/\s+/g, ' ').trim();
+                    const short = body.length > 90 ? body.slice(0, 88) + '…' : (body || '(no message)');
+                    const who = t.role === 'kasper' ? 'Kasper' : (t.role === 'client' ? 'Client' : (t.author || 'Note'));
+                    const rd = t.round ? ('Tweak #' + t.round) : 'Tweak';
+                    return '<label class="resolve-dest-check"><input type="checkbox" data-rd-id="' + _calEscAttr(t.id) + '" checked>'
+                        + '<span><span class="rd-round">' + _calEsc(rd) + '</span> · ' + _calEsc(who) + ' — ' + _calEsc(short) + '</span></label>';
+                }).join('');
+                checklist.hidden = false;
+            } else {
+                checklist.innerHTML = '';
+                checklist.hidden = true;
+            }
+        }
+        const n = openTweaks.length;
+        const lead = n >= 2 ? 'Tick the change requests you’ve handled — they’ll be marked done. '
+                   : n === 1 ? 'This change request will be marked done. '
+                   : '';
+        const toKasper = opts.recommend === 'kasper';
+        const toApproved = opts.recommend === 'approved';
+        if (msg) msg.textContent = lead + 'Then send the ' + compLabel + ' onward: '
+            + (toApproved ? 'mark it approved — or to Kasper or the client first.'
+               : toKasper ? 'to Kasper for approval — or straight to the client.'
+                          : 'to the client for approval — or back to Kasper first.')
+            + (opts.reason ? ' (' + opts.reason + ')' : '');
+        // The recommended route is the primary (filled) button.
+        kBtn.classList.toggle('primary', toKasper);
+        cBtn.classList.toggle('primary', !toKasper && !toApproved);
+        aBtn.classList.toggle('primary', toApproved);
+        // Which change-requests to resolve on a pick: the ticked rows, or — when
+        // the checklist is hidden (≤1 open) — every open one passed in.
+        const tickedIds = () => {
+            if (!checklist || checklist.hidden) return openTweaks.map(t => t.id);
+            return Array.from(checklist.querySelectorAll('input[data-rd-id]'))
+                .filter(i => i.checked).map(i => i.getAttribute('data-rd-id'));
+        };
+        _calResolveDestCb = (typeof opts.onChoose === 'function') ? opts.onChoose : null;
+        const pick = (dest) => { const cb = _calResolveDestCb; const ids = tickedIds(); _calDismissResolveDest(); if (cb) cb(dest, ids); };
+        kBtn.onclick = () => pick('kasper');
+        cBtn.onclick = () => pick('client');
+        aBtn.onclick = () => pick('approved');
+        // "Mark done — don't change the status": resolve the ticked change-requests
+        // but route nowhere (dest 'stay'). The same plain resolve every non-last
+        // comment already gets — just reachable for the last one too. Only offered
+        // from Notes: the Review tab's "Approve & send" is inherently a route, so
+        // a "don't change the status" escape doesn't belong there.
+        const stayBtn = document.getElementById('resolveDestStay');
+        if (stayBtn) { stayBtn.hidden = !!opts.fromReview; stayBtn.onclick = () => pick('stay'); }
+        overlay.classList.add('active');
+    }
+    // ✕ / backdrop click just closes the chooser — closing is non-destructive
+    // (nothing is applied until a route is picked), so no confirm is needed.
+    function _calDismissResolveDest() {
+        const overlay = document.getElementById('resolveDestOverlay');
+        if (overlay) overlay.classList.remove('active');
+        _calResolveDestCb = null;
+    }
+    /* Called when the SMM clears the LAST open change-request on a component via
+       the Notes "mark done". It's the only one open, so the chooser shows no
+       checklist — just the route. The resolve (mark-done) + status flip are
+       DEFERRED into the route pick, so closing the chooser leaves the
+       change-request open — recoverable by reopening the thread. The flush also
+       pushes the new sub-status to the linked Linear issue. */
+    function _calResolveLastTweak(pid, comp, rootId) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const root = _calOpenTweaksForComp(post, comp).find(c => c.id === rootId);
+        _calShowResolveDest({
+            comp: comp,
+            recommend: _calResolveDestRecommend(post, comp),
+            reason: _calResolveDestReason(post, comp),
+            openTweaks: root ? [root] : [],
+            fromReview: false,
+            onChoose: async (destPick, ids) => {
+                /* Refuse BEFORE anything is resolved. _calApplyAutoStatus below
+                   now returns false for an empty component, and its callers
+                   ignore the return -- so without this the thread would close,
+                   the status would silently stay put, and the SMM would be told
+                   nothing. Same shape as the Review-tab path in
+                   _calReviewApprove, found the same way: by asking what the gate
+                   does to every caller rather than the one it was written for. */
+                if (destPick !== 'stay') {
+                    const _blocked = _calReviewBlockReason(post, comp, _calAutoResolveDestStatus(destPick));
+                    if (_blocked) {
+                        showNotify('Nothing to review yet', _blocked
+                            + ' Nothing was changed — the change request is still open.');
+                        return;
+                    }
+                }
+                // Resolve only on a pick (closing never reaches here), THEN flip
+                // the sub-status — unless the SMM chose "don't change the status"
+                // (dest 'stay'), in which case it's a plain mark-done, no routing.
+                const chosen = (ids && ids.length) ? ids : [rootId];
+                const canonicalGate = _prodCanonicalCommentGate(post, comp);
+                if (canonicalGate.linked) {
+                    for (const id of chosen) {
+                        const comment = _calCommentsFor(post, comp).find(row => row && row.id === id);
+                        if (!comment) continue;
+                        const receipt = await _writeUiCommitCardCommentLifecycle(
+                            'calendar', post, comp, comment, 'resolve', undefined,
+                            { resolveDestination: destPick }
+                        );
+                        if (!receipt) return;
+                    }
+                } else {
+                    _calResolveTweaksDone(post, comp, chosen);
+                }
+                if (destPick !== 'stay') _calApplyAutoStatus(pid, 'smm_resolved_last', comp, destPick);
+                if (canonicalGate.linked) await _writeUiPersistCanonicalCommentProjection('calendar', post, comp);
+                else _calWatchNoteSave(pid);
+                _calRefreshCommentsBtn(pid);
+                _calUpdateCardStatusDisplay(pid);
+                _calCaptureModalDrafts();
+                _calRenderCommentsModal();
+            }
+        });
+    }
+
+    /* Auto-status transitions driven by tweak activity. Returns true if a
+       change was applied. Skips terminal states (Scheduled / Posted) so
+       live content isn't accidentally bounced backward. For 'smm_resolved_last'
+       the destination is the SMM's explicit pick ('client' | 'kasper') from the
+       resolve chooser — there is no silent default. */
+    function _calApplyAutoStatus(pid, trigger, comp, dest) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return false;
+        if (post.status === 'Posted' || post.status === 'Scheduled') return false;
+        const which = comp || 'video';
+        const subKey = which + '_status';
+        let next = null;
+        if (trigger === 'client_added' && post[subKey] !== 'Tweaks Needed') {
+            next = 'Tweaks Needed';
+        } else if (trigger === 'smm_resolved_last') {
+            const target = _calAutoResolveDestStatus(dest);
+            if (post[subKey] !== target) next = target;
+        }
+        if (!next) return false;
+        /* An AUTOMATIC route must not send an empty component for review. This
+           is the path that moves a card along on its own, so it is the one most
+           likely to strand a card without anybody choosing to -- and returning
+           false leaves the component exactly where it was, which is the correct
+           outcome: there is nothing to review. */
+        if (_calReviewBlockReason(post, which, next)) return false;
+        // Only the component the comment belongs to flips status. Overall
+        // card status is recomputed from all three sub-statuses (lower-wins).
+        post[subKey] = next;
+        post.status = computeOverallStatus(post);
+        post.updated_at = new Date().toISOString();
+        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [subKey]: next, status: post.status });
+        // Routing to Kasper marks the cross-device kasper_seen flag (same as the
+        // SMM Review tab's "Approve → Kasper") so every device stops treating
+        // this component as brand-new.
+        if (next === 'Kasper Approval') {
+            const csv = _calRecordKasperSeenOnPost(post, which);
+            if (csv != null) _calPendingEdits[pid].kasper_seen = csv;
+        }
+        _calClearStaleApprovals(post, _calPendingEdits[pid]);
+        _calMarkLocalStatus(pid, which);
+        return true;
+    }
+    /* Single source of truth for the URGENT ping affordance: Video only, only
+       while it's actually at "Tweaks Needed", and only when there's a Linear
+       sub-issue to resolve the editor from. Used by BOTH the full card render and
+       the in-place status updater so the badge can never linger after the
+       component leaves Tweaks Needed (it used to stick next to "For Client
+       Approval" when a tweak was resolved + sent to the client in place). */
+    function _calShowUrgent(p, c) {
+        if (!p || c !== 'video') return false;
+        if (_calNormStatus(p[c + '_status'] || '') !== 'Tweaks Needed') return false;
+        const link = String(p[c === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id'] || '').trim();
+        return !!(link || String(p.video_deliverable_id || '').trim());
+    }
+    /* Refresh just the status chip/dropdown on a card without re-rendering
+       the whole calendar — used after an auto-status change so the card
+       behind the tweaks modal updates immediately. */
+    function _calUpdateCardStatusDisplay(pid) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
+        const wrap = document.querySelector(`.cal-fld-status-wrap[data-status-pid="${sel}"]`);
+        if (wrap) {
+            wrap.setAttribute('data-val', post.status);
+            const lbl = wrap.querySelector('.cal-fld-status-label');
+            if (lbl) lbl.textContent = _calStatusLabel(post.status);
+        }
+        // If the overall status is no longer Client Approval (e.g. the
+        // client just added a tweak and the auto-status flipped a sub
+        // to Tweaks Needed, which dropped overall out of Client Approval)
+        // the green "Approve post" bar still hanging in the card body is
+        // misleading. Remove it in place so the client can't approve a
+        // card they've just requested changes on. It'll come back on
+        // next full re-render if status returns to Client Approval.
+        if (_isClientLink && post.status !== 'Client Approval') {
+            const card = document.querySelector(`.cal-card[data-pid="${sel}"]`);
+            const approveBar = card && card.querySelector('.cal-approve-bar');
+            if (approveBar) approveBar.remove();
+        }
+        // Per-component sub-status pills — without this refresh, an auto-
+        // status change from resolving the last tweak (or any in-place
+        // mutation like _calApplyAutoStatus) would leave the pill DOM
+        // stale and the dropdown's "active" highlight would disagree with
+        // the visible label.
+        for (const c of _calComponentsFor(post)) {
+            const subWrap = document.querySelector(`.cal-fld-substatus-wrap[data-substatus-pid="${sel}"][data-substatus-comp="${c}"]`);
+            if (!subWrap) continue;
+            const cs = _calNormStatus(post[c + '_status'] || post.status || 'In Progress');
+            // data-val stays the STORED status; only the visible pill is
+            // substituted, and by the same helper the full render uses.
+            const shown = _calPillDisplayStatus(post, c, cs);
+            subWrap.setAttribute('data-val', cs);
+            const trigger = subWrap.querySelector('.cal-fld-substatus-trigger');
+            if (trigger) {
+                // Replace any cal-fld-status-* class with the new slug so the
+                // pill picks up the colour for the new state.
+                Array.from(trigger.classList).forEach(cls => {
+                    if (cls.startsWith('cal-fld-status-')) trigger.classList.remove(cls);
+                });
+                trigger.classList.add('cal-fld-status-' + _calStatusSlug(shown));
+                const labelEl = trigger.querySelector('.cal-fld-substatus-label');
+                if (labelEl) labelEl.textContent = _calCompStatusLabel(post, c, shown);
+            }
+            // Reconcile the URGENT badge in place, same predicates as the full
+            // render — otherwise it lingered next to "For Client Approval" after
+            // a tweak was resolved and the component left Tweaks Needed. Both
+            // flavours are reconciled here, and a pill that changes flavour
+            // (Tweaks Needed → Kasper Approval) has its button REPLACED rather
+            // than restyled: the two carry different handlers, and leaving the
+            // old one in place is how a pill ends up pinging the wrong person.
+            const showUrgent = _calShowUrgent(post, c);
+            const showKasperUrgent = !showUrgent && _calShowKasperUrgent(post, c);
+            const wantKind = showUrgent ? 'editor' : showKasperUrgent ? 'kasper' : '';
+            subWrap.classList.toggle('has-urgent', !!wantKind);
+            let urgentEl = subWrap.querySelector('.cal-urgent-btn');
+            if (urgentEl && (urgentEl.dataset.urgentKind || 'editor') !== wantKind) {
+                urgentEl.remove();
+                urgentEl = null;
+            }
+            if (wantKind && !urgentEl) {
+                subWrap.insertAdjacentHTML('beforeend', wantKind === 'kasper'
+                    ? _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', post, '', false, 'kasper')
+                    : _calUrgentButtonHtml(pid, '_calSendUrgentSlack', post));
+            } else if (wantKind && urgentEl) {
+                _calApplyUrgentButtonState(urgentEl, post, wantKind);
+            }
+        }
+        // Title status square (lives in the title row, not the sub-status row) —
+        // keep its colour in lockstep with title_status on in-place / realtime
+        // updates too, not just full re-renders.
+        const titleSq = document.querySelector(`.cal-title-status-sq[data-substatus-pid="${sel}"][data-substatus-comp="title"]`);
+        // The title's URGENT ping lives beside that square rather than on a
+        // sub-status pill, so the pill loop above never sees it. Reconcile it
+        // here with the same predicate and the same remove-and-rebuild rule.
+        if (titleSq && titleSq.parentNode) {
+            const wantTitleUrgent = _calShowKasperUrgent(post, 'title');
+            let titleUrgentEl = titleSq.parentNode.querySelector(':scope > .cal-title-urgent-btn');
+            if (titleUrgentEl && !wantTitleUrgent) { titleUrgentEl.remove(); titleUrgentEl = null; }
+            if (wantTitleUrgent && !titleUrgentEl) {
+                titleSq.insertAdjacentHTML('afterend', _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', post, 'cal-title-urgent-btn', true, 'kasper'));
+            } else if (wantTitleUrgent && titleUrgentEl) {
+                _calApplyUrgentButtonState(titleUrgentEl, post, 'kasper');
+            }
+        }
+        if (titleSq) {
+            const tcs = _calNormStatus(post.title_status || 'In Progress');
+            titleSq.setAttribute('data-val', tcs);
+            Array.from(titleSq.classList).forEach(cls => { if (cls.startsWith('cal-fld-status-')) titleSq.classList.remove(cls); });
+            titleSq.classList.add('cal-fld-status-' + _calStatusSlug(tcs));
+            titleSq.setAttribute('title', 'YouTube title — ' + _calStatusLabel(tcs));
+        }
+        // The Review tab badge counts by status — keep it in lockstep with the
+        // in-place status change too (back-port of the samples port's tail call;
+        // without it a client change-request from the Notes modal left the badge
+        // at the old count until the next full re-render). Before the early
+        // return: the badge is toolbar DOM, independent of this card's element.
+        if (typeof _calUpdateReviewBadge === 'function') _calUpdateReviewBadge();
+        const card = document.querySelector(`.cal-card[data-pid="${sel}"]`);
+        if (!card) return;
+        const chip = card.querySelector('.cal-client-status');
+        if (chip) chip.innerHTML = _calClientCompPillsHtml(post);
+        const isPosted = String(post.status || '').toLowerCase() === 'posted';
+        card.classList.toggle('cal-card-posted', isPosted);
+    }
+
+    // (Removed _setCalStatus / the #calStatusBadge header indicator.) It was a
+    // flex child in .cal-toolbar-right that, on every reorder, popped to
+    // "Saving…"/"Saved" and shifted the whole toolbar. Reorders now use the
+    // non-displacing toast ("New order saved" / the error toast) for feedback,
+    // and per-card saves already have their own in-card save chip. Don't
+    // re-add a toolbar text badge — it reflows the controls next to it.
+

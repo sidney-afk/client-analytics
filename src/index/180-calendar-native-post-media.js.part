@@ -1,0 +1,2680 @@
+    async function _calFetchNativeBatchPostCounts(batches) {
+        const rowsIn = Array.isArray(batches) ? batches : [];
+        const wanted = [...new Set(rowsIn.map(batch => String(batch && batch.id || '').trim()).filter(Boolean))];
+        const counts = new Map();
+        if (!wanted.length) return counts;
+        /* A BATCH PARENT IS NOT A POST IN ITS OWN BATCH.
+         *
+         * This count decides which batches rank LAST as empty, and the ranking
+         * exists because an empty twin was being offered above the sibling
+         * holding the work. The imported parent row defeated it: measured
+         * 2026-08-27, 317 of 402 active batches counted their own parent, and
+         * 60 of those showed as populated while holding zero real posts -- so
+         * the exact rows the ranking was built to sink never sank. Third site
+         * found with this defect, after the browser editor pool and the
+         * gateway auto-assign; see docs/ops/OPEN_REPAIRS.md item 50.
+         */
+        const parentUuids = _calNativeParentUuids(rowsIn);
+        // One bounded presentation-only read for the rows the picker shows.
+        // Id quoting matches _prodFetchCrosswalkRows; comments here avoid
+        // quote characters because some extractor tests track quotes only.
+        const list = wanted.map(id => '"' + String(id).split('"').join('\\"') + '"').join(',');
+        /* `title` rides along for the receipt's append preview. The ordinal is
+           recorded NOWHERE ELSE -- there is no column for it -- so it is read
+           back out of the title with the gateway's own rule. No extra round
+           trip: these are the rows this read already fetches. */
+        const rows = await _prodRestRows(
+            'production_deliverables_browser_v1', 'batch_id,card_id,id,linear_issue_uuid,title',
+            'batch_id=in.(' + encodeURIComponent(list) + ')',
+            1000, 1
+        );
+        const cards = new Map();
+        const ordinals = new Map();
+        (Array.isArray(rows) ? rows : []).forEach(row => {
+            const batchId = String(row && row.batch_id || '').trim();
+            if (!batchId) return;
+            /* ORDINAL FIRST, BEFORE THE PARENT EXCLUSION -- the two measure
+               different things and must not share a filter (Codex P2 on
+               PR 1353). The count excludes a batch's own imported parent row
+               because a parent is not a post in its own batch. The ordinal
+               must NOT: `production_intake_append` scans every row in the
+               batch whose title matches the child syntax, parents included,
+               so a parent row titled like a child has consumed that number as
+               far as the RPC is concerned. Batch names are typed by hand now,
+               which is exactly what makes a parent called `Video 50` reachable
+               -- and previewing 2 while the RPC allocates 51 is the kind of
+               wrong number this receipt exists to stop.
+
+               Highest ordinal, not the count: delete one card and the two part
+               company permanently. */
+            const ordinal = _calNativeTitleOrdinal(row && row.title);
+            if (Number.isFinite(ordinal) && ordinal > (ordinals.get(batchId) || 0)) {
+                ordinals.set(batchId, ordinal);
+            }
+            if (parentUuids.has(String(row && row.linear_issue_uuid || '').trim())) return;
+            if (!cards.has(batchId)) cards.set(batchId, new Set());
+            // The Video and Graphics halves of one post share a card_id, so
+            // a paired post counts once; a row without a card counts alone.
+            cards.get(batchId).add(String(row && row.card_id || '') || 'row:' + String(row && row.id || ''));
+        });
+        wanted.forEach(id => counts.set(id, cards.has(id) ? cards.get(id).size : 0));
+        /* Every batch this read covered gets an entry, so PRESENT means
+           measured and ABSENT means never read. A batch with no numbered
+           children measures 0, and the RPC coalesces the same scan to 0 and
+           allocates 1 -- so the receipt must say `Video 1`, not an ellipsis
+           (Codex P2 on PR 1353). */
+        wanted.forEach(id => ordinals.set(id, ordinals.get(id) || 0));
+        return { counts, ordinals };
+    }
+    /* Which view is currently open for a given surface. The dialog re-checks
+       this at every await, because the user can switch client or tab while a
+       batch read is in flight and the post must never land on whoever they
+       switched to. */
+    function _nativePostViewSlug(surface) {
+        if (surface === 'sxr') {
+            return typeof sxrState !== 'undefined' && sxrState && typeof sxrClientSlug === 'function'
+                ? String(sxrClientSlug(sxrState.client) || '') : '';
+        }
+        return typeof calState !== 'undefined' && calState && typeof calClientSlug === 'function'
+            ? String(calClientSlug(calState.client) || '') : '';
+    }
+    function _nativePostPurpose(surface) { return surface === 'sxr' ? 'samples' : 'calendar'; }
+    /* The picker is filtered by purpose in the QUERY, not after the fact:
+       sample batches must never appear in the Calendar dialog and calendar
+       batches never in the Samples dialog (owner ruling). batches.purpose is
+       NOT NULL with every pre-column row backfilled to 'calendar', so an
+       equality filter is exact and needs no null branch. */
+    async function _calLatestNativeBatches(clientSlug, surface) {
+        const slug = String(clientSlug || '').trim();
+        if (!slug) throw new Error('calendar_client_required');
+        const rows = await _prodRestRows(
+            'batches', 'id,client_slug,team,name,status,purpose,created_at,updated_at,linear_parent_ids',
+            'client_slug=eq.' + encodeURIComponent(slug)
+                + '&status=eq.active&purpose=eq.' + encodeURIComponent(_nativePostPurpose(surface))
+                + '&order=created_at.desc,id.desc',
+            100, 10
+        );
+        if (!Array.isArray(rows)) return [];
+        // No provider parent is expected after native intake. Enrich only
+        // this freshly read picker result; stale/malformed capability reads
+        // cannot authorize a native option, and do not change provider rows.
+        let nativeTeams = [];
+        try {
+            const flags = await _prodRestRows('syncview_runtime_flags', 'key,value', 'key=eq.native_intake_epochs', 2, 1);
+            const row = Array.isArray(flags) && flags.length === 1 && flags[0] && flags[0].key === 'native_intake_epochs'
+                ? flags[0] : null;
+            const value = row && row.value;
+            // Codex review, PR for OPEN_REPAIRS 218 (P2): the ORIGINAL fix
+            // only failed open when `_prodRestRows` THREW. A 200 with no
+            // matching row, the wrong key, or a `value` that is not a usable
+            // object (null, an array, a primitive) bypassed the catch below
+            // entirely and left `nativeTeams` empty -- reproducing the exact
+            // invisible-picker bug this fix exists to close. Any unusable
+            // payload shape is deliberately thrown here so it takes the same
+            // fail-open path as a thrown read. A well-formed value object
+            // with some teams legitimately disabled is NOT unusable -- that
+            // is real per-team state, not a malformed read, and still
+            // produces its real (possibly partial or empty) nativeTeams list.
+            if (!value || typeof value !== 'object' || Array.isArray(value)) {
+                throw new Error('native_intake_epochs flag payload is missing or malformed');
+            }
+            nativeTeams = ['video', 'graphics'].filter(team => value[team]
+                && value[team].enabled === true && typeof value[team].epoch === 'string'
+                && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(value[team].epoch));
+        } catch (error) {
+            // Fail OPEN for append-capability, not fail closed to invisible.
+            // A parentless (native) batch's ONLY route into the picker is
+            // _nativeAppendTeams -- an empty array here (the old behavior)
+            // made _calNativeBatchHasLinearParents and _calNativeBatchCompatible
+            // both reject it, so the whole batch vanished from the list on a
+            // transient flag-read failure instead of merely losing a filter.
+            // Treating both teams as append-capable keeps it visible; the
+            // gateway still validates the real parent receipt on submit.
+            console.warn('[Calendar] native_intake_epochs flag read failed -- offering both teams as append-capable', error);
+            nativeTeams = ['video', 'graphics'];
+        }
+        return rows.map(batch => !batch.linear_parent_ids || !Object.keys(batch.linear_parent_ids).length
+            ? { ...batch, _nativeAppendTeams: nativeTeams } : batch);
+    }
+    function _calRenderNativePostChoice() {
+        const state = _calNativePostState;
+        const modal = document.querySelector('#calNativePostOverlay .cal-import-modal');
+        if (!state || !modal) return;
+        const mode = ['video', 'thumbnail', 'both'].includes(state.mode) ? state.mode : 'both';
+        // Clamped against THIS mode, so switching to Video + Thumbnail with a
+        // single-team count staged comes back inside the halved ceiling.
+        const postCount = _calNativePostCount(state);
+        const postCountMax = _calNativePostCountMax(mode);
+        state.postCount = postCount;
+        const lists = _calNativeBatchLists(state.batchOptions, mode, state.batchPostCounts);
+        const compatible = lists.compatible;
+        // Keep the batch the user already picked checked across a mode
+        // re-render, as long as that exact option is still offered.
+        const priorChoice = state.batchChoice || null;
+        const batchChecked = batch => priorChoice
+            ? (priorChoice.value === 'batch' && priorChoice.batchId === String(batch.id || ''))
+            : false;
+        const counts = state.batchPostCounts;
+        // Dropdown rows are titled by batch name. Only when two offered rows
+        // share one display name do both subtexts add the created time; every
+        // other row keeps the short start date alone. Counts are best-effort:
+        // a missing counts map degrades the subtext to the start date alone.
+        const nameTally = new Map();
+        compatible.forEach(batch => {
+            const key = _calNativeBatchDisplayName(batch).toLowerCase();
+            nameTally.set(key, (nameTally.get(key) || 0) + 1);
+        });
+        const startText = batch => _calNativeBatchStartMeta(batch.created_at,
+            (nameTally.get(_calNativeBatchDisplayName(batch).toLowerCase()) || 0) > 1);
+        const countText = batch => {
+            if (!(counts instanceof Map)) return '';
+            const total = counts.get(String(batch.id || ''));
+            if (!Number.isFinite(total)) return '';
+            if (total === 0) return 'Empty batch';
+            return total === 1 ? '1 post' : total + ' posts';
+        };
+        // Round 2 (owner pick 2026-08-18, option E): incompatible batches are
+        // not rendered at all, and every compatible batch lives in ONE
+        // previous-batch card whose dropdown is always visible with the last
+        // batch preselected. Start a new batch is first and the default.
+        /* THE SAVED FILTER APPLIES TO THIS RENDER TOO (Codex P2 on PR 1353).
+           `state.batchFilter` outlives a re-render and is painted back into
+           the search box, but the options were rebuilt from the whole
+           compatible list -- so switching to the new-batch tab and back showed
+           an active query above batches it excludes, preselected the first
+           UNFILTERED one, and would have appended to it on submit. A visible
+           query has to mean the list under it.
+
+           `compatible` stays the ALL argument: 'last batch' marks the newest of
+           every compatible batch, not the newest survivor, and the search box
+           renders on the full count so filtering down to one result cannot
+           hide the box that would undo it. */
+        const shownBatches = compatible.filter(batch => _calNativeBatchMatches(batch, state.batchFilter));
+        /* THE TAB AND THE ID ARE SEPARATE QUESTIONS, and conflating them sends
+           the user somewhere they did not ask to go. Which TAB survives still
+           reads `compatible`: a batch the new post shape no longer offers
+           really is gone, and falling back to the new-batch tab is right.
+           A batch merely hidden by a QUERY is not gone -- bouncing off the tab
+           you just clicked because your own search excluded the remembered id
+           would be worse than the bug this fixes. So the tab is kept and only
+           the id is re-aimed, at the first row the list actually shows. */
+        /* AN EMPTY ID IS NOT A MISSING BATCH (Codex P2 on PR 1353, cascading
+           from the previous round's fix). A zero-match search clears the
+           radio's id on purpose; leaving the tab to `compatible.some(...)`
+           then read that empty id as "your batch is gone" and bounced the user
+           to Start a new batch -- taking the search box with it, which is the
+           only way to clear the query that caused it. Closing and reopening
+           the dialog was the sole escape.
+
+           The two cases are told apart by the id itself. A NON-EMPTY id that
+           no longer appears means the post shape really did drop that batch,
+           and falling back is right. An EMPTY id means only that nothing is
+           aimed at yet, so the tab is kept whenever any compatible batch
+           exists; the panel then renders the filter box to clear, the
+           no-match line, and a disabled select, and submit still refuses
+           until a target returns. */
+        const priorBatchSurvives = priorChoice && priorChoice.value === 'batch'
+            && (String(priorChoice.batchId || '')
+                ? compatible.some(batchChecked)
+                : compatible.length > 0);
+        const prevBatchChecked = !!priorBatchSurvives;
+        const priorBatchShown = priorBatchSurvives && shownBatches.some(batchChecked);
+        const prevBatchId = priorBatchShown
+            ? priorChoice.batchId
+            : String(shownBatches.length ? shownBatches[0].id || '' : '');
+        _calNativeBatchOptionsHtml = (shown, all, countsMap, selectedId) => {
+            const tally = new Map();
+            shown.forEach(batch => {
+                const key = _calNativeBatchDisplayName(batch).toLowerCase();
+                tally.set(key, (tally.get(key) || 0) + 1);
+            });
+            const countOf = batch => {
+                if (!(countsMap instanceof Map)) return '';
+                const total = countsMap.get(String(batch.id || ''));
+                if (!Number.isFinite(total)) return '';
+                if (total === 0) return 'Empty batch';
+                return total === 1 ? '1 post' : total + ' posts';
+            };
+            return shown.map(batch => {
+                /* "last batch" marks the newest of ALL compatible batches, not
+                   the first row that survived the filter — otherwise filtering
+                   would relabel an old batch as the latest one. */
+                const isLatest = !!all.length && String(all[0].id || '') === String(batch.id || '');
+                const meta = [isLatest ? 'last batch' : '', countOf(batch),
+                    _calNativeBatchStartMeta(batch.created_at,
+                        (tally.get(_calNativeBatchDisplayName(batch).toLowerCase()) || 0) > 1)]
+                    .filter(Boolean).join(' · ');
+                const value = String(batch.id || '');
+                const selectedAttr = value === String(selectedId || '') ? ' selected' : '';
+                return `<option value="${_calEscAttr(value)}"${selectedAttr}>${_calEsc(_calNativeBatchDisplayName(batch))}${meta ? ' — ' + _calEsc(meta) : ''}</option>`;
+            }).join('');
+        };
+        const prevBatchOptions = _calNativeBatchOptionsHtml(shownBatches, compatible, counts, prevBatchId);
+        /* Only the CHOSEN branch renders its controls. Both used to stay open
+           at once, which spent about a third of the dialog on the option the
+           user had not picked. The radios themselves live in the tab strip, so
+           every read of `calNativeBatchChoice` -- submit included -- is
+           untouched by this. */
+        /* THE BOX RENDERS WHENEVER A QUERY EXISTS, not only when the list is
+           long (Codex P2 on PR 1353). The threshold decides when a search is
+           WORTH offering; it must not decide whether an existing search can be
+           UNDONE. A mode change that drops the compatible count below it left
+           a persisted query filtering the list with nothing on screen able to
+           clear it -- the same dead end as the previous round, reached by a
+           different door. The query is the user's, so it is kept and made
+           editable rather than silently discarded. */
+        const showBatchFilter = compatible.length > CAL_NATIVE_BATCH_FILTER_MIN
+            || !!String(state.batchFilter || '').trim();
+        const prevBatchHtml = compatible.length ? `
+                        ${showBatchFilter ? `<input type="search" class="cal-native-batch-filter" id="calNativeBatchFilter"
+                            placeholder="Search ${_calEscAttr(String(compatible.length))} batches by name…" aria-label="Search batches by name"
+                            autocomplete="off" value="${_calEscAttr(String(state.batchFilter || ''))}"
+                            oninput="_calNativeBatchFilter(this)" onmousedown="event.stopPropagation()">` : ''}
+                        <span class="cal-native-batch-field"><select class="cal-native-batch-select" aria-label="Choose a batch"${shownBatches.length ? '' : ' disabled'} onmousedown="_calNativePrevBatchPick(this, true)" onchange="_calNativePrevBatchPick(this, true)">${prevBatchOptions}</select></span>
+                        <span class="cal-native-batch-filter-empty" id="calNativeBatchFilterEmpty" style="display:${shownBatches.length ? 'none' : ''};">No batch matches that name.</span>` : '';
+        /* THE NAME IS PREFILLED, NOT PLACEHELD (owner, 2026-09-08: "it should
+           be clear that we can change the name"). A greyed placeholder reads
+           as a system-generated value you are being shown, not a field you own
+           -- so the generated title is now real, selectable, editable text.
+           Clearing it still falls back to the same default, because
+           `_calNativeBatchNameFor` treats empty as untouched. */
+        const newBatchHtml = `
+                        <label class="cal-native-field-label cal-native-sublabel" for="calNativeBatchName">Batch name<span class="cal-native-name-optional">optional</span></label>
+                        <input type="text" class="cal-native-batch-name" id="calNativeBatchName" maxlength="${CAL_NATIVE_NAME_MAX}"
+                            value="${_calEscAttr(_calNativeBatchNameFor(state))}" placeholder="${_calEscAttr(_linearIntakeBatchTitle(state.clientName, state.surface))}"
+                            aria-label="Name for the new batch" autocomplete="off"
+                            oninput="_calSetNativeBatchName(this.value)" onfocus="_calNativeNewBatchPick()" onmousedown="_calNativeNewBatchPick(); event.stopPropagation();">`;
+        /* Shown only when this post actually makes video work. In Thumbnail-only
+           mode there is no video sub-issue to assign, and offering a picker
+           that changes nothing is worse than not offering one. */
+        /* Shown only when this post actually makes video work. In Thumbnail-only
+           mode there is no video sub-issue to assign, and offering a picker
+           that changes nothing is worse than not offering one.
+
+           Built on the documented `sv-select` primitive rather than an
+           OS-native menu, which UI_DESIGN_STANDARDS forbids on branded
+           surfaces; the primitive carries Escape-with-focus-return,
+           typeahead, disabled options, outside-click close and full listbox
+           semantics. (The batch dropdown beside this one is still native -- a
+           pre-existing violation, and not a licence for a second.) */
+        const editorItems = (state.videoEditors || []).map(editor => ({
+            value: editor.id,
+            label: editor.name
+                + (editor.openCount == null ? '' : ' — ' + (editor.openCount === 1 ? '1 open video' : editor.openCount + ' open videos'))
+                + (editor.id === state.videoEditorSuggestedId ? ' (suggested)' : ''),
+        }));
+        const editorPickerHtml = (mode === 'video' || mode === 'both') ? `
+                <div class="cal-native-editor-row">
+                    <label class="cal-native-editor-label" for="calNativeEditorBtn">Video editor</label>
+                    ${_svSelectHtml('calNativeEditor', editorItems, state.videoEditorId,
+                        state.videoEditorStatus === 'loading' ? 'Checking workloads…' : 'Assigned automatically',
+                        { disabled: state.videoEditorStatus === 'loading' || !editorItems.length,
+                          onchange: '_calSetNativePostEditor()' })}
+                </div>` : '';
+        modal.innerHTML = `
+            <div class="cal-import-head">
+                <button class="cal-import-x" type="button" onclick="_calCloseNativePost()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+                <h3 id="calNativePostTitle">Create Post</h3>
+            </div>
+            <div class="cal-import-body">
+                <div class="cal-native-mode-toggle" role="radiogroup" aria-label="What this post needs">
+                    <label><input type="radio" name="calNativeModeChoice" value="both"${mode === 'both' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)"><span>Video + Thumbnail</span></label>
+                    <label><input type="radio" name="calNativeModeChoice" value="video"${mode === 'video' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)"><span>Video only</span></label>
+                    <label><input type="radio" name="calNativeModeChoice" value="thumbnail"${mode === 'thumbnail' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)"><span>Thumbnail only</span></label>
+                </div>
+                <div class="cal-native-count-row">
+                    <label for="calNativePostCount">How many posts?</label>
+                    ${_svStepperHtml('calNativePostCount', postCount, {
+                        min: 1, max: postCountMax, step: 1,
+                        onchange: '_calSetNativePostCount(this.value)',
+                        downTip: 'One post fewer', upTip: 'One post more',
+                    })}
+                </div>
+                <div class="cal-native-name-row" role="group" aria-labelledby="calNativePostNamesLabel">
+                    <div class="cal-native-name-label" id="calNativePostNamesLabel">${postCount === 1 ? 'Post name' : 'Post names'}<span class="cal-native-name-optional">optional</span></div>
+                    <div id="calNativePostNames">${_calNativePostNamesHtml(state, postCount, mode)}</div>
+                </div>
+                ${editorPickerHtml}
+                <div class="cal-native-batch-block" style="margin-top: 14px;">
+                    <span class="cal-native-field-label">Batch</span>
+                    <div class="cal-native-batch-tabs" role="radiogroup" aria-label="Choose a batch">
+                        <label><input type="radio" id="calNativeNewBatchRadio" name="calNativeBatchChoice" value="new"${prevBatchChecked ? '' : ' checked'} onchange="_calSetNativeBatchChoice()"><span class="cal-native-batch-title">Start a new batch</span></label>
+                        ${compatible.length ? `<label><input type="radio" id="calNativePrevBatchRadio" name="calNativeBatchChoice" value="batch" data-batch-id="${_calEscAttr(prevBatchId)}"${prevBatchChecked ? ' checked' : ''} onchange="_calSetNativeBatchChoice()"><span class="cal-native-batch-title">Add to a previous batch</span></label>` : ''}
+                    </div>
+                    <div class="cal-native-batch-panel">${prevBatchChecked ? prevBatchHtml : newBatchHtml}</div>
+                </div>
+                <div class="cal-native-receipt" id="calNativeReceipt" role="group" aria-label="What this creates">${_calNativeReceiptHtml(state, { value: prevBatchChecked ? 'batch' : 'new', batchId: prevBatchId })}</div>
+                <p class="sr-only" id="calNativeReceiptStatus" aria-live="polite"></p>
+                <div class="cal-native-batch-error" id="calNativePostError" hidden></div>
+            </div>
+            <div class="cal-import-foot">
+                <button class="cal-import-btn-ghost" type="button" onclick="_calCloseNativePost()">Cancel</button>
+                <button class="cal-import-btn-primary" type="button" id="calNativePostCreate" onclick="_calSubmitNativePost()">Create post</button>
+            </div>`;
+        /*
+         * The ends, on the FIRST paint.
+         *
+         * `_svStepperHtml` renders both buttons enabled and only `_svStepNumber`
+         * and `_svSyncStepper` ever disable one, so a dialog that opens at its
+         * minimum -- which is every dialog, the default is 1 post -- showed a
+         * live minus button whose first press did nothing. Caught in review, and
+         * it is exactly the failure the disabled ends exist to prevent: a
+         * control that looks actionable and is not is indistinguishable from a
+         * broken one. The same applies to plus after a mode change that lands on
+         * the new ceiling.
+         *
+         * This is the call PTO already makes after its own render
+         * (_svSyncStepper('ptoDays')); the primitive expects it, and leaving it
+         * out is how a caller silently gets a stepper with both ends live.
+         */
+        if (typeof _svSyncStepper === 'function') _svSyncStepper('calNativePostCount');
+    }
+    function _calNativePostErrorText(error) {
+        const code = String(error && (error.code || error.message) || '');
+        if (code === 'intake_assignee_override_not_allowed') return 'Choosing a different editor is not live on this workspace yet. Leave the suggested editor selected to create the post now, or reassign it in Production afterwards.';
+        if (code === 'intake_assignee_override_conflict') return 'This post asked for two different editors at once. Reopen Create Post and choose one.';
+        if (code === 'invalid_intake_item_name') return 'One of the post names is longer than a sub-issue title can carry. Shorten it and try again.';
+        if (code === 'assignee_not_eligible' || code === 'assignee_ineligible') return 'That editor cannot take this work right now. Choose someone else.';
+        if (code === 'native_intake_pending_conflict') return 'Finish the previously saved intake before starting a different one.';
+        if (code === 'native_intake_recovery_pending') return 'An earlier post in this browser is still finishing its calendar card. Reload the page and try again; it stops retrying on its own.';
+        if (code === 'batch_version_conflict' || code === 'write_conflict') return 'That batch changed while this window was open. Close this message and try again.';
+        if (/^invalid_intake_append_|^batch_not_(active|found)$/.test(code)) return 'That batch cannot take this post right now. Start a new batch instead.';
+        if (code === 'legacy_parity_disabled' || code === 'team_is_linear_authoritative') return 'Native Create Post is still locked for this team. No post was created.';
+        /* A PERMANENT refusal must never be dressed as a retryable one.
+           `batch_team_mismatch` reached the reader through the final fallback,
+           "The post was not created. Your request is safe to retry." — and it
+           is not: the gateway refuses this append on the batch's own team
+           stamp, so the same request refused a moment ago will be refused
+           again, forever. The same wrong advice cost a videographer eleven
+           identical submissions on 2026-08-26 before anyone learned why. Say
+           what the batch can actually take, and offer the two things that do
+           work. */
+        /* Same class, found by the test that pinned the rule rather than the
+           case: a batch belonging to another client cannot become this
+           client's by asking twice. It means the dialog is looking at stale
+           state, so the action that works is a reload, not a resend. */
+        if (code === 'batch_client_mismatch') {
+            return 'That batch belongs to a different client. Reload the page and open Create Post from the client you want.';
+        }
+        if (code === 'batch_team_mismatch') {
+            return 'That batch is set up for one kind of work only, so it cannot take a post that needs both a video and a thumbnail. Switch this post to the single shape that batch already holds, or start a new batch.';
+        }
+        /* BATCH problems are not CLIENT problems (2026-08-20). One catch-all
+           sent every code containing "project", "mapping" OR "parent" to the
+           client-filing sentence, so a batch whose parent map predates ONE
+           PARENT PER CARD told an SMM her client was misconfigured — the
+           client's filing was correct, and no amount of client setup could
+           ever clear it. Name the batch when the batch is what failed. */
+        if (/^batch_parent_mapping_/.test(code)) {
+            return 'That batch cannot hold this kind of post — it was created before we started filing Video and Thumbnail work separately, so it only has a home for one of them. Start a new batch, or pick a post shape that batch already covers.';
+        }
+        /* THE CATCH-ALL BELOW BECOMES A PERMANENT LIE ON 2026-09-15.
+           `project_mapping_validation_unavailable` (gateway index.ts:2325) and
+           `batch_parent_validation_unavailable` (:2348) are raised when the
+           linked task system cannot be READ. Both match /project|mapping|parent/,
+           so both land on the client-filing sentence -- which tells an SMM to
+           configure something that is already configured correctly, and that
+           no amount of configuring can ever clear. It is the same defect as the
+           2026-08-20 batch_parent_mapping_ case eight lines above, one cause
+           over: a DEPENDENCY problem dressed as a SETUP problem.
+           Named here rather than left to the catch-all so that a partial
+           rollout, or a browser tab opened before the native lane shipped,
+           still says the true cause. See OPEN_REPAIRS 170. */
+        if (code === 'project_mapping_validation_unavailable') {
+            return 'The linked task system could not be reached, so this post was not filed. Nothing was created \u2014 and this is not a problem with this client\u2019s filing, which no setting can fix. If it does not clear on its own within a few minutes, report it rather than trying again.';
+        }
+        if (code === 'batch_parent_validation_unavailable') {
+            return 'The linked task system could not confirm the batch this post would join, so nothing was created. This is not a problem with the batch or with this client\u2019s filing. If it does not clear on its own within a few minutes, report it rather than trying again.';
+        }
+        if (/project|mapping|parent/.test(code)) return "This client's Video and Graphics filing must be configured before a post can be created.";
+        if (Number(error && error.status) === 401 || Number(error && error.status) === 403) return 'Admin or SMM sign-in is required to create this post.';
+        /* TWO MAPPERS, ONE PATH, and the branch went into the wrong one.
+           `native_intake_storage_unavailable` was given a WRITE_UI_FAILURE_CODE_TEXT
+           entry when the round-3 tester reported Create Post failing forever on
+           a full store -- but THIS is the mapper Create Post actually renders
+           through, so the reader still got the catch-all below. The owner hit
+           the identical wrong sentence minutes after that fix shipped.
+           It is the same defect the entry was written to cure, one mapper over:
+           a permanent refusal dressed as a retryable one. */
+        if (code === 'native_intake_storage_unavailable') {
+            return 'This browser has run out of storage, so the post could not be staged — and retrying will fail the same way until space is freed. Reload the page; if it happens again, clear this site’s browser storage. Nothing was created, so nothing is half-made.';
+        }
+        /* THE DANGEROUS ONE, and it is the reason the catch-all had to change.
+           A checkpoint failure happens AFTER the gateway has accepted the
+           write, so the batch and its sub-issues already exist. "Your request
+           is safe to retry" is then not merely useless but actively harmful:
+           every retry creates ANOTHER batch. Observed live 2026-08-31 -- the
+           owner saw this sentence while batches were landing on the server
+           minutes apart, each attempt leaving one behind.
+           So this one says what was created, tells them not to retry, and
+           sends them to the place they can see it. */
+        if (code === 'native_intake_checkpoint_failed') {
+            return 'The batch was created, but this browser could not save its progress — so the posts may be only half made. Do NOT press Create post again; that would create a second batch. Reload the page and check the batch in Production first. If this repeats, clear this site’s browser storage.';
+        }
+        /* `assignee_provider_unavailable` (gateway index.ts:2600) matches NO
+           branch above, so it reached the reader as "The post was not created.
+           Your request is safe to retry." The Create Post dialog sends
+           `assignee_id` whenever its editor dropdown resolves, so every video
+           post hits this the moment the provider stops answering -- and the
+           advice is false forever. That sentence is the one the file's own
+           2026-08-26 note is about. Say what actually failed, and say that
+           retrying is not the fix. */
+        if (code === 'assignee_provider_unavailable') {
+            return 'The linked task system could not confirm who is assignable, so this post was not created. Nothing was created, and the editor list is not wrong. If it does not clear on its own within a few minutes, report it rather than trying again.';
+        }
+        /* The catch-all is the honest answer for a code nobody has mapped, and
+           it is also where three separate defects have hidden -- batch_team_mismatch,
+           batch_client_mismatch, and the one above -- because it says "retry" to
+           refusals that can only ever repeat. Staff get the raw code appended so
+           the NEXT one is a two-second diagnosis instead of a night of guessing;
+           a client never sees it. */
+        if (code && typeof _syncviewStaffEligible === 'function' && _syncviewStaffEligible() && !_isClientLink) {
+            return 'The post was not created. Your request is safe to retry. (' + code + ')';
+        }
+        return 'The post was not created. Your request is safe to retry.';
+    }
+    /* ONE dialog serves both tabs (owner 2026-08-19: "the samples tab behaves
+       exactly like the calendar tab... I don't think there's any difference").
+       `surface` is 'calendar' or 'sxr' and is the only thing that varies: it
+       picks which client view is authoritative, which batches the picker
+       offers, and which table the finished card lands in. A second copy of
+       this dialog would drift from this one within a week. */
+    async function _calOpenNativePost(initiatingClientName, initiatingClientSlug, initiatingSurface) {
+        const surface = initiatingSurface === 'sxr' ? 'sxr' : 'calendar';
+        const viewClient = surface === 'sxr'
+            ? (typeof sxrState !== 'undefined' && sxrState ? sxrState.client : '')
+            : calState.client;
+        const clientName = String(initiatingClientName || viewClient || '').trim();
+        const clientSlug = String(initiatingClientSlug
+            || (surface === 'sxr' ? sxrClientSlug(clientName) : calClientSlug(clientName)) || '').trim();
+        if (!clientName || !clientSlug) return;
+        if (_nativePostViewSlug(surface) !== clientSlug) return;
+        try { await _syncviewRequireStaffIdentity('intake'); }
+        catch (error) { showNotify('Create Post unavailable', (error && error.message) || 'Admin or SMM sign-in required.'); return; }
+        if (_nativePostViewSlug(surface) !== clientSlug) return;
+        _calCloseNativePost(true);
+        const overlay = document.createElement('div');
+        overlay.id = 'calNativePostOverlay';
+        overlay.className = 'cal-import-overlay open';
+        if (typeof overlay.setAttribute === 'function') overlay.setAttribute('data-backdrop-dismiss', '');
+        overlay.onclick = event => { if (event.target === overlay && overlay._backdropPressBegan) _calCloseNativePost(); };
+        overlay.innerHTML = '<div class="cal-import-modal" role="dialog" aria-modal="true" aria-labelledby="calNativePostTitle"><div class="cal-import-head"><h3 id="calNativePostTitle">Create Post</h3><p>Finding the current batch for ' + _calEsc(clientName) + '...</p></div><div class="cal-import-body"><div class="cal-import-progress">Loading batch options...</div></div></div>';
+        document.body.appendChild(overlay);
+        document.body.classList.add('cal-modal-open');
+        _calNativePostState = {
+            clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, batchMaxOrdinals: null, mode: 'both', batchChoice: null, batchFilter: '',
+            batchName: '', postNames: [],
+            videoEditors: [], videoEditorId: '', videoEditorSuggestedId: '', videoEditorStatus: 'loading',
+        };
+        const editorState = _calNativePostState;
+        /* Loaded alongside the batch options rather than before them: the
+           picker must never hold the dialog open, and a roster or load read
+           that fails leaves Create Post working exactly as it did before. */
+        /* BOUNDED, like the batch-count read beside it. Caught in review: an
+           unbounded promise left videoEditorStatus on 'loading' for the life of
+           the dialog if either fetch hung -- the picker stayed disabled while
+           Create stayed enabled, so staff could not make the choice and the
+           post silently fell back to server assignment. A stall now resolves
+           to the same unranked fallback a failure does. */
+        Promise.race([
+            _calNativeVideoEditorPool(),
+            new Promise((resolve, reject) => setTimeout(reject, CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS, new Error('editor pool timed out'))),
+        ]).then(editors => {
+            if (_calNativePostState !== editorState) return;
+            _calNativePostState.videoEditors = editors;
+            _calNativePostState.videoEditorStatus = editors.length ? 'ready' : 'unavailable';
+            _calNativePostState.videoEditorSuggestedId = editors.length ? editors[0].id : '';
+            if (!_calNativePostState.videoEditorId) _calNativePostState.videoEditorId = _calNativePostState.videoEditorSuggestedId;
+            try { _calRenderNativePostChoice(); } catch (e) {}
+        }).catch(() => {
+            if (_calNativePostState !== editorState) return;
+            _calNativePostState.videoEditorStatus = 'unavailable';
+            try { _calRenderNativePostChoice(); } catch (e) {}
+        });
+        try {
+            const batchOptions = await _calLatestNativeBatches(clientSlug, surface);
+            if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
+            if (_nativePostViewSlug(surface) !== clientSlug) { _calCloseNativePost(true); return; }
+            _calNativePostState.batchOptions = batchOptions;
+            // Post counts are presentation only. One bounded read covers the
+            // rows the picker will show; any failure or slow response leaves
+            // the subtext date-only and never blocks the dialog.
+            // Counts are fetched once, for every row ANY mode could show, so
+            // flipping the post-shape choice never renders a countless row.
+            /* The BATCH ROWS, not their ids: the count has to know which uuids
+               each batch records as a parent, and the rows already carry that
+               map -- passing ids would force a second read to learn it. */
+            const shownById = new Map();
+            ['both', 'video', 'thumbnail'].forEach(m => {
+                const lists = _calNativeBatchLists(batchOptions, m);
+                lists.compatible.concat(lists.incompatible).forEach(batch => {
+                    const id = String(batch && batch.id || '');
+                    if (id && !shownById.has(id)) shownById.set(id, batch);
+                });
+            });
+            const shownBatches = [...shownById.values()];
+            let postCounts = null;
+            try {
+                postCounts = await Promise.race([
+                    _calFetchNativeBatchPostCounts(shownBatches),
+                    new Promise(resolve => setTimeout(resolve, CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS, null))
+                ]);
+            } catch (countError) { postCounts = null; }
+            if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
+            if (_nativePostViewSlug(surface) !== clientSlug) { _calCloseNativePost(true); return; }
+            /* Shape kept apart on purpose: `batchPostCounts` stays the plain
+               Map every existing caller reads, and the ordinals ride beside it
+               rather than inside it. */
+            _calNativePostState.batchPostCounts = postCounts ? postCounts.counts : null;
+            _calNativePostState.batchMaxOrdinals = postCounts ? postCounts.ordinals : null;
+            _calRenderNativePostChoice();
+        } catch (error) {
+            const modal = overlay.querySelector('.cal-import-modal');
+            if (modal) modal.innerHTML = '<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="_calCloseNativePost()" aria-label="Close">&times;</button><h3>Could not load batches</h3><p>No changes were made.</p></div><div class="cal-import-body"><div class="cal-native-batch-error">Try Create Post again after the calendar reconnects.</div></div><div class="cal-import-foot"><button class="cal-import-btn-primary" type="button" onclick="_calCloseNativePost()">Close</button></div>';
+        }
+    }
+    async function _calSubmitNativePost() {
+        const state = _calNativePostState;
+        const overlay = document.getElementById('calNativePostOverlay');
+        const button = document.getElementById('calNativePostCreate');
+        const errorBox = document.getElementById('calNativePostError');
+        const selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
+        if (!state || !overlay || !selected) return;
+        const surface = state.surface === 'sxr' ? 'sxr' : 'calendar';
+        if (_nativePostViewSlug(surface) !== state.clientSlug) {
+            if (errorBox) {
+                errorBox.hidden = false;
+                errorBox.textContent = surface === 'sxr'
+                    ? 'The open samples tab changed. Close this message and create the sample from the intended client.'
+                    : 'The open calendar changed. Close this message and create the post from the intended client.';
+            }
+            return;
+        }
+        let identity;
+        try { identity = await _syncviewRequireStaffIdentity('intake'); }
+        catch (error) { if (errorBox) { errorBox.hidden = false; errorBox.textContent = _calNativePostErrorText(error); } return; }
+        const mode = ['video', 'thumbnail', 'both'].includes(state.mode) ? state.mode : 'both';
+        const latest = selected.value === 'batch'
+            ? (state.batchOptions || []).find(batch => String(batch && batch.id || '') === String(selected.dataset.batchId || ''))
+            : null;
+        /* NO BATCH AIMED AT is not the same as an incompatible one, and the
+           message below would have said "that batch" about a batch that does
+           not exist. Reached when a search matched nothing and cleared the
+           target (Codex P1 on PR 1353); it names the way out rather than
+           leaving Create looking broken. */
+        if (selected.value === 'batch' && !String(selected.dataset.batchId || '')) {
+            if (errorBox) {
+                errorBox.hidden = false;
+                errorBox.textContent = 'No batch is chosen — your search matches none of them. Clear the search to pick a batch, or start a new batch instead.';
+            }
+            return;
+        }
+        if (selected.value === 'batch' && (!_calNativeBatchCompatible(latest, mode))) {
+            if (errorBox) { errorBox.hidden = false; errorBox.textContent = 'That batch cannot accept this post. Choose another batch or create a new one.'; }
+            return;
+        }
+        const choice = latest ? 'latest' : 'new';
+        const todayISO = wlTodayISO();
+        /* N posts, not one. _linearIntakeItems already expands each entry into
+           one item PER TEAM sharing a card id, so 12 entries in "both" mode is
+           12 cards and 24 Linear sub-issues. The clamp is re-applied here and
+           not merely trusted from the input: the field is user-editable and a
+           stale state.postCount from a pre-mode-switch render must not slip a
+           101-item payload past MAX_INTAKE_ITEMS on the gateway.
+           (Keep this block free of the apostrophe character: the source-pin
+           extractors in test/native-intake-ui-source.js track quotes but not
+           comments, so a lone one here reads as an opening string and the
+           extractor runs off the end of this function. This very comment
+           caused that failure once, by spelling out the character.) */
+        const postCount = _calNativePostCount(state);
+        /*
+         * Sent ONLY when the person overrode the suggestion.
+         *
+         * Deliberate, and it is about deploy order rather than taste. This file
+         * ships the moment it merges (GitHub Pages), while `production-write`
+         * is a hand-deployed Edge Function — so between those two moments the
+         * live gateway is one that refuses ANY intake assignee. Always sending
+         * would fail every video Create Post in that window, which is a hard
+         * regression for a picker whose default changes nothing.
+         *
+         * Leaving the default unsent is safe because both sides run the SAME
+         * rule over the SAME live statuses: fewest open videos, then name, then
+         * id. The default path therefore assigns whom the dialog named, and the
+         * only payload that needs the new gateway is one that genuinely asks
+         * for somebody else.
+         */
+        const suggestedEditorId = String(state.videoEditorSuggestedId || '');
+        const chosenEditorId = String(state.videoEditorId || '');
+        const videoAssigneeId = (mode === 'video' || mode === 'both')
+            && chosenEditorId
+            && chosenEditorId !== suggestedEditorId
+            && (state.videoEditors || []).some(editor => editor.id === chosenEditorId)
+            ? chosenEditorId
+            : '';
+        const dueISO = wlAddWorkingDays(todayISO, 5);
+        /* One optional name per post (owner 2026-09-07). Normalised here and
+           not merely read off the inputs: the fields are user-editable, and a
+           name is part of the intent, so it rides the signature below too --
+           a saved job named one thing must not resume under another. */
+        const postNames = _calNativePostNamesFor(state, postCount);
+        const batchName = _calNativeBatchNameFor(state);
+        const videos = Array.from({ length: postCount }, (unused, index) => ({
+            number: index + 1, main_cam: '', side_cam: '', audio: '', dueDate: dueISO,
+            name: postNames[index] || ''
+        }));
+        // The mode is part of the intent: a saved "both" job and a new
+        // "thumbnail" attempt are different work, and must conflict rather
+        // than silently resume the other shape. The COUNT is part of it for the
+        // same reason -- resuming a saved 3-post job under a 12-post request
+        // would silently create the wrong amount of work.
+        const signature = JSON.stringify({
+            surface, choice, mode, post_count: postCount, client_slug: state.clientSlug,
+            video_assignee_id: videoAssigneeId,
+            post_names: postNames, batch_name: choice === 'new' ? batchName : '',
+            batch_id: choice === 'latest' ? String(latest.id || '') : '',
+            expected_batch_updated_at: choice === 'latest' ? String(latest.updated_at || '') : '',
+            actor_id: identity && identity.member && identity.member.id
+        });
+        let pending;
+        try {
+            pending = await _linearIntakeWithLock(() => _linearIntakePending(signature, (requestId, sourceEditedAt) => {
+                const payload = {
+                    operation: 'intake_create', surface, client_slug: state.clientSlug,
+                    request_id: requestId, source_edited_at: sourceEditedAt,
+                    items: _linearIntakeItems(mode, videos, requestId, surface, videoAssigneeId)
+                };
+                if (choice === 'latest') {
+                    payload.batch_id = String(latest.id || '');
+                    payload.expected_batch_updated_at = String(latest.updated_at || '');
+                } else {
+                    payload.batch = { name: batchName, description: null };
+                }
+                return payload;
+            }, {
+                surface, materialization_source: surface === 'sxr' ? 'samples-native' : 'calendar-native', batch_choice: choice,
+                clientSlug: state.clientSlug, clientName: state.clientName, mode,
+                videos: videos.map(video => ({ number: video.number })), ..._linearIntakeActorContext(identity)
+            }));
+        } catch (error) {
+            if (errorBox) { errorBox.hidden = false; errorBox.textContent = _calNativePostErrorText(error); }
+            return;
+        }
+        overlay.dataset.busy = '1';
+        if (button) { button.disabled = true; button.textContent = 'Creating...'; }
+        if (errorBox) errorBox.hidden = true;
+        try {
+            const result = await _resumeNativeIntakeJob(
+                surface === 'sxr' ? 'samples-create-post' : 'calendar-create-post', pending);
+            const first = result && Array.isArray(result.items) ? result.items.find(item => item && item.card_id) : null;
+            _calCloseNativePost(true);
+            if (first && first.card_id) {
+                // Both tabs render .cal-card rows, but only the calendar tracks
+                // a focus id in its own state; the samples view is re-rendered
+                // by the materializer and just needs the caret put in place.
+                if (surface !== 'sxr') {
+                    calState.focusPid = String(first.card_id);
+                    try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+                }
+                setTimeout(() => document.querySelector(`.cal-card[data-pid="${CSS.escape(String(first.card_id))}"] .cal-fld-name`)?.focus(), 80);
+            }
+            const savedWhat = mode === 'video' ? 'The video is saved'
+                : mode === 'thumbnail' ? 'The thumbnail is saved'
+                    : 'Video and Graphics are saved';
+            /*
+             * DID THE NAMES LAND? Asked of the response, not assumed.
+             *
+             * The gateway composes every sub-issue title, and a gateway that
+             * predates post naming ignores `name` silently rather than
+             * refusing it -- so between this file shipping (GitHub Pages, on
+             * merge) and production-write being deployed by hand, a typed name
+             * would vanish with the dialog and nothing would say so. An
+             * absence is the one failure nobody can report accurately.
+             *
+             * So the check is against what was actually written: every name
+             * that was asked for has to appear in some returned title. It
+             * costs nothing once the gateway is deployed, and it keeps
+             * working afterwards as a regression alarm.
+             *
+             * IT NAMES NO REMEDY THE READER CAN CARRY OUT, because there is
+             * not one. An earlier draft said "rename in Linear" -- Codex
+             * caught it on #1336 and it is wrong twice over. Both teams are
+             * SyncView-authoritative (`prod_authority` video/graphics =
+             * syncview since the 2026-08-28 video flip), so linear-inbound
+             * takes the detect-only branch and RETURNS before the
+             * `row.title = clean(issue.title)` write: the rename is recorded
+             * as a detection and never reaches `deliverables.title`, which is
+             * the column this surface reads. And there is no SyncView-side
+             * rename either -- `production-write` has no title operation at
+             * all. The only thing that fixes it is the deploy, so the message
+             * says what happened, that nothing is lost, and who to tell.
+             */
+            const askedNames = postNames.filter(Boolean);
+            const writtenTitles = result && Array.isArray(result.items)
+                ? result.items.map(item => String(item && item.title || '')) : [];
+            const namesLanded = !askedNames.length || askedNames.every(name =>
+                writtenTitles.some(title => title.endsWith(CAL_NATIVE_TITLE_SEPARATOR + name)));
+            showNotify(surface === 'sxr' ? 'Sample created' : 'Post created', !namesLanded
+                ? savedWhat + ', but the names were not applied - this workspace still runs a production-write that predates post naming. The posts are saved and numbered correctly; tell the owner the gateway needs deploying.'
+                : result && result.mirror_pending === true
+                    ? savedWhat + '; the Linear mirror is still draining.'
+                    : savedWhat + ' in the selected batch.');
+        } catch (error) {
+            console.warn('[SyncView] Calendar native Create Post failed:', error);
+            const saved = _linearIntakeRead();
+            if (Number(error && error.status) >= 400 && Number(error && error.status) < 500 && !(saved && saved.result)) {
+                _linearIntakeRemoveIfCurrent(pending && pending.payload && pending.payload.request_id);
+            }
+            overlay.dataset.busy = '0';
+            if (button) { button.disabled = false; button.textContent = 'Create post'; }
+            if (errorBox) { errorBox.hidden = false; errorBox.textContent = _calNativePostErrorText(error); }
+        }
+    }
+
+    async function addCalBlankCard() {
+        // Client suggestions remain calendar-only behind Collaborative mode.
+        // Staff Create Post commits native IDs before materializing a card.
+        if (_isClientLink) {
+            if (!_calIsCollabOn()) return;
+            _calInsertLocalBlankCard();
+            return;
+        }
+        const clientName = String(calState.client || '').trim();
+        const clientSlug = calClientSlug(clientName);
+        const useGateway = await _writeUiRerouteUseGatewayWhenReady(clientSlug);
+        // The action belongs to the client visible at click time. If the tab
+        // changed while the rollout flag was loading, abandon this click.
+        if (!clientSlug || calClientSlug(calState.client) !== clientSlug) return;
+        if (!useGateway) {
+            _calInsertLocalBlankCard();
+            return;
+        }
+        _calOpenNativePost(clientName, clientSlug);
+    }
+
+    /* Archive one post via the upsert webhook — it reliably updates the row
+       by id, flipping status to Archived so it drops off the next load. */
+    /* Server-side archive write. Slug is captured by the caller at the
+       moment the user clicked Archive so a mid-flight client switch
+       can't redirect the write to (or write the cache against) the
+       wrong calendar tab. */
+    // Run fn over items with at most `limit` in flight. Returns results in input
+    // order, Promise.allSettled-shaped ({status:'fulfilled',value} | {status:'rejected',reason}).
+    const CAL_BULK_ARCHIVE_CONCURRENCY = 6;
+    async function _calRunPooled(items, limit, fn) {
+        const results = new Array(items.length);
+        let next = 0;
+        async function worker() {
+            while (next < items.length) {
+                const i = next++;
+                try { results[i] = { status: 'fulfilled', value: await fn(items[i], i) }; }
+                catch (e) { results[i] = { status: 'rejected', reason: e }; }
+            }
+        }
+        const n = Math.max(1, Math.min(limit, items.length));
+        await Promise.all(Array.from({ length: n }, () => worker()));
+        return results;
+    }
+    async function _calArchiveOne(id, slug, preCapturedPost) {
+        const useSlug = slug || calClientSlug(calState.client);
+        // The card is being archived, so any queued edits for it are moot —
+        // drop them so the in-flight save's finally doesn't re-flush them on
+        // top of our Archived write. Then wait out any save already in flight
+        // so the Archived write lands strictly AFTER it; otherwise the save's
+        // full-row echo (status still Client Approval, etc.) would resurrect
+        // the row we just archived. (This write can't go through the normal
+        // flush funnel because _calFlushCardSave recomputes `status` from the
+        // sub-statuses, which would clobber 'Archived'.)
+        delete _calPendingEdits[id];
+        _calFailedNewCards.delete(id);
+        // Capture the card BEFORE anything awaits. The park below needs this
+        // row's two Linear links, and it used to be looked up AFTER the write
+        // -- by which point a refresh, a client switch or a filtered rerender
+        // could have dropped it from calState.posts, and the helper answered a
+        // falsy post by returning {parked:0,failed:0} in silence. See
+        // OPEN_REPAIRS 23: 11 archives since the feature shipped, 0 parks.
+        //
+        // That fix looked in the wrong place: BOTH real callers
+        // (archiveCalPost, _calArchiveSelected) strip the row out of
+        // calState.posts for their own optimistic UI update *before* they
+        // call this function at all -- not during an await inside it -- so
+        // `calState.posts.find` here always missed, every single time, and
+        // the server echo (`json.post`) never carries the row either. Zero
+        // deliverable_events rows with to_status=backlog since 2026-08-17
+        // is what that looks like measured live. `preCapturedPost` is the
+        // fix: the caller passes the row it already had in hand, from
+        // before its own optimistic removal, so the park below has it
+        // regardless of what calState.posts holds by the time it runs. The
+        // calState.posts lookup stays as a fallback for any caller that
+        // still holds the row there (or a future one that doesn't capture
+        // its own copy).
+        const knownPost = preCapturedPost || calState.posts.find(p => p.id === id) || null;
+        const inflight = _calSaveInFlight[id];
+        if (inflight) { try { await inflight; } catch (e) {} }
+        const resp = await _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } });
+        const json = await resp.json();
+        if (!json.ok) throw new Error(json.error || 'archive failed');
+        // OWNER RULING 2026-08-17: archiving a post parks its sub-issues.
+        //
+        // Archiving used to write this card row and nothing else, so the video
+        // and thumbnail stayed live in Linear and in everyone's queues --
+        // assigned, dated, awaiting approvals for a post that no longer exists.
+        // Measured that day: of 37 archived cards carrying deliverables, 33 of
+        // their 50 sub-issues were still open, several sitting in SMM or client
+        // approval. That is phantom work on real people's lists.
+        //
+        // Backlog, not cancelled, by the owner's choice: the work stays visible
+        // and recoverable if the post comes back. This reuses the same push the
+        // status control uses, so it honours enrollment, authority and the
+        // legacy lane exactly as a human status change would -- archiving must
+        // not invent a second way to move a status.
+        // Prefer the row captured before the write; fall back to the row the
+        // server echoed back, which is post-write and carries the same links.
+        const echoed = json.post && typeof json.post === 'object' && json.post.id === id ? json.post : null;
+        await _calArchiveParkSubIssues(knownPost || echoed, useSlug, id);
+        // Only mutate calState.posts / cache if the user is still on the
+        // client whose archive this is — otherwise we'd be writing one
+        // client's filtered post list into another client's localStorage.
+        if (calClientSlug(calState.client) === useSlug) {
+            calState.posts = calState.posts.filter(p => p.id !== id);
+            try { _calCacheWrite(useSlug, calState.posts); } catch {}
+        }
+    }
+    /*
+     * Park an archived post's sub-issues in Backlog.
+     *
+     * Failure here never fails the archive: the card is already archived by the
+     * time this runs, and reporting the archive as failed would tell the user
+     * the opposite of what happened. A component with no Linear link has
+     * nothing to park and is skipped.
+     */
+    async function _calArchiveParkSubIssues(post, slug, id) {
+        // A card we cannot resolve is the ONE outcome this helper used to
+        // report as success: it returned {parked:0,failed:0}, the caller
+        // ignored it, and `failed` only counts pushes that actually threw --
+        // so nothing was parked and nobody was told. Three days of archives
+        // went by before anyone noticed. Say it out loud instead; the archive
+        // itself has already succeeded and must not be reported as failed.
+        if (!post) {
+            console.warn('[Calendar] archive could not resolve the card to park', id || '');
+            showNotify('Archived, but its sub-issues were not parked',
+                'The post is archived. Its video and thumbnail issues may still be open in Linear — move them to Backlog by hand.');
+            return { parked: 0, failed: 0, unresolved: true };
+        }
+        let parked = 0;
+        let failed = 0;
+        for (const component of ['video', 'graphic']) {
+            const url = component === 'video' ? post.linear_issue_id : post.graphic_linear_issue_id;
+            const nativeId = _writeUiNativeId(post, component);
+            if (!url && !nativeId) continue;
+            try {
+                await _calPushStatusToLinear(url, 'Backlog', {
+                    post,
+                    component,
+                    slug,
+                    sourceEditedAt: post[component + '_status_updated_at'] || post.updated_at
+                });
+                parked += 1;
+            } catch (error) {
+                failed += 1;
+                console.warn('[Calendar] archive could not park ' + component, error);
+            }
+        }
+        if (failed) {
+            showNotify('Archived, but a sub-issue is still open',
+                'The post is archived. ' + failed + ' of its sub-issues could not be moved to Backlog and may still show in Linear.');
+        }
+        return { parked, failed };
+    }
+
+    function _calToggleSelectMode(action) {
+        if (_isClientLink) return;   // multi-select (archive/caption/link/color) is SMM-only
+        if (action) {
+            if (calState.selectMode && calState.selectAction === action) {
+                calState.selectMode = false;
+                calState.selectAction = 'archive';
+            } else {
+                calState.selectMode = true;
+                calState.selectAction = action;
+            }
+        } else {
+            calState.selectMode = !calState.selectMode;
+            calState.selectAction = 'archive';
+        }
+        calState.selected = new Set();
+        calState.lastSel = null;
+        // One toolbar button per action (archive, caption) — sync them all by
+        // their data-select-action, not by index, so users see which mode is
+        // active without a full shell re-render. The archive button opens the
+        // combined color-tag + archive bar.
+        document.querySelectorAll('.cal-toolbar .cal-select-btn').forEach((btn) => {
+            const a = btn.getAttribute('data-select-action') || 'archive';
+            const active = calState.selectMode && (
+                a === 'archive'
+                    ? (calState.selectAction !== 'caption' && calState.selectAction !== 'link')
+                    : calState.selectAction === a
+            );
+            btn.classList.toggle('active', active);
+        });
+        _calRenderBody({ preserveScroll: true });
+    }
+    function _calCardSelectClick(e, pid) {
+        e.preventDefault();
+        e.stopPropagation();
+        // Build the shift-range from the cards ACTUALLY ON SCREEN (the selectable
+        // ones in the rendered strip), not from all of calState.posts. Ranging
+        // over every post let a shift-click silently select — and then
+        // bulk-archive — cards hidden by the active month/status filter, plus
+        // blank/read-only cards. The DOM order is the filtered, visible, sorted
+        // truth; non-selectable cards never carry .cal-card-selectable.
+        const order = Array.from(document.querySelectorAll('#calStrip .cal-card-selectable[data-pid]'))
+            .map(el => el.getAttribute('data-pid'));
+        if (e.shiftKey && calState.lastSel && calState.lastSel !== pid) {
+            const a = order.indexOf(calState.lastSel), b = order.indexOf(pid);
+            if (a >= 0 && b >= 0) {
+                const lo = Math.min(a, b), hi = Math.max(a, b);
+                for (let i = lo; i <= hi; i++) calState.selected.add(order[i]);
+            }
+        } else {
+            if (calState.selected.has(pid)) calState.selected.delete(pid);
+            else calState.selected.add(pid);
+        }
+        calState.lastSel = pid;
+        _calSyncSelectionUI();
+    }
+    function _calSyncSelectionUI() {
+        document.querySelectorAll('#calStrip .cal-card[data-pid]').forEach(card => {
+            card.classList.toggle('cal-card-selected', calState.selected.has(card.getAttribute('data-pid')));
+        });
+        const n = calState.selected.size;
+        const count = document.getElementById('calSelectCount');
+        if (count) count.textContent = n + ' selected';
+        const archive = document.getElementById('calSelectArchive');
+        if (archive) archive.disabled = n === 0;
+        // Bulk-colour swatches share the same empty-selection guard.
+        document.querySelectorAll('#calSelectBar [data-bulk-color]').forEach(b => { b.disabled = n === 0; });
+    }
+    async function _calArchiveSelected() {
+        if (_isClientLink) return;   // bulk archive is SMM-only (defense in depth beyond select-mode)
+        const ids = Array.from(calState.selected).filter(id => id && !_calIsBlankId(id));
+        if (!ids.length) return;
+        // Capture the slug at the moment of the click. The archive HTTPs
+        // can take several seconds when 30+ cards are being archived; if
+        // the SMM switches to a different client during that window we
+        // must still attribute every ledger / cache write to the calendar
+        // the action originated from.
+        const slug = calClientSlug(calState.client);
+        showConfirm('Archive ' + ids.length + ' post' + (ids.length === 1 ? '' : 's') + '?',
+            "They're removed from the calendar but kept (archived) in the Google Sheet on our server, so they can always be recovered.",
+            async () => {
+                const idSet = new Set(ids);
+                const refsById = new Map();
+                // Captured in the SAME pass as refsById, before the filter below
+                // removes these rows from calState.posts for the optimistic UI
+                // update -- see the comment on `preCapturedPost` in
+                // _calArchiveOne. Without this, the park step's own lookup in
+                // calState.posts always misses (the row is already gone by the
+                // time it runs), which is why archiving never parked.
+                const postsById = new Map();
+                calState.posts.forEach(p => {
+                    if (!idSet.has(p.id)) return;
+                    refsById.set(p.id, _calRefsForPost(p));
+                    postsById.set(p.id, p);
+                });
+                // Pre-populate the ledger BEFORE the archive HTTPs fire.
+                // A background poll racing the writes would otherwise
+                // refetch the still-live rows and resurrect them; with
+                // the ledger entries already in place the load filter
+                // hides them immediately. Failed archives are rolled
+                // back below so the rows reappear honestly.
+                const allRefs = [];
+                refsById.forEach(arr => arr.forEach(x => allRefs.push(x)));
+                _calArchivedAdd(slug, allRefs);
+                calState.posts = calState.posts.filter(p => !idSet.has(p.id));
+                calState.selectMode = false;
+                calState.selectAction = 'archive';
+                calState.selected = new Set();
+                calState.lastSel = null;
+                document.querySelectorAll('.cal-toolbar .cal-select-btn').forEach(btn => btn.classList.remove('active'));
+                _calRenderBody({ preserveScroll: true });
+                try { _calCacheWrite(slug, calState.posts); } catch {}
+                // Bounded concurrency: a 30-card bulk archive used to fire 30
+                // simultaneous upsert webhooks at n8n. The UI is already optimistic
+                // (cards vanished above), so throttling the background writes costs
+                // nothing visible and stops the request spike. Same allSettled shape.
+                const results = await _calRunPooled(ids, CAL_BULK_ARCHIVE_CONCURRENCY, id => _calArchiveOne(id, slug, postsById.get(id) || null));
+                // Roll back ledger entries for posts whose archive write
+                // failed so the row stops being hidden after the grace
+                // window — also reload to bring them back into the
+                // current view if the user is still on this client.
+                const failedRefs = [];
+                results.forEach((r, i) => {
+                    if (r.status === 'rejected') {
+                        const refs = refsById.get(ids[i]);
+                        if (refs) refs.forEach(x => failedRefs.push(x));
+                    }
+                });
+                if (failedRefs.length) _calArchivedRemove(slug, failedRefs);
+                const failedCount = results.filter(r => r.status === 'rejected').length;
+                if (failedCount) {
+                    showNotify('Some posts were not archived', failedCount + ' of ' + ids.length + ' could not be archived — reloading the calendar.');
+                    if (calClientSlug(calState.client) === slug) loadCalendarPosts();
+                }
+            }, 'Archive');
+    }
+    function archiveCalPost(id) {
+        if (_isClientLink) return;   // archiving is SMM-only in every mode (incl. collab)
+        if (!id || _calIsBlankId(id)) return;
+        const slug = calClientSlug(calState.client);
+        showConfirm('Archive this post?', "It's removed from the calendar but kept (archived) in the Google Sheet on our server, so it can always be recovered.", async () => {
+            const snapshot = calState.posts.slice();
+            const target = calState.posts.find(p => p.id === id);
+            const refs = target ? _calRefsForPost(target) : [];
+            // Pre-populate ledger so a poll racing the archive write
+            // can't resurrect this row. Rolled back on failure below.
+            _calArchivedAdd(slug, refs);
+            calState.posts = calState.posts.filter(p => p.id !== id);
+            _calRenderBody({ preserveScroll: true });
+            try { _calCacheWrite(slug, calState.posts); } catch {}
+            try {
+                // `target` was captured above, before the filter just removed
+                // this row from calState.posts -- see the comment on
+                // `preCapturedPost` in _calArchiveOne.
+                await _calArchiveOne(id, slug, target || null);
+            } catch (e) {
+                console.warn('[Calendar] archive failed', e);
+                _calArchivedRemove(slug, refs);
+                if (calClientSlug(calState.client) === slug) {
+                    calState.posts = snapshot;
+                    _calRenderBody({ preserveScroll: true });
+                }
+                showNotify('Archive failed', e.message || 'Could not archive this post — reloading the calendar.');
+                if (calClientSlug(calState.client) === slug) loadCalendarPosts();
+            }
+        }, 'Archive');
+    }
+
+    /* ============================================================
+       Caption generator
+       ──────────────────────────────────────────────────────────────
+       Single-card and bulk "Generate caption" wired off the
+       SyncView Calendar — Generate Caption n8n workflow. Captions
+       are saved back through the standard _calFlushCardSave path so
+       the optimistic-concurrency / touched-flag protections that
+       guard manual edits also guard generated ones.
+
+       Per-client prompts live in the CaptionPrompts tab on the
+       SyncView Calendar Sheet. The Edit caption prompt modal in
+       the per-card kebab edits that tab via caption-prompts-save.
+       ============================================================ */
+    async function _calLoadCaptionPromptsFromSupabase() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase not configured');
+        const url = CAL_SUPABASE_URL + '/rest/v1/caption_prompts?select=client_slug,prompt&order=client_slug.asc';
+        const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const rows = await resp.json();
+        const prompts = {};
+        (Array.isArray(rows) ? rows : []).forEach(row => {
+            const slug = String((row && row.client_slug) || '').trim();
+            if (!slug || !_settingsUseEf(slug)) return;
+            if (slug) prompts[slug] = String(row.prompt || '');
+        });
+        return prompts;
+    }
+    async function _calLoadCaptionPromptsFromN8n() {
+        const r = await fetch(CAPTION_PROMPTS_GET_URL + '?_t=' + Date.now());
+        const j = await r.json();
+        if (j && j.ok && j.prompts && typeof j.prompts === 'object') return j.prompts;
+        throw new Error((j && j.error) || 'caption-prompts-get failed');
+    }
+    async function _calLoadCaptionPrompts() {
+        if (_calCaptionPromptsLoaded) return _calCaptionPrompts;
+        if (_calCaptionPromptsInFlight) return _calCaptionPromptsInFlight;
+        _calCaptionPromptsInFlight = (async () => {
+            try {
+                const basePrompts = await _calLoadCaptionPromptsFromN8n();
+                _calCaptionPrompts = basePrompts;
+                try {
+                    await _settingsPrimeRoutingFlag();
+                    if (_settingsEfClients.size) {
+                        const supaPrompts = await _calLoadCaptionPromptsFromSupabase();
+                        _calCaptionPrompts = Object.assign({}, basePrompts, supaPrompts);
+                    }
+                } catch (supaError) {
+                    console.warn('[Calendar] Supabase caption prompts overlay failed; using n8n base', supaError);
+                }
+                _calCaptionPromptsLoaded = true;
+            } catch (e) {
+                console.warn('[Calendar] caption prompts load failed', e);
+            } finally {
+                _calCaptionPromptsInFlight = null;
+            }
+            return _calCaptionPrompts;
+        })();
+        return _calCaptionPromptsInFlight;
+    }
+    function _calCaptionPromptFor(clientName) {
+        const slug = calClientSlug(clientName || calState.client || '');
+        return (_calCaptionPrompts && _calCaptionPrompts[slug]) || '';
+    }
+    function _calCanGenerateCaption(p) {
+        if (!p) return false;
+        if (_calIsBlankId(p.id)) return false;
+        const url = String(p.asset_url || '').trim();
+        if (!url) return false;
+        if (!/f\.io|frame\.io/i.test(url)) return false;
+        return true;
+    }
+    /* ============================================================
+       Caption-job engine.
+       A job is created per click, POSTed to the generate-caption
+       workflow with a client-minted jobId, and tracked against the
+       backend caption_jobs row via the status poller. The poller —
+       not the (up to 2-minute) HTTP response — is the source of
+       truth, so progress, completion, errors and cancels all survive
+       refreshes, tab switches and dropped connections. The workflow
+       saves the finished caption to the sheet itself, so a caption
+       can never be lost to a closed browser.
+       ============================================================ */
+    function _calCapEsc(s) { return (window.CSS && CSS.escape) ? CSS.escape(String(s)) : String(s); }
+    function _calCapJobActive(j) { return !!j && (j.status === 'queued' || j.status === 'running'); }
+    // True when the user cancelled this job and the backend hasn't confirmed
+    // within the grace window — the poll then settles it locally to 'cancelled'
+    // so the "Cancelling…" pill can't hang for the full stale timeout.
+    function _calCapJobCancelExpired(job, now) {
+        return !!(job && job.cancelRequested && ((now || Date.now()) - (job.cancelRequestedAt || job.startedAt || 0)) > CAL_CAPJOB_CANCEL_GRACE_MS);
+    }
+    function _calCapJobsActiveList() { return Array.from(_calCaptionJobs.values()).filter(_calCapJobActive); }
+    const CAL_CAPJOB_STAGE_LABEL = { queued: 'Queued…', scraping: 'Reading video…', transcribing: 'Transcribing…', writing: 'Writing caption…' };
+    const CAL_CAPGEN_BUSY_TIP = 'Reads the Frame.io page, transcribes the audio with Whisper, and writes the caption with Claude — usually 1-3 minutes per video. Progress survives refreshes; the ✕ on the right cancels.';
+    function _calCapJobElapsed(job) {
+        const s = Math.max(0, Math.floor((Date.now() - (job.startedAt || Date.now())) / 1000));
+        return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    }
+    function _calCapJobCleanErr(msg) {
+        // n8n's Code-node wrapper appends " [line N]" to thrown messages.
+        let m = String(msg || '').replace(/\s*\[line \d+\]\s*$/, '').trim();
+        if (m.length > 160) m = m.slice(0, 160) + '…';
+        return m;
+    }
+    /* The live URL field / pending edits count for eligibility, not just the
+       saved post — so "paste the link, click Generate" works immediately. */
+    function _calCapLiveAssetUrl(pid, post) {
+        const card = document.querySelector('.cal-card[data-pid="' + _calCapEsc(pid) + '"]');
+        const input = card ? card.querySelector('[data-fld="asset_url"]') : null;
+        if (input && String(input.value || '').trim()) return String(input.value).trim();
+        const pe = _calPendingEdits[pid];
+        if (pe && pe.asset_url != null && String(pe.asset_url).trim()) return String(pe.asset_url).trim();
+        return String((post && post.asset_url) || '').trim();
+    }
+    function _calCapGenBtnHtml(p) {
+        const pid = p.id;
+        const job = _calCaptionJobs.get(pid);
+        if (_calCapJobActive(job)) {
+            const label = job.cancelRequested ? 'Cancelling…' : (CAL_CAPJOB_STAGE_LABEL[job.stage] || 'Generating…');
+            const elapsed = job.status === 'running' && !job.cancelRequested
+                ? ' <span data-capgen-elapsed="' + _calEscAttr(pid) + '">' + _calCapJobElapsed(job) + '</span>' : '';
+            const xBtn = job.cancelRequested ? '' :
+                '<button type="button" class="cal-cap-gen-x" onclick="_calCancelCaptionJob(\'' + pid + '\')" title="Cancel caption generation"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>';
+            return '<button type="button" class="cal-cap-gen is-busy" disabled title="' + _calEscAttr(CAL_CAPGEN_BUSY_TIP) + '"><span class="cal-cap-gen-spin"></span><span>' + label + elapsed + '</span></button>' + xBtn;
+        }
+        const url = _calCapLiveAssetUrl(pid, p);
+        const can = !_calIsBlankId(pid) && !!url && /f\.io|frame\.io/i.test(url);
+        return '<button type="button" class="cal-cap-gen" onclick="_calGenerateCaption(\'' + pid + '\')"' + (can ? '' : ' disabled title="Add a Frame.io video URL first"') + '><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span></button>';
+    }
+    /* Re-render the Generate pill (and per-card cancel ✕) in place from the
+       current job state, without a full body re-render. */
+    function _calCapGenBtnRefresh(pid) {
+        const card = document.querySelector('.cal-card[data-pid="' + _calCapEsc(pid) + '"]');
+        if (!card) return;
+        const wrap = card.querySelector('.cal-cap-wrap[data-capwrap="main"]');
+        if (!wrap) return;
+        const post = (calState.posts || []).find(p => p.id === pid);
+        if (!post) return;
+        const oldX = wrap.querySelector('.cal-cap-gen-x');
+        if (oldX) oldX.remove();
+        const btn = wrap.querySelector('.cal-cap-gen');
+        if (!btn) return;
+        btn.outerHTML = _calCapGenBtnHtml(post);
+    }
+    /* Kept as the one place that paints per-card error chips; the busy state
+       itself now always derives from the jobs map. */
+    function _calSetCaptionBusy(pid, _busy, errMsg) {
+        _calCapGenBtnRefresh(pid);
+        const card = document.querySelector('.cal-card[data-pid="' + _calCapEsc(pid) + '"]');
+        if (!card) return;
+        const wrap = card.querySelector('.cal-cap-wrap[data-capwrap="main"]');
+        if (!wrap) return;
+        const old = wrap.querySelector('.cal-cap-err');
+        if (old) old.remove();
+        if (errMsg) {
+            const err = document.createElement('div');
+            err.className = 'cal-cap-err';
+            err.textContent = errMsg;
+            wrap.appendChild(err);
+            setTimeout(() => { if (err.parentNode) err.parentNode.removeChild(err); }, 10000);
+        }
+    }
+    function _calCapJobBatchTrack() {
+        if (!_calCapJobBatch || _calCapJobBatch.settledAll) {
+            _calCapJobBatch = { total: 0, done: 0, ok: 0, failed: 0, cancelled: 0, settledAll: false };
+        }
+        _calCapJobBatch.total += 1;
+    }
+    function _calCapJobsPersist() {
+        try {
+            const arr = _calCapJobsActiveList().map(j => ({
+                jobId: j.jobId, pid: j.pid, client: j.client, clientName: j.clientName,
+                assetUrl: j.assetUrl, captionPrompt: j.captionPrompt,
+                status: j.status, stage: j.stage, startedAt: j.startedAt,
+                confirmed: !!j.confirmed, posted: !!j.posted, cancelRequested: !!j.cancelRequested
+            }));
+            if (arr.length) localStorage.setItem(CAL_CAPJOB_LS_KEY, JSON.stringify(arr));
+            else localStorage.removeItem(CAL_CAPJOB_LS_KEY);
+        } catch {}
+    }
+    /* Called once on calendar mount: revive jobs that were queued/running when
+       the page was refreshed or closed. Running jobs are NOT re-POSTed — the
+       backend run is still going (or already finished and saved to the sheet);
+       the poller picks the truth up from the caption_jobs row. */
+    function _calCapJobsRestore() {
+        if (_calCapJobsRestored) return;
+        _calCapJobsRestored = true;
+        let arr = null;
+        try { arr = JSON.parse(localStorage.getItem(CAL_CAPJOB_LS_KEY) || 'null'); } catch {}
+        if (!Array.isArray(arr) || !arr.length) return;
+        const now = Date.now();
+        for (const r of arr) {
+            if (!r || !r.jobId || !r.pid || _calCaptionJobs.has(r.pid)) continue;
+            if (!r.startedAt || now - r.startedAt > CAL_CAPJOB_STALE_MS) continue;
+            const job = {
+                jobId: r.jobId, pid: r.pid, client: r.client || '', clientName: r.clientName || r.client || '',
+                assetUrl: r.assetUrl || '', captionPrompt: r.captionPrompt || '',
+                status: r.posted ? 'running' : 'queued',
+                stage: r.posted ? (r.stage || 'scraping') : 'queued',
+                error: '', caption: '', startedAt: r.startedAt, lastMovementAt: now,
+                confirmed: !!r.confirmed, posted: !!r.posted,
+                cancelRequested: !!r.cancelRequested, postFailed: false,
+                resolve: null, promise: null
+            };
+            job.promise = new Promise(res => { job.resolve = res; });
+            _calCaptionJobs.set(job.pid, job);
+            _calCapJobBatchTrack();
+        }
+        if (_calCapJobsActiveList().length) {
+            _calCapJobPump();
+            _calCapJobPollNow();
+            _calUpdateBulkCaptionBar();
+        }
+    }
+    async function _calGenerateCaption(pid, opts) {
+        opts = opts || {};
+        if (_isClientLink) return { ok: false, error: 'forbidden' };   // caption generation is SMM-only
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return { ok: false, error: 'Post not found' };
+        if (_calCapJobActive(_calCaptionJobs.get(pid))) {
+            if (!opts.silent) _calSetCaptionBusy(pid, null, 'Already generating — use the ✕ to cancel first.');
+            return { ok: false, error: 'Already generating' };
+        }
+        if (_calIsBlankId(pid)) {
+            if (!opts.silent) _calSetCaptionBusy(pid, null, 'Type something in the card first so it gets saved.');
+            return { ok: false, error: 'Card not saved yet' };
+        }
+        const assetUrl = _calCapLiveAssetUrl(pid, post);
+        if (!assetUrl) {
+            if (!opts.silent) _calSetCaptionBusy(pid, null, 'Add a video URL first');
+            return { ok: false, error: 'Add a video URL first' };
+        }
+        if (!/f\.io|frame\.io/i.test(assetUrl)) {
+            if (!opts.silent) _calSetCaptionBusy(pid, null, 'Frame.io URLs only');
+            return { ok: false, error: 'Frame.io URLs only' };
+        }
+        // A just-pasted URL is queued for saving alongside the generation, so
+        // the sheet ends up consistent even if the user navigates away.
+        if (assetUrl !== String(post.asset_url || '').trim()) {
+            post.asset_url = assetUrl;
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid].asset_url = assetUrl;
+            _calFlushCardSave(pid);
+        }
+        // The live textarea / pending edit wins over saved state for the
+        // "already has a caption" check — covers text typed seconds ago.
+        const card = document.querySelector('.cal-card[data-pid="' + _calCapEsc(pid) + '"]');
+        const ta = card ? card.querySelector('textarea[data-fld="caption"][data-pid="' + _calCapEsc(pid) + '"]') : null;
+        const liveCaption = String(
+            (ta ? ta.value :
+                (_calPendingEdits[pid] && _calPendingEdits[pid].caption != null ? _calPendingEdits[pid].caption : post.caption)) || ''
+        ).trim();
+        if (liveCaption && !opts.force) {
+            if (!opts.silent) _calSetCaptionBusy(pid, null, 'This card already has a caption — clear it first to regenerate.');
+            return { ok: false, error: 'Caption already set', skipped: true };
+        }
+        const clientName = calState.client;
+        // Make sure THIS client's custom caption prompt has actually loaded before
+        // we bake it into the job. _calLoadCaptionPrompts() is fire-and-forget at
+        // startup, so a Generate click in the first second after switching clients
+        // would otherwise read '' and the workflow would silently fall back to the
+        // DEFAULT prompt, ignoring the client's tailored one. clientName is captured
+        // above so a client switch during this await can't mis-target the job.
+        if (!_calCaptionPromptsLoaded) { try { await _calLoadCaptionPrompts(); } catch (e) {} }
+        const job = {
+            jobId: 'job_' + pid + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+            pid: pid, client: calClientSlug(clientName), clientName: clientName,
+            assetUrl: assetUrl, captionPrompt: _calCaptionPromptFor(clientName),
+            status: 'queued', stage: 'queued', error: '', caption: '',
+            startedAt: Date.now(), lastMovementAt: Date.now(),
+            confirmed: false, posted: false, cancelRequested: false, postFailed: false,
+            resolve: null, promise: null
+        };
+        job.promise = new Promise(res => { job.resolve = res; });
+        _calCaptionJobs.set(pid, job);
+        _calCapJobBatchTrack();
+        _calCapJobsPersist();
+        _calCapGenBtnRefresh(pid);
+        _calUpdateBulkCaptionBar();
+        _calCapJobPump();
+        return job.promise;
+    }
+    /* Start queued jobs while there's concurrency headroom. */
+    function _calCapJobPump() {
+        const active = _calCapJobsActiveList();
+        let running = active.filter(j => j.status === 'running').length;
+        for (const j of active) {
+            if (running >= CAL_CAPJOB_CONCURRENCY) break;
+            if (j.status !== 'queued' || j.posted || j.cancelRequested) continue;
+            running += 1;
+            _calCapJobStart(j);
+        }
+        _calCapJobsEnsurePolling();
+    }
+    async function _calCapJobStart(job) {
+        job.status = 'running';
+        job.stage = 'scraping';
+        job.posted = true;
+        job.startedAt = Date.now();       // the visible clock starts when the request goes out
+        job.lastMovementAt = Date.now();
+        _calCapJobsPersist();
+        _calCapGenBtnRefresh(job.pid);
+        _calUpdateBulkCaptionBar();
+        let json = null;
+        try {
+            const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+            const killer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch {} }, CAL_CAPJOB_FETCH_TIMEOUT_MS) : null;
+            const resp = await fetch(GENERATE_CAPTION_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    client: job.client, postId: job.pid, assetUrl: job.assetUrl,
+                    captionPrompt: job.captionPrompt, jobId: job.jobId
+                }),
+                signal: ctrl ? ctrl.signal : undefined
+            });
+            if (killer) clearTimeout(killer);
+            json = await resp.json().catch(() => null);
+            if (!json) throw new Error('HTTP ' + resp.status);
+        } catch (e) {
+            // Connection died mid-wait. The run may well still be alive on the
+            // backend — the poller decides from the caption_jobs row; only if
+            // the row never appears does the watchdog fail the job.
+            console.warn('[Calendar] generate-caption request dropped', job.pid, e);
+            job.postFailed = true;
+            _calCapJobPollNow();
+            return;
+        }
+        // Synchronous fast-path. The poller may have settled the job already
+        // from the status row — settling is idempotent.
+        if (json.ok && json.caption) {
+            _calCapJobSettle(job, 'done', { caption: String(json.caption) });
+        } else if (json.cancelled) {
+            _calCapJobSettle(job, 'cancelled', {});
+        } else {
+            _calCapJobSettle(job, 'error', {
+                error: _calCapJobCleanErr(json.error) || 'Generation failed',
+                caption: json.caption ? String(json.caption) : ''
+            });
+        }
+    }
+    /* Terminal transition — idempotent; first caller wins. Applies the caption
+       to the local card (the sheet copy was already written server-side on
+       'done'; an 'error' that still carries a caption means the generation
+       worked but the sheet save failed, so it goes through the normal
+       client-side save path instead). */
+    function _calCapJobSettle(job, status, data) {
+        if (!job || !_calCapJobActive(job)) return;
+        data = data || {};
+        job.status = status;
+        job.settledAt = Date.now();
+        job.error = data.error || '';
+        if (data.caption) job.caption = String(data.caption).trim();
+        // A 'done' with no caption is a failure, not a success — otherwise the chip
+        // says "✓ Caption generated" over an empty box and the batch counts it ok.
+        if (status === 'done' && !job.caption) {
+            status = 'error';
+            job.status = 'error';
+            job.error = job.error || 'The generator returned an empty caption — try again.';
+        }
+        let applied = false;
+        if (job.caption && (status === 'done' || status === 'error')) {
+            const sameClient = calClientSlug(calState.client || '') === job.client;
+            const post = sameClient ? (calState.posts || []).find(p => p.id === job.pid) : null;
+            if (post) {
+                const card = document.querySelector('.cal-card[data-pid="' + _calCapEsc(job.pid) + '"]');
+                const ta = card ? card.querySelector('textarea[data-fld="caption"][data-pid="' + _calCapEsc(job.pid) + '"]') : null;
+                const typed = String((ta ? ta.value : ((_calPendingEdits[job.pid] || {}).caption || '')) || '').trim();
+                // Never clobber text the user typed while the job ran.
+                if (!typed || typed === job.caption) {
+                    post.caption = job.caption;
+                    post.updated_at = new Date().toISOString();
+                    // Protect the just-applied caption through the conflict window so a
+                    // background v2 poll (Supabase mirror lagging the sheet write) can't
+                    // briefly revert the caption box to empty. The error path also flushes
+                    // below (which sets this), but 'done' relies on the workflow's own write.
+                    _calLocalRecentSaves.set(job.pid, Date.now());
+                    if (status === 'error') {
+                        if (!_calPendingEdits[job.pid]) _calPendingEdits[job.pid] = {};
+                        _calPendingEdits[job.pid].caption = post.caption;
+                        _calFlushCardSave(job.pid);
+                    }
+                    try { _calCacheWrite(job.client, calState.posts); } catch {}
+                    applied = true;
+                }
+            }
+        }
+        if (_calCapJobBatch && !_calCapJobBatch.settledAll) {
+            _calCapJobBatch.done += 1;
+            if (status === 'done') _calCapJobBatch.ok += 1;
+            else if (status === 'cancelled') _calCapJobBatch.cancelled += 1;
+            else _calCapJobBatch.failed += 1;
+        }
+        _calCapJobsPersist();
+        if (applied) _calRenderBody({ preserveScroll: true });
+        if (status === 'error' && job.error) _calSetCaptionBusy(job.pid, null, job.error);
+        else _calCapGenBtnRefresh(job.pid);
+        _calUpdateBulkCaptionBar();
+        if (job.resolve) {
+            job.resolve(status === 'done' ? { ok: true } : { ok: false, error: job.error || status, cancelled: status === 'cancelled' });
+            job.resolve = null;
+        }
+        _calCapJobPump();
+        // Release the slot after a short grace so the map can't leak entries.
+        setTimeout(() => {
+            const cur = _calCaptionJobs.get(job.pid);
+            if (cur === job && !_calCapJobActive(job)) _calCaptionJobs.delete(job.pid);
+        }, 8000);
+    }
+    function _calCapJobsEnsurePolling() {
+        if (!_calCapJobPollTimer) _calCapJobPollTimer = setInterval(_calCapJobsPoll, CAL_CAPJOB_POLL_MS);
+        if (!_calCapJobTicker) _calCapJobTicker = setInterval(_calCapJobsTick, 1000);
+    }
+    function _calCapJobsStopPollingIfIdle() {
+        if (_calCapJobsActiveList().length) return;
+        if (_calCapJobPollTimer) { clearInterval(_calCapJobPollTimer); _calCapJobPollTimer = null; }
+        if (_calCapJobTicker) { clearInterval(_calCapJobTicker); _calCapJobTicker = null; }
+    }
+    function _calCapJobsTick() {
+        for (const job of _calCapJobsActiveList()) {
+            if (job.status !== 'running' || job.cancelRequested) continue;
+            const el = document.querySelector('[data-capgen-elapsed="' + _calCapEsc(job.pid) + '"]');
+            if (el) el.textContent = _calCapJobElapsed(job);
+        }
+        _calCapJobsStopPollingIfIdle();
+    }
+    function _calCapJobPollNow() { _calCapJobsEnsurePolling(); _calCapJobsPoll(); }
+    /* Reconcile every active job against the backend caption_jobs rows. */
+    async function _calCapJobsPoll() {
+        if (_calCapJobPollBusy) return;
+        if (!_calCapJobsActiveList().length) { _calCapJobsStopPollingIfIdle(); return; }
+        _calCapJobPollBusy = true;
+        try {
+            const clients = Array.from(new Set(_calCapJobsActiveList().filter(j => j.posted).map(j => j.client)));
+            const rows = new Map();
+            await Promise.all(clients.map(async (slug) => {
+                try {
+                    const r = await fetch(CAPTION_JOB_STATUS_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+                    const j = await r.json();
+                    if (j && j.ok && Array.isArray(j.jobs)) for (const row of j.jobs) rows.set(row.jobId, row);
+                } catch {}
+            }));
+            const now = Date.now();
+            for (const job of _calCapJobsActiveList()) {
+                if (!job.posted) continue;             // still waiting in the client-side queue
+                const row = rows.get(job.jobId);
+                if (row) {
+                    job.confirmed = true;
+                    const upd = Date.parse(row.updated_at || '') || 0;
+                    if (upd) job.lastMovementAt = Math.max(job.lastMovementAt || 0, upd);
+                    if (row.status === 'done') { _calCapJobSettle(job, 'done', { caption: row.caption || '' }); continue; }
+                    if (row.status === 'cancelled') { _calCapJobSettle(job, 'cancelled', {}); continue; }
+                    if (row.status === 'error') { _calCapJobSettle(job, 'error', { error: _calCapJobCleanErr(row.error) || 'Generation failed', caption: row.caption || '' }); continue; }
+                    if (row.stage && row.stage !== job.stage) { job.stage = row.stage; _calCapGenBtnRefresh(job.pid); }
+                }
+                // Explicit cancel that reached the backend: give it a short grace
+                // to checkpoint and write status='cancelled' (caught above); if it
+                // doesn't, settle locally so the "Cancelling…" pill can't hang for
+                // the full 12-min stale timeout. cancel_requested is (re)sent so a
+                // late checkpoint still won't save a caption.
+                if (_calCapJobCancelExpired(job, now)) {
+                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
+                    _calCapJobSettle(job, 'cancelled', {});
+                    continue;
+                }
+                // Watchdogs — every job ends, one way or another.
+                if (!job.confirmed && job.postFailed) {
+                    if (now - job.startedAt > CAL_CAPJOB_CONFIRM_MS) {
+                        _calCapJobSettle(job, 'error', { error: 'Could not reach the caption service — check your connection and try again.' });
+                    }
+                    continue;
+                }
+                if (!job.confirmed && now - job.startedAt > 3 * 60 * 1000) {
+                    _calCapJobSettle(job, 'error', { error: 'The caption service did not pick up the job — try again.' });
+                    continue;
+                }
+                if (now - (job.lastMovementAt || job.startedAt) > CAL_CAPJOB_STALE_MS) {
+                    // Stand the backend down too, so a zombie run can't write a
+                    // caption to the sheet long after the UI gave up.
+                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
+                    _calCapJobSettle(job, 'error', { error: 'Timed out — the caption generator stopped responding. Try again.' });
+                }
+            }
+            _calCapJobsPersist();
+        } finally {
+            _calCapJobPollBusy = false;
+            _calCapJobsStopPollingIfIdle();
+        }
+    }
+    /* Cancel one card's job. Queued jobs die instantly; running jobs set
+       cancel_requested on the backend row, which the workflow honours at its
+       next checkpoint (always before the caption is saved to the sheet). */
+    function _calCancelCaptionJob(pid) {
+        const job = _calCaptionJobs.get(pid);
+        if (!_calCapJobActive(job)) return;
+        if (job.status === 'queued' && !job.posted) {
+            _calCapJobSettle(job, 'cancelled', {});
+            return;
+        }
+        if (job.cancelRequested) return;
+        job.cancelRequested = true;
+        job.cancelRequestedAt = Date.now();   // start the grace clock for the local fallback settle
+        _calCapJobsPersist();
+        _calCapGenBtnRefresh(pid);
+        _calUpdateBulkCaptionBar();
+        fetch(CAPTION_JOB_UPDATE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jobId: job.jobId, cancel_requested: true })
+        }).then(r => { if (!r || !r.ok) throw new Error('HTTP ' + (r && r.status)); })
+          .catch(() => {
+            if (!_calCapJobActive(job)) return;
+            job.cancelRequested = false;
+            _calCapJobsPersist();
+            _calCapGenBtnRefresh(pid);
+            _calSetCaptionBusy(pid, null, 'Could not reach the server to cancel — still generating.');
+          });
+    }
+    document.addEventListener('visibilitychange', () => {
+        // Coming back to the tab → re-sync against the backend immediately
+        // instead of waiting out the poll interval (which background tabs
+        // throttle anyway).
+        if (document.visibilityState === 'visible' && _calCapJobsActiveList().length) _calCapJobPollNow();
+    });
+    async function _calBulkGenerateCaptions() {
+        if (_isClientLink) return;   // bulk caption generation is SMM-only
+        const all = Array.from(calState.selected);
+        const eligible = all
+            .map(id => calState.posts.find(p => p.id === id))
+            .filter(p => p && _calCanGenerateCaption(p) && !(p.caption && String(p.caption).trim()) && !_calCapJobActive(_calCaptionJobs.get(p.id)));
+        const skippedExisting = all.length - eligible.length;
+        if (!eligible.length) {
+            showNotify('Nothing to generate',
+                skippedExisting
+                    ? 'All ' + skippedExisting + ' selected card' + (skippedExisting === 1 ? ' already has' : 's already have') + ' a caption, are already generating, or are missing a Frame.io video URL.'
+                    : 'Select cards that have a Frame.io video URL and no caption yet.');
+            return;
+        }
+        // Drop out of select mode the moment Generate is clicked — the
+        // selection is captured, the picker UI has done its job, and
+        // leaving the blue overlays + red button up is just noise
+        // alongside the floating progress bar.
+        if (calState.selectMode && calState.selectAction === 'caption') {
+            calState.selectMode = false;
+            calState.selectAction = 'archive';
+            calState.selected = new Set();
+            calState.lastSel = null;
+            document.querySelectorAll('.cal-toolbar .cal-select-btn').forEach(b => b.classList.remove('active'));
+            _calRenderBody({ preserveScroll: true });
+        }
+        // Every card becomes a job; the engine runs CAL_CAPJOB_CONCURRENCY at
+        // a time and the chip tracks the batch. Each promise settles when its
+        // backend job does (or is cancelled / times out) — never hangs.
+        const results = await Promise.all(eligible.map(p => _calGenerateCaption(p.id)));
+        const ok = results.filter(r => r && r.ok).length;
+        const cancelled = results.filter(r => r && !r.ok && r.cancelled).length;
+        const failed = results.length - ok - cancelled;
+        const summary =
+            ok + ' caption' + (ok === 1 ? '' : 's') + ' generated' +
+            (failed ? ', ' + failed + ' failed' : '') +
+            (cancelled ? ', ' + cancelled + ' cancelled' : '') +
+            (skippedExisting ? '. Skipped ' + skippedExisting + ' card' + (skippedExisting === 1 ? '' : 's') + ' that already had a caption.' : '.');
+        showNotify(ok ? 'Done' : (cancelled === results.length ? 'Cancelled' : 'Generation failed'), summary);
+    }
+    /* The chip's Cancel cancels everything in flight — queued jobs die
+       instantly, running ones stop at the workflow's next checkpoint. */
+    function _calCancelBulkCaption() {
+        for (const job of _calCapJobsActiveList()) _calCancelCaptionJob(job.pid);
+    }
+    /* Single source of truth for the floating bottom-right progress chip,
+       rendered from the jobs map + batch counters. A batch is "every job
+       started since the chip was last idle" — rapid-fire single clicks
+       merge into one accurate X / Y count instead of fighting over the bar.
+       On completion the bar auto-dismisses after 2.5 s. */
+    let _calBulkCapAutoHide = null;
+    function _calUpdateBulkCaptionBar() {
+        const batch = _calCapJobBatch;
+        const bar = _calEnsureBulkCaptionBar();
+        if (!batch) { bar.classList.remove('is-active'); return; }
+        bar.classList.add('is-active');
+        const active = _calCapJobsActiveList();
+        const inProgress = active.length > 0;
+        const cancelling = inProgress && active.every(j => j.cancelRequested);
+        const spin = '<span class="cal-bulk-cap-spin"></span>';
+        let txt;
+        if (batch.total === 1) {
+            txt = inProgress
+                ? (spin + '<span>' + (cancelling ? 'Cancelling…' : 'Generating caption…') + '</span>')
+                : (batch.ok ? '<span>✓ Caption generated</span>'
+                    : (batch.cancelled ? '<span>Caption cancelled</span>' : '<span>Generation failed</span>'));
+        } else {
+            txt = (inProgress ? spin : '') +
+                '<span>' + (cancelling ? 'Cancelling… ' : '') + 'Generating captions: ' + batch.done + ' / ' + batch.total +
+                (batch.failed ? '  (' + batch.failed + ' failed)' : '') +
+                (batch.cancelled ? '  (' + batch.cancelled + ' cancelled)' : '') + '</span>';
+        }
+        const span = bar.querySelector('[data-bulk-cap-text]');
+        if (span) span.innerHTML = txt;
+        const cancelBtn = bar.querySelector('.cal-bulk-cap-cancel');
+        if (cancelBtn) cancelBtn.hidden = !inProgress || cancelling;
+        // Once everything finishes, schedule the auto-hide. Cleared on
+        // every update so a fast follow-up run doesn't get dismissed
+        // mid-progress.
+        if (_calBulkCapAutoHide) { clearTimeout(_calBulkCapAutoHide); _calBulkCapAutoHide = null; }
+        if (!inProgress) {
+            batch.settledAll = true;
+            const watched = batch;
+            _calBulkCapAutoHide = setTimeout(() => {
+                bar.classList.remove('is-active');
+                // Release the batch only if a follow-up generation hasn't
+                // already replaced it.
+                if (_calCapJobBatch === watched) _calCapJobBatch = null;
+                _calBulkCapAutoHide = null;
+            }, 2500);
+        }
+    }
+    function _calEnsureBulkCaptionBar() {
+        let bar = document.getElementById('calBulkCapBar');
+        if (bar) return bar;
+        bar = document.createElement('div');
+        bar.id = 'calBulkCapBar';
+        bar.className = 'cal-bulk-cap-bar';
+        bar.innerHTML = '<span data-bulk-cap-text>Generating captions: 0 / 0</span>' +
+            '<button type="button" class="cal-bulk-cap-cancel" onclick="_calCancelBulkCaption()">Cancel</button>';
+        document.body.appendChild(bar);
+        return bar;
+    }
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        const overlay = document.getElementById('calPromptOverlay');
+        if (overlay && overlay.classList.contains('open')) { _calCloseCaptionPromptModal(); return; }
+        // The bulk Linear-link dialog is the one modal reachable from multi-select;
+        // Escape closes it (leaving select mode intact, so a second Escape exits).
+        const linkOvl = document.getElementById('calBulkLinkOverlay');
+        if (linkOvl && linkOvl.classList.contains('open')) { closeCalBulkLinkOverlay(); return; }
+        // Otherwise Escape leaves multi-select entirely — same as the "Done"
+        // button: clears the selection and restores the normal calendar. Guard on
+        // cal-modal-open so we never tear down select mode behind an open modal.
+        if (calState.selectMode && !_isClientLink && !document.body.classList.contains('cal-modal-open')) {
+            _calToggleSelectMode();
+        }
+    });
+    /* Caption-prompt edit modal — per client. Read-write against the
+       CaptionPrompts tab via the caption-prompts-save webhook. Empty
+       string === "use the default prompt baked into the workflow". */
+    function _calOpenCaptionPromptModal() {
+        const client = calState.client;
+        if (!client) return;
+        const overlay = document.getElementById('calPromptOverlay');
+        const modal = document.getElementById('calPromptModal');
+        if (!overlay || !modal) return;
+        const stored = _calCaptionPromptFor(client);
+        // Treat "stored matches the default verbatim" as no custom prompt —
+        // the sheet was pre-populated with the default for every client, so
+        // an exact match means the SMM hasn't tailored it yet.
+        const isCustom = !!stored && stored.trim() !== DEFAULT_CAPTION_PROMPT.trim();
+        // Pre-fill with the default when nothing custom is saved yet — the
+        // SMM can see the baseline prompt and edit from there. On save we
+        // compare against the default and store an empty string when they
+        // match, so the workflow keeps using the canonical baked-in prompt
+        // (and any future tweak to it propagates automatically).
+        const initial = isCustom ? stored : DEFAULT_CAPTION_PROMPT;
+        const charCount = initial.length;
+        const bannerSvgInfo = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 5.5v3M8 11h.01"/></svg>';
+        const bannerSvgCheck = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 5"/></svg>';
+        const bannerHtml = isCustom
+            ? '<div class="cal-prompt-banner is-custom">' + bannerSvgCheck +
+                '<span>Custom prompt loaded for <strong>' + _calEsc(client) + '</strong> (' + charCount + ' characters).</span></div>'
+            : '<div class="cal-prompt-banner is-default">' + bannerSvgInfo +
+                '<span>No custom prompt saved for <strong>' + _calEsc(client) + '</strong> yet — the editor below is pre-filled with the default Caption Writer prompt (' + charCount + ' characters). Edit and Save to make a client-specific version.</span></div>';
+        // Embed the initial text directly in the textarea body so the field
+        // is populated the moment the modal renders — no .value race, no
+        // empty-flash. _calEsc neutralises </textarea> and HTML entities.
+        modal.innerHTML =
+            '<div class="cal-prompt-head">' +
+                '<div class="cal-prompt-head-text">' +
+                    '<h3>Caption prompt — ' + _calEsc(client) + '</h3>' +
+                    '<p>Used whenever you click Generate caption on a card for this client.</p>' +
+                '</div>' +
+                '<button class="cal-prompt-close" type="button" onclick="_calCloseCaptionPromptModal()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>' +
+            '</div>' +
+            '<div class="cal-prompt-body">' +
+                bannerHtml +
+                '<textarea class="cal-prompt-textarea" id="calPromptTA" placeholder="The transcript is appended automatically — write only the instructions.">' + _calEsc(initial) + '</textarea>' +
+                '<div class="cal-prompt-hint">' +
+                    'Tip: the transcript is appended automatically after your prompt, prefixed with <code>Transcript:</code>. ' +
+                    'Don\'t include the transcript yourself. Clear the field and save to fall back to the default.' +
+                '</div>' +
+            '</div>' +
+            '<div class="cal-prompt-foot">' +
+                '<div class="cal-prompt-foot-left">' +
+                    '<button type="button" class="cal-prompt-btn" onclick="_calResetCaptionPromptToDefault()">Reset to default</button>' +
+                '</div>' +
+                '<div class="cal-prompt-foot-right">' +
+                    '<button type="button" class="cal-prompt-btn" onclick="_calCloseCaptionPromptModal()">Cancel</button>' +
+                    '<button type="button" class="cal-prompt-btn is-primary" id="calPromptSaveBtn" onclick="_calSaveCaptionPrompt()">Save</button>' +
+                '</div>' +
+            '</div>';
+        const ta = document.getElementById('calPromptTA');
+        if (ta) {
+            setTimeout(() => { ta.focus(); ta.setSelectionRange(0, 0); ta.scrollTop = 0; }, 30);
+        }
+        overlay.classList.add('open');
+    }
+    function _calCloseCaptionPromptModal() {
+        const overlay = document.getElementById('calPromptOverlay');
+        if (overlay) overlay.classList.remove('open');
+    }
+    function _calResetCaptionPromptToDefault() {
+        const ta = document.getElementById('calPromptTA');
+        if (!ta) return;
+        ta.value = DEFAULT_CAPTION_PROMPT;
+        ta.focus();
+    }
+    async function _calSaveCaptionPrompt() {
+        const client = calState.client;
+        if (!client) return;
+        const ta = document.getElementById('calPromptTA');
+        const btn = document.getElementById('calPromptSaveBtn');
+        if (!ta || !btn) return;
+        const raw = ta.value.trim();
+        // Saving the default verbatim is the same as saving nothing — store
+        // empty so future default updates propagate automatically.
+        const isDefault = raw === DEFAULT_CAPTION_PROMPT.trim();
+        const promptText = isDefault ? '' : raw;
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+        try {
+            const writeUrl = _settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL);
+            const r = await fetch(writeUrl, {
+                method: 'POST',
+                headers: _settingsWriteHeaders('caption-prompts', writeUrl),
+                body: JSON.stringify({ client: calClientSlug(client), prompt: promptText })
+            });
+            const j = await r.json();
+            if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
+            _calCaptionPrompts[calClientSlug(client)] = promptText;
+            _calCloseCaptionPromptModal();
+            showNotify('Saved', promptText
+                ? 'Custom caption prompt saved for ' + client + '.'
+                : 'Using the default prompt for ' + client + '.');
+        } catch (e) {
+            btn.disabled = false;
+            btn.textContent = 'Save';
+            showNotify('Save failed', (e && e.message) || 'Could not save the caption prompt — try again.');
+        }
+    }
+
+    function wireCalOrganizerDrag(skipAutoCenter) {
+        const strip = document.getElementById('calStrip');
+        if (!strip) return;
+        strip.querySelectorAll('.cal-card[draggable="true"]').forEach(_calWireDragOnCard);
+        _calAutosizeTextareas(strip);
+        _calWireShiftScroll(strip);
+        _calWireDragEdgeScroll(strip);
+        // Restore the previously-scrolled position (persisted across browser
+        // refreshes); fall back to centring the "up next" card. Skipped on a
+        // background refresh so the in-memory scroll position holds.
+        if (!skipAutoCenter) {
+            const slug = calClientSlug(calState.client);
+            const saved = _calGetSavedScroll(slug);
+            requestAnimationFrame(() => {
+                if (saved != null) {
+                    strip.scrollLeft = saved;
+                    return;
+                }
+                const current = strip.querySelector('.cal-card-current');
+                if (current) {
+                    const cRect = current.getBoundingClientRect(), sRect = strip.getBoundingClientRect();
+                    strip.scrollLeft += (cRect.left - sRect.left) - (strip.clientWidth - cRect.width) / 2;
+                } else {
+                    strip.scrollLeft = strip.scrollWidth;
+                }
+            });
+        }
+        if (strip.dataset.scrollWired !== '1') {
+            strip.dataset.scrollWired = '1';
+            let saveTimer = null;
+            strip.addEventListener('scroll', () => {
+                if (saveTimer) clearTimeout(saveTimer);
+                saveTimer = setTimeout(() => { _calSaveScroll(calClientSlug(calState.client), strip.scrollLeft); }, 200);
+            });
+        }
+        if (strip.dataset.dropWired === '1') return;
+        strip.dataset.dropWired = '1';
+        strip.addEventListener('drop', () => {
+            // Reordering is SMM-always / client-only-in-collab (same gate as the
+            // draggable attribute). Guard the handler so a read-only client can't
+            // persist a reorder by bypassing the UI.
+            if (!_calCanDragCards()) return;
+            const ids = Array.from(strip.querySelectorAll('.cal-card[draggable="true"]')).map(c => c.dataset.pid).filter(Boolean);
+            if (!ids.length) return;
+            const byId = new Map(calState.posts.map(p => [p.id, p]));
+            // Recycle the existing order_index slots of these visible posts
+            // instead of renumbering 1..N globally. With the month filter
+            // active, only a subset is rendered — assigning 1..N would clobber
+            // the order_index of hidden posts (e.g. a May-only reorder would
+            // jump renumbered May posts ahead of June). Sorting the slots and
+            // reassigning by DOM order keeps the visible subset shuffled in
+            // place without disturbing hidden posts' relative position.
+            //
+            // The recycled slots MUST be strictly increasing and unique. The
+            // sheet (and the GET workflow) sort purely by order_index with no
+            // tiebreaker, so any two cards sharing a value fall back to
+            // sheet-row order on reload — which a drag never changes, so the
+            // dropped card silently snaps back even though the write "saved".
+            // Duplicate order_index can already exist in the data (a stale
+            // cache or two batched appends computing the same max+1), and the
+            // raw recycle faithfully re-emits the duplicate, perpetuating it.
+            // Anchor at the lowest occupied slot, then bump any tie up by one
+            // so every visible card lands on a distinct position. This heals
+            // duplicates on the next drag while only nudging upward (the min
+            // is preserved, so the visible block won't leapfrog hidden posts
+            // sitting below it).
+            //
+            // The bump must also avoid landing on a slot held by a HIDDEN post
+            // (one filtered out of this strip). The de-dup only sees the visible
+            // ids, so a bumped value could collide with a hidden post's
+            // order_index — a cross visible↔hidden tie that the sheet's
+            // tiebreaker-free sort then resolves nondeterministically on reload
+            // (the snap-back this whole block exists to prevent). Skip any slot
+            // occupied by a non-visible post so every assigned value is unique
+            // across the WHOLE calendar, not just the visible subset.
+            const idSet = new Set(ids);
+            const hiddenSlots = new Set(
+                calState.posts.filter(p => p && !idSet.has(p.id)).map(p => Number(p.order_index || 0)));
+            const rawSlots = ids.map(id => Number((byId.get(id) || {}).order_index || 0)).slice().sort((a, b) => a - b);
+            const slots = [];
+            let prevSlot = -Infinity;
+            for (const v of rawSlots) {
+                let s = v > prevSlot ? v : prevSlot + 1;
+                while (hiddenSlots.has(s)) s++;   // never reuse a hidden post's slot
+                slots.push(s);
+                prevSlot = s;
+            }
+            const items = ids.map((id, i) => ({ id, order_index: slots[i] }));
+            // Snapshot the prior order so a webhook failure can revert.
+            // Without this, a dropped card sits at its new position locally
+            // while the sheet still has the old order — next reload snaps
+            // it back and the user thinks the drag didn't happen.
+            const prevOrder = new Map(calState.posts.map(p => [p.id, Number(p.order_index || 0)]));
+            items.forEach(({ id, order_index }) => { const p = byId.get(id); if (p) p.order_index = order_index; });
+            _calRecordReorderOptimistic(items);
+            try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
+            persistCalReorder(items, prevOrder);
+        });
+    }
+    /* Auto-scroll the organizer strip while dragging a card. The browser's
+       native edge-scroll fires only when the pointer is within ~15px of the
+       viewport edge, which is unusably narrow and easy to miss. We use a
+       generous ~110px zone measured against the strip itself and accelerate
+       toward the edge so a card can be moved across a long strip in one go. */
+    function _calWireDragEdgeScroll(strip) {
+        if (!strip || strip.dataset.dragScrollWired === '1') return;
+        strip.dataset.dragScrollWired = '1';
+        const EDGE_PX = 110;          // width of the hot zone at each end
+        const MAX_SPEED = 28;         // pixels per frame at the very edge
+        let lastClientX = null;
+        let active = false;
+        let rafId = null;
+        const tick = () => {
+            rafId = null;
+            if (!active || lastClientX == null) return;
+            const max = strip.scrollWidth - strip.clientWidth;
+            if (max <= 0) { active = false; return; }
+            const rect = strip.getBoundingClientRect();
+            const fromLeft = lastClientX - rect.left;
+            const fromRight = rect.right - lastClientX;
+            let delta = 0;
+            if (fromLeft < EDGE_PX && fromLeft > -EDGE_PX) {
+                delta = -MAX_SPEED * Math.max(0, Math.min(1, (EDGE_PX - fromLeft) / EDGE_PX));
+            } else if (fromRight < EDGE_PX && fromRight > -EDGE_PX) {
+                delta = MAX_SPEED * Math.max(0, Math.min(1, (EDGE_PX - fromRight) / EDGE_PX));
+            }
+            if (delta !== 0) {
+                const next = Math.max(0, Math.min(max, strip.scrollLeft + delta));
+                if (next !== strip.scrollLeft) strip.scrollLeft = next;
+                rafId = requestAnimationFrame(tick);
+            } else {
+                active = false;
+            }
+        };
+        const onDragOver = (e) => {
+            // Only kick in while a card is being dragged — preventDefault on
+            // the card / strip dragover already happens in the card handler.
+            if (!strip.querySelector('.cal-card.dragging')) return;
+            lastClientX = e.clientX;
+            if (!active) { active = true; if (rafId == null) rafId = requestAnimationFrame(tick); }
+        };
+        const stop = () => { active = false; lastClientX = null; if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; } };
+        strip.addEventListener('dragover', onDragOver);
+        strip.addEventListener('drop', stop);
+        strip.addEventListener('dragleave', (e) => {
+            // Only stop when the pointer actually leaves the strip — dragleave
+            // fires for child elements too, so check relatedTarget.
+            if (!e.relatedTarget || !strip.contains(e.relatedTarget)) stop();
+        });
+        document.addEventListener('dragend', stop);
+    }
+    function _calWireShiftScroll(el) {
+        if (!el || el.dataset.shiftScrollWired === '1') return;
+        el.dataset.shiftScrollWired = '1';
+        el.addEventListener('wheel', (e) => {
+            // If the gesture already has horizontal intent (trackpad swipe,
+            // horizontal mouse wheel, Shift-wheel on Chrome) let the browser
+            // handle it natively so we don't double-apply the delta.
+            if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+            let delta = e.deltaY;
+            if (!delta) return;
+            if (e.deltaMode === 1) delta *= 16;                  // lines → px
+            else if (e.deltaMode === 2) delta *= el.clientWidth; // pages → px
+            const max = el.scrollWidth - el.clientWidth;
+            if (max <= 1) return;
+            // Always consume vertical wheel inside the strip — even at the
+            // edges — so a wheel-down at the right edge (or wheel-up at the
+            // left edge) doesn't bleed into the page's vertical scroll.
+            e.preventDefault();
+            // Move the strip directly with the wheel — flowy and immediate,
+            // no card snapping, no animation.
+            el.scrollLeft = Math.max(0, Math.min(max, el.scrollLeft + delta));
+        }, { passive: false });
+    }
+    function _calWireDragOnCard(card) {
+        if (!card || card.dataset.dragWired === '1') return;
+        card.dataset.dragWired = '1';
+        const strip = card.parentElement;
+        card.addEventListener('dragstart', (e) => {
+            if (e.target.closest('input, textarea, select, button')) { e.preventDefault(); return; }
+            e.dataTransfer.effectAllowed = 'move';
+            card.classList.add('dragging');
+        });
+        card.addEventListener('dragend', () => card.classList.remove('dragging'));
+        card.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const dragging = strip.querySelector('.cal-card.dragging');
+            if (!dragging || dragging === card) return;
+            const rect = card.getBoundingClientRect();
+            const after = (e.clientX - rect.left) > rect.width / 2;
+            strip.insertBefore(dragging, after ? card.nextSibling : card);
+        });
+    }
+    let _calReorderInFlight = false;
+    let _calReorderPending  = null;   // latest {items, prevOrder} requested mid-flight
+    /* Optimistic order_index guard. A drag writes order_index into calState
+       locally but deliberately never bumps updated_at (it's not a card-content
+       edit), so the last-write-wins merge in loadCalendarPosts can't tell the
+       local order is "newer" than a fetch — and a reorder is NOT covered by
+       _calSaveInFlight / _calLocalRecentSaves either. A background reload (the
+       reorder's own realtime echo, the 30s poll, or a focus-return) that lands
+       before the reorder write is READABLE in Supabase would then adopt the
+       STALE server order_index and snap the cards back, only to re-correct on
+       the next echo — exactly the "I move cards fast and it reverts, refreshes,
+       reverts" flicker. Record each dragged id's intended order here; the merge
+       pins it until the write + read-lag settle (or the entry expires). */
+    const _calReorderOptimistic = new Map();   // id -> { order_index:Number, at:ms }
+    const CAL_REORDER_GUARD_MS = 12000;
+    function _calRecordReorderOptimistic(items) {
+        const at = Date.now();
+        (items || []).forEach(({ id, order_index }) => _calReorderOptimistic.set(id, { order_index: Number(order_index), at }));
+    }
+    /* Undo for the last drag-reorder: restore the order captured just before
+       the drag and persist it through the same serialized reorder funnel.
+       Skipped if the user has switched client tabs — the snapshot belongs to
+       the other tab. */
+    function _calUndoReorder(prevOrder, slug) {
+        if (calClientSlug(calState.client) !== slug) return;
+        const snapshot = new Map(calState.posts.map(p => [p.id, Number(p.order_index || 0)]));
+        calState.posts.forEach(p => { if (prevOrder.has(p.id)) p.order_index = prevOrder.get(p.id); });
+        try { _calCacheWrite(slug, calState.posts); } catch (e) {}
+        try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+        const items = [...prevOrder].map(([id, order_index]) => ({ id, order_index }));
+        _calRecordReorderOptimistic(items);
+        persistCalReorder(items, snapshot, slug);
+    }
+    async function _calPersistReorderViaN8n(slug, items) {
+        let json = null;
+        try {
+            const resp = await fetch(CALENDAR_REORDER_BATCH_URL, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client: slug, items })
+            });
+            json = await resp.json();
+        } catch (e) { json = null; }
+        if (!json || !json.ok) {
+            const resp = await fetch(CALENDAR_REORDER_URL, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client: slug, items })
+            });
+            json = await resp.json();
+        }
+        return json;
+    }
+
+    async function persistCalReorder(items, prevOrder, slug) {
+        // Pin the destination client at call time. Read live (post-await) it
+        // could resolve to a different client if the user switched tabs while a
+        // coalesced reorder was queued, writing order_index onto the wrong tab.
+        if (slug == null) slug = calClientSlug(calState.client);
+        // Serialize reorders. Two quick drags would otherwise fire overlapping
+        // writes whose responses can land out of order, leaving order_index in
+        // the earlier drag's arrangement. Coalesce to the latest desired order:
+        // a drag made while a write is in flight is held and run after it.
+        if (_calReorderInFlight) { _calReorderPending = { items, prevOrder, slug }; return; }
+        _calReorderInFlight = true;
+        // Treat the reorder as a local write so its OWN realtime echo (and any
+        // poll inside the window) is recognised as ours and DEFERRED by
+        // _calV2OnRealtimeChange, instead of firing a reload that races this
+        // write and snaps the cards back. Refreshed again on success, since the
+        // echo actually lands a beat after the write resolves. (No header badge
+        // here any more — it shifted the toolbar; the toast below is the
+        // feedback, and the per-card optimistic move is the live confirmation.)
+        _calLastLocalWriteAt = Date.now();
+        try {
+            // Edge Function for flagged clients. Once a client is on the EF
+            // route, fail closed: an auth denial/outage must never downgrade
+            // into the unauthenticated legacy n8n writer. Unflagged clients
+            // retain the existing batched-n8n path until their own migration.
+            let json = null;
+            if (_calUpsertUseEf(slug)) {
+                const url = _calReorderUrlForClient(slug);
+                const resp = await fetch(url, {
+                    method: 'POST', headers: _calUpsertHeaders('ui', url),
+                    body: JSON.stringify({ client: slug, items })
+                });
+                json = await resp.json().catch(() => null);
+                if (!resp.ok || !json || !json.ok || Number(json.updated || 0) < items.length) {
+                    throw new Error((json && json.error) || ('calendar reorder EF HTTP ' + resp.status));
+                }
+            } else {
+                json = await _calPersistReorderViaN8n(slug, items);
+            }
+            if (!json || !json.ok) throw new Error('reorder failed');
+            // Refresh the self-echo window — the realtime echo of this write
+            // lands a beat later and must not reload/flicker the strip.
+            _calLastLocalWriteAt = Date.now();
+            // Offer Undo only for the latest completed drag — a coalesced
+            // follow-up drag queued behind this write shows its own toast.
+            if (prevOrder && prevOrder.size && !_calReorderPending) {
+                showToast('New order saved', { actionLabel: 'Undo', onAction: () => _calUndoReorder(prevOrder, slug) });
+            }
+        } catch (e) {
+            console.warn('[Calendar] reorder failed', e);
+            // Feedback via a toast, not the header badge that displaced the
+            // toolbar. Drop the optimistic guard for the ids this write tried to
+            // set — but only where a newer drag hasn't already superseded them —
+            // so the reverted (server) order is what the next reload adopts.
+            showToast('Couldn’t save the new order — reverted. Try again.');
+            items.forEach(({ id, order_index }) => {
+                const ro = _calReorderOptimistic.get(id);
+                if (ro && ro.order_index === Number(order_index)) _calReorderOptimistic.delete(id);
+            });
+            // Roll back to the prior order_index values so the next render
+            // (and the cached copy after the next successful load) match
+            // what's actually on the sheet.
+            if (prevOrder && prevOrder.size) {
+                calState.posts.forEach(p => {
+                    if (prevOrder.has(p.id)) p.order_index = prevOrder.get(p.id);
+                });
+                // Only repaint/cache the rollback if we're still on the tab this
+                // reorder targeted — otherwise we'd write one client's order into
+                // another client's cache after a tab switch.
+                if (calClientSlug(calState.client) === slug) {
+                    try { _calCacheWrite(slug, calState.posts); } catch {}
+                    try { _calRenderBody({ preserveScroll: true }); } catch {}
+                }
+            }
+        } finally {
+            _calReorderInFlight = false;
+            // Run the most recent drag that arrived while this write was in
+            // flight, strictly after it, so the final order on the sheet
+            // matches the last thing the user did.
+            if (_calReorderPending) {
+                const next = _calReorderPending;
+                _calReorderPending = null;
+                // Refresh the optimistic guard's timestamp as this coalesced
+                // drag finally goes out — a slow (cold-start) in-flight write
+                // could otherwise let its entry age past CAL_REORDER_GUARD_MS
+                // before it even runs, re-exposing it to a racing reload.
+                _calRecordReorderOptimistic(next.items);
+                persistCalReorder(next.items, next.prevOrder, next.slug);
+            }
+        }
+    }
+
+    /* ── Month view (read-only) ─────────────────────────────────────── */
+    function _calGripSvg() {
+        return `<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg>`;
+    }
+    /* When overall is 'Tweaks Needed', shows which component is in tweaks.
+       Priority caption > graphic > video so the indicator is deterministic
+       when more than one is stuck. Other states show no ribbon. */
+    function _calTweakRibbonComp(p) {
+        if (!p || _calNormStatus(p.status || '') !== 'Tweaks Needed') return '';
+        if (_calNormStatus(p.caption_status || '') === 'Tweaks Needed') return 'caption';
+        if (_calNormStatus(p.graphic_status || '') === 'Tweaks Needed') return 'graphic';
+        if (_calNormStatus(p.video_status || '')   === 'Tweaks Needed') return 'video';
+        return '';
+    }
+    /* Superficial Month/Week badge. Surfaces a status chip next to the post
+       title only when all three components (video/graphic/caption) have
+       reached one of Approved / Scheduled / Posted. computeOverallStatus is
+       the lowest-priority sub-status, so an overall in that set guarantees
+       every component is at-or-above Approved. Purely derived in the UI —
+       nothing is persisted. */
+    const _CAL_PILL_BADGE = new Set(['Approved', 'Scheduled', 'Posted']);
+    function _calPillBadgeHtml(p) {
+        const s = computeOverallStatus(p);
+        if (!_CAL_PILL_BADGE.has(s)) return '';
+        const cls = 'cal-status-' + s.toLowerCase().replace(/\s+/g, '-');
+        return `<span class="cal-status ${cls}">${_calEsc(s)}</span>`;
+    }
+    function _calMonthPillHtml(p) {
+        const info = _calDeriveThumbInfo(p);
+        const thumb = info.url
+            ? `<span class="cal-month-pill-thumb">${_calThumbImgTag(info, '_calOnMiniThumbError')}</span>`
+            : info.frame
+                ? _calMiniLinkBadgeHtml('cal-month-pill-thumb', info.frameKind)
+                : `<span class="cal-month-pill-thumb is-fallback">${_calThumbIconSvg()}</span>`;
+        const id = _calEscAttr(p.id);
+        const posted = String(p.status || '').toLowerCase() === 'posted' ? ' is-posted' : '';
+        const canDrag = _calCanDragCards();
+        const drag = canDrag ? ` draggable="true" data-cal-move="${id}"` : '';
+        const grip = canDrag ? `<span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>` : '';
+        const ribbonComp = _calTweakRibbonComp(p);
+        const ribbonAttr = ribbonComp ? ` data-tweak-comp="${ribbonComp}"` : '';
+        // Colour dot shows on the client view too — but only when the SMM has
+        // tagged the card (no colour, no dot). Passive; clients can't change it.
+        const color = _calPostColor(p);
+        const colorAttr = color ? ` data-color="${color}"` : '';
+        // On the client view, explain the corner dot on hover; the SMM already
+        // knows what its own batch colours mean, so it's client-only.
+        const colorTitle = (_isClientLink && color) ? ' title="Color tag — identifies which batch of content this post belongs to"' : '';
+        const warn = (!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnDotHtml(p) : '';
+        return `<button class="cal-month-pill${posted}"${colorAttr}${colorTitle}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calPillBadgeHtml(p)}</span>${warn}</button>`;
+    }
+
+    function renderCalMonth() {
+        const cursor = _calParseIso(calState.monthCursor);
+        const monthLabel = cursor.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+        const firstISO = _calIsoFirstOfMonth(cursor);
+        const startMonday = _calIsoMondayOf(_calParseIso(firstISO));
+        const cells = Array.from({ length: 42 }, (_, i) => _calAddDaysISO(startMonday, i));
+        const byDate = new Map();
+        // Client view + Collaborative mode off: same ready-only filter the
+        // Sheet tab uses, so the Month grid doesn't leak unfinished posts the
+        // Sheet tab is already hiding from the client.
+        const hideUnready = _isClientLink && !_calIsCollabOn();
+        for (const p of calState.posts) {
+            if (!p.scheduled_date) continue;
+            if (hideUnready && !_calIsClientReady(p)) continue;
+            const d = String(p.scheduled_date).slice(0,10);
+            if (!byDate.has(d)) byDate.set(d, []);
+            byDate.get(d).push(p);
+        }
+        // Reserve content: posts with no date yet. The SMM always sees the tray;
+        // the client sees it too once Collaborative mode is on, so they can pull
+        // a piece onto a day (or swap it in) themselves. Off → no tray, since a
+        // client with no drag rights could only stare at it.
+        const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date) : [];
+        const headers = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+        const todayISO = _calIsoOf(new Date());
+        return `<div class="cal-month-wrap">
+            <div class="cal-month-header">
+                <button class="cal-nav-btn" onclick="calMonthShift(-1)" title="Previous month">‹</button>
+                <div class="cal-month-label">${_calEsc(monthLabel)}</div>
+                <button class="cal-nav-btn" onclick="calMonthShift(1)" title="Next month">›</button>
+                <button class="cal-today-btn" onclick="calMonthToday()">Today</button>
+            </div>
+            ${_calUnscheduledTrayHtml(unsched)}
+            <div class="cal-month-grid">
+                ${headers.map(h => `<div class="cal-month-head">${h}</div>`).join('')}
+                ${cells.map(iso => {
+                    const inMonth = iso.slice(0,7) === firstISO.slice(0,7);
+                    const list = byDate.get(iso) || [];
+                    const today = iso === todayISO;
+                    const dow = _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' });
+                    return `<div class="cal-month-cell${inMonth ? '' : ' out'}${today ? ' today' : ''}" data-iso="${iso}">
+                        <div class="cal-month-cellhead">
+                            <span class="cal-month-dow">${dow}</span>
+                            <span class="cal-month-num">${parseInt(iso.slice(8,10), 10)}</span>
+                        </div>
+                        ${list.map(p => _calMonthPillHtml(p)).join('')}
+                    </div>`;
+                }).join('')}
+            </div>
+        </div>`;
+    }
+    /* Reserve-content tray that rides above the Month and Week grids. Pills are
+       draggable onto any day cell to schedule (or reschedule) them. */
+    function _calUnscheduledTrayHtml(unsched) {
+        if (!unsched || !unsched.length) return '';
+        return `<div class="cal-unscheduled cal-unscheduled-top">
+            <div class="cal-unscheduled-h">Unscheduled (${unsched.length}) · drag onto a day to schedule</div>
+            <div class="cal-unscheduled-list">
+                ${unsched.map(p => _calMonthPillHtml(p)).join('')}
+            </div>
+        </div>`;
+    }
+    function calMonthShift(n) { calState.monthCursor = _calAddMonthsISO(calState.monthCursor, n); _calRenderBody(); }
+    function calMonthToday() { calState.monthCursor = _calIsoFirstOfMonth(new Date()); _calRenderBody(); }
+
+    /* ── Week view (read-only) ──────────────────────────────────────── */
+    function renderCalWeek() {
+        const start = calState.weekCursor;
+        // Render a full week of buffer days on each side so the wheel can slide
+        // smoothly across many days via a pure CSS transform before we ever
+        // re-render (re-render only happens once the motion settles — see
+        // _calWireWeekWheel). The middle 7 columns are the actual week and sit
+        // in the viewport at rest; the buffer columns extend past the clip edge.
+        const days = Array.from({ length: 7 + _CAL_WEEK_BUFFER * 2 }, (_, i) => _calAddDaysISO(start, i - _CAL_WEEK_BUFFER));
+        const byDate = new Map();
+        // Mirror the Sheet/Month tabs' client-view filter: when Collaborative
+        // mode is off, unfinished posts stay hidden across all client tabs.
+        const hideUnready = _isClientLink && !_calIsCollabOn();
+        for (const p of calState.posts) {
+            if (!p.scheduled_date) continue;
+            if (hideUnready && !_calIsClientReady(p)) continue;
+            const d = String(p.scheduled_date).slice(0,10);
+            if (!byDate.has(d)) byDate.set(d, []);
+            byDate.get(d).push(p);
+        }
+        const startDate = _calParseIso(start);
+        const endDate = _calParseIso(_calAddDaysISO(start, 6));
+        const rangeLabel = `${startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${endDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+        const todayISO = _calIsoOf(new Date());
+        // Same reserve-content tray as the Month tab: SMM always, client when
+        // Collaborative mode is on. Drag a pill onto a day column to schedule it.
+        const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date) : [];
+        return `<div class="cal-week-wrap">
+            <div class="cal-month-header">
+                <button class="cal-nav-btn" onclick="calWeekShift(-1)" title="Previous week">‹</button>
+                <div class="cal-month-label">${_calEsc(rangeLabel)}</div>
+                <button class="cal-nav-btn" onclick="calWeekShift(1)" title="Next week">›</button>
+                <button class="cal-today-btn" onclick="calWeekToday()">Today</button>
+            </div>
+            ${_calUnscheduledTrayHtml(unsched)}
+            <div class="cal-week-viewport">
+            <div class="cal-week-grid">
+                ${days.map((iso) => {
+                    const list = byDate.get(iso) || [];
+                    const today = iso === todayISO;
+                    const dow = _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' });
+                    return `<div class="cal-week-col${today ? ' today' : ''}" data-iso="${iso}">
+                        <div class="cal-week-head">
+                            <div class="cal-week-day">${dow}</div>
+                            <div class="cal-week-num">${parseInt(iso.slice(8,10), 10)}</div>
+                        </div>
+                        <div class="cal-week-stack">
+                            ${list.map(p => {
+                                const info = _calDeriveThumbInfo(p);
+                                const th = info.url
+                                    ? `<span class="cal-week-card-thumb">${_calThumbImgTag(info, '_calOnMiniThumbError')}</span>`
+                                    : info.frame
+                                        ? _calMiniLinkBadgeHtml('cal-week-card-thumb', info.frameKind)
+                                        : `<span class="cal-week-card-thumb is-fallback">${_calThumbIconSvg()}</span>`;
+                                const id = _calEscAttr(p.id);
+                                const posted = String(p.status || '').toLowerCase() === 'posted' ? ' is-posted' : '';
+                                const wCanDrag = _calCanDragCards();
+                                const drag = wCanDrag ? ` draggable="true" data-cal-move="${id}"` : '';
+                                const grip = wCanDrag ? `<span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>` : '';
+                                const ribbonComp = _calTweakRibbonComp(p);
+                                const ribbonAttr = ribbonComp ? ` data-tweak-comp="${ribbonComp}"` : '';
+                                // Colour dot shows on the client view too — but only when the
+                                // SMM has tagged the card (no colour, no dot). Passive / read-only.
+                                const wColor = _calPostColor(p);
+                                const wColorAttr = wColor ? ` data-color="${wColor}"` : '';
+                                const wColorTitle = (_isClientLink && wColor) ? ' title="Color tag — identifies which batch of content this post belongs to"' : '';
+                                const wWarn = (!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnDotHtml(p) : '';
+                                return `<button class="cal-week-card${posted}"${wColorAttr}${wColorTitle}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calPillBadgeHtml(p)}</span>${wWarn}</button>`;
+                            }).join('')}
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>
+            </div>
+        </div>`;
+    }
+    function calWeekShift(n) { calState.weekCursor = _calAddDaysISO(calState.weekCursor, n * 7); _calRenderBody(); }
+    function calWeekShiftDays(n) { calState.weekCursor = _calAddDaysISO(calState.weekCursor, n); _calRenderBody(); }
+    function calWeekToday() { calState.weekCursor = _calIsoMondayOf(new Date()); _calRenderBody(); }
+
+    /* ── Review tab ──────────────────────────────────────────────────
+       Approval queue. Each card splits into three component panels (video /
+       graphic / caption) so the reviewer can approve or request tweaks on
+       each independently. Reuses the .kcard-* styles from the Kasper Review
+       tab. Two audiences run on this one surface (see _calReviewMode): the
+       client link reviews at "Client Approval" (approve → Approved), and the
+       SMM's own Review tab reviews at "For SMM Approval" (approve → Kasper
+       Approval, and posts with no media are hidden). */
+    const COMP_LABELS = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'Title' };
+    const COMP_PILL_COLORS = { video: 'var(--cal-comp-video-dot)', graphic: 'var(--cal-comp-graphic-dot)', caption: 'var(--cal-comp-caption-dot)', title: 'var(--cal-comp-title-dot)' };
+    const _calReviewState = {
+        expanded: new Set(),
+        drafts: Object.create(null),
+        saving: Object.create(null),
+        errors: Object.create(null),
+        draftActionIds: Object.create(null),
+        errorActionIds: Object.create(null)
+    };
+
+    /* ── Review audience (client vs SMM) ──────────────────────────────
+       The same review machinery powers two surfaces: the client-link
+       approval queue (targets the "Client Approval" component status) and
+       the SMM's in-app Review tab (targets "For SMM Approval"). Keeping a
+       single code path means tweaks / approvals / threads stay in lockstep
+       across both — only the target status and the approve destination
+       differ, which is all this config captures. */
+    const _CAL_REVIEW_CFG = {
+        client: { reviewStatus: 'Client Approval', approveTo: 'Approved' },
+        smm:    { reviewStatus: 'For SMM Approval', approveTo: 'Kasper Approval' },
+    };
+    function _calReviewMode() {
+        return (!_isClientLink && calState.view === 'smmreview') ? 'smm' : 'client';
+    }
+    // A component is "in play" on a review surface only while it's sitting at
+    // that surface's approval status — "For SMM Approval" for the SMM, "Client
+    // Approval" for the client. So a card shows up in a review sheet iff at
+    // least one of its components is awaiting THAT surface's review, which is
+    // exactly what the Review-tab badge counts (see _calApprovalBadgeCount) —
+    // queue and badge now agree.
+    //
+    // A component sent back for tweaks does NOT keep a card in the review sheet:
+    // once the ball is in the editor's court the card drops off until the work
+    // comes back at the approval status. This was always true for the SMM
+    // surface; the real CLIENT link now matches it. Previously, with
+    // Collaborative mode on, the client kept seeing Tweaks-Needed cards so she
+    // could pile on more notes — but that also surfaced cards whose only
+    // outstanding work was the SMM's own internal tweaks (which she can't see),
+    // leaving a card in her queue with nothing she's allowed to read. The rule
+    // is simply: a card appears only when a component is genuinely for her
+    // review. Collaborative mode still governs the calendar grid
+    // (drag/edit/in-progress visibility) — it just no longer forces in-flight
+    // cards into the client's Review sheet. (The internal, non-client-link
+    // client-mode preview is left untouched.)
+    function _calReviewComponentActive(p, c, mode) {
+        const cs = _calNormStatus(p[c + '_status'] || '');
+        if (cs === _CAL_REVIEW_CFG[mode].reviewStatus) return true;
+        return mode !== 'smm' && cs === 'Tweaks Needed' && !_isClientLink;
+    }
+    // Persistent "this component has been in Kasper review at least once"
+    // ledger. Once a component is sent to Kasper (or is ever observed at/past
+    // Kasper), we remember it forever — so even after it bounces back to "For
+    // SMM Approval" it's no longer treated as brand new. Stored in
+    // localStorage keyed by postId|comp, so it survives reloads on this
+    // browser without needing a new sheet column.
+    const CAL_KASPER_SEEN_KEY = 'syncview_kasper_seen_v1';
+    const _calKasperSeen = (() => {
+        try { return new Set(JSON.parse(localStorage.getItem(CAL_KASPER_SEEN_KEY) || '[]')); }
+        catch { return new Set(); }
+    })();
+    function _calKasperSeenKey(pid, comp) { return String(pid) + '|' + comp; }
+    function _calMarkKasperSeen(pid, comp) {
+        const k = _calKasperSeenKey(pid, comp);
+        if (!pid || _calKasperSeen.has(k)) return;
+        _calKasperSeen.add(k);
+        try { localStorage.setItem(CAL_KASPER_SEEN_KEY, JSON.stringify([..._calKasperSeen])); } catch {}
+    }
+    function _calWasKasperSeen(pid, comp) { return _calKasperSeen.has(_calKasperSeenKey(pid, comp)); }
+    /* Per-card "last message Kasper had seen" timestamp (local, per-device).
+       Distinct from the boolean _calKasperSeen above: this records WHEN he last
+       caught up on a card's conversation, so we can tell whether the SMM has
+       replied since. Used as the same-device fallback in _kasperIsFinished
+       (don't drag a finished comment-thread card back until there's a genuine
+       new reply) and by the Replies tab / unread badges. The cross-device
+       source of truth is now the persisted kasper_finished_at stamp. */
+    const KASPER_SEEN_AT_KEY = 'syncview_kasper_seen_at_v1';
+    let _kasperSeenAtMap = null;
+    function _kasperLoadSeenAt() {
+        if (_kasperSeenAtMap) return _kasperSeenAtMap;
+        try { _kasperSeenAtMap = JSON.parse(localStorage.getItem(KASPER_SEEN_AT_KEY) || '{}') || {}; }
+        catch { _kasperSeenAtMap = {}; }
+        return _kasperSeenAtMap;
+    }
+    function _kasperGetSeenAt(pid) { return _kasperLoadSeenAt()[pid] || ''; }
+    function _kasperMarkSeenAt(pid, ts) {
+        if (!pid) return;
+        const m = _kasperLoadSeenAt();
+        m[pid] = ts || new Date().toISOString();
+        try { localStorage.setItem(KASPER_SEEN_AT_KEY, JSON.stringify(m)); } catch {}
+    }
+    /* Per-card "I last opened this card's Notes" timestamp, for the unread dot
+       on the Notes button (SMM + client surfaces). Local/per-device — one map
+       per browser, which is fine since a browser is a single role (SMM, or
+       client via ?c). Opening the Notes modal stamps it to now, clearing the
+       dot. A card is "unread" when a message the viewer can see — and didn't
+       write themselves — is newer than that stamp. */
+    const NOTES_SEEN_KEY = 'syncview_notes_seen_v1';
+    let _notesSeenMap = null;
+    function _notesSeenLoad() {
+        if (_notesSeenMap) return _notesSeenMap;
+        try { _notesSeenMap = JSON.parse(localStorage.getItem(NOTES_SEEN_KEY) || '{}') || {}; }
+        catch { _notesSeenMap = {}; }
+        return _notesSeenMap;
+    }
+    function _notesGetSeen(pid) { return _notesSeenLoad()[pid] || ''; }
+    function _notesMarkSeen(pid, ts) {
+        if (!pid) return;
+        const m = _notesSeenLoad();
+        m[pid] = ts || new Date().toISOString();
+        try { localStorage.setItem(NOTES_SEEN_KEY, JSON.stringify(m)); } catch {}
+    }
+    function _calHasUnreadNotes(post) {
+        if (!post) return false;
+        const myRole = _calCommentRole();           // 'smm' or 'client'
+        const seen = _notesGetSeen(post.id);
+        for (const c of _calComponentsFor(post)) {
+            const list = _calCommentsForView(post, c); // respects client visibility
+            if (!Array.isArray(list)) continue;
+            for (const m of list) {
+                if (!m || m.deleted || m.role === myRole) continue; // skip my own
+                const t = String(m.updated_at || m.created_at || '');
+                if (t && (!seen || t > seen)) return true;
+            }
+        }
+        return false;
+    }
+    /* Root-message ids on this component that belong to a KASPER conversation —
+       a thread he started (the root is his) OR one he joined (he replied on it).
+       Replies point straight at their root, so we resolve each Kasper-authored
+       message to its root and collect those ids.
+
+       This is what keeps the Messages inbox honest: a reply only belongs in
+       Kasper's inbox when it answers something HE said. A fresh note or
+       change-request the SMM opened that Kasper never touched is NOT his
+       conversation, so it must not surface a card (or a thread) in his inbox —
+       matching the documented intent ("the SMM or client replied on one of
+       Kasper's internal threads"). */
+    function _kasperOwnedThreadRoots(list, byId) {
+        const roots = new Set();
+        if (!Array.isArray(list)) return roots;
+        for (const m of list) {
+            if (!m || m.deleted || m.role !== 'kasper') continue;
+            const root = (m.parent_id && byId && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
+            if (root && root.id) roots.add(root.id);
+        }
+        return roots;
+    }
+    /* Kasper's view of unread: a message he didn't write, on one of HIS OWN
+       internal threads (a thread he authored or replied on), newer than the last
+       time he caught up on this card. Drives the Replies inbox + the "New reply"
+       pill. Replies inherit their root's audience, so we resolve each message's
+       root to decide both whether it's an internal conversation AND whether that
+       conversation is one Kasper is part of (via _kasperOwnedThreadRoots). */
+    function _kasperHasUnreadReply(post) {
+        if (!post) return false;
+        const seen = _kasperGetSeenAt(post.id);
+        for (const c of _calComponentsFor(post)) {
+            const list = _calCommentsFor(post, c);
+            if (!Array.isArray(list)) continue;
+            const byId = new Map();
+            for (const m of list) if (m && m.id) byId.set(m.id, m);
+            const owned = _kasperOwnedThreadRoots(list, byId);
+            for (const m of list) {
+                if (!m || m.deleted || m.role === 'kasper') continue;
+                const root = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
+                if (_calMsgAudience(root) !== 'internal') continue;
+                if (!owned.has(root.id)) continue;   // only replies to a thread Kasper is part of
+                const t = String(m.updated_at || m.created_at || '');
+                if (t && (!seen || t > seen)) return true;
+            }
+        }
+        return false;
+    }
+    /* Newest NON-Kasper message timestamp on one of Kasper's OWN internal threads —
+       the exact basis _kasperHasUnreadReply tests against. "Mark as read" must stamp
+       THIS, not _calLatestMsgAt (which is the max over ALL messages, incl. Kasper's
+       own and resolve-time updated_at bumps): otherwise resolving an unrelated tweak
+       more recently than a still-unread reply makes mark-read stamp the newer
+       time and silently bury that genuinely-unread reply. Must mirror the gate's
+       owned-thread filter exactly, or it could stamp past a reply the gate still
+       counts as unread (or fail to clear one it no longer does). */
+    function _kasperRepliesSeenBasis(post) {
+        if (!post) return '';
+        let max = '';
+        for (const c of _calComponentsFor(post)) {
+            const list = _calCommentsFor(post, c);
+            if (!Array.isArray(list)) continue;
+            const byId = new Map();
+            for (const m of list) if (m && m.id) byId.set(m.id, m);
+            const owned = _kasperOwnedThreadRoots(list, byId);
+            for (const m of list) {
+                if (!m || m.deleted || m.role === 'kasper') continue;
+                const root = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
+                if (_calMsgAudience(root) !== 'internal') continue;
+                if (!owned.has(root.id)) continue;
+                const t = String(m.updated_at || m.created_at || '');
+                if (t > max) max = t;
+            }
+        }
+        return max;
+    }
+    /* Component owning the most recent message on one of Kasper's OWN internal
+       threads — where a Kasper reply from the Replies inbox should land so the
+       conversation stays together. Restricted to owned threads so his reply
+       attaches to the conversation he's actually looking at, never to an
+       unrelated SMM-only thread the inbox no longer shows. */
+    function _kasperLatestInternalComp(post) {
+        let best = null, bestT = '';
+        for (const c of _calComponentsFor(post)) {
+            const list = _calCommentsFor(post, c);
+            if (!Array.isArray(list)) continue;
+            const byId = new Map();
+            for (const m of list) if (m && m.id) byId.set(m.id, m);
+            const owned = _kasperOwnedThreadRoots(list, byId);
+            for (const m of list) {
+                if (!m || m.deleted) continue;
+                const root = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
+                if (_calMsgAudience(root) !== 'internal') continue;
+                if (!owned.has(root.id)) continue;
+                const t = String(m.updated_at || m.created_at || '');
+                if (t > bestT) { bestT = t; best = c; }
+            }
+        }
+        return best;
+    }
+    // Record a component as Kasper-seen on the post's cross-device `kasper_seen`
+    // column (a CSV of components), unioning with whatever's already there and
+    // the local cache. Returns the new CSV so the caller can queue it for save.
+    function _calRecordKasperSeenOnPost(post, comp) {
+        _calMarkKasperSeen(post.id, comp);
+        const set = new Set(String(post.kasper_seen || '').split(',').map(s => s.trim()).filter(Boolean));
+        _calComponentsFor(post).forEach(c => { if (_calWasKasperSeen(post.id, c)) set.add(c); });
+        set.add(comp);
+        const csv = _calComponentsFor(post).filter(c => set.has(c)).join(',');
+        post.kasper_seen = csv;
+        return csv;
+    }
+
+    // "Approved after tweaks" — Kasper's per-component flag, stored as a CSV of
+    // components on the cross-device `kasper_approved_after_tweaks` column (same
+    // shape as kasper_seen). Set when Kasper requests a tweak he's pre-cleared
+    // for the client: the editor still routes back to For SMM Approval so the
+    // SMM can verify the edit was applied, and this flag is what tells her the
+    // content is already cleared by Kasper (so she can send straight to client
+    // without a re-review). Deliberately NOT a status — status gets overwritten
+    // as the post moves down the pipeline, so it could never carry this history.
+    function _calRecordApprovedAfterTweaks(post, comp) {
+        const set = new Set(String(post.kasper_approved_after_tweaks || '').split(',').map(s => s.trim()).filter(Boolean));
+        set.add(comp);
+        const csv = _calComponentsFor(post).filter(c => set.has(c)).join(',');
+        post.kasper_approved_after_tweaks = csv;
+        return csv;
+    }
+    // Drop the flag for a component (e.g. Kasper later asks for a normal
+    // re-review tweak on the same component, superseding the pre-clearance).
+    function _calClearApprovedAfterTweaks(post, comp) {
+        const set = new Set(String(post.kasper_approved_after_tweaks || '').split(',').map(s => s.trim()).filter(Boolean));
+        if (!set.has(comp)) return post.kasper_approved_after_tweaks || '';
+        set.delete(comp);
+        const csv = _calComponentsFor(post).filter(c => set.has(c)).join(',');
+        post.kasper_approved_after_tweaks = csv;
+        return csv;
+    }
+    // Should the "Approved after tweaks" badge render for this component? The
+    // flag stays in the sheet forever as history, but the badge only shows
+    // while the work is still in flight — once the component is Approved /
+    // Scheduled / Posted the clearance has done its job, so the badge hides.
+    function _calShowApprovedAfterTweaks(post, comp) {
+        const set = new Set(String((post && post.kasper_approved_after_tweaks) || '').split(',').map(s => s.trim()).filter(Boolean));
+        if (!set.has(comp)) return false;
+        const cs = _calNormStatus((post && post[comp + '_status']) || 'In Progress');
+        return cs !== 'Approved' && cs !== 'Scheduled' && cs !== 'Posted';
+    }
+
+    // Has THIS component already been through Kasper? Drives the SMM Review
+    // tab's smart approve default (brand-new → Kasper, already-seen → client)
+    // and the "First review" flag. Checks the persistent ledger first, then
+    // live signals (sitting at/above Kasper in the pipeline, or a Kasper
+    // comment on the component) — and records any positive into the ledger so
+    // it stays "seen" even once those live signals disappear. Kept strictly
+    // per-component so a brand-new caption isn't flagged just because a sibling
+    // video reached Kasper.
+    function _calHasBeenToKasper(post, comp) {
+        if (!post) return false;
+        if (_calWasKasperSeen(post.id, comp)) return true;
+        // Cross-device source of truth: the persisted kasper_seen CSV column.
+        if (String(post.kasper_seen || '').split(',').map(s => s.trim()).indexOf(comp) !== -1) { _calMarkKasperSeen(post.id, comp); return true; }
+        const cs = _calNormStatus(post[comp + '_status'] || '');
+        if (cs === 'Kasper Approval' || cs === 'Client Approval' || cs === 'Approved' || cs === 'Scheduled' || cs === 'Posted') { _calMarkKasperSeen(post.id, comp); return true; }
+        const list = _calCommentsFor(post, comp) || [];
+        if (list.some(c => c && c.role === 'kasper')) { _calMarkKasperSeen(post.id, comp); return true; }
+        return false;
+    }
+    // "Has media" = at least one of the video / thumbnail URL is linked. A
+    // post with neither isn't ready for SMM sign-off, so the SMM Review tab
+    // hides it and the calendar card flags it (see _calSmmMissingMedia).

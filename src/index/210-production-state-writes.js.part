@@ -1,0 +1,3002 @@
+        /* ============================================================
+           PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI
+           Hidden behind ?prod=1 / verified staff navigation. Reads the native
+           mirror and enables only gateway-backed operations for a SyncView-
+           authoritative team (or the bounded TEST override). It never changes
+           flags or writes Linear directly.
+           ============================================================ */
+        const PROD_STATUS_TO_ARTIFACT = {
+            triage: 'triage',
+            backlog: 'backlog',
+            todo: 'todo',
+            in_progress: 'prog',
+            smm_approval: 'smm',
+            kasper_approval: 'kasper',
+            client_approval: 'client',
+            tweak: 'tweak',
+            approved: 'approved',
+            scheduled: 'scheduled',
+            posted: 'posted',
+            canceled: 'canceled',
+            duplicate: 'duplicate',
+            prog: 'prog',
+            smm: 'smm',
+            kasper: 'kasper',
+            client: 'client'
+        };
+        const PROD_STATUS_FROM_ARTIFACT = {
+            triage: 'triage',
+            backlog: 'backlog',
+            todo: 'todo',
+            prog: 'in_progress',
+            smm: 'smm_approval',
+            kasper: 'kasper_approval',
+            client: 'client_approval',
+            tweak: 'tweak',
+            approved: 'approved',
+            scheduled: 'scheduled',
+            posted: 'posted',
+            canceled: 'canceled',
+            duplicate: 'duplicate'
+        };
+        const PROD_STATUS = {
+            triage: 'Triage',
+            backlog: 'Backlog',
+            todo: 'Todo',
+            prog: 'In Progress',
+            smm: 'For SMM approval',
+            kasper: 'For Kasper approval',
+            client: 'For Client Approval',
+            tweak: 'Tweak Needed',
+            approved: 'Approved',
+            scheduled: 'Scheduled',
+            posted: 'Posted',
+            canceled: 'Canceled',
+            duplicate: 'Duplicate'
+        };
+        const PROD_STATUS_ORDER = ['backlog','todo','prog','smm','kasper','tweak','client','approved','scheduled','posted','canceled','duplicate','triage'];
+        /*
+         * The status a newly CREATED deliverable starts in. It was 'in_progress'
+         * at four separate call sites -- the create dialog, its restored-draft
+         * fallback, and both intake items (video and thumbnail) -- so every card
+         * anyone made was born already started. An editor reported it on
+         * 2026-08-17: "Subissues are automatically appearing as in progress even
+         * though I haven't marked them... I don't know why the rest appear that
+         * way since I haven't changed their status." He was right; nobody had.
+         *
+         * Work that has just been created has not been started, so it starts in
+         * To Do and the assignee moves it themselves. One constant now, because
+         * four copies of a default is how they drifted from the intent.
+         *
+         * NOTE: production-write still falls back to 'in_progress' when a caller
+         * omits status entirely. Every UI path sends it explicitly, so that
+         * fallback is unreachable from the app -- it is corrected in the gateway
+         * on the next deploy rather than mid-flight during this one.
+         */
+        const PROD_CREATED_STATUS = 'todo';
+        // F136 — browser mirror of the server-owned role × current × next × team
+        // × assignee state machine in
+        // supabase/functions/production-write/policy.mjs. The picker offers
+        // exactly what the gateway accepts; test/production-transition-policy.js
+        // fails if the two tables drift. Keys and values are the DB status
+        // strings, not the artifact keys.
+        // OWNER RULING 2026-08-17: a creative may move work from any status to
+        // any status. Mirrors CREATIVE_STATUS_TRANSITIONS in the gateway's
+        // policy module — the picker must not offer a move the gateway would
+        // refuse, nor hide one it would accept. The remaining creative limits
+        // (own team, own assigned work, and the Graphics artifact gate on SMM
+        // approval) are enforced elsewhere and are unaffected by this list.
+        const PROD_CREATIVE_STATUS_TRANSITIONS = {
+            triage: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            backlog: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            todo: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            in_progress: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            smm_approval: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            kasper_approval: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            client_approval: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            tweak: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            approved: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            scheduled: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            posted: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            canceled: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate'],
+            duplicate: ['triage', 'backlog', 'todo', 'in_progress', 'smm_approval', 'kasper_approval', 'client_approval', 'tweak', 'approved', 'scheduled', 'posted', 'canceled', 'duplicate']
+        };
+        // Operations a creative may perform only on work assigned to them.
+        // `comment` is deliberately absent — see the policy module comment.
+        // Mirror of the gateway's CREATIVE_ASSIGNEE_BOUND_OPERATIONS.
+        // `attachment` removed 2026-08-18 by owner ruling: a graphics creative
+        // may attach or replace the canonical file on any graphics deliverable,
+        // so a mis-attach is fixable from the designer's own seat.
+        const PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS = ['status'];
+        // no-hardcoded-colors: allow-start (artifact-locked, dual-theme)
+        const PROD_STATUS_META = {
+            triage: { type: 'triage', color: '#f2994a' },
+            backlog: { type: 'backlog', color: '#a4a8ae' },
+            todo: { type: 'unstarted', color: '#a8a8a8' },
+            prog: { type: 'started', color: '#c6a333', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 6.531088913245535, 1.749999999999999 z' },
+            smm: { type: 'started', color: '#ed86bc', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 6.531088913245535, 5.249999999999998 z' },
+            kasper: { type: 'started', color: '#eb5757', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 3.5, 7 z' },
+            tweak: { type: 'started', color: '#db6e1f', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 1,1 0.4689110867544648, 5.249999999999998 z' },
+            client: { type: 'started', color: '#ff0016', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 1,1 0.4689110867544648, 1.749999999999999 z' },
+            approved: { type: 'completed', color: '#43bc58' },
+            scheduled: { type: 'completed', color: '#0044ff' },
+            posted: { type: 'completed', color: '#5e6ad2' },
+            canceled: { type: 'canceled', color: '#95a2b3' },
+            duplicate: { type: 'duplicate', color: '#95a2b3' }
+        };
+        const PROD_BOARD_STATUS = {
+            backlog: 'Backlog',
+            planned: 'Planned',
+            prog: 'In Progress',
+            paused: 'Paused',
+            completed: 'Completed',
+            canceled: 'Canceled'
+        };
+        const PROD_BOARD_ORDER = ['backlog','planned','prog','paused','completed','canceled'];
+        const PROD_BOARD_STATUS_TO_ARTIFACT = { in_progress: 'prog', prog: 'prog', backlog: 'backlog', planned: 'planned', paused: 'paused', completed: 'completed', canceled: 'canceled' };
+        const PROD_EDITOR_COLORS = ['#e2a03f', '#4cb782', '#e56cd6', '#5e6ad2', '#6c6f7d'];
+        const PROD_DISPLAY_PREFS_KEY = 'syncview_prod_display_v1';
+        const PROD_CREATE_DRAFT_KEY = 'syncview_prod_create_draft_v1';
+        /*
+         * Owner ruling 2026-08-23 -- the Production tab creates nothing.
+         *
+         * "A sub-issue is a card, not a parent issue ... we shouldn't be able
+         * to do parent issues or sub-issues because we don't want to do posts
+         * in sync linear that are not in the calendar."
+         *
+         * Both modes made the same row: production-write/index.ts hardcodes
+         * card_id: null in the create insert, for a top-level issue AND for a
+         * sub-issue under a parent that HAS a card. Nothing born here is on
+         * anyone's calendar, in Kasper's queue, or on a client review link.
+         * Posts start on the Calendar or Samples card, which creates the
+         * deliverable and its Linear issue together, linked.
+         *
+         * This is the single refusal. _prodCreateGateText returns it before
+         * every other reason, so all three gate readers (topbar button,
+         * _prodOpenCreate, _prodSubmitCreate) close together and none of them
+         * can drift open on its own. The recovery gate
+         * (_prodCreateRecoveryGateText) is deliberately NOT closed: an
+         * `ambiguous` draft means a create may already have committed, and the
+         * retry is the only path that shows its author the row that landed.
+         *
+         * The Add-sub-issue affordance itself (_prodAddSubIssueButtonHTML)
+         * was removed outright, not just gated, per the separate standing
+         * rule in CLAUDE.md: "Sub-issue creation must not be possible from
+         * SyncLinear -- only from the content calendar." A gated-but-present
+         * button is still an entry point; this one no longer renders at all.
+         * `_prodOpenCreate(parentId)` keeps its subissue-mode branch because
+         * an ambiguous saved subissue draft still needs to recover through
+         * the topbar's "Recover issue" control, which calls _prodOpenCreate()
+         * with no parentId and reads the pending draft from storage.
+         */
+        const PROD_CREATE_CLOSED_TEXT = 'Posts are created on the content calendar, not in Production. Use Create Post on the client\u2019s Calendar or Samples tab.';
+        const PROD_COMMENTS_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-comments';
+        const PROD_WRITE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-write';
+        const PROD_ARCHIVE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-archive';
+        const PROD_DESCRIPTION_IMAGE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/description-image-upload';
+        const PROD_AUTHORITY_FLAG_KEY = 'prod_authority';
+        const PROD_COMMENTS_PAGE_SIZE = 50;
+        /* Long enough that a genuinely slow read still lands (the estate's
+           slowest observed comment reads sit well under this), short enough
+           that a stalled one becomes a Retry the reader can act on instead of
+           a skeleton that never resolves. */
+        const PROD_COMMENTS_READ_TIMEOUT_MS = 15000;
+        /* `write` names the gateway operation that owns each slot, and its
+           absence is a rule rather than an oversight.
+
+           filming_plan has none. It is derived from the filming_plans source,
+           the owner ruled it untouchable from the product (2026-08-30: "the
+           only one that is not editable because it is from the supabase
+           database and no one should be able to touch that"), and the same
+           whitelist is repeated in policy.mjs and inside
+           production_batch_asset_write -- so a slot with no `write` here cannot
+           be written by adding a button. The other three name the operation
+           that actually carries them: the two folder links live on the BATCH
+           and go through batch_asset; the canonical file lives on the
+           deliverable and goes through attachment. */
+        const PROD_ASSET_SPECS = Object.freeze([
+            { key: 'filming_plan', label: 'Filming plan' },
+            { key: 'raw_footage', label: 'Raw footage', write: 'batch_asset' },
+            { key: 'delivery_folder', label: 'Frame folder', write: 'batch_asset' },
+            // Graphics deliverables carry a thumbnail image, so the same slot
+            // reads "Thumbnail file" there; Video keeps the generic label
+            // because its file_url is the finished video, not a thumbnail.
+            { key: 'deliverable_file', label: 'Deliverable file', graphicsLabel: 'Thumbnail file', write: 'attachment' }
+        ]);
+        function _prodAssetSpec(slot) {
+            return PROD_ASSET_SPECS.find(spec => spec.key === String(slot || '')) || null;
+        }
+        function _prodAssetWriteOperation(slot) {
+            const spec = _prodAssetSpec(slot);
+            return spec && spec.write ? spec.write : '';
+        }
+        const PROD_GROUP_KEYS = new Set(['status', 'client', 'assignee']);
+        const PROD_ORDER_KEYS = new Set(['due', 'updated', 'created']);
+        const PROD_ATTRIBUTION_NEEDS = '__needs_attribution__';
+        const PROD_ATTRIBUTION_CONFLICT = '__attribution_conflict__';
+        const _prodState = {
+            loaded: false,
+            loading: false,
+            /* True for the whole of any _prodLoadData, silent or not.
+               `loading` is deliberately false during a silent refresh so the
+               tab does not flash a spinner, which left every "is a load already
+               running?" check blind to exactly the refresh that follows a
+               cached paint -- see _prodAutoRefreshOnReturn. */
+            refreshing: false,
+            // True between a cached first paint and the live read that follows.
+            // The snapshot is a deliberate projection (see PROD_CACHE_SCHEMA),
+            // so completed work is absent from it and no surface may report
+            // "nothing here" while this is set. Cleared by _prodLoadData.
+            cachePartial: false,
+            error: '',
+            view: 'list',
+            team: 'all',
+            clientSlug: '',
+            openId: '',
+            openBatchId: '',
+            openProjectId: '',
+            // What the URL asked to open, held across the cache-to-live handoff.
+            // See _prodApplyDeepLinkFallback.
+            deepLink: null,
+            deepLinkMissingKind: '',
+            deepLinkMissing: '',
+            projectDetailsOpen: true,
+            tab: 'active',
+            groupBy: 'status',
+            orderBy: 'due',
+            showSubIssues: true,
+            filters: [],
+            collapsed: new Set(),
+            colCollapsed: new Set(),
+            selected: new Set(),
+            focusRow: '',
+            hoverRow: '',
+            selAnchor: '',
+            focusCard: '',
+            cardSel: new Set(),
+            cardAnchor: '',
+            listScrollTop: 0,
+            detailScrollTop: 0,
+            detailScrollKey: '',
+            paletteOpen: false,
+            secOpen: { fav: true, ws: true, teams: true },
+            teamOpen: { video: true, graphics: true },
+            clients: [],
+            members: [],
+            batches: [],
+            deliverables: [],
+            adapter: null,
+            events: new Map(),
+            linearRaw: new Map(),
+            labels: new Map(),
+            labelRequestTokens: new Map(),
+            // F94: the server-authoritative eligible-assignee projection, keyed
+            // by deliverable id. The picker never builds candidates locally.
+            assigneeOptions: new Map(),
+            assigneeOptionRequestTokens: new Map(),
+            // F95: foreground operational freshness.
+            refreshInFlight: false,
+            refreshFailures: 0,
+            lastSyncAt: 0,
+            lastFullSyncAt: 0,
+            lastSyncError: '',
+            // The HTTP status of the last silent load that failed, handed to
+            // _prodDeltaRefresh and cleared on read. 0 means "no status", which
+            // is also what a network failure legitimately has.
+            lastSilentLoadStatus: 0,
+            assets: new Map(),
+            assetRequestTokens: new Map(),
+            /* deliverable id -> the link its file pill opens, and batch id ->
+               the read that filled it. Answered in ONE request per batch by
+               batch_files_read, because the browser projection deliberately
+               does not carry file_url and probing every child to draw a list of
+               pills would cost four outbound checks per sub-issue. */
+            batchFiles: new Map(),
+            batchFilesStatus: new Map(),
+            /* Actions the CURRENTLY DEPLOYED gateway announced it can serve,
+               learned from asset_access_read. Null until the first successful
+               asset read, which is the correct "do not ask yet" state. */
+            gatewayReads: null,
+            descriptions: new Map(),
+            descriptionRequestTokens: new Map(),
+            /* Per-batch read state for the ONE-row description read, keyed by
+               batch id: 'loading' | 'ready' | 'error'. It is what stops the
+               batch-detail view re-asking on every render, and what lets that
+               view say the read failed instead of holding a skeleton forever. */
+            batchDescriptionReads: new Map(),
+            /* SINGLE FLIGHT: batchId -> the promise of the read currently in the
+               air. A second caller for the same batch awaits that promise rather
+               than returning, so every waiter resumes with the answer instead of
+               resuming instantly and concluding the read failed. */
+            batchDescriptionInFlight: new Map(),
+            /* Per-batch request tokens for those reads. The generation counter
+               alone cannot stand in for these: it only advances in
+               _prodLoadData, never on the operational delta, so a delta that
+               moves a batch's stamp mid-read leaves the generation equal and an
+               older answer comparing as current. Raised by Codex on #1364. */
+            batchDescriptionTokens: new Map(),
+            createDraft: null,
+            createCatalog: [],
+            createAssignees: [],
+            createCatalogStatus: 'idle',
+            createCatalogError: '',
+            createCatalogToken: 0,
+            createSubmitting: false,
+            createError: '',
+            archiveRepair: null,
+            projectionGeneration: 0,
+            authority: null,
+            authorityLoaded: false,
+            authorityReadAt: 0,
+            // Which teams' native intake has cut over -- a Set of 'video'/
+            // 'graphics', or null before the flag has ever loaded (or after a
+            // failed read). See _prodNativeEpochOn: null fails OPEN to "not
+            // cut over", the same direction _calLatestNativeBatches fails
+            // open in, so a still-syncing card is never misjudged from a
+            // transient flag-read failure.
+            nativeEpochTeams: null,
+            // Phase two of the boot read (see _prodLoadTerminalTail): true while
+            // the approved/posted/archived tail is still arriving behind the
+            // live board.
+            terminalTailPending: false,
+            /* The tail RAN and did not deliver. Distinct from pending, and the
+               distinction is the whole of OPEN_REPAIRS 108's fifth round: a tail
+               that FAILED establishes nothing, so an id it could not resolve is
+               UNKNOWN, not GONE. Treating those the same is what turned a stuck
+               spinner into a false eviction on 2026-09-02. Cleared by the next
+               tail that actually lands. */
+            terminalTailFailed: false,
+            terminalTailLoadedAt: 0,
+            /* When the tail was last read IN FULL, as opposed to incrementally.
+               A full read is what converges a hard delete; the watermark read
+               below cannot see a row that no longer exists. */
+            terminalTailFullAt: 0,
+            writes: new Map(),
+            commentDrafts: new Map(),
+            briefsLoaded: false,
+            briefsLoading: false
+        };
+        function _prodEnabled() {
+            try { return new URLSearchParams(location.search).get('prod') === '1'; }
+            catch (e) { return false; }
+        }
+        function _prodAccessAllowed() {
+            return _prodEnabled() || _syncviewStaffIdentityValid();
+        }
+        function _prodPreviewText() { return 'Preview - read-only'; }
+        function _prodModeText() {
+            const authority = _prodState.authority;
+            if (authority && authority.video === 'syncview' && authority.graphics === 'syncview') return 'Native writes';
+            if (authority && authority.graphics === 'syncview') return 'Graphics writable';
+            if (authority && authority.video === 'syncview') return 'Video writable';
+            return _prodPreviewText();
+        }
+        function _prodApplyDisplayPrefs(saved) {
+            saved = saved || {};
+            if (PROD_GROUP_KEYS.has(saved.groupBy)) _prodState.groupBy = saved.groupBy;
+            if (PROD_ORDER_KEYS.has(saved.orderBy)) _prodState.orderBy = saved.orderBy;
+            if (typeof saved.showSubIssues === 'boolean') _prodState.showSubIssues = saved.showSubIssues;
+        }
+
+        /* -----------------------------------------------------------------
+         * Production stale-while-revalidate cache (mirrors Workload's cache)
+         * -----------------------------------------------------------------
+         * The Linear tab re-reads its whole projection — clients, members,
+         * batches, and every browser-safe deliverable row (~thousands) — from
+         * Supabase on every page load, and shows the skeleton until all of it
+         * lands + is processed. `_prodState` is in-memory only, so a fresh page
+         * load never benefits from the previous one. This persists the exact
+         * adapter inputs to localStorage so a REVISIT paints instantly from the
+         * last snapshot, then revalidates in the background and re-renders only
+         * on a diff (the normal foreground read still runs on a cold cache).
+         *
+         * Best-effort: rows are cached VERBATIM (a JSON round-trip preserves
+         * null-valued keys, which _prodDeliverableLive / identity-repair reads
+         * probe with _prodHasOwn), and a QuotaExceededError just skips the write
+         * — behavior degrades to exactly today's every-visit reload, never
+         * worse. Default ON with a sticky kill switch (?prodcache=0), mirroring
+         * the ?wl2 / ?v2 convention. The DATA is the same anon-granted browser
+         * projection the calendar already caches per client.
+         * ----------------------------------------------------------------- */
+        const PROD_CACHE_KEY = 'syncview_production_cache_v1';
+        const PROD_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+        /*
+         * THE SNAPSHOT NEVER FIT, AND IT DELETED THE NEIGHBOURS TRYING.
+         *
+         * Measured against the live estate 2026-08-26: the full snapshot this
+         * cache used to serialise -- every client, member, batch and
+         * deliverable -- was 5.44M characters. localStorage stores UTF-16, so
+         * that is ~10.9MB asking for an origin budget of about 5MB. The write
+         * could not succeed on any browser, on any day, for anyone.
+         *
+         * That alone would only mean "no cache". The damage was in the retry
+         * path below: on QuotaExceededError it evicts the oldest same-family
+         * snapshot and tries again, one key at a time. Since no number of
+         * evictions could ever make room, EVERY Production open walked that
+         * loop to the end and deleted every calendar and samples snapshot in
+         * the origin -- then still returned false. Opening SyncLinear made the
+         * Calendar slow, and nothing said so.
+         *
+         * Two rules follow, and the first is the one that matters:
+         *
+         *   1. A write that cannot possibly fit must not evict anything. The
+         *      budget is checked BEFORE the first setItem, so an oversized
+         *      payload costs its neighbours nothing.
+         *   2. What is cached is what the default view paints. Batch
+         *      DESCRIPTIONS were 2.12MB of the 5.44MB on their own and are not
+         *      on any first paint (the live read carries them in moments, and
+         *      _prodPreserveProjectedFields already exists precisely because a
+         *      projection may omit them). Terminal deliverables -- 3,902 of
+         *      5,398 rows -- are history that the 'active' tab does not show.
+         *      Dropping both puts the snapshot at ~1.45M chars / ~2.9MB UTF-16,
+         *      which fits beside the calendar and samples caches instead of
+         *      evicting them.
+         *
+         * The snapshot is therefore a PARTIAL projection by construction, and
+         * _prodState.cachePartial says so until the live read lands, so no
+         * surface may present it as the whole truth. Schema 2 exists to make
+         * that explicit: a schema-1 entry is a full snapshot written under the
+         * old contract and is discarded rather than read as a projection.
+         */
+        /*
+         * SCHEMA 3 -- COLUMNAR, BECAUSE SCHEMA 2 STILL DID NOT FIT.
+         *
+         * Schema 2 shipped on 2026-08-26 with a budget sized from a SIXTEEN
+         * column read. The shipped read asks for FORTY-FOUR
+         * (PROD_DELIVERABLE_SELECT), so the real projection was 3,283,150
+         * characters against an 1,800,000 budget: still refused, still every
+         * open a cold one. Worse, test/production-cache-fits.js passed the
+         * whole time, because its fixture rows were built from the same wrong
+         * column list -- roughly 499 characters a row against the real 1,674.
+         * A green test asserting a false thing is worse than no test.
+         *
+         * The fix is to stop repeating the column NAMES. A verbatim row spends
+         * ~44 quoted key names on every one of ~1,500 rows; columnar writes
+         * them once and stores each column's values as an array. Measured live
+         * 2026-08-26 over the real select: 3,283,150 -> 1,751,877 characters,
+         * 1.87x, and a round trip is byte-identical.
+         *
+         * KEY PRESENCE IS THE WHOLE DIFFICULTY, and it is why the block above
+         * says rows are cached VERBATIM. `_prodHasOwn(row, field)` distinguishes
+         * "absent" from "present and null" for identity_repair_state,
+         * identity_repair_reason, identity_repair_resolved_linear_issue_id,
+         * brief/desc and board_desc/desc. A naive columnar encoder unions the
+         * keys it happens to see and fabricates `null` for every row missing
+         * one, flipping those probes from false to TRUE -- which is how a
+         * reader ends up looking at a confident "No description." over a brief
+         * that exists. So the encoder records an explicit presence MASK per row
+         * shape, and the decoder assigns only the keys that mask marks present.
+         * Distinct shapes are deduplicated, so the live estate (one shape)
+         * costs one string.
+         *
+         * Anything outside the closed column list is carried verbatim in `e`
+         * rather than dropped, so a field some later code attaches to a row
+         * survives a round trip instead of silently disappearing.
+         */
+        const PROD_CACHE_SCHEMA = 3;
+        /*
+         * Characters, not bytes; localStorage stores UTF-16, so this is 4.8MB
+         * of a measured ~5.24M-character origin budget... except it is not,
+         * because Production is not alone in there. Measured 2026-08-26: the
+         * calendar's own snapshots reach 2,302,836 characters. 2,400,000 +
+         * 2,302,836 = 4,702,836, which leaves ~540,000 characters of headroom
+         * against the cap.
+         *
+         * The projection measures 1,751,877 today, so this is ~650,000 of room
+         * to grow -- about 850 more live rows, half again what the estate holds.
+         * Sized deliberately larger than today's payload because the alternative
+         * is a cache that silently stops writing the week the estate grows, and
+         * the failure mode of being too generous is benign: the budget is
+         * checked BEFORE the first setItem, so an oversized payload is refused
+         * without evicting anybody.
+         */
+        const PROD_CACHE_MAX_CHARS = 2400000;
+        /* Read from the shipped select rather than restated, so the cache can
+           never be sized from a column list the app does not actually use --
+           which is exactly how schema 2 came to be measured 2.5x light.
+           Deferred into a function because PROD_DELIVERABLE_SELECT is declared
+           further down this script and a module-level read would hit its TDZ. */
+        function _prodCacheDeliverableColumns() {
+            return String(PROD_DELIVERABLE_SELECT || '').split(',').map(name => name.trim()).filter(Boolean);
+        }
+        function _prodCacheBatchColumns() {
+            return String(PROD_BATCH_SELECT || '').split(',').map(name => name.trim())
+                .filter(name => name && name !== 'description' && name !== 'desc');
+        }
+        const _prodCacheHasOwn = (row, key) => Object.prototype.hasOwnProperty.call(row, key);
+        /* Columns once, values as arrays, and an explicit presence mask per row
+           shape. Pure and total: any row shape round-trips to itself. */
+        function _prodCachePackRows(rows, columns) {
+            const shapes = [];
+            const shapeIndex = [];
+            const values = columns.map(() => []);
+            const extras = [];
+            const seen = new Map();
+            (rows || []).forEach((row, index) => {
+                const source = (row && typeof row === 'object') ? row : {};
+                let mask = '';
+                for (const column of columns) mask += _prodCacheHasOwn(source, column) ? '1' : '0';
+                if (!seen.has(mask)) { seen.set(mask, shapes.length); shapes.push(mask); }
+                shapeIndex.push(seen.get(mask));
+                columns.forEach((column, position) => {
+                    values[position].push(_prodCacheHasOwn(source, column) ? source[column] : null);
+                });
+                let extra = null;
+                for (const key of Object.keys(source)) {
+                    if (columns.indexOf(key) >= 0) continue;
+                    (extra || (extra = {}))[key] = source[key];
+                }
+                if (extra) extras.push([index, extra]);
+            });
+            return { c: columns, s: shapes, x: shapeIndex, v: values, e: extras };
+        }
+        /* Returns null rather than a partial list on anything malformed: a
+           half-decoded snapshot painted as truth is worse than no snapshot, and
+           _prodCacheRead treats null as a miss. */
+        function _prodCacheUnpackRows(packed) {
+            if (!packed || typeof packed !== 'object') return null;
+            if (!Array.isArray(packed.c) || !Array.isArray(packed.s)
+                || !Array.isArray(packed.x) || !Array.isArray(packed.v)) return null;
+            if (packed.v.length !== packed.c.length) return null;
+            const extras = new Map();
+            for (const entry of (Array.isArray(packed.e) ? packed.e : [])) {
+                if (Array.isArray(entry) && entry[1] && typeof entry[1] === 'object') extras.set(Number(entry[0]), entry[1]);
+            }
+            const rows = [];
+            for (let index = 0; index < packed.x.length; index++) {
+                const shape = packed.s[packed.x[index]];
+                if (typeof shape !== 'string' || shape.length !== packed.c.length) return null;
+                const row = {};
+                for (let position = 0; position < packed.c.length; position++) {
+                    if (shape[position] === '1') row[packed.c[position]] = (packed.v[position] || [])[index];
+                }
+                const extra = extras.get(index);
+                if (extra) for (const key of Object.keys(extra)) row[key] = extra[key];
+                rows.push(row);
+            }
+            return rows;
+        }
+        /* The statuses the default 'active' tab does not show. Lowercased at
+           the comparison, because the estate holds both cases. */
+        const PROD_CACHE_TERMINAL = ['approved', 'posted', 'archived', 'canceled', 'cancelled', 'duplicate'];
+        function _prodCacheIsTerminal(row) {
+            return PROD_CACHE_TERMINAL.includes(String((row && row.status) || '').trim().toLowerCase());
+        }
+        /* The two halves of the boot read, split on the SAME list the cache
+           already excludes -- so phase one is a row set this tab has been
+           rendering from since the cache shipped, not a new shape.
+           Measured 2026-08-31: 2,206 rows live vs 6,181 total, and the full
+           read is ~10 MB over seven strictly sequential pages. Loading the
+           finished work first meant nobody could touch the board until the
+           archive had finished arriving.
+           NULL-SAFE BY CONSTRUCTION, and the direction matters: `in` and
+           `not.in` both drop a NULL status, so a row with no status would fall
+           through BOTH halves and simply never appear. Phase one therefore
+           claims the nulls. An unknown status shows up where someone can see
+           it; it never silently disappears. (Measured today: zero null rows --
+           this guards the shape, not a live defect.) */
+        const PROD_LIVE_FILTER = 'or=(status.not.in.(' + PROD_CACHE_TERMINAL.join(',') + '),status.is.null)';
+        const PROD_TERMINAL_FILTER = 'status=in.(' + PROD_CACHE_TERMINAL.join(',') + ')';
+        /* The cacheable projection of a full read. Pure, so the size contract
+           above can be checked without a browser. */
+        function _prodCacheProject(data) {
+            const batches = ((data && data.batches) || []).map(batch => {
+                const copy = {};
+                for (const key of Object.keys(batch || {})) {
+                    if (key === 'description' || key === 'desc') continue;
+                    copy[key] = batch[key];
+                }
+                return copy;
+            });
+            const deliverables = ((data && data.deliverables) || []).filter(row => !_prodCacheIsTerminal(row));
+            return {
+                clients: (data && data.clients) || [],
+                members: (data && data.members) || [],
+                batches: _prodCachePackRows(batches, _prodCacheBatchColumns()),
+                deliverables: _prodCachePackRows(deliverables, _prodCacheDeliverableColumns()),
+                /*
+                 * AUTHORITY IS DELIBERATELY NOT CACHED.
+                 *
+                 * It decides whether write controls are live. A snapshot may be
+                 * 24 hours old, so painting authority from it would mean that on
+                 * the morning of a flip -- or the morning after one is rolled
+                 * back -- a reader briefly sees the PREVIOUS day's answer, with
+                 * the write controls it implies, until the live read lands.
+                 *
+                 * Leaving it out reproduces exactly what happens today: nothing
+                 * was ever cached, because the write always failed, so
+                 * authorityLoaded was false at first paint and the tab stayed
+                 * read-only until _prodFetchAuthority answered. Turning the
+                 * cache on must not quietly change that, least of all this week.
+                 */
+            };
+        }
+        const PROD_CACHE_KILL_KEY = 'syncview_production_cache_off';
+        let _prodCacheFlagCache = null;
+        function _prodCacheEnabled() {
+            if (_prodCacheFlagCache !== null) return _prodCacheFlagCache;
+            let on = true;
+            try {
+                const q = new URLSearchParams(location.search).get('prodcache');
+                if (q === '1' || q === 'true') { on = true; localStorage.removeItem(PROD_CACHE_KILL_KEY); }
+                else if (q === '0' || q === 'false') { on = false; localStorage.setItem(PROD_CACHE_KILL_KEY, '1'); }
+                else { on = (localStorage.getItem(PROD_CACHE_KILL_KEY) !== '1'); }
+            } catch { on = true; }
+            _prodCacheFlagCache = on;
+            return on;
+        }
+        function _prodCacheRead() {
+            if (!_prodCacheEnabled()) return null;
+            try {
+                const raw = localStorage.getItem(PROD_CACHE_KEY);
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                if (!parsed || parsed.schema !== PROD_CACHE_SCHEMA || !parsed.savedAt) return null;
+                if (Date.now() - Number(parsed.savedAt) > PROD_CACHE_TTL_MS) return null;
+                if (!Array.isArray(parsed.clients) || !Array.isArray(parsed.members)) return null;
+                const batches = _prodCacheUnpackRows(parsed.batches);
+                const deliverables = _prodCacheUnpackRows(parsed.deliverables);
+                if (!batches || !deliverables) return null;
+                /* The columns the snapshot was written with must still be the
+                   columns the app reads. A deploy that adds one to
+                   PROD_DELIVERABLE_SELECT leaves yesterday's snapshot missing a
+                   field that _prodHasOwn probes for, and "absent" is a real
+                   answer to those probes -- so the snapshot is dropped rather
+                   than painted with a shape the running code no longer expects. */
+                const wantedDeliverables = _prodCacheDeliverableColumns().join(',');
+                const wantedBatches = _prodCacheBatchColumns().join(',');
+                if (!parsed.deliverables || (parsed.deliverables.c || []).join(',') !== wantedDeliverables) return null;
+                /* BOTH row sets, symmetrically. Checking only the deliverables
+                   left a deploy that changes PROD_BATCH_SELECT accepting
+                   yesterday's batch shape, so a newly selected field would be
+                   ABSENT during the cached paint -- which is the exact
+                   absent-versus-null ambiguity this schema exists to preserve,
+                   arriving from the other side. */
+                if (!parsed.batches || (parsed.batches.c || []).join(',') !== wantedBatches) return null;
+                return { savedAt: parsed.savedAt, clients: parsed.clients, members: parsed.members, batches, deliverables };
+            } catch { return null; }
+        }
+        function _prodCacheWrite(data) {
+            if (!_prodCacheEnabled() || !data) return false;
+            let payload;
+            try {
+                payload = JSON.stringify(Object.assign(
+                    { schema: PROD_CACHE_SCHEMA, savedAt: Date.now() },
+                    _prodCacheProject(data),
+                ));
+            } catch { return false; }
+            // Rule 1: an oversized payload costs its neighbours nothing. The
+            // eviction loop below only makes sense for a write that could
+            // succeed once there is room; checking after the first failure
+            // would already have started deleting.
+            if (payload.length > PROD_CACHE_MAX_CHARS) {
+                try { localStorage.removeItem(PROD_CACHE_KEY); } catch {}
+                return false;
+            }
+            try { localStorage.setItem(PROD_CACHE_KEY, payload); return true; }
+            catch (e) {
+                // QuotaExceededError — evict oldest same-family snapshots
+                // (calendar / samples) and our own prior entry to make room,
+                // then retry. On final failure drop our key so a truncated or
+                // stale snapshot never seeds a wrong first paint (same
+                // drop-on-fail rule as _calCacheWrite). Cache-off then just
+                // means today's every-visit reload.
+                try { localStorage.removeItem(PROD_CACHE_KEY); } catch {}
+                try {
+                    const evictable = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const k = localStorage.key(i);
+                        if (!k) continue;
+                        if (k.startsWith(CAL_CACHE_KEY_PREFIX) || k.startsWith(SXR_CACHE_PREFIX)) {
+                            const raw = String(localStorage.getItem(k) || '');
+                            /*
+                             * A display cache carrying an acknowledged repair is
+                             * DURABLE STATE, not eviction fodder -- the same rule
+                             * _writeUiRepairEvictDisplayCaches applies, in the
+                             * same words, and test/write-ui-failure-messages.js
+                             * pins it there.
+                             *
+                             * This loop could not be reached until now: the
+                             * payload was always over budget, so the size check
+                             * returned before eviction ever ran. Making the
+                             * snapshot fit makes this reachable for the first
+                             * time, and without this guard a quota-tight session
+                             * that opens SyncLinear would delete the recovery
+                             * state of a partially committed calendar or samples
+                             * write. A cold Production paint is refetchable;
+                             * that is not.
+                             */
+                            if (raw.indexOf('_writeUiRetrySourceAt') >= 0
+                                || raw.indexOf('_writeUiKasperRepair') >= 0) continue;
+                            let savedAt = 0;
+                            try { savedAt = Number(JSON.parse(raw || '{}').savedAt) || 0; } catch {}
+                            evictable.push({ k, savedAt });
+                        }
+                    }
+                    evictable.sort((a, b) => a.savedAt - b.savedAt);
+                    for (const { k } of evictable) {
+                        try { localStorage.removeItem(k); } catch {}
+                        try { localStorage.setItem(PROD_CACHE_KEY, payload); return true; } catch {}
+                    }
+                } catch {}
+                return false;
+            }
+        }
+        // Drop the first-paint snapshot. It caches clients/members/batches/
+        // deliverables/authority from an authorized session; once staff sign out,
+        // an identity is invalidated, or a live read is refused (403) — which now
+        // happens whenever the reland's narrowed grants no longer authorize the
+        // reader — the cached copy is stale and must not seed the next paint.
+        function _prodCachePurge() {
+            try { localStorage.removeItem(PROD_CACHE_KEY); } catch {}
+            try { if (typeof _prodState !== 'undefined' && _prodState) _prodState.fromCache = false; } catch {}
+        }
+        function _prodHydrateFromCache() {
+            const cached = _prodCacheRead();
+            if (!cached) return false;
+            const clients = cached.clients;
+            const members = cached.members;
+            const batches = cached.batches;
+            const deliverables = cached.deliverables;
+            _prodState.clients = clients;
+            _prodState.members = members;
+            _prodState.batches = batches;
+            _prodState.deliverables = deliverables;
+            /* Not restored from the snapshot -- see _prodCacheProject. The tab
+               stays read-only on the cached paint, exactly as it does today,
+               until _prodFetchAuthority answers. */
+            _prodState.authority = null;
+            _prodState.authorityLoaded = false;
+            _prodState.authorityReadAt = 0;
+            _prodState.adapter = _prodAdapter({ clients, members, batches, deliverables });
+            _prodState.loaded = true;
+            _prodState.fromCache = true;
+            _prodState.cachePartial = true;
+            // A deep-link target absent from the CACHED snapshot shows the list
+            // for this paint only. The request stays pending so the live read
+            // that follows can still open it.
+            _prodApplyDeepLinkFallback(false);
+            return true;
+        }
+        function _prodLoadDisplayPrefs() {
+            // PORT-DELTA: wired Production persists display-only state per user; the artifact keeps state in memory.
+            try {
+                _prodApplyDisplayPrefs(JSON.parse(localStorage.getItem(PROD_DISPLAY_PREFS_KEY) || '{}') || {});
+            } catch (e) {}
+        }
+        function _prodSaveDisplayPrefs() {
+            // PORT-DELTA: wired Production persists display-only state per user; the artifact keeps state in memory.
+            try {
+                localStorage.setItem(PROD_DISPLAY_PREFS_KEY, JSON.stringify({
+                    groupBy: PROD_GROUP_KEYS.has(_prodState.groupBy) ? _prodState.groupBy : 'status',
+                    orderBy: PROD_ORDER_KEYS.has(_prodState.orderBy) ? _prodState.orderBy : 'due',
+                    showSubIssues: _prodState.showSubIssues !== false
+                }));
+            } catch (e) {}
+        }
+        function _prodHeaders() {
+            return { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' };
+        }
+        function _prodSleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        async function _prodRestPage(url, table, page) {
+            let lastErr = null;
+            for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                    const resp = await fetch(url, { headers: _prodHeaders() });
+                    if (resp.ok) return resp.json();
+                    const retryable = resp.status === 429 || resp.status >= 500;
+                    const detail = await resp.json().catch(() => ({}));
+                    lastErr = new Error(table + ' read failed: HTTP ' + resp.status);
+                    lastErr.status = resp.status;
+                    lastErr.code = String(detail && detail.code || '');
+                    lastErr.detail = String(detail && (detail.message || detail.details || detail.hint) || '');
+                    if (!retryable || attempt === 2) throw lastErr;
+                } catch (e) {
+                    lastErr = e;
+                    if (attempt === 2) throw lastErr;
+                }
+                await _prodSleep(250 * Math.pow(2, attempt) + Math.min(250, page * 25));
+            }
+            throw lastErr || new Error(table + ' read failed');
+        }
+        async function _prodClientRows() {
+            const select = 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,native_project_ids,updated_at';
+            try {
+                return await _prodRestRows('clients', select, 'order=display_name.asc', 1000, 10);
+            } catch (error) {
+                // During staged installation this one additive column may not exist yet.
+                // Preserve the missing field; never invent native project mappings.
+                if (!error || error.status !== 400 || error.code !== '42703'
+                    || error.detail !== 'column clients.native_project_ids does not exist') throw error;
+                return _prodRestRows('clients', select.replace(',native_project_ids', ''), 'order=display_name.asc', 1000, 10);
+            }
+        }
+
+        async function _prodRestRows(table, select, params, pageSize, maxPages, options) {
+            if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase is not configured');
+            const rows = [];
+            const limit = Math.max(1, Math.min(1000, Number(pageSize || 1000)));
+            const cap = Math.max(1, Number(maxPages || 100));
+            const cleanParams = String(params || '').split('&').filter(p => p && !/^limit=|^offset=/.test(p)).join('&');
+            const keysetColumn = String(options && options.keysetColumn || '').trim();
+            if (keysetColumn) {
+                // Read-path fix, measured 2026-07-25 against the live anon
+                // endpoint. OFFSET pagination makes PostgreSQL project and sort
+                // the whole relation once per page, so the five boot pages each
+                // cost a full projection (~1.2 s upstream apiece) and the 4-wide
+                // parallel burst below pushed anon requests past the statement
+                // timeout (57014 / HTTP 500, 15/15 in a burst probe). A
+                // primary-key keyset walk is strictly sequential and each page
+                // scans only what is left: 5.85 s -> 3.42 s of upstream time and
+                // no concurrent burst at all.
+                const keysetParams = cleanParams.split('&')
+                    .filter(p => p && !/^order=/.test(p)).join('&');
+                let cursor = '';
+                for (let page = 0; page < cap; page++) {
+                    const url = CAL_SUPABASE_URL + '/rest/v1/' + table
+                        + '?select=' + encodeURIComponent(select)
+                        + '&limit=' + limit
+                        + '&order=' + encodeURIComponent(keysetColumn) + '.asc'
+                        + (cursor ? '&' + encodeURIComponent(keysetColumn) + '=gt.' + encodeURIComponent(cursor) : '')
+                        + (keysetParams ? '&' + keysetParams : '');
+                    const batch = await _prodRestPage(url, table, page);
+                    if (!Array.isArray(batch)) return rows;
+                    rows.push(...batch);
+                    if (batch.length < limit) return rows;
+                    const last = batch[batch.length - 1];
+                    const next = String(last && last[keysetColumn] == null ? '' : last[keysetColumn]);
+                    // A page that cannot advance the cursor would loop forever;
+                    // fail loudly instead of silently truncating the projection.
+                    if (!next || next === cursor) throw new Error(table + ' keyset read stalled');
+                    cursor = next;
+                }
+                throw new Error(table + ' read exceeded pagination cap');
+            }
+            const pageUrl = page => {
+                const offset = page * limit;
+                return CAL_SUPABASE_URL + '/rest/v1/' + table
+                    + '?select=' + encodeURIComponent(select)
+                    + '&limit=' + limit
+                    + '&offset=' + offset
+                    + (cleanParams ? '&' + cleanParams : '');
+            };
+            let page = 0;
+            while (page < cap) {
+                const width = page === 0 ? 1 : Math.min(4, cap - page);
+                const pages = await Promise.all(Array.from({ length: width }, (_, i) => {
+                    const p = page + i;
+                    return _prodRestPage(pageUrl(p), table, p).then(batch => ({ page: p, batch }));
+                }));
+                for (const item of pages) {
+                    const batch = item.batch;
+                    rows.push(...batch);
+                    if (!Array.isArray(batch) || batch.length < limit) return rows;
+                    if (item.page === cap - 1) throw new Error(table + ' read exceeded pagination cap');
+                }
+                page += width;
+            }
+            return rows;
+        }
+        function _prodBrowserProjectionMissing(error) {
+            const status = Number(error && error.status || 0);
+            const code = String(error && error.code || '').trim().toUpperCase();
+            const detail = String(error && error.detail || '');
+            return status === 404
+                && (code === 'PGRST205' || code === '42P01')
+                && /production_deliverables_browser_v1/i.test(detail);
+        }
+        /* The batches boot select, named so the cache and the read cannot drift
+           apart. `description` is the one column the cache drops (see
+           _prodCacheBatchColumns) and the one the preserve path already knows
+           how to refill. */
+        const PROD_BATCH_SELECT = 'id,client_slug,team,name,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids';
+        /* The description is NOT in the boot read. It is read per batch, when
+           that parent's panel opens (`_prodEnsureDescription`), the way a
+           deliverable's `brief` already is. Measured 2026-09-08: 1,688 batches
+           carry 2.3 million characters of description, about 1.0 MB of the
+           1.1 MB (compressed) the batch read cost, and the app re-downloaded
+           all of it on every open of the tab and every return to it, to show
+           one description at a time. `updated_at` rides along so a held value
+           can be told apart from a moved one. */
+        const PROD_BATCH_DESCRIPTION_SELECT = 'id,description,updated_at';
+        const PROD_DELIVERABLE_SELECT = 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,sync_state,created_at,updated_at,artifact_revision,linear_issue_uuid,linear_identifier,linear_issue_url,identity_repair_state,identity_repair_reason,identity_repair_resolved_linear_issue_id,raw_issue_parent_id,raw_project_id,raw_attribution_schema,raw_attribution_state,raw_attribution_client_slug,raw_attribution_owner_kind,raw_attribution_source,raw_attribution_project_id,raw_attribution_native_epoch,raw_attribution_provisional_client_slug,raw_attribution_mapping_revision,raw_attribution_repair_required,raw_attribution_reason,raw_attribution_explicit_owner_approved,raw_attribution_has_explicit_decision_ref,raw_attribution_explicit_manifest_sha256,raw_issue_archived_at,raw_issue_canceled_at,raw_webhook_delete,raw_deleted,raw_delete,raw_removed,raw_archived';
+        async function _prodBrowserProjectionRows(select, params) {
+            try {
+                return await _prodRestRows('production_deliverables_browser_v1', select, params, 1000, 50, { keysetColumn: 'id' });
+            } catch (error) {
+                const missing = error && error.status === 400 && error.code === '42703'
+                    && ['raw_attribution_project_id', 'raw_attribution_native_epoch'].some(field =>
+                        error.detail === 'column production_deliverables_browser_v1.' + field + ' does not exist');
+                if (!missing) throw error;
+                // Retain the safe view and pagination. Missing native proof stays missing.
+                const compatible = select.split(',').filter(field =>
+                    field !== 'raw_attribution_project_id' && field !== 'raw_attribution_native_epoch').join(',');
+                return _prodRestRows('production_deliverables_browser_v1', compatible, params, 1000, 50, { keysetColumn: 'id' });
+            }
+        }
+        async function _prodLoadDeliverableProjection(filterParams) {
+            const select = PROD_DELIVERABLE_SELECT;
+            const params = String(filterParams == null ? '' : filterParams);
+            try {
+                // The browser sorts every list itself, so the server order only
+                // ever provided stable pagination; a primary-key keyset walk
+                // provides the same stability without re-sorting the relation
+                // per page. See the keyset branch of _prodRestRows.
+                return await _prodBrowserProjectionRows(select, params);
+            } catch (error) {
+                if (!_prodBrowserProjectionMissing(error)) throw error;
+                // Release transition only: the compatible UI may precede the
+                // migration that creates the safe view. Once installed, only
+                // the view is used; auth/network/server failures never fall
+                // back to legacy body reads.
+                const legacySelect = 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,sync_state,created_at,updated_at,linear_issue_uuid,linear_identifier,linear_issue_url,identity_repair_state:linear_raw->identity_repair->>state,identity_repair_reason:linear_raw->identity_repair->>reason,identity_repair_resolved_linear_issue_id:linear_raw->identity_repair->>resolved_linear_issue_id,raw_issue_parent_id:linear_raw->issue->parent->>id,raw_project_id:linear_raw->issue->project->>id,raw_attribution_schema:linear_raw->attribution->>schema,raw_attribution_state:linear_raw->attribution->>state,raw_attribution_client_slug:linear_raw->attribution->>client_slug,raw_attribution_owner_kind:linear_raw->attribution->>owner_kind,raw_attribution_source:linear_raw->attribution->>source,raw_attribution_project_id:linear_raw->attribution->>project_id,raw_attribution_native_epoch:linear_raw->attribution->>native_epoch,raw_attribution_provisional_client_slug:linear_raw->attribution->>provisional_client_slug,raw_attribution_mapping_revision:linear_raw->attribution->>mapping_revision,raw_attribution_repair_required:linear_raw->attribution->>repair_required,raw_attribution_reason:linear_raw->attribution->>reason,raw_attribution_explicit_owner_approved:linear_raw->attribution->>explicit_owner_approved,raw_attribution_explicit_decision_ref:linear_raw->attribution->>explicit_decision_ref,raw_attribution_explicit_manifest_sha256:linear_raw->attribution->>explicit_manifest_sha256,raw_issue_archived_at:linear_raw->issue->>archivedAt,raw_issue_canceled_at:linear_raw->issue->>canceledAt,raw_webhook_delete:linear_raw->>webhook_delete,raw_deleted:linear_raw->>deleted,raw_delete:linear_raw->>delete,raw_removed:linear_raw->>removed,raw_archived:linear_raw->>archived';
+                return _prodRestRows(
+                    'deliverables',
+                    legacySelect,
+                    params,
+                    1000,
+                    50,
+                    { keysetColumn: 'id' }
+                );
+            }
+        }
+        function _prodAuthorityValue(value) {
+            if (typeof value === 'string') {
+                try { value = JSON.parse(value); } catch (e) { return null; }
+            }
+            if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+            const video = String(value.video || '').trim().toLowerCase();
+            const graphics = String(value.graphics || '').trim().toLowerCase();
+            if (!['linear', 'syncview'].includes(video) || !['linear', 'syncview'].includes(graphics)) return null;
+            return { video, graphics };
+        }
+        async function _prodFetchAuthority() {
+            try {
+                // Limit 2 lets the generic pager prove the exact-one contract;
+                // a 1-row page at a 1-page cap is intentionally treated as
+                // potentially truncated by _prodRestRows.
+                const rows = await _prodRestRows('syncview_runtime_flags', 'value', 'key=eq.' + encodeURIComponent(PROD_AUTHORITY_FLAG_KEY), 2, 1);
+                if (!Array.isArray(rows) || rows.length !== 1) return null;
+                return _prodAuthorityValue(rows[0] && rows[0].value);
+            } catch (e) {
+                return null;
+            }
+        }
+        /* Which teams' native intake has cut over -- the SAME flag and the
+           SAME parsing/validation the Calendar create picker already reads
+           (_calLatestNativeBatches), so the two surfaces cannot disagree
+           about what "cut over" means. Returns a Set of 'video'/'graphics',
+           or null on any unusable read (missing row, wrong key, malformed
+           value) -- the caller fails that OPEN, exactly as the Calendar read
+           does, rather than resetting an already-confirmed team back to
+           "not cut over" on a transient miss. */
+        async function _prodFetchNativeEpochTeams() {
+            try {
+                const flags = await _prodRestRows('syncview_runtime_flags', 'key,value', 'key=eq.native_intake_epochs', 2, 1);
+                const row = Array.isArray(flags) && flags.length === 1 && flags[0] && flags[0].key === 'native_intake_epochs'
+                    ? flags[0] : null;
+                const value = row && row.value;
+                if (!value || typeof value !== 'object' || Array.isArray(value)) {
+                    throw new Error('native_intake_epochs flag payload is missing or malformed');
+                }
+                return new Set(['video', 'graphics'].filter(team => value[team]
+                    && value[team].enabled === true && typeof value[team].epoch === 'string'
+                    && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(value[team].epoch)));
+            } catch (error) {
+                console.warn('[Production] native_intake_epochs flag read failed', error);
+                return null;
+            }
+        }
+        /* Whether TEAM'S native intake has cut over -- a permanently empty
+           linear_issue_uuid past that point is a finished native card, not a
+           card mid-sync. Unloaded or unreadable (_prodState.nativeEpochTeams
+           is null) fails OPEN to "not cut over", so a card that really is
+           still syncing to Linear keeps reading that way rather than being
+           misreported as a repair-needed attribution gap on a flag read that
+           has not landed yet. */
+        function _prodNativeEpochOn(team) {
+            const t = String(team || '').trim().toLowerCase();
+            if (t !== 'video' && t !== 'graphics') return false;
+            const teams = _prodState.nativeEpochTeams;
+            return teams instanceof Set && teams.has(t);
+        }
+        async function _prodRefreshAuthority(options) {
+            const previous = JSON.stringify(_prodState.authority || null);
+            const authority = await _prodFetchAuthority();
+            _prodState.authority = authority;
+            _prodState.authorityLoaded = true;
+            _prodState.authorityReadAt = Date.now();
+            if ((!options || !options.silent || JSON.stringify(authority || null) !== previous) && document.getElementById('prodRoot')) _prodRender();
+            return authority;
+        }
+        let _prodAuthorityTimer = 0;
+        function _prodStartAuthorityRefresh() {
+            if (_prodAuthorityTimer) return;
+            _prodAuthorityTimer = setInterval(() => {
+                if (document.hidden || currentNav !== 'production' || !document.getElementById('prodRoot')) return;
+                _prodRefreshAuthority({ silent: true });
+            }, 30000);
+        }
+        function _prodById(rows, key) {
+            return new Map((rows || []).map(r => [String(r && r[key] || ''), r]).filter(([k]) => k));
+        }
+        function _prodHasOwn(row, field) {
+            return !!row && Object.prototype.hasOwnProperty.call(row, field);
+        }
+        function _prodPreserveProjectedFields(incoming, previous, key, fields) {
+            const priorById = _prodById(previous, key);
+            return (incoming || []).map(row => {
+                const prior = priorById.get(String(row && row[key] || ''));
+                if (!row || !prior) return row;
+                fields.forEach(field => {
+                    if (!_prodHasOwn(row, field) && _prodHasOwn(prior, field)) row[field] = prior[field];
+                });
+                return row;
+            });
+        }
+        /* Batch descriptions are read on demand (PROD_BATCH_DESCRIPTION_SELECT),
+           so a reload never carries them in. A description already held is
+           kept only while the row's `updated_at` is unchanged: the description
+           write is a compare-and-swap on that column, so a different stamp
+           means the text may have moved, and the panel must read it again
+           rather than keep showing the old one. */
+        function _prodCarryBatchDescriptions(incoming, previous) {
+            const priorById = _prodById(previous, 'id');
+            return (incoming || []).map(row => {
+                const prior = row ? priorById.get(String(row.id || '')) : null;
+                if (!prior || _prodHasOwn(row, 'description')) return row;
+                if (String(prior.updated_at || '') !== String(row.updated_at || '')) return row;
+                if (_prodHasOwn(prior, 'description')) row.description = prior.description;
+                return row;
+            });
+        }
+        function _prodNormKey(v) {
+            return String(v || '').trim().toLowerCase();
+        }
+        function _prodArtifactStatus(status) {
+            return PROD_STATUS_TO_ARTIFACT[String(status || '').trim()] || String(status || '').trim() || 'todo';
+        }
+        function _prodBoardStatus(status) {
+            return PROD_BOARD_STATUS_TO_ARTIFACT[String(status || '').trim()] || 'prog';
+        }
+        function _prodHashText(text) {
+            const s = String(text || '');
+            let h = 0;
+            for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+            return Math.abs(h);
+        }
+        function _prodInitials(name) {
+            const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+            return ((parts[0] ? parts[0][0] : '?') + (parts[1] ? parts[1][0] : '')).toUpperCase();
+        }
+        function _prodLinearRaw(value) {
+            if (!value) return {};
+            if (typeof value === 'object' && !Array.isArray(value)) return value;
+            try {
+                const parsed = JSON.parse(String(value || '{}'));
+                return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+            } catch (e) {
+                return {};
+            }
+        }
+        function _prodNormalizeLabel(value) {
+            if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+            const id = String(value.id || '').trim();
+            const name = String(value.name || '').trim();
+            if (!id || !name) return null;
+            const rawColor = String(value.color || '').trim();
+            return {
+                id,
+                name,
+                color: /^#[0-9a-f]{6}$/i.test(rawColor) ? rawColor.toUpperCase() : '',
+                description: String(value.description || '').trim()
+            };
+        }
+        function _prodNormalizeLabelList(values) {
+            if (!Array.isArray(values)) return null;
+            const seen = new Set();
+            const normalized = [];
+            for (const value of values) {
+                const label = _prodNormalizeLabel(value);
+                if (!label || seen.has(label.id)) return null;
+                seen.add(label.id);
+                normalized.push(label);
+            }
+            return normalized;
+        }
+        function _prodLabelState(id) {
+            return _prodState.labels.get(String(id || '')) || null;
+        }
+        // ---- F94: server-authoritative eligible-assignee projection ----------
+        // The shipped picker listed every active same-team roster row while the
+        // gateway checked only id + active + team, so a manual reassignment
+        // could commit an incompatible role or an unmirrorable target and fail
+        // later in linear-outbound. The picker now renders only what the
+        // gateway's own projection returns, and fails closed (no selectable
+        // candidate) while that projection is loading, refused, or unavailable.
+        function _prodAssigneeOptionsState(id) {
+            return _prodState.assigneeOptions.get(String(id || '')) || null;
+        }
+        function _prodNextAssigneeOptionsToken(id) {
+            id = String(id || '');
+            const token = Number(_prodState.assigneeOptionRequestTokens.get(id) || 0) + 1;
+            _prodState.assigneeOptionRequestTokens.set(id, token);
+            return token;
+        }
+        function _prodAssigneeOptionsErrorText(error) {
+            const code = String(error && (error.code || error.message) || '');
+            if (error && error.status === 401) return 'Staff sign-in expired. Sign in again to choose an assignee.';
+            if (error && error.status === 403) return 'This staff account cannot assign this issue.';
+            if (code === 'assignee_provider_unavailable') return 'Linear could not confirm who is assignable. Nothing was changed.';
+            if (code === 'assignee_lookup_unavailable') return 'The roster could not be read. Nothing was changed.';
+            return 'Eligible assignees could not be loaded. Retry to check the current roster.';
+        }
+        function _prodRefreshAssigneeSurfaces(id) {
+            if (document.getElementById('prodRoot')) _prodRender();
+            const pop = document.querySelector('[data-prod-assign-pop="' + CSS.escape(String(id || '')) + '"]');
+            if (pop) {
+                pop.innerHTML = _prodPickerHTML('assign', _prodCurVal('assign', id), [id]);
+                _prodWirePicker(pop, 'assign', [id]);
+            }
+        }
+        async function _prodEnsureAssigneeOptions(id, force) {
+            id = String(id || '');
+            const issue = _prodIssue(id);
+            if (!issue) return null;
+            const current = _prodAssigneeOptionsState(id);
+            if (!force && current && current.status === 'ready') return current;
+            if (!force && current && current.status === 'loading') return current;
+            const staffIdentity = _syncviewStaffIdentityForHeaders();
+            if (!staffIdentity) {
+                const state = { status: 'error', candidates: [], error: 'Staff sign-in is required to choose an assignee.' };
+                _prodState.assigneeOptions.set(id, state);
+                _prodRefreshAssigneeSurfaces(id);
+                return state;
+            }
+            const verificationEpoch = _syncviewStaffVerificationEpoch;
+            const identitySignature = _syncviewStaffIdentitySignature(staffIdentity);
+            const requestToken = _prodNextAssigneeOptionsToken(id);
+            const requestStillCurrent = () => verificationEpoch === _syncviewStaffVerificationEpoch
+                && identitySignature === _syncviewStaffIdentitySignature(_syncviewStaffIdentityForHeaders())
+                && requestToken === _prodState.assigneeOptionRequestTokens.get(id);
+            _prodState.assigneeOptions.set(id, {
+                status: 'loading',
+                candidates: current && current.candidates || [],
+                error: ''
+            });
+            _prodRefreshAssigneeSurfaces(id);
+            try {
+                const response = await fetch(PROD_WRITE_EF_URL, {
+                    method: 'POST',
+                    cache: 'no-store',
+                    headers: _syncviewEfHeaders({
+                        apikey: CAL_SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json'
+                    }, PROD_WRITE_EF_URL),
+                    body: JSON.stringify({
+                        action: 'assignee_options',
+                        surface: 'production',
+                        id,
+                        client_slug: issue.authorityProject || issue.storedClientSlug || issue.project || ''
+                    })
+                });
+                const json = await response.json().catch(() => ({}));
+                if (!requestStillCurrent()) return null;
+                if (!response.ok || !json || json.ok !== true || json.complete !== true
+                    || !Array.isArray(json.assignees)) {
+                    const error = new Error(String(json && json.error || 'assignee_options_failed'));
+                    error.status = response.status;
+                    error.code = String(json && json.error || 'assignee_options_failed');
+                    throw error;
+                }
+                const candidates = json.assignees
+                    .map(row => ({ id: String(row && row.id || ''), name: String(row && row.name || '') }))
+                    .filter(row => row.id);
+                const state = { status: 'ready', candidates, error: '' };
+                _prodState.assigneeOptions.set(id, state);
+                _prodRefreshAssigneeSurfaces(id);
+                return state;
+            } catch (error) {
+                if (!requestStillCurrent()) return null;
+                _prodState.assigneeOptions.set(id, {
+                    status: 'error',
+                    candidates: [],
+                    error: _prodAssigneeOptionsErrorText(error)
+                });
+                _prodRefreshAssigneeSurfaces(id);
+                return _prodAssigneeOptionsState(id);
+            }
+        }
+        function _prodNextLabelRequestToken(id) {
+            id = String(id || '');
+            const token = Number(_prodState.labelRequestTokens.get(id) || 0) + 1;
+            _prodState.labelRequestTokens.set(id, token);
+            return token;
+        }
+        function _prodAdoptLabelPayload(id, payload, fallbackCatalog) {
+            id = String(id || '');
+            const catalog = _prodNormalizeLabelList(
+                Array.isArray(payload && payload.catalog) ? payload.catalog : fallbackCatalog
+            );
+            const selectedLabels = _prodNormalizeLabelList(payload && payload.selected_labels);
+            if (!catalog || !selectedLabels || !Array.isArray(payload && payload.selected_label_ids)) {
+                throw new Error('incomplete_label_state');
+            }
+            const selectedIds = [];
+            const selectedSet = new Set();
+            for (const value of payload.selected_label_ids) {
+                const labelId = String(value || '').trim();
+                if (!labelId || selectedSet.has(labelId)) throw new Error('incomplete_label_state');
+                selectedSet.add(labelId);
+                selectedIds.push(labelId);
+            }
+            const allById = new Map(catalog.map(label => [label.id, label]));
+            selectedLabels.forEach(label => {
+                if (!allById.has(label.id)) allById.set(label.id, label);
+            });
+            if (selectedIds.some(labelId => !allById.has(labelId))) throw new Error('incomplete_label_state');
+            const selected = selectedIds.map(labelId => allById.get(labelId));
+            _prodState.labels.set(id, {
+                status: 'ready',
+                complete: true,
+                authority: payload && payload.authority || '',
+                catalogVersion: typeof (payload && payload.catalog_version) === 'string' ? payload.catalog_version : '',
+                catalog: [...allById.values()],
+                selectedIds,
+                selected,
+                saving: false,
+                error: '',
+                writeError: ''
+            });
+            return _prodState.labels.get(id);
+        }
+        function _prodLabelErrorText(error) {
+            const code = String(error && (error.code || error.message) || '');
+            if (error && error.status === 401) return 'Staff sign-in expired. Sign in again to load labels.';
+            if (error && error.status === 403) return 'This staff account cannot read labels for this issue.';
+            if (code === 'incomplete_label_state' || code === 'labels_incomplete') return 'Linear returned an incomplete label catalog. Nothing was changed.';
+            return 'Labels could not be loaded. Retry to check the current Linear state.';
+        }
+        function _prodRefreshLabelSurfaces(id) {
+            if (document.getElementById('prodRoot')) _prodRender();
+            const pop = document.querySelector('[data-prod-label-pop="' + CSS.escape(String(id || '')) + '"]');
+            if (pop) {
+                pop.innerHTML = _prodLabelsPopHTML(id);
+                _prodWireLabelsPop(pop, id);
+            }
+        }
+        async function _prodEnsureLabels(id, force) {
+            id = String(id || '');
+            const issue = _prodIssue(id);
+            if (!issue) return null;
+            const current = _prodLabelState(id);
+            if (issue.syntheticBatchParent === true) {
+                /* A synthesized batch parent has no deliverable row and no
+                   Linear issue of its own -- its id IS the batch id -- so
+                   handleLabelsRead answers 404 entity_not_found every time.
+                   _prodLabelErrorText has no branch for that, so it fell to
+                   "Labels could not be loaded. Retry to check the current
+                   Linear state." and rendered a Retry that re-fired the same
+                   request forever. Both halves were false: the read did not
+                   fail transiently, and there is no Linear label state to
+                   re-check.
+                   The description and asset readers already short-circuit here,
+                   and the pickers already refuse with this exact sentence.
+                   Labels is the control the 2026-08-30 truth pass missed.
+                   It SETTLES rather than short-circuiting into nothing: leaving
+                   the state absent would strand the button on "Loading labels"
+                   forever, which is a quieter version of the same lie.
+
+                   THE GUARD BELOW IS LOAD-BEARING AND MUST STAY FIRST.
+                   This branch was written above the shared memo guard
+                   (`if (!force && current) return current;`) and then called
+                   _prodRefreshLabelSurfaces unconditionally -- which calls
+                   _prodRender, which calls _prodEnsureLabels, which re-entered
+                   here. Infinite synchronous recursion: the batch-parent detail
+                   view hard-froze the tab on load, 100% reproducible, taking
+                   the asset panel and the file pills down with it. Found by the
+                   round-3 tester 2026-08-31 (PR 1186), on the same deploy that
+                   shipped the fix this branch IS.
+                   Re-rendering once when the state is first settled is correct
+                   and necessary; re-rendering when it is already settled is the
+                   defect. So the branch carries its own memo check rather than
+                   moving below the shared one, which would put it after the
+                   writes check and the staff-identity read that a synthetic
+                   parent must never reach. */
+                if (!force && current && current.structural === true) return current;
+                const state = {
+                    status: 'ready',
+                    complete: true,
+                    authority: current && current.authority || '',
+                    catalog: [],
+                    selectedIds: [],
+                    selected: [],
+                    saving: false,
+                    error: '',
+                    writeError: '',
+                    structural: true
+                };
+                _prodState.labels.set(id, state);
+                _prodRefreshLabelSurfaces(id);
+                return state;
+            }
+            if (_prodState.writes.has(id + ':labels')) return current;
+            if (!force && current) return current;
+            const staffIdentity = _syncviewStaffIdentityForHeaders();
+            if (!staffIdentity) {
+                const state = {
+                    status: 'error',
+                    complete: false,
+                    authority: '',
+                    catalog: current && current.catalog || [],
+                    selectedIds: current && current.selectedIds || [],
+                    selected: current && current.selected || [],
+                    saving: false,
+                    error: 'Staff sign-in is required to load labels.',
+                    writeError: ''
+                };
+                _prodState.labels.set(id, state);
+                _prodRefreshLabelSurfaces(id);
+                return state;
+            }
+            const verificationEpoch = _syncviewStaffVerificationEpoch;
+            const identitySignature = _syncviewStaffIdentitySignature(staffIdentity);
+            const requestToken = _prodNextLabelRequestToken(id);
+            const requestStillCurrent = () => verificationEpoch === _syncviewStaffVerificationEpoch
+                && identitySignature === _syncviewStaffIdentitySignature(_syncviewStaffIdentityForHeaders())
+                && requestToken === _prodState.labelRequestTokens.get(id);
+            _prodState.labels.set(id, {
+                status: 'loading',
+                complete: false,
+                authority: current && current.authority || '',
+                catalog: current && current.catalog || [],
+                selectedIds: current && current.selectedIds || [],
+                selected: current && current.selected || [],
+                saving: false,
+                error: '',
+                writeError: ''
+            });
+            _prodRefreshLabelSurfaces(id);
+            try {
+                const response = await fetch(PROD_WRITE_EF_URL, {
+                    method: 'POST',
+                    cache: 'no-store',
+                    headers: _syncviewEfHeaders({
+                        apikey: CAL_SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json'
+                    }, PROD_WRITE_EF_URL),
+                    body: JSON.stringify({ action: 'labels_read', surface: 'production', id })
+                });
+                const json = await response.json().catch(() => ({}));
+                if (!requestStillCurrent()) return null;
+                if (!response.ok || !json || json.ok !== true || json.complete !== true) {
+                    const error = new Error(String(json && json.error || 'labels_read_failed'));
+                    error.status = response.status;
+                    error.code = String(json && json.error || 'labels_read_failed');
+                    throw error;
+                }
+                const state = _prodAdoptLabelPayload(id, json, json.catalog);
+                _prodRefreshLabelSurfaces(id);
+                return state;
+            } catch (error) {
+                if (!requestStillCurrent()) return null;
+                _prodState.labels.set(id, {
+                    status: 'error',
+                    complete: false,
+                    authority: current && current.authority || '',
+                    catalog: current && current.catalog || [],
+                    selectedIds: current && current.selectedIds || [],
+                    selected: current && current.selected || [],
+                    saving: false,
+                    error: _prodLabelErrorText(error),
+                    writeError: ''
+                });
+                _prodRefreshLabelSurfaces(id);
+                return _prodLabelState(id);
+            }
+        }
+        const PROD_BATCH_ASSET_GUIDANCE = 'Held on the post, not readable here. Open a sub-issue to see it.';
+        /* What an empty slot means before the authenticated read answers, and
+           after it fails: not that the asset is absent, only that this page has
+           not been told. No asset column is readable with the key this page
+           ships, so the browser NEVER knows an asset is missing -- only the
+           edge function can say that, and when it does, its own answer replaces
+           this one. */
+        const PROD_ASSET_UNREAD_GUIDANCE = 'Not readable until asset access is checked.';
+        /* Why the Project row does not act, said once and used by every control
+           that offered it. Not a permission and not a preview: no gateway
+           operation writes client_slug on any surface, so there is nothing to
+           enable. The repair path for a row on the WRONG project is the
+           attribution repair, which is a different control with its own notice. */
+        const PROD_PROJECT_MOVE_UNSUPPORTED = 'A deliverable cannot be moved between clients here. Its project comes from the batch it belongs to.';
+        /* Delete and Move both answered with the preview sentence, which reads as
+           "not yet" -- a permission someone could be granted, or a state the tab
+           grows out of once it finishes loading. Neither is true. No gateway
+           operation deletes a deliverable or moves one between teams, on any
+           surface, for any role, so the refusal is permanent and saying "for
+           anyone" is the part that closes off the wrong reading.
+
+           Archiving IS named for Delete because it genuinely exists and reaches
+           the same goal: archiveCalPost writes through for every staff seat
+           (it returns early only on the client share link) and the card carries
+           the control. It is deliberately worded as taking the POST out of the
+           schedule rather than deleting the issue, because that is what it does
+           -- the sub-issues survive. Move gets no remedy named because there
+           genuinely is none. */
+        const PROD_DELETE_UNSUPPORTED = 'Deleting is not available here, for anyone. To take a post out of the schedule, archive it on the content calendar.';
+        const PROD_MOVE_UNSUPPORTED = 'An issue cannot be moved between teams here. Its team comes from the deliverable it was created as.';
+        /* Sweep item 87.10. The group-header checkbox answered every click with
+           the preview sentence, which is wrong twice over: selection is not a
+           write anywhere else in this view -- _prodToggleRowSelection and
+           Ctrl/Cmd+A both mutate _prodState.selected with no gate at all -- and
+           the tab is not read-only under the live flag anyway, contradicting
+           the sidebar chip a few inches away that says "Native writes".
+           NOT WIDENED TO ACTUALLY SELECT, deliberately, in this pass: a
+           whole-group selection would pull in synthetic batch parents and
+           attribution-repair rows, and every downstream consumer of
+           _prodState.selected (the bulk palette, the guarded S/A/DoubleD/DoubleP
+           shortcuts, _prodOpenSub's "Applying to N of M" notice) would start
+           seeing that shape routinely rather than on the rare manual multi-pick
+           it sees today. That is a real behavior decision, not a copy one, and
+           belongs in its own change with its own review -- shift-click and
+           Ctrl/Cmd+A already reach the same result today, which is why this is
+           the cheapest of the sweep survivors rather than a blocker.
+           So the checkbox keeps refusing, and now says the true, narrow reason:
+           this ONE control is not wired to select, and names the two that are. */
+        const PROD_GROUP_SELECT_UNSUPPORTED = 'This checkbox does not select the group yet. Shift-click a row, or press Ctrl/Cmd+A, to select more than one.';
+        function _prodAssetDefaultEvidence(issue) {
+            const values = issue && issue.assets || {};
+            const assets = {};
+            /* A synthesized batch parent can never read its own batch asset
+               columns: the browser grant excludes them by design, so an empty
+               slot here means unreadable, not absent. This has to be decided at
+               SEED time, not in _prodEnsureAssets -- the render seeds state and
+               paints before ensure runs, and the synthetic branch returns
+               without repainting, so a correction made only there would not
+               reach the screen until an unrelated re-render. */
+            /* EVERY deliverable seeds unreadable, not just a batch parent.
+               The batch-parent fix was correct and too narrow, and the sweep
+               that found the rest is worth writing down: `issue.assets` is
+               hardcoded to four empty strings for every row the projection
+               builds, because NO asset column is browser-readable --
+               production_deliverables_browser_v1 carries 46 columns and not one
+               of them is asset-bearing, and deliverables.file_url and
+               batches.filming_doc_url both answer 42501 to the browser key. So
+               an empty slot on a REAL deliverable means exactly what it means
+               on a synthetic parent: this reader cannot see it. Saying Missing
+               there asserted, on first paint of every detail open and
+               permanently on any refused read, that a post has no filming plan,
+               no footage, no folder and no file.
+               Permanent for two groups, not transient: any row whose
+               client_slug is not an active client (686 live rows, which 403
+               unconditionally), and any 401 or network failure.
+               A THIRD group was listed here and is gone as of 2026-09-01: a
+               creative opening the OTHER team, which staffAssetReadAllowed used
+               to refuse. That gate no longer looks at the team, so the largest
+               of the three no longer occurs -- and it was the one that made
+               this seed load-bearing, since both teams work in here daily. The
+               seed stays regardless: the other two still happen, and no slot
+               may claim Missing while any of them does.
+               Measured 2026-08-30 over the live projection: 5,888 live
+               deliverables, 1,340 of them in a batch whose own description
+               carries the filming-plan URL the row was calling Missing. */
+            const unreadable = !!issue;
+            const guidance = issue && issue.syntheticBatchParent === true
+                ? PROD_BATCH_ASSET_GUIDANCE
+                : PROD_ASSET_UNREAD_GUIDANCE;
+            PROD_ASSET_SPECS.forEach(spec => {
+                const url = String(values[spec.key] || '').trim();
+                /* CHECKING, not `unavailable`, and the difference is a red pill
+                   on every first paint.
+
+                   The 2026-08-30 change above was right that `missing` is a
+                   false claim here -- the reader cannot see these columns, so
+                   it cannot know the slot is empty. But it swung to
+                   `unavailable`, which asserts the read was ATTEMPTED AND
+                   FAILED. At seed time no read has run. The estate's own three
+                   words already separate this cleanly:
+
+                     missing      a fact about the world  (unknowable here)
+                     unavailable  a fact about the reader (true only after a
+                                  read failed)
+                     checking     a fact about the request (true right now)
+
+                   Owner report 2026-08-31: "whenever I change the tab it says
+                   checking and everything it says unavailable and then it shows
+                   it ... there's like this weird back and forth of refresh that
+                   I don't really like." That back-and-forth is this line. Every
+                   cache drop -- a tab return, a save, a sibling batch-asset
+                   write invalidating the row -- repaints all four slots red
+                   before the authenticated read answers a fraction of a second
+                   later.
+
+                   Seeding `checking` also makes the failure paths reachable
+                   for the first time. Both the no-identity branch and the read
+                   catch already do `if (asset.state === 'checking') asset.state
+                   = 'unavailable'` -- conversions that could never fire for an
+                   empty slot, because it had been born `unavailable` already.
+                   The word is now earned by a read that actually failed.
+
+                   EXCEPT ON A SYNTHETIC BATCH PARENT, and the existing
+                   first-paint test caught this in review of this very change --
+                   which is what it was written for. `checking` is only honest
+                   if something is going to check. For a synthetic parent
+                   nothing will: it has no deliverable row, the authenticated
+                   prober can only answer 403, and _prodEnsureAssets's synthetic
+                   branch settles the state and RETURNS WITHOUT REPAINTING. Seed
+                   `checking` there and the pill says Checking forever. So the
+                   seed follows whether a read is actually coming, which is the
+                   same question the two words were always about. */
+                const readComing = !(issue && issue.syntheticBatchParent === true);
+                let state = url
+                    ? 'checking'
+                    : (unreadable ? (readComing ? 'checking' : 'unavailable') : 'missing');
+                if (url) {
+                    try {
+                        const parsed = new URL(url);
+                        if (parsed.protocol !== 'https:' || parsed.username || parsed.password) state = 'invalid';
+                    } catch (e) { state = 'invalid'; }
+                }
+                assets[spec.key] = {
+                    slot: spec.key, url, state, checked_at: '',
+                    /* Carried, but only ATTACHED once the state is one the
+                       guidance explains. A slot still `checking` has nothing to
+                       advise about yet; the failure paths that flip it to
+                       `unavailable` set the guidance at the same moment. */
+                    guidance: (!url && unreadable && !readComing) ? guidance : '',
+                    unreadGuidance: (!url && unreadable) ? guidance : ''
+                };
+            });
+            return assets;
+        }
+        /* `issue` is optional and purely an economy: _prodIssue is a linear scan
+           of every issue on the board, and the scope gate below needs the row.
+           Callers that already hold it -- the panel render, the SMM artifact
+           gate, the edit handlers -- pass it rather than paying for the lookup
+           again. Omitting it is always correct, never faster. */
+        function _prodAssetState(id, issue) {
+            id = String(id || '');
+            let state = _prodState.assets.get(id) || null;
+            /* THE USE-TIME SCOPE GATE, and the reason a refresh no longer blanks
+               a panel that did not change.
+
+               A completed read is stamped with the scope it was answered under
+               (client|team). _prodInvalidateScopedReads used to DELETE every
+               cached read on a refresh, which is what walked every row back
+               through the skeleton for links that had not moved -- the owner's
+               "almost always what's there is there", 2026-08-31. It now
+               preserves the values and lets them revalidate in place.
+
+               Preserving is only safe because of this gate. Every surface that
+               paints an asset reads it through here, so a value answered for
+               one client can never be drawn on a row that now belongs to
+               another: the stamp is compared against the row's CURRENT scope at
+               the moment of use, which is the one moment the correct answer is
+               actually knowable. Inside the invalidation it is not -- that runs
+               before the replacement projection is installed.
+
+               An unstamped state has never completed a read, so it holds seeded
+               defaults and has nothing to refuse. */
+            if (state && state.scopeSignature) {
+                const liveIssue = issue || _prodIssue(id);
+                if (liveIssue && _prodIssueScopeSignature(liveIssue) !== state.scopeSignature) {
+                    if (state.editing || state.saving) {
+                        // An open editor or an in-flight save is the user's own
+                        // work; the VALUES go, the draft stays.
+                        state.assets = _prodAssetDefaultEvidence(liveIssue);
+                        state.status = 'idle';
+                        state.complete = false;
+                        state.error = '';
+                        state.remoteChanged = true;
+                        state.scopeSignature = '';
+                    } else {
+                        _prodState.assets.delete(id);
+                        state = null;
+                    }
+                }
+            }
+            if (!state) {
+                state = {
+                    status: 'idle',
+                    complete: false,
+                    assets: _prodAssetDefaultEvidence(_prodIssue(id)),
+                    error: '',
+                    // The SLOT under edit, or '' for none. See _prodOpenAssetEditor.
+                    editing: '',
+                    draft: '',
+                    requestId: '',
+                    sourceEditedAt: '',
+                    saving: false,
+                    writeError: '',
+                    remoteChanged: false,
+                    // Set only when a read COMPLETES; see _prodEnsureAssets.
+                    scopeSignature: ''
+                };
+                _prodState.assets.set(id, state);
+            }
+            return state;
+        }
+        function _prodAssetSlotLabel(issue, slot) {
+            const spec = _prodAssetSpec(slot);
+            if (!spec) return String(slot || 'Asset');
+            return _prodWriteTeam(issue && issue.team) === 'graphics' && spec.graphicsLabel
+                ? spec.graphicsLabel
+                : spec.label;
+        }
+        /* A batch folder is ONE row read by many panels.
+           Every sibling deliverable of the same batch has its own cached asset
+           read holding the value that just changed, and those caches are what
+           the next panel paints from -- so without this, editing Raw footage on
+           one sub-issue leaves every other sub-issue of the same post showing
+           the old link until something unrelated invalidates it. The row that
+           was just written is left alone: its caller re-reads it immediately
+           and dropping it here would race that read. */
+        function _prodInvalidateBatchAssetReads(issue, writtenId, slot, url) {
+            if (!issue) return;
+            const keep = String(writtenId || '');
+            /* THE POST, NOT THE BATCH ID (2026-09-05).
+               This used to drop cached reads for rows whose batchId matched the
+               written one, which is precisely the set that does NOT need it on
+               a split post: the parent sits on another batch row, so it kept
+               painting its stale cached read after a sub-issue write, and every
+               sub-issue kept painting theirs after a write from the parent. The
+               read resolves these two slots across the whole post now, so the
+               rows whose answer just changed are the post's rows -- the parent
+               and every sub-issue -- whatever batch row each of them names.
+               Same batch row is still covered: a sibling on the shared row is
+               also a row of this post. The row that was just written is left
+               alone because its caller re-reads it immediately, and dropping it
+               here would race that read. */
+            const rows = _prodPostRows(issue);
+            const writtenSlot = String(slot || '');
+            const writtenUrl = String(url || '').trim();
+            rows.forEach(row => {
+                if (!row || String(row.id) === keep) return;
+                const state = _prodState.assets.get(String(row.id));
+                if (!state || state.editing || state.saving) return;
+                /* Stale, not gone (2026-09-05). These rows used to be deleted,
+                   which walked each of them through the skeleton on its next
+                   open for a value this browser already knows. The value that
+                   just landed is written into the cached slot instead, marked
+                   `checking` because the gateway has not yet said what it
+                   resolves to, and the state goes idle so the next render
+                   re-reads it -- which is when the origin chip and the write
+                   target for the slot are learned properly. The other slots
+                   did not change and keep saying what they said. */
+                if (writtenSlot && state.assets && state.assets[writtenSlot]) {
+                    state.assets[writtenSlot] = Object.assign({}, state.assets[writtenSlot], {
+                        url: writtenUrl,
+                        state: 'checking',
+                        checked_at: '',
+                        http_status: null,
+                        guidance: ''
+                    });
+                }
+                state.status = 'idle';
+                state.complete = false;
+                state.error = '';
+                state.remoteChanged = true;
+            });
+        }
+        /* Every row of the post `issue` belongs to: its parent (or itself, when
+           it is the parent) and all of that row's children, plus any sibling
+           sharing its batch row. Deliberately built from the projection the
+           reader can already see rather than asked for -- the gateway resolves
+           the same post server-side, and this only decides which cached reads
+           to drop, so a row this misses is re-read on its next open rather than
+           shown wrong. */
+        function _prodPostRows(issue) {
+            if (!issue) return [];
+            const seen = new Map();
+            const add = row => { if (row && row.id && !seen.has(row.id)) seen.set(row.id, row); };
+            add(issue);
+            const root = issue.parent ? _prodIssue(issue.parent) : issue;
+            if (root) {
+                add(root);
+                _prodChildrenOf(root.id).forEach(add);
+            }
+            const batchId = String(issue.batchId || '').trim();
+            if (batchId) {
+                _prodIssues().forEach(row => {
+                    if (row && String(row.batchId || '') === batchId) add(row);
+                });
+            }
+            return Array.from(seen.values());
+        }
+        /* The file links behind the sub-issue pills, one request per batch.
+           Deliberately quiet: a failure leaves the pills absent rather than
+           putting a banner on a list, because the pill is a shortcut and every
+           sub-issue still shows its own file when opened. */
+        async function _prodEnsureBatchFiles(batchId, clientSlug) {
+            batchId = String(batchId || '').trim();
+            clientSlug = String(clientSlug || '').trim();
+            if (!batchId || !clientSlug) return null;
+            const generation = _prodState.projectionGeneration;
+            /* KEYED BY BATCH **AND SCOPE**. The read is answered per
+               (batch_id, client_slug) and the gateway refuses a mismatch with a
+               flat 403, so a key of batch id alone lets one scope's answer --
+               or one scope's refusal -- stand in for another's. Harmless while
+               this was asked once per open row; not once it is asked once per
+               batch row of a post, where two rows can legitimately declare
+               different scopes for the same batch. Same shape as
+               _prodIssueScopeSignature, for the same reason. */
+            const statusKey = batchId + '\u0000' + clientSlug;
+            const current = _prodState.batchFilesStatus.get(statusKey);
+            if (current && current.generation === generation) return current;
+            const staffIdentity = _syncviewStaffIdentityForHeaders();
+            if (!staffIdentity) return null;
+            /* Ask only what this deploy said it can answer. The asset read runs
+               first on every detail open and carries the list; before the
+               gateway ships, the pills are simply absent, which is the honest
+               state of a feature that is not live yet -- and no doomed request
+               is made to discover it. */
+            if (!_prodState.gatewayReads || !_prodState.gatewayReads.has('batch_files_read')) return null;
+            const record = { generation, status: 'loading' };
+            _prodState.batchFilesStatus.set(statusKey, record);
+            try {
+                const response = await fetch(PROD_WRITE_EF_URL, {
+                    method: 'POST',
+                    cache: 'no-store',
+                    headers: _syncviewEfHeaders({
+                        apikey: CAL_SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json'
+                    }, PROD_WRITE_EF_URL),
+                    body: JSON.stringify({
+                        action: 'batch_files_read',
+                        surface: 'production',
+                        batch_id: batchId,
+                        client_slug: clientSlug
+                    })
+                });
+                const json = await response.json().catch(() => ({}));
+                // A response that landed after a projection swap describes rows
+                // that may no longer exist; drop it rather than paint from it.
+                if (generation !== _prodState.projectionGeneration) return null;
+                if (!response.ok || !json || json.ok !== true || !Array.isArray(json.files)
+                    || String(json.batch_id || '') !== batchId) {
+                    record.status = 'error';
+                    return record;
+                }
+                const kept = new Set();
+                json.files.forEach(file => {
+                    const id = String(file && file.id || '');
+                    const url = String(file && file.url || '').trim();
+                    if (!id || !url) return;
+                    kept.add(id);
+                    _prodState.batchFiles.set(id, {
+                        url,
+                        source: ['deliverable','calendar_card','samples_card'].includes(String(file.source || ''))
+                            ? String(file.source) : '',
+                        /* The batch row and scope this pill was answered for,
+                           so _prodBatchFileFor can refuse it once the row it
+                           is drawn on has moved. Entries survive a refresh now
+                           (2026-09-05); this is what makes that safe. */
+                        batchId,
+                        scope: clientSlug
+                    });
+                });
+                /* EVICT what this batch no longer names (Codex P1 on #1305).
+                   Entries survive a refresh now, so this read is the only
+                   thing that can take a pill DOWN -- and batch_files_read
+                   deliberately omits a deliverable whose file was cleared.
+                   Upserting the returned rows alone left the cleared file's
+                   pill up for the rest of the session, pointing at a link the
+                   row no longer holds. So every entry this batch and scope
+                   answered for earlier, and which this answer does not name,
+                   goes. Entries answered for another batch are not this
+                   read's to judge; a row that moved batches is caught here
+                   too, because its old batch stops naming it. */
+                _prodState.batchFiles.forEach((entry, id) => {
+                    if (entry && entry.batchId === batchId && entry.scope === clientSlug && !kept.has(id)) {
+                        _prodState.batchFiles.delete(id);
+                    }
+                });
+                record.status = 'ready';
+                _prodRefreshAssetSurfaces();
+                return record;
+            } catch (error) {
+                if (generation === _prodState.projectionGeneration) record.status = 'error';
+                return record;
+            }
+        }
+        function _prodBatchFileFor(id, row) {
+            const entry = _prodState.batchFiles.get(String(id || ''));
+            if (!entry || !entry.url) return null;
+            /* THE USE-TIME GATE FOR PILLS, the same one _prodAssetState applies
+               to the panel. Entries survive a refresh now, so the question "is
+               this still the file for this row" is asked where it can be
+               answered: against the row as it is drawn. A row that left the
+               batch it was answered for, or whose declared scope is no longer
+               the one the read was made under, gets no pill until the re-ask
+               lands. A row declaring no scope, or a sentinel, was never the
+               scope the request carried and is judged on the batch alone. */
+            const live = row || _prodIssue(id);
+            if (live) {
+                if (entry.batchId && String(live.batchId || '').trim() !== entry.batchId) return null;
+                const scope = String(live.authorityProject || live.storedClientSlug || '').trim();
+                if (entry.scope && scope && scope !== PROD_ATTRIBUTION_NEEDS
+                    && scope !== PROD_ATTRIBUTION_CONFLICT && scope !== entry.scope) return null;
+            }
+            return entry;
+        }
+        /* The scope an authenticated per-row read is answered under: the client
+           the row is attributed to, and the team that attribution runs through.
+           Three places have to agree on it -- _prodEnsureAssets and
+           _prodEnsureDescription re-check it before letting a response LAND,
+           and _prodLoadTerminalTail re-checks it before letting an
+           already-landed value be RE-RENDERED. It was written out by hand in
+           the first two and absent from the third; one definition is what stops
+           those drifting apart again. */
+        function _prodIssueScopeSignature(issue) {
+            if (!issue) return '';
+            const clientSlug = String(issue.authorityProject || issue.storedClientSlug || issue.project || '').trim();
+            return clientSlug + '\u0000' + _prodWriteTeam(issue.team);
+        }
+        function _prodScopeSignatures(adapter) {
+            const map = new Map();
+            ((adapter && adapter.ISSUES) || []).forEach(issue => {
+                const id = String(issue && issue.id || '');
+                if (id) map.set(id, _prodIssueScopeSignature(issue));
+            });
+            return map;
+        }
+        function _prodNextAssetRequestToken(id) {
+            id = String(id || '');
+            const token = Number(_prodState.assetRequestTokens.get(id) || 0) + 1;
+            _prodState.assetRequestTokens.set(id, token);
+            return token;
+        }
+        function _prodAssetReadErrorText(error) {
+            const code = String(error && (error.code || error.message) || '');
+            if (error && error.status === 401) return 'Staff sign-in expired. Sign in again to check asset access.';
+            if (error && error.status === 403) return 'This staff account cannot read assets for this issue.';
+            if (code === 'asset_evidence_unavailable') return 'Asset access evidence could not be saved. Retry the check.';
+            return 'Asset access could not be verified. Retry before relying on these links.';
+        }
+        function _prodRefreshAssetSurfaces() {
+            if (document.getElementById('prodRoot')) _prodRender();
+        }
+        function _prodRefreshAssetsManual(id) {
+            // Button-only wrapper: _prodEnsureAssets has several programmatic
+            // callers that must stay silent, but the visible Refresh access
+            // press needs an acknowledgement like every other manual refresh.
+            _prodToast('Rechecking asset access\u2026');
+            _prodEnsureAssets(id, true, { recheck: true });
+            return false;
+        }
+        async function _prodEnsureAssets(id, force, opts) {
+            id = String(id || '');
+            const recheck = !!(opts && opts.recheck);
+            const issue = _prodIssue(id);
+            if (!issue) return null;
+            if (issue.syntheticBatchParent === true) {
+                // A batch parent has no deliverable row, so the authenticated
+                // asset prober can only answer 403. Its links come straight
+                // from the batch row; show them as plain links, no probing.
+                const state = _prodAssetState(id);
+                Object.values(state.assets).forEach(asset => {
+                    if (asset.url && asset.state === 'checking') asset.state = 'available';
+                    else if (!asset.url) {
+                        // These three slots live on the BATCH row, and the
+                        // browser grant deliberately excludes the typed asset
+                        // columns (see the f34/f53 migration), so the projection
+                        // above always reads undefined here. It is not that the
+                        // post has no plan -- it is that this reader cannot see
+                        // it, and the sub-issue can. Saying Missing asserts a
+                        // fact about the world that is false; Unavailable
+                        // asserts a fact about the reader, which is true.
+                        // Measured 2026-08-30 across all batches and
+                        // deliverables, with the same liveness filter the
+                        // adapter applies: 199 synthetic batch parents, 189 of
+                        // them carrying a URL in the description printed three
+                        // inches above a grid that said Missing.
+                        asset.state = 'unavailable';
+                        asset.guidance = PROD_BATCH_ASSET_GUIDANCE;
+                    }
+                });
+                state.status = 'ready';
+                state.complete = true;
+                state.error = '';
+                /* STAMPED, even though no read happened.
+                   These four values come off the BATCH row, and a batch can be
+                   re-scoped by a projection swap exactly like a deliverable
+                   can. Marking the state complete without a stamp would let it
+                   be preserved through an invalidation and then skip the
+                   use-time gate -- which reads an absent stamp as "nothing was
+                   ever read here, so there is nothing to refuse". Raised on
+                   #1201 review; the synthetic branch was the one path that
+                   reached `complete` without going through the read. */
+                state.scopeSignature = _prodIssueScopeSignature(issue);
+                return state;
+            }
+            const clientSlug = String(issue.authorityProject || issue.storedClientSlug || issue.project || '').trim();
+            const issueTeam = _prodWriteTeam(issue.team);
+            const projectionGeneration = _prodState.projectionGeneration;
+            const current = _prodAssetState(id);
+            if (_prodState.writes.has(id + ':attachment')) return current;
+            if (!force && (current.status === 'loading' || current.status === 'ready' || current.status === 'error')) return current;
+            /* NOT WHILE A PROJECTION LOAD IS IN FLIGHT (2026-09-05).
+               A tab return runs _prodRefresh, which marks every stamped read
+               idle and starts _prodLoadData; the swap at the end of that load
+               marks them idle AGAIN and bumps every request token. A read
+               started between the two is refused on landing by
+               requestStillCurrent() -- a gateway round trip, four provider
+               probes and a "Checking…" button, all for an answer that is
+               thrown away -- and the render after the swap starts the one that
+               counts. So a row that already holds a stamped answer waits for
+               the swap. A row that has never been read does not, because a
+               first paint should not queue behind a background refresh, and a
+               forced press never does. `refreshing` is cleared on both the
+               success and the failure path of _prodLoadData, so this cannot
+               wedge; the worst a stale flag could cost is one refresh's worth
+               of not re-reading, which Refresh access overrides. */
+            if (!force && _prodState.refreshing && current.scopeSignature) return current;
+            const staffIdentity = _syncviewStaffIdentityForHeaders();
+            if (!staffIdentity) {
+                current.status = 'error';
+                current.complete = false;
+                current.error = 'Staff sign-in is required to check asset access.';
+                Object.values(current.assets).forEach(asset => {
+                    // A slot the read never resolved is unreadable, and says so
+                    // rather than leaving a bare pill with no explanation.
+                    if (asset.state === 'checking') {
+                        // NOW the word is earned: a read was attempted and did
+                        // not resolve this slot. The guidance seeded at build
+                        // time is attached here, at the moment it becomes true.
+                        asset.state = 'unavailable';
+                        if (!String(asset.url || '').trim() && !String(asset.guidance || '').trim()) {
+                            asset.guidance = String(asset.unreadGuidance || '') || PROD_ASSET_UNREAD_GUIDANCE;
+                        }
+                    }
+                });
+                _prodState.assets.set(id, current);
+                _prodRefreshAssetSurfaces();
+                return current;
+            }
+            const verificationEpoch = _syncviewStaffVerificationEpoch;
+            const identitySignature = _syncviewStaffIdentitySignature(staffIdentity);
+            const requestToken = _prodNextAssetRequestToken(id);
+            const scopeSignature = _prodIssueScopeSignature(issue);
+            const requestStillCurrent = () => {
+                const liveIssue = _prodIssue(id);
+                return verificationEpoch === _syncviewStaffVerificationEpoch
+                    && identitySignature === _syncviewStaffIdentitySignature(_syncviewStaffIdentityForHeaders())
+                    && requestToken === _prodState.assetRequestTokens.get(id)
+                    && projectionGeneration === _prodState.projectionGeneration
+                    && !!liveIssue
+                    && _prodIssueScopeSignature(liveIssue) === scopeSignature;
+            };
+            current.status = 'loading';
+            current.complete = false;
+            current.error = '';
+            _prodState.assets.set(id, current);
+            _prodRefreshAssetSurfaces();
+            try {
+                const response = await fetch(PROD_WRITE_EF_URL, {
+                    method: 'POST',
+                    cache: 'no-store',
+                    headers: _syncviewEfHeaders({
+                        apikey: CAL_SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json'
+                    }, PROD_WRITE_EF_URL),
+                    body: JSON.stringify({
+                        action: 'asset_access_read',
+                        surface: 'production',
+                        id,
+                        client_slug: clientSlug,
+                        /* Only the Refresh access button sends this. The
+                           gateway reuses a verdict it recorded for the same
+                           URL within the last few minutes rather than probing
+                           the provider on every read; the button is pressed
+                           AFTER someone fixes sharing on a folder, and the held
+                           verdict is exactly what they need to get past. An
+                           older gateway ignores the field and probes anyway. */
+                        ...(recheck ? { recheck: true } : {})
+                    })
+                });
+                const json = await response.json().catch(() => ({}));
+                if (!requestStillCurrent()) return null;
+                if (!response.ok || !json || json.ok !== true || json.complete !== true
+                    || String(json.id || '') !== id
+                    || String(json.client_slug || '').trim() !== clientSlug
+                    || _prodWriteTeam(json.team) !== issueTeam
+                    || !Array.isArray(json.assets)) {
+                    const error = new Error(String(json && json.error || 'asset_read_failed'));
+                    error.status = response.status;
+                    error.code = String(json && json.error || 'asset_read_failed');
+                    throw error;
+                }
+                const next = _prodAssetDefaultEvidence(issue);
+                json.assets.forEach(asset => {
+                    const slot = String(asset && asset.slot || '');
+                    if (!next[slot]) return;
+                    const state = String(asset.state || '');
+                    next[slot] = Object.assign({}, next[slot], {
+                        url: String(asset.url || '').trim(),
+                        state: ['missing','invalid','checking','available','expired','permission_denied','unavailable'].includes(state) ? state : 'unavailable',
+                        url_type: String(asset.url_type || ''),
+                        checked_at: String(asset.checked_at || ''),
+                        guidance: String(asset.guidance || ''),
+                        /* Where the value came from, when it did not come
+                           from the row itself. A deliverable with no file of
+                           its own shows the link on the card bound to it,
+                           because for the team that pasted it that IS this
+                           file; a batch with no filming plan of its own shows
+                           the CLIENT's plan, which is where the batch's copy
+                           came from in the first place. Either way a row must
+                           say so rather than present a derived value as its
+                           own. Closed vocabulary, so a surprising value renders
+                           nothing instead of arbitrary server text. */
+                        source: ['deliverable','calendar_card','samples_card','client_plan','post']
+                            .includes(String(asset.source || '')) ? String(asset.source) : '',
+                        /* WHERE THIS SLOT SHOULD BE WRITTEN, learned from the
+                           read. The two folder links belong to the POST, whose
+                           rows can sit on several batch rows -- and the post's
+                           slots can sit on DIFFERENT ones, so this is per slot
+                           rather than per panel. Empty against a gateway that
+                           predates the field, and empty when the gateway has
+                           nothing safe to offer; both fall back to the open
+                           row's own batch, which is what shipped before. */
+                        writeBatchId: String(asset.write_batch_id || '').trim(),
+                        writeBatchUpdatedAt: String(asset.write_batch_updated_at || '').trim(),
+                        http_status: Number(asset.http_status) || null
+                    });
+                });
+                /* What THIS deploy of the gateway can answer. The page
+                   reaches main through Pages the instant a PR merges and the
+                   function is deployed by hand afterwards, so the page is
+                   routinely newer than the gateway. A read the deploy has never
+                   heard of would 400 on every attempt -- a failed request in
+                   the console and in the live polish lane, for a feature that
+                   is merely not deployed yet. Absent field means an older
+                   deploy, which is exactly the case to stay quiet for. */
+                _prodState.gatewayReads = new Set(
+                    Array.isArray(json.capabilities)
+                        ? json.capabilities.map(name => String(name || ''))
+                        : []
+                );
+                current.status = 'ready';
+                current.complete = true;
+                current.assets = next;
+                current.error = '';
+                /* The scope this answer is true for. requestStillCurrent() has
+                   just re-checked it, so it is the row's scope at the moment
+                   the value landed -- and _prodAssetState refuses to draw the
+                   value if the row has moved out of it since. */
+                current.scopeSignature = scopeSignature;
+                _prodState.assets.set(id, current);
+                _prodRefreshAssetSurfaces();
+                return current;
+            } catch (error) {
+                if (!requestStillCurrent()) return null;
+                current.status = 'error';
+                current.complete = false;
+                current.error = _prodAssetReadErrorText(error);
+                Object.values(current.assets).forEach(asset => {
+                    // A slot the read never resolved is unreadable, and says so
+                    // rather than leaving a bare pill with no explanation.
+                    if (asset.state === 'checking') {
+                        // NOW the word is earned: a read was attempted and did
+                        // not resolve this slot. The guidance seeded at build
+                        // time is attached here, at the moment it becomes true.
+                        asset.state = 'unavailable';
+                        if (!String(asset.url || '').trim() && !String(asset.guidance || '').trim()) {
+                            asset.guidance = String(asset.unreadGuidance || '') || PROD_ASSET_UNREAD_GUIDANCE;
+                        }
+                    }
+                });
+                _prodState.assets.set(id, current);
+                _prodRefreshAssetSurfaces();
+                return current;
+            }
+        }
+        /* `editing` names the SLOT being edited, not merely that an editor is
+           open. It used to be a boolean because there was exactly one writable
+           slot; raw footage and the frame folder made that assumption false,
+           and a boolean would have let a Raw footage edit save itself into the
+           deliverable file. The empty string means no editor. */
+        function _prodOpenAssetEditor(id, slot) {
+            const state = _prodAssetState(id);
+            slot = String(slot || 'deliverable_file');
+            state.editing = slot;
+            state.draft = String(state.assets && state.assets[slot]
+                && state.assets[slot].url || '');
+            state.requestId = '';
+            state.sourceEditedAt = '';
+            state.writeError = '';
+            state.remoteChanged = false;
+            _prodRefreshAssetSurfaces();
+            setTimeout(() => document.querySelector('[data-prod-asset-input="' + CSS.escape(String(id)) + '"]')?.focus(), 0);
+        }
+        function _prodBeginAssetEdit(id, slot) {
+            const issue = _prodIssue(id);
+            const state = _prodAssetState(id, issue);
+            slot = String(slot || 'deliverable_file');
+            const operation = _prodAssetWriteOperation(slot);
+            /* A slot with no operation is not a permission failure, it is a
+               slot that nothing in the product may write -- the filming plan.
+               Saying so is the honest answer; a write-gate sentence would
+               imply some other role could. */
+            if (!operation) {
+                _prodToast('The filming plan comes from the filming-plans source and is not editable here.');
+                return false;
+            }
+            /* One gate, no second copy: _prodCanWrite is the authority and it
+               answers for video now too. The old team clause here was a second
+               rule that could disagree with the renderer -- exactly the drift
+               that let the panel offer nothing AND say nothing on a video row. */
+            if (!issue || !_prodCanWrite(issue, operation)) {
+                _prodToast(_prodWriteGateText(issue, operation) || 'This asset cannot be edited here.');
+                return false;
+            }
+            if (operation === 'batch_asset' && !String(issue.batchId || '').trim()) {
+                _prodToast('This issue is not attached to a batch, so it has no shared folders to edit.');
+                return false;
+            }
+            if (state.status !== 'ready' || state.complete !== true) {
+                /* An unread asset state is not a refusal.
+                 *
+                 * Every projection refresh calls _prodInvalidateScopedReads,
+                 * which DELETES asset state for any row that is not mid-edit --
+                 * while the rendered panel keeps showing the values from the
+                 * last read. So a click seconds after a background refresh
+                 * lands on a state that is merely UNREAD, and the reader was
+                 * told to "refresh protected asset access" about a panel that
+                 * looks perfectly ready. Reported 2026-08-25 by the graphics
+                 * designer as simply being unable to attach a link.
+                 *
+                 * A genuine read FAILURE still says so, with the real reason.
+                 * Anything else loads and then opens, so the click does what it
+                 * looks like it does.
+                 */
+                if (state.status === 'error') {
+                    _prodToast(state.error || 'Refresh protected asset access before replacing the canonical deliverable.');
+                    _prodEnsureAssets(id, true);
+                    return false;
+                }
+                Promise.resolve(_prodEnsureAssets(id, true)).then(fresh => {
+                    // The reader may have navigated, or the row may have lost
+                    // its write gate, during the read.
+                    const liveIssue = _prodIssue(id);
+                    /* This re-check was still spelled `!== 'graphics'` after
+                       attach opened to video, so a video row that took the
+                       LOAD-then-open path -- the ordinary path, any time a
+                       background refresh had wiped the read -- passed every
+                       visible gate and then silently never opened. The one
+                       gate is _prodCanWrite, here as everywhere else. */
+                    if (!liveIssue || !_prodCanWrite(liveIssue, operation)) return;
+                    if (!fresh || fresh.status !== 'ready' || fresh.complete !== true) {
+                        _prodToast((fresh && fresh.error)
+                            || 'Refresh protected asset access before replacing the canonical deliverable.');
+                        return;
+                    }
+                    _prodOpenAssetEditor(id, slot);
+                }).catch(() => {});
+                return false;
+            }
+            _prodOpenAssetEditor(id, slot);
+            return false;
+        }
+        function _prodAssetDraftInput(id, value) {
+            const state = _prodAssetState(id);
+            value = String(value || '');
+            if (state.draft !== value) {
+                state.requestId = '';
+                state.sourceEditedAt = '';
+            }
+            state.draft = value;
+        }
+        function _prodCancelAssetEdit(id) {
+            const state = _prodAssetState(id);
+            if (state.saving) return false;
+            state.editing = '';
+            state.draft = '';
+            state.requestId = '';
+            state.sourceEditedAt = '';
+            state.writeError = '';
+            state.remoteChanged = false;
+            _prodRefreshAssetSurfaces();
+            return false;
+        }
+        async function _prodSaveAsset(event, id) {
+            if (event) event.preventDefault();
+            const issue = _prodIssue(id);
+            const state = _prodAssetState(id, issue);
+            if (!issue || state.saving) return false;
+            const slot = String(state.editing || '');
+            const operation = _prodAssetWriteOperation(slot);
+            if (!operation) return false;
+            const value = String(state.draft || '').trim();
+            /* A batch folder may be CLEARED. A wrong folder link was unfixable
+               from every seat in the product until this shipped, and refusing
+               the erase would leave half of that problem standing. The
+               canonical deliverable still requires a value: clearing it is
+               what the calendar remove-link control is for, and it carries its
+               own confirmation about what actually happens next. */
+            if (!value && operation !== 'batch_asset') {
+                state.writeError = 'Paste or select a deliverable link first.';
+                _prodRefreshAssetSurfaces();
+                return false;
+            }
+            if (!state.requestId || !state.sourceEditedAt) {
+                state.requestId = _prodWriteRequestId(operation);
+                state.sourceEditedAt = new Date().toISOString();
+            }
+            state.saving = true;
+            state.writeError = '';
+            _prodRefreshAssetSurfaces();
+            try {
+                const result = await _prodGatewayWrite(
+                    issue,
+                    operation,
+                    operation === 'batch_asset' ? { slot, url: value } : { file_url: value },
+                    state.requestId,
+                    state.sourceEditedAt
+                );
+                if (!result) return false;
+                state.editing = '';
+                state.draft = '';
+                state.requestId = '';
+                state.sourceEditedAt = '';
+                state.saving = false;
+                state.writeError = '';
+                state.remoteChanged = false;
+                _prodToast(operation === 'batch_asset'
+                    ? (value
+                        ? _prodAssetSlotLabel(issue, slot) + ' updated for the whole post'
+                        : _prodAssetSlotLabel(issue, slot) + ' cleared for the whole post')
+                    : 'Canonical deliverable attached');
+                if (operation === 'batch_asset') _prodInvalidateBatchAssetReads(issue, id, slot, value);
+                await _prodEnsureAssets(id, true);
+            } catch (error) {
+                state.saving = false;
+                const conflictRow = String(error && error.code || '') === 'write_conflict'
+                    && error && error.row
+                    && Object.prototype.hasOwnProperty.call(error.row, 'file_url')
+                    ? error.row
+                    : null;
+                if (conflictRow) {
+                    const winningUrl = String(conflictRow.file_url || '').trim();
+                    state.assets.deliverable_file = Object.assign(
+                        {},
+                        state.assets.deliverable_file || {},
+                        { url: winningUrl, state: winningUrl ? 'checking' : 'missing', checked_at: '' }
+                    );
+                    state.status = 'idle';
+                    state.complete = false;
+                    state.requestId = '';
+                    state.sourceEditedAt = '';
+                    state.remoteChanged = true;
+                    state.writeError = 'This issue changed elsewhere. The winning link was reloaded; your attempted link is still in the editor.';
+                    await _prodEnsureAssets(id, true);
+                } else {
+                    state.writeError = _prodWriteErrorText(error, issue, operation);
+                }
+                _prodToast(state.writeError);
+                _prodRefreshAssetSurfaces();
+            }
+            return false;
+        }
+        function _prodArchiveDefaultState() {
+            const issue = _prodState.openId ? _prodIssue(_prodState.openId) : null;
+            const identity = _syncviewStaffIdentityForHeaders();
+            const memberTeam = _prodWriteTeam(identity && identity.member && identity.member.team);
+            const clientSlug = String(
+                issue && (issue.authorityProject || issue.storedClientSlug || issue.project)
+                || _prodState.openProjectId
+                || _prodState.clientSlug
+                || (_prodClients()[0] && _prodClients()[0].id)
+                || ''
+            );
+            return {
+                clientSlug,
+                team: memberTeam || 'graphics',
+                audience: 'internal',
+                issues: [],
+                hasMore: false,
+                cursor: '',
+                loading: false,
+                error: '',
+                listRetryAppend: false,
+                selectedId: '',
+                detail: null,
+                detailLoading: false,
+                detailError: '',
+                detailRetryAppend: false,
+                scopeGeneration: 1,
+                listRequestToken: 0,
+                detailRequestToken: 0
+            };
+        }
+        async function _prodArchiveRequest(body) {
+            const response = await fetch(PROD_ARCHIVE_EF_URL, {
+                method: 'POST',
+                cache: 'no-store',
+                headers: _syncviewEfHeaders({
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json'
+                }, PROD_ARCHIVE_EF_URL),
+                body: JSON.stringify(body)
+            });
+            const json = await response.json().catch(() => ({}));
+            if (!response.ok || !json || json.ok !== true) {
+                const error = new Error(String(json && json.error || 'archive_read_failed'));
+                error.status = response.status;
+                throw error;
+            }
+            return json;
+        }
+        function _prodArchiveErrorText(error) {
+            if (error && error.status === 401) return 'Staff sign-in expired. Sign in again to review archive repairs.';
+            if (error && error.status === 403) return 'This staff account cannot review that archive scope.';
+            return 'Archive repair history could not be loaded.';
+        }
+        function _prodArchiveScopeSignature(state) {
+            return [
+                String(state && state.clientSlug || ''),
+                String(state && state.team || ''),
+                String(state && state.audience || '')
+            ].join('\u0000');
+        }
+        function _prodArchiveScopeChange(field, value) {
+            const state = _prodState.archiveRepair;
+            if (!state || !['clientSlug','team','audience'].includes(field)) return;
+            state[field] = String(value || '');
+            state.scopeGeneration = Number(state.scopeGeneration || 0) + 1;
+            state.listRequestToken = Number(state.listRequestToken || 0) + 1;
+            state.detailRequestToken = Number(state.detailRequestToken || 0) + 1;
+            state.loading = false;
+            state.detailLoading = false;
+            state.issues = [];
+            state.cursor = '';
+            state.hasMore = false;
+            state.selectedId = '';
+            state.detail = null;
+            state.error = '';
+            state.detailError = '';
+            state.listRetryAppend = false;
+            state.detailRetryAppend = false;
+            _prodRenderArchiveRepair();
+            _prodArchiveLoadList(false);
+        }
+        function _prodArchiveListHTML(state) {
+            const items = (state.issues || []).map(issue => '<button class="prod-archive-item' + (state.selectedId === issue.linear_uuid ? ' is-active' : '') + '" type="button" onclick="return _prodArchiveOpenIssue(' + _jsAttrArg(issue.linear_uuid) + ',false)">'
+                + '<b>' + _calEsc(issue.title || issue.identifier || 'Archived issue') + '</b>'
+                + '<span>' + _calEsc([issue.identifier, _prodTeamLabel(_prodWriteTeam(issue.team)), issue.state].filter(Boolean).join(' · ')) + '</span></button>').join('');
+            if (state.loading && !items) return '<div class="prod-asset-value">Loading archived issues…</div>';
+            return items || '<div class="prod-asset-value">No archived issues in this repair scope.</div>';
+        }
+        function _prodArchiveDetailHTML(state) {
+            if (state.detailLoading && !state.detail) return '<div class="prod-asset-value">Loading protected history…</div>';
+            if (state.detailError) return '<div class="prod-assets-error">' + _calEsc(state.detailError)
+                + ' <button class="prod-archive-more" type="button" onclick="return _prodArchiveOpenIssue('
+                + _jsAttrArg(state.selectedId) + ',' + (state.detailRetryAppend ? 'true' : 'false')
+                + ')">Retry</button></div>';
+            const detail = state.detail;
+            if (!detail) return '<div class="prod-asset-value">Choose an archived issue to review rescued and unresolved assets.</div>';
+            const issue = detail.issue || {};
+            const refs = (detail.refs || []).map(ref => '<div class="prod-archive-ref" data-prod-archive-ref="' + _calEscAttr(ref.ref_id || '') + '">'
+                + '<div><b>' + _calEsc(String(ref.source_kind || '').replace(/_/g, ' ')) + '</b> <span class="prod-asset-state" data-state="' + _calEscAttr(ref.state || 'unavailable') + '">' + _calEsc(_prodAssetStateLabel(ref.state)) + '</span></div>'
+                + '<code>Original SHA-256: ' + _calEsc(ref.original_url_sha256 || '') + '</code>'
+                + (ref.rescued_url ? '<div><a href="' + _calEscAttr(ref.rescued_url) + '" target="_blank" rel="noopener noreferrer">Open rescued private copy</a></div>' : '<div class="prod-asset-value">Awaiting rescue or owner disposition</div>')
+                + '</div>').join('');
+            const comments = (detail.comments || []).map(comment => '<div class="prod-archive-comment"><b>' + _calEsc(comment.author_name || 'Archived comment') + '</b><div>' + _prodLinkify(comment.body || '') + '</div></div>').join('');
+            const legacy = (detail.legacyComments || []).map(comment => '<div class="prod-archive-comment"><b>Legacy archive comment</b><div>' + _prodLinkify(typeof comment === 'string' ? comment : JSON.stringify(comment)) + '</div></div>').join('');
+            const more = detail.hasMore
+                ? '<button class="prod-archive-more" type="button" onclick="return _prodArchiveOpenIssue(' + _jsAttrArg(state.selectedId) + ',true)">Load more protected history</button>'
+                : '';
+            return '<h3>' + _calEsc(issue.title || issue.identifier || 'Archived issue') + '</h3>'
+                + '<div class="prod-asset-value">' + _calEsc([issue.identifier, issue.state, issue.archived_at].filter(Boolean).join(' · ')) + '</div>'
+                + '<h4>Asset rescue records</h4>' + (refs || '<div class="prod-asset-value">No private Linear asset references recorded.</div>')
+                + (comments || legacy ? '<h4>History comments</h4>' + comments + legacy : '') + more;
+        }
+        function _prodRenderArchiveRepair() {
+            const layer = document.getElementById('prodLayer');
+            const state = _prodState.archiveRepair;
+            if (!layer || !state) return;
+            const clientItems = _prodClients().map(client => ({ value: client.id, label: client.name || client.id }));
+            const teamItems = [{ value: 'graphics', label: 'Graphics' }, { value: 'video', label: 'Video' }];
+            const audienceItems = [
+                { value: 'internal', label: 'Staff view (all visibility)' },
+                { value: 'client', label: 'Client-visible only' }
+            ];
+            layer.innerHTML = '<div class="prod-create-bd" data-prod-archive-backdrop="1" data-backdrop-dismiss><div class="prod-create-modal prod-archive-modal" data-prod-archive-modal="1">'
+                + '<div class="prod-create-head"><div><h2>Archive asset repair</h2><p>Protected history · original private Linear URLs are never displayed</p></div><span class="prod-spacer"></span><button class="prod-create-close" type="button" onclick="_prodCloseArchiveRepair()" aria-label="Close">&times;</button></div>'
+                + '<div class="prod-archive-controls"><div class="prod-create-field"><label>Roster client</label>' + _svSelectHtml('prodArchiveClient', clientItems, state.clientSlug, 'Choose client', { onchange: '_prodArchiveScopeChange("clientSlug",this.value)' }) + '</div>'
+                + '<div class="prod-create-field"><label>Team</label>' + _svSelectHtml('prodArchiveTeam', teamItems, state.team, 'Choose team', { onchange: '_prodArchiveScopeChange("team",this.value)' }) + '</div>'
+                + '<div class="prod-create-field"><label>Audience view</label>' + _svSelectHtml('prodArchiveAudience', audienceItems, state.audience, 'Choose view', { onchange: '_prodArchiveScopeChange("audience",this.value)' }) + '</div></div>'
+                + '<div class="prod-archive-body"><div class="prod-archive-list">' + _prodArchiveListHTML(state)
+                + (state.error ? '<div class="prod-assets-error">' + _calEsc(state.error)
+                    + ' <button class="prod-archive-more" type="button" onclick="return _prodArchiveLoadList('
+                    + (state.listRetryAppend ? 'true' : 'false') + ')">Retry</button></div>' : '')
+                + (state.hasMore ? '<button class="prod-archive-more" type="button" onclick="return _prodArchiveLoadList(true)">Load more issues</button>' : '')
+                + '</div><div class="prod-archive-detail">' + _prodArchiveDetailHTML(state) + '</div></div></div></div>';
+            layer.style.pointerEvents = 'auto';
+            const backdrop = layer.querySelector('[data-prod-archive-backdrop]');
+            if (backdrop) backdrop.addEventListener('click', event => {
+                if (event.target === backdrop && backdrop._backdropPressBegan) _prodCloseArchiveRepair();
+            });
+        }
+        async function _prodArchiveLoadList(append) {
+            const state = _prodState.archiveRepair;
+            if (!state || state.loading || !state.clientSlug) return false;
+            const verificationEpoch = _syncviewStaffVerificationEpoch;
+            const generation = Number(state.scopeGeneration || 0);
+            const scopeSignature = _prodArchiveScopeSignature(state);
+            const requestToken = Number(state.listRequestToken || 0) + 1;
+            state.listRequestToken = requestToken;
+            // A staff sign-out/invalidation between request and response must not
+            // populate the modal — bind the response to the current verification
+            // epoch, as the protected asset reads do.
+            const requestStillCurrent = () => _prodState.archiveRepair === state
+                && verificationEpoch === _syncviewStaffVerificationEpoch
+                && Number(state.scopeGeneration || 0) === generation
+                && Number(state.listRequestToken || 0) === requestToken
+                && _prodArchiveScopeSignature(state) === scopeSignature;
+            state.loading = true;
+            state.error = '';
+            _prodRenderArchiveRepair();
+            try {
+                const json = await _prodArchiveRequest({
+                    action: 'list',
+                    client_slug: state.clientSlug,
+                    team: state.team,
+                    audience: state.audience,
+                    limit: 30,
+                    after: append ? state.cursor : null
+                });
+                if (!requestStillCurrent()) return false;
+                state.issues = append ? state.issues.concat(json.issues || []) : (json.issues || []);
+                state.cursor = String(json.next_cursor || '');
+                state.hasMore = json.has_more === true;
+                state.listRetryAppend = false;
+            } catch (error) {
+                if (!requestStillCurrent()) return false;
+                state.error = _prodArchiveErrorText(error);
+                state.listRetryAppend = append === true;
+            } finally {
+                if (requestStillCurrent()) {
+                    state.loading = false;
+                    _prodRenderArchiveRepair();
+                }
+            }
+            return false;
+        }
+        async function _prodArchiveOpenIssue(linearUuid, append) {
+            const state = _prodState.archiveRepair;
+            if (!state || (state.detailLoading && append)) return false;
+            if (!append) {
+                state.selectedId = String(linearUuid || '');
+                state.detail = null;
+            }
+            const existing = state.detail;
+            const verificationEpoch = _syncviewStaffVerificationEpoch;
+            const generation = Number(state.scopeGeneration || 0);
+            const scopeSignature = _prodArchiveScopeSignature(state);
+            const selectedId = String(state.selectedId || '');
+            const requestToken = Number(state.detailRequestToken || 0) + 1;
+            state.detailRequestToken = requestToken;
+            // Bind the protected-history response to the current verification
+            // epoch so a sign-out mid-flight cannot render rescued private links.
+            const requestStillCurrent = () => _prodState.archiveRepair === state
+                && verificationEpoch === _syncviewStaffVerificationEpoch
+                && Number(state.scopeGeneration || 0) === generation
+                && Number(state.detailRequestToken || 0) === requestToken
+                && String(state.selectedId || '') === selectedId
+                && _prodArchiveScopeSignature(state) === scopeSignature;
+            state.detailLoading = true;
+            state.detailError = '';
+            _prodRenderArchiveRepair();
+            try {
+                const json = await _prodArchiveRequest({
+                    action: 'issue',
+                    client_slug: state.clientSlug,
+                    team: state.team,
+                    audience: state.audience,
+                    linear_uuid: selectedId,
+                    limit: 30,
+                    comment_after: append && existing ? existing.commentCursor : null,
+                    /* Declared on EVERY request, first page included: without it
+                       the server keeps this browser in the id-order world
+                       end-to-end, so a deploy in either order never mixes the
+                       two orderings inside one rendered thread. An older EF
+                       ignores the marker and both cursor extras entirely. */
+                    chrono_paging: true,
+                    comment_after_at: append && existing ? (existing.commentCursorAt || null) : null,
+                    ref_after: append && existing ? existing.refCursor : null,
+                    legacy_offset: append && existing ? existing.legacyOffset : 0
+                });
+                if (!requestStillCurrent()) return false;
+                const nextComments = json.comments || [];
+                const nextRefs = json.asset_refs || [];
+                const nextLegacy = json.issue && Array.isArray(json.issue.comments) ? json.issue.comments : [];
+                state.detail = {
+                    issue: json.issue || {},
+                    comments: append && existing ? existing.comments.concat(nextComments) : nextComments,
+                    refs: append && existing ? existing.refs.concat(nextRefs) : nextRefs,
+                    legacyComments: append && existing ? existing.legacyComments.concat(nextLegacy) : nextLegacy,
+                    commentCursor: nextComments.length ? String(nextComments[nextComments.length - 1].id || '') : (existing && existing.commentCursor || ''),
+                    /* Retained exactly like commentCursor when comments are
+                       exhausted but refs/legacy still page (Codex P2 on #1168):
+                       clearing only the timestamp half would send an id-only
+                       cursor on the next refs Load More and re-append comments
+                       already on screen. The retained pair returns zero rows. */
+                    commentCursorAt: json.comments_next_at
+                        ? String(json.comments_next_at)
+                        : (existing && existing.commentCursorAt || ''),
+                    refCursor: nextRefs.length ? String(nextRefs[nextRefs.length - 1].ref_id || '') : (existing && existing.refCursor || ''),
+                    legacyOffset: Number(json.legacy_comments_next_offset == null
+                        ? ((append && existing ? existing.legacyOffset : 0) + nextLegacy.length)
+                        : json.legacy_comments_next_offset),
+                    hasMore: json.comments_has_more === true || json.refs_has_more === true || json.legacy_comments_has_more === true
+                };
+                state.detailRetryAppend = false;
+            } catch (error) {
+                if (!requestStillCurrent()) return false;
+                state.detailError = _prodArchiveErrorText(error);
+                state.detailRetryAppend = append === true;
+            } finally {
+                if (requestStillCurrent()) {
+                    state.detailLoading = false;
+                    _prodRenderArchiveRepair();
+                }
+            }
+            return false;
+        }
+        function _prodOpenArchiveRepair() {
+            if (!_syncviewStaffIdentityForHeaders()) {
+                _prodToast('Sign in with your staff account to review archive repairs.');
+                return false;
+            }
+            _prodState.archiveRepair = _prodArchiveDefaultState();
+            _prodEnsureOverlays();
+            _prodRenderArchiveRepair();
+            _prodArchiveLoadList(false);
+            return false;
+        }
+        function _prodCloseArchiveRepair() {
+            _prodState.archiveRepair = null;
+            _prodClearLayer();
+            return false;
+        }
+        function _prodSmmArtifactGate(issue) {
+            if (!issue || _prodWriteTeam(issue.team) !== 'graphics') return { ok: true, issue: null, guidance: '' };
+            const state = _prodAssetState(issue.id, issue);
+            const artifact = state.assets && state.assets.deliverable_file || {};
+            const checkedAt = Date.parse(String(artifact.checked_at || ''));
+            const fresh = Number.isFinite(checkedAt)
+                && checkedAt <= Date.now() + 30000
+                && Date.now() - checkedAt <= 5 * 60 * 1000;
+            if (state.status === 'ready' && state.complete === true && artifact.state === 'available' && fresh) {
+                return { ok: true, issue, guidance: '' };
+            }
+            const guidance = String(artifact.guidance || (artifact.state === 'available'
+                ? 'Refresh asset access before requesting SMM approval.'
+                : 'A fresh Available canonical deliverable is required. Use Refresh access in Assets.'));
+            return { ok: false, issue, guidance };
+        }
+        function _prodRawHasAny(raw, keys) {
+            const stack = raw && typeof raw === 'object' ? [raw] : [];
+            while (stack.length) {
+                const cur = stack.pop();
+                if (!cur || typeof cur !== 'object') continue;
+                for (const key of keys) {
+                    if (Object.prototype.hasOwnProperty.call(cur, key) && cur[key]) return true;
+                }
+                Object.values(cur).forEach(v => { if (v && typeof v === 'object') stack.push(v); });
+            }
+            return false;
+        }
+        function _prodRawMarkerTruthy(v) {
+            if (v === true || v === 1) return true;
+            const s = String(v == null ? '' : v).trim().toLowerCase();
+            return !!s && s !== 'false' && s !== '0' && s !== 'null';
+        }
+        function _prodDeliverableLive(d) {
+            const raw = _prodLinearRaw(d && d.linear_raw);
+            const projectedMarkers = ['raw_issue_archived_at','raw_issue_canceled_at','raw_webhook_delete','raw_deleted','raw_delete','raw_removed','raw_archived'];
+            const hasProjectedMarkers = projectedMarkers.some(key => _prodHasOwn(d, key));
+            // Canceled is a visible status (Linear renders a Canceled group); only archive/delete markers hide rows.
+            if (_prodNormKey(d && d.status) === 'archived') return false;
+            if (!hasProjectedMarkers && _prodRawHasAny(raw, ['webhook_delete', 'deleted', 'delete', 'removed', 'archived'])) return false;
+            if (!hasProjectedMarkers && raw.issue && raw.issue.archivedAt) return false;
+            if (_prodRawMarkerTruthy(d && d.raw_issue_archived_at)) return false;
+            if (_prodRawMarkerTruthy(d && d.raw_webhook_delete)) return false;
+            if (_prodRawMarkerTruthy(d && d.raw_deleted)) return false;
+            if (_prodRawMarkerTruthy(d && d.raw_delete)) return false;
+            if (_prodRawMarkerTruthy(d && d.raw_removed)) return false;
+            if (_prodRawMarkerTruthy(d && d.raw_archived)) return false;
+            return true;
+        }
+        function _prodResolveParentLinks(rows) {
+            rows = Array.isArray(rows) ? rows : [];
+            const nativeByLinear = new Map();
+            const duplicateLinearIds = new Set();
+            rows.forEach(row => {
+                const nativeId = String(row && row.id || '').trim();
+                const linearId = String(row && row.linear_issue_uuid || '').trim();
+                if (!nativeId || !linearId) return;
+                if (nativeByLinear.has(linearId) && nativeByLinear.get(linearId) !== nativeId) {
+                    duplicateLinearIds.add(linearId);
+                    return;
+                }
+                nativeByLinear.set(linearId, nativeId);
+            });
+            duplicateLinearIds.forEach(linearId => nativeByLinear.delete(linearId));
+
+            const proposed = new Map();
+            rows.forEach(row => {
+                const nativeId = String(row && row.id || '').trim();
+                const parentLinearId = String(row && row.raw_issue_parent_id || '').trim();
+                const parentNativeId = nativeByLinear.get(parentLinearId) || '';
+                if (nativeId && parentNativeId && parentNativeId !== nativeId) {
+                    proposed.set(nativeId, parentNativeId);
+                }
+            });
+
+            const resolved = new Map();
+            proposed.forEach((parentNativeId, nativeId) => {
+                const seen = new Set([nativeId]);
+                let cursor = parentNativeId;
+                while (cursor && !seen.has(cursor)) {
+                    seen.add(cursor);
+                    cursor = proposed.get(cursor) || '';
+                }
+                if (!cursor) resolved.set(nativeId, parentNativeId);
+            });
+            return resolved;
+        }
+        /* Batch parents for natively created cards.
+         *
+         * _prodResolveParentLinks above maps children to parents ONLY among
+         * deliverable rows. That was always sufficient for imported cards,
+         * because B1 imported the Linear parent issue as a deliverable row of
+         * its own. A NATIVE card's parent exists solely as a batch — so every
+         * natively created sub-issue rendered top-level, with an "Add
+         * sub-issue" affordance on something that is already a sub-issue.
+         * First reported by the owner on 2026-08-18 while recording the
+         * team tutorial; it affected every native card, both components.
+         *
+         * This layer is DISPLAY-ONLY and deliberately separate: attribution
+         * (_prodResolveAttributions) keeps consuming the deliverable-only map
+         * unchanged, so this cannot move any attribution verdict. Deliverable
+         * rows always win a UUID claim — an imported parent keeps resolving to
+         * its real row, and a UUID claimed by two batches with no deliverable
+         * row stays unresolved rather than guessed (same ambiguity rule as the
+         * deliverable map).
+         */
+        /* WHICH OF TWO SAME-KIND CLAIMANTS OWNS THE PARENT.
+           Reached only when liveness and provenance have both tied: two mirrors,
+           or two natives, claiming one Linear parent. That case used to be
+           marked ambiguous and DROPPED, on the reasoning that inventing a
+           winner could show one batch's description under another's parent.
+           Measured 2026-09-02 across all 1,660 batches, that reasoning does not
+           survive contact with the data: 10 collisions reach here, and in 8 the
+           two rows carry a BYTE-IDENTICAL name. The other 2 differ only by a
+           typo of the same post ("Hook Videos" / "Hooks videos", "12 Thumbnails"
+           / "Thumbnails"). They are not two different posts competing for one
+           parent; they are one post imported twice. Dropping both is what makes
+           the post vanish from Scene View entirely -- the failure a video editor
+           reported on 2026-09-01 -- so the cost of choosing is a slightly wrong
+           title at worst, and the cost of not choosing is the whole post.
+           Owner, 2026-09-02, on what should separate them: "shouldn't you just
+           look at them and see what's the difference, like in the description
+           ... whichever has the most description or most text wins?" Measured,
+           that was the better signal -- description length picks a unique winner
+           in 19 of the 23 collisions against 9 for sub-issue count -- and it
+           still could not be used: `description` is deliberately absent from the
+           first-paint cache, so it changes the winner between the cached and the
+           live render, and the winner IS the node id. See the rung comments.
+           Returns true when `candidate` should displace `held`. */
+        function _prodBatchClaimWins(candidate, held, childCounts) {
+            const count = b => {
+                const id = String(b && b.id || '');
+                const n = childCounts && typeof childCounts.get === 'function' ? childCounts.get(id) : 0;
+                return Number(n) || 0;
+            };
+            const candCount = count(candidate), heldCount = count(held);
+            // 1. The row the work actually hangs off. A duplicate with no
+            //    sub-issues is the import that lost; the one carrying twenty is
+            //    the post people are working in. Cache-stable: `batch_id` is in
+            //    PROD_DELIVERABLE_SELECT, and the snapshot is all-or-nothing --
+            //    an oversized payload is dropped whole, never truncated -- so
+            //    the cached count equals the live one.
+            if (candCount !== heldCount) return candCount > heldCount;
+            /* 2. Then the lower id, which is arbitrary ON PURPOSE and must stay
+               deterministic: the projection runs on every render, and the
+               winner IS the synthetic node's id, so a signal that moves between
+               renders moves a live `?d=` deep link out from under the reader.
+
+               DESCRIPTION LENGTH WAS THE SECOND RUNG AND HAD TO COME OUT.
+               Raised by review on #1217, and correct: `_prodCacheBatchColumns`
+               deliberately drops `description` from the first-paint snapshot
+               (it would blow PROD_CACHE_MAX_CHARS across ~1,660 batches), so on
+               a cached paint every length reads 0, the rung is skipped, and the
+               lower id wins -- then the live read restores the descriptions and
+               a DIFFERENT row can win. The node id changes under the reader
+               mid-hydration, and a `?d=` captured from the cached paint
+               resolves to nothing.
+               It cost the owner's own suggestion, which was the better signal
+               on the full set (19 of 23 collisions against 9 for count). The
+               cost of dropping it is measured and nil: it decided 2 of the 10
+               live cases, and in BOTH the claimants carry a byte-identical
+               name, so the only difference is which of two descriptions shows.
+               A stable identity is worth more than that.
+               Widening the cache instead was considered and refused: it is the
+               same cache that had to be bounded in OPEN_REPAIRS item 45 after
+               it evicted its neighbours. */
+            return String(candidate && candidate.id || '') < String(held && held.id || '');
+        }
+
+        function _prodResolveBatchParentNodes(rows, batches, parentLinks) {
+            rows = Array.isArray(rows) ? rows : [];
+            batches = Array.isArray(batches) ? batches : [];
+            const deliverableUuids = new Set();
+            /* How much work hangs off each batch, from the rows already loaded --
+               no extra read. Feeds the same-kind tie-break below. */
+            const childCounts = new Map();
+            rows.forEach(row => {
+                const uuid = String(row && row.linear_issue_uuid || '').trim();
+                if (uuid) deliverableUuids.add(uuid);
+                const bid = String(row && row.batch_id || '').trim();
+                if (bid) childCounts.set(bid, (childCounts.get(bid) || 0) + 1);
+            });
+            const parseEntries = raw => {
+                let parsed = raw;
+                if (typeof parsed === 'string') { try { parsed = JSON.parse(parsed); } catch (e) { return []; } }
+                if (Array.isArray(parsed)) {
+                    return parsed.filter(v => v && typeof v === 'object')
+                        .map(v => ({ team: String(v.team || v.team_key || v.key || '').toLowerCase(), entry: v }));
+                }
+                if (parsed && typeof parsed === 'object') {
+                    return Object.entries(parsed).filter(([, v]) => v && typeof v === 'object')
+                        .map(([key, v]) => ({ team: String(key || '').toLowerCase(), entry: v }));
+                }
+                return [];
+            };
+            const byUuid = new Map();
+            const ambiguous = new Set();
+            batches.forEach(batch => {
+                const batchId = String(batch && batch.id || '').trim();
+                if (!batchId) return;
+                const batchArchived = String(batch && batch.status || '').trim().toLowerCase() === 'archived';
+                const seenHere = new Set();
+                parseEntries(batch.linear_parent_ids).forEach(({ team, entry }) => {
+                    const uuid = String(entry.uuid || entry.id || entry.linear_issue_id || '').trim();
+                    if (!uuid || deliverableUuids.has(uuid) || seenHere.has(uuid)) return;
+                    seenHere.add(uuid);
+                    /* TWO BATCHES CAN NAME THE SAME LINEAR PARENT, and when
+                       they did, this dropped BOTH and the post vanished.
+
+                       Owner, 2026-09-01, relaying a video editor and then
+                       correcting my first diagnosis: "are you saying that the
+                       issue she's sending me was created only on linear? I
+                       don't think so, I'm pretty sure it was created by our
+                       system, it even has the same naming as our system." He
+                       was right. The post is ours -- SyncView created the batch
+                       AND its Linear parent -- and B1 then imported the same
+                       post as a mirror batch, so `bat_...` and `b1_b_...` both
+                       claim the one parent uuid. Different batch ids, so this
+                       marked it ambiguous, `ambiguous.forEach(delete)` removed
+                       it, no synthetic row was minted, and a deep link by its
+                       identifier resolved to nothing at all.
+                       Measured that day across all 1,657 batches: 23 parents
+                       across 14 clients mint no row for this reason, and 12 of
+                       them are exactly this native-plus-mirror pair.
+
+                       THE NATIVE ROW WINS, and the tie-break is not arbitrary:
+                       `bat_` is the row SyncView writes to -- batch_description
+                       targets it, intake populates its asset columns, and item
+                       36 measured that the mirror's asset columns are empty
+                       while the native ones carry the links. The mirror is a
+                       read-only import of the same post.
+                       A pair with no native side stays ambiguous and is still
+                       dropped: two mirrors or two native batches claiming one
+                       parent is a real conflict, and inventing a winner there
+                       would show one batch's description under another's
+                       parent. That is what the guard was written for and it
+                       keeps doing it. */
+                    if (byUuid.has(uuid) && byUuid.get(uuid).batchId !== batchId) {
+                        /* AN ARCHIVED CLAIMANT NEVER WINS, and it is checked
+                           BEFORE provenance. Raised by review, and it happens:
+                           B1's own dropClaimsOwnedByAnotherBatch skips archived
+                           rows when deciding who owns a uuid
+                           (b1-linear-backfill.js:1080), so an ACTIVE import is
+                           deliberately allowed to reuse a claim held by an
+                           ARCHIVED batch -- while this projection loads batches
+                           with no status filter and sees both. On a
+                           prefix-only rule the archived native row would win
+                           and live children would hang under a retired post,
+                           showing its stale title and description.
+                           Measured across all 1,658 batch rows: 1 of the 12
+                           native-plus-mirror pairs is exactly this shape, so
+                           the rule is written for a case that exists rather
+                           than a hypothetical one. `done` is not archived and
+                           still competes -- a finished post is a real post. */
+                        const held = byUuid.get(uuid);
+                        const heldArchived = held.archived;
+                        const thisArchived = batchArchived;
+                        if (heldArchived !== thisArchived) {
+                            if (thisArchived) return;
+                            ambiguous.delete(uuid);
+                        } else {
+                            const heldIsNative = /^bat_/.test(held.batchId);
+                            const thisIsNative = /^bat_/.test(batchId);
+                            if (heldIsNative !== thisIsNative) {
+                                if (heldIsNative) return;
+                                ambiguous.delete(uuid);
+                            } else if (!_prodBatchClaimWins(batch, held.batch, childCounts)) {
+                                // The row already holding the parent keeps it.
+                                return;
+                            } else {
+                                ambiguous.delete(uuid);
+                            }
+                        }
+                    }
+                    const ownerTeam = String(entry.owner_team || '').toLowerCase() || team;
+                    byUuid.set(uuid, {
+                        batchId,
+                        batch,
+                        archived: batchArchived,
+                        uuid,
+                        identifier: String(entry.identifier || '').trim(),
+                        url: String(entry.url || '').trim(),
+                        team: ownerTeam === 'graphics' || ownerTeam === 'graphic' || ownerTeam === 'gra' ? 'graphics' : 'video'
+                    });
+                });
+            });
+            ambiguous.forEach(uuid => byUuid.delete(uuid));
+            /*
+             * One batch can legitimately parent TWO Linear issues. The video
+             * parent and the graphics parent are separate issues, which is the
+             * whole reason linear_parent_ids is a per-team map. `nodes` used to
+             * be keyed by BATCH id, so the second team overwrote the first:
+             * only one synthetic parent row survived, both teams of children
+             * hung under it, and a deep link by the losing identifier resolved
+             * to nothing.
+             *
+             * Keyed by the parent uuid now. The synthetic row keeps the bare
+             * batch id whenever a batch has a single parent -- which is every
+             * batch that already works -- so no existing row id, cached
+             * snapshot, or ?d= URL changes meaning. Only a batch with genuinely
+             * two parents mints a second, suffixed id. Ordering is by team then
+             * uuid so the same projection always produces the same ids rather
+             * than depending on the order rows happened to arrive in.
+             */
+            const wanted = new Map();
+            rows.forEach(row => {
+                const nativeId = String(row && row.id || '').trim();
+                if (!nativeId || parentLinks.has(nativeId)) return;
+                const node = byUuid.get(String(row && row.raw_issue_parent_id || '').trim());
+                if (!node || node.batchId === nativeId) return;
+                wanted.set(node.uuid, node);
+            });
+            const perBatch = new Map();
+            Array.from(wanted.values())
+                .sort((a, b) => String(a.team).localeCompare(String(b.team))
+                    || String(a.uuid).localeCompare(String(b.uuid)))
+                .forEach(node => {
+                    if (!perBatch.has(node.batchId)) perBatch.set(node.batchId, []);
+                    perBatch.get(node.batchId).push(node);
+                });
+            const nodes = new Map();
+            perBatch.forEach(list => list.forEach((node, index) => {
+                node.nodeId = index === 0 ? node.batchId : node.batchId + '::' + node.uuid;
+                nodes.set(node.nodeId, node);
+            }));
+            /* A BATCH CREATED ENTIRELY NATIVELY -- outbound skipped -- HAS NO
+               LINEAR PARENT AT ALL, so `batch.linear_parent_ids` is empty and
+               everything above, which keys off it, mints nothing: the batch's
+               own children have no `raw_issue_parent_id` to point through
+               `byUuid`, so they surface as bare top-level issues with no
+               "Sub-issue of" and no way back to their batch or siblings.
+               ONE PARENT PER CARD (owner ruling 2026-08-18, the same rule
+               production-write's own batch-create intake follows -- see
+               "ONE PARENT PER CARD" in supabase/functions/production-write,
+               batch-create): a batch mints exactly ONE synthetic parent
+               regardless of how many teams it serves, owned by the primary
+               team -- video when present, otherwise whichever team the batch
+               has -- and every child of every team links to that SAME node.
+               This is the native mirror of what a Linear-backed create of the
+               same card would have produced (and why the Linear-backed loop
+               above already collapses identical per-team uuids into one row
+               via byUuid: same rule, upstream side). A batch that already
+               produced a Linear-backed node, or whose linear_parent_ids has
+               ANY usable entry (even one this pass left ambiguous or already
+               claimed by a deliverable row), is untouched -- this branch only
+               fires where the Linear-backed branch above had nothing to work
+               with.
+
+               GATED ON GENUINELY NATIVE-BORN CHILDREN, not merely "no
+               raw_issue_parent_id" -- a row born on Linear that simply has no
+               recorded parent (`same-batch-root` in
+               docs/syncview-design/tests/prod-structure-subset.js) is meant
+               to stay a root, proven by the adjacent fail-closed tests; it is
+               not evidence its batch needs a synthetic parent, and it must
+               never be swept into one. `linear_issue_uuid` is how a row
+               proves it has no Linear identity at all -- empty means
+               genuinely native. */
+            const linearBackedBatchIds = new Set(Array.from(nodes.values()).map(n => n.batchId));
+            const hasUsableParentIds = batch => parseEntries(batch && batch.linear_parent_ids)
+                .some(({ entry }) => String(entry.uuid || entry.id || entry.linear_issue_id || '').trim());
+            const normalizeChildTeam = t => {
+                const v = String(t || '').trim().toLowerCase();
+                return (v === 'graphics' || v === 'graphic' || v === 'gra') ? 'graphics' : 'video';
+            };
+            const isNativeBorn = row => !String(row && row.linear_issue_uuid || '').trim();
+            const nativeTeamsPresent = new Map(); // batchId -> Set(team), native-born rows only
+            rows.forEach(row => {
+                const bid = String(row && row.batch_id || '').trim();
+                if (!bid || !isNativeBorn(row)) return;
+                if (!nativeTeamsPresent.has(bid)) nativeTeamsPresent.set(bid, new Set());
+                nativeTeamsPresent.get(bid).add(normalizeChildTeam(row && row.team));
+            });
+            const nativeNodeByBatch = new Map(); // batchId -> nodeId
+            batches.forEach(batch => {
+                const batchId = String(batch && batch.id || '').trim();
+                if (!batchId || linearBackedBatchIds.has(batchId)) return;
+                if (!childCounts.get(batchId)) return;
+                if (hasUsableParentIds(batch)) return;
+                const teamsPresent = nativeTeamsPresent.get(batchId);
+                if (!teamsPresent || !teamsPresent.size) return;
+                const batchArchived = String(batch && batch.status || '').trim().toLowerCase() === 'archived';
+                const nodeId = batchId;
+                const node = {
+                    batchId,
+                    batch,
+                    archived: batchArchived,
+                    uuid: '',
+                    // No Linear issue underneath a native batch, so there is
+                    // no `identifier` to mirror off a linear_parent_ids
+                    // entry the way the Linear-backed branch does; the
+                    // renderer already falls back to the batch's own name
+                    // and then this nodeId for title/displayId.
+                    identifier: '',
+                    url: '',
+                    team: teamsPresent.has('video') ? 'video' : Array.from(teamsPresent)[0],
+                    nodeId
+                };
+                nodes.set(nodeId, node);
+                nativeNodeByBatch.set(batchId, nodeId);
+            });
+            const links = new Map();
+            rows.forEach(row => {
+                const nativeId = String(row && row.id || '').trim();
+                if (!nativeId || parentLinks.has(nativeId)) return;
+                const rawParentId = String(row && row.raw_issue_parent_id || '').trim();
+                const linearNode = rawParentId ? byUuid.get(rawParentId) : null;
+                if (linearNode && linearNode.nodeId && linearNode.batchId !== nativeId) {
+                    links.set(nativeId, linearNode.nodeId);
+                    return;
+                }
+                /* An explicit parent edge that FAILED to resolve (missing,
+                   duplicated, self-referential, or cyclic target) must stay a
+                   root, not get silently reparented to the batch -- that
+                   would invent a relationship the data never claimed. The
+                   native-batch fallback below is only for a row with NO
+                   parent edge to begin with. */
+                if (rawParentId) return;
+                /* And only for a row that is itself native-born. A row with a
+                   real Linear identity (`linear_issue_uuid` set) that simply
+                   has no recorded parent stays a root too -- same reasoning,
+                   see the comment above `nativeTeamsPresent`. */
+                if (!isNativeBorn(row)) return;
+                const bid = String(row && row.batch_id || '').trim();
+                if (!bid) return;
+                const nativeNodeId = nativeNodeByBatch.get(bid);
+                if (nativeNodeId && bid !== nativeId) links.set(nativeId, nativeNodeId);
+            });
+            return { links, nodes };
+        }

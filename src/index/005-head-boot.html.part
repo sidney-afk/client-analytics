@@ -1,0 +1,206 @@
+<script>
+    (function () {
+        try {
+            var de = document.documentElement;
+            var q = new URLSearchParams(location.search);
+            if (q.has('c')) {
+                // A client query owns the document from its first frame, even
+                // when c is empty/malformed. The strict entry preflight later
+                // either binds one verified client or replaces this skeleton
+                // with the terminal invalid/retry surface; staff chrome and
+                // the Analytics overview must never appear in between.
+                de.classList.add('boot-client');
+                de.setAttribute('data-boot-nav', 'client');
+                de.setAttribute('data-boot-subtab', 'verify');
+                return;
+            }
+            // Same detection as the app's entry router (search for
+            // _isAiOnboarding): the /ai_ path can't match the standard regex
+            // (no '/' before 'onboarding_form'), so order doesn't matter.
+            var obParam = q.get('onboarding');
+            var isAiOb = (obParam === 'ai') || /\/ai_onboarding_form\/?$/i.test(location.pathname);
+            var isOb = isAiOb || (obParam !== null) || /\/onboarding_form\/?$/i.test(location.pathname);
+            if (isOb) {
+                // Brand the tab before first paint too — the entry router
+                // re-applies both later (no-ops by then).
+                de.classList.add('boot-onboarding');
+                document.title = 'SynchroSocial';
+                var fav = document.querySelector('link[rel="icon"]');
+                if (fav) fav.href = 'synchro-social-favicon.png';
+                return;
+            }
+            if (q.get('onboarding_view')) { de.classList.add('boot-onboarding-view'); return; }
+            if (q.get('intake') === '1') { de.classList.add('boot-intake'); return; }
+            try {
+                if (localStorage.getItem('syncview_theme') === 'dark') {
+                    de.setAttribute('data-theme', 'dark');
+                } else {
+                    de.removeAttribute('data-theme');
+                }
+            } catch (e) {}
+            try {
+                if (localStorage.getItem('syncview_status_palette') === 'classic') {
+                    de.setAttribute('data-status-palette', 'classic');
+                } else {
+                    de.removeAttribute('data-status-palette');
+                }
+            } catch (e) {}
+            var smmHash = location.hash.replace('#', '');
+            try { smmHash = decodeURIComponent(smmHash); } catch (e) {}
+            var smmSeg = smmHash.split('/')[0].split('?')[0];
+            if (smmSeg === 'smm-weekly-report' || smmSeg === 'smm-weekly-reports') {
+                de.setAttribute('data-boot-nav', smmSeg);
+                return;
+            }
+            // Staff entry gate. This check is synchronous and localStorage is
+            // writable by hand, so presence of a saved identity is only a PAINT
+            // hint: it decides whether to paint the app shell or the sign-in
+            // gate, never what anyone is allowed to do. The real door is
+            // _syncviewStaffIdentityBoot()'s server verification, which drops
+            // the gate back over the app when the saved identity does not
+            // verify (see "Staff entry gate" in the app script).
+            var authed = false;
+            try { authed = !!localStorage.getItem('syncview_staff_identity_v1'); } catch (e) {}
+            if (!authed) { de.classList.add('boot-gate'); return; }
+            // Authed staff: predict the landing tab (mirror of init()'s
+            // router, conservative — when unsure, tag nothing and boot
+            // exactly as today) so a refresh on e.g. #calendar never paints
+            // the Analytics-active pill + the "Client Analytics" overview
+            // header first.
+            var st = null; try { st = history.state; } catch (e) {}
+            if (st && st.client) {
+                // A staff client profile is a route too. Tag its exact subtab
+                // before body paint so Calendar/Brief never borrow the static
+                // staff Analytics overview skeleton while fresh data loads.
+                var profileTab = st.clientTab === 'calendar' || st.clientTab === 'brief'
+                    ? st.clientTab
+                    : 'analytics';
+                de.setAttribute('data-boot-nav', 'client');
+                de.setAttribute('data-boot-subtab', profileTab);
+                return;
+            }
+            var hash = location.hash.replace('#', '');
+            try { hash = decodeURIComponent(hash); } catch (e) {}
+            var hashParts = hash.split('/');
+            var seg = hashParts[0].split('?')[0];
+            if (seg === 'smm-weekly-report' || seg === 'smm-weekly-reports') {
+                de.setAttribute('data-boot-nav', seg);
+                return;
+            }
+            var FAST = ['linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'smm-weekly-report', 'smm-weekly-reports'];
+            var RESTORABLE_FAST = FAST.filter(function (nav) { return nav !== 'smm-weekly-report' && nav !== 'smm-weekly-reports'; });
+            var ses = function (k) { try { return sessionStorage.getItem(k) === 'ok'; } catch (e) { return false; } };
+            var kasperOk = function () { return q.get('Kasper') === '1' || ses('syncview_kasper_unlocked'); };
+            var ttpOk = function () { return q.get('ttpilot') === '1' || ses('syncview_ttpilot_unlocked'); };
+            var sxrOn = function () {
+                // Must mirror _sxrEnabled(): GA default-ON, ?sxr=0 / sticky
+                // opt-out off, storage failure = ON (F73).
+                try {
+                    var sv = q.get('sxr');
+                    return (sv === '1' || sv === 'true') || (sv !== '0' && sv !== 'false' && localStorage.getItem('syncview_sxr_off') !== '1');
+                } catch (e) { return true; }
+            };
+            var target = '';
+            if (!hash && q.get('Kasper') === '1' && !ses('syncview_kasper_unlocked')) {
+                // Bare ?Kasper=1 jumps straight to Kasper only on FIRST
+                // arrival (init()'s _kasperArrivedFromUnlockParam is false
+                // once the session flag is set); mid-session refreshes of a
+                // hashless ?Kasper=1 URL route to savedNav/home instead.
+                target = 'kasper';
+            }
+            else if (q.get('prod') === '1') target = 'production';
+            else if (FAST.indexOf(hash) >= 0) target = hash === 'samples' ? 'sample-reviews' : hash; // retired Samples Old links move to SXR
+            // Only calendar/samples/templates route sub-path hashes
+            // (init()'s hashIsFastTab); linear/workload/tiktok-upload need
+            // an exact match, so a sub-path there gets no prediction.
+            else if (seg === 'calendar' || seg === 'samples' || seg === 'templates') target = seg === 'samples' ? 'sample-reviews' : seg;
+            else if (seg === 'kasper' && kasperOk()) target = 'kasper'; // kasper + kasper/<subtab>
+            else if (hash === 'tiktok-pilot' && ttpOk()) target = 'tiktok-pilot'; // exact only
+            else if (seg === 'sample-reviews' && sxrOn()) target = 'sample-reviews';
+            else if (!hash) {
+                var saved = null; try { saved = localStorage.getItem('syncview_nav'); } catch (e) {}
+                var nav = (st && st.nav) || saved;
+                // Mirror of init(): the fast path restores (stateNav ||
+                // savedNav) for FAST tabs even in a NEW tab (fallbackFast —
+                // no history.state needed); the post-await router restores
+                // savedNav kasper/tiktok-pilot only on a real refresh
+                // (history.state present) and only while unlocked.
+                if (nav === 'smm-weekly-report' || nav === 'smm-weekly-reports') {
+                    if (saved === 'smm-weekly-report' || saved === 'smm-weekly-reports') {
+                        try { localStorage.removeItem('syncview_nav'); } catch (e) {}
+                    }
+                } else if (RESTORABLE_FAST.indexOf(nav) >= 0) target = nav;
+                else if (st && st.nav && ((saved === 'kasper' && kasperOk()) || (saved === 'tiktok-pilot' && ttpOk()))) target = saved;
+            }
+            if (target) {
+                de.setAttribute('data-boot-nav', target);
+                if (target === 'kasper') {
+                    var ksub = (seg === 'kasper' && hashParts.length > 1) ? hashParts[1] : '';
+                    if (!ksub) {
+                        try { ksub = localStorage.getItem('syncview_kasper_subtab_v1') || ''; } catch (e) {}
+                    }
+                    if (ksub) de.setAttribute('data-boot-subtab', ksub);
+                }
+            }
+            if (target === 'workload' && window.fetch) {
+                // Start the Workload issue read NOW, while the rest of this
+                // 5 MB document is still parsing, so the network round trip
+                // overlaps the parse instead of following it. Same URL and
+                // key as CAL_SUPABASE_URL / CAL_SUPABASE_ANON_KEY in the app
+                // script (the render harness asserts they match); same gates
+                // as loadLinearIssues: the v2 kill switch and a fresh cache
+                // (LINEAR_ISSUES_TTL_MS) mean the app would not read at all.
+                var wlKilled = false, wlFresh = false;
+                try { wlKilled = localStorage.getItem('syncview_workload_v2_off') === '1'; } catch (e) {}
+                // The URL override wins over storage, exactly as _wlV2Enabled()
+                // resolves it later: ?wl2=0 is the documented per-browser
+                // rollback and must contain this request too, not just the
+                // board's own; ?wl2=1 clears a stored opt-out.
+                var wl2 = q.get('wl2');
+                if (wl2 === '0' || wl2 === 'false') wlKilled = true;
+                else if (wl2 === '1' || wl2 === 'true') wlKilled = false;
+                try {
+                    var wlRaw = localStorage.getItem('syncview_linearIssuesCache_v1');
+                    var wlCache = wlRaw ? JSON.parse(wlRaw) : null;
+                    wlFresh = !!(wlCache && typeof wlCache.fetchedAt === 'number' && (Date.now() - wlCache.fetchedAt) < 5 * 60 * 1000);
+                } catch (e) {}
+                var wlBase = 'https://uzltbbrjidmjwwfakwve.supabase.co';
+                var wlKey = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';
+                window.__wlEarlyIssuesUrl = wlBase + '/rest/v1/workload_issues?select=*&active=eq.true&order=id.asc&limit=1000&offset=0';
+                if (!wlKilled && !wlFresh) {
+                    window.__wlEarlyIssues = fetch(window.__wlEarlyIssuesUrl, {
+                        cache: 'no-store',
+                        headers: { apikey: wlKey, Authorization: 'Bearer ' + wlKey, Accept: 'application/json', Prefer: 'count=exact' }
+                    });
+                    window.__wlEarlyIssues.catch(function () {});
+                }
+            }
+        } catch (e) {}
+    })();
+    </script>
+    <link rel="preconnect" href="https://uzltbbrjidmjwwfakwve.supabase.co">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://docs.google.com">
+    <link rel="preconnect" href="https://synchrosocial.app.n8n.cloud">
+    <!-- NOT render-blocking, and the reason is measured rather than assumed.
+         A stylesheet in the head blocks every script that follows it, and a
+         `defer` script blocks DOMContentLoaded by spec — so the font link and
+         the Chart.js tag below were, between them, holding first paint hostage
+         to TWO third-party CDNs. With both reachable that costs a few hundred
+         ms; with either slow or blocked (a corporate proxy, an ISP hiccup, a
+         CDN outage, ordinary bad wifi) the app cannot reach DOM-ready at all.
+         Measured 2026-08-26 with both CDNs unreachable: 12,906ms -> 349ms.
+         Neither change helps alone; both are required, which is why they are
+         one commit. `display=swap` is already set, so text paints in the
+         fallback face and swaps when the webfont lands. -->
+    <link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"></noscript>
+    <!-- async, NOT defer. The intent below was always "must not block first
+         paint", but `defer` does not achieve it: a deferred script runs before
+         DOMContentLoaded and therefore gates it. `async` takes it off that path
+         entirely. Safe because the retry the old comment already describes is
+         real — `_chartReady` polls for up to 6s and every call site guards on
+         `typeof Chart === 'undefined'`, so a chart that renders before the CDN
+         answers simply waits instead of throwing. -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" async></script>

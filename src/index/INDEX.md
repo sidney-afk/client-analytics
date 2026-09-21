@@ -34,4 +34,8 @@
 | 26 | `240-production-description.js.part` | 2607 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 27 | `250-production-controls-data.js.part` | 2743 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 28 | `260-production-refresh-boot.js.part` | 2176 | AND TYPING COUNTS, which is the case this guard was missing. |
-| 29 | `999-remainder.html.part` | 17946 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
+| 29 | `270-samples-model.js.part` | 2696 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
+| 30 | `280-samples-cards-notes.js.part` | 2887 | SURFACE 3: the save engine |
+| 31 | `290-samples-writes-review.js.part` | 1810 | Same rule as the comment writer beside this one. No caller reaches |
+| 32 | `300-tiktok-upload.js.part` | 1678 | TIKTOK UPLOAD MODULE |
+| 33 | `999-remainder.html.part` | 8875 | TIKTOK PILOT MODULE (gated: ?ttpilot=1 → #tiktok-pilot) |

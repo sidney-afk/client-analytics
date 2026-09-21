@@ -26,4 +26,8 @@
 240-production-description.js.part
 250-production-controls-data.js.part
 260-production-refresh-boot.js.part
+270-samples-model.js.part
+280-samples-cards-notes.js.part
+290-samples-writes-review.js.part
+300-tiktok-upload.js.part
 999-remainder.html.part

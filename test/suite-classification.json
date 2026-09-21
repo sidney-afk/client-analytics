@@ -468,6 +468,7 @@
     "reconcile-na-parking.js",
     "reconcile-poison-resilience.js",
     "reconcile-tolerates-deleted-issue.js",
+    "repo-identity-exposure-moved-lines.js",
     "repo-identity-exposure.js",
     "repo-map-sync.js",
     "resolve-route-chooser.js",

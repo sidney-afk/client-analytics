@@ -27262,7 +27262,7 @@ the real resolution block for a native two-video group with and without the
 batch row in the snapshot; both new checks were seen red against the pre-fix
 source.
 
-## 223. [2026-09-21, FIXED] Archiving a post stopped parking its video/thumbnail sub-issues in Backlog — the caller, not the callee, was losing the row
+## 226. [2026-09-21, FIXED] Archiving a post stopped parking its video/thumbnail sub-issues in Backlog — the caller, not the callee, was losing the row
 
 **Owner ruling 2026-08-17** (item 23 at the time): archiving a card must park
 its video and thumbnail sub-issues in Backlog, so they stop sitting live in

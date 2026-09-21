@@ -44,6 +44,16 @@ function build(rows) {
   return new Function('_prodIssues', body)(() => rows);
 }
 
+function buildEligible() {
+  const body = extractFunction(source, '_prodAssetEligibleRow')
+    + '\nreturn _prodAssetEligibleRow;';
+  return new Function('_prodClient', 'PROD_ATTRIBUTION_NEEDS', 'PROD_ATTRIBUTION_CONFLICT', body)(
+    slug => (slug === 'acme' ? { id: 'acme' } : null),
+    '__needs_attribution__',
+    '__attribution_conflict__',
+  );
+}
+
 // 16 videos + 16 thumbnails, shuffled fetch order (interleaved, not grouped,
 // not numeric) -- the shape the owner reported.
 const BATCH_ID = 'batch-1';
@@ -92,6 +102,35 @@ ok(/function _prodChildrenOf\(id\) \{\s*return _prodIssues\(\)\.filter\(d => d\.
   '_prodChildrenOf sorts with the shared _prodChildOrder comparator');
 ok(/function _prodBatchRows\(batchId\) \{\s*return _prodIssues\(\)\.filter\(d => batchId && d\.batchId === batchId\)\.sort\(_prodChildOrder\);/.test(source),
   '_prodBatchRows sorts with the same shared _prodChildOrder comparator');
+
+// --- asset-source choice stays decoupled from display order ---------------
+// Sorting _prodBatchRows makes rows[0] deterministically the numerically
+// first deliverable, which is not guaranteed to be the one with usable
+// client attribution. The batch panel and its prefetch must pick the asset
+// source by ELIGIBILITY, not by display position (Codex, PR #1467).
+const eligible = buildEligible();
+const unattributedFirst = [
+  { id: 'v1', title: 'Video 1', team: 'video' }, // no scope at all
+  { id: 'v2', title: 'Video 2', team: 'video', authorityProject: 'acme' },
+];
+ok(eligible(unattributedFirst) && eligible(unattributedFirst).id === 'v2',
+  '_prodAssetEligibleRow skips an unattributed first row for an eligible later one');
+
+const needsAttrFirst = [
+  { id: 'v1', title: 'Video 1', team: 'video', authorityProject: '__needs_attribution__' },
+  { id: 'v2', title: 'Video 2', team: 'video', authorityProject: 'acme' },
+];
+ok(eligible(needsAttrFirst) && eligible(needsAttrFirst).id === 'v2',
+  '_prodAssetEligibleRow skips the __needs_attribution__ sentinel too');
+
+ok(eligible([]) === null, '_prodAssetEligibleRow answers null when nothing is eligible');
+
+ok(/const assetRow = _prodAssetEligibleRow\(rows\) \|\| rows\[0\];/.test(source),
+  '_prodBatchDetail chooses its asset panel source by eligibility, not rows[0]');
+ok(/_prodAssetsPanelHTML\(assetRow, \{ slots:/.test(source),
+  'the batch panel renders against the eligibility-chosen row');
+ok(/const assetRow = _prodAssetEligibleRow\(batchRows\) \|\| batchRows\[0\];/.test(source),
+  'the batch-view asset prefetch also chooses by eligibility, not display position');
 
 if (failures) process.exit(1);
 console.log('\nProduction batch-detail ordering checks passed');

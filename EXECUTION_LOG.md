@@ -7577,3 +7577,56 @@ committed 2026-09-21T00:02:42.896549Z, `updated_by='native-brief-media-copy'`.
 No client name, signed URL or brief text appears in this entry or anywhere
 in this repository; the brief backup and the rows/manifest/out-map files all
 live under `%USERPROFILE%\.syncview\brief-media\`, outside any git tree.
+
+**2026-09-21 — Two Workload/Calendar cleanups, read-only first, write only on a
+matched count.**
+
+**Cleanup 1 (stale saved work days in `workload_plan`) — STOPPED, no write.**
+The read-only query (`workload_plan` joined to `workload_native_snapshot_v1()`
+rows, comparing client identity) was expected to return exactly 6 rows; it
+returned **307**. Per instruction this stopped the cleanup before any write —
+`workload_plan.plan_date` was not touched. The scale of the mismatch (307 vs.
+an expected 6) suggests the "6" estimate was based on a different criterion
+or a stale read, not that the query is wrong; not diagnosed further without
+direction.
+
+**Cleanup 2 (cards archived in Linear before the August switch-over, still
+open natively) — completed.** Read-only shape matched the supervisor's
+evening estimate closely: video 6 whole batches (16 cards) / 3 mixed (3
+cards); graphics 5 whole batches (80 cards) / 1 mixed (6 cards) — 15 batches,
+105 stale-open cards total. Ids and prior status saved before any write.
+
+11 whole batches set to `status='archived'` (all were `active` before):
+  - `b1_b_4ff10a54a9b87f6eae07576fa232` (was `active`)
+  - `b1_b_64862122ea19bf5e6502689c928b` (was `active`)
+  - `b1_b_9b2d74bcda2db469bf632b71d12a` (was `active`)
+  - `b1_b_4c900ef91872131fa62723b1d20b` (was `active`)
+  - `b1_b_2b23eef88da72a3d7f8382149ab3` (was `active`)
+  - `bat_36a00d31-c525-4517-9e60-71ae5ed2c454` (was `active`)
+  - `b1_b_11ea3922f181eb4f5752f1e7e65d` (was `active`)
+  - `b1_b_f4dc808cb7366b09fab0a375af17` (was `active`)
+  - `bat_5f496790-69d1-423c-86e9-05e03bcb0101` (was `active`)
+  - `b1_b_174ce84b1f1b2e240af93eb76055` (was `active`)
+  - `b1_b_5861d3bb7a53c9e60a8721c377ea` (was `active`)
+
+9 stale-open cards in mixed batches set to `status='canceled'`:
+  - `del_c461b2a5-5e7a-4694-ada3-78561ce1c0b0` (was `todo`, `VID-13370`)
+  - `b1_d_66b5a98d50a945faad5833d92c00ac0c` (was `in_progress`, `VID-13057`)
+  - `b1_d_b594fa6e2f4f48f7ac4b7d9cbd755de2` (was `todo`, `VID-13109`)
+  - `b1_d_472faad3f9794d6fb7c247704474b532` (was `todo`, `VID-13416`)
+  - `b1_d_b5d151f920f44685a6ec0536ab20e82c` (was `todo`, `VID-13415`)
+  - `b1_d_b76d0634f93c4abdbd404ba4a2517342` (was `todo`, `VID-13414`)
+  - `b1_d_27dd558cf4444875aeaab5aaa812f0da` (was `todo`, `VID-13413`)
+  - `b1_d_9a06085ca22d48fb8f2322bf8e1f8678` (was `todo`, `VID-13412`)
+  - `b1_d_c928be8c1b66415b979d665aba7a01d9` (was `todo`, `VID-13411`)
+
+Both updates ran as one guarded transaction (`update ... where id = any($1)`
+for each set, row count verified equal to the saved id-list length before
+commit). Post-commit reads: 11/11 batches now `archived`, 9/9 cards now
+`canceled`; the read-only detection query re-run afterward returns **0**
+remaining stale batches. The reporting video editor's late-card check
+(`workload_issues_native_v1`, that `native_assignee_id`, `status='Todo'`,
+`due_date < current_date`) now returns **1** (was reported as 14 before this
+cleanup) — a small number, the genuinely late cards.
+
+No client name or slug appears in this entry.

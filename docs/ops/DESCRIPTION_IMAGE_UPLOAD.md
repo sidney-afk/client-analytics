@@ -1,5 +1,7 @@
 # Pasting an image into a description — scope, decision, and what shipped
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The outbound-mirror discussion below records the earlier design. Native description images do not need a Linear mirror. Historical upload rescue is separate from staff work in Linear; completed native brief-media coverage is recorded in `ROLLBACK.md`. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
+
 > **Decided and built, 2026-09-05.** Owner: *"if you think this is a good plan
 > … then let's do it."* **Option B** (public bucket, unguessable path), images
 > kept **forever**. Everything in §3 is now code; the sections below this box

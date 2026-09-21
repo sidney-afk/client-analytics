@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # Incident: Linear ⇄ SyncView thumbnail/status drift — the *real* root cause (2026-06-24)
 
 **Reported:** `daniellerobin/p_lin_vid12670` ("Video 1") — the **graphic/thumbnail**

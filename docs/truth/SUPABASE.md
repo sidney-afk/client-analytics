@@ -1,5 +1,7 @@
 # Supabase — current truth
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 > Last verified: 2026-08-24 @ c7f088a + scoped 2026-09-10 re-measurement of the two event
 > ledgers (row counts and the `source` breakdown, which corrected a "100% `source='ui'`"
 > claim that was never true) and the `kasper_urgent_ping_enabled` flag + the
@@ -69,6 +71,8 @@
 > deltas keep the one-shot receipt and state transitions fail-closed.
 
 ## Tables
+
+**Corrected 2026-09-21:** The older Linear-cache/provider descriptions are historical. Video and graphics Workload now use the native snapshot, and normal outbound/parity delivery is off. Stored Linear IDs and outbox rows remain data, not live-authority evidence.
 
 See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 
@@ -314,6 +318,8 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   unchanged runtime flags.
 
 ## Workload Linear metadata/deadline contract (candidate; not live)
+
+**Corrected 2026-09-21:** The older Linear-cache/provider descriptions are historical. Video and graphics Workload now use the native snapshot, and normal outbound/parity delivery is off. Stored Linear IDs and outbox rows remain data, not live-authority evidence.
 
 - `workload-linear` is an isolated deliberate-manual Edge Function. Admin/SMM/Creative may request
   exact due-date and `2× Workload` / `3× Workload` metadata for at most 100 unique active

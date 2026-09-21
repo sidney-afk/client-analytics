@@ -1,5 +1,7 @@
 # Production Preview Adapter Contract
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The Linear-shaped adapter fields are a retained data/fixture shape, not a requirement for live provider reads or outbound writes. The production work surface is native. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 Source of truth: `docs/syncview-design/SyncView.html`. The wired `?prod=1` tab reads live B1 Supabase rows, then `_prodAdapter()` converts those rows into the artifact data shapes used by the render layer: `ISSUES`, `PROJECTS`, `CLIENTS`, and `EDITORS`.
 
 ## Data Mapping

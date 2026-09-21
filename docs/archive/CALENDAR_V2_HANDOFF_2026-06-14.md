@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # Calendar v2 — Session Handoff (2026-06-14, evening)
 
 **Read this first**, then `CALENDAR_V2_AUDIT_HANDOFF.md` (Phase 2 brief) and

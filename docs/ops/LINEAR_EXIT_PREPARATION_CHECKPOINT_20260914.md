@@ -1,5 +1,7 @@
 # Linear exit preparation: living checkpoint
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier preparation and provider-live status below is retained history. The cutoff has executed; the current remaining Linear boundary is the inbound webhook and owner-gated credential revocation, not a fresh installation or authority flip. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
+
 Emergency entrypoint: [database, website and function recovery](LINEAR_EXIT_RECOVERY_PROCEDURE.md). Read this before authorizing the installation window.
 
 **Read second, after this file: the [running journal](LINEAR_EXIT_JOURNAL.md).** This checkpoint says where we are; the journal says how we got here and why. It carries the progress log, the live blocker list, and every decision with its reasoning and who made it. Read its decisions section before changing anything that looks settled, so you do not relitigate or silently undo a call that was already made. Update it as part of finishing a step, append only, corrections below originals.

@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # B4 Readiness — gate evidence, auth operationalization, road to writable
 
 **Date:** 2026-07-11 · **Second-pass corrections through:** 2026-07-14 · **Status:** living checklist (update in the same PR as any item it tracks)

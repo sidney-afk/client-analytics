@@ -1,5 +1,7 @@
 # Content-Calendar Test Catalog
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Historical Linear-push and mirror checks below are not live acceptance steps after cutoff. Retain offline legacy/guard coverage; native Calendar saves and receipts must be tested without restoring outbound or parity. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 Exhaustive test inventory for the **SMM content calendar**, the **client
 calendar**, and **Kasper review/messages**. Pair this with
 `HEADLESS-TESTING-GUIDE.md` (how to run probes) — this file is the *what to

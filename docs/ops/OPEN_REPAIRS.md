@@ -27413,3 +27413,25 @@ at least one open deliverable (not canceled/duplicate/posted/backlog) — a
 100% failure rate over the whole observable window, consistent with the
 "zero, ever" finding above. Database rows are not touched by this PR; cleanup
 is separate follow-up work.
+
+## 227. [2026-09-21, OPEN] The two onboarding runbooks have no native replacement for their retired Linear steps
+
+**Found by the Codex review of the A1 docs sweep (#1480).** `docs/ops/NEW_CLIENT_ONBOARDING.md`
+and `docs/ops/NEW_STAFF_ONBOARDING.md` told operators to create a Linear project per
+client and to invite every hire to Linear and hand-set `team_members.linear_user_id`.
+Both steps are struck as of this entry, so nobody mutates the retired workspace by
+following a checklist. What is NOT yet written is the native step that replaces each:
+
+- **New client.** The canonical `clients` row and the routing enrollment (§6f of the
+  client runbook) exist, but there is no operator readback that proves a brand-new
+  client's first native card attributes correctly and its first status write succeeds.
+- **New editor or designer.** Whether native assignee eligibility still reads
+  `linear_user_id` for a hire who never had one is unverified; if it does, a new hire
+  will not appear in the Create Post assignee list and the fix is in the eligibility
+  read, not in Linear.
+
+**Fix, owed.** Measure both against the test client with a throwaway `team_members`
+row (read-only elsewhere), then write the two native steps into the runbooks with the
+exact readback command each, and remove the struck Linear text to `docs/archive/`.
+Until then, the supervisor session runs the readback before a new client's first real
+card or a new hire's first assignment.

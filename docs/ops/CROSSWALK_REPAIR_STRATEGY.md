@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # The card ↔ deliverable crosswalk: what is actually broken, and the order to fix it
 
 **Status (2026-09-05, 21:00Z): EXECUTED — 100 of 100, TWO EPOCHS OF THE RPC,

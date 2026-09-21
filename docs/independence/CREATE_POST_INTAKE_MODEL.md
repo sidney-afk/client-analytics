@@ -1,5 +1,7 @@
 # Create-Post & Batch Intake Model (LOCKED)
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The locked intake product model does not require a live Linear project or provider-created parent after cutoff. Native submission and retry receipts own the workflow; retained names and links describe earlier routing. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 **Status:** Locked decision — owner-confirmed 2026-07-13; partially implemented in the
 #850 merged dark cohort and pinned gateway deployment. Submit's single-team Advanced actions remain
 open under F101; no real-client enrollment is authorized.

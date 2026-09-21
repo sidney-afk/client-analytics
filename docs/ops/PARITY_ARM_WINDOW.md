@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # Parity-arm window (F4 forward) — owner-gated, approved 2026-07-28
 
 **Status:** ARMED 2026-07-28 20:59:55 by the owner under re-scope decision 4;

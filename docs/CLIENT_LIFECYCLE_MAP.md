@@ -1,5 +1,7 @@
 # Synchro Social — Client Lifecycle Map
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The provisioning and production diagrams, stage descriptions, sync schedules, backend map and Track B row below retain the earlier topology. Linear projects, task editing and two-way mirroring are no longer staff workflow requirements. SMMs use Content Calendar and creatives use Sync; native provisioning has its own guarded operator contract. See [cutoff record](ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 > **📍 CANONICAL COPY — this file is the source of truth.** The byte-mirror
 > was **retired 2026-07-19** after silent drift;
 > `synchrosocial/docs/CLIENT_LIFECYCLE_MAP.md` is now a stub pointing here.
@@ -40,6 +42,8 @@
 ---
 
 ## 0. The lifecycle at a glance
+
+**Corrected 2026-09-21:** The Linear provisioning, editing, mirror and reconciler descriptions in this section are pre-cutoff history. Since 2026-09-20 production work is native in SyncView; outbound and legacy parity are off. The inbound webhook remains pending the owner’s STEP 7 credential decision. Unrelated lifecycle services are not re-audited here.
 
 ```mermaid
 flowchart TD
@@ -419,6 +423,8 @@ still has **no `errorWorkflow`** (§15.20).
 
 ## 7. Stage 6b — Manual setup (where a new client must exist)
 
+**Corrected 2026-09-21:** The Linear provisioning, editing, mirror and reconciler descriptions in this section are pre-cutoff history. Since 2026-09-20 production work is native in SyncView; outbound and legacy parity are off. The inbound webhook remains pending the owner’s STEP 7 credential decision. Unrelated lifecycle services are not re-audited here.
+
 The runbook is `client-analytics/NEW_CLIENT_ONBOARDING.md`. This table is
 the checklist of **every place a client exists**, and whether creation is
 automated today:
@@ -453,6 +459,8 @@ drop non-alphanumerics.
 
 ## 8. Stage 7 — Samples
 
+**Corrected 2026-09-21:** The Linear provisioning, editing, mirror and reconciler descriptions in this section are pre-cutoff history. Since 2026-09-20 production work is native in SyncView; outbound and legacy parity are off. The inbound webhook remains pending the owner’s STEP 7 credential decision. Unrelated lifecycle services are not re-audited here.
+
 The onboarding form's sample video (plus brand answers) seeds **sample
 edits** — subtitle styles, thumbnail looks — approved before real content
 starts. ⚠️ Two generations coexist (`client-analytics` docs, `SAMPLES_*`):
@@ -478,6 +486,8 @@ description holds "approved sample" links today) → production begins.
 ---
 
 ## 9. Stage 8 — The production loop
+
+**Corrected 2026-09-21:** The Linear provisioning, editing, mirror and reconciler descriptions in this section are pre-cutoff history. Since 2026-09-20 production work is native in SyncView; outbound and legacy parity are off. The inbound webhook remains pending the owner’s STEP 7 credential decision. Unrelated lifecycle services are not re-audited here.
 
 The recurring engine once a client is live:
 
@@ -531,6 +541,8 @@ completeness receipt.
 
 ## 10. Ongoing per-client automations (the robots)
 
+**Corrected 2026-09-21:** The Linear provisioning, editing, mirror and reconciler descriptions in this section are pre-cutoff history. Since 2026-09-20 production work is native in SyncView; outbound and legacy parity are off. The inbound webhook remains pending the owner’s STEP 7 credential decision. Unrelated lifecycle services are not re-audited here.
+
 | Automation (n8n) | Schedule | What it does |
 | --- | --- | --- |
 | CLIENTS METRICS | daily | IG (Apify) + TikTok (Apify) + YouTube stats per `Clients Info` row → appends `Metrics` / updates `PostTracking`. **F124:** source/prior-state failures can become ordinary zero/reset rows or stop later roster clients. One retained run failed on its first Metrics append after PostTracking work and skipped the other 25 clients; require per-client/platform coverage, roster isolation and last-good/degraded semantics. |
@@ -548,6 +560,8 @@ completeness receipt.
 ---
 
 ## 11. Systems & data stores (what lives where)
+
+**Corrected 2026-09-21:** The Linear provisioning, editing, mirror and reconciler descriptions in this section are pre-cutoff history. Since 2026-09-20 production work is native in SyncView; outbound and legacy parity are off. The inbound webhook remains pending the owner’s STEP 7 credential decision. Unrelated lifecycle services are not re-audited here.
 
 **Supabase** (project `uzltbbrjidmjwwfakwve`) — full table list in the
 `client-analytics` migrations; by lifecycle area:
@@ -634,6 +648,8 @@ thumbnail/caption pipelines), Notion (legacy forms only).
 
 ## 12. n8n workflow inventory (all 99, grouped)
 
+**Corrected 2026-09-21:** The Linear provisioning, editing, mirror and reconciler descriptions in this section are pre-cutoff history. Since 2026-09-20 production work is native in SyncView; outbound and legacy parity are off. The inbound webhook remains pending the owner’s STEP 7 credential decision. Unrelated lifecycle services are not re-audited here.
+
 Live instance `synchrosocial.app.n8n.cloud`, snapshot **2026-08-20**
 (99 total, 83 active, 16 inactive). ★ = described in detail above.
 (i) = inactive. Seven workflows were added since the 2026-07-10 snapshot
@@ -703,6 +719,8 @@ content-ready flow).
 
 ## 13. Cross-system relationship map
 
+**Corrected 2026-09-21:** The Linear provisioning, editing, mirror and reconciler descriptions in this section are pre-cutoff history. Since 2026-09-20 production work is native in SyncView; outbound and legacy parity are off. The inbound webhook remains pending the owner’s STEP 7 credential decision. Unrelated lifecycle services are not re-audited here.
+
 ```mermaid
 flowchart LR
   SITE["synchrosocial.com<br/>(static Astro)"] -->|embeds| IC["iClosed<br/>9 calendars"]
@@ -737,6 +755,8 @@ state; Supabase holds ops state; Sheets hold the client roster + analytics
 ---
 
 ## 14. In-flight migrations (what will invalidate parts of this map)
+
+**Corrected 2026-09-21:** The Linear provisioning, editing, mirror and reconciler descriptions in this section are pre-cutoff history. Since 2026-09-20 production work is native in SyncView; outbound and legacy parity are off. The inbound webhook remains pending the owner’s STEP 7 credential decision. Unrelated lifecycle services are not re-audited here.
 
 | Migration | Status (2026-07-10) | What changes here when it lands |
 | --- | --- | --- |

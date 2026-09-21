@@ -1,5 +1,7 @@
 # SyncView design kit — current routing and frozen evidence
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. “Linear” and “SyncLinear” below include historical labels for the native Production/Sync surface. The wired UI is not a live mirror of the external Linear service; frozen prototype measurements remain dated evidence. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 This folder contains both the **current wired Production/Linear contract** and a frozen 2026-07-05
 prototype reference. Do not confuse the two.
 

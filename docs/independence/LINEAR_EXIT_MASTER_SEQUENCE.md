@@ -1,5 +1,7 @@
 # The Linear exit, as one ordered list
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The earlier migration topology and pre-cutoff gates below are retained history. They do not make Linear authoritative again or authorize resuming a retired mirror. Remaining recovery and credential decisions belong to the cutoff record. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 **Written 2026-09-08. This is the only document that spans every lane.**
 
 **Build-preparation update, 2026-09-10:** draft PR #1382 now contains the

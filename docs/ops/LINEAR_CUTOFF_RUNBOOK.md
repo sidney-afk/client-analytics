@@ -1,5 +1,7 @@
 # Linear cutoff runbook
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. STEPS 1–6 are executed; the original access deadline and forward steps below are preserved history/recovery instructions, not a new cutoff schedule. The inbound webhook is still present; STEP 7 remains the owner’s decision. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
+
 **Status: STEPS 1–6 EXECUTED 2026-09-20 (STEP 6 order corrected on 2026-09-21). STEP 7, the credential revoke, is NOT executed and is the one open step; its date is the owner's call and OPEN_REPAIRS 224 waits on it.**
 The cutoff ran on the night of 2026-09-20 (see `LINEAR_EXIT_JOURNAL.md`, entries
 dated 2026-09-20 and 2026-09-21). The line below this one used to say "prepared,

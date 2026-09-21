@@ -1,5 +1,7 @@
 # New Client Onboarding Runbook (SyncView)
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The Linear invitations, projects, API-key and provider-assignment steps below are historical and are not requirements for new native work. Preserve existing IDs for old records; do not invent or remove mappings. Native provisioning is a guarded operator procedure, not an automatic consequence of this correction; see `docs/ops/NATIVE_CLIENT_PROVISIONING.md`. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
+
 **Purpose:** the complete, do-not-forget checklist for bringing a brand-new client online across every SyncView system — the dashboard code, the Google Sheets, n8n, Supabase, Linear, Slack, Roam, and Post For Me.
 
 **How to use it:** skim **§1 (Quick Checklist)** and tick the boxes. Each box links down to a detailed step. **§7** is a reference appendix (IDs, where the secrets live, the SMM roster).
@@ -10,6 +12,8 @@
 
 ## 0. The systems involved (mental map)
 
+**Corrected 2026-09-21:** Linear projects and API-key provisioning below are historical, not prerequisites for new native work. Use the guarded native client-provisioning contract and verify its installation/admission prerequisites; this dated correction neither enrolls a client nor changes external automation.
+
 | System | What it holds per client | Onboarding touch? |
 |---|---|---|
 | **Frontend** `index.html` | Derives the live client list from the **Clients Info** sheet at runtime (hardcoded list is just a fallback seed). | ❌ **Auto** — the Clients Info row does it |
@@ -18,7 +22,7 @@
 | **Supabase** (`uzltbbrjidmjwwfakwve`) | `filming_plans` (master filming Doc links), `calendar_posts`, and `content_samples`. | ✅ Filming plan link via app; calendar/samples auto |
 | **Google Drive** | The actual master filming Docs, inside **Client Filming Plans / <client display name>** with one folder per client — never inside the general **Clients / <client>** folder. | ✅ Create/move Doc |
 | **n8n** | All the scrapers/automations (metrics, top videos, competitor & market research, weekly Slack, caption gen, calendar/samples sync). | ⚪ Mostly auto |
-| **Linear** (`synchro-social`) | One **Project** per client across the **Video + Graphics** teams. | ✅ SMM does it |
+| **Linear** (`synchro-social`) | ~~One **Project** per client across the **Video + Graphics** teams.~~ **RETIRED 2026-09-20.** Do not create Linear projects for new clients; the native card carries its client directly (see §6f and OPEN_REPAIRS 227). | ❌ Retired |
 | **Slack** | One **client channel** per client (weekly reports + tweak pings post there), plus one automated **public `-creative` channel**; onboarding kickoff + full form answers post here after readiness checks pass. | ✅ Create client channel; ⚪ Queue creative channel after setup, worker creates it |
 | **Roam** | Sales-call venue only (no longer used for onboarding — see §6c). | — |
 | **Sandcastles** | Content-intelligence watchlist — channel recaps, top hooks/topics/formats, outlier alerts. | ✅ Add the client **+ their competitors** |
@@ -29,6 +33,8 @@
 ---
 
 ## 1. Quick checklist (the whole thing)
+
+**Corrected 2026-09-21:** Linear projects and API-key provisioning below are historical, not prerequisites for new native work. Use the guarded native client-provisioning contract and verify its installation/admission prerequisites; this dated correction neither enrolls a client nor changes external automation.
 
 **Research / prep**
 - [ ] SyncView standard/AI intake is visible in the protected onboarding inbox; record the durable
@@ -127,12 +133,12 @@
   review token plus every required Track-A authenticated routing enrollment—never by copying a
   token into a Sheet. (Confirm current behavior in
   [§6f](#6f-supabase-calendar--samples-no-manual-row-but-routing-is-required).)
-- [ ] **Linear (SMM):** create a Project for the client on the **Video + Graphics** teams, set the SMM as lead, link the Slack channel. → [§6g](#6g-linear-project-smm)
+- ~~**Linear (SMM):** create a Project for the client on the **Video + Graphics** teams, set the SMM as lead, link the Slack channel.~~ **RETIRED 2026-09-20: do not do this.** Since the cutoff a new client needs no Linear project; its cards are native and carry the client slug from the canonical `clients` row and routing enrollment in [§6f](#6f-supabase-calendar--samples-no-manual-row-but-routing-is-required). The verified native readback for a brand-new client ("first card attributes correctly, first status write succeeds") is not yet written as an operator step; that is OPEN_REPAIRS 227. Until it lands, ask the supervisor session to run the readback before the client's first real card. §6g below is kept as provenance only.
 
 **Finish**
 - [ ] Verify on the live dashboard (calendar loads, samples strip, filming plan opens from the main tab/Templates/Kasper, both Slack targets, metrics next morning). → [§6i](#6i-verify)
 
-> Rough sequence that mirrors how it's actually done: **research/keywords + Sheets rows + Slack channel + Linear project → filming Doc in Client Filming Plans / <client display name> → Filming Plans tab link → Slack finalizer creates/posts the public creative channel → client goes live in the dashboard → (samples/calendar fill in as work starts).**
+> Rough sequence that mirrors how it's actually done: **research/keywords + Sheets rows + Slack channel ~~+ Linear project~~ (Linear retired 2026-09-20) → filming Doc in Client Filming Plans / <client display name> → Filming Plans tab link → Slack finalizer creates/posts the public creative channel → client goes live in the dashboard → (samples/calendar fill in as work starts).**
 
 ---
 
@@ -285,6 +291,8 @@ brands silently share calendar, samples, caption prompts and Supabase rows.
 
 ## 5. "Social Media Managers" row
 
+**Corrected 2026-09-21:** Linear projects and API-key provisioning below are historical, not prerequisites for new native work. Use the guarded native client-provisioning contract and verify its installation/admission prerequisites; this dated correction neither enrolls a client nor changes external automation.
+
 **Where:** SYNCVIEW sheet → tab **`Social Media Managers`**.
 **Key:** `client_name` (matched by slug in the app).
 
@@ -319,6 +327,8 @@ Slack channel. (The SMM roster is in [§7](#7-reference-appendix).)
 ---
 
 ## 6. The remaining steps
+
+**Corrected 2026-09-21:** Linear projects and API-key provisioning below are historical, not prerequisites for new native work. Use the guarded native client-provisioning contract and verify its installation/admission prerequisites; this dated correction neither enrolls a client nor changes external automation.
 
 ### 6a. Filming plan
 **Where:** SyncView dashboard → main **Filming Plans** tab. This writes the master Doc link to Supabase `filming_plans`, which is now the source of truth for filming-plan links.

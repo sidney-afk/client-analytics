@@ -1,5 +1,7 @@
 # Linear exit — the lane map
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The earlier migration topology and pre-cutoff gates below are retained history. They do not make Linear authoritative again or authorize resuming a retired mirror. Remaining recovery and credential decisions belong to the cutoff record. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 **Read this before you touch anything.** Six parallel sessions are removing Linear
 from SyncView. This file says who owns what. It exists because `index.html` is one
 79,418-line file and every lane edits it, and because merging to `main` deploys the

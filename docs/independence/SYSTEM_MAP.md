@@ -1,5 +1,7 @@
 # SyncView System Map — v2 (whole-website optics)
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The earlier migration topology and pre-cutoff gates below are retained history. They do not make Linear authoritative again or authorize resuming a retired mirror. Remaining recovery and credential decisions belong to the cutoff record. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 **Version note.** This is **v2**, and it replaces the v1 (Track-B-lens) draft in place. v1 mapped
 the site *through* the Linear-replacement program and left four data-flow questions and all
 per-surface depth on a "verify" list. v2 flips the lens: the **primary subject is the website** —
@@ -44,6 +46,8 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   visibility is never authorization.
 
 ## 2. Backends
+
+**Corrected 2026-09-21:** The Linear-as-tracker, mirror and outbound topology in this section is pre-cutoff history. Since 2026-09-20 production work is native, with outbound and parity off. Retained route names and historical receipts do not establish current provider authority.
 
 - **Supabase** (one project). REST tables the app reads directly: `calendar_posts`,
   `content_samples`, `sample_reviews`, `templates`, `caption_prompts`, `workload_issues`,
@@ -263,6 +267,8 @@ Everything below is shared by every surface; per-surface sections only note devi
   four composed callers in §7; the other 24 are literal URLs.
 
 ## 4. Surface catalog
+
+**Corrected 2026-09-21:** The Linear-as-tracker, mirror and outbound topology in this section is pre-cutoff history. Since 2026-09-20 production work is native, with outbound and parity off. Retained route names and historical receipts do not establish current provider authority.
 
 Sixteen surfaces. Thirteen carry over from v1 (verify items resolved); **SMM Weekly Reports**,
 **Client Credentials**, and live flag-gated **Time Off** are promoted to their own rows. Code references use
@@ -1434,6 +1440,8 @@ separate hidden first-party Direct-Post surface.*
   mirror route, authority, data model, or rollout controls.
 
 ## 5. What changes, when (Track B) + auth
+
+**Corrected 2026-09-21:** The Linear-as-tracker, mirror and outbound topology in this section is pre-cutoff history. Since 2026-09-20 production work is native, with outbound and parity off. Retained route names and historical receipts do not establish current provider authority.
 
 Current phase: **B4 outbound staging (dark), with the Part 2 gateway, #812 Production caller, and
 #850 Calendar/Samples/Submit cohort callers live** — B3 evaluation mirror remains live and Linear

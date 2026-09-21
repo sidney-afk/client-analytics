@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # Content Calendar → Supabase — Complete-the-Migration Plan & Audit (paste into a fresh session)
 
 > ⚠️ **SUPERSEDED / HISTORICAL (as of the 2026-06-15 audit).** This was a planning/handoff prompt;

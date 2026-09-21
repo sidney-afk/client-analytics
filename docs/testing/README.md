@@ -1,5 +1,7 @@
 # Testing — the map
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Legacy Linear-named suites and mocked provider guards remain source/test inventory. Do not interpret historical end-to-end descriptions as permission to mutate Linear or restart mirror workers; current native work needs native proof. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 Linear-exit build preparation: see [`qa/linear-exit-rehearsal/README.md`](../../qa/linear-exit-rehearsal/README.md) for the reproducible captured-serving/negative-control browser and disposable-SQL package. It authorizes no live implementation.
 
 One page that ties every test suite, gate, and Claude skill together. If you

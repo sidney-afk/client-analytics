@@ -1,5 +1,7 @@
 # F27 snapshot-first install and source-exact rollback runbook
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
+
 **Status: INSTALLED AND PRODUCTION-VERIFIED 2026-08-02.** Attempt 2 ran from
 exact release `968a895108beb2a2c41e86bb8b788115e35b14a0`: the exact migration
 applied once with transaction/self-probe PASS, Section 4 run `30763278795`
@@ -1424,6 +1426,8 @@ reconciler_still_disabled=PASS
 
 <!-- F27_INSTALL_CHECKLIST_BEGIN -->
 ## Operator checklist
+
+**Corrected 2026-09-21:** This generated checklist preserves the pre-cutoff installation/recovery procedure. Linear/Linear authority, armed parity and mirror-freshness prerequisites below are historical, not the 2026-09-21 live posture. Normal outbound and parity are off; any deliberate recovery requires the owner’s authorization and the current cutoff record.
 
 ### Separate preparatory inbound window -- requires its own owner go
 

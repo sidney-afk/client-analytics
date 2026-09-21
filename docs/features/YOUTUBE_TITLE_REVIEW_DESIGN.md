@@ -1,5 +1,7 @@
 # YouTube Title Review + Notes Component Routing — Design Spec
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The title-review product flow remains; the Part B Linear-routing description records its earlier transport. Component feedback and review work use native paths after cutoff, without requiring an outbound Linear comment. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 > **Current status (verified 2026-07-14): Parts A and B plus their backend fields are deployed.**
 > This file preserves the design contract; its old branch/rollout sequence is not executable.
 > Canonical evidence is `index.html`, the committed schema, `calendar-upsert`,

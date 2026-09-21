@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # Content Calendar — Realtime Migration Plan (Sheets → Supabase)
 
 Status: **SHIPPED (Phases 1–3) as of 2026-06-14; v2 is default-on.** (original audit 2026-06-12).

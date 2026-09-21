@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # External worker handover preparation
 
 This is a procedure for a separately authorized operator window. No scheduler, n8n workflow, hosted function, credential or production row has been changed by preparing it. A closed database gate cannot undo a provider request already sent or stop an older worker that does not use the new admission ledger.

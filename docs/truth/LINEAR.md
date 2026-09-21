@@ -1,5 +1,7 @@
 # Linear — current truth
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 > Last verified: 2026-09-07 @ 4e57e744 — live re-read of the claims below that can be
 > checked against Linear directly: team list, the 14-user count and the house identity, the
 > exact `2× Workload` / `3× Workload` label names (unchanged by the owner's 2026-08-25 rename;
@@ -64,6 +66,8 @@
   issue ids (QA probes delete).
 
 ## What syncs today (and what doesn't)
+
+**Corrected 2026-09-21:** This section’s app-to-Linear status/comment/create paths and authoritative inbound mirror describe the earlier system. Since 2026-09-20 there is no normal outbound or parity delivery; native work does not wait for Linear. The retained inbound webhook does not make Linear the system of record.
 
 - **Status:** app → Linear via `webhook/linear-set-status` (n8n maps app statuses to Linear
   states; bumps dueDate +2d whenever called on an overdue issue). Calendar "Posted"/"Scheduled"

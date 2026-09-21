@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # Samples v2 ↔ Calendar — Parity Log
 
 > **CURRENT-STATE OVERRIDE (2026-07-14; F46/F73).** This is append-only build/parity history, not

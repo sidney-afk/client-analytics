@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # SyncView Independence Plan — n8n off the interactive path, Linear replaced in-app
 
 **Date:** 2026-07-03 · **Status (2026-07-14):** Track A and Track B B0–B3 COMPLETE;

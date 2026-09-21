@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # Slice 5 — owner-gated apply / deploy window
 
 **Status:** STEPS A AND B EXECUTED 2026-07-26 (~23:45Z / 23:49Z). The owner applied the

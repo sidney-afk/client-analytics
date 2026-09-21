@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # Track B re-audit — index.html + scripts/: every Linear consistency surface
 **Auditor domain:** STATUS / ASSIGNEE / DUE / NAME / COMMENT consistency with Linear, workload tab, flags, outboxes, reconcilers.
 **Date:** 2026-07-05. **Baseline for diffs:** `docs/audits/2026-07-03-code.md` (git baseline commit `ba36541`, 2026-07-03).

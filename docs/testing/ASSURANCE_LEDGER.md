@@ -1,5 +1,7 @@
 # Assurance ledger — what is proven, how, and how recently
 
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The old intake/mirror row labels describe the surface at the date of each proof. They are not current Linear workflow requirements, and those old receipts do not certify today’s native flow. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+
 > Owned by `/site-assurance` (see `.claude/skills/site-assurance/SKILL.md`). One row per
 > surface of the quality contract (`docs/QUALITY_TIERS.md`). **An expired proof is an
 > expired proof** — a row here is a claim about evidence, never a claim that "the site

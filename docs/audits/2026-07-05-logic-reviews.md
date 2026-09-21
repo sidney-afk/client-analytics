@@ -1,3 +1,5 @@
+**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+
 # Track B re-audit 2026-07-05 — index.html: THE THREE REVIEW FLOWS (client / Kasper / SMM), calendar + samples
 
 Auditor scope: `/home/user/client-analytics/index.html` @ HEAD `7a58b97` (36,555 lines; was 36,022 in the

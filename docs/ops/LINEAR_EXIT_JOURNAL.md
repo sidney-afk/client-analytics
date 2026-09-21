@@ -13853,3 +13853,55 @@ banner "6 saved work days are not shown because the client stored with that
 work day no longer matches the card" is the gateway's counted drop of
 drifted plan rows (OPEN_REPAIRS 177), historical drift from before today.
 No live read, deployment, migration, or n8n edit.
+
+### 2026-09-21 — Cutoff night close: what closed after the close-out entry, and the open list
+
+Closed between 22:00Z and 01:00Z, all merged: #1454 (Workload popover
+"Open parent" for native batches, OPEN_REPAIRS 222), #1455 (synthetic
+batch-parent node displays "Post"), #1456 (Linear exit retrospective),
+#1457/#1459 (brief-media copy: 1338/1338 occurrences verified after one
+over-50 MB file was removed from one brief by owner decision;
+`native_brief_media` flipped to `required` at 00:02:42Z with both receipts),
+#1460 (archived-in-Linear cards: 11 batches archived natively, 9 cards
+canceled; the reporting editor's late count 14 → 1), #1461 (six drifted
+`workload_plan` rows cleared), #1458 (modularization plan, strategy only).
+n8n, with the owner's explicit go-ahead: the two Hiring dispatch workflows
+(`su5afuhg17V2xhgh`, `eiisSbHsD1OnnNdQ`) moved from a 1-minute to a
+5-minute schedule and published at 23:59Z (pre-edit versions
+`05da2d71-a23c-4585-9e5c-6bead157778f`, `0204ff3b-6af9-483b-9aac-754c0cbee4c8`);
+verified 4 runs each in the first 15 minutes. They were ~86,000 n8n
+executions/month, the largest single consumer; measured on the last clean
+day (2026-09-19, 8,808 executions) the Linear pager was 120/day.
+
+**Open list as of 2026-09-21T01:00Z** (also scheduled as a reminder), so
+nothing depends on memory:
+
+1. The 28 `source='legacy'` rows in `workload_native_snapshot_v1` are all
+   childless CON/STR parent issues last touched 2024-09 to 2026-02. Mark
+   them inactive in `workload_issues` (Storage, with rollback), confirm
+   0 legacy rows and the "legacy Workload source" banner gone, then
+   deactivate n8n `SyncView Workload — Reconcile` (`lGwC9WWPVJtxphtf`,
+   owner go-ahead required) — that is the runbook's STEP 6 item 3
+   condition met by measurement, and the last Linear fetch from n8n.
+2. Runbook `LINEAR_CUTOFF_RUNBOOK.md` still opens "prepared, not
+   executed": one-line docs fix.
+3. OPEN_REPAIRS entries owed: (a) `native-brief-media-copy.mjs` crashed on
+   a bare `fetch failed` and a `storage_upload_failed_520` instead of
+   refusing per file (idempotent retry recovered both); (b) the
+   archived-in-Linear leftover above (root cause: archive never
+   propagated to native around 2026-08-19 to 08-27).
+4. `docs/truth/N8N.md`: record the Hiring interval change above.
+5. Nine stale open PRs from 2026-09-07 to 09-13 (#1389, #1382, #1378,
+   #1376, #1362, #1358, #1350, #1347, #1346), superseded; close after a
+   one-line check each.
+6. STEP 7 (revoke `LINEAR_API_KEY`): recommended 2026-09-27 after a full
+   native week; the brief-media copy no longer needs the key.
+7. n8n plan: re-measure `SyncView Calendar — Linear Issue Statuses`
+   (`GP8CSZDNcy5sGdFr`) on a weekday (3,752/day on 09-19, ~180/day after
+   the cutoff), then size the plan around 100k executions/month; clear
+   the PII-bearing "Hiring Raw Log" data table and deactivate both Hiring
+   workflows once the editor hire closes.
+8. Monday 15:00Z routine: first real native cards.
+9. Modularization: Step 0 per `docs/plans/2026-09-21-modularization-plan.md`;
+   during Step 0 also add a VS Code `files.associations` for `*.part` and
+   note in the PR body that `git blame` on fragments points at the cut.

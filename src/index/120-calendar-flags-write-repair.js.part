@@ -1,0 +1,2925 @@
+    function _calRuntimeFlagSlug(member) {
+        if (typeof member !== 'string') return null;
+        let slug;
+        try { slug = calClientSlug(member); }
+        catch (e) { slug = member.toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+        return slug || null;
+    }
+    /* The members a flag value offers, or null when it offers no member list at
+       all. Split out of the normaliser so the routing gate can tell "an
+       operator's roster holding nobody" (`[]`) from "this value has no roster
+       in it" (a scalar, an object of the wrong shape) -- the normaliser
+       flattens both to zero slugs, and that is the right answer for an
+       ALLOWLIST and the wrong one for a router. */
+    function _calRuntimeFlagRawMembers(value) {
+        if (Array.isArray(value)) return value;
+        if (value && typeof value === 'object' && Array.isArray(value.clients)) return value.clients;
+        return null;
+    }
+    function _calRuntimeFlagClients(value) {
+        const raw = _calRuntimeFlagRawMembers(value);
+        return (raw || []).map(x => _calRuntimeFlagSlug(x)).filter(Boolean);
+    }
+    function _calSetUpsertFlagValue(value) {
+        _calUpsertEfClients = new Set(_calRuntimeFlagClients(value));
+        _calV2Log('calendar-upsert EF clients:', Array.from(_calUpsertEfClients).join(',') || '(none)');
+    }
+    function _clientCommentGatewaySetFlagValue(value) {
+        _clientCommentGatewayEnabled = !!(value && typeof value === 'object'
+            && !Array.isArray(value) && value.enabled === true);
+        _calV2Log('client-comment gateway flag:', _clientCommentGatewayEnabled ? 'on' : 'off');
+    }
+    function _clientCommentGatewayOn() {
+        return _clientCommentGatewayEnabled === true;
+    }
+    /* Did this read come back with a roster a ROUTER can act on?
+       Deliberately not "is the allowlist empty" asked at the predicate: the
+       question belongs to the READ, because only the read knows the difference
+       between an operator's roster that happens to hold nobody and a row that
+       was absent, null, or the wrong shape. All four answer the same way here
+       on purpose -- none of them can tell this tab which lane a given client
+       takes, and after 2026-09-15 guessing "legacy" is guessing "a URL that
+       accepts the write and drops it". Measured 2026-09-07: all 43 active
+       clients are enrolled, so an empty roster is a defect state, never an
+       operating one. */
+    function _writeUiRerouteRosterUsable(row) {
+        const value = row && row.value;
+        if (!value || typeof value !== 'object') return false;
+        const members = _calRuntimeFlagRawMembers(value);
+        if (!members || !members.length) return false;
+        /* EVERY member has to be slug-shaped, not merely one of them. Asking
+           "did normalisation produce at least one slug" was the Codex finding
+           on the first version of this predicate: a corrupt value such as
+           {"clients":[{}]} answered YES -- because the coercion invented
+           `objectobject` -- and that single bogus entry cleared the unusable
+           signal for the whole roster, sending every real client, none of whom
+           are in it, straight back to the retiring Linear webhooks. A roster
+           carrying anything that is not a slug is a roster this tab cannot
+           route by, whatever else is in it, so it heads for the native
+           authority that can refuse out loud. */
+        return members.every(member => _calRuntimeFlagSlug(member) !== null);
+    }
+    function _writeUiSetRerouteFlagValue(value, options) {
+        const previousClients = new Set(_writeUiRerouteClients);
+        const nextClients = new Set(_calRuntimeFlagClients(value));
+        const changed = previousClients.size !== nextClients.size
+            || Array.from(previousClients).some(slug => !nextClients.has(slug));
+        _writeUiRerouteClients = nextClients;
+        _calV2Log('write-UI reroute clients:', Array.from(_writeUiRerouteClients).join(',') || '(none)');
+        if (changed && options && options.refreshProjects) {
+            return _linearRefreshProjectsForRerouteChange(previousClients, nextClients);
+        }
+        return Promise.resolve();
+    }
+    /* KILL-SWITCH for the Kasper-approval URGENT ping, and it is the reason this
+       feature can merge before its Edge Function half exists.
+
+       The marker columns live behind the ⛔ FROZEN writers (see the banner in
+       supabase/functions/calendar-upsert/index.ts). Until their live un-gated
+       source carries the four kasper_urgent_* fields, a ping would post a patch
+       whose fields the allow-list drops -- leaving an UPDATE that writes nothing
+       but `updated_at`. That is not harmless: dedupeByLinearIssue in
+       scripts/linear-sync-reconcile.js picks the canonical row by most-recent
+       `updated_at`, so on a card sharing a Linear link with another, a no-op
+       ping can flip which row the calendar shows. And the DM would say "it is in
+       the Urgent section at the top" of a section that cannot populate.
+
+       So the affordance is OFF until this flag says otherwise, and it FAILS
+       CLOSED: no flag row, no key, a failed read, a malformed value, a client
+       the roster does not name -> off. With it off the feature is completely
+       inert -- no button, so no click, no write and no DM. Turning it on is one
+       row, no deploy. Start with a roster of one, not with everybody:
+
+         insert into public.syncview_runtime_flags (key, value)
+         values ('kasper_urgent_ping_enabled', '{"clients": ["<slug>"]}'::jsonb)
+         on conflict (key) do update set value = excluded.value;
+
+       `{"enabled": true}` opens it for every client; keep that for after the
+       roster has proven itself. Off again is the same one row: `{"clients": []}`
+       or `{"enabled": false}`, both instant and both no deploy.
+    */
+    const KASPER_URGENT_FLAG_KEY = 'kasper_urgent_ping_enabled';
+    let _kasperUrgentFlagValue = null;
+    /* Two shapes, so a rollout can start with one client instead of everybody:
+         { "clients": ["slug"] }  -> on for exactly those clients
+         { "enabled": true }      -> on for all
+       Anything else, including a missing row, a failed read, a malformed value
+       or an unknown client, is OFF. Same roster shape the calendar-upsert and
+       reroute flags already use, so there is one idiom to learn, not two.
+
+       And the same NORMALIZER, which is not optional: calState.client and
+       sxrState.client hold a display name, while the roster holds slugs, so a
+       plain lower-case compare silently misses every client whose name is not
+       already its own slug -- anything with a space, an accent, a `Dr.`, or an
+       `and` the slug writes as `&`. That failure is invisible in the worst
+       way: no button, no error, just a feature that quietly never appears for
+       the client it was turned on for. _calRuntimeFlagClients canonicalizes
+       the roster and calClientSlug canonicalizes the request, exactly as
+       _calUpsertUseEf and _writeUiRerouteUseGateway already do. */
+    function _kasperUrgentPingOn(clientOrSlug) {
+        const v = _kasperUrgentFlagValue;
+        if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
+        if (Array.isArray(v.clients)) {
+            let slug = '';
+            try { slug = calClientSlug(clientOrSlug); }
+            catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+            if (!slug) return false;
+            return _calRuntimeFlagClients(v).indexOf(slug) !== -1;
+        }
+        return v.enabled === true;
+    }
+    /* Re-read at CLICK time, not just at boot. A flag cached at boot makes the
+       advertised one-step rollback untrue: a tab that saw `enabled: true` keeps
+       sending DMs and writing markers after the row is flipped off, which is
+       precisely the situation the switch exists for. So the dispatch path asks
+       again and fails closed, and a stale-cached render can only ever offer a
+       button that then refuses -- never the reverse. (Codex P1 on PR 1370.) */
+    async function _kasperUrgentPingOnLive(clientOrSlug) {
+        try { await _calFetchKasperUrgentFlagOnce(); } catch (e) { _kasperUrgentFlagValue = null; }
+        return _kasperUrgentPingOn(clientOrSlug);
+    }
+    async function _calFetchKasperUrgentFlagOnce() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _kasperUrgentFlagValue = null; return; }
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(KASPER_URGENT_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            const row = Array.isArray(rows) ? rows[0] : null;
+            const was = JSON.stringify(_kasperUrgentFlagValue);
+            _kasperUrgentFlagValue = (row && row.value && typeof row.value === 'object') ? row.value : null;
+            // A render that won the race against this read is buttonless; repaint
+            // it rather than making activation require a reload.
+            if (was !== JSON.stringify(_kasperUrgentFlagValue)) _kasperUrgentRepaintSurfaces();
+        } catch (e) {
+            _kasperUrgentFlagValue = null;   // fail closed, always
+        }
+    }
+    function _kasperUrgentRepaintSurfaces() {
+        try { if (typeof renderCalendarView === 'function' && calState && Array.isArray(calState.posts) && calState.posts.length) renderCalendarView(); } catch (e) {}
+        try { if (typeof _kasperPaintReview === 'function') _kasperPaintReview(); } catch (e) {}
+        try { if (typeof _sxrKasperRenderQueue === 'function') _sxrKasperRenderQueue(); } catch (e) {}
+    }
+    async function _calFetchUpsertFlagOnce() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _calSetUpsertFlagValue({ clients: [] }); return; }
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(CALENDAR_UPSERT_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            const row = Array.isArray(rows) ? rows[0] : null;
+            _calSetUpsertFlagValue(row && row.value ? row.value : { clients: [] });
+        } catch (e) {
+            _calSetUpsertFlagValue({ clients: [] });
+            console.warn('[Calendar] calendar-upsert EF flag read failed; using n8n fallback', e);
+        }
+    }
+    async function _writeUiFetchRerouteFlagOnce(options) {
+        const generation = ++_writeUiRerouteFlagGeneration;
+        const superseded = () => generation !== _writeUiRerouteFlagGeneration;
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) {
+            if (superseded()) return;
+            _writeUiSetRerouteFlagValue({ clients: [] });
+            _clientCommentGatewaySetFlagValue(null);
+            // The ONE state where an empty roster is treated as usable, and for
+            // the same reason this path does not set the failed mark: with no
+            // Supabase config the native gateway is unreachable too, so
+            // routing native routes into nothing. Legacy is the only lane that
+            // could work here, so let the empty allowlist mean what it says.
+            _writeUiRerouteRosterUnusable = false;
+            return;
+        }
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        let timeoutId = null;
+        try {
+            // One read primes both routing flags: the per-client reroute list
+            // and the client-comment gateway front-door switch.
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=key,value&key=in.('
+                + encodeURIComponent(WRITE_UI_REROUTE_FLAG_KEY + ',' + CLIENT_COMMENT_GATEWAY_FLAG_KEY) + ')&limit=2';
+            const request = (async () => {
+                const resp = await fetch(url, {
+                    headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' },
+                    ...(controller ? { signal: controller.signal } : {})
+                });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                return resp.json();
+            })();
+            const timeout = new Promise((_, reject) => {
+                timeoutId = setTimeout(() => {
+                    try { if (controller) controller.abort(); } catch (e) {}
+                    reject(new Error('write_ui_reroute_flag_timeout'));
+                }, WRITE_UI_REROUTE_FLAG_TIMEOUT_MS);
+            });
+            const rows = await Promise.race([request, timeout]);
+            if (superseded()) return;
+            const list = Array.isArray(rows) ? rows : [];
+            const rerouteRow = list.find(row => row && row.key === WRITE_UI_REROUTE_FLAG_KEY) || null;
+            const commentGatewayRow = list.find(row => row && row.key === CLIENT_COMMENT_GATEWAY_FLAG_KEY) || null;
+            _writeUiSetRerouteFlagValue(rerouteRow && rerouteRow.value ? rerouteRow.value : { clients: [] }, options);
+            // An absent row is OFF by design: the flag defaults dark until the
+            // owner flips it after the production-write EF deploy.
+            _clientCommentGatewaySetFlagValue(commentGatewayRow && commentGatewayRow.value ? commentGatewayRow.value : null);
+            _writeUiRerouteFlagFailed = false;
+            // The READ succeeded, so the failed mark clears and the heal stands
+            // down. Whether it succeeded with anything a ROUTER can use is a
+            // separate question, and the line above deliberately does not
+            // answer it: `[]`, an absent key, and a malformed value all reach
+            // here with the allowlist emptied and nothing wrong with the
+            // transport. Codex finding 1.
+            _writeUiRerouteRosterUnusable = !_writeUiRerouteRosterUsable(rerouteRow);
+        } catch (e) {
+            // A missing/unreadable rollout flag leaves the ALLOWLIST empty, and
+            // the allowlist is still the factual answer the outbox drain needs.
+            // What changed on 2026-09-07 (owner decision, LX-C) is what an empty
+            // allowlist means for ROUTING a live write: _writeUiRerouteFlagFailed
+            // is set here, and _writeUiRerouteUseGatewayFailClosed reads it to
+            // send status changes and comments NATIVE instead of to
+            // LINEAR_SET_STATUS_URL / LINEAR_ADD_COMMENT_URL. This comment used
+            // to say "fail-legacy, never fail-open", which was correct while
+            // Linear was the safe destination and is backwards once it is not.
+            // Client comments are unaffected: they are routed legacy by
+            // principal, not by enrollment (see _calPostLinearComment).
+            // The dark fallback stays bare: the roster is empty on this path
+            // both at boot and on a failed heal, so there is never a roster
+            // CHANGE for options.refreshProjects to act on.
+            if (superseded()) return;
+            _writeUiSetRerouteFlagValue({ clients: [] });
+            _clientCommentGatewaySetFlagValue(null);
+            _writeUiRerouteFlagFailed = true;
+            _writeUiRerouteRosterUnusable = true;
+            console.warn('[SyncView] write-UI reroute flag read failed; routing live writes to the native gateway', e);
+        } finally {
+            if (timeoutId !== null) clearTimeout(timeoutId);
+        }
+    }
+    function _writeUiPrimeRerouteFlag() {
+        if (!_writeUiRerouteFlagPromise) {
+            const pending = _writeUiFetchRerouteFlagOnce();
+            // The call above bumps the generation synchronously, so reading it
+            // here captures the generation THIS read was issued under.
+            const generation = _writeUiRerouteFlagGeneration;
+            _writeUiRerouteFlagPromise = pending.catch(() => {
+                if (generation !== _writeUiRerouteFlagGeneration) return;
+                _writeUiSetRerouteFlagValue({ clients: [] });
+                _writeUiRerouteFlagFailed = true;
+                _writeUiRerouteRosterUnusable = true;
+            });
+        }
+        return _writeUiRerouteFlagPromise;
+    }
+    /* OPEN_REPAIRS item 70. The prime above memoises its promise for the life
+       of the page, and the fetch falls back to an EMPTY allowlist on any
+       failure or on the two-second timeout. Those two behaviors composed into
+       the worst silent failure the flip audit found: one slow moment at boot
+       put the whole session on the legacy lane -- where, post-flip, every
+       write 409s server-side, is swallowed client-side, and the screen goes
+       green -- for as long as the tab stayed open. The realtime channel could
+       not save such a tab either, because it only fires when the flag ROW
+       changes. This heal runs on the same resume events that already refresh
+       authority (startup, focus, pageshow, online, visibility, the sixty
+       second timer, and the client-verified path), and it re-fetches ONLY
+       when the last fetch actually failed -- a healthy tab pays one memoised
+       promise await and no request, so steady-state traffic is unchanged. A
+       failed re-fetch keeps the failed mark and the next resume tries again.
+       Racing resumes share one in-flight fetch via the same memo slot. */
+    function _writeUiHealRerouteFlag() {
+        if (!_writeUiRerouteFlagPromise) return _writeUiPrimeRerouteFlag();
+        return _writeUiRerouteFlagPromise.then(() => {
+            if (!_writeUiRerouteFlagFailed) return undefined;
+            // The re-fetch lands MID-SESSION -- the project picker can already
+            // be live -- so a recovered roster must walk the same
+            // rebuild/reconcile path the realtime channel handler walks. The
+            // boot prime skips this only because nothing is rendered yet, and
+            // the refresh helper early-returns before projects load anyway.
+            const pending = _writeUiFetchRerouteFlagOnce({ refreshProjects: true });
+            const generation = _writeUiRerouteFlagGeneration;
+            _writeUiRerouteFlagPromise = pending.catch(() => {
+                if (generation !== _writeUiRerouteFlagGeneration) return;
+                _writeUiSetRerouteFlagValue({ clients: [] });
+                _writeUiRerouteFlagFailed = true;
+                _writeUiRerouteRosterUnusable = true;
+            });
+            return _writeUiRerouteFlagPromise;
+        });
+    }
+    /* A realtime delivery of the reroute row IS a successful read of it, so it
+       clears the failed mark (otherwise the next resume re-fetches against a
+       still-failing REST path and clobbers the good roster) and bumps the
+       generation, which retires any heal already in flight. Named rather than
+       inlined in the channel handler so the suites can execute the real thing. */
+    function _writeUiApplyRerouteFlagFromChannel(row) {
+        _writeUiRerouteFlagGeneration++;
+        _writeUiRerouteFlagFailed = false;
+        // Same split as the fetch: the delivery is a successful read, so the
+        // failed mark clears; whether it delivered a usable roster is asked
+        // separately. A DELETE arrives here with no `row` at all, which is the
+        // literal "someone removed the flag row" case Codex finding 1 names.
+        _writeUiRerouteRosterUnusable = !_writeUiRerouteRosterUsable(row);
+        return _writeUiSetRerouteFlagValue(row && row.value ? row.value : { clients: [] }, { refreshProjects: true });
+    }
+    function _calRuntimeFlagClient() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return Promise.resolve(null);
+        if (_calUpsertFlagClient) return Promise.resolve(_calUpsertFlagClient);
+        if (_calUpsertFlagClientPromise) return _calUpsertFlagClientPromise;
+        _calUpsertFlagClientPromise = _calV2LoadLib().then(lib => {
+            if (!lib || !lib.createClient) return null;
+            _calUpsertFlagClient = lib.createClient(CAL_SUPABASE_URL, CAL_SUPABASE_ANON_KEY, {
+                auth: { persistSession: false, autoRefreshToken: false },
+                realtime: { params: { eventsPerSecond: 2 } }
+            });
+            return _calUpsertFlagClient;
+        }).catch(e => { console.warn('[Calendar] runtime flag realtime init failed', e); _calUpsertFlagClientPromise = null; return null; });
+        return _calUpsertFlagClientPromise;
+    }
+    async function _calSubscribeUpsertFlag() {
+        if (_calUpsertFlagChannel) return;
+        const client = await _calRuntimeFlagClient();
+        if (!client || _calUpsertFlagChannel) return;
+        try {
+            _calUpsertFlagChannel = client
+                .channel('syncview-runtime-flags')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + CALENDAR_UPSERT_FLAG_KEY }, (payload) => {
+                    const row = payload && payload.new ? payload.new : null;
+                    _calSetUpsertFlagValue(row && row.value ? row.value : { clients: [] });
+                })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + WRITE_UI_REROUTE_FLAG_KEY }, (payload) => {
+                    const row = payload && payload.new ? payload.new : null;
+                    _writeUiApplyRerouteFlagFromChannel(row);
+                })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + CLIENT_COMMENT_GATEWAY_FLAG_KEY }, (payload) => {
+                    // A DELETE (payload.new absent) reads as OFF — the same
+                    // fail-legacy default as a missing row at fetch time.
+                    const row = payload && payload.new ? payload.new : null;
+                    _clientCommentGatewaySetFlagValue(row && row.value ? row.value : null);
+                })
+                .subscribe();
+        } catch (e) {
+            console.warn('[Calendar] runtime flag realtime subscribe failed', e);
+            _calUpsertFlagChannel = null;
+        }
+    }
+    function _calPrimeUpsertRoutingFlag() {
+        if (!_calUpsertFlagPromise) {
+            _calUpsertFlagPromise = Promise.all([_calFetchUpsertFlagOnce(), _calFetchKasperUrgentFlagOnce(), _writeUiPrimeRerouteFlag()])
+                .then(() => _calSubscribeUpsertFlag()).catch(() => null);
+        }
+        return _calUpsertFlagPromise;
+    }
+    function _calUpsertUseEf(clientOrSlug) {
+        let slug = '';
+        try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+        return !!slug && _calUpsertEfClients.has(slug);
+    }
+    function _writeUiRerouteUseGateway(clientOrSlug) {
+        let slug = '';
+        try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+        return !!slug && _writeUiRerouteClients.has(slug);
+    }
+    /* ROUTING A LIVE WRITE FAILS CLOSED AGAINST LINEAR (owner decision, 2026-09-07).
+       _writeUiRerouteUseGateway above answers a FACTUAL question — is this slug
+       in the allowlist — and two callers need exactly that answer and must keep
+       it: the outbox drain (index.html ~32320 / ~68380), where a genuinely
+       unenrolled client's legacy item is legitimate traffic and quarantining it
+       is the item-63 defect, and the project-source filter at ~13866.
+       Routing a live write is a different question. Its unreadable-flag answer
+       used to be "legacy": _writeUiFetchRerouteFlagOnce falls back to
+       {clients:[]} on any failure or on the two-second timeout, so ONE slow
+       moment at boot sent every client's status changes to LINEAR_SET_STATUS_URL
+       and every comment to LINEAR_ADD_COMMENT_URL. The comment there calls that
+       "fail-legacy, never fail-open". That was correct while Linear was the safe
+       destination and is exactly backwards once it is not: after 2026-09-15 the
+       legacy lane is a dead URL that fails silently, while the native lane is an
+       authority that can refuse out loud — which is the permissive-client rule in
+       AGENTS.md ("let the authority that can see it decide"), not an exception to it.
+       Measured 2026-09-07 against the live flag: all 43 active clients are
+       enrolled, and the allowlist holds exactly those 43 with no ghosts. So this
+       changes the destination for NO client that works today — only for the
+       failure case, which is the only case it was ever wrong in. */
+    function _writeUiRerouteUseGatewayFailClosed(clientOrSlug) {
+        /* Two signals, not one, and BOTH are checked (Codex finding 1).
+           `_writeUiRerouteFlagFailed` is the read that never landed;
+           `_writeUiRerouteRosterUnusable` is the read that landed with nothing
+           a router can act on -- `[]`, an absent key, a malformed value, or no
+           read yet. The first shipped in item 175 and the second did not, so a
+           deleted or corrupted flag row answered the factual "not enrolled"
+           and every live write went to a webhook that will stop existing.
+           Every failure site sets both; the redundancy is deliberate, so that a
+           later edit which sets only one still fails toward the authority that
+           can refuse out loud rather than toward the silent one. */
+        if (_writeUiRerouteFlagFailed || _writeUiRerouteRosterUnusable) return true;
+        return _writeUiRerouteUseGateway(clientOrSlug);
+    }
+    window.peekWriteUiRerouteClients = function () { return Array.from(_writeUiRerouteClients); };
+    function _calUpsertUrlForClient(clientOrSlug) {
+        return _calUpsertUseEf(clientOrSlug) ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
+    }
+    function _calReorderUrlForClient(clientOrSlug) {
+        return _calUpsertUseEf(clientOrSlug) ? CALENDAR_REORDER_EF_URL : CALENDAR_REORDER_BATCH_URL;
+    }
+    function _syncviewClientWriteToken() {
+        try { return String(new URLSearchParams(location.search).get('t') || '').trim(); } catch (e) { return ''; }
+    }
+    async function _syncviewIssueClientShareUrl(clientName, view) {
+        const identity = _syncviewStaffIdentityForHeaders();
+        if (!identity) throw new Error('Sign in with your staff account to create a secure client link.');
+        const resp = await fetch(CLIENT_REVIEW_LINK_URL, {
+            method: 'POST',
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CLIENT_REVIEW_LINK_URL),
+            body: JSON.stringify({ client: clientName })
+        });
+        let json = null; try { json = await resp.json(); } catch (e) {}
+        if (!resp.ok || !json || !json.ok || !json.token) throw new Error(_syncviewShareLinkErrorMessage(json && json.error, resp.status));
+        const q = new URLSearchParams();
+        if (view === 'sample-reviews') q.set('sxr', '1');
+        q.set('c', clientName);
+        if (view && view !== 'analytics') q.set('v', view);
+        q.set('t', json.token);
+        return location.origin + location.pathname + '?' + q.toString();
+    }
+    /* The issuer fails closed with a machine code, and every share button used
+       to toast that code verbatim — a brand-new client produced a bare
+       "review_token_missing" that told the SMM nothing they could act on.
+       Translate each code into the next step instead. */
+    function _syncviewShareLinkErrorMessage(code, status) {
+        switch (String(code || '')) {
+            case 'invalid_client':
+                return 'Pick a client before copying a share link.';
+            case 'credentials_required':
+            case 'ambiguous_credentials':
+            case 'invalid_staff_key':
+                return 'Your staff sign-in is no longer valid. Sign in again, then copy the link.';
+            case 'staff_required':
+                return 'Only a signed-in staff account can create a client link.';
+            case 'inactive_client':
+                return 'This client has no active roster row yet. Create their public.clients row (new-client runbook step 6f), then copy the link.';
+            case 'review_token_missing':
+                return 'Could not issue this client a review token. Ask an admin to run scripts/provision-client-access.js --apply.';
+            case 'authorization_unavailable':
+            case 'service_unavailable':
+                return 'The client-link service is unavailable right now. Try again in a moment.';
+            case 'method_not_allowed':
+            case 'request_failed':
+                return 'Could not issue a secure client link. Try again.';
+            default:
+                return code
+                    ? 'Could not issue a secure client link (' + code + ').'
+                    : 'Could not issue a secure client link (HTTP ' + status + ').';
+        }
+    }
+    function _syncviewEfHeaders(headers, url) {
+        const out = Object.assign({}, headers || {});
+        try {
+            if (_isClientLink && String(url || '').indexOf(CAL_SUPABASE_URL + '/functions/v1/') === 0) {
+                const run = _syncviewClientEntryDataRun;
+                const token = _syncviewClientEntryRunCurrent(run) ? _syncviewClientWriteToken() : '';
+                if (token) out['X-Syncview-Client-Token'] = token;
+            } else if (!_isClientLink && String(url || '').indexOf(CAL_SUPABASE_URL + '/functions/v1/') === 0) {
+                const identity = _syncviewStaffIdentityForHeaders();
+                if (identity) {
+                    out['X-Syncview-Key'] = identity.key;
+                    out['X-Syncview-Actor'] = identity.member.name;
+                    out['X-Syncview-Role'] = identity.role;
+                }
+            }
+        } catch (e) {}
+        return out;
+    }
+    function _calUpsertHeaders(source, url) {
+        let role = 'smm';
+        try { if (_isClientLink) role = 'client'; else if (location.hash === '#kasper' || new URLSearchParams(location.search).get('Kasper') === '1') role = 'kasper'; } catch (e) {}
+        const actor = role === 'client' ? 'Client' : (role === 'kasper' ? 'Kasper' : 'SyncView');
+        return _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': actor, 'X-Syncview-Role': role, 'X-Syncview-Source': source || 'ui' }, url);
+    }
+
+    /* Write-UI Part 2: one authenticated Calendar/SXR gateway. The browser
+       reads authority live before each intent, then the gateway re-checks it
+       transactionally. Linear authority uses the narrow legacy-parity outbox
+       lane; SyncView authority requires a native deliverable id. */
+    const WRITE_UI_PRODUCTION_WRITE_URL = CAL_SUPABASE_URL + '/functions/v1/production-write';
+    const WRITE_UI_AUTHORITY_URL = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.prod_authority&limit=2';
+    const WRITE_UI_QUEUE_DIAG_KEY = 'syncview_write_ui_queue_diag_v1';
+    const WRITE_UI_SOURCE_REPAIR_KEY = 'syncview_write_ui_source_repairs_v1';
+    let _writeUiAuthorityLive = null;
+    let _writeUiAuthorityReadAt = 0;
+    let _writeUiAuthorityPromise = null;
+    const _writeUiFailureNoticeAt = Object.create(null);
+    /* OPEN_REPAIRS item 59: writeUiLinkSlotSealed() reads the authority
+       SNAPSHOT synchronously at render time, but the calendar/samples grids
+       paint on their own schedule and nothing re-renders when the live
+       authority read (async, network-bound) actually lands. On a flip day
+       that leaves the pre-flip Linear link controls on screen indefinitely,
+       not just for the one legitimate fail-open first paint -- measured
+       stale ~20s into an otherwise idle, fully loaded page. Track the last
+       authority value the grids were rendered under; the boot/resume path
+       below re-renders only when it actually changes (first resolution, or
+       a live flip while the tab stays open), never on the routine
+       focus/visibility/60s-timer polls that re-confirm the same value. */
+    let _writeUiLastRenderedAuthoritySig = null;
+
+    function _writeUiNormalizeAuthority(value) {
+        if (typeof value === 'string') { try { value = JSON.parse(value); } catch (e) { return null; } }
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+        const video = String(value.video || '').trim().toLowerCase();
+        const graphics = String(value.graphics || '').trim().toLowerCase();
+        return ['linear', 'syncview'].includes(video) && ['linear', 'syncview'].includes(graphics)
+            ? { video, graphics }
+            : null;
+    }
+    async function _writeUiRefreshAuthority() {
+        if (_writeUiAuthorityPromise) return _writeUiAuthorityPromise;
+        _writeUiAuthorityPromise = (async () => {
+            try {
+                const resp = await fetch(WRITE_UI_AUTHORITY_URL, {
+                    cache: 'no-store',
+                    headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
+                });
+                if (!resp.ok) throw new Error('authority_http_' + resp.status);
+                const rows = await resp.json();
+                if (!Array.isArray(rows) || rows.length !== 1) throw new Error('authority_row_count');
+                const value = _writeUiNormalizeAuthority(rows[0] && rows[0].value);
+                if (!value) throw new Error('authority_malformed');
+                _writeUiAuthorityLive = value;
+                _writeUiAuthorityReadAt = Date.now();
+                return value;
+            } catch (e) {
+                // Last-known-good is render-diagnostic only. Writes and cache
+                // hydration require this call's live result and never guess.
+                _writeUiAuthorityLive = null;
+                _writeUiAuthorityReadAt = 0;
+                return null;
+            } finally {
+                _writeUiAuthorityPromise = null;
+            }
+        })();
+        return _writeUiAuthorityPromise;
+    }
+    function _writeUiAuthoritySnapshot() { return _writeUiAuthorityLive; }
+    function _writeUiTeam(component) { return String(component || '').toLowerCase() === 'graphic' ? 'graphics' : 'video'; }
+
+    /* WHICH COMPONENTS HAVE A WORK ITEM OF THEIR OWN.
+
+       `video` and `graphic` each own a row in `deliverables`. `caption` and
+       `title` never have: their notes and statuses live only in the card row
+       (`caption_tweaks` / `title_tweaks`, `caption_status` / `title_status`),
+       which the calendar upsert already persists, and `_calLinearUrlFor` has
+       always returned '' for both on purpose.
+
+       But every comment path collapses its component argument with
+       `comp === 'graphic' ? 'graphic' : 'video'`, and `_writeUiNativeId` used
+       the same ternary -- so a caption note was aimed at the VIDEO deliverable.
+       While video was Linear-authoritative that was invisible:
+       `_writeUiClassifyTargetless` answered `{skipped:true}` and the note
+       simply saved to the card. The video flip on 2026-08-28 turned the very
+       same call into a 409 `native_link_required`, and from that day:
+
+         - on a card with NO video deliverable (a carousel, a graphic-only
+           post), "Request change" and "Approve after tweaks" on the caption
+           threw, the whole row save was abandoned, and the reviewer got the
+           raw code as an error banner;
+         - on a card that HAS one, the caption note was accepted -- into the
+           VIDEO deliverable's canonical thread, filed as a video comment.
+
+       Reported by Kasper 2026-09-03, six days after the flip. OPEN_REPAIRS 127.
+
+       An UNKNOWN component keeps the historic default of `video`, so this
+       predicate can only ever make caption and title source-only. A new
+       component that really does own a deliverable must keep refusing out
+       loud; silently making a real work item source-only would be the worse
+       failure, and it is the one this rule could otherwise introduce. */
+    function _writeUiComponentHasWorkItem(component) {
+        // The list is inlined rather than read from a module constant so this
+        // function is SELF-CONTAINED. Every suite here lifts writers into a vm
+        // one function at a time; a rule that needs a companion constant loaded
+        // beside it is one more thing for the next harness to forget, and it
+        // fails as a ReferenceError inside the code under test rather than as a
+        // missing assertion.
+        return !['caption', 'title'].includes(String(component || '').trim().toLowerCase());
+    }
+
+    /* Can this component's Linear link still be SET by hand?
+     *
+     * Owner ruling 2026-08-25: "can we make it so people cannot paste a link
+     * anymore? Because I don't think we would need to do that anymore."
+     *
+     * The link slot was never decoration. While a team is LINEAR-authoritative
+     * the URL IS the write target -- `_writeUiGatewayPost` takes the legacy
+     * parity lane and sends `payload.issue` -- so pasting one is how the card
+     * gets connected, and the slot is correct. The moment that team flips to
+     * SYNCVIEW the same paste means something else entirely: the write now
+     * needs `intent.nativeId`, the paste writes only the URL column, and
+     * `makePayload` throws `native_link_required` forever after. The card looks
+     * connected and fails on use.
+     *
+     * That is not a hypothetical. Of 352 graphic `link_set` events in the nine
+     * days after the 2026-08-16 graphics flip, three left a real card
+     * half-linked -- and one of them was the SMM who then reported the bug,
+     * refused the next morning on a link he had pasted himself at 23:22. The
+     * gesture changed meaning underneath the people using it and nothing said
+     * so. Sealing the slot is what says so.
+     *
+     * Keyed on AUTHORITY, not on "graphics", so this needs no edit when video
+     * flips: a slot is sealed exactly when its own team stopped reading the URL
+     * as the write target. The safe direction still runs untouched --
+     * `_calAdoptDeliverableLinks` fills an empty slot FROM the deliverable, and
+     * `_calProdSlotHtml` links straight to the Production row. */
+    function _writeUiLinkSlotSealed(component) {
+        const authority = _writeUiAuthoritySnapshot();
+        // Render-side only, and deliberately fails OPEN: the snapshot is null
+        // until the first live read lands, and hiding a legitimate video
+        // control during first paint would be a worse lie than showing one that
+        // the commit gate below then refuses out loud.
+        return !!authority && authority[_writeUiTeam(component)] === 'syncview';
+    }
+    /* The gate that actually decides, on a LIVE read, because the renderer can
+     * be stale, a tab can be old, and the sealed control is reachable by
+     * keyboard and by the conflict-resolution path. Fails CLOSED on an
+     * unreadable flag for the same reason `_writeUiGatewayPost` answers
+     * `authority_unavailable` rather than guessing: allowing one paste through
+     * a flag outage mints a card that stays broken for weeks, while refusing
+     * one is visible and recoverable in a minute. */
+    async function _writeUiLinkSlotSealedLive(component) {
+        const authority = await _writeUiRefreshAuthority();
+        if (!authority) return { sealed: true, reason: 'authority_unavailable' };
+        return { sealed: authority[_writeUiTeam(component)] === 'syncview', reason: 'syncview_authoritative' };
+    }
+    function _writeUiLinkSlotSealedNotice(component, reason) {
+        const label = String(component || '').toLowerCase() === 'graphic' ? 'Thumbnail' : 'Video';
+        if (reason === 'authority_unavailable') {
+            return [label + ' links can’t be changed right now',
+                'We could not read which system owns this work, so nothing was saved. Try again in a moment.'];
+        }
+        return [label + ' links are set automatically now',
+            'This work lives in SyncView, so pasting a Linear link here would not connect the card — it would leave it looking linked while every status change failed. Create the work in SyncView and the link fills itself in. You can still clear a link that is already here.'];
+    }
+    /* Sweep items 87.8 and 87.16, one defect on two surfaces. A locked status
+       pill said "Link a Linear sub-issue first" -- an instruction naming an
+       affordance the flip deleted. The empty sealed link slot renders NOTHING
+       (_calLinearSlotHtml returns '' for it, with its own note that the warn it
+       replaced "was actively asking people to create the defect"), Production
+       creation is closed, and _calOpenNativePost is reachable only from the two
+       Add-card paths. So there is no control anywhere that satisfies the
+       sentence, and the reader who goes looking for one is spending time on a
+       search that cannot end.
+
+       Measured live 2026-08-31, cards not archived: 66 have a fully unlinked
+       video component and 36 a fully unlinked graphic, so roughly 100 pills
+       carry it, plus the samples equivalents. Restricted to scheduled_date from
+       2026-08-01 that is 133 and 116 -- cards an SMM is looking at this week.
+
+       The lock is CORRECT and stays; only the sentence was stale. Like
+       native_link_required (87.14) this names no remedy: there is no in-app one
+       post-flip, so the honest remedy is an escalation and which one is the
+       the owner to choose. It does say the work item cannot be created here,
+       because that is a fact and it is the half that stops the hunting. */
+    const WRITE_UI_NO_WORK_ITEM_TEXT = 'This component has no work item behind it, so its status cannot be changed here — and one cannot be created from this screen.';
+    function _writeUiSourceClientSlug(surface, meta) {
+        const post = meta && meta.post;
+        const explicit = String(meta && (
+            meta.clientSlug || meta.client_slug || meta.sourceClientSlug || meta.source_client_slug
+                || meta.client || meta.clientName || meta.client_name
+        ) || post && (
+            post.client_slug || post.clientSlug || post.client || post.client_name || post.clientName
+        ) || '').trim();
+        if (explicit) return wlNormalizeClient(explicit);
+        try {
+            if (surface === 'calendar') return calClientSlug(calState.client);
+            if (surface === 'sxr') return sxrClientSlug(sxrState.client);
+        } catch (e) {}
+        return '';
+    }
+    async function _writeUiRerouteUseGatewayWhenReady(clientOrSlug) {
+        const clientSlug = wlNormalizeClient(clientOrSlug && clientOrSlug.name ? clientOrSlug.name : clientOrSlug);
+        await _writeUiPrimeRerouteFlag();
+        return _writeUiRerouteUseGatewayFailClosed(clientSlug);
+    }
+    async function _writeUiUseGatewayWhenReady(surface, meta) {
+        // Freeze the initiating card/client before the runtime flag wait. A tab
+        // switch while fetch is pending must not reroute this already-clicked
+        // intent using mutable Calendar/SXR selection state.
+        const clientSlug = _writeUiSourceClientSlug(surface, meta);
+        await _writeUiPrimeRerouteFlag();
+        return _writeUiRerouteUseGatewayFailClosed(clientSlug);
+    }
+    async function _writeUiClassifyTargetless(surface, component, meta) {
+        const authority = await _writeUiRefreshAuthority();
+        const team = _writeUiTeam(component);
+        if (!authority) throw _writeUiGatewayError(503, 'authority_unavailable');
+        if (authority[team] === 'syncview') throw _writeUiGatewayError(409, 'native_link_required');
+        const slug = _writeUiSourceClientSlug(surface, meta);
+        if (!slug) throw _writeUiGatewayError(503, 'client_scope_unavailable');
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/clients?select=slug,kind,active&slug=eq.' + encodeURIComponent(slug) + '&limit=2';
+            const response = await fetch(url, {
+                cache: 'no-store',
+                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
+            });
+            if (!response.ok) throw new Error('client_scope_http_' + response.status);
+            const rows = await response.json();
+            if (!Array.isArray(rows) || rows.length !== 1 || rows[0].active === false) throw new Error('client_scope_row_count');
+            if (String(rows[0].kind || '').trim().toLowerCase() === 'test') {
+                // Canonical TEST is SyncView-authoritative server-side even while
+                // the global team flag remains Linear. A targetless stale card
+                // must therefore fail instead of persisting a source-only edit.
+                throw _writeUiGatewayError(409, 'native_link_required');
+            }
+            return { skipped: true };
+        } catch (error) {
+            if (error && error.code === 'native_link_required') throw error;
+            throw _writeUiGatewayError(503, 'client_scope_unavailable');
+        }
+    }
+    function _writeUiNativeId(post, component) {
+        if (!post) return '';
+        // A component with no work item has no deliverable id -- least of all
+        // the neighbouring component's. Answering `video_deliverable_id` here
+        // is what let a caption be treated as linked to the video row.
+        if (!_writeUiComponentHasWorkItem(component)) return '';
+        return String((component === 'graphic' ? post.graphic_deliverable_id : post.video_deliverable_id) || '').trim();
+    }
+    /* F42 crosswalk parity for the canonical comment gate.
+
+       Carrying a deliverable id is NOT the same as being linked. The import RPC
+       — and `scripts/f42-card-comment-import.js`, which mirrors it exactly —
+       accepts a card's comment only when the deliverable it names actually
+       DESCRIBES that card: matching origin, team, client_slug and card_id. A
+       card whose link fails that check has no canonical thread the import can
+       ever write into, so treating it as "linked" projects an EMPTY canonical
+       read over the card's real legacy comments. On calendar that is not merely
+       a blank render: `_calSetCommentsFor` also rewrites the `*_tweaks` wire
+       string, and the next save persists the emptied column — durable loss of
+       comment history, on staff sessions as well as client ones.
+
+       Live evidence for why this is not hypothetical: of the deliverables with
+       origin='manual', ZERO carry a card_id, so every card-side-only link write
+       produces exactly this state. See
+       docs/independence/F42_CARD_DELIVERABLE_LINKAGE_REPORT.md.
+
+       The gate therefore requires a VALIDATED link and fails back to legacy
+       rendering on mismatch, on a missing deliverable, and on any fetch
+       failure. Unknown is treated as not-linked: showing legacy comments a
+       moment longer is always recoverable; overwriting them is not. */
+    const PROD_CROSSWALK_SURFACE_ORIGIN = { calendar: 'calendar', sxr: 'samples' };
+    const PROD_CROSSWALK_SELECT = 'id,client_slug,team,origin,card_id';
+    function _prodCrosswalkTeamForComponent(component) {
+        return component === 'graphic' ? 'graphics' : 'video';
+    }
+    function _prodCrosswalkCardSlug(post) {
+        return String((post && (post.client_slug || post.client)) || '').trim();
+    }
+    /* Mirrors deliverableCrosswalkIssues() in scripts/f42-card-comment-import.js:
+       origin and team compare case-insensitively; client_slug and card_id
+       compare exactly after trimming. Returns the sorted mismatching field
+       names, so the reason string matches the planner's `crosswalk_fields:` form. */
+    function _prodCrosswalkMismatchFields(deliverable, surface, post, component) {
+        const low = v => String(v == null ? '' : v).trim().toLowerCase();
+        const exact = v => String(v == null ? '' : v).trim();
+        const expectedOrigin = PROD_CROSSWALK_SURFACE_ORIGIN[low(surface)] || '';
+        const fields = [];
+        if (low(deliverable && deliverable.origin) !== expectedOrigin) fields.push('origin');
+        if (low(deliverable && deliverable.team) !== _prodCrosswalkTeamForComponent(component)) fields.push('team');
+        if (exact(deliverable && deliverable.client_slug) !== _prodCrosswalkCardSlug(post)) fields.push('client_slug');
+        if (exact(deliverable && deliverable.card_id) !== exact(post && post.id)) fields.push('card_id');
+        return fields.sort();
+    }
+    /* Verdict cache lives on the post, mirroring `_canonicalCommentReads`, so
+       the gate stays synchronous for the 16 render/write call sites that read
+       it. `state` is one of: valid | mismatch | absent | error. Anything other
+       than 'valid' — including a deliverable id nobody has resolved yet —
+       renders legacy.
+
+       Keyed by COMPONENT + deliverable id, never by id alone. The crosswalk
+       verdict is component-specific because the expected team is derived from
+       the component, so one deliverable id occupying both the video and graphic
+       slots of a card would otherwise cross-validate: a verdict earned in the
+       slot where the team matches would silently authorize the slot where it
+       does not. */
+    function _prodCrosswalkKey(component, deliverableId) {
+        return String(component || '') + '|' + String(deliverableId || '');
+    }
+    function _prodCrosswalkVerdict(post, deliverableId, component) {
+        const slots = post && post._canonicalCrosswalk;
+        if (!slots || !deliverableId) return null;
+        const verdict = slots[_prodCrosswalkKey(component, deliverableId)];
+        return verdict && typeof verdict === 'object' ? verdict : null;
+    }
+    function _prodCrosswalkSetVerdict(post, deliverableId, component, verdict) {
+        if (!post || !deliverableId) return;
+        if (!post._canonicalCrosswalk || typeof post._canonicalCrosswalk !== 'object') {
+            post._canonicalCrosswalk = {};
+        }
+        post._canonicalCrosswalk[_prodCrosswalkKey(component, deliverableId)] = verdict;
+    }
+    /* Ephemeral, session-only canonical state. These carry a verdict and a read
+       status derived from a live lookup, so a serialized copy rehydrated from
+       the 7-day card cache would be a stale authorization: a link repaired,
+       broken or re-pointed since the snapshot would still read as its old
+       verdict, and a stale `ready` would let an empty projection act. Stripped
+       on the way into the cache so a hydrated post always re-resolves. */
+    const PROD_EPHEMERAL_CANONICAL_KEYS = Object.freeze([
+        // `_legacyReadIncomplete` is here for exactly the reason the other two
+        // are: it is a verdict derived from a live read, and a copy rehydrated
+        // up to 7 days later is a stale one. It refuses rather than permits, so
+        // a stale copy holds a card whose column has since been repaired —
+        // and the Samples loader skips re-parsing entirely when the cached post
+        // already carries its array, so nothing would ever recompute it.
+        '_canonicalCrosswalk', '_canonicalCommentReads', '_legacyReadIncomplete',
+    ]);
+    function _prodStripEphemeralCanonicalState(post) {
+        if (!post || typeof post !== 'object') return post;
+        let copy = post;
+        for (const key of PROD_EPHEMERAL_CANONICAL_KEYS) {
+            if (!Object.prototype.hasOwnProperty.call(copy, key)) continue;
+            if (copy === post) copy = Object.assign({}, post);
+            delete copy[key];
+        }
+        return copy;
+    }
+    function _prodStripEphemeralCanonicalPosts(posts) {
+        return (Array.isArray(posts) ? posts : []).map(_prodStripEphemeralCanonicalState);
+    }
+    /* PROVENANCE INVARIANT for overwriting legacy card storage.
+
+       A canonical projection may REPLACE non-empty legacy card content only
+       when that legacy content is demonstrably represented in the canonical
+       thread. An empty-only guard is not enough: a single canonical row — a
+       fresh reply on a card whose history was never imported — passes an
+       "is it empty?" test and then wholesale-replaces the stored array and its
+       `*_tweaks` wire string, destroying every legacy message.
+
+       The browser cannot read import provenance directly, so it proves the
+       invariant structurally: the canonical projection must be an exact
+       SUPERSET of the legacy rows, matched on body + author + timestamp. If
+       every legacy message is present in canonical, canonical is a strictly
+       better version of the same thread and replacing is lossless. If even one
+       legacy message is unmatched, the thread was not fully imported and the
+       write is refused — the caller then renders canonical WITHOUT writing
+       legacy storage, or falls back to legacy. Never destroy.
+
+       Matching is deliberately forgiving on shape and strict on content: the
+       same message can carry different id/field names on either side, so it is
+       identified by what a human wrote, not by how it was stored. */
+    function _prodCommentProvenanceKey(row) {
+        const item = row && typeof row === 'object' ? row : {};
+        // The RAW body: no case-folding, no whitespace collapsing. Those
+        // normalisations made materially different content compare EQUAL —
+        // "Approved" against "approved", or a message whose line breaks carry
+        // its meaning — and that error runs in the dangerous direction: it
+        // marks a legacy row as covered by canonical content that differs
+        // from it, permitting a lossy replacement.
+        const body = String(item.body == null ? (item.text == null ? '' : item.text) : item.body);
+        const author = String(
+            item.author_key || item.author_name || item.author || item.by || item.role || ''
+        );
+        const when = String(
+            item.source_created_at || item.created_at || item.at || item.ts || ''
+        );
+        // Structurally injective by CONSTRUCTION, not by assumption about
+        // what field values can contain: JSON.stringify escapes any delimiter
+        // a field could otherwise forge, so no combination of body/author/
+        // timestamp can produce the key of a different combination. (No
+        // apostrophes in this comment on purpose: the source extractor the
+        // tests use tracks quote characters but not comments, so a stray
+        // apostrophe desynchronises its brace matching.)
+        return JSON.stringify([body, author, when]);
+    }
+    /* A legacy comment column we FAILED TO FULLY READ is not an empty column.
+
+       Both card loaders drop content silently: an unparseable JSON string, a
+       row with no `id`, or (on Samples) any non-JSON string all reduce to an
+       empty or short array. The stored column is untouched and stays perfectly
+       readable to a human, a support query or a migration — until a projection
+       overwrites it, at which point it is gone for everyone.
+
+       So the state is UNKNOWN, not EMPTY, and coverage must refuse: never
+       replace content you cannot demonstrably carry, and a column we failed to
+       read is content we do not carry.
+
+       Computed from the raw column against the parsed array rather than trusted
+       from a load-time flag alone, because a post rehydrated from the 7-day
+       cache already carries its parsed array and skips the loader entirely. */
+    function _prodLegacyRawFieldCount(raw) {
+        const text = String(raw == null ? '' : raw).trim();
+        if (!text) return 0;
+        if (text.charAt(0) !== '[') return 1;
+        try {
+            const parsed = JSON.parse(text);
+            // A JSON-shaped column that does not parse, or does not hold an
+            // array, still holds SOMETHING a human can read.
+            return Array.isArray(parsed) ? parsed.length : 1;
+        } catch (_e) {
+            return 1;
+        }
+    }
+    /* Do two raw columns hold the SAME content? Compared as parsed data when
+       both parse to arrays, so a non-destructive backfill that rewrites one
+       column with different key order or spacing does not read as extra
+       unread content and hold the card forever. */
+    function _prodLegacySameContent(a, b) {
+        const left = String(a == null ? '' : a).trim();
+        const right = String(b == null ? '' : b).trim();
+        if (left === right) return true;
+        try {
+            const lp = JSON.parse(left);
+            const rp = JSON.parse(right);
+            if (!Array.isArray(lp) || !Array.isArray(rp)) return false;
+            const norm = rows => JSON.stringify(rows.map(_prodCommentProvenanceKey).sort());
+            return norm(lp) === norm(rp);
+        } catch (_e) {
+            return false;
+        }
+    }
+    function _prodLegacyReadIncomplete(post, component, loadedRows, surface) {
+        if (!post) return false;
+        const flags = post._legacyReadIncomplete;
+        if (flags && typeof flags === 'object' && flags[component]) return true;
+        const primaryRaw = String(post[component + '_tweaks'] == null ? '' : post[component + '_tweaks']).trim();
+        let stored = _prodLegacyRawFieldCount(primaryRaw);
+        // The video slot spans TWO legacy columns. Both setters keep
+        // `video_tweaks` and the pre-split `tweaks` alias in sync, so any write
+        // overwrites both — but the readers do not treat them alike, and the
+        // difference is SURFACE-SPECIFIC:
+        //
+        //   calendar — reads `tweaks` as a fallback and seeds one row from it
+        //              when `video_tweaks` is empty, so an empty primary still
+        //              carries the alias content.
+        //   samples  — never reads `tweaks` at all and has no seed path, so an
+        //              empty primary carries NOTHING while the write still
+        //              destroys the alias.
+        //
+        // Hence the empty-primary exemption applies to calendar only.
+        if (component === 'video') {
+            const aliasRaw = String(post.tweaks == null ? '' : post.tweaks).trim();
+            const seededByFallback = String(surface || '').toLowerCase() === 'calendar' && !primaryRaw;
+            if (aliasRaw && !seededByFallback && !_prodLegacySameContent(aliasRaw, primaryRaw)) stored += 1;
+        }
+        if (!stored) return false;
+        return stored > (Array.isArray(loadedRows) ? loadedRows.length : 0);
+    }
+    /* Stamped by the loaders at the point the drop actually happens. Always
+       call it with the VERDICT, including `false`: a stale true would hold a
+       card whose column has since been repaired, and nothing else clears it. */
+    function _prodMarkLegacyReadIncomplete(post, component, incomplete) {
+        if (!post) return;
+        if (!post._legacyReadIncomplete || typeof post._legacyReadIncomplete !== 'object') {
+            post._legacyReadIncomplete = {};
+        }
+        if (incomplete === false) delete post._legacyReadIncomplete[component];
+        else post._legacyReadIncomplete[component] = true;
+    }
+    /* Client-visible rows under the ROOT-audience rule: a reply inherits the
+       audience of its thread root, Kasper authorship is hard-hidden, and
+       tombstoned/hidden rows are excluded.
+
+       Used to build BOTH sides of the client coverage comparison. Filtering the
+       canonical side on each row own audience instead would make the two sides
+       incomparable: a canonical reply tagged internal beneath a client-visible
+       root is in the legacy set but absent from the canonical set, so coverage
+       could never succeed and the card would hold forever. */
+    function _prodRootAudienceClientRows(rows) {
+        const list = Array.isArray(rows) ? rows : [];
+        const visible = list.filter(c => c && (!c.deleted || c.canonical) && !c.hidden);
+        const byId = new Map();
+        for (const c of visible) if (c && c.id) byId.set(c.id, c);
+        const rootAudience = (c) => {
+            const root = (c.parent_id && byId.has(c.parent_id)) ? byId.get(c.parent_id) : c;
+            return _sxrMsgAudience(root);
+        };
+        return visible.filter(c => {
+            if (!c) return false;
+            if (c.role === 'kasper') return false;
+            return rootAudience(c) === 'client';
+        });
+    }
+    /* Legacy state the canonical row shape cannot represent.
+
+       Coverage matches on body + author + timestamp, but adoption REPLACES the
+       whole row. Any legacy field the canonical shape does not carry is
+       therefore destroyed even on a perfect content match — and `hidden` points
+       in the exposure direction: it is a deliberate suppression of legacy
+       cross-client feedback that bled onto the wrong client row, kept as
+       hide-not-delete so the text survives in the sheet. `production_comments`
+       has no hidden column, so an adopted twin comes back unsuppressed and the
+       text renders again.
+
+       Resolve provenance is NOT listed here: `resolved_at`/`resolved_by_name`
+       do exist in canonical storage and are now carried through, so a resolved
+       comment adopts without losing who closed it or when.
+
+       Refusing rather than carrying is deliberate for anything canonical cannot
+       store: carrying it would produce a row whose suppression evaporates on
+       the next canonical read, which is a slower version of the same bug.
+
+       `deleted` is here for a different and sharper reason: a tombstone works
+       by ID. A soft-deleted row stays in storage so a stale merge or a laggy
+       poll carrying the pre-delete copy loses the union on that id
+       (_calMergeCommentLists keeps the newer stamp and logs the attempt).
+       Adoption replaces the row with its canonical twin, whose id is composite
+       derived — `native_comment_id` is the production id, not the legacy one —
+       so the legacy id disappears from the card store entirely. The tombstone
+       still exists, under an id nothing will ever collide with, and a stale
+       copy of the legacy row is absorbed as a BRAND NEW comment. Proven by
+       driving the real merge in
+       test/production-canonical-projection-invocation.js: the deleted body
+       becomes visible again and the existing resurrection log never fires,
+       because the merge never sees it as overriding a tombstone.
+
+       Scoped to rows that are not already canonical: once a card has adopted,
+       its own deleted canonical rows are the correct stored form and must not
+       hold it forever. */
+    function _prodLegacyUnrepresentableState(rows) {
+        const found = new Set();
+        for (const row of Array.isArray(rows) ? rows : []) {
+            if (!row || row.canonical === true) continue;
+            if (row.hidden === true) found.add('hidden');
+            if (row.deleted === true) found.add('deleted');
+        }
+        return [...found].sort();
+    }
+    /* True when the canonical projection contains every legacy row — counted
+       as a MULTISET, not a set. N identical legacy messages need N canonical
+       copies: set containment let ONE canonical row "cover" all N, and the
+       replacement then silently dropped the duplicates. An empty legacy array
+       is trivially covered. */
+    function _prodCanonicalCoversLegacy(canonicalRows, legacyRows) {
+        const legacy = Array.isArray(legacyRows) ? legacyRows : [];
+        if (!legacy.length) return true;
+        const canonical = Array.isArray(canonicalRows) ? canonicalRows : [];
+        if (!canonical.length) return false;
+        const available = new Map();
+        for (const row of canonical) {
+            const key = _prodCommentProvenanceKey(row);
+            available.set(key, (available.get(key) || 0) + 1);
+        }
+        for (const row of legacy) {
+            const key = _prodCommentProvenanceKey(row);
+            const remaining = available.get(key) || 0;
+            // Absent entirely, or every canonical copy already spoken for by
+            // an earlier legacy row: this legacy message would be lost.
+            if (remaining <= 0) return false;
+            available.set(key, remaining - 1);
+        }
+        return true;
+    }
+    /* Reads the crosswalk columns the anon role is granted on `deliverables`
+       (id, client_slug, team, origin, card_id — the same five the F42 exporter
+       projects). A non-OK response or a throw leaves every requested id
+       unresolved, which the gate reads as not-linked. */
+    async function _prodFetchCrosswalkRows(ids) {
+        const wanted = [...new Set((ids || []).map(id => String(id || '').trim()).filter(Boolean))];
+        if (!wanted.length) return { ok: true, rows: new Map() };
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return { ok: false, rows: new Map() };
+        // Quote each id for the PostgREST in.(...) list. Escaping uses
+        // split/join rather than a regex literal holding a double quote, and
+        // this comment avoids apostrophes and backticks on purpose: the source
+        // extractor the tests use tracks quote characters but not regex
+        // literals or comments, so either one desynchronises its brace
+        // matching and swallows the rest of the file.
+        const list = wanted.map(id => '"' + String(id).split('"').join('\\"') + '"').join(',');
+        const url = CAL_SUPABASE_URL + '/rest/v1/deliverables?select=' + PROD_CROSSWALK_SELECT
+            + '&id=in.(' + encodeURIComponent(list) + ')';
+        try {
+            const response = await fetch(url, {
+                cache: 'no-store',
+                headers: {
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    Accept: 'application/json'
+                }
+            });
+            if (!response.ok) return { ok: false, rows: new Map() };
+            const payload = await response.json();
+            if (!Array.isArray(payload)) return { ok: false, rows: new Map() };
+            const rows = new Map();
+            payload.forEach(row => {
+                const id = String((row && row.id) || '').trim();
+                if (id) rows.set(id, row);
+            });
+            return { ok: true, rows };
+        } catch (_e) {
+            return { ok: false, rows: new Map() };
+        }
+    }
+    /* A card binding is the exact set of (component -> deliverable id) pairs the
+       card names, plus the card identity the crosswalk compares against. The
+       projection awaits a network round trip; if the card is re-pointed, or the
+       client link switches to another card, while those awaits are in flight,
+       every verdict and projected row computed from the old binding is stale
+       and must not be applied. Comparing this token before and after each await
+       is what makes the projection abort instead of writing through. */
+    function _prodCardBindingToken(surface, post, components) {
+        const parts = [String(surface || ''), String((post && post.id) || ''), _prodCrosswalkCardSlug(post)];
+        (components || []).forEach(component => {
+            parts.push(component + '=' + _writeUiNativeId(post, component));
+        });
+        return parts.join('|');
+    }
+    /* Resolves every (component -> deliverable id) the card names and stamps a
+       verdict for each. Returns the set of components whose link is crosswalk
+       VALID — the only ones a canonical projection may touch. Returns null when
+       the card binding changed during the lookup, which the caller treats as
+       "abort, resolve nothing". */
+    async function _prodResolveCardCrosswalk(surface, post, components) {
+        const wanted = new Map();
+        (components || []).forEach(component => {
+            const deliverableId = _writeUiNativeId(post, component);
+            if (deliverableId) wanted.set(component, deliverableId);
+        });
+        if (!wanted.size) return new Set();
+        const token = _prodCardBindingToken(surface, post, components);
+        const { ok, rows } = await _prodFetchCrosswalkRows([...wanted.values()]);
+        if (_prodCardBindingToken(surface, post, components) !== token) return null;
+        const valid = new Set();
+        wanted.forEach((deliverableId, component) => {
+            if (!ok) {
+                _prodCrosswalkSetVerdict(post, deliverableId, component, { state: 'error', fields: [] });
+                return;
+            }
+            const deliverable = rows.get(deliverableId);
+            if (!deliverable) {
+                _prodCrosswalkSetVerdict(post, deliverableId, component, { state: 'absent', fields: [] });
+                return;
+            }
+            const fields = _prodCrosswalkMismatchFields(deliverable, surface, post, component);
+            if (fields.length) {
+                // card_unbound distinguishes a deliverable with NO card binding
+                // (the normal unlinked case the gateway front door admits) from
+                // one bound to a DIFFERENT card (which the gateway denies and
+                // the front-door routing must therefore fail-legacy on).
+                _prodCrosswalkSetVerdict(post, deliverableId, component, {
+                    state: 'mismatch',
+                    fields,
+                    card_unbound: String(deliverable.card_id == null ? '' : deliverable.card_id).trim() === ''
+                });
+                return;
+            }
+            _prodCrosswalkSetVerdict(post, deliverableId, component, { state: 'valid', fields: [] });
+            valid.add(component);
+        });
+        return valid;
+    }
+    /* WHICH STORE DOES A NEW COMMENT ON THIS SLOT BELONG IN?
+
+       A card slot has two comment stores, and every operation that READS one
+       — plus _calToggleCommentDone, the delete confirm and both Samples twins
+       — picks with _prodCanonicalCommentGate(post, comp).linked, holding a
+       card whose crosswalk does not validate on the legacy card store. ADD
+       alone picked with _writeUiUseGatewayWhenReady, i.e. the
+       write_ui_reroute_clients allowlist, which knows a client slug and
+       nothing about this card. That is how one thread came to be written
+       through two transports: a client root fails the crosswalk and lands in
+       the card column with no canonical row, and the staff reply to it is sent
+       to a gateway that was never given the parent.
+
+       This answers the ADD lane half of the same question, and it is
+       deliberately NARROWER than !gate.linked, because that is also false for
+       three states which do NOT mean this card can never hold a canonical
+       thread:
+
+         unlinked          no deliverable id at all. Post-flip that is a
+                           documented fail-closed refusal (native_link_required,
+                           and WRITE_UI_NO_WORK_ITEM_TEXT beside it). Routing it
+                           legacy would report success on a card whose note
+                           reaches nothing. 18,180 of 19,362 slots, 2026-09-02.
+         legacy_retained   a crosswalk-VALID link the coverage invariant is
+                           holding back. The canonical thread is real and the
+                           gateway accepts writes to it; only the PROJECTION is
+                           held, and the hold applies to staff too.
+         crosswalk_error   a lookup that failed. Unknown is not broken.
+
+       So the verdict is read straight off the crosswalk, and only a proven
+       MISMATCH goes legacy — minus the single mismatch shape the gateway
+       client front door admits (card_id alone, deliverable side unbound),
+       because a client root on one of those DID go canonical and its reply has
+       to follow it. That carve-out is _prodClientCommentGatewayContext, copied
+       here so the two sides of a thread cannot disagree. Measured 2026-09-02:
+       8 slots mismatch on card_id alone and all 8 name a DIFFERENT card, so
+       card_unbound is false for every one of them and the carve-out changes no
+       row today — it is here because the first card_id-null one to acquire a
+       client root would otherwise be split the other way.
+
+       NOTHING IS STAMPED. An unresolved slot is looked up for this decision
+       only and the answer is deliberately not written into
+       post._canonicalCrosswalk. Stamping valid here would flip
+       _prodCanonicalCommentGate from linked:false to {linked:true,
+       ready:false} on a card whose canonical read nobody has performed, and
+       the Notes-are-still-loading guard that sits directly below the gate in
+       both append functions would then refuse a send that succeeds today, with
+       no control to clear it short of reopening the modal (the composer renders
+       a Retry button only on status error, and this state reads as loading). A
+       routing question answers itself and leaves render state alone. */
+    async function _prodCommentAddRoutesLegacy(surface, post, component) {
+        if (component !== 'video' && component !== 'graphic') return false;
+        const deliverableId = _writeUiNativeId(post, component);
+        if (!deliverableId) return false;
+        let verdict = _prodCrosswalkVerdict(post, deliverableId, component);
+        if (!verdict) {
+            let deliverable = null;
+            try {
+                const lookup = await _prodFetchCrosswalkRows([deliverableId]);
+                if (!lookup || !lookup.ok) return false;
+                deliverable = lookup.rows.get(deliverableId) || null;
+            } catch (e) { return false; }
+            // The lookup awaited the network. A card re-pointed meanwhile is a
+            // different question from the one just answered.
+            if (deliverableId !== _writeUiNativeId(post, component)) return false;
+            if (!deliverable) return false;
+            const fields = _prodCrosswalkMismatchFields(deliverable, surface, post, component);
+            if (!fields.length) return false;
+            verdict = {
+                state: 'mismatch',
+                fields,
+                card_unbound: String(deliverable.card_id == null ? '' : deliverable.card_id).trim() === ''
+            };
+        }
+        if (verdict.state !== 'mismatch') return false;
+        const fields = Array.isArray(verdict.fields) ? verdict.fields : [];
+        const frontDoorAdmits = fields.length === 1
+            && fields[0] === 'card_id'
+            && verdict.card_unbound === true;
+        return !frontDoorAdmits;
+    }
+    function _writeUiNativeStatus(value) {
+        const s = String(value || '').trim().toLowerCase();
+        if (!s) return '';
+        if (s.includes('tweak')) return 'tweak';
+        if (s.includes('scheduled')) return 'scheduled';
+        if (s === 'posted') return 'posted';
+        if (s === 'approved') return 'approved';
+        if (s.includes('smm')) return 'smm_approval';
+        if (s.includes('kasper')) return 'kasper_approval';
+        if (s.includes('client')) return 'client_approval';
+        if (s === 'backlog') return 'backlog';
+        if (s === 'todo' || s === 'to do') return 'todo';
+        if (s.includes('progress') || s.includes('process')) return 'in_progress';
+        if (s.includes('cancel')) return 'canceled';
+        if (s.includes('duplicate')) return 'duplicate';
+        return '';
+    }
+    function _writeUiDisplayStatus(value) {
+        const status = String(value || '').trim().toLowerCase();
+        return ({
+            backlog: 'Backlog', todo: 'Todo', in_progress: 'In Progress',
+            smm_approval: 'For SMM Approval', kasper_approval: 'Kasper Approval',
+            client_approval: 'Client Approval', tweak: 'Tweaks Needed',
+            approved: 'Approved', scheduled: 'Scheduled', posted: 'Posted',
+            canceled: 'Canceled', duplicate: 'Duplicate'
+        })[status] || '';
+    }
+    function _writeUiAdoptReplayStatus(post, component, acknowledgement, recoveringSource, origin) {
+        if (!recoveringSource || !post || !acknowledgement || !acknowledgement.row) return '';
+        const nativeStatus = _writeUiNativeStatus(acknowledgement.row.status);
+        /* F50: route through the strict native mapper, never the display
+           table. _writeUiDisplayStatus emits Backlog/Todo/Canceled/Duplicate,
+           none of which are in CAL_STATUSES — a card carrying one gets an
+           unstyled pill, is skipped by computeOverallStatus, can never satisfy
+           _calIsClientReady, and silently drops out of Kasper's queue. This
+           was the one LIVE deliverable→card status projector before the flip,
+           so it had to obey the same vocabulary rule as the flip machinery:
+           todo/backlog read as In Progress; triage/canceled/duplicate return
+           null here and leave the card exactly as it was (owner ruling
+           2026-08-10). `origin` distinguishes the samples funnel, whose
+           vocabulary has no Scheduled/Posted. */
+        const displayStatus = _calMapNativeStatusStrict(nativeStatus, origin);
+        if (!displayStatus) return '';
+        const key = (component === 'graphic' ? 'graphic' : 'video') + '_status';
+        if (_writeUiNativeStatus(post[key]) === nativeStatus) return '';
+        // todo and backlog both display as In Progress, so a card already
+        // showing the mapped value needs no write even though the native
+        // statuses differ — without this, every replay of a todo row would
+        // re-save an identical string.
+        if (String(post[key] || '') === displayStatus) return '';
+        // A deduplicated gateway replay returns the CURRENT native row. If the
+        // deliverable moved again while this browser was offline, repair the
+        // Calendar/Samples shadow to that current value instead of re-saving
+        // the stale value captured by the failed source write.
+        post[key] = displayStatus;
+        return displayStatus;
+    }
+    function _writeUiIntentId(surface, operation, parts) {
+        const raw = [surface, operation].concat(parts || []).map(v => String(v == null ? '' : v)).join(':');
+        let id = raw.replace(/[^a-zA-Z0-9:_-]+/g, '_').replace(/^_+/, '').slice(0, 199);
+        if (id.length < 8) id = (id + ':intent:' + Date.now().toString(36)).slice(0, 199);
+        return id;
+    }
+    function _writeUiSourceTime(value) {
+        const numeric = Number(value);
+        const t = Number.isFinite(numeric) && numeric > 0 ? numeric : Date.parse(String(value || ''));
+        return Number.isFinite(t) ? new Date(t).toISOString() : new Date().toISOString();
+    }
+    function _writeUiHasCredential() {
+        if (_isClientLink) {
+            const run = _syncviewClientEntryDataRun;
+            return _syncviewClientEntryRunCurrent(run) && !!_syncviewClientWriteToken();
+        }
+        return !!_syncviewStaffIdentityForHeaders();
+    }
+    function _writeUiPrincipalKey() {
+        if (_isClientLink) {
+            const run = _syncviewClientEntryDataRun;
+            return _syncviewClientEntryRunCurrent(run) && run.slug ? 'client:' + run.slug : '';
+        }
+        const identity = _syncviewStaffIdentityForHeaders();
+        const id = String(identity && identity.member && identity.member.id || '');
+        const role = _syncviewStaffRoleValue(identity);
+        return id && role ? 'staff:' + id + ':' + role : '';
+    }
+    const _writeUiLegacyClientRunIds = new WeakMap();
+    let _writeUiLegacyClientRunIdSeq = 0;
+    function _writeUiLegacyResumeOwner(clientEntryRun) {
+        if (_isClientLink) {
+            const run = clientEntryRun || _syncviewClientEntryDataRun;
+            if (!_syncviewClientEntryRunCurrent(run) || !run.slug) return null;
+            let runId = _writeUiLegacyClientRunIds.get(run);
+            if (!runId) {
+                runId = ++_writeUiLegacyClientRunIdSeq;
+                _writeUiLegacyClientRunIds.set(run, runId);
+            }
+            return Object.freeze({
+                kind: 'client',
+                clientEntryRun: run,
+                runId,
+                generation: Number(run.generation),
+                slug: String(run.slug),
+                principal: 'client:' + String(run.slug)
+            });
+        }
+        const principal = _writeUiPrincipalKey();
+        return principal ? Object.freeze({
+            kind: 'staff',
+            principal,
+            verificationEpoch: _syncviewStaffVerificationEpoch
+        }) : null;
+    }
+    function _writeUiLegacyResumeOwnerKey(owner) {
+        if (!owner) return '';
+        if (owner.kind === 'client') {
+            return ['client', owner.runId, owner.generation, owner.slug].join('|');
+        }
+        return ['staff', owner.principal, owner.verificationEpoch].join('|');
+    }
+    function _writeUiLegacyResumeOwnerCurrent(owner) {
+        if (!owner) return false;
+        if (owner.kind === 'client') {
+            const run = owner.clientEntryRun;
+            return _isClientLink
+                && String(owner.slug || '') === String(run && run.slug || '')
+                && Number(owner.generation) === Number(run && run.generation)
+                && String(owner.principal || '') === 'client:' + String(owner.slug || '')
+                && _syncviewClientEntryRunCurrent(run);
+        }
+        return !_isClientLink
+            && !!_syncviewStaffIdentityForHeaders()
+            && Number(owner.verificationEpoch) === _syncviewStaffVerificationEpoch
+            && String(owner.principal || '') === _writeUiPrincipalKey();
+    }
+    function _writeUiLegacyItemOwnedBy(item, owner) {
+        if (!owner || owner.kind !== 'client') return true;
+        const gate = item && item.source_gate;
+        let slug = String(item && item.client_slug || '');
+        try { slug = wlNormalizeClient(slug); } catch (e) { slug = ''; }
+        if (!slug || slug !== owner.slug) return false;
+        if (gate) {
+            let gateSlug = String(gate.client_slug || '');
+            try { gateSlug = wlNormalizeClient(gateSlug); } catch (e) { gateSlug = ''; }
+            if (!gateSlug || gateSlug !== owner.slug) return false;
+        }
+        return !gate || !gate.principal || String(gate.principal) === owner.principal;
+    }
+    function _writeUiLegacyRetainFrom(items, index, remaining) {
+        for (let cursor = index; cursor < items.length; cursor++) remaining.push(items[cursor]);
+    }
+    function _writeUiGatewayError(status, code) {
+        const error = new Error(String(code || 'write_failed'));
+        error.status = Number(status || 0);
+        error.code = String(code || 'write_failed');
+        return error;
+    }
+    /* WHICH identifiers a diagnostic row may carry, and deliberately not the
+       body or the author.
+
+       OPEN_REPAIRS 101: the row used to be `{ at, surface, kind, outcome, code }`
+       and nothing else, so the person holding the ring could see that a
+       `comment` write on `calendar` failed at a timestamp and could not say
+       WHICH note was lost. Every one of these fields was already sitting on the
+       `item` the caller handed in -- the writer simply threw them away.
+
+       An allowlist rather than a copy of `item`, for two reasons. A queue item
+       carries `payload.body` and `source_gate.comment_author`, and a ring that
+       accumulated client prose and people's names in localStorage would be a
+       worse artefact than the one it replaces. And an allowlist stays correct
+       when a new field appears on a queue item, where a denylist would silently
+       start recording it. */
+    const WRITE_UI_DIAG_IDS = ['id', 'client_slug', 'transport', 'card', 'component', 'comment', 'parent', 'action'];
+    const WRITE_UI_DIAG_PAYLOAD_IDS = ['issue', 'status'];
+    function _writeUiDiagnosticIds(item) {
+        const out = {};
+        if (!item || typeof item !== 'object') return out;
+        for (const k of WRITE_UI_DIAG_IDS) {
+            const v = item[k];
+            if (v == null || v === '') continue;
+            if (typeof v !== 'string' && typeof v !== 'number') continue;
+            out[k] = String(v).slice(0, 120);
+        }
+        const payload = item.payload;
+        if (payload && typeof payload === 'object') {
+            for (const k of WRITE_UI_DIAG_PAYLOAD_IDS) {
+                const v = payload[k];
+                if (v == null || v === '') continue;
+                if (typeof v !== 'string' && typeof v !== 'number') continue;
+                out[k] = String(v).slice(0, 120);
+            }
+        }
+        return out;
+    }
+    function _writeUiQueueDiagnostic(surface, outcome, item, error) {
+        try {
+            const rows = JSON.parse(localStorage.getItem(WRITE_UI_QUEUE_DIAG_KEY) || '[]');
+            const list = Array.isArray(rows) ? rows : [];
+            list.push(Object.assign({
+                at: new Date().toISOString(), surface: String(surface || ''),
+                kind: String(item && item.kind || ''), outcome: String(outcome || ''),
+                code: String(error && error.code || error && error.message || '').slice(0, 80)
+            }, _writeUiDiagnosticIds(item)));
+            localStorage.setItem(WRITE_UI_QUEUE_DIAG_KEY, JSON.stringify(list.slice(-50)));
+        } catch (e) {}
+    }
+    window.peekWriteUiQueueDiagnostics = function () {
+        try { const rows = JSON.parse(localStorage.getItem(WRITE_UI_QUEUE_DIAG_KEY) || '[]'); return Array.isArray(rows) ? rows : []; }
+        catch (e) { return []; }
+    };
+    /* Every refusal the write path can produce, resolved to what the operator
+       can actually DO about it.
+
+       This notification used to carry four codes and collapse every other
+       refusal into one sentence that ended "try the action again". That is the
+       worst available answer for the largest group by far: a runtime flag, a
+       permission decision or a malformed payload refuses IDENTICALLY on every
+       attempt, so the only instruction the user received was the one action
+       guaranteed to fail — and the precise code the gateway had already
+       computed was discarded at the very last step, leaving the user nothing to
+       report and support nothing to search for.
+
+       So a code now resolves to a CLASS that states whether retrying can help
+       and what to do instead, and the raw code is appended to every message. An
+       unmapped code — a gateway refusal added later, a transport error, a code
+       this table has never seen — still reaches the user verbatim instead of
+       being flattened into "try again". */
+    const WRITE_UI_FAILURE_CLASS_TEXT = {
+        identity: {
+            title: 'Write not saved',
+            text: 'Your sign-in is no longer accepted by the write service. Sign in again, then repeat the action.'
+        },
+        access: {
+            title: 'Write refused',
+            text: 'Your account is not permitted to make this change on this item. Retrying will not change that — ask an SMM or the owner to make it, quoting this code.'
+        },
+        blocked: {
+            title: 'Write refused',
+            text: 'A current system setting refuses this write. It will refuse every retry — send this code to the owner so the setting can be checked.'
+        },
+        conflict: {
+            title: 'Write not saved',
+            text: 'Someone else changed this item first, so the write was declined instead of overwriting them. Reload, read the current state, then redo your change.'
+        },
+        // Both reload messages name the note box first on purpose: a REPLY or
+        // EDIT draft lives only in this tab (only a new root note is mirrored to
+        // sessionStorage), so advising a reload without that warning would
+        // destroy the very text the failed write was trying to save.
+        reload: {
+            title: 'Write not saved',
+            text: 'This page is holding an out-of-date copy of the item. Copy anything still in the note box, reload the page, then repeat the action.'
+        },
+        /* The link, not the tab. `artifact_not_resolvable` sat in `reload`
+           until 2026-08-16, so a Graphics card with no usable deliverable link
+           told its designer to reload the page — advice that cannot work and
+           that loops them until they give up. The gateway already ships
+           `guidance` and `asset_state` in this refusal; this class is what
+           makes the dialog say the true thing when it does not. */
+        artifact: {
+            title: 'Add the deliverable link first',
+            text: 'SMM approval needs a link to the finished work on this card. Add it to the card\'s Thumbnail link — a Google Drive file or folder, a Frame.io link, or a Dropbox file or folder — then request approval again.'
+        },
+        repair: {
+            title: 'Write paused safely',
+            // 2026-08-28: this text used to promise that reload always
+            // resolves; for a receipt-less checkpoint that was false — no
+            // number of reloads could clear it. Superseded checkpoints now
+            // self-heal on load; the surviving held case genuinely needs the
+            // owner, so say so instead of promising a reload can do it.
+            text: 'The recovery checkpoint for this write is inconsistent, so nothing was committed. Copy anything still in the note box, then reload — a checkpoint the server has moved past clears itself on load. If the message persists after a reload, your typed text is safe in this browser but unsaved: copy it out and tell the owner.'
+        },
+        storage: {
+            title: 'Write paused safely',
+            text: 'This browser cannot checkpoint recovery data. Free browser storage, then try again.'
+        },
+        wait: {
+            title: 'Write not saved',
+            text: 'A service the write depends on did not answer, and nothing was committed. Try again in a moment; if it keeps failing, send this code to the owner.'
+        },
+        bug: {
+            title: 'Write refused',
+            text: 'The app sent something the write service rejected. Retrying will not help — send this code to the owner.'
+        }
+    };
+    const WRITE_UI_FAILURE_CODE_CLASS = (() => {
+        const map = Object.create(null);
+        const add = (klass, codes) => { for (const code of codes) map[code] = klass; };
+        // Who you are. Re-authenticating is the fix.
+        add('identity', [
+            'credentials_required', 'ambiguous_credentials', 'invalid_staff_key',
+            'invalid_client_token', 'ambiguous_client_token', 'invalid_test_override',
+            'roster_actor_required', 'roster_actor_not_unique'
+        ]);
+        // What you are allowed to do. A different person has to do it.
+        add('access', [
+            'operation_forbidden', 'comment_forbidden', 'comment_parent_forbidden',
+            'client_scope_mismatch', 'client_inactive', 'asset_scope_forbidden',
+            'assignee_scope_forbidden', 'description_scope_forbidden',
+            'skip_graphic_generation_forbidden', 'test_client_scope_required',
+            'test_project_scope_required', 'test_scope_service_only',
+            'assignment_scope_forbidden',
+            'native_label_scope_forbidden'
+        ]);
+        // A runtime flag or routing decision. Only the owner can move it.
+        add('blocked', [
+            'legacy_parity_disabled', 'legacy_parity_not_allowed', 'legacy_parity_required',
+            'team_is_linear_authoritative', 'legacy_resume_lease_revoked',
+            'test_client_scope_ambiguous', 'graphics_brief_server_owned',
+            'intake_assignee_override_not_allowed', 'label_not_applicable',
+            'label_selection_out_of_catalog', 'production_create_batch_scope',
+            'production_create_parent_nested', 'production_create_parent_route',
+            'production_create_parent_scope', 'production_create_closed',
+            'native_label_catalog_config_invalid',
+            'native_label_catalog_held',
+            'native_label_catalog_unverified'
+        ]);
+        // Someone else won the race.
+        add('conflict', [
+            'write_conflict', 'idempotency_conflict', 'intent_conflict',
+            'component_fill_team_occupied', 'component_fill_card_archived',
+            'intake_id_conflict', 'repair_principal_conflict', 'status_reapply_required',
+            'repair_status_not_applied', 'legacy_tweak_delivery_unconfirmed'
+        ]);
+        // This tab is holding a stale card, thread or link.
+        add('reload', [
+            'native_link_required', 'canonical_comment_read_required', 'comment_cas_required',
+            'cas_required', 'entity_not_found', 'entity_scope_unavailable',
+            'legacy_link_ambiguous', 'identity_repair_required',
+            'batch_not_found', 'batch_not_active', 'batch_team_mismatch',
+            'batch_client_mismatch',
+            /* A fill names a card and the sibling it is completing. All three
+               of these mean the tab's picture of that pairing has moved on --
+               the sibling is gone, it no longer carries this card, or its sort
+               position changed under the request. Reloading is the fix, and
+               the only fix; nothing about the person's intent was wrong. */
+            'component_fill_sibling_missing', 'component_fill_card_mismatch',
+            'component_fill_sort_mismatch', 'component_fill_card_missing',
+            'source_repair_receipt_required', 'status_commit_required',
+            'create_parent_not_found', 'batch_parent_mapping_missing',
+            'batch_parent_mapping_ambiguous', 'native_label_state_incomplete',
+            'native_label_catalog_changed'
+        ]);
+        // The local repair journal for this write does not line up.
+        add('repair', [
+            'repair_context_unavailable', 'repair_storage_unknown', 'repair_intent_unavailable',
+            'repair_checkpoint_missing', 'repair_payload_invalid', 'repair_payload_mismatch',
+            'repair_receipt_target_mismatch', 'repair_comment_receipt_mismatch',
+            'reconcile_receipt_invalid'
+        ]);
+        add('storage', ['repair_storage_unavailable']);
+        // The card's deliverable link is missing or unsupported. Reloading
+        // cannot fix that and never could; adding a usable link can.
+        add('artifact', ['artifact_not_resolvable']);
+        // Transient: a dependency was unreachable and nothing was committed.
+        add('wait', [
+            'authority_unavailable', 'service_unavailable', 'write_failed',
+            'native_write_failed', 'native_response_refresh_failed', 'idempotent_result_missing',
+            'outbox_checkpoint_missing', 'drainer_unavailable', 'client_scope_unavailable',
+            'entity_lookup_unavailable', 'deliverable_lookup_unavailable',
+            'deliverable_repair_unavailable',
+            'comment_lookup_unavailable', 'comment_parent_lookup_unavailable',
+            'comment_dependency_lookup_unavailable', 'comment_receipt_lookup_unavailable',
+            'idempotency_lookup_unavailable', 'identity_guard_unavailable',
+            'roster_lookup_unavailable', 'client_auth_unavailable', 'client_lookup_unavailable',
+            'legacy_parity_gate_unavailable', 'team_authority_unknown',
+            'status_mapping_unavailable', 'linear_issue_unavailable',
+            'linear_issue_team_unavailable', 'linear_team_mapping_unavailable',
+            'project_mapping_missing', 'project_mapping_ambiguous',
+            'project_mapping_validation_unavailable', 'test_project_mapping_unavailable',
+            'batch_lookup_unavailable', 'batch_parent_lookup_unavailable',
+            'reconcile_receipt_unavailable', 'reconcile_comment_unavailable',
+            'reconcile_current_row_unavailable', 'native_replay_status_unavailable',
+            'native_replay_read_unavailable', 'native_replay_clock_unavailable',
+            'repair_lock_unavailable', 'legacy_outbox_lock_unavailable',
+            'legacy_tweak_target_lock_unavailable', 'legacy_tweak_confirmation_pending',
+            'legacy_outbox_finalize_failed', 'legacy_outbox_finalize_unverified',
+            'legacy_committed_tweak_retire_failed', 'legacy_committed_tweak_retire_unverified',
+            'asset_context_unavailable', 'asset_evidence_unavailable',
+            'assignee_load_unavailable', 'assignee_lookup_unavailable',
+            'assignee_provider_unavailable', 'video_assignee_pool_unavailable',
+            'graphics_default_assignee_unavailable', 'create_parent_lookup_unavailable',
+            'create_replay_lookup_unavailable', 'graphic_generation_unavailable',
+            'graphic_generation_failed', 'label_catalog_unavailable',
+            'label_catalog_incomplete', 'label_selection_incomplete',
+            'native_label_catalog_config_unavailable',
+            'native_label_catalog_malformed',
+            'native_label_catalog_unavailable'
+        ]);
+        // A payload this UI built, which the gateway will reject every time.
+        add('bug', [
+            'invalid_json', 'invalid_entity', 'invalid_surface', 'invalid_surface_operation',
+            'unsupported_operation', 'unsupported_action', 'unsupported_batch_operation',
+            'method_not_allowed', 'entity_id_required', 'client_slug_required',
+            'valid_request_id_required', 'valid_comment_id_required',
+            'invalid_source_edited_at', 'invalid_comment_action', 'invalid_comment_audience',
+            'invalid_comment_parent', 'invalid_comment_round', 'invalid_native_comment_id',
+            'comment_root_required', 'invalid_status', 'invalid_team', 'invalid_description',
+            'invalid_due_date', 'invalid_label_ids', 'repair_operation_unsupported',
+            'repair_status_invalid', 'reconcile_operation_unsupported',
+            'invalid_artifact_url', 'invalid_expected_batch_updated_at',
+            /* The panel only ever offers a slot that PROD_ASSET_SPECS marks
+               writable, and the filming plan is not one, so reaching this means
+               a request the UI did not build -- not a permission the reader
+               lacks. It is deliberately not phrased as a refusal the person can
+               act on, because there is nothing for them to do differently. */
+            'batch_asset_slot_unsupported',
+            'invalid_intake_item', 'invalid_intake_payload', 'invalid_intake_teams',
+            /* The Create Post name fields carry maxlength, and the state
+               normaliser slices at the same number, so the dialog cannot
+               build an over-long name. Reaching this is a payload this UI
+               did not send -- but it carries its own sentence below all the
+               same, because the one thing a person could do about it is
+               obvious and worth saying. */
+            'invalid_intake_item_name',
+            /* Two items of one team naming different editors. The dialog sends
+               a single choice, so this is a malformed submission rather than a
+               race the person can resolve by retrying. */
+            'intake_assignee_override_conflict',
+            /* The card only offers the fill button for a component it can see
+               is missing, beside a sibling it can see. Reaching either of these
+               means a request this UI did not build. */
+            'invalid_component_fill_payload', 'invalid_component_fill_route',
+            'invalid_intake_video_number', 'invalid_production_create_payload',
+            'invalid_production_create_scope', 'unsupported_create_field',
+            'label_selection_invalid',
+            /* The two parent-lookup refusals. `comment_parent_ambiguous` sat in
+               `reload` until 2026-09-02, which is OPEN_REPAIRS 13 all over
+               again: a reply whose parent cannot be resolved is refused from
+               stored rows, so the reload the message asked for re-reads the
+               same rows and refuses identically -- and a REPLY draft is not
+               mirrored to sessionStorage, so the reload it prescribed was the
+               one action that could destroy the text. Both now carry their own
+               sentence below; the class is here so a deleted sentence falls
+               back to "retrying will not help" rather than to "reload". */
+            'comment_parent_ambiguous', 'comment_parent_not_found'
+        ]);
+        return map;
+    })();
+    /* Codes whose advice is more specific than their class. The first four are
+       the messages this notification already carried; they stay word for word,
+       and only gain the code suffix every other message now carries. */
+    const WRITE_UI_FAILURE_CODE_TEXT = {
+        /* THE THREE REFUSALS THAT STOP BEING TRANSIENT ON 2026-09-15.
+           WRITE_UI_FAILURE_CODE_CLASS files all three under `wait` -- correct
+           today, because each one means a dependency was unreachable and
+           nothing was committed, and the dependency usually comes back. It
+           stops being correct the day the Linear account lapses: the gateway
+           raises the identical code, and `wait` then advises an SMM to keep
+           trying something that can never succeed again. That is the exact
+           shape of the 2026-08-26 incident, where "safe to retry" cost a
+           videographer eleven identical submissions.
+           These entries do not reclassify anything -- this object exists for
+           "codes whose advice is more specific than their class" -- they add
+           the two sentences the class cannot carry: it is NOT this client's
+           setup, and if it does not clear on its own, no amount of retrying
+           will clear it. See OPEN_REPAIRS 170. */
+        project_mapping_validation_unavailable: {
+            title: 'Post not created',
+            text: 'The linked task system could not be reached, so this post was not filed. Nothing was created. This is not a problem with this client\u2019s setup and no setting will fix it \u2014 if it does not clear on its own within a few minutes, report it rather than trying again.'
+        },
+        batch_parent_validation_unavailable: {
+            title: 'Post not created',
+            text: 'The linked task system could not confirm the batch this post would join, so nothing was created. This is not a problem with the batch or with this client\u2019s setup \u2014 if it does not clear on its own within a few minutes, report it rather than trying again.'
+        },
+        assignee_provider_unavailable: {
+            title: 'Nothing was changed',
+            text: 'The linked task system could not confirm who is assignable, so nothing was changed. The editor list is not wrong and neither is this client\u2019s setup \u2014 if it does not clear on its own within a few minutes, report it rather than trying again.'
+        },
+        delivery_unknown: {
+            title: 'Check delivery',
+            text: 'The urgent ping may already have been sent. Check #video-editing manually before sending another message.'
+        },
+        native_ordinary_receipt_invalid: {
+            title: "Save needs review",
+            text: "The saved result could not be confirmed safely. Refresh to check the current value, keep any text you entered, and send this code to the owner before repeating the change."
+        },
+        urgent_notification_unavailable: {
+            title: "Check urgent delivery",
+            text: "The alert result could not be checked. It may already be queued or sent. Check Video Editing and ask the owner to review it before sending another ping."
+        },
+        notification_urgent_target_changed: {
+            title: "Refresh this video",
+            text: "The video or its assigned editor changed. Refresh the card and check the assignment before sending an urgent ping."
+        },
+        notification_urgent_editor_unavailable: {
+            title: "Check the editor",
+            text: "The assigned editor could not be matched to an active Slack recipient. Ask your social media manager to check the assignment and ask the owner to check the Slack mapping."
+        },
+        notification_urgent_authority_unavailable: {
+            title: "Urgent alert held",
+            text: "This video is not ready for native urgent alerts. Ask the owner to check the migration state."
+        },
+        notification_urgent_destination_unconfigured: {
+            title: "Urgent channel needs setup",
+            text: "The Video Editing destination is not configured. Ask the owner to finish the Slack setup."
+        },
+        notification_urgent_actor_invalid: {
+            title: "Sign in again",
+            text: "Your staff identity could not be confirmed. Sign in again before sending an urgent alert."
+        },
+        notification_urgent_client_invalid: {
+            title: "Refresh this card",
+            text: "The client for this video could not be confirmed. Refresh the card and ask your social media manager to check it."
+        },
+        invalid_urgent_request: {
+            title: 'Urgent ping not sent',
+            text: 'This page sent an unsupported urgent request. Send this code to the owner; repeating the same request will not fix it.'
+        },
+        native_urgent_not_configured: {
+            title: 'Urgent ping not sent',
+            text: 'Urgent alerts are not enabled for this video yet. Ask the owner to check the setup, or post in #video-editing manually.'
+        },
+        urgent_assignment_unavailable: {
+            title: 'Urgent ping not sent',
+            text: 'The current editor assignment could not be confirmed. Ask your social media manager to check the assignment before sending a ping.'
+        },
+        urgent_context_unavailable: {
+            title: 'Urgent ping not sent',
+            text: 'The video, card or editor details could not be confirmed. Ask your social media manager to check this card and send this code to the owner.'
+        },
+        urgent_editor_unavailable: {
+            title: 'Urgent ping not sent',
+            text: 'The assigned editor is not available for this alert. Ask your social media manager to check the active video editor and their email address.'
+        },
+        urgent_lookup_unavailable: {
+            title: 'Urgent ping not sent',
+            text: 'The current video details could not be checked. Nothing was sent. Wait a moment before trying again, or post in #video-editing manually.'
+        },
+        urgent_round_unavailable: {
+            title: 'Urgent ping not sent',
+            text: 'The current tweaks request could not be identified. Ask your social media manager to check this card and send this code to the owner.'
+        },
+        urgent_target_changed: {
+            title: 'Urgent ping not sent',
+            text: 'The video, assignment or tweaks request changed. Refresh the card and check its current status and editor before deciding whether a ping is still needed.'
+        },
+        calendar_feedback_recovery_forbidden: {
+            title: 'Card copy refused',
+            text: 'This card is no longer bound to the work item your feedback was accepted on, so every retry will refuse. Your original text is kept; ask your SMM to review it, quoting this code.'
+        },
+        companion_status_unbound: {
+            title: 'Card copy held',
+            text: 'This earlier status change cannot be linked to your saved feedback safely, so retrying will not complete its Calendar copy. Your original text is kept; ask your SMM to review it.'
+        },
+        companion_status_unreserved: {
+            title: 'Card copy held',
+            text: 'Your feedback is saved, but its status change was never reserved, so retrying will not change that. Your original text is kept; this needs review.'
+        },
+        intake_editor_options_unavailable: {
+            title: 'Editor list unavailable',
+            text: 'The editor list could not be verified. Refresh the dialog to try again. Your draft is kept; automatic assignment is still available.'
+        },
+        invalid_cursor: {
+            title: 'List needs refreshing',
+            text: 'This saved page of the list is no longer usable. Refresh the submission inbox to load it again.'
+        },
+        invalid_recover_source: {
+            title: 'Card copy refused',
+            text: 'The saved recovery context for this feedback is incomplete, so every retry will refuse. Your original text is kept; ask your SMM to review it, quoting this code.'
+        },
+        legacy_intake_acceptance_unavailable: {
+            title: 'Submission unconfirmed',
+            text: 'We could not confirm whether this submission was accepted. Keep the original request and check the submission inbox before trying again.'
+        },
+        legacy_intake_client_not_unique: {
+            title: 'Client needs checking',
+            text: 'This request could not be matched to one active client. Keep the original request and ask your social media manager to check the client.'
+        },
+        legacy_intake_confirmation_required: {
+            title: 'Team selection needed',
+            text: 'Review the saved submission and select the intended teams in the submission inbox before completing it.'
+        },
+        legacy_intake_inbox_unavailable: {
+            title: 'Submission inbox unavailable',
+            text: 'The saved submissions could not be loaded. Try refreshing the inbox in a moment; do not send a replacement request.'
+        },
+        legacy_intake_invalid_utf8: {
+            title: 'Submission could not be read',
+            text: 'This request arrived in an unreadable form. Keep your original text and ask your social media manager for help before sending it again.'
+        },
+        legacy_intake_missing: {
+            title: 'Saved submission not found',
+            text: 'This submission could not be found in the inbox. Keep the original request and ask your social media manager to check it.'
+        },
+        legacy_intake_native_epoch_required: {
+            title: 'Completion paused',
+            text: 'The replacement workflow is not ready for every selected team. Keep this saved submission and ask the owner to check readiness.'
+        },
+        legacy_intake_original_staff_required: {
+            title: 'Original reviewer needed',
+            text: 'The person who confirmed these teams needs to continue this saved submission. Ask them to open the inbox; do not create a replacement.'
+        },
+        legacy_intake_payload_conflict: {
+            title: 'Saved request differs',
+            text: 'This request differs from the version already saved. Keep both versions and ask your social media manager to review them before continuing.'
+        },
+        legacy_intake_storage_unavailable: {
+            title: 'Submission unconfirmed',
+            text: 'We could not confirm that this request was saved. Keep the original request and check the submission inbox before trying again.'
+        },
+        legacy_intake_too_large: {
+            title: 'Submission too large',
+            text: 'This request is too large to process here. Keep the original text and ask your social media manager to help submit it safely.'
+        },
+        public_intake_disabled: {
+            title: 'Submission paused',
+            text: 'Submissions are temporarily paused. Keep your original request and contact your social media manager before sending it again.'
+        },
+        recover_source_unsupported: {
+            title: 'Card copy refused',
+            text: 'This kind of feedback cannot be finished from here, and retrying will not change that. Your original text is kept; ask your SMM to review it, quoting this code.'
+        },
+        recovery_held: {
+            title: 'Card copy held',
+            text: 'Your feedback is saved, but its Calendar copy could not be completed safely. Your original text is kept; this needs review.'
+        },
+        recovery_result_invalid: {
+            title: 'Card copy unconfirmed',
+            text: 'The write service answered in a shape this page does not recognise. Nothing else was written; your original text is kept. Send this code to the owner.'
+        },
+        invalid_intake_item_name: {
+            title: 'Post name too long',
+            text: 'One of the post names is longer than a sub-issue title can carry. Shorten it, then create the post again.'
+        },
+        client_credentials_required: {
+            title: 'Write not saved',
+            text: 'This client link needs a current review token. Ask your SMM for a fresh link, then try again.'
+        },
+        /* The three public-submission refusals. These reach a CLIENT or a
+           VIDEOGRAPHER on the Submit link, never staff, so they say what to do
+           in plain words and never name a role, a flag or a gateway. All three
+           are refused BEFORE anything is created, which is why each one can
+           promise that nothing was sent. */
+        public_intake_too_large: {
+            title: 'Submission not sent',
+            text: 'That is more videos than one submission can carry. Send them in a couple of smaller batches instead — nothing was sent, so nothing is duplicated.'
+        },
+        public_intake_rate_limited: {
+            title: 'Submission not sent',
+            text: 'A lot of submissions have arrived for this client in the last hour. Wait a few minutes and send again — nothing was sent, and what you typed is still here.'
+        },
+        public_intake_rate_unavailable: {
+            title: 'Submission not sent',
+            text: 'We could not finish checking this submission, so nothing was sent. What you typed is still here — please try again in a moment.'
+        },
+        /* "Reload before trying again" was false, and the comment fifteen lines
+           above _writeUiClassifyTargetless already said so: makePayload throws
+           this "forever after", from the row own state. Nothing here reads a
+           cache, and no client-side path backfills a deliverable id from a url
+           -- the adopter runs the other way -- so a reload re-reads the same
+           server row and refuses identically. Measured live 2026-08-31, cards
+           not archived: 111 carry a Linear video link with no deliverable id and
+           149 the graphics equivalent, and 36 of the 111 are still in flight.
+           The pill is not even locked for them: _calCompLinked is true when
+           EITHER the url or the id is present.
+
+           The message now says what is wrong and stops prescribing. It
+           deliberately does NOT name a remedy: post-flip there is no in-app way
+           to give a legacy card a native work item -- creation is closed, the
+           link paste is sealed, and Import from Linear only makes more of them
+           -- so the honest remedy is an escalation, and which one is the
+           owner call to make (OPEN_REPAIRS 87.14). Saying less is better than
+           something the reader cannot act on.
+
+           Do NOT "fix" this by adding native_link_required to the cache-eviction
+           list in _writeUiReportFailure. That list exists to MAKE reload advice
+           true for entity_not_found and batch_not_found; here the server row is
+           the problem, so eviction would force a full refetch per client across
+           260 cards and still refuse. */
+        native_link_required: {
+            title: 'Write not saved',
+            text: 'This card is linked to a Linear issue but has no SyncView work item behind it, so its status cannot be changed here. Reloading will not change that — the card has to be linked to one first.'
+        },
+        authority_unavailable: {
+            title: 'Write paused safely',
+            text: 'Team authority could not be verified. Reload and try again; no Linear write was attempted.'
+        },
+        repair_storage_unavailable: {
+            title: 'Write paused safely',
+            text: 'This browser cannot checkpoint recovery data. Free browser storage, then try again.'
+        },
+        /* Had NO branch here, so it fell through to the default
+           safe-to-retry text -- and it was not: the store was full, so retries failed
+           identically, forever. The round-3 tester hit this as Create Post
+           being completely broken with an error that invited them to keep
+           trying (PR 1186). Naming browser storage is what makes it
+           actionable; the per-client cache that filled it is now capped, so
+           this should become rare rather than routine. */
+        native_intake_storage_unavailable: {
+            title: 'Post not created',
+            text: 'This browser has run out of storage, so the new post could not be staged — and retrying will fail the same way until space is freed. Close other tabs of this site, or clear this site’s browser storage, then create it again. Nothing was saved, so nothing is half-made.'
+        },
+        invalid_comment_body: {
+            title: 'Note not saved',
+            text: 'The note is empty or longer than 20,000 characters. Shorten it and send again — your text is still in the box.'
+        },
+        /* THE TWO PARENT-LOOKUP REFUSALS. Both reach a person mid-REPLY, and a
+           reply draft is the one thing this app does not mirror to
+           sessionStorage (only a new root is), so every word below is ordered
+           around that: copy first, because the refusal itself is deterministic
+           and nothing is lost by taking a moment.
+
+           Neither says "reload". `comment_parent_ambiguous` sat in the reload
+           class from the day it was written, so the person hitting it was told
+           to reload a page whose stale copy was never the problem -- the parent
+           row is resolved from stored rows on the server, identically on every
+           attempt -- and the reload it asked for is what would have thrown the
+           text away. That is OPEN_REPAIRS 13 in a different costume, and the
+           `reload` class text is the one that DOES belong to a stale tab.
+
+           NOT-FOUND is the one an SMM will actually meet, because it is the
+           two-transport split made visible: a root whose card fails the F42
+           crosswalk was written to the legacy card store with no canonical row
+           behind it, and a reply routed to the gateway asks for a parent that
+           was never sent there. The add lane now routes an unlinked card
+           legacy, which is what stops it happening (see _calAppendComment), so
+           this should be a stale tab loaded before that shipped -- but the
+           remedy named here works either way, and needs no explaining. */
+        comment_parent_not_found: {
+            title: 'Reply not saved',
+            text: 'The note you replied to is not in the production thread this reply was sent to, so nothing was saved. Copy your text out of the note box first — a reply draft lives only in this tab. Sending it again will be refused the same way; post it as a new note on the card instead, and send this code to the owner so the thread can be joined back up.'
+        },
+        comment_parent_ambiguous: {
+            title: 'Reply not saved',
+            text: 'Two production notes answer to the identifier this reply names, so the thread it belongs to cannot be told apart and nothing was saved. Copy your text out of the note box first — a reply draft lives only in this tab. Sending it again will not change the answer; post it as a new note on the card instead, and send this code and the card to the owner, who has to separate the two notes.'
+        },
+        legacy_parity_disabled: {
+            title: 'Write refused',
+            text: 'This team still writes through Linear, and the Linear write lane is currently switched off. Every retry will be refused the same way — send this code to the owner.'
+        },
+        /*
+         * Owner ruling 2026-08-23. The sentence is duplicated from
+         * PROD_CREATE_CLOSED_TEXT on purpose: this table is lifted whole into
+         * a bare VM by test/write-ui-failure-messages.js, so it cannot read a
+         * constant declared outside it. test/prod-create-closed.js fails if
+         * the two ever drift apart.
+         */
+        production_create_closed: {
+            title: 'Issue not created',
+            text: 'Posts are created on the content calendar, not in Production. Use Create Post on the client’s Calendar or Samples tab.'
+        },
+        /*
+         * The ONE code in the fill path that needs its own sentence, and the
+         * reason is the last clause of the shared conflict text: "redo your
+         * change". Here that advice is actively wrong. The component now
+         * exists -- someone else added it a moment ago -- so redoing the fill
+         * refuses again, identically, and the reader learns nothing from the
+         * second refusal that they did not learn from the first.
+         *
+         * Every other fill refusal is left to the shared taxonomy on purpose.
+         * Codex raised exactly that on PR 1192: a hand-written sentence beside
+         * a classified code is a second rule that drifts from the first, and
+         * three of the four sentences written there were wrong the day they
+         * shipped. A bespoke line is earned only where the class would mislead.
+         */
+        component_fill_team_occupied: {
+            title: 'Already added',
+            text: 'This card already has that component — someone added it while this page was open. Reload and it will be there; there is nothing to redo.'
+        },
+        /* The SECOND and last bespoke sentence in this path, earned by the
+           same test as the one above: the shared conflict text ends "redo your
+           change", and redoing a fill on an archived post refuses again,
+           identically. Archiving a post also PARKS its sub-issues (owner
+           ruling 2026-08-17), so a component created after that would be the
+           one thing on the card nobody parked -- which is why this refuses
+           rather than filling and leaving the reader to notice. */
+        component_fill_card_archived: {
+            title: 'That post was archived',
+            text: 'Someone archived this post while your page was open, and archived posts do not take new work. Reload to see it. If it should be live again, un-archive it first and then add the component.'
+        }
+    };
+    /* Resolve a code to its user-facing text. An unknown code never falls back
+       to bare "try again": it is named, and its HTTP status decides only
+       whether waiting is worth suggesting. */
+    function _writeUiFailureText(operation, code, status) {
+        const key = String(code == null ? '' : code);
+        /* OWN PROPERTIES ONLY. Both text tables are object LITERALS, so a code
+           naming an Object.prototype member -- `constructor`, `toString`,
+           `valueOf`, `hasOwnProperty` -- read back a truthy function and was
+           returned as though it were an entry, painting the literal
+           "undefined (code: constructor)" at the person. A code is free text on
+           the transport path (`_writeUiReportFailure` uses `error.message` when
+           the error carries no code), so that set is reachable, and every
+           member of it is exactly the shape the fallback below exists to catch.
+           WRITE_UI_FAILURE_CODE_CLASS is already Object.create(null); these two
+           are not, and the guard costs nothing. */
+        const own = (table, name) =>
+            (Object.prototype.hasOwnProperty.call(table, name) ? table[name] : null);
+        const specific = own(WRITE_UI_FAILURE_CODE_TEXT, key);
+        if (specific) return specific;
+        const klass = own(WRITE_UI_FAILURE_CLASS_TEXT, String(WRITE_UI_FAILURE_CODE_CLASS[key] || ''));
+        if (klass) return klass;
+        /* AN UNRECOGNISED CODE CANNOT PROMISE THAT NOTHING WAS COMMITTED.
+           This text used to end ", and nothing was committed. Try once more" for
+           every shape that was not a 4xx -- which is to say for a 5xx, where the
+           write service received the request and failed part-way THROUGH it, and
+           for a transport error, where the browser never learned whether the
+           request arrived at all. In both, the one thing the browser cannot know
+           is the one thing the sentence asserted; and "try once more" on a write
+           that DID land is how a duplicate gets made. That is the 2026-08-26
+           shape exactly, where "safe to retry" cost a videographer eleven
+           identical submissions (OPEN_REPAIRS 180).
+           A classified code may still promise it -- the `wait` class does -- but
+           that promise is the gateway's, made about a refusal it raised BEFORE
+           committing anything. Nothing here has a gateway's word to pass on, so
+           the honest answer is that the outcome is unknown and the next action
+           is to look, not to repeat. A 4xx keeps its wording: an unknown code
+           with a client-error status is still a decision the service made rather
+           than a write it half-did, and it never claimed otherwise.
+           THE NOTE BOX IS NAMED FIRST, for the reason every other
+           reload-advising entry in these tables names it first (the `reload`
+           class, the `repair` class, and both `comment_parent_*` codes): an
+           EDIT draft lives only in memory -- a root note and a reply each
+           mirror to `sessionStorage`, an edit has no such key -- so telling
+           someone to reload without that warning makes the advice itself
+           destroy the text the failed write was carrying. Codex P1 on this PR,
+           and it is OPEN_REPAIRS 13 arriving through the fix for OPEN_REPAIRS
+           180: exactly the trap the older entries were written to stop. */
+        const CHECK_AFTER_RELOAD = 'Copy anything still in the note box first — an edit draft lives'
+            + ' only in this tab. Then reload and check before doing it again: repeating a write that'
+            + ' did go through makes a second copy of it. If it is not there after the reload, send'
+            + ' this code to the owner.';
+        const numeric = Number(status || 0);
+        if (!numeric) {
+            return {
+                title: 'Write may not be saved',
+                text: 'The native ' + operation + ' never got an answer, so whether it saved is not known. '
+                    + CHECK_AFTER_RELOAD
+            };
+        }
+        if (numeric >= 500) {
+            return {
+                title: 'Write may not be saved',
+                text: 'The native ' + operation + ' failed inside the write service with a code this app does not'
+                    + ' recognise, so whether it saved is not known. ' + CHECK_AFTER_RELOAD
+            };
+        }
+        return {
+            title: 'Write not saved',
+            text: 'The native ' + operation + ' was refused with a code this app does not recognise.'
+                + ' Retrying is unlikely to help — send this code to the owner.'
+        };
+    }
+    /* `context` is optional and carries the identifiers the QUEUE items already
+       supply and a direct gateway refusal does not -- card, component, comment,
+       parent. It is merged into the diagnostic item, so it goes through the same
+       allowlist and cannot smuggle a body through. Passed at the canonical
+       comment site below, which is the lane items 99, 100 and 104 all live on;
+       the other sites still report without identifiers and are worth threading
+       one at a time rather than in one unattended sweep. */
+    /* A REFUSAL REACHES A PERSON AS A SENTENCE, NEVER AS ITS OWN CODE.
+
+       `_writeUiGatewayError` constructs its Error with the code as the message,
+       so any `catch (e) { ... e.message ... }` that paints a banner paints the
+       raw code. On 2026-09-03 a reviewer was shown the literal string
+       `native_link_required` under the caption buttons, with nothing to say
+       what it meant or whether his note had been kept.
+
+       The wording of a refusal already has exactly one home --
+       WRITE_UI_FAILURE_CODE_TEXT, read by `_writeUiFailureText` and pinned by
+       test/write-ui-failure-messages.js -- and the dialog path has always used
+       it. It was the INLINE paths that did not: Kasper's three panel catches,
+       both review panes (four catches, two of which name the error `error`
+       rather than `e` -- which is how one of them survived the first sweep and
+       was caught by the guard in test/caption-has-no-work-item.js), and both
+       card save chips. Nine sites, one table, so the wording cannot drift
+       between a dialog and a banner about the same refusal.
+
+       A thrown transport/runtime error carries no `code` and a real sentence of
+       its own; that is passed through untouched, which is why the fallback is a
+       parameter -- the chips said "save failed" and the panes "Save failed",
+       and neither is worth changing here. OPEN_REPAIRS 127. */
+    function _writeUiFailureSentence(error, fallback) {
+        const code = String(error && error.code || '').trim();
+        const message = String(error && error.message || '').trim();
+        /* A MESSAGE THAT IS NOT SIMPLY THE CODE WAS WRITTEN ON PURPOSE, and it
+           wins. `_writeUiLegacyDeliveryUnconfirmedError` builds a gateway error
+           and then overwrites its message with "Team delivery could not be
+           confirmed. Your draft is preserved; retry." precisely because that
+           sentence says more than the table's entry for its code would. Reading
+           the table first would have thrown that away -- the Samples save-order
+           suite caught it, which is what it is for.
+
+           So only a message that IS the code gets replaced. That is exactly the
+           set this helper exists for, because `_writeUiGatewayError` leaves the
+           message equal to the code and nothing else does. */
+        if (message && message !== code) return message;
+        /* WITH the code, in the notification path's own format. Several of these
+           sentences instruct the reader to act ON the code -- the `access` one
+           says to ask an SMM "quoting this code", the `blocked` one to "send
+           this code to the owner" -- so a banner printing the sentence alone
+           would tell a person to quote an identifier nothing had shown them.
+           Codex caught this on PR 1245; the dialog path has always appended
+           it, and this is the same format. */
+        if (code) return _writeUiFailureText('write', code, error && error.status).text + ' (code: ' + code + ')';
+        return fallback || 'Save failed';
+    }
+    function _writeUiReportFailure(surface, operation, error, context) {
+        try { console.warn('[' + surface + '] native ' + operation + ' gateway failed', error); } catch (e) {}
+        // A thrown transport/runtime error carries no `code`, only a message.
+        // Naming it beats naming nothing, so it is used as the code — capped,
+        // because it is free text and the notification is a single line.
+        const code = (String(error && error.code || error && error.message || '').trim() || 'write_failed').slice(0, 80);
+        // Recorded BEFORE the notice throttle, so a burst of the same refusal
+        // still leaves one row per attempt for peekWriteUiQueueDiagnostics().
+        // Without this the only place the code survived was a console line the
+        // user had already closed by the time anyone asked.
+        _writeUiQueueDiagnostic(surface, 'ui_write_failure', Object.assign({ kind: operation }, context || {}), error);
+        /* MAKE THE RELOAD ADVICE TRUE (OPEN_REPAIRS 13, 2026-08-22).
+           These two refusals mean the browser named a row the server does not
+           have -- the card is being rendered from a display cache whose backing
+           deliverable or batch has since gone. Both are in the `reload` class,
+           and the message tells the person to reload, but localStorage survives
+           a hard refresh, so the stale card comes straight back and refuses
+           again. That is how it presented to whoever hit it in 2026-08-14
+           testing: not as a missing row, but as "saving is broken".
+
+           Dropping the display caches makes the next load read server truth, so
+           the reload actually resolves it. The shared evictor is used rather
+           than a per-slug delete because the refusal does not carry the slug it
+           was raised for, and it already refuses to touch a cache holding
+           unacknowledged repair state -- the one thing here that is not
+           re-fetchable. The cost of the wider sweep is one refetch per client
+           on a refusal that, measured 2026-08-22, has zero live causes left in
+           the data. */
+        /* component_fill_card_missing joins these two for the same reason: it
+           means this tab offered to complete a card the server does not have,
+           which can only come from a display cache, and localStorage survives
+           a hard refresh -- so without the sweep the stale card comes straight
+           back and refuses again. */
+        if ((code === 'entity_not_found' || code === 'batch_not_found'
+             || code === 'component_fill_card_missing')
+            && typeof _writeUiRepairEvictDisplayCaches === 'function') {
+            _writeUiRepairEvictDisplayCaches();
+        }
+        const key = surface + ':' + operation + ':' + code;
+        const now = Date.now();
+        if (now - (_writeUiFailureNoticeAt[key] || 0) < 30000) return;
+        _writeUiFailureNoticeAt[key] = now;
+        const credentialsRequired = code === 'credentials_required' || (error && error.status === 401);
+        if (credentialsRequired && !_isClientLink && typeof _syncviewOpenStaffIdentity === 'function') {
+            // A gateway 401 invalidates even a locally "verified" identity.
+            // Clear it first or the identity opener shows the account popover
+            // instead of the sign-in form needed to recover the write.
+            if (typeof _syncviewStaffIdentityClear === 'function') _syncviewStaffIdentityClear();
+            _syncviewOpenStaffIdentity({ reason: 'required' });
+            return;
+        }
+        if (typeof showNotify !== 'function') return;
+        const notice = _writeUiFailureText(
+            operation,
+            credentialsRequired && _isClientLink ? 'client_credentials_required' : code,
+            error && error.status
+        );
+        showNotify(notice.title, notice.text + ' (code: ' + code + ')');
+    }
+    function _writeUiRepairJournalRead() {
+        const raw = (() => { try { return localStorage.getItem(WRITE_UI_SOURCE_REPAIR_KEY); } catch (e) { return null; } })();
+        if (!raw) return { rows: [], unknown: 0 };
+        try {
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) return { rows: [], unknown: 1 };
+            const rows = parsed.filter(row => row && typeof row === 'object'
+                && row.key && row.surface && row.client_slug && row.post_id
+                && row.source_at && row.principal && row.token
+                && row.edits && typeof row.edits === 'object' && !Array.isArray(row.edits)
+                && Array.isArray(row.intents));
+            return { rows, unknown: parsed.length - rows.length };
+        } catch (e) { return { rows: [], unknown: 1 }; }
+    }
+    function _writeUiRepairEvictDisplayCaches() {
+        try {
+            for (let index = localStorage.length - 1; index >= 0; index--) {
+                const key = localStorage.key(index) || '';
+                if (!(key.indexOf('syncview_calCache_v2:') === 0 || key.indexOf('syncview_sxr_cache_v2_') === 0)) continue;
+                const value = String(localStorage.getItem(key) || '');
+                // A display cache that already carries an acknowledged repair is
+                // durable state, not eviction fodder.
+                if (value.indexOf('_writeUiRetrySourceAt') >= 0 || value.indexOf('_writeUiKasperRepair') >= 0) continue;
+                localStorage.removeItem(key);
+            }
+        } catch (e) {}
+    }
+    function _writeUiRepairJournalWrite(rows) {
+        const payload = JSON.stringify(rows);
+        const write = () => {
+            localStorage.setItem(WRITE_UI_SOURCE_REPAIR_KEY, payload);
+            if (localStorage.getItem(WRITE_UI_SOURCE_REPAIR_KEY) !== payload) throw new Error('repair_readback_mismatch');
+        };
+        try { write(); return true; }
+        catch (firstError) {
+            _writeUiRepairEvictDisplayCaches();
+            try { write(); return true; }
+            catch (secondError) { return false; }
+        }
+    }
+    function _writeUiRepairToken() {
+        try { return crypto.randomUUID(); }
+        catch (e) { return Date.now().toString(36) + ':' + Math.random().toString(36).slice(2); }
+    }
+    function _writeUiBuildSourceRepair(surface, operation, meta) {
+        if (meta && meta.linearOnly) return null;
+        const post = meta && meta.post;
+        const component = meta && meta.component === 'graphic' ? 'graphic' : 'video';
+        const slug = _writeUiSourceClientSlug(surface, meta);
+        const postId = String(post && post.id || '').trim();
+        const principal = _writeUiPrincipalKey();
+        const sourceAt = _writeUiSourceTime(meta && (meta.sourceEditedAt
+            || meta.comment && (meta.comment.updated_at || meta.comment.created_at)
+            || post && post.updated_at));
+        if (!principal) throw _writeUiGatewayError(401, 'credentials_required');
+        if (!post || !postId || !slug) throw _writeUiGatewayError(507, 'repair_context_unavailable');
+        const edits = Object.assign({}, meta && meta.repairEdits || {});
+        if (operation === 'status') {
+            edits[component + '_status'] = post[component + '_status'];
+            edits.status = post.status;
+        } else if (operation === 'comment') {
+            const comment = meta && meta.comment;
+            const list = (surface === 'sxr' ? _sxrCommentsFor(post, component) : _calCommentsFor(post, component)).slice();
+            if (comment && comment.id && !list.some(row => row && row.id === comment.id)) list.push(comment);
+            edits[component + '_tweaks'] = surface === 'sxr' ? _sxrStringifyComments(list) : _calStringifyComments(list);
+            if (meta && meta.isTweak && typeof _isClientLink !== 'undefined' && _isClientLink) {
+                edits[component + '_status'] = 'Tweaks Needed';
+                const projected = Object.assign({}, post, { [component + '_status']: 'Tweaks Needed' });
+                edits.status = surface === 'sxr' ? computeSampleOverallStatus(projected) : computeOverallStatus(projected);
+            }
+        }
+        const intentKey = operation + ':' + component + ':'
+            + String(meta && meta.comment && meta.comment.id || edits[component + '_status'] || 'intent')
+            + ':' + sourceAt;
+        const intents = [{
+            key: intentKey,
+            operation,
+            component,
+            source_at: sourceAt,
+            status: operation === 'status' ? post[component + '_status'] : null,
+            comment: operation === 'comment' ? Object.assign({}, meta && meta.comment || {}) : null,
+            comment_meta: operation === 'comment' ? {
+                parent_id: String(meta && meta.parentId || meta && meta.comment && meta.comment.parent_id || ''),
+                audience: meta && meta.audience === 'client' ? 'client' : 'internal',
+                is_tweak: !!(meta && meta.isTweak),
+                round: meta && Number.isInteger(meta.round) ? meta.round : null
+            } : null,
+            attempted: false,
+            native_committed: false
+        }];
+        if (meta && meta.reserveStatusIntent) {
+            const statusValue = String(meta.reserveStatusIntent.status || post[component + '_status'] || '');
+            intents.push({
+                key: 'status:' + component + ':' + statusValue + ':' + sourceAt,
+                operation: 'status', component, source_at: sourceAt, status: statusValue,
+                comment: null, comment_meta: null, attempted: false, native_committed: false
+            });
+        }
+        return {
+            version: 1,
+            key: [surface, String(meta && meta.repairLane || 'card'), slug, postId, intentKey].join('|'),
+            surface,
+            lane: String(meta && meta.repairLane || 'card'),
+            client_slug: slug,
+            post_id: postId,
+            source_at: sourceAt,
+            principal,
+            edits,
+            primary_intent_key: intentKey,
+            intents,
+            token: _writeUiRepairToken(),
+            created_at: new Date().toISOString()
+        };
+    }
+    function _writeUiRequireRepairStorage(record) {
+        if (!record) return null;
+        const state = _writeUiRepairJournalRead();
+        if (state.unknown) throw _writeUiGatewayError(507, 'repair_storage_unknown');
+        const rows = state.rows.slice();
+        const existingIndex = rows.findIndex(row => row.key === record.key);
+        const wasExisting = existingIndex >= 0;
+        if (existingIndex >= 0) {
+            const existing = rows[existingIndex];
+            if (existing.principal !== record.principal) throw _writeUiGatewayError(507, 'repair_principal_conflict');
+            record.token = existing.token;
+            record.edits = Object.assign({}, existing.edits || {}, record.edits || {});
+            const intents = new Map();
+            (existing.intents || []).forEach(intent => { if (intent && intent.key) intents.set(intent.key, intent); });
+            (record.intents || []).forEach(intent => {
+                if (!intent || !intent.key) return;
+                const prior = intents.get(intent.key) || {};
+                intents.set(intent.key, Object.assign({}, prior, intent, {
+                    gateway_payload: intent.gateway_payload || prior.gateway_payload,
+                    attempted: prior.attempted === true || intent.attempted === true,
+                    native_committed: prior.native_committed === true || intent.native_committed === true,
+                    response_row: intent.response_row || prior.response_row
+                }));
+            });
+            record.intents = Array.from(intents.values());
+            if (String(existing.source_at || '') > String(record.source_at || '')) record.source_at = existing.source_at;
+            rows[existingIndex] = record;
+        } else rows.push(record);
+        if (!_writeUiRepairJournalWrite(rows)) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
+        try { Object.defineProperty(record, '_wasExisting', { value: wasExisting, writable: true, configurable: true }); }
+        catch (e) { record._wasExisting = wasExisting; }
+        return record;
+    }
+    function _writeUiRepairWithLock(callback) {
+        if (typeof navigator === 'undefined' || !navigator.locks || typeof navigator.locks.request !== 'function') {
+            return Promise.reject(_writeUiGatewayError(503, 'repair_lock_unavailable'));
+        }
+        return navigator.locks.request('syncview-source-repair', { mode: 'exclusive' }, callback);
+    }
+    function _writeUiReserveSourceRepair(record) {
+        if (!record) return Promise.resolve(null);
+        return _writeUiRepairWithLock(() => _writeUiRequireRepairStorage(record));
+    }
+    function _writeUiPrepareRepairAttempt(record, payloadBody) {
+        if (!record) return Promise.resolve(null);
+        const primary = (record.intents || []).find(intent => intent && intent.key === record.primary_intent_key);
+        if (!primary) return Promise.reject(_writeUiGatewayError(507, 'repair_intent_unavailable'));
+        primary.gateway_payload = String(payloadBody || '');
+        primary.attempted = true;
+        return _writeUiReserveSourceRepair(record);
+    }
+    function _writeUiMarkRepairCommitted(record, response, options) {
+        if (!record) return Promise.resolve(null);
+        return _writeUiRepairWithLock(() => {
+            const state = _writeUiRepairJournalRead();
+            if (state.unknown) throw _writeUiGatewayError(507, 'repair_storage_unknown');
+            const index = state.rows.findIndex(row => row.key === record.key && row.token === record.token);
+            if (index < 0) throw _writeUiGatewayError(507, 'repair_checkpoint_missing');
+            const row = state.rows[index];
+            const intent = (row.intents || []).find(value => value && value.key === record.primary_intent_key);
+            if (!intent) throw _writeUiGatewayError(507, 'repair_intent_unavailable');
+            intent.native_committed = true;
+            intent.response_row = response && response.row ? response.row : intent.response_row;
+            if (options && options.reconciled === true) {
+                intent.reconciled = true;
+                intent.reconcile_reason = String(options.reason || 'current_native_state');
+            }
+            row.intents = row.intents || [];
+            state.rows[index] = row;
+            if (!_writeUiRepairJournalWrite(state.rows)) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
+            record.intents = row.intents;
+            return { key: row.key, token: row.token };
+        });
+    }
+    function _writeUiAdoptRepairAck(post, acknowledgement) {
+        if (!post || !acknowledgement || acknowledgement.native_committed !== true) return;
+        post._writeUiPrecommittedNative = true;
+        const ref = acknowledgement.source_repair;
+        if (!ref || !ref.key || !ref.token) return;
+        const refs = Array.isArray(post._writeUiRepairRefs) ? post._writeUiRepairRefs.slice() : [];
+        _writeUiAppendRepairRef(refs, ref);
+        post._writeUiRepairRefs = refs;
+    }
+    function _writeUiAppendRepairRef(refs, ref) {
+        if (!Array.isArray(refs) || !ref || !ref.key || !ref.token) return refs;
+        if (!refs.some(row => row && row.key === ref.key && row.token === ref.token)) refs.push({ key: ref.key, token: ref.token });
+        return refs;
+    }
+    function _writeUiBindRepairAck(post, pending, acknowledgement) {
+        if (!pending || !acknowledgement || acknowledgement.native_committed !== true) return;
+        // Resolve/validate every journal-derived companion before mutating the
+        // caller's pending bucket. A checkpoint read failure must leave no
+        // half-bound batch that a trailing save could consume.
+        const companions = _writeUiRepairCompanions(acknowledgement.source_repair);
+        _writeUiAdoptRepairAck(post, acknowledgement);
+        pending._writeUiPrecommittedNative = true;
+        const refs = Array.isArray(pending._writeUiRepairRefs) ? pending._writeUiRepairRefs.slice() : [];
+        _writeUiAppendRepairRef(refs, acknowledgement.source_repair);
+        pending._writeUiRepairRefs = refs;
+        if (companions.length) pending._writeUiCompanionRepairs = companions;
+    }
+    function _writeUiMergeCommittedBatch(pending, committed) {
+        if (!pending || !committed) return pending;
+        for (const [key, value] of Object.entries(committed)) {
+            if (key === '_writeUiRepairRefs' || key === '_writeUiCompanionRepairs'
+                || key === '_writeUiPrecommittedNative') continue;
+            pending[key] = value;
+        }
+        const refs = Array.isArray(pending._writeUiRepairRefs) ? pending._writeUiRepairRefs.slice() : [];
+        (Array.isArray(committed._writeUiRepairRefs) ? committed._writeUiRepairRefs : [])
+            .forEach(ref => _writeUiAppendRepairRef(refs, ref));
+        if (refs.length) pending._writeUiRepairRefs = refs;
+        const companions = (Array.isArray(pending._writeUiCompanionRepairs) ? pending._writeUiCompanionRepairs : []).slice();
+        for (const value of (Array.isArray(committed._writeUiCompanionRepairs) ? committed._writeUiCompanionRepairs : [])) {
+            const identity = value && value.record && value.record.key + '|' + value.record.token + '|' + value.record.primary_intent_key;
+            if (!identity || !companions.some(row => row && row.record
+                && row.record.key + '|' + row.record.token + '|' + row.record.primary_intent_key === identity)) companions.push(value);
+        }
+        if (companions.length) pending._writeUiCompanionRepairs = companions;
+        if (committed._writeUiPrecommittedNative === true) pending._writeUiPrecommittedNative = true;
+        return pending;
+    }
+    function _writeUiSourceEditsOnly(value) {
+        const out = {};
+        for (const [key, field] of Object.entries(value || {})) {
+            if (key.indexOf('_writeUi') === 0) continue;
+            out[key] = field;
+        }
+        return out;
+    }
+    function _writeUiRepairCompanions(ref) {
+        if (!ref || !ref.key || !ref.token) return [];
+        const state = _writeUiRepairJournalRead();
+        if (state.unknown) throw _writeUiGatewayError(507, 'repair_storage_unknown');
+        const stored = state.rows.find(row => row.key === ref.key && row.token === ref.token);
+        if (!stored) throw _writeUiGatewayError(507, 'repair_checkpoint_missing');
+        return (stored.intents || []).filter(intent => intent && intent.key
+            && intent.key !== stored.primary_intent_key && intent.native_committed !== true).map(intent => {
+                const record = JSON.parse(JSON.stringify(stored));
+                record.primary_intent_key = intent.key;
+                return {
+                    operation: intent.operation,
+                    component: intent.component,
+                    source_at: intent.source_at || stored.source_at,
+                    intent: Object.assign({}, intent, { _repair_key: stored.key, _repair_token: stored.token }),
+                    record
+                };
+            });
+    }
+    function _writeUiSnapshotRepairRefs(post) {
+        return (Array.isArray(post && post._writeUiRepairRefs) ? post._writeUiRepairRefs : [])
+            .filter(row => row && row.key && row.token)
+            .map(row => ({ key: row.key, token: row.token }));
+    }
+    function _writeUiRemoveCompletedRepairRefs(post, completed) {
+        if (!post || !Array.isArray(completed) || !completed.length) return;
+        const exact = new Set(completed.map(row => row.key + '|' + row.token));
+        const remaining = (Array.isArray(post._writeUiRepairRefs) ? post._writeUiRepairRefs : [])
+            .filter(row => row && !exact.has(row.key + '|' + row.token));
+        if (remaining.length) post._writeUiRepairRefs = remaining;
+        else delete post._writeUiRepairRefs;
+        if (remaining.length) post._writeUiPrecommittedNative = true;
+        else if (!post._writeUiRetrySourceAt) delete post._writeUiPrecommittedNative;
+    }
+    function _writeUiDiscardSourceRepairUnlocked(record) {
+        if (!record) return;
+        const state = _writeUiRepairJournalRead();
+        if (state.unknown) return;
+        const rows = state.rows.filter(row => row.key !== record.key || row.token !== record.token);
+        if (rows.length !== state.rows.length) _writeUiRepairJournalWrite(rows);
+    }
+    function _writeUiDiscardSourceRepair(record) {
+        if (!record) return Promise.resolve();
+        return _writeUiRepairWithLock(() => _writeUiDiscardSourceRepairUnlocked(record));
+    }
+    function _writeUiCompleteSourceRepairRefsUnlocked(refs) {
+        const state = _writeUiRepairJournalRead();
+        if (state.unknown) return false;
+        const exact = new Set((Array.isArray(refs) ? refs : []).filter(row => row && row.key && row.token)
+            .map(row => row.key + '|' + row.token));
+        const rows = state.rows.filter(row => !exact.has(row.key + '|' + row.token));
+        if (rows.length === state.rows.length) return true;
+        return _writeUiRepairJournalWrite(rows);
+    }
+    function _writeUiCompleteSourceRepairRefs(refs) {
+        if (!Array.isArray(refs) || !refs.length) return Promise.resolve(true);
+        return _writeUiRepairWithLock(() => _writeUiCompleteSourceRepairRefsUnlocked(refs));
+    }
+    async function _writeUiGatewayWithRepair(intent, repair) {
+        let initiallyExisting = null;
+        let sourceRepair = null;
+        try {
+            const result = await _writeUiGatewayPost(intent, {
+                beforeAttempt: async payloadBody => {
+                    const saved = await _writeUiPrepareRepairAttempt(repair, payloadBody);
+                    if (saved && initiallyExisting === null) initiallyExisting = saved._wasExisting === true;
+                },
+                afterCommit: async response => { sourceRepair = await _writeUiMarkRepairCommitted(repair, response); }
+            });
+            return sourceRepair ? Object.assign({}, result, { source_repair: sourceRepair }) : result;
+        }
+        catch (error) {
+            // Discard only a brand-new, explicitly pre-commit rejection. A
+            // pre-existing or transport-ambiguous repair is durable debt and a
+            // later 4xx (including authority-lane conflict) must never erase it.
+            if (repair && initiallyExisting === false && error && error.precommitSafe === true) {
+                await _writeUiDiscardSourceRepair(repair);
+            }
+            throw error;
+        }
+    }
+    async function _writeUiGatewayPost(intent, hooks) {
+        const resumeOwner = intent && intent.legacyResumeOwner || null;
+        const requireResumeOwner = () => {
+            if (resumeOwner && !_writeUiLegacyResumeOwnerCurrent(resumeOwner)) {
+                throw _writeUiGatewayError(409, 'legacy_resume_lease_revoked');
+            }
+        };
+        requireResumeOwner();
+        const requestId = String(intent.requestId || _writeUiIntentId(intent.surface, intent.operation, [Date.now()]));
+        const sourceEditedAt = _writeUiSourceTime(intent.sourceEditedAt);
+        const authority = await _writeUiRefreshAuthority();
+        requireResumeOwner();
+        if (!authority) throw _writeUiGatewayError(503, 'authority_unavailable');
+        if (!_writeUiHasCredential()) throw _writeUiGatewayError(401, 'credentials_required');
+        if (intent.legacyOnly && authority[intent.team] !== 'linear') {
+            throw _writeUiGatewayError(409, 'legacy_parity_not_allowed');
+        }
+        let legacyParity = !!intent.legacyOnly || authority[intent.team] === 'linear';
+        const makePayload = () => {
+            if (!intent.legacyOnly && !legacyParity && !intent.nativeId) {
+                throw _writeUiGatewayError(409, 'native_link_required');
+            }
+            const payload = {
+                operation: intent.operation,
+                surface: intent.surface,
+                entity: 'deliverable',
+                request_id: requestId,
+                source_edited_at: sourceEditedAt
+            };
+            if (legacyParity) payload.legacy_parity = true;
+            if (!intent.legacyOnly && intent.nativeId) payload.id = intent.nativeId;
+            else payload.issue = intent.issue;
+            if (intent.operation === 'status') payload.status = intent.status;
+            else payload.comment = intent.comment;
+            return payload;
+        };
+        const runHook = async (name, value) => {
+            if (!hooks || typeof hooks[name] !== 'function') return;
+            try { await hooks[name](value); }
+            catch (error) { error.noTransportRetry = true; throw error; }
+        };
+        let payload = makePayload();
+        let payloadBody = JSON.stringify(payload);
+        await runHook('beforeAttempt', payloadBody);
+        requireResumeOwner();
+        let lastError = null;
+        let ambiguousSeen = false;
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                requireResumeOwner();
+                if (resumeOwner && typeof intent.onLegacyResumeTransportStart === 'function') {
+                    intent.onLegacyResumeTransportStart();
+                }
+                const resp = await fetch(WRITE_UI_PRODUCTION_WRITE_URL, {
+                    method: 'POST', cache: 'no-store',
+                    headers: _syncviewEfHeaders({
+                        apikey: CAL_SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-Syncview-Source': intent.surface
+                    }, WRITE_UI_PRODUCTION_WRITE_URL),
+                    body: payloadBody
+                });
+                const json = await resp.json().catch(() => ({}));
+                if (resp.ok && json && json.ok === true && json.native_committed === true) {
+                    await runHook('afterCommit', json);
+                    return json;
+                }
+                lastError = _writeUiGatewayError(resp.status, json && json.error || 'write_failed');
+                if (!intent.legacyOnly && attempt === 0 && lastError.code === 'legacy_parity_not_allowed') {
+                    // The server can reclassify canonical TEST as SyncView even
+                    // while the global team flag is Linear. This is an explicit
+                    // pre-commit lane rejection, so rebuild once without parity.
+                    legacyParity = false;
+                    payload = makePayload();
+                    payloadBody = JSON.stringify(payload);
+                    await runHook('beforeAttempt', payloadBody);
+                    requireResumeOwner();
+                    continue;
+                }
+                if (!intent.legacyOnly && attempt === 0
+                    && ['legacy_parity_required', 'team_is_linear_authoritative'].includes(lastError.code)) {
+                    legacyParity = true;
+                    payload = makePayload();
+                    payloadBody = JSON.stringify(payload);
+                    await runHook('beforeAttempt', payloadBody);
+                    requireResumeOwner();
+                    continue;
+                }
+                // Ambiguous transport/server retries reuse the byte-identical
+                // payload. Never change authority lane under one request ID.
+                if (resp.status >= 500 && attempt === 0) { ambiguousSeen = true; continue; }
+                if (resp.status >= 400 && resp.status < 500 && !ambiguousSeen) lastError.precommitSafe = true;
+                throw lastError;
+            } catch (e) {
+                lastError = e;
+                if (e && e.noTransportRetry) throw e;
+                if (attempt === 0 && (!e.status || e.status >= 500)) { ambiguousSeen = true; continue; }
+                throw e;
+            }
+        }
+        throw lastError || _writeUiGatewayError(503, 'write_failed');
+    }
+    function _writeUiFilterCachedPosts(posts, authority) {
+        if (!Array.isArray(posts) || !authority) return [];
+        return posts.map(post => {
+            if (!post || typeof post !== 'object') return post;
+            if (authority.video !== 'syncview' && authority.graphics !== 'syncview') return post;
+            const next = Object.assign({}, post);
+            if (authority.video === 'syncview') next.linear_issue_id = '';
+            if (authority.graphics === 'syncview') next.graphic_linear_issue_id = '';
+            return next;
+        });
+    }
+    function _writeUiIdentifierAllowed(identifier, authority) {
+        const id = String(identifier || '').toUpperCase();
+        if (!authority) return false;
+        if (id.indexOf('VID-') === 0) return authority.video !== 'syncview';
+        if (id.indexOf('GRA-') === 0) return authority.graphics !== 'syncview';
+        return true;
+    }
+    function _writeUiExpireV1Caches() {
+        try {
+            localStorage.removeItem('syncview_calLinearMeta_v1');
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                const key = localStorage.key(i) || '';
+                if (key.indexOf('syncview_calCache_v1:') === 0 || key.indexOf('syncview_sxr_cache_v1_') === 0) localStorage.removeItem(key);
+            }
+        } catch (e) {}
+    }
+    function _calUpsertFetch(clientOrSlug, payload, source) {
+        _calPrimeUpsertRoutingFlag();
+        const url = _calUpsertUrlForClient(clientOrSlug);
+        return fetch(url, {
+            method: 'POST',
+            headers: _calUpsertHeaders(source, url),
+            body: JSON.stringify(payload)
+        });
+    }
+    function _calUpsertFetchPinned(clientOrSlug, payload, source, transport) {
+        if (transport !== 'supabase' && transport !== 'webhook') {
+            return _calUpsertFetch(clientOrSlug, payload, source);
+        }
+        const url = transport === 'supabase' ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
+        return fetch(url, {
+            method: 'POST',
+            headers: _calUpsertHeaders(source, url),
+            body: JSON.stringify(payload)
+        });
+    }
+    _calPrimeUpsertRoutingFlag();
+    function _settingsSetFlagValue(value) {
+        _settingsEfClients = new Set(_calRuntimeFlagClients(value));
+        _calV2Log('settings EF clients:', Array.from(_settingsEfClients).join(',') || '(none)');
+    }
+    async function _settingsFetchFlagOnce() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _settingsSetFlagValue({ clients: [] }); return; }
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(SETTINGS_EF_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            const row = Array.isArray(rows) ? rows[0] : null;
+            _settingsSetFlagValue(row && row.value ? row.value : { clients: [] });
+        } catch (e) {
+            _settingsSetFlagValue({ clients: [] });
+            console.warn('[Settings] settings EF flag read failed; using n8n fallback', e);
+        }
+    }
+    async function _settingsSubscribeFlag() {
+        if (_settingsFlagChannel) return;
+        const client = await _calRuntimeFlagClient();
+        if (!client || _settingsFlagChannel) return;
+        try {
+            _settingsFlagChannel = client
+                .channel('syncview-settings-runtime-flags')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + SETTINGS_EF_FLAG_KEY }, (payload) => {
+                    const row = payload && payload.new ? payload.new : null;
+                    _settingsSetFlagValue(row && row.value ? row.value : { clients: [] });
+                })
+                .subscribe();
+        } catch (e) {
+            console.warn('[Settings] runtime flag realtime subscribe failed', e);
+            _settingsFlagChannel = null;
+        }
+    }
+    function _settingsPrimeRoutingFlag() {
+        if (!_settingsFlagPromise) {
+            _settingsFlagPromise = _settingsFetchFlagOnce().then(() => _settingsSubscribeFlag()).catch(() => null);
+        }
+        return _settingsFlagPromise;
+    }
+    function _settingsUseEf(clientOrSlug) {
+        let slug = '';
+        try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+        return !!slug && _settingsEfClients.has(slug);
+    }
+    function _settingsWriteUrlForClient(clientOrSlug, efUrl, n8nUrl) {
+        _settingsPrimeRoutingFlag();
+        return _settingsUseEf(clientOrSlug) ? efUrl : n8nUrl;
+    }
+    function _settingsWriteHeaders(source, url) {
+        return _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': source || 'settings' }, url);
+    }
+    _settingsPrimeRoutingFlag();
+    /* Default Caption Writer prompt — kept in sync with the same string
+       baked into the SyncView Calendar — Generate Caption workflow. When
+       a client's CaptionPrompts row is empty, both the front-end modal
+       and the workflow fall back to this exact prompt. */
+    const DEFAULT_CAPTION_PROMPT = "Caption Writer\nGenerate an Instagram Reels caption from the following video transcript.\n\nCaption Formula:\n- 2 to 4 sentences max. Most captions are 2 sentences.\n- Occasionally one caption can be slightly longer if the script is personal/story-driven (3-5 sentences), but this is the exception.\n- Then exactly 3 hashtags immediately after the caption body.\n\nOpening line patterns (pick the one that fits):\n- Tension/contrast: Start with the common assumption, then flip it.\n- Observation about effort: Name what's invisible or unacknowledged.\n- Reframe the narrative: Challenge the cultural script.\n- Counter-intuitive take: Lead with the paradox.\n- Unexpected observation: Surface what's quietly true.\n- Personal + communal bridge: Connect the creator's experience to the reader's.\n- Two-world contrast: Juxtapose two forces.\n\nThe pivot (middle sentence):\n- Reframe the opening tension toward insight or validation.\n- Often starts with: \"But\", \"Realizing\", \"The truth is\", \"It just\", \"Because\".\n- Validates the reader's experience without toxic positivity.\n\nClosing (if a 3rd sentence is needed):\n- Short. One thought. Lands the emotional point.\n- Feels like something you'd tell a friend, not a motivational poster.\n\nTone rules:\n- Warm but honest. Never sappy.\n- First-person \"I\" mixed naturally with inclusive \"we\" or \"you\".\n- Conversational, not formal or clinical.\n- No selling, no CTA, no \"save this post\", no \"follow for more\".\n- Do NOT summarize the script. Extract the emotional core or the central insight and rewrite it entirely in your own words.\n- Do NOT use bullet points, lists, or line breaks inside the caption body.\n\nHashtag Rules:\n- Always exactly 3 hashtags.\n- Broad, niche-relevant, not hyper-specific.\n- 1 to 2 words max per hashtag.\n- Should feel like a category the video belongs to.\n\nThe caption is the emotional resonance of the video, distilled to its most honest and relatable form, written in the creator's first-person voice.\n\nRespond with ONLY the caption and 3 hashtags. Nothing else.";
+    /* Per-client caption prompts loaded from the CaptionPrompts tab on the
+       SyncView Calendar Sheet. Keyed by client slug (calClientSlug output).
+       Missing keys → fall back to DEFAULT_CAPTION_PROMPT. Populated lazily
+       on first calendar mount; cached in-memory for the session. */
+    let _calCaptionPrompts = {};
+    let _calCaptionPromptsLoaded = false;
+    let _calCaptionPromptsInFlight = null;
+    /* Caption-job engine state — the single source of truth for the Generate
+       button, the floating progress chip and cancel. One job object per card
+       (keyed by post id). Active jobs are mirrored to localStorage so an
+       in-flight generation survives a refresh or tab close: the backend
+       caption_jobs row is authoritative and the poller re-syncs against it.
+       Multiple cards can generate at once (rapid-fire clicks just queue);
+       CAL_CAPJOB_CONCURRENCY caps parallel Apify/Whisper runs. */
+    const CAL_CAPJOB_LS_KEY = 'syncview_captionJobs_v1';
+    const CAL_CAPJOB_CONCURRENCY = 2;
+    const CAL_CAPJOB_POLL_MS = 5000;
+    const CAL_CAPJOB_STALE_MS = 12 * 60 * 1000;      // no backend movement → timed out
+    const CAL_CAPJOB_CONFIRM_MS = 45 * 1000;          // POST failed + row never appeared → unreachable
+    const CAL_CAPJOB_CANCEL_GRACE_MS = 12 * 1000;     // after an explicit cancel, wait this long for the backend to confirm, then settle locally
+    const CAL_CAPJOB_FETCH_TIMEOUT_MS = 10 * 60 * 1000;
+    const _calCaptionJobs = new Map();                // pid → job
+    let _calCapJobBatch = null;                       // floating chip counters
+    let _calCapJobPollTimer = null;
+    let _calCapJobTicker = null;
+    let _calCapJobPollBusy = false;
+    let _calCapJobsRestored = false;
+
+    /* N/A leads the list because it is the "this lane does not apply" opt-out,
+       and the picker reads top-down from "not applicable" into the real
+       pipeline. It is SMM-set ONLY -- nothing computes it, and In Progress
+       stays the default for every new component. */
+    const CAL_STATUSES  = ['N/A','In Progress','For SMM Approval','Kasper Approval','Client Approval','Tweaks Needed','Approved','Scheduled','Posted'];
+    /* Worst → best. Overall card status is the lowest-priority sub-status.
+       Must stay in lock-step with the n8n linear-status-sync PRIORITY table.
+       N/A is DELIBERATELY absent: a lane marked not-applicable must not drag
+       the card's overall status in either direction, and computeOverallStatus
+       skips anything without a priority. Adding it here would also break the
+       lock-step above. */
+    const CAL_PRIORITY = { 'Tweaks Needed':0,'In Progress':1,'For SMM Approval':2,'Kasper Approval':3,'Client Approval':4,'Approved':5,'Scheduled':6,'Posted':7 };
+    const CAL_COMPONENTS = ['video','graphic','caption'];
+    /* Review components: the set that flows through the review panels, the
+       Kasper queue, the Notes feed and unread/seen tracking. The YouTube TITLE
+       is one of these — but is DELIBERATELY kept OUT of CAL_COMPONENTS above, so
+       it never enters computeOverallStatus / _calIsClientReady / any overall-
+       status machinery. See docs/features/YOUTUBE_TITLE_REVIEW_DESIGN.md. Iterate this list
+       (via _calComponentsFor) for review/Notes/queue; iterate CAL_COMPONENTS for
+       anything that feeds the overall status. */
+    const CAL_REVIEW_COMPONENTS = ['video','graphic','caption','title'];
+    /* The title reuses the existing status vocabulary, minus the publishing-only
+       states (Scheduled / Posted) that don't apply to a title. */
+    const CAL_TITLE_STATUSES = ['In Progress','For SMM Approval','Kasper Approval','Client Approval','Tweaks Needed','Approved'];
+    /* Title review applies to YouTube cards only. */
+    function _calIsYouTubeCard(post) { return _calPostPlatforms(post).includes('youtube'); }
+    /* Per-client, cross-device toggle for the title-review feature (mirrors
+       collab mode; lives in calState.settings). */
+    function _calIsTitleReviewOn() { return !!(calState.settings && calState.settings.title_review); }
+    /* Has the title been engaged in review (a sub-status was set)? Data-driven,
+       so cross-client surfaces (the Kasper queue) work WITHOUT a per-client
+       settings lookup: title_status can only be non-empty if an SMM whose
+       feature was on set it. */
+    function _calTitleEngaged(post) { return !!String((post && post.title_status) || '').trim(); }
+    /* Components active for a post on the REVIEW / Notes / queue surfaces. The
+       title joins only when it's an engaged YouTube card. (The SMM calendar's
+       status row uses _calTitlePillShown instead, so the SMM can engage the
+       title before it carries any status.) */
+    function _calComponentsFor(post) {
+        return (_calIsYouTubeCard(post) && _calTitleEngaged(post)) ? CAL_REVIEW_COMPONENTS : CAL_COMPONENTS;
+    }
+    /* Does the SMM calendar show a title status pill for this card? Toggle-gated
+       (calState.settings is the right client in the calendar view), OR whenever
+       the title already carries review state — so an in-flight review stays
+       visible even if the feature is later toggled off. */
+    function _calTitlePillShown(post) {
+        return _calIsYouTubeCard(post) && (_calIsTitleReviewOn() || _calTitleEngaged(post));
+    }
+    /* Map any legacy / external status string onto the current set.
+       "Draft" was retired — those posts become "In Progress". */
+    function _calNormStatus(s) {
+        const v = String(s || '').trim();
+        if (!v || /^draft$/i.test(v)) return 'In Progress';
+        if (/^(for )?kasper approval$/i.test(v)) return 'Kasper Approval';
+        if (/^smm approval$/i.test(v)) return 'For SMM Approval';
+        const m = CAL_STATUSES.find(x => x.toLowerCase() === v.toLowerCase());
+        return m || v;
+    }
+    /* Compute the overall card status from its three sub-statuses using the
+       lower-priority-wins rule. One sub in "Tweaks Needed" forces the
+       whole card to "Tweaks Needed". */
+    function computeOverallStatus(p) {
+        if (!p) return 'In Progress';
+        const subs = CAL_COMPONENTS.map(c => _calNormStatus(p[c + '_status'] || 'In Progress'));
+        /* A card whose every lane is non-ranking -- today that means all three
+           marked N/A -- has nothing to roll up, and the reduce below would
+           fall through to its 'Posted' seed and report an untouched card as
+           published. Expressed against CAL_PRIORITY rather than the N/A helper
+           on purpose: computeOverallStatus is extracted and executed standalone
+           by several suites, so it must not reach for identifiers outside the
+           scope it already needs. */
+        if (subs.every(s => CAL_PRIORITY[s] == null)) return subs[0] || 'In Progress';
+        return subs.reduce((acc, s) => (CAL_PRIORITY[s] != null && CAL_PRIORITY[acc] != null && CAL_PRIORITY[s] < CAL_PRIORITY[acc]) ? s : acc, 'Posted');
+    }
+    /* Clears approval timestamps that no longer reflect the current state.
+       Called whenever a sub-status changes. The rule: if a component's
+       sub-status drops below "Client Approval" (i.e. is now Tweaks Needed,
+       In Progress, For SMM Approval, or Kasper Approval), its
+       client_<comp>_approved_at is stale and must be cleared so the row
+       doesn't read "approved by client at <date>" while the UI shows it as
+       awaiting approval. The overall kasper_approved_at is cleared when
+       no component is at-or-above Client Approval anymore. `pending` is
+       the _calPendingEdits[pid] bucket so the cleared values get written
+       back to the sheet on the next flush. */
+    function _calClearStaleApprovals(post, pending) {
+        if (!post) return;
+        const above = new Set(['Client Approval', 'Approved', 'Scheduled', 'Posted']);
+        CAL_COMPONENTS.forEach(c => {
+            const sub = _calNormStatus(post[c + '_status'] || '');
+            const stampKey = 'client_' + c + '_approved_at';
+            if (!above.has(sub) && post[stampKey]) {
+                post[stampKey] = '';
+                if (pending) pending[stampKey] = '';
+            }
+        });
+        // Title follows the same stale-client-stamp rule, but stands apart from
+        // CAL_COMPONENTS (it never feeds the overall status or kasper_approved_at).
+        if (String(post.title_status || '').trim() && !above.has(_calNormStatus(post.title_status || '')) && post.client_title_approved_at) {
+            post.client_title_approved_at = '';
+            if (pending) pending.client_title_approved_at = '';
+        }
+        if (post.kasper_approved_at) {
+            const anyAbove = CAL_COMPONENTS.some(c => above.has(_calNormStatus(post[c + '_status'] || '')));
+            if (!anyAbove) {
+                post.kasper_approved_at = '';
+                if (pending) pending.kasper_approved_at = '';
+            }
+        }
+    }
+    /* Parses a sheet column that holds a JSON comments array. Falls back to
+       a legacy plaintext value (seeded as a single SMM note) so existing
+       data is never lost during the per-component tweaks migration. */
+    function _calLoadCommentsField(post, fieldName, legacyFallback) {
+        // The component this column belongs to, for the incomplete-read signal.
+        const component = String(fieldName || '').replace(/_tweaks$/, '');
+        const direct = post && post['_' + fieldName + '_parsed'];
+        if (Array.isArray(direct)) {
+            const kept = direct.filter(c => c && c.id);
+            _prodMarkLegacyReadIncomplete(post, component, kept.length !== direct.length);
+            return kept;
+        }
+        const raw = String((post && post[fieldName] != null) ? post[fieldName] : '').trim();
+        const consumed = (raw && raw.startsWith('[')) ? raw : '';
+        if (consumed) {
+            try {
+                const parsed = JSON.parse(consumed);
+                if (Array.isArray(parsed)) {
+                    const kept = parsed.filter(c => c && c.id);
+                    // Rows without an id are DROPPED here, and the dropped row
+                    // may be perfectly readable content — a body with real
+                    // feedback and no id. The column still holds it, so the
+                    // read is incomplete, not empty. Cleared on a clean read so
+                    // a repaired column stops holding the card.
+                    _prodMarkLegacyReadIncomplete(post, component, kept.length !== parsed.length);
+                    return kept;
+                }
+                // JSON-shaped but not an array: nothing is loaded, yet the
+                // column holds readable text.
+                _prodMarkLegacyReadIncomplete(post, component, true);
+            } catch {
+                // Unparseable JSON. The seed path below deliberately skips a
+                // consumed column, so this content reaches no reader at all.
+                _prodMarkLegacyReadIncomplete(post, component, true);
+            }
+        }
+        const fb = String(legacyFallback == null ? '' : legacyFallback).trim();
+        if (!raw && !fb) return [];
+        const seed = consumed ? '' : (raw || fb);
+        if (!seed) return [];
+        return [{
+            id: 'c_legacy_' + Math.random().toString(36).slice(2, 8),
+            parent_id: null,
+            author: 'Legacy import — please send to Sidney before deleting',
+            role: 'smm',
+            body: seed, created_at: '', done: false, done_at: '', done_by: '',
+            source: 'legacy_tweaks_column_seed',
+            source_field: fieldName,
+            seeded_at: new Date().toISOString()
+        }];
+    }
+    /* Idempotent migration of a post row from the legacy single-status shape
+       to per-component (video / graphic / caption) sub-statuses + comments.
+       Existing rows with only `status` set get all three sub-statuses
+       seeded to that value so workflow position is preserved. `tweaks`
+       column content seeds video_comments so historical feedback isn't
+       lost. The overall `status` is recomputed from the sub-statuses. */

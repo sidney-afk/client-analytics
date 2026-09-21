@@ -167,6 +167,9 @@ const FAILURE_SIGNATURES = [
   ['pwg_inplace_render', /PWG_PHASE_INPLACE_RENDER\b/],
   ['pwg_inplace_save', /PWG_PHASE_INPLACE_SAVE\b/],
   ['pwg_labels_projection', /PWG_PHASE_LABELS_PROJECTION\b/],
+  // Owner ruling 2026-08-17: archiving a post parks its sub-issues in
+  // Backlog. Added 2026-09-21 alongside the suite's own new phase.
+  ['pwg_archive_park_sub_issues', /PWG_PHASE_ARCHIVE_PARK_SUB_ISSUES\b/],
 ];
 
 /* Fallback vocabulary: JavaScript's own built-in error constructor names.

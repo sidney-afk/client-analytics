@@ -1,2 +1,4 @@
 000-head.html.part
+005-head-boot.html.part
+010-styles-foundation.css.part
 999-remainder.html.part

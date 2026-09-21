@@ -1,0 +1,7 @@
+{
+  "files.associations": {
+    "*.html.part": "html",
+    "*.css.part": "css",
+    "*.js.part": "javascript"
+  }
+}

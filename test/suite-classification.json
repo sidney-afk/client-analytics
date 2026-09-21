@@ -208,6 +208,7 @@
     "identifier-team-move-repair.js",
     "import-from-linear-sealed.js",
     "inactive-editor-roster.js",
+    "index-build.js",
     "index-inline-script-syntax.js",
     "intake-created-status-server-guard.js",
     "intake-post-names.js",

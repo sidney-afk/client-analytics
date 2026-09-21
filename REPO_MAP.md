@@ -21,6 +21,8 @@ commit as any structural change.
 | `package.json` | npm scripts for every test lane (see "Test & automation entry points" below); dev deps are Playwright + Argos only. |
 | `synchro-social-favicon.png`, `synchro-social-logo.png`, `syncview-favicon.png` | Runtime images referenced by `index.html` via relative URL. Must stay at root. |
 | `.gitattributes`, `.gitignore` | LF normalization (unit tests string-extract from `index.html`); ignore rules for generated artifacts. |
+| `.vscode/` | Editor settings only (`settings.json` maps `*.html.part`/`*.css.part`/`*.js.part` to their base language for syntax highlighting in `src/index/` fragments). No build behavior. |
+| `src/index/` | The ordered byte fragments `index.html` is assembled from (`npm run build:index`), plus the generated navigation map at `src/index/INDEX.md`. Edit fragments, never `index.html` directly; `npm run check:index` proves assembled bytes == working-tree `index.html` == committed `index.html`. |
 
 ## Runtime asset folders (served by GitHub Pages — do NOT move)
 
@@ -67,6 +69,8 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | Command / trigger | What runs | Notes |
 |---|---|---|
 | `npm test` | `test/run-all.js` → every `test/*.js` (dependency-free; normally offline, with F63 using only an explicitly required disposable PostgreSQL 16 service) | Runs on every push (`calendar-unit-tests.yml`). It never targets a live backend. Run before every commit. |
+| `npm run build:index` | `scripts/build-index.js` — assembles `index.html` from `src/index/` fragments per `src/index/manifest.txt` and regenerates `src/index/INDEX.md` | Run after editing any `src/index/` fragment; never edit `index.html` by hand. |
+| `npm run check:index` | `scripts/check-index.js` — assembles in memory and proves it equals both the working-tree and committed `index.html`, printing SHA-256/byte length of each | Runs in the `unit` job of `calendar-unit-tests.yml` before `test/run-all.js`, on every push and PR. |
 | Linear-exit owner composition | `scripts/linear-exit-composition/README.md` and `test/linear-exit-owner-composition.js` | Actual A1/B0/F27/native-owner SQL, provider/native receipts, interruption/resume; bounded scope, no hosted proof. |
 | Linear-exit isolated rehearsal | `qa/linear-exit-rehearsal/README.md` and `qa/linear-exit-rehearsal/run-portable.ps1` | Captured tokenless Calendar fixture, browser/handler/disposable SQL, preserved repository negative control; no deployment or hosted writes. |
 | `npm run test:e2e` | `qa/run-probes.js` → probes in `qa/probes/nightly-manifest.txt` | **Live backend**, test client only. Nightly (`calendar-e2e-nightly.yml`). |

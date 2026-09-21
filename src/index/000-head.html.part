@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
+    <title>SyncView</title>
+    <link rel="icon" type="image/png" href="syncview-favicon.png">
+    <!-- Pre-paint boot gate. The static <body> markup is the staff analytics
+         dashboard, but the code that reroutes special entries (onboarding
+         forms, ?intake=1, ?c= client links, the password gate, hash-tab
+         refreshes) sits at the END of the ~30k-line app script — so without
+         this, every one of those entries flashes the SyncView header +
+         "Client Analytics" chrome before the right view mounts. This script
+         re-derives the same boot mode from the URL + storage and tags <html>
+         (which exists from the first byte — tagging <body> is too late: a
+         paint can slip in between <body> being created and a body-start
+         script running) so the CSS gate rules (see "Pre-paint boot gate" in
+         the style block) suppress the wrong chrome from the very first
+         paint. The app script lifts each tag at the exact point its own
+         show/hide logic takes over: data-boot-nav in navTo()/render() and
+         init()'s catch and boot-gate in _syncviewLiftStaffGate(); boot-client,
+         boot-onboarding, and boot-intake are permanent document-owner locks,
+         like the body.onboarding-mode/.intake-mode classes they anticipate. Must
+         never throw and never log — headless probes boot this file
+         unauthenticated + offline and fail on any console error. -->
+    

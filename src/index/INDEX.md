@@ -9,4 +9,4 @@
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `005-head-boot.html.part` | 206 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 3 | `010-styles-foundation.css.part` | 3906 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 4 | `999-remainder.html.part` | 81984 | Templates view |
+| 4 | `999-remainder.html.part` | 82010 | Templates view |

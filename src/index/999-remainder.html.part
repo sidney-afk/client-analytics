@@ -41480,7 +41480,7 @@
         await Promise.all(Array.from({ length: n }, () => worker()));
         return results;
     }
-    async function _calArchiveOne(id, slug) {
+    async function _calArchiveOne(id, slug, preCapturedPost) {
         const useSlug = slug || calClientSlug(calState.client);
         // The card is being archived, so any queued edits for it are moot —
         // drop them so the in-flight save's finally doesn't re-flush them on
@@ -41498,10 +41498,22 @@
         // could have dropped it from calState.posts, and the helper answered a
         // falsy post by returning {parked:0,failed:0} in silence. See
         // OPEN_REPAIRS 23: 11 archives since the feature shipped, 0 parks.
-        // This does not explain those 11 on its own -- the cause was never
-        // established and the video leg leaves no outbox row either way -- but
-        // it removes the one window that provably loses the row.
-        const knownPost = calState.posts.find(p => p.id === id) || null;
+        //
+        // That fix looked in the wrong place: BOTH real callers
+        // (archiveCalPost, _calArchiveSelected) strip the row out of
+        // calState.posts for their own optimistic UI update *before* they
+        // call this function at all -- not during an await inside it -- so
+        // `calState.posts.find` here always missed, every single time, and
+        // the server echo (`json.post`) never carries the row either. Zero
+        // deliverable_events rows with to_status=backlog since 2026-08-17
+        // is what that looks like measured live. `preCapturedPost` is the
+        // fix: the caller passes the row it already had in hand, from
+        // before its own optimistic removal, so the park below has it
+        // regardless of what calState.posts holds by the time it runs. The
+        // calState.posts lookup stays as a fallback for any caller that
+        // still holds the row there (or a future one that doesn't capture
+        // its own copy).
+        const knownPost = preCapturedPost || calState.posts.find(p => p.id === id) || null;
         const inflight = _calSaveInFlight[id];
         if (inflight) { try { await inflight; } catch (e) {} }
         const resp = await _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } });
@@ -41662,7 +41674,18 @@
             async () => {
                 const idSet = new Set(ids);
                 const refsById = new Map();
-                calState.posts.forEach(p => { if (idSet.has(p.id)) refsById.set(p.id, _calRefsForPost(p)); });
+                // Captured in the SAME pass as refsById, before the filter below
+                // removes these rows from calState.posts for the optimistic UI
+                // update -- see the comment on `preCapturedPost` in
+                // _calArchiveOne. Without this, the park step's own lookup in
+                // calState.posts always misses (the row is already gone by the
+                // time it runs), which is why archiving never parked.
+                const postsById = new Map();
+                calState.posts.forEach(p => {
+                    if (!idSet.has(p.id)) return;
+                    refsById.set(p.id, _calRefsForPost(p));
+                    postsById.set(p.id, p);
+                });
                 // Pre-populate the ledger BEFORE the archive HTTPs fire.
                 // A background poll racing the writes would otherwise
                 // refetch the still-live rows and resurrect them; with
@@ -41684,7 +41707,7 @@
                 // simultaneous upsert webhooks at n8n. The UI is already optimistic
                 // (cards vanished above), so throttling the background writes costs
                 // nothing visible and stops the request spike. Same allSettled shape.
-                const results = await _calRunPooled(ids, CAL_BULK_ARCHIVE_CONCURRENCY, id => _calArchiveOne(id, slug));
+                const results = await _calRunPooled(ids, CAL_BULK_ARCHIVE_CONCURRENCY, id => _calArchiveOne(id, slug, postsById.get(id) || null));
                 // Roll back ledger entries for posts whose archive write
                 // failed so the row stops being hidden after the grace
                 // window — also reload to bring them back into the
@@ -41719,7 +41742,10 @@
             _calRenderBody({ preserveScroll: true });
             try { _calCacheWrite(slug, calState.posts); } catch {}
             try {
-                await _calArchiveOne(id, slug);
+                // `target` was captured above, before the filter just removed
+                // this row from calState.posts -- see the comment on
+                // `preCapturedPost` in _calArchiveOne.
+                await _calArchiveOne(id, slug, target || null);
             } catch (e) {
                 console.warn('[Calendar] archive failed', e);
                 _calArchivedRemove(slug, refs);

@@ -7547,3 +7547,33 @@ exported `buildManifest()`/`assertPrivatePath()` directly; not needed after
 the fix landed. rows.json, manifest.json and out-map.json were written under
 `%USERPROFILE%\.syncview\brief-media\`, outside any git working tree, per
 the script's own `assertPrivatePath` refusal.
+
+**2026-09-20 — Native brief-media copy finished: the one over-50MB file
+dropped from its brief by owner decision, coverage reached 1338/1338, flag
+flipped to `required`.** Deliverable `b1_d_cd4b461d2ae34951a6cae0dc614e0c4c`
+(video team) held the single `byte_length_out_of_range` refusal from the
+earlier run. Its live `brief` was read, hashed, and matched the manifest's
+recorded `source_sha256` before anything was touched; a private copy was
+saved outside the git tree as a rollback point (never committed). Exactly one
+occurrence — the markdown image/link carrying the `uploads.linear.app` URL,
+at the manifest's own `source_offset`/`source_length` — was removed with a
+guarded `update ... where id=... and brief=<the exact prior text>`,
+committed once the row count and returned value were verified equal. Readback
+confirmed the brief no longer contains `uploads.linear.app` and its byte
+count dropped by exactly the removed occurrence's length. No other part of
+the brief was touched.
+
+`rows.json` was re-exported (486 rows, down from 487 — this deliverable's
+brief no longer matches the export query). `plan` recomputed 1338
+occurrences across 1167 distinct files. `apply --apply` against the same
+live environment reported **copied=0, skipped_idempotent=1338, refused=0**
+— coverage **1338/1338 resolved, complete=true**. With refused=0 the script
+printed a real FLAG FLIP block (`recovery_receipt_sha256` and
+`coverage_receipt_sha256` filled in from this run's own out-map), which was
+run exactly once and verified inside the transaction before commit.
+`syncview_runtime_flags.native_brief_media` now reads
+`{"mode":"required","contract":"native_brief_media_v1","recovery_contract":"native_brief_media_recovery_v1","recovery_receipt_sha256":"93167ba556b113174a89df90bff60bb33e4e9179a48ec1083c62bba357fc0830","coverage_receipt_sha256":"566040f2e52ede33420a431461fb33988d7555c52906a3f0ef669003a196ed7c"}`,
+committed 2026-09-21T00:02:42.896549Z, `updated_by='native-brief-media-copy'`.
+No client name, signed URL or brief text appears in this entry or anywhere
+in this repository; the brief backup and the rows/manifest/out-map files all
+live under `%USERPROFILE%\.syncview\brief-media\`, outside any git tree.

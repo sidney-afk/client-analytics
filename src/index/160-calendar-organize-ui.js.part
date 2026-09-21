@@ -1,0 +1,2717 @@
+    function _calRefreshOrganize() {
+        const mid = document.querySelector('.cal-toolbar-mid');
+        if (!mid) return;
+        const existing = mid.querySelector('.cal-organize');
+        const html = _calOrganizeHtml();
+        if (!html) { if (existing) existing.remove(); return; }
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        const node = tmp.firstElementChild;
+        if (!node) return;
+        if (existing) {
+            const wasOpen = !!existing.querySelector('.dropdown-menu.open');
+            existing.replaceWith(node);
+            if (wasOpen) _calSetOrganizeOpen(true);
+        } else {
+            // Same slot the shell builds it into: ahead of the client-links
+            // pill when that exists, otherwise straight before the view toggle.
+            mid.insertBefore(node, mid.querySelector('.cal-client-links') || mid.querySelector('.cal-view-toggle'));
+        }
+    }
+    /* Lighter path for the Order switch: update the chrome in place so the
+       switch animates from off to on instead of being replaced mid-flip. */
+    function _calSyncOrganizeSwitch() {
+        const on = _calIsAutoSortOn();
+        const sw = document.getElementById('calOrgSortSwitch');
+        if (sw) sw.classList.toggle('is-on', on);
+        const row = document.querySelector('#calOrganizeWrap .cal-org-toggle');
+        if (row) {
+            row.setAttribute('aria-checked', on ? 'true' : 'false');
+            const sub = row.querySelector('.cal-org-toggle-sub');
+            if (sub) sub.textContent = on ? 'Oldest first · unscheduled last' : 'Off — your drag order';
+        }
+        const btn = document.getElementById('calOrganizeBtn');
+        if (btn) {
+            const txt = btn.querySelector('.cal-org-trigger-txt');
+            if (txt) txt.textContent = _calOrganizeTriggerLabel();
+            btn.classList.toggle('is-filtered', _calOrganizeIsActive());
+        }
+    }
+    function onCalSortModeToggle(e) {
+        if (e) e.stopPropagation();
+        calState.sortMode = _calIsAutoSortOn() ? 'manual' : 'date';
+        _calSaveClientFilters();
+        // Scroll is deliberately NOT preserved: the strip has just been
+        // reordered, so the old horizontal offset points at unrelated cards.
+        _calRenderBody({ preserveScroll: false });
+        _calSyncOrganizeSwitch();
+    }
+    function onCalMonthFilterChange(v) {
+        calState.monthFilter = _calNormMonthFilter(v === 'all' ? 'all' : v);
+        _calSaveClientFilters();
+        _calRenderBody({ preserveScroll: false });
+        _calRefreshOrganize();
+    }
+
+    /* Anomalous cards hidden by the month filter — feeds the ⓘ chip that
+       _calSyncMonthWarnIcon keeps next to the month pill. Hidden cards are
+       NORMAL on a healthy calendar (other months legitimately have content),
+       so only two kinds warrant a warning:
+         (a) recently edited (last 48h) — someone just worked on the card, and
+             it vanishing behind the filter reads as "my card was deleted"
+             (two SMMs hit exactly this in one day);
+         (b) overdue — dated in a month BEFORE the current real month yet not
+             Approved / Scheduled / Posted: the date passed without the post
+             going out, so the date itself is probably wrong.
+       Candidates only include cards this viewer could otherwise see (status
+       filter + client-link visibility), so the chip never points at a card
+       the current view couldn't show anyway. Returns plain-text messages
+       (they land in a title attribute, not innerHTML). */
+    function _calHiddenMonthWarnings() {
+        if (!calState.client || calState.view !== 'organizer') return [];
+        const monthFilter = _calNormMonthFilter(calState.monthFilter);
+        if (monthFilter === 'all') return [];
+        const statusFilter = _calNormStatusFilter(calState.statusFilter);
+        const cands = (calState.posts || []).filter(p =>
+            p.id !== calState.focusPid
+            // Only DATED cards can be "hidden by the month filter" in the anomalous
+            // sense this chip warns about. Undated cards live in the reserve pile and
+            // are expected to be absent from any concrete month, so they are neither
+            // "recently edited but hidden" nor "overdue" — exclude them outright.
+            && _calPostHasDate(p)
+            && !_calPostInMonthFilter(p, monthFilter)
+            && _calPostInStatusFilter(p, statusFilter)
+            && (!_isClientLink || _calIsCollabOn() || _calIsClientReady(p)));
+        const RECENT_MS = 48 * 60 * 60 * 1000;
+        const recentIds = new Set(cands.filter(p => {
+            const t = Date.parse(p.updated_at || '');
+            return isFinite(t) && (Date.now() - t) < RECENT_MS;
+        }).map(p => p.id));
+        const recent = cands.filter(p => recentIds.has(p.id));
+        const doneSet = new Set(['approved', 'scheduled', 'posted']);
+        const nowYm = _calCurrentMonthIso();
+        const overdue = cands.filter(p =>
+            !recentIds.has(p.id)
+            && String(p.scheduled_date || '').slice(0, 7) < nowYm
+            && !doneSet.has(String(p.status || '').trim().toLowerCase()));
+        const ref = (p) => `“${String(p.name || 'Untitled').trim() || 'Untitled'}” (${_calFmtDateShort(p.scheduled_date)})`;
+        const label = _calMonthLabel(monthFilter);
+        const msgs = [];
+        if (recent.length === 1) msgs.push(`${ref(recent[0])} was edited recently but is hidden by the ${label} filter.`);
+        else if (recent.length > 1) msgs.push(`${recent.length} recently edited cards are hidden by the ${label} filter.`);
+        if (overdue.length === 1) msgs.push(`${ref(overdue[0])} is unfinished but dated in a past month — its date may be wrong.`);
+        else if (overdue.length > 1) msgs.push(`${overdue.length} unfinished cards are dated in past months — their dates may be wrong.`);
+        return msgs;
+    }
+    function _calMonthWarnSvg() {
+        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="11.5"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+    }
+    /* The info icon + its popover — rendered inside #calOrganizeWrap so
+       the pill-refresh replaceWith() paths recreate them with the pill; both
+       absolutely positioned (left of / below the pill), so DOM order inside
+       the wrap doesn't matter and they never shift the dropdown. Hover shows
+       the popover via CSS; click pins it open (see _calToggleMonthWarnPop) —
+       it deliberately does NOT touch the filter. */
+    function _calMonthWarnChipHtml() {
+        const msgs = _calHiddenMonthWarnings();
+        if (!msgs.length) return '';
+        return `<button type="button" class="cal-month-warn" id="calMonthWarnIcon" aria-label="Some hidden cards need attention" aria-describedby="calMonthWarnPop" onclick="_calToggleMonthWarnPop(event)">${_calMonthWarnSvg()}</button><div class="cal-month-warn-pop" id="calMonthWarnPop" role="tooltip">${_calMonthWarnPopBody(msgs)}</div>`;
+    }
+    function _calMonthWarnPopBody(msgs) {
+        return msgs.map(m => `<div>${_calEsc(m)}</div>`).join('');
+    }
+    /* Click pins the popover open until a click lands anywhere outside it. */
+    function _calToggleMonthWarnPop(e) {
+        if (e) e.stopPropagation();
+        const pop = document.getElementById('calMonthWarnPop');
+        if (!pop) return;
+        const open = pop.classList.toggle('is-open');
+        if (open) {
+            const close = (ev) => {
+                if (ev.target && ev.target.closest && ev.target.closest('#calMonthWarnPop, #calMonthWarnIcon')) return;
+                pop.classList.remove('is-open');
+                document.removeEventListener('click', close);
+            };
+            setTimeout(() => document.addEventListener('click', close), 0);
+        }
+    }
+    /* Keep the info icon + popover in sync with the data between pill
+       refreshes. Called from _calRenderBody so async post loads and edits
+       update them. An OPEN popover only gets its text swapped — never
+       removed mid-read unless the warning itself is gone. */
+    function _calSyncMonthWarnIcon() {
+        const wrap = document.getElementById('calOrganizeWrap');
+        const icon = document.getElementById('calMonthWarnIcon');
+        const pop  = document.getElementById('calMonthWarnPop');
+        if (!wrap) { if (icon) icon.remove(); if (pop) pop.remove(); return; }
+        const msgs = _calHiddenMonthWarnings();
+        if (!msgs.length) { if (icon) icon.remove(); if (pop) pop.remove(); return; }
+        if (icon && pop) {
+            const body = _calMonthWarnPopBody(msgs);
+            if (pop.innerHTML !== body) pop.innerHTML = body;
+            return;
+        }
+        if (icon) icon.remove();
+        if (pop) pop.remove();
+        const tmp = document.createElement('div');
+        tmp.innerHTML = _calMonthWarnChipHtml();
+        wrap.prepend(...Array.from(tmp.children));
+    }
+
+    /* Content filter — splits the Sheet tab into Scheduled vs Unscheduled.
+       Lives in the Organize menu's Content section. */
+    function _calStatusFilterLabel(cur) {
+        return { all: 'All content', scheduled: 'Scheduled', unscheduled: 'Unscheduled' }[cur] || 'All content';
+    }
+    function onCalStatusFilterChange(v) {
+        calState.statusFilter = _calNormStatusFilter(v);
+        _calSaveClientFilters();
+        _calRenderBody({ preserveScroll: false });
+        _calRefreshOrganize();
+    }
+    /* Filters only — the ordering mode is not a filter and survives this. */
+    function onCalClearFilters() {
+        calState.monthFilter = 'all';
+        calState.statusFilter = 'all';
+        _calSaveClientFilters();
+        _calRenderBody({ preserveScroll: false });
+        _calRefreshOrganize();
+    }
+
+    /* Client social profiles — an SMM-only toolbar shortcut to open the active
+       client's own Instagram / TikTok / YouTube in a new tab. Handles come from
+       the Clients Info sheet (clientMap, keyed by client name); the same fields
+       and URL helpers the profile cards use. Hidden on the client-facing share
+       link (_isClientLink) and whenever no handles are on file. */
+    let _calClientLinksOutside = null;
+    function _calClientLinks() {
+        if (!calState.client || _isClientLink) return [];
+        const info = (typeof clientMap !== 'undefined' && clientMap[calState.client]) || {};
+        const ig = String(info.instagram_handle || '').trim().replace(/^@+/, '');
+        const tt = String(info.tiktok_handle || '').trim().replace(/^@+/, '');
+        const yt = String(info.youtube_channel_id || '').trim();
+        const out = [];
+        if (ig) out.push({ key: 'instagram', sub: '@' + ig, url: igUrl(ig) });
+        if (tt) out.push({ key: 'tiktok',    sub: '@' + tt, url: ttUrl(tt) });
+        if (yt) out.push({ key: 'youtube',   sub: 'Channel', url: ytUrl(yt) });
+        return out.filter(l => l.url);
+    }
+    function _calClientLinksHtml() {
+        const links = _calClientLinks();
+        if (!links.length) return '';
+        const chev  = `<svg class="dd-arrow" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"/></svg>`;
+        const globe = `<svg class="cal-client-links-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.3"/><path d="M1.7 8h12.6"/><path d="M8 1.7c1.7 1.8 2.6 3.9 2.6 6.3S9.7 12.5 8 14.3C6.3 12.5 5.4 10.4 5.4 8 5.4 5.6 6.3 3.5 8 1.7z"/></svg>`;
+        const items = links.map(l => {
+            const p = CAL_PLATFORM_BY_KEY[l.key] || {};
+            const lbl = p.label || l.key;
+            return `<a class="cal-client-link-item" href="${_calEscAttr(l.url)}" target="_blank" rel="noopener noreferrer" onclick="_calCloseClientLinks()" title="Open ${_calEscAttr(lbl)} in a new tab">`
+                + `<span class="cal-client-link-ico" style="color:${p.color || 'var(--text-secondary)'}">${p.icon || ''}</span>`
+                + `<span class="cal-client-link-txt"><span class="cal-client-link-name">${_calEsc(lbl)}</span><span class="cal-client-link-sub">${_calEsc(l.sub)}</span></span>`
+                + `<span class="cal-client-link-ext" aria-hidden="true">${_mrExternalLink}</span></a>`;
+        }).join('');
+        return `<div class="cal-client-links" id="calClientLinksWrap" data-client="${_calEscAttr(calState.client || '')}">
+            <button type="button" class="dropdown-trigger" id="calClientLinksBtn" onclick="_calToggleClientLinks(event)" title="Open this client's social profiles" aria-haspopup="true" aria-expanded="false" aria-label="Open this client's social profiles">${globe}${chev}</button>
+            <div class="dropdown-menu" id="calClientLinksMenu" role="menu"><div class="cal-client-links-head">Open profiles</div>${items}</div>
+        </div>`;
+    }
+    function _calToggleClientLinks(e) {
+        if (e) e.stopPropagation();
+        const menu = document.getElementById('calClientLinksMenu');
+        const btn  = document.getElementById('calClientLinksBtn');
+        if (!menu || !btn) return;
+        if (menu.classList.contains('open')) { _calCloseClientLinks(); return; }
+        menu.classList.add('open');
+        btn.classList.add('open');
+        btn.setAttribute('aria-expanded', 'true');
+        const close = (ev) => {
+            const wrap = document.getElementById('calClientLinksWrap');
+            if (wrap && !wrap.contains(ev.target)) _calCloseClientLinks();
+        };
+        _calClientLinksOutside = close;
+        setTimeout(() => document.addEventListener('click', close), 0);
+    }
+    function _calCloseClientLinks() {
+        const menu = document.getElementById('calClientLinksMenu');
+        const btn  = document.getElementById('calClientLinksBtn');
+        if (menu) menu.classList.remove('open');
+        if (btn)  { btn.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
+        if (_calClientLinksOutside) { document.removeEventListener('click', _calClientLinksOutside); _calClientLinksOutside = null; }
+    }
+    /* Keep the button in sync with clientMap between full shell renders: it may
+       render before the Clients Info sheet has loaded, so insert it once the
+       handles arrive. An already-shown button is left untouched (a client
+       switch rebuilds the whole toolbar) so a background refresh never closes
+       an open menu mid-click. */
+    function _calSyncClientLinks() {
+        const mid = document.querySelector('.cal-toolbar-mid');
+        if (!mid) return;
+        const existing = mid.querySelector('#calClientLinksWrap');
+        const html = _calClientLinksHtml();
+        if (!html) { if (existing) existing.remove(); return; }
+        if (existing) {
+            // Same client: leave the (possibly open) menu untouched so a background
+            // refresh can't close it mid-click. Different client (a tab switch does
+            // NOT rebuild the toolbar): drop it and rebuild with the new client's
+            // handles — otherwise "Open profiles" keeps opening the PREVIOUS
+            // client's Instagram/TikTok/YouTube.
+            if (existing.getAttribute('data-client') === (calState.client || '')) return;
+            existing.remove();
+        }
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        const node = tmp.firstElementChild;
+        if (!node) return;
+        const toggle = mid.querySelector('.cal-view-toggle');
+        if (toggle) mid.insertBefore(node, toggle);
+        else mid.appendChild(node);
+    }
+
+    function _calRenderShell() {
+        const view = document.getElementById('calView');
+        if (!view) return;
+        const embedded = !!calState.embedded;
+        const leftHtml = embedded
+            ? `<div class="cal-embed-title"><strong>${_calEsc(calState.client || '')}</strong><span>Content calendar</span></div>`
+            : `<div class="cal-tabs" id="calTabs"></div>`;
+        const kebabHtml = (calState.client && !_isClientLink)
+            ? `<div class="cal-kebab-wrap">
+                    <button class="cal-kebab" type="button" onclick="_calToggleKebab(event)" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg></button>
+                    <div class="cal-kebab-menu" id="calKebabMenu" hidden>
+                        <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();calCopyShareLink()" title="Copy a client-facing link to this calendar"><svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13"/></svg>Share with client</button>
+                        <div class="cal-kebab-sep" role="separator"></div>
+                        <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_calOpenCaptionPromptModal()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>Caption prompt</button>
+                        <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalPlatformsEditor()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Platform</button>
+                        <button class="cal-kebab-item" data-staff-capability="credentials"${_syncviewStaffCan('credentials') ? '' : ' hidden'} type="button" onclick="_calCloseKebab();_ccOpenModal(calState.client)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="11" height="7" rx="1.4"/><path d="M5 7V5.2a3 3 0 0 1 6 0V7"/><path d="M8 10v1.5"/></svg>Client credentials</button>
+                        <button class="cal-kebab-item cal-kebab-toggle" type="button" onclick="_calToggleCollabMode()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="6" r="2.2"/><circle cx="11" cy="7" r="1.8"/><path d="M1.8 13.2c.5-2 2-3 3.7-3s3.2 1 3.7 3"/><path d="M9.5 12.5c.4-1.5 1.5-2.3 2.8-2.3s2.4.8 2.8 2.3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-info-wrap" data-no-tip onclick="event.stopPropagation()"><span class="cal-kebab-info-i" aria-label="What does Collaborative mode do?">i</span><span class="cal-kebab-info-tip">Lets your client see what you're working on and suggest new posts of their own. With this off, they only see what's finished.</span></span><span class="cal-kebab-switch${_calIsCollabOn() ? ' is-on' : ''}" id="calCollabSwitch"></span></button>
+                        <button class="cal-kebab-item cal-kebab-toggle" type="button" onclick="_calToggleTitleReviewMode()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3.5" width="13" height="9" rx="2.5"/><path d="M6.6 6.2l3.1 1.8-3.1 1.8z" fill="currentColor" stroke="none"/></svg><span class="cal-kebab-label">YouTube title review</span><span class="cal-kebab-info-wrap" data-no-tip onclick="event.stopPropagation()"><span class="cal-kebab-info-i" aria-label="What does YouTube title review do?">i</span><span class="cal-kebab-info-tip">Adds a title sign-off step on YouTube cards — the SMM sends the title to Kasper, then the client, with its own status and notes. It never affects the card's overall status.</span></span><span class="cal-kebab-switch${_calIsTitleReviewOn() ? ' is-on' : ''}" id="calTitleReviewSwitch"></span></button>
+                        <div class="cal-kebab-sep" role="separator"></div>
+                        <button class="cal-kebab-item cal-kebab-import-toggle" id="calImportToggle" type="button" onclick="_calToggleImportActions(event)" aria-expanded="false" aria-controls="calImportPanel"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v8M4.5 6L8 9.5 11.5 6M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"/></svg><span class="cal-kebab-label">Import</span><svg class="cal-kebab-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button>
+                        <div class="cal-kebab-import-panel" id="calImportPanel">
+                            <button class="cal-kebab-item cal-kebab-subitem" type="button" onclick="_calCloseKebab();openCalImport()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v8M4.5 6L8 9.5 11.5 6M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"/></svg>Import from Excel</button>
+                            <button class="cal-kebab-item cal-kebab-subitem" type="button" onclick="_calCloseKebab();openCalLinearImport()"><svg viewBox="0 0 100 100" fill="currentColor"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Import from Linear</button>
+                            <button class="cal-kebab-item cal-kebab-subitem" type="button" onclick="_calCloseKebab();openCalBulkLinearSync()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5L4.5 10.5a2.12 2.12 0 1 1-3-3L3.5 5.5"/><path d="M9.5 7.5l2-2a2.12 2.12 0 1 1 3 3l-2 2"/><path d="M6 10l4-4"/></svg>Bulk Linear sync</button>
+                        </div>
+                    </div>
+                </div>`
+            : '';
+        const archiveActive = calState.selectMode && calState.selectAction !== 'caption' && calState.selectAction !== 'link';
+        // Keep both Sheet-only controls mounted across Review/Month/Week. A shell
+        // first built in another view can then reveal them without a rebuild.
+        const selectBtnHtml = (calState.client && !_isClientLink)
+            ? `<button class="cal-select-btn${archiveActive ? ' active' : ''}" type="button" data-select-action="archive" onclick="_calToggleSelectMode()" title="Select multiple posts to color-tag or archive"${calState.view === 'organizer' ? '' : ' style="display:none"'}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="3.2"/><path d="M4.8 8.1l2 2 4.4-4.8"/></svg></button>`
+            : '';
+        const bulkCapBtnHtml = (calState.client && !_isClientLink)
+            ? `<button class="cal-select-btn${calState.selectMode && calState.selectAction === 'caption' ? ' active' : ''}" type="button" data-select-action="caption" onclick="_calToggleSelectMode('caption')" title="Generate captions for multiple posts"${calState.view === 'organizer' ? '' : ' style="display:none"'}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg></button>`
+            : '';
+        const viewLabels = { review: 'Review', smmreview: 'Review', organizer: 'Sheet', month: 'Month', week: 'Week' };
+        // The client link gets the client approval queue ('review'); the SMM
+        // gets the parallel SMM-approval queue ('smmreview'). Both run on the
+        // same review machinery — only the target status differs.
+        const tabViews = _isClientLink ? ['review','organizer','month','week'] : ['smmreview','organizer','month','week'];
+        view.innerHTML = `
+            <div class="cal-toolbar">
+                <div class="cal-toolbar-left">${leftHtml}</div>
+                <div class="cal-toolbar-mid">
+                    ${_calOrganizeHtml()}
+                    ${_calClientLinksHtml()}
+                    <div class="cal-view-toggle">
+                        ${tabViews.map(v => {
+                            const n = (v === 'review' || v === 'smmreview') ? _calApprovalBadgeCount(v === 'smmreview' ? 'smm' : 'client') : 0;
+                            const badge = n > 0 ? `<span class="cal-view-badge">${n}</span>` : '';
+                            return `<button type="button" class="cal-view-btn${calState.view === v ? ' active' : ''}" data-cal-view="${v}" onclick="onCalViewChange('${v}')">${viewLabels[v]}${badge}</button>`;
+                        }).join('')}
+                    </div>
+                    <div class="cal-zoom" id="calZoomCtl" title="Card size">
+                        <svg class="cal-zoom-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+                        <button type="button" id="calZoomOut" onclick="calZoom(-1)" aria-label="Zoom out"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="7" x2="11" y2="7"/></svg></button>
+                        <button type="button" id="calZoomIn" onclick="calZoom(1)" aria-label="Zoom in"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="7" y1="3" x2="7" y2="11"/><line x1="3" y1="7" x2="11" y2="7"/></svg></button>
+                    </div>
+                </div>
+                <div class="cal-toolbar-right">
+                    <span class="cal-refreshing" id="calRefreshing" hidden><span class="cal-refresh-spin"></span>Refreshing…</span>
+                    <span class="cal-stale-notice" id="calStaleNotice" hidden onclick="loadCalendarPosts({skipCache:true})" title="Click to retry">Couldn't refresh — retry</span>
+                    ${selectBtnHtml}
+                    ${bulkCapBtnHtml}
+                    ${kebabHtml}
+                </div>
+            </div>
+            <div class="cal-body" id="calBody">${_calLoaderHtml()}</div>
+            <div class="cal-preview-overlay" id="calPreviewOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeCalPreview()">
+                <div class="cal-preview" id="calPreview"></div>
+            </div>
+            <div class="cal-import-overlay" id="calImportOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeCalImport()">
+                <div class="cal-import-modal" id="calImportModal"></div>
+            </div>
+            <div class="cal-import-overlay" id="calLinearImportOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeCalLinearImport()">
+                <div class="cal-import-modal" id="calLinearImportModal"></div>
+            </div>
+            <div class="cal-import-overlay" id="calBulkLinkOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeCalBulkLinkOverlay()">
+                <div class="cal-import-modal" id="calBulkLinkModal"></div>
+            </div>
+            <div class="cal-lightbox" id="calLightbox" onclick="closeCalLightbox()">
+                <img alt="" onclick="event.stopPropagation()">
+                <button class="cal-lightbox-close" type="button" onclick="closeCalLightbox()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+            </div>
+            <div class="cal-comments-overlay" id="calCommentsOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeCalComments()">
+                <div class="cal-comments-modal" id="calCommentsModal" role="dialog" aria-modal="true" aria-labelledby="calCommentsTitle"></div>
+            </div>
+            <div class="cal-prompt-overlay" id="calPromptOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)_calCloseCaptionPromptModal()">
+                <div class="cal-prompt-modal" id="calPromptModal" role="dialog" aria-modal="true"></div>
+            </div>
+        `;
+        if (!embedded) {
+            _calRenderTabs();
+            _calWireOutsideTabSearchClose();
+        }
+        _calApplyZoom();
+    }
+
+    /* Zoom — three discrete card sizes (Organizer only), saved to localStorage. */
+    const CAL_ZOOM_LEVELS = ['s', 'm', 'l'];
+    function _calNormZoom(z) {
+        const map = { small: 'm', default: 'l', large: 'l', s: 's', m: 'm', l: 'l' };
+        return map[z] || 'm';
+    }
+    function _calApplyZoom() {
+        const view = document.getElementById('calView');
+        if (view) view.dataset.zoom = calState.zoom || 'm';
+        const i = CAL_ZOOM_LEVELS.indexOf(calState.zoom || 'm');
+        const out = document.getElementById('calZoomOut'), inb = document.getElementById('calZoomIn');
+        if (out) out.disabled = i <= 0;
+        if (inb) inb.disabled = i >= CAL_ZOOM_LEVELS.length - 1;
+        // Keep the zoom control always visible across views — hiding it on
+        // non-organizer tabs caused the toolbar to reflow every time the
+        // user switched tabs. Zoom only affects the organizer card sizing,
+        // but the control sitting idle elsewhere is cheaper than a layout
+        // shift on every tab click.
+        const ctl = document.getElementById('calZoomCtl');
+        if (ctl) {
+            ctl.style.display = '';
+            ctl.style.visibility = calState.view === 'organizer' ? 'visible' : 'hidden';
+        }
+    }
+    function calZoom(delta) {
+        let i = CAL_ZOOM_LEVELS.indexOf(calState.zoom || 'm');
+        if (i < 0) i = 1;
+        i = Math.max(0, Math.min(CAL_ZOOM_LEVELS.length - 1, i + delta));
+        calState.zoom = CAL_ZOOM_LEVELS[i];
+        _calSavePrefs();
+        _calApplyZoom();
+    }
+
+    function _calToggleKebab(e) {
+        if (e) e.stopPropagation();
+        const menu = document.getElementById('calKebabMenu');
+        if (!menu) return;
+        menu.hidden = !menu.hidden;
+        if (!menu.hidden) {
+            setTimeout(() => document.addEventListener('mousedown', _calKebabOutside), 0);
+        }
+    }
+    function _calCloseKebab() {
+        const menu = document.getElementById('calKebabMenu');
+        if (menu) menu.hidden = true;
+        _calSetImportActionsOpen(false);
+        document.removeEventListener('mousedown', _calKebabOutside);
+    }
+    function _calSetImportActionsOpen(open) {
+        const panel = document.getElementById('calImportPanel');
+        const btn = document.getElementById('calImportToggle');
+        if (!panel || !btn) return;
+        panel.classList.toggle('is-open', open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    function _calToggleImportActions(e) {
+        if (e) e.stopPropagation();
+        const panel = document.getElementById('calImportPanel');
+        if (!panel) return;
+        _calSetImportActionsOpen(!panel.classList.contains('is-open'));
+    }
+    function _calKebabOutside(e) {
+        if (!e.target.closest('.cal-kebab-wrap')) _calCloseKebab();
+    }
+
+    // Stable hue per client name so each tab keeps its own colour.
+    function _calClientHue(name) {
+        let h = 0;
+        const s = String(name || '');
+        for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+        return h;
+    }
+    function _calRenderTabs() {
+        const tabs = document.getElementById('calTabs');
+        if (!tabs) return;
+        const pins = _calGetPins();
+        const active = calState.client;
+        const tabHtml = pins.map(name => {
+            const isActive = name === active;
+            return `<button type="button" class="cal-tab${isActive ? ' active' : ''}" style="--tab-h:${_calClientHue(name)}" data-cal-tab="${_calEscAttr(name)}" onclick="onCalTabClick(${_jsAttrArg(name)})">
+                <span class="cal-tab-name">${_calEsc(name)}</span>
+                <span class="cal-tab-x" onclick="event.stopPropagation();onCalTabRemove(${_jsAttrArg(name)})" title="Remove tab"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></span>
+            </button>`;
+        }).join('');
+        const plusSvg = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><line x1="8" y1="2.5" x2="8" y2="13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><line x1="2.5" y1="8" x2="13.5" y2="8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+        const addBtnLabel = pins.length ? plusSvg : `${plusSvg}<span>Add client</span>`;
+        const addBtnCls = pins.length ? 'cal-tab-add no-label' : 'cal-tab-add';
+        tabs.innerHTML = `<button type="button" class="cal-tab-scroll-btn left" tabindex="-1" aria-label="Scroll clients left" onclick="_calTabScrollBy('calTabsScroll',-1)">${_calChevron(-1)}</button>`
+            + `<div class="cal-tabs-scroll" id="calTabsScroll" onscroll="_calUpdateTabScroll('calTabsScroll')">${tabHtml}</div>`
+            + `<button type="button" class="cal-tab-scroll-btn right" tabindex="-1" aria-label="Scroll clients right" onclick="_calTabScrollBy('calTabsScroll',1)">${_calChevron(1)}</button>`
+            + `<div class="cal-tab-add-wrap" id="calTabAddWrap">
+                <button type="button" class="${addBtnCls}" onclick="onCalTabAddClick(event)" title="Add client">${addBtnLabel}</button>
+                <div class="cal-tab-search" id="calTabSearchPanel" hidden>
+                    <div class="wl-client-search">
+                        <input type="text" class="wl-client-search-input" id="calClientSearchInput" placeholder="Search clients…" autocomplete="off">
+                        <div class="wl-client-search-results" id="calClientSearchResults" hidden role="listbox"></div>
+                    </div>
+                </div>
+            </div>`;
+        _calScrollTabStripToActive('calTabsScroll');
+        _calUpdateTabScroll('calTabsScroll');
+    }
+
+    function _calChevron(dir) {
+        return dir < 0
+            ? `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 2.5 4 6l3.5 3.5"/></svg>`
+            : `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 2.5 8 6l-3.5 3.5"/></svg>`;
+    }
+    // Keep the active client's pill visible in a single-row, horizontally
+    // scrollable tab strip. Only adjusts the strip's own scrollLeft (never the
+    // page), and no-ops when the strip isn't laid out yet (clientWidth 0).
+    function _calScrollTabStripToActive(scrollId) {
+        const strip = document.getElementById(scrollId);
+        if (!strip || !strip.clientWidth) return;
+        const active = strip.querySelector('.active');
+        if (!active) return;
+        const pad = 12;
+        const viewL = strip.scrollLeft, viewR = viewL + strip.clientWidth;
+        const aL = active.offsetLeft, aR = aL + active.offsetWidth;
+        if (aL < viewL + pad) strip.scrollLeft = Math.max(0, aL - pad);
+        else if (aR > viewR - pad) strip.scrollLeft = aR - strip.clientWidth + pad;
+    }
+    // Show a clickable chevron + an edge-fade on each side the strip can still
+    // scroll toward, so overflow is obvious and reachable. Re-run on render,
+    // scroll, and window resize.
+    function _calUpdateTabScroll(scrollId) {
+        const strip = document.getElementById(scrollId);
+        if (!strip) return;
+        const canL = strip.scrollLeft > 2;
+        const canR = strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 2;
+        strip.classList.toggle('fade-left', canL);
+        strip.classList.toggle('fade-right', canR);
+        const parent = strip.parentElement;
+        if (parent) {
+            const l = parent.querySelector('.cal-tab-scroll-btn.left');
+            const r = parent.querySelector('.cal-tab-scroll-btn.right');
+            if (l) l.classList.toggle('is-shown', canL);
+            if (r) r.classList.toggle('is-shown', canR);
+        }
+    }
+    function _calTabScrollBy(scrollId, dir) {
+        const strip = document.getElementById(scrollId);
+        if (!strip) return;
+        strip.scrollBy({ left: dir * Math.max(160, Math.round(strip.clientWidth * 0.7)), behavior: 'smooth' });
+    }
+    window.addEventListener('resize', () => { _calUpdateTabScroll('calTabsScroll'); _calUpdateTabScroll('smTabsScroll'); });
+
+    function onCalTabClick(name) {
+        if (!name || name === calState.client) return;
+        onCalClientChange(name);
+        _calRenderTabs();
+    }
+    function onCalTabRemove(name) {
+        const pins = _calGetPins().filter(n => n !== name);
+        _calSavePins(pins);
+        if (calState.client === name) {
+            // Flush debounced saves for the client we're closing before we drop
+            // its posts and switch away, so in-flight edits aren't lost.
+            _calFlushAllPending();
+            _calV2Teardown();
+            const next = pins[0] || null;
+            _calSetClient(next);
+            _calResetSelection();
+            calState.posts = [];
+            _calLoadClientFilters();
+            _calSavePrefs();
+            _calSyncUrlClient();
+            _calRenderTabs();
+            if (next) {
+                _calRefreshOrganize();
+                loadCalendarPosts();
+            }
+            else _calRenderBody();
+        } else {
+            _calRenderTabs();
+        }
+    }
+    function onCalTabAddClick(e) {
+        if (e) e.stopPropagation();
+        const panel = document.getElementById('calTabSearchPanel');
+        if (!panel) return;
+        const opening = panel.hidden;
+        panel.hidden = !opening;
+        if (opening) {
+            _calRenderClientSearchResults('');
+            const input = document.getElementById('calClientSearchInput');
+            if (input) { input.value = ''; setTimeout(() => input.focus(), 10); }
+            _calWireSearchInput();
+        }
+    }
+    function _calCloseTabSearch() {
+        const panel = document.getElementById('calTabSearchPanel');
+        if (panel) panel.hidden = true;
+    }
+    function _calWireOutsideTabSearchClose() {
+        if (document._calOutsideWired) return;
+        document._calOutsideWired = true;
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#calTabAddWrap')) _calCloseTabSearch();
+        });
+    }
+    function _calWireSearchInput() {
+        const input    = document.getElementById('calClientSearchInput');
+        const results  = document.getElementById('calClientSearchResults');
+        if (!input || !results || input.dataset.wired === '1') return;
+        input.dataset.wired = '1';
+        const pickAndPin = (name) => {
+            const pins = _calGetPins();
+            if (!pins.includes(name)) { pins.unshift(name); _calSavePins(pins); }
+            _calCloseTabSearch();
+            // Persist debounced saves for the outgoing client before switching.
+            _calFlushAllPending();
+            _calV2Teardown();
+            _calSetClient(name);
+            _calResetSelection();
+            calState.posts = [];
+            _calLoadClientFilters();
+            _calSavePrefs();
+            _calSyncUrlClient();
+            _calRenderTabs();
+            _calRefreshOrganize();
+            loadCalendarPosts();
+        };
+        input.addEventListener('input', () => _calRenderClientSearchResults(input.value.trim()));
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') { e.preventDefault(); _calCloseTabSearch(); }
+            else if (e.key === 'Enter') {
+                e.preventDefault();
+                const q = input.value.trim();
+                const list = _calMatchClients(q);
+                const exact = list.find(c => c.toLowerCase() === q.toLowerCase());
+                if (exact) pickAndPin(exact);
+                else if (list.length === 1) pickAndPin(list[0]);
+            }
+        });
+        results.addEventListener('mousedown', (e) => {
+            const pinBtn = e.target.closest('[data-cal-pin]');
+            if (pinBtn) { e.preventDefault(); calToggleClientPin(pinBtn.getAttribute('data-cal-pin')); return; }
+            const btn = e.target.closest('[data-cal-pick]');
+            if (!btn) return;
+            e.preventDefault();
+            pickAndPin(btn.getAttribute('data-cal-pick'));
+        });
+    }
+
+    function _calMatchClients(q) {
+        const all = WL_CLIENT_NAMES.slice();
+        if (!q) return all;
+        const needle = q.toLowerCase();
+        return all.filter(c => c.toLowerCase().includes(needle));
+    }
+
+    function _calRenderClientSearchResults(q) {
+        const results = document.getElementById('calClientSearchResults');
+        if (!results) return;
+        const matches = _calMatchClients(q);
+        const pins    = _calGetPins();
+        const pinned  = matches.filter(c => pins.includes(c)).sort((a,b) => pins.indexOf(a) - pins.indexOf(b));
+        const others  = matches.filter(c => !pins.includes(c)).sort((a,b) => a.localeCompare(b));
+        const row = (name) => {
+            const isPinned = pins.includes(name);
+            return `<div class="wl-client-search-result is-pin-row" data-cal-pick="${_calEscAttr(name)}">
+                <span>${_calEsc(name)}</span>
+                <button type="button" class="wl-client-search-pin${isPinned ? ' pinned' : ''}" data-cal-pin="${_calEscAttr(name)}" title="${isPinned ? 'Unpin' : 'Pin'}">${isPinned ? '★' : '☆'}</button>
+            </div>`;
+        };
+        let html = '';
+        if (!matches.length) {
+            html = '<div class="wl-client-search-result is-empty-prompt">No clients match</div>';
+        } else {
+            if (pinned.length) {
+                html += '<div class="wl-client-search-section">Already added</div>';
+                html += pinned.map(row).join('');
+                if (others.length) html += '<div class="wl-client-search-divider"></div>';
+            }
+            if (others.length) {
+                if (pinned.length) html += '<div class="wl-client-search-section">Add a client</div>';
+                html += others.map(row).join('');
+            }
+        }
+        results.innerHTML = html;
+        results.hidden = false;
+    }
+
+    /* Harvest loaded thumb <img> elements from the current strip, keyed by
+       post id + src. After body.innerHTML is replaced, the same nodes get
+       re-inserted into the matching new cards if the URL hasn't changed —
+       the browser keeps the loaded image data on detached nodes, so the
+       new card paints immediately with no flicker. */
+    function _calHarvestThumbs() {
+        const strip = document.getElementById('calStrip');
+        if (!strip) return null;
+        const map = new Map();
+        strip.querySelectorAll('.cal-card[data-pid] .cal-card-thumb img').forEach(img => {
+            if (!img.complete || img.naturalWidth === 0) return;
+            const card = img.closest('.cal-card');
+            const pid = card && card.getAttribute('data-pid');
+            const src = img.getAttribute('src') || '';
+            // Key by the cache-buster-agnostic base URL: an updated_at bump (new
+            // _cb) on an UNCHANGED thumbnail link must still match so the already
+            // decoded <img> is reused across the re-render. Keying on the full
+            // src meant every save/refresh changed the key → the element was
+            // rebuilt and the picture flashed ("thumbnail reloads on refresh").
+            // A real link change yields a different base and correctly reloads.
+            if (pid && src) map.set(pid + '|' + _calThumbSrcBase(src), img);
+        });
+        return map;
+    }
+    function _calRestoreThumbs(map) {
+        if (!map || map.size === 0) return;
+        const strip = document.getElementById('calStrip');
+        if (!strip) return;
+        strip.querySelectorAll('.cal-card[data-pid] .cal-card-thumb img').forEach(newImg => {
+            const card = newImg.closest('.cal-card');
+            const pid = card && card.getAttribute('data-pid');
+            const src = newImg.getAttribute('src') || '';
+            const saved = map.get(pid + '|' + _calThumbSrcBase(src));
+            if (saved) newImg.replaceWith(saved);
+        });
+    }
+    /* Reuse ALL already-decoded <img> elements across a `.kcard` rebuild — the
+       collapsed strip thumbnail (.kcard-thumb) AND the expanded review previews
+       (.cal-review-video-bg "open video" tile, the graphic preview image). Kasper
+       / client / SMM review cards rebuild their DOM (replaceWith / innerHTML) on
+       every approve / comment / realtime echo, recreating these <img>s — each new
+       node refetches from Drive, so the picture blanks and the tile reflows (the
+       "thumbnail disappears and reappears" flicker, worst on the EXPANDED card
+       where the previews live and a comment triggers 3 repaints). Moving the
+       existing decoded nodes into the new card paints instantly with no refetch.
+       Keyed by a stable SLOT (which image in the card) + the cache-buster-agnostic
+       base URL (_calThumbSrcBase strips _cb, keeps _r=thumb_rev): a same-URL image
+       used in two slots can't cross-match, an updated_at bump still reuses, and a
+       genuine link change (new _r) correctly reloads. A slot collision is harmless
+       anyway (same base ⇒ identical picture). */
+    function _kcardImgSlot(img) {
+        const cls = img.getAttribute('class') || '';
+        if (cls) return 'c:' + cls;                              // e.g. .cal-review-video-bg — unique by class
+        if (img.closest('.kcard-thumb')) return 'thumb';         // collapsed strip thumbnail (class-less)
+        if (img.closest('.cal-review-preview-thumb')) return 'gprev'; // expanded graphic preview (class-less)
+        const panel = img.closest('[data-comp]');
+        return 'p:' + (panel ? panel.getAttribute('data-comp') : '');
+    }
+    // Full-list harvest/restore around a body.innerHTML rebuild (keyed by card id).
+    function _kcardHarvestThumbs(rootEl, keyAttr) {
+        if (!rootEl) return null;
+        const map = new Map();
+        rootEl.querySelectorAll('.kcard[' + keyAttr + '] img').forEach(img => {
+            if (!img.complete || img.naturalWidth === 0) return; // only reuse a fully-decoded image
+            const card = img.closest('.kcard');
+            const key = card && card.getAttribute(keyAttr);
+            const src = img.getAttribute('src') || '';
+            if (key && src) map.set(key + '|' + _kcardImgSlot(img) + '|' + _calThumbSrcBase(src), img);
+        });
+        return map;
+    }
+    function _kcardRestoreThumbs(rootEl, map, keyAttr) {
+        if (!map || map.size === 0 || !rootEl) return;
+        rootEl.querySelectorAll('.kcard[' + keyAttr + '] img').forEach(newImg => {
+            const card = newImg.closest('.kcard');
+            const key = card && card.getAttribute(keyAttr);
+            const src = newImg.getAttribute('src') || '';
+            const saved = key && map.get(key + '|' + _kcardImgSlot(newImg) + '|' + _calThumbSrcBase(src));
+            if (saved) newImg.replaceWith(saved);
+        });
+    }
+    /* Single-card variant: move EVERY decoded image from an old `.kcard` into its
+       freshly-rebuilt replacement (used right before el.replaceWith). No-op for an
+       image that isn't decoded yet or whose link actually changed. */
+    function _kcardReuseThumbInto(oldEl, newEl) {
+        if (!oldEl || !newEl) return;
+        const map = new Map();
+        oldEl.querySelectorAll('img').forEach(img => {
+            if (!img.complete || img.naturalWidth === 0) return;
+            map.set(_kcardImgSlot(img) + '|' + _calThumbSrcBase(img.getAttribute('src') || ''), img);
+        });
+        if (!map.size) return;
+        newEl.querySelectorAll('img').forEach(newImg => {
+            const saved = map.get(_kcardImgSlot(newImg) + '|' + _calThumbSrcBase(newImg.getAttribute('src') || ''));
+            if (saved) newImg.replaceWith(saved);
+        });
+    }
+    function _calPostsEqualForRender(a, b) {
+        if (a === b) return true;
+        if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+        // The renderer reads exactly these fields off each post — if none
+        // of them changed, the new DOM would be identical to the current
+        // one and we can skip the re-render entirely. Sub-statuses and the
+        // graphic Linear link drive the per-component pills, so a change
+        // there has to flip dataChanged even when the overall `status` is
+        // unchanged (e.g. graphic flips Tweaks→Approved while video is
+        // still Tweaks Needed — the overall stays Tweaks but the pill
+        // colour must update).
+        const keys = ['id','order_index','scheduled_date','status','name',
+                      'asset_url','thumbnail_url','thumb_rev','caption','caption_alt','caption_alt_platform','cta',
+                      'thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at',
+                      'linear_issue_id','video_deliverable_id','graphic_linear_issue_id','graphic_deliverable_id',
+                      'video_status','graphic_status','caption_status','title_status',
+                      'updated_at'];
+        for (let i = 0; i < a.length; i++) {
+            for (const k of keys) {
+                if (String(a[i][k] == null ? '' : a[i][k]) !== String(b[i][k] == null ? '' : b[i][k])) return false;
+            }
+            if (JSON.stringify(a[i].comments || []) !== JSON.stringify(b[i].comments || [])) return false;
+            if (JSON.stringify(a[i].graphic_comments || []) !== JSON.stringify(b[i].graphic_comments || [])) return false;
+            if (JSON.stringify(a[i].caption_comments || []) !== JSON.stringify(b[i].caption_comments || [])) return false;
+            if (JSON.stringify(a[i].title_comments || []) !== JSON.stringify(b[i].title_comments || [])) return false;
+        }
+        return true;
+    }
+    /* When a passive refresh lands while a field is focused, the full card
+       repaint is deliberately deferred. A media revision is safe to apply in
+       place, though, and must not wait for blur: swap only the affected image so
+       every open tab sees the new thumbnail as soon as realtime delivers it. */
+    function _thumbRefreshChangedCards(surface, before, after) {
+        if (!Array.isArray(before) || !Array.isArray(after) || !before.length) return;
+        const prev = new Map(before.map(p => [p && p.id, p]));
+        let comparisonChanged = false;
+        after.forEach(post => {
+            if (!post || !post.id) return;
+            const old = prev.get(post.id);
+            if (!old) return;
+            if (_thumbCompareVersion(old) !== _thumbCompareVersion(post)) comparisonChanged = true;
+            const mediaChanged = String(old.thumbnail_url || old.asset_url || '').trim() !== String(post.thumbnail_url || post.asset_url || '').trim();
+            const revisionChanged = String(old.thumb_rev || '') !== String(post.thumb_rev || '');
+            if (!mediaChanged && !revisionChanged) return;
+            try {
+                if (surface === 'samples') _sxrForceThumbRefresh(post.id);
+                else _calRefreshCardThumb(post.id);
+            } catch (e) {}
+            // Review cards can contain a collapsed thumbnail, a graphic preview,
+            // and the blurred backdrop behind the video link. A focused comment
+            // composer defers the full kcard rebuild, so advance those image nodes
+            // directly too; no textarea/caret is touched.
+            try {
+                const root = document.getElementById(surface === 'samples' ? 'sxrBody' : 'calBody');
+                const info = _calDeriveThumbInfo(post);
+                if (!root || !info || !info.url) return;
+                root.querySelectorAll('.kcard[data-cal-review-pid]').forEach(card => {
+                    if (card.getAttribute('data-cal-review-pid') !== String(post.id)) return;
+                    card.querySelectorAll('.kcard-thumb img, .cal-review-preview-thumb img, .cal-review-video-bg').forEach(img => {
+                        if (info.isDrive) img.setAttribute('data-drive', '1'); else img.removeAttribute('data-drive');
+                        img.setAttribute('src', info.url);
+                    });
+                });
+            } catch (e) {}
+        });
+        if (comparisonChanged) {
+            // Focused fields defer the full card repaint. Keep the history-only
+            // icon truthful in place anyway, then probe the new version without
+            // replacing the focused card or disturbing its caret.
+            try {
+                const client = _thumbCompareClient(surface);
+                if (client) {
+                    _thumbCompareRefreshSlots(surface, client);
+                    _thumbCompareScheduleAvailability(surface);
+                }
+            } catch (e) {}
+        }
+    }
+
+    function _calRenderBody(opts) {
+        const body = document.getElementById('calBody');
+        if (!body) return;
+        const preserveScroll = !!(opts && opts.preserveScroll);
+        const stripBefore = preserveScroll ? document.getElementById('calStrip') : null;
+        const scrollLeft0 = stripBefore ? stripBefore.scrollLeft : null;
+        const scrollY0 = preserveScroll ? window.scrollY : null;
+        const harvestedThumbs = (preserveScroll && stripBefore) ? _calHarvestThumbs() : null;
+        if (!calState.client) {
+            body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab so you can switch between your clients quickly.</div>`;
+            return;
+        }
+        if (calState.loading) { body.innerHTML = _calLoaderHtml(); return; }
+        if (calState.error) {
+            body.innerHTML = `<div class="cal-empty cal-error">
+                Couldn't load calendar — <button class="cal-link" onclick="loadCalendarPosts()">try again</button>.
+            </div>`;
+            return;
+        }
+        if (calState.view === 'review' || calState.view === 'smmreview') {
+            const reviewThumbs = _kcardHarvestThumbs(body, 'data-cal-review-pid');
+            body.innerHTML = renderCalReview();
+            _kcardRestoreThumbs(body, reviewThumbs, 'data-cal-review-pid');
+            _calWireReviewExpand(body);
+        } else if (calState.view === 'organizer') {
+            body.innerHTML = renderCalOrganizer();
+            // Re-insert previously-loaded <img> elements into the new cards
+            // (same pid + same src) so the browser doesn't have to repaint
+            // thumbnails from the cache — no card-height shift on refresh.
+            _calRestoreThumbs(harvestedThumbs);
+            // Restore the captured scroll synchronously, before the browser
+            // paints the new strip — eliminates the brief jump to zero that
+            // would otherwise be visible on every re-render.
+            if (preserveScroll && scrollLeft0 != null) {
+                const stripNow = document.getElementById('calStrip');
+                if (stripNow) stripNow.scrollLeft = scrollLeft0;
+            }
+            wireCalOrganizerDrag(preserveScroll);
+        } else if (calState.view === 'month') {
+            body.innerHTML = renderCalMonth();
+            _calWireWheelNav(body.querySelector('.cal-month-wrap'), calMonthShift);
+            _calWireDayDrag(body);
+        } else if (calState.view === 'week') {
+            body.innerHTML = renderCalWeek();
+            _calWireWeekWheel(body);
+            _calWireDayDrag(body);
+        }
+        if (preserveScroll && scrollY0 != null) window.scrollTo({ top: scrollY0, behavior: 'instant' });
+        _calUpdateReviewBadge();
+        _calSyncMonthWarnIcon();
+        _calSyncClientLinks();
+        _thumbCompareScheduleAvailability('calendar');
+    }
+
+    /* Drag a post pill from one day cell to another to reschedule it. */
+    let _calDayDragId = null;
+    /* Auto-scroll the window while a card is being dragged. Without this, a
+       pill dragged out of the bottom Unscheduled tray has no way to reach
+       cells above the viewport — the browser only fires native
+       autoscroll inside scrollable containers, and the calendar grid
+       isn't one. */
+    let _calDragScrollRAF = null;
+    let _calDragScrollSpeed = 0;
+    function _calDragScrollStep() {
+        if (!_calDragScrollSpeed) { _calDragScrollRAF = null; return; }
+        window.scrollBy(0, _calDragScrollSpeed);
+        _calDragScrollRAF = requestAnimationFrame(_calDragScrollStep);
+    }
+    function _calDragScrollFromY(y) {
+        const margin = 90;
+        const h = window.innerHeight;
+        let speed = 0;
+        if (y < margin) speed = -Math.max(4, Math.ceil((margin - y) / 4));
+        else if (y > h - margin) speed = Math.max(4, Math.ceil((y - (h - margin)) / 4));
+        _calDragScrollSpeed = speed;
+        if (speed && _calDragScrollRAF == null) _calDragScrollRAF = requestAnimationFrame(_calDragScrollStep);
+    }
+    function _calDragScrollStop() {
+        _calDragScrollSpeed = 0;
+        if (_calDragScrollRAF) cancelAnimationFrame(_calDragScrollRAF);
+        _calDragScrollRAF = null;
+    }
+    function _calOnDocDragOver(e) { if (_calDayDragId != null) _calDragScrollFromY(e.clientY); }
+    function _calWireDayDrag(root) {
+        if (!_calCanDragCards()) return;   // client-link view reschedules only in Collaborative mode
+        root.querySelectorAll('[data-cal-move]').forEach(el => {
+            el.addEventListener('dragstart', (e) => {
+                _calDayDragId = el.getAttribute('data-cal-move');
+                el.classList.add('cal-card-dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                try { e.dataTransfer.setData('text/plain', _calDayDragId); } catch {}
+                document.addEventListener('dragover', _calOnDocDragOver);
+                // Force a deterministic drag image — the default snapshot of
+                // the pill can come out stretched / weird-height in browsers
+                // that don't honour `aspect-ratio` during drag-image capture
+                // (the thumbnail's intrinsic portrait dimensions take over).
+                // Cloning into the offscreen DOM at the pill's measured size
+                // sidesteps that.
+                try {
+                    const rect = el.getBoundingClientRect();
+                    if (rect.width && rect.height) {
+                        const clone = el.cloneNode(true);
+                        clone.style.position = 'absolute';
+                        clone.style.top = '-10000px';
+                        clone.style.left = '-10000px';
+                        clone.style.width = rect.width + 'px';
+                        clone.style.height = rect.height + 'px';
+                        clone.style.margin = '0';
+                        clone.style.pointerEvents = 'none';
+                        clone.style.opacity = '0.92';
+                        document.body.appendChild(clone);
+                        e.dataTransfer.setDragImage(clone, rect.width / 2, rect.height / 2);
+                        setTimeout(() => { if (clone.parentNode) clone.parentNode.removeChild(clone); }, 0);
+                    }
+                } catch {}
+            });
+            el.addEventListener('dragend', () => {
+                el.classList.remove('cal-card-dragging');
+                root.querySelectorAll('.cal-day-drop').forEach(c => c.classList.remove('cal-day-drop'));
+                document.removeEventListener('dragover', _calOnDocDragOver);
+                _calDragScrollStop();
+                _calDayDragId = null;
+            });
+        });
+        root.querySelectorAll('[data-iso]').forEach(cell => {
+            cell.addEventListener('dragover', (e) => {
+                if (!_calDayDragId) return;
+                e.preventDefault();
+                cell.classList.add('cal-day-drop');
+            });
+            cell.addEventListener('dragleave', () => cell.classList.remove('cal-day-drop'));
+            cell.addEventListener('drop', (e) => {
+                e.preventDefault();
+                cell.classList.remove('cal-day-drop');
+                const id = _calDayDragId;
+                _calDayDragId = null;
+                if (id) _calMovePostToDate(id, cell.getAttribute('data-iso'));
+            });
+        });
+    }
+    function _calMovePostToDate(id, iso) {
+        // Rescheduling by drag is allowed for the SMM always, and for a client
+        // only in Collaborative mode (mirrors _calCanDragCards / the tray gate).
+        // The handler-level check stops a read-only client bypassing the UI gate.
+        if (!_calCanDragCards()) return;
+        const post = calState.posts.find(p => p.id === id);
+        if (!post || !iso) return;
+        if (String(post.scheduled_date || '').slice(0,10) === iso) return;
+        post.scheduled_date = iso;
+        post.updated_at = new Date().toISOString();
+        // Route the reschedule through the same per-card save funnel as every
+        // other edit instead of firing its own bare upsert. That bare write
+        // bypassed _calSaveInFlight and could overlap an in-flight autosave on
+        // the same row — two whole-row read-modify-writes racing, one
+        // reverting the other (the move OR the concurrent edit). _calFlushCardSave
+        // owns the saving/saved/error indicator and the queued-merge guard.
+        if (!_calPendingEdits[id]) _calPendingEdits[id] = {};
+        _calPendingEdits[id].scheduled_date = iso;
+        _calRenderBody();
+        _calFlushCardSave(id);
+    }
+
+    // Shift-scroll over the Month grid steps it one month at a time, so
+    // there's no need to reach for the next/prev arrows. (The Week grid uses
+    // the gradual plain-scroll handler below instead.)
+    let _calWheelNavLast = 0;
+    function _calWireWheelNav(el, shiftFn, requireShift = true) {
+        if (!el) return;
+        el.addEventListener('wheel', (e) => {
+            if (requireShift && !e.shiftKey) return;
+            const raw = e.deltaY || e.deltaX;
+            if (!raw) return;
+            e.preventDefault();
+            const now = Date.now();
+            if (now - _calWheelNavLast < 70) return;
+            _calWheelNavLast = now;
+            shiftFn(raw > 0 ? 1 : -1);
+        }, { passive: false });
+    }
+
+    /* Week view: a normal wheel (no Shift, for both client and SMM) slides the
+       days left/right. To keep the motion smooth we drive it frame-by-frame
+       (requestAnimationFrame easing toward a target offset) instead of a CSS
+       transition — irregular wheel-event timing used to make the easing lurch.
+       renderCalWeek draws a whole week of buffer columns on each side, so the
+       slide is a pure transform across many days and we only re-render to
+       recentre the buffer (carrying the exact sub-day offset, so nothing moves
+       on screen). The strip rests wherever you release it — there is no
+       snap-to-day, which felt like the view "locking back" onto a grid.
+       A generation counter retires frames/timers from superseded strips. */
+    let _calWeekWheelOffset = 0;
+    let _calWeekWheelTarget = 0;
+    let _calWeekWheelCommitting = false;
+    let _calWeekRaf = 0;
+    let _calWeekIdle = 0;
+    let _calWeekGen = 0;
+    const _CAL_WEEK_WHEEL_FACTOR = 0.7; // wheel px → content px (lower = gentler)
+    const _CAL_WEEK_BUFFER = 7;         // buffer days each side (matches renderCalWeek)
+    function _calWireWeekWheel(body) {
+        const vp = body.querySelector('.cal-week-viewport');
+        const grid = vp && vp.querySelector('.cal-week-grid');
+        if (!vp || !grid) return;
+        const gen = ++_calWeekGen; // any pending frame/timer from the old strip is now stale
+        if (_calWeekRaf) { cancelAnimationFrame(_calWeekRaf); _calWeekRaf = 0; }
+        if (_calWeekIdle) { clearTimeout(_calWeekIdle); _calWeekIdle = 0; }
+
+        const GAP = 8;
+        const colW = Math.max(40, (vp.clientWidth - GAP * 6) / 7);
+        const stepPx = colW + GAP; // one day's worth of horizontal travel
+        grid.style.setProperty('--cal-week-colw', colW + 'px');
+        grid.style.transition = 'none'; // motion is driven by rAF, never CSS easing
+
+        const baseline = _CAL_WEEK_BUFFER * stepPx; // leading buffer width
+        const limit = (_CAL_WEEK_BUFFER - 1) * stepPx; // recentre before the buffer runs out
+
+        // A non-wheel re-render (zoom, view switch, button nav) starts centred;
+        // only a recentre carries its residual offset/target across the render.
+        const carrying = _calWeekWheelCommitting;
+        _calWeekWheelCommitting = false;
+        if (!carrying) { _calWeekWheelOffset = 0; _calWeekWheelTarget = 0; }
+
+        let target = _calWeekWheelTarget;
+        let cur = _calWeekWheelOffset;
+        let recentreOnRest = false;
+        const draw = () => { grid.style.transform = `translateX(${-(baseline + cur)}px)`; };
+        draw();
+
+        // Shift the cursor by the whole days scrolled and re-render with the
+        // leftover sub-day offset (and target), so the strip looks pixel-for-
+        // pixel identical before/after — a silent buffer recentre, never a snap.
+        const recentre = () => {
+            const days = Math.round(cur / stepPx);
+            if (days === 0) return;
+            _calWeekWheelOffset = cur - days * stepPx;
+            _calWeekWheelTarget = target - days * stepPx;
+            _calWeekWheelCommitting = true;
+            calWeekShiftDays(days);
+        };
+
+        const tick = () => {
+            if (gen !== _calWeekGen) return;
+            cur += (target - cur) * 0.3;
+            if (Math.abs(target - cur) < 0.4) cur = target;
+            draw();
+            if (cur !== target) {
+                _calWeekRaf = requestAnimationFrame(tick);
+            } else {
+                _calWeekRaf = 0;
+                if (recentreOnRest) { recentreOnRest = false; recentre(); }
+            }
+        };
+        const animate = () => { if (!_calWeekRaf) _calWeekRaf = requestAnimationFrame(tick); };
+
+        grid.addEventListener('wheel', (e) => {
+            const raw = e.deltaY || e.deltaX;
+            if (!raw) return;
+            e.preventDefault();
+            if (_calWeekIdle) { clearTimeout(_calWeekIdle); _calWeekIdle = 0; }
+            recentreOnRest = false; // an active wheel cancels any pending recentre
+            target += raw * _CAL_WEEK_WHEEL_FACTOR;
+            if (target > limit || target < -limit) {
+                // Past the buffer's safe range — recentre now (carrying the
+                // residual + remaining target) so a long scroll keeps its runway
+                // without anything visibly jumping.
+                const days = Math.round(cur / stepPx);
+                if (days !== 0) {
+                    _calWeekWheelOffset = cur - days * stepPx;
+                    _calWeekWheelTarget = target - days * stepPx;
+                    _calWeekWheelCommitting = true;
+                    calWeekShiftDays(days);
+                    return;
+                }
+                target = Math.max(-limit, Math.min(limit, target));
+            }
+            animate();
+            // When the wheel goes quiet, silently recentre the buffer in place
+            // (no snap, no visible move) so the cursor/label track what's shown.
+            _calWeekIdle = setTimeout(() => {
+                if (gen !== _calWeekGen) return;
+                _calWeekIdle = 0;
+                if (_calWeekRaf) { recentreOnRest = true; } // wait for the glide to finish
+                else { recentre(); }
+            }, 160);
+        }, { passive: false });
+    }
+
+    function onCalClientChange(name) {
+        if (!name) return;
+        // Flush any debounced card saves against the CURRENT client before we
+        // switch. Each save captured its slug at start, so flushing now persists
+        // them to the right tab; without this they'd fire after the switch and
+        // either leak into the new client's tab or be silently dropped.
+        _calFlushAllPending();
+        _calV2Teardown();
+        _calSetClient(name);
+        _calResetSelection();
+        _calLoadClientFilters();
+        _calSavePrefs();
+        _calSyncUrlClient();
+        calState.posts = [];
+        // The filter pills belong to the toolbar, not the body — re-render
+        // them so they show THIS client's saved month/status filter.
+        _calRefreshOrganize();
+        _calRenderBody();
+        loadCalendarPosts();
+    }
+    /* Clear multi-select state. Must run on every CLIENT switch (not just view
+       changes) — otherwise select-mode + a stale `selected` Set holding the
+       previous client's ids survives the switch, and a later bulk-archive could
+       act on cards from the wrong client / cards the user never saw. */
+    function _calResetSelection() {
+        calState.selectMode = false;
+        calState.selectAction = 'archive';
+        calState.selected = new Set();
+        calState.lastSel = null;
+    }
+    function onCalViewChange(v) {
+        if (!['review','smmreview','organizer','month','week'].includes(v)) return;
+        calState.view = v;
+        // The review→Sheet focus override only applies while you're on the
+        // Sheet you jumped to; drop it the moment you navigate elsewhere.
+        if (v !== 'organizer') calState.focusPid = null;
+        _calSavePrefs();
+        if (v !== 'organizer' && calState.selectMode) {
+            _calResetSelection();
+        }
+        document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === v));
+        document.querySelectorAll('.cal-toolbar .cal-select-btn').forEach(selBtn => {
+            selBtn.style.display = v === 'organizer' ? '' : 'none';
+            const action = selBtn.getAttribute('data-select-action') || 'archive';
+            const active = v === 'organizer' && calState.selectMode && (
+                action === 'archive'
+                    ? (calState.selectAction !== 'caption' && calState.selectAction !== 'link')
+                    : calState.selectAction === action
+            );
+            selBtn.classList.toggle('active', active);
+        });
+        // The Organize pill only exists on the Sheet tab (order + month +
+        // content all describe the strip), so it's added/removed as the view
+        // changes. It sits immediately before the view toggle.
+        _calRefreshOrganize();
+        _calApplyZoom();
+        _calRenderBody();
+    }
+
+    /* Append cache-busting tokens so a thumbnail re-fetches when its link (or the
+       file behind an unchanged link) changes. Without this, swapping the thumbnail
+       to a new Google Drive link — or replacing the file behind an unchanged Drive
+       link — leaves the browser / Drive CDN serving the previously-cached image,
+       because the URL it keys its cache on is unchanged. Two tokens are appended:
+         _cb = the post's updated_at, bumped on every save (see _calFlushCardSave)
+               and persisted, so the busted URL survives a page reload.
+         _r  = the thumbnail rev, bumped ONLY when the link is written and KEPT in
+               the harvest key, so a real link edit reloads the image on every
+               render path (in-app, no hard refresh) while unrelated saves still
+               reuse the decoded <img>. Sourced from the PERSISTED post.thumb_rev
+               first, with the SESSION mirror only as an optimistic fallback.
+               See the _calThumbRev block.
+       Objects without an id / updated_at (live-preview probes) get whichever
+       tokens apply — a raw link change already forces a fresh fetch there. */
+    // Sticky per-browser kill switch for the content-versioned thumbnail cache
+    // key. Default ON: a card that carries a thumb_rev gets a STABLE, browser-
+    // cacheable URL (only _r=thumb_rev, no per-save _cb), so an unchanged
+    // thumbnail is served from the browser HTTP cache instantly on refresh.
+    // ?thumbcache=0 restores the legacy updated_at buster (_cb+_r on every
+    // save) for that browser; ?thumbcache=1 clears the opt-out. Mirrors the
+    // ?prodcache convention from the production cache.
+    const THUMB_CACHE_KILL_KEY = 'syncview_thumbnail_cache_off';
+    let _thumbCacheStableFlag = null;
+    function _thumbCacheStableEnabled() {
+        if (_thumbCacheStableFlag !== null) return _thumbCacheStableFlag;
+        let on = true;
+        try {
+            const q = new URLSearchParams(location.search).get('thumbcache');
+            if (q === '1' || q === 'true') { on = true; localStorage.removeItem(THUMB_CACHE_KILL_KEY); }
+            else if (q === '0' || q === 'false') { on = false; localStorage.setItem(THUMB_CACHE_KILL_KEY, '1'); }
+            else { on = (localStorage.getItem(THUMB_CACHE_KILL_KEY) !== '1'); }
+        } catch { on = true; }
+        _thumbCacheStableFlag = on;
+        return on;
+    }
+    function _calCacheBustThumb(url, p) {
+        if (!url) return url;
+        let out = url;
+        const tok = p && p.updated_at;
+        const rev = (p && p.thumb_rev) || (p && p.id && _calThumbRev[p.id]);
+        const append = (key, value) => { out += (out.includes('?') ? '&' : '?') + key + '=' + encodeURIComponent(value); };
+        const stable = (typeof _thumbCacheStableEnabled === 'function') ? _thumbCacheStableEnabled() : true;
+        if (!stable) {
+            // Kill switch (?thumbcache=0): legacy behavior — the updated_at
+            // cache-buster on every save, plus the revision.
+            if (tok) append('_cb', tok);
+            if (rev) append('_r', rev);
+            return out;
+        }
+        // Content-versioned key. A rev-carrying card gets a stable URL that only
+        // changes when the revision rotates (a real thumbnail change) — the
+        // browser HTTP cache then serves it instantly across refreshes, and a
+        // new thumbnail bumps thumb_rev → new URL → auto-bust. A rev-less legacy
+        // card keeps the updated_at buster as its only freshness signal until
+        // the scanner assigns it a revision.
+        if (rev) append('_r', rev);
+        else if (tok) append('_cb', tok);
+        return out;
+    }
+    function _calDriveFileId(url) {
+        const u = String(url || '').trim();
+        if (!/(?:drive|docs)\.google\.com/i.test(u) && !/googleusercontent\.com\/d\//i.test(u)) return '';
+        let m = u.match(/googleusercontent\.com\/d\/([A-Za-z0-9_-]+)/i);
+        if (m) return m[1];
+        m = u.match(/\/file\/d\/([A-Za-z0-9_-]+)/i);
+        if (m) return m[1];
+        m = u.match(/[?&]id=([A-Za-z0-9_-]+)/i);
+        return m ? m[1] : '';
+    }
+    /* Request Drive thumbnails from Google's FINAL image host. Appending _r to
+       drive.google.com/thumbnail never worked reliably because the 302 redirect
+       discarded our query string and every revision collapsed onto the same
+       24-hour-cached lh3 URL. A query on this direct URL survives as the browser's
+       actual cache key, so a persisted thumb_rev reaches every viewer. */
+    function _calDriveImageUrl(fileId, p, size) {
+        if (!fileId) return '';
+        const px = Math.max(320, Math.min(2000, Number(size) || 640));
+        return _calCacheBustThumb('https://lh3.googleusercontent.com/d/' + encodeURIComponent(fileId) + '=w' + px, p);
+    }
+    function _calDeriveThumb(p) {
+        const u = String(p.thumbnail_url || p.asset_url || '').trim();
+        if (!u) return '';
+        // YouTube thumbnails are immutable per video id, so a link change already
+        // yields a different URL — no cache-bust needed (and busting would refetch
+        // an identical image on every unrelated save).
+        let m = u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([A-Za-z0-9_-]{11})/);
+        if (m) return `https://img.youtube.com/vi/${m[1]}/hqdefault.jpg`;
+        const driveId = _calDriveFileId(u);
+        if (driveId) return _calDriveImageUrl(driveId, p, 640);
+        if (/\.(png|jpe?g|gif|webp|avif)(\?|$)/i.test(u)) return _calCacheBustThumb(u, p);
+        return '';
+    }
+    function _calClientFirstName() {
+        const full = String(calState.client || '').trim();
+        return full ? full.split(/\s+/)[0] : 'Client';
+    }
+    // "Client Approval" is stored verbatim but shown with the client's name.
+    function _calStatusLabel(s) {
+        s = s || 'In Progress';
+        // Clients never see internal routing vocabulary — the underlying
+        // status VALUES are untouched (writes stay raw); this is display-only.
+        if (_isClientLink) {
+            if (s === 'Kasper Approval') return 'In team review';
+            if (s === 'Tweaks Needed') return 'Changes in progress';
+            if (s === 'Client Approval') return 'Ready for your review';
+            return s;
+        }
+        return s === 'Client Approval' ? `${_calClientFirstName()} Approval` : s;
+    }
+    /* A component's label is its stored status, full stop. An earlier revision
+       derived a "No asset" label whenever an In Progress component had nothing
+       attached; that inferred intent from an empty field and was withdrawn by
+       owner ruling 2026-08-19. In Progress is the default again, and a lane
+       that genuinely does not apply is marked N/A by hand from the picker. */
+    function _calCompStatusLabel(post, comp, status) {
+        return _calStatusLabel(_calNormStatus(status || (post && post[comp + '_status']) || 'In Progress'));
+    }
+    function _calStatusChip(p) {
+        const s = p.status || 'In Progress';
+        const cls = 'cal-status-' + _calStatusSlug(s);
+        return `<span class="cal-status ${cls}">${_calEsc(_calStatusLabel(s))}</span>`;
+    }
+    /* Read-only component-status pills for the client review surface and
+       the client-link sheet view. Three pills — Video, Thumbnail, Caption
+       — side by side, each coloured by its own sub-status. Replaces the
+       single overall-status chip that previously sat on the right of
+       client-facing cards. The pills reuse the .cal-review-sub-pill
+       colour palette so the look matches the existing sub-summary chips. */
+    /* Client-facing "ready to see" filter. The client should only see a card
+       on the Sheet tab once every component (Video / Thumbnail / Caption)
+       has been approved, scheduled, or posted — anything earlier is still
+       in-flight on our side and belongs on the Review tab instead. */
+    const _CAL_CLIENT_READY_STATES = new Set(['Approved', 'Scheduled', 'Posted']);
+    function _calIsClientReady(p) {
+        if (!p) return false;
+        return CAL_COMPONENTS.every(c => _CAL_CLIENT_READY_STATES.has(_calNormStatus(p[c + '_status'] || 'In Progress')));
+    }
+    function _calClientCompPillsHtml(p) {
+        // In the client view, Collaborative mode gates whether the in-progress
+        // status of a component is visible. Finished components (Approved /
+        // Scheduled / Posted) are ALWAYS shown — the client should be able to
+        // see what's locked in regardless of mode. Only the "what's still
+        // being worked on" pills follow the toggle.
+        const clientHideInProgress = _isClientLink && !_calIsCollabOn();
+        return _calComponentsFor(p).map(c => {
+            const stored = _calNormStatus(p[c + '_status'] || 'In Progress');
+            /* An unlinked video/graphic slot has no Linear sub-issue behind it,
+               so "In Progress" is a promise the card cannot keep: the client
+               reads work in flight where there is no work item at all. The SMM
+               card already says this — the pill is greyed and disabled with an
+               explanation — but that affordance is SMM-only, and the client saw
+               the bare default instead. Show N/A there too (owner ruling
+               2026-08-20). (The tooltip used to read "Link a Linear sub-issue
+               first"; it named a control the flip removed and now says what is
+               true instead. See WRITE_UI_NO_WORK_ITEM_TEXT.)
+
+               DISPLAY ONLY. The stored status stays 'In Progress'; the owner
+               ruled on 2026-08-19 that N/A is a manual SMM choice and must not
+               be written by the system, and the reconcilers park a card whose
+               STORED status is N/A. Nothing here writes, so neither is touched.
+
+               A finished state is never rewritten: this function's standing
+               rule is that Approved / Scheduled / Posted are ALWAYS shown, and
+               an approval the client already has must not vanish behind N/A.
+               Measured before shipping — of 143 unlinked live component slots,
+               the only two carrying a finished state are on the TEST client. */
+            const cs = (!_calCompLinked(p, c) && !_CAL_CLIENT_READY_STATES.has(stored))
+                ? 'N/A'
+                : stored;
+            if (clientHideInProgress && !_CAL_CLIENT_READY_STATES.has(cs)) return '';
+            const slug = _calStatusSlug(cs);
+            const label = COMP_LABELS[c] + ': ' + _calCompStatusLabel(p, c, cs);
+            return `<span class="cal-review-sub-pill cal-fld-status-${slug}" data-comp-pill="${c}" title="${_calEscAttr(label)}">${_calEsc(label)}</span>`;
+        }).join('');
+    }
+
+    /* ── Organizer view (inline-editable, Sheets-like) ──────────────── */
+    let _calBlankSeq = 0;
+    function _calNextBlankId() { _calBlankSeq++; return '__blank__' + _calBlankSeq; }
+    function _calIsBlankId(pid) { return typeof pid === 'string' && pid.startsWith('__blank__'); }
+
+    /* Overlays that share the .cal-card-thumb box with the thumbnail media:
+       the platforms strip, the colour tag (+ its open picker), the
+       Linear-link warning and the SMM media-gap banner. They're absolutely
+       positioned SIBLINGS of the <img>, not part of it. */
+    const CAL_THUMB_OVERLAY_SEL = '.cal-card-platforms, .cal-card-color-tag, .cal-card-color-picker, .cal-thumb-linear-warn, .cal-smm-warn';
+    /* Swap ONLY the thumbnail media (img / fallback / load-error notice),
+       leaving the overlays above untouched. The thumb's src carries a
+       cache-bust token derived from updated_at (see _calCacheBustThumb), and
+       updated_at is bumped on every save — so the in-place thumb refreshers
+       fire on EVERY save, not just real link changes. Replacing the thumb's
+       whole innerHTML there tore a just-toggled platform icon or colour tag
+       out of the DOM until the next full re-render, which is exactly the
+       "I set platforms, they saved, then vanished until I refreshed" bug.
+       Detach the overlays, replace the media, re-attach them so their live
+       state (selected icons, an open colour picker) survives intact. */
+    function _calSetThumbMedia(thumbDiv, mediaHtml) {
+        if (!thumbDiv) return;
+        const overlays = Array.from(thumbDiv.children).filter(el => el.matches(CAL_THUMB_OVERLAY_SEL));
+        thumbDiv.innerHTML = mediaHtml;
+        overlays.forEach(el => thumbDiv.appendChild(el));
+    }
+
+    function _calThumbIconHtml() {
+        return `<div class="cal-card-thumb-fallback"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.3"/><path d="M3 17l5-4 4 3 4-5 5 6"/></svg></div>`;
+    }
+    function _calThumbIconSvg() {
+        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.3"/><path d="M3 17l5-4 4 3 4-5 5 6"/></svg>`;
+    }
+    function _calDriveWarnHtml() {
+        return `<div class="cal-thumb-drive-warn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <strong>Thumbnail can't load</strong>
+            <span>This looks like a Google Drive link with no public access. In Drive, open the thumbnails folder, click Share, and set it to <strong>"Anyone with the link"</strong>.</span>
+        </div>`;
+    }
+    function _calMiniDriveWarnHtml() {
+        return `<div class="cal-mini-drive-warn" title="Thumbnail can't load — the Google Drive thumbnails folder needs to be shared with &quot;Anyone with the link&quot;."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>`;
+    }
+    /* Host of a pasted link, tolerating a missing scheme (f.io/abc → f.io). */
+    function _calLinkHost(url) {
+        let u = String(url || '').trim();
+        if (!u) return '';
+        if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+        try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; }
+    }
+    /* Frame.io share / review links — f.io, frame.io, and any subdomain
+       (app.frame.io, next.frame.io …). A DIRECT image asset URL on
+       assets.frame.io ending in .png/.jpg is NOT treated here: _calDeriveThumb
+       resolves it to a real <img> first, so it previews like any other image. */
+    function _calIsFrameLink(url) {
+        return /(?:^|\.)(?:frame\.io|f\.io)$/i.test(_calLinkHost(url));
+    }
+    function _calFrameOpenUrl(url) {
+        let u = String(url || '').trim();
+        if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+        return u;
+    }
+    /* A pasted "thumbnail" that points at a FOLDER of images rather than a
+       single image — e.g. a Story whose frames all live in one Drive/Dropbox
+       folder. There's no one image to preview, so (exactly like a Frame.io
+       link) we surface a click-to-open card — "Open folder" — instead of a
+       broken <img>. Conservative on purpose: only unmistakable folder URL
+       shapes match, so a single-image Drive *file* link is never mistaken for
+       a folder. Extend here if a new host's folder links turn up in the wild. */
+    function _calIsFolderLink(url) {
+        const u = String(url || '').trim();
+        if (!u) return false;
+        // Google Drive folders: /drive/folders/…, /drive/u/0/folders/… and the
+        // legacy /folderview?id=… form. (Drive FILE links — /file/d/, open?id=,
+        // uc?id= — resolve to an <img> in _calDeriveThumb and never reach here.)
+        if (/drive\.google\.com\/(?:drive\/)?(?:u\/\d+\/)?folders\//i.test(u)) return true;
+        if (/drive\.google\.com\/folderview\?/i.test(u)) return true;
+        // Dropbox shared folders (/sh/…, /scl/fo/…). Dropbox FILE links are
+        // /s/… or /scl/fi/… — deliberately excluded.
+        if (/(?:^|\.)dropbox\.com$/i.test(_calLinkHost(u)) && /\/(?:sh|scl\/fo)\//i.test(u)) return true;
+        return false;
+    }
+    function _calFolderOpenUrl(url) {
+        let u = String(url || '').trim();
+        if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+        return u;
+    }
+    function _calThumbFolderIconSvg() {
+        return `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 4.7a1.4 1.4 0 0 1 1.4-1.4h3l1.2 1.3h5.4a1.4 1.4 0 0 1 1.4 1.4v5.3a1.4 1.4 0 0 1-1.4 1.4H3.2a1.4 1.4 0 0 1-1.4-1.4z"/></svg>`;
+    }
+    function _calThumbnailFolderUrl(post, thumbUrl) {
+        const raw = String(thumbUrl || '').trim();
+        if (!raw || _calIsFolderLink(raw)) return '';
+        return String((post && post.thumbnail_folder_url) || '').trim();
+    }
+    function _calClearThumbnailFolderMeta(post) {
+        if (!post) return;
+        post.thumbnail_folder_url = '';
+        post.thumbnail_folder_id = '';
+        post.thumbnail_file_id = '';
+        post.thumbnail_folder_resolved_at = '';
+    }
+    function _calApplyThumbnailFolderFields(post, fields) {
+        if (!post || !fields) return;
+        ['thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at'].forEach(k => {
+            post[k] = String(fields[k] || '');
+        });
+    }
+    function _calAdoptThumbnailFolderMeta(post, serverPost) {
+        if (!post || !serverPost) return post;
+        if (String(post.thumbnail_url || '').trim() !== String(serverPost.thumbnail_url || '').trim()) return post;
+        const keys = ['thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at'];
+        let changed = false;
+        for (const k of keys) {
+            if (String(post[k] || '') !== String(serverPost[k] || '')) { changed = true; break; }
+        }
+        if (!changed) return post;
+        const next = Object.assign({}, post);
+        keys.forEach(k => { next[k] = String(serverPost[k] || ''); });
+        return next;
+    }
+    /* The row-level LWW guards intentionally keep local edits for a while, but
+       thumb_rev is an independent server signal: Linear/the revision scanner can
+       mint it while this browser's otherwise-newer card stays local. Adopt the
+       server token when it belongs to the same media and the server row is at
+       least as new. This prevents stale localStorage/session state from masking a
+       real image change, without letting an old self-echo overwrite an optimistic
+       token from a save that is still in flight. */
+    function _thumbAdoptPersistedRevision(post, serverPost) {
+        if (!post || !serverPost) return post;
+        const localMedia = String(post.thumbnail_url || post.asset_url || '').trim();
+        const serverMedia = String(serverPost.thumbnail_url || serverPost.asset_url || '').trim();
+        if (!localMedia || localMedia !== serverMedia) return post;
+        const serverRev = String(serverPost.thumb_rev || '').trim();
+        const localRev = String(post.thumb_rev || '').trim();
+        if (!serverRev || serverRev === localRev) return post;
+        const serverAt = Date.parse(serverPost.updated_at || '');
+        const localAt = Date.parse(post.updated_at || '');
+        const serverIsCurrent = !localRev || (isFinite(serverAt) && (!isFinite(localAt) || serverAt >= localAt));
+        if (!serverIsCurrent) return post;
+        return Object.assign({}, post, { thumb_rev: serverRev });
+    }
+    function _calStripThumbnailFolderFields(row) {
+        if (!row) return row;
+        ['thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at'].forEach(k => { delete row[k]; });
+        return row;
+    }
+    function _calRefreshLinkField(pid, fld, post, sxr) {
+        const field = document.querySelector(`.cal-link-field[data-pid-wrap="${pid}"][data-fld-wrap="${fld}"]`);
+        if (!field || field.classList.contains('editing')) return;
+        const input = field.querySelector('.cal-link-input');
+        const placeholder = input ? input.placeholder : (fld === 'thumbnail_url' ? 'Thumbnail URL (Google Drive image)' : 'Video URL (Frame.io / Drive)');
+        if (sxr) field.outerHTML = _sxrLinkFieldHtml(pid, fld, post ? post[fld] : '', placeholder, false, post);
+        else field.outerHTML = _calLinkFieldHtml(pid, fld, post ? post[fld] : '', placeholder, false, false, post);
+    }
+    function _calResolveThumbnailFolder(surface, clientSlug, pid, thumbnailUrl, post, opts) {
+        if (_isClientLink || !clientSlug || !pid) return;
+        const url = String(thumbnailUrl || '').trim();
+        if (!url) _calClearThumbnailFolderMeta(post);
+        if (post && String(post.thumbnail_file_id || '') && String(post.thumbnail_url || '').trim() === url &&
+            (String(post.thumbnail_folder_url || '') || String(post.thumbnail_folder_resolved_at || ''))) return;
+        fetch(THUMBNAIL_FOLDER_RESOLVE_EF_URL, {
+            method: 'POST',
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Source': 'ui' }, THUMBNAIL_FOLDER_RESOLVE_EF_URL),
+            body: JSON.stringify({ surface, client: clientSlug, id: pid, thumbnail_url: url })
+        }).then(resp => resp.ok ? resp.json() : null).then(json => {
+            if (!json || !json.ok || !post) return;
+            if (json.skipped === 'not_found' && !(opts && opts.retry)) {
+                setTimeout(() => _calResolveThumbnailFolder(surface, clientSlug, pid, url, post, Object.assign({}, opts || {}, { retry: true })), 2000);
+                return;
+            }
+            if (String(post.thumbnail_url || '').trim() !== url) return;
+            _calApplyThumbnailFolderFields(post, json.fields);
+            _calRefreshLinkField(pid, 'thumbnail_url', post, opts && opts.sxr);
+        }).catch(e => {
+            console.warn('[Thumbnail folder] resolve failed', e);
+        });
+    }
+    function _calOpenThumbnailFolder(pid) {
+        const post = calState.posts.find(p => p.id === pid);
+        const url = _calThumbnailFolderUrl(post, post && post.thumbnail_url);
+        if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    }
+    function _calDeriveThumbInfo(p) {
+        const raw = String((p && (p.thumbnail_url || p.asset_url)) || '').trim();
+        const url = _calDeriveThumb(p);
+        // When no direct image is derivable but the thumbnail field is a
+        // click-to-open link, surface a branded card instead of the generic "no
+        // media" icon. Two kinds qualify:
+        //   · 'frame'  — a Frame.io share/review link (no public image URL, blocks
+        //                embedding, so a real inline preview is impossible), or
+        //   · 'folder' — a folder of images (e.g. a Story's frames); there's no
+        //                single image to preview, so we open the folder instead.
+        // Both render through _calThumbFrameHtml / _calReviewFrameHtml; frameKind
+        // drives the label ("Open thumbnail" vs "Open folder") and icon.
+        // Only the ACTUAL thumbnail field qualifies: unlike the <img> derivation
+        // above, this must never fall back to asset_url, or a card with a
+        // Frame.io VIDEO and no thumbnail shows an "Open thumbnail" card that
+        // opens the video.
+        const thumbRaw = String((p && p.thumbnail_url) || '').trim();
+        let frame = '', frameKind = '';
+        if (!url && thumbRaw) {
+            if (_calIsFrameLink(thumbRaw)) { frame = _calFrameOpenUrl(thumbRaw); frameKind = 'frame'; }
+            else if (_calIsFolderLink(thumbRaw)) { frame = _calFolderOpenUrl(thumbRaw); frameKind = 'folder'; }
+        }
+        return { url, isDrive: /drive\.google\.com|docs\.google\.com/i.test(raw), frame, frameKind };
+    }
+    function _calFrameMarkSvg() {
+        // Picture/thumbnail glyph — signals "this opens the image in Frame.io".
+        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M4 17l5-5 4 4 3-3 4 4"/></svg>`;
+    }
+    function _calFolderMarkSvg() {
+        // Folder glyph — signals "this opens a folder of images in a new tab".
+        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5a2 2 0 0 1 2-2h3.6a2 2 0 0 1 1.42.59l1 1a2 2 0 0 0 1.42.59H19a2 2 0 0 1 2 2v6.32a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
+    }
+    /* Label / glyph / hover text for a click-to-open thumbnail card, keyed by
+       the link KIND so the wording is identical on every surface (calendar
+       cards, client review, Kasper's queue). 'folder' → a folder of images;
+       anything else → a Frame.io thumbnail. */
+    function _calOpenCardMeta(kind) {
+        if (kind === 'folder') return { cta: 'Open folder', title: 'Open folder in a new tab', tip: 'Folder of images', badge: _calFolderMarkSvg() };
+        return { cta: 'Open thumbnail', title: 'Open thumbnail in Frame.io', tip: 'Frame.io thumbnail', badge: _calFrameMarkSvg() };
+    }
+    /* Small kind-aware "this is a click-to-open link, not an inline image" badge
+       for the COMPACT surfaces (month pill, week card, collapsed review/Kasper
+       strip). The surrounding control already opens the card/post, so this is a
+       hint glyph — its own click-through card lives on the expanded previews. */
+    function _calMiniLinkBadgeHtml(cls, kind) {
+        const meta = _calOpenCardMeta(kind);
+        return `<span class="${cls} is-frame" title="${_calEscAttr(meta.tip)}">${meta.badge}</span>`;
+    }
+    function _calThumbFrameHtml(openUrl, kind) {
+        const meta = _calOpenCardMeta(kind);
+        const host = _calLinkHost(openUrl) || (kind === 'folder' ? 'folder' : 'frame.io');
+        const arrow = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5H13.5V6.5"/><path d="M13.5 2.5L7.5 8.5"/></svg>`;
+        return `<a class="cal-thumb-frame" href="${_calEscAttr(openUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="${_calEscAttr(meta.title)}">
+            <span class="cal-thumb-frame-badge">${meta.badge}</span>
+            <span class="cal-thumb-frame-cta">${arrow}${_calEsc(meta.cta)}</span>
+            <span class="cal-thumb-frame-host">${_calEsc(host)} · opens in a new tab</span>
+        </a>`;
+    }
+    /* Branded click-to-open card for the EXPANDED review previews — the client
+       review panel and Kasper's hero/panel previews — where the thumbnail
+       component would otherwise try (and fail) to render the link as a real
+       <img>. Mirrors the calendar thumbnail treatment so both the client and
+       Kasper can click through in a new tab. Used for Frame.io share links
+       (kind 'frame', the default) and folder-of-images links (kind 'folder');
+       the kind drives the label and icon. `variant === 'hero'` fills Kasper's
+       tall 9/16 poster; otherwise it sizes to the smaller review-panel tile. */
+    function _calReviewFrameHtml(openUrl, variant, kind) {
+        const meta = _calOpenCardMeta(kind);
+        const host = _calLinkHost(openUrl) || (kind === 'folder' ? 'folder' : 'frame.io');
+        const arrow = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5H13.5V6.5"/><path d="M13.5 2.5L7.5 8.5"/></svg>`;
+        const cls = variant === 'hero' ? 'cal-review-frame is-hero' : 'cal-review-frame';
+        return `<a class="${cls}" href="${_calEscAttr(openUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="${_calEscAttr(meta.title)}">
+            <span class="cal-review-frame-badge">${meta.badge}</span>
+            <span class="cal-review-frame-cta">${arrow}${_calEsc(meta.cta)}</span>
+            <span class="cal-review-frame-host">${_calEsc(host)} · opens in a new tab</span>
+        </a>`;
+    }
+    /* The right media for the card thumb stage: a real <img> when an image URL is
+       derivable, the Frame.io click-to-open card for Frame.io links, else the
+       placeholder icon. */
+    function _calThumbMediaHtml(info, onerror) {
+        if (info.url) return _calThumbImgTag(info, onerror);
+        if (info.frame) return _calThumbFrameHtml(info.frame, info.frameKind);
+        return _calThumbIconHtml();
+    }
+    function _calThumbImgTag(info, onerror) {
+        return `<img loading="lazy" src="${_calEscAttr(info.url)}" alt=""${info.isDrive ? ' data-drive="1"' : ''} onerror="${onerror}(this)">`;
+    }
+    function _calOnMiniThumbError(img) {
+        const parent = img.parentElement;
+        if (!parent) return;
+        if (img.dataset.drive === '1') { parent.classList.remove('is-fallback'); parent.innerHTML = _calMiniDriveWarnHtml(); }
+        else { parent.classList.add('is-fallback'); parent.innerHTML = _calThumbIconSvg(); }
+    }
+    function _calOnThumbImgError(img) {
+        const parent = img.parentElement;
+        if (!parent) return;
+        _calSetThumbMedia(parent, img.dataset.drive === '1' ? _calDriveWarnHtml() : _calThumbIconHtml());
+    }
+    function _calOnReviewThumbError(img) {
+        const wrap = img.closest('.cal-review-preview-thumb');
+        if (!wrap) return;
+        wrap.innerHTML = img.dataset.drive === '1'
+            ? _calDriveWarnHtml()
+            : '<div class="cal-review-preview-empty">Thumbnail could not load.</div>';
+    }
+    function _calZoomHintHtml() {
+        return `<span class="cal-thumb-zoom" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-8 8M3 21l8-8"/></svg></span>`;
+    }
+    function _calThumbContent(p) {
+        return _calThumbMediaHtml(_calDeriveThumbInfo(p), '_calOnThumbImgError');
+    }
+
+    /* ── Previous/current thumbnail comparison ─────────────────────────────
+       One bounded authenticated availability read reveals history-only icons for
+       the rendered cards. Private signed images remain exact-card and click-only,
+       and are fetched again on every open because those URLs expire quickly. */
+    const _thumbCompareKnown = new Map();
+    const _thumbCompareAvailabilityPending = new Set();
+    const _thumbCompareAvailabilityTimers = new Map();
+    let _thumbCompareState = null;
+    function _thumbCompareIconSvg() {
+        return `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1.8" y="3" width="8.2" height="9" rx="1.5"/><path d="M6 3V1.8h6.2a2 2 0 0 1 2 2v7.4H10"/><path d="m3.5 9 1.7-1.8 2.8 3"/></svg>`;
+    }
+    function _thumbCompareClient(surface) {
+        try {
+            return surface === 'samples' ? sxrClientSlug(sxrState.client) : calClientSlug(calState.client);
+        } catch (e) {
+            const raw = surface === 'samples'
+                ? (typeof sxrState !== 'undefined' && sxrState ? sxrState.client : '')
+                : (calState && calState.client);
+            return String(raw || '').toLowerCase().replace(/[^a-z0-9&]+/g, '');
+        }
+    }
+    function _thumbCompareKey(surface, client, pid) { return [surface, client, pid].join('|'); }
+    function _thumbCompareWatchedPost(post) {
+        if (!post || !post.id || String(post.id).startsWith('__')) return false;
+        const thumbnailUrl = String(post.thumbnail_url || '').trim();
+        return !!(thumbnailUrl && !_calIsFolderLink(thumbnailUrl) && _calDriveFileId(thumbnailUrl));
+    }
+    function _thumbCompareEligiblePost(post) {
+        if (!_thumbCompareWatchedPost(post)) return false;
+        // The source row reaches Tweaks Needed just before its new baseline row
+        // is captured asynchronously. Hide the prior cycle during that window;
+        // leaving Tweaks Needed changes the version and triggers a fresh probe.
+        return String(post.graphic_status || '').trim().toLowerCase() !== 'tweaks needed';
+    }
+    function _thumbCompareVersion(post) {
+        return [
+            String(post && post.thumbnail_url || '').trim(),
+            String(post && post.thumb_rev || ''),
+            String(post && post.graphic_status || '')
+        ].join('|');
+    }
+    function _thumbCompareButtonHtml(surface, post, compact, placement) {
+        if (!_thumbCompareEligiblePost(post)) return '';
+        const client = _thumbCompareClient(surface);
+        const known = _thumbCompareKnown.get(_thumbCompareKey(surface, client, post.id));
+        if (!known || known.available !== true || known.version !== _thumbCompareVersion(post)) return '';
+        const isLinkAction = placement === 'link';
+        const cls = 'thumb-compare-trigger' + (compact ? ' is-compact' : '') + (isLinkAction ? ' is-link-action cal-link-folder' : '');
+        const label = 'Compare previous and current thumbnails';
+        const text = isLinkAction ? '' : '<span>Compare</span>';
+        return `<button type="button" class="${cls}" data-thumb-compare-surface="${_calEscAttr(surface)}" data-thumb-compare-client="${_calEscAttr(client)}" data-thumb-compare-pid="${_calEscAttr(post.id)}" onclick="_thumbCompareOpen(event,this.dataset.thumbCompareSurface,this.dataset.thumbComparePid)" title="${_calEscAttr(label)}" aria-label="${_calEscAttr(label)}">${_thumbCompareIconSvg()}${text}</button>`;
+    }
+    function _thumbCompareSlotHtml(surface, post, compact, placement) {
+        // Keep an invisible placeholder during Tweaks Needed so a focused-field
+        // deferred repaint can reveal the next confirmed pair in place later.
+        if (!_thumbCompareWatchedPost(post)) return '';
+        const client = _thumbCompareClient(surface);
+        return `<span class="thumb-compare-slot" data-thumb-compare-surface="${_calEscAttr(surface)}" data-thumb-compare-client="${_calEscAttr(client)}" data-thumb-compare-pid="${_calEscAttr(post.id)}" data-thumb-compare-compact="${compact ? '1' : '0'}" data-thumb-compare-placement="${placement === 'link' ? 'link' : 'review'}">${_thumbCompareButtonHtml(surface, post, compact, placement)}</span>`;
+    }
+    function _thumbCompareFindPost(surface, pid) {
+        const rows = surface === 'samples'
+            ? ((typeof sxrState !== 'undefined' && sxrState && sxrState.posts) || [])
+            : ((calState && calState.posts) || []);
+        return rows.find(p => String(p && p.id) === String(pid)) || null;
+    }
+    function _thumbCompareRefreshSlots(surface, client) {
+        document.querySelectorAll('.thumb-compare-slot[data-thumb-compare-pid]').forEach(slot => {
+            if (slot.dataset.thumbCompareSurface !== surface || slot.dataset.thumbCompareClient !== client) return;
+            const post = _thumbCompareFindPost(surface, slot.dataset.thumbComparePid);
+            slot.innerHTML = post
+                ? _thumbCompareButtonHtml(surface, post, slot.dataset.thumbCompareCompact === '1', slot.dataset.thumbComparePlacement)
+                : '';
+        });
+    }
+    function _thumbCompareCanDiscover() {
+        return _isClientLink ? !!_syncviewClientWriteToken() : !!_syncviewStaffIdentityForHeaders();
+    }
+    function _thumbCompareScheduleAvailability(surface) {
+        surface = surface === 'samples' ? 'samples' : 'calendar';
+        if (!_thumbCompareCanDiscover()) return;
+        const client = _thumbCompareClient(surface);
+        if (!client) return;
+        const pendingKey = surface + '|' + client;
+        if (_thumbCompareAvailabilityPending.has(pendingKey) || _thumbCompareAvailabilityTimers.has(pendingKey)) return;
+        const timer = setTimeout(() => {
+            _thumbCompareAvailabilityTimers.delete(pendingKey);
+            _thumbCompareDiscoverAvailability(surface, client);
+        }, 0);
+        _thumbCompareAvailabilityTimers.set(pendingKey, timer);
+    }
+    async function _thumbCompareDiscoverAvailability(surface, client) {
+        if (!_thumbCompareCanDiscover()) return;
+        const pendingKey = surface + '|' + client;
+        if (_thumbCompareAvailabilityPending.has(pendingKey)) return;
+        const candidates = new Map();
+        document.querySelectorAll('.thumb-compare-slot[data-thumb-compare-pid]').forEach(slot => {
+            if (slot.dataset.thumbCompareSurface !== surface || slot.dataset.thumbCompareClient !== client) return;
+            const post = _thumbCompareFindPost(surface, slot.dataset.thumbComparePid);
+            if (!_thumbCompareEligiblePost(post)) return;
+            const version = _thumbCompareVersion(post);
+            const known = _thumbCompareKnown.get(_thumbCompareKey(surface, client, post.id));
+            if (!known || known.version !== version) candidates.set(String(post.id), version);
+        });
+        if (!candidates.size) return;
+        _thumbCompareAvailabilityPending.add(pendingKey);
+        let completed = false;
+        try {
+            const ids = Array.from(candidates.keys());
+            for (let offset = 0; offset < ids.length; offset += 50) {
+                const sourceIds = ids.slice(offset, offset + 50);
+                const headers = _syncviewEfHeaders({
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'apikey': CAL_SUPABASE_ANON_KEY,
+                    'Authorization': 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    'X-Syncview-Source': 'thumbnail-compare-availability'
+                }, THUMBNAIL_REVISION_READ_EF_URL);
+                const response = await fetch(THUMBNAIL_REVISION_READ_EF_URL, {
+                    method: 'POST', headers, cache: 'no-store',
+                    body: JSON.stringify({ surface, client, mode: 'availability', source_ids: sourceIds })
+                });
+                const json = await response.json().catch(() => null);
+                if (!response.ok || !json || json.ok !== true || !Array.isArray(json.available_source_ids)) return;
+                const available = new Set(json.available_source_ids.map(String));
+                sourceIds.forEach(pid => {
+                    const post = _thumbCompareFindPost(surface, pid);
+                    const requestedVersion = candidates.get(pid);
+                    if (!post || _thumbCompareVersion(post) !== requestedVersion) return;
+                    _thumbCompareKnown.set(_thumbCompareKey(surface, client, pid), { version: requestedVersion, available: available.has(pid) });
+                });
+                _thumbCompareRefreshSlots(surface, client);
+            }
+            completed = true;
+        } catch (e) {
+            // Availability is progressive enhancement. Keep the icon hidden on a
+            // transient failure; a later authoritative render will retry safely.
+        } finally {
+            _thumbCompareAvailabilityPending.delete(pendingKey);
+            // A realtime thumb_rev/view change can repaint while this batch is in
+            // flight. Re-scan once after a successful response so any newer or
+            // newly-rendered slot is discovered; an all-known pass makes no fetch.
+            if (completed) _thumbCompareScheduleAvailability(surface);
+        }
+    }
+    function _thumbCompareEnsureOverlay() {
+        let overlay = document.getElementById('thumbCompareOverlay');
+        if (overlay) return overlay;
+        overlay = document.createElement('div');
+        overlay.id = 'thumbCompareOverlay';
+        overlay.className = 'thumb-compare-overlay';
+        if (typeof overlay.setAttribute === 'function') overlay.setAttribute('data-backdrop-dismiss', '');
+        overlay.innerHTML = `<section class="thumb-compare-dialog" id="thumbCompareDialog" role="dialog" aria-modal="true" aria-label="Previous and current thumbnail comparison" tabindex="-1">
+            <header class="thumb-compare-head">
+                <button type="button" class="thumb-compare-close" onclick="_thumbCompareClose()" aria-label="Close thumbnail comparison"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+            </header>
+            <div class="thumb-compare-content" id="thumbCompareContent" role="status" aria-live="polite"></div>
+        </section>`;
+        overlay.addEventListener('click', e => { if (e.target === overlay && overlay._backdropPressBegan) _thumbCompareClose(); });
+        overlay.addEventListener('keydown', _thumbCompareKeydown);
+        document.body.appendChild(overlay);
+        return overlay;
+    }
+    function _thumbCompareKeydown(e) {
+        const overlay = document.getElementById('thumbCompareOverlay');
+        if (!overlay || !overlay.classList.contains('open')) return;
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); _thumbCompareClose(); return; }
+        if (e.key !== 'Tab') return;
+        const focusable = Array.from(overlay.querySelectorAll('button:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])'))
+            .filter(el => !el.hidden && el.getClientRects().length);
+        if (!focusable.length) { e.preventDefault(); overlay.querySelector('[role="dialog"]')?.focus(); return; }
+        const first = focusable[0], last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+    function _thumbCompareLoading(message) {
+        const content = document.getElementById('thumbCompareContent');
+        const dialog = document.getElementById('thumbCompareDialog');
+        if (dialog) dialog.setAttribute('aria-busy', 'true');
+        if (content) content.innerHTML = `<div class="thumb-compare-loading"><span class="cal-refresh-spin" aria-hidden="true"></span><strong>${_calEsc(message || 'Loading thumbnail history…')}</strong><p>Fetching the captured previous and current images securely.</p></div>`;
+    }
+    function _thumbCompareOpen(event, surface, pid) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        surface = surface === 'samples' ? 'samples' : 'calendar';
+        const trigger = event && (event.currentTarget || (event.target && event.target.closest('.thumb-compare-trigger')));
+        const client = _thumbCompareClient(surface);
+        const post = _thumbCompareFindPost(surface, pid);
+        if (!client || !_thumbCompareEligiblePost(post)) {
+            if (client) _thumbCompareRefreshSlots(surface, client);
+            return;
+        }
+        if (_thumbCompareState && _thumbCompareState.controller) _thumbCompareState.controller.abort();
+        const overlay = _thumbCompareEnsureOverlay();
+        _thumbCompareState = { surface, client, pid: String(pid), trigger: trigger || document.activeElement, controller: null };
+        overlay.classList.add('open');
+        document.body.classList.add('cal-modal-open');
+        _thumbCompareLoading('Loading thumbnail history…');
+        setTimeout(() => overlay.querySelector('.thumb-compare-close')?.focus(), 0);
+        // Staff routes must never send an anonymous read. Keep the comparison
+        // open underneath the existing sign-in dialog and continue automatically
+        // only if verification succeeds.
+        if (!_isClientLink && !_syncviewStaffIdentityForHeaders()) {
+            _thumbCompareRenderSignIn();
+            _syncviewOpenStaffIdentity({ reason: 'required' }).then(identity => {
+                const state = _thumbCompareState;
+                if (identity && state && state.surface === surface && state.pid === String(pid)) _thumbCompareLoad();
+            });
+            return;
+        }
+        _thumbCompareLoad();
+    }
+    function _thumbCompareClose() {
+        const state = _thumbCompareState;
+        if (state && state.controller) state.controller.abort();
+        const overlay = document.getElementById('thumbCompareOverlay');
+        if (overlay) overlay.classList.remove('open');
+        document.body.classList.remove('cal-modal-open');
+        _thumbCompareState = null;
+        const trigger = state && state.trigger;
+        if (trigger && trigger.isConnected && typeof trigger.focus === 'function') setTimeout(() => trigger.focus(), 0);
+    }
+    function _thumbCompareRenderSignIn() {
+        const dialog = document.getElementById('thumbCompareDialog');
+        const content = document.getElementById('thumbCompareContent');
+        if (dialog) dialog.setAttribute('aria-busy', 'false');
+        if (!content) return;
+        content.innerHTML = `<div class="thumb-compare-empty"><span class="thumb-compare-empty-icon">${_thumbCompareIconSvg()}</span><strong>Staff sign-in required</strong><p>Thumbnail history contains private review images. Finish the secure staff sign-in to view this comparison.</p><button type="button" class="thumb-compare-retry" onclick="_thumbCompareSignIn()">Sign in</button></div>`;
+    }
+    async function _thumbCompareSignIn() {
+        const identity = await _syncviewOpenStaffIdentity({ reason: 'required' });
+        if (identity && _thumbCompareState) _thumbCompareLoad();
+    }
+    function _thumbCompareHttpMessage(status) {
+        if (status === 400) return 'This card could not be matched to thumbnail history.';
+        if (status === 401) return _isClientLink ? 'This client link cannot access thumbnail history. Ask for a fresh share link.' : 'Your staff sign-in could not be verified. Sign in again and retry.';
+        if (status === 403) return 'This account does not have access to this client’s thumbnail history.';
+        if (status === 404) return 'This card is no longer available in the selected client.';
+        if (status === 503) return 'Thumbnail history is temporarily unavailable.';
+        return 'Thumbnail history could not be loaded.';
+    }
+    function _thumbCompareRenderError(message) {
+        const dialog = document.getElementById('thumbCompareDialog');
+        const content = document.getElementById('thumbCompareContent');
+        if (dialog) dialog.setAttribute('aria-busy', 'false');
+        if (!content) return;
+        content.innerHTML = `<div class="thumb-compare-empty"><span class="thumb-compare-empty-icon">${_thumbCompareIconSvg()}</span><strong>Couldn’t load the comparison</strong><p>${_calEsc(message || 'Try again in a moment.')}</p><button type="button" class="thumb-compare-retry" onclick="_thumbCompareLoad()">Try again</button></div>`;
+    }
+    async function _thumbCompareLoad() {
+        const state = _thumbCompareState;
+        if (!state) return;
+        if (!_isClientLink && !_syncviewStaffIdentityForHeaders()) { _thumbCompareRenderSignIn(); return; }
+        if (_isClientLink && !_syncviewClientWriteToken()) { _thumbCompareRenderError('This client link is missing its secure access token. Ask for a fresh share link.'); return; }
+        if (state.controller) state.controller.abort();
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        state.controller = controller;
+        _thumbCompareLoading('Loading thumbnail history…');
+        try {
+            const headers = _syncviewEfHeaders({
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'apikey': CAL_SUPABASE_ANON_KEY,
+                'Authorization': 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                'X-Syncview-Source': 'thumbnail-compare-ui'
+            }, THUMBNAIL_REVISION_READ_EF_URL);
+            const response = await fetch(THUMBNAIL_REVISION_READ_EF_URL, {
+                method: 'POST', headers, cache: 'no-store',
+                body: JSON.stringify({ surface: state.surface, client: state.client, source_id: state.pid }),
+                signal: controller ? controller.signal : undefined
+            });
+            const json = await response.json().catch(() => null);
+            if (!response.ok) { const error = new Error(_thumbCompareHttpMessage(response.status)); error.status = response.status; throw error; }
+            if (!json || json.ok !== true) throw new Error('Thumbnail history returned an unexpected response.');
+            if (_thumbCompareState !== state) return;
+            const model = _thumbCompareNormalize(json);
+            const currentPost = _thumbCompareFindPost(state.surface, state.pid);
+            if (currentPost) {
+                _thumbCompareKnown.set(_thumbCompareKey(state.surface, state.client, state.pid), {
+                    version: _thumbCompareVersion(currentPost),
+                    available: model.available
+                });
+                _thumbCompareRefreshSlots(state.surface, state.client);
+            }
+            if (model.available) _thumbCompareRenderPair(model);
+            else _thumbCompareRenderUnavailable(model);
+        } catch (error) {
+            if (error && error.name === 'AbortError') return;
+            if (_thumbCompareState !== state) return;
+            _thumbCompareRenderError(error && error.message ? error.message : 'Try again in a moment.');
+        } finally {
+            if (_thumbCompareState === state) state.controller = null;
+        }
+    }
+    function _thumbCompareNormalize(json) {
+        const revision = (json && json.revision) || null;
+        const baseline = revision && (revision.baseline || revision.previous) || null;
+        const latest = revision && (revision.latest || revision.current) || null;
+        const status = String((json && json.status) || (revision && revision.status) || 'none').toLowerCase();
+        const available = !!(json && json.available === true && baseline && latest && baseline.url && latest.url);
+        return { available, status, revision, baseline, latest };
+    }
+    function _thumbCompareImageUrl(entry) {
+        if (!entry) return '';
+        // Only render the short-lived private Storage URL issued by the scoped
+        // reader. A mutable Drive URL can show today's bytes in both panes and
+        // would make the historical comparison false.
+        return String(entry.url || entry.media_url || '').trim();
+    }
+    function _thumbCompareRenderPair(model) {
+        const content = document.getElementById('thumbCompareContent');
+        const dialog = document.getElementById('thumbCompareDialog');
+        if (dialog) dialog.setAttribute('aria-busy', 'false');
+        if (!content) return;
+        const previousUrl = _thumbCompareImageUrl(model.baseline);
+        const currentUrl = _thumbCompareImageUrl(model.latest);
+        content.innerHTML = `<div class="thumb-compare-grid">
+                ${_thumbComparePaneHtml('Previous', model.baseline, previousUrl, 'Previous thumbnail')}
+                ${_thumbComparePaneHtml('Current', model.latest, currentUrl, 'Current thumbnail')}
+            </div>`;
+    }
+    function _thumbComparePaneHtml(label, entry, url, alt) {
+        return `<figure class="thumb-compare-pane"><figcaption class="thumb-compare-pane-head"><span class="thumb-compare-pane-title">${_calEsc(label)}</span></figcaption><div class="thumb-compare-image-wrap"><img src="${_calEscAttr(url)}" alt="${_calEscAttr(alt)}" onerror="_thumbCompareImgError(this)"></div></figure>`;
+    }
+    function _thumbCompareImgError(img) {
+        const wrap = img && img.parentElement;
+        if (!wrap) return;
+        wrap.innerHTML = `<div class="thumb-compare-image-error">This captured image couldn’t be displayed. Close and reopen the comparison to request a fresh secure image link.</div>`;
+    }
+    function _thumbCompareRenderUnavailable(model) {
+        const dialog = document.getElementById('thumbCompareDialog');
+        const content = document.getElementById('thumbCompareContent');
+        if (dialog) dialog.setAttribute('aria-busy', 'false');
+        if (!content) return;
+        const pending = model.status === 'pending';
+        const title = pending ? 'The comparison is still being prepared' : 'No captured previous version yet';
+        const copy = pending
+            ? 'SyncView has recorded the revision request, but the previous/current snapshot pair is not ready yet. Try again shortly.'
+            : 'The current thumbnail is available, but SyncView does not have a confirmed changed snapshot pair for this card.';
+        content.innerHTML = `<div class="thumb-compare-empty"><span class="thumb-compare-empty-icon">${_thumbCompareIconSvg()}</span><strong>${_calEsc(title)}</strong><p>${_calEsc(copy)}</p><button type="button" class="thumb-compare-retry" onclick="_thumbCompareLoad()">Check again</button></div>`;
+    }
+    function _calFmtDateShort(iso) {
+        if (!iso) return '';
+        const s = String(iso).slice(0,10);
+        const d = new Date(s + 'T00:00:00');
+        if (isNaN(d)) return s;
+        const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+        const day = String(d.getDate()).padStart(2, '0');
+        const mon = String(d.getMonth() + 1).padStart(2, '0');
+        const yr = String(d.getFullYear()).slice(2);
+        // US order (owner 2026-08-18): clients are American, so month first.
+        return `${dayName} ${mon}/${day}/${yr}`;
+    }
+
+    function _calClientPossessive() {
+        const full = String(calState.client || '').trim();
+        if (!full) return 'Client';
+        const first = full.split(/\s+/)[0];
+        return first + (/s$/i.test(first) ? "'" : "'s");
+    }
+
+    function renderCalOrganizer() {
+        const monthFilter = _calNormMonthFilter(calState.monthFilter);
+        const statusFilter = _calNormStatusFilter(calState.statusFilter);
+        const posts = calState.posts.slice()
+            // A card opened from the review queue (focusPid) is forced through
+            // every filter so the jump-to-Sheet always lands on it.
+            // The reserve pile is month-agnostic: an undated card has no month, so the
+            // "unscheduled" status filter must show it regardless of the month pill —
+            // otherwise picking a concrete month empties the reserve pile. Only DATED
+            // cards are subject to the month filter.
+            .filter(p => p.id === calState.focusPid
+                || (statusFilter === 'unscheduled' && !_calPostHasDate(p))
+                || _calPostInMonthFilter(p, monthFilter))
+            .filter(p => p.id === calState.focusPid || _calPostInStatusFilter(p, statusFilter))
+            .filter(p => p.id === calState.focusPid || !_isClientLink || _calIsCollabOn() || _calIsClientReady(p));
+        _calOrganizerSort(posts);
+        const empty = posts.length === 0;
+        // When a filter is hiding everything but there ARE posts behind it,
+        // surface that — otherwise the user sees the "Add the first post" hero
+        // and thinks the calendar is genuinely empty.
+        const anyFilterActive = monthFilter !== 'all' || statusFilter !== 'all';
+        const hiddenByFilter = empty && anyFilterActive && calState.posts.length > 0;
+        // Cards hidden by the month filter are surfaced as the ⓘ chip next to
+        // the month pill (see _calHiddenMonthWarnings / _calSyncMonthWarnIcon)
+        // instead of a banner row here, so the warning costs no card height.
+        // The "current" card is the first one after the last posted one — the
+        // next post still to be worked on.
+        let lastPostedIdx = -1;
+        posts.forEach((p,i) => { if (String(p.status || '').toLowerCase() === 'posted') lastPostedIdx = i; });
+        const currentIdx = lastPostedIdx + 1;
+        const plus = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+        // The client can only add ("Suggest a post") when the SMM has flipped
+        // Collaborative mode on. Status visibility and the suggest button are
+        // paired so a card a client creates (status: In Progress) doesn't
+        // immediately vanish behind the _calIsClientReady filter.
+        const canAddCard = !_isClientLink || _calIsCollabOn();
+        const filterEmptyTitle = (() => {
+            const m = monthFilter !== 'all', sc = statusFilter === 'scheduled', un = statusFilter === 'unscheduled';
+            if (m && sc) return `No scheduled posts for ${_calMonthLabel(monthFilter)}`;
+            if (m && un) return 'No unscheduled posts'; // unscheduled posts have no month
+            if (m)       return `No posts scheduled for ${_calMonthLabel(monthFilter)}`;
+            if (sc)      return 'No scheduled posts yet';
+            if (un)      return 'No unscheduled posts';
+            return 'No posts to show';
+        })();
+        const addBtn = empty
+            ? (hiddenByFilter
+                ? `<div class="cal-filter-empty"><div class="cal-filter-empty-title">${_calEsc(filterEmptyTitle)}</div><div class="cal-filter-empty-sub"><button type="button" class="cal-link" onclick="onCalClearFilters()">Clear filters</button> to see ${calState.posts.length} other post${calState.posts.length === 1 ? '' : 's'}.</div></div>`
+                : (canAddCard
+                    ? `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addCalBlankCard()" title="${_isClientLink ? 'Suggest a post' : 'Create Post'}">${plus}<span>${_isClientLink ? 'Suggest a post' : 'Create Post'}</span></button>`
+                    : `<div class="cal-filter-empty"><div class="cal-filter-empty-title">No posts to show yet</div><div class="cal-filter-empty-sub">Finished posts will appear here.</div></div>`))
+            : (canAddCard
+                ? `<button class="cal-card-add" type="button" onclick="addCalBlankCard()" title="${_isClientLink ? 'Suggest a post' : 'Create Post'}">${plus}</button>`
+                : '');
+        const isLinkAction = calState.selectAction === 'link';
+        const isCaptionAction = calState.selectAction === 'caption';
+        // The default multi-select bar carries the color swatches AND Archive
+        // together, so one selection can be color-tagged or archived.
+        const actionBtn = isLinkAction
+            ? `<button type="button" class="cal-select-archive" id="calSelectArchive" style="background:var(--sv-bg-5e6ad2)" onclick="_calOpenBulkLinkOverlay()" disabled>Match to Linear</button>`
+            : isCaptionAction
+                ? `<button type="button" class="cal-select-archive" id="calSelectArchive" onclick="_calBulkGenerateCaptions()" disabled>Generate captions</button>`
+                : `<span class="cal-bulk-color-label">Color:</span><div class="cal-bulk-color-swatches" id="calBulkColorSwatches">${_calBulkColorSwatchesHtml()}</div><span class="cal-select-divider"></span><button type="button" class="cal-select-archive" id="calSelectArchive" onclick="_calArchiveSelected()" disabled>Archive</button>`;
+        const selectBar = (calState.selectMode && !_isClientLink)
+            ? `<div class="cal-select-bar" id="calSelectBar">
+                    <span class="cal-select-count" id="calSelectCount">0 selected</span>
+                    ${actionBtn}
+                    <button type="button" class="cal-select-cancel" onclick="_calToggleSelectMode()">Done</button>
+                </div>`
+            : '';
+        return `<div class="cal-organizer-wrap">
+            <div class="cal-organizer-strip${empty ? ' is-empty' : ''}${calState.selectMode ? ' cal-selecting' : ''}" id="calStrip">
+                ${posts.map((p,i) => _calRenderInlineCard(p, false, i === currentIdx)).join('')}
+                ${addBtn}
+            </div>
+            ${selectBar}
+        </div>`;
+    }
+
+    function _calBlankPost() {
+        const maxOrder = calState.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0);
+        return { id: _calNextBlankId(), order_index: maxOrder + 1, name: '', scheduled_date: '', status: 'In Progress', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '', comments: [] };
+    }
+
+    function _calLinkLabel(url) {
+        const u = String(url || '').trim();
+        if (!u) return '';
+        if (/drive\.google\.com|docs\.google\.com/i.test(u)) return 'Google Drive';
+        if (/frame\.io/i.test(u)) return 'Frame.io';
+        if (/youtube\.com|youtu\.be/i.test(u)) return 'YouTube';
+        if (/dropbox\.com/i.test(u)) return 'Dropbox';
+        if (/vimeo\.com/i.test(u)) return 'Vimeo';
+        if (/instagram\.com/i.test(u)) return 'Instagram';
+        if (/tiktok\.com/i.test(u)) return 'TikTok';
+        try { return new URL(/^https?:\/\//i.test(u) ? u : 'https://' + u).hostname.replace(/^www\./, ''); }
+        catch { return u.length > 26 ? u.slice(0,26) + '…' : u; }
+    }
+    function _calLinkFieldHtml(pid, fld, val, placeholder, ro, showEmptyPlaceholder, post) {
+        const v = String(val || '').trim();
+        const isThumb = fld === 'thumbnail_url';
+        const kind = isThumb ? 'thumb' : 'post';
+        const label = isThumb ? 'Thumbnail' : 'Video';
+        const extIco = `<svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"/><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"/></svg>`;
+        const folderBtn = (isThumb && _calThumbnailFolderUrl(post, v))
+            ? `<button type="button" class="cal-link-folder" tabindex="-1" onclick="_calOpenThumbnailFolder('${pid}')" title="Open parent folder">${_calThumbFolderIconSvg()}</button>`
+            : '';
+        const compareSlot = isThumb ? _thumbCompareSlotHtml('calendar', post, false, 'link') : '';
+        const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
+        if (ro) {
+            // Client-link view — links can be opened but never edited.
+            // The raw thumbnail link is hidden (the thumbnail image is shown).
+            if (!v) {
+                // Blank suggest-a-post cards (showEmptyPlaceholder=false) keep
+                // the field hidden entirely — the client is creating, not
+                // viewing, so no SMM-only slot belongs on the form. Once the
+                // card is saved, the caller flips showEmptyPlaceholder=true so
+                // the video slot reappears as a faded "awaiting" pill, holding
+                // the layout for the SMM to fill in later. Thumbnail keeps no
+                // placeholder — the actual thumbnail image carries that slot.
+                if (!showEmptyPlaceholder || isThumb) return '';
+                return `<div class="cal-link-field cal-link-ro cal-link-empty cal-link-${kind}" title="Your manager will add the ${label.toLowerCase()} link.">
+                    <span class="cal-link-pill-open">${extIco}<span class="cal-link-label">${label} (coming soon)</span></span>
+                </div>`;
+            }
+            if (isThumb) return '';
+            const href = /^https?:\/\//i.test(v) ? v : 'https://' + v;
+            return `<div class="cal-link-field has-link cal-link-ro cal-link-${kind}">
+                <a class="cal-link-pill-open" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer">${extIco}<span class="cal-link-label">${label}</span></a>
+            </div>`;
+        }
+        const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_calEsc(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnLinkInput(this)" onblur="_calOnLinkBlur(this)">`;
+        if (v) {
+            return `<div class="cal-link-field has-link cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
+                <button type="button" class="cal-link-pill-open" onclick="_calOpenLink('${pid}','${fld}')" title="Open in a new tab">${extIco}<span class="cal-link-label">${label}</span></button>
+                ${folderBtn}
+                ${compareSlot}
+                <button type="button" class="cal-link-edit" tabindex="-1" onclick="_calEditLink('${pid}','${fld}')" title="Edit link">${pencil}</button>
+                ${input}
+            </div>`;
+        }
+        return `<div class="cal-link-field cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">${input}</div>`;
+    }
+    function _calOnLinkInput(input) {
+        _calOnFieldInput(input);
+        _calLivePreviewThumb(input.dataset.pid);
+        _calRefreshMediaWarning(input.dataset.pid);
+        // Unlock the Generate caption pill the moment a Frame.io URL is pasted
+        // — without this it stays disabled until the debounced save + rerender.
+        if (input.dataset.fld === 'asset_url') _calCapGenBtnRefresh(input.dataset.pid);
+    }
+    function _calOnLinkBlur(input) {
+        _calOnFieldBlur(input);
+        _calRefreshMediaWarning(input.dataset.pid);
+        // A thumbnail/asset link edit must show the new image immediately —
+        // including when the link TEXT is unchanged but the file behind it was
+        // swapped (replacing a Google Drive file keeps the same share link).
+        // Force a fresh fetch so the preview can't keep painting the cached old
+        // image, which is what used to force a manual browser-cache clear. This
+        // only reloads the <img> in place — the page itself does not refresh.
+        if (input.dataset.fld === 'thumbnail_url' || input.dataset.fld === 'asset_url') {
+            _calForceThumbRefresh(input.dataset.pid);
+            // Media presence gates SMM-review eligibility (_calHasMedia), so the
+            // Review tab badge count can change with this edit — sync it in place.
+            if (typeof _calUpdateReviewBadge === 'function') _calUpdateReviewBadge();
+        }
+        const field = input.closest('.cal-link-field');
+        if (!field) return;
+        const post = calState.posts.find(p => p.id === input.dataset.pid);
+        field.outerHTML = _calLinkFieldHtml(input.dataset.pid, input.dataset.fld, input.value.trim(), input.placeholder, false, false, post);
+    }
+    function _calOpenLink(pid, fld) {
+        const input = document.querySelector(`.cal-link-field[data-pid-wrap="${pid}"][data-fld-wrap="${fld}"] .cal-link-input`);
+        const v = input ? input.value.trim() : '';
+        if (!v) return;
+        window.open(/^https?:\/\//i.test(v) ? v : 'https://' + v, '_blank', 'noopener,noreferrer');
+    }
+    function _calEditLink(pid, fld) {
+        const field = document.querySelector(`.cal-link-field[data-pid-wrap="${pid}"][data-fld-wrap="${fld}"]`);
+        if (!field) return;
+        field.classList.add('editing');
+        const input = field.querySelector('.cal-link-input');
+        if (input) { input.focus(); input.select(); }
+    }
+
+    /* ── Linear sub-issue link (title-row icon) ─────────────────────── */
+    function _calLinearSvg() {
+        return `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>`;
+    }
+    function _calLinearSlotHtml(pid, url, ro, comp) {
+        if (ro || _isClientLink) return '';   // Linear linking is internal — never shown in the client view
+        const which = comp || 'video';
+        const u = String(url || '').trim();
+        const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
+        const compCls = ' cal-linear-btn-' + which;
+        const sealed = _writeUiLinkSlotSealed(which);
+        if (u) {
+            const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
+            const open = `<a class="cal-linear-btn is-linked${compCls}" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear ${label}">${_calLinearSvg()}</a>`;
+            /* Sealed slot: an existing link still OPENS, and can still be
+               REMOVED. The pencil goes -- it invites a fresh paste, which is
+               the whole point of the seal -- but dropping edit entirely was a
+               defect in the first version of this change, caught in review:
+               the commit path deliberately leaves `val === ''` ungated because
+               clearing is the repair for every half-linked card this already
+               produced, and removing the only button that reaches it made that
+               exemption unreachable. A guard nothing can reach is not a guard,
+               and an escape hatch nothing can reach is not an escape hatch. */
+            if (sealed) {
+                const cross = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>`;
+                return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button></span>`;
+            }
+            const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
+            return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button></span>`;
+        }
+        // An EMPTY sealed slot renders nothing at all -- not a greyed button,
+        // not the orange warn. Under SyncView authority an unlinked Linear slot
+        // is not a missing chore, it is the normal and correct state, and the
+        // warn below was actively asking people to create the defect.
+        // `_calProdSlotHtml` still shows where the work actually lives.
+        if (sealed) return '';
+        // Warn (orange) state on any unlinked Linear slot on a real (non-
+        // blank) card, regardless of component. Was previously video-only,
+        // which left the graphic slot in default gray and made it easy to
+        // miss that the thumbnail was unlinked from its Linear sub-issue.
+        const warn = !_calIsBlankId(pid) ? ' cal-linear-btn-warn' : '';
+        return `<button class="cal-linear-btn${warn}${compCls}" type="button" onclick="_calLinearEdit('${pid}','${which}')" title="Link a Linear ${label}">${_calLinearSvg()}</button>`;
+    }
+    /* Video (top) + graphic (bottom) Linear sub-issue buttons, stacked at the
+       bottom-right of the thumbnail box. stopPropagation so a click links/opens
+       Linear instead of triggering the thumbnail's own click. SMM-only (the slot
+       html returns '' in the client view). */
+    /* SyncView Production sub-issue link — shown beside the Linear icon when
+       the card carries a native deliverable id for that component. Read-only
+       navigation: opens ?prod=1 detail in a new tab, never writes the link
+       fields. Staff-only like the Linear slots (callers already return '' in
+       the client view), and only rendered once the deliverable id exists, so
+       legacy cards without native linkage show nothing new. */
+    function _calProdSlotHtml(p, comp) {
+        if (_isClientLink) return '';
+        const which = comp === 'graphic' ? 'graphic' : 'video';
+        const id = String((which === 'graphic' ? p.graphic_deliverable_id : p.video_deliverable_id) || '').trim();
+        if (!id) return '';
+        /* Carrying a deliverable id is not the same as being linked (see the
+           F42 crosswalk note above _prodCrosswalkVerdict). When the card has
+           already been resolved and the verdict is anything other than valid,
+           the id names a deliverable that does not describe this card, so a
+           link here would navigate somewhere misleading — render nothing.
+           An UNRESOLVED verdict still renders: the grid does not resolve the
+           crosswalk (only opening a card does), so requiring a verdict would
+           hide the link almost everywhere. Navigation is read-only and an id
+           the Production tab cannot find falls back to its list view. */
+        const verdict = _prodCrosswalkVerdict(p, id, which);
+        if (verdict && verdict.state !== 'valid') return '';
+        const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
+        const href = location.pathname + '?prod=1&d=' + encodeURIComponent(id);
+        const mark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6 10.2 10.2 6M7.2 6h3v3"/></svg>`;
+        return `<a class="cal-linear-btn is-linked cal-prod-btn cal-linear-btn-${which}" href="${_calEscAttr(href)}" target="_blank" rel="noopener" title="Open the SyncView Production ${label} in a new tab">${mark}</a>`;
+    }
+    /* ── Fill a missing component, from the card that is missing it ──────
+     *
+     * Measured live 2026-08-31 across non-archived cards: 459 carry both
+     * components, 67 only a video, 60 only a graphic, 102 neither. The 127 in
+     * the middle are half a post each, and until now nothing anywhere in the
+     * product could complete one. Production refuses creation outright and
+     * that refusal STAYS -- owner ruling 2026-08-31: "any creation of sub
+     * issues should be done from the content calendar... I do not want people
+     * to add a sub-issue from the sync linear that would not appear on the
+     * calendar." So the button lives here, on the card, where the work is
+     * born already attached to it.
+     *
+     * WHY A SIBLING IS REQUIRED, and it is a product decision rather than a
+     * shortcut. The sibling supplies the batch, the Linear parent route, the
+     * sort position and the title; without one there is nothing to inherit and
+     * the write would have to allocate, which is what Create Post is for. It
+     * also keeps the button off the 102 cards with NEITHER component -- those
+     * are drafts an SMM just added, and a permanent "add a video" prompt on
+     * every blank row would be noise on the majority of them.
+     */
+    function _calFillSiblingId(p, which) {
+        if (_isClientLink || !p) return '';
+        const pid = String(p.id || '');
+        if (!pid || _calIsBlankId(pid)) return '';
+        if (String(p.status || '').toLowerCase() === 'archived') return '';
+        const target = which === 'graphic' ? 'graphic' : 'video';
+        const other = target === 'graphic' ? 'video' : 'graphic';
+        const idOf = comp => String((comp === 'graphic'
+            ? p.graphic_deliverable_id : p.video_deliverable_id) || '').trim();
+        const linkOf = comp => String((comp === 'graphic'
+            ? p.graphic_linear_issue_id : p.linear_issue_id) || '').trim();
+        // The slot must be empty BOTH ways. A card carrying a Linear url with
+        // no native id is a legacy half-link, not a missing component, and
+        // filling it would leave the card pointing at two different issues.
+        if (idOf(target) || linkOf(target)) return '';
+        // Only where the target team is SyncView-authoritative. Under a
+        // rollback the native create is refused at the database, so offering
+        // the button would be offering a dead one.
+        if (!_writeUiLinkSlotSealed(target)) return '';
+        return idOf(other);
+    }
+    function _calFillComponentSlotHtml(p, which) {
+        const sibling = _calFillSiblingId(p, which);
+        if (!sibling) return '';
+        const target = which === 'graphic' ? 'graphic' : 'video';
+        const label = target === 'graphic' ? 'thumbnail' : 'video';
+        const pid = String(p.id || '');
+        const plus = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>`;
+        return `<button class="cal-linear-btn cal-fill-btn cal-linear-btn-${target}" type="button"`
+            + ` onclick="_calFillComponent('${_calEscAttr(pid)}','${target}')"`
+            + ` title="This post has no ${label} yet — add one, in the same batch as its ${target === 'graphic' ? 'video' : 'thumbnail'}"`
+            + ` aria-label="Add the missing ${label} to this post">${plus}</button>`;
+    }
+    /* The request id is DETERMINISTIC in the card and team, and that is the
+       whole retry story. The gateway derives the deliverable id from it, so
+       every press for this card and team is the SAME write: the first creates,
+       and any later one replays and returns the row the first one made. A
+       random id per press would instead try to create a second component and
+       be refused as occupied -- correct, but it would leave a card whose link
+       was never written stuck refusing forever. */
+    function _calFillRequestId(pid, team) {
+        return ('fill:' + team + ':' + String(pid || '')).replace(/[^a-zA-Z0-9:_-]/g, '').slice(0, 190);
+    }
+    /* Read the component a card already has for a team. Used only to REPAIR:
+       when the gateway says the component exists but this card carries no link
+       to it, the row is right and the card is stale. That happens when a fill
+       committed and the card write did not, or when a DIFFERENT person pressed
+       the button first -- their actor is part of the dedup identity, so a
+       second person gets a conflict rather than a replay. Both end here. */
+    async function _calFillLookupExisting(clientSlug, pid, team) {
+        const url = CAL_SUPABASE_URL + '/rest/v1/deliverables'
+            + '?client_slug=eq.' + encodeURIComponent(clientSlug)
+            + '&card_id=eq.' + encodeURIComponent(pid)
+            + '&team=eq.' + encodeURIComponent(team)
+            + '&select=id,linear_issue_url&limit=1';
+        const response = await fetch(url, {
+            cache: 'no-store',
+            headers: {
+                apikey: CAL_SUPABASE_ANON_KEY,
+                Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                Accept: 'application/json'
+            }
+        });
+        if (!response.ok) return null;
+        const rows = await response.json().catch(() => []);
+        return Array.isArray(rows) && rows[0] ? rows[0] : null;
+    }
+    /* Write ONLY this component slot back to the card. Partial by key presence:
+       calendar-upsert copies just the keys the payload carries, so a fill
+       cannot touch the scheduled date, the caption, the other component or
+       anything else on a card that already has real content on it. */
+    async function _calFillWriteCardLink(clientSlug, pid, team, deliverableId, issueUrl) {
+        const post = team === 'graphics'
+            ? { id: pid, graphic_deliverable_id: deliverableId, graphic_linear_issue_id: String(issueUrl || '') }
+            : { id: pid, video_deliverable_id: deliverableId, linear_issue_id: String(issueUrl || '') };
+        const response = await _calUpsertFetch(clientSlug, { client: clientSlug, post }, 'calendar-component-fill');
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok || !json || json.ok !== true) throw new Error('calendar_card_write_failed');
+        const saved = Object.assign({}, post, json.post && typeof json.post === 'object' ? json.post : {});
+        const index = calState.posts.findIndex(item => item && item.id === pid);
+        if (index >= 0) calState.posts[index] = Object.assign({}, calState.posts[index], saved);
+        try { _calCacheWrite(clientSlug, calState.posts); } catch (e) {}
+        try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+    }
+    async function _calFillComponent(pid, which) {
+        const target = which === 'graphic' ? 'graphic' : 'video';
+        const team = target === 'graphic' ? 'graphics' : 'video';
+        const label = target === 'graphic' ? 'thumbnail' : 'video';
+        const post = calState.posts.find(item => item && item.id === pid);
+        // Re-checked against live state, not the state the button was drawn
+        // from: a tab left open while somebody else filled this slot must not
+        // send the write at all.
+        const siblingId = _calFillSiblingId(post, target);
+        if (!siblingId) {
+            showNotify('Nothing to add', 'This post already has its ' + label + ', or its other half is missing. Reload to see the current state.');
+            return;
+        }
+        const clientSlug = calClientSlug(calState.client);
+        if (!clientSlug) return;
+        let identity;
+        try { identity = await _syncviewRequireStaffIdentity('intake'); }
+        catch (error) {
+            showNotify('Sign-in required', (error && error.message) || 'Admin or SMM sign-in required.');
+            return;
+        }
+        // The live authority read, not the cached one the button was drawn
+        // from. Fails closed on an unreadable flag for the same reason the
+        // link slots do: minting work into a team that has been rolled back is
+        // not recoverable in a minute, and refusing is.
+        const sealed = await _writeUiLinkSlotSealedLive(target);
+        if (!sealed || sealed.sealed !== true) {
+            const notice = _writeUiLinkSlotSealedNotice(target, sealed && sealed.reason || 'authority_unavailable');
+            showNotify(notice[0], notice[1]);
+            return;
+        }
+        showConfirm(
+            'Add the missing ' + label + '?',
+            'This creates the ' + label + ' for this post, in the same batch as its '
+                + (target === 'graphic' ? 'video' : 'thumbnail')
+                + ', and attaches it to this card. It appears in Production and mirrors to Linear.',
+            () => { _calFillComponentSubmit(pid, target, team, label, siblingId, clientSlug, identity); },
+            'Add ' + label);
+    }
+    async function _calFillComponentSubmit(pid, target, team, label, siblingId, clientSlug, identity) {
+        const requestId = _calFillRequestId(pid, team);
+        let result = null;
+        let failure = null;
+        try {
+            const response = await fetch(PROD_WRITE_EF_URL, {
+                method: 'POST', cache: 'no-store',
+                headers: _syncviewEfHeaders({
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    Accept: 'application/json', 'Content-Type': 'application/json'
+                }, PROD_WRITE_EF_URL),
+                body: JSON.stringify({
+                    operation: 'component_fill',
+                    surface: 'calendar',
+                    client_slug: clientSlug,
+                    card_id: pid,
+                    team,
+                    sibling_id: siblingId,
+                    request_id: requestId,
+                    source_edited_at: new Date().toISOString()
+                })
+            });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok || !body || body.ok !== true || body.native_committed !== true) {
+                const error = new Error(String(body && body.error || 'native_write_failed'));
+                error.code = String(body && body.error || 'native_write_failed');
+                error.status = response.status;
+                throw error;
+            }
+            result = body;
+        } catch (error) { failure = error; }
+
+        /* THE REPAIR ARM. Both of these mean the component exists and this
+           card is the stale half -- occupied because somebody filled it, and
+           idempotency_conflict because somebody ELSE filled it (the actor is
+           part of the dedup identity). Neither is a reason to leave the card
+           unlinked, which is the very state this whole feature exists to end. */
+        if (failure && ['component_fill_team_occupied', 'idempotency_conflict'].includes(String(failure.code || ''))) {
+            const existing = await _calFillLookupExisting(clientSlug, pid, team).catch(() => null);
+            if (existing && existing.id) {
+                try {
+                    await _calFillWriteCardLink(clientSlug, pid, team, String(existing.id), existing.linear_issue_url);
+                    showNotify('Already there', 'This post already had a ' + label + '. The card is linked to it now.');
+                    return;
+                } catch (repairError) { failure = repairError; }
+            }
+        }
+        if (failure) {
+            _writeUiReportFailure('calendar', 'component_fill', failure);
+            return;
+        }
+        const item = result && result.item && typeof result.item === 'object' ? result.item : {};
+        if (!String(item.id || '')) {
+            _writeUiReportFailure('calendar', 'component_fill',
+                Object.assign(new Error('native_response_refresh_failed'), { code: 'native_response_refresh_failed' }));
+            return;
+        }
+        try {
+            await _calFillWriteCardLink(clientSlug, pid, team, String(item.id), item.linear_issue_url);
+        } catch (error) {
+            /* The component IS made. Saying otherwise would send someone to
+               press the button again, and the retry is genuinely safe (the
+               request id is deterministic, so it replays and re-attempts this
+               same card write) -- so say exactly that. */
+            showNotify('The ' + label + ' was created',
+                'It is in Production, but this card could not be linked to it just yet. Press the button again in a moment and it will finish the job.');
+            return;
+        }
+        showNotify('Added', result && result.mirror_pending === true
+            ? 'The ' + label + ' is on this post; the Linear mirror is still draining.'
+            : 'The ' + label + ' is on this post.');
+    }
+    function _calLinearPileHtml(pid, p) {
+        const v = _calLinearSlotHtml(pid, p.linear_issue_id, false, 'video');
+        const g = _calLinearSlotHtml(pid, p.graphic_linear_issue_id, false, 'graphic');
+        const pv = _calProdSlotHtml(p, 'video');
+        const pg = _calProdSlotHtml(p, 'graphic');
+        // The fill button takes the place the missing component would have
+        // occupied, so a half-complete card reads as one pile with a gap to
+        // close rather than as a card that is simply missing something.
+        const fv = _calFillComponentSlotHtml(p, 'video');
+        const fg = _calFillComponentSlotHtml(p, 'graphic');
+        if (!v && !g && !pv && !pg && !fv && !fg) return '';
+        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${v}${pv}${fv}${g}${pg}${fg}</div>`;
+    }
+    function _calTitleRowHtml(pid, p, ro, editableText) {
+        // editableText defaults to !ro so existing callers (the SMM-only
+        // render paths) keep their old behaviour. The new client-Collab
+        // flow passes editableText=true explicitly so the client can rename
+        // the post while everything else stays SMM-only.
+        const nameRo = (editableText == null) ? ro : !editableText;
+        // YouTube title status — a small colour SQUARE to the LEFT of the title
+        // (SMM-only; shown when the feature is on for a YouTube card, or the
+        // title already carries review state). Click opens the same status menu.
+        // The Linear sub-issue buttons that used to sit here now live on the
+        // thumbnail (see _calLinearPileHtml).
+        let titleSq = '';
+        if (!ro && !_isClientLink && _calTitlePillShown(p)) {
+            const ts = _calNormStatus(p.title_status || 'In Progress');
+            const slug = _calStatusSlug(ts);
+            titleSq = `<button type="button" class="cal-title-status-sq cal-fld-status-${slug}" data-substatus-pid="${pid}" data-substatus-comp="title" data-val="${_calEscAttr(ts)}" onclick="_calStatusToggleMenu(event,'${pid}',this,'title')" title="YouTube title — ${_calEscAttr(_calStatusLabel(ts))}" aria-label="YouTube title status: ${_calEscAttr(_calStatusLabel(ts))}"></button>`;
+            // The title is the one review component with no pill in the
+            // sub-status row -- that row maps CAL_COMPONENTS, which deliberately
+            // excludes it (see CAL_REVIEW_COMPONENTS). Without this the URGENT
+            // ping was unreachable for a card whose TITLE alone was waiting on
+            // Kasper, while the marker schema and the server guard both accepted
+            // 'title' perfectly happily. (Codex P1 on PR 1370.) The button docks
+            // beside the square in the same flex row; the name input shrinks,
+            // exactly as it does for the save indicator.
+            if (_calShowKasperUrgent(p, 'title')) {
+                titleSq += _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', p, 'cal-title-urgent-btn', true, 'kasper');
+            }
+        }
+        return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
+    }
+    function _calLinearEdit(pid, comp) {
+        if (_isClientLink) return;   // Linear linking is internal/SMM-only (never shown to clients)
+        const which = comp || 'video';
+        // Cheap early refusal for a stale tab or a keyboard path that reaches a
+        // control the renderer has already sealed. The live gate in
+        // _calLinearCommit is the one that decides; this only avoids opening an
+        // input that could never be saved.
+        if (_writeUiLinkSlotSealed(which)) {
+            const notice = _writeUiLinkSlotSealedNotice(which, 'syncview_authoritative');
+            showNotify(notice[0], notice[1]);
+            return;
+        }
+        const row = document.querySelector(`[data-title-row="${pid}"]`);
+        if (!row) return;
+        const post = calState.posts.find(p => p.id === pid);
+        const cur = post ? String((which === 'graphic') ? (post.graphic_linear_issue_id || '') : (post.linear_issue_id || '')) : '';
+        const ph = which === 'graphic' ? 'Paste the GRA (graphic) sub-issue link…' : 'Paste the VID (video) sub-issue link…';
+        row.innerHTML = `<input class="cal-linear-input" type="url" value="${_calEscAttr(cur)}" placeholder="${_calEscAttr(ph)}" onkeydown="_calLinearKey(event,'${pid}','${which}')" onblur="_calLinearCommit(this,'${pid}','${which}')">`;
+        const inp = row.querySelector('input');
+        if (inp) { inp.focus(); inp.select(); }
+    }
+    /* Remove a link from a SEALED slot.
+     *
+     * Deliberately NOT a second writer: it hands an empty value to
+     * `_calLinearCommit`, which is where clearing already lived and where the
+     * `__CLEAR_LINK__` sentinel translation happens. So there is exactly one
+     * path that writes this field, and the seal exempting `val === ''` is the
+     * same exemption this button relies on rather than a parallel one that
+     * could drift away from it.
+     *
+     * Confirmed first because it is one click, destructive, and on a card the
+     * person may not have meant to touch. */
+    function _calLinearClear(pid, comp) {
+        if (_isClientLink) return;
+        const which = comp || 'video';
+        const label = which === 'graphic' ? 'thumbnail' : 'video';
+        /* On a card whose component already has a native deliverable,
+           _calAdoptDeliverableLinks refills any EMPTY link column from that
+           deliverable on the next load -- so the clear is real for a moment and
+           then undone, while this dialog promised it would stick. Post-flip
+           that is the normal shape of a card, not the exception, so the promise
+           has to depend on which kind of card this is. The clear still runs:
+           it is the escape hatch for a half-linked card, which is the case the
+           seal cannot repair any other way.
+
+           And the promise is CONDITIONAL, which the first version of this fix
+           got wrong -- it replaced an over-promise with a smaller one. A stored
+           deliverable id proves only that the field is non-empty; the adopter
+           additionally needs the row to read back, to carry a linear_issue_url,
+           to still be bound to THIS card, and to save. A dangling id, a
+           deliverable whose Linear issue has not been minted yet, and one bound
+           to another card all skip it deterministically. So the sentence says
+           what governs the outcome instead of predicting it, and names the only
+           thing that would make the clear stick. */
+        const post = calState.posts.find(p => p && p.id === pid);
+        const native = post ? _writeUiNativeId(post, which) : '';
+        const body = native
+            ? 'This clears the ' + label + ' Linear link on this card. The issue itself is not touched. This card is linked to a SyncView deliverable, so if that deliverable still holds the link it will come back on the next load -- clearing it here does not clear it there.'
+            : 'This unlinks the ' + label + ' Linear sub-issue from this card. The issue itself is not touched, and nothing else about the card changes.';
+        showConfirm('Remove this link?', body,
+            () => { _calLinearCommit({ dataset: {}, value: '' }, pid, which); }, 'Remove it');
+    }
+    function _calLinearKey(e, pid, comp) {
+        if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+        else if (e.key === 'Escape') { e.preventDefault(); e.target.dataset.cancel = '1'; e.target.blur(); }
+    }
+    /* Expected issue-id prefix per slot: the VIDEO slot points at a VID- sub-
+       issue and the GRAPHIC slot at a GRA-. (Other teams' prefixes are allowed
+       through without a component warning — we only flag a clear VID/GRA mix-up.) */
+    function _calLinearExpectPrefix(which) { return which === 'graphic' ? 'GRA' : 'VID'; }
+    async function _calLinearCommit(input, pid, comp) {
+        const which = comp || 'video';
+        const fld = which === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id';
+        const cancelled = input.dataset.cancel === '1';
+        const val = input.value.trim();
+        const post = calState.posts.find(p => p.id === pid);
+        const cur = post ? String(post[fld] || '') : '';
+        const changed = !cancelled && val !== cur;
+        // Repaint the read-only title row — used whenever we DON'T commit (no
+        // change, a rejected value, or a deferred choice) so the slot shows its
+        // stored value again instead of leaving the rejected text in the input.
+        const restoreRow = () => {
+            const row = document.querySelector(`[data-title-row="${pid}"]`);
+            if (row) row.innerHTML = _calTitleRowHtml(pid, post || { id: pid }, _isClientLink);
+        };
+        // Persist + Linear-sync a value that has cleared every guard. Factored
+        // out so the wrong-slot override (a confirm) reuses the exact same path.
+        const applyCommit = (value) => {
+            if (post) post[fld] = value;
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid][fld] = value;
+            _calFlushCardSave(pid);
+            if (value) _calArchivedRemove(calClientSlug(calState.client), [value]);
+            _calRenderBody({ preserveScroll: true });
+            if (value && post) _calSyncStatusFromLinear(pid, value, which);
+        };
+
+        if (!changed) { restoreRow(); return; }
+
+        if (val) {
+            /* (0) Seal guard, ahead of every other check and on a LIVE authority
+               read. Setting a link on a SyncView-authoritative component is the
+               defect this whole gate exists to stop, so it is refused before the
+               format, component and uniqueness guards even look at the value.
+
+               CLEARING is deliberately NOT gated -- `val === ''` never reaches
+               here. Removing a link that is already sitting on a card is the
+               repair, not the defect, and sealing that away would trap the very
+               rows this is meant to stop producing. */
+            const seal = await _writeUiLinkSlotSealedLive(which);
+            if (seal.sealed) {
+                const notice = _writeUiLinkSlotSealedNotice(which, seal.reason);
+                showNotify(notice[0], notice[1]);
+                restoreRow();
+                return;
+            }
+            // (1) Format guard. The slot holds a Linear SUB-ISSUE link and nothing
+            // else. Reject a non-Linear URL or any text with no issue identifier
+            // (e.g. a pasted note) with a clear disclaimer instead of silently
+            // storing it — unvalidated text is exactly what later shows up as
+            // "weird text" sitting in the link slot.
+            const ident = _calIdentFromUrl(val);
+            const looksLinear = /^https?:\/\//i.test(val) && /(^|[./])linear\.app\//i.test(val);
+            if (!looksLinear || !ident) {
+                showNotify('That isn’t a Linear link',
+                    'Paste a Linear sub-issue URL like https://linear.app/your-team/issue/'
+                    + _calLinearExpectPrefix(which) + '-123. What you entered has no Linear issue id, so it wasn’t saved.');
+                restoreRow();
+                return;
+            }
+            // (2) Component guard. The VIDEO slot expects a VID- issue and the
+            // GRAPHIC slot a GRA-. A clear mismatch is almost always a paste into
+            // the wrong row — warn, but let the user override for the rare case.
+            const prefix = ident.split('-')[0];
+            const want = _calLinearExpectPrefix(which);
+            if ((prefix === 'GRA' || prefix === 'VID') && prefix !== want) {
+                const isG = prefix === 'GRA';
+                showConfirm('Wrong slot for this link?',
+                    'That looks like a ' + (isG ? 'GRAPHIC (GRA-)' : 'VIDEO (VID-)') + ' sub-issue, but you’re setting the '
+                    + (which === 'graphic' ? 'GRAPHIC' : 'VIDEO') + ' link. Use it here anyway?',
+                    () => applyCommit(val), 'Use it anyway');
+                return;
+            }
+            // (3) Uniqueness guard. A non-empty NEW link that already lives on
+            // another live card: don't silently swallow it (the dedupe would
+            // collapse the two cards on the next refresh, so the link would appear
+            // to vanish). Surface the clash and offer to MOVE it here; the real
+            // commit waits on the user's choice.
+            const conflict = _calLinkConflict(val, pid);
+            if (conflict) { _calShowLinkConflict(pid, which, val, conflict); return; }
+        }
+
+        // val may be '' here → an intentional clear, which is allowed.
+        applyCommit(val);
+    }
+    /* Paste-time uniqueness guard. A Linear sub-issue is effectively a unique
+       key: the status-sync, the status push and the dedupe all assume one card
+       per issue (see _calDedupeByLinearIssue). So when the link just entered is
+       already on another LIVE card we DON'T silently take it — we surface the
+       clash and offer to MOVE it here. The pending value sits in
+       _calPendingLinkMove (keyed by the receiving card) so the URL never has to
+       be quoted into an onclick attribute. */
+    let _calPendingLinkMove = Object.create(null);
+    // Returns a live (non-archived) card OTHER than selfPid whose video OR
+    // graphic slot already holds `link`, or null. Uniqueness is checked across
+    // BOTH slots so video & graphic behave identically.
+    function _calLinkConflict(link, selfPid) {
+        const key = _calLinkKey(link);
+        if (!key) return null;
+        const archived = _calArchivedRefs(calClientSlug(calState.client));
+        for (const p of calState.posts) {
+            if (!p || p.id === selfPid) continue;
+            if (String(p.status || '').toLowerCase() === 'archived') continue;
+            if (_calIsArchivedRef(p, archived)) continue;
+            if (_calLinkKey(p.linear_issue_id) === key || _calLinkKey(p.graphic_linear_issue_id) === key) return p;
+        }
+        return null;
+    }
+    function _calShowLinkConflict(pid, which, val, conflict) {
+        _calPendingLinkMove[pid] = { which: which, val: val, oldPid: conflict.id };
+        const row = document.querySelector(`[data-title-row="${pid}"]`);
+        if (!row) return;
+        const nm = String(conflict.name || '').trim() || 'Untitled post';
+        row.innerHTML = `<div class="cal-link-conflict" data-link-conflict="${_calEscAttr(pid)}">`
+            + `<span class="cal-link-conflict-msg">This Linear sub-issue is already linked to “${_calEsc(nm)}”.</span>`
+            + `<span class="cal-link-conflict-actions">`
+            + `<button type="button" class="cal-link-conflict-move" onclick="_calMoveLinkConfirm('${pid}')">Move it here</button>`
+            + `<button type="button" class="cal-link-conflict-cancel" onclick="_calLinkConflictCancel('${pid}')">Cancel</button>`
+            + `</span></div>`;
+    }
+    function _calLinkConflictCancel(pid) {
+        delete _calPendingLinkMove[pid];
+        const post = calState.posts.find(p => p.id === pid);
+        const row = document.querySelector(`[data-title-row="${pid}"]`);
+        if (row) row.innerHTML = _calTitleRowHtml(pid, post || { id: pid }, _isClientLink);
+    }

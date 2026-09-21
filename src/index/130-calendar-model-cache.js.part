@@ -1,0 +1,2746 @@
+    function _calMigratePostShape(p) {
+        if (!p || typeof p !== 'object') return p;
+        const legacy = _calNormStatus(p.status || 'In Progress');
+        const hasV = !!String(p.video_status   || '').trim();
+        const hasG = !!String(p.graphic_status || '').trim();
+        const hasC = !!String(p.caption_status || '').trim();
+        // Only seed sub-statuses from the overall when this is a legacy row
+        // with no sub-statuses at all. Otherwise a blank sub means "untouched"
+        // — and seeding it from `status` (which is the worst-of) would clobber
+        // an approved component the moment a sibling moved to Tweaks Needed.
+        const isLegacyOnly = !hasV && !hasG && !hasC;
+        p.video_status   = hasV ? _calNormStatus(p.video_status)   : (isLegacyOnly ? legacy : 'In Progress');
+        p.graphic_status = hasG ? _calNormStatus(p.graphic_status) : (isLegacyOnly ? legacy : 'In Progress');
+        p.caption_status = hasC ? _calNormStatus(p.caption_status) : (isLegacyOnly ? legacy : 'In Progress');
+        // Title status is independent of the overall card status and is NEVER
+        // seeded from the legacy `status`. It stays empty until an SMM engages
+        // it, so existing / non-YouTube cards never surface a title review and
+        // computeOverallStatus (which ignores it anyway) is unaffected.
+        p.title_status = String(p.title_status || '').trim() ? _calNormStatus(p.title_status) : '';
+        ['video_deliverable_id', 'graphic_deliverable_id'].forEach(k => { if (p[k] == null) p[k] = ''; });
+        ['thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at'].forEach(k => { if (p[k] == null) p[k] = ''; });
+        p.video_comments   = _calLoadCommentsField(p, 'video_tweaks',   p.tweaks);
+        p.graphic_comments = _calLoadCommentsField(p, 'graphic_tweaks', '');
+        p.caption_comments = _calLoadCommentsField(p, 'caption_tweaks', '');
+        p.title_comments   = _calLoadCommentsField(p, 'title_tweaks',   '');
+        // Per-comment merge clock. Legacy comments (and any written before the
+        // field existed) lack updated_at; seed it from created_at so newer-wins
+        // comparisons in the CRDT merge are always well-defined and a later
+        // resolve/delete reliably beats the original.
+        [p.video_comments, p.graphic_comments, p.caption_comments, p.title_comments].forEach(arr => {
+            if (Array.isArray(arr)) arr.forEach(c => { if (c && !c.updated_at) c.updated_at = c.created_at || ''; });
+        });
+        p.comments = p.video_comments;
+        p.status = computeOverallStatus(p);
+        // Seed the local Kasper-seen cache from the sheet's cross-device
+        // `kasper_seen` column (CSV of components), so a device that's never
+        // touched this post still knows which components have been to Kasper.
+        String(p.kasper_seen || '').split(',').map(s => s.trim()).filter(Boolean)
+            .forEach(c => _calMarkKasperSeen(p.id, c));
+        return p;
+    }
+    /* Returns the comments array for a given component. Falls back to the
+       legacy `comments` field for any component when the sub-arrays haven't
+       been seeded yet (defensive). */
+    function _calCommentsFor(post, comp) {
+        if (!post) return [];
+        if (comp === 'graphic') return Array.isArray(post.graphic_comments) ? post.graphic_comments : [];
+        if (comp === 'caption') return Array.isArray(post.caption_comments) ? post.caption_comments : [];
+        if (comp === 'title') return Array.isArray(post.title_comments) ? post.title_comments : [];
+        if (Array.isArray(post.video_comments)) return post.video_comments;
+        return Array.isArray(post.comments) ? post.comments : [];
+    }
+    /* Per-message audience + type, with back-compat defaults for legacy rows
+       (which carry neither field):
+         · audience — who may see the thread. Messages authored by the TEAM
+           (Kasper or the SMM) default to 'internal' (team-only); a client's
+           own message defaults to 'client'. This default doubles as the safety
+           net for historical review-tab change-requests that were saved with no
+           audience tag: an SMM tweak must never be client-visible, so an
+           untagged team message is internal by default. Anything genuinely
+           meant for the client carries an explicit audience:'client', which
+           always wins over the default. A thread's audience is set on its ROOT
+           message; replies inherit it (see _calCommentsForView).
+         · is_tweak — whether the message is a change-request that flips the
+           component to Tweaks Needed and pings the editor. Every legacy
+           message was a tweak, so absent the field we treat it as true. */
+    function _calMsgAudience(c) {
+        if (!c) return 'client';
+        if (c.audience === 'internal' || c.audience === 'client') return c.audience;
+        return (c.role === 'kasper' || c.role === 'smm') ? 'internal' : 'client';
+    }
+    function _calMsgIsTweak(c) {
+        if (!c) return false;
+        if (typeof c.is_tweak === 'boolean') return c.is_tweak;
+        return true;
+    }
+    /* Revision number for a NEW change-request on this component: the Nth tweak
+       (1-based), counting existing change-requests on the same component. Stamped
+       on the tweak at creation so the UI can show "Tweak #2 / #3 …" — the
+       "leave no room for error" history the title review (and every component)
+       wants, without re-deriving it on every render. */
+    function _calNextTweakRound(post, comp) {
+        const list = _calCommentsFor(post, comp);
+        if (!Array.isArray(list)) return 1;
+        return list.filter(c => c && _calMsgIsTweak(c) && !c.deleted).length + 1;
+    }
+    /* Render-side wrapper: same data as _calCommentsFor, but the client-link
+       view only ever sees threads addressed to the client. A thread's audience
+       lives on its ROOT message and replies inherit it. We also hard-hide
+       anything Kasper authored, belt-and-braces, so the client can never see
+       internal review chatter even on a mis-tagged thread. Save/update paths
+       keep using _calCommentsFor (unfiltered) — we hide from this one
+       audience, we never *drop* messages from the row. */
+    function _calCommentsForView(post, comp) {
+        let list = _calCommentsFor(post, comp);
+        if (!Array.isArray(list)) return [];
+        // Tombstoned (soft-deleted) comments stay in storage so the delete
+        // propagates and can't be resurrected by a stale merge or a laggy
+        // poll, but they never render or count for anyone. `hidden` is the same
+        // idea for audit-suppressed comments (e.g. legacy cross-client feedback
+        // that bled onto the wrong client's row): the text is preserved in the
+        // sheet (hide-not-delete) but never shown or counted. The save path uses
+        // _calCommentsFor (unfiltered) so these are never written away.
+        list = list.filter(c => c && (!c.deleted || c.canonical) && !c.hidden);
+        if (!_isClientLink) return list;
+        // Resolve each message's thread-root so a reply inherits the root's
+        // audience (replies point straight at the root via parent_id).
+        const byId = new Map();
+        for (const c of list) if (c && c.id) byId.set(c.id, c);
+        const rootAudience = (c) => {
+            const root = (c.parent_id && byId.has(c.parent_id)) ? byId.get(c.parent_id) : c;
+            return _calMsgAudience(root);
+        };
+        return list.filter(c => {
+            if (!c) return false;
+            if (c.role === 'kasper') return false;   // never expose Kasper authorship
+            return rootAudience(c) === 'client';      // only client-addressed threads
+        });
+    }
+    function _calSetCommentsFor(post, comp, arr) {
+        if (!post) return;
+        const list = Array.isArray(arr) ? arr : [];
+        // Keep both the parsed-array form and the wire-string form in sync.
+        // _calMigratePostShape re-parses from the *_tweaks string on every
+        // load (cache hydrate, polling refresh, etc.) — if the string is
+        // stale the parsed array gets blown away. Updating both here means
+        // a freshly added comment survives a reload before the upsert has
+        // even reached the sheet.
+        const str = _calStringifyComments(list);
+        if (comp === 'graphic') { post.graphic_comments = list; post.graphic_tweaks = str; return; }
+        if (comp === 'caption') { post.caption_comments = list; post.caption_tweaks = str; return; }
+        if (comp === 'title') { post.title_comments = list; post.title_tweaks = str; return; }
+        post.video_comments = list;
+        post.comments = list;
+        post.video_tweaks = str;
+        post.tweaks = str;
+    }
+    /* Maps a component to its Linear issue URL column. Caption has no Linear
+       counterpart. */
+    function _calLinearUrlFor(post, comp) {
+        if (!post) return '';
+        if (comp === 'graphic') return String(post.graphic_linear_issue_id || '').trim();
+        if (comp === 'caption' || comp === 'title') return '';
+        return String(post.linear_issue_id || '').trim();
+    }
+    /* A production component is linked when either epoch can resolve it: the
+       legacy Linear URL column or the native deliverable-id column. Keep every
+       Kasper gate and staff pill lock on this one predicate so a native-only
+       thumbnail remains visible and actionable after the Graphics flip. */
+    function _calCompLinked(post, comp) {
+        if (!post) return false;
+        if (comp === 'graphic') {
+            return !!(String(post.graphic_linear_issue_id || '').trim()
+                || String(post.graphic_deliverable_id || '').trim());
+        }
+        if (comp === 'video') {
+            return !!(String(post.linear_issue_id || '').trim()
+                || String(post.video_deliverable_id || '').trim());
+        }
+        return true;
+    }
+    /* WHAT A COMPONENT PILL SHOULD DISPLAY (owner ruling 2026-08-20).
+       A video/graphic slot with no Linear sub-issue has no work item behind
+       it, so "In Progress" is a claim the card cannot support. The SMM card
+       already greys and disables such a pill; the client had no signal at all.
+       Both now read N/A.
+
+       ONE helper for four render paths -- the calendar card, the samples card
+       and both in-place pill updaters -- because they drift otherwise: an
+       in-place update that recomputed the label from the stored status would
+       quietly put "In Progress" back on a pill the full render had shown as
+       N/A.
+
+       DISPLAY ONLY. Callers keep the STORED status in `data-val` and in every
+       write path. The owner ruled on 2026-08-19 that N/A is a manual SMM
+       choice the system must never write, and the reconcilers park a card
+       whose STORED status is N/A, so a write here would change reconciliation
+       behaviour too.
+
+       A finished state is never masked: Approved / Scheduled / Posted are the
+       states the client is entitled to see, and one must not vanish behind
+       N/A just because its link was removed. Caption and title are unaffected
+       -- _calCompLinked reports them linked by design, since neither has a
+       Linear sub-issue in the first place. */
+    function _calPillDisplayStatus(post, comp, stored) {
+        if (_CAL_CLIENT_READY_STATES.has(stored)) return stored;
+        return _calCompLinked(post, comp) ? stored : 'N/A';
+    }
+    const CAL_PREFS_KEY = 'syncview_calendar_prefs';
+    /* Per-client month/status filters: { <slug>: { month, status } }. Filters
+       are scoped to the client whose calendar set them — switching tabs must
+       not drag May's filter onto a client you last viewed under All months. */
+    const CAL_FILTERS_KEY = 'syncview_cal_filters_v1';
+    const CAL_PINS_KEY  = 'syncview_calendar_pins';
+    const CAL_SAVE_DEBOUNCE_MS = 650;
+    /* Platforms a post can be marked for. The SMM enables a subset via the
+       kebab → Edit platforms menu (per-client localStorage); each card then
+       toggles individual icons on/off to record where the post is going. */
+    const CAL_PLATFORMS = [
+        { key: 'instagram', label: 'Instagram', color: 'var(--sv-fg-e4405f)',
+          icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.6" fill="currentColor" stroke="none"/></svg>' },
+        { key: 'tiktok', label: 'TikTok', color: 'var(--sv-fg-000000)',
+          icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 3v3.5c1.1.9 2.5 1.5 4 1.5v3.4c-1.5 0-2.8-.4-4-1.1v6.2a5.8 5.8 0 1 1-5.8-5.8c.3 0 .6 0 .9.1v3.5a2.4 2.4 0 1 0 1.7 2.2V3z"/></svg>' },
+        { key: 'youtube', label: 'YouTube', color: 'var(--sv-fg-ff0000)',
+          icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.6 7.2a2.5 2.5 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.5 2.5 0 0 0 2.4 7.2 26 26 0 0 0 2 12a26 26 0 0 0 .4 4.8 2.5 2.5 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.5 2.5 0 0 0 1.8-1.8A26 26 0 0 0 22 12a26 26 0 0 0-.4-4.8zM10 15V9l5 3z"/></svg>' },
+        { key: 'facebook', label: 'Facebook', color: 'var(--sv-fg-1877f2)',
+          icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.7-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0 0 22 12z"/></svg>' },
+        { key: 'linkedin', label: 'LinkedIn', color: 'var(--sv-fg-0a66c2)',
+          icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.4 3H3.6A.6.6 0 0 0 3 3.6v16.8c0 .3.3.6.6.6h16.8a.6.6 0 0 0 .6-.6V3.6a.6.6 0 0 0-.6-.6zM8.3 18.3H5.7V9.8h2.6zM7 8.6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm11.3 9.7h-2.6v-4.1c0-1 0-2.3-1.4-2.3s-1.6 1.1-1.6 2.2v4.2H10V9.8h2.5v1.1h.1c.4-.6 1.2-1.3 2.5-1.3 2.7 0 3.2 1.8 3.2 4.1z"/></svg>' },
+        { key: 'x', label: 'X (Twitter)', color: 'var(--sv-fg-000000)',
+          icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 3h3.1l-6.8 7.7L22 21h-6.3l-4.9-6.5L5.2 21H2l7.3-8.3L1.8 3h6.5l4.4 5.9zm-1.1 16h1.7L7.7 4.8H5.9z"/></svg>' },
+        { key: 'threads', label: 'Threads', color: 'var(--sv-fg-000000)',
+          icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.2 22h-.1c-3 0-5.4-1-6.9-2.9C3.8 17.4 3 15 3 12.1V12c0-2.9.8-5.3 2.2-7C6.7 3 9.1 2 12.1 2c3.7 0 6.3 1.3 7.6 4l-1.9 1.1c-.9-1.9-2.6-2.8-5.7-2.9-2.3 0-4.1.7-5.2 2C5.8 7.4 5.2 9.4 5.2 12s.6 4.6 1.7 5.9c1.1 1.3 2.9 2 5.2 2 2 0 3.4-.5 4.6-1.6.7-.7 1.2-1.5 1.5-2.5-.5-.4-1.1-.7-1.8-.9-.5 1.7-1.7 2.7-3.5 2.7-1.7 0-2.9-.7-3.6-1.9-.7-1.2-.6-2.7.2-3.7 1.1-1.3 3.1-1.6 5.6-1 0-1.6-.8-2.5-2.3-2.5-1.3 0-2 .5-2.5 1.5l-1.8-1.1c.7-1.5 2.1-2.5 4.3-2.5 2.3 0 4.4 1.3 4.4 4.5v.1c1.1.4 2 .9 2.8 1.6 1 .9 1.5 2 1.5 3.4 0 2.6-2.5 5.3-7.2 5.3z"/></svg>' },
+        { key: 'pinterest', label: 'Pinterest', color: 'var(--sv-fg-e60023)',
+          icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12c0 4.2 2.6 7.8 6.3 9.3-.1-.8-.2-2 0-2.9.2-.8 1.2-5 1.2-5s-.3-.6-.3-1.5c0-1.4.8-2.5 1.8-2.5.9 0 1.3.7 1.3 1.4 0 .9-.6 2.2-.9 3.4-.2 1 .5 1.8 1.5 1.8 1.8 0 3.1-1.9 3.1-4.6 0-2.4-1.7-4.1-4.2-4.1-2.9 0-4.6 2.1-4.6 4.4 0 .9.3 1.8.8 2.3 0 .1 0 .2-.1.3l-.3 1.2c0 .2-.2.3-.4.1-1.2-.6-2-2.4-2-3.9 0-3.2 2.3-6.1 6.6-6.1 3.4 0 6.1 2.4 6.1 5.7 0 3.4-2.2 6.2-5.2 6.2-1 0-2-.5-2.3-1.1l-.6 2.4c-.2.9-.8 2-1.2 2.7.9.3 1.9.4 2.9.4 5.5 0 10-4.5 10-10S17.5 2 12 2z"/></svg>' },
+    ];
+    const CAL_PLATFORM_BY_KEY = Object.fromEntries(CAL_PLATFORMS.map(p => [p.key, p]));
+    const CAL_ENABLED_PLATFORMS_KEY = 'syncview_cal_enabled_platforms_v1';
+    function _calEnabledPlatformsLocal(slug) {
+        if (!slug) return [];
+        try {
+            const raw = localStorage.getItem(CAL_ENABLED_PLATFORMS_KEY);
+            const map = raw ? JSON.parse(raw) : {};
+            const list = Array.isArray(map[slug]) ? map[slug] : [];
+            return list.filter(k => CAL_PLATFORM_BY_KEY[k]);
+        } catch { return []; }
+    }
+    function _calEnabledPlatforms(slug) {
+        if (!slug) return [];
+        // Prefer the shared settings row: it's persisted to the backend, so the
+        // CLIENT view and other SMM devices see the same platform icons (the set
+        // used to be localStorage-only, so the client saw none at all). localStorage
+        // stays a first-paint cache. Settings apply to the current client only.
+        try {
+            if (calState && slug === calClientSlug(calState.client)
+                && calState.settings && Array.isArray(calState.settings.enabled_platforms)) {
+                return calState.settings.enabled_platforms.filter(k => CAL_PLATFORM_BY_KEY[k]);
+            }
+        } catch {}
+        return _calEnabledPlatformsLocal(slug);
+    }
+    function _calSetEnabledPlatforms(slug, list) {
+        if (!slug) return;
+        try {
+            const raw = localStorage.getItem(CAL_ENABLED_PLATFORMS_KEY);
+            const map = raw ? JSON.parse(raw) : {};
+            map[slug] = (list || []).filter(k => CAL_PLATFORM_BY_KEY[k]);
+            localStorage.setItem(CAL_ENABLED_PLATFORMS_KEY, JSON.stringify(map));
+        } catch {}
+    }
+    function _calPostPlatforms(post) {
+        const raw = String((post && post.platforms) || '').trim();
+        if (!raw) return [];
+        return raw.split(',').map(s => s.trim().toLowerCase()).filter(k => CAL_PLATFORM_BY_KEY[k]);
+    }
+    /* Alt caption — a second, platform-specific caption (e.g. a LinkedIn
+       rewrite) stored in caption_alt / caption_alt_platform. It is NOT a
+       fourth component: it shares the caption sub-status, tweaks thread and
+       client approval, so the approval flow is untouched — both captions
+       are reviewed and approved together. On the card it renders as two
+       browser-style tabs above a single caption box (no extra height). */
+    const _calCapTabState = new Map();     // pid -> 'main' | 'alt' (session-local active tab)
+    const _calAltCapDraftPlat = new Map(); // pid -> platform picked for an alt tab whose text hasn't been saved yet
+    function _calAltCapLabel(post) {
+        const key = String((post && post.caption_alt_platform) || '').trim().toLowerCase();
+        const p = CAL_PLATFORM_BY_KEY[key];
+        return p ? p.label : 'Alt';
+    }
+    /* Label + icon + colour for one caption section in a review preview.
+       `which` = 'main' | 'alt'. Main gets a neutral text glyph; the alt gets
+       its platform's coloured icon so the two read as clearly different. */
+    function _calCapSecMeta(which, p) {
+        const textIco = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>';
+        if (which !== 'alt') return { label: 'Main caption', ico: textIco, color: 'var(--sv-fg-111110)' };
+        const key = String((p && p.caption_alt_platform) || '').trim().toLowerCase();
+        const pl = CAL_PLATFORM_BY_KEY[key];
+        return { label: (pl ? pl.label : 'Alt') + ' caption', ico: pl ? pl.icon : textIco, color: pl ? pl.color : 'var(--sv-fg-111110)' };
+    }
+    function _calReviewCapCardHtml(which, p, text) {
+        const m = _calCapSecMeta(which, p);
+        return `<div class="cal-review-cap-card">
+            <div class="cal-review-cap-head"><span class="cal-review-cap-ico" style="background:${m.color}">${m.ico}</span>${_calEsc(m.label)}</div>
+            <div class="cal-review-preview-caption">${text ? _calEsc(text) : '<em>No caption yet.</em>'}</div>
+        </div>`;
+    }
+    function _calAltCapPlatKey(pid, post) {
+        // The saved platform is only authoritative once alt TEXT is saved
+        // with it. A platform column with no text (e.g. residue from the
+        // pre-tabs UI) must not beat the platform the SMM just picked for
+        // a fresh draft tab.
+        const saved = String((post && post.caption_alt_platform) || '').trim().toLowerCase();
+        const hasText = !!String((post && post.caption_alt) || '').trim();
+        if (hasText && saved) return saved;
+        return _calAltCapDraftPlat.get(pid) || saved || 'linkedin';
+    }
+    function _calCapBlockHtml(pid, p, editableText, isBlank) {
+        // `pid` arrives attr-escaped from _calCardHtml (same convention as
+        // every other inline handler on the card).
+        const alt = String(p.caption_alt || '');
+        // The draft marker is redundant only once the alt caption TEXT is
+        // saved (the tab then persists from sheet data). A saved platform
+        // with no text — residue from the pre-tabs UI, or text deleted by
+        // hand — must NOT clear it, or the tab would vanish the moment the
+        // SMM creates it on such a card ("click Instagram, nothing happens").
+        if (alt.trim() && String(p.caption_alt_platform || '').trim()) _calAltCapDraftPlat.delete(pid);
+        const hasAlt = !!alt.trim() || _calAltCapDraftPlat.has(pid);
+        const canEdit = !_isClientLink && !isBlank;
+        let active = _calCapTabState.get(pid) || 'main';
+        if (active === 'alt' && !hasAlt) active = 'main';
+        const platKey = _calAltCapPlatKey(pid, p);
+        const platLabel = (CAL_PLATFORM_BY_KEY[platKey] || {}).label || 'Alt';
+        const chevIco = `<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5L5 6.5l3-3"/></svg>`;
+        const xIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg>`;
+        const capToggle = `<button type="button" class="cal-cap-toggle" tabindex="-1" hidden onclick="_calToggleCaption(this)" title="Expand / collapse"><span class="cal-cap-toggle-txt">Show more</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg></button>`;
+        let tabsHtml = '';
+        if (hasAlt) {
+            tabsHtml = `<div class="cal-cap-tabs">
+                <button type="button" class="cal-cap-tab${active === 'main' ? ' is-active' : ''}" data-captab="main" onclick="_calCapTabSwitch('${pid}','main')">Caption</button>
+                <button type="button" class="cal-cap-tab${active === 'alt' ? ' is-active' : ''}" data-captab="alt" onclick="_calCapAltTabClick(event,'${pid}',this)" title="${canEdit ? _calEscAttr(platLabel) + ' caption — click while active to change the platform' : _calEscAttr(platLabel) + ' caption'}">${_calEsc(platLabel)}${canEdit ? `<span class="cal-cap-tab-chev">${chevIco}</span><span class="cal-cap-tab-x" onclick="_calAltCapRemove(event,'${pid}')" title="Remove the ${_calEscAttr(platLabel)} caption">${xIco}</span>` : ''}</button>
+            </div>`;
+        } else if (canEdit) {
+            tabsHtml = `<div class="cal-cap-tabs">
+                <button type="button" class="cal-altcap-add" onclick="_calCapTabAddMenu(event,'${pid}',this)" title="Add a second caption for another platform — reviewed and approved together with the main caption"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"/></svg>Alt caption</button>
+            </div>`;
+        }
+        const genBtn = canEdit ? _calCapGenBtnHtml(p) : '';
+        return `${tabsHtml}
+            <div class="cal-cap-wrap${active === 'alt' ? ' captab-off' : ''}" data-capwrap="main" onclick="_calCaptionWrapClick(event,this)">
+                <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)" onkeydown="_calOnCaptionKey(event,this)"${!editableText ? ' readonly' : ''}>${_calEsc(p.caption)}</textarea>
+                <div class="cal-cap-fade" aria-hidden="true"></div>
+                ${capToggle}
+                ${genBtn}
+            </div>
+            ${hasAlt ? `<div class="cal-cap-wrap${active === 'alt' ? '' : ' captab-off'}" data-capwrap="alt" onclick="_calCaptionWrapClick(event,this)">
+                <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption_alt" placeholder="${_calEscAttr(platLabel)} caption" oninput="_calOnAltCapInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)" onkeydown="_calOnCaptionKey(event,this)"${!editableText ? ' readonly' : ''}>${_calEsc(alt)}</textarea>
+                <div class="cal-cap-fade" aria-hidden="true"></div>
+                ${capToggle}
+            </div>` : ''}`;
+    }
+    /* Rebuilds the caption block in place (tab row + both textareas) after a
+       tab is added / removed / re-platformed. Preserves any typed-but-unsaved
+       text by harvesting the live textarea values before the rebuild. */
+    function _calCapBlockRepaint(pid, focusAlt) {
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+        const block = card ? card.querySelector(`[data-capblock="${pid}"]`) : null;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!card || !block || !post) return;
+        const vals = {};
+        block.querySelectorAll('textarea[data-fld]').forEach(t => { vals[t.dataset.fld] = t.value; });
+        const isBlank = _calIsBlankId(pid);
+        const editableText = !_isClientLink || isBlank || _calIsCollabOn();
+        block.innerHTML = _calCapBlockHtml(pid, post, editableText, isBlank);
+        block.querySelectorAll('textarea[data-fld]').forEach(t => {
+            if (vals[t.dataset.fld] != null) t.value = vals[t.dataset.fld];
+            _calRefreshCaption(t, false);
+        });
+        if (focusAlt) {
+            const ta = block.querySelector('[data-capwrap="alt"] textarea');
+            if (ta) ta.focus();
+        }
+    }
+    function _calCapTabSwitch(pid, which) {
+        _calCapTabState.set(pid, which);
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+        if (!card) return;
+        card.querySelectorAll('.cal-cap-tab[data-captab]').forEach(b => b.classList.toggle('is-active', b.dataset.captab === which));
+        card.querySelectorAll('[data-capwrap]').forEach(w => w.classList.toggle('captab-off', w.dataset.capwrap !== which));
+        const ta = card.querySelector(`[data-capwrap="${which}"] textarea`);
+        if (ta) _calRefreshCaption(ta, false);
+    }
+    /* Alt tab: first click switches to it; clicking it again while active
+       opens the platform picker (SMM only). The ✕ inside the tab removes. */
+    function _calCapAltTabClick(e, pid, btn) {
+        if (e && e.target.closest('.cal-cap-tab-x')) return;
+        const active = _calCapTabState.get(pid) || 'main';
+        if (active !== 'alt') { _calCapTabSwitch(pid, 'alt'); return; }
+        if (_isClientLink) return;
+        _calCapPlatMenu(e, pid, btn, 'change');
+    }
+    function _calCapTabAddMenu(e, pid, btn) { _calCapPlatMenu(e, pid, btn, 'add'); }
+    /* Platform picker — portaled to <body> with the exact positioning and
+       outside-click/scroll/resize close behaviour of the status menus (it
+       rides the same _calOpenStatusMenu slot). */
+    function _calCapPlatMenu(event, pid, triggerEl, mode) {
+        if (event) { event.stopPropagation(); event.preventDefault(); }
+        const menuKey = pid + '|altcap';
+        if (_calOpenStatusMenu && _calOpenStatusMenu.key === menuKey) { _calCloseStatusMenu(); return; }
+        _calCloseStatusMenu();
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post || !triggerEl) return;
+        const current = (mode === 'change') ? _calAltCapPlatKey(pid, post) : '';
+        const menu = document.createElement('div');
+        menu.className = 'cal-fld-status-menu';
+        menu.innerHTML = `<div class="cal-cap-tab-menu-head">${mode === 'change' ? 'Platform for this caption' : 'Add a caption for…'}</div>`
+            + CAL_PLATFORMS.map(pl => `<button type="button" class="cal-fld-status-item cal-cap-tab-menu-item${pl.key === current ? ' active' : ''}" onclick="_calCapPlatPick('${pid}','${pl.key}','${mode}')"><span class="cal-cap-tab-menu-ico" style="background:${pl.color}">${pl.icon}</span>${_calEsc(pl.label)}</button>`).join('');
+        document.body.appendChild(menu);
+        const rect = triggerEl.getBoundingClientRect();
+        const menuW = Math.max(menu.offsetWidth, 200);
+        const menuH = menu.offsetHeight;
+        let left = rect.left;
+        const maxLeft = window.innerWidth - menuW - 10;
+        if (left > maxLeft) left = maxLeft;
+        if (left < 10) left = 10;
+        menu.style.left = left + 'px';
+        const gap = 5;
+        const spaceBelow = window.innerHeight - rect.bottom - 10;
+        const spaceAbove = rect.top - 10;
+        let top;
+        if (menuH <= spaceBelow || spaceBelow >= spaceAbove) {
+            /* Math.max floor: with a menu taller than the viewport the inner
+               Math.min goes NEGATIVE and the top of the list leaves the screen.
+               The CSS cap above makes that unreachable in practice; this is the
+               second line of defence, because the cap depends on a stylesheet
+               rule and this does not. */
+            top = Math.max(10, Math.min(rect.bottom + gap, window.innerHeight - menuH - 10));
+        } else {
+            top = Math.max(10, rect.top - menuH - gap);
+        }
+        menu.style.top = top + 'px';
+        menu.style.minWidth = '200px';
+        requestAnimationFrame(() => menu.classList.add('open'));
+        _calOpenStatusMenu = { pid, key: menuKey, comp: 'altcap', el: menu, triggerEl };
+    }
+    function _calCapPlatPick(pid, key, mode) {
+        _calCloseStatusMenu();
+        if (!CAL_PLATFORM_BY_KEY[key]) return;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        if (mode === 'add') {
+            _calAltCapDraftPlat.set(pid, key);
+            _calCapTabState.set(pid, 'alt');
+            _calCapBlockRepaint(pid, true);
+            return;
+        }
+        // Change the platform of an existing alt caption. The draft map is
+        // always updated too: while the alt text is unsaved the tab label
+        // resolves from the draft, so without this the new pick wouldn't
+        // show. Persist only if the row already carries alt data.
+        _calAltCapDraftPlat.set(pid, key);
+        if (String(post.caption_alt || '').trim() || String(post.caption_alt_platform || '').trim()) {
+            post.caption_alt_platform = key;
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid].caption_alt_platform = key;
+            if (_calSaveTimers[pid]) clearTimeout(_calSaveTimers[pid]);
+            _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, CAL_SAVE_DEBOUNCE_MS);
+        }
+        _calCapBlockRepaint(pid, false);
+    }
+    /* Typing in the alt caption also queues the resolved platform key, so the
+       label always travels with the text even when the tab is still a local
+       draft (platform never explicitly saved). */
+    function _calOnAltCapInput(ta) {
+        if (_calClientFieldEditBlocked()) return;
+        const pid = ta.dataset.pid;
+        if (pid) {
+            const post = calState.posts.find(p => p.id === pid);
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid].caption_alt_platform = _calAltCapPlatKey(pid, post);
+        }
+        _calOnCaptionInput(ta);
+    }
+    function _calAltCapRemove(e, pid) {
+        if (e) { e.stopPropagation(); e.preventDefault(); }
+        if (_isClientLink) return;   // alt-caption editing is SMM-only
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const doRemove = () => {
+            const hadSaved = !!String(post.caption_alt || '').trim() || !!String(post.caption_alt_platform || '').trim();
+            post.caption_alt = '';
+            post.caption_alt_platform = '';
+            _calAltCapDraftPlat.delete(pid);
+            _calCapTabState.set(pid, 'main');
+            if (hadSaved) {
+                if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+                _calPendingEdits[pid].caption_alt = '';
+                _calPendingEdits[pid].caption_alt_platform = '';
+                if (_calSaveTimers[pid]) clearTimeout(_calSaveTimers[pid]);
+                _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, CAL_SAVE_DEBOUNCE_MS);
+            } else if (_calPendingEdits[pid]) {
+                delete _calPendingEdits[pid].caption_alt;
+                delete _calPendingEdits[pid].caption_alt_platform;
+            }
+            _calCapBlockRepaint(pid, false);
+        };
+        // Only ask when there's text to lose — removing an empty draft tab
+        // shouldn't nag.
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+        const liveTa = card ? card.querySelector('[data-capwrap="alt"] textarea') : null;
+        const liveText = (liveTa ? liveTa.value : String(post.caption_alt || '')).trim();
+        if (liveText) showConfirm(`Remove the ${_calAltCapLabel(post)} caption?`, 'Its text will be deleted from this post.', doRemove, 'Remove');
+        else doRemove();
+    }
+    /* Per-card color tag — for grouping into batches. Four named colors plus
+       the empty "no color" state. Persisted as post.color via the upsert. */
+    const CAL_COLORS = ['red', 'amber', 'emerald', 'indigo'];
+    const CAL_COLOR_HEX = { red: 'var(--sv-misc-ef4444)', amber: 'var(--sv-misc-f59e0b)', emerald: 'var(--sv-misc-10b981)', indigo: 'var(--sv-misc-6366f1)' };
+    function _calPostColor(post) {
+        const c = String((post && post.color) || '').toLowerCase();
+        return CAL_COLORS.includes(c) ? c : '';
+    }
+    function _calColorTagHtml(post, ro) {
+        const color = _calPostColor(post);
+        // Read-only / client view: surface the colour as a passive, read-only
+        // dot — but only when the SMM actually tagged the card (no colour, no
+        // dot), and never the interactive picker.
+        if (ro || _isClientLink) {
+            if (!color) return '';
+            return `<span class="cal-card-color-tag has-color is-readonly" data-color="${color}" title="Color tag — identifies which batch of content this post belongs to"><span class="cal-card-color-tag-dot"></span></span>`;
+        }
+        const pid = _calEscAttr(post.id);
+        return `<button type="button" class="cal-card-color-tag${color ? ' has-color' : ''}"${color ? ` data-color="${color}"` : ''} title="Tag this card with a color" onclick="_calOpenColorPicker(event,'${pid}')"><span class="cal-card-color-tag-dot"></span></button>`;
+    }
+    let _calColorPickerOpenFor = null;
+    function _calOpenColorPicker(e, pid) {
+        if (e) e.stopPropagation();
+        if (_calColorPickerOpenFor === pid) { _calCloseColorPicker(); return; }
+        _calCloseColorPicker();
+        const thumb = document.querySelector(`.cal-card[data-pid="${pid}"] .cal-card-thumb`);
+        if (!thumb) return;
+        const picker = document.createElement('div');
+        picker.className = 'cal-card-color-picker is-open';
+        picker.dataset.colorPickerPid = pid;
+        picker.innerHTML = `
+            <button type="button" class="cal-card-color-pick is-clear" data-color="" title="No color" onclick="_calSetCardColor(event,'${pid}','')"></button>
+            ${CAL_COLORS.map(c => `<button type="button" class="cal-card-color-pick" data-color="${c}" style="background:${CAL_COLOR_HEX[c]}" title="${c}" onclick="_calSetCardColor(event,'${pid}','${c}')"></button>`).join('')}`;
+        thumb.appendChild(picker);
+        _calColorPickerOpenFor = pid;
+        setTimeout(() => { document.addEventListener('click', _calMaybeCloseColorPicker, { capture: true }); }, 0);
+    }
+    function _calMaybeCloseColorPicker(e) {
+        if (e.target.closest('.cal-card-color-picker')) return;
+        if (e.target.closest('.cal-card-color-tag')) return;
+        _calCloseColorPicker();
+    }
+    function _calCloseColorPicker() {
+        document.querySelectorAll('.cal-card-color-picker').forEach(p => p.remove());
+        document.removeEventListener('click', _calMaybeCloseColorPicker, { capture: true });
+        _calColorPickerOpenFor = null;
+    }
+    function _calSetCardColor(e, pid, color) {
+        if (e) e.stopPropagation();
+        if (_isClientLink) return;   // colour tagging is SMM-only
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        post.color = String(color || '');
+        if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+        _calPendingEdits[pid].color = post.color;
+        // Reflect on every dot for this post (thumb, month, week) without a
+        // full re-render so the change feels instant.
+        document.querySelectorAll(`.cal-card[data-pid="${pid}"] .cal-card-color-tag`).forEach(tag => {
+            if (post.color) { tag.classList.add('has-color'); tag.dataset.color = post.color; }
+            else { tag.classList.remove('has-color'); tag.removeAttribute('data-color'); }
+        });
+        document.querySelectorAll(`.cal-month-pill[data-cal-move="${pid}"], .cal-week-card[data-cal-move="${pid}"]`).forEach(pill => {
+            if (post.color) pill.setAttribute('data-color', post.color);
+            else pill.removeAttribute('data-color');
+        });
+        _calCloseColorPicker();
+        if (_calSaveTimers[pid]) clearTimeout(_calSaveTimers[pid]);
+        _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, 200);
+    }
+    /* ── Multi-select bulk colour ──────────────────────────────────────
+       The colour select-mode swatch row (clear + the four named colours)
+       shown in the bottom select bar; clicking one applies it to every
+       selected card. Rendered disabled until at least one card is picked
+       (see _calSyncSelectionUI). */
+    function _calBulkColorSwatchesHtml() {
+        const sw = (c) => `<button type="button" class="cal-bulk-color-swatch${c ? '' : ' is-clear'}" data-bulk-color="${c}"${c ? ` style="background:${CAL_COLOR_HEX[c]}"` : ''} title="${c ? ('Set ' + c) : 'Clear color'}" onclick="_calApplyBulkColor(event,'${c}')" disabled></button>`;
+        return sw('') + CAL_COLORS.map(sw).join('');
+    }
+    /* Apply one colour (or clear) to every selected card at once. Mirrors the
+       single-card picker's optimistic-then-persist path, but pools the saves
+       (same bound as bulk archive) so a big selection doesn't spike n8n. */
+    async function _calApplyBulkColor(e, color) {
+        if (e) e.stopPropagation();
+        if (_isClientLink) return;   // bulk colour tagging is SMM-only
+        const value = CAL_COLORS.includes(color) ? color : '';
+        const ids = Array.from(calState.selected).filter(id => id && !_calIsBlankId(id));
+        if (!ids.length) return;
+        ids.forEach(pid => {
+            const post = calState.posts.find(p => p.id === pid);
+            if (!post) return;
+            post.color = value;
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid].color = value;
+        });
+        // Selection captured — drop out of select mode so the blue overlays and
+        // the swatch bar clear, then repaint with the new dots in place.
+        calState.selectMode = false;
+        calState.selectAction = 'archive';
+        calState.selected = new Set();
+        calState.lastSel = null;
+        document.querySelectorAll('.cal-toolbar .cal-select-btn').forEach(b => b.classList.remove('active'));
+        _calRenderBody({ preserveScroll: true });
+        // Persist through the same per-card flush the picker uses, pooled.
+        ids.forEach(pid => { if (_calSaveTimers[pid]) { clearTimeout(_calSaveTimers[pid]); _calSaveTimers[pid] = null; } });
+        const results = await _calRunPooled(ids, CAL_BULK_ARCHIVE_CONCURRENCY, pid => _calFlushCardSave(pid));
+        const failed = results.filter(r => r.status === 'rejected').length;
+        if (failed) showNotify('Some colors were not saved', failed + ' of ' + ids.length + " couldn't be saved — they'll retry on the next edit or refresh.");
+        else showNotify('Color updated', ids.length + ' post' + (ids.length === 1 ? '' : 's') + ' set to ' + (value || 'no') + ' color.');
+    }
+    function _calPlatformsStripHtml(post, ro) {
+        const slug = calClientSlug(calState.client);
+        const enabled = _calEnabledPlatforms(slug);
+        if (!enabled.length) return '';
+        const active = new Set(_calPostPlatforms(post));
+        // Client view shows only the selected platforms — no muted icons
+        // for platforms that aren't part of this post. Drop the whole
+        // strip if the post hasn't been tagged with any.
+        const keys = ro ? enabled.filter(k => active.has(k)) : enabled;
+        if (!keys.length) return '';
+        const pid = _calEscAttr(post.id);
+        const cells = keys.map(k => {
+            const p = CAL_PLATFORM_BY_KEY[k];
+            if (!p) return '';
+            const on = active.has(k);
+            const handler = ro ? '' : ` onclick="_calTogglePostPlatform(event,'${pid}','${k}')"`;
+            const disabled = ro ? ' disabled' : '';
+            const aria = `${p.label}${on ? ' (selected)' : ''}`;
+            return `<button type="button" class="cal-card-platform-btn${on ? ' is-active' : ''}" data-platform="${k}" data-platform-pid="${pid}" title="${_calEscAttr(aria)}" aria-label="${_calEscAttr(aria)}"${handler}${disabled}>${p.icon}</button>`;
+        }).join('');
+        return `<div class="cal-card-platforms" data-platforms-strip="${pid}">${cells}</div>`;
+    }
+    function _calTogglePostPlatform(e, pid, key) {
+        if (e) e.stopPropagation();
+        if (_isClientLink) return;   // per-card platform tagging is SMM-only (client view is read-only)
+        if (!CAL_PLATFORM_BY_KEY[key]) return;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const current = _calPostPlatforms(post);
+        const i = current.indexOf(key);
+        if (i >= 0) current.splice(i, 1); else current.push(key);
+        const csv = current.join(',');
+        post.platforms = csv;
+        // Removing YouTube ends any title review on this card: title_status is
+        // meaningful only on an engaged YouTube card, so leaving it set strands
+        // an unreachable review state (it drops from every queue but persists in
+        // the data, and would resurrect if YouTube were re-added). Clear the
+        // status — the title_tweaks comment history is kept — and persist the
+        // cleared value alongside the platform change.
+        const _titleStranded = (key === 'youtube' && i >= 0 && _calTitleEngaged(post));
+        if (_titleStranded) post.title_status = '';
+        // Reflect on the strip without redrawing the whole card so the
+        // toggle feels instant. Other strips for this post (if any) get
+        // refreshed too.
+        document.querySelectorAll(`[data-platforms-strip="${pid}"] [data-platform="${key}"]`).forEach(btn => {
+            const on = current.includes(key);
+            btn.classList.toggle('is-active', on);
+            const p = CAL_PLATFORM_BY_KEY[key];
+            const aria = `${p.label}${on ? ' (selected)' : ''}`;
+            btn.setAttribute('title', aria);
+            btn.setAttribute('aria-label', aria);
+        });
+        // Toggling YouTube while title review is on flips whether the title
+        // status pill should show — that's structural (a pill added/removed),
+        // which the in-place strip tweak above can't do, so redraw the card.
+        // Also redraw when we just cleared a stranded title (its pill must go).
+        if (key === 'youtube' && (_calIsTitleReviewOn() || _titleStranded)) {
+            try { _calRenderBody({ preserveScroll: true }); } catch {}
+        }
+        if (_titleStranded) { try { showToast('Title review ended — YouTube removed from this card.'); } catch {} }
+        // Persist via the usual debounced save path so the platforms field
+        // rides on the next upsert with the rest of the post.
+        if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+        _calPendingEdits[pid].platforms = csv;
+        if (_titleStranded) _calPendingEdits[pid].title_status = '';
+        if (_calSaveTimers[pid]) clearTimeout(_calSaveTimers[pid]);
+        _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, CAL_SAVE_DEBOUNCE_MS);
+    }
+    function openCalPlatformsEditor() {
+        if (_isClientLink) return;   // platform set is SMM-only (client sees the icons, can't edit them)
+        if (!calState.client) return;
+        const slug = calClientSlug(calState.client);
+        const enabled = new Set(_calEnabledPlatforms(slug));
+        const ovl = document.getElementById('calImportOverlay');
+        const modal = document.getElementById('calImportModal');
+        if (!ovl || !modal) return;
+        ovl.classList.add('open');
+        document.body.classList.add('cal-modal-open');
+        const rowsHtml = CAL_PLATFORMS.map(p => `
+            <label class="cal-platforms-row" data-platform-row="${p.key}">
+                <input type="checkbox" data-platform-edit="${p.key}"${enabled.has(p.key) ? ' checked' : ''}>
+                <span class="cal-platforms-row-icon" style="background:${p.color}">${p.icon}</span>
+                <span class="cal-platforms-row-label">${_calEsc(p.label)}</span>
+            </label>`).join('');
+        modal.innerHTML = `
+            <div class="cal-import-head">
+                <button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+                <h3>Platform</h3>
+                <p>Pick which platforms appear as icons on every <strong>${_calEsc(calState.client)}</strong> card. Click an icon on a card to mark that the post is going to that platform.</p>
+            </div>
+            <div class="cal-import-body">
+                <div class="cal-platforms-grid">${rowsHtml}</div>
+            </div>
+            <div class="cal-import-foot">
+                <button class="cal-import-btn-ghost" onclick="closeCalImport()">Cancel</button>
+                <button class="cal-import-btn-primary" onclick="_calSavePlatformsSelection()">Save</button>
+            </div>`;
+    }
+    function _calSavePlatformsSelection() {
+        const modal = document.getElementById('calImportModal');
+        if (!modal || !calState.client) return;
+        const slug = calClientSlug(calState.client);
+        const picked = [];
+        modal.querySelectorAll('input[data-platform-edit]').forEach(cb => {
+            if (cb.checked) picked.push(cb.getAttribute('data-platform-edit'));
+        });
+        const apply = () => {
+            _calSetEnabledPlatforms(slug, picked);   // localStorage first-paint cache
+            // Persist to the shared settings row so the client view + other SMM devices
+            // pick up the platform icons (was localStorage-only, so the client saw none).
+            if (slug === calClientSlug(calState.client)) _calSaveSettings({ enabled_platforms: picked });
+            closeCalImport();
+            try { _calRenderBody({ preserveScroll: true }); } catch {}
+        };
+        // Saving an EMPTY set hides the platform strip AND the per-card platform
+        // toggles on every card — on the client view and all devices — and it's
+        // recoverable only by re-opening this editor. Confirm before wiping so a
+        // stray "Save" with nothing ticked can't silently strip every card. The
+        // platforms modal stays open behind the confirm, so Cancel returns the
+        // user to their selection.
+        if (!picked.length) {
+            showConfirm('Hide all platform icons?',
+                'No platforms are selected, so every card will show no platform tags — on the client view and all devices — until you pick at least one again here.',
+                apply, 'Hide all');
+            return;
+        }
+        apply();
+    }
+
+    const calState = {
+        view: 'organizer',
+        client: null,
+        posts: [],
+        loading: false,
+        error: null,
+        monthCursor: null,
+        weekCursor: null,
+        previewId: null,
+        embedded: false,
+        zoom: 'default',
+        selectMode: false,
+        selectAction: 'archive',
+        selected: new Set(),
+        lastSel: null,
+        monthFilter: null,
+        statusFilter: 'all',
+        // How the Sheet strip is ordered: 'manual' (the drag-and-drop order
+        // stored in order_index — the default and the only mode that existed
+        // before) or 'date' (auto-organized by scheduled date). See
+        // _calOrganizerSort: 'date' is a VIEW-ONLY sort. It never writes
+        // order_index, so flipping back restores the manual order untouched.
+        sortMode: 'manual',
+        settings: { collab_mode: false, title_review: false },
+    };
+
+    /* Per-client calendar settings ride on a sentinel row inside the same
+       Google Sheet tab the posts live on, written via the existing
+       calendar-upsert-post webhook. id is fixed so the row is found/updated
+       in place; the JSON payload lives in the `caption` cell (the only
+       cell wide enough to hold structured data without a schema change).
+       The row is split off from `json.posts` immediately on load so it never
+       renders, never gets archived, and never participates in the
+       de-duplication or filter passes that run over real posts. */
+    const CAL_SETTINGS_PID = 'p_cal_settings';
+    const CAL_SETTINGS_DEFAULTS = { collab_mode: false, title_review: false };
+    /* The backend sentinel row is the SHARED source of truth for these
+       per-client settings: collab mode is something every SMM and the client
+       view must agree on, so whatever the backend holds is what the toggle
+       must show. localStorage is only (a) a first-paint cache so a refresh
+       isn't blank while the network responds, and (b) a short-lived optimistic
+       overlay for a toggle the user JUST made on this device — it outranks the
+       backend for at most CAL_SETTINGS_LOCAL_TRUST_MS after it's written, then
+       the backend always wins. That cap is the fix for the stuck-switch bug:
+       a local toggle whose best-effort backend sync silently failed used to
+       keep a newer _ts forever, so the backend's real value could never
+       reclaim the switch on that device (one SMM saw collab OFF while the
+       client view, and every other device, saw it ON). */
+    const CAL_SETTINGS_LS_KEY = 'syncview_calendar_settings_v1';
+    /* How long a freshly-written local value may outrank the backend. Long
+       enough to cover an optimistic toggle propagating through n8n/Supabase
+       (seconds, occasionally up to ~a minute); short enough that a failed or
+       abandoned write reconciles to the shared truth almost immediately. */
+    const CAL_SETTINGS_LOCAL_TRUST_MS = 120000;
+    function _calLoadLocalSettings(slug) {
+        if (!slug) return null;
+        try {
+            const raw = localStorage.getItem(CAL_SETTINGS_LS_KEY);
+            const map = raw ? JSON.parse(raw) : null;
+            if (!map || typeof map !== 'object') return null;
+            const row = map[slug];
+            return (row && typeof row === 'object') ? Object.assign({}, CAL_SETTINGS_DEFAULTS, row) : null;
+        } catch { return null; }
+    }
+    function _calSaveLocalSettings(slug, settings) {
+        if (!slug) return;
+        try {
+            const raw = localStorage.getItem(CAL_SETTINGS_LS_KEY);
+            const map = (raw && typeof JSON.parse(raw) === 'object') ? JSON.parse(raw) : {};
+            map[slug] = Object.assign({}, CAL_SETTINGS_DEFAULTS, settings || {});
+            localStorage.setItem(CAL_SETTINGS_LS_KEY, JSON.stringify(map));
+        } catch {}
+    }
+    function _calIsSettingsId(pid) { return String(pid || '') === CAL_SETTINGS_PID; }
+    function _calSplitSettings(rows) {
+        const settings = Object.assign({}, CAL_SETTINGS_DEFAULTS);
+        const posts = [];
+        let found = false;
+        if (!Array.isArray(rows)) return { settings, posts, found };
+        for (const r of rows) {
+            if (!r) continue;
+            if (_calIsSettingsId(r.id)) {
+                found = true;
+                const raw = String(r.caption || '').trim();
+                if (raw) {
+                    try {
+                        const parsed = JSON.parse(raw);
+                        if (parsed && typeof parsed === 'object') Object.assign(settings, parsed);
+                    } catch {}
+                }
+            } else {
+                posts.push(r);
+            }
+        }
+        return { settings, posts, found };
+    }
+    /* Decide which collab settings win when a fresh backend snapshot arrives.
+       The backend is authoritative; the local value is kept ONLY while it is
+       both newer than the backend AND still inside the trust window (an
+       in-flight / just-made optimistic toggle on this device). Otherwise the
+       backend value is adopted, so a stale local value — including one left
+       behind by a failed sync — can never permanently mask the shared state.
+       Pure and side-effect free so the rule can be unit-tested in isolation. */
+    function _calReconcileSettings(local, backend, nowMs) {
+        const backendTs = Number((backend && backend._ts) || 0);
+        const localTs = Number((local && local._ts) || 0);
+        const localFresh = localTs > 0 && (nowMs - localTs) < CAL_SETTINGS_LOCAL_TRUST_MS;
+        if (localTs > backendTs && localFresh) return { settings: local, source: 'local' };
+        return { settings: Object.assign({}, CAL_SETTINGS_DEFAULTS, backend), source: 'backend' };
+    }
+    function _calIsCollabOn() { return !!(calState.settings && calState.settings.collab_mode); }
+    /* Who may drag a pill onto a day to (re)schedule it. The SMM always can;
+       the client can too, but only once Collaborative mode is on — that's the
+       same gate that lets them suggest posts, so reserve content they place /
+       swap stays consistent with everything else they can touch. */
+    function _calCanDragCards() { return !_isClientLink || _calIsCollabOn(); }
+    // Tail of the serialized settings-write queue (see _calSaveSettings).
+    let _calSettingsWriteChain = Promise.resolve();
+    async function _calSaveSettings(patch) {
+        if (!calState.client) return false;
+        // Pin the destination client at call time, BEFORE the await — otherwise
+        // a tab switch between the toggle and the response could write this
+        // setting into another client's tab (same race as the cross-client
+        // upsert fix in _calFlushCardSave / persistCalReorder).
+        const _saveSlug = calClientSlug(calState.client);
+        // Stamp every write with a client-side timestamp. The backend's
+        // row.updated_at reflects when n8n processed the request, not the
+        // client's intent — so under out-of-order arrival (rare but real:
+        // POST A sent before POST B can still land after it), comparing
+        // server-side updated_at would let a stale POST overwrite a fresher
+        // one. The _ts in the JSON payload travels WITH the value, so the
+        // load-time merge can pick the truly-newest write regardless of
+        // arrival order. localStorage stores it; backend stores it; the
+        // merge compares them.
+        const next = Object.assign({}, calState.settings || CAL_SETTINGS_DEFAULTS, patch || {}, { _ts: Date.now() });
+        calState.settings = next;
+        // localStorage is the durable source of truth on this device — written
+        // synchronously so a refresh, even a crash mid-fetch, keeps the value.
+        _calSaveLocalSettings(_saveSlug, next);
+        // Status is left blank (not 'Archived') so server-side row filters
+        // that drop archived posts before returning them can't silently strip
+        // the settings row before it reaches the client.
+        const wirePost = {
+            id: CAL_SETTINGS_PID,
+            order_index: -1,
+            name: '__cal_settings__',
+            scheduled_date: '',
+            status: '',
+            asset_url: '',
+            thumbnail_url: '',
+            caption: JSON.stringify(next),
+            cta: '',
+            tweaks: '',
+            video_tweaks: '', graphic_tweaks: '', caption_tweaks: '',
+            video_status: '', graphic_status: '', caption_status: '',
+            updated_at: new Date().toISOString()
+        };
+        // The backend write is what makes this toggle real for every other SMM
+        // and for the client view, so don't let a single transient blip drop it
+        // on the floor — retry a few times with a short backoff. localStorage
+        // holds the optimistic value meanwhile; if every attempt fails the value
+        // reconciles back to the backend's truth once the trust window lapses
+        // (see _calReconcileSettings) instead of masking it forever.
+        const doWrite = async () => {
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    const resp = await _calUpsertFetch(_saveSlug, { client: _saveSlug, post: wirePost, comments_base_at: '' });
+                    const j = await resp.json();
+                    if (!j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + resp.status));
+                    return true;
+                } catch (e) {
+                    if (attempt < 3) { await new Promise(r => setTimeout(r, 500 * attempt)); continue; }
+                    // Every attempt failed. localStorage keeps the optimistic value
+                    // for now; it will reconcile to the backend once the trust window
+                    // lapses. Log so a console-watching SMM can spot a backend issue
+                    // without surfacing a scary modal.
+                    console.warn('[Calendar] settings backend sync failed after 3 attempts; local value will reconcile to the backend once the trust window lapses', e);
+                    return true;
+                }
+            }
+            return true;
+        };
+        // SERIALIZE settings writes: a fast double-toggle (e.g. collab then
+        // YouTube-title-review) used to fire two independent POSTs that could
+        // arrive at the backend out of order, so the older blob clobbered the
+        // newer one and a toggle silently reverted after the trust window. Each
+        // write now lands strictly in toggle order. The wirePost captured above
+        // already carries every earlier toggle (calState.settings is updated
+        // synchronously), so the backend converges on the final state.
+        _calSettingsWriteChain = _calSettingsWriteChain.then(doWrite, doWrite);
+        return _calSettingsWriteChain;
+    }
+    function _calSyncCollabSwitch() {
+        const sw = document.getElementById('calCollabSwitch');
+        if (sw) sw.classList.toggle('is-on', _calIsCollabOn());
+    }
+    async function _calToggleCollabMode() {
+        if (_isClientLink) return;   // kebab modes are SMM-only
+        // Pin the slug up front: the awaited save below could let the user
+        // switch clients mid-flight, and the cache write at the end must
+        // target the client this toggle actually changed.
+        const slug = calClientSlug(calState.client);
+        const next = !_calIsCollabOn();
+        // _calSaveSettings does its in-memory flip + localStorage write + _ts
+        // stamp SYNCHRONOUSLY before its first await; only the backend POST
+        // is async. So we kick it off and immediately repaint — the user
+        // sees the toggle change instantly, and the backend sync rides
+        // behind in the background.
+        const savePromise = _calSaveSettings({ collab_mode: next });
+        _calSyncCollabSwitch();
+        try { _calRenderBody({ preserveScroll: true }); } catch {}
+        // Cache write only if the user is still on the same client. If they've
+        // moved on, the new client's calState.posts is unrelated to this slug,
+        // and writing it would corrupt the destination cache.
+        if (calClientSlug(calState.client) === slug) {
+            try { _calCacheWrite(slug, calState.posts); } catch {}
+        }
+        // Keep the function's promise pending until the backend round-trip
+        // settles so callers (and console error logging) can observe the
+        // outcome without changing the user-visible timing.
+        await savePromise;
+    }
+    function _calSyncTitleReviewSwitch() {
+        const sw = document.getElementById('calTitleReviewSwitch');
+        if (sw) sw.classList.toggle('is-on', _calIsTitleReviewOn());
+    }
+    /* Per-client toggle for the YouTube title-review feature. Mirrors
+       _calToggleCollabMode exactly (synchronous optimistic flip + localStorage
+       + background backend sync), so it's cross-device and stuck-switch-proof
+       for free. */
+    async function _calToggleTitleReviewMode() {
+        if (_isClientLink) return;   // kebab modes are SMM-only
+        const slug = calClientSlug(calState.client);
+        const next = !_calIsTitleReviewOn();
+        const savePromise = _calSaveSettings({ title_review: next });
+        _calSyncTitleReviewSwitch();
+        try { _calRenderBody({ preserveScroll: true }); } catch {}
+        if (calClientSlug(calState.client) === slug) {
+            try { _calCacheWrite(slug, calState.posts); } catch {}
+        }
+        await savePromise;
+    }
+    function _calCurrentMonthIso() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+    function _calNormMonthFilter(v) {
+        if (v === 'all') return 'all';
+        if (typeof v === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(v)) return v;
+        // Default to ALL months (not the current month). Defaulting to the current
+        // month silently hid every card scheduled in another month behind a small
+        // warning chip, so cards looked "missing" until you noticed the filter.
+        return 'all';
+    }
+    function _calShiftMonthIso(ym, n) {
+        const [Y, M] = ym.split('-').map(Number);
+        const d = new Date(Y, M - 1 + n, 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+    function _calMonthLabel(ym) {
+        const [Y, M] = ym.split('-').map(Number);
+        const d = new Date(Y, M - 1, 1);
+        return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+    function _calPostInMonthFilter(p, ym) {
+        if (!ym || ym === 'all') return true;
+        const d = String(p && p.scheduled_date || '').slice(0, 7);
+        // An undated card has no month, so it must NOT pass a concrete-month
+        // filter (otherwise it masquerades under every month at once). It only
+        // shows under "All months" (handled above) or the "unscheduled" status
+        // filter, which is the reserve pile's home.
+        if (!d) return false;
+        return d === ym;
+    }
+    /* Status filter — splits the Sheet tab by whether a post has a date yet.
+       'unscheduled' is Raha's reserve pile (content with no date assigned);
+       'scheduled' is everything sitting on the calendar. */
+    function _calNormStatusFilter(v) {
+        return (v === 'scheduled' || v === 'unscheduled') ? v : 'all';
+    }
+    function _calPostHasDate(p) {
+        return !!String(p && p.scheduled_date || '').slice(0, 10);
+    }
+    function _calPostInStatusFilter(p, s) {
+        if (!s || s === 'all') return true;
+        return s === 'scheduled' ? _calPostHasDate(p) : !_calPostHasDate(p);
+    }
+    /* Sheet ordering mode. 'manual' is the historical behaviour — the strip is
+       ordered by order_index, which drag-and-drop writes to the sheet. 'date'
+       auto-organizes by scheduled date instead.
+
+       The auto mode is deliberately a RENDER-TIME sort and nothing else: it
+       never touches order_index and never writes to the backend, so a client
+       flipping it on cannot rearrange the shared sheet, and flipping it back
+       returns the strip to exactly the manual order it had. That's also why
+       dragging is disabled while it's on — a drag reads DOM order and writes
+       it into order_index, which under a date sort would silently overwrite
+       the SMM's hand-built order with a date order. */
+    function _calNormSortMode(v) { return v === 'date' ? 'date' : 'manual'; }
+    function _calSortMode() { return _calNormSortMode(calState.sortMode); }
+    function _calIsAutoSortOn() { return _calSortMode() === 'date'; }
+    /* Sort key for the date mode. The '0'/'1' prefix parks every UNDATED card
+       after every dated one (a plain date compare would put '' first), which
+       is the reserve pile's natural home at the tail of the strip. */
+    function _calDateSortKey(p) {
+        const iso = String(p && p.scheduled_date || '').slice(0, 10);
+        return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? '0' + iso : '1';
+    }
+    /* Order the Sheet strip. Sorts IN PLACE (callers pass their own slice).
+       order_index is the tiebreaker in date mode, so cards sharing a date —
+       and the whole undated tail — keep the manual order the SMM gave them
+       instead of shuffling on every render. */
+    function _calOrganizerSort(list) {
+        const byManual = (a, b) => Number(a.order_index || 0) - Number(b.order_index || 0);
+        if (!_calIsAutoSortOn()) return list.sort(byManual);
+        return list.sort((a, b) => {
+            const ka = _calDateSortKey(a), kb = _calDateSortKey(b);
+            if (ka !== kb) return ka < kb ? -1 : 1;
+            return byManual(a, b);
+        });
+    }
+    const _calPendingEdits = Object.create(null);
+    const _calSaveTimers   = Object.create(null);
+    // Holds a pending Promise while an upsert for this card id is in flight
+    // (falsy otherwise). Saves are serialized per card: a second flush that
+    // fires while one is still running just leaves its edits queued in
+    // _calPendingEdits and the running save re-flushes them when it finishes.
+    // Without this, rapid status changes launch overlapping upserts to the
+    // same sheet row — each a ~1-2s read-modify-write — whose responses (and
+    // server-side writes) can land out of order, so an earlier request's
+    // stale echo reverts a component the user just changed. Other per-card
+    // mutation paths (move-to-date, archive) await this promise so their
+    // writes can't race an in-flight save either.
+    const _calSaveInFlight = Object.create(null);
+    /* Thumbnail cache-bust rev, appended to the derived thumbnail src as `_r`
+       alongside the updated_at-based `_cb`. Two layers feed `_r`:
+         • post.thumb_rev — PERSISTED (a calendar_posts column, written by the
+           upsert and carried on every Supabase read + realtime row). Bumped on
+           a thumbnail/asset link write or when the graphic leaves Tweaks Needed,
+           so it rides the sync to EVERY viewer
+           (the client, Kasper) — their live re-render derives the new _r and
+           reloads the picture without a hard refresh.
+         • _calThumbRev[id] — a SESSION mirror of the same token on the editing
+           browser, used so the local strip updates instantly (no wait for the
+           save echo) and as a graceful fallback before the thumb_rev column / the
+           upsert allow-list entry exist. The persisted post.thumb_rev takes
+           priority once present, so a later server/Linear revision can never be
+           masked by an older token left in this tab's session map.
+       The two cache-bust tokens do different jobs:
+         _cb (updated_at) changes on EVERY save and carries cross-RELOAD freshness
+            (a replaced Drive file behind an unchanged link refetches after a page
+            load). It is deliberately STRIPPED from the harvest key so an unrelated
+            caption/status/date save doesn't re-decode every thumbnail — that was
+            the old per-save flicker.
+         _r changes only when the media link is edited or the graphic leaves
+            Tweaks Needed, and it is KEPT in the harvest key. So a real thumbnail
+            revision forces every render path to drop the stale decoded <img>
+            and load the new one.
+       Net: changing a thumbnail link, or resolving a graphic tweak after the
+       Drive file was replaced behind the same link, updates the picture
+       automatically for everyone with no hard refresh. Unrelated saves still
+       reuse the decoded image with no flicker. */
+    const _calThumbRev = Object.create(null);
+    function _calBumpThumbRev(pid) { const t = Date.now().toString(36); if (pid) _calThumbRev[pid] = t; return t; }
+    function _calShouldBumpThumbRevForGraphicStatus(edits, beforePost, afterPost) {
+        if (!edits || !Object.prototype.hasOwnProperty.call(edits, 'graphic_status')) return false;
+        const before = _calNormStatus(beforePost && beforePost.graphic_status);
+        const after = _calNormStatus(afterPost && afterPost.graphic_status);
+        return before === 'Tweaks Needed' && after !== 'Tweaks Needed';
+    }
+    /* Tracks the last time *this browser* successfully wrote each card.
+       Used by the background-load merge to detect concurrent writes from a
+       different user: if we just saved a card but the server now has a
+       newer updated_at, someone else's write landed after ours and our
+       version was silently overwritten. Map<pid, timestamp_ms>. Entries
+       expire after CAL_CONFLICT_WINDOW_MS so old saves don't keep alarming. */
+    const _calLocalRecentSaves = new Map();
+    /* Per recently-saved card: the sub-status values we just WROTE and the
+       values they had immediately BEFORE that save (`base`). Lets the v2 merge
+       tell a stale Linear status-sync round-trip (server reverts a sub-status to
+       `base`, or just echoes `wrote`) apart from a genuinely NEW value written by
+       someone else (e.g. Kasper approving the card we just routed to him) — so
+       the recent-save guard protects our edit WITHOUT swallowing and then
+       re-clobbering a real approval. Keyed like _calLocalRecentSaves and only
+       read while that entry is still live. */
+    const _calRecentSaveFields = new Map();
+    /* v2 cross-actor reconcile (the Kasper→SMM approval-clobber fix). Given our
+       local row `lp`, the freshly-fetched server row `fp`, and what we last
+       wrote/based for this card (`rsf`), return a COPY of `lp` with any
+       sub-status the server moved to a genuinely NEW value adopted — but only
+       when the server row is strictly newer than ours. A server value equal to
+       what we wrote (our own echo) or to its pre-save base (a stale Linear
+       round-trip) is NOT adopted, so a fresh local edit still rides those out.
+       Returns null when there is nothing to adopt (caller then keeps `lp`).
+       Pure (besides computeOverallStatus) so the regression harness can extract
+       and exercise the real shipped code. */
+    function _calRecentSaveReconcile(lp, fp, rsf) {
+        if (!lp || !fp || !rsf) return null;
+        const lT = Date.parse(lp.updated_at || '');
+        const fT = Date.parse(fp.updated_at || '');
+        if (!(isFinite(lT) && isFinite(fT) && fT > lT)) return null;
+        let merged = null;
+        for (const f of ['video_status', 'graphic_status', 'caption_status', 'title_status']) {
+            const sv = fp[f];
+            if (sv == null) continue;
+            const wrote = rsf.wrote ? rsf.wrote[f] : undefined;
+            const base = rsf.base ? rsf.base[f] : undefined;
+            if (sv !== wrote && sv !== base) {
+                // Stale Linear round-trip guard (the "video reverts after a
+                // client approves it" bug). The Linear Status Sync writes back
+                // ONLY the matched sub-status (never a comment, never clearing
+                // the client_<comp>_approved_at sign-off, never the overall
+                // status). So when WE just advanced a Linear-backed component to
+                // client review / sign-off and the server now REGRESSES it below
+                // Client Approval with no new change-request comment to justify
+                // it, that's a stale Linear echo of a DRIFTED issue — not a real
+                // action by anyone. Refuse to adopt it: keep the fresh approval.
+                // (A genuine forward move, or a genuine tweak that carries a new
+                // comment, is still adopted — see _calIsStaleLinearRegress.) The
+                // caller re-asserts the kept value to Linear so the drift heals
+                // forward; the 10-min reconciler arbitrates any true conflict.
+                const comp = f.slice(0, f.length - '_status'.length);
+                if (_calIsStaleLinearRegress(lp, fp, comp, rsf)) {
+                    _calV2Log('RECONCILE keep LOCAL (stale Linear regress) →', fp.id, '|', f, ':', lp[f], 'vs server', sv, '(wrote:', wrote, ')');
+                    continue;
+                }
+                if (!merged) merged = Object.assign({}, lp);
+                merged[f] = sv;
+                _calV2Log('RECONCILE adopt remote →', fp.id, '|', f, ':', lp[f], '→', sv, '(wrote:', wrote, '| base:', base, ')');
+            }
+        }
+        if (merged) merged.status = computeOverallStatus(merged);
+        return merged;
+    }
+    /* Is the server's value for `comp` a stale Linear status-sync round-trip of a
+       DRIFTED issue that would clobber a fresh local approval — as opposed to a
+       genuine new action? True only when ALL hold:
+         · comp is Linear-backed (video / graphic) — caption & title have no
+           Linear, so they can never round-trip and are never suppressed here;
+         · the server value differs from both what we wrote and its pre-save base
+           (a plain echo or a revert-to-base is already handled by the caller);
+         · WE just wrote an at-or-above Client-Approval status for it (so the
+           server value is a REGRESSION of a fresh approval); and
+         · there is NO new, open change-request comment on the component to
+           justify that regression. A real Tweaks-Needed (client/Kasper/SMM in
+           SyncView) always lands a comment with the status, so it is NOT treated
+           as stale and is still adopted; the Linear Status Sync writes only the
+           bare sub-status, so it is. Shared by the reconcile (to refuse the
+           adopt) and the caller (to re-assert to Linear) so the rule has one
+           source of truth. Pure (besides the status normaliser). */
+    function _calIsStaleLinearRegress(lp, fp, comp, rsf) {
+        if (!lp || !fp || !rsf) return false;
+        if (comp !== 'video' && comp !== 'graphic') return false;
+        const f = comp + '_status';
+        const sv = fp[f];
+        if (sv == null) return false;
+        const wrote = rsf.wrote ? rsf.wrote[f] : undefined;
+        const base = rsf.base ? rsf.base[f] : undefined;
+        if (sv === wrote || sv === base) return false;
+        const ABOVE = { 'Client Approval': 1, 'Approved': 1, 'Scheduled': 1, 'Posted': 1 };
+        if (!(ABOVE[_calNormStatus(wrote)] && !ABOVE[_calNormStatus(sv)])) return false;
+        return !_calReconcileHasGenuineTweak(fp, lp, comp);
+    }
+    /* Does the server row carry a NEW (not in our local copy) open change-request
+       on this component? That's the fingerprint of a genuine Tweaks-Needed (which
+       always writes a comment alongside the status) versus a bare Linear
+       round-trip (status only). Used to keep a real tweak adoptable while a stale
+       Linear regress is held back. */
+    function _calReconcileHasGenuineTweak(fp, lp, comp) {
+        const fc = _calCommentsFor(fp, comp);
+        if (!Array.isArray(fc) || !fc.length) return false;
+        const lById = new Map();
+        const lc = _calCommentsFor(lp, comp);
+        if (Array.isArray(lc)) for (const c of lc) if (c && c.id) lById.set(c.id, c);
+        return fc.some(c => c && c.id && _calMsgIsTweak(c) && !c.deleted && !c.done && !lById.has(c.id));
+    }
+    const CAL_CONFLICT_WINDOW_MS = 90 * 1000;
+    /* Set by "Open in content calendar" from the workload view — tells the
+       calendar which client to open and which linked post to scroll to. */
+    let _calFocusRequest = null;
+    // Whether the CURRENT _calFocusRequest has already told the reader its
+    // load failed — set true by loadCalendarPosts's catch, reset whenever a
+    // new request is set. Without this a request that survives a failed
+    // foreground load (kept alive on purpose, see below) would re-notify on
+    // every later background retry that also fails.
+    let _calFocusRequestLoadFailed = false;
+    /* OPEN_REPAIRS item 176 (2026-09-08): a card link only ever announced
+     * itself — outline, or the toast added for item 175 — from INSIDE
+     * _calApplyFocusRequest, which loadCalendarPosts calls exactly once,
+     * and only after that load's network round trip SUCCEEDS. Replicated in
+     * a real browser: with the calendar_posts read mocked to answer in 8s
+     * (an ordinary slow response, not a broken one), the reader had nothing
+     * on screen saying a card link was even recognized until the full 8s had
+     * passed; mocked to never answer at all, they saw nothing, ever, no
+     * error either, indistinguishable from a link that silently did nothing
+     * — the exact report, three times over (2026-08-26, 2026-09-03,
+     * 2026-09-08).
+     *
+     * The fix is not inside _calApplyFocusRequest — the network dependency
+     * is the bug, not that function. So: every site that sets a REAL card
+     * link (a cardId, not the identifier/search-jump shape) funnels through
+     * here, and says so immediately, before any fetch has even started.
+     * `loadCalendarPosts` still owns applying the highlight once the load
+     * lands; this only owns the reader knowing their link was heard at all.
+     *
+     * One assignment point for the same reason `_calSetClient` is one
+     * assignment point (see the deep-link focus tests, "seven assignments,
+     * one of them remembering is not a rule"): a future call site that sets
+     * `_calFocusRequest` directly gets none of this, silently, and this
+     * exact feature has already broken twice from precisely that shape of
+     * miss. */
+    function _calSetFocusRequest(req) {
+        _calFocusRequest = req;
+        _calFocusRequestLoadFailed = false;
+        if (req && req.cardId) {
+            showToast('Opening linked card…', { duration: CAL_LOAD_TIMEOUT_MS + 1000 });
+        }
+    }
+    /* Codex review, PR for item 176 (fourth pass): showToast/hideToast are a
+     * SINGLE shared instance app-wide, so a bare hideToast() call here would
+     * just as happily dismiss an unrelated toast that legitimately replaced
+     * "Opening linked card…" in the interim — an Undo prompt, a save
+     * confirmation — if that toast is still the one on screen when this
+     * runs. Every hideToast() this feature calls goes through here instead,
+     * checking the currently-shown toast is still OURS before touching it.
+     *
+     * Fifth pass: the first version of this check queried the DOM globally
+     * (`document.querySelector('.sv-toast-msg')`), which is exactly wrong
+     * during hideToast's own 220ms fade — it clears `_toastEl` and the
+     * `show` class immediately but leaves the OLD element in the document
+     * for that setTimeout, while showToast() appends the NEW element right
+     * away with no such delay. A global query can return that dying old
+     * element instead of the live one, so this checks `_toastEl` itself —
+     * the one variable that is always the CURRENT toast, never a fading
+     * leftover — not the DOM at large. */
+    function _calHideOwnToast(expectedPrefix) {
+        const el = _toastEl && _toastEl.querySelector('.sv-toast-msg');
+        if (el && el.textContent && el.textContent.indexOf(expectedPrefix) === 0) hideToast();
+    }
+    /* A #calendar/<slug> deep link (e.g. a link handed over by another SMM)
+       whose client wasn't in the allowlist yet when the fast-path router ran:
+       WL_CLIENT_NAMES is seed-only until fetchAll folds in the Clients Info
+       sheet, so a sheet-only client's slug can't be matched synchronously.
+       mountCalendar holds the strip on its loader instead of opening the wrong
+       last-used client, and _calResolvePendingDeepLink (run after fetchAll)
+       opens the real client as a tab. Shape: { slug, cardId }. */
+    let _calPendingDeepLink = null;
+    /* Codex review on PR for OPEN_REPAIRS item 176: a card link for a
+     * sheet-only client (not in the WL_CLIENT_NAMES seed) is recognized here,
+     * before the roster that would resolve it to _calFocusRequest has even
+     * loaded — so without its own announcement, exactly these links kept the
+     * silence item 176 was meant to end, for as long as the ESSENTIALS read
+     * takes instead of the calendar read. Same discipline as
+     * _calSetFocusRequest, and the same reason: one assignment site. */
+    function _calSetPendingDeepLink(v) {
+        _calPendingDeepLink = v;
+        if (v && v.cardId) {
+            showToast('Opening linked card…', { duration: CAL_LOAD_TIMEOUT_MS + 1000 });
+        }
+    }
+    /* Codex review, PR for item 176 (seventh pass): navTo is not the only
+     * route out of the calendar. `render()` (client-profile tab switches)
+     * and the `state.client` popstate branch both explicitly bypass navTo
+     * — see their own "render() bypasses navTo()" / "never reaches navTo"
+     * comments — while still tearing down _calV2Teardown right beside where
+     * this is now called from too. One function, called from every exit
+     * route that already shares that teardown line, for the same reason
+     * _calSetClient owns every client assignment: a fourth exit path that
+     * calls _calV2Teardown without calling this would get none of it,
+     * silently — exactly how this pass's finding happened to the first two. */
+    function _calAbandonLinkOnCalendarExit(stillOnCalendar) {
+        if (stillOnCalendar) return;
+        if ((_calFocusRequest && _calFocusRequest.cardId) || (_calPendingDeepLink && _calPendingDeepLink.cardId)) {
+            _calHideOwnToast('Opening linked card');
+        }
+        _calSetFocusRequest(null);
+        _calSetPendingDeepLink(null);
+    }
+    /* Card ids whose next save must NOT push back to Linear — used when a
+       status was just pulled FROM Linear, so we don't bounce it back. */
+    const _calNoLinearPush = new Set();
+    /* Brand-new cards whose first save failed. They're kept on screen with a
+       "Save failed" chip (instead of being deleted) and preserved through
+       background polls, so a failed create is a visible, retryable state
+       rather than a silent vanish. Cleared on a successful save or archive. */
+    const _calFailedNewCards = new Set();
+
+    function calClientSlug(name) { return wlNormalizeClient(name); }
+    /* Standalone Content Calendar only: keep the browser URL in step with the
+       client whose calendar is showing, as #calendar/<slug>. The hash router
+       already lands on the right client from this shape (see the
+       'calendar/' branch in the boot router), so copying the URL bar — not
+       just the share button — hands someone the exact client's calendar.
+       replaceState (not push) so flipping between client tabs doesn't pile up
+       back-button history. The embedded calendar inside a client profile owns
+       its own #<clientName> URL, so we never touch it. A live #calendar/<slug>/<cardId>
+       card deep link is left intact when it already points at this client. */
+    function _calSyncUrlClient() {
+        if (calState.embedded || currentNav !== 'calendar') return;
+        const base = location.pathname + location.search.replace(/#.*$/, '');
+        if (!calState.client) {
+            history.replaceState({ nav: 'calendar', client: null }, '', base + '#calendar');
+            return;
+        }
+        const slug = calClientSlug(calState.client);
+        const rawHash = location.hash.replace(/^#/, '');
+        if (rawHash.startsWith('calendar/' + slug + '/')) return; // keep the card deep link
+        history.replaceState({ nav: 'calendar', client: null }, '', base + '#calendar/' + slug);
+    }
+    function _calEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    /* NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value).
+       It is NOT enough for a string argument inside an inline handler —
+       onclick="fn('${_calEscAttr(v)}')" still breaks on apostrophes. Use
+       _jsAttrArg below for handler arguments. */
+    function _calEscAttr(s) { return _calEsc(s).replace(/'/g,'&#39;'); }
+    /* String argument for an inline-handler attribute: onclick="fn(${_jsAttrArg(v)})".
+       Must be JSON-escaped FIRST (JS string literal) and entity-escaped SECOND
+       (attribute value) — the browser decodes entities before the JS engine
+       parses the handler, so wrapping a value in '…' + _calEscAttr alone still
+       breaks on apostrophes (&#39; decodes right back into a quote). */
+    function _jsAttrArg(v) { return _calEscAttr(JSON.stringify(String(v == null ? '' : v))); }
+    function _calIsoFmt(y, m, d) { return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+    function _calIsoOf(d) { const x = (d instanceof Date) ? d : new Date(d); return _calIsoFmt(x.getFullYear(), x.getMonth() + 1, x.getDate()); }
+    function _calIsoFirstOfMonth(d) { const x = (d instanceof Date) ? d : new Date(d); return _calIsoFmt(x.getFullYear(), x.getMonth() + 1, 1); }
+    function _calParseIso(iso) { const [Y,M,D] = String(iso).split('-').map(Number); return new Date(Y, (M||1) - 1, D || 1); }
+    function _calIsoMondayOf(d) { const x = (d instanceof Date) ? new Date(d.getFullYear(), d.getMonth(), d.getDate()) : _calParseIso(d); const dow = (x.getDay() + 6) % 7; x.setDate(x.getDate() - dow); return _calIsoOf(x); }
+    function _calAddDaysISO(iso, n) { const x = _calParseIso(iso); x.setDate(x.getDate() + n); return _calIsoOf(x); }
+    function _calAddMonthsISO(iso, n) { const x = _calParseIso(iso); const d = new Date(x.getFullYear(), x.getMonth() + n, 1); return _calIsoOf(d); }
+
+    function _calMintId() { return 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7); }
+
+    /* Modern animated loader — a single rotating ring with a subtle label.
+       The visible arc is drawn as a short stroke-dasharray segment so the
+       spinning motion stays smooth across browsers. */
+    function _svSkel(cls, style) {
+        return `<div class="sv-skeleton${cls ? ' ' + cls : ''}"${style ? ` style="${style}"` : ''}></div>`;
+    }
+    function _svTableSkeletonHtml(rows) {
+        rows = rows || 5;
+        return `<div class="table-skeleton" role="status" aria-label="Loading">${Array.from({ length: rows }, (_, i) => `
+            <div class="table-skeleton-row">
+                ${_svSkel('sv-skeleton-line', 'width:' + (i % 2 ? '72%' : '84%') + ';')}
+                ${_svSkel('sv-skeleton-line', 'width:62%;')}
+                ${_svSkel('sv-skeleton-line', 'width:78%;')}
+                ${_svSkel('sv-skeleton-pill', 'height:24px;width:70px;')}
+            </div>`).join('')}</div>`;
+    }
+    function _svCalendarOrganizerSkeletonHtml(label) {
+        return `<div class="cal-loader cal-skeleton-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="cal-skeleton-sheet">
+                <div class="cal-skeleton-toolbar">
+                    <div class="cal-skeleton-toolbar-left">
+                        ${_svSkel('sv-skeleton-pill', 'width:150px;height:34px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:152px;height:34px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:146px;height:34px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:34px;height:34px;')}
+                    </div>
+                    <div class="cal-skeleton-toolbar-mid">
+                        ${_svSkel('sv-skeleton-pill', 'width:108px;height:32px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:112px;height:32px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:308px;height:32px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:88px;height:32px;')}
+                    </div>
+                    <div class="cal-skeleton-toolbar-right">
+                        ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                    </div>
+                </div>
+                <div class="cal-skeleton-strip">
+                    ${[0, 1, 2, 3, 4, 5].map(i => `<div class="cal-skeleton-card">
+                        ${_svSkel('cal-skeleton-thumb')}
+                        <div class="cal-skeleton-card-body">
+                            ${_svSkel('sv-skeleton-line', 'width:' + (i % 3 === 1 ? '58%' : '72%') + ';height:18px;')}
+                            ${_svSkel('cal-skeleton-field', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-field', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-field', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-chip', 'width:92px;')}
+                            ${_svSkel('cal-skeleton-copy', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-field', 'width:100%;')}
+                            <div class="sv-skeleton-row">
+                                ${_svSkel('sv-skeleton-line', 'width:74px;height:12px;')}
+                                ${_svSkel('sv-skeleton-pill', 'width:' + (i % 2 ? '24px' : '18px') + ';height:18px;')}
+                            </div>
+                            ${_svSkel('cal-skeleton-field', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-status is-video', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-status ' + (i % 3 === 0 ? 'is-thumb' : 'is-caption'), 'width:100%;')}
+                            ${_svSkel('cal-skeleton-status is-caption', 'width:100%;')}
+                        </div>
+                    </div>`).join('')}
+                </div>
+            </div>
+        </div>`;
+    }
+    function _svCalendarMonthSkeletonHtml(label) {
+        const cells = Array.from({ length: 42 }, (_, i) => `<div class="cal-month-cell${i < 3 || i > 36 ? ' out' : ''}">
+            <div class="cal-month-cellhead">
+                ${_svSkel('sv-skeleton-line', 'width:28px;height:10px;')}
+                ${_svSkel('sv-skeleton-pill', 'width:24px;height:18px;')}
+            </div>
+            ${(i % 4 === 0) ? _svSkel('sv-skeleton-pill', 'width:82%;height:24px;margin-top:10px;') : ''}
+            ${(i % 9 === 0) ? _svSkel('sv-skeleton-pill', 'width:62%;height:24px;margin-top:6px;') : ''}
+        </div>`).join('');
+        return `<div class="cal-loader cal-skeleton-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="cal-month-wrap">
+                <div class="cal-month-header">
+                    ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                    ${_svSkel('sv-skeleton-line', 'width:156px;height:20px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:62px;height:32px;')}
+                </div>
+                <div class="cal-month-grid">
+                    ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(() => `<div class="cal-month-head">${_svSkel('sv-skeleton-line', 'width:34px;height:10px;')}</div>`).join('')}
+                    ${cells}
+                </div>
+            </div>
+        </div>`;
+    }
+    function _svCalendarWeekSkeletonHtml(label) {
+        return `<div class="cal-loader cal-skeleton-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="cal-week-wrap">
+                <div class="cal-month-header">
+                    ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                    ${_svSkel('sv-skeleton-line', 'width:190px;height:20px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:62px;height:32px;')}
+                </div>
+                <div class="cal-week-viewport">
+                    <div class="cal-week-grid">
+                        ${[0, 1, 2, 3, 4, 5, 6].map(i => `<div class="cal-week-day">
+                            <div class="cal-month-cellhead">
+                                ${_svSkel('sv-skeleton-line', 'width:34px;height:10px;')}
+                                ${_svSkel('sv-skeleton-pill', 'width:24px;height:18px;')}
+                            </div>
+                            ${_svSkel('sv-skeleton-pill', 'width:86%;height:28px;margin-top:14px;')}
+                            ${(i % 2 === 0) ? _svSkel('sv-skeleton-pill', 'width:66%;height:28px;margin-top:8px;') : ''}
+                        </div>`).join('')}
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }
+    function _svCalendarSkeletonHtml(label) {
+        const view = (typeof calState !== 'undefined' && calState && calState.view) ? calState.view : '';
+        if (view === 'month') return _svCalendarMonthSkeletonHtml(label);
+        if (view === 'week') return _svCalendarWeekSkeletonHtml(label);
+        if (view === 'review' || view === 'smmreview') return _svReviewSkeletonHtml(label);
+        return _svCalendarOrganizerSkeletonHtml(label);
+    }
+    function _svReviewSkeletonHtml(label) {
+        return `<div class="cal-loader cal-skeleton-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="cal-skeleton-review">
+                ${[0, 1, 2].map(i => `<div class="cal-skeleton-review-card">
+                    ${_svSkel('cal-skeleton-review-thumb')}
+                    <div class="sv-skeleton-stack">
+                        ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '56%' : '72%') + ';')}
+                        ${_svSkel('sv-skeleton-line', 'width:88%;')}
+                        ${_svSkel('sv-skeleton-line', 'width:' + (i === 2 ? '48%' : '64%') + ';')}
+                    </div>
+                    ${_svSkel('sv-skeleton-pill', 'width:96px;height:30px;')}
+                </div>`).join('')}
+            </div>
+        </div>`;
+    }
+    function _svSamplesSkeletonHtml(label) {
+        return `<div class="sm-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="sm-skeleton-strip">
+                ${[0, 1, 2].map(i => `<div class="sm-skeleton-card">
+                    ${_svSkel('sm-skeleton-thumb')}
+                    ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '62%' : '78%') + ';')}
+                    ${_svSkel('sv-skeleton-line', 'width:46%;')}
+                </div>`).join('')}
+            </div>
+        </div>`;
+    }
+    function _svKasperSkeletonHtml(label) {
+        return `<div class="kasper-skeleton-list" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            ${[0, 1, 2].map(i => `<div class="kasper-skeleton-card">
+                ${_svSkel('kasper-skeleton-thumb')}
+                <div class="sv-skeleton-stack">
+                    ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '64%' : '80%') + ';')}
+                    ${_svSkel('sv-skeleton-line', 'width:92%;')}
+                    ${_svSkel('sv-skeleton-line', 'width:58%;')}
+                </div>
+                ${_svSkel('sv-skeleton-pill', 'width:96px;height:30px;')}
+            </div>`).join('')}
+        </div>`;
+    }
+    function _svWorkloadSkeletonHtml() {
+        const mode = (typeof wlState !== 'undefined' && wlState && wlState.viewMode === 'week') ? 'week' : 'month';
+        const cells = mode === 'week' ? 5 : 28;
+        return `<div class="workload-skeleton-grid ${mode}" role="status" aria-label="Loading saved work days">${Array.from({ length: cells }, (_, i) => `
+            <div class="workload-skeleton-day">
+                ${_svSkel('sv-skeleton-pill', 'width:34px;height:14px;')}
+                ${(i % 3 === 0 || mode === 'week') ? `<div class="workload-skeleton-card">${_svSkel('sv-skeleton-line', 'width:72%;')}<div class="sv-skeleton-row">${_svSkel('sv-skeleton-pill', 'width:54%;height:16px;')}${_svSkel('sv-skeleton-pill', 'width:28%;height:16px;')}</div></div>` : ''}
+                ${(i % 5 === 0 || mode === 'week') ? `<div class="workload-skeleton-card">${_svSkel('sv-skeleton-line', 'width:58%;')}<div class="sv-skeleton-row">${_svSkel('sv-skeleton-pill', 'width:42%;height:16px;')}</div></div>` : ''}
+            </div>`).join('')}</div>`;
+    }
+    function _svAnalyticsOverviewSkeletonHtml() {
+        const cell = (cls, w) => `<td class="${cls}"><div class="sv-skeleton sv-skeleton-line" style="width:${w};"></div></td>`;
+        const chip = (cls, w) => `<td class="${cls}"><div class="sv-skeleton sv-skeleton-pill" style="width:${w};height:18px;"></div></td>`;
+        const rows = [118, 96, 132, 104, 124].map((nameW, i) => `<tr>
+            <td><div class="cell-inner"><span class="client-view-btn"></span>${_svSkel('sv-skeleton-line', 'width:' + nameW + 'px;')}</div></td>
+            <td>${_svSkel('sv-skeleton-line', 'width:52px;')}</td>
+            ${cell('col-ig main-metric', i % 2 ? '52px' : '60px')}${chip('col-ig', i % 2 ? '36px' : '44px')}${cell('col-ig', i % 2 ? '48px' : '58px')}${chip('col-ig', i % 3 ? '42px' : '36px')}
+            ${cell('col-tt main-metric', i % 2 ? '58px' : '52px')}${chip('col-tt', i % 2 ? '42px' : '38px')}${cell('col-tt', i % 3 ? '56px' : '62px')}${chip('col-tt', i % 2 ? '38px' : '44px')}
+            ${cell('col-yt main-metric', i % 2 ? '50px' : '62px')}${chip('col-yt', i % 2 ? '38px' : '42px')}${cell('col-yt', i % 3 ? '58px' : '52px')}${chip('col-yt', i % 2 ? '44px' : '40px')}
+        </tr>`).join('');
+        return `<div class="overview-wrap analytics-overview-skeleton" role="status" aria-label="Loading">
+            <div class="overview-controls">
+                <div class="controls-left">
+                    ${_svSkel('sv-skeleton-pill', 'width:96px;height:30px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:86px;height:30px;')}
+                </div>
+                ${_svSkel('sv-skeleton-pill', 'width:74px;height:31px;')}
+            </div>
+            <table class="overview-table analytics-overview-table" aria-hidden="true">
+                <colgroup><col class="col-name"><col class="col-date"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"></colgroup>
+                <thead><tr>
+                    <th rowspan="2" style="text-align:left;vertical-align:middle;">${_svSkel('sv-skeleton-line', 'width:72px;')}</th>
+                    <th rowspan="2" style="vertical-align:middle;">${_svSkel('sv-skeleton-line', 'width:44px;')}</th>
+                    <th colspan="4" class="group-ig">${_svSkel('sv-skeleton-line', 'width:86px;')}</th>
+                    <th colspan="4" class="group-tt">${_svSkel('sv-skeleton-line', 'width:62px;')}</th>
+                    <th colspan="4" class="group-yt">${_svSkel('sv-skeleton-line', 'width:74px;')}</th>
+                </tr><tr>
+                    ${['ig-h','ig-h','ig-h','ig-h','tt-h','tt-h','tt-h','tt-h','yt-h','yt-h','yt-h','yt-h'].map((cls, i) => `<th class="${cls}">${_svSkel('sv-skeleton-line', 'width:' + ([54,42,58,42][i % 4]) + 'px;')}</th>`).join('')}
+                </tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
+    }
+    function _svAnalyticsDetailSkeletonHtml(name) {
+        const heading = name ? _calEsc(name) : '';
+        const metric = (w1, w2) => `<div class="analytics-skel-metric">${_svSkel('sv-skeleton-line', 'width:' + w1 + ';height:10px;')}${_svSkel('sv-skeleton-line', 'width:' + w2 + ';height:24px;')}${_svSkel('sv-skeleton-pill', 'width:58px;height:18px;')}</div>`;
+        const platform = (cls, count, titleW) => `<div class="platform-section analytics-skel-platform ${cls}">
+            <div class="analytics-skel-platform-head">
+                <span class="platform-name"><span class="platform-pill"></span>${_svSkel('sv-skeleton-line', 'width:' + titleW + ';height:12px;')}</span>
+                ${_svSkel('sv-skeleton-pill', 'width:108px;height:22px;')}
+            </div>
+            <div class="metrics-row analytics-skel-metrics">${Array.from({ length: count }, (_, j) => metric(j % 2 ? '58%' : '72%', j % 2 ? '66%' : '48%')).join('')}</div>
+            <div class="analytics-skel-top-videos">
+                <div class="top-videos-head">
+                    ${_svSkel('sv-skeleton-line', 'width:110px;height:10px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:108px;height:24px;')}
+                </div>
+                <div class="analytics-skel-video-row">
+                    ${[0, 1, 2].map(i => `<div class="analytics-skel-video-card">
+                        ${_svSkel('sv-skeleton-pill', 'width:46px;height:18px;')}
+                        ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '84%' : '92%') + ';height:10px;')}
+                        ${_svSkel('sv-skeleton-line', 'width:' + (i === 2 ? '62%' : '76%') + ';height:10px;')}
+                        <div class="tt-stats">${[0, 1, 2, 3].map(() => _svSkel('sv-skeleton-line', 'width:46px;height:10px;')).join('')}</div>
+                    </div>`).join('')}
+                </div>
+            </div>
+        </div>`;
+        return `<div class="client-view analytics-detail-skeleton" role="status" aria-label="Loading">
+            <div class="detail-hero">
+                <div class="sv-skeleton-stack">
+                    ${heading ? `<div class="detail-name">${heading}</div>` : _svSkel('sv-skeleton-line', 'width:220px;height:28px;')}
+                    ${_svSkel('sv-skeleton-line', 'width:340px;')}
+                </div>
+                <div class="analytics-skel-actions">
+                    ${_svSkel('sv-skeleton-pill', 'width:114px;height:32px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:92px;height:32px;')}
+                </div>
+            </div>
+            <div class="gains-bar">
+                <div class="gains-bar-label">${_svSkel('sv-skeleton-line', 'width:88px;height:10px;')}</div>
+                ${['gp-ig','gp-tt','gp-yt'].map((cls, i) => `<div class="gains-platform-card ${cls}">
+                    <div class="gains-platform-header"><span class="gains-platform-dot"></span>${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '48px' : '74px') + ';height:10px;')}</div>
+                    <div class="gains-metrics-row">${_svSkel('sv-skeleton-line', 'width:64px;height:18px;')}${_svSkel('sv-skeleton-line', 'width:78px;height:18px;')}</div>
+                </div>`).join('')}
+            </div>
+            ${platform('ig', 4, '84px')}
+            ${platform('tt', 3, '56px')}
+            ${platform('yt', 2, '70px')}
+            <div class="chart-section analytics-skel-chart">
+                <div class="chart-top">
+                    ${_svSkel('sv-skeleton-line', 'width:190px;')}
+                    <div class="chart-plat-toggle">
+                        ${_svSkel('sv-skeleton-pill', 'width:92px;height:28px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:72px;height:28px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:86px;height:28px;')}
+                    </div>
+                </div>
+                <div class="analytics-skel-chart-bars">
+                    ${[42, 68, 52, 84, 58, 74, 46, 66, 56].map(h => _svSkel('', 'height:' + h + '%;')).join('')}
+                </div>
+            </div>
+            <div class="chart-section analytics-skel-chart">
+                <div class="chart-top">
+                    ${_svSkel('sv-skeleton-line', 'width:170px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:210px;height:28px;')}
+                </div>
+                <div class="analytics-skel-chart-bars">
+                    ${[58, 46, 76, 62, 84, 54, 72, 48, 66].map(h => _svSkel('', 'height:' + h + '%;')).join('')}
+                </div>
+            </div>
+        </div>`;
+    }
+    function _svAnalyticsSkeletonHtml(name, variant) {
+        if (variant === 'overview') return _svAnalyticsOverviewSkeletonHtml();
+        return _svAnalyticsDetailSkeletonHtml(name);
+    }
+    function _svClientVerifySkeletonHtml() {
+        return `<div class="client-link-verify-skeleton" role="status" aria-live="polite" aria-label="Verifying secure client link" data-client-entry-loading="verify">
+            <div class="client-link-verify-card">
+                <div class="client-link-verify-mark" aria-hidden="true">${_svSkel('sv-skeleton-dot')}</div>
+                ${_svSkel('sv-skeleton-line', 'width:210px;height:16px;')}
+                ${_svSkel('sv-skeleton-line', 'width:286px;max-width:86%;')}
+            </div>
+        </div>`;
+    }
+    function _svClientBriefSkeletonHtml(name) {
+        return `<div class="boot-page-skeleton client-profile-boot-skeleton" role="status" aria-live="polite" aria-label="Loading client brief" data-client-entry-loading="brief">
+            <div class="boot-tab-skeleton-row">
+                ${_svSkel('sv-skeleton-pill', 'width:92px;height:34px;')}
+                ${_svSkel('sv-skeleton-pill', 'width:146px;height:34px;')}
+                ${_svSkel('sv-skeleton-pill', 'width:76px;height:34px;')}
+            </div>
+            <div class="detail-hero sv-skeleton-card">
+                ${_svSkel('sv-skeleton-line', 'width:' + (name ? '220px' : '180px') + ';height:28px;')}
+                ${_svSkel('sv-skeleton-line', 'width:270px;max-width:68%;')}
+            </div>
+            <div class="client-brief-boot-grid">
+                <div class="sv-skeleton-card client-brief-boot-card">${_svSkel('sv-skeleton-line', 'width:38%;height:18px;')}${_svSkel('sv-skeleton-line', 'width:94%;')}${_svSkel('sv-skeleton-line', 'width:86%;')}${_svSkel('sv-skeleton-line', 'width:72%;')}</div>
+                <div class="sv-skeleton-card client-brief-boot-card">${_svSkel('sv-skeleton-line', 'width:52%;height:18px;')}${_svSkel('sv-skeleton-line', 'width:88%;')}${_svSkel('sv-skeleton-line', 'width:76%;')}${_svSkel('sv-skeleton-line', 'width:82%;')}</div>
+            </div>
+        </div>`;
+    }
+    function _svOnboardingSkeletonHtml() {
+        return `<div class="onboarding-skeleton" role="status" aria-label="Loading">
+            ${[0, 1, 2].map(i => `<div class="onboarding-skeleton-card">
+                <div class="sv-skeleton-row">
+                    ${_svSkel('sv-skeleton-dot')}
+                    ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '44%' : '58%') + ';')}
+                </div>
+                ${_svSkel('sv-skeleton-line', 'width:88%;')}
+                ${_svSkel('sv-skeleton-line', 'width:64%;')}
+            </div>`).join('')}
+        </div>`;
+    }
+    function _svLinearSearchSkeletonHtml() {
+        return `<div class="linear-search-skeleton" role="status" aria-label="Loading">
+            ${[0, 1, 2].map(i => `<div class="sv-skeleton-row">
+                ${_svSkel('sv-skeleton-dot', 'width:16px;height:16px;')}
+                ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '58%' : '76%') + ';')}
+            </div>`).join('')}
+        </div>`;
+    }
+    function _prodSkeletonHtml() {
+        const rows = Array.from({ length: 9 }, (_, i) => `<div class="prod-loading-row">
+            <span class="prod-skeleton" style="width:13px;height:13px;border-radius:50%;"></span>
+            <span class="prod-skeleton" style="height:13px;width:54px;"></span>
+            <span class="prod-skeleton" style="height:13px;width:${i % 2 ? '64%' : '82%'};"></span>
+            <span class="prod-skeleton" style="height:22px;width:118px;border-radius:999px;"></span>
+            <span class="prod-skeleton" style="height:22px;width:72px;border-radius:999px;"></span>
+        </div>`).join('');
+        return `<div class="prod-loading-skeleton" role="status" aria-label="Loading">
+            <div class="prod-loading-list">${rows}</div>
+            <aside class="prod-loading-detail">
+                <span class="prod-skeleton" style="height:24px;width:70%;"></span>
+                <span class="prod-skeleton" style="height:14px;width:86%;"></span>
+                <span class="prod-skeleton" style="height:14px;width:64%;"></span>
+                <span class="prod-skeleton" style="height:32px;width:100%;margin-top:12px;"></span>
+                <span class="prod-skeleton" style="height:32px;width:100%;"></span>
+                <span class="prod-skeleton" style="height:32px;width:82%;"></span>
+            </aside>
+        </div>`;
+    }
+    function _svLoadingSkeletonHtml(kind, opts) {
+        opts = opts || {};
+        if (kind === 'client-verify') return _svClientVerifySkeletonHtml();
+        if (kind === 'client-brief') return _svClientBriefSkeletonHtml(opts.name || '');
+        if (kind === 'analytics' || kind === 'analytics-overview') return _svAnalyticsSkeletonHtml(opts.name || '', 'overview');
+        if (kind === 'analytics-client') return _svAnalyticsSkeletonHtml(opts.name || '', 'client');
+        if (kind === 'workload') return _svWorkloadSkeletonHtml();
+        if (kind === 'samples') return _svSamplesSkeletonHtml(opts.label);
+        if (kind === 'review') return _svReviewSkeletonHtml(opts.label);
+        if (kind === 'table') return _svTableSkeletonHtml(opts.rows || 5);
+        if (kind === 'onboarding') return _svOnboardingSkeletonHtml();
+        if (kind === 'linear-search') return _svLinearSearchSkeletonHtml();
+        if (kind === 'kasper') return _svKasperSkeletonHtml(opts.label);
+        if (kind === 'production') return _prodSkeletonHtml();
+        return _svCalendarSkeletonHtml(opts.label);
+    }
+    function _calLoaderHtml(label) {
+        const raw = String(label || 'Loading your calendar');
+        const t = raw.toLowerCase();
+        if (t.includes('credential') || t.includes('history')) return _svLoadingSkeletonHtml('table', { label: raw });
+        if (t.includes('sample') || t.includes('review')) return _svLoadingSkeletonHtml('review', { label: raw });
+        if (t.includes('kasper') || t.includes('filming') || t.includes('linear') || t.includes('message')) return _svLoadingSkeletonHtml('kasper', { label: raw });
+        return _svLoadingSkeletonHtml('calendar', { label: raw });
+    }
+
+    function _calLoadPrefs() { try { return JSON.parse(localStorage.getItem(CAL_PREFS_KEY) || '{}'); } catch { return {}; } }
+    function _calSavePrefs() {
+        try {
+            const prev = _calLoadPrefs();
+            const client = calState.embedded ? prev.client : calState.client;
+            // month/status filters deliberately NOT here — they're per-client
+            // (CAL_FILTERS_KEY), so switching tabs doesn't carry them over.
+            localStorage.setItem(CAL_PREFS_KEY, JSON.stringify({ view: calState.view, client, zoom: calState.zoom }));
+        } catch {}
+    }
+    function _calFiltersRead() {
+        try { const m = JSON.parse(localStorage.getItem(CAL_FILTERS_KEY) || '{}'); return (m && typeof m === 'object') ? m : {}; } catch { return {}; }
+    }
+    /* Hydrate calState.monthFilter/statusFilter from the named client's saved
+       entry (defaults: current month / all content when none saved yet). Call
+       on mount and on every client switch, BEFORE rendering the filter pills. */
+    function _calLoadClientFilters(name) {
+        const slug = calClientSlug(name || calState.client);
+        const row = (slug && _calFiltersRead()[slug]) || {};
+        calState.monthFilter  = _calNormMonthFilter(row.month);
+        calState.statusFilter = _calNormStatusFilter(row.status);
+        // Ordering mode rides along with the filters: per-client, per-device,
+        // and never sent to the backend. It changes only what THIS viewer sees,
+        // so one SMM auto-organizing their view can't reorder anyone else's.
+        calState.sortMode     = _calNormSortMode(row.sort);
+    }
+    function _calSaveClientFilters() {
+        const slug = calClientSlug(calState.client);
+        if (!slug) return;
+        try {
+            const m = _calFiltersRead();
+            m[slug] = { month: calState.monthFilter, status: calState.statusFilter, sort: calState.sortMode };
+            localStorage.setItem(CAL_FILTERS_KEY, JSON.stringify(m));
+        } catch {}
+    }
+    /* Per-client strip scroll, persisted across browser refreshes. */
+    function _calSaveScroll(slug, x) {
+        if (!slug) return;
+        try { localStorage.setItem('syncview_cal_scroll_' + slug, String(x)); } catch {}
+    }
+    function _calGetSavedScroll(slug) {
+        if (!slug) return null;
+        try {
+            const v = localStorage.getItem('syncview_cal_scroll_' + slug);
+            if (v == null) return null;
+            const n = Number(v);
+            return isFinite(n) ? n : null;
+        } catch { return null; }
+    }
+    /* Per-client archive ledger. Archive lives in the Sheet's `status`
+       column, which the Linear-status-sync webhook overwrites — so once
+       a sub-issue's status changes, the BE flips Archived back to In
+       Progress and the card resurrects (sometimes alongside a freshly
+       created duplicate row). This ledger remembers what the user
+       archived in localStorage and filters those rows out client-side,
+       keyed by BOTH the row id and (when present) the Linear sub-issue
+       URL so even a brand-new duplicate row with a different id stays
+       hidden as long as it points at the same Linear issue. */
+    function _calArchivedKey(slug) { return 'syncview_cal_archived_v1_' + slug; }
+    /* The archive ledger is the FE-side "I've asked the server to archive
+       these — don't show them, regardless of what a still-in-flight
+       background poll might say". Stored as { ref: addedAtMs } so the
+       self-heal pass can age old refs out without ripping a freshly
+       enqueued one. CAL_ARCHIVE_GRACE_MS is the propagation budget: a
+       ref younger than this is trusted unconditionally; older refs are
+       cleared when the server reports the matching row as live. */
+    const CAL_ARCHIVE_GRACE_MS = 60 * 1000;
+    function _calArchivedReadRaw(slug) {
+        if (!slug) return {};
+        try {
+            const raw = JSON.parse(localStorage.getItem(_calArchivedKey(slug)) || '{}');
+            // Back-compat: v1 stored a plain string array. Treat legacy
+            // entries as ancient (ts=0) so they still hide the row but
+            // are eligible for self-heal on the next live load.
+            if (Array.isArray(raw)) {
+                const m = {};
+                raw.forEach(r => { if (r) m[String(r)] = 0; });
+                return m;
+            }
+            return (raw && typeof raw === 'object') ? raw : {};
+        } catch { return {}; }
+    }
+    function _calArchivedWriteRaw(slug, obj) {
+        if (!slug) return;
+        try { localStorage.setItem(_calArchivedKey(slug), JSON.stringify(obj || {})); } catch {}
+    }
+    function _calArchivedRefs(slug) {
+        if (!slug) return new Set();
+        return new Set(Object.keys(_calArchivedReadRaw(slug)));
+    }
+    function _calArchivedAdd(slug, refs) {
+        if (!slug || !refs || !refs.length) return;
+        const m = _calArchivedReadRaw(slug);
+        const now = Date.now();
+        let changed = false;
+        refs.filter(Boolean).forEach(r => {
+            const k = String(r);
+            if (m[k] !== now) { m[k] = now; changed = true; }
+        });
+        if (changed) _calArchivedWriteRaw(slug, m);
+    }
+    /* Drop refs from the ledger — used when the user explicitly re-imports
+       a previously archived Linear sub-issue. Without this, the freshly
+       imported card would be hidden on load because its linear_issue_id
+       is still in the archive set from the original archive action. Also
+       used to roll back the optimistic ledger entry when an archive HTTP
+       call ends up failing. */
+    function _calArchivedRemove(slug, refs) {
+        if (!slug || !refs || !refs.length) return;
+        const m = _calArchivedReadRaw(slug);
+        let changed = false;
+        refs.filter(Boolean).forEach(r => {
+            const k = String(r);
+            if (Object.prototype.hasOwnProperty.call(m, k)) { delete m[k]; changed = true; }
+        });
+        if (changed) _calArchivedWriteRaw(slug, m);
+    }
+    /* Defensive cleanup: scan a freshly loaded posts list and strip any
+       refs (id or linear_issue_id) from the local archive ledger that
+       correspond to a post that's actually live (status != Archived).
+       The ledger only exists to hide cards while a freshly-fired archive
+       write propagates to the sheet; once the server says a row is
+       active, the ledger must not override that — otherwise a re-import
+       of a previously archived Linear sub-issue stays hidden forever
+       because the new row's id is fresh but the linear_issue_id matches
+       the old archive entry.
+
+       Refs newer than CAL_ARCHIVE_GRACE_MS are left alone: they may
+       belong to an archive HTTP that is still propagating to the sheet,
+       which would otherwise show as "live" in this very fetch and
+       trick us into removing a valid ledger entry too early. */
+    function _calCleanArchiveLedger(slug, posts) {
+        if (!slug || !posts || !posts.length) return;
+        const m = _calArchivedReadRaw(slug);
+        if (!Object.keys(m).length) return;
+        const cutoff = Date.now() - CAL_ARCHIVE_GRACE_MS;
+        let changed = false;
+        posts.forEach(p => {
+            if (!p) return;
+            if ((p.status || '').toLowerCase() === 'archived') return;
+            const refs = [p.id, p.linear_issue_id].filter(Boolean);
+            refs.forEach(r => {
+                const k = String(r);
+                const ts = m[k];
+                if (ts === undefined) return;
+                if (ts > cutoff) return;          // still inside the propagation grace window
+                delete m[k];
+                changed = true;
+            });
+        });
+        // Hard TTL: the ledger is a 60s propagation guard, but refs whose rows
+        // stay archived (or were deleted) never return "live" and used to pile
+        // up forever. A day after the archive the guard's job is long done —
+        // server-side status is authoritative — so age everything else out.
+        const ttlCutoff = Date.now() - 24 * 60 * 60 * 1000;
+        Object.keys(m).forEach(k => {
+            if ((m[k] || 0) < ttlCutoff) { delete m[k]; changed = true; }
+        });
+        if (changed) _calArchivedWriteRaw(slug, m);
+    }
+    function _calRefsForPost(p) {
+        if (!p) return [];
+        // Only the row id goes in the archive ledger. We used to also
+        // track linear_issue_id to defend against the BE re-creating a
+        // row with the same Linear URL but a fresh id — the Linear
+        // status-sync workflow now refuses to touch rows already in
+        // status=Archived and prefers non-archived rows on dedupe,
+        // so the URL tracking is no longer needed and was actively
+        // hurting: it hid every re-imported sub-issue whose URL had
+        // ever been archived in this browser.
+        return [p.id].filter(Boolean);
+    }
+    function _calIsArchivedRef(p, refs) {
+        if (!p || !refs || !refs.size) return false;
+        if (p.id && refs.has(String(p.id))) return true;
+        if (p.linear_issue_id && refs.has(String(p.linear_issue_id))) return true;
+        // A native-only row (no Linear URL) has no linear_issue_id to check
+        // against the ledger; fall back to its own deliverable ids so an
+        // archived native duplicate is recognised the same way a
+        // Linear-linked one is. Same fallback _calDupeKey uses below.
+        if (p.video_deliverable_id && refs.has(String(p.video_deliverable_id))) return true;
+        if (p.graphic_deliverable_id && refs.has(String(p.graphic_deliverable_id))) return true;
+        return false;
+    }
+    /* Collapse duplicate calendar rows that point at the same Linear
+       sub-issue. The Sheet can hold pre-fix duplicates from when the
+       upsert webhook fell back to append on a missed id match; the BE
+       Linear-status-sync workflow now dedupes on writes, but existing
+       rows would still both surface here. linear_issue_id is unique per
+       Linear sub-issue, so any two rows sharing it are necessarily a
+       duplicate — keep the most-recently-touched row, with order_index
+       as a tiebreaker. Using updated_at first means a row the user just
+       dragged / edited (and bumped updated_at on) wins over a stale
+       legacy duplicate at a higher order_index. Rows without a
+       linear_issue_id are passed through unchanged. */
+    /* Normalised comparison key for a Linear sub-issue link: trim + lowercase,
+       so two links pointing at the SAME issue that differ only in case or stray
+       whitespace are treated as one — matching the backend's case-insensitive
+       ILIKE match in the Linear status-sync workflow. Shared by the dedupe AND
+       the paste-time collision check (_calLinkConflict) so the warning predicts
+       exactly what the dedupe would otherwise collapse. */
+    function _calLinkKey(s) { return String(s == null ? '' : s).trim().toLowerCase(); }
+    /* Normalised duplicate-detection identity for one component
+       (video/graphic) of a post: the Linear sub-issue link AND the post's
+       own native deliverable id for that component, kept as two SEPARATE
+       keys rather than one field falling back to the other.
+       Codex review, PR for OPEN_REPAIRS 218 (P2): a single fallback key (URL
+       when present, else native id) missed the mixed state that happens
+       while provider linkage drains -- one card of a native-only duplicate
+       pair acquires a Linear URL before its twin does, so the URL-bearing
+       card gets a URL key and its still-native twin gets a native key, and
+       the two keys never collide even though both point at the same
+       underlying deliverable. `_calDupeMatch` below compares BOTH channels,
+       so that pair is still caught. A native id is never itself compared
+       against a Linear field (an unrelated string could coincidentally
+       match), only native-to-native and linear-to-linear. Shared by both
+       call sites in _calLinkDuplicatePeers (the post's own identity and its
+       peers'); _calIsArchivedRef's ledger check has its own, separate
+       native fallback (a Set-membership check, not a pairwise compare) but
+       reads the same two fields for the same reason. */
+    function _calDupeKey(post, comp) {
+        return {
+            linear: _calLinkKey(comp === 'graphic'
+                ? (post && post.graphic_linear_issue_id) : (post && post.linear_issue_id)),
+            native: _calLinkKey(comp === 'graphic'
+                ? (post && post.graphic_deliverable_id) : (post && post.video_deliverable_id)),
+        };
+    }
+    // Two identities (each { linear, native } from _calDupeKey) collide when
+    // EITHER channel matches and is non-empty. Empty-vs-empty never counts,
+    // so two cards that both lack a component entirely are never flagged.
+    function _calDupeMatch(a, b) {
+        return !!((a.linear && a.linear === b.linear) || (a.native && a.native === b.native));
+    }
+    // Two active cards that point at the same Linear sub-issue USED to be collapsed
+    // here — one was silently dropped from the calendar. That hidden-but-active card is
+    // exactly what blocked its twin's link and made it "revert"/vanish with no warning.
+    // We no longer collapse: both cards render, and each shows a duplicate warning (see
+    // _calLinkDuplicatePeers + the .cal-dupe-warn banner) so the user can resolve it
+    // (archive one / relink). Kept as an explicit pass-through so the call sites read
+    // clearly. (Linear PULL/import is disabled under v2, so there are no backend-created
+    // phantom rows that would need collapsing.)
+    function _calDedupeByLinearIssue(posts) {
+        return Array.isArray(posts) ? posts : (posts || []);
+    }
+    // The OTHER non-archived cards that share a Linear sub-issue with `post`, grouped by
+    // WHICH slot collides: returns [{ comp:'video'|'graphic', names:[...] }] (video first).
+    // Naming the component matters — "same Linear issue" alone left the SMM digging to
+    // find whether it was the reel or the thumbnail that clashed. Computed live from
+    // calState AT RENDER so it always reflects the final card list (no per-row flag to
+    // keep in sync through the load/merge). Mirrors _calLinkConflict's archived exclusion:
+    // archived cards neither raise nor receive a warning. A card's key matches a peer in
+    // EITHER of the peer's slots (the same issue can sit in a different slot on the twin).
+    function _calLinkDuplicatePeers(post) {
+        if (!post) return [];
+        let archived = null;
+        try { archived = _calArchivedRefs(calClientSlug(calState.client)); } catch (e) {}
+        const isArch = (p) => {
+            if (String((p && p.status) || '').toLowerCase() === 'archived') return true;
+            try { return !!(archived && _calIsArchivedRef(p, archived)); } catch (e) { return false; }
+        };
+        if (isArch(post)) return [];
+        const vKey = _calDupeKey(post, 'video');
+        const gKey = _calDupeKey(post, 'graphic');
+        const vHas = !!(vKey.linear || vKey.native), gHas = !!(gKey.linear || gKey.native);
+        if (!vHas && !gHas) return [];
+        const vPeers = new Set(), gPeers = new Set();
+        for (const p of (calState.posts || [])) {
+            if (!p || p.id === post.id || isArch(p)) continue;
+            const nm = String(p.name || '').trim() || 'Untitled post';
+            const pv = _calDupeKey(p, 'video'), pg = _calDupeKey(p, 'graphic');
+            if (vHas && (_calDupeMatch(vKey, pv) || _calDupeMatch(vKey, pg))) vPeers.add(nm);
+            if (gHas && (_calDupeMatch(gKey, pv) || _calDupeMatch(gKey, pg))) gPeers.add(nm);
+        }
+        const out = [];
+        if (vPeers.size) out.push({ comp: 'video', names: [...vPeers] });
+        if (gPeers.size) out.push({ comp: 'graphic', names: [...gPeers] });
+        return out;
+    }
+    // Human label for the dupe banner: the calendar calls the graphic slot "Thumbnail".
+    function _calDupeWarnText(groups) {
+        return groups.map(g => 'Same ' + (g.comp === 'graphic' ? 'thumbnail' : 'video')
+            + ' Linear issue as ' + g.names.join(', ')).join(' · ');
+    }
+    /* The open client tabs (calendar AND samples) live here in localStorage and
+       ARE the persistence for "which tabs are open". We deliberately do NOT
+       filter against WL_CLIENT_NAMES on read: that allowlist is sheet-driven
+       (wlMergeClientsFromSheet) and only fills in AFTER fetchEssentials()
+       resolves, so on a refresh straight onto the calendar (the skipAwait fast
+       path) it still holds only the hardcoded seed list. Filtering here dropped
+       any sheet-only client's tab — one added via the Clients Info sheet rather
+       than the seed list, e.g. Alayna Belquist — on every reopen, so the tab
+       looked "not persistent"; worse, any add/remove/toggle while the allowlist
+       was still incomplete re-saved the filtered list and lost that tab for
+       good. Tabs are only ever written for real clients (every add path is
+       gated on wlIsAllowedClient), so the stored list is already trustworthy —
+       we just guard it's an array of non-empty strings. */
+    function _calGetPins() { try { const a = JSON.parse(localStorage.getItem(CAL_PINS_KEY) || '[]'); return Array.isArray(a) ? a.filter(n => typeof n === 'string' && n.trim()) : []; } catch { return []; } }
+    function _calSavePins(arr) { try { localStorage.setItem(CAL_PINS_KEY, JSON.stringify(arr)); } catch {} }
+    function calToggleClientPin(name) {
+        const pins = _calGetPins();
+        const i = pins.indexOf(name);
+        if (i >= 0) pins.splice(i, 1); else pins.unshift(name);
+        _calSavePins(pins);
+        _calRenderTabs();
+        const input = document.getElementById('calClientSearchInput');
+        if (input && document.getElementById('calTabSearchPanel') && !document.getElementById('calTabSearchPanel').hidden) {
+            _calRenderClientSearchResults(input.value.trim());
+        }
+    }
+
+    /* Open a client as a calendar tab and switch to it. Mirrors the tab-search
+       pickAndPin: a deep link (#calendar/<slug>) handed over by another SMM
+       should land on that client AND pin it as a tab — not just set it as the
+       active body with no matching pill in the strip. No-op outside the
+       standalone calendar, or when it's already the active client. */
+    /* THE ONE PLACE THE ACTIVE CLIENT CHANGES.
+     *
+     * `calState.focusPid` is the transient per-card filter bypass: while it is
+     * set, that one card is forced past the month, status and client-ready
+     * filters so a deep link or a review-queue jump can actually show it.
+     * `onCalViewChange` drops it when you leave the Sheet — but a client switch
+     * is the other way it goes stale, and it is GLOBAL state, so the pin
+     * outlived the client it belonged to. Returning to that client later then
+     * still forced its card past filters the person had since set, long after
+     * the highlight was dismissed.
+     *
+     * The first fix cleared it inside `_calOpenClientTab` alone, which Codex
+     * caught on #1252: an ordinary tab click goes through `onCalTabClick` →
+     * `onCalClientChange`, and the search picker, the active-tab removal, the
+     * boot mount and the client-entry purge all assign the client too. Seven
+     * assignments, one of them remembering. So the assignment itself carries
+     * the rule now — a new switch path gets it by construction rather than by
+     * somebody remembering this comment exists. */
+    function _calSetClient(name) {
+        if (calState.client !== name) {
+            calState.focusPid = null;
+            /* Codex review, PR for item 176 (fifth pass): a pending card-link
+             * request (and its toast) belongs to whichever client it names.
+             * Switching to a DIFFERENT client abandons it, the exact same
+             * staleness shape as focusPid just above -- otherwise the toast
+             * keeps showing on the new client's calendar, and switching back
+             * to the original client later could apply a focus request from
+             * however long ago. But switching TO the client it was actually
+             * for must NOT cancel it: _calResolvePendingDeepLink calls
+             * _calSetFocusRequest(...) and then _calOpenClientTab (which
+             * lands here) for exactly that client, in that order, and
+             * clearing on every change would cancel the very request that
+             * sequence exists to fulfil.
+             *
+             * Sixth pass: `name === null` is a THIRD case, and it is not a
+             * client at all -- mountCalendar deliberately routes through
+             * _calSetClient(null) as a "still resolving, don't paint the
+             * wrong client" loader state while a sheet-only-client link's
+             * roster read is in flight (`else if (_calPendingDeepLink)
+             * initial = null;`). Clearing on that transition too meant a
+             * returning staff tab (calState.client already set from an
+             * earlier visit) that received a deferred link lost it the
+             * instant the loader mounted, before _calResolvePendingDeepLink
+             * ever ran -- silently, the exact shape this whole item exists
+             * to end. `null` must stay a permissive placeholder here, same
+             * as it does in mountCalendar's own reasoning; only an actual
+             * OTHER client name abandons the pending request. */
+            if (name !== null && _calFocusRequest && wlNormalizeClient(_calFocusRequest.client) !== wlNormalizeClient(name)) {
+                if (_calFocusRequest.cardId) _calHideOwnToast('Opening linked card');
+                _calSetFocusRequest(null);
+            }
+            if (name !== null && _calPendingDeepLink && _calPendingDeepLink.slug !== calClientSlug(name)) {
+                if (_calPendingDeepLink.cardId) _calHideOwnToast('Opening linked card');
+                _calSetPendingDeepLink(null);
+            }
+        }
+        calState.client = name;
+    }
+    function _calOpenClientTab(name) {
+        if (!name || calState.embedded || currentNav !== 'calendar') return;
+        const pins = _calGetPins();
+        if (!pins.includes(name)) { pins.unshift(name); _calSavePins(pins); }
+        if (calState.client === name) { _calRenderTabs(); return; }
+        const shellNeedsClientChrome = !calState.client;
+        // Persist debounced saves for the outgoing client before switching.
+        _calFlushAllPending();
+        _calV2Teardown();
+        _calSetClient(name);
+        _calResetSelection();
+        calState.posts = [];
+        _calLoadClientFilters();
+        _calSavePrefs();
+        // A cold sheet-roster deep link mounts the first shell before its client
+        // exists, so that shell intentionally has no More or bulk-action buttons.
+        // Repaint once at the no-client -> client boundary; normal tab switches
+        // keep their lighter partial render and preserve the current card strip.
+        if (shellNeedsClientChrome) _calRenderShell();
+        _calSyncUrlClient();
+        _calRenderTabs();
+        _calRefreshOrganize();
+        loadCalendarPosts();
+    }
+
+    /* Resolve a deferred #calendar/<slug> deep link once fetchAll has merged the
+       Clients Info sheet into the allowlist, then open that client as a tab. The
+       fast-path router runs before the sheet loads, so a sheet-only client (one
+       not in the hardcoded seed list) can't be matched there — this picks it up
+       the moment data lands. */
+    function _calResolvePendingDeepLink() {
+        const pending = _calPendingDeepLink;
+        if (!pending) return;
+        _calSetPendingDeepLink(null);
+        // Codex review, PR for item 176: the "Opening linked card…" toast
+        // _calSetPendingDeepLink fired belongs to THIS pin, not to whatever
+        // happens next — an unresolved slug's "Calendar link not opened"
+        // modal below would otherwise sit next to a toast still claiming the
+        // card is opening, and a reader who navigated away before the sheet
+        // merged would carry it to an unrelated page.
+        if (pending.cardId) _calHideOwnToast('Opening linked card');
+        // The user may have navigated away (or into a client profile) while data
+        // was loading — don't yank them back to the calendar.
+        if (currentNav !== 'calendar' || calState.embedded) return;
+        const match = WL_CLIENT_NAMES.find(n => wlNormalizeClient(n) === pending.slug);
+        if (!match) {
+            // Slug never resolved to a known client. Don't leave the strip stuck
+            // on its loader — fall back to the normal first-pinned client.
+            //
+            // But SAY SO. Silently opening somebody else's calendar is the exact
+            // shape of the 2026-09-03 owner report ("it just goes to the first
+            // thing"): the reader followed a link to one card and landed on a
+            // different client's board with no indication anything had failed,
+            // which reads as the link being broken rather than the client being
+            // unknown to this tab.
+            showNotify('Calendar link not opened',
+                'That link points at a client this tab does not know yet. Reload and try the link again.');
+            if (!calState.client) {
+                const pins = _calGetPins();
+                if (pins.length) _calOpenClientTab(pins[0]);
+                else _calRenderBody();
+            }
+            return;
+        }
+        if (pending.cardId) _calSetFocusRequest({ client: match, cardId: pending.cardId });
+        _calOpenClientTab(match);
+    }
+
+    /* If someone unlocks a fresh/private tab and clicks Calendar before the
+       Clients Info sheet has finished merging into WL_CLIENT_NAMES, the first
+       render can land with no active client, so the right-side More/kebab menu
+       is missing until a refresh. Once the data arrives, promote the saved or
+       pinned client into the live calendar and repaint the shell. */
+    function _calResolveClientAfterDataReady() {
+        if (currentNav !== 'calendar' || calState.embedded || calState.client || _calPendingDeepLink) return;
+        if (!document.getElementById('calView')) return;
+        const prefs = _calLoadPrefs();
+        const pins = _calGetPins();
+        let next = null;
+        if (prefs.client && (pins.includes(prefs.client) || wlIsAllowedClient(prefs.client))) next = wlCanonicalClient(prefs.client);
+        else if (pins.length) next = pins[0];
+        if (!next) return;
+        const savedPins = _calGetPins();
+        if (!savedPins.includes(next)) { savedPins.unshift(next); _calSavePins(savedPins); }
+        _calSetClient(next);
+        _calLoadClientFilters(next);
+        _calSavePrefs();
+        _calRenderShell();
+        _calSyncUrlClient();
+        loadCalendarPosts();
+    }
+
+    function renderCalendarView() {
+        return `<div class="cal-view" id="calView">${_calLoaderHtml()}</div>`;
+    }
+
+    function mountCalendar() {
+        _calV2Teardown(); // Phase 2: clear any stale realtime channel before (re)mount.
+        const prefs = _calLoadPrefs();
+        const pins  = _calGetPins();
+        let initial = null;
+        // A deep link (#calendar/<slug>) or a workload "Open in content calendar"
+        // jump focuses one specific client. Open it as a real tab (pin it) so it
+        // shows in the strip as the active tab — previously calState.client was
+        // set without pinning, so the body showed the client but no matching tab
+        // appeared, which read as "the link didn't open the client".
+        const focusClient = (_calFocusRequest && _calFocusRequest.client && wlIsAllowedClient(_calFocusRequest.client)) ? _calFocusRequest.client : null;
+        if (focusClient) initial = focusClient;
+        // A deep link whose client isn't in the allowlist yet (sheet-only, fast
+        // path before fetchAll merged the sheet): hold on the loader rather than
+        // open the wrong last-used client — _calResolvePendingDeepLink opens the
+        // real one once data lands.
+        else if (_calPendingDeepLink) initial = null;
+        // Re-open on the client whose tab was last showing. Validate against
+        // pins (the durable open-tabs list) — NOT WL_CLIENT_NAMES — because the
+        // allowlist is sheet-driven and hasn't loaded yet on the calendar fast
+        // path, so a sheet-only last client would otherwise be skipped here and
+        // a different tab (or none) would open on every refresh.
+        else if (prefs.client && pins.includes(prefs.client)) initial = prefs.client;
+        else if (pins.length > 0) initial = pins[0];
+        else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
+        if (focusClient && !pins.includes(focusClient)) { pins.unshift(focusClient); _calSavePins(pins); }
+        _calSetClient(initial);
+        calState.embedded = false;
+        calState.view = _calFocusRequest ? 'organizer' : _calResolveInitialView(prefs.view);
+        calState.zoom = _calNormZoom(prefs.zoom);
+        _calLoadClientFilters(initial);
+        const today = new Date();
+        calState.monthCursor = _calIsoFirstOfMonth(today);
+        calState.weekCursor  = _calIsoMondayOf(today);
+        calState.posts = [];
+        calState.error = null;
+        calState.previewId = null;
+        _calRenderShell();
+        // While a deep link is still resolving, leave the hash (#calendar/<slug>)
+        // untouched — _calSyncUrlClient would rewrite it to a bare #calendar and
+        // lose the slug. The resolver syncs the URL once it opens the client.
+        if (!_calPendingDeepLink || calState.client) _calSyncUrlClient();
+        if (calState.client) loadCalendarPosts();
+        // Pending deep link with nothing resolved yet: keep the shell's loader up
+        // (don't paint the empty-state body) until _calResolvePendingDeepLink runs.
+        else if (!_calPendingDeepLink) _calRenderBody();
+    }
+
+    /* Re-fetch the calendar whenever the browser tab/window regains focus, so
+       a calendar left open in the background picks up the latest Linear sync.
+       Listens to both visibilitychange and window focus because neither alone
+       fires reliably across every tab/window switch; the timestamp de-dupes
+       the case where both fire for the same switch. */
+    let _calLastReturnLoad = 0;
+    /* Throttle the auto-refresh-on-return. A calendar left open and flicked
+       in and out of used to fire a calendar-get on every single tab return;
+       that workflow is ~46% of all n8n executions. If we pulled fresh data
+       from the network within this window the strip is still current enough
+       — the Linear status-sync webhook keeps the sheet live in the
+       background regardless — so we skip the refetch. A manual refresh
+       (the ⟳ control) or any real edit still updates immediately; this only
+       suppresses the automatic focus/visibility refetch. */
+    const CAL_RETURN_REFRESH_MIN_MS = 90_000;
+    // v2 reads from Supabase (cheap, no n8n quota), so re-fetching when a tab
+    // regains focus is effectively free — refresh on almost every return
+    // instead of throttling to 90 s (a v1-only guard that existed to spare the
+    // n8n calendar-get webhook). This is still strictly EVENT-driven (focus /
+    // visibility return); it is NOT a background poll, so an idle open tab
+    // makes zero calls. The small floor just de-dupes the focus/visibility/
+    // pageshow listeners firing together on a single return.
+    const CAL_RETURN_REFRESH_MIN_MS_V2 = 4_000;
+    let _calLastNetworkLoadAt = 0;
+    let _calStaffPagehideSuspended = false;
+    function _calRefreshOnReturn() {
+        if (document.visibilityState === 'hidden') return;
+        // A persisted staff document owns no Calendar transport while frozen.
+        // Only its pageshow handler may start the single replacement load;
+        // visibility/focus events around the same restore must stay silent.
+        if (_calStaffPagehideSuspended) return;
+        if (!calState.client) return;
+        const calBody = document.getElementById('calBody');
+        if (!calBody) return;
+        const _returnMinMs = _calV2Ready() ? CAL_RETURN_REFRESH_MIN_MS_V2 : CAL_RETURN_REFRESH_MIN_MS;
+        if (Date.now() - _calLastNetworkLoadAt < _returnMinMs) return;
+        // Skip if a load is already in flight — otherwise rapid tab switches
+        // pile up overlapping fetches, each resetting the timeout and keeping
+        // the "Refreshing…" chip on indefinitely while the n8n backend is busy
+        // (typical after a bulk Linear-issue creation).
+        if (_calBgLoadInFlight || calState.loading) return;
+        // We still trigger the refresh while interacting — the re-render is
+        // deferred until the user blurs out (see _calMaybeRunPendingRender).
+        const now = Date.now();
+        if (now - _calLastReturnLoad < 500) return;
+        _calLastReturnLoad = now;
+        // The forced Linear-meta refresh belongs to this exact Calendar load.
+        // Its tail re-checks the load/surface lease around every await and
+        // mutation, so a return immediately followed by a client switch cannot
+        // let old metadata repaint or persist into the replacement client.
+        loadCalendarPosts({ background: true, forceMeta: true });
+    }
+    /* When a background refresh resolves while the user is mid-edit, the
+       render is deferred onto this flag and applied once nothing in the
+       calendar is focused and there are no unsaved field edits. */
+    let _calPendingBackgroundRender = false;
+    let _calPendingRenderInterval = null;
+    function _calIsCalBusy() {
+        const calBody = document.getElementById('calBody');
+        if (!calBody) return false;
+        const a = document.activeElement;
+        const isTextEntry = !!(a && (
+            (a.tagName === 'INPUT' && /^(text|url|email|search|number|tel|password|date)$/i.test(a.type || 'text')) ||
+            a.tagName === 'TEXTAREA' || a.isContentEditable
+        ));
+        if (isTextEntry && calBody.contains(a)) return true;
+        if (Object.keys(_calPendingEdits).length > 0) return true;
+        if (_calOpenStatusMenu) return true;
+        return false;
+    }
+    function _calSchedulePendingRender() {
+        if (_calPendingRenderInterval) return;
+        _calPendingRenderInterval = setInterval(() => {
+            if (!_calPendingBackgroundRender) {
+                clearInterval(_calPendingRenderInterval); _calPendingRenderInterval = null; return;
+            }
+            if (_calIsCalBusy()) return;
+            _calPendingBackgroundRender = false;
+            clearInterval(_calPendingRenderInterval); _calPendingRenderInterval = null;
+            _calRenderBody({ preserveScroll: true });
+        }, 1200);
+    }
+    function _calMaybeRunPendingRender() {
+        if (!_calPendingBackgroundRender) return;
+        if (_calIsCalBusy()) return;
+        _calPendingBackgroundRender = false;
+        if (_calPendingRenderInterval) { clearInterval(_calPendingRenderInterval); _calPendingRenderInterval = null; }
+        _calRenderBody({ preserveScroll: true });
+    }
+    document.addEventListener('focusout', () => { setTimeout(_calMaybeRunPendingRender, 60); });
+    /* Save in-flight tweaks/captions/etc. when the tab is being hidden so
+       a client typing a comment never loses it to a tab close or app switch. */
+    function _calFlushAllPending() {
+        const pids = Object.keys(_calPendingEdits);
+        for (const pid of pids) {
+            if (_calSaveTimers[pid]) { clearTimeout(_calSaveTimers[pid]); _calSaveTimers[pid] = null; }
+            _calFlushCardSave(pid);
+        }
+    }
+    function _calClearSuspendedLoadOwnership() {
+        _calBgLoadInFlight = false;
+        calState.loading = false;
+        _calSetRefreshing(false);
+        _calPendingBackgroundRender = false;
+        if (_calPendingRenderInterval) {
+            clearInterval(_calPendingRenderInterval);
+            _calPendingRenderInterval = null;
+        }
+        // A BFCache restore is a new freshness boundary. Reset both return
+        // clocks so the persisted pageshow can start one deliberate load; that
+        // load immediately re-stamps _calLastNetworkLoadAt and suppresses the
+        // visibility/focus events emitted around the same restore.
+        _calLastReturnLoad = 0;
+        _calLastNetworkLoadAt = 0;
+    }
+    function _calSuspendOnPagehide() {
+        // Writers retain their existing pagehide guarantee and are flushed
+        // before read/realtime ownership is revoked.
+        _calFlushAllPending();
+        if (_isClientLink) return;
+        const surface = document.getElementById('calView');
+        _calStaffPagehideSuspended = !!(calState.client && surface && surface.isConnected);
+        _calV2Teardown();
+        _calClearSuspendedLoadOwnership();
+    }
+    function _calResumeOnPageshow(event) {
+        if (_isClientLink) return;
+        if (!event || event.persisted !== true) {
+            _calRefreshOnReturn();
+            return;
+        }
+        const shouldResume = _calStaffPagehideSuspended;
+        _calStaffPagehideSuspended = false;
+        if (!shouldResume || !calState.client || !document.getElementById('calBody')) return;
+        _calLastReturnLoad = Date.now();
+        // Skip cache adoption on the persisted document: its existing cards can
+        // remain visible, but exactly one fresh owned read decides the resumed
+        // state and owns the forced Linear-meta tail.
+        loadCalendarPosts({ background: true, forceMeta: true, skipCache: true });
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') _calFlushAllPending();
+    });
+    window.addEventListener('pagehide', _calSuspendOnPagehide);
+    window.addEventListener('pageshow', _calResumeOnPageshow);
+    document.addEventListener('visibilitychange', _calRefreshOnReturn);
+    window.addEventListener('focus', _calRefreshOnReturn);
+
+    /* Removed periodic 30 s background poll. The calendar still refreshes
+       on tab return (visibilitychange) and window focus via
+       _calRefreshOnReturn above, and the SMM can force a refresh by
+       clicking the calendar refresh control. We don't poll while the
+       tab is sitting idle — saves n8n executions and stops surprise
+       reloads while the SMM is mid-think. */
+
+    /* Picks the initial view tab on mount. Clients land on their Review
+       (Client Approval) queue by default — it's their main job. The SMM lands
+       on the Sheet (organizer) by default but can pin their own Review (SMM
+       Approval) queue; a saved view belonging to the other audience is coerced
+       back to that side's default. */
+    function _calResolveInitialView(savedView) {
+        const allowed = ['review','smmreview','organizer','month','week'];
+        const saved = allowed.includes(savedView) ? savedView : null;
+        // Each audience only has its own review tab: coerce away a saved view
+        // that belongs to the other side (client ↔ smmreview, SMM ↔ review).
+        if (_isClientLink) return (saved && saved !== 'smmreview') ? saved : 'review';
+        if (saved && saved !== 'review') return saved;
+        return 'organizer';
+    }
+
+    /* Embedded calendar — rendered inside a client profile's "Content Calendar"
+       tab. Locked to one client (no client-tab picker). */
+    function mountCalendarEmbedded(name) {
+        _calV2Teardown();
+        const prefs = _calLoadPrefs();
+        _calSetClient(name);
+        calState.embedded = true;
+        calState.view = _calResolveInitialView(prefs.view);
+        calState.zoom = _calNormZoom(prefs.zoom);
+        _calLoadClientFilters(name);
+        const today = new Date();
+        calState.monthCursor = _calIsoFirstOfMonth(today);
+        calState.weekCursor  = _calIsoMondayOf(today);
+        calState.posts = [];
+        calState.error = null;
+        calState.previewId = null;
+        _calRenderShell();
+        loadCalendarPosts();
+    }
+
+    async function calCopyShareLink() {
+        if (!calState.client) return;
+        let url; try { url = await _syncviewIssueClientShareUrl(calState.client, 'calendar'); } catch(e) { showToast((e&&e.message)||'Could not issue a secure client link'); return; }
+        // The share action lives in the kebab (More options) menu, which closes
+        // on click — so confirm with a toast rather than swapping a button label
+        // that's no longer on screen.
+        navigator.clipboard.writeText(url).then(
+            () => showToast('Client link copied to clipboard'),
+            () => showToast("Couldn't copy the link")
+        );
+    }
+
+    /* Per-card deep link. Pattern: #calendar/<clientSlug>/<cardId>.
+       The slug is the same one we use as the sheet tab name, so we can
+       round-trip from URL → client → card by walking WL_CLIENT_NAMES. */
+    function _calCopyCardLink(e, pid) {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        if (!calState.client || !pid) return;
+        const slug = calClientSlug(calState.client);
+        const url = `${location.origin}${location.pathname}#calendar/${slug}/${encodeURIComponent(pid)}`;
+        const btn = document.querySelector(`.cal-card-link[data-card-link="${pid}"]`);
+        const checkSvg = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
+        const restore = (origHtml) => { if (btn) { btn.classList.remove('copied'); btn.innerHTML = origHtml; } };
+        const flash = () => {
+            if (!btn) return;
+            const orig = btn.dataset.orig || btn.innerHTML;
+            btn.dataset.orig = orig;
+            btn.classList.add('copied');
+            btn.innerHTML = checkSvg;
+            setTimeout(() => restore(orig), 1600);
+        };
+        const fallback = () => {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                flash();
+            } catch { showNotify('Could not copy', url); }
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(flash, fallback);
+        } else fallback();
+    }
+
+    /* Outside-click dismissal of the persistent focus highlight. */
+    function _calClearFocusHighlight() {
+        document.querySelectorAll('.cal-card-focused').forEach(el => el.classList.remove('cal-card-focused'));
+        document.removeEventListener('mousedown', _calFocusOutsideHandler, true);
+    }
+    function _calFocusOutsideHandler(e) {
+        const card = document.querySelector('.cal-card-focused');
+        if (!card) { document.removeEventListener('mousedown', _calFocusOutsideHandler, true); return; }
+        if (!card.contains(e.target)) _calClearFocusHighlight();
+    }
+
+    /* ── Excel (.xlsx) import ──────────────────────────────────────────
+       Pulls posts out of a Google Sheet that was exported as Microsoft
+       Excel. The user maps the spreadsheet columns onto the calendar
+       schema, then each row is upserted into the active client's tab. */
+    const CAL_IMPORT_FIELDS = [
+        { key: 'name',           label: 'Post name',         req: true,  aliases: ['name','post name','post','title','content','video','video name','post title','reel'] },
+        { key: 'scheduled_date', label: 'Date',              req: false, aliases: ['date','scheduled date','post date','publish date','due date','day','scheduled','go live'] },
+        { key: 'status',         label: 'Status',            req: false, aliases: ['status','stage','state','progress'] },
+        { key: 'thumbnail_url',  label: 'Thumbnail URL',     req: false, aliases: ['thumbnail','thumbnail url','thumb','thumbnail link','cover','cover image','image'] },
+        { key: 'asset_url',      label: 'Video URL',         req: false, aliases: ['url','post url','link','asset url','asset','video url','video link','frameio','frame io','drive link','file'] },
+        { key: 'caption',        label: 'Caption',           req: false, aliases: ['caption','description','copy','post caption','text','script','hook'] },
+        { key: 'cta',            label: 'CTA',               req: false, aliases: ['cta','call to action'] },
+        { key: 'tweaks',         label: 'Tweaks / notes',    req: false, aliases: ['tweaks','client tweaks','notes','feedback','revisions','changes','comments'] },
+    ];
+    let _calImportRows = null, _calImportHeaders = null, _calXlsxPromise = null, _calImportLayout = 'rows';
+    /* Raw rows-of-cells for the chosen sheet + any layout the user forced by
+       hand, so the "read one per row/column" toggle can re-parse without
+       re-reading the workbook. */
+    let _calImportAoa = null, _calImportForcedLayout = null;
+    /* Map step output → passed forward to the select step → finally to run.
+       Kept on the module so Back from select rebuilds the map step without
+       losing what the user picked. */
+    let _calImportMap = null;
+    let _calImportSelectedIdx = null;   // Set<number> of _calImportRows indices to import
+    /* Parsed workbook + chosen sheet name. Held on the module so the user
+       can flip between sheets via Back without re-uploading the file. */
+    let _calImportWorkbook = null;
+    let _calImportSheetName = null;
+
+    function _calLoadXLSX() {
+        if (window.XLSX) return Promise.resolve(window.XLSX);
+        if (_calXlsxPromise) return _calXlsxPromise;
+        _calXlsxPromise = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+            s.onload = () => window.XLSX ? resolve(window.XLSX) : reject(new Error('Spreadsheet reader failed to load'));
+            s.onerror = () => reject(new Error('Could not load the spreadsheet reader — check your connection'));
+            document.head.appendChild(s);
+        });
+        return _calXlsxPromise;
+    }
+
+    function _calCoerceDate(v) {
+        if (v == null || v === '') return '';
+        if (v instanceof Date && !isNaN(v)) return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+        const s = String(v).trim();
+        let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if (m) return `${m[1]}-${String(+m[2]).padStart(2,'0')}-${String(+m[3]).padStart(2,'0')}`;
+        // Google Sheets / Excel date serials (days since 1899-12-30).
+        if (/^\d+(\.\d+)?$/.test(s)) {
+            const serial = Number(s);
+            if (serial > 20000 && serial < 80000) {
+                const d = new Date(Date.UTC(1899, 11, 30) + Math.round(serial) * 86400000);
+                if (!isNaN(d)) return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+            }
+        }
+        m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+        if (m) {
+            let day = +m[1], mon = +m[2], y = m[3];
+            if (y.length === 2) y = '20' + y;
+            if (mon > 12 && day <= 12) { const t = day; day = mon; mon = t; } // day-first by default
+            if (mon > 12 || mon < 1 || day < 1 || day > 31) return '';
+            return `${y}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        }
+        const d = new Date(s);
+        if (!isNaN(d)) return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        return '';
+    }
+
+    function openCalImport() {
+        if (!calState.client) return;
+        _calImportRows = null; _calImportHeaders = null;
+        _calImportMap = null; _calImportSelectedIdx = null;
+        _calImportWorkbook = null; _calImportSheetName = null;
+        _calImportAoa = null; _calImportForcedLayout = null;
+        const ovl = document.getElementById('calImportOverlay');
+        if (!ovl) return;
+        ovl.classList.add('open');
+        document.body.classList.add('cal-modal-open');
+        _calRenderImportPick();
+    }
+    function closeCalImport() {
+        const ovl = document.getElementById('calImportOverlay');
+        if (ovl) ovl.classList.remove('open');
+        document.body.classList.remove('cal-modal-open');
+    }
+
+    /* ── Import posts from a Linear parent issue ──────────────────────
+       Paste a parent-issue link; the linear-subissues webhook returns its
+       sub-issues; the user picks which become calendar posts. */
+    let _calLinearSubs = null;
+    let _calLinearParent = null;
+    let _calLinearGraphicParent = null;
+    let _calSubDragIdx = null;
+    /* Numeric part of a Linear identifier (VID-11949 -> 11949), used to sort
+       the import picker so sub-issues land smallest-first by default. */
+    function _calSubNum(s) {
+        const m = String((s && s.identifier) || '').match(/(\d+)/);
+        return m ? parseInt(m[1], 10) : 0;
+    }
+
+    function _calMapLinearStatus(name) {
+        const s = String(name || '').trim().toLowerCase();
+        if (s.includes('tweak')) return 'Tweaks Needed';
+        if (s.includes('scheduled')) return 'Scheduled';
+        if (s === 'posted') return 'Posted';
+        if (s === 'approved') return 'Approved';
+        if (s.includes('smm')) return 'For SMM Approval';
+        if (s.includes('kasper')) return 'Kasper Approval';
+        if (s.includes('client')) return 'Client Approval';
+        return 'In Progress';   // Backlog / Todo / In Progress / anything else
+    }
+    /* Strict variant — returns null for Linear states that have no calendar
+       equivalent (Canceled, Done…) so a freshly linked card is left
+       untouched instead of being forced to "In Progress". Mirrors the
+       Linear→Calendar mapping in the n8n status-sync workflow. */
+    function _calMapLinearStatusStrict(name) {
+        const s = String(name || '').trim().toLowerCase();
+        if (!s) return null;
+        if (s.includes('tweak')) return 'Tweaks Needed';
+        if (s.includes('scheduled')) return 'Scheduled';
+        if (s === 'posted') return 'Posted';
+        if (s === 'approved') return 'Approved';
+        if (s.includes('smm')) return 'For SMM Approval';
+        if (s.includes('kasper')) return 'Kasper Approval';
+        if (s.includes('client')) return 'Client Approval';
+        if (s === 'backlog' || s === 'todo' || s === 'to do'
+            || s.includes('in progress') || s.includes('in process')) return 'In Progress';
+        return null;
+    }
+    /* The same mapping for the NATIVE vocabulary — F50.
+     *
+     * `_calMapLinearStatusStrict` above was written against Linear's DISPLAY
+     * names ("In Progress", "For SMM approval"). After the graphics flip the
+     * status reaching this path is `deliverables.status`, which is snake_case,
+     * and the two differ in exactly the place that matters: fed `in_progress`
+     * the strict mapper returns null (its arm tests "in progress", with a
+     * space), so the card would keep its previous status forever with no error
+     * anywhere. That is F50's own failure mode, and `in_progress` is the state
+     * a designer enters every time they start work or answer a tweak request.
+     * Verified by running the shipped function over both vocabularies
+     * (2026-08-10).
+     *
+     * Owner ruling 2026-08-10, encoded here:
+     *   - `todo` and `backlog` show **In Progress**, matching what the calendar
+     *     shows today for the equivalent Linear states. 37 of the 304
+     *     card-linked graphics rows sit in `todo`; mapping them to null would
+     *     blank 37 cards on flip day for no gain.
+     *   - `triage`, `canceled` and `duplicate` return **null** — the card keeps
+     *     its previous status and the UI says the change is not reflected on
+     *     the calendar. They have no calendar equivalent, and the vocabulary is
+     *     deliberately small so the team is not confused by it.
+     * The rule the owner is applying is "add no new words to the calendar":
+     * todo/backlog need no new word, the other three would.
+     *
+     * NEVER pass through an unmapped value. `_writeUiDisplayStatus`
+     * (index.html, the gateway replay path) emits `Backlog`, `Todo`,
+     * `Canceled` and `Duplicate`, none of which are in CAL_STATUSES — the
+     * result is an unstyled pill, `CAL_PRIORITY[unknown]` undefined so
+     * `computeOverallStatus` silently skips the component, `_calIsClientReady`
+     * permanently unsatisfiable, and the card dropped from Kasper's queue.
+     * Returning null is what leaves the card untouched instead.
+     *
+     * `origin` clamps the samples surface the way `linear-inbound` already
+     * does: SXR_STATUSES has no Scheduled/Posted, so a samples row at those
+     * states records no card status rather than being coerced to Approved.
+     */
+    function _calMapNativeStatusStrict(status, origin) {
+        const s = String(status || '').trim().toLowerCase();
+        if (!s) return null;
+        const samples = String(origin || '').trim().toLowerCase() === 'samples';
+        switch (s) {
+            case 'in_progress':
+            case 'backlog':
+            case 'todo':
+                return 'In Progress';
+            case 'smm_approval': return 'For SMM Approval';
+            case 'kasper_approval': return 'Kasper Approval';
+            case 'client_approval': return 'Client Approval';
+            case 'tweak': return 'Tweaks Needed';
+            case 'approved': return 'Approved';
+            case 'scheduled': return samples ? null : 'Scheduled';
+            case 'posted': return samples ? null : 'Posted';
+            // triage / canceled / duplicate and anything unrecognised: no
+            // calendar equivalent, so the card is left exactly as it was.
+            default: return null;
+        }
+    }
+    /* ── Legacy Linear push outbox ───────────────────────────────────────
+       Historical direct-Linear retries remain only as migration debt. New
+       mutations await production-write before the Calendar/SXR source row is
+       saved. Existing status rows may drain while Linear is authoritative;
+       unverifiable historical comments are quarantined instead of replayed
+       under whichever person later opens the browser. */
+    const LINEAR_OUTBOX_KEY = 'syncview_linear_outbox_v1';
+    const WRITE_UI_LEGACY_QUARANTINE_KEY = 'syncview_write_ui_legacy_quarantine_v1';
+    const LINEAR_OUTBOX_MAX_ATTEMPTS = 6;
+    const LINEAR_OUTBOX_RETRY_MS = 60 * 1000;
+    let _linearOutboxFlushTimer = null;
+    let _linearOutboxFlushPromise = null;
+    let _linearOutboxFlushOwnerKey = '';
+    function _linearOutboxRead() {
+        try {
+            const raw = localStorage.getItem(LINEAR_OUTBOX_KEY);
+            const arr = raw ? JSON.parse(raw) : [];
+            return Array.isArray(arr) ? arr : [];
+        } catch { return []; }
+    }
+    function _linearOutboxWrite(arr) {
+        try {
+            const items = Array.isArray(arr) ? arr : [];
+            if (items.length) localStorage.setItem(LINEAR_OUTBOX_KEY, JSON.stringify(items));
+            else localStorage.removeItem(LINEAR_OUTBOX_KEY);
+            return true;
+        } catch { return false; }
+    }
+    async function _linearOutboxEnqueue(kind, payload, errMsg, clientSlug, options) {
+        const record = {
+            id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('lob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
+            kind: kind,
+            payload: payload,
+            attempts: 0,
+            lastError: errMsg || '',
+            lastAttempt: 0,
+            queuedAt: Date.now(),
+            transport: 'legacy_n8n',
+            // A CLIENT-originated item must carry its principal across the
+            // retry boundary. The drain re-derives the lane from enrollment
+            // (_writeUiRerouteUseGateway) and would quarantine an enrolled
+            // slug's gate-less item as 'legacy_actor_unverifiable' — but a
+            // client comment is deliberately routed legacy REGARDLESS of
+            // enrollment (see _calPostLinearComment), so the drain must be
+            // able to recognize it. Stamped here, once, so every enqueue
+            // site a client can reach is covered.
+            client_link: _isClientLink === true,
+            // The same argument as client_link, for the other traffic the add
+            // lane deliberately routes legacy on an ENROLLED slug: a comment on
+            // a slot whose crosswalk is broken. Without the stamp the drain
+            // re-derives the lane from enrollment, sees an enrolled staff item
+            // with no gate, and files it under `legacy_actor_unverifiable` --
+            // "the principal cannot be verified", which is not what happened:
+            // this item was routed legacy on purpose, one action ago, by the
+            // person still sitting there. The quarantine's security property is
+            // untouched (it exists to stop enrolled writes SNEAKING down the
+            // legacy lane, and this one was sent down it by rule), and post-flip
+            // the admitted item still meets the flipped-team quarantine a line
+            // later, so this changes the REASON recorded and no delivery.
+            ...(options && options.canonicalUnlinked ? { canonical_unlinked: true } : {}),
+            client_slug: String(clientSlug || '')
+        };
+        await _writeUiLegacyAppendOutboxItem('calendar', record);
+        _linearOutboxScheduleRetry();
+        return true;
+    }
+    const WRITE_UI_LEGACY_SOURCE_GATE_PENDING_MS = 15 * 60 * 1000;
+    const WRITE_UI_LEGACY_COMMITTED_TWEAK_KEY = 'syncview_write_ui_legacy_committed_tweaks_v1';

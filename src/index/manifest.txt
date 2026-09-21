@@ -11,4 +11,9 @@
 090-workload-popovers-navigation.js.part
 100-onboarding-staff-controls.js.part
 110-time-off-reports.js.part
+120-calendar-flags-write-repair.js.part
+130-calendar-model-cache.js.part
+140-calendar-legacy-outbox.js.part
+150-calendar-hydration-import.js.part
+160-calendar-organize-ui.js.part
 999-remainder.html.part

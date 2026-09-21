@@ -14,4 +14,4 @@
 | 6 | `040-shared-briefs.js.part` | 2363 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1581 | Market Research Brief Tab Renderers |
 | 8 | `060-templates-filming.js.part` | 1788 | Multiple links per link field (client photos, thumbnail, reference reel) |
-| 9 | `999-remainder.html.part` | 71899 | Workload Calendar |
+| 9 | `999-remainder.html.part` | 71925 | Workload Calendar |

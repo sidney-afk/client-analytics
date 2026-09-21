@@ -63,6 +63,11 @@ const PHASES = [
   // for a section three hundred lines away from any assignee.
   'description_markdown', 'inplace_place', 'inplace_type', 'inplace_link',
   'inplace_render', 'inplace_save', 'labels_projection',
+  // Owner ruling 2026-08-17: archiving a post parks its video and thumbnail
+  // sub-issues in Backlog. Added 2026-09-21 investigating a live report that
+  // the park has stopped reaching production-write entirely since that
+  // ruling shipped (see docs/ops/OPEN_REPAIRS.md).
+  'archive_park_sub_issues',
 ];
 let currentPhase = PHASES[0];
 function phase(name) {
@@ -104,6 +109,11 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     // refuses every field write -- is unchanged.
     { id: 'gra-quarantined-identity', identifier: 'GRA-QUARANTINE', linear_issue_uuid: 'linear-quarantined-identity', raw_project_id: 'linear-project-normal', sync_state: 'error', identity_repair_state: 'required', identity_repair_reason: 'linear_create_idempotency_conflict', client_slug: 'normal-fixture', team: 'graphics', title: 'Quarantined identity fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
     { id: 'gra-repaired-identity', identifier: 'GRA-REPAIRED', linear_issue_uuid: 'linear-repaired-identity', raw_project_id: 'linear-project-normal', identity_repair_state: 'resolved', identity_repair_reason: 'owner_repaired', identity_repair_resolved_linear_issue_id: 'linear-repaired-identity', client_slug: 'normal-fixture', team: 'graphics', title: 'Resolved identity repair fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, created_at: now, updated_at: now },
+    // Archive-park fixture (2026-09-21): a calendar card's paired video and
+    // graphic deliverables, both native and both SyncView-authoritative, the
+    // shape the Calendar archive-parks-sub-issues flow targets.
+    { id: 'archive-video-fixture', identifier: 'VID-ARCHIVE', raw_project_id: 'linear-project-calendar', client_slug: 'calendarfixture', team: 'video', title: 'Archive video fixture', status: 'in_progress', status_at: now, assignee_id: 'editor', due_date: null, origin: 'calendar', card_id: 'archive-test-post', created_at: now, updated_at: now },
+    { id: 'archive-graphic-fixture', identifier: 'GRA-ARCHIVE', raw_project_id: 'linear-project-calendar', client_slug: 'calendarfixture', team: 'graphics', title: 'Archive graphic fixture', status: 'in_progress', status_at: now, assignee_id: 'designer', due_date: null, origin: 'calendar', card_id: 'archive-test-post', created_at: now, updated_at: now },
   ];
   const batches = [
     // linear_parent_ids must be present: the Create Post picker excludes
@@ -2187,6 +2197,59 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     expect(networkOrder.indexOf(`gateway-response:${newPayload.request_id}`) >= 0
       && networkOrder.indexOf(`gateway-response:${newPayload.request_id}`) < networkOrder.indexOf(`calendar-upsert:${newCardId}`),
     'Calendar new-batch upsert ran before the native gateway response');
+
+    phase('archive_park_sub_issues');
+    // Owner ruling 2026-08-17: archiving a post parks its video and thumbnail
+    // sub-issues in Backlog. Drive the REAL archive path (_calArchiveOne ->
+    // _calArchiveParkSubIssues -> _calPushStatusToLinear -> the gateway) end
+    // to end against a card carrying two native, SyncView-authoritative
+    // deliverables, and assert the gateway actually receives two
+    // production-write status:'backlog' POSTs -- one per component.
+    // Restore both teams to SyncView authority -- the live state this defect
+    // was reported against (background: "prod_authority is syncview for both
+    // teams") -- undoing the graphics flip an earlier stale-tab scenario left
+    // in place.
+    serverAuthority.video = 'syncview';
+    serverAuthority.graphics = 'syncview';
+    await page.evaluate(() => _writeUiRefreshAuthority());
+    const beforeArchiveWrites = writes.length;
+    // Drive the REAL entry point a person clicks -- archiveCalPost -- rather
+    // than calling _calArchiveOne directly, so this proves the whole path
+    // including archiveCalPost's own optimistic removal of the row from
+    // calState.posts BEFORE _calArchiveOne (and its park step) ever run.
+    await page.evaluate(() => {
+      calState.client = 'Calendar Fixture';
+      calState.posts = [{
+        id: 'archive-test-post',
+        status: 'In Progress',
+        video_status: 'In Progress',
+        graphic_status: 'In Progress',
+        video_deliverable_id: 'archive-video-fixture',
+        graphic_deliverable_id: 'archive-graphic-fixture',
+        linear_issue_id: '',
+        graphic_linear_issue_id: '',
+        updated_at: '2026-07-12T12:00:00.000Z',
+      }];
+      archiveCalPost('archive-test-post');
+    });
+    await page.waitForSelector('#confirmOverlay.active');
+    await page.locator('#confirmYes').click();
+    const archiveStatusWritesSoFar = () => writes.slice(beforeArchiveWrites)
+      .filter(write => write.body.operation === 'status' && write.body.surface === 'calendar');
+    for (let i = 0; i < 150 && archiveStatusWritesSoFar().length < 2; i++) {
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    const archiveStatusWrites = archiveStatusWritesSoFar();
+    expect(archiveStatusWrites.length === 2,
+      'archiving a post with native video+thumbnail deliverables did not send two status:backlog pushes to the gateway (got '
+      + archiveStatusWrites.length + '): ' + JSON.stringify({
+        allWritesSinceArchive: writes.slice(beforeArchiveWrites).map(w => w.body),
+      }));
+    expect(archiveStatusWrites.every(write => write.body.status === 'backlog')
+      && archiveStatusWrites.some(write => write.body.id === 'archive-video-fixture')
+      && archiveStatusWrites.some(write => write.body.id === 'archive-graphic-fixture'),
+    'archive park pushed something other than status:backlog to both native deliverable ids: '
+      + JSON.stringify(archiveStatusWrites.map(w => w.body)));
 
     expect(!pageErrors.length, 'page errors: ' + pageErrors.join(' | '));
     console.log('prod-write-gateway-browser: mirror operations plus Submit and Calendar native intake passed');

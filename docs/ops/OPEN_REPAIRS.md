@@ -27337,3 +27337,79 @@ probe that asserts one synthetic refusal produces one row in
 `write_refusal_diagnostics.receipts_v1`. Only if that probe still reads 0 does
 the RPC shape, the 500 ms race or the schema grant become the question. Report
 the count only, never the identifiers.
+
+## 226. [2026-09-21, FIXED] Archiving a post stopped parking its video/thumbnail sub-issues in Backlog — the caller, not the callee, was losing the row
+
+**Owner ruling 2026-08-17** (item 23 at the time): archiving a card must park
+its video and thumbnail sub-issues in Backlog, so they stop sitting live in
+everyone's queues for a post that no longer exists. Item 23's fix made
+`_calArchiveParkSubIssues` capture the card row BEFORE the archive write's
+await, from `calState.posts`, instead of looking it up after — closing a real
+race. It did not close the whole defect: it fixed the wrong stack frame.
+
+**Live evidence (2026-09-21).** Post `p_native_1d92151f481a996dc65a599f4068_1`
+archived at `2026-09-21T13:28:04Z`; its two deliverables (one video, one
+graphics) got no `deliverable_events` row and no `mirror_outbox` row.
+`deliverable_events` has zero rows ever with `action=status_change,
+to_status=backlog, payload.surface='calendar'` since 2026-08-17, although
+ordinary calendar status writes work fine (hundreds of rows) — the park path
+specifically never reached a committed write, on every single archive since
+the ruling shipped, not intermittently.
+
+**Root cause.** Both real archive entry points — `archiveCalPost` (single
+card) and `_calArchiveSelected` (bulk toolbar action) — optimistically strip
+the archived row(s) out of `calState.posts` for the UI's own immediate
+update, and they do this SYNCHRONOUSLY, before `_calArchiveOne` is ever
+called (not during one of its awaits). Item 23's capture-before-await fix
+lives inside `_calArchiveOne`, reading `calState.posts.find(p => p.id ===
+id)` — by which point the caller has already removed the row. The fallback
+(`echoed = json.post`) never helps either: the calendar-upsert response does
+not echo the written row's shape park needs. So `_calArchiveParkSubIssues`
+received `post = null` on every real archive, hit its own "could not resolve
+the card to park" branch, and answered `{parked: 0, failed: 0, unresolved:
+true}` with only the existing "sub-issues were not parked" toast — nothing
+ever reached `production-write`, which is exactly the zero seen above.
+
+**Fix (`src/index/999-remainder.html.part`, rebuilt into `index.html`).**
+`_calArchiveOne(id, slug, preCapturedPost)` takes an optional third argument
+and prefers it over its own `calState.posts` lookup. Both callers now pass
+the row they already had in hand from before their own optimistic removal:
+`archiveCalPost` passes `target` (already captured a line above the filter);
+`_calArchiveSelected` now builds a `postsById` map in the SAME pass that
+already builds `refsById` (before the `calState.posts` filter), and passes
+`postsById.get(id)` per card in the pooled archive. The `calState.posts`
+lookup stays as a fallback for any caller that does not pass one. No
+Edge Function, migration, flag, or n8n workflow touched.
+
+**Proof.** `docs/syncview-design/tests/prod-write-gateway-browser.js` gained
+an `archive_park_sub_issues` phase that drives the real `archiveCalPost` entry
+point (click through `#confirmYes`, not a direct call) against a card with
+native video+graphics deliverable ids, and asserts the mocked gateway
+receives two `production-write` `operation:'status', status:'backlog'` POSTs,
+one per component. Seen RED against the pre-fix source (0 pushes, matching
+the live zero), GREEN after the fix (both pushes land). The new phase was
+also registered in `docs/syncview-design/tests/prod-polish-gate.js`'s closed
+phase→code table, alongside the suite's own closed `PHASES` list, so a future
+failure in this phase reports as `pwg_archive_park_sub_issues` rather than
+falling through to `error_generic`. `node test/run-all.js` reports 566 of 572
+suites passing; the 6 failing suites (`test/ef-deploy-provenance.js`,
+`test/native-intake-editor-browser.js`, `test/native-label-catalog-foundation.js`,
+`test/track-b-recovery-deferred-defaults.js`, `test/truth-sync.js`,
+`test/workload-native-membership.js`) fail identically against unmodified
+`origin/main`, confirmed via stash-and-rerun — pre-existing, unrelated to this
+change. `npm run check:index` passes with no unrelated `index.html` diff.
+
+**Separate finding, NOT fixed here:** `write_refusal_diagnostics.receipts_v1`
+has zero rows ever. A server-side write refusal leaves no trace beyond the
+browser's own 50-row `localStorage` ring, which is why this defect could only
+be confirmed from `deliverable_events`/`mirror_outbox` absence rather than
+from a refusal record — see the existing note on this in the register. Left
+open for separate work.
+
+**Measured read-only (2026-09-21), live DB, not fixed as part of this
+entry:** of the posts archived since 2026-09-17 that carry a native
+video/graphics deliverable link at all (2 of them), both (2 of 2) still have
+at least one open deliverable (not canceled/duplicate/posted/backlog) — a
+100% failure rate over the whole observable window, consistent with the
+"zero, ever" finding above. Database rows are not touched by this PR; cleanup
+is separate follow-up work.

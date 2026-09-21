@@ -13,7 +13,7 @@
 | 5 | `030-body-shell.html.part` | 449 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 2363 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1581 | Market Research Brief Tab Renderers |
-| 8 | `060-templates-filming.js.part` | 1788 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 8 | `060-templates-filming.js.part` | 1784 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3311 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3333 | WHAT THE BOARD DECIDED NOT TO SHOW, and why. |
 | 11 | `090-workload-popovers-navigation.js.part` | 2613 | Sub-issue popover |
@@ -27,7 +27,7 @@
 | 19 | `170-calendar-links-status.js.part` | 2634 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 20 | `180-calendar-native-post-media.js.part` | 2680 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 21 | `190-calendar-approval-comments.js.part` | 2966 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
-| 22 | `200-intake-data-startup.js.part` | 2022 | Video-only and Thumbnail-only were already built, but sat |
+| 22 | `200-intake-data-startup.js.part` | 1473 | Video-only and Thumbnail-only were already built, but sat |
 | 23 | `210-production-state-writes.js.part` | 3002 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 24 | `220-production-attribution-views.js.part` | 2698 | An ABSENT persisted slug is missing evidence, not |
 | 25 | `230-production-create-comments.js.part` | 2597 | `production_create_closed` is a DEFINITIVE no-replay verdict, |

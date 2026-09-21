@@ -61,8 +61,8 @@ assert(source.includes('const WRITE_UI_REROUTE_FLAG_TIMEOUT_MS = 2000'));
 assert(source.includes("filter: 'key=eq.' + WRITE_UI_REROUTE_FLAG_KEY"));
 assert(source.includes("const LINEAR_SET_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-set-status'"));
 assert(source.includes("const LINEAR_ADD_COMMENT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-add-comment'"));
-assert(source.includes("const VIDEO_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/video-form'"));
-assert(source.includes("const GRAPHIC_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/graphic-form'"));
+assert(!source.includes('webhook/video-form'));
+assert(!source.includes('webhook/graphic-form'));
 assert(extract('_writeUiFetchRerouteFlagOnce').includes("_writeUiSetRerouteFlagValue({ clients: [] })"), 'flag read failures must fail dark');
 assert(extract('_writeUiFetchRerouteFlagOnce').includes('Promise.race([request, timeout])'), 'flag read must have a bounded routing decision');
 assert(extract('_writeUiFetchRerouteFlagOnce').includes('controller.abort()'), 'timed-out flag reads must abort the network request when supported');
@@ -110,9 +110,6 @@ for (const [wrapper, legacy, surface] of [
 
 const submitEntry = extract('submitLinearForm');
 const routedSubmit = extract('_submitLinearFormRoutedOnce');
-const legacySubmit = extract('_submitLinearFormLegacy');
-const f44Submit = extract('_submitLinearFormOnce');
-const f44Transport = extract('_linearAwaitCreate');
 assert(submitEntry.includes('_submitLinearFormRoutedOnce(mode)'));
 assert(routedSubmit.includes('localStorage.getItem(LINEAR_RECEIPTS_KEY)'));
 assert(routedSubmit.includes('await _writeUiRerouteUseGatewayWhenReady'));
@@ -121,14 +118,8 @@ assert(routedSubmit.includes("_linearHoldSubmission(mode, 'native_routing_unavai
   'Create Post must hold when routing would select the legacy transport');
 assert(!routedSubmit.includes('return _submitLinearFormLegacy(mode)'),
   'Create Post must not retain a live legacy submission shortcut');
-assert(legacySubmit.includes('return _submitLinearFormOnce(mode)'));
-assert(f44Submit.includes('_linearPrepareReceipts') && f44Submit.includes('_linearAwaitCreate'));
-assert(f44Submit.includes('_linearApplyReceiptOutcomes'));
-assert(f44Submit.includes('_calCardJobCreate') && f44Submit.includes('_writeLinearVideoCardsToCalendar'));
-assert(f44Transport.includes('idempotency_key: receipt.receipt_key'));
-assert(f44Transport.includes('await fetch(target.url') && f44Transport.includes('_linearConfirmedCreate'));
-assert(!/fetch\((?:VIDEO_FORM_WEBHOOK|GRAPHIC_FORM_WEBHOOK), sendOptions\)/.test(source),
-  'legacy fallback must never restore the pre-F44 fire-and-forget direct fetch');
+assert(!/_submitLinearFormLegacy|_submitLinearFormOnce|_linearAwaitCreate/.test(source),
+  'the orphan legacy Submit sender chain must stay retired');
 const addPost = extract('addCalBlankCard');
 assert(addPost.indexOf("const clientName = String(calState.client || '').trim()")
   < addPost.indexOf('await _writeUiRerouteUseGatewayWhenReady(clientSlug)'));

@@ -1364,3 +1364,11 @@ Revert the single commit, or restore these fifteen lines to
 Nothing else is involved: no database row, runtime flag, Edge Function or
 n8n workflow. Restoring the code restores the previous behaviour exactly,
 which was that nothing called it. GitHub Pages redeploys on push.
+
+## 2026-09-21 — inverse for B1-2 orphan legacy Submit sender deletion (browser only)
+
+Revert the B1-2 commit to restore the deleted unreachable sender chain and its
+constants. The forward change leaves native intake, held drafts, saved legacy
+receipt identities, and visible recovery untouched, so an ordinary code revert
+is the complete inverse. No database, flag, Edge Function, n8n workflow, or live
+data action is involved; GitHub Pages redeploys the rebuilt page on merge.

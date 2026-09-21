@@ -244,22 +244,13 @@ ok(!/onkeydown="onVideoLinkKeydown/.test(cardFn.split('vid_notes_')[1] || ''),
 const renumber = extractFn('renumberVideoCards');
 ok(/\[id\^="vid_notes_"\]/.test(renumber) && /notes\.id = 'vid_notes_' \+ newNum/.test(renumber),
   'removing a video renumbers the notes field too, so a note can never follow the wrong video');
-ok((source.match(/vid_notes_' \+ (num|id)\)/g) || []).length >= 3,
-  'the draft and both submit collectors all read the notes field');
+ok((source.match(/vid_notes_' \+ (num|id)\)/g) || []).length >= 2,
+  'the draft and native submit collector both read the notes field');
 ok(/notes: document\.getElementById\('vid_notes_' \+ num\)\?\.value \|\| ''/.test(source),
   'the local draft persists notes, so a refresh mid-typing does not lose them');
 
-// The frozen legacy contract must not have grown a sixth video key.
-const legacy = source.slice(source.indexOf('This exact five-field object') - 2600, source.indexOf('This exact five-field object') + 400);
-const legacyPush = legacy.slice(legacy.indexOf('videos.push({'));
-const legacyLiteral = legacyPush.slice(0, legacyPush.indexOf('});') + 1);
-const legacyKeys = [...legacyLiteral.matchAll(/^\s*([A-Za-z_]+)\s*[,:]/gm)].map(m => m[1]).sort();
-ok(legacyKeys.join(',') === 'audio,dueDate,main_cam,number,side_cam',
-  'the legacy video object still has exactly its five contract fields (got: ' + legacyKeys.join(',') + ')');
-ok(/videoNotes\.push\('Video ' \+ number \+ ' notes: '/.test(legacy),
-  'legacy submissions fold the notes into the batch note instead of dropping them');
-ok(/getElementById\('vid_notes_' \+ id\)/.test(legacy),
-  'the legacy lane reads the note by the CARD id, like every field beside it, not by sequence number');
+ok(!/_submitLinearFormLegacy|_submitLinearFormOnce/.test(source),
+  'the retired legacy collector cannot drift back into the page');
 
 if (failures) { console.error('\n' + failures + ' failure(s)'); process.exit(1); }
 console.log('\nall green');

@@ -27315,8 +27315,13 @@ the live zero), GREEN after the fix (both pushes land). The new phase was
 also registered in `docs/syncview-design/tests/prod-polish-gate.js`'s closed
 phase→code table, alongside the suite's own closed `PHASES` list, so a future
 failure in this phase reports as `pwg_archive_park_sub_issues` rather than
-falling through to `error_generic`. `node test/run-all.js` and `npm run
-check:index` both pass with no unrelated `index.html` diff.
+falling through to `error_generic`. `node test/run-all.js` reports 566 of 572
+suites passing; the 6 failing suites (`test/ef-deploy-provenance.js`,
+`test/native-intake-editor-browser.js`, `test/native-label-catalog-foundation.js`,
+`test/track-b-recovery-deferred-defaults.js`, `test/truth-sync.js`,
+`test/workload-native-membership.js`) fail identically against unmodified
+`origin/main`, confirmed via stash-and-rerun — pre-existing, unrelated to this
+change. `npm run check:index` passes with no unrelated `index.html` diff.
 
 **Separate finding, NOT fixed here:** `write_refusal_diagnostics.receipts_v1`
 has zero rows ever. A server-side write refusal leaves no trace beyond the

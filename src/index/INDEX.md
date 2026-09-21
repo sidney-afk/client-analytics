@@ -9,4 +9,9 @@
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `005-head-boot.html.part` | 206 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 3 | `010-styles-foundation.css.part` | 3906 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 4 | `999-remainder.html.part` | 81984 | Templates view |
+| 4 | `020-styles-surfaces.css.part` | 3997 | Templates view |
+| 5 | `030-body-shell.html.part` | 449 | Confirmation modal |
+| 6 | `040-shared-briefs.js.part` | 2363 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
+| 7 | `050-market-briefs.js.part` | 1581 | Market Research Brief Tab Renderers |
+| 8 | `060-templates-filming.js.part` | 1788 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 9 | `999-remainder.html.part` | 71806 | Workload Calendar |

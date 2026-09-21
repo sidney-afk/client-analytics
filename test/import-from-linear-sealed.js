@@ -89,8 +89,8 @@ ok(/if \(importSeal\.sealed\) \{[\s\S]*?return;\s*\}/.test(importFn),
 
 ok(!/"Import from Linear"/.test(INDEX),
   'no in-app message still quotes "Import from Linear" as a recommended recovery action');
-ok(/or open the calendar and use Create Post to add them now\./.test(INDEX),
-  'the post-submit background-write-failure notice now points at Create Post');
+ok(!/The Linear issues were created, but adding the matching cards/.test(INDEX),
+  'the retired post-submit background writer and its stale failure notice are absent');
 /* The partial-write-count notice this used to pin (a per-card write loop
    that could land some cards and miss others) no longer exists: 2026-09-20
    (LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md) retired _writeLinearVideoCardsToCalendar's

@@ -7820,3 +7820,18 @@ a failed marker read fails open). `test/workload-native-membership.js` updated
 so its isolated fixture (no anon key configured) takes the same fail-open
 path with no new network call, keeping its existing `calls.length` assertions
 true.
+
+## 2026-09-21 — B1-2 removed the orphan legacy Submit sender chain
+
+Browser-only dead-code deletion; no live write, deployment, flag, backend, or
+workflow change. Removed the unreachable legacy Submit webhook sender and its
+private receipt/confirmation helpers from `200-intake-data-startup.js.part`,
+then removed its two endpoint constants and timeout from
+`060-templates-filming.js.part`. The active native intake hold, raw legacy
+receipt detection, draft identity/conflict checks, and visible recovery path
+remain. Pre-deletion assembled-page proof found no executable caller outside
+the chain; post-build proof found zero target-symbol references. The assembled
+page shrank from 5,776,430 to 5,745,660 bytes.
+The first full-suite run exposed stale Linear-dead harness coverage for the two
+removed webhook routes; the harness regex and its contract test were narrowed
+to the one remaining non-prefixed Linear-backed route before publication.

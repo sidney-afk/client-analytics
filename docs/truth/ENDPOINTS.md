@@ -84,11 +84,11 @@ TikTok pilot (uploads + TTP auth):
 
 Onboarding + intake forms:
 - `webhook/onboarding-submit`, `webhook/onboarding-fallback`, `webhook/ai-onboarding-submit`,
-  `webhook/sales-intake-submit`, `webhook/video-form`, `webhook/graphic-form`
+  `webhook/sales-intake-submit`
 
-`video-form` and `graphic-form` are active Linear mutation routes and authenticate no caller; the
-password-bypassed `?intake=1` page sends no principal (F91). Current containment/auth is required
-before the later native reroute/retirement.
+The B1-2 cleanup removed the orphan browser sender for `video-form` and `graphic-form`; neither
+endpoint is called by the current app. Submit preserves a pre-existing legacy receipt in a visible
+same-identity recovery hold and otherwise uses native intake.
 
 `sales-intake-submit` is a separate active privileged paperwork route. Its live webhook also has
 no caller authentication (F106). Both send branches respond before the client-email result; the

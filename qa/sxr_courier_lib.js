@@ -134,13 +134,15 @@ const LINEAR_HOOK = /\/webhook\/(linear-[a-z0-9-]+)\b/;
  * nothing -- is precisely the n8n-mediated shape OPEN_REPAIRS 78 recorded twenty
  * times over.
  *
- * NEITHER `log-linear-submission` NOR `kasper-queue` IS LISTED, deliberately.
+ * `video-form` and `graphic-form` left this list with the orphan browser sender
+ * in B1-2. NEITHER `log-linear-submission` NOR `kasper-queue` IS LISTED,
+ * deliberately.
  * Despite its name the first appends a Google Sheet and the second reads Sheets;
  * both survive Linear untouched, and blocking the first re-opens the 2026-08-26
  * incident in which a videographer's only submitted copy lived in his browser.
  */
 const LINEAR_BACKED_HOOK =
-  /\/webhook\/(send-urgent-slack|video-form|graphic-form)(?:[/?]|$)/;
+  /\/webhook\/(send-urgent-slack)(?:[/?]|$)/;
 const FILMING_TABS_HOOK = /\/webhook\/filming-plan-tabs\b/;
 const LIVE_FILMING_TABS = process.env.SYNCVIEW_QA_LIVE_FILMING_TABS === '1';
 const LINEAR_CALLS_FILE = `${TMP}/linear_calls.jsonl`;

@@ -1620,8 +1620,6 @@
     window._fpSaveExisting = _fpSaveExisting;
     window._fpSaveNew = _fpSaveNew;
 
-    const VIDEO_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/video-form';
-    const GRAPHIC_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/graphic-form';
     const LINEAR_PROJECTS_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/linear-projects';
     const LOG_SUBMISSION_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/log-linear-submission';
     /*
@@ -1656,7 +1654,6 @@
     const LINEAR_RECEIPTS_KEY = 'syncview_linear_intake_receipts_v1';
     const LINEAR_INTAKE_HOLD_KEY = 'syncview_linear_intake_hold_v1';
     const LINEAR_INTAKE_LOAD_ID = Date.now().toString(36) + ':' + Math.random().toString(36).slice(2);
-    const LINEAR_SUBMIT_TIMEOUT_MS = 45 * 1000;
     const NAV_KEY = 'syncview_nav';
     const SMM_WEEKLY_ROUTES = ['smm-weekly-report', 'smm-weekly-reports'];
     function _isSmmWeeklyRoute(page) { return SMM_WEEKLY_ROUTES.includes(page); }
@@ -1785,4 +1782,3 @@
             }
         }
     }
-

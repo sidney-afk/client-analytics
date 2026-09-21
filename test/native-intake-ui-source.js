@@ -261,10 +261,6 @@ const result = {
 
   const submitEntry = extract('submitLinearForm');
   const submit = extract('_submitLinearFormRoutedOnce');
-  const legacySubmit = extract('_submitLinearFormLegacy');
-  const f44Submit = extract('_submitLinearFormOnce');
-  const f44Transport = extract('_linearAwaitCreate');
-  const f44Received = extract('_linearConfirmedReceived');
   const linearView = extract('renderLinearView');
   ok(submitEntry.includes('_submitLinearFormRoutedOnce(mode)')
     && /operation: 'intake_create'/.test(submit)
@@ -275,38 +271,12 @@ const result = {
   'Submit has one native intake route and no legacy fallback caller');
   ok(!/VIDEO_FORM_WEBHOOK|GRAPHIC_FORM_WEBHOOK|_calCardJobCreate|_writeLinearVideoCardsToCalendar/.test(submit),
   'the enrolled Submit lane cannot call a legacy create webhook or enqueue a Linear polling job');
-  ok(/return _submitLinearFormOnce\(mode\)/.test(legacySubmit)
-    && submit.includes("_linearHoldSubmission(mode, 'saved_legacy_receipt'")
+  ok(submit.includes("_linearHoldSubmission(mode, 'saved_legacy_receipt'")
     && submit.includes("_linearHoldSubmission(mode, 'legacy_receipt_read_failed'")
     && submit.includes("_linearHoldSubmission(mode, 'routing_helper_missing'")
     && submit.includes("_linearHoldSubmission(mode, 'native_routing_unavailable'")
-    && (source.match(/_submitLinearFormLegacy\(/g) || []).length === 1
-    && /_linearPrepareReceipts/.test(f44Submit)
-    && /_linearAwaitCreate/.test(f44Submit)
-    && /_linearApplyReceiptOutcomes/.test(f44Submit)
-    && /_calCardJobCreate/.test(f44Submit)
-    && /_writeLinearVideoCardsToCalendar/.test(f44Submit)
-    && /idempotency_key: receipt\.receipt_key/.test(f44Transport)
-    && /await fetch\(target\.url/.test(f44Transport)
-    && /_linearConfirmedCreate/.test(f44Transport)
-    && !/fetch\((?:VIDEO_FORM_WEBHOOK|GRAPHIC_FORM_WEBHOOK), sendOptions\)/.test(source),
-  'all four legacy exits hold visibly while the old F44 transport has no live caller');
-  ok(f44Received.includes("String(result.status || '').toLowerCase() !== 'received'")
-    && f44Received.includes('result.durable_capture !== true')
-    && f44Received.includes('result.triage_required !== true')
-    && f44Received.includes("['pending', 'failed', 'partial'].includes(ledgerStatus)")
-    && f44Received.includes('String(result.idempotency_key || \'\') !== receipt.receipt_key')
-    && f44Received.includes('triage_reason_codes'),
-  'received acknowledgement is accepted only with durable capture, exact receipt identity, a valid ledger state, and safe triage codes');
-  ok(f44Transport.includes('const created = _linearConfirmedCreate(result, receipt)')
-    && f44Transport.includes('const received = !created && _linearConfirmedReceived(result, receipt)')
-    && f44Transport.includes("kind: created ? 'created' : 'received'")
-    && f44Submit.includes("const failures = outcomes.filter(outcome => outcome.kind === 'failed')")
-    && f44Submit.includes("const hasReceived = outcomes.some(outcome => outcome.kind === 'received')")
-    && /if\s*\(!hasReceived\)\s*\{[\s\S]{0,900}?_calCardJobCreate/.test(f44Submit)
-    && f44Submit.includes("linearJustCreated = hasReceived ? 'received' : true")
-    && f44Submit.includes("status: hasReceived ? 'received' : 'created'"),
-  'received is terminal client success but cannot be represented as a created issue or enqueue Calendar work');
+    && !/_submitLinearFormLegacy|_submitLinearFormOnce|_linearAwaitCreate/.test(source),
+  'all four legacy exits hold visibly while the orphan F44 transport stays retired');
   ok(linearView.includes("const receivedBanner = linearJustCreated === 'received'")
     && linearView.includes('Production work received. Our team will complete an internal setup step; no action is needed from you.'),
   'the received terminal state renders a client-facing acknowledgement rather than a created-work claim');

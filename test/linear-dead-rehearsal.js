@@ -134,10 +134,11 @@ const {
 // OPEN_REPAIRS 181 (lane LX-N8N) named four webhooks that reached Linear through
 // their n8n workflow rather than through a `linear-*` name. The prefix match
 // cannot see them. The final native Editors reader removed `editors-week`; the
-// other three remain browser routes and must still be denied in dead mode.
+// send-urgent-slack remains a browser route and must still be denied in dead
+// mode. B1-2 removed the orphan video-form and graphic-form sender chain.
 // ---------------------------------------------------------------------------
 {
-  const backed = ['send-urgent-slack', 'video-form', 'graphic-form'];
+  const backed = ['send-urgent-slack'];
   const app = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   for (const hook of backed) {
     ok(app.includes(`webhook/${hook}`),
@@ -147,9 +148,15 @@ const {
   }
   ok(!app.includes('webhook/editors-week'),
     'the final app no longer calls the removed editors-week provider endpoint');
+  for (const hook of ['video-form', 'graphic-form']) {
+    ok(!app.includes(`webhook/${hook}`),
+      `${hook} left the app with the orphan legacy Submit sender`);
+    ok(!LINEAR_BACKED_HOOK.test(`https://example.invalid/webhook/${hook}`),
+      `${hook} must not remain as dead harness coverage`);
+  }
   ok(!LINEAR_BACKED_HOOK.test('https://example.invalid/webhook/editors-week'),
     'the dead harness does not claim coverage for the removed editors-week route');
-  ok(LINEAR_BACKED_HOOK.test('https://example.invalid/webhook/video-form?client=x'),
+  ok(LINEAR_BACKED_HOOK.test('https://example.invalid/webhook/send-urgent-slack?client=x'),
     'a query string must not defeat the match');
 
   // The two that must NOT be caught, for the same reason as log-linear-submission.
@@ -160,7 +167,7 @@ const {
   ok(!LINEAR_BACKED_HOOK.test('https://example.invalid/webhook/editors-week-archive'),
     'the match must be anchored at a path boundary, not a prefix');
 
-  // DEAD MODE ONLY. Healthy-mode behaviour for these three must not change: this
+  // DEAD MODE ONLY. Healthy-mode behaviour for this route must not change: this
   // library has never mocked them, and altering that would silently change every
   // existing probe rather than only the rehearsal.
   const backedBranch = source.match(/if \(LINEAR_DEAD\) \{\s*\n\s*const bh = url\.match\(LINEAR_BACKED_HOOK\)[\s\S]{0,1400}?\n    \}/);

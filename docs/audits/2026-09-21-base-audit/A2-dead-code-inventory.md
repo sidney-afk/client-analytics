@@ -34,13 +34,15 @@ Reference column lists **all lexical matching assembled-page line numbers**, inc
 
 | Fragment line / symbol / scope | Timing | Reason and remaining-use boundary | Assembled `index.html` references |
 |---|---|---|---|
-| ~1623 `VIDEO_FORM_WEBHOOK` | DELETE-NOW | Only legacy intake target selection; remove after the orphan submission chain and preserve held receipt display. | 14151, 51143 |
-| ~1624 `GRAPHIC_FORM_WEBHOOK` | DELETE-NOW | Only legacy intake target selection; remove after the orphan submission chain and preserve held receipt display. | 14152, 51144 |
+| ~1623 `VIDEO_FORM_WEBHOOK` | DELETE-NOW | Only legacy intake target selection; remove with the orphan submission chain. Native held-receipt display has no dependency on this endpoint. | 14151, 51143 |
+| ~1624 `GRAPHIC_FORM_WEBHOOK` | DELETE-NOW | Only legacy intake target selection; remove with the orphan submission chain. Native held-receipt display has no dependency on this endpoint. | 14152, 51144 |
 | ~1625 `LINEAR_PROJECTS_WEBHOOK` | AFTER-STEP-7 | Live Linear project reader remains in fetchLinearProjects; not dead. Replace its source before removal. | 14153, 14271 |
 | ~1671 `linearLegacyProjects` | AFTER-STEP-7 | Legacy project cache/merge and de-enrollment fallback; still consumed by project selection. Remove with the Linear project read. | 14199, 14218, 14242, 14252, 14268, 14302 |
 | ~1685 `_linearRebuildProjectSource` — legacy source leg only | AFTER-STEP-7 | Legacy project-source leg still participates in Submit. Full-roster enrollment does not suppress the fetch; preserve native rows, selection and draft behavior. | 14213, 14257, 14304 |
 | ~1708 `_linearReconcileProjectSelection` — legacy source leg only | AFTER-STEP-7 | Legacy project-source leg still participates in Submit. Full-roster enrollment does not suppress the fetch; preserve native rows, selection and draft behavior. | 14236, 14258 |
 | ~1737 `fetchLinearProjects` — legacy source leg only | AFTER-STEP-7 | Legacy project-source leg still participates in Submit. Full-roster enrollment does not suppress the fetch; preserve native rows, selection and draft behavior. | 14261, 14262, 14265, 23405, 51710 |
+| ~1659 `LINEAR_SUBMIT_TIMEOUT_MS` | DELETE-NOW | Dedicated orphan legacy Submit chain dependency; all remaining references are within that chain. Remove with its callers. | 14187, 51367 |
+
 
 ### `src/index/070-workload-source.js.part`
 
@@ -259,8 +261,8 @@ Reference column lists **all lexical matching assembled-page line numbers**, inc
 | Fragment line / symbol / scope | Timing | Reason and remaining-use boundary | Assembled `index.html` references |
 |---|---|---|---|
 | ~546 `_linearSubmissionHoldSnapshot` | RETAIN | Active hold/recovery compatibility; retired discovery now reports a visible hold rather than querying Linear. Do not silently remove pending-job handling. | 50996, 51013, 51053, 51746, 51892 |
-| ~662 `_linearReceiptStoreRead` | RETAIN | Active hold/recovery compatibility; retired discovery now reports a visible hold rather than querying Linear. Do not silently remove pending-job handling. | 51112, 51234, 51276, 51374 |
-| ~692 `_linearTargetForTeam` — url fields only | DELETE-NOW | Legacy endpoint-selection fields only; helper also formats recovery labels. Remove URL fields only after legacy sender retirement; keep label/recovery consumers. | 51142, 51228, 51254, 51295, 51516, 51552, 51586, 51602 |
+| ~662 `_linearReceiptStoreRead` | DELETE-NOW | Only called inside _linearPrepareReceipts and _linearApplyReceiptOutcomes, both in the orphan legacy Submit chain. Native hold reads raw LINEAR_RECEIPTS_KEY separately and stays. | 51112, 51234, 51276, 51374 |
+| ~692 `_linearTargetForTeam` — whole function | DELETE-NOW | All endpoint, label and recovery consumers belong to the orphan legacy Submit chain. No surviving native hold/label consumer; remove the whole helper with that chain. | 51142, 51228, 51254, 51295, 51516, 51552, 51586, 51602 |
 | ~875 `_linearAwaitCreate` | DELETE-NOW | Orphan legacy webhook submission chain: submitLinearForm calls _submitLinearFormRoutedOnce, which holds instead of calling this chain. _submitLinearFormLegacy has no executable caller. Remove internal network chain; preserve active hold/receipt recovery. | 51325, 51552 |
 | ~973 `_submitLinearFormOnce` | DELETE-NOW | Orphan legacy webhook submission chain: submitLinearForm calls _submitLinearFormRoutedOnce, which holds instead of calling this chain. _submitLinearFormLegacy has no executable caller. Remove internal network chain; preserve active hold/receipt recovery. | 51423, 51664, 52295 |
 | ~1213 `_submitLinearFormLegacy` | DELETE-NOW | Orphan legacy webhook submission chain: submitLinearForm calls _submitLinearFormRoutedOnce, which holds instead of calling this chain. _submitLinearFormLegacy has no executable caller. Remove internal network chain; preserve active hold/receipt recovery. | 51663, 52296 |
@@ -277,6 +279,10 @@ Reference column lists **all lexical matching assembled-page line numbers**, inc
 | ~698 `_linearSelectedTeams` | DELETE-NOW | Only called/referenced within the orphan legacy Submit chain; remaining references listed. Remove with that chain, preserving the separately retained native hold/recovery entry points. | 51148, 51435 |
 | ~705 `_linearReceiptKey` | DELETE-NOW | Only called/referenced within the orphan legacy Submit chain; remaining references listed. Remove with that chain, preserving the separately retained native hold/recovery entry points. | 51155, 51256, 51296 |
 | ~776 `_linearRecoveryIdText` | DELETE-NOW | Only called/referenced within the orphan legacy Submit chain; remaining references listed. Remove with that chain, preserving the separately retained native hold/recovery entry points. | 51226, 51587, 51603, 51650 |
+| ~503 `_linearPayloadHash` | DELETE-NOW | Dedicated orphan legacy Submit chain dependency; all remaining references are within that chain. Remove with its callers. | 50953, 51250, 51272, 51287 |
+| ~678 `_linearReceiptStoreWrite` | DELETE-NOW | Dedicated orphan legacy Submit chain dependency; all remaining references are within that chain. Remove with its callers. | 51128, 51321, 51393 |
+| ~709 `_linearUuid` | DELETE-NOW | Dedicated orphan legacy Submit chain dependency; all remaining references are within that chain. Remove with its callers. | 51159, 51166, 51176, 51268, 51384, 51536, 51637 |
+| ~953 `_linearRestoreSubmitButtons` | DELETE-NOW | Dedicated orphan legacy Submit chain dependency; all remaining references are within that chain. Remove with its callers. | 51403, 51590, 51606, 51654 |
 
 
 ### `src/index/260-production-refresh-boot.js.part`
@@ -327,6 +333,12 @@ Reference column lists **all lexical matching assembled-page line numbers**, inc
 
 `scripts/native-brief-media-copy.mjs`: Linear re-fetch is `AFTER-STEP-7`; roadmap B2 requires real `apply` before key revocation. Preserve the tool, credentials and existing asset references until that owner/Storage gate is satisfied. Browser comment attachments and description media in 230/240/250 remain native/history display paths; do not remove `uploads.linear.app` references as dead code or imply copied media is verified. `linear-inbound`, `linear-outbound`, drain workflows and secrets belong to B2, not this browser inventory.
 
+## Codex correction and closure proof
+
+Codex reviewed `9b8053208d6544a684b7a8aee1cf516d0851b0d0` and correctly found an incomplete orphan Submit closure. Corrected: four missing helpers plus `LINEAR_SUBMIT_TIMEOUT_MS`; `_linearReceiptStoreRead` changed from RETAIN to DELETE-NOW; `_linearTargetForTeam` is now a whole-function deletion unit. Counts below were recomputed from the inventory rows.
+
+A second bare-symbol sweep inspected every reference to those seven symbols in the assembled page (line lists above). Their non-declaration references are confined to the inventoried legacy submission chain; `_linearUuid` includes the callback reference in `map(_linearUuid)`. Boundary controls: `_linearStableJson` remains used by native hold encode/validation/resume; `_linearCompareRemove` remains called by the native held-submit path; `_linearDraftSnapshot` remains used to detect native hold conflicts. Keep these three and the raw `LINEAR_RECEIPTS_KEY` hold path. The obsolete parsed receipt-store reader is not that raw hold path. No fragment was edited.
+
 ## Counts per fragment
 
 Counts are **rows/removal units**, not number of functions or estimated lines to delete. A shared function can have a removable branch row and a retained recovery row. Zero means no exclusively Linear/legacy-transport removal unit identified by these sweeps, not absence of the word Linear.
@@ -340,7 +352,7 @@ Counts are **rows/removal units**, not number of functions or estimated lines to
 | `030-body-shell.html.part` | 0 | 0 | 0 |
 | `040-shared-briefs.js.part` | 0 | 0 | 0 |
 | `050-market-briefs.js.part` | 0 | 0 | 0 |
-| `060-templates-filming.js.part` | 2 | 5 | 0 |
+| `060-templates-filming.js.part` | 3 | 5 | 0 |
 | `070-workload-source.js.part` | 0 | 8 | 9 |
 | `080-workload-render.js.part` | 1 | 1 | 3 |
 | `090-workload-popovers-navigation.js.part` | 0 | 3 | 0 |
@@ -354,7 +366,7 @@ Counts are **rows/removal units**, not number of functions or estimated lines to
 | `170-calendar-links-status.js.part` | 1 | 0 | 1 |
 | `180-calendar-native-post-media.js.part` | 0 | 0 | 0 |
 | `190-calendar-approval-comments.js.part` | 0 | 0 | 0 |
-| `200-intake-data-startup.js.part` | 15 | 0 | 4 |
+| `200-intake-data-startup.js.part` | 20 | 0 | 3 |
 | `210-production-state-writes.js.part` | 0 | 0 | 0 |
 | `220-production-attribution-views.js.part` | 0 | 0 | 0 |
 | `230-production-create-comments.js.part` | 0 | 0 | 0 |
@@ -370,12 +382,12 @@ Counts are **rows/removal units**, not number of functions or estimated lines to
 | `330-kasper-review-history.js.part` | 0 | 0 | 0 |
 | `340-editors-date-picker.js.part` | 0 | 0 | 0 |
 | `350-footer.html.part` | 0 | 0 | 0 |
-| **Total: 37 fragments** | **42** | **70** | **97** |
+| **Total: 37 fragments** | **48** | **70** | **96** |
 
 ## Suggested B1 PR order — smallest and safest first
 
 1. **290 orphan reassert cluster:** `_sxrReassertLinearStatus`, `_sxrLinearReassertAt`, `SXR_LINEAR_REASSERT_MS`; zero executable caller, no remaining reader dependency. Do not include the active Calendar twin.
-2. **200 orphan legacy Submit sender chain:** retire `_submitLinearFormLegacy` / `_submitLinearFormOnce` / `_linearAwaitCreate`; prune 060 endpoint constants and 200 URL fields only after their reference closure. Preserve held drafts, receipt identities and visible recovery.
+2. **200 orphan legacy Submit sender chain:** retire `_submitLinearFormLegacy` / `_submitLinearFormOnce` / `_linearAwaitCreate` and their inventoried helper closure; remove the 060 endpoint/timeout constants and the whole `_linearTargetForTeam`. Preserve held drafts, receipt identities and visible recovery.
 3. **External navigation, one feature per PR:** 080, then 160/270 external Linear anchors. Keep local Sync navigation and link clearing. These anchors are reachable UI, so explicitly review the intended navigation removal rather than claiming no behavior change.
 4. **120/140 Calendar parity and transport legs, coordinated with 170 call site:** first remove dead Linear-authority parity retry branches, then close reachable legacy dispatch with source-save/debt preservation. Keep native `_calPushStatusToLinear`, `_calPostLinearComment`, reassert and the shared push chain. Client-context fallback is an acceptance blocker, not evidence of deadness.
 5. **280/290 Samples transport legs:** same receipt/source-save/client-fallback proof. Retain local ledger and recovery machinery. Delete 100 status/comment endpoint constants only when both surfaces have no remaining references.

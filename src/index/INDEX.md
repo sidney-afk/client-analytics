@@ -24,4 +24,4 @@
 | 16 | `140-calendar-legacy-outbox.js.part` | 3145 | OPEN_REPAIRS item 63: the direct-delivery branch below posts to the |
 | 17 | `150-calendar-hydration-import.js.part` | 2876 | For a card linked to a real sub-issue (not a parent), return which of |
 | 18 | `160-calendar-organize-ui.js.part` | 2717 | Lighter path for the Order switch: update the chrome in place so the |
-| 19 | `999-remainder.html.part` | 43997 | Move a Linear sub-issue link from the old card onto the new one. The |
+| 19 | `999-remainder.html.part` | 44071 | Move a Linear sub-issue link from the old card onto the new one. The |

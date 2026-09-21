@@ -14172,6 +14172,39 @@
         function _prodBatch(id) {
             return _prodData().BATCHES[String(id || '')] || null;
         }
+        /* A batch's REAL parent card, when it has exactly one.
+         *
+         * `linear_parent_ids` is keyed by team with the same vocabulary
+         * `_calNativeBatchParentTeams` reads (video/vid, graphics/graphic/gra);
+         * each entry names the parent Linear issue by identifier/id/uuid. A
+         * batch imported from Linear has a real deliverable row for that
+         * parent -- `isHierarchyParent` true, `syntheticBatchParent` unset --
+         * while a native post-cutoff batch has no such row: `_prodIssue`
+         * resolves nothing, or resolves only the read-only synthetic parent
+         * this same batch mints for its own children, which is never the
+         * answer to "does this batch have a real parent card". Two distinct
+         * resolved parents (one per team) is a genuine "no single card"
+         * answer, not a bug -- the caller falls back to the batch view. */
+        function _prodBatchParentIssue(batch) {
+            const parents = batch && batch.linear_parent_ids;
+            if (!parents || typeof parents !== 'object') return null;
+            const ids = new Set();
+            Object.keys(parents).forEach(key => {
+                const k = String(key || '').trim().toLowerCase();
+                if (k !== 'video' && k !== 'vid' && k !== 'graphics' && k !== 'graphic' && k !== 'gra') return;
+                const entry = parents[key];
+                if (!entry) return;
+                const id = typeof entry === 'string' ? entry.trim()
+                    : String(entry.identifier || entry.id || entry.uuid || entry.linear_issue_id || '').trim();
+                if (id) ids.add(id);
+            });
+            const resolved = [];
+            ids.forEach(id => {
+                const row = _prodIssue(id);
+                if (row && row.isHierarchyParent && row.syntheticBatchParent !== true) resolved.push(row);
+            });
+            return resolved.length === 1 ? resolved[0] : null;
+        }
         function _prodMember(id) {
             return _prodEditors()[String(id || '')] || null;
         }
@@ -22256,6 +22289,15 @@
                 const d = q.get('d');
                 const batch = q.get('batch');
                 if (d) { _prodState.openId = d; _prodState.openBatchId = ''; _prodState.view = 'detail'; }
+                // The batch-to-real-parent redirect is deliberately NOT resolved
+                // here (Codex, #1471): priming this state before `deepLink` is
+                // recorded below would make `_prodApplyDeepLinkFallback`'s
+                // `openedElsewhere` guard read the redirect as the reader having
+                // already navigated away, skip its own redirect branch, and leave
+                // `?batch=` in the URL while a `?d=` detail was shown. The
+                // authoritative pass is the one place with both a settled read
+                // and the URL-correction call, so the batch view is the honest
+                // first paint and that pass alone performs the redirect.
                 else if (batch) { _prodState.openBatchId = batch; _prodState.openId = ''; _prodState.view = 'batch'; }
                 else {
                     _prodState.openId = '';
@@ -22302,11 +22344,30 @@
             const openedElsewhere = !!((_prodState.openId && !sameAsWanted(_prodState.openId))
                 || (_prodState.openBatchId && !sameAsWanted(_prodState.openBatchId))
                 || (_prodState.openProjectId && !sameAsWanted(_prodState.openProjectId)));
+            // A batch deep link whose real parent resolves lands the reader on
+            // that parent's detail instead (owner report 2026-09-21) -- a
+            // different id than `wanted.id`, so `sameAsWanted` below can never
+            // call it "opened". This flag is the same escape hatch
+            // `openedElsewhere` already is for a reader who navigated away.
+            let redirectedToParent = false;
             if (wanted && authoritative && !openedElsewhere) {
                 if (wanted.kind === 'issue' && _prodIssue(wanted.id)) {
                     _prodState.openId = wanted.id; _prodState.openBatchId = ''; _prodState.view = 'detail';
                 } else if (wanted.kind === 'batch' && _prodBatch(wanted.id)) {
-                    _prodState.openBatchId = wanted.id; _prodState.openId = ''; _prodState.view = 'batch';
+                    const parent = _prodBatchParentIssue(_prodBatch(wanted.id));
+                    if (parent) {
+                        _prodState.openId = parent.displayId || parent.id;
+                        _prodState.openBatchId = '';
+                        _prodState.view = 'detail';
+                        redirectedToParent = true;
+                        // The URL still names the batch; correct it to the
+                        // parent's identifier now that this is authoritative,
+                        // without pushing a new history entry for a redirect
+                        // nobody navigated to.
+                        _prodSetQuery({ d: _prodState.openId }, false);
+                    } else {
+                        _prodState.openBatchId = wanted.id; _prodState.openId = ''; _prodState.view = 'batch';
+                    }
                 } else if (wanted.kind === 'project' && _prodClient(wanted.id)) {
                     _prodState.openProjectId = wanted.id; _prodState.clientSlug = ''; _prodState.view = 'project';
                 }
@@ -22385,7 +22446,8 @@
                 if (_prodState.openProjectId && !_prodClient(_prodState.openProjectId)) { _prodState.openProjectId = ''; _prodState.view = 'list'; }
             }
             if (!authoritative || !wanted || settling) return;
-            const opened = sameAsWanted(_prodState.openId)
+            const opened = redirectedToParent
+                || sameAsWanted(_prodState.openId)
                 || sameAsWanted(_prodState.openBatchId)
                 || sameAsWanted(_prodState.openProjectId);
             /* The KIND rides along. `deepLinkMissing` holds only an identifier,
@@ -22487,11 +22549,13 @@
              * first read: if that read FAILS, the request stays pending and
              * any later successful refresh fires it.
              *
-             * Safe to clear here precisely because this function is never
-             * reached during a deep-link load — mountProductionView runs
-             * _prodPrimeFromUrl, _prodHydrateFromCache and _prodLoadData
-             * without touching the URL, and every one of _prodSetQuery's
-             * callers is a person clicking something.
+             * Safe to clear here because every caller is either a person
+             * clicking something, or the one deep-link-load exception:
+             * _prodApplyDeepLinkFallback's batch-to-real-parent redirect,
+             * which calls this with push=false only once it has already
+             * decided the link IS resolved (2026-09-21) — clearing the
+             * pending request here is exactly what that resolution means,
+             * not a premature drop of it.
              */
             _prodState.deepLinkMissing = '';
             _prodState.deepLinkMissingKind = '';
@@ -23523,6 +23587,16 @@
             _prodLoadLinearRawFor(id);
         }
         function _prodOpenBatch(id) {
+            // A batch imported from Linear has a real parent card -- Sub-issues N,
+            // client chip, link, due date, assignee -- and that card is the
+            // correct landing page. Only a native post-cutoff batch, which has
+            // no such row, stays on the plain batch view (owner report
+            // 2026-09-21). The three Workload deep links that send a native
+            // batch here on purpose (wlParentUrl, the client-groups syncUrl,
+            // the popover parentSyncUrl) are untouched -- this is the one place
+            // every OTHER deep link into a batch benefits from the redirect.
+            const parent = _prodBatchParentIssue(_prodBatch(id));
+            if (parent) return _prodOpenDeliverable(parent.displayId || parent.id);
             _prodState.openBatchId = id;
             _prodState.openId = '';
             _prodState.openProjectId = '';
@@ -25030,7 +25104,7 @@
             return '<div class="prod-detail" data-prod-batch-detail="' + _calEscAttr(batch.id) + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('batch') + ',' + _jsAttrArg(batch.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner"><div class="prod-detail-id">' + _calEsc(batch.team || 'mixed') + ' batch</div><h1 class="prod-detail-title">' + _calEsc(batch.name || 'Untitled batch') + '</h1>'
                 + '<div class="prod-desc">' + _prodDescriptionHTML(desc, !!descField || descReadFailed, descReadFailed ? 'Description could not load.' : 'No batch description.', false) + '</div>'
                 + (assetRow ? _prodAssetsPanelHTML(assetRow, { slots: ['filming_plan','raw_footage','delivery_folder'], readOnly: true }) : '')
-                + '<div class="prod-subsection"><div class="prod-subhead">Deliverables <span class="prod-group-count">' + rows.length + '</span></div>' + rows.map(d => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status, d.id) + _prodIssueIdHTML(d) + '<span class="prod-title"' + _prodTitleAttrs(d.title || '') + '><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-chip">' + _calEsc(_prodStatusLabel(d.status)) + '</span></div>').join('') + '</div></div></div><aside class="prod-right"><div class="prod-props">'
+                + '<div class="prod-subsection"><div class="prod-subhead">Deliverables <span class="prod-group-count">' + rows.length + '</span></div>' + rows.map(_prodSubIssueRowHTML).join('') + '</div></div></div><aside class="prod-right"><div class="prod-props">'
                 + '<div class="prod-prop"><span class="prod-prop-label">Client</span><span>' + _calEsc(_prodDisplayClient(batch.client_slug)) + '</span></div>'
                 + '<div class="prod-prop"><span class="prod-prop-label">Team</span><span>' + _calEsc(_prodTeamLabel(batch.team)) + '</span></div>'
                 + '<div class="prod-prop"><span class="prod-prop-label">Status</span><span>' + _calEsc(batch.status || 'active') + '</span></div>'

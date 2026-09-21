@@ -73,6 +73,22 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   decision. Controlled execution `432073` took only the hiring branch and returned
   `interview_booked`; no sales CRM, nurture, or sales alert node ran. See the public-safe recovery
   record in `n8n-backups/2026-08-25-hiring-process-status.md`.
+- `SyncView Workload — Reconcile` `lGwC9WWPVJtxphtf` (every 10 min: GET the Linear issues webhook, bulk-upsert
+  `workload_issues`, soft-deactivate rows that left the active set) — **DEACTIVATED on the owner's explicit
+  "deactivate reconcile" 2026-09-21 at about 14:57Z** (unpublished, not edited; `active: false`,
+  `activeVersionId: null`, last stored version `50a8a1e4-3d7d-4327-b8be-fc708cee4fe7`, republishable). Last run
+  14:50:09Z. Reason and the order lesson are in `docs/ops/LINEAR_CUTOFF_RUNBOOK.md`, STEP 6 item 3: it
+  re-activated 28 hand-retired legacy rows ten minutes after they were retired, so it had to go first.
+- Hiring pollers, interval change 2026-09-20 on the owner's explicit instruction: Interview Invite Dispatch
+  `su5afuhg17V2xhgh` and Practical Test Dispatch `eiisSbHsD1OnnNdQ` were both polling every 1 minute
+  (~86k executions/month between them, the largest single n8n cost after the Linear webhooks) and now poll
+  every 5 minutes. Published versions `fe1dbcea-1552-40d8-8556-e659e4aff133` and
+  `a902a7c1-4080-4ec3-8f05-616628294205` (pre-edit `05da2d71-a23c-4585-9e5c-6bead157778f` and
+  `0204ff3b-6af9-483b-9aac-754c0cbee4c8`); 4 runs each verified in the following 15 minutes. The earlier line
+  above saying `su5afuhg17V2xhgh` "remains inactive" and `hiring_invites_enabled` "remains exactly false" is
+  history as of 2026-08-25: both dispatchers are active for the editor hire and both hiring flags read
+  `{"enabled": true}` (read-only 2026-09-21). Owner intent: switch both off and clear the Hiring Raw Log
+  table once the editor hire closes.
 - Monitoring Pager + Reconciler Trigger `qllIDZPkdNAPRj0b` — **DEACTIVATED by the owner 2026-09-20 at about 20:12Z** (Linear cutoff runbook STEP 6; verified read-only `active: false`). Its dispatch targets are unscheduled as of #1449. History below is kept as written. It **was** active: on 2026-08-03, after a
   private pre-edit export, only the `Trigger Reconciler V2` edge moved from the unchanged shared
   15-minute trigger to a new hourly minute-0 trigger. Calendar, Samples, V2-summary monitoring,

@@ -1,8 +1,11 @@
 # Linear cutoff runbook
 
-**Status: PREPARED, NOT EXECUTED.** Nothing in this file has been run. Every step
-is written to be run by the owner, in order, one at a time, with the read-back
-before and the restore statement beside it.
+**Status: EXECUTED 2026-09-20, with the STEP 6 order corrected on 2026-09-21.**
+The cutoff ran on the night of 2026-09-20 (see `LINEAR_EXIT_JOURNAL.md`, entries
+dated 2026-09-20 and 2026-09-21). The line below this one used to say "prepared,
+not executed"; the steps are kept as written because they are the restore path.
+Every step was written to be run by the owner, in order, one at a time, with the
+read-back before and the restore statement beside it.
 
 Linear access ends **2026-09-15**. This document is how SyncView stops depending
 on it, in an order chosen so that the cheapest-to-reverse steps come first and the
@@ -456,6 +459,17 @@ Disable in this order, each one reversible by re-enabling:
    - https://github.com/sidney-afk/client-analytics/actions/workflows/production-write-drill.yml
 3. **The n8n `SyncView Workload — Reconcile` workflow** (every 10 min) — LAST, and
    only once the Workload board no longer depends on `workload_issues` freshness.
+
+   **Order correction, learned live on 2026-09-21.** The reconcile must be OFF
+   *before* any `workload_issues` row is retired by hand, not after. It re-reads
+   Linear every 10 minutes and re-activates whatever is still open there: on
+   2026-09-21 the 28 legacy CON/STR parent rows were set inactive at ~14:33Z with
+   the reconcile still running, and its 14:50:09Z run set all 28 back to active
+   at 14:50:16Z (row `synced_at`, verified against the n8n execution log). The
+   retire had to be redone after the owner's "deactivate reconcile" at ~14:57Z.
+   The board never depended on those rows, so switching the reconcile off first
+   costs nothing; retiring rows under a live reconcile costs a wasted cycle and a
+   journal entry that is false ten minutes after it is written.
 
 **n8n edits are lane C's authorization, not this runbook's.** `CLAUDE.md` forbids
 editing an n8n workflow without the owner's explicit go-ahead in the same request.

@@ -27312,6 +27312,21 @@ truthful. It now reads a deliverable's own Linear archive state directly, so a c
 matching this item's shape is excluded from the board even while it is still
 mid-flight through the inbound webhook path this item watches.
 
+**Second half closed 2026-09-21 by the social media managers themselves, not by a
+write.** The phase-1 read of 2026-09-21 found 25 `todo` cards across 17 posts whose
+Linear issues were archived between 2026-08-17 and 2026-09-17, plus 9 more mid-review.
+Rather than have Storage bulk-park them, the owner listed them per manager with their
+SyncView links and asked. All three replied the same afternoon and moved their own
+cards to Backlog by hand. No bulk write was executed and none is now needed: the rows
+are correctly statused at the source, by the people who own them, which is a better
+outcome than a scripted park because it also corrected the managers' own picture of
+their queues. The prepared rollback SQL was never used and can be discarded.
+
+What remains of this item is only the watch above: the inbound webhook stays enabled
+until the STEP 7 revoke, so a NEW late archive can still arrive. Item 229 now hides
+such a row from the board on arrival, so the watch is about data correctness, no
+longer about anyone seeing phantom work.
+
 ## 225. [2026-09-21, OPEN] The write-refusal receipt table has never recorded a refusal
 
 **Found while investigating the archive-park report (see the session entry

@@ -27287,7 +27287,7 @@ two-occurrence plan and asserts both occurrences verify on the retry with
 exactly one receipt each. No live run is needed to land this; the next apply
 (a recovery or a re-copy) is the real test.
 
-## 224. [2026-09-21, MEASURED, watch] Cards archived in Linear before the cutoff stayed open in native Workload
+## 224. [2026-09-21, FIXED] Cards archived in Linear before the cutoff stayed open in native Workload
 
 **Reported by the video editor on 2026-09-18** ("my workload is bugged": 14
 overdue cards, one phantom in-progress card). **Measured 2026-09-20:** 13 of
@@ -27342,6 +27342,34 @@ The watch above also stands: the inbound webhook stays enabled until the STEP 7 
 so a NEW late archive can still arrive. Item 229 hides such a row from the board on
 arrival, so the watch is about data correctness, no longer about anyone seeing
 phantom work.
+
+**The four rows were CANCELED 2026-09-21 on the owner's explicit word, and this
+half of the item is now closed.** Before the write, two further proofs were taken
+rather than relying on the archive mark alone. Both parent posts had been replaced
+almost immediately: the first by a larger post created the SAME DAY, the second by
+a much larger one two days later, both still active. And inside the two abandoned
+posts somebody had ALREADY closed out the sibling cards by hand -- one thumbnail
+marked `duplicate`, three marked `canceled` on 2026-08-31 -- leaving only the video
+rows behind. So this was never an open question about whether the work was
+abandoned; it was a cleanup that stopped halfway.
+
+`canceled` was chosen over Backlog deliberately: it is what those rows' own
+siblings in the same posts already say, and it records what happened (the work was
+replaced) rather than implying it is still coming.
+
+The write: one statement over four ids, guarded on `status = 'todo'` so it could
+not touch a row somebody had since corrected, with `returning` proving the row
+count was exactly 4 and all four came back `canceled`. Rollback is
+`update public.deliverables set status = 'todo' where id = any(<the four ids>)`;
+their prior `status_at` values were 2026-08-20 17:09:03.337+00, 2026-08-27
+12:55:52.59+00, 2026-08-27 12:58:25.38+00 and 2026-08-27 12:58:30.976+00. No other
+table, flag or workflow was touched, and no Linear call was made.
+
+Re-measured immediately after: 0 of the four read `todo`. The wider class of
+archived-in-Linear rows still in an open status, excluding the test client, now
+reads 123. Those are not this item's -- they were never reported, never measured
+against a specific person's board, and item 229 keeps every one of them off the
+Workload board. A future sweep may close them; this item does not own them.
 
 ## 225. [2026-09-21, OPEN] The write-refusal receipt table has never recorded a refusal
 

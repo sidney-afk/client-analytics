@@ -13974,3 +13974,37 @@ standing recommendation is 2026-09-27. The n8n weekday re-measure is due
 tomorrow morning. The hiring pollers stay on until the editor hire closes.
 OPEN_REPAIRS 227's onboarding measurements are answered for assignee
 eligibility (#1482) but the runbooks still need their native steps written.
+
+## 2026-09-21 (late) — the archived-cards cleanup is finished: four rows canceled on the owner's word
+
+The last four rows of the class this journal has been tracking since the video
+editor's 2026-09-18 report are corrected, and OPEN_REPAIRS 224 is FIXED.
+
+Three of the four social media managers holding these cards were asked in Slack
+and moved their own rows to Backlog the same afternoon. The fourth was left out
+of that message on purpose, because her four rows carry a Linear-era archive mark
+and are hidden on every surface, so she would have had nothing to look at. The
+Codex review on #1486 caught that the ledger then declared the cleanup complete
+while the journal recorded four managers, and a re-measurement proved those four
+rows still read `todo`, untouched since 2026-08-27.
+
+Before writing anything, two independent proofs were taken that the work was
+genuinely abandoned rather than merely stalled. Both parent posts had been
+replaced almost at once, one by a larger post created the same day and one by a
+much larger post two days later, both still active. And inside the two abandoned
+posts the sibling cards had ALREADY been closed out by hand weeks earlier, one
+marked `duplicate` and three `canceled` on 2026-08-31, leaving only the video rows
+behind. The owner had proposed exactly this test, that a same-day replacement
+would settle it, before either measurement was run.
+
+`canceled` rather than Backlog: it matches what those rows' own siblings say and
+records that the work was replaced, not postponed. One guarded statement over four
+ids, `returning` proving four rows changed, rollback recorded in the ledger entry
+with each row's prior `status_at`. Re-measured after: 0 of the four read `todo`.
+
+What is NOT closed by this. The wider class of archived-in-Linear rows still in an
+open status reads 123 excluding the test client. None was ever reported and none
+is on anyone's board, because item 229 now hides them. Closing them would be a
+sweep of its own and wants the owner's word the same way this one did. The
+inbound webhook also stays enabled until the STEP 7 revoke, so a new late archive
+can still arrive.

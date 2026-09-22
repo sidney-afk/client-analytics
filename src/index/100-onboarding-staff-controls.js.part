@@ -1063,7 +1063,12 @@
     const KASPER_QUEUE_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/kasper-queue';
     const LINEAR_SUBISSUES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-subissues';
     const LINEAR_SET_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-set-status';
-    const LINEAR_STATUSES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issue-statuses';
+    /* linear-issue-statuses (LINEAR_STATUSES_URL) was removed 2026-09-22: the
+       webhook is revoked on 2026-09-27 and its two front-end callers are gone.
+       See OPEN_REPAIRS 236. The other reader endpoints on this row stay as they
+       are -- A2 defers them to AFTER-STEP-7 and only this one was pulled
+       forward. The server-side reconcilers in scripts/ still hold their own
+       copy of this URL and are tracked separately. */
     const LINEAR_ADD_COMMENT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-add-comment';
     const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';

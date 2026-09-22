@@ -119,6 +119,13 @@ Regenerate with `node scripts/ef-fingerprint.js <sha> --slugs=<slug> --expected-
   reads the diff of your COMMITTED work, so commit first, and it prints file
   counts only, never what it matched.
 - **Mutate only the test client `sidneylaruel`** unless the owner names another.
+- **A prompt handed to an executor session must SAY, in a sentence, which session
+  it is for.** Write `You are the session named Mirror.` — not `Mirror:` and not
+  `Mirror <instruction>`. A bare name followed by a colon reads as punctuation,
+  not identity, and the receiving session cannot tell it is being addressed by
+  name. This matters because Codex renames sessions on completion, so the name
+  in the prompt body is the only durable handle the owner has when pasting.
+  Owner's instruction, 2026-09-22.
 - **Never edit an n8n workflow** without the owner's explicit go-ahead in that
   same request. They are production sales automation.
 - **Sub-issue creation must not be possible from SyncLinear** — only from the

@@ -27830,6 +27830,67 @@ does not fit at current volume without further cuts; a 30k plan is not close.
 Both figures are extrapolated from one retained week and want a second week's
 confirmation before anyone changes a subscription.
 
+## 234. [open 2026-09-22, designed not built] Renaming a card should rename its sub-issue, and a sub-issue cannot be renamed at all
+
+**What the owner asked for.** Today a card's name and its linked sub-issue's
+title drift apart, and SyncLinear offers no way to rename a sub-issue. Both
+should be possible. Forward-only, explicitly **no backfill** — existing
+mismatches stay as they are. The owner's standing rule for this feature: keep
+it loose. A failed propagation must never block or roll back a rename, and the
+two names are **not** required to agree.
+
+**Why a free-text rename is not safe.** The title is data, not decoration.
+`production-write/policy.mjs:1461-1463` works out the next ordinal by parsing
+the existing titles with `intakeTitleParts`. A title renamed out of format
+parses as null, contributes 0 to `maxOrdinal`, and the next append **reissues a
+number already in use**. The v8 comment on those lines says exactly this. The
+replay path is affected too: `policy.mjs:1478` throws `intake_id_conflict` when
+a prior row's ordinal cannot be parsed, and
+`migrations/2026-09-07-production-intake-append-v8.sql:404` compares the row's
+**full title** on replay, so renaming inside the window between a save and its
+retry makes the retry fail.
+
+**The agreed design.** Edit the **name part only**. The `Video N` prefix and
+ordinal are preserved and the title is recomposed, so every consumer above keeps
+working. A title that is not in our format already (`intakeTitleParts` returns
+null, i.e. an old human-written title) has no ordinal to protect and gets a plain
+free-text rename. Flexible where it is safe to be, strict only where the number
+lives.
+
+**The cost, corrected.** An earlier read of this held that `deliverable-write`
+already implements `operation: "title"` and is deployed, so no Edge Function
+change was needed. That is wrong in the part that matters:
+`_shared/b4-write.ts:298-303` refuses any non-service-role caller with
+`403 gateway_required`, and the comment there directs browsers to
+`production-write`. So the browser cannot reach the existing title operation,
+and **this feature requires a gated Section 4 deploy** with the sealed-bundle
+ceremony. That is the real price and it does not change with time.
+
+**Open question nobody had.** `160-calendar-organize-ui.js.part:2490-2495`
+already lets client-Collab users rename a card. So "someone renames a card"
+includes clients, whose sessions have no authority to write a deliverable title.
+Either propagation fires only on staff renames (partial coverage, and the owner
+should be told which), or client-origin propagation needs its own narrow
+authorization. Decide before building, not during.
+
+**Also unresolved.** The browser reads deliverables straight from PostgREST
+(`/rest/v1/deliverables?select=`, three call sites), not through an Edge
+Function, so there is no server in that read path to hand the browser a
+pre-split prefix and name. The choice is a shared splitter/composer used by both
+sides, or a second copy in the browser guarded by a test that fails on drift.
+Note the grammar already exists in a third place — the append SQL — so a
+browser-versus-policy test alone does not cover it.
+
+**Two legacy consumers expire on their own.**
+`150-calendar-hydration-import.js.part:563-572` and `:884-900` pair and match by
+title text. Both are Linear-era import paths, so the Linear exit removes them
+and shrinks this feature's blast radius without anyone touching it.
+`220-production-attribution-views.js.part:1138-1140` sorts children by title, so
+a rename can move a row — cosmetic, but it should not jump while the user is
+looking at it.
+
+**Status.** Designed, verified against source, not built. No branch, no PR.
+
 ---
 
 ## 235. [2026-09-22, half done] B1-4: Linear-authority parity retries are gone; the legacy Calendar dispatch is NOT — the blocker turned out to be card bindings, not the roster
@@ -27923,3 +27984,179 @@ an owner decision — it is ordinary work whose remaining prerequisite is
 card-shaped: the ~213 live slots carrying a Linear URL and no deliverable id
 are what keeps the legacy pipes reachable. Retiring the pipes means dealing
 with those bindings, not with roster membership.
+
+## 236. [2026-09-22, FIXED] The calendar's two remaining `linear-issue-statuses` calls are gone — and one of them could overwrite a correct native status with a stale Linear one
+
+Entry 233 holds the measurement behind this: the `linear-issue-statuses` n8n
+webhook ran 8,172 times in 7 days out of ~23,117 total executions — about 35%
+of the bill — and the endpoint is revoked on 2026-09-27. Both of its front-end
+callers ran on calendar load. They are removed.
+
+**What was removed.** `LINEAR_STATUSES_URL` (fragment 100), the batched
+banner-meta fetch inside `_calRefreshParentLinkFlags` (fragment 150), and
+`_calReconcileLinearStatuses` together with its load-tail call site. The
+function `_calRefreshParentLinkFlags` survives and now only hydrates the
+persisted banner meta from localStorage. The throttle/latch state the fetch
+owned (`CAL_LINEAR_META_FORCE_MIN_MS`, `_calLinearStatusMetaSig`,
+`_calLinearStatusMetaAt`, `_calStatusMetaUnsupported`) went with it.
+
+**The dependency question, answered before deleting.** The reconcile pulled
+card statuses from Linear back onto the calendar, so the only thing worth
+proving was whether anything still depended on it.
+
+1. *A native path already sets the same statuses.* Statuses are staged by the
+   calendar's own writers and sent by `_calFlushCardSave` (fragment 170), land
+   in Supabase `calendar_posts`, and reach every other open tab over the v2
+   realtime subscription on that table (fragment 150,
+   `_calV2EnsureSubscribed`); every load re-reads them natively through
+   `_calV2FetchPosts`. The `prod_authority` runtime flag reads
+   `{video: syncview, graphics: syncview}` — SyncView, not Linear, is the
+   source of truth on both lanes.
+2. *No card can reach a state whose only corrector was this call.* The
+   reconcile already returned early under `_calV2Ready()`, and v2 has been the
+   default since 2026-06-14 with the publishable key set, so the code only ran
+   in a browser that had opted out with `?v2=0`. Convergence does not depend on
+   any browser anyway: `.github/workflows/linear-sync-reconcile.yml` runs
+   `scripts/linear-sync-reconcile.js` every 15 minutes, dispatched by the
+   monitored pager, and `test/f50-reconcile-pull-only.js` proves it still pulls
+   Linear→card under `syncview` authority with the outbound mirror live.
+3. *It could corrupt, not just refresh.* The reconcile had **no**
+   `prod_authority` check — unlike the backend status-sync workflow, which
+   explicitly skips a `syncview_authoritative` team, and unlike the banner
+   readers, which seal an authoritative component out via
+   `_writeUiLinkSlotSealed`. Its only protections were a 5-minute local-edit
+   grace window and the row's `updated_at` inside that same window. Outside
+   five minutes it wrote the mapped Linear state onto `video_status` /
+   `graphic_status`, cleared client-approval stamps through
+   `_calClearStaleApprovals`, and persisted the result. On a `?v2=0` browser
+   that is a stale Linear read beating a correct native status. **The deletion
+   is a bug fix, not only a removal.** `test/cal-review-needs-content.js`
+   carried this as a declared KNOWN GAP; that gap is now closed for the
+   calendar.
+
+**Measured effect.** Those 8,172 executions per 7 days drop to zero from the
+front end. Monthly: roughly 100k → roughly 65k. No n8n workflow was edited —
+the executions stop because nothing calls the webhook. The workflow itself is
+the owner's to archive, separately.
+
+**Scope.** The A2 audit (`docs/audits/2026-09-21-base-audit/A2-dead-code-inventory.md`)
+defers fragment 100's reader endpoints to AFTER-STEP-7. Only this one endpoint
+was pulled forward, on the owner's instruction, because of the revoke date and
+the cost. **Every other reader endpoint on that row remains deferred and
+untouched.**
+
+**The boot QA scenario had to be re-pointed, not deleted.**
+`qa/boot/client-entry-sequence.js`'s "owned tail and BFCache recovery" group
+existed to prove that an ancillary transport which outlives the primary calendar
+read cannot, when released after the user has switched clients, rebind, mutate,
+render, write or re-cache under the new one. It held the two removed Linear
+requests, so it went red the moment they went away. The property is still worth
+proving, and one owned tail transport is still live: `_calAdoptDeliverableLinks`
+reads `/rest/v1/deliverables` after the primary read commits and writes an
+adopted Linear link straight onto a card. Both halves of the group now hold that
+read instead, with the fixtures changed to cards whose link slot is empty so the
+adoption actually runs.
+
+One assertion could not be carried over and is replaced by a stronger, honest
+one: the old transports carried the load's `AbortSignal`, so the suite asserted a
+client switch aborted them mid-flight. **The deliverables read passes no abort
+signal at all.** The suite now asserts exactly that, and everything after it
+tests the only guard that remains — the `_calLoadRunCurrent(loadRun)` re-check
+after the await. That check is real and it holds, but "this tail cannot be
+cancelled" is now a documented property of the calendar load rather than an
+assumption.
+
+**Left open by this.**
+1. `scripts/linear-sync-reconcile.js` and `scripts/sample-linear-reconcile.js`
+   each hold their own copy of the same webhook URL. They are the 15-minute
+   convergence backbone named in point 2 above, they are server-side, and they
+   stop working on 2026-09-27 like everything else on this endpoint. They need
+   a native replacement or a decision to retire them — this PR deliberately did
+   not touch them, but the date applies to them too.
+2. The local-status freshness stamps (`_calLocalStatusAt`, `_calMarkLocalStatus`,
+   `_calIsLocalStatusFresh`, `_calIsRowRecentlyTouched`, `CAL_LOCAL_STATUS_GRACE_MS`)
+   lost their only readers with the reconcile. The writers still run, from
+   fragments 170 and 190, so what remains is a write-only map. Sweeping it is
+   AFTER-STEP-7 work, not this PR's.
+3. Banner meta is now whatever the last successful fetch persisted, per browser,
+   under a 7-day TTL. `_calLinearMissingForCard` fails open on a missing entry
+   (no banner rather than a wrong one), and both lanes being SyncView-
+   authoritative already sealed every slot out of these banners, so the visible
+   effect today is none. If a lane is ever rolled back to Linear authority the
+   banner will be empty rather than wrong, and would need a native meta source.
+
+## 237. [measured 2026-09-22] What actually still takes the legacy Linear transport: cards without a native address, not unenrolled clients
+
+**Why this was measured.** Entry 235 stopped B1-4's second half because the
+legacy Calendar dispatch is still reachable, and the prevailing theory was that
+some clients had never been enrolled on the reroute roster. That theory is
+wrong. This entry records the measurement so nobody re-derives it.
+
+**The roster is fully enrolled.** `_writeUiPrimeRerouteFlag`
+(`120-calendar-flags-write-repair.js.part:255`) reads
+`syncview_runtime_flags`, row key `write_ui_reroute_clients`, field
+`value.clients`. Read live on 2026-09-22 it holds **43 slugs**, and the
+`clients` table holds **43 active rows**. They match one for one, with no
+ghosts and no inactive entries. So the unenrolled-client door contributes
+**zero** writes, and enrollment is not a fix for anything here. It is also a
+data change (one JSON array), not a code change, should it ever be needed.
+
+**The real door is card-shaped.** It is
+`(_isClientLink && !clientGatewaySurface)` at
+`140-calendar-legacy-outbox.js.part:2289`. `clientGatewaySurface` comes from
+`_prodClientCommentGatewayContext` (`230:1568`), which returns null — meaning
+"go legacy" — when a card has no deliverable id, i.e. no native address.
+
+Measured across the Calendar's 12,618 cards:
+
+| Population | Slots |
+|---|---|
+| Slots carrying a deliverable id (native address) | 1,601 |
+| Slots carrying a legacy Linear URL and NO deliverable id | 4,880 (2,734 video, 2,146 graphic) |
+| Of those, touched in the last 30 days | 1,443 |
+| Of that, the test client alone | 1,230 |
+| **Live client-facing exposure, 30 days** | **~213, across 18 slugs** |
+
+The headline 4,880 is misleading and should not be quoted on its own. Most of
+it is dormant or the test client. Two of the 18 remaining slugs are internal
+rather than external clients.
+
+**Staff are not in this population.** Staff are enrolled, so their writes reach
+the gateway and are refused out loud with `native_link_required` rather than
+silently rerouted.
+
+**Door three is a stale repair, not a route.** `canonicalUnlinkedAdd` fires only
+on a proven crosswalk mismatch (`_prodCommentAddRoutesLegacy`, `120:1210`) —
+not on unlinked, not on legacy-retained, not on lookup error. Measured: **12
+mismatching slots out of 1,601**, across 5 clients, none touched since
+2026-08-26 and 10 of the 12 last touched in June. One has no Linear URL at all,
+so its legacy post is a no-op.
+
+**The fact that de-escalates all of this.** On the client comment path
+(`190-calendar-approval-comments.js.part:987`) the comment is written to the
+card and the Linear send is deferred until the source save completes
+(`deferLegacyUntilSourceSave: true`). The comment's home is the card, not
+Linear. So after the 2026-09-27 revoke, a client comment on a legacy-URL card
+**still lands**; only the outbound copy to a retiring system fails. This is not
+silent data loss, and no card migration is needed before the revoke.
+
+**Still to confirm, and it would change the priority if it came back the other
+way.** The same storage claim has been verified only on the client path. The
+other two callers of `_calPostLinearComment` —
+`290-samples-writes-review.js.part:523` and
+`330-kasper-review-history.js.part:1859` — have not been checked. If either
+relays without storing natively first, that IS data loss after the revoke.
+
+**What remains after the revoke** is the retry outbox accumulating entries that
+can never send, because the drain retries the same dead route. Clutter, not
+loss, but it wants a decision before the date.
+
+**Method note.** n8n execution history could not be used as evidence: the
+execution store retains **zero** runs for both the legacy comment and legacy
+status webhooks, so no per-request log exists to count. Everything above comes
+from the roster table, the clients table and the calendar's own rows. No n8n
+workflow was read into or written from this measurement.
+
+**Identities.** The affected client slugs were reported to the owner in chat and
+are deliberately NOT recorded here; this repo is public and the identity gate
+fails on any slug a change adds. Refer to the counts above.

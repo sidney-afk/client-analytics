@@ -27989,3 +27989,79 @@ assumption.
    authoritative already sealed every slot out of these banners, so the visible
    effect today is none. If a lane is ever rolled back to Linear authority the
    banner will be empty rather than wrong, and would need a native meta source.
+
+## 237. [measured 2026-09-22] What actually still takes the legacy Linear transport: cards without a native address, not unenrolled clients
+
+**Why this was measured.** Entry 235 stopped B1-4's second half because the
+legacy Calendar dispatch is still reachable, and the prevailing theory was that
+some clients had never been enrolled on the reroute roster. That theory is
+wrong. This entry records the measurement so nobody re-derives it.
+
+**The roster is fully enrolled.** `_writeUiPrimeRerouteFlag`
+(`120-calendar-flags-write-repair.js.part:255`) reads
+`syncview_runtime_flags`, row key `write_ui_reroute_clients`, field
+`value.clients`. Read live on 2026-09-22 it holds **43 slugs**, and the
+`clients` table holds **43 active rows**. They match one for one, with no
+ghosts and no inactive entries. So the unenrolled-client door contributes
+**zero** writes, and enrollment is not a fix for anything here. It is also a
+data change (one JSON array), not a code change, should it ever be needed.
+
+**The real door is card-shaped.** It is
+`(_isClientLink && !clientGatewaySurface)` at
+`140-calendar-legacy-outbox.js.part:2289`. `clientGatewaySurface` comes from
+`_prodClientCommentGatewayContext` (`230:1568`), which returns null — meaning
+"go legacy" — when a card has no deliverable id, i.e. no native address.
+
+Measured across the Calendar's 12,618 cards:
+
+| Population | Slots |
+|---|---|
+| Slots carrying a deliverable id (native address) | 1,601 |
+| Slots carrying a legacy Linear URL and NO deliverable id | 4,880 (2,734 video, 2,146 graphic) |
+| Of those, touched in the last 30 days | 1,443 |
+| Of that, the test client alone | 1,230 |
+| **Live client-facing exposure, 30 days** | **~213, across 18 slugs** |
+
+The headline 4,880 is misleading and should not be quoted on its own. Most of
+it is dormant or the test client. Two of the 18 remaining slugs are internal
+rather than external clients.
+
+**Staff are not in this population.** Staff are enrolled, so their writes reach
+the gateway and are refused out loud with `native_link_required` rather than
+silently rerouted.
+
+**Door three is a stale repair, not a route.** `canonicalUnlinkedAdd` fires only
+on a proven crosswalk mismatch (`_prodCommentAddRoutesLegacy`, `120:1210`) —
+not on unlinked, not on legacy-retained, not on lookup error. Measured: **12
+mismatching slots out of 1,601**, across 5 clients, none touched since
+2026-08-26 and 10 of the 12 last touched in June. One has no Linear URL at all,
+so its legacy post is a no-op.
+
+**The fact that de-escalates all of this.** On the client comment path
+(`190-calendar-approval-comments.js.part:987`) the comment is written to the
+card and the Linear send is deferred until the source save completes
+(`deferLegacyUntilSourceSave: true`). The comment's home is the card, not
+Linear. So after the 2026-09-27 revoke, a client comment on a legacy-URL card
+**still lands**; only the outbound copy to a retiring system fails. This is not
+silent data loss, and no card migration is needed before the revoke.
+
+**Still to confirm, and it would change the priority if it came back the other
+way.** The same storage claim has been verified only on the client path. The
+other two callers of `_calPostLinearComment` —
+`290-samples-writes-review.js.part:523` and
+`330-kasper-review-history.js.part:1859` — have not been checked. If either
+relays without storing natively first, that IS data loss after the revoke.
+
+**What remains after the revoke** is the retry outbox accumulating entries that
+can never send, because the drain retries the same dead route. Clutter, not
+loss, but it wants a decision before the date.
+
+**Method note.** n8n execution history could not be used as evidence: the
+execution store retains **zero** runs for both the legacy comment and legacy
+status webhooks, so no per-request log exists to count. Everything above comes
+from the roster table, the clients table and the calendar's own rows. No n8n
+workflow was read into or written from this measurement.
+
+**Identities.** The affected client slugs were reported to the owner in chat and
+are deliberately NOT recorded here; this repo is public and the identity gate
+fails on any slug a change adds. Refer to the counts above.

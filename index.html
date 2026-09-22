@@ -24649,7 +24649,12 @@
     const KASPER_QUEUE_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/kasper-queue';
     const LINEAR_SUBISSUES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-subissues';
     const LINEAR_SET_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-set-status';
-    const LINEAR_STATUSES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issue-statuses';
+    /* linear-issue-statuses (LINEAR_STATUSES_URL) was removed 2026-09-22: the
+       webhook is revoked on 2026-09-27 and its two front-end callers are gone.
+       See OPEN_REPAIRS 236. The other reader endpoints on this row stay as they
+       are -- A2 defers them to AFTER-STEP-7 and only this one was pulled
+       forward. The server-side reconcilers in scripts/ still hold their own
+       copy of this URL and are tracked separately. */
     const LINEAR_ADD_COMMENT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-add-comment';
     const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
@@ -36701,15 +36706,14 @@
        tick — so an idle open tab costs nothing on n8n. */
     const CAL_LINEAR_META_LS_KEY = 'syncview_calLinearMeta_v2';
     const CAL_LINEAR_META_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-    const CAL_LINEAR_META_FORCE_MIN_MS = 5 * 60 * 1000; // cap Linear force-fetches to once / 5 min
     let _calLinearMetaHydrated = false;
-    // Throttle for the Linear-meta fetch (project/due/editor via the
-    // linear-issue-statuses webhook, the single source for the banner). Disabled
-    // for the session if that webhook doesn't return a `meta` field (older
-    // backend), so it can't add ongoing n8n load before the backend ships.
-    let _calLinearStatusMetaAt = 0;
-    let _calLinearStatusMetaSig = '';
-    let _calStatusMetaUnsupported = false;
+    /* The force-fetch throttle (CAL_LINEAR_META_FORCE_MIN_MS), the ident-set
+       signature (_calLinearStatusMetaSig / _calLinearStatusMetaAt) and the
+       unsupported-backend latch (_calStatusMetaUnsupported) were removed with
+       the linear-issue-statuses fetch itself on 2026-09-22 -- there is no
+       longer a Linear request to throttle or to switch off. The persisted
+       copy above (LS key + TTL) is what the banners read now.
+       See OPEN_REPAIRS 236. */
     function _calHydrateLinearMeta() {
         if (_calLinearMetaHydrated) return;
         const authority = _writeUiAuthoritySnapshot();
@@ -36907,102 +36911,27 @@
         }
         return adopted;
     }
+    /* Banner metadata (Linear project / due date / editor + sub-vs-parent) used
+       to be re-fetched from the `linear-issue-statuses` n8n webhook on every
+       foreground and tab-return calendar load. That webhook is revoked on
+       2026-09-27, so the fetch is gone -- see OPEN_REPAIRS 236 for the
+       measurement and the three-part dependency proof behind the removal.
+
+       What remains is the PERSISTED copy: the banners keep rendering from
+       whatever the last successful fetch wrote to localStorage, and
+       `_calLinearMissingForCard` already fails OPEN for an ident it holds no
+       meta for (`if (!meta) continue;`), so a card with no persisted entry
+       shows no completeness banner rather than a wrong one. Both production
+       lanes are SyncView-authoritative today, which already seals every slot
+       out of these banners (`_writeUiLinkSlotSealed`, OPEN_REPAIRS 62) -- the
+       fetch was answering questions whose answers were discarded.
+
+       `force` is kept in the signature so the two call sites stay legible and
+       a future NATIVE meta source can reuse the foreground/return distinction
+       without re-plumbing them. */
     async function _calRefreshParentLinkFlags(loadRun, force) {
         if (!_calLoadRunCurrent(loadRun)) return;
         _calHydrateLinearMeta();
-        if (!_calLoadRunCurrent(loadRun)) return;
-        // Urgent editor assignee lookup, Linear-exit slice: every consumer of
-        // this batch's result (_calLinearMissingForCard for the "incomplete
-        // sub-issue" banner, _calIsParentLinked for the "parent linked"
-        // banner) already discards a SEALED component's ident -- see
-        // OPEN_REPAIRS 62 and test/cal-linear-missing-banner-seal.js. Once a
-        // team is SyncView-authoritative, asking Linear for that ident's
-        // project/due/editor meta is a real network call whose answer is
-        // GUARANTEED unused. Excluding it here is pure dependency reduction,
-        // not a behavior change: an ident is skipped only when
-        // _writeUiLinkSlotSealed already makes every reader of this map
-        // ignore it. Fails OPEN the same way the renderer does -- with no
-        // live authority read yet, _writeUiLinkSlotSealed answers false and
-        // the ident is still fetched, matching today's behavior exactly.
-        const idents = new Set();
-        for (const p of calState.posts || []) {
-            const v = _calIdentFromUrl(p && p.linear_issue_id);
-            const g = _calIdentFromUrl(p && p.graphic_linear_issue_id);
-            if (v && !_writeUiLinkSlotSealed('video')) idents.add(v);
-            if (g && !_writeUiLinkSlotSealed('graphic')) idents.add(g);
-        }
-        if (!idents.size) return;
-        // Source the banner meta (project / due date / editor + sub-vs-parent)
-        // straight from Linear via the linear-issue-statuses webhook, for EVERY
-        // linked ident in one batched call. Single source of truth, so the banner
-        // is ACCURATE — the workload feed resolves a card's project via a client
-        // mapping, not the issue's own Linear project field, so it can't tell a
-        // genuinely project-less sub-issue from one that inherits a client — and
-        // CONSISTENT across in-progress and Approved/Posted cards (the feed
-        // excludes done issues entirely). Throttled by the ident-set signature +
-        // the 5-min window, persisted (instant on the next load), and disabled
-        // for the session if the webhook returns no `meta` (older backend). Idle
-        // and realtime reloads never reach here, so it adds no polling/idle n8n
-        // load. Meta-only: never reads or writes sub-statuses, so #471 holds.
-        if (_calStatusMetaUnsupported) return;
-        const all = Array.from(idents);
-        const sig = all.slice().sort().join(',');
-        if (!force && !(sig !== _calLinearStatusMetaSig || (Date.now() - _calLinearStatusMetaAt) > CAL_LINEAR_META_FORCE_MIN_MS)) return;
-        if (!_calLoadRunCurrent(loadRun)) return;
-        let j;
-        try {
-            const resp = await fetch(LINEAR_STATUSES_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ issues: all }),
-                signal: loadRun.controller ? loadRun.controller.signal : undefined
-            });
-            if (!_calLoadRunCurrent(loadRun)) return;
-            j = await resp.json();
-            if (!_calLoadRunCurrent(loadRun)) return;
-        } catch { return; }
-        if (!j || !j.meta || typeof j.meta !== 'object') {
-            if (_calLoadRunCurrent(loadRun)) _calStatusMetaUnsupported = true;
-            return;
-        }
-        if (!_calLoadRunCurrent(loadRun)) return;
-        _calLinearStatusMetaSig = sig;
-        _calLinearStatusMetaAt = Date.now();
-        let changed = false;
-        for (const id of all) {
-            if (!_calLoadRunCurrent(loadRun)) return;
-            const e = j.meta[id];
-            if (!e || typeof e !== 'object') continue;
-            if (e.isSubIssue) {
-                // hasProject: only flag "no project" when the backend EXPLICITLY
-                // reports the issue (and its parent) carry none. An older backend
-                // that doesn't return hasProject leaves it undefined → treat as
-                // present, so the project nudge stays off until the backend ships.
-                const next = { hasProject: e.hasProject !== false, hasDue: !!e.hasDue, hasEditor: !!e.hasEditor };
-                const prev = _calLinearMetaByIdent.get(id);
-                if (!prev || prev.hasProject !== next.hasProject || prev.hasDue !== next.hasDue || prev.hasEditor !== next.hasEditor) {
-                    _calLinearMetaByIdent.set(id, next);
-                    changed = true;
-                }
-                if (_calParentLinks.delete(id)) changed = true;
-            } else {
-                // Not a sub-issue (a parent/top-level link): drop any stale sub
-                // meta and flag the "parent issue linked" banner instead.
-                if (_calLinearMetaByIdent.delete(id)) changed = true;
-                if (!_calParentLinks.has(id)) { _calParentLinks.add(id); changed = true; }
-            }
-        }
-        // Persist the refreshed meta so the banner is instant + correct on the
-        // next load without re-fetching from Linear.
-        if (changed) {
-            if (!_calLoadRunCurrent(loadRun)) return;
-            _calPersistLinearMeta();
-        }
-        // Don't yank a caret mid-edit for a banner; the next render shows it.
-        if (changed && !_calIsCalBusy()) {
-            if (!_calLoadRunCurrent(loadRun)) return;
-            _calRenderBody({ preserveScroll: true });
-        }
     }
 
     /* Linear is the source of truth: when a sub-issue is freshly linked to a
@@ -37079,106 +37008,6 @@
         const t = Date.parse(post.updated_at);
         if (!isFinite(t)) return false;
         return (Date.now() - t) < CAL_LOCAL_STATUS_GRACE_MS;
-    }
-    /* On load, reconcile every already-linked card against Linear in one
-       batched call. Linear is the source of truth EXCEPT for components the
-       user just touched in this browser — those carry a freshness stamp and
-       are skipped so an in-flight Linear push doesn't get clobbered by a
-       still-stale read. */
-    async function _calReconcileLinearStatuses(loadRun) {
-        if (!_calLoadRunCurrent(loadRun)) return;
-        // v2: the backend Linear-status-sync workflow already pushes every
-        // Linear state change into Supabase, which reaches this tab over
-        // realtime. Pulling from Linear AGAIN on each foreground refresh is
-        // therefore redundant — and it's the cause of "I refresh and my
-        // video/graphic status jumps to whatever Linear says". Skip it under
-        // v2; v1 still relies on this pull as its only Linear→calendar path.
-        if (_calV2Ready()) return;
-        const linked = calState.posts.filter(p => p && (String(p.linear_issue_id || '').trim() || String(p.graphic_linear_issue_id || '').trim()));
-        if (!linked.length) return;
-        const urls = [];
-        linked.forEach(p => {
-            // Only links with a resolvable ABC-123 ident may enter the shared
-            // status batch — a UUID-form link poisons the whole batch (F139).
-            if (_calIdentFromUrl(p.linear_issue_id)) urls.push(p.linear_issue_id);
-            if (_calIdentFromUrl(p.graphic_linear_issue_id)) urls.push(p.graphic_linear_issue_id);
-        });
-        if (!_calLoadRunCurrent(loadRun)) return;
-        let statuses;
-        try {
-            const resp = await fetch(LINEAR_STATUSES_URL, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ issues: urls }),
-                signal: loadRun.controller ? loadRun.controller.signal : undefined
-            });
-            if (!_calLoadRunCurrent(loadRun)) return;
-            const json = await resp.json();
-            if (!_calLoadRunCurrent(loadRun)) return;
-            if (!json.ok || !json.statuses) return;
-            statuses = json.statuses;
-        } catch (e) { return; }
-        let changed = 0;
-        for (const post of linked) {
-            if (!_calLoadRunCurrent(loadRun)) return;
-            // Reconcile never joins or appends to a user-owned save bucket.
-            // _calFlushCardSave waits and recursively re-enters before pinning
-            // its destination slug when a save is already active; carrying a
-            // reconcile edit through that wait could otherwise capture a client
-            // selected later. A later owned load can safely reconcile the row.
-            if (_calSaveInFlight[post.id] || _calPendingEdits[post.id]) continue;
-            const vIdent = _calIdentFromUrl(post.linear_issue_id);
-            const gIdent = _calIdentFromUrl(post.graphic_linear_issue_id);
-            let touched = false;
-            const rowFresh = _calIsRowRecentlyTouched(post);
-            if (vIdent && !rowFresh && !_calIsLocalStatusFresh(post.id, 'video')) {
-                const linState = statuses[vIdent];
-                const mapped = (linState !== undefined) ? _calMapLinearStatusStrict(linState) : null;
-                if (mapped && _calNormStatus(post.video_status || '') !== mapped
-                    && !(post.video_status === 'Posted' && mapped !== 'Posted')) {
-                    if (!_calLoadRunCurrent(loadRun)) return;
-                    post.video_status = mapped;
-                    if (!_calPendingEdits[post.id]) _calPendingEdits[post.id] = {};
-                    _calPendingEdits[post.id].video_status = mapped;
-                    if (!_calLoadRunCurrent(loadRun)) return;
-                    _calNoLinearPush.add(post.id + '|video');
-                    touched = true;
-                }
-            }
-            if (gIdent && !rowFresh && !_calIsLocalStatusFresh(post.id, 'graphic')) {
-                const linState = statuses[gIdent];
-                const mapped = (linState !== undefined) ? _calMapLinearStatusStrict(linState) : null;
-                if (mapped && _calNormStatus(post.graphic_status || '') !== mapped
-                    && !(post.graphic_status === 'Posted' && mapped !== 'Posted')) {
-                    if (!_calLoadRunCurrent(loadRun)) return;
-                    post.graphic_status = mapped;
-                    if (!_calPendingEdits[post.id]) _calPendingEdits[post.id] = {};
-                    _calPendingEdits[post.id].graphic_status = mapped;
-                    if (!_calLoadRunCurrent(loadRun)) return;
-                    _calNoLinearPush.add(post.id + '|graphic');
-                    touched = true;
-                }
-            }
-            if (touched) {
-                if (!_calLoadRunCurrent(loadRun)) return;
-                const overall = computeOverallStatus(post);
-                if (post.status !== overall) {
-                    post.status = overall;
-                    _calPendingEdits[post.id].status = overall;
-                }
-                // Linear regressed a sub below Client Approval → drop the
-                // stale client-approval stamp(s) so audit history matches.
-                _calClearStaleApprovals(post, _calPendingEdits[post.id]);
-                if (!_calLoadRunCurrent(loadRun)) return;
-                _calNoLinearPush.add(post.id);
-                if (!_calLoadRunCurrent(loadRun)) return;
-                _calFlushCardSave(post.id);
-                changed++;
-            }
-        }
-        if (changed) {
-            if (!_calLoadRunCurrent(loadRun)) return;
-            _calRenderBody({ preserveScroll: true });
-        }
     }
 
     function openCalLinearImport() {
@@ -39231,12 +39060,15 @@
         if (_calLoadRunCurrent(loadRun) && ok) {
             try {
                 const ownedTailTasks = [];
-                // Linear-status reconcile is a catch-up for whatever drifted
-                // while the page was closed; on background polls (focus return,
-                // 30 s tick) we already trust the sheet, and a stale Linear read
-                // would clobber a fresh client approval. Skip reconcile then.
+                // The browser-side Linear-status reconcile was removed with the
+                // `linear-issue-statuses` webhook (OPEN_REPAIRS 236). It was
+                // already unreachable under v2 (the default since 2026-06-14),
+                // convergence is owned by the 15-minute server-side reconciler
+                // (.github/workflows/linear-sync-reconcile.yml), and on a
+                // `?v2=0` browser it could overwrite a correct native status
+                // with a stale Linear one -- both lanes are SyncView-
+                // authoritative, so Linear is not the source of truth.
                 if (!opts.background) {
-                    ownedTailTasks.push(_calReconcileLinearStatuses(loadRun));
                     ownedTailTasks.push(_calRefreshParentLinkFlags(loadRun, false));
                 } else if (opts.forceMeta) {
                     // Return/BFCache refresh: the meta request is part of this

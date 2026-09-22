@@ -27829,3 +27829,64 @@ Removing the Linear status leg alone would take that to roughly 65k. A 50k plan
 does not fit at current volume without further cuts; a 30k plan is not close.
 Both figures are extrapolated from one retained week and want a second week's
 confirmation before anyone changes a subscription.
+
+## 234. [open 2026-09-22, designed not built] Renaming a card should rename its sub-issue, and a sub-issue cannot be renamed at all
+
+**What the owner asked for.** Today a card's name and its linked sub-issue's
+title drift apart, and SyncLinear offers no way to rename a sub-issue. Both
+should be possible. Forward-only, explicitly **no backfill** — existing
+mismatches stay as they are. The owner's standing rule for this feature: keep
+it loose. A failed propagation must never block or roll back a rename, and the
+two names are **not** required to agree.
+
+**Why a free-text rename is not safe.** The title is data, not decoration.
+`production-write/policy.mjs:1461-1463` works out the next ordinal by parsing
+the existing titles with `intakeTitleParts`. A title renamed out of format
+parses as null, contributes 0 to `maxOrdinal`, and the next append **reissues a
+number already in use**. The v8 comment on those lines says exactly this. The
+replay path is affected too: `policy.mjs:1478` throws `intake_id_conflict` when
+a prior row's ordinal cannot be parsed, and
+`migrations/2026-09-07-production-intake-append-v8.sql:404` compares the row's
+**full title** on replay, so renaming inside the window between a save and its
+retry makes the retry fail.
+
+**The agreed design.** Edit the **name part only**. The `Video N` prefix and
+ordinal are preserved and the title is recomposed, so every consumer above keeps
+working. A title that is not in our format already (`intakeTitleParts` returns
+null, i.e. an old human-written title) has no ordinal to protect and gets a plain
+free-text rename. Flexible where it is safe to be, strict only where the number
+lives.
+
+**The cost, corrected.** An earlier read of this held that `deliverable-write`
+already implements `operation: "title"` and is deployed, so no Edge Function
+change was needed. That is wrong in the part that matters:
+`_shared/b4-write.ts:298-303` refuses any non-service-role caller with
+`403 gateway_required`, and the comment there directs browsers to
+`production-write`. So the browser cannot reach the existing title operation,
+and **this feature requires a gated Section 4 deploy** with the sealed-bundle
+ceremony. That is the real price and it does not change with time.
+
+**Open question nobody had.** `160-calendar-organize-ui.js.part:2490-2495`
+already lets client-Collab users rename a card. So "someone renames a card"
+includes clients, whose sessions have no authority to write a deliverable title.
+Either propagation fires only on staff renames (partial coverage, and the owner
+should be told which), or client-origin propagation needs its own narrow
+authorization. Decide before building, not during.
+
+**Also unresolved.** The browser reads deliverables straight from PostgREST
+(`/rest/v1/deliverables?select=`, three call sites), not through an Edge
+Function, so there is no server in that read path to hand the browser a
+pre-split prefix and name. The choice is a shared splitter/composer used by both
+sides, or a second copy in the browser guarded by a test that fails on drift.
+Note the grammar already exists in a third place — the append SQL — so a
+browser-versus-policy test alone does not cover it.
+
+**Two legacy consumers expire on their own.**
+`150-calendar-hydration-import.js.part:563-572` and `:884-900` pair and match by
+title text. Both are Linear-era import paths, so the Linear exit removes them
+and shrinks this feature's blast radius without anyone touching it.
+`220-production-attribution-views.js.part:1138-1140` sorts children by title, so
+a rename can move a row — cosmetic, but it should not jump while the user is
+looking at it.
+
+**Status.** Designed, verified against source, not built. No branch, no PR.

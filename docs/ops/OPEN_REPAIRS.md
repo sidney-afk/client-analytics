@@ -27890,3 +27890,67 @@ a rename can move a row — cosmetic, but it should not jump while the user is
 looking at it.
 
 **Status.** Designed, verified against source, not built. No branch, no PR.
+
+---
+
+## 235. [2026-09-22, half done] B1-4: Linear-authority parity retries are gone; the legacy Calendar dispatch is NOT, and should not be deleted on the current evidence
+
+**Done, shipped.** `_writeUiGatewayPost` (fragment 120) no longer derives
+legacy parity from `authority[intent.team] === 'linear'`, and both
+Linear-authority retry legs are deleted — the `legacy_parity_not_allowed`
+rebuild-without-parity leg and the
+`legacy_parity_required` / `team_is_linear_authoritative`
+rebuild-with-parity leg. Parity is now only the explicit legacy-queue drain
+(`intent.legacyOnly`). No team can be Linear-authoritative, the owner has
+ruled that SyncView is not going back to Linear, and the key is revoked
+2026-09-27, so the rollback these legs served is retired by decision.
+`test/write-ui-writer-durability.js` asserted the retired leg byte for byte;
+it now asserts the replacement — a terminal pre-commit refusal, one
+transport attempt, no parity claim on a native intent. Page shrank
+5764261 -> 5763265 bytes.
+
+**Stopped, deliberately.** The second half — deleting
+`_calLegacyPushStatusToLinear` / `_calLegacyPostLinearComment` (fragment
+140) with the 170 call site — is NOT a dead-code deletion, and the audit row
+says so itself: "no whole-function deletion while callers remain."
+
+Every caller that remains is the client-context fallback, which A2 names an
+ACCEPTANCE BLOCKER rather than evidence of deadness:
+
+- `_calPushStatusToLinear` falls through to the legacy pipe when
+  `_writeUiUseGatewayWhenReady('calendar', meta)` is false.
+  `_writeUiRerouteUseGatewayFailClosed` returns false only when the roster
+  read SUCCEEDED and that client slug is genuinely not enrolled — a real,
+  current, client-dependent route, not a stale flag.
+- The fragment-170 site is that same route's completion: it drains
+  `deferredLegacyStatusPushes`, which only exist because the
+  gateway-not-ready branch deferred them until the source save landed.
+- `_calPostLinearComment` falls through on the same signal plus
+  `_isClientLink && !clientGatewaySurface` (a client tab that cannot build a
+  verified context) and `canonicalUnlinkedAdd`.
+
+The task's own measurement agrees: ~1.3% of real calendar writes went
+through the legacy lane in the last 24h measured. These pipes are carrying
+live traffic.
+
+**Why the bookkeeping cannot simply be lifted out.** The debt preservation
+IS inside the pipe: `_linearOutboxEnqueue` sits in the catch of each
+transport, so a write only becomes visible debt when delivery fails.
+Deleting the transport and keeping the enqueue would convert those writes
+from "delivered, debt only on failure" to "debt unconditionally" — a
+delivery regression on a reachable lane for the five days the key is still
+live, and after the 27th the outbox drain reads the same revoked key, so
+whether that debt is ever drained is an open question. Deleting the call
+sites instead removes the client-context fallback, which is the explicit
+stop.
+
+**What the owner has to decide before this can be built.** For a client not
+on the reroute roster, and for a client tab with no verified context, what
+should a Calendar status change and comment DO after 2026-09-27 — enroll
+every such client on the roster first and then delete the pipes as truly
+unreachable (cleanest), record unconditional debt, or refuse the write
+visibly? The first option makes B1-4's second half a genuine dead-code
+deletion instead of a behaviour change, and is the recommendation.
+
+**Status.** Half shipped. Second half blocked on the decision above, not on
+effort.

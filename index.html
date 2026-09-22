@@ -15019,10 +15019,22 @@
         const url = CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select='
             + encodeURIComponent(WL_ARCHIVE_MARKER_SELECT)
             + '&or=(status.eq.archived,raw_issue_archived_at.not.is.null,raw_webhook_delete.is.true,raw_deleted.is.true,raw_delete.is.true,raw_removed.is.true,raw_archived.is.true)'
-            + '&order=id.asc&limit=' + pageSize;
-        // One small marker-only read replaces the former id=in.(...) burst. Keep
-        // it bounded so an overloaded/half-open connection still reaches the
-        // caller's fail-open catch instead of delaying a cold Workload load.
+            + '&order=id.asc';
+        /* One small marker-only read replaces the former id=in.(...) burst. Keep
+           it bounded so an overloaded/half-open connection still reaches the
+           caller's fail-open catch instead of delaying a cold Workload load.
+
+           PAGING IS THE `Range` HEADER ALONE -- NEVER `Range` PLUS `&limit=`.
+           Measured live against this view on 2026-09-22: with `limit=1000` also
+           in the URL, page one (`Range: 0-999`) answers normally and page two
+           (`Range: 1000-1999`) answers
+           `PGRST103 "Requested range not satisfiable"`, which the !response.ok
+           throw below turns into a whole-board fail-open. Range alone pages
+           correctly, answers `content-range: 0-277/*` for today's 278 marker
+           rows, and returns `200 []` past the end, so the loop terminates on
+           the short-page break either way. The bug is invisible while the
+           marker set fits one page, which is exactly why it is pinned in
+           test/workload-archived-hidden.js. */
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), WL_PLAN_READ_TIMEOUT_MS);
         const out = [];

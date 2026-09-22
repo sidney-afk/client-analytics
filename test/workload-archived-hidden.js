@@ -224,6 +224,16 @@ async function runAsyncChecks() {
     ok(harness.calls[0].options.headers.Range === '0-999'
       && harness.calls[1].options.headers.Range === '1000-1999',
     'marker pagination advances with Range headers');
+    /* AND THE URL CARRIES NO `limit`. Measured against the live view on
+       2026-09-22: `limit=1000` in the URL alongside these Range headers makes
+       page one answer normally and page TWO answer `PGRST103 "Requested range
+       not satisfiable"` -- which _wlFetchArchiveMarkerRows turns into a throw
+       and _wlArchivedNativeIds turns into an unfiltered board. Range alone
+       pages correctly. Unreachable while the marker set fits one page (278 of
+       6,688 rows today), so nothing but this assertion would catch it coming
+       back. */
+    ok(harness.calls.every(call => !/[?&]limit=/.test(call.url)),
+      'the marker read pages on Range alone; a `limit` parameter would make page two PGRST103 and fail the board open');
   }
 
   {

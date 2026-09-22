@@ -2689,11 +2689,46 @@
     let _linearOutboxFlushTimer = null;
     let _linearOutboxFlushPromise = null;
     let _linearOutboxFlushOwnerKey = '';
+    /* RETIRED LEGACY DEBT (OPEN_REPAIRS 239). A `legacy_n8n` row is a queued
+       POST to `linear-set-status` / `linear-add-comment`. Both webhooks are
+       revoked, nothing enqueues the transport any more, and no attempt could
+       ever succeed -- so the row is not debt, it is residue.
+
+       Dropped at the READ, not in the drain, because every consumer has to
+       agree at once: the drain, the deferred-tweak inspection that decides
+       whether a client retry is still `active`, the committed-tweak ledger
+       matcher, the resume loop's owned-debt test, the pagehide diagnostic and
+       `peekWriteUiLegacyQueueState`. Filtering in one of those and not the
+       rest is how a cleared queue still reports a count.
+
+       It FILTERS and does not itself write. Compacting here was the obvious
+       next step and is wrong: a read happens outside the outbox lock, so
+       writing the filtered array back would clobber a record another tab
+       staged between this read and that write -- losing a source gate, which
+       is a live record, to tidy away a dead one. The retired rows leave
+       storage on the first drain instead, whose finalize writes the retained
+       set under the lock and excludes them because they never entered its
+       snapshot. Until then they sit in localStorage where nothing can see,
+       count or send them.
+
+       Quiet on purpose: not quarantined (a quarantine row is for a write an
+       operator must still decide about, and this one has nothing left to
+       decide) and not surfaced (no reader of this queue renders anything --
+       measured 2026-09-22 against a page with both webhooks answering 500).
+       Source-gate records (`source_only`) never touched the network and are
+       untouched here. */
+    function _writeUiLegacyRetiredRow(item) {
+        return !!item && item.transport === 'legacy_n8n';
+    }
+    function _writeUiLegacyWithoutRetired(rows) {
+        const items = Array.isArray(rows) ? rows : [];
+        return items.filter(item => !_writeUiLegacyRetiredRow(item));
+    }
     function _linearOutboxRead() {
         try {
             const raw = localStorage.getItem(LINEAR_OUTBOX_KEY);
             const arr = raw ? JSON.parse(raw) : [];
-            return Array.isArray(arr) ? arr : [];
+            return _writeUiLegacyWithoutRetired(Array.isArray(arr) ? arr : []);
         } catch { return []; }
     }
     function _linearOutboxWrite(arr) {
@@ -2704,43 +2739,10 @@
             return true;
         } catch { return false; }
     }
-    async function _linearOutboxEnqueue(kind, payload, errMsg, clientSlug, options) {
-        const record = {
-            id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('lob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
-            kind: kind,
-            payload: payload,
-            attempts: 0,
-            lastError: errMsg || '',
-            lastAttempt: 0,
-            queuedAt: Date.now(),
-            transport: 'legacy_n8n',
-            // A CLIENT-originated item must carry its principal across the
-            // retry boundary. The drain re-derives the lane from enrollment
-            // (_writeUiRerouteUseGateway) and would quarantine an enrolled
-            // slug's gate-less item as 'legacy_actor_unverifiable' — but a
-            // client comment is deliberately routed legacy REGARDLESS of
-            // enrollment (see _calPostLinearComment), so the drain must be
-            // able to recognize it. Stamped here, once, so every enqueue
-            // site a client can reach is covered.
-            client_link: _isClientLink === true,
-            // The same argument as client_link, for the other traffic the add
-            // lane deliberately routes legacy on an ENROLLED slug: a comment on
-            // a slot whose crosswalk is broken. Without the stamp the drain
-            // re-derives the lane from enrollment, sees an enrolled staff item
-            // with no gate, and files it under `legacy_actor_unverifiable` --
-            // "the principal cannot be verified", which is not what happened:
-            // this item was routed legacy on purpose, one action ago, by the
-            // person still sitting there. The quarantine's security property is
-            // untouched (it exists to stop enrolled writes SNEAKING down the
-            // legacy lane, and this one was sent down it by rule), and post-flip
-            // the admitted item still meets the flipped-team quarantine a line
-            // later, so this changes the REASON recorded and no delivery.
-            ...(options && options.canonicalUnlinked ? { canonical_unlinked: true } : {}),
-            client_slug: String(clientSlug || '')
-        };
-        await _writeUiLegacyAppendOutboxItem('calendar', record);
-        _linearOutboxScheduleRetry();
-        return true;
-    }
+    /* `_linearOutboxEnqueue` is retired (OPEN_REPAIRS 239). It existed only
+       inside the catch of the two legacy Calendar senders, so it went with
+       them: a retry against a route that no longer has a destination is debt
+       nothing can ever pay. Source-only gate records, which never touch the
+       network, still queue through `_writeUiLegacyAppendOutboxItem`. */
     const WRITE_UI_LEGACY_SOURCE_GATE_PENDING_MS = 15 * 60 * 1000;
     const WRITE_UI_LEGACY_COMMITTED_TWEAK_KEY = 'syncview_write_ui_legacy_committed_tweaks_v1';

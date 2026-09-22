@@ -154,17 +154,21 @@ ok(!/CAL_COMP_ASSET_FIELD|_calCompMissingAsset/.test(source),
 'the asset-sniffing helpers are gone entirely, not just unused');
 
 // --- 8. N/A must never be pushed to Linear --------------------------------
-// This is the retry-storm guard. Assert on the extracted function body so a
-// refactor that drops the early return fails here rather than in production.
-const legacyPush = extract('_calLegacyPushStatusToLinear');
-ok(/if \(st\.toUpperCase\(\) === 'N\/A'\) return;/.test(legacyPush),
-'the legacy Linear push returns early on N/A instead of queueing a doomed retry');
+/* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). This asserted that
+   `_calLegacyPushStatusToLinear` returned early on N/A, before its fetch, so a
+   status Linear has no equivalent of could not get ok:false back from
+   linear-set-status and burn the retry budget. That function and its retry
+   queue are retired, so the guard it pinned no longer exists -- and cannot,
+   because there is no send to guard.
 
-// Prove the guard sits BEFORE the fetch, not after it.
-const naIdx = legacyPush.indexOf("'N/A'");
-const fetchIdx = legacyPush.indexOf('fetch(');
-ok(naIdx >= 0 && fetchIdx >= 0 && naIdx < fetchIdx,
-'the N/A guard precedes the network call');
+   The property the old assertion protected is now structural rather than
+   conditional, so this pins the structure: no legacy sender, and no reference
+   anywhere in the page to the webhook that would have refused N/A. Point 2
+   below still carries the live half of N/A's behaviour. */
+ok(!/function _calLegacyPushStatusToLinear\(|function _calLegacyPostLinearComment\(/.test(source),
+'the legacy Linear senders are gone, so no status can queue a doomed retry');
+ok(!/LINEAR_SET_STATUS_URL\s*=|LINEAR_ADD_COMMENT_URL\s*=/.test(source),
+'the legacy status/comment endpoints are no longer defined in the page');
 
 // The gateway path reaches the same conclusion by mapping N/A to no native
 // status at all; if that ever started mapping, N/A would begin writing to

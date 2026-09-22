@@ -30,10 +30,15 @@ assert(shared.includes("intent.legacyOnly && authority[intent.team] !== 'linear'
 assert(shared.includes('payload.id = intent.nativeId'), 'native linkage must be preferred');
 
 const calendar = between('function _calPushStatusToLinear', 'function _calUrgentSameRound');
-const calendarLegacy = between('function _calLegacyPushStatusToLinear', 'function _calPushStatusToLinear');
 assert(calendar.includes("surface: 'calendar'"));
 assert(calendar.includes("await _writeUiUseGatewayWhenReady('calendar', meta)"), 'Calendar reroute awaits its client allowlist');
-assert(calendar.includes('_calLegacyPushStatusToLinear') && calendar.includes('_calLegacyPostLinearComment'), 'Calendar retains both legacy transports');
+/* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). "Retains both legacy transports"
+   was the point of the reroute work: reroute to the gateway WITHOUT losing the
+   n8n lane. The lane's destination is revoked, so the writers keep the reroute
+   and drop the fallback. Pinned as the retired answer instead. */
+assert(calendar.includes('legacy_transport_retired: true')
+  && !calendar.includes('_calLegacyPushStatusToLinear(')
+  && !calendar.includes('_calLegacyPostLinearComment('), 'Calendar answers the retired legacy lane without sending');
 assert(calendar.includes('_writeUiGatewayWithRepair({'));
 assert(calendar.includes('native_comment_id: nativeCommentId'));
 assert(calendar.includes('parent_id:'));
@@ -43,33 +48,33 @@ assert(calendar.includes('round:'));
 assert(calendar.includes('const targetKey = nativeId || url'), 'Calendar status accepts a native id without a Linear URL');
 assert(calendar.includes('return chain'), 'Calendar status exposes an awaitable gateway acknowledgement');
 assert(calendar.includes('if (!url && !nativeId)') && calendar.includes("_writeUiClassifyTargetless('calendar'"), 'Calendar comment accepts native id and live-classifies every targetless write');
-assert(calendarLegacy.includes('fetch(LINEAR_SET_STATUS_URL') && calendarLegacy.includes('fetch(LINEAR_ADD_COMMENT_URL'), 'Calendar legacy lane keeps the original n8n endpoints');
+assert(!source.includes('fetch(LINEAR_SET_STATUS_URL') && !source.includes('fetch(LINEAR_ADD_COMMENT_URL'), 'no lane fetches the retired n8n write endpoints any more');
 
 const sxr = between('function _sxrPushStatusToLinear', '/* Point-adoption:');
-const sxrLegacy = between('function _sxrLegacyPushStatusToLinear', 'function _sxrPushStatusToLinear');
 assert(sxr.includes("surface: 'sxr'"));
 assert(sxr.includes("await _writeUiUseGatewayWhenReady('sxr', meta)"), 'SXR reroute awaits its client allowlist');
-assert(sxr.includes('_sxrLegacyPushStatusToLinear') && sxr.includes('_sxrLegacyPostLinearComment'), 'SXR retains both legacy transports');
+assert(sxr.includes('legacy_transport_retired: true')
+  && !sxr.includes('_sxrLegacyPushStatusToLinear(')
+  && !sxr.includes('_sxrLegacyPostLinearComment('), 'SXR answers the retired legacy lane without sending');
 assert(sxr.includes('_writeUiGatewayWithRepair({'));
 assert(sxr.includes('native_comment_id: nativeCommentId'));
 assert(sxr.includes('const targetKey = nativeId || url'), 'SXR status accepts a native id without a Linear URL');
 assert(sxr.includes('return chain'), 'SXR status exposes an awaitable gateway acknowledgement');
 assert(sxr.includes('if (!url && !nativeId)') && sxr.includes("_writeUiClassifyTargetless('sxr'"), 'SXR comment accepts native id and live-classifies every targetless write');
-assert(sxrLegacy.includes('fetch(LINEAR_SET_STATUS_URL') && sxrLegacy.includes('fetch(LINEAR_ADD_COMMENT_URL'), 'SXR legacy lane keeps the original n8n endpoints');
 
-const calEnqueue = between('function _linearOutboxEnqueue', 'function _writeUiLegacyQuarantine');
-const sxrEnqueue = between('function _sxrLinearOutboxEnqueue', 'function _sxrLinearOutboxScheduleRetry');
-assert(calEnqueue.includes("transport: 'legacy_n8n'")
-  && calEnqueue.includes("await _writeUiLegacyAppendOutboxItem('calendar', record)"),
-'Calendar identified n8n retries enter the cross-tab-safe legacy queue');
-assert(sxrEnqueue.includes("transport: 'legacy_n8n'")
-  && sxrEnqueue.includes("await _writeUiLegacyAppendOutboxItem('sxr', record)"),
-'SXR identified n8n retries enter the cross-tab-safe legacy queue');
+/* The two enqueues that put identified n8n retries on the cross-tab queue are
+   retired with the senders whose catch blocks were their only callers
+   (OPEN_REPAIRS 239): a retry against a revoked webhook is debt nothing can
+   pay. The cross-tab queue itself survives for source-gate records. */
+assert(!source.includes('function _linearOutboxEnqueue(')
+  && !source.includes('function _sxrLinearOutboxEnqueue('),
+'both Linear retry enqueues are retired');
 
 const calDrain = between('async function _linearOutboxFlushRun', 'window.clearLinearOutbox');
 const sxrDrain = between('async function _sxrLinearOutboxFlushRun', 'window.clearSxrLinearOutbox');
 for (const [name, drain] of [['Calendar', calDrain], ['SXR', sxrDrain]]) {
-  assert(drain.includes("transport === 'legacy_n8n'") && drain.includes('LINEAR_ADD_COMMENT_URL') && drain.includes('LINEAR_SET_STATUS_URL'), `${name} identified legacy rows retain direct n8n retry`);
+  assert(drain.includes("it.transport === 'legacy_n8n') continue;")
+    && !drain.includes('LINEAR_ADD_COMMENT_URL') && !drain.includes('LINEAR_SET_STATUS_URL'), `${name} drops retired legacy rows instead of retrying them against a revoked webhook`);
   assert(drain.includes("it.kind === 'comment' || it.kind === 'status'"), `${name} historical statuses and comments must both leave the active queue`);
   assert(drain.includes('native_comment_id'), `${name} queue must persist a stable comment id`);
   assert(drain.includes('legacy_actor_unverifiable'), `${name} must quarantine unverifiable historical attribution without replay`);
@@ -80,12 +85,17 @@ for (const [name, drain] of [['Calendar', calDrain], ['SXR', sxrDrain]]) {
     && drain.indexOf('_writeUiLegacyResumeOwnerCurrent(owner)', drain.indexOf('await _writeUiPrimeRerouteFlag()'))
       < drain.indexOf("_writeUiLegacyDrainWithLock('"),
   `${name} drain must recheck its exact lease after the routing read and before taking the delivery lock`);
-  const legacyPostAt = drain.indexOf('const resp = await fetch(endpoint');
+  /* Was "either POST transport": the legacy webhook POST and the gateway
+     resume post each had to recheck the lease immediately before sending. The
+     legacy POST is retired (OPEN_REPAIRS 239), so there is one transport left
+     and the rule applies to it alone. */
   const gatewayPostAt = drain.indexOf('await _writeUiGatewayPost({');
-  assert(drain.lastIndexOf('_writeUiLegacyResumeOwnerCurrent(owner)', legacyPostAt) < legacyPostAt
-    && drain.lastIndexOf('_writeUiLegacyResumeOwnerCurrent(owner)', legacyPostAt) > drain.lastIndexOf('try {', legacyPostAt)
-    && drain.lastIndexOf('_writeUiLegacyResumeOwnerCurrent(owner)', gatewayPostAt) < gatewayPostAt,
-  `${name} drain must recheck the exact lease immediately before either POST transport`);
+  assert(!drain.includes('const resp = await fetch(endpoint'),
+  `${name} drain has no legacy POST transport left to guard`);
+  assert(gatewayPostAt > 0
+    && drain.lastIndexOf('_writeUiLegacyResumeOwnerCurrent(owner)', gatewayPostAt) < gatewayPostAt
+    && drain.lastIndexOf('_writeUiLegacyResumeOwnerCurrent(owner)', gatewayPostAt) > drain.lastIndexOf('try {', gatewayPostAt),
+  `${name} drain must recheck the exact lease immediately before its remaining POST transport`);
   const finalizeAt = drain.indexOf('await _writeUiLegacyFinalizeFlush(');
   assert(finalizeAt >= 0
     && drain.includes('() => deliveryStarted || _writeUiLegacyResumeOwnerCurrent(owner)')

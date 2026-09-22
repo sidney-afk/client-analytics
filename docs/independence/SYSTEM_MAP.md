@@ -376,8 +376,10 @@ n8n in the metric read path.*
   `calendar-reorder-batch` → n8n `calendar-reorder`** (per-row, last resort). Status/comment legs are
   selected per client by `write_ui_reroute_clients`: enrolled clients call authenticated
   `production-write` once and await its durable acknowledgement before the Calendar row save;
-  non-enrolled clients retain the original `linear-set-status` / `linear-add-comment` request
-  shapes. Gateway recovery reads the linked `deliverables` row only to compare current native
+  non-enrolled clients took the original `linear-set-status` / `linear-add-comment` request
+  shapes until 2026-09-22, when both legs were retired from the app ahead of the endpoints'
+  2026-09-27 revoke (OPEN_REPAIRS 239): that route now saves the card and the source row and
+  sends nothing outbound. Gateway recovery reads the linked `deliverables` row only to compare current native
   status clocks and uses the authenticated receipt described in §9.2. `send-urgent-slack` (URGENT tweak ping) and `send-urgent-kasper-slack` (URGENT ping DMing Kasper about a card at Kasper Approval; feeds the Urgent section of his review tab), gated by the `kasper_urgent_ping_enabled` runtime flag which fails closed — off until the four `kasper_urgent_*` marker fields are live in the frozen writers). Caption AI: `generate-caption`,
   `caption-job-update`. `caption-prompts-save` (EF/n8n by settings flag). `thumbnail-folder-resolve`
   EF (Drive parent-folder link; skipped for client links) is currently anonymous (F79), and its
@@ -764,11 +766,13 @@ n8n in the metric read path.*
   Shared: SMM-directory CSV, client-token-verify EF, bounded ID-only
   `thumbnail-revision-read` availability checks, and exact-card protected comparison URLs.
 - **Writes.** `sample-review-upsert` (EF iff flagged, else n8n — **no EF→n8n fallback**),
-  `sample-review-reorder` (flagged EF failures are fail-closed; no auth downgrade to n8n). Linear legs (`linear-set-status`,
-  `linear-add-comment`), `send-urgent-slack`, `send-urgent-kasper-slack`, `thumbnail-folder-resolve` (all shared). URGENT marker
+  `sample-review-reorder` (flagged EF failures are fail-closed; no auth downgrade to n8n).
+  `send-urgent-slack`, `send-urgent-kasper-slack`, `thumbnail-folder-resolve` (all shared). URGENT marker
   → `sample-review-upsert` EF directly (bypasses the flag).
   For a client enrolled in the #850 reroute cohort, status/comments use authenticated
-  `production-write`; unlisted clients retain these exact legacy bridge request shapes.
+  `production-write`. The Linear legs (`linear-set-status`, `linear-add-comment`) that unlisted
+  clients fell back to were retired 2026-09-22 (OPEN_REPAIRS 239); that fallback now saves the
+  card and the source row and sends nothing outbound.
 - **Thumbnail refresh/comparison.** SXR shares Calendar's final Drive host, persisted server
   `thumb_rev`, realtime node advancement, private snapshot store, bounded history-availability
   projection, and exact-card protected Previous/Current dialog. Folder/media-less cards and cards
@@ -891,8 +895,9 @@ n8n in the metric read path.*
   `kasper-cal`, `kasper-sxr`,
   `client-credentials-rev-kasper`, plus shared flag channels.
 - **Writes.** Approvals/tweaks/comments/finish-close stamps via the shared calendar & sample upsert
-  fetches (flag-routed), field-level patches diffed against a per-card base. Linear `linear-set-
-  status` / `linear-add-comment` (tweaks only — plain comments skip Linear). `send-urgent-slack` / `send-urgent-kasper-slack` +
+  fetches (flag-routed), field-level patches diffed against a per-card base. The Linear tweak legs
+  (`linear-set-status` / `linear-add-comment`) were retired 2026-09-22 (OPEN_REPAIRS 239).
+  `send-urgent-slack` / `send-urgent-kasper-slack` +
   direct EF urgent markers (bypass flags). n8n `sales-intake-submit`. `client-credentials` EF
   (upsert/delete/reassign/bulk_import/log_reveal). Admin-only `pto` decisions, adjustments, and
   member start-date/enabled-state updates; candidate source adds lifecycle-bounded cancellation of
@@ -1126,9 +1131,10 @@ n8n in the metric read path.*
   the exclusive read gate is **`client-token-verify` EF**. Staff share actions obtain the current
   exact-client bearer token from the staff-only **`client-review-link` EF**; tokens no longer come
   from the Clients Info sheet. Current Calendar/Samples client
-  approvals/change-requests for non-enrolled clients still reach the legacy `linear-set-status` /
-  `linear-add-comment` bridges and browser-local retry queues; allowlisted #850 cohort clients use
-  the authenticated native gateway. The native route requires a valid protected token (F03/F33).
+  approvals/change-requests for non-enrolled clients no longer reach any Linear bridge: the
+  legacy `linear-set-status` / `linear-add-comment` legs and the browser-local Linear retry
+  queues were retired 2026-09-22 (OPEN_REPAIRS 239), and those writes now land on the card and
+  the source row alone. Allowlisted #850 cohort clients use the authenticated native gateway. The native route requires a valid protected token (F03/F33).
 - **State.** The per-surface caches/flags of whichever portal loads, plus sessionStorage
   `syncview_client_token_verify_v1` (per `slug|token` verdict cache). `X-Syncview-Client-Token` is
   attached **only** to EF URLs.
@@ -1575,7 +1581,7 @@ so it runs on every push) re-derives every list below from `index.html` and fail
 they drift — in either direction, including the counts. When it fails: update the owning surface's
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
-- **n8n webhooks (53):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `kasper-queue` · `linear-add-comment` · `linear-issues` · `linear-projects` · `linear-set-status` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-kasper-slack` / `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-direct` · `tiktok-upload-status` · `tiktok-upload-url` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `weekly-slack-top-reel`
+- **n8n webhooks (51):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `kasper-queue` · `linear-issues` · `linear-projects` · `linear-subissues` · `linear-tweak-comments` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-kasper-slack` / `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-direct` · `tiktok-upload-status` · `tiktok-upload-url` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `weekly-slack-top-reel`
 - **Edge functions (29):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `description-image-upload` · `filming-plans` · `hiring-applications` · `kasper-ad-performance-read` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-archive` · `production-comments` · `production-write` · `pto` · `quiz-leads-list` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-linear` · `workload-plan`
 - **Not counted above:** 25 of the 29 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. `description-image-upload` (2026-09-05) is app-called candidate source with a path-triggered deploy lane (`.github/workflows/deploy-description-image-upload.yml`) and is not live until that lane's first run on `main` plus the owner-applied `migrations/2026-09-05-description-images.sql`. Seven more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, `thumbnail-revision-scan`, `quiz-capture` (called from the separate `synchrosocial` repo's `/quiz` page, not from this app), and the private n8n bridge `hiring-automation`. `workload-plan` is app-called and live; `production-archive` is app-called and live since its 2026-07-24 exact-SHA deploy (`1738ad3`, run `30129490033`); `workload-linear` is app-called candidate source but is not live until its exact-SHA owner-gated deploy. `kasper-ad-performance-read` is app-called candidate source, deliberate-manual (no CI deploy path, matching `workload-plan`'s first-release precedent) and not yet live. `quiz-leads-list` is app-called candidate source, admin-gated, and not yet live — depends on `migrations/2026-08-24-quiz-responses.sql` being applied first. `hiring-applications` is app-called, admin-only, and deployed with its separate invitation flag false; the deployed `hiring-automation` bridge now captures the dedicated application, alerts Kasper, and records the dedicated interview booking without running sales nodes. Candidate email remains disabled until the flag is deliberately enabled and the inactive dispatcher is run.
 - **Supabase REST tables, literal (10):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `production_deliverables_browser_v1` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues`

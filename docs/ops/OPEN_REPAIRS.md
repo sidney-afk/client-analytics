@@ -28284,3 +28284,172 @@ of a `schedule:` trigger; the absence of any other `linear-issue-statuses` calle
 Not independently re-verified this session, taken from the task's own stated facts:
 the two workflows' last-run timestamp (GitHub Actions runs API) and the n8n pager's
 deactivation date.
+
+## 239. [2026-09-22, done] The legacy Linear write transports are retired on both surfaces, and queued Linear debt now drains as moot
+
+**What shipped.** The two legacy n8n write senders on each surface are deleted,
+together with the Linear retry bookkeeping that lived inside their catch
+blocks:
+
+- Calendar (fragment 140): `_calLegacyPushStatusToLinear`,
+  `_calLegacyPostLinearComment`, and `_linearOutboxEnqueue` (130).
+- Samples (fragment 290): `_sxrLegacyPushStatusToLinear`,
+  `_sxrLegacyPostLinearComment`, and `_sxrLinearOutboxEnqueue` (280).
+- The call sites: the deferred status drains in `170` and `280` (both of which
+  only ever fired AFTER the source save), the post-persist sends in
+  `_sxrKasperApplyAndPersist` (290), and the legacy branches of all four
+  `_cal*`/`_sxr*` writers, which now neither send nor defer and resolve
+  `{ skipped: true, legacy_transport_retired: true }`.
+- The `_writeUiDeferLegacyStatusUntilSourceSave` edit flag in `170`, which no
+  producer ever set.
+- `LINEAR_SET_STATUS_URL` and `LINEAR_ADD_COMMENT_URL` (100). The assembled
+  page now holds nine mentions of those webhook names, all prose in comments,
+  and no executable reference to either.
+
+Page shrank 5754213 -> 5741592 bytes.
+
+**Why the bookkeeping could go this time.** Entry 235 stopped at exactly this
+point and was right to: while a retry could still land, deleting the transport
+and keeping the enqueue would have converted delivered writes into
+unconditional debt. Two things changed. The key is revoked 2026-09-27, so no
+retry can ever be paid; and the owner confirmed 2026-09-22 that nobody reads
+Linear, so the outbound copy has no reader to lose.
+
+**The proof that no write's only home was Linear.** Entry 237 left this
+confirmed on the client Calendar path only and flagged the two unchecked
+`_calPostLinearComment` callers as the thing that would change the priority.
+All Samples callers were then checked by reading each one, with the answer the
+same on every path — the card is written and the source saved before, or
+regardless of, the send:
+
+| Caller | Write lands | Legacy send fired |
+|---|---|---|
+| status save loop (280) | card fields, upsert at `280:456` | `280:507`, inside the post-save `_okPost` block |
+| change request (280) | `<comp>_tweaks` via `repairEdits` + `_sxrFlushCardSave` | deferred, after the save |
+| plain note add (280) | `arr.push(msg)` + `_sxrWatchNoteSave` (`280:2104-2111`) | resolved, never thrown, so the append always ran |
+| Kasper action (290) | `mutate(p)` into the card, `_sxrKasperPersist` at `290:1539` | `290:1542`/`290:1547`, after that persist |
+| repair-journal replay (290) | replays an intent the card already holds | `290:522` |
+
+**CORRECTION to entry 237 (do not edit 237; this is the correction of record).**
+237 closes with "what remains after the revoke is the retry outbox accumulating
+entries that can never send, because the drain retries the same dead route."
+Measured 2026-09-22 against the real assembled page in a headless browser, with
+both webhooks answering 500 and debt pre-seeded in both outboxes: **the drain
+did not retry the dead route at all — zero POSTs**, across boot, `focus` and
+`online`. With both teams at `prod_authority = syncview`, the item-63 authority
+test quarantined every direct item (`flipped_team_legacy_push` for a
+client-link item, `legacy_actor_unverifiable` for an enrolled staff item), and
+an aged client deferred tweak quarantined as `source_gate_expired`. The one
+shape that could still have POSTed was a `source_gate` item whose gate resolved
+"landed", which is exempt from that quarantine by design; that branch is now
+deleted with the rest. So the pre-existing debt was never an accumulating
+retry storm — it was residue sitting in a quarantine ring.
+
+**Nothing showed any of it to anyone.** Traced every reader of
+`_linearOutboxEnqueue` / `_sxrLinearOutboxEnqueue` debt: the flush loop
+(`140:1696`, `280:2580`), the resume check (`290:764-767`), a `pagehide`
+diagnostic (`290:875-878`) and three `window.peek*` console helpers. No badge,
+banner, dialog or card state reads the queue. The same browser run recorded
+zero toast/notify/confirm calls, zero open dialogs and zero DOM mentions in
+every fixture shape. The "Card sync incomplete" and "Note source sync pending"
+notices are about the SOURCE save (`_saveError`), not this queue — easy to
+mistake for debt UI, and it is not.
+
+**How queued debt now drains as moot.** A `legacy_n8n` row is dropped at the
+storage READ (`_writeUiLegacyWithoutRetired`, 130, used by both outbox
+readers), rather than in the drain, because every consumer has to agree at
+once — the drain, the deferred-tweak inspection that decides whether a client
+retry is still `active`, the committed-tweak ledger matcher, the resume loop's
+owned-debt test, the pagehide diagnostic and `peekWriteUiLegacyQueueState`.
+Filtering in one and not the rest is how a cleared queue still reports a count.
+It is not quarantined (a quarantine row is for a write an operator must still
+decide about) and not surfaced.
+
+**Hiding is not clearing, and the obvious way to clear was wrong.** The first
+implementation compacted storage from inside that reader. A read happens
+OUTSIDE the outbox mutation lock, so writing the filtered array back would
+clobber a source gate another tab staged between the read and the write —
+losing a live record to tidy away a dead one. The compaction is therefore a
+separate `_writeUiLegacyShedRetired(surface)` (140) that takes the surface
+lock, re-reads RAW storage inside it, and writes back only the rows that are
+not the retired transport.
+
+It is called from `_writeUiResumeLegacyQueues` (290), not from the drains, and
+that placement is the whole trick: the owned-debt tests that decide whether to
+START a drain read through the filter, so a queue holding nothing but retired
+rows looks empty, no drain runs, and rows shed from inside a drain would sit
+in storage forever. The resume loop runs on startup, focus, online,
+visibilitychange, the 60s timer and pageshow, takes the lock itself, and
+no-ops once a browser has shed its own. Found by the `F184` boot probe, which
+failed on exactly this.
+
+**What was deliberately kept.** The source-gate lane, which never touched the
+network: `_writeUiQueueDeferredLegacyTweak`, `_writeUiFlushDeferredLegacyTweak`,
+the committed-tweak ledger and the recovery machinery around them, per the A2
+RETAIN rows and B1 order row 5. `_writeUiBuildDeferredLegacyTweakRecords` now
+always builds the single `source_only` record it previously built only for a
+card with no Linear URL; the `legacy_n8n` comment+status pair it built for a
+card WITH one is gone. The native gateway, card saves, source-save ordering,
+receipts and owner checks are untouched, as are the A2 reader rows
+(AFTER-STEP-7), which this change stops short of.
+
+**REGRESSION CAUGHT IN REVIEW, 2026-09-22 — the retired branches dropped the
+deferred source checkpoint.** The first revision returned a bare
+`{ skipped, legacy_transport_retired }` from all four retired legacy branches,
+with no `deferred_until_source_save` even when the caller asked for one. That
+flag is the ONLY thing that makes `_calReviewRequestTweak` /
+`_sxrReviewRequestTweak` run `_writeUiQueueDeferredLegacyTweak` and write the
+durable source-gate row before the card upsert. Samples happened to survive it,
+because its Kasper path reads the new flag directly; Calendar did not —
+`190-calendar-approval-comments.js.part` has no reference to it, so a
+legacy-route card stopped staging the row and its conflict check.
+
+The consequence is the PR 1245 defect, on the ~213 live client-facing slots
+entry 237 measured: a card upsert that COMMITS but loses its response rolls the
+reviewer's comment back off their screen, and the retry mints a SECOND comment
+id against the change that already committed — the note lands twice, in the
+thread and in the history. The comment above the caption exit in
+`_calPostLinearComment` states the rule the change broke: *every source-only
+exit in this file returns the same shape*.
+
+Fixed by returning exactly that shape from all four branches when the caller
+asked to defer — `{ skipped, source_only, deferred_until_source_save,
+legacy_transport_retired }` — and the plain retired answer otherwise. No caller
+has to learn a transport-specific flag. `330:1859` and `170` were checked the
+same way and neither regressed: 330 never passed the flag (it relies on
+`_kasperPersistPost`), and 170's flag was the dead
+`_writeUiDeferLegacyStatusUntilSourceSave` this change removed, which no
+producer ever set. Staging can only ever produce a `source_only` record, so
+nothing is sent or retried.
+
+Guarded by `test/legacy-route-deferred-source-checkpoint.js`, which drives the
+real extracted writers down the legacy route on BOTH surfaces and then runs the
+caller's own branch into the real staging and target-decision machinery: 11
+assertions fail on the unfixed head, including the defect itself (the retry
+being treated as a fresh action), and all pass on the fix.
+
+**Why the existing suites missed it.** `test/caption-has-no-work-item.js` pins
+this exact checkpoint — it was written for PR 1245 — but only on the CAPTION
+exit, the `!_writeUiComponentHasWorkItem` branch this change never touched. It
+never drives a video or graphic component down the legacy route, so the exit
+that broke sat outside its reach. The 571-suite run, the browser write gate and
+the boot probe were all green on the defect.
+
+**Tests rewritten, never skipped** — each pinned the retired path, and each
+now pins the replacement. Reasons are one line per file in the PR body and in
+the test's own comment. That includes the `F184` boot probe in
+`qa/boot/client-entry-sequence.js`, per the AGENTS rule that the harness moves
+with the road: its delivery choreography (POST, `attempts` 1 then 2, the armed
+and re-armed 60s timeout, the successful delivery on restore) described a lane
+that no longer exists. The lease properties it exists for — the verified client
+mounts its own Calendar with no Analytics flash, never reads staff-only
+storage, never invokes the staff-only runner, and installs every automatic
+resume trigger — are unchanged and still asserted on the real browser. Its
+byte-for-byte foreign-debt checks went deliberately: a retired row is
+deliverable by nobody, so the shed clears the whole retired set rather than
+holding one client's rows out of another's reach. Ownership of LIVE records is
+covered per owner by `test/client-entry-legacy-resume-lease.js`.
+
+**Duplicate `## N.` header count**, checked immediately before appending this
+entry and again after: **8** distinct numbers carry duplicate headers (13, 14,
+22, 23, 175, 176, 177, 180) — unchanged by this entry, which uses 239.

@@ -133,16 +133,20 @@ ok(/_writeUiRerouteUseGatewayFailClosed\(/.test(whenReady),
 ok(/_writeUiRerouteUseGatewayFailClosed\(/.test(useGatewayWhenReady),
   '_writeUiUseGatewayWhenReady (status + comment routing) reads the fail-closed predicate');
 
-/* The drain sites must keep the FACTUAL predicate. A drain that flips would
-   quarantine a genuinely unenrolled client's legacy item as
-   `legacy_actor_unverifiable` with zero retries — item 63, rebuilt. */
+/* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). The two drain sites that negated
+   the predicate lived in the legacy delivery branch, deciding whether a queued
+   item was deliberately-legacy traffic owed full retries or an enrolled write
+   sneaking down the lane. That branch is retired: a `legacy_n8n` row is
+   dropped before any predicate is consulted, so there is no routing decision
+   left to keep factual and item 63 cannot be rebuilt through it. Pinned as
+   the absence, with the drop that replaced it. */
 const drainSites = INDEX.split('\n')
   .map((line, i) => ({ line, n: i + 1 }))
   .filter(r => /!_writeUiRerouteUseGateway/.test(r.line));
-ok(drainSites.length === 2,
-  'exactly two outbox-drain call sites negate the predicate (calendar + samples)');
-ok(drainSites.every(r => !/FailClosed/.test(r.line)),
-  'and BOTH still read the factual allowlist, so an unenrolled client\'s queued legacy item is not quarantined');
+ok(drainSites.length === 0,
+  'no outbox-drain call site negates the predicate any more — the branch that did is retired');
+ok((INDEX.match(/if \(it && it\.transport === 'legacy_n8n'\) continue;/g) || []).length === 2,
+  'both drains drop the retired transport outright instead, calendar and samples');
 
 const rebuild = INDEX.split('\n').filter(l => /\.filter\(row => _writeUiRerouteUseGateway\(/.test(l));
 ok(rebuild.length === 1 && !/FailClosed/.test(rebuild[0]),

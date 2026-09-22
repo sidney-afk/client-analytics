@@ -983,7 +983,7 @@
 
                 const acknowledgement = inspection.state === 'active'
                     || inspection.rearmed_team_delivery === true
-                    ? { skipped: true, legacy_transport: true, deferred_until_source_save: true }
+                    ? { skipped: true, source_gate_retry: true, deferred_until_source_save: true }
                     : await _calPostLinearComment(_calLinearUrlFor(post, comp), body, newComment.author, {
                         post,
                         component: comp,

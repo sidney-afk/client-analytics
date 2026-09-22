@@ -406,8 +406,10 @@ jobs:
       #   2. The `write-diagnostics` function should already be deployed
       #      (deliberate-manual, --no-verify-jwt). It is dormant until
       #      WRITE_DIAGNOSTICS_ENABLED=true, so it is safe to land first.
+      # The principal capture sits on authenticate's three success returns; the
+      # function is NOT renamed, because two other suites extract it by name.
       # (Previous pin: 9630884e62... -- production-write, files=6, 2026-09-19.)
-      PRODUCTION_WRITE_SOURCE_SHA256: fa25b9c193f86f08a313364cd5fb90d855b4d1c19dfb6a908faa081bbee83f57
+      PRODUCTION_WRITE_SOURCE_SHA256: af8bf801b45830f95951d00636ce1103fb1b043652337b2c1bae68a37fd17422
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

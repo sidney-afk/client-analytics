@@ -28306,11 +28306,21 @@ missing. That is the whole point of the item.
 - **The gateway**, `supabase/functions/production-write/index.ts`: four
   integration points, applied programmatically rather than by hand, from the
   preparation's composer. Context capture after the JSON parse, verified
-  principal capture in an `authenticate` wrapper (the original becomes
-  `authenticateWithoutDiagnostics`), and one `reportGatewayRefusal` around the
-  existing `GatewayError` response. The refusal status and body are byte-identical
-  to what they were; the only visible addition is an `x-write-diagnostic-status`
-  header saying whether telemetry recorded.
+  principal capture on each of `authenticate`'s three success returns, and one
+  `reportGatewayRefusal` around the existing `GatewayError` response. The
+  refusal status and body are byte-identical to what they were; the only visible
+  addition is an `x-write-diagnostic-status` header saying whether telemetry
+  recorded.
+
+  **The preparation's rename had to be undone, and this is the one thing in it
+  that was outright wrong.** It renamed the resolver to
+  `authenticateWithoutDiagnostics` and wrapped it. Two unrelated suites --
+  `test/public-intake-open-submission.js` and `test/production-write-gateway.js`
+  -- extract that resolver **by the name `authenticate`** and bound it on its own
+  final `credentials_required` refusal, so the rename turned both red for a
+  reason having nothing to do with diagnostics. Capturing on the three success
+  returns instead leaves the name, the boundary and the body those suites read
+  exactly as they were. This was found by running the suite, not by reading it.
 - **The browser beacon**, in `src/index/120-calendar-flags-write-repair.js.part`
   beside `_writeUiQueueDiagnostic`, reaching the page through
   `npm run build:index`. It covers point 3 of item 101: the refusals the server
@@ -28382,6 +28392,20 @@ assumed: on a disposable PostgreSQL 16 cluster this session, `anon`,
 refused `production_write_refusal_read_v1`.
 
 ### Test state, measured this session
+
+`node test/run-all.js` on this branch fails **6 of 571** suites, the **same six**
+that fail on `origin/main` in a clean worktree of the same checkout
+(`ef-deploy-provenance`, `native-intake-editor-browser`,
+`native-label-catalog-foundation`, `track-b-recovery-deferred-defaults`,
+`truth-sync`, `workload-native-membership`), and `ef-deploy-provenance` fails on
+the same single assertion in both. Five suites went red on the first pass and
+every one was a real breakage this change caused, now fixed:
+`f27-section4-deploy-lane` and `ef-deploy-provenance` (both keep hand-maintained
+shadow copies of contracts this release moves), `production-write-gateway` and
+`public-intake-open-submission` (the rename above), `system-map-sync` (its gate
+correctly caught that the beacon put a new endpoint into the page), and
+`write-failure-receipt` (its harness had to load the beacon rather than leave it
+undefined, which made it a better test).
 
 All four preparation suites pass on this branch. Two needed environment rather than
 repair, which is why they read as failures on a bare checkout: the postgres suite

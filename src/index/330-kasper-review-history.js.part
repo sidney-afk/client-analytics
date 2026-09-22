@@ -1530,17 +1530,37 @@
            clobber needs a second person editing the same card's scalars
            inside the same ~1s window. Do not restate this as "concurrent
            edits still conflict" -- an earlier draft of this comment did, and
-           it is not what the code does. */
+           it is not what the code does.
+
+           COMMENTS ARE NOT COVERED BY THAT TRADE AND MUST NOT BE. The one
+           `comments_base_at` field drives calendar-upsert's scalar guard AND
+           its per-cell comment merge, which keeps an existing comment missing
+           from the incoming list only while that comment is NEWER than the
+           baseline. Advancing the baseline to the bridge's stamp therefore
+           re-reads any comment another reviewer added in the meantime as a
+           deliberate deletion and prunes it -- losing someone else's note, not
+           merely overwriting a status. They cannot be decoupled from here, so
+           the retry instead carries every comment the server currently holds
+           into its own payload: an id present in the incoming list is never
+           pruned, and ours still wins on a shared id because the server keeps
+           the newer stamp. Raised as P1 by Codex review on PR 1493. */
+        let retryIssued = false;
         if (json && json.conflict === true && gatewayCommitted) {
             const fresh = await _calReadFreshCardStamp(item.slug, item.post.id);
             const freshAt = fresh && String(fresh.updated_at || '');
             if (freshAt && freshAt > String(item.post._baseAt || '')) {
+                for (const cell of ['video_tweaks', 'graphic_tweaks', 'caption_tweaks']) {
+                    if (Object.prototype.hasOwnProperty.call(wire, cell)) {
+                        wire[cell] = _calUnionCommentCell(wire[cell], fresh[cell]);
+                    }
+                }
                 item.post._baseAt = freshAt;
+                retryIssued = true;
                 const retry = await _calUpsertFetch(item.slug, { client: item.slug, post: wire, comments_base_at: String(item.post._baseAt || '') });
                 json = await retry.json().catch(() => ({}));
             }
         }
-        if (!json || !json.ok) throw new Error((json && json.error) || 'Save failed');
+        if (!json || !json.ok) { const err = new Error((json && json.error) || 'Save failed'); err._calRetryIssued = retryIssued; throw err; }
         if (await _writeUiCompleteSourceRepairRefs(sourceRepairRefsForWrite)) _writeUiRemoveCompletedRepairRefs(item.post, sourceRepairRefsForWrite);
         delete item.post._writeUiRetrySourceAt;
         delete item.post._writeUiRetryPrincipal;
@@ -1867,17 +1887,25 @@
                 _writeUiReportFailure('calendar', 'comment', e);
             } else {
                 _kasperPersistCache();
-                /* Honest wording, not a promise nothing keeps: _kasperPersistPostWrite
-                   already retried this exact save once (see its self-conflict
-                   recovery, OPEN_REPAIRS 212) before this catch ever ran, and
-                   nothing else retries it after this point -- the sheet write
+                /* Honest wording, not a promise nothing keeps -- and honest about
+                   WHICH of the two paths got here, because the retry is not
+                   guaranteed to have run. _kasperPersistPostWrite issues it only
+                   when the freshness read comes back with a genuinely newer
+                   stamp; a failed read, or a stamp no newer than our baseline,
+                   is a deliberately supported path that throws the original
+                   conflict without a second attempt. `_calRetryIssued` on the
+                   error says which happened, so this never claims a retry that
+                   did not occur (Codex P2, PR 1493). Either way nothing else
+                   retries it after this point -- the sheet write
                    stays refused until a person acts. Said "will retry
                    automatically" here from 2026-07 until this fix, which was
                    simply false: there is no background sweep that replays a
                    refused calendar-upsert call, so the card's Calendar row can
                    sit without this note indefinitely while the dialog told
                    Kasper to expect it to heal itself. */
-                showNotify('Card sync incomplete', 'The native comment is safe. We already retried the Calendar save once and it still did not go through — refresh the calendar, then resend the note if it is still missing.');
+                showNotify('Card sync incomplete', e && e._calRetryIssued
+                    ? 'The native comment is safe. We already retried the Calendar save once and it still did not go through — refresh the calendar, then resend the note if it is still missing.'
+                    : 'The native comment is safe, but the Calendar save did not go through and nothing will retry it — refresh the calendar, then resend the note if it is still missing.');
             }
             item._saving[comp] = false;
             item._errors[comp] = _writeUiFailureSentence(e);

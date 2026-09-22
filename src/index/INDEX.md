@@ -19,7 +19,7 @@
 | 11 | `090-workload-popovers-navigation.js.part` | 2613 | Sub-issue popover |
 | 12 | `100-onboarding-staff-controls.js.part` | 2252 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2024 | Kasper Time Off calendar |
-| 14 | `120-calendar-flags-write-repair.js.part` | 2947 | The members a flag value offers, or null when it offers no member list at |
+| 14 | `120-calendar-flags-write-repair.js.part` | 2977 | The members a flag value offers, or null when it offers no member list at |
 | 15 | `130-calendar-model-cache.js.part` | 2746 | Returns the comments array for a given component. Falls back to the |
 | 16 | `140-calendar-legacy-outbox.js.part` | 3145 | OPEN_REPAIRS item 63: the direct-delivery branch below posts to the |
 | 17 | `150-calendar-hydration-import.js.part` | 2876 | For a card linked to a real sub-issue (not a parent), return which of |
@@ -40,6 +40,6 @@
 | 32 | `300-tiktok-upload.js.part` | 1678 | TIKTOK UPLOAD MODULE |
 | 33 | `310-tiktok-pilot-sales.js.part` | 1969 | TIKTOK PILOT MODULE (gated: ?ttpilot=1 → #tiktok-pilot) |
 | 34 | `320-kasper-dashboard-replies.js.part` | 2778 | Background poll for the Kasper review — same cadence as the client |
-| 35 | `330-kasper-review-history.js.part` | 2488 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
+| 35 | `330-kasper-review-history.js.part` | 2516 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 36 | `340-editors-date-picker.js.part` | 1288 | Editor work model |
 | 37 | `350-footer.html.part` | 398 | Transcript preview modal |

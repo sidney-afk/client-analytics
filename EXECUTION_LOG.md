@@ -8006,11 +8006,36 @@ now retries the `calendar-upsert` call exactly once when the response is this
 specific conflict AND this same call already committed a native status change
 (`gatewayCommitted`) -- reading a fresh `updated_at` first via the new
 `_calReadFreshCardStamp` helper (`src/index/120-calendar-flags-write-repair.js.part`)
-so the retry is no longer stale. A genuinely concurrent edit (not our own
-bridge) still conflicts again on the retry and is not swallowed. The "Card sync
-incomplete" dialog's wording no longer promises an automatic retry that was
-never implemented; it now says a retry already happened and gives an
-actionable next step. No Edge Function, migration, or live data changed.
+so the retry is no longer stale.
+
+State the guarantee at its real timing boundary rather than more broadly, so
+later repair work is not misled (Codex P2 on this PR corrected an earlier draft
+of this entry). Adopting the fresh stamp deliberately disarms the scalar guard
+for that one write, so only an edit landing BETWEEN the fresh read and the
+retry still conflicts and falls through; a third party's scalar edit that
+landed just BEFORE the read is absorbed into the new baseline and overwritten.
+That clobber is accepted -- it needs a second editor inside the same ~1s
+window, against a conflict that used to lose the comment outright every time it
+fired.
+
+Comments are explicitly NOT part of that accepted trade (Codex P1 on this PR).
+One `comments_base_at` field drives both the scalar guard and calendar-upsert's
+per-cell comment merge, and that merge keeps an existing comment missing from
+the incoming list only while the comment is newer than the baseline -- so
+advancing the baseline would have re-read another reviewer's fresh note as a
+deliberate deletion and pruned it. The two baselines cannot be separated from
+the browser, so `_calReadFreshCardStamp` now also returns `video_tweaks`,
+`graphic_tweaks` and `caption_tweaks`, and the retry unions every comment the
+server currently holds into its own payload via `_calUnionCommentCell`: an id
+present in the incoming list is never pruned, and ours still wins on a shared
+id because the server keeps the newer stamp.
+
+The "Card sync incomplete" dialog's wording no longer promises an automatic
+retry that was never implemented. It now reports which path was taken -- the
+retry runs only when the freshness read returns a genuinely newer stamp, and a
+failed read or an equal stamp is a supported path that throws the original
+conflict with no second attempt -- so it never claims a retry that did not
+occur. No Edge Function, migration, or live data changed.
 
 **Proof.** `test/kasper-tweak-calendar-sync-retry.js` (new), extracting the real
 `_kasperPersistPostWrite` from the built `index.html` and covering both video

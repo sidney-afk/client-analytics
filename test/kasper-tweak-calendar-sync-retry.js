@@ -79,7 +79,7 @@ const REAL = [
   extract('_calNormStatus'), extract('computeOverallStatus'),
   extract('_calStringifyComments'), extract('_calCommentsFor'),
   extract('_kasperPatchSnapshot'),
-  extract('_writeUiGatewayError'), extract('_calReadFreshCardStamp'),
+  extract('_writeUiGatewayError'), extract('_calReadFreshCardStamp'), extract('_calUnionCommentCell'),
   extract('_kasperPersistPostWrite'),
 ].join('\n\n');
 
@@ -94,7 +94,7 @@ function jsonResponse(body) { return { ok: true, json: async () => body }; }
 // Builds a fresh sandbox with the real extracted functions plus the minimal
 // fixture-controlled seams: `_calUpsertFetch` (mocked network) and `fetch`
 // (mocked, for the real `_calReadFreshCardStamp`'s REST read).
-function makeSandbox({ upsertResponses, freshUpdatedAt, freshFetchOk = true }) {
+function makeSandbox({ upsertResponses, freshUpdatedAt, freshFetchOk = true, freshCells = null }) {
   const upsertCalls = [];
   const freshFetchCalls = [];
   const sandbox = {
@@ -116,14 +116,19 @@ function makeSandbox({ upsertResponses, freshUpdatedAt, freshFetchOk = true }) {
     _writeUiAdoptReplayStatus: () => '',
     _calLinearUrlFor: () => '',
     _calUpsertFetch: async (slug, payload) => {
-      upsertCalls.push({ slug, payload });
+      /* SNAPSHOT, do not keep the reference. `wire` is one object reused across
+         the original attempt and the retry, and the retry mutates its comment
+         cells in place -- so holding the live reference would make the first
+         recorded call appear to contain whatever the SECOND one sent, and every
+         before/after assertion below would pass vacuously. */
+      upsertCalls.push({ slug, payload: JSON.parse(JSON.stringify(payload)) });
       const body = upsertResponses[upsertCalls.length - 1] || upsertResponses[upsertResponses.length - 1];
       return jsonResponse(body);
     },
     fetch: async (url) => {
       freshFetchCalls.push(url);
       if (!freshFetchOk) return { ok: false, json: async () => null };
-      return { ok: true, json: async () => [{ updated_at: freshUpdatedAt }] };
+      return { ok: true, json: async () => [Object.assign({ updated_at: freshUpdatedAt }, freshCells || {})] };
     },
     console,
     Object, Array, Promise, String, Number, JSON, Date, Boolean,
@@ -239,11 +244,53 @@ async function genuineConcurrentConflictStillFails(comp) {
   assert.strictEqual(upsertCalls.length, 2, comp + ': exactly one retry, never an unbounded loop');
 }
 
+async function retryPreservesAConcurrentReviewersComment(comp) {
+  /* THE P1 THIS TEST EXISTS FOR (Codex, PR 1493). Advancing `comments_base_at`
+     to the bridge's fresh stamp is what lets the retry past the scalar guard --
+     but calendar-upsert reuses that ONE field for its per-cell comment merge,
+     where an existing comment missing from the incoming list survives only
+     while it is NEWER than the baseline. A note another reviewer added between
+     this tab's original baseline and the fresh read is therefore older than the
+     new baseline, and a retry that did not carry it would have the server read
+     its absence as a deliberate deletion and prune it: someone else's comment
+     destroyed to save ours. The retry must union the server's current cell into
+     its own payload, because an id PRESENT in the incoming list is never
+     pruned. */
+  const item = baseItem(comp, 'kasper note');
+  const cell = comp + '_tweaks';
+  const theirComment = { id: 'c_other_reviewer', body: 'a concurrent note', created_at: '2026-09-22T14:02:00.000Z', updated_at: '2026-09-22T14:02:00.000Z' };
+  const freshUpdatedAt = '2026-09-22T14:05:03.000Z';
+  const conflictResponse = { ok: false, conflict: true, id: item.post.id, error: 'Not saved: someone else updated this card (status)...' };
+  const successResponse = { ok: true, id: item.post.id };
+  const { sandbox, upsertCalls } = makeSandbox({
+    upsertResponses: [conflictResponse, successResponse],
+    freshUpdatedAt,
+    freshCells: { [cell]: JSON.stringify([theirComment]) },
+  });
+
+  await sandbox._kasperPersistPostWrite(item, { precommitted: true, refs: [], companions: [] });
+
+  assert.strictEqual(upsertCalls.length, 2, comp + ': the fixture must reach the retry');
+  const retried = JSON.parse(String(upsertCalls[1].payload.post[cell] || '[]'));
+  const ids = retried.map(c => String(c.id));
+  assert.ok(ids.includes(theirComment.id),
+    comp + ': the retry must carry the concurrent reviewer\'s comment, or the server prunes it as a deletion');
+  assert.ok(retried.some(c => String(c.body || '').includes('kasper note')),
+    comp + ': the retry must still carry Kasper\'s own comment alongside it');
+  assert.strictEqual(new Set(ids).size, ids.length, comp + ': the union must not duplicate an id');
+  // And the older comment must NOT have been in the first attempt -- otherwise
+  // this fixture would pass without the union ever doing anything.
+  const first = JSON.parse(String(upsertCalls[0].payload.post[cell] || '[]'));
+  assert.ok(!first.some(c => String(c.id) === theirComment.id),
+    comp + ': fixture guard -- the concurrent comment must be unknown to the first attempt');
+}
+
 (async () => {
   for (const comp of ['video', 'graphic']) {
     await runCase('self-conflict retry recovers the ' + comp + ' tweak comment', () => tweakSelfConflictRetrySucceeds(comp));
     await runCase(comp + ' conflict without a native precommit does not retry', () => tweakWithoutNativeCommitDoesNotRetry(comp));
     await runCase(comp + ' genuinely repeated conflict still fails after one retry', () => genuineConcurrentConflictStillFails(comp));
+    await runCase(comp + ' retry preserves a concurrent reviewer\'s comment', () => retryPreservesAConcurrentReviewersComment(comp));
   }
 
   if (failures.length) {

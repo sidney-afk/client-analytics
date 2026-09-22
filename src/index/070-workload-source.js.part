@@ -698,8 +698,8 @@
            rule (`_prodDeliverableLive`, src/index/210-production-state-writes.js.part)
            reading the same markers `production_deliverables_browser_v1` already projects
            and already grants `anon`/`authenticated` select on -- so this is a second,
-           independent browser-side read of that same public view for the native
-           sub-issue ids this snapshot returned. No new SQL, no Edge Function change.
+           independent browser-side read of that same public view, filtered server-side
+           to rows carrying any archive/delete marker. No new SQL, no Edge Function change.
            `_prodDeliverableLive` is called directly rather than reimplemented: every
            file from 040 through 340 shares one top-level <script>
            (src/index/manifest.txt), so it is hoisted and callable here even though 210
@@ -708,32 +708,32 @@
            is_sub_issue rows, so a batch parent never reaches it. */
         const wanted = [...new Set((ids || []).map(id => String(id || '').trim()).filter(Boolean))];
         if (!wanted.length || !CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return [];
-        const CHUNK = 120; // id=in.(...) has a URL-length ceiling; same chunk shape as _kedRestIn.
-        const chunks = [];
-        for (let i = 0; i < wanted.length; i += CHUNK) chunks.push(wanted.slice(i, i + CHUNK));
-        const pages = await Promise.all(chunks.map(async slice => {
-            const list = slice.map(v => '"' + String(v).split('"').join('\\"') + '"').join(',');
-            const url = CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select='
-                + encodeURIComponent(WL_ARCHIVE_MARKER_SELECT) + '&id=in.(' + encodeURIComponent(list) + ')';
-            // Same bounded timeout as the primary workload-plan fetch: an
-            // auxiliary read that hangs (overloaded/half-open connection) must
-            // still resolve so the caller's fail-open catch actually runs,
-            // instead of leaving Promise.all -- and a cold Workload load --
-            // pending indefinitely.
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), WL_PLAN_READ_TIMEOUT_MS);
-            let response;
-            try {
-                response = await fetch(url, { cache: 'no-store', headers: _prodHeaders(), signal: controller.signal });
-            } finally {
-                clearTimeout(timer);
+        const pageSize = 1000;
+        const maxPages = 5;
+        const url = CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select='
+            + encodeURIComponent(WL_ARCHIVE_MARKER_SELECT)
+            + '&or=(status.eq.archived,raw_issue_archived_at.not.is.null,raw_webhook_delete.is.true,raw_deleted.is.true,raw_delete.is.true,raw_removed.is.true,raw_archived.is.true)'
+            + '&order=id.asc&limit=' + pageSize;
+        // One small marker-only read replaces the former id=in.(...) burst. Keep
+        // it bounded so an overloaded/half-open connection still reaches the
+        // caller's fail-open catch instead of delaying a cold Workload load.
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), WL_PLAN_READ_TIMEOUT_MS);
+        const out = [];
+        try {
+            for (let page = 0; page < maxPages; page++) {
+                const headers = { ..._prodHeaders(), Range: (page * pageSize) + '-' + (((page + 1) * pageSize) - 1) };
+                const response = await fetch(url, { cache: 'no-store', headers, signal: controller.signal });
+                if (!response.ok) throw new Error('archive-marker read failed: HTTP ' + response.status);
+                const rows = await response.json();
+                if (!Array.isArray(rows)) throw new Error('archive-marker read returned an unexpected shape');
+                out.push(...rows);
+                if (rows.length < pageSize) break;
             }
-            if (!response.ok) throw new Error('archive-marker read failed: HTTP ' + response.status);
-            const rows = await response.json();
-            if (!Array.isArray(rows)) throw new Error('archive-marker read returned an unexpected shape');
-            return rows;
-        }));
-        return pages.flat();
+            return out;
+        } finally {
+            clearTimeout(timer);
+        }
     }
     /* Native sub-issue ids whose own Linear issue is archived/deleted, exactly as
        Production's _prodDeliverableLive refuses them -- independent of the row's
@@ -750,10 +750,11 @@
         if (!ids.length) return new Set();
         try {
             const markerRows = await _wlFetchArchiveMarkerRows(ids);
+            const wantedIds = new Set(ids);
             const archived = new Set();
             markerRows.forEach(row => {
                 const id = String(row && row.id || '').trim();
-                if (id && !_prodDeliverableLive(row)) archived.add(id);
+                if (wantedIds.has(id) && !_prodDeliverableLive(row)) archived.add(id);
             });
             return archived;
         } catch (e) {
@@ -3330,4 +3331,3 @@
             <div id="wlPopover" class="workload-popover" role="dialog" aria-hidden="true"></div>
         </div>`;
     }
-

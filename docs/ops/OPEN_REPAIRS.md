@@ -27677,8 +27677,13 @@ ids with synthetic titles and clients, and the mock holds the answer 9 s:
 - fixed page: `planStatus = 'ready'`, 8,151 rows, roster of 5, 1,773 cards.
 
 **Fix (browser only, one constant).** `WL_SNAPSHOT_READ_TIMEOUT_MS = 30000`,
-read by the snapshot fetch alone; roughly seven times the observed server
-maximum. `WL_PLAN_READ_TIMEOUT_MS` stays 8,000 for the plan list, the popover
+read by the snapshot fetch alone. The budget has to cover the server peak AND
+the download: 30 s is about 3.7 times the 8.2 s server peak, and roughly twice
+an 8 s execution followed by a 2 MB download at 2 Mbps (8 s). The first
+draft of this entry and of the code comment said "roughly seven times the
+observed server maximum", which was wrong arithmetic (30 / 8.2 = 3.66); the
+Codex review on #1489 caught it. A longer budget would only delay the same
+empty board on a real hang. `WL_PLAN_READ_TIMEOUT_MS` stays 8,000 for the plan list, the popover
 reads and the archive-marker chunks. Guard: `test/workload-plan-source.js`
 now refuses a snapshot fetch on the 8 s budget or a snapshot budget under 30 s.
 

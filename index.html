@@ -15345,8 +15345,11 @@
        "Saved work days are unavailable" state with no cards at all
        (the localStorage warm start only covers LINEAR_ISSUES_TTL_MS).
        The board is 6,651 rows and grows daily, so this is a limit the estate
-       was always going to reach; 30 s is roughly seven times the observed
-       server maximum. Only the snapshot fetch reads this constant: the
+       was always going to reach. The budget has to cover the server peak AND
+       the download: 30 s is about 3.7 times the 8.2 s server peak, and roughly
+       twice an 8 s execution followed by a 2 MB download at 2 Mbps (8 s). A
+       longer budget would only delay the same empty board on a real hang.
+       Only the snapshot fetch reads this constant: the
        archive-marker chunk reads, the plan list and the popover reads keep
        WL_PLAN_READ_TIMEOUT_MS. OPEN_REPAIRS 230. */
     const WL_SNAPSHOT_READ_TIMEOUT_MS = 30000;

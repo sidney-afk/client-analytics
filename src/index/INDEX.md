@@ -28,7 +28,7 @@
 | 20 | `180-calendar-native-post-media.js.part` | 2680 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 21 | `190-calendar-approval-comments.js.part` | 2966 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 22 | `200-intake-data-startup.js.part` | 1473 | Video-only and Thumbnail-only were already built, but sat |
-| 23 | `210-production-state-writes.js.part` | 3002 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
+| 23 | `210-production-state-writes.js.part` | 3078 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 24 | `220-production-attribution-views.js.part` | 2698 | An ABSENT persisted slug is missing evidence, not |
 | 25 | `230-production-create-comments.js.part` | 2597 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 26 | `240-production-description.js.part` | 2607 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |

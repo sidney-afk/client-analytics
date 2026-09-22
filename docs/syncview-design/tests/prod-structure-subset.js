@@ -426,6 +426,49 @@ async function assertNoWriteRequests(requests) {
     if (!/^[A-Z][a-z]{2} \d{1,2}$/.test(adapterFixture.currentYearDue)) throw new Error('Current-year dates must render "Mon D" without a year, got: ' + adapterFixture.currentYearDue);
     if (adapterFixture.pastYearFull !== 'Jun 4, 2025') throw new Error('Full date form must carry the year for non-current years ("Jun 4, 2025"), got: ' + adapterFixture.pastYearFull);
     if (!/^[A-Z][a-z]{2} \d{1,2}$/.test(adapterFixture.currentYearFull)) throw new Error('Full date form must omit the year for the current year, got: ' + adapterFixture.currentYearFull);
+    /* MIXED BATCH: born on Linear, then added to natively after the outbound
+       cutoff. `mixed-linear-child` resolves through its own raw_issue_parent_id
+       against the batch's Linear-backed parent (no deliverable row carries
+       that parent uuid itself, same as a real batch's linear_parent_ids-only
+       parent). `mixed-native-child` has neither a raw_issue_parent_id nor a
+       linear_issue_uuid -- genuinely native-born -- and used to have nowhere
+       to attach: the native-parent-minting branch correctly refuses to mint a
+       second node for a batch that already has one (ONE PARENT PER CARD), but
+       the fallback that should have pointed native children at that EXISTING
+       node only knew about nodes it had just minted itself, which is empty
+       for a batch the Linear-backed pass already claimed. Both children must
+       land under the SAME node, and only one node may exist for the batch. */
+    const mixedBatchFixture = await page.evaluate(() => {
+      const adapted = window._prodAdapter({
+        clients: [{ slug: 'noemoji', display_name: 'No Emoji', active: true, board_status: 'in_progress', linear_project_ids: [{ id: 'project-noemoji' }] }],
+        members: [],
+        batches: [{
+          id: 'mixed-batch', client_slug: 'noemoji', team: 'video', name: 'Mixed batch',
+          linear_parent_ids: {
+            video: { uuid: 'linear-mixed-parent', identifier: 'VID-9001', owner_team: 'video' },
+            graphics: { uuid: 'linear-mixed-parent', identifier: 'VID-9001', owner_team: 'video' },
+          },
+        }],
+        deliverables: [
+          { id: 'mixed-linear-child', linear_issue_uuid: 'linear-mixed-child', raw_issue_parent_id: 'linear-mixed-parent', identifier: 'VID-9002', batch_id: 'mixed-batch', client_slug: 'noemoji', team: 'video', title: 'Video 1', status: 'todo' },
+          { id: 'mixed-native-child', batch_id: 'mixed-batch', client_slug: 'noemoji', team: 'video', title: 'Video 9', status: 'todo' },
+        ],
+      });
+      const byId = Object.fromEntries(adapted.ISSUES.map(issue => [issue.id, issue]));
+      const mixedBatchNodes = adapted.ISSUES.filter(i => i.batchId === 'mixed-batch' && i.syntheticBatchParent);
+      return {
+        nodeCount: mixedBatchNodes.length,
+        nodeDisplayId: mixedBatchNodes.length === 1 ? mixedBatchNodes[0].displayId : '',
+        linearChildParent: byId['mixed-linear-child'] && byId['mixed-linear-child'].parent,
+        nativeChildParent: byId['mixed-native-child'] && byId['mixed-native-child'].parent,
+      };
+    });
+    if (mixedBatchFixture.nodeCount !== 1) throw new Error('A mixed batch (Linear-born plus native-born children) must mint exactly one parent node, saw ' + mixedBatchFixture.nodeCount);
+    if (mixedBatchFixture.nodeDisplayId !== 'VID-9001') throw new Error('A mixed batch must keep reusing its existing Linear-backed node, not a synthetic fallback, got displayId: ' + mixedBatchFixture.nodeDisplayId);
+    if (!mixedBatchFixture.linearChildParent || !mixedBatchFixture.nativeChildParent
+      || mixedBatchFixture.linearChildParent !== mixedBatchFixture.nativeChildParent) {
+      throw new Error('The native-born child of a mixed batch did not attach to the same node as its Linear-born batch-mate (linear=' + mixedBatchFixture.linearChildParent + ' native=' + mixedBatchFixture.nativeChildParent + ')');
+    }
     const activeTabExcludesApproved = await page.evaluate(() => {
       const savedTab = _prodState.tab;
       _prodState.tab = 'active';

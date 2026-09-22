@@ -14082,3 +14082,58 @@ video tweak comments were self-conflicting out of the Calendar row"). The
 "worth a decision, not a silent addition" item 212 left open (server-side
 overall-status recomputation) is still open; this fix is a client-side retry
 around it, not a resolution of it.
+
+### 2026-09-22 — MIXED batches (born on Linear, added to natively) were orphaning every post-cutoff card
+
+The Production sub-issue tree has handled two shapes since the outbound cutoff:
+a batch that is entirely Linear-backed (every child resolves through its own
+`raw_issue_parent_id`), and a batch that is entirely native-born (no Linear
+parent at all, so a synthetic parent node is minted from the batch row). What
+nobody had built was the THIRD shape a live batch actually takes once staff
+keep adding to it after the cutoff: some children born on Linear before the
+cutoff, more children born natively after it, same batch, same card. The
+native-minting branch correctly refuses to mint a second node for a batch that
+already has a Linear-backed one (ONE PARENT PER CARD, owner ruling
+2026-08-18) — but the fallback that was supposed to point a parentless
+native-born child at that EXISTING node only ever looked at nodes IT had just
+minted, which is empty for a batch the Linear-backed pass already claimed. So
+every native-born child of a mixed batch surfaced as a bare top-level card,
+missing from its own post's sub-issue list.
+
+Measured against one reported batch (project uzltbbrjidmjwwfakwve,
+`bat_d4ce7f40-aa01-428d-b98c-1a0bcaadc9d9`): 8 deliverables created 2026-09-15
+carry the batch's real Linear parent uuid via `raw_issue_parent_id` and
+resolved fine; 10 more (8 from 2026-09-18, 2 from 2026-09-22) carry neither a
+`raw_issue_parent_id` nor a `linear_issue_uuid` and were orphaned. Estate-wide
+at measurement time: 4 mixed batches, 22 orphaned cards, 4 clients, and the
+count only grows as staff add to any pre-cutoff batch.
+
+Fixed in `_prodResolveBatchParentNodes`
+(`src/index/210-production-state-writes.js.part`): the fallback for a
+native-born child with no parent edge now matches against EVERY node the
+function has by that point, Linear-backed or synthetic, keyed by `batch_id`
+(picking by team when a batch legitimately carries two team-owned Linear
+parents), instead of only the nodes the native-mint loop had just created.
+The two existing invariants that made the native branch safe stay exactly as
+they were: a row with a real Linear identity that simply has no recorded
+parent still stays a root (`same-batch-root` in
+`docs/syncview-design/tests/prod-structure-subset.js`), and a parent edge
+that failed to resolve (missing, duplicated, self-referential, cyclic) still
+fails closed rather than getting silently reparented. No data was touched —
+`batch_id` was already correct on every orphaned row, so the fix alone should
+re-attach all 22 on the next read.
+
+A second, unrelated finding on the same surface: renaming a card in the
+Calendar dialog does not reach the deliverable's Linear-composed title. The
+rename writes only `calendar_posts.name` (`_calOnFieldBlur` →
+`_calFlushCardSave`, `calendar-upsert`'s `name` column); `deliverables.title`
+is composed once at creation from that same `name` field
+(`_linearIntakeItems` in `src/index/200-intake-data-startup.js.part`) and
+after that is written only by `linear-inbound` echoing a change made directly
+in Linear. No code path, on any surface, pushes a calendar rename into an
+existing deliverable's title — confirmed by reading `production-write`'s
+action set (no title-update operation exists there) and by reproducing the
+exact reported divergence live. Left unchanged: this is an architectural gap
+in the current write surface, not a regression, and closing it is a scoped
+feature (a new production-write operation plus a Linear outbound push), not
+a bug fix.

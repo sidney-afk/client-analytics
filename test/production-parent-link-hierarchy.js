@@ -408,6 +408,69 @@ vm.runInContext(
   ok(!result.links.has('mixed-linear-root'),
     'the Linear-born unparented row is NOT swept into the native synthetic parent -- it stays a root');
 }
+{
+  /* MIXED BATCH, shape one: the batch's Linear parent became a node, and
+     native-born children added after the outbound cutoff must find it. Before
+     PR 1494 the fallback only knew about nodes the native-minting loop had
+     itself created -- nothing, for a batch that already counts as
+     Linear-backed -- so those children were left top-level. */
+  const batchRows = [
+    { id: 'mixed-linear-batch', client_slug: 'alpha', name: 'Mixed Linear Batch',
+      linear_parent_ids: JSON.stringify([{ uuid: 'uuid-mixed-parent', team: 'video' }]) },
+  ];
+  const childRows = [
+    { id: 'pre-cutoff-child', batch_id: 'mixed-linear-batch', team: 'video',
+      linear_issue_uuid: 'uuid-pre-child', raw_issue_parent_id: 'uuid-mixed-parent' },
+    { id: 'post-cutoff-native', batch_id: 'mixed-linear-batch', team: 'video' },
+  ];
+  const result = sandbox.resolveBatchParents(childRows, batchRows, new Map());
+  const parentNode = result.links.get('pre-cutoff-child');
+  ok(!!parentNode, 'the pre-cutoff child still resolves through its own raw_issue_parent_id');
+  ok(result.links.get('post-cutoff-native') === parentNode,
+    'the native-born child lands under the SAME parent as its pre-cutoff batch mates');
+}
+{
+  /* MIXED BATCH, shape two, which the first fix still missed (Codex P1 on PR
+     1494). Here the batch's Linear parent has itself been imported as a
+     deliverable row, so the `byUuid` pass skips that uuid on purpose
+     (`deliverableUuids`) -- the issue is already in the tree and a second node
+     would double it. The batch therefore never counts as Linear-backed, while
+     `hasUsableParentIds` stops the native mint because it DOES record a parent
+     uuid, leaving it with no node at all: a nodes-only fallback cannot see it.
+     The native-born child has to attach to the parent's own row id, which is
+     where _prodResolveParentLinks already puts its pre-cutoff siblings. */
+  const batchRows = [
+    { id: 'deliverable-parent-batch', client_slug: 'alpha', name: 'Deliverable Parent Batch',
+      linear_parent_ids: JSON.stringify([{ uuid: 'uuid-imported-parent', team: 'video' }]) },
+  ];
+  const childRows = [
+    { id: 'imported-parent-row', batch_id: 'deliverable-parent-batch', team: 'video',
+      linear_issue_uuid: 'uuid-imported-parent' },
+    { id: 'native-under-imported', batch_id: 'deliverable-parent-batch', team: 'video' },
+  ];
+  const result = sandbox.resolveBatchParents(childRows, batchRows, new Map());
+  ok(result.links.get('native-under-imported') === 'imported-parent-row',
+    'a native-born child attaches to the deliverable row representing its batch\'s Linear parent');
+  ok(!result.links.has('imported-parent-row'),
+    'the imported parent row itself is never reparented under anything');
+}
+{
+  // Ambiguity attaches nothing rather than guessing: two rows claiming one
+  // Linear uuid is the duplicate case _prodResolveParentLinks already drops,
+  // and this fallback drops it identically.
+  const batchRows = [
+    { id: 'ambiguous-parent-batch', client_slug: 'alpha', name: 'Ambiguous Parent Batch',
+      linear_parent_ids: JSON.stringify([{ uuid: 'uuid-claimed-twice', team: 'video' }]) },
+  ];
+  const childRows = [
+    { id: 'claimant-a', batch_id: 'ambiguous-parent-batch', team: 'video', linear_issue_uuid: 'uuid-claimed-twice' },
+    { id: 'claimant-b', batch_id: 'ambiguous-parent-batch', team: 'video', linear_issue_uuid: 'uuid-claimed-twice' },
+    { id: 'native-under-ambiguous', batch_id: 'ambiguous-parent-batch', team: 'video' },
+  ];
+  const result = sandbox.resolveBatchParents(childRows, batchRows, new Map());
+  ok(!result.links.has('native-under-ambiguous'),
+    'a native-born child stays a root when its batch\'s recorded parent uuid is claimed by two rows');
+}
 /*
  * FOLLOW-UP INVESTIGATION (Fix 2/3 of the native-card sweep after #1444):
  * does _prodResolveParentLinks need its OWN native-batch fallback, or does

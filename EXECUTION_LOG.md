@@ -7905,3 +7905,13 @@ whole marker set is 278 rows, well under one page. The `limit` parameter is
 dropped and `Range` alone drives the paging: measured, `Range: 0-999` returns
 all 278 rows with `content-range: 0-277/*`, and a page past the end answers
 `200 []` rather than an error, so the loop terminates cleanly either way.
+
+A follow-up on the same PR: the first draft of the cap's comment cited the
+review as a bare four-digit PR reference with a leading hash, and
+`test/no-hardcoded-colors.js` read it as a hex colour and failed the suite.
+Its allowlist skips a line only when the line's TRIMMED text opens with a
+comment marker, and this file's block comments do not prefix their
+continuation lines, so prose inside a multi-line comment is scanned as if it
+were code. Every other such reference in the fragments sits on a `//` line,
+which is why none of them trip it. PR numbers in these continuation lines are
+written without the hash.

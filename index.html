@@ -15016,7 +15016,12 @@
         if (!wanted.length || !CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return [];
         const pageSize = 1000;
         /* A RUNAWAY GUARD, NOT A ROW BUDGET, and the difference is the whole
-           point of this constant (Codex review, #1491). The former cap of 5
+           point of this constant (Codex review, PR 1491 -- PR numbers are
+           written here without a leading hash because a four-digit one reads
+           as a hex colour to test/no-hardcoded-colors.js, which skips only
+           lines whose trimmed text opens with a comment marker, and this
+           file's block comments do not prefix their continuation lines).
+           The former cap of 5
            pages would have returned the first 5,000 id-ordered markers AS IF
            THE READ WERE COMPLETE once the marker set outgrew it -- and a
            marker this read never saw is an archived card the board then shows

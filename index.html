@@ -83182,8 +83182,23 @@
            calendar-upsert's own SCALAR_FIELDS conflict guard. gatewayCommitted
            being true is what tells us the "someone else" the conflict blames is
            almost certainly our own bridge, not a third party, so one retry
-           against a freshly read `updated_at` is safe: a genuinely concurrent
-           edit will still conflict on the retry and fall through unchanged. */
+           against a freshly read `updated_at` is worth making.
+
+           BE PRECISE ABOUT WHAT THE RETRY DOES AND DOES NOT PROTECT. Adopting
+           the fresh stamp as our baseline deliberately disarms the server's
+           conflict guard for this one write, so it protects only against an
+           edit that lands BETWEEN the fresh read and the retry -- that one
+           still conflicts and falls through unchanged. A third party's scalar
+           edit that landed just BEFORE the fresh read is swallowed into the
+           new baseline and then overwritten by `wire`, silently. That is a
+           real narrowing, accepted on the measured trade: this conflict fires
+           on essentially every FIRST tweak of a component (Tweaks Needed is
+           priority 0, so it always moves the roll-up), and the old behaviour
+           lost Kasper's comment 100% of the time it fired, whereas the
+           clobber needs a second person editing the same card's scalars
+           inside the same ~1s window. Do not restate this as "concurrent
+           edits still conflict" -- an earlier draft of this comment did, and
+           it is not what the code does. */
         if (json && json.conflict === true && gatewayCommitted) {
             const fresh = await _calReadFreshCardStamp(item.slug, item.post.id);
             const freshAt = fresh && String(fresh.updated_at || '');

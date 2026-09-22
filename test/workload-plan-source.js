@@ -477,6 +477,19 @@ ok(/const WL_PLAN_READ_TIMEOUT_MS = 8000/.test(INDEX)
   && /const controller = new AbortController\(\)/.test(INDEX)
   && /signal: controller\.signal/.test(INDEX),
 'plan projection reads are bounded so a hung function cannot strand the board on a skeleton');
+// OPEN_REPAIRS 230: the native snapshot is a 2 MB answer whose Edge Function
+// execution alone peaked at 8.2 s on 2026-09-21, so the 8 s read budget above
+// cancelled every cold Workload load on a residential connection that evening
+// ("Workload fetch failed: AbortError", no board, no cards). The snapshot leg
+// reads its own budget, at least 30 s, and the other reads keep the 8 s one.
+{
+  const snapshotFetch = extractFunction(INDEX, 'wlFetchNativeSnapshot');
+  const budget = Number((INDEX.match(/const WL_SNAPSHOT_READ_TIMEOUT_MS = (\d+);/) || [])[1]);
+  ok(Number.isSafeInteger(budget) && budget >= 30000
+    && /setTimeout\(\(\) => controller\.abort\(\), WL_SNAPSHOT_READ_TIMEOUT_MS\)/.test(snapshotFetch)
+    && !/controller\.abort\(\), WL_PLAN_READ_TIMEOUT_MS\)/.test(snapshotFetch),
+  'the native snapshot read has its own budget of at least 30 s, not the 8 s plan-read budget (OPEN_REPAIRS 230)');
+}
 ok(/const WL_PLAN_WRITE_TIMEOUT_MS = 10000/.test(INDEX)
   && /setTimeout\(\(\) => controller\.abort\(\), WL_PLAN_WRITE_TIMEOUT_MS\)/.test(clientWrite)
   && /signal: controller\.signal/.test(clientWrite)

@@ -100,7 +100,7 @@ function workloadEligibility(native, roster) {
 async function nativeBoard(envelope, today) {
   const ctx=boardContext(),calls=[];
   Object.assign(ctx,{
-    wlWorkloadTodayISO:()=>today,WL_PLAN_READ_TIMEOUT_MS:1000,
+    wlWorkloadTodayISO:()=>today,WL_PLAN_READ_TIMEOUT_MS:1000,WL_SNAPSHOT_READ_TIMEOUT_MS:1000,
     WORKLOAD_PLAN_URL:'https://synthetic.invalid/workload-plan',
     _wlPlanSessionGeneration:1,_wlPlanWriteGeneration:0,_wlPlanLoadGeneration:0,
     _wlPlanWriteInFlight:new Map(),_wlPlanLastWriteGeneration:new Map(),

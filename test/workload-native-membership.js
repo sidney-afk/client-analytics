@@ -58,7 +58,7 @@ function browser(response=fixture()) {
  const calls=[], state={issueSnapshot:[],planByIssueId:new Map(),planStatus:'unknown',planHasSnapshot:false,
  workloadByIssueId:new Map(),dueAuthorityByIssueId:new Map(),nativeDueTargetByIssueId:new Map(),linearMetadataStatus:'unknown',editorRoster:[],editorRosterStatus:'unknown'};
  const context={console,URL,Date,Map,Set,JSON,Promise,Error,AbortController,setTimeout,clearTimeout,
- WL_PLAN_READ_TIMEOUT_MS:500,WORKLOAD_PLAN_URL:'https://fixture.invalid/functions/v1/workload-plan',
+ WL_PLAN_READ_TIMEOUT_MS:500,WL_SNAPSHOT_READ_TIMEOUT_MS:500,WORKLOAD_PLAN_URL:'https://fixture.invalid/functions/v1/workload-plan',
  CAL_SUPABASE_URL:'https://fixture.invalid',
  // Deliberately no anon key: _wlFetchArchiveMarkerRows's own guard then
  // returns no rows without ever calling fetch, so the archived-in-Linear

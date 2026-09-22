@@ -7846,3 +7846,26 @@ numbers from the committed artifact rather than from the working base.
 The first full-suite run exposed stale Linear-dead harness coverage for the two
 removed webhook routes; the harness regex and its contract test were narrowed
 to the one remaining non-prefixed Linear-backed route before publication.
+
+## 2026-09-22 — Workload cold load: the native snapshot read gets its own 30 s budget (OPEN_REPAIRS 230, browser only)
+
+The owner reported an empty Workload calendar under the "Saved work days are
+unavailable" banners at about 00:10Z; the console read `Workload fetch failed:
+AbortError`. Every server answer in the window was 200 in 3 to 4 s with a
+2,013,991-byte body; the browser's own 8 s `WL_PLAN_READ_TIMEOUT_MS` cancelled
+each one before the body finished. Edge Function execution had peaked at
+8,195 ms earlier the same day, so the budget could not have held even on a fast
+line. Fix: `WL_SNAPSHOT_READ_TIMEOUT_MS = 30000`, read only by the snapshot
+fetch in `wlFetchNativeSnapshot`; the other three reads keep 8 s. Fixture
+contexts in `test/workload-native-membership.js` and
+`qa/workload-consistency/source-harness.js` gained the new constant, and
+`test/workload-plan-source.js` gained a guard that the snapshot fetch never
+falls back onto the 8 s budget. Proven in headless Chromium against a
+production-scale snapshot held for 9 s: pre-fix page aborts with the owner's
+exact console line, fixed page paints 8,151 rows. The reproduction also showed
+item 229's 44 parallel archive-marker reads being cancelled on the same 8 s
+budget (fail-open held, rows left unfiltered); that is the next PR, recorded
+under item 230's open list. `index.html` 5,750,579 → 5,751,934 bytes, from the
+committed artifact. `docs/truth/README.md` freshness date refreshed in the
+same commit: truth-sync's 30-day rule rolled over at midnight, with the whole
+truth suite re-verified green on main `bb5266cb` in this session.

@@ -767,7 +767,9 @@
         const readGeneration = _wlPlanWriteGeneration;
         if (!owner) throw new Error('Staff sign-in is required to load Workload.');
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), WL_PLAN_READ_TIMEOUT_MS);
+        // The snapshot leg gets its own, longer budget -- see
+        // WL_SNAPSHOT_READ_TIMEOUT_MS for the measurement that forced it.
+        const timer = setTimeout(() => controller.abort(), WL_SNAPSHOT_READ_TIMEOUT_MS);
         try {
             const response = await fetch(WORKLOAD_PLAN_URL, {
                 method: 'POST', cache: 'no-store', signal: controller.signal,
@@ -1019,6 +1021,23 @@
 
     // Date helpers — all dates handled as YYYY-MM-DD strings for determinism.
     const WL_PLAN_READ_TIMEOUT_MS = 8000;
+    /* THE NATIVE SNAPSHOT CANNOT LIVE INSIDE THE 8-SECOND READ BUDGET.
+       Measured 2026-09-21 (function_edge_logs, workload-plan POST): the
+       native_snapshot answer is a 2.0 MB body whose Edge Function execution
+       alone averaged 3.3 to 4.5 s across the day and peaked at 8.2 s -- so an
+       8 s client budget that must also cover downloading 2 MB to a residential
+       connection was already spent before the body finished. Between 23:58 and
+       00:05 UTC every one of six loads was answered 200 by the server and then
+       cancelled by the browser at 8 s, and the console read
+       "Workload fetch failed: AbortError" while the board painted the
+       "Saved work days are unavailable" state with no cards at all
+       (the localStorage warm start only covers LINEAR_ISSUES_TTL_MS).
+       The board is 6,651 rows and grows daily, so this is a limit the estate
+       was always going to reach; 30 s is roughly seven times the observed
+       server maximum. Only the snapshot fetch reads this constant: the
+       archive-marker chunk reads, the plan list and the popover reads keep
+       WL_PLAN_READ_TIMEOUT_MS. OPEN_REPAIRS 230. */
+    const WL_SNAPSHOT_READ_TIMEOUT_MS = 30000;
     const WL_PLAN_WRITE_TIMEOUT_MS = 10000;
     const WL_LINEAR_READ_TIMEOUT_MS = 20000;
     const WL_LINEAR_WRITE_TIMEOUT_MS = 12000;

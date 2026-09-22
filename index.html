@@ -15015,7 +15015,22 @@
         const wanted = [...new Set((ids || []).map(id => String(id || '').trim()).filter(Boolean))];
         if (!wanted.length || !CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return [];
         const pageSize = 1000;
-        const maxPages = 5;
+        /* A RUNAWAY GUARD, NOT A ROW BUDGET, and the difference is the whole
+           point of this constant (Codex review, #1491). The former cap of 5
+           pages would have returned the first 5,000 id-ordered markers AS IF
+           THE READ WERE COMPLETE once the marker set outgrew it -- and a
+           marker this read never saw is an archived card the board then shows
+           as live work, which is precisely the defect item 229 exists to fix,
+           reintroduced silently and only past a threshold nobody would be
+           watching. So exhausting these pages with a FULL page throws instead:
+           _wlArchivedNativeIds's catch leaves the board unfiltered and warns,
+           which is the honest, already-documented failure rather than a
+           partial answer wearing a complete one's clothes.
+           The cap costs no latency of its own -- the AbortController below
+           bounds the entire read at WL_PLAN_READ_TIMEOUT_MS no matter how many
+           pages it spans. Today the whole marker set is 278 rows of 6,688, so
+           page two has never been fetched at all. */
+        const maxPages = 25;
         const url = CAL_SUPABASE_URL + '/rest/v1/production_deliverables_browser_v1?select='
             + encodeURIComponent(WL_ARCHIVE_MARKER_SELECT)
             + '&or=(status.eq.archived,raw_issue_archived_at.not.is.null,raw_webhook_delete.is.true,raw_deleted.is.true,raw_delete.is.true,raw_removed.is.true,raw_archived.is.true)'
@@ -15039,6 +15054,7 @@
         const timer = setTimeout(() => controller.abort(), WL_PLAN_READ_TIMEOUT_MS);
         const out = [];
         try {
+            let complete = false;
             for (let page = 0; page < maxPages; page++) {
                 const headers = { ..._prodHeaders(), Range: (page * pageSize) + '-' + (((page + 1) * pageSize) - 1) };
                 const response = await fetch(url, { cache: 'no-store', headers, signal: controller.signal });
@@ -15046,8 +15062,10 @@
                 const rows = await response.json();
                 if (!Array.isArray(rows)) throw new Error('archive-marker read returned an unexpected shape');
                 out.push(...rows);
-                if (rows.length < pageSize) break;
+                // A SHORT PAGE IS THE ONLY PROOF THE ANSWER IS WHOLE.
+                if (rows.length < pageSize) { complete = true; break; }
             }
+            if (!complete) throw new Error('archive-marker read still had rows after ' + maxPages + ' pages');
             return out;
         } finally {
             clearTimeout(timer);

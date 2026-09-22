@@ -237,6 +237,32 @@ async function runAsyncChecks() {
   }
 
   {
+    /* A TRUNCATED ANSWER MUST NEVER BE RETURNED AS A COMPLETE ONE (Codex, #1491).
+       If every page comes back full, rows remain unread -- and a marker this
+       read never saw is an archived card the board shows as live work, item
+       229's defect returning silently once the marker set outgrows the page
+       cap. The read must throw so _wlArchivedNativeIds's catch leaves the
+       board unfiltered and warns, rather than hand back a prefix. */
+    const fullPage = () => Array.from({ length: 1000 }, (_, index) => ({
+      ...baseRow(), id: 'del_endless_' + index, raw_archived: true,
+    }));
+    const harness = archivedContext(async () => ({ ok: true, json: async () => fullPage() }));
+    let threw = false;
+    try { await harness.ctx.fetchMarkers(['del_snapshot']); } catch (e) { threw = true; }
+    ok(threw === true,
+      'a marker read whose pages never run short throws instead of returning a silently truncated prefix');
+    ok(harness.calls.length > 5 && harness.calls.length <= 50,
+      'the page cap is a runaway guard well above the 5 pages that used to truncate, got ' + harness.calls.length);
+
+    // And that throw must land in the fail-open catch, not escape to the board.
+    const rows = [{ id: 'del_snapshot', source: 'native', is_sub_issue: true }];
+    const openHarness = archivedContext(async () => ({ ok: true, json: async () => fullPage() }));
+    const archived = await openHarness.ctx.run(rows);
+    ok(archived.size === 0,
+      'and that throw reaches the fail-open catch, leaving every row unfiltered rather than blanking the board');
+  }
+
+  {
     // A failed archive-marker read must never blank or shrink the board: the
     // permissive default this file's own comment cites (AGENTS.md).
     const ctx = {

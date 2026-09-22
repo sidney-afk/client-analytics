@@ -17,14 +17,14 @@
 | 9 | `070-workload-source.js.part` | 3368 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3325 | WHAT THE BOARD DECIDED NOT TO SHOW, and why. |
 | 11 | `090-workload-popovers-navigation.js.part` | 2613 | Sub-issue popover |
-| 12 | `100-onboarding-staff-controls.js.part` | 2257 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
+| 12 | `100-onboarding-staff-controls.js.part` | 2259 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2024 | Kasper Time Off calendar |
 | 14 | `120-calendar-flags-write-repair.js.part` | 2959 | The members a flag value offers, or null when it offers no member list at |
-| 15 | `130-calendar-model-cache.js.part` | 2746 | Returns the comments array for a given component. Falls back to the |
-| 16 | `140-calendar-legacy-outbox.js.part` | 3144 | OPEN_REPAIRS item 63: the direct-delivery branch below posts to the |
+| 15 | `130-calendar-model-cache.js.part` | 2744 | Returns the comments array for a given component. Falls back to the |
+| 16 | `140-calendar-legacy-outbox.js.part` | 3002 | `gate.linear_issue` used to have to be EMPTY here: a lone |
 | 17 | `150-calendar-hydration-import.js.part` | 2709 | For a card linked to a real sub-issue (not a parent), return which of |
 | 18 | `160-calendar-organize-ui.js.part` | 2715 | Lighter path for the Order switch: update the chrome in place so the |
-| 19 | `170-calendar-links-status.js.part` | 2634 | Move a Linear sub-issue link from the old card onto the new one. The |
+| 19 | `170-calendar-links-status.js.part` | 2633 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 20 | `180-calendar-native-post-media.js.part` | 2680 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 21 | `190-calendar-approval-comments.js.part` | 2966 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 22 | `200-intake-data-startup.js.part` | 1473 | Video-only and Thumbnail-only were already built, but sat |
@@ -35,8 +35,8 @@
 | 27 | `250-production-controls-data.js.part` | 2743 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 28 | `260-production-refresh-boot.js.part` | 2176 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 29 | `270-samples-model.js.part` | 2694 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
-| 30 | `280-samples-cards-notes.js.part` | 2887 | SURFACE 3: the save engine |
-| 31 | `290-samples-writes-review.js.part` | 1795 | Same rule as the comment writer beside this one. No caller reaches |
+| 30 | `280-samples-cards-notes.js.part` | 2831 | SURFACE 3: the save engine |
+| 31 | `290-samples-writes-review.js.part` | 1773 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 32 | `300-tiktok-upload.js.part` | 1678 | TIKTOK UPLOAD MODULE |
 | 33 | `310-tiktok-pilot-sales.js.part` | 1969 | TIKTOK PILOT MODULE (gated: ?ttpilot=1 → #tiktok-pilot) |
 | 34 | `320-kasper-dashboard-replies.js.part` | 2778 | Background poll for the Kasper review — same cadence as the client |

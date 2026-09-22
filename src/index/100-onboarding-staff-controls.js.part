@@ -1062,14 +1062,16 @@
     // CALENDAR_GET_URL calls whenever this endpoint fails.
     const KASPER_QUEUE_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/kasper-queue';
     const LINEAR_SUBISSUES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-subissues';
-    const LINEAR_SET_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-set-status';
     /* linear-issue-statuses (LINEAR_STATUSES_URL) was removed 2026-09-22: the
        webhook is revoked on 2026-09-27 and its two front-end callers are gone.
-       See OPEN_REPAIRS 236. The other reader endpoints on this row stay as they
-       are -- A2 defers them to AFTER-STEP-7 and only this one was pulled
-       forward. The server-side reconcilers in scripts/ still hold their own
-       copy of this URL and are tracked separately. */
-    const LINEAR_ADD_COMMENT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-add-comment';
+       See OPEN_REPAIRS 236. linear-set-status (LINEAR_SET_STATUS_URL) and
+       linear-add-comment (LINEAR_ADD_COMMENT_URL) followed on the same day for
+       the same reason -- the legacy Calendar and Samples WRITE transports that
+       were their only callers are retired, and the assembled page holds no
+       remaining reference to either name (OPEN_REPAIRS 239). The other reader
+       endpoints on this row stay as they are -- A2 defers them to
+       AFTER-STEP-7. The server-side reconcilers in scripts/ still hold their
+       own copies of these URLs and are tracked separately. */
     const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
     const CAPTION_PROMPTS_SAVE_URL   = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save';

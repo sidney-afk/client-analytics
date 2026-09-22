@@ -24648,14 +24648,16 @@
     // CALENDAR_GET_URL calls whenever this endpoint fails.
     const KASPER_QUEUE_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/kasper-queue';
     const LINEAR_SUBISSUES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-subissues';
-    const LINEAR_SET_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-set-status';
     /* linear-issue-statuses (LINEAR_STATUSES_URL) was removed 2026-09-22: the
        webhook is revoked on 2026-09-27 and its two front-end callers are gone.
-       See OPEN_REPAIRS 236. The other reader endpoints on this row stay as they
-       are -- A2 defers them to AFTER-STEP-7 and only this one was pulled
-       forward. The server-side reconcilers in scripts/ still hold their own
-       copy of this URL and are tracked separately. */
-    const LINEAR_ADD_COMMENT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-add-comment';
+       See OPEN_REPAIRS 236. linear-set-status (LINEAR_SET_STATUS_URL) and
+       linear-add-comment (LINEAR_ADD_COMMENT_URL) followed on the same day for
+       the same reason -- the legacy Calendar and Samples WRITE transports that
+       were their only callers are retired, and the assembled page holds no
+       remaining reference to either name (OPEN_REPAIRS 239). The other reader
+       endpoints on this row stay as they are -- A2 defers them to
+       AFTER-STEP-7. The server-side reconcilers in scripts/ still hold their
+       own copies of these URLs and are tracked separately. */
     const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
     const CAPTION_PROMPTS_SAVE_URL   = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save';
@@ -33515,11 +33517,42 @@
     let _linearOutboxFlushTimer = null;
     let _linearOutboxFlushPromise = null;
     let _linearOutboxFlushOwnerKey = '';
+    /* RETIRED LEGACY DEBT (OPEN_REPAIRS 239). A `legacy_n8n` row is a queued
+       POST to `linear-set-status` / `linear-add-comment`. Both webhooks are
+       revoked, nothing enqueues the transport any more, and no attempt could
+       ever succeed -- so the row is not debt, it is residue.
+
+       Dropped at the READ, not in the drain, because every consumer has to
+       agree at once: the drain, the deferred-tweak inspection that decides
+       whether a client retry is still `active`, the committed-tweak ledger
+       matcher, the resume loop's owned-debt test, the pagehide diagnostic and
+       `peekWriteUiLegacyQueueState`. Filtering in one of those and not the
+       rest is how a cleared queue still reports a count. Storage is compacted
+       on the first read that sees such a row, so each browser sheds its own
+       once and then stays empty.
+
+       Quiet on purpose: not quarantined (a quarantine row is for a write an
+       operator must still decide about, and this one has nothing left to
+       decide) and not surfaced (no reader of this queue renders anything --
+       measured 2026-09-22 against a page with both webhooks answering 500).
+       Source-gate records (`source_only`) never touched the network and are
+       untouched here. */
+    function _writeUiLegacyRetiredRow(item) {
+        return !!item && item.transport === 'legacy_n8n';
+    }
+    function _writeUiLegacyWithoutRetired(rows, compact) {
+        const items = Array.isArray(rows) ? rows : [];
+        const kept = items.filter(item => !_writeUiLegacyRetiredRow(item));
+        if (kept.length !== items.length && typeof compact === 'function') {
+            try { compact(kept); } catch (e) {}
+        }
+        return kept;
+    }
     function _linearOutboxRead() {
         try {
             const raw = localStorage.getItem(LINEAR_OUTBOX_KEY);
             const arr = raw ? JSON.parse(raw) : [];
-            return Array.isArray(arr) ? arr : [];
+            return _writeUiLegacyWithoutRetired(Array.isArray(arr) ? arr : [], _linearOutboxWrite);
         } catch { return []; }
     }
     function _linearOutboxWrite(arr) {
@@ -33530,44 +33563,11 @@
             return true;
         } catch { return false; }
     }
-    async function _linearOutboxEnqueue(kind, payload, errMsg, clientSlug, options) {
-        const record = {
-            id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('lob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
-            kind: kind,
-            payload: payload,
-            attempts: 0,
-            lastError: errMsg || '',
-            lastAttempt: 0,
-            queuedAt: Date.now(),
-            transport: 'legacy_n8n',
-            // A CLIENT-originated item must carry its principal across the
-            // retry boundary. The drain re-derives the lane from enrollment
-            // (_writeUiRerouteUseGateway) and would quarantine an enrolled
-            // slug's gate-less item as 'legacy_actor_unverifiable' — but a
-            // client comment is deliberately routed legacy REGARDLESS of
-            // enrollment (see _calPostLinearComment), so the drain must be
-            // able to recognize it. Stamped here, once, so every enqueue
-            // site a client can reach is covered.
-            client_link: _isClientLink === true,
-            // The same argument as client_link, for the other traffic the add
-            // lane deliberately routes legacy on an ENROLLED slug: a comment on
-            // a slot whose crosswalk is broken. Without the stamp the drain
-            // re-derives the lane from enrollment, sees an enrolled staff item
-            // with no gate, and files it under `legacy_actor_unverifiable` --
-            // "the principal cannot be verified", which is not what happened:
-            // this item was routed legacy on purpose, one action ago, by the
-            // person still sitting there. The quarantine's security property is
-            // untouched (it exists to stop enrolled writes SNEAKING down the
-            // legacy lane, and this one was sent down it by rule), and post-flip
-            // the admitted item still meets the flipped-team quarantine a line
-            // later, so this changes the REASON recorded and no delivery.
-            ...(options && options.canonicalUnlinked ? { canonical_unlinked: true } : {}),
-            client_slug: String(clientSlug || '')
-        };
-        await _writeUiLegacyAppendOutboxItem('calendar', record);
-        _linearOutboxScheduleRetry();
-        return true;
-    }
+    /* `_linearOutboxEnqueue` is retired (OPEN_REPAIRS 239). It existed only
+       inside the catch of the two legacy Calendar senders, so it went with
+       them: a retry against a route that no longer has a destination is debt
+       nothing can ever pay. Source-only gate records, which never touch the
+       network, still queue through `_writeUiLegacyAppendOutboxItem`. */
     const WRITE_UI_LEGACY_SOURCE_GATE_PENDING_MS = 15 * 60 * 1000;
     const WRITE_UI_LEGACY_COMMITTED_TWEAK_KEY = 'syncview_write_ui_legacy_committed_tweaks_v1';
     function _writeUiLegacyOutboxItems(surface) {
@@ -33699,7 +33699,14 @@
                 || (gate.comment_audience !== 'client' && gate.comment_audience !== 'internal')
                 || gate.comment_is_tweak !== true
                 || String(gate.intended_status || '').trim().toLowerCase() !== 'tweaks needed'
-                || String(gate.linear_issue || '').trim()
+                /* `gate.linear_issue` used to have to be EMPTY here: a lone
+                   source record meant a card with no Linear URL, and a card
+                   with one staged the legacy comment+status pair instead. That
+                   pair is retired (OPEN_REPAIRS 239), so a source gate now
+                   stands alone whether or not the card carries a URL, and
+                   requiring the URL to be absent would reject every gate on a
+                   linked card. The URL stays IN the gate, because it is part
+                   of the target identity the relink check fails closed on. */
                 || !_writeUiLegacyApprovalClearsValid(surface, gate.approval_clears)
                 || String(source.id || '') !== prefix + '_source'
                 || String(source.client_slug || '') !== String(gate.client_slug || '')
@@ -33714,49 +33721,13 @@
                 ids: [String(source.id || '')]
             };
         }
-        if (items.length !== 2) return null;
-        const comments = items.filter(item => item && item.kind === 'comment');
-        const statuses = items.filter(item => item && item.kind === 'status');
-        if (comments.length !== 1 || statuses.length !== 1) return null;
-        const comment = comments[0];
-        const status = statuses[0];
-        const gate = comment.source_gate;
-        if (!_writeUiLegacyGateTargetIdentity(gate, surface, slug, pid, comp)
-            || !_writeUiLegacyGateTargetIdentity(status.source_gate, surface, slug, pid, comp)
-            || _writeUiLegacyGateSignature(gate) !== _writeUiLegacyGateSignature(status.source_gate)) {
-            return null;
-        }
-        const commentId = String(gate.comment_id || '');
-        const prefix = 'deferred_' + String(surface || '') + '_' + commentId;
-        if (!commentId
-            || (gate.source_transport !== 'supabase' && gate.source_transport !== 'webhook')
-            || !String(gate.comment_body || '').trim()
-            || !String(gate.comment_author || '')
-            || !String(gate.comment_role || '')
-            || (gate.comment_audience !== 'client' && gate.comment_audience !== 'internal')
-            || gate.comment_is_tweak !== true
-            || String(gate.intended_status || '').trim().toLowerCase() !== 'tweaks needed'
-            || !String(gate.linear_issue || '').trim()
-            || !_writeUiLegacyApprovalClearsValid(surface, gate.approval_clears)
-            || String(comment.id || '') !== prefix + '_comment'
-            || String(status.id || '') !== prefix + '_status'
-            || comment.transport !== 'legacy_n8n'
-            || status.transport !== 'legacy_n8n'
-            || String(comment.client_slug || '') !== String(gate.client_slug || '')
-            || String(status.client_slug || '') !== String(gate.client_slug || '')
-            || String(comment.payload && comment.payload.issue || '').trim() !== String(gate.linear_issue || '').trim()
-            || String(comment.payload && comment.payload.body || '').trim() !== String(gate.comment_body || '').trim()
-            || String(comment.payload && comment.payload.author || '') !== String(gate.comment_author || '')
-            || String(status.payload && status.payload.issue || '').trim() !== String(gate.linear_issue || '').trim()
-            || String(status.payload && status.payload.status || '') !== String(gate.intended_status || '')) {
-            return null;
-        }
-        return {
-            gate,
-            comment,
-            status,
-            ids: [String(comment.id || ''), String(status.id || '')]
-        };
+        /* The two-record branch that stood here validated a `legacy_n8n`
+           comment + status pair: both payloads had to agree with the gate's
+           Linear issue, body, author and intended status. Nothing stages that
+           pair any more and the read drops any row still holding the retired
+           transport, so no caller can present two records (OPEN_REPAIRS 239).
+           A queue shape this function cannot vouch for stays a refusal. */
+        return null;
     }
     function _writeUiLegacyTargetDecision(surface, slug, pid, comp, post, body, candidateId) {
         const wantedBody = String(body || '').trim();
@@ -34840,40 +34811,25 @@
         )) return [];
         const prefix = 'deferred_' + surface + '_' + gate.comment_id;
         const queuedAt = Date.now();
-        if (!String(issue || '').trim()) {
-            return [{
-                id: prefix + '_source',
-                kind: 'source_only',
-                payload: {},
-                attempts: 0,
-                lastError: '',
-                lastAttempt: 0,
-                queuedAt,
-                transport: 'source_only',
-                client_slug: gate.client_slug,
-                source_gate: Object.assign({}, gate)
-            }];
-        }
+        /* One SOURCE-GATE record, always (OPEN_REPAIRS 239).
+           This used to fork on whether the card carried a Linear URL: no URL
+           gave the source-only record below, a URL gave a `legacy_n8n`
+           comment + status pair destined for the revoked webhooks. That pair
+           is retired with the rest of the legacy transport, so a card with a
+           Linear URL now stages exactly what a card without one always did.
+           What the record still does is unchanged and still needed: it gates
+           the client's change request on its own source save landing, which is
+           what `_writeUiFlushDeferredLegacyTweak` and the committed-tweak
+           ledger read. It never touches the network. */
         return [{
-            id: prefix + '_comment',
-            kind: 'comment',
-            payload: { issue: String(issue || '').trim(), body: gate.comment_body, author: gate.comment_author },
+            id: prefix + '_source',
+            kind: 'source_only',
+            payload: {},
             attempts: 0,
             lastError: '',
             lastAttempt: 0,
             queuedAt,
-            transport: 'legacy_n8n',
-            client_slug: gate.client_slug,
-            source_gate: Object.assign({}, gate)
-        }, {
-            id: prefix + '_status',
-            kind: 'status',
-            payload: { issue: String(issue || '').trim(), status: gate.intended_status },
-            attempts: 0,
-            lastError: '',
-            lastAttempt: 0,
-            queuedAt,
-            transport: 'legacy_n8n',
+            transport: 'source_only',
             client_slug: gate.client_slug,
             source_gate: Object.assign({}, gate)
         }];
@@ -35307,6 +35263,21 @@
                 break itemLoop;
             }
             const payload = it.payload || {};
+            /* RETIRED LEGACY TRANSPORT (OPEN_REPAIRS 239). A `legacy_n8n` item
+               is a queued POST to the revoked `linear-set-status` /
+               `linear-add-comment`. It can never be delivered, so it is
+               dropped here: not sent, not retried, and NOT quarantined -- a
+               quarantine row is for a write an operator must still decide
+               about, and this one has nothing left to decide.
+
+               `_writeUiLegacyWithoutRetired` already strips these at the
+               storage read, so in the app nothing reaches this line. It stays
+               because this loop must be correct on the items it is HANDED,
+               not only on the ones today's reader can hand it: without it,
+               an item arriving by any other route would fall through to the
+               unverifiable-actor quarantine below and be filed for a review
+               that can lead nowhere. */
+            if (it && it.transport === 'legacy_n8n') continue;
             if (it && it.source_gate) {
                 const gateKey = _writeUiLegacyGateSignature(it.source_gate);
                 const storedTerminal = _writeUiLegacyStoredTeamTerminalItem('calendar', it);
@@ -35437,89 +35408,14 @@
                     continue;
                 }
             }
-            /* it.client_link: a client-authored comment is deliberately routed
-               legacy regardless of enrollment (the gateway's comment door can
-               never authorize it — see _calPostLinearComment). Without this
-               clause, an ENROLLED slug's client item would skip this branch
-               and be quarantined below as 'legacy_actor_unverifiable' with
-               zero retries. The quarantine's security property is preserved:
-               it exists to stop enrolled STAFF writes sneaking down the legacy
-               lane, and a client_link-stamped item is precisely the traffic
-               the routing fix sends legacy on the first attempt — retrying it
-               here changes the lane of nothing. */
-            if (it && it.transport === 'legacy_n8n'
-                && (it.source_gate || it.client_link || it.canonical_unlinked
-                    || !_writeUiRerouteUseGateway(it.client_slug))) {
-                // item 63: prove the team, then require it to still be on
-                // Linear before touching the webhook.
-                //
-                // source_gate items are EXEMPT from the flipped-team
-                // quarantine, deliberately (adversarial review, 2026-08-30):
-                // a committed source-gated client tweak that is quarantined
-                // produces zero outcomes for the ids the deferred-tweak flush
-                // awaits, which turns the client retry flow into a 409 no
-                // retry can ever resolve. Their pre-fix path stands -- in
-                // production the n8n comment/status gates 409 flipped-team
-                // deliveries server-side, so nothing lands on Linear either
-                // way; what this exemption preserves is the client-facing
-                // pending contract, not a delivery. The FINAL disposition of
-                // the source-gate lane post-flip is the item-63 owner
-                // decision the register still carries.
-                if (!it.source_gate) {
-                    const directIssue = String(payload.issue || '').trim();
-                    const directMatch = directIssue.match(/\b(VID|GRA)-\d+\b/i);
-                    if (!directMatch) {
-                        if (_writeUiLegacyQuarantine('calendar', it, 'legacy_issue_team_unverifiable')) continue;
-                        remaining.push(it);
-                        continue;
-                    }
-                    if (!drainAuthority) { remaining.push(it); continue; }
-                    const directTeam = directMatch[1].toUpperCase() === 'GRA' ? 'graphics' : 'video';
-                    if (drainAuthority[directTeam] === 'syncview') {
-                        if (_writeUiLegacyQuarantine('calendar', it, 'flipped_team_legacy_push')) continue;
-                        remaining.push(it);
-                        continue;
-                    }
-                }
-                if (Number(it.attempts || 0) >= LINEAR_OUTBOX_MAX_ATTEMPTS) { remaining.push(it); continue; }
-                const endpoint = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
-                let delivered = false;
-                try {
-                    if (!_writeUiLegacyResumeOwnerCurrent(owner)) {
-                        leaseRevoked = true;
-                        _writeUiLegacyRetainFrom(items, itemIndex, remaining);
-                        break itemLoop;
-                    }
-                    deliveryStarted = true;
-                    const resp = await fetch(endpoint, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    let ok = resp && resp.ok;
-                    try { const json = await resp.json(); if (json && json.ok === false) ok = false; } catch (e) {}
-                    if (!ok) throw new Error('http ' + (resp && resp.status));
-                    delivered = true;
-                } catch (e) {
-                    it.attempts = Number(it.attempts || 0) + 1;
-                    it.lastError = (e && e.message) ? e.message : String(e);
-                    it.lastAttempt = Date.now();
-                    remaining.push(it);
-                }
-                if (delivered && it.source_gate) {
-                    const receiptItem = _writeUiLegacyTeamDeliveryReceiptItem(it);
-                    if (!_writeUiLegacyRememberCommittedTweak('calendar', receiptItem)) {
-                        remaining.push(receiptItem);
-                    } else {
-                        outcomes.push({
-                            id: String(it.id || ''),
-                            state: 'team_delivery_confirmed',
-                            comment_id: String(it.source_gate.comment_id || ''),
-                            item: receiptItem
-                        });
-                    }
-                }
-                continue;
-            }
+            /* The `legacy_n8n` delivery branch that stood here -- the
+               item-63 authority test, the attempt budget, the POST to
+               `linear-add-comment` / `linear-set-status` and the team-delivery
+               receipt it wrote on success -- is retired (OPEN_REPAIRS 239).
+               Those items are now dropped at the top of this loop, so nothing
+               below this point can reach the revoked webhooks. That includes
+               the source-gate exemption, which was the one shape still able to
+               POST after the 2026-09-20 authority flip. */
             const issue = String(payload.issue || '').trim();
             const issueMatch = issue.match(/\b(VID|GRA)-\d+\b/i);
             if (!issueMatch) {
@@ -35635,71 +35531,29 @@
        the primary target after a team flip; Linear URL is parity fallback.
        Per-target serialization preserves every committed status transition. */
     const _calLinearPushChain  = Object.create(null);
-    const _calLinearPushLatest = Object.create(null);
-    function _calLegacyPushStatusToLinear(issueUrl, status, meta) {
-        const url = String(issueUrl || '').trim();
-        const st = String(status || '').trim();
-        const clientSlug = _writeUiSourceClientSlug('calendar', meta);
-        if (!url || !st) return;
-        /* N/A exists only in SyncView -- Linear has no such state, so
-           linear-set-status would answer ok:false and this function would
-           queue the write for retry, burning the whole attempt budget on a
-           status that can never land. Marking a lane N/A leaves the Linear
-           issue exactly where it is. (The gateway path reaches the same
-           conclusion via _writeUiNativeStatus returning '', which skips.)
-           Compared inline, with no helper, because this function is extracted
-           and executed standalone by the cutover suite -- a free identifier
-           here breaks that harness. */
-        if (st.toUpperCase() === 'N/A') return;
-        _calLinearPushLatest[url] = st;
-        const run = async () => {
-            if (_calLinearPushLatest[url] !== st) return;
-            const payload = { issue: url, status: st };
-            try {
-                const resp = await fetch(LINEAR_SET_STATUS_URL, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                let ok = resp && resp.ok;
-                try { const json = await resp.json(); if (json && json.ok === false) ok = false; } catch (e) {}
-                if (!ok) throw new Error('http ' + (resp && resp.status));
-            } catch (e) {
-                console.warn('[Calendar] Linear status push failed - queued for retry', e);
-                try {
-                    await _linearOutboxEnqueue('status', payload, (e && e.message) ? e.message : String(e), clientSlug);
-                } catch (queueError) {
-                    console.warn('[Calendar] Linear status retry could not be preserved', queueError);
-                }
-            }
-        };
-        _calLinearPushChain[url] = (_calLinearPushChain[url] || Promise.resolve()).then(run, run);
-    }
-    function _calLegacyPostLinearComment(issueUrl, body, author, meta) {
-        const url = String(issueUrl || '').trim();
-        const txt = String(body || '').trim();
-        const clientSlug = _writeUiSourceClientSlug('calendar', meta);
-        if (!url || !txt) return;
-        const payload = { issue: url, body: txt, author: String(author || _calCurrentAuthor() || 'SyncView') };
-        (async () => {
-            try {
-                const resp = await fetch(LINEAR_ADD_COMMENT_URL, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                let ok = resp && resp.ok;
-                try { const json = await resp.json(); if (json && json.ok === false) ok = false; } catch (e) {}
-                if (!ok) throw new Error('http ' + (resp && resp.status));
-            } catch (e) {
-                console.warn('[Calendar] Linear comment post failed - queued for retry', e);
-                try {
-                    await _linearOutboxEnqueue('comment', payload, (e && e.message) ? e.message : String(e), clientSlug,
-                        { canonicalUnlinked: !!(meta && meta.canonicalUnlinked) });
-                } catch (queueError) {
-                    console.warn('[Calendar] Linear comment retry could not be preserved', queueError);
-                }
-            }
-        })();
-    }
+    /* RETIRED 2026-09-22 (B1 order row 4, OPEN_REPAIRS 239):
+       `_calLegacyPushStatusToLinear` and `_calLegacyPostLinearComment` used to
+       POST every legacy-routed Calendar status and comment to the n8n webhooks
+       `linear-set-status` / `linear-add-comment`, and enqueue a retry on the
+       Calendar Linear outbox from inside their own catch. Both are revoked
+       2026-09-27, so the send fails forever from that date and its retry queue
+       has no destination that could ever pay it.
+
+       The bookkeeping goes WITH the send rather than being lifted out of it,
+       which earlier sessions correctly refused to do while a retry could still
+       land. It can go now because no Calendar write's only home was Linear:
+       the client change-request path commits `<comp>_tweaks` through
+       `repairEdits` and `_calFlushCardSave` (`190:957-1038`) whether or not
+       the transport answers, the plain add appends to the card array, the
+       deferred status drain in `170` fired only after the source save, and
+       `330`'s Kasper note is committed with `_calSetCommentsFor` before the
+       call. Nothing reads Linear any more (owner, 2026-09-22).
+
+       `N/A` no longer needs its special case here: it existed because
+       `linear-set-status` would answer `ok:false` for a state Linear has no
+       equivalent of and burn the retry budget. With no send there is no budget
+       to protect, and the gateway lane reaches the same conclusion on its own
+       through `_writeUiNativeStatus` returning ''. */
     async function _calPushStatusToLinear(issueUrl, status, meta) {
         /* Same rule as the comment writer beside this one. No caller reaches
            here with a caption or title today -- `_kasperPersistPost` loops
@@ -35717,11 +35571,11 @@
                 : sourceOnly;
         }
         if (!(await _writeUiUseGatewayWhenReady('calendar', meta))) {
-            if (meta && meta.deferLegacyUntilSourceSave) {
-                return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
-            }
-            _calLegacyPushStatusToLinear(issueUrl, status, meta);
-            return Promise.resolve({ skipped: true, legacy_transport: true });
+            /* The legacy lane no longer has a destination (OPEN_REPAIRS 239).
+               It neither sends nor defers: the caller's card write and source
+               save are unchanged and run exactly as before, and no Linear
+               retry is recorded, because a retry could never be paid. */
+            return Promise.resolve({ skipped: true, legacy_transport_retired: true });
         }
         const url = String(issueUrl || '').trim();
         const st  = String(status || '').trim();
@@ -35859,11 +35713,15 @@
            reroute-flag priming above still runs. */
         const canonicalUnlinkedAdd = !!(meta && meta.canonicalUnlinked) && !clientGatewaySurface;
         if (!(await _writeUiUseGatewayWhenReady('calendar', meta)) || (_isClientLink && !clientGatewaySurface) || canonicalUnlinkedAdd) {
-            if (meta && meta.deferLegacyUntilSourceSave) {
-                return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
-            }
-            _calLegacyPostLinearComment(issueUrl, body, author, meta);
-            return Promise.resolve({ skipped: true, legacy_transport: true });
+            /* Retired legacy lane (OPEN_REPAIRS 239). This is the door
+               OPEN_REPAIRS 237 measured as the live one -- a card with a
+               Linear URL and no deliverable id, about 213 client-facing slots.
+               The comment's home is the card on every caller that reaches
+               here, so those writes still land; only the outbound copy to a
+               retiring system is gone. Resolving rather than throwing keeps
+               the plain add's card append running, exactly as the legacy
+               fire-and-forget sender did. */
+            return Promise.resolve({ skipped: true, legacy_transport_retired: true });
         }
         const url = String(issueUrl || '').trim();
         const txt = String(body || '').trim();
@@ -43216,12 +43074,10 @@
         const precommittedForWrite = edits._writeUiPrecommittedNative === true
             || !!(retryPost && retryPost._writeUiRetrySourceAt);
         const companionRepairsForWrite = (Array.isArray(edits._writeUiCompanionRepairs) ? edits._writeUiCompanionRepairs : []).slice();
-        const deferLegacyStatusForWrite = edits._writeUiDeferLegacyStatusUntilSourceSave === true;
         const pinnedSourceTransportForWrite = String(edits._writeUiPinnedSourceTransport || '');
         delete edits._writeUiRepairRefs;
         delete edits._writeUiPrecommittedNative;
         delete edits._writeUiCompanionRepairs;
-        delete edits._writeUiDeferLegacyStatusUntilSourceSave;
         delete edits._writeUiPinnedSourceTransport;
         // Pin the destination client at the moment the save starts, BEFORE any
         // await. calClientSlug(calState.client) read later (post-await) could
@@ -43298,7 +43154,6 @@
         // so a later status/source failure becomes a durable source repair,
         // never an optimistic rollback that hides the committed comment.
         let gatewayCommitted = precommittedForWrite;
-        const deferredLegacyStatusPushes = [];
         const checkpointCommittedSource = () => {
             if (!gatewayCommitted) return;
             post._writeUiRetryEdits = Object.assign({}, edits);
@@ -43330,12 +43185,15 @@
                         post, component: 'video', sourceEditedAt,
                         // Preserve only this action's sign-off edit, never invent one from a status.
                         repairEdits: 'client_video_approved_at' in edits ? { client_video_approved_at: edits.client_video_approved_at } : {},
-                        repairRecord: companion && companion.record,
-                        deferLegacyUntilSourceSave: deferLegacyStatusForWrite
+                        repairRecord: companion && companion.record
                     });
-                    if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                    if (acknowledgement && (acknowledgement.deferred_until_source_save
+                        || acknowledgement.legacy_transport_retired)) {
+                        /* A write the retired legacy lane refused never reached the
+                           gateway either, so it must not leave `gatewayAttempted`
+                           set -- otherwise a later source failure is reported as a
+                           gateway failure (OPEN_REPAIRS 239). */
                         gatewayAttempted = gatewayAttemptedBefore;
-                        deferredLegacyStatusPushes.push({ component: 'video', sourceEditedAt });
                     }
                     _writeUiAdoptRepairAck(post, acknowledgement);
                     _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
@@ -43368,12 +43226,15 @@
                         post, component: 'graphic', sourceEditedAt,
                         // Preserve only this action's sign-off edit, never invent one from a status.
                         repairEdits: 'client_graphic_approved_at' in edits ? { client_graphic_approved_at: edits.client_graphic_approved_at } : {},
-                        repairRecord: companion && companion.record,
-                        deferLegacyUntilSourceSave: deferLegacyStatusForWrite
+                        repairRecord: companion && companion.record
                     });
-                    if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                    if (acknowledgement && (acknowledgement.deferred_until_source_save
+                        || acknowledgement.legacy_transport_retired)) {
+                        /* A write the retired legacy lane refused never reached the
+                           gateway either, so it must not leave `gatewayAttempted`
+                           set -- otherwise a later source failure is reported as a
+                           gateway failure (OPEN_REPAIRS 239). */
                         gatewayAttempted = gatewayAttemptedBefore;
-                        deferredLegacyStatusPushes.push({ component: 'graphic', sourceEditedAt });
                     }
                     _writeUiAdoptRepairAck(post, acknowledgement);
                     _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
@@ -43564,16 +43425,12 @@
                 if (Array.isArray(_okPost._writeUiRepairRefs) && _okPost._writeUiRepairRefs.length) _okPost._writeUiPrecommittedNative = true;
                 else delete _okPost._writeUiPrecommittedNative;
             }
-            if (_okPost) {
-                deferredLegacyStatusPushes.forEach(push => {
-                    const isGraphic = push.component === 'graphic';
-                    _calLegacyPushStatusToLinear(
-                        isGraphic ? _okPost.graphic_linear_issue_id : _okPost.linear_issue_id,
-                        _okPost[(isGraphic ? 'graphic' : 'video') + '_status'],
-                        { post: _okPost, component: push.component, sourceEditedAt: push.sourceEditedAt }
-                    );
-                });
-            }
+            /* The deferred legacy status drain that stood here is retired
+               (OPEN_REPAIRS 239), together with the accumulator that fed it
+               and the defer-until-source-save edit flag no producer ever set.
+               It fired only AFTER the upsert above, so removing it changes no
+               card state and no save ordering -- only the outbound copy to
+               Linear is gone. */
             _calCacheWrite(_saveSlug, calState.posts, { clearRepairIds: [realId] });
             _calSetCardStatus(realId, 'saved');
             // Only repaint the thumbnail when this save intentionally bumped
@@ -48437,7 +48294,7 @@
 
                 const acknowledgement = inspection.state === 'active'
                     || inspection.rearmed_team_delivery === true
-                    ? { skipped: true, legacy_transport: true, deferred_until_source_save: true }
+                    ? { skipped: true, source_gate_retry: true, deferred_until_source_save: true }
                     : await _calPostLinearComment(_calLinearUrlFor(post, comp), body, newComment.author, {
                         post,
                         component: comp,
@@ -70840,7 +70697,6 @@
             [realId, pid].forEach(k => { _sxrNoLinearPush.delete(k); _sxrNoLinearPush.delete(k + '|video'); _sxrNoLinearPush.delete(k + '|graphic'); });
             let gatewayAttempted = false;
             let gatewayCommitted = precommittedForWrite;
-            const deferredLegacyStatusPushes = [];
             const checkpointCommittedSource = () => {
                 if (!gatewayCommitted) return;
                 post._writeUiRetryEdits = Object.assign({}, edits);
@@ -70869,9 +70725,13 @@
                             repairRecord: companion && companion.record,
                             deferLegacyUntilSourceSave: true
                         });
-                        if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                        if (acknowledgement && (acknowledgement.deferred_until_source_save
+                            || acknowledgement.legacy_transport_retired)) {
+                            /* A write the retired legacy lane refused never reached the
+                           gateway either, so it must not leave `gatewayAttempted`
+                           set -- otherwise a later source failure is reported as a
+                           gateway failure (OPEN_REPAIRS 239). */
                             gatewayAttempted = gatewayAttemptedBefore;
-                            deferredLegacyStatusPushes.push({ component: 'video', sourceEditedAt });
                         }
                         _writeUiAdoptRepairAck(post, acknowledgement);
                         _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
@@ -70893,9 +70753,13 @@
                             repairRecord: companion && companion.record,
                             deferLegacyUntilSourceSave: true
                         });
-                        if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                        if (acknowledgement && (acknowledgement.deferred_until_source_save
+                            || acknowledgement.legacy_transport_retired)) {
+                            /* A write the retired legacy lane refused never reached the
+                           gateway either, so it must not leave `gatewayAttempted`
+                           set -- otherwise a later source failure is reported as a
+                           gateway failure (OPEN_REPAIRS 239). */
                             gatewayAttempted = gatewayAttemptedBefore;
-                            deferredLegacyStatusPushes.push({ component: 'graphic', sourceEditedAt });
                         }
                         _writeUiAdoptRepairAck(post, acknowledgement);
                         _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
@@ -70989,16 +70853,10 @@
                     const focusInThisCard = document.activeElement && document.activeElement.closest && document.activeElement.closest(`.cal-card[data-pid="${realId}"]`);
                     if (!focusInThisCard) { try { _sxrRenderBody({ preserveScroll: true }); } catch (e) {} }
                 }
-                if (_okPost) {
-                    deferredLegacyStatusPushes.forEach(push => {
-                        const isGraphic = push.component === 'graphic';
-                        _sxrLegacyPushStatusToLinear(
-                            isGraphic ? _okPost.graphic_linear_issue_id : _okPost.linear_issue_id,
-                            _okPost[(isGraphic ? 'graphic' : 'video') + '_status'],
-                            { post: _okPost, component: push.component, sourceEditedAt: push.sourceEditedAt }
-                        );
-                    });
-                }
+                /* The deferred legacy status drain that stood here is retired
+                   (OPEN_REPAIRS 239). It fired only AFTER the upsert above, so
+                   removing it changes no card state and no save ordering --
+                   only the outbound copy to Linear is gone. */
             } catch (e) {
                 console.warn('[Samples] save failed', e);
                 if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', 'status', e);
@@ -71892,7 +71750,7 @@
 
                 const acknowledgement = inspection.state === 'active'
                     || inspection.rearmed_team_delivery === true
-                    ? { skipped: true, legacy_transport: true, deferred_until_source_save: true }
+                    ? { skipped: true, source_gate_retry: true, deferred_until_source_save: true }
                     : await _sxrPostLinearComment(_sxrLinearUrlFor(post, comp), body, newComment.author, {
                         post,
                         component: comp,
@@ -73009,27 +72867,15 @@
     /* ── Legacy drain-only queue + native per-target serialized writes ── */
     const SXR_LINEAR_OUTBOX_MAX = 6, SXR_LINEAR_OUTBOX_RETRY_MS = 60 * 1000;
     let _sxrLinearOutboxTimer = null, _sxrLinearOutboxPromise = null, _sxrLinearOutboxOwnerKey = '';
-    function _sxrLinearOutboxRead() { try { const a = JSON.parse(localStorage.getItem(SXR_LINEAR_OUTBOX_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+    // Same retired-row drop and compaction as the Calendar twin; see
+    // `_writeUiLegacyWithoutRetired` for why it belongs at the read.
+    function _sxrLinearOutboxRead() { try { const a = JSON.parse(localStorage.getItem(SXR_LINEAR_OUTBOX_KEY) || '[]'); return _writeUiLegacyWithoutRetired(Array.isArray(a) ? a : [], _sxrLinearOutboxWrite); } catch (e) { return []; } }
     function _sxrLinearOutboxWrite(a) { try { const items = Array.isArray(a) ? a : []; if (items.length) localStorage.setItem(SXR_LINEAR_OUTBOX_KEY, JSON.stringify(items)); else localStorage.removeItem(SXR_LINEAR_OUTBOX_KEY); return true; } catch (e) { return false; } }
-    async function _sxrLinearOutboxEnqueue(kind, payload, err, clientSlug, options) {
-        const record = {
-            id: 'slob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-            kind, payload, attempts: 0, lastError: err || '', queuedAt: Date.now(),
-            transport: 'legacy_n8n',
-            // Same principal stamp as _linearOutboxEnqueue: an enrolled
-            // client's deliberately-legacy comment must survive the drain's
-            // enrollment re-derivation instead of being quarantined.
-            client_link: _isClientLink === true,
-            // Twin of the calendar stamp: a comment the add lane routed legacy
-            // because the slot crosswalk is broken, on an enrolled slug. See
-            // _linearOutboxEnqueue for why the drain has to be told.
-            ...(options && options.canonicalUnlinked ? { canonical_unlinked: true } : {}),
-            client_slug: String(clientSlug || '')
-        };
-        await _writeUiLegacyAppendOutboxItem('sxr', record);
-        _sxrLinearOutboxScheduleRetry();
-        return true;
-    }
+    /* `_sxrLinearOutboxEnqueue` is retired (OPEN_REPAIRS 239). It existed only
+       inside the catch of the two legacy Samples senders, so it went with
+       them: a retry against a route that no longer has a destination is debt
+       nothing can ever pay. Source-only gate records, which never touch the
+       network, still queue through `_writeUiLegacyAppendOutboxItem`. */
     function _sxrLinearOutboxScheduleRetry(suppliedOwner) {
         const owner = suppliedOwner || _writeUiLegacyResumeOwner();
         if (!_writeUiLegacyResumeOwnerCurrent(owner) || _sxrLinearOutboxTimer) return;
@@ -73095,6 +72941,21 @@
                 break itemLoop;
             }
             const payload = it.payload || {};
+            /* RETIRED LEGACY TRANSPORT (OPEN_REPAIRS 239). A `legacy_n8n` item
+               is a queued POST to the revoked `linear-set-status` /
+               `linear-add-comment`. It can never be delivered, so it is
+               dropped here: not sent, not retried, and NOT quarantined -- a
+               quarantine row is for a write an operator must still decide
+               about, and this one has nothing left to decide.
+
+               `_writeUiLegacyWithoutRetired` already strips these at the
+               storage read, so in the app nothing reaches this line. It stays
+               because this loop must be correct on the items it is HANDED,
+               not only on the ones today's reader can hand it: without it,
+               an item arriving by any other route would fall through to the
+               unverifiable-actor quarantine below and be filed for a review
+               that can lead nowhere. */
+            if (it && it.transport === 'legacy_n8n') continue;
             if (it && it.source_gate) {
                 const gateKey = _writeUiLegacyGateSignature(it.source_gate);
                 const storedTerminal = _writeUiLegacyStoredTeamTerminalItem('sxr', it);
@@ -73225,71 +73086,12 @@
                     continue;
                 }
             }
-            /* it.client_link: twin of the calendar drain. A client comment is
-               deliberately legacy regardless of enrollment; without this
-               clause an ENROLLED slug's client item is quarantined
-               ('legacy_actor_unverifiable') with zero retries. Honoring the
-               stamp preserves the quarantine's point — blocking enrolled
-               STAFF writes from the legacy lane — because a client_link item
-               was never gateway traffic to begin with. */
-            if (it && it.transport === 'legacy_n8n'
-                && (it.source_gate || it.client_link || it.canonical_unlinked
-                    || !_writeUiRerouteUseGateway(it.client_slug))) {
-                // item 63: same authority test as the calendar drain, with the
-                // same deliberate source_gate exemption -- see the calendar
-                // drain comment for why quarantining a committed source
-                // gated pair breaks the client retry contract.
-                if (!it.source_gate) {
-                    const directIssue = String(payload.issue || '').trim();
-                    const directMatch = directIssue.match(/\b(VID|GRA)-\d+\b/i);
-                    if (!directMatch) {
-                        if (_writeUiLegacyQuarantine('sxr', it, 'legacy_issue_team_unverifiable')) continue;
-                        remaining.push(it);
-                        continue;
-                    }
-                    if (!drainAuthority) { remaining.push(it); continue; }
-                    const directTeam = directMatch[1].toUpperCase() === 'GRA' ? 'graphics' : 'video';
-                    if (drainAuthority[directTeam] === 'syncview') {
-                        if (_writeUiLegacyQuarantine('sxr', it, 'flipped_team_legacy_push')) continue;
-                        remaining.push(it);
-                        continue;
-                    }
-                }
-                if (Number(it.attempts || 0) >= SXR_LINEAR_OUTBOX_MAX) { remaining.push(it); continue; }
-                const endpoint = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
-                let delivered = false;
-                try {
-                    if (!_writeUiLegacyResumeOwnerCurrent(owner)) {
-                        leaseRevoked = true;
-                        _writeUiLegacyRetainFrom(items, itemIndex, remaining);
-                        break itemLoop;
-                    }
-                    deliveryStarted = true;
-                    const resp = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                    let ok = resp && resp.ok;
-                    try { const json = await resp.json(); if (json && json.ok === false) ok = false; } catch (e) {}
-                    if (!ok) throw new Error('http ' + (resp && resp.status));
-                    delivered = true;
-                } catch (e) {
-                    it.attempts = Number(it.attempts || 0) + 1;
-                    it.lastError = (e && e.message) || String(e);
-                    remaining.push(it);
-                }
-                if (delivered && it.source_gate) {
-                    const receiptItem = _writeUiLegacyTeamDeliveryReceiptItem(it);
-                    if (!_writeUiLegacyRememberCommittedTweak('sxr', receiptItem)) {
-                        remaining.push(receiptItem);
-                    } else {
-                        outcomes.push({
-                            id: String(it.id || ''),
-                            state: 'team_delivery_confirmed',
-                            comment_id: String(it.source_gate.comment_id || ''),
-                            item: receiptItem
-                        });
-                    }
-                }
-                continue;
-            }
+            /* The `legacy_n8n` delivery branch that stood here -- the
+               authority test, the attempt budget, the POST to
+               `linear-add-comment` / `linear-set-status` and the team-delivery
+               receipt it wrote on success -- is retired (OPEN_REPAIRS 239).
+               Those items are now dropped at the top of this loop, so nothing
+               below this point can reach the revoked webhooks. */
             const issue = String(payload.issue || '').trim();
             const issueMatch = issue.match(/\b(VID|GRA)-\d+\b/i);
             if (!issueMatch) {
@@ -73370,53 +73172,31 @@
     window.clearSxrLinearOutbox = function () { const n = _sxrLinearOutboxRead().length; _sxrLinearOutboxWrite([]); return 'cleared ' + n; };
     window.peekSxrLinearOutbox = function () { return _sxrLinearOutboxRead(); };
     const _sxrLinearPushChain = Object.create(null);
-    const _sxrLinearPushLatest = Object.create(null);
-    function _sxrLegacyPushStatusToLinear(issueUrl, status, meta) {
-        const url = String(issueUrl || '').trim(), st = String(status || '').trim();
-        const clientSlug = _writeUiSourceClientSlug('sxr', meta);
-        if (!url || !st || st === 'Scheduled' || st === 'Posted') return;
-        _sxrLinearPushLatest[url] = st;
-        const run = async () => {
-            if (_sxrLinearPushLatest[url] !== st) return;
-            const payload = { issue: url, status: st };
-            try {
-                const resp = await fetch(LINEAR_SET_STATUS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                let ok = resp && resp.ok;
-                try { const json = await resp.json(); if (json && json.ok === false) ok = false; } catch (e) {}
-                if (!ok) throw new Error('http ' + (resp && resp.status));
-            } catch (e) {
-                console.warn('[Samples] Linear status push failed - queued', e);
-                try {
-                    await _sxrLinearOutboxEnqueue('status', payload, (e && e.message) || String(e), clientSlug);
-                } catch (queueError) {
-                    console.warn('[Samples] Linear status retry could not be preserved', queueError);
-                }
-            }
-        };
-        _sxrLinearPushChain[url] = (_sxrLinearPushChain[url] || Promise.resolve()).then(run, run);
-    }
-    function _sxrLegacyPostLinearComment(issueUrl, body, author, meta) {
-        const url = String(issueUrl || '').trim(), txt = String(body || '').trim();
-        const clientSlug = _writeUiSourceClientSlug('sxr', meta);
-        if (!url || !txt) return;
-        const payload = { issue: url, body: txt, author: String(author || _sxrCurrentAuthor() || 'SyncView') };
-        (async () => {
-            try {
-                const resp = await fetch(LINEAR_ADD_COMMENT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                let ok = resp && resp.ok;
-                try { const json = await resp.json(); if (json && json.ok === false) ok = false; } catch (e) {}
-                if (!ok) throw new Error('http ' + (resp && resp.status));
-            } catch (e) {
-                console.warn('[Samples] Linear comment failed - queued', e);
-                try {
-                    await _sxrLinearOutboxEnqueue('comment', payload, (e && e.message) || String(e), clientSlug,
-                        { canonicalUnlinked: !!(meta && meta.canonicalUnlinked) });
-                } catch (queueError) {
-                    console.warn('[Samples] Linear comment retry could not be preserved', queueError);
-                }
-            }
-        })();
-    }
+    /* RETIRED 2026-09-22 (B1 order row 5, OPEN_REPAIRS 239):
+       `_sxrLegacyPushStatusToLinear` and `_sxrLegacyPostLinearComment` used to
+       POST every legacy-routed Samples status and comment to the n8n webhooks
+       `linear-set-status` / `linear-add-comment`, and enqueue a retry on the
+       Samples Linear outbox from inside their own catch.
+
+       The API key behind both webhooks is revoked 2026-09-27, so every such
+       send fails from that date on, forever, and the retry queue it fed has no
+       destination that could ever pay it. Deleting the send WITH its
+       bookkeeping is safe here because no Samples write's only home was Linear
+       -- every caller stores on the card and saves the source first:
+
+         - the status save loop writes the card and upserts at
+           `280-samples-cards-notes.js.part:456`, and only sent afterwards;
+         - the change-request path commits `<comp>_tweaks` through
+           `repairEdits` and `_sxrFlushCardSave`;
+         - the plain note add appends to the card array and calls
+           `_sxrWatchNoteSave` regardless of the transport's answer;
+         - `_sxrKasperApplyAndPersist` persists via `_sxrKasperPersist` before
+           it sent;
+         - the repair-journal replay reissues an intent the card already holds.
+
+       Nothing reads Linear any more (owner, 2026-09-22), so the outbound copy
+       has no reader to lose. The gateway lane, the card save and its ordering,
+       receipts and owner checks are untouched. */
     async function _sxrPushStatusToLinear(issueUrl, status, meta) {
         /* Same rule as the comment writer beside this one. No caller reaches
            here with a caption or title today -- `_kasperPersistPost` loops
@@ -73434,11 +73214,11 @@
                 : sourceOnly;
         }
         if (!(await _writeUiUseGatewayWhenReady('sxr', meta))) {
-            if (meta && meta.deferLegacyUntilSourceSave) {
-                return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
-            }
-            _sxrLegacyPushStatusToLinear(issueUrl, status, meta);
-            return Promise.resolve({ skipped: true, legacy_transport: true });
+            /* The legacy lane no longer has a destination (OPEN_REPAIRS 239).
+               It neither sends nor defers: the caller's card write and source
+               save are unchanged and run exactly as before, and no Linear
+               retry is recorded, because a retry could never be paid. */
+            return Promise.resolve({ skipped: true, legacy_transport_retired: true });
         }
         const url = String(issueUrl || '').trim(), st = String(status || '').trim();
         const component = meta && meta.component === 'graphic' ? 'graphic' : 'video';
@@ -73516,11 +73296,13 @@
                 throw _writeUiGatewayError(409, 'canonical_comment_read_required');
             }
         } else if (!(await _writeUiUseGatewayWhenReady('sxr', meta)) || (_isClientLink && !clientFrontDoorSurface) || canonicalUnlinkedAdd) {
-            if (meta && meta.deferLegacyUntilSourceSave) {
-                return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
-            }
-            _sxrLegacyPostLinearComment(issueUrl, body, author, meta);
-            return Promise.resolve({ skipped: true, legacy_transport: true });
+            /* Retired legacy lane (OPEN_REPAIRS 239). The comment's home is the
+               card either way: the change-request path commits it through
+               `repairEdits` and `_sxrFlushCardSave`, and the plain add appends
+               to the card array below this call's resolution. Resolving rather
+               than throwing keeps that append running, exactly as the legacy
+               fire-and-forget sender did. */
+            return Promise.resolve({ skipped: true, legacy_transport_retired: true });
         }
         const url = String(issueUrl || '').trim(), txt = String(body || '').trim();
         if (!txt) return Promise.resolve({ skipped: true });
@@ -74867,7 +74649,8 @@
                     reserveStatusIntent: patch[comp + '_status'] ? { status: patch[comp + '_status'] } : null,
                     deferLegacyUntilSourceSave: true
                 });
-                deferredLegacyComment = !!(acknowledgement && acknowledgement.deferred_until_source_save);
+                deferredLegacyComment = !!(acknowledgement && (acknowledgement.deferred_until_source_save
+                    || acknowledgement.legacy_transport_retired));
                 if (deferredLegacyComment) gatewayAttempted = gatewayAttemptedBefore;
                 _writeUiAdoptRepairAck(p, acknowledgement);
                 _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
@@ -74897,7 +74680,8 @@
                         repairRecord: companion && companion.record,
                         deferLegacyUntilSourceSave: true
                     });
-                    deferredLegacyStatus = !!(acknowledgement && acknowledgement.deferred_until_source_save);
+                    deferredLegacyStatus = !!(acknowledgement && (acknowledgement.deferred_until_source_save
+                    || acknowledgement.legacy_transport_retired));
                     if (deferredLegacyStatus) gatewayAttempted = gatewayAttemptedBefore;
                     _writeUiAdoptRepairAck(p, acknowledgement);
                     _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
@@ -74910,17 +74694,12 @@
                 if (gatewayCommitted) { checkpointRepair(); repair.statusCommitted = true; checkpointRepair(); }
             }
             await _sxrKasperPersist(it, patch);
-            const persistedUrl = _sxrLinearUrlFor(p, comp);
-            if (deferredLegacyStatus) {
-                _sxrLegacyPushStatusToLinear(persistedUrl, patch[comp + '_status'], {
-                    post: p, component: comp, sourceEditedAt: p.updated_at, clientSlug: it.slug
-                });
-            }
-            if (deferredLegacyComment) {
-                _sxrLegacyPostLinearComment(persistedUrl, linearComment, 'Kasper', {
-                    post: p, component: comp, comment: linearMeta, audience: 'internal', clientSlug: it.slug
-                });
-            }
+            /* The two post-persist legacy sends that stood here are retired
+               (OPEN_REPAIRS 239). The persist above was always the write's
+               home and still is; only the outbound copy to Linear is gone.
+               `deferredLegacyStatus` / `deferredLegacyComment` stay because
+               they still mark a write that never reached the gateway, which is
+               what keeps `gatewayAttempted` honest in the catch below. */
             if (await _writeUiCompleteSourceRepairRefs(sourceRepairRefsForWrite)) _writeUiRemoveCompletedRepairRefs(p, sourceRepairRefsForWrite);
             delete p._writeUiKasperRepair;
             _kasperState.sxrRepairs = (_kasperState.sxrRepairs || []).filter(row => row && row.id !== p.id);

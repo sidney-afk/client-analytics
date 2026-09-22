@@ -459,22 +459,27 @@ async function runKasperTweakCase({ gateway, saveOk }) {
     flush.indexOf('await _sxrPushStatusToLinear') < flush.indexOf('await _sxrUpsertFetch'),
     'enrolled gateway status commits stay before the Samples source save'
   );
+  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). This asserted the direct legacy
+     status send sits AFTER the source save is confirmed -- the ordering that
+     kept a Linear notification from claiming a save that had not landed. The
+     send is retired, so the ordering it needed is now guaranteed by there
+     being nothing to order: this pins its absence, and the gateway-before-
+     source assertion above still covers the live lane. */
   assert(
-    flush.indexOf('_sxrLegacyPushStatusToLinear(') > flush.indexOf("if (!json.ok) throw new Error(json.error || 'save failed')"),
-    'direct legacy status transport is reachable only after the source save is confirmed'
+    !flush.includes('_sxrLegacyPushStatusToLinear('),
+    'the direct legacy status transport is retired from the Samples save path'
   );
 
   const failedLegacy = await runCase({ gateway: false, saveOk: false });
   assert.deepStrictEqual(failedLegacy.events, ['route:legacy', 'save']);
   assert.strictEqual(failedLegacy.legacyCalls.length, 0, 'a failed Samples save must not notify legacy Linear');
 
+  /* Was: events ['route:legacy', 'save', 'legacy'] with one recorded send.
+     The unenrolled route still SAVES exactly as before; only the trailing
+     Linear notification is gone (OPEN_REPAIRS 239). */
   const successfulLegacy = await runCase({ gateway: false, saveOk: true });
-  assert.deepStrictEqual(successfulLegacy.events, ['route:legacy', 'save', 'legacy']);
-  assert.deepStrictEqual(successfulLegacy.legacyCalls, [{
-    url: 'https://linear.app/acme/issue/VID-1/sample',
-    status: 'Approved',
-    component: 'video'
-  }]);
+  assert.deepStrictEqual(successfulLegacy.events, ['route:legacy', 'save']);
+  assert.deepStrictEqual(successfulLegacy.legacyCalls, []);
 
   const successfulGateway = await runCase({ gateway: true, saveOk: true });
   assert.deepStrictEqual(successfulGateway.events, ['route:gateway', 'gateway', 'save']);
@@ -519,24 +524,30 @@ async function runKasperTweakCase({ gateway, saveOk }) {
   assert.strictEqual(rejectedLegacyReview.legacyCalls.length, 0,
     'an offline-style rejected review save must not notify legacy Linear');
   assertReviewFailureRestored(rejectedLegacyReview, 'offline');
+  /* Was: a trailing 'legacy:comment' send after the save. The change request
+     still lands on the card and still saves; the notification is retired
+     (OPEN_REPAIRS 239). */
   const successfulLegacyReview = await runReviewTweakCase({ gateway: false, saveOk: true });
-  assert.deepStrictEqual(successfulLegacyReview.events, ['route:comment:legacy', 'save', 'legacy:comment']);
-  assert.strictEqual(successfulLegacyReview.legacyCalls.length, 1);
+  assert.deepStrictEqual(successfulLegacyReview.events, ['route:comment:legacy', 'save']);
+  assert.strictEqual(successfulLegacyReview.legacyCalls.length, 0);
+  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). This drove a TERMINAL LINKED
+     DROP: the deferred-tweak flush failing to confirm team delivery, which
+     rolled the card back and told the client "Team delivery could not be
+     confirmed... retry". Nothing is delivered to a team any more, so the
+     unenrolled review tweak stages no delivery, cannot fail to confirm one,
+     and simply saves. The harness still injects the drop; the point is that
+     it no longer has anything to act on, so the client is never shown a retry
+     for a delivery that was never owed. */
   const terminalDropReview = await runReviewTweakCase({
     gateway: false,
     saveOk: true,
     terminalDrop: true
   });
-  assert.deepStrictEqual(terminalDropReview.events, [
-    'route:comment:legacy', 'save', 'terminal-drop', 'gateway-report'
-  ]);
+  assert.deepStrictEqual(terminalDropReview.events, ['route:comment:legacy', 'save']);
   assert(terminalDropReview.legacyCalls.length === 0
-    && terminalDropReview.post.video_status === 'Client Approval'
-    && terminalDropReview.reviewState.drafts['review-sample|video'] === 'Please revise this cut'
-    && terminalDropReview.reviewState.errors['review-sample|video'] ===
-      'Team delivery could not be confirmed. Your draft is preserved; retry.'
-    && terminalDropReview.reviewState.draftActionIds['review-sample|video'] === 'review-comment-1',
-  'a terminal linked drop rolls back, preserves the exact draft/action, surfaces retry, and never claims delivery');
+    && terminalDropReview.reviewState.errors['review-sample|video'] !== 
+      'Team delivery could not be confirmed. Your draft is preserved; retry.',
+  'a retired legacy review tweak saves without ever claiming or owing a team delivery');
   const successfulGatewayReview = await runReviewTweakCase({ gateway: true, saveOk: true });
   assert.deepStrictEqual(successfulGatewayReview.events, ['route:comment:gateway', 'gateway:comment', 'save']);
   assert.strictEqual(successfulGatewayReview.gatewayCalls.length, 1);
@@ -551,20 +562,34 @@ async function runKasperTweakCase({ gateway, saveOk }) {
       item: { source_gate: { comment_id: 'confirmed-comment-0' } }
     }
   });
-  assert.deepStrictEqual(distinctFollowup.events, ['route:comment:legacy', 'save', 'legacy:comment']);
-  assert(distinctFollowup.stagedLegacy
-    && distinctFollowup.stagedLegacy.comment.id === 'review-comment-1'
-    && distinctFollowup.stagedLegacy.body === 'Please revise this cut',
-  'a distinct follow-up after confirmation gets a fresh comment id and normal source save');
+  /* The trailing 'legacy:comment' send is retired (OPEN_REPAIRS 239); the
+     fresh comment id and the normal source save, which are what this case is
+     about, are unchanged. */
+  assert.deepStrictEqual(distinctFollowup.events, ['route:comment:legacy', 'save']);
+  /* Was asserted through the STAGED legacy record, which carried the fresh
+     comment id on its way to a Linear delivery. An unenrolled review tweak
+     stages no delivery now (OPEN_REPAIRS 239), so the same property is
+     asserted where it actually lives -- on the card that was saved. */
+  assert(distinctFollowup.stagedLegacy === null
+    && distinctFollowup.post.video_comments.some(comment =>
+      comment && comment.id === 'review-comment-1'
+      && String(comment.body || '') === 'Please revise this cut'),
+  'a distinct follow-up after confirmation gets a fresh comment id on the card and a normal source save, staging no delivery');
 
+  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). These two asserted the Kasper
+     legacy status and comment sends sit AFTER `_sxrKasperPersist`, so neither
+     could notify Linear about a persist that had not happened. Both sends are
+     retired; the persist that was always the write's home is untouched, and
+     the ordering is now moot because nothing follows it. Pinned absent. */
   const kasperTweak = extract('_sxrKasperApplyAndPersist');
   assert(
-    kasperTweak.indexOf('_sxrLegacyPushStatusToLinear(') > kasperTweak.indexOf('await _sxrKasperPersist'),
-    'legacy Kasper status transport stays after source persistence'
+    !kasperTweak.includes('_sxrLegacyPushStatusToLinear(')
+      && !kasperTweak.includes('_sxrLegacyPostLinearComment('),
+    'the legacy Kasper status and comment transports are retired from the persist path'
   );
   assert(
-    kasperTweak.indexOf('_sxrLegacyPostLinearComment(') > kasperTweak.indexOf('await _sxrKasperPersist'),
-    'legacy Kasper comment transport stays after source persistence'
+    kasperTweak.includes('await _sxrKasperPersist'),
+    'the Kasper source persist itself is untouched'
   );
   const failedLegacyKasper = await runKasperTweakCase({ gateway: false, saveOk: false });
   assert.deepStrictEqual(failedLegacyKasper.events, [
@@ -572,12 +597,15 @@ async function runKasperTweakCase({ gateway, saveOk }) {
   ]);
   assert.strictEqual(failedLegacyKasper.legacyStatusCalls.length, 0);
   assert.strictEqual(failedLegacyKasper.legacyCommentCalls.length, 0);
+  /* Was: two trailing sends after the persist. The Kasper action still routes
+     legacy and still persists; both notifications are retired
+     (OPEN_REPAIRS 239). */
   const successfulLegacyKasper = await runKasperTweakCase({ gateway: false, saveOk: true });
   assert.deepStrictEqual(successfulLegacyKasper.events, [
-    'route:comment:legacy', 'route:status:legacy', 'save', 'legacy:status', 'legacy:comment'
+    'route:comment:legacy', 'route:status:legacy', 'save'
   ]);
-  assert.strictEqual(successfulLegacyKasper.legacyStatusCalls.length, 1);
-  assert.strictEqual(successfulLegacyKasper.legacyCommentCalls.length, 1);
+  assert.strictEqual(successfulLegacyKasper.legacyStatusCalls.length, 0);
+  assert.strictEqual(successfulLegacyKasper.legacyCommentCalls.length, 0);
   const successfulGatewayKasper = await runKasperTweakCase({ gateway: true, saveOk: true });
   assert.deepStrictEqual(successfulGatewayKasper.events, [
     'route:comment:gateway', 'gateway:comment', 'route:status:gateway', 'gateway:status', 'save'

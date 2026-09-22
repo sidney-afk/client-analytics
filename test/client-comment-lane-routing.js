@@ -325,14 +325,22 @@ const UNBOUND = { state: 'mismatch', fields: ['card_id'], card_unbound: true };
   }
 
   // --- 6. BEHAVIORAL: both routing sites, all principals ---------------------
+  async function observeLane(context, fn, surface, host, ...args) {
+    const ack = await context[fn](...args);
+    if (ack && ack.legacy_transport_retired === true) host.legacy.push([surface, args, ack]);
+    return ack;
+  }
   function routingHarness() {
+    /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). The legacy lane was observed by
+       stubbing the two legacy senders and counting calls; both are retired, so
+       it is observed where it now reports itself -- the writer resolves
+       `legacy_transport_retired: true` and sends nothing. `host.legacy` keeps
+       its name and meaning: "this write left the canonical lane". */
     const host = { legacy: [], gateway: [], useGateway: true, contextResult: null };
     const context = vm.createContext({
       _isClientLink: true,
       _writeUiUseGatewayWhenReady: async () => host.useGateway,
       _prodClientCommentGatewayContext: async () => host.contextResult,
-      _calLegacyPostLinearComment: (...args) => host.legacy.push(['calendar', args]),
-      _sxrLegacyPostLinearComment: (...args) => host.legacy.push(['sxr', args]),
       _writeUiGatewayWithRepair: async (intent, repair) => {
         host.gateway.push({ intent, repair });
         return { ok: true, native_committed: true };
@@ -375,7 +383,7 @@ const UNBOUND = { state: 'mismatch', fields: ['card_id'], card_unbound: true };
       // Enrolled CLIENT, no verified context (flag off or unprovable) → legacy.
       const { context, host } = routingHarness();
       host.contextResult = null;
-      await context[fn]('https://linear.app/x/issue/T-1', 'Please adjust', 'Client', meta());
+      await observeLane(context, fn, surface, host, 'https://linear.app/x/issue/T-1', 'Please adjust', 'Client', meta());
       ok(host.legacy.length === 1 && host.legacy[0][0] === surface && host.gateway.length === 0,
         `${surface}: enrolled client WITHOUT a verified context still routes legacy (the P0 stays fixed)`);
     }
@@ -383,7 +391,7 @@ const UNBOUND = { state: 'mismatch', fields: ['card_id'], card_unbound: true };
       // Enrolled CLIENT with flag+context → gateway, carrying the card binding.
       const { context, host } = routingHarness();
       host.contextResult = Object.freeze({ source_surface: surface, card_id: cardId, component: meta().component });
-      await context[fn]('https://linear.app/x/issue/T-1', 'Please adjust', 'Client', meta());
+      await observeLane(context, fn, surface, host, 'https://linear.app/x/issue/T-1', 'Please adjust', 'Client', meta());
       ok(host.gateway.length === 1 && host.legacy.length === 0,
         `${surface}: enrolled client WITH flag + verified context routes the gateway`);
       const sent = host.gateway[0] || { intent: { comment: {} } };
@@ -399,7 +407,7 @@ const UNBOUND = { state: 'mismatch', fields: ['card_id'], card_unbound: true };
       const { context, host } = routingHarness();
       host.useGateway = false;
       host.contextResult = Object.freeze({ source_surface: surface, card_id: cardId, component: meta().component });
-      await context[fn]('https://linear.app/x/issue/T-1', 'Please adjust', 'Client', meta());
+      await observeLane(context, fn, surface, host, 'https://linear.app/x/issue/T-1', 'Please adjust', 'Client', meta());
       ok(host.legacy.length === 1 && host.gateway.length === 0,
         `${surface}: an unenrolled client stays legacy even with the front door open`);
     }
@@ -408,15 +416,21 @@ const UNBOUND = { state: 'mismatch', fields: ['card_id'], card_unbound: true };
       const { context, host } = routingHarness();
       host.contextResult = null;
       const deferMeta = Object.assign(meta(), { deferLegacyUntilSourceSave: true });
-      const receipt = await context[fn]('https://linear.app/x/issue/T-1', 'Please adjust', 'Client', deferMeta);
-      ok(receipt && receipt.deferred_until_source_save === true && host.legacy.length === 0,
-        `${surface}: the defer-until-source-save legacy receipt is unchanged`);
+      const receipt = await observeLane(context, fn, surface, host, 'https://linear.app/x/issue/T-1', 'Please adjust', 'Client', deferMeta);
+      /* Was: `deferred_until_source_save === true` -- the client save path got
+         a receipt promising the Linear copy would be sent once the source row
+         was durable. There is nothing to defer (OPEN_REPAIRS 239), so the
+         writer answers immediately and the save path continues exactly as it
+         did; the comment's home was always the card. */
+      ok(receipt && receipt.legacy_transport_retired === true
+        && receipt.deferred_until_source_save === undefined,
+        `${surface}: a defer-until-source-save request on the retired lane resolves at once with nothing deferred`);
     }
     {
       // STAFF routing is completely untouched by the front door.
       const { context, host } = routingHarness();
       context._isClientLink = false;
-      await context[fn]('https://linear.app/x/issue/T-1', 'Staff note', 'SMM', meta());
+      await observeLane(context, fn, surface, host, 'https://linear.app/x/issue/T-1', 'Staff note', 'SMM', meta());
       ok(host.gateway.length === 1 && host.legacy.length === 0
         && host.gateway[0].intent.comment.card_id === undefined
         && host.gateway[0].repair !== null,
@@ -424,132 +438,38 @@ const UNBOUND = { state: 'mismatch', fields: ['card_id'], card_unbound: true };
       const { context: context2, host: host2 } = routingHarness();
       context2._isClientLink = false;
       host2.useGateway = false;
-      await context2[fn]('https://linear.app/x/issue/T-1', 'Staff note', 'SMM', meta());
+      await observeLane(context2, fn, surface, host2, 'https://linear.app/x/issue/T-1', 'Staff note', 'SMM', meta());
       ok(host2.legacy.length === 1 && host2.gateway.length === 0,
         `${surface}: an unenrolled STAFF comment routes legacy exactly as before`);
     }
   }
 
   // --- 7. RETRY LANE (PR 1064 amendment, unchanged contract) -----------------
-  /* When a client comment's legacy send fails TRANSIENTLY it is enqueued for
-   * retry, and the drain re-derives the lane from ENROLLMENT — so the enqueue
-   * functions stamp `client_link: true` on client tabs and both drains admit
-   * the stamp. The quarantine's security property (enrolled STAFF writes never
-   * sneak down the legacy lane) must survive. */
-  async function runEnqueue(fnName, scheduleName, isClientLink) {
-    const captured = [];
-    const context = vm.createContext({
-      _isClientLink: isClientLink,
-      _writeUiLegacyAppendOutboxItem: async (surface, record) => { captured.push({ surface, record }); },
-      [scheduleName]: () => {},
-    });
-    vm.runInContext(extract(fnName), context);
-    await context[fnName]('comment', { issue: 'https://example.invalid/i/1', body: 'x' }, 'http 502', 'enrolledclient');
-    if (captured.length !== 1) throw new Error(fnName + ' did not append exactly one item');
-    return captured[0];
+  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). Sections 7 and 7b stood here.
+     Both were about RETRY DEBT: the `client_link` and `canonical_unlinked`
+     stamps the two enqueues wrote so the drain would admit deliberately-legacy
+     traffic for full retries instead of filing it as
+     `legacy_actor_unverifiable`, and the drain branch that read those stamps.
+     The enqueues, the stamps and that branch are all retired together -- a
+     retry against a revoked webhook is debt nothing can pay, so there is no
+     admission decision left to make and no security property left to protect
+     in it.
+
+     What replaces them is the end state: neither enqueue exists, no stamp is
+     written anywhere in the page, and no drain branch admits the retired
+     transport for delivery. */
+  for (const fnName of ['_linearOutboxEnqueue', '_sxrLinearOutboxEnqueue']) {
+    ok(!app.includes('function ' + fnName + '('),
+      `${fnName}: the Linear retry enqueue is retired from the page`);
   }
-
-  for (const [fnName, scheduleName, surface] of [
-    ['_linearOutboxEnqueue', '_linearOutboxScheduleRetry', 'calendar'],
-    ['_sxrLinearOutboxEnqueue', '_sxrLinearOutboxScheduleRetry', 'sxr'],
-  ]) {
-    const clientSide = await runEnqueue(fnName, scheduleName, true);
-    ok(clientSide.surface === surface && clientSide.record.client_link === true,
-      `${fnName}: a CLIENT-tab enqueue stamps client_link:true`);
-    ok(clientSide.record.transport === 'legacy_n8n'
-        && clientSide.record.client_slug === 'enrolledclient'
-        && clientSide.record.kind === 'comment',
-      `${fnName}: transport/slug/kind are unchanged by the stamp`);
-    const staffSide = await runEnqueue(fnName, scheduleName, false);
-    ok(!staffSide.record.client_link,
-      `${fnName}: a STAFF-tab enqueue does NOT carry the client stamp`);
-  }
-
-  const branchRe = /if \(it && it\.transport === 'legacy_n8n'\s+&& \(([\s\S]*?)\)\) \{/g;
-  const conditions = [];
-  let match;
-  while ((match = branchRe.exec(app)) !== null) conditions.push(match[1]);
-  ok(conditions.length === 2,
-    `exactly two legacy-n8n drain branches exist (calendar + sxr); found ${conditions.length}`);
-  ok(conditions.every(c => /it\.client_link/.test(c) && /it\.source_gate/.test(c)
-      && /!_writeUiRerouteUseGateway\(it\.client_slug\)/.test(c)),
-    'both drain conditions keep all three disjuncts: source_gate, client_link, unenrolled');
-
-  const persisted = JSON.parse(JSON.stringify(
-    (await runEnqueue('_linearOutboxEnqueue', '_linearOutboxScheduleRetry', true)).record));
-  ok(persisted.client_link === true && !persisted.source_gate && persisted.attempts === 0,
-    'the stamp survives the localStorage JSON round trip; the item is gate-less');
-
-  const enrolled = slug => slug === 'enrolledclient';
-  const unenrolled = () => false;
-  conditions.forEach((cond, index) => {
-    const label = index === 0 ? 'calendar drain' : 'sxr drain';
-    const admits = new Function('it', '_writeUiRerouteUseGateway',
-      `return !!(it && it.transport === 'legacy_n8n' && (${cond}));`);
-    ok(admits(persisted, enrolled) === true,
-      `${label}: admits the ENROLLED client's gate-less comment — full retries, not zero-retry quarantine`);
-    const staffItem = { transport: 'legacy_n8n', kind: 'comment', client_slug: 'enrolledclient', attempts: 0 };
-    ok(admits(staffItem, enrolled) === false,
-      `${label}: STILL refuses an enrolled STAFF item — the quarantine's security property holds`);
-    ok(admits(staffItem, unenrolled) === true,
-      `${label}: an UNENROLLED item still drains legacy exactly as before`);
-    ok(admits({ ...staffItem, source_gate: { comment_id: 'x' } }, enrolled) === true,
-      `${label}: a source-gated item is still admitted exactly as before`);
-  });
-
-  const stamps = app.match(/client_link: _isClientLink === true/g) || [];
-  ok(stamps.length === 2, `both enqueue functions carry the literal stamp; found ${stamps.length}`);
-
-  /* --- 7b. THE SECOND deliberately-legacy population (2026-09-02) ----------
-   * The comment ADD lane now routes a STAFF comment legacy when the slot's
-   * crosswalk is broken (OPEN_REPAIRS item 99), which is traffic the drain has
-   * never seen: an enrolled slug, no gate receipt, no client link. Without a
-   * stamp it is filed as `legacy_actor_unverifiable` — "the principal cannot be
-   * verified" — which is false: it was routed legacy on purpose, one action
-   * ago, by the person still sitting there. Same shape as client_link, same
-   * security property: the quarantine exists to stop enrolled writes SNEAKING
-   * down the legacy lane, and this one was sent down it by rule. */
-  async function runStampedEnqueue(fnName, scheduleName, options) {
-    const captured = [];
-    const context = vm.createContext({
-      _isClientLink: false,
-      _writeUiLegacyAppendOutboxItem: async (surface, record) => { captured.push({ surface, record }); },
-      [scheduleName]: () => {},
-    });
-    vm.runInContext(extract(fnName), context);
-    await context[fnName]('comment', { issue: 'https://example.invalid/i/1', body: 'x' },
-      'http 502', 'enrolledclient', options);
-    if (captured.length !== 1) throw new Error(fnName + ' did not append exactly one item');
-    return captured[0].record;
-  }
-  for (const [fnName, scheduleName] of [
-    ['_linearOutboxEnqueue', '_linearOutboxScheduleRetry'],
-    ['_sxrLinearOutboxEnqueue', '_sxrLinearOutboxScheduleRetry'],
-  ]) {
-    const stamped = await runStampedEnqueue(fnName, scheduleName, { canonicalUnlinked: true });
-    ok(stamped.canonical_unlinked === true && stamped.client_link === false,
-      `${fnName}: a STAFF add the crosswalk sent legacy is stamped canonical_unlinked, not client_link`);
-    const plain = await runStampedEnqueue(fnName, scheduleName, undefined);
-    ok(!('canonical_unlinked' in plain),
-      `${fnName}: and every other enqueue keeps the exact record shape it had — the key is absent, not false`);
-  }
-  for (const [label, fnName] of [
-    ['calendar', '_calLegacyPostLinearComment'],
-    ['sxr', '_sxrLegacyPostLinearComment'],
-  ]) {
-    ok(/canonicalUnlinked: !!\(meta && meta\.canonicalUnlinked\)/.test(extract(fnName)),
-      `${label}: the legacy transport passes the add lane's verdict on to the retry queue`);
-  }
-  conditions.forEach((cond, index) => {
-    const label = index === 0 ? 'calendar drain' : 'sxr drain';
-    const admits = new Function('it', '_writeUiRerouteUseGateway',
-      `return !!(it && it.transport === 'legacy_n8n' && (${cond}));`);
-    const staffItem = { transport: 'legacy_n8n', kind: 'comment', client_slug: 'enrolledclient', attempts: 0 };
-    ok(admits({ ...staffItem, canonical_unlinked: true }, () => true) === true,
-      `${label}: admits the stamped enrolled STAFF item instead of quarantining it as unverifiable`);
-    ok(admits(staffItem, () => true) === false,
-      `${label}: and an UNSTAMPED enrolled staff item is still refused — the stamp is the whole permission`);
-  });
+  ok(!/client_link: _isClientLink === true/.test(app),
+    'no enqueue stamps client_link any more -- there is no retry lane to stamp for');
+  const deliveryBranchRe = /if \(it && it\.transport === 'legacy_n8n'\s+&& \(/g;
+  ok((app.match(deliveryBranchRe) || []).length === 0,
+    'neither drain keeps a legacy_n8n delivery branch');
+  const dropRe = /if \(it && it\.transport === 'legacy_n8n'\) continue;/g;
+  ok((app.match(dropRe) || []).length === 2,
+    'both drains instead drop the retired transport outright, calendar and sxr');
 
   if (failures) {
     console.error(`\n${failures} client-comment lane-routing check(s) failed`);

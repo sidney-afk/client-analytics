@@ -53,16 +53,36 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+/* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). Every row this suite drains used
+   to be a `legacy_n8n` retry destined for the n8n write webhooks. That
+   transport is retired: the drain drops such a row on sight, which would make
+   each lease scenario below finish before reaching the ownership recheck it
+   exists to test.
+
+   The lease question is transport-independent -- "may THIS owner's drain touch
+   THIS row" -- so the fixture is re-pointed at the row type that survives: a
+   source-gate record. It still carries the client slug the lease is scoped by
+   and still takes the drain's awaiting source-gate path, so the stale-
+   generation and epoch-rotation scenarios keep their mid-drain await. What no
+   longer happens anywhere below is a POST, and that is asserted throughout. */
 function debt(id, slug, issue) {
   return {
     id,
-    kind: 'status',
-    payload: { issue, status: 'Tweaks Needed' },
+    kind: 'source_only',
+    payload: {},
     attempts: 0,
     lastError: '',
     queuedAt: 100,
-    transport: 'legacy_n8n',
-    client_slug: slug
+    transport: 'source_only',
+    client_slug: slug,
+    source_gate: {
+      surface: 'calendar',
+      client_slug: slug,
+      principal: 'client:' + (slug || 'unscoped'),
+      post_id: id + '-post',
+      component: 'video',
+      linear_issue: issue
+    }
   };
 }
 
@@ -188,29 +208,27 @@ const ownerB = Object.freeze({
       fixture.functionName
     ]) vm.runInContext(extract(name), context);
 
+    /* The lease property, unchanged: a client A drain may consume ONLY client
+       A's own row. B's row, the unscoped row and the row whose gate names a
+       foreign principal must all survive byte-for-byte. What changed is that
+       consuming no longer means delivering -- nothing is POSTed, here or
+       anywhere else in this suite (OPEN_REPAIRS 239). */
     const first = await context[fixture.functionName](ownerA);
     assert.strictEqual(first.deferred, undefined);
-    assert.strictEqual(posts.length, 1, fixture.label + ' first retry sends only client A debt');
-    assert.strictEqual(posts[0].body.issue, 'https://linear.invalid/VID-101');
-    assert.strictEqual(rows.length, 4,
-      fixture.label + ' keeps failed client A debt plus B, empty, and inconsistent-gate rows');
-    assert.strictEqual(rows[0].attempts, 1, fixture.label + ' records the retryable 500 only on client A debt');
-    assert.strictEqual(JSON.stringify(rows[1]), originalForeign,
+    assert.strictEqual(posts.length, 0, fixture.label + ' the drain sends nothing');
+    assert.deepStrictEqual(rows.map(item => item.client_slug), ['beta', '', 'alpha'],
+      fixture.label + ' consumes only client A debt, retaining B, unscoped, and foreign-principal rows');
+    assert.strictEqual(JSON.stringify(rows[0]), originalForeign,
       fixture.label + ' preserves foreign client B debt byte-for-byte');
-    assert.strictEqual(JSON.stringify(rows[2]), originalEmpty,
+    assert.strictEqual(JSON.stringify(rows[1]), originalEmpty,
       fixture.label + ' preserves unscoped debt byte-for-byte');
-    assert.strictEqual(JSON.stringify(rows[3]), originalForeignGate,
+    assert.strictEqual(JSON.stringify(rows[2]), originalForeignGate,
       fixture.label + ' preserves outer-A debt with a matching gate slug but foreign principal byte-for-byte');
-    assert.deepStrictEqual(scheduledOwners, [ownerA],
-      fixture.label + ' retry timer captures the exact verified owner');
 
     await context[fixture.functionName](ownerA);
-    assert.strictEqual(posts.length, 2, fixture.label + ' retries client A exactly once after the 500');
+    assert.strictEqual(posts.length, 0, fixture.label + ' a second drain still sends nothing');
     assert.deepStrictEqual(rows.map(item => item.client_slug), ['beta', '', 'alpha'],
-      fixture.label + ' successful retry removes A while retaining B, unscoped, and foreign-principal debt');
-    assert.strictEqual(JSON.stringify(rows[0]), originalForeign);
-    assert.strictEqual(JSON.stringify(rows[1]), originalEmpty);
-    assert.strictEqual(JSON.stringify(rows[2]), originalForeignGate);
+      fixture.label + ' a second drain leaves the unowned rows exactly as they were');
 
     rows = [
       debt(fixture.label + '-pending-a', 'alpha', 'https://linear.invalid/VID-404'),
@@ -229,7 +247,7 @@ const ownerB = Object.freeze({
       fixture.label + ' stale generation releases a held routing read without draining');
     assert.strictEqual(JSON.stringify(rows), pendingBytes,
       fixture.label + ' held stale generation leaves A and B debt byte-for-byte unchanged');
-    assert.strictEqual(posts.length, 2, fixture.label + ' held stale generation starts no POST');
+    assert.strictEqual(posts.length, 0, fixture.label + ' held stale generation starts no POST');
 
     const heldSource = deferred();
     rows = [Object.assign(
@@ -257,7 +275,7 @@ const ownerB = Object.freeze({
     await sourceDrain;
     assert.strictEqual(JSON.stringify(rows), sourceBytes,
       fixture.label + ' rechecks after the source await and leaves the untouched item in place');
-    assert.strictEqual(posts.length, 2,
+    assert.strictEqual(posts.length, 0,
       fixture.label + ' stale source release cannot start a legacy or gateway POST');
     assert.strictEqual(finalizeCalls, finalizeBeforeClientStale,
       fixture.label + ' stale pre-POST generation cannot finalize queue state');
@@ -295,7 +313,7 @@ const ownerB = Object.freeze({
       fixture.label + ' old same-principal staff epoch becomes stale after re-verification');
     assert.strictEqual(JSON.stringify(rows), staffBytes,
       fixture.label + ' old staff epoch leaves queue storage byte-for-byte unchanged');
-    assert.strictEqual(posts.length, 2,
+    assert.strictEqual(posts.length, 0,
       fixture.label + ' old staff epoch cannot POST after the held await releases');
     assert.strictEqual(finalizeCalls, finalizeBeforeStaffRotation,
       fixture.label + ' old staff epoch cannot finalize into the new same-principal session');
@@ -457,7 +475,19 @@ const ownerB = Object.freeze({
       _writeUiQueueDiagnostic: () => {},
       _writeUiIntentId: (_surface, _kind, parts) => parts.join(':'),
       _writeUiRerouteUseGateway: () => false,
-      _writeUiGatewayPost: async () => ({ ok: true }),
+      /* The started-transport exception is now reached through the drain's
+         REMAINING transport -- the gateway resume post -- since the legacy
+         webhook branch is retired (OPEN_REPAIRS 239). Counting starts here
+         rather than in `fetch` keeps the scenario pointed at the code that
+         still exists. */
+      _writeUiGatewayPost: async (intent) => {
+        postCalls++;
+        if (intent && typeof intent.onLegacyResumeTransportStart === 'function') {
+          intent.onLegacyResumeTransportStart();
+        }
+        if (postGate) await postGate.promise;
+        return { ok: true };
+      },
       _writeUiNativeStatus: value => value,
       _isClientLink: false,
       _writeUiLegacyOutboxItems: () => {
@@ -510,11 +540,18 @@ const ownerB = Object.freeze({
     assert.strictEqual(postCalls, 0,
       fixture.label + ' no-POST finalizer scenario starts no transport');
 
-    rows = [debt(
-      fixture.surface + '-started-post',
-      'alpha',
-      'https://linear.invalid/VID-702'
-    )];
+    /* A row that still reaches a transport: neither the retired `legacy_n8n`
+       nor a source gate, so it falls through to the drain's gateway resume
+       post -- the only send the drain has left. */
+    rows = [{
+      id: fixture.surface + '-started-post',
+      kind: 'reserved',
+      payload: { issue: 'https://linear.invalid/VID-702' },
+      attempts: 0,
+      lastError: '',
+      queuedAt: 100,
+      client_slug: 'alpha'
+    }];
     ownerCurrent = true;
     holdFinalizer = false;
     releaseFinalizer = null;
@@ -525,7 +562,7 @@ const ownerB = Object.freeze({
     const startedPostDrain = context[fixture.functionName](owner);
     for (let tick = 0; tick < 20 && postCalls === 0; tick++) await Promise.resolve();
     assert.strictEqual(postCalls, 1,
-      fixture.label + ' checkpoint exception begins one valid legacy POST');
+      fixture.label + ' checkpoint exception begins one valid gateway resume post');
     ownerCurrent = false;
     postGate.resolve();
     const checkpointed = await startedPostDrain;
@@ -533,8 +570,16 @@ const ownerB = Object.freeze({
       fixture.label + ' a genuinely started transport may finish normally');
     assert.strictEqual(finalizerWrites, 1,
       fixture.label + ' a genuinely started transport may checkpoint after revocation');
-    assert.deepStrictEqual(rows, [],
-      fixture.label + ' successful started transport is removed exactly once');
+    /* Was `rows` emptied: the delivered legacy row was dropped by the drain
+       and the finalize wrote the empty remainder. The retirement removes the
+       legacy branch, so this scenario now drives the gateway resume post, and
+       what it is here to prove is the EXCEPTION itself -- a transport that
+       genuinely started may finish and checkpoint after its lease is revoked,
+       asserted by the three checks above (one post, not deferred, one
+       finalize write). The queue bookkeeping that follows a gateway resume is
+       covered by the drain suites in write-ui-writer-durability.js. */
+    assert.strictEqual(postCalls, 1,
+      fixture.label + ' the started transport ran exactly once and was not retried after revocation');
   }
 
   for (const fixture of [

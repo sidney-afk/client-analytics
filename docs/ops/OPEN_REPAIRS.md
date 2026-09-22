@@ -28284,3 +28284,102 @@ of a `schedule:` trigger; the absence of any other `linear-issue-statuses` calle
 Not independently re-verified this session, taken from the task's own stated facts:
 the two workflows' last-run timestamp (GitHub Actions runs API) and the n8n pager's
 deactivation date.
+
+## 239. [2026-09-22, done] The legacy Linear write transports are retired on both surfaces, and queued Linear debt now drains as moot
+
+**What shipped.** The two legacy n8n write senders on each surface are deleted,
+together with the Linear retry bookkeeping that lived inside their catch
+blocks:
+
+- Calendar (fragment 140): `_calLegacyPushStatusToLinear`,
+  `_calLegacyPostLinearComment`, and `_linearOutboxEnqueue` (130).
+- Samples (fragment 290): `_sxrLegacyPushStatusToLinear`,
+  `_sxrLegacyPostLinearComment`, and `_sxrLinearOutboxEnqueue` (280).
+- The call sites: the deferred status drains in `170` and `280` (both of which
+  only ever fired AFTER the source save), the post-persist sends in
+  `_sxrKasperApplyAndPersist` (290), and the legacy branches of all four
+  `_cal*`/`_sxr*` writers, which now neither send nor defer and resolve
+  `{ skipped: true, legacy_transport_retired: true }`.
+- The `_writeUiDeferLegacyStatusUntilSourceSave` edit flag in `170`, which no
+  producer ever set.
+- `LINEAR_SET_STATUS_URL` and `LINEAR_ADD_COMMENT_URL` (100). The assembled
+  page now holds nine mentions of those webhook names, all prose in comments,
+  and no executable reference to either.
+
+Page shrank 5754213 -> 5741592 bytes.
+
+**Why the bookkeeping could go this time.** Entry 235 stopped at exactly this
+point and was right to: while a retry could still land, deleting the transport
+and keeping the enqueue would have converted delivered writes into
+unconditional debt. Two things changed. The key is revoked 2026-09-27, so no
+retry can ever be paid; and the owner confirmed 2026-09-22 that nobody reads
+Linear, so the outbound copy has no reader to lose.
+
+**The proof that no write's only home was Linear.** Entry 237 left this
+confirmed on the client Calendar path only and flagged the two unchecked
+`_calPostLinearComment` callers as the thing that would change the priority.
+All Samples callers were then checked by reading each one, with the answer the
+same on every path — the card is written and the source saved before, or
+regardless of, the send:
+
+| Caller | Write lands | Legacy send fired |
+|---|---|---|
+| status save loop (280) | card fields, upsert at `280:456` | `280:507`, inside the post-save `_okPost` block |
+| change request (280) | `<comp>_tweaks` via `repairEdits` + `_sxrFlushCardSave` | deferred, after the save |
+| plain note add (280) | `arr.push(msg)` + `_sxrWatchNoteSave` (`280:2104-2111`) | resolved, never thrown, so the append always ran |
+| Kasper action (290) | `mutate(p)` into the card, `_sxrKasperPersist` at `290:1539` | `290:1542`/`290:1547`, after that persist |
+| repair-journal replay (290) | replays an intent the card already holds | `290:522` |
+
+**CORRECTION to entry 237 (do not edit 237; this is the correction of record).**
+237 closes with "what remains after the revoke is the retry outbox accumulating
+entries that can never send, because the drain retries the same dead route."
+Measured 2026-09-22 against the real assembled page in a headless browser, with
+both webhooks answering 500 and debt pre-seeded in both outboxes: **the drain
+did not retry the dead route at all — zero POSTs**, across boot, `focus` and
+`online`. With both teams at `prod_authority = syncview`, the item-63 authority
+test quarantined every direct item (`flipped_team_legacy_push` for a
+client-link item, `legacy_actor_unverifiable` for an enrolled staff item), and
+an aged client deferred tweak quarantined as `source_gate_expired`. The one
+shape that could still have POSTed was a `source_gate` item whose gate resolved
+"landed", which is exempt from that quarantine by design; that branch is now
+deleted with the rest. So the pre-existing debt was never an accumulating
+retry storm — it was residue sitting in a quarantine ring.
+
+**Nothing showed any of it to anyone.** Traced every reader of
+`_linearOutboxEnqueue` / `_sxrLinearOutboxEnqueue` debt: the flush loop
+(`140:1696`, `280:2580`), the resume check (`290:764-767`), a `pagehide`
+diagnostic (`290:875-878`) and three `window.peek*` console helpers. No badge,
+banner, dialog or card state reads the queue. The same browser run recorded
+zero toast/notify/confirm calls, zero open dialogs and zero DOM mentions in
+every fixture shape. The "Card sync incomplete" and "Note source sync pending"
+notices are about the SOURCE save (`_saveError`), not this queue — easy to
+mistake for debt UI, and it is not.
+
+**How queued debt now drains as moot.** A `legacy_n8n` row is dropped at the
+storage READ (`_writeUiLegacyWithoutRetired`, 130, used by both outbox
+readers), which compacts it out of localStorage on the first read that sees
+one. It is dropped at the read rather than in the drain because every consumer
+has to agree at once — the drain, the deferred-tweak inspection that decides
+whether a client retry is still `active`, the committed-tweak ledger matcher,
+the resume loop's owned-debt test, the pagehide diagnostic and
+`peekWriteUiLegacyQueueState`. Filtering in one and not the rest is how a
+cleared queue still reports a count. It is not quarantined (a quarantine row is
+for a write an operator must still decide about) and not surfaced.
+
+**What was deliberately kept.** The source-gate lane, which never touched the
+network: `_writeUiQueueDeferredLegacyTweak`, `_writeUiFlushDeferredLegacyTweak`,
+the committed-tweak ledger and the recovery machinery around them, per the A2
+RETAIN rows and B1 order row 5. `_writeUiBuildDeferredLegacyTweakRecords` now
+always builds the single `source_only` record it previously built only for a
+card with no Linear URL; the `legacy_n8n` comment+status pair it built for a
+card WITH one is gone. The native gateway, card saves, source-save ordering,
+receipts and owner checks are untouched, as are the A2 reader rows
+(AFTER-STEP-7), which this change stops short of.
+
+**Tests rewritten, never skipped** — each pinned the retired path, and each
+now pins the replacement. Reasons are one line per file in the PR body and in
+the test's own comment.
+
+**Duplicate `## N.` header count**, checked immediately before appending this
+entry and again after: **8** distinct numbers carry duplicate headers (13, 14,
+22, 23, 175, 176, 177, 180) — unchanged by this entry, which uses 239.

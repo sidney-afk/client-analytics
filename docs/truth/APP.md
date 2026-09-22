@@ -245,8 +245,11 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   write path + contract: `docs/truth/SUPABASE.md`.
 - Status pushes to Linear go through `_calPushStatusToLinear()` — **no guard** on
   Posted/Scheduled (they ARE pushed; a stale code comment claims otherwise).
-- The active `linear-set-status` and `linear-add-comment` bridges receive no verified caller
-  identity (F91). Team authority constrains direction only; it is not authentication.
+- `linear-set-status` and `linear-add-comment` **have no caller in the app** since 2026-09-22:
+  the legacy Calendar and Samples write transports and their Linear retry queues were retired
+  ahead of the endpoints' 2026-09-27 revoke (OPEN_REPAIRS 239). The F91 caller-auth defect is
+  therefore no longer reachable from this app through these two bridges; the endpoints themselves
+  still authenticate no incoming principal until they are revoked.
 - Status pills require a linked Linear sub-issue ("Link a Linear sub-issue first") — **legacy-lane
   invariant**: it holds for clients NOT in `write_ui_reroute_clients`. Enrolled clients route
   status/comments/Create Post through the authenticated `production-write` gateway, which accepts

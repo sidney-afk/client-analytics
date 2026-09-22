@@ -145,11 +145,19 @@ ok(/_isClientLink && _prodCanonicalCommentGate\(post, comp\)\.linked/.test(sxrCo
   && /_sxrCommentsFor\(post, comp\)/.test(sxrCommentsForAction),
 'client action reads follow the same split: canonical only where linked, legacy where not');
 const sxrPostLinearComment = extract('_sxrPostLinearComment');
+/* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). The last clause pinned the
+   unlinked branch CALLING `_sxrLegacyPostLinearComment`. That sender is
+   retired: the unlinked branch still routes away from the canonical lane, and
+   the comment still lands in the legacy card arrays this file's reader
+   assertions above cover -- only the outbound copy to Linear is gone. The
+   linked fail-closed contract, which is what this assertion is really for, is
+   unchanged and still pinned. */
 ok(/const clientCanonicalWrite = !!\(clientGate && clientGate\.linked\)/.test(sxrPostLinearComment)
   && /if \(!clientGate\.ready \|\| !clientGate\.client \|\| !nativeId \|\| !clientSurface\)/.test(sxrPostLinearComment)
   && /canonical_comment_read_required/.test(sxrPostLinearComment)
-  && /_sxrLegacyPostLinearComment\(issueUrl, body, author, meta\)/.test(sxrPostLinearComment),
-'client posting is canonical-and-fail-closed only when linked; unlinked takes the staff/legacy transport');
+  && /legacy_transport_retired: true/.test(sxrPostLinearComment)
+  && !/_sxrLegacyPostLinearComment\(/.test(sxrPostLinearComment),
+'client posting is canonical-and-fail-closed only when linked; unlinked leaves the canonical lane and sends nothing');
 ok(!/json\.client_surface_canonical/.test(source)
   && !/clientReaderVerified/.test(source),
 'endpoint self-attestation cannot unlock Client-visible');

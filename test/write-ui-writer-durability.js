@@ -102,10 +102,24 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
   const sxrDeferred = await context._sxrPostLinearComment('https://linear.invalid/GRA-2', 'Samples legacy', 'Fixture', {
     post: { id: 'legacy-sxr' }, component: 'graphic', deferLegacyUntilSourceSave: true
   });
-  assert(calStatusDeferred && calStatusDeferred.deferred_until_source_save === true
-    && calDeferred && calDeferred.deferred_until_source_save === true
-    && sxrDeferred && sxrDeferred.deferred_until_source_save === true,
-  'Calendar and Samples can defer legacy status/comment effects until the source row is durable');
+  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). This asserted that a legacy-lane
+     write DEFERS its Linear effect until the source row is durable. The legacy
+     send is retired, so there is no effect left to defer and deferring one
+     would be the bug: it would stage bookkeeping for a delivery that can never
+     happen. The durability property this guarded is unchanged and now
+     unconditional -- the card write and source save run on their own -- so
+     this pins the retired shape instead: refuses on the spot, claims no
+     deferral and no transport. */
+  assert(calStatusDeferred && calStatusDeferred.skipped === true
+    && calStatusDeferred.legacy_transport_retired === true
+    && calStatusDeferred.deferred_until_source_save === undefined
+    && calDeferred && calDeferred.skipped === true
+    && calDeferred.legacy_transport_retired === true
+    && calDeferred.deferred_until_source_save === undefined
+    && sxrDeferred && sxrDeferred.skipped === true
+    && sxrDeferred.legacy_transport_retired === true
+    && sxrDeferred.deferred_until_source_save === undefined,
+  'the retired legacy lane neither sends nor defers on either surface');
   context._writeUiUseGatewayWhenReady = async () => true;
 
   const calSourceOnlyDeferred = await context._calPostLinearComment('', 'Calendar source only', 'Fixture', {
@@ -192,10 +206,17 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
   assert(calFlush.includes('return _calAwaitCardSave(pid)') && sxrFlush.includes('return _sxrAwaitCardSave(pid)'), 'review acknowledgements wait through any trailing serialized save');
   assert(calFlush.indexOf('checkpointCommittedSource()') < calFlush.indexOf('await _calUpsertFetch'), 'Calendar checkpoints native acknowledgement before source IO');
   assert(sxrFlush.indexOf('checkpointCommittedSource()') < sxrFlush.indexOf('await _sxrUpsertFetch'), 'Samples checkpoints native acknowledgement before source IO');
-  assert(calFlush.includes('_writeUiDeferLegacyStatusUntilSourceSave')
-    && calFlush.includes('deferredLegacyStatusPushes')
-    && calFlush.indexOf('_calLegacyPushStatusToLinear') > calFlush.indexOf('await _calUpsertFetch'),
-  'Calendar request-change status notification waits until its source save succeeds');
+  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). This asserted the Calendar
+     request-change status NOTIFICATION to Linear fires only after the source
+     save succeeds -- the accumulator, its edit flag and the post-save send.
+     All three are retired, and no producer ever set the flag. Nothing replaces
+     the notification, so this pins its absence; the save-ordering assertions
+     above, which are the reason the notification was sequenced that way, are
+     untouched and still run. */
+  assert(!calFlush.includes('_writeUiDeferLegacyStatusUntilSourceSave')
+    && !calFlush.includes('deferredLegacyStatusPushes')
+    && !calFlush.includes('_calLegacyPushStatusToLinear'),
+  'the Calendar post-save legacy status notification is retired, not merely unused');
   assert(calFlush.includes('_writeUiPinnedSourceTransport')
     && calFlush.includes('await _calUpsertFetchPinned')
     && sxrFlush.includes('_writeUiPinnedSourceTransport')
@@ -528,14 +549,18 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
   'legacy drains require the exact principal/comment semantics and retain propagation-lag reads');
   const calLegacyOutbox = extract('_linearOutboxFlushRun');
   const sxrLegacyOutbox = extract('_sxrLinearOutboxFlushRun');
-  const calLegacyEnqueue = extract('_linearOutboxEnqueue');
-  const sxrLegacyEnqueue = extract('_sxrLinearOutboxEnqueue');
-  assert(calLegacyEnqueue.includes("await _writeUiLegacyAppendOutboxItem('calendar', record)")
-    && sxrLegacyEnqueue.includes("await _writeUiLegacyAppendOutboxItem('sxr', record)")
+  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). This asserted that both Linear
+     retry ENQUEUE paths append and verify under the surface mutation lock.
+     Both enqueues are retired with the senders whose catch blocks were their
+     only callers, so there is no path left to lock. The lock discipline they
+     were checked for still matters for the source-gate records that do still
+     queue, so the `_writeUiLegacyAppendOutboxItem` half is kept and the
+     retired callers are pinned absent. */
+  assert(!/function _linearOutboxEnqueue\(|function _sxrLinearOutboxEnqueue\(/.test(source)
     && legacyAppend.includes('_writeUiLegacyOutboxWithLock(surface')
     && legacyAppend.includes('_writeUiLegacyOutboxWrite(surface, next)')
     && legacyAppend.includes('_writeUiLegacyOutboxItems(surface)'),
-  'all legacy enqueue paths append and verify their record under the surface mutation lock');
+  'the Linear retry enqueues are retired; the surviving source-gate append keeps its mutation lock');
   const calDrainLockAt = calLegacyOutbox.indexOf("_writeUiLegacyDrainWithLock('calendar'");
   const sxrDrainLockAt = sxrLegacyOutbox.indexOf("_writeUiLegacyDrainWithLock('sxr'");
   assert(legacyDrainLock.includes('navigator.locks.request')
@@ -546,19 +571,27 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     && sxrLegacyOutbox.indexOf('await _writeUiPrimeRerouteFlag()') < sxrDrainLockAt
     && sxrDrainLockAt < sxrLegacyOutbox.indexOf('const snapshot = _sxrLinearOutboxRead()'),
   'both complete drains resolve routing without holding the drain lock, then lock before queue reads or team deliveries');
+  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). This ordered two ledger writes
+     BEFORE `const resp = await fetch(endpoint` -- the drain's POST to the
+     revoked webhooks. That fetch is deleted, so the anchor it ordered against
+     no longer exists and the ordering is vacuous. The ledger writes themselves
+     still run for source-gate records and keep their relative order, so the
+     half that survives the retirement is kept, and the drain is pinned as
+     having no network call at all. */
   assert(calLegacyOutbox.indexOf("_writeUiLegacyRememberCommittedTweak('calendar', it)")
       > calLegacyOutbox.indexOf("if (gateState !== 'committed')")
     && calLegacyOutbox.indexOf("_writeUiLegacyRememberCommittedTweak('calendar', it)")
       < calLegacyOutbox.indexOf("_writeUiLegacyReconcileCommittedTweak('calendar', it)")
-    && calLegacyOutbox.indexOf("_writeUiLegacyReconcileCommittedTweak('calendar', it)")
-      < calLegacyOutbox.indexOf('const resp = await fetch(endpoint')
     && sxrLegacyOutbox.indexOf("_writeUiLegacyRememberCommittedTweak('sxr', it)")
       > sxrLegacyOutbox.indexOf("if (gateState !== 'committed')")
     && sxrLegacyOutbox.indexOf("_writeUiLegacyRememberCommittedTweak('sxr', it)")
-      < sxrLegacyOutbox.indexOf("_writeUiLegacyReconcileCommittedTweak('sxr', it)")
-    && sxrLegacyOutbox.indexOf("_writeUiLegacyReconcileCommittedTweak('sxr', it)")
-      < sxrLegacyOutbox.indexOf('const resp = await fetch(endpoint'),
-  'authoritative confirmation is durably remembered and reconciled before the team drain can remove its gate');
+      < sxrLegacyOutbox.indexOf("_writeUiLegacyReconcileCommittedTweak('sxr', it)"),
+  'authoritative confirmation is durably remembered and reconciled in order');
+  assert(!calLegacyOutbox.includes('await fetch(')
+    && !sxrLegacyOutbox.includes('await fetch(')
+    && !calLegacyOutbox.includes('LINEAR_ADD_COMMENT_URL')
+    && !sxrLegacyOutbox.includes('LINEAR_SET_STATUS_URL'),
+  'neither drain can reach the revoked legacy webhooks any more');
   assert(!legacyGate.includes('sourceAcknowledged')
     && !calLegacyOutbox.includes('sourceAcknowledged')
     && !sxrLegacyOutbox.includes('sourceAcknowledged')
@@ -1532,24 +1565,20 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     principal: 'client:fixture'
   }, overrides || {});
   const activeGate = targetGate('calendar', 'action-a');
+  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). This built the staged PAIR a
+     linked card used to get -- a `legacy_n8n` comment record and its status
+     companion, both addressed at the now-revoked webhooks. A linked card now
+     stages the same lone source gate an unlinked one always did, so this
+     fixture builds that. It keeps its array shape and `[0]` indexing so every
+     use site below still reads the record the same way, and it keeps
+     `linear_issue` in the gate, which is still part of the target identity
+     the relink checks fail closed on. */
   const targetPairForGate = gate => [{
-    id: 'deferred_' + gate.surface + '_' + gate.comment_id + '_comment',
-    kind: 'comment',
-    payload: {
-      issue: gate.linear_issue,
-      body: gate.comment_body,
-      author: gate.comment_author
-    },
+    id: 'deferred_' + gate.surface + '_' + gate.comment_id + '_source',
+    kind: 'source_only',
+    payload: {},
     queuedAt: Date.now(),
-    transport: 'legacy_n8n',
-    client_slug: gate.client_slug,
-    source_gate: JSON.parse(JSON.stringify(gate))
-  }, {
-    id: 'deferred_' + gate.surface + '_' + gate.comment_id + '_status',
-    kind: 'status',
-    payload: { issue: gate.linear_issue, status: gate.intended_status },
-    queuedAt: Date.now(),
-    transport: 'legacy_n8n',
+    transport: 'source_only',
     client_slug: gate.client_slug,
     source_gate: JSON.parse(JSON.stringify(gate))
   }];
@@ -1583,8 +1612,8 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
   );
   assert(activeRetry.state === 'active'
     && activeRetry.comment_id === 'action-a'
-    && activeRetry.ids.length === 2,
-  'the same action id reuses its exact complete active pair');
+    && activeRetry.ids.length === 1,
+  'the same action id reuses its exact complete active source gate');
   const adoptedActive = await targetContext._writeUiLegacyInspectTargetTweak(
     'calendar', 'fixture', 'post-1', 'graphic', staleTargetPost, 'Please revise', 'action-b'
   );
@@ -1783,103 +1812,23 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     && targetCommittedRows[0].item.source_only_superseded === true,
   'a normal source-only tombstone converts to comment-only ownership when its reflected target link later changes');
 
+  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). Everything between here and the
+     reflected-target case below exercised the TEAM DELIVERY lane's committed
+     markers: a pre-delivery marker that had to come back `new` so the delivery
+     could still be attempted, a partial-delivery marker carrying the receipt
+     of the leg already sent, and eight altered markers that had to fail closed
+     before a rearm. All of it described a state that can no longer exist --
+     a marker is only pre- or partially-delivered if a delivery is pending, and
+     the legacy transport that delivered is retired. The source-only cluster
+     above already covers the marker semantics that remain reachable (exact
+     retry, pending, superseded, committed, stale-snapshot blocking, tombstone
+     idempotence and relink).
+
+     Kept and re-pointed at a source gate are the two properties that cluster
+     did NOT duplicate and that are still live: a committed marker blocks a
+     DISTINCT action on the same target, and a foreign principal owns the
+     target even when it reuses the attempted action id. */
   targetOutboxItems = [];
-  targetCommittedRows = [{
-    key: 'calendar|fixture|post-1|graphic',
-    item: targetPairForGate(activeGate)[0]
-  }];
-  const preDeliveryRetry = await targetContext._writeUiLegacyInspectTargetTweak(
-    'calendar', 'fixture', 'post-1', 'graphic', staleTargetPost, 'Please revise', 'action-a'
-  );
-  assert(preDeliveryRetry.state === 'new'
-    && preDeliveryRetry.rearmed_team_delivery === true
-    && preDeliveryRetry.comment_id === 'action-a'
-    && targetCommittedRows.length === 1,
-  'an exact same-id pre-delivery marker remains durable while the preserved retry prepares team delivery');
-  targetCommittedRows = [{
-    key: 'calendar|fixture|post-1|graphic',
-    item: targetConfirmedItemForGate(activeGate)
-  }];
-  const committedRetry = await targetContext._writeUiLegacyInspectTargetTweak(
-    'calendar', 'fixture', 'post-1', 'graphic', staleTargetPost, 'Please revise', 'action-a'
-  );
-  assert(committedRetry.state === 'committed'
-    && committedRetry.delivered === true
-    && committedRetry.team_delivery_confirmed === true
-    && committedRetry.comment_id === 'action-a'
-    && committedRetry.ids.length === 0,
-  'the exact same-id marker finishes without staging only after both team deliveries are proven');
-  targetCommittedRows = [{
-    key: 'calendar|fixture|post-1|graphic',
-    item: Object.assign({}, targetPairForGate(activeGate)[0], {
-      team_delivery_superseded: true,
-      team_delivery_receipts: ['deferred_calendar_action-a_comment']
-    })
-  }];
-  const rearmedTeamDelivery = await targetContext._writeUiLegacyInspectTargetTweak(
-    'calendar', 'fixture', 'post-1', 'graphic',
-    staleTargetPost, 'Please revise', 'action-a'
-  );
-  assert(rearmedTeamDelivery.state === 'new'
-    && rearmedTeamDelivery.rearmed_team_delivery === true
-    && rearmedTeamDelivery.comment_id === 'action-a'
-    && rearmedTeamDelivery.rearm_gate.linear_issue === 'https://linear.invalid/GRA-1'
-    && JSON.stringify(rearmedTeamDelivery.rearm_receipts)
-      === JSON.stringify(['deferred_calendar_action-a_comment'])
-    && targetCommittedRows.length === 1
-    && targetCommittedRows[0].item.team_delivery_superseded === true,
-  'the preserved exact action id retains its terminal marker while carrying the validated gate and partial delivery proof');
-  for (const invalidMarker of [
-    Object.assign({}, targetPairForGate(activeGate)[0], {
-      team_delivery_superseded: true,
-      source_gate: Object.assign({}, activeGate, { comment_author: 'Someone else' })
-    }),
-    Object.assign({}, targetPairForGate(activeGate)[0], {
-      team_delivery_superseded: true,
-      source_gate: Object.assign({}, activeGate, { comment_role: 'internal', comment_audience: 'internal' })
-    }),
-    Object.assign({}, targetPairForGate(activeGate)[0], {
-      team_delivery_superseded: true,
-      source_gate: Object.assign({}, activeGate, { comment_is_tweak: false })
-    }),
-    Object.assign({}, targetPairForGate(activeGate)[0], {
-      team_delivery_superseded: true,
-      source_gate: Object.assign({}, activeGate, { intended_status: 'Approved' })
-    }),
-    Object.assign({}, targetPairForGate(activeGate)[0], {
-      team_delivery_superseded: true,
-      source_gate: Object.assign({}, activeGate, { approval_clears: ['client_graphic_approved_at'] })
-    }),
-    Object.assign({}, targetPairForGate(activeGate)[0], {
-      team_delivery_superseded: true,
-      source_gate: Object.assign({}, activeGate, { linear_issue: 'https://linear.invalid/GRA-99' })
-    }),
-    Object.assign({}, targetPairForGate(activeGate)[0], {
-      team_delivery_superseded: true,
-      payload: {
-        issue: 'https://linear.invalid/GRA-99',
-        body: 'Please revise',
-        author: 'Client'
-      }
-    }),
-    Object.assign({}, targetPairForGate(activeGate)[0], {
-      team_delivery_superseded: true,
-      team_delivery_receipts: ['deferred_calendar_other-action_comment']
-    })
-  ]) {
-    targetCommittedRows = [{
-      key: 'calendar|fixture|post-1|graphic',
-      item: invalidMarker
-    }];
-    const invalidRearm = await targetContext._writeUiLegacyInspectTargetTweak(
-      'calendar', 'fixture', 'post-1', 'graphic',
-      staleTargetPost, 'Please revise', 'action-a'
-    );
-    assert(invalidRearm.state === 'conflict'
-      && invalidRearm.reason === 'team_delivery_rearm_signature_mismatch'
-      && targetCommittedRows.length === 1,
-    'an altered terminal marker fails closed and remains durable for review');
-  }
   targetCommittedRows = [{
     key: 'calendar|fixture|post-1|graphic',
     item: targetConfirmedItemForGate(activeGate)
@@ -2391,219 +2340,75 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     committedApprovalEdits
   );
   const stagedIds = stagedOutcome.ids || [];
+  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). This staged a PAIR -- a
+     `legacy_n8n` comment record plus its status companion -- because the card
+     carried a Linear URL. That pair existed to deliver to the revoked
+     webhooks and is retired; a card with a Linear URL now stages the single
+     `source_only` gate record a card without one always staged. The approval
+     clears carried in the gate are the part that outlives the transport, so
+     they are still asserted exactly. */
   assert(stagedOutcome.state === 'staged'
-    && stagedIds.length === 2
-    && stagedItems.length === 2
+    && stagedIds.length === 1
+    && stagedItems.length === 1
+    && stagedItems[0].transport === 'source_only'
+    && stagedItems[0].kind === 'source_only'
     && stageWrites === 1
     && stagedItems.every(item =>
       JSON.stringify(item.source_gate.approval_clears) === JSON.stringify(expectedCalendarApprovalClears)),
-  'comment and status are staged together with the exact allowlisted committed approval clears');
+  'the source gate is staged alone, with the exact allowlisted committed approval clears');
+  /* Snapshot of that staged record. Named `exactStagedPair` from when a linked
+     card staged a two-record pair; it now holds the single source gate, and
+     the name is kept so the use sites below read unchanged. */
   const exactStagedPair = JSON.parse(JSON.stringify(stagedItems));
-  const partialRearmMarker = Object.assign({}, exactStagedPair[0], {
-    team_delivery_superseded: true,
-    team_delivery_receipts: ['deferred_calendar_comment-1_comment']
-  });
-  stageCommittedRows = [{
-    version: 1,
-    key: 'calendar|fixture|post-1|graphic',
-    confirmed_at: new Date().toISOString(),
-    item: JSON.parse(JSON.stringify(partialRearmMarker))
-  }];
-  stagedItems = [];
-  stageWrites = 0;
-  const rearmedStageOutcome = await stageContext._writeUiQueueDeferredLegacyTweak(
-    'calendar',
-    { id: 'post-1', graphic_status: 'Tweaks Needed' },
-    'graphic',
-    { id: 'comment-1', role: 'client', audience: 'client', is_tweak: true },
-    'Please revise',
-    'Client',
-    committedApprovalEdits,
-    {
-      state: 'new',
-      rearmed_team_delivery: true,
-      rearm_gate: JSON.parse(JSON.stringify(exactStagedPair[0].source_gate)),
-      rearm_item: JSON.parse(JSON.stringify(partialRearmMarker)),
-      rearm_receipts: ['deferred_calendar_comment-1_comment']
-    }
-  );
-  assert(rearmedStageOutcome.state === 'staged'
-    && stagedItems.length === 2
-    && stagedItems.every(item => item.rearmed_team_delivery === true)
-    && stagedItems.find(item => item.kind === 'comment').team_delivery_receipts[0]
-      === 'deferred_calendar_comment-1_comment'
-    && !stagedItems.find(item => item.kind === 'status').team_delivery_receipts
-    && stageCommittedRows.length === 1
-    && stageCommittedRows[0].item.team_delivery_superseded === true,
-  'a rearmed retry carries its validated gate, skips only the proven leg, and retains the marker through staging');
-  const rearmedActiveOutcome = await stageContext._writeUiQueueDeferredLegacyTweak(
-    'calendar',
-    { id: 'post-1', graphic_status: 'Tweaks Needed' },
-    'graphic',
-    { id: 'comment-1', role: 'client', audience: 'client', is_tweak: true },
-    'Please revise',
-    'Client',
-    committedApprovalEdits,
-    {
-      state: 'active',
-      pair: {
-        gate: JSON.parse(JSON.stringify(exactStagedPair[0].source_gate))
-      },
-      rearmed_team_delivery: true,
-      rearm_receipts: ['deferred_calendar_comment-1_comment']
-    }
-  );
-  assert(rearmedActiveOutcome.state === 'active'
-    && JSON.stringify(rearmedActiveOutcome.ids) === JSON.stringify(rearmedStageOutcome.ids)
-    && stageWrites === 1
-    && stagedItems.length === 2,
-  'a retry after a failed rearmed source save reuses the exact staged pair without a duplicate write');
-  stagedItems = [];
-  stageWrites = 0;
-  stageContext._calPrimeUpsertRoutingFlag = async () => {
-    stageContext._calLinearUrlFor = () => 'https://linear.invalid/GRA-2';
-  };
-  const relinkedDuringRearm = await stageContext._writeUiQueueDeferredLegacyTweak(
-    'calendar',
-    { id: 'post-1', graphic_status: 'Tweaks Needed' },
-    'graphic',
-    { id: 'comment-1', role: 'client', audience: 'client', is_tweak: true },
-    'Please revise',
-    'Client',
-    committedApprovalEdits,
-    {
-      state: 'new',
-      rearmed_team_delivery: true,
-      rearm_gate: JSON.parse(JSON.stringify(exactStagedPair[0].source_gate)),
-      rearm_item: JSON.parse(JSON.stringify(partialRearmMarker)),
-      rearm_receipts: ['deferred_calendar_comment-1_comment']
-    }
-  );
-  assert(relinkedDuringRearm.state === 'conflict'
-    && relinkedDuringRearm.reason === 'active_retry_signature_mismatch'
-    && stagedItems.length === 0
-    && stageWrites === 0
-    && stageCommittedRows.length === 1
-    && JSON.stringify(stageCommittedRows[0].item.team_delivery_receipts)
-      === JSON.stringify(['deferred_calendar_comment-1_comment']),
-  'a target mutation after rearm validation fails closed while retaining the marker and partial receipt');
-  const secondClickAfterRelink = await stageContext._writeUiLegacyInspectTargetTweak(
-    'calendar',
-    'fixture',
-    'post-1',
-    'graphic',
-    {
-      id: 'post-1',
-      graphic_status: 'Client Approval',
-      client_video_approved_at: 'prior',
-      client_graphic_approved_at: 'prior',
-      client_title_approved_at: 'prior',
-      kasper_approved_at: 'prior',
-      graphic_comments: []
-    },
-    'Please revise',
-    'comment-1'
-  );
-  assert(secondClickAfterRelink.state === 'conflict'
-    && secondClickAfterRelink.reason === 'team_delivery_rearm_signature_mismatch'
-    && stageCommittedRows.length === 1,
-  'a second click after relink cannot bypass the retained validated marker');
-  stageContext._calPrimeUpsertRoutingFlag = async () => {};
-  stageContext._calLinearUrlFor = () => 'https://linear.invalid/GRA-1';
-  stageCommittedRows = [{
-    version: 1,
-    key: 'calendar|fixture|post-1|graphic',
-    confirmed_at: new Date().toISOString(),
-    item: Object.assign({}, JSON.parse(JSON.stringify(partialRearmMarker)), {
-      team_delivery_receipts: []
-    })
-  }];
-  stagedItems = [];
-  stageWrites = 0;
-  const changedMarkerRearm = await stageContext._writeUiQueueDeferredLegacyTweak(
-    'calendar',
-    { id: 'post-1', graphic_status: 'Tweaks Needed' },
-    'graphic',
-    { id: 'comment-1', role: 'client', audience: 'client', is_tweak: true },
-    'Please revise',
-    'Client',
-    committedApprovalEdits,
-    {
-      state: 'new',
-      rearmed_team_delivery: true,
-      rearm_gate: JSON.parse(JSON.stringify(exactStagedPair[0].source_gate)),
-      rearm_item: JSON.parse(JSON.stringify(partialRearmMarker)),
-      rearm_receipts: ['deferred_calendar_comment-1_comment']
-    }
-  );
-  assert(changedMarkerRearm.state === 'conflict'
-    && changedMarkerRearm.reason === 'team_delivery_rearm_marker_changed'
-    && stagedItems.length === 0
-    && stageWrites === 0
-    && stageCommittedRows.length === 1,
-  'a changed rearm marker remains durable and blocks staging');
+  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). Everything from here to the
+     source-only cluster below drove `_writeUiQueueDeferredLegacyTweak` through
+     a TEAM DELIVERY REARM: staging again from a marker that recorded one leg
+     of the legacy comment+status pair as delivered and the other as still
+     owed. There is no second leg and no delivery, so a marker can never again
+     be partially delivered and the rearm argument can never arrive. The
+     source-only cluster below covers the staged / active / committed
+     lifecycle that remains, and the relink and changed-marker fail-closed
+     cases are covered by `_writeUiLegacyInspectTargetTweak`'s own suite above.
 
-  stageCommittedRows = [{
-    version: 1,
-    key: 'calendar|fixture|post-1|graphic',
-    confirmed_at: new Date().toISOString(),
-    item: JSON.parse(JSON.stringify(partialRearmMarker))
-  }];
+     Kept, because they are about staging durability rather than delivery, and
+     re-pointed at an ordinary staging call: a failed outbox WRITE and a failed
+     outbox READBACK must both leave the queue empty and raise, never report a
+     staged record that is not there. */
+  stageCommittedRows = [];
+  stagedItems = [];
+  stageWrites = 0;
+  const plainStagingArgs = [
+    'calendar',
+    { id: 'post-1', graphic_status: 'Tweaks Needed' },
+    'graphic',
+    { id: 'comment-1', role: 'client', audience: 'client', is_tweak: true },
+    'Please revise',
+    'Client',
+    committedApprovalEdits,
+    { state: 'new' }
+  ];
   stageWriteSucceeds = false;
-  let failedRearmStageWrite = null;
+  let failedStageWrite = null;
   try {
-    await stageContext._writeUiQueueDeferredLegacyTweak(
-      'calendar',
-      { id: 'post-1', graphic_status: 'Tweaks Needed' },
-      'graphic',
-      { id: 'comment-1', role: 'client', audience: 'client', is_tweak: true },
-      'Please revise',
-      'Client',
-      committedApprovalEdits,
-      {
-        state: 'new',
-        rearmed_team_delivery: true,
-        rearm_gate: JSON.parse(JSON.stringify(exactStagedPair[0].source_gate)),
-        rearm_item: JSON.parse(JSON.stringify(partialRearmMarker)),
-        rearm_receipts: ['deferred_calendar_comment-1_comment']
-      }
-    );
+    await stageContext._writeUiQueueDeferredLegacyTweak(...plainStagingArgs);
   } catch (error) {
-    failedRearmStageWrite = error;
+    failedStageWrite = error;
   }
   stageWriteSucceeds = true;
-  assert(failedRearmStageWrite
-    && stageCommittedRows.length === 1
-    && stagedItems.length === 0,
-  'a failed rearm outbox write leaves the exact marker and receipt intact');
+  assert(failedStageWrite && stagedItems.length === 0,
+  'a failed source-gate outbox write raises and stages nothing');
 
+  stagedItems = [];
   stageReadbackDrops = true;
-  let failedRearmStageReadback = null;
+  let failedStageReadback = null;
   try {
-    await stageContext._writeUiQueueDeferredLegacyTweak(
-      'calendar',
-      { id: 'post-1', graphic_status: 'Tweaks Needed' },
-      'graphic',
-      { id: 'comment-1', role: 'client', audience: 'client', is_tweak: true },
-      'Please revise',
-      'Client',
-      committedApprovalEdits,
-      {
-        state: 'new',
-        rearmed_team_delivery: true,
-        rearm_gate: JSON.parse(JSON.stringify(exactStagedPair[0].source_gate)),
-        rearm_item: JSON.parse(JSON.stringify(partialRearmMarker)),
-        rearm_receipts: ['deferred_calendar_comment-1_comment']
-      }
-    );
+    await stageContext._writeUiQueueDeferredLegacyTweak(...plainStagingArgs);
   } catch (error) {
-    failedRearmStageReadback = error;
+    failedStageReadback = error;
   }
   stageReadbackDrops = false;
-  assert(failedRearmStageReadback
-    && stageCommittedRows.length === 1
-    && stagedItems.length === 0,
-  'a failed rearm outbox readback leaves the exact marker and receipt intact');
+  assert(failedStageReadback && stagedItems.length === 0,
+  'a failed source-gate outbox readback raises rather than reporting a phantom record');
 
   stageCommittedRows = [];
   stagedItems = [];
@@ -2731,23 +2536,29 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
       && JSON.stringify(stagedItems) === before,
     label + ' fails closed without synthesizing, replacing, or rewriting any record');
   }
-  await expectSameIdPairRejected(
-    [exactStagedPair.find(item => item.kind === 'comment')],
-    'a partial same-id pair'
-  );
+  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). The first case here presented
+     one leg of the comment+status pair, to prove a HALF-staged action fails
+     closed rather than being completed from thin air. A staged action is one
+     record now, so there is no half to present; the equivalent malformed queue
+     is a record whose id no longer derives from its own gate, which must be
+     refused for the same reason -- a record the pair builder cannot vouch for
+     is never repaired into a good one. The other three cases are unchanged in
+     meaning and now operate on the single record. */
+  const misIdentifiedStaged = JSON.parse(JSON.stringify(exactStagedPair));
+  misIdentifiedStaged.forEach(item => { item.id = item.id + '_tampered'; });
+  await expectSameIdPairRejected(misIdentifiedStaged, 'a staged record whose id does not match its gate');
   await expectSameIdPairRejected(
     exactStagedPair.concat([JSON.parse(JSON.stringify(exactStagedPair[0]))]),
-    'a duplicate same-id pair'
+    'a duplicate same-id record'
   );
   const mismatchedSameIdPair = JSON.parse(JSON.stringify(exactStagedPair));
   mismatchedSameIdPair.forEach(item => {
     item.source_gate.comment_body = 'Different request body';
-    if (item.kind === 'comment') item.payload.body = 'Different request body';
   });
-  await expectSameIdPairRejected(mismatchedSameIdPair, 'a signature-mismatched same-id pair');
+  await expectSameIdPairRejected(mismatchedSameIdPair, 'a signature-mismatched same-id record');
   const foreignPrincipalPair = JSON.parse(JSON.stringify(exactStagedPair));
   foreignPrincipalPair.forEach(item => { item.source_gate.principal = 'client:foreign'; });
-  await expectSameIdPairRejected(foreignPrincipalPair, 'a foreign-principal same-id pair');
+  await expectSameIdPairRejected(foreignPrincipalPair, 'a foreign-principal same-id record');
 
   stagedItems = [];
   stageWrites = 0;
@@ -2789,6 +2600,14 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     _writeUiPrincipalKey: () => 'client:fixture',
     _sxrCurrentAuthor: () => 'Client',
     _calCurrentAuthor: () => 'Client',
+    /* Added 2026-09-22 (OPEN_REPAIRS 239). The committed tombstone in this
+       fixture is now a source gate rather than a retired `legacy_n8n` record,
+       so the decision reaches the source-comment reflection check that these
+       two back. Without them this context throws instead of deciding. */
+    _calCommentsFor: post => (post && post.graphic_comments) || [],
+    _sxrCommentsFor: post => (post && post.graphic_comments) || [],
+    _calNormStatus: value => String(value || '').toLowerCase(),
+    _sxrNormStatus: value => String(value || '').toLowerCase(),
     _writeUiLegacyOutboxItems: () => JSON.parse(JSON.stringify(drainHandoffItems)),
     _writeUiLegacyCommittedTweakRead: () => JSON.parse(JSON.stringify(drainHandoffCommitted)),
     _writeUiLegacyOutboxWrite: (_surface, items) => {
@@ -2850,8 +2669,12 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     && handoffOutcome.comment_id === 'comment-1'
     && drainHandoffWrites === 0
     && drainHandoffItems.length === 0
-    && deliveredPayloads === 2,
-  'a drain-created same-id tombstone wins the handoff without a recreated pair or duplicate team payload');
+    /* Was 2: the drain used to consume a comment record and its status
+       companion. A staged action is one source-gate record now
+       (OPEN_REPAIRS 239), so the drain consumes one. What this asserts is
+       unchanged -- the retry behind the lock recreates nothing. */
+    && deliveredPayloads === 1,
+  'a drain-created same-id tombstone wins the handoff without a recreated record');
 
   const concurrentStageLocks = createKeyedWebLockHarness(true);
   let concurrentStageWrites = 0;
@@ -2897,16 +2720,20 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
   );
   for (let tick = 0; tick < 10 && concurrentStageLocks.names.length < 2; tick++) await Promise.resolve();
   assert.strictEqual(concurrentStageLocks.names.length, 2,
-    'two tabs stage their source-gated pairs through the same surface lock');
+    'two tabs stage their source gates through the same surface lock');
   concurrentStageLocks.releaseFirst();
   await Promise.all([concurrentA, concurrentB]);
   assert(concurrentStageLocks.names.filter(name => name === 'syncview-legacy-outbox-drain').length === 2
     && concurrentStageLocks.names.filter(name => name === 'syncview-legacy-outbox:calendar').length === 2
     && concurrentStageWrites === 2
-    && concurrentStageItems.length === 4
-    && concurrentStageItems.filter(item => item.id.indexOf('deferred_calendar_comment-a_') === 0).length === 2
-    && concurrentStageItems.filter(item => item.id.indexOf('deferred_calendar_comment-b_') === 0).length === 2,
-  'serialized two-tab staging preserves both complete comment/status pairs');
+    /* Was 4 items, 2 per action: a comment record and its status companion.
+       Each action stages one source-gate record now (OPEN_REPAIRS 239), so
+       two tabs leave two. The property is unchanged -- serialized staging
+       loses neither tab's record. */
+    && concurrentStageItems.length === 2
+    && concurrentStageItems.filter(item => item.id.indexOf('deferred_calendar_comment-a_') === 0).length === 1
+    && concurrentStageItems.filter(item => item.id.indexOf('deferred_calendar_comment-b_') === 0).length === 1,
+  'serialized two-tab staging preserves both tabs\' complete source gates');
 
   let noLockItems = [], noLockWrites = 0;
   const noLockContext = {
@@ -3043,9 +2870,12 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     && overlapLocks.names.includes('syncview-legacy-outbox-drain')
     && overlapLocks.names.includes('syncview-legacy-outbox:calendar')
     && overlapWrites === 2
-    && overlapItems.length === 2
+    /* Was 2 items because one action staged a comment+status pair; it is one
+       source-gate record now (OPEN_REPAIRS 239). The property is unchanged --
+       the record staged during an overlapping finalization survives it. */
+    && overlapItems.length === 1
     && overlapItems.every(item => item.id.indexOf('deferred_calendar_comment-new_') === 0),
-  'the shared exclusive lock preserves a pair staged during an overlapping old-snapshot finalization');
+  'the shared exclusive lock preserves a record staged during an overlapping old-snapshot finalization');
 
   let deferredFlushItems = [{ id: 'deferred-calendar-action' }];
   let deferredFlushCalls = 0;
@@ -3318,24 +3148,37 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
       fixture.surface + ' simultaneous full drains both contend on the drain lock');
     drainLocks.releaseFirst();
     await Promise.all([firstDrain, secondDrain]);
+    /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). Was `drainDeliveries === 1`:
+       two simultaneous drains sharing one queued item had to POST it exactly
+       once. The legacy transport is retired, so the item is dropped instead
+       of delivered and the right count is ZERO. The lock serialization this
+       scenario exists to prove is untouched and still asserted, as is the
+       queue ending empty -- by clearing now rather than by delivering. */
     assert(new Set(drainLocks.names).size === 1
       && drainLocks.maxActive() === 1
       && drainEntries === 2
-      && drainDeliveries === 1
+      && drainDeliveries === 0
       && sharedDebt.length === 0,
-    fixture.surface + ' serialized drains deliver one shared debt exactly once');
+    fixture.surface + ' serialized drains clear one shared retired debt exactly once, sending nothing');
   }
 
-  /* OPEN_REPAIRS item 63 — the direct-delivery branch was the one delivery
-   * path in the app with no authority check: it skipped the team parse and the
-   * quarantine sitting right after it and posted straight to the live legacy
-   * webhooks, for gate receipts, client_link comments, and unenrolled slugs
-   * alike. Post-flip those webhooks 409 server-side, so a flipped-team item
-   * did not even fail loudly -- it retried forever. The three-way contract
-   * these scenarios pin, per surface, by EXECUTING the shipped drains:
-   *   linear team    -> delivers exactly as before (the rollback path);
-   *   flipped team   -> quarantined flipped_team_legacy_push, no request;
-   *   unreadable flag-> delivers NOTHING and spends no attempts.
+  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). This pinned OPEN_REPAIRS item
+   * 63's three-way contract on the drain's direct-delivery branch: a team
+   * still on Linear delivered, a flipped team was quarantined
+   * `flipped_team_legacy_push`, and an unreadable flag delivered nothing
+   * without spending an attempt. That branch is deleted -- the webhooks it
+   * posted to are revoked -- so there is no delivery left to authorize and
+   * item 63's worry cannot recur by construction rather than by check.
+   *
+   * The scenarios are kept, because they EXECUTE the shipped drains against
+   * every shape the old branch distinguished, and rewritten to one contract
+   * that is strictly stronger than the three it replaces: whatever the
+   * authority, whatever the item's shape, a retired `legacy_n8n` row is
+   * dropped. No request, no quarantine row (nothing is left for an operator
+   * to decide), nothing retained, no attempt spent. The source-gate EXEMPTION
+   * that used to let a committed gated pair deliver under flipped authority
+   * is included deliberately: it was the one shape that could still reach the
+   * webhook, and it must now be dropped like the rest.
    */
   for (const fixture of [
     { surface: 'calendar', functionName: '_linearOutboxFlushRun', functionSource: calLegacyOutbox },
@@ -3352,53 +3195,48 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
       ...(over.client_link ? { client_link: true } : {}),
       ...(over.source_gate ? { source_gate: over.source_gate } : {})
     });
+    const retiredExpectation = { deliveries: 0, quarantined: [], retained: 0 };
     const cases = [
       {
-        name: 'flipped team quarantines instead of delivering',
+        name: 'flipped team sends nothing',
         authority: { video: 'syncview', graphics: 'syncview' },
         items: [makeItem({ id: 'flip' })],
-        expect: { deliveries: 0, quarantined: ['flipped_team_legacy_push'], retained: 0 }
+        expect: retiredExpectation
       },
       {
-        name: 'client_link no longer bypasses the authority test',
+        name: 'a client_link comment sends nothing',
         authority: { video: 'syncview', graphics: 'syncview' },
         items: [makeItem({ id: 'clink', kind: 'comment', client_link: true, client_slug: 'fixture', payload: { body: 'hi', author: 'Client' } })],
-        expect: { deliveries: 0, quarantined: ['flipped_team_legacy_push'], retained: 0 }
+        expect: retiredExpectation
       },
       {
-        name: 'unreadable flag delivers nothing and spends no attempts',
+        name: 'an unreadable flag sends nothing and retains nothing',
         authority: null,
         items: [makeItem({ id: 'dark' })],
-        expect: { deliveries: 0, quarantined: [], retained: 1, attemptsStayZero: true }
+        expect: retiredExpectation
       },
       {
-        name: 'a team still on Linear keeps delivering -- the rollback path',
+        name: 'a team still marked linear sends nothing either -- there is no route left',
         authority: { video: 'linear', graphics: 'linear' },
         items: [makeItem({ id: 'roll' })],
-        expect: { deliveries: 1, quarantined: [], retained: 0 }
+        expect: retiredExpectation
       },
       {
-        // the clause a reviewer proved was removable without any suite going
-        // red: an ident the team parse cannot prove takes the same
-        // team-unverifiable quarantine the neighbouring path always used
-        name: 'an unparseable ident quarantines as team-unverifiable',
+        name: 'an unparseable ident sends nothing and is not filed for review',
         authority: { video: 'syncview', graphics: 'syncview' },
         items: [makeItem({ id: 'noparse', ident: 'VID-NOTANUMBER' })],
-        expect: { deliveries: 0, quarantined: ['legacy_issue_team_unverifiable'], retained: 0 }
+        expect: retiredExpectation
       },
       {
-        // the deliberate exemption: a committed source-gated pair follows its
-        // pre-fix path even under flipped authority, because quarantining it
-        // yields zero outcomes for the ids the deferred-tweak flush awaits and
-        // turns the client retry contract into an unresolvable 409. The n8n
-        // server gates are the backstop in production; the final source-gate
-        // disposition is the item-63 owner decision.
-        name: 'a committed source_gate pair is EXEMPT and still delivers',
+        // The old exemption, now the most important case: a committed
+        // source-gated item was the ONE shape that could still POST after the
+        // 2026-09-20 authority flip. It is dropped like every other.
+        name: 'a committed source_gate item is no longer exempt and sends nothing',
         authority: { video: 'syncview', graphics: 'syncview' },
         items: [makeItem({ id: 'gate', kind: 'comment', client_slug: 'fixture',
           payload: { body: 'tweak', author: 'Client' },
           source_gate: { comment_id: 'c1', post_id: 'p1', component: 'video' } })],
-        expect: { deliveries: 1, quarantined: [], retained: 0}
+        expect: retiredExpectation
       }
     ];
     for (const scenario of cases) {
@@ -3453,14 +3291,14 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
       );
       await ctx[fixture.functionName](drainOwner);
       assert.strictEqual(deliveries, scenario.expect.deliveries,
-        fixture.surface + ' item 63 [' + scenario.name + ']: delivery count');
+        fixture.surface + ' retired legacy drain [' + scenario.name + ']: delivery count');
       assert.deepStrictEqual([...quarantined], scenario.expect.quarantined,
-        fixture.surface + ' item 63 [' + scenario.name + ']: quarantine reasons');
+        fixture.surface + ' retired legacy drain [' + scenario.name + ']: quarantine reasons');
       assert.strictEqual(debt.length, scenario.expect.retained,
-        fixture.surface + ' item 63 [' + scenario.name + ']: retained count');
+        fixture.surface + ' retired legacy drain [' + scenario.name + ']: retained count');
       if (scenario.expect.attemptsStayZero) {
         assert.strictEqual(Number(debt[0] && debt[0].attempts || 0), 0,
-          fixture.surface + ' item 63 [' + scenario.name + ']: a flag outage must not burn retry budget');
+          fixture.surface + ' retired legacy drain [' + scenario.name + ']: a flag outage must not burn retry budget');
       }
     }
   }
@@ -3677,13 +3515,27 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
       && diagnostics.includes('source_only_superseded'),
     fixture.surface + ' replaces superseded source-only debt with a comment-only tombstone and no stale reconciliation or delivery');
 
+    /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). Ten scenarios stood here,
+       all on the LINKED lane: a `legacy_n8n` comment+status pair queued for a
+       card with a Linear URL, and the tombstones, delivery receipts, rearms
+       and partial-failure retries that lane needed to deliver each leg exactly
+       once. Nothing stages that pair now and the drain drops any row still
+       carrying the retired transport, so every one of those states is
+       unreachable. The source-only scenarios above are untouched and still
+       cover the ownership, supersede and tombstone behaviour that survives.
+
+       What replaces them is the property the retirement has to hold on the
+       same harness: a stored linked pair is dropped without a source-gate
+       read, without writing a tombstone, without reconciling and without a
+       single fetch. */
     sourceChecks = 0;
     remembers = 0;
     rememberedItems = [];
     reconciles = 0;
     teamDeliveries = 0;
     diagnostics.length = 0;
-    authoritativeState = 'superseded';
+    authoritativeState = 'committed';
+    guardedCommittedRows = [];
     const linkedGate = Object.assign({}, sourceOnlyGate, {
       comment_id: 'linked-action',
       comment_body: 'Now stale',
@@ -3715,289 +3567,15 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
       client_slug: 'fixture',
       source_gate: linkedGate
     }];
-    await guardedDrainContext[fixture.functionName](drainOwner);
-    assert(sourceChecks === 1
-      && remembers === 1
-      && rememberedItems.length === 1
-      && rememberedItems[0].team_delivery_superseded === true
-      && rememberedItems[0].source_only_superseded !== true
-      && reconciles === 0
-      && teamDeliveries === 0
-      && guardedDebt.length === 0
-      && diagnostics.includes('source_gate_superseded'),
-    fixture.surface + ' tombstones a linked pair superseded by fresh source truth with zero cache or team mutation');
-
-    sourceChecks = 0;
-    remembers = 0;
-    rememberedItems = [];
-    reconciles = 0;
-    teamDeliveries = 0;
-    diagnostics.length = 0;
-    authoritativeState = 'committed';
-    guardedDebt = [{
-      id: 'deferred_' + fixture.surface + '_linked-action_comment',
-      kind: 'comment',
-      payload: {
-        issue: 'https://linear.invalid/GRA-1',
-        body: 'Now stale',
-        author: 'Client'
-      },
-      queuedAt: Date.now(),
-      transport: 'legacy_n8n',
-      client_slug: 'fixture',
-      source_gate: linkedGate
-    }, {
-      id: 'deferred_' + fixture.surface + '_linked-action_status',
-      kind: 'status',
-      payload: {
-        issue: 'https://linear.invalid/GRA-1',
-        status: 'Tweaks Needed'
-      },
-      queuedAt: Date.now(),
-      transport: 'legacy_n8n',
-      client_slug: 'fixture',
-      source_gate: linkedGate
-    }];
-    const terminalRetry = await guardedDrainContext[fixture.functionName](drainOwner);
+    const retiredLinkedDrain = await guardedDrainContext[fixture.functionName](drainOwner);
     assert(sourceChecks === 0
       && remembers === 0
       && reconciles === 0
       && teamDeliveries === 0
       && guardedDebt.length === 0
-      && terminalRetry.outcomes.length === 2
-      && terminalRetry.outcomes.every(outcome =>
-        outcome.state === 'team_delivery_superseded'),
-    fixture.surface + ' retained rows cannot resurrect a stored terminal action after source status changes back');
-
-    sourceChecks = 0;
-    remembers = 0;
-    rememberedItems = [];
-    reconciles = 0;
-    teamDeliveries = 0;
-    diagnostics.length = 0;
-    authoritativeState = 'superseded';
-    rememberSucceeds = false;
-    guardedCommittedRows = [];
-    guardedDebt = [{
-      id: 'deferred_' + fixture.surface + '_linked-action_comment',
-      kind: 'comment',
-      payload: {
-        issue: 'https://linear.invalid/GRA-1',
-        body: 'Now stale',
-        author: 'Client'
-      },
-      attempts: 0,
-      queuedAt: Date.now(),
-      transport: 'legacy_n8n',
-      client_slug: 'fixture',
-      source_gate: linkedGate
-    }, {
-      id: 'deferred_' + fixture.surface + '_linked-action_status',
-      kind: 'status',
-      payload: {
-        issue: 'https://linear.invalid/GRA-1',
-        status: 'Tweaks Needed'
-      },
-      attempts: 0,
-      queuedAt: Date.now(),
-      transport: 'legacy_n8n',
-      client_slug: 'fixture',
-      source_gate: linkedGate
-    }];
-    await guardedDrainContext[fixture.functionName](drainOwner);
-    assert(sourceChecks === 1
-      && remembers === 1
-      && reconciles === 0
-      && teamDeliveries === 0
-      && guardedDebt.length === 2
-      && guardedDebt.some(item => item.kind === 'comment')
-      && guardedDebt.some(item => item.kind === 'status'),
-    fixture.surface + ' retains the entire linked pair when terminal proof cannot be persisted');
-    rememberSucceeds = true;
-
-    sourceChecks = 0;
-    remembers = 0;
-    rememberedItems = [];
-    reconciles = 0;
-    teamDeliveries = 0;
-    diagnostics.length = 0;
-    authoritativeState = 'landed_pending';
-    const rearmGate = Object.assign({}, linkedGate, {
-      comment_id: 'rearm-action',
-      comment_body: 'Retry without duplicate comment'
-    });
-    const rearmCommentId = 'deferred_' + fixture.surface + '_rearm-action_comment';
-    const rearmStatusId = 'deferred_' + fixture.surface + '_rearm-action_status';
-    const rearmMarker = {
-      id: rearmCommentId,
-      kind: 'comment',
-      payload: {
-        issue: 'https://linear.invalid/GRA-1',
-        body: 'Retry without duplicate comment',
-        author: 'Client'
-      },
-      queuedAt: Date.now(),
-      transport: 'legacy_n8n',
-      client_slug: 'fixture',
-      source_gate: rearmGate,
-      team_delivery_superseded: true,
-      team_delivery_receipts: [rearmCommentId]
-    };
-    guardedCommittedRows = [{
-      key: fixture.surface + '|fixture|post-1|graphic',
-      item: JSON.parse(JSON.stringify(rearmMarker))
-    }];
-    guardedDebt = [
-      Object.assign({}, JSON.parse(JSON.stringify(rearmMarker)), {
-        team_delivery_superseded: false,
-        rearmed_team_delivery: true
-      }),
-      {
-        id: rearmStatusId,
-        kind: 'status',
-        payload: {
-          issue: 'https://linear.invalid/GRA-1',
-          status: 'Tweaks Needed'
-        },
-        queuedAt: Date.now(),
-        transport: 'legacy_n8n',
-        client_slug: 'fixture',
-        source_gate: rearmGate,
-        rearmed_team_delivery: true
-      }
-    ];
-    const gapPending = await guardedDrainContext[fixture.functionName](drainOwner);
-    assert(sourceChecks === 1
-      && remembers === 0
-      && reconciles === 0
-      && teamDeliveries === 0
-      && guardedDebt.length === 2
-      && (!gapPending.outcomes || gapPending.outcomes.length === 0),
-    fixture.surface + ' keeps a rearmed pair intact during the stage-to-source-save gap');
-
-    sourceChecks = 0;
-    authoritativeState = 'committed';
-    const gapCommitted = await guardedDrainContext[fixture.functionName](drainOwner);
-    assert(sourceChecks === 1
-      && remembers === 3
-      && reconciles === 2
-      && teamDeliveries === 1
-      && guardedDebt.length === 0
-      && gapCommitted.outcomes.length === 2
-      && gapCommitted.outcomes.every(outcome =>
-        outcome.state === 'team_delivery_confirmed'),
-    fixture.surface + ' later drains only the unreceipted leg after exact source confirmation');
-
-    const finalizeGate = Object.assign({}, linkedGate, {
-      comment_id: 'finalize-action',
-      comment_body: 'Do not redeliver after finalize failure'
-    });
-    guardedCommittedRows = [];
-    guardedDebt = [{
-      id: 'deferred_' + fixture.surface + '_finalize-action_comment',
-      kind: 'comment',
-      payload: {
-        issue: 'https://linear.invalid/GRA-1',
-        body: 'Do not redeliver after finalize failure',
-        author: 'Client'
-      },
-      queuedAt: Date.now(),
-      transport: 'legacy_n8n',
-      client_slug: 'fixture',
-      source_gate: finalizeGate
-    }, {
-      id: 'deferred_' + fixture.surface + '_finalize-action_status',
-      kind: 'status',
-      payload: {
-        issue: 'https://linear.invalid/GRA-1',
-        status: 'Tweaks Needed'
-      },
-      queuedAt: Date.now(),
-      transport: 'legacy_n8n',
-      client_slug: 'fixture',
-      source_gate: finalizeGate
-    }];
-    sourceChecks = 0;
-    remembers = 0;
-    reconciles = 0;
-    teamDeliveries = 0;
-    guardedFinalizeFails = true;
-    let forcedFinalizeError = null;
-    try {
-      await guardedDrainContext[fixture.functionName](drainOwner);
-    } catch (error) {
-      forcedFinalizeError = error;
-    }
-    assert(forcedFinalizeError
-      && teamDeliveries === 2
-      && guardedDebt.length === 2
-      && guardedCommittedRows.length === 1
-      && guardedCommittedRows[0].item.team_delivery_confirmed === true,
-    fixture.surface + ' keeps both exact delivery receipts when finalization fails');
-
-    sourceChecks = 0;
-    remembers = 0;
-    reconciles = 0;
-    teamDeliveries = 0;
-    guardedFinalizeFails = false;
-    const finalizeRetry = await guardedDrainContext[fixture.functionName](drainOwner);
-    assert(sourceChecks === 1
-      && teamDeliveries === 0
-      && guardedDebt.length === 0
-      && finalizeRetry.outcomes.length === 2
-      && finalizeRetry.outcomes.every(outcome =>
-        outcome.state === 'team_delivery_confirmed'),
-    fixture.surface + ' consumes durable receipts after finalization failure without duplicate team delivery');
-
-    const receiptFailureGate = Object.assign({}, linkedGate, {
-      comment_id: 'receipt-failure-action',
-      comment_body: 'Persist this delivery receipt'
-    });
-    const receiptFailureId =
-      'deferred_' + fixture.surface + '_receipt-failure-action_comment';
-    guardedCommittedRows = [];
-    guardedDebt = [{
-      id: receiptFailureId,
-      kind: 'comment',
-      payload: {
-        issue: 'https://linear.invalid/GRA-1',
-        body: 'Persist this delivery receipt',
-        author: 'Client'
-      },
-      queuedAt: Date.now(),
-      transport: 'legacy_n8n',
-      client_slug: 'fixture',
-      source_gate: receiptFailureGate
-    }];
-    sourceChecks = 0;
-    remembers = 0;
-    reconciles = 0;
-    teamDeliveries = 0;
-    rememberResults = [true, false];
-    const failedReceiptPersist = await guardedDrainContext[fixture.functionName](drainOwner);
-    assert(sourceChecks === 1
-      && remembers === 2
-      && reconciles === 1
-      && teamDeliveries === 1
-      && guardedDebt.length === 1
-      && guardedDebt[0].team_delivery_receipts.includes(receiptFailureId)
-      && failedReceiptPersist.outcomes.length === 0,
-    fixture.surface + ' retains a receipt-bearing row when post-delivery ledger persistence fails');
-
-    sourceChecks = 0;
-    remembers = 0;
-    reconciles = 0;
-    teamDeliveries = 0;
-    rememberResults = [true];
-    const receiptPersistRetry = await guardedDrainContext[fixture.functionName](drainOwner);
-    assert(sourceChecks === 1
-      && remembers === 1
-      && reconciles === 1
-      && teamDeliveries === 0
-      && guardedDebt.length === 0
-      && receiptPersistRetry.outcomes.length === 1
-      && receiptPersistRetry.outcomes[0].state === 'team_delivery_confirmed',
-    fixture.surface + ' persists the retained receipt on retry without a duplicate team fetch');
+      && retiredLinkedDrain.outcomes.length === 0
+      && diagnostics.length === 0,
+    fixture.surface + ' drops a stored linked pair outright: no gate read, no tombstone, no delivery, no diagnostic');
   }
 
   const calApprove = extract('_calReviewApplyApprove');

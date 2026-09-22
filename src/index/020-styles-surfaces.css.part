@@ -1167,6 +1167,29 @@
         /* Unlinked card — the Linear button warns it must be connected. */
         .cal-linear-btn.cal-linear-btn-warn { background: var(--sv-bg-ffedd5); color: var(--sv-fg-ea580c); }
         .cal-linear-btn.cal-linear-btn-warn:hover { background: var(--sv-bg-fed7aa); color: var(--sv-fg-c2410c); }
+        /* A SLOT THAT ALREADY HOLDS A LINK STILL SAYS WHICH COMPONENT IT IS.
+           Colour carries the component here exactly as it does on the link
+           fields, the status dots and the Production chips: pink for Video,
+           blue for Thumbnail. Before the external Linear anchors were removed
+           this came from the anchor's own `is-linked` rule, and dropping the
+           anchors took the colour with it -- leaving the edit and clear
+           buttons as two identical grey squares stacked in one pile, the video
+           one above the thumbnail one, distinguishable only by a `title`
+           tooltip that a touch device never shows. That is the 2026-09-15
+           report verbatim ("both of them look the same"), and these are
+           destructive controls, so a reader must not have to press one to find
+           out which field it clears. Raised by Codex review on PR 1492.
+           The class is NOT the old `is-linked`: that name also rode the
+           Production anchors, which is why the rule it replaced needed a
+           `:not(.cal-prod-btn)` guard to stop it repainting them. This one
+           names the state it means and is never emitted on a Production
+           control, so the two can no longer collide. It still sits BEFORE the
+           Production rules below, so equal specificity resolves in
+           Production's favour even if some future markup carries both. */
+        .cal-linear-btn-video.cal-linear-btn-linked { background: var(--sv-slot-video-bg); color: var(--sv-slot-video-fg); }
+        .cal-linear-btn-video.cal-linear-btn-linked:hover { background: var(--sv-slot-video-bg-hover); color: var(--sv-slot-video-fg); }
+        .cal-linear-btn-graphic.cal-linear-btn-linked { background: var(--sv-slot-thumb-bg); color: var(--sv-slot-thumb-fg); }
+        .cal-linear-btn-graphic.cal-linear-btn-linked:hover { background: var(--sv-slot-thumb-bg-hover); color: var(--sv-slot-thumb-fg); }
         /* SyncView Production sub-issue link — same footprint as the Linear
            icon. This used to be teal for BOTH components, which meant the two
            Production buttons in one pile were identical twins: same colour,

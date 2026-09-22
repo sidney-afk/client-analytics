@@ -2209,10 +2209,10 @@
                and an escape hatch nothing can reach is not an escape hatch. */
             if (sealed) {
                 const cross = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>`;
-                return `<button class="cal-linear-btn${compCls}" type="button" onclick="_calLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button>`;
+                return `<button class="cal-linear-btn cal-linear-btn-linked${compCls}" type="button" onclick="_calLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button>`;
             }
             const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
-            return `<button class="cal-linear-btn${compCls}" type="button" onclick="_calLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button>`;
+            return `<button class="cal-linear-btn cal-linear-btn-linked${compCls}" type="button" onclick="_calLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button>`;
         }
         // An EMPTY sealed slot renders nothing at all -- not a greyed button,
         // not the orange warn. Under SyncView authority an unlinked Linear slot

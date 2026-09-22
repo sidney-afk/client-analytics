@@ -86,6 +86,41 @@ if (prodVideo && prodGraphic) {
     'the two Production buttons never resolve to the SAME colour again (the 2026-09-15 "both of them look the same" report)');
 }
 
+/* THE LINKED SLOT'S OWN CONTROLS. A slot that already holds a link renders an
+   edit or a clear button, and the video one stacks directly above the
+   thumbnail one. Removing the external Linear anchors (PR 1492) took their
+   `is-linked` colour with them and left those two as identical grey squares,
+   separated only by a `title` a touch device never shows -- the same
+   "both of them look the same" failure one surface over, on controls that
+   DELETE a link. Colour carries the component here too, and the two halves
+   must never collide. Raised by Codex review on PR 1492. */
+const LINKED_VIDEO_RULE = /\.cal-linear-btn-video\.cal-linear-btn-linked\s*\{([^}]*)\}/;
+const LINKED_GRAPHIC_RULE = /\.cal-linear-btn-graphic\.cal-linear-btn-linked\s*\{([^}]*)\}/;
+const linkedVideo = source.match(LINKED_VIDEO_RULE);
+const linkedGraphic = source.match(LINKED_GRAPHIC_RULE);
+ok(!!linkedVideo, '.cal-linear-btn-video.cal-linear-btn-linked (the linked Video slot control) is component-scoped');
+ok(!!linkedGraphic, '.cal-linear-btn-graphic.cal-linear-btn-linked (the linked Thumbnail slot control) is component-scoped');
+if (linkedVideo && linkedGraphic) {
+  const videoColour = (linkedVideo[1].match(/color:\s*([^;]+)/) || [])[1];
+  const graphicColour = (linkedGraphic[1].match(/color:\s*([^;]+)/) || [])[1];
+  ok(videoColour && videoColour.trim() === 'var(--sv-slot-video-fg)',
+    `the linked Video control takes the video slot colour, got "${videoColour && videoColour.trim()}"`);
+  ok(graphicColour && graphicColour.trim() === 'var(--sv-slot-thumb-fg)',
+    `the linked Thumbnail control takes the thumbnail slot colour, got "${graphicColour && graphicColour.trim()}"`);
+  ok(videoColour && graphicColour && videoColour.trim() !== graphicColour.trim(),
+    'the linked Video and Thumbnail controls never resolve to the same colour');
+}
+/* And the class has to actually reach the markup on BOTH surfaces -- a rule
+   nothing emits is the same grey pair with extra CSS. The linked state is the
+   edit and clear controls; the EMPTY slot deliberately keeps the neutral or
+   warn styling that reads as "needs linking". */
+for (const fn of ['_calLinearClear', '_calLinearEdit', '_sxrLinearClear', '_sxrLinearEdit']) {
+  const emitted = new RegExp('class="cal-linear-btn cal-linear-btn-linked\\$\\{compCls\\}"[^`]*onclick="' + fn + '\\(');
+  ok(emitted.test(source), `the linked-slot control calling ${fn} carries cal-linear-btn-linked`);
+}
+ok(/class="cal-linear-btn\$\{warn\}\$\{compCls\}"/.test(source),
+  'the EMPTY slot control keeps its neutral/warn styling rather than the linked colour');
+
 // Production remains the ringed chip so it stays legible over thumbnail art.
 const prodChip = source.match(/\.cal-linear-btn\.cal-prod-btn\s*\{([^}]*)\}/);
 ok(!!prodChip, '.cal-linear-btn.cal-prod-btn base chip rule is found');

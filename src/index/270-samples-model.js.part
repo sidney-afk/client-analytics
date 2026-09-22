@@ -1130,9 +1130,9 @@
                 // Same as the calendar: REMOVING survives the seal; only the
                 // paste is refused.
                 const cross = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>`;
-                return `<button class="cal-linear-btn${compCls}" type="button" onclick="_sxrLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button>`;
+                return `<button class="cal-linear-btn cal-linear-btn-linked${compCls}" type="button" onclick="_sxrLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button>`;
             }
-            return `<button class="cal-linear-btn${compCls}" type="button" onclick="_sxrLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button>`;
+            return `<button class="cal-linear-btn cal-linear-btn-linked${compCls}" type="button" onclick="_sxrLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button>`;
         }
         const warn = !_sxrIsBlankId(pid) ? ' cal-linear-btn-warn' : '';
         // Sealed and empty renders nothing, exactly as on the calendar: under

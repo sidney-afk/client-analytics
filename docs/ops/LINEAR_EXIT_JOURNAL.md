@@ -14054,3 +14054,14 @@ snapshot locally. `_prodDeliverableLive` remains the sole marker rule; the
 8-second abort and fail-open behavior are unchanged. At the measured marker
 count (278 of 6,688 rows), a 5,254-id snapshot makes one view request instead of
 44. No live state or backend changed.
+
+## 2026-09-22 — B1-3 Calendar and Samples external navigation removal
+
+Removed only the external Linear anchors and their marks from the linked
+Calendar and Samples slots. The renderers, native Production links, empty-slot
+link controls, linked-slot edit controls, and sealed-slot clearing remain.
+Four linked-anchor color/hover rules plus the obsolete anchor-overlay wrapper
+rules were removed from `020-styles-surfaces.css.part`; the requested `010`
+fragment had no matching CSS. The reachable "Open the linked Linear" escape
+hatches are deliberately gone because outbound sync is off and the key is being
+revoked.

@@ -7915,3 +7915,43 @@ continuation lines, so prose inside a multi-line comment is scanned as if it
 were code. Every other such reference in the fragments sits on a `//` line,
 which is why none of them trip it. PR numbers in these continuation lines are
 written without the hash.
+
+## 2026-09-22 — Removed Calendar and Samples external Linear navigation
+
+Removed the reachable external Linear anchors and marks from the Calendar and
+Samples linked slots while retaining native Production navigation, link editing,
+and existing-link clearing. Removed the now-dead linked-anchor and overlay CSS
+from `020-styles-surfaces.css.part`; `010-styles-foundation.css.part` contained
+no matching rule. This is an intentional UI behavior change because outbound
+Linear sync is off and the key is being revoked. No live write, deployment,
+flag, backend, or workflow changed.
+
+Supervisor follow-up on the same PR: with the Linear anchors gone, the
+`is-linked` class survived only on the two SyncView Production anchors, where
+it now matched no rule at all (the executor removed
+`.cal-linear-btn.is-linked` and `.cal-linear-btn-graphic.is-linked:not(.cal-prod-btn)`
+with the anchors). Their appearance never depended on it -- 
+`.cal-linear-btn.cal-prod-btn` sets the raised background and the ring, and the
+per-component `.cal-linear-btn-video/-graphic.cal-prod-btn` rules set the
+colour, all at equal specificity and later in the stylesheet -- so the class
+was dead weight whose only historical meaning was "this is a Linear link".
+Left in place it would be a trap for the next `.is-linked` rule, which is
+precisely the collision the deleted `:not(.cal-prod-btn)` guard existed to
+prevent, so the class is removed from both anchors. Nothing reads it: no CSS
+rule, no JS selector, no test.
+
+Second supervisor follow-up, from the Codex review: removing the anchors also
+removed the only thing that gave a LINKED slot its component colour. The edit
+and clear controls carry `cal-linear-btn-video`/`-graphic`, but those classes
+are styled only in combination with `.cal-prod-btn`, so the video control and
+the thumbnail control directly below it rendered as identical grey squares,
+told apart only by a `title` tooltip a touch device never shows -- on controls
+that REMOVE a link. That is the 2026-09-15 "both of them look the same" report
+one surface over. A `cal-linear-btn-linked` class restores pink for Video and
+blue for Thumbnail on both Calendar and Samples, deliberately NOT reusing the
+retired `is-linked` name (which also rode the Production anchors and needed a
+`:not(.cal-prod-btn)` guard for exactly that reason). The empty slot keeps its
+neutral/warn styling, unchanged, because that is the "needs linking" cue.
+`test/cal-comp-dot-matches-slot-colors.js` now pins the colours, that the two
+halves differ, that all four linked controls emit the class, and that the empty
+slot does not.

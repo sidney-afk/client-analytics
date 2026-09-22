@@ -2198,10 +2198,8 @@
         const compCls = ' cal-linear-btn-' + which;
         const sealed = _writeUiLinkSlotSealed(which);
         if (u) {
-            const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
-            const open = `<a class="cal-linear-btn is-linked${compCls}" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear ${label}">${_calLinearSvg()}</a>`;
-            /* Sealed slot: an existing link still OPENS, and can still be
-               REMOVED. The pencil goes -- it invites a fresh paste, which is
+            /* Sealed slot: an existing link can still be REMOVED. The pencil
+               goes -- it invites a fresh paste, which is
                the whole point of the seal -- but dropping edit entirely was a
                defect in the first version of this change, caught in review:
                the commit path deliberately leaves `val === ''` ungated because
@@ -2211,10 +2209,10 @@
                and an escape hatch nothing can reach is not an escape hatch. */
             if (sealed) {
                 const cross = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>`;
-                return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button></span>`;
+                return `<button class="cal-linear-btn cal-linear-btn-linked${compCls}" type="button" onclick="_calLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button>`;
             }
             const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
-            return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button></span>`;
+            return `<button class="cal-linear-btn cal-linear-btn-linked${compCls}" type="button" onclick="_calLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button>`;
         }
         // An EMPTY sealed slot renders nothing at all -- not a greyed button,
         // not the orange warn. Under SyncView authority an unlinked Linear slot
@@ -2229,9 +2227,9 @@
         const warn = !_calIsBlankId(pid) ? ' cal-linear-btn-warn' : '';
         return `<button class="cal-linear-btn${warn}${compCls}" type="button" onclick="_calLinearEdit('${pid}','${which}')" title="Link a Linear ${label}">${_calLinearSvg()}</button>`;
     }
-    /* Video (top) + graphic (bottom) Linear sub-issue buttons, stacked at the
-       bottom-right of the thumbnail box. stopPropagation so a click links/opens
-       Linear instead of triggering the thumbnail's own click. SMM-only (the slot
+    /* Video (top) + graphic (bottom) Linear sub-issue controls, stacked at the
+       bottom-right of the thumbnail box. stopPropagation keeps their link/edit
+       actions from triggering the thumbnail's own click. SMM-only (the slot
        html returns '' in the client view). */
     /* SyncView Production sub-issue link — shown beside the Linear icon when
        the card carries a native deliverable id for that component. Read-only
@@ -2258,7 +2256,7 @@
         const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
         const href = location.pathname + '?prod=1&d=' + encodeURIComponent(id);
         const mark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6 10.2 10.2 6M7.2 6h3v3"/></svg>`;
-        return `<a class="cal-linear-btn is-linked cal-prod-btn cal-linear-btn-${which}" href="${_calEscAttr(href)}" target="_blank" rel="noopener" title="Open the SyncView Production ${label} in a new tab">${mark}</a>`;
+        return `<a class="cal-linear-btn cal-prod-btn cal-linear-btn-${which}" href="${_calEscAttr(href)}" target="_blank" rel="noopener" title="Open the SyncView Production ${label} in a new tab">${mark}</a>`;
     }
     /* ── Fill a missing component, from the card that is missing it ──────
      *

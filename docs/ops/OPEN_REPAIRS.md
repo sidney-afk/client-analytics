@@ -27891,6 +27891,100 @@ looking at it.
 
 **Status.** Designed, verified against source, not built. No branch, no PR.
 
+---
+
+## 235. [2026-09-22, half done] B1-4: Linear-authority parity retries are gone; the legacy Calendar dispatch is NOT — the blocker turned out to be card bindings, not the roster
+
+**Done, shipped.** `_writeUiGatewayPost` (fragment 120) no longer derives
+legacy parity from `authority[intent.team] === 'linear'`, and both
+Linear-authority retry legs are deleted — the `legacy_parity_not_allowed`
+rebuild-without-parity leg and the
+`legacy_parity_required` / `team_is_linear_authoritative`
+rebuild-with-parity leg. Parity is now only the explicit legacy-queue drain
+(`intent.legacyOnly`). No team can be Linear-authoritative, the owner has
+ruled that SyncView is not going back to Linear, and the key is revoked
+2026-09-27, so the rollback these legs served is retired by decision.
+`test/write-ui-writer-durability.js` asserted the retired leg byte for byte;
+it now asserts the replacement — a terminal pre-commit refusal, one
+transport attempt, no parity claim on a native intent. Page shrank
+5764261 -> 5763265 bytes.
+
+**Stopped, deliberately.** The second half — deleting
+`_calLegacyPushStatusToLinear` / `_calLegacyPostLinearComment` (fragment
+140) with the 170 call site — is NOT a dead-code deletion, and the audit row
+says so itself: "no whole-function deletion while callers remain."
+
+Every caller that remains is the client-context fallback, which A2 names an
+ACCEPTANCE BLOCKER rather than evidence of deadness:
+
+- `_calPushStatusToLinear` falls through to the legacy pipe when
+  `_writeUiUseGatewayWhenReady('calendar', meta)` is false.
+  `_writeUiRerouteUseGatewayFailClosed` returns false only when the roster
+  read SUCCEEDED and that client slug is genuinely not enrolled.
+  **Superseded — see RESOLVED below: that set is empty in practice, all 43
+  active clients are enrolled, so this bullet is not a live route.**
+- The fragment-170 site is that same route's completion: it drains
+  `deferredLegacyStatusPushes`, which only exist because the
+  gateway-not-ready branch deferred them until the source save landed.
+- `_calPostLinearComment` falls through on the same signal plus
+  `_isClientLink && !clientGatewaySurface` (a client tab that cannot build a
+  verified context) and `canonicalUnlinkedAdd`.
+
+The task's own measurement agrees: ~1.3% of real calendar writes went
+through the legacy lane in the last 24h measured. These pipes are carrying
+live traffic.
+
+**Why the bookkeeping cannot simply be lifted out.** The debt preservation
+IS inside the pipe: `_linearOutboxEnqueue` sits in the catch of each
+transport, so a write only becomes visible debt when delivery fails.
+Deleting the transport and keeping the enqueue would convert those writes
+from "delivered, debt only on failure" to "debt unconditionally" — a
+delivery regression on a reachable lane for the five days the key is still
+live, and after the 27th the outbox drain reads the same revoked key, so
+whether that debt is ever drained is an open question. Deleting the call
+sites instead removes the client-context fallback, which is the explicit
+stop.
+
+**RESOLVED 2026-09-22 — and the question above was the wrong one.** The
+roster worry recorded here is empty: a parallel measurement established that
+all 43 active clients ARE enrolled on the reroute roster, so there is no
+unenrolled-client route to decide about. Do not re-open it.
+
+The real legacy route is **card-shaped, not client-shaped**: roughly 4,880
+card slots carry a Linear URL and no deliverable id, and a client comment on
+one of those takes the legacy transport. Most of that population is the test
+client or untouched in 30 days; the live client-facing figure is about 213
+slots.
+
+**And that is not the data-loss emergency it looks like.** On the client
+comment path (`190-calendar-approval-comments.js.part:987`) the comment is
+written to the card and the legacy send is deferred until the source save
+completes (`deferLegacyUntilSourceSave: true`). The comment's home is the
+card, not Linear. After the 2026-09-27 revoke those comments still land;
+only the outbound copy to a retiring system fails.
+
+**The other two `_calPostLinearComment` callers were checked and match.**
+Neither relays a comment without storing it first:
+
+- `330-kasper-review-history.js.part:1859` — the note is pushed onto the
+  card and committed with `_calSetCommentsFor` BEFORE the call, then the row
+  is persisted by `_kasperPersistPost` after. On the legacy route
+  `_calPostLinearComment` RESOLVES `{skipped:true, legacy_transport:true}`
+  rather than throwing (the legacy sender is fire-and-forget with its own
+  catch), so the persist still runs. If it does throw, the catch rolls the
+  card back and returns the text to the composer as a draft with a visible
+  failure — not a silent drop.
+- `290-samples-writes-review.js.part:523` — repair-journal replay, not a
+  first write. `intent.comment` comes out of the journal, so storage
+  strictly precedes the relay by construction. (Note the same block refuses
+  to replay a STATUS without CAS: `status_reapply_required`.)
+
+**Status.** Half shipped (PR #1496). The second half is no longer blocked on
+an owner decision — it is ordinary work whose remaining prerequisite is
+card-shaped: the ~213 live slots carrying a Linear URL and no deliverable id
+are what keeps the legacy pipes reachable. Retiring the pipes means dealing
+with those bindings, not with roster membership.
+
 ## 236. [2026-09-22, FIXED] The calendar's two remaining `linear-issue-statuses` calls are gone — and one of them could overwrite a correct native status with a stale Linear one
 
 Entry 233 holds the measurement behind this: the `linear-issue-statuses` n8n

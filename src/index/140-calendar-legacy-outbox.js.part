@@ -2028,11 +2028,24 @@
                 : sourceOnly;
         }
         if (!(await _writeUiUseGatewayWhenReady('calendar', meta))) {
-            /* The legacy lane no longer has a destination (OPEN_REPAIRS 239).
-               It neither sends nor defers: the caller's card write and source
-               save are unchanged and run exactly as before, and no Linear
-               retry is recorded, because a retry could never be paid. */
-            return Promise.resolve({ skipped: true, legacy_transport_retired: true });
+            /* The legacy lane no longer has a destination (OPEN_REPAIRS 239),
+               so it neither sends nor records a retry.
+
+               When the caller asked to defer until the source save, answer the
+               SAME source-only shape every other source-only exit in this file
+               answers. That flag is what makes `_calReviewRequestTweak` /
+               `_sxrReviewRequestTweak` run `_writeUiQueueDeferredLegacyTweak`
+               and write the durable source-only ledger row. Dropping it here
+               dropped that row and its conflict check on every legacy-route
+               card: a card upsert that COMMITS but loses its response would
+               roll the UI back, and the retry would mint a second comment id
+               against the already-committed first -- the PR 1245 regression,
+               which the caption exit above exists to prevent. Same shape for
+               every caller means no caller has to learn a new flag. */
+            const retired = { skipped: true, source_only: true, legacy_transport_retired: true };
+            return Promise.resolve(meta && meta.deferLegacyUntilSourceSave
+                ? Object.assign({}, retired, { deferred_until_source_save: true })
+                : retired);
         }
         const url = String(issueUrl || '').trim();
         const st  = String(status || '').trim();
@@ -2177,8 +2190,19 @@
                here, so those writes still land; only the outbound copy to a
                retiring system is gone. Resolving rather than throwing keeps
                the plain add's card append running, exactly as the legacy
-               fire-and-forget sender did. */
-            return Promise.resolve({ skipped: true, legacy_transport_retired: true });
+               fire-and-forget sender did.
+
+               Carries `deferred_until_source_save` when the caller asked for
+               it, for exactly the reason the caption exit at the top of this
+               function gives: that flag is what stages the durable source-only
+               ledger row, and without it a committed-but-unacknowledged card
+               upsert rolls the UI back and the retry mints a second comment id
+               (PR 1245). Every source-only exit in this file returns the same
+               shape, and this is one. */
+            const retired = { skipped: true, source_only: true, legacy_transport_retired: true };
+            return Promise.resolve(meta && meta.deferLegacyUntilSourceSave
+                ? Object.assign({}, retired, { deferred_until_source_save: true })
+                : retired);
         }
         const url = String(issueUrl || '').trim();
         const txt = String(body || '').trim();

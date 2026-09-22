@@ -102,24 +102,28 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
   const sxrDeferred = await context._sxrPostLinearComment('https://linear.invalid/GRA-2', 'Samples legacy', 'Fixture', {
     post: { id: 'legacy-sxr' }, component: 'graphic', deferLegacyUntilSourceSave: true
   });
-  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). This asserted that a legacy-lane
-     write DEFERS its Linear effect until the source row is durable. The legacy
-     send is retired, so there is no effect left to defer and deferring one
-     would be the bug: it would stage bookkeeping for a delivery that can never
-     happen. The durability property this guarded is unchanged and now
-     unconditional -- the card write and source save run on their own -- so
-     this pins the retired shape instead: refuses on the spot, claims no
-     deferral and no transport. */
+  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239), then CORRECTED the same day.
+     The first rewrite pinned the retired lane as claiming no deferral, which
+     was the regression itself: `deferred_until_source_save` is what makes the
+     review lanes stage their durable source-gate row, so dropping it brought
+     back the PR 1245 duplicate-comment defect on every legacy-route card. The
+     retired lane sends nothing, but it still answers the SAME source-only
+     shape every other source-only exit answers, so the checkpoint survives and
+     no caller needs a transport-specific flag. Executed end to end in
+     test/legacy-route-deferred-source-checkpoint.js. */
   assert(calStatusDeferred && calStatusDeferred.skipped === true
     && calStatusDeferred.legacy_transport_retired === true
-    && calStatusDeferred.deferred_until_source_save === undefined
+    && calStatusDeferred.source_only === true
+    && calStatusDeferred.deferred_until_source_save === true
     && calDeferred && calDeferred.skipped === true
     && calDeferred.legacy_transport_retired === true
-    && calDeferred.deferred_until_source_save === undefined
+    && calDeferred.source_only === true
+    && calDeferred.deferred_until_source_save === true
     && sxrDeferred && sxrDeferred.skipped === true
     && sxrDeferred.legacy_transport_retired === true
-    && sxrDeferred.deferred_until_source_save === undefined,
-  'the retired legacy lane neither sends nor defers on either surface');
+    && sxrDeferred.source_only === true
+    && sxrDeferred.deferred_until_source_save === true,
+  'the retired legacy lane sends nothing but still grants the deferred source checkpoint it was asked for');
   context._writeUiUseGatewayWhenReady = async () => true;
 
   const calSourceOnlyDeferred = await context._calPostLinearComment('', 'Calendar source only', 'Fixture', {

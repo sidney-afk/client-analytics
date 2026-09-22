@@ -275,12 +275,14 @@ async function runReviewTweakCase({
         );
         throw error;
       }
-      events.push('legacy:comment');
-      legacyCalls.push({
-        url: stagedLegacy.url,
-        body: stagedLegacy.body,
-        author: stagedLegacy.author
-      });
+      /* CORRECTED 2026-09-22 (OPEN_REPAIRS 239). This stub used to model a
+         DELIVERY -- it recorded a legacy call and emitted 'legacy:comment'.
+         The real flush now drains a source-gate row and confirms it, making
+         no network call of any kind, so modelling a send here would make the
+         harness disagree with the app it is standing in for. The staging it
+         confirms is still real and still required: it is what survives a card
+         upsert that commits but loses its response. */
+      events.push('source-gate:confirmed');
       committedLegacy = {
         comment_id: stagedLegacy.comment.id,
         item: {
@@ -528,26 +530,33 @@ async function runKasperTweakCase({ gateway, saveOk }) {
      still lands on the card and still saves; the notification is retired
      (OPEN_REPAIRS 239). */
   const successfulLegacyReview = await runReviewTweakCase({ gateway: false, saveOk: true });
-  assert.deepStrictEqual(successfulLegacyReview.events, ['route:comment:legacy', 'save']);
-  assert.strictEqual(successfulLegacyReview.legacyCalls.length, 0);
-  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). This drove a TERMINAL LINKED
-     DROP: the deferred-tweak flush failing to confirm team delivery, which
-     rolled the card back and told the client "Team delivery could not be
-     confirmed... retry". Nothing is delivered to a team any more, so the
-     unenrolled review tweak stages no delivery, cannot fail to confirm one,
-     and simply saves. The harness still injects the drop; the point is that
-     it no longer has anything to act on, so the client is never shown a retry
-     for a delivery that was never owed. */
+  assert.deepStrictEqual(successfulLegacyReview.events,
+    ['route:comment:legacy', 'save', 'source-gate:confirmed']);
+  assert.strictEqual(successfulLegacyReview.legacyCalls.length, 0,
+    'the change request saves and its source gate confirms, with no Linear send');
+  /* KEPT AS IT WAS, and it matters more after OPEN_REPAIRS 239, not less.
+     The flush this exercises no longer confirms a TEAM DELIVERY -- there is
+     none -- but it still confirms the durable SOURCE GATE, and that can still
+     fail. When it does, the reviewer's card is rolled back and their draft and
+     action id are preserved for a retry that reuses the same comment id. That
+     is the whole point of the checkpoint the retired branches must keep
+     granting: without it a committed-but-unacknowledged upsert duplicates the
+     note instead (PR 1245). An earlier revision of this PR asserted that the
+     drop had nothing to act on, which was only true because the checkpoint had
+     been dropped. */
   const terminalDropReview = await runReviewTweakCase({
     gateway: false,
     saveOk: true,
     terminalDrop: true
   });
-  assert.deepStrictEqual(terminalDropReview.events, ['route:comment:legacy', 'save']);
+  assert.deepStrictEqual(terminalDropReview.events, [
+    'route:comment:legacy', 'save', 'terminal-drop', 'gateway-report'
+  ]);
   assert(terminalDropReview.legacyCalls.length === 0
-    && terminalDropReview.reviewState.errors['review-sample|video'] !== 
-      'Team delivery could not be confirmed. Your draft is preserved; retry.',
-  'a retired legacy review tweak saves without ever claiming or owing a team delivery');
+    && terminalDropReview.post.video_status === 'Client Approval'
+    && terminalDropReview.reviewState.drafts['review-sample|video'] === 'Please revise this cut'
+    && terminalDropReview.reviewState.draftActionIds['review-sample|video'] === 'review-comment-1',
+  'an unconfirmed source gate rolls back, preserves the exact draft and action id for retry, and sends nothing');
   const successfulGatewayReview = await runReviewTweakCase({ gateway: true, saveOk: true });
   assert.deepStrictEqual(successfulGatewayReview.events, ['route:comment:gateway', 'gateway:comment', 'save']);
   assert.strictEqual(successfulGatewayReview.gatewayCalls.length, 1);
@@ -562,19 +571,15 @@ async function runKasperTweakCase({ gateway, saveOk }) {
       item: { source_gate: { comment_id: 'confirmed-comment-0' } }
     }
   });
-  /* The trailing 'legacy:comment' send is retired (OPEN_REPAIRS 239); the
-     fresh comment id and the normal source save, which are what this case is
-     about, are unchanged. */
-  assert.deepStrictEqual(distinctFollowup.events, ['route:comment:legacy', 'save']);
-  /* Was asserted through the STAGED legacy record, which carried the fresh
-     comment id on its way to a Linear delivery. An unenrolled review tweak
-     stages no delivery now (OPEN_REPAIRS 239), so the same property is
-     asserted where it actually lives -- on the card that was saved. */
-  assert(distinctFollowup.stagedLegacy === null
-    && distinctFollowup.post.video_comments.some(comment =>
-      comment && comment.id === 'review-comment-1'
-      && String(comment.body || '') === 'Please revise this cut'),
-  'a distinct follow-up after confirmation gets a fresh comment id on the card and a normal source save, staging no delivery');
+  /* The trailing send is retired (OPEN_REPAIRS 239) and the flush now confirms
+     the durable source gate instead; the fresh comment id and the normal
+     source save, which are what this case is about, are unchanged. */
+  assert.deepStrictEqual(distinctFollowup.events,
+    ['route:comment:legacy', 'save', 'source-gate:confirmed']);
+  assert(distinctFollowup.stagedLegacy
+    && distinctFollowup.stagedLegacy.comment.id === 'review-comment-1'
+    && distinctFollowup.stagedLegacy.body === 'Please revise this cut',
+  'a distinct follow-up after confirmation stages a fresh comment id and saves normally');
 
   /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). These two asserted the Kasper
      legacy status and comment sends sit AFTER `_sxrKasperPersist`, so neither

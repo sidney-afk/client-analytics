@@ -28393,6 +28393,48 @@ card WITH one is gone. The native gateway, card saves, source-save ordering,
 receipts and owner checks are untouched, as are the A2 reader rows
 (AFTER-STEP-7), which this change stops short of.
 
+**REGRESSION CAUGHT IN REVIEW, 2026-09-22 — the retired branches dropped the
+deferred source checkpoint.** The first revision returned a bare
+`{ skipped, legacy_transport_retired }` from all four retired legacy branches,
+with no `deferred_until_source_save` even when the caller asked for one. That
+flag is the ONLY thing that makes `_calReviewRequestTweak` /
+`_sxrReviewRequestTweak` run `_writeUiQueueDeferredLegacyTweak` and write the
+durable source-gate row before the card upsert. Samples happened to survive it,
+because its Kasper path reads the new flag directly; Calendar did not —
+`190-calendar-approval-comments.js.part` has no reference to it, so a
+legacy-route card stopped staging the row and its conflict check.
+
+The consequence is the PR 1245 defect, on the ~213 live client-facing slots
+entry 237 measured: a card upsert that COMMITS but loses its response rolls the
+reviewer's comment back off their screen, and the retry mints a SECOND comment
+id against the change that already committed — the note lands twice, in the
+thread and in the history. The comment above the caption exit in
+`_calPostLinearComment` states the rule the change broke: *every source-only
+exit in this file returns the same shape*.
+
+Fixed by returning exactly that shape from all four branches when the caller
+asked to defer — `{ skipped, source_only, deferred_until_source_save,
+legacy_transport_retired }` — and the plain retired answer otherwise. No caller
+has to learn a transport-specific flag. `330:1859` and `170` were checked the
+same way and neither regressed: 330 never passed the flag (it relies on
+`_kasperPersistPost`), and 170's flag was the dead
+`_writeUiDeferLegacyStatusUntilSourceSave` this change removed, which no
+producer ever set. Staging can only ever produce a `source_only` record, so
+nothing is sent or retried.
+
+Guarded by `test/legacy-route-deferred-source-checkpoint.js`, which drives the
+real extracted writers down the legacy route on BOTH surfaces and then runs the
+caller's own branch into the real staging and target-decision machinery: 11
+assertions fail on the unfixed head, including the defect itself (the retry
+being treated as a fresh action), and all pass on the fix.
+
+**Why the existing suites missed it.** `test/caption-has-no-work-item.js` pins
+this exact checkpoint — it was written for PR 1245 — but only on the CAPTION
+exit, the `!_writeUiComponentHasWorkItem` branch this change never touched. It
+never drives a video or graphic component down the legacy route, so the exit
+that broke sat outside its reach. The 571-suite run, the browser write gate and
+the boot probe were all green on the defect.
+
 **Tests rewritten, never skipped** — each pinned the retired path, and each
 now pins the replacement. Reasons are one line per file in the PR body and in
 the test's own comment. That includes the `F184` boot probe in

@@ -417,14 +417,16 @@ const UNBOUND = { state: 'mismatch', fields: ['card_id'], card_unbound: true };
       host.contextResult = null;
       const deferMeta = Object.assign(meta(), { deferLegacyUntilSourceSave: true });
       const receipt = await observeLane(context, fn, surface, host, 'https://linear.app/x/issue/T-1', 'Please adjust', 'Client', deferMeta);
-      /* Was: `deferred_until_source_save === true` -- the client save path got
-         a receipt promising the Linear copy would be sent once the source row
-         was durable. There is nothing to defer (OPEN_REPAIRS 239), so the
-         writer answers immediately and the save path continues exactly as it
-         did; the comment's home was always the card. */
+      /* The Linear COPY is retired (OPEN_REPAIRS 239), but the receipt itself
+         is not: `deferred_until_source_save` is what makes the review lane
+         stage its durable source-gate row before the card upsert, and without
+         it a committed-but-unacknowledged upsert duplicates the comment on
+         retry (PR 1245). So the receipt still arrives, now reporting
+         source-only and the retired lane as the reason. */
       ok(receipt && receipt.legacy_transport_retired === true
-        && receipt.deferred_until_source_save === undefined,
-        `${surface}: a defer-until-source-save request on the retired lane resolves at once with nothing deferred`);
+        && receipt.source_only === true
+        && receipt.deferred_until_source_save === true,
+        `${surface}: a defer-until-source-save request on the retired lane still gets its source checkpoint`);
     }
     {
       // STAFF routing is completely untouched by the front door.

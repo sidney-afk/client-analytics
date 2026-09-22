@@ -7925,3 +7925,17 @@ from `020-styles-surfaces.css.part`; `010-styles-foundation.css.part` contained
 no matching rule. This is an intentional UI behavior change because outbound
 Linear sync is off and the key is being revoked. No live write, deployment,
 flag, backend, or workflow changed.
+
+Supervisor follow-up on the same PR: with the Linear anchors gone, the
+`is-linked` class survived only on the two SyncView Production anchors, where
+it now matched no rule at all (the executor removed
+`.cal-linear-btn.is-linked` and `.cal-linear-btn-graphic.is-linked:not(.cal-prod-btn)`
+with the anchors). Their appearance never depended on it -- 
+`.cal-linear-btn.cal-prod-btn` sets the raised background and the ring, and the
+per-component `.cal-linear-btn-video/-graphic.cal-prod-btn` rules set the
+colour, all at equal specificity and later in the stylesheet -- so the class
+was dead weight whose only historical meaning was "this is a Linear link".
+Left in place it would be a trap for the next `.is-linked` rule, which is
+precisely the collision the deleted `:not(.cal-prod-btn)` guard existed to
+prevent, so the class is removed from both anchors. Nothing reads it: no CSS
+rule, no JS selector, no test.

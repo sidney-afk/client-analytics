@@ -2943,7 +2943,6 @@
                 if (!nativeTeamsPresent.has(bid)) nativeTeamsPresent.set(bid, new Set());
                 nativeTeamsPresent.get(bid).add(normalizeChildTeam(row && row.team));
             });
-            const nativeNodeByBatch = new Map(); // batchId -> nodeId
             batches.forEach(batch => {
                 const batchId = String(batch && batch.id || '').trim();
                 if (!batchId || linearBackedBatchIds.has(batchId)) return;
@@ -2969,7 +2968,33 @@
                     nodeId
                 };
                 nodes.set(nodeId, node);
-                nativeNodeByBatch.set(batchId, nodeId);
+            });
+            /* A MIXED batch -- born on Linear, then added to natively after
+               the outbound cutoff -- already has a Linear-backed node from
+               the byUuid/wanted pass above, so the native-minting loop just
+               above correctly refuses to mint a second one for it (ONE
+               PARENT PER CARD). That left every native-born child of a
+               mixed batch with nowhere to attach: the old fallback below
+               only knew about nodes THIS loop had just minted, which is
+               empty for a batch `linearBackedBatchIds` already claims.
+               Measured 2026-09-22 against a real mixed batch: 8 pre-cutoff
+               children resolved through their own `raw_issue_parent_id`,
+               and 10 post-cutoff native-born ones (no parent id, no Linear
+               identity) had no node to fall back to at all.
+               `nodes` is complete now -- Linear-backed and synthetic-native
+               alike -- so building the fallback map from it, instead of
+               from the native mint loop alone, closes the gap for both
+               shapes without minting anything new. A batch can legitimately
+               carry two Linear-backed nodes (one per team, see the byUuid
+               comment above); a native child matches its own team's node
+               when more than one exists for its batch, and otherwise takes
+               the batch's one and only node. */
+            const nodesByBatch = new Map(); // batchId -> node[]
+            nodes.forEach(node => {
+                const bid = node.batchId;
+                if (!bid) return;
+                if (!nodesByBatch.has(bid)) nodesByBatch.set(bid, []);
+                nodesByBatch.get(bid).push(node);
             });
             const links = new Map();
             rows.forEach(row => {
@@ -2995,8 +3020,12 @@
                 if (!isNativeBorn(row)) return;
                 const bid = String(row && row.batch_id || '').trim();
                 if (!bid) return;
-                const nativeNodeId = nativeNodeByBatch.get(bid);
-                if (nativeNodeId && bid !== nativeId) links.set(nativeId, nativeNodeId);
+                const candidates = nodesByBatch.get(bid);
+                if (!candidates || !candidates.length) return;
+                const target = candidates.length === 1
+                    ? candidates[0]
+                    : (candidates.find(n => n.team === normalizeChildTeam(row && row.team)) || candidates[0]);
+                if (target && target.nodeId && bid !== nativeId) links.set(nativeId, target.nodeId);
             });
             return { links, nodes };
         }

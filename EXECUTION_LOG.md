@@ -7955,3 +7955,50 @@ neutral/warn styling, unchanged, because that is the "needs linking" cue.
 `test/cal-comp-dot-matches-slot-colors.js` now pins the colours, that the two
 halves differ, that all four linked controls emit the class, and that the empty
 slot does not.
+
+## 2026-09-22 — Native cards added to a pre-cutoff batch never attached to their parent
+
+Reported by an SMM: 4 videos plus 4 thumbnails added to an existing post did
+not show up in its sub-issue list. Root cause was a gap between two shapes
+`_prodResolveBatchParentNodes` (`src/index/210-production-state-writes.js.part`)
+already handled correctly on their own: a fully Linear-backed batch (every
+child resolves through its own `raw_issue_parent_id`) and a fully native-born
+batch (no Linear parent at all, so one synthetic parent node is minted). A
+batch that is BOTH -- born on Linear, then added to natively after the
+outbound cutoff -- already has a Linear-backed node, so the native-minting
+branch correctly refuses to mint it a second one (ONE PARENT PER CARD, owner
+ruling 2026-08-18). But the fallback meant to point a parentless native-born
+child at that existing node only ever looked at nodes it had just minted
+itself, which is empty for a batch the Linear-backed pass already claimed --
+so every native-born child of a mixed batch fell out as a bare top-level
+card. Measured live against one reported batch (project
+uzltbbrjidmjwwfakwve): 8 pre-cutoff children resolved fine, 10 post-cutoff
+native-born ones did not. Estate-wide: 4 mixed batches, 22 orphaned cards, 4
+clients, growing whenever staff add to a pre-cutoff batch.
+
+Fixed by building the fallback from every node the function has by that
+point -- Linear-backed or synthetic -- keyed by `batch_id`, instead of only
+the nodes the native-mint loop had just minted. The two invariants that made
+the native branch safe are unchanged: a row with a real Linear identity that
+simply has no recorded parent still stays a root, and an unresolved parent
+edge (missing, duplicated, self-referential, cyclic) still fails closed. No
+data was touched -- `batch_id` was already correct on every orphaned row, so
+the fix alone re-attaches all 22 on the next read. A new regression case
+(`docs/syncview-design/tests/prod-structure-subset.js`) covers a batch with
+one Linear-born and one native-born child landing under one node; the
+existing `same-batch-root` case, and everything else in the suite, still
+passes.
+
+Second, unrelated finding on the same surface, reported and closed with no
+code change: renaming a card in the Calendar dialog does not reach the
+deliverable's title. The rename writes only the calendar post's own `name`
+column; the deliverable's Linear-composed title is written once at creation
+from that same field and afterward only by `linear-inbound` echoing a change
+made directly in Linear. No write path on any surface pushes a Calendar
+rename into an existing deliverable's title -- confirmed by reading
+`production-write`'s action set (no title-update operation exists) and by
+reproducing the exact reported divergence live. This is an architectural gap
+in the current write surface, not a regression; closing it is a scoped
+feature (a production-write title operation plus a Linear outbound push),
+so nothing was changed for it. Full writeup: `docs/ops/LINEAR_EXIT_JOURNAL.md`,
+2026-09-22.

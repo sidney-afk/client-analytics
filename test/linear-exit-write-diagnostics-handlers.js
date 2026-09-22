@@ -15,7 +15,12 @@ const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir()
  const browser=await handler(request({action:'browser_claim',identifiers:{card:'synthetic-card',body:'PRIVATE_PROSE'},principal_kind:'staff',member_id:'PRIVATE_TOKEN',author_name:'PRIVATE_NAME',code:'write_conflict',status:409}));assert.equal(browser.status,202);assert.equal(calls[0].args.p_receipt.principal_kind,'unverified');assert(!JSON.stringify(calls).includes('PRIVATE_'));calls=[];
  // Real composed top-level GatewayError path. Business handlers are not invoked by this invalid action.
  const composed=require('../scripts/linear-exit-write-diagnostics-compose').gateway().source;
- const start=composed.indexOf('Deno.serve(async (req: Request)'),end=composed.indexOf('\nasync function authenticate(',start);assert(start>0&&end>start);
+ // The Deno.serve block now runs to end of file. It used to be bounded by the
+ // appended `authenticate` wrapper, which no longer exists: the principal
+ // capture moved onto authenticate's own success returns, and authenticate is
+ // declared far ABOVE Deno.serve, so searching forward for it found nothing.
+ const start=composed.indexOf('Deno.serve(async (req: Request)'),end=composed.length;assert(start>0&&end>start);
+ assert(composed.indexOf('async function authenticate(')<start,'authenticate is declared before the served handler');
  const errorStart=composed.indexOf('class GatewayError extends Error'),errorEnd=composed.indexOf('function waitUntil(',errorStart);
  const prelude=`import {captureRefusalContext,reportGatewayRefusal} from ${JSON.stringify(pathToFileURL(path.join(root,'supabase/functions/_shared/write-refusal-diagnostics.mjs')).href)};\ntype JsonMap=Record<string,unknown>;const CORS={};const clean=(v)=>String(v||'').trim(),lower=(v)=>clean(v).toLowerCase();const createClient=()=>globalThis.__wr101db;\n`;
  const gateway=path.join(tmp,'gateway.ts');fs.writeFileSync(gateway,prelude+composed.slice(errorStart,errorEnd)+composed.slice(start,end));await import(pathToFileURL(gateway));

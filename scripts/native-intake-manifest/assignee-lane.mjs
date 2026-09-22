@@ -75,6 +75,12 @@ source = rewriteOnce(source, 'from "../_shared/linear-create-id.mjs";',
 if (source.includes('from "../_shared/native-brief-media.mjs";')) source = rewriteOnce(source,
   'from "../_shared/native-brief-media.mjs";',
   `from "${pathToFileURL(path.join(ROOT, 'supabase/functions/_shared/native-brief-media.mjs')).href}";`);
+// WR-101 (ledger 240): production-write imports the refusal-diagnostics
+// helper. Guarded like native-brief-media above, so this loader keeps working
+// if the import is ever removed again.
+if (source.includes('from "../_shared/write-refusal-diagnostics.mjs";')) source = rewriteOnce(source,
+  'from "../_shared/write-refusal-diagnostics.mjs";',
+  `from "${pathToFileURL(path.join(ROOT, 'supabase/functions/_shared/write-refusal-diagnostics.mjs')).href}";`);
 source = rewriteOnce(source, 'Deno.serve(', 'globalThis.__nirServe(');
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'nir-assignee-'));

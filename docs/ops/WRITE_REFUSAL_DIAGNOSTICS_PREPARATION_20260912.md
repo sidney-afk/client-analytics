@@ -1,5 +1,15 @@
 # WR-101: separate refusal-diagnostics preparation
 
+> **Superseded in part, 2026-09-22 (ledger 240).** This document describes the
+> September 12 preparation as it was built. The release composed from it now
+> lives in real source: the gateway integration is committed in
+> `supabase/functions/production-write/index.ts` and the browser beacon in
+> `src/index/120-calendar-flags-write-repair.js.part`. The composer no longer
+> pins or patches `index.html` — that pin was a build output and went stale on
+> every merge — and it no longer patches the gateway either, since only the
+> committed file can be deployed. Still deployed: nothing. See ledger 240 for
+> what changed and why.
+
 Prepared and tested in isolation; not merged, deployed or activated. Existing
 gateway and browser source files are unchanged. The companion composer produces
 reviewable versions for a separate release, preserving the original refusal
@@ -10,9 +20,11 @@ status and response body. Calendar/Samples links and tokenless access are unchan
 - SQL owner `20260913044451_write_refusal_diagnostics_preparation.sql` creates a
   private, RLS-enabled receipt table and service-only record, lookup/summary and
   bounded retention routines. No browser role receives direct access.
-- `scripts/linear-exit-write-diagnostics-compose.js` pins the gateway and browser
+- `scripts/linear-exit-write-diagnostics-compose.js` pinned the gateway and browser
   source before inserting diagnostics. The gateway records after the failed
   business operation, using verified authentication context when available.
+  (As of 2026-09-22 it pins nothing and patches nothing; it asserts the five
+  committed gateway integration points appear exactly once each.)
 - `supabase/functions/write-diagnostics/index.ts` accepts explicitly unverified
   browser claims and protects operator queries with a separate runner key.
   Shared helpers allowlist refusal codes and operations. Identifiers are hashed

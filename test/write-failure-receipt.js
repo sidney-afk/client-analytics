@@ -107,14 +107,30 @@ ok(JSON.parse(run(`sessionStorage.getItem(CAL_REPLY_DRAFTS_PREFIX + 'card-D')`))
 
 /* ---- the diagnostic row names the thread, and nothing more ---------------- */
 
-const ctx2 = vm.createContext({ console });
+/* The beacon (WR-101, ledger 240) is called from _writeUiQueueDiagnostic, so it
+   is loaded here with real globals rather than stubbed away. Two things are
+   being checked at once: that the durable claim carries the same allowlisted
+   identifiers and no prose, and that it does not disturb the localStorage row
+   the rest of this suite asserts on. `fetch` is a spy that never resolves the
+   way a network would, which also exercises the fire-and-forget contract. */
+const beaconCalls = [];
+const ctx2 = vm.createContext({
+  console, TextEncoder, AbortController, setTimeout, clearTimeout,
+  fetch: (url, init) => { beaconCalls.push({ url, body: JSON.parse(init.body) }); return Promise.reject(new Error('offline')); },
+});
 vm.runInContext(`
 const localStorage = { _d: {}, getItem(k) { return this._d[k] == null ? null : this._d[k]; }, setItem(k, v) { this._d[k] = String(v); } };
 const WRITE_UI_QUEUE_DIAG_KEY = 'k';
+const CAL_SUPABASE_URL = 'https://synthetic.invalid';
 `
   + grabConst('WRITE_UI_DIAG_IDS') + '\n'
   + grabConst('WRITE_UI_DIAG_PAYLOAD_IDS') + '\n'
+  + grabConst('WRITE_REFUSAL_BEACON_IDS') + '\n'
+  + grabConst('WRITE_REFUSAL_BEACON_MAX') + '\n'
+  + "const WRITE_REFUSAL_BEACON_URL = CAL_SUPABASE_URL + '/functions/v1/write-diagnostics';\n"
+  + 'let _writeRefusalBeaconBudget = WRITE_REFUSAL_BEACON_MAX;\n'
   + grabFunc('_writeUiDiagnosticIds') + '\n'
+  + grabFunc('_writeRefusalBeacon') + '\n'
   + grabFunc('_writeUiQueueDiagnostic') + '\n', ctx2);
 const run2 = e => vm.runInContext(e, ctx2);
 
@@ -145,7 +161,26 @@ ok(!/A Person/.test(serialized), "the comment author's name is NOT recorded");
 ok(!('source_gate' in row) && !('payload' in row),
 'nested caller structures are not copied wholesale — only allowlisted scalars are');
 
+/* ---- the durable claim, WR-101 point 3 (ledger 240) ---------------------- */
+
+ok(beaconCalls.length === 1 && beaconCalls[0].url === 'https://synthetic.invalid/functions/v1/write-diagnostics',
+'a refused write also posts one claim to the private diagnostics endpoint');
+const claim = beaconCalls[0].body;
+ok(claim.action === 'browser_claim' && claim.surface === 'calendar'
+  && claim.operation === 'comment' && claim.code === 'comment_parent_ambiguous',
+'the claim carries the surface, operation and refusal code');
+ok(!('status' in claim),
+'a refusal with no usable status sends no status rather than a hardcoded one');
+ok(!/logo bigger/.test(JSON.stringify(claim)) && !/A Person/.test(JSON.stringify(claim)),
+'no comment body or author name leaves the browser');
+ok(!('request_id' in claim.identifiers) && !('transport' in claim.identifiers) && !('issue' in claim.identifiers),
+'the claim narrows to the six identifiers the receipt table accepts');
+ok(claim.identifiers.card === 'card-A' && claim.identifiers.comment === 'cm_root_1'
+  && claim.identifiers.id === 'q_123_comment',
+'and it names the thread a human would need to find');
+
 run2(`_writeUiQueueDiagnostic('calendar', 'drained', { kind: 'status', payload: { nested: { deep: 'x' } }, id: { not: 'a scalar' } });`);
+ok(beaconCalls.length === 1, 'an outcome that is not a write failure never reports');
 const row2 = JSON.parse(run2(`localStorage.getItem(WRITE_UI_QUEUE_DIAG_KEY)`))[1];
 ok(row2.id === undefined && row2.nested === undefined,
 'a non-scalar under an allowlisted key is dropped rather than serialized');

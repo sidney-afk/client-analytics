@@ -504,10 +504,26 @@ const CANDIDATES = new Map([
     // THE MIGRATION GOES IN FIRST. The gateway refuses when the count cannot be
     // established, so a database without the routine refuses intake picks
     // rather than degrading to a wrong load.
+    // Re-pinned 2026-09-22 for the WR-101 refusal-receipt release (ledger 240).
+    // The gateway writes a durable, server-side receipt when it refuses a
+    // write: refusal context captured after the JSON parse, the verified
+    // principal captured on each of authenticate()'s three success returns,
+    // and one reportGatewayRefusal around the existing GatewayError response.
+    // The refusal status and body are byte-identical to before; the only added
+    // output is an x-write-diagnostic-status header. Recording waits at most
+    // 500ms, never retries and never replaces the save error.
+    // Closure grows to EIGHT: the new import is
+    // _shared/write-refusal-diagnostics.mjs, which pulls
+    // _shared/write-refusal-codes.mjs. The entrypoint hash is unchanged,
+    // because that one hashes the PATH.
+    // THE MIGRATION GOES IN FIRST:
+    // supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql.
+    // Without it the receipt insert fails; the gateway fails soft and loses
+    // only the receipt, but there is no reason to deploy into that state.
     // Regenerated with scripts/ef-fingerprint.js, never by hand.
-    source: '9630884e62bb80934444800995a39f40cc70f37b3bff42bd2a09551d159ef1e4',
+    source: 'af8bf801b45830f95951d00636ce1103fb1b043652337b2c1bae68a37fd17422',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
-    files: 6,
+    files: 8,
   }],
 ]);
 

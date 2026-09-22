@@ -260,9 +260,18 @@ const manifestCheck = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'e
   encoding: 'utf8',
 });
 const slugRows = manifest.split(/\r?\n/).filter(line => /^\| `[a-z0-9-]+` \|/.test(line));
+// write-diagnostics is now registered DELIBERATE-MANUAL (2026-09-22, ledger
+// 240) rather than merely absent from every lane. The assertion still requires
+// that it has no CI deploy path -- the wording changes, the property does not --
+// and additionally that its manual release states the --no-verify-jwt posture
+// it needs, since it accepts unauthenticated browser refusal claims by design.
+const writeDiagnosticsRow = slugRows.find(line => line.startsWith('| `write-diagnostics` |')) || '';
 ok(manifestCheck.status === 0 && slugRows.length === 38
-  && manifest.includes('| `write-diagnostics` | NONE | **NO CI DEPLOY PATH.** |'),
-`generated deploy manifest is current and contains all 38 slugs including dormant write-diagnostics (${(manifestCheck.stderr || '').trim()})`);
+  && writeDiagnosticsRow.includes('| NONE |')
+  && writeDiagnosticsRow.includes('**NO CI DEPLOY PATH - DELIBERATE-MANUAL.**')
+  && writeDiagnosticsRow.includes('--no-verify-jwt')
+  && writeDiagnosticsRow.includes('WRITE_DIAGNOSTICS_ENABLED=true'),
+`generated deploy manifest is current and contains all 38 slugs including dormant deliberate-manual write-diagnostics (${(manifestCheck.stderr || '').trim()})`);
 /*
  * 2026-08-08: client-review-link left the deliberate-manual set. The manual
  * lane is WHY the #1016 mint-on-demand fix sat merged-but-undeployed for five

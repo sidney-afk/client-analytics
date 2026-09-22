@@ -1,3 +1,4 @@
+import { captureRefusalContext, captureVerifiedPrincipal, reportGatewayRefusal } from "../_shared/write-refusal-diagnostics.mjs";
 // Supabase Edge Function: production-write
 //
 // The single browser-callable write gateway for native Production mutations.
@@ -1215,7 +1216,7 @@ async function authenticate(
     if (!client || !isCanonicalActiveTestClient(client.active, client.kind)) {
       throw new GatewayError(403, "test_client_scope_required");
     }
-    return {
+    const testPrincipal: Principal = {
       kind: "test",
       keyRole: "test",
       actorName: "SyncView TEST write drill",
@@ -1227,6 +1228,8 @@ async function authenticate(
       client,
       testOnly: true,
     };
+    captureVerifiedPrincipal(req, testPrincipal);
+    return testPrincipal;
   }
 
   if (credentials === "staff") {
@@ -1256,6 +1259,7 @@ async function authenticate(
       client: null,
       testOnly: false,
     };
+    captureVerifiedPrincipal(req, principal);
     return principal;
   }
 
@@ -1287,6 +1291,7 @@ async function authenticate(
       client,
       testOnly: false,
     };
+    captureVerifiedPrincipal(req, principal);
     return principal;
   }
 
@@ -8430,6 +8435,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const rawRequest = req.clone();
     const body = await req.json().catch(() => null) as JsonMap | null;
     if (!body || Array.isArray(body)) throw new GatewayError(400, "invalid_json");
+    captureRefusalContext(req, body);
     // Reviewed F44 forwarders can preserve the original request bytes exactly.
     // The query selects a protocol only; public admission remains below.
     if (new URL(req.url).searchParams.get("action") === "legacy_intake_receive") {
@@ -8500,7 +8506,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       : await handleEntityOperation(supabase, req, body, operation, surface, requestId, sourceEditedAt);
   } catch (error) {
     if (error instanceof GatewayError) {
-      return json({ ok: false, error: error.code, ...(error.detail || {}) }, error.status);
+      return await reportGatewayRefusal(supabase, req, error, json({ ok: false, error: error.code, ...(error.detail || {}) }, error.status));
     }
     console.error("production-write failed", error instanceof Error ? error.message : "unknown");
     return json({ ok: false, error: "write_failed" }, 500);

@@ -51,6 +51,8 @@ try{
  async function load(source,tag){
   const change=(a,b)=>{assert.equal(source.split(a).length,2);source=source.replace(a,b);};
   if(source.includes('from "../_shared/native-brief-media.mjs";'))change('from "../_shared/native-brief-media.mjs";',`from "${pathToFileURL(path.join(ROOT,'supabase/functions/_shared/native-brief-media.mjs')).href}";`);
+  // WR-101 (ledger 240): the refusal-diagnostics helper, guarded like the line above.
+  if(source.includes('from "../_shared/write-refusal-diagnostics.mjs";'))change('from "../_shared/write-refusal-diagnostics.mjs";',`from "${pathToFileURL(path.join(ROOT,'supabase/functions/_shared/write-refusal-diagnostics.mjs')).href}";`);
   change('import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";',`import { createClient, SupabaseClient } from "${pathToFileURL(path.join(ROOT,'scripts/native-intake-manifest/supabase-shim.mjs')).href}";`);
   for(const rel of ['../_shared/staff-role-auth.ts','./selected-label-pages.mjs','../_shared/linear-create-id.mjs','./policy.mjs'])change(`from "${rel}";`,`from "${pathToFileURL(path.resolve(ROOT,'supabase/functions/production-write',rel)).href}";`);
   const file=path.join(cfg.output,tag+'.ts');fs.writeFileSync(file,source);await import(pathToFileURL(file).href);return handler;

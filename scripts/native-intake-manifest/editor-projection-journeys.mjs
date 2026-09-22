@@ -116,12 +116,16 @@ try {
   const baseline=execFileSync('git',['show','69ae5d338486bd8084e6bbdbe65be1c44f63dbe1:supabase/functions/production-write/index.ts'],{cwd:ROOT,encoding:'utf8',maxBuffer:4*1024*1024});
   let baselineSource=rewriteOnce(baseline,'import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";',
     'import { createClient, SupabaseClient } from '+JSON.stringify(shimUrl)+';');
+  // WR-101 (ledger 240): '../_shared/write-refusal-diagnostics.mjs' is rewritten
+  // by the guarded line below, not here, so removing the import cannot break this loader.
   for(const file of ['../_shared/staff-role-auth.ts','./policy.mjs','./selected-label-pages.mjs','../_shared/linear-create-id.mjs']) {
     baselineSource=rewriteOnce(baselineSource,'from "'+file+'";','from '+JSON.stringify(pathToFileURL(path.resolve(FN_DIR,file)).href)+';');
   }
   baselineSource=rewriteOnce(baselineSource,'Deno.serve(','globalThis.__nirServe(');
   if(baselineSource.includes('from "../_shared/native-brief-media.mjs";')) baselineSource=rewriteOnce(baselineSource,
     'from "../_shared/native-brief-media.mjs";', 'from '+JSON.stringify(pathToFileURL(path.resolve(FN_DIR,'../_shared/native-brief-media.mjs')).href)+';');
+  if(baselineSource.includes('from "../_shared/write-refusal-diagnostics.mjs";')) baselineSource=rewriteOnce(baselineSource,
+    'from "../_shared/write-refusal-diagnostics.mjs";', 'from '+JSON.stringify(pathToFileURL(path.resolve(FN_DIR,'../_shared/write-refusal-diagnostics.mjs')).href)+';');
   const baselineFile=path.join(scratch,'baseline.ts'),candidateHandler=handler;
   try {
     fs.writeFileSync(baselineFile,baselineSource);await import(pathToFileURL(baselineFile).href);

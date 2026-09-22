@@ -28407,6 +28407,37 @@ correctly caught that the beacon put a new endpoint into the page), and
 `write-failure-receipt` (its harness had to load the beacon rather than leave it
 undefined, which made it a better test).
 
+**Seven import-rewriting loaders also had to be told about the new import**, found
+only after CI went red on `unit`. Six test/QA lanes copy
+`supabase/functions/production-write/index.ts` into a temp directory and rewrite
+its relative imports to absolute file URLs, each from its own hand-listed map:
+`scripts/native-intake-reconcile/load-gateway.mjs`,
+`scripts/native-intake-manifest/{assignee-lane,gateway-lane,native-only-lane,editor-projection-journeys}.mjs`
+and `qa/native-label-catalog/{handler-proof,write-proof}.mjs`. A map that does not
+list an import leaves it resolving against `/tmp`, so the gateway fails to load with
+`ERR_MODULE_NOT_FOUND` and the lane reports a missing receipt rather than a missing
+import. `native-existing-assignment` is the one that caught it; the other lanes fail
+on `origin/main` for unrelated reasons and would have hidden it. Each map now carries
+the new import in the same `if (source.includes(...))` guarded form the maps already
+use for `native-brief-media.mjs`, so removing the import later cannot break them. The
+set was closed by reconciling two searches of different shapes, per the house rule:
+files reading `production-write/index.ts`, and files containing the
+`_shared/linear-create-id.mjs` rewrite.
+
+**This is the fourth and fifth hand-maintained shadow copy of the same contract**,
+alongside `test/f27-section4-deploy-lane.js`'s candidate contract and
+`test/ef-deploy-provenance.js`'s manifest-row wording. Nothing here is driven off the
+thing it shadows, so each one drifts silently and is discovered by a red CI run. Worth
+someone's attention as its own repair; this entry does not restructure them.
+
+**A measurement gap worth recording.** The first `run-all` comparison on this branch
+was made WITHOUT `F63_REQUIRE_POSTGRES=1`, `ARTIFACT_REQUIRE_POSTGRES=1` and a live
+PostgreSQL, which is how the `unit` CI job runs it. The comparison was honest but
+lower-coverage than CI, and the loader breakage lives entirely in the suites those
+variables switch on: 6 of 571 failing locally became 12 of 571 under the CI
+environment, on `origin/main` as well as here. Reproduce the CI job locally with
+those three, not with a bare `node test/run-all.js`.
+
 All four preparation suites pass on this branch. Two needed environment rather than
 repair, which is why they read as failures on a bare checkout: the postgres suite
 is gated behind `F63_REQUIRE_POSTGRES=1` and needs `PROOF_OUTPUT_ROOT` and a

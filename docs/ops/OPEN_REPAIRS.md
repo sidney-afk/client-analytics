@@ -27890,3 +27890,81 @@ a rename can move a row — cosmetic, but it should not jump while the user is
 looking at it.
 
 **Status.** Designed, verified against source, not built. No branch, no PR.
+## 236. [2026-09-22, FIXED] The calendar's two remaining `linear-issue-statuses` calls are gone — and one of them could overwrite a correct native status with a stale Linear one
+
+Entry 233 holds the measurement behind this: the `linear-issue-statuses` n8n
+webhook ran 8,172 times in 7 days out of ~23,117 total executions — about 35%
+of the bill — and the endpoint is revoked on 2026-09-27. Both of its front-end
+callers ran on calendar load. They are removed.
+
+**What was removed.** `LINEAR_STATUSES_URL` (fragment 100), the batched
+banner-meta fetch inside `_calRefreshParentLinkFlags` (fragment 150), and
+`_calReconcileLinearStatuses` together with its load-tail call site. The
+function `_calRefreshParentLinkFlags` survives and now only hydrates the
+persisted banner meta from localStorage. The throttle/latch state the fetch
+owned (`CAL_LINEAR_META_FORCE_MIN_MS`, `_calLinearStatusMetaSig`,
+`_calLinearStatusMetaAt`, `_calStatusMetaUnsupported`) went with it.
+
+**The dependency question, answered before deleting.** The reconcile pulled
+card statuses from Linear back onto the calendar, so the only thing worth
+proving was whether anything still depended on it.
+
+1. *A native path already sets the same statuses.* Statuses are staged by the
+   calendar's own writers and sent by `_calFlushCardSave` (fragment 170), land
+   in Supabase `calendar_posts`, and reach every other open tab over the v2
+   realtime subscription on that table (fragment 150,
+   `_calV2EnsureSubscribed`); every load re-reads them natively through
+   `_calV2FetchPosts`. The `prod_authority` runtime flag reads
+   `{video: syncview, graphics: syncview}` — SyncView, not Linear, is the
+   source of truth on both lanes.
+2. *No card can reach a state whose only corrector was this call.* The
+   reconcile already returned early under `_calV2Ready()`, and v2 has been the
+   default since 2026-06-14 with the publishable key set, so the code only ran
+   in a browser that had opted out with `?v2=0`. Convergence does not depend on
+   any browser anyway: `.github/workflows/linear-sync-reconcile.yml` runs
+   `scripts/linear-sync-reconcile.js` every 15 minutes, dispatched by the
+   monitored pager, and `test/f50-reconcile-pull-only.js` proves it still pulls
+   Linear→card under `syncview` authority with the outbound mirror live.
+3. *It could corrupt, not just refresh.* The reconcile had **no**
+   `prod_authority` check — unlike the backend status-sync workflow, which
+   explicitly skips a `syncview_authoritative` team, and unlike the banner
+   readers, which seal an authoritative component out via
+   `_writeUiLinkSlotSealed`. Its only protections were a 5-minute local-edit
+   grace window and the row's `updated_at` inside that same window. Outside
+   five minutes it wrote the mapped Linear state onto `video_status` /
+   `graphic_status`, cleared client-approval stamps through
+   `_calClearStaleApprovals`, and persisted the result. On a `?v2=0` browser
+   that is a stale Linear read beating a correct native status. **The deletion
+   is a bug fix, not only a removal.** `test/cal-review-needs-content.js`
+   carried this as a declared KNOWN GAP; that gap is now closed for the
+   calendar.
+
+**Measured effect.** Those 8,172 executions per 7 days drop to zero from the
+front end. Monthly: roughly 100k → roughly 65k. No n8n workflow was edited —
+the executions stop because nothing calls the webhook. The workflow itself is
+the owner's to archive, separately.
+
+**Scope.** The A2 audit (`docs/audits/2026-09-21-base-audit/A2-dead-code-inventory.md`)
+defers fragment 100's reader endpoints to AFTER-STEP-7. Only this one endpoint
+was pulled forward, on the owner's instruction, because of the revoke date and
+the cost. **Every other reader endpoint on that row remains deferred and
+untouched.**
+
+**Left open by this.**
+1. `scripts/linear-sync-reconcile.js` and `scripts/sample-linear-reconcile.js`
+   each hold their own copy of the same webhook URL. They are the 15-minute
+   convergence backbone named in point 2 above, they are server-side, and they
+   stop working on 2026-09-27 like everything else on this endpoint. They need
+   a native replacement or a decision to retire them — this PR deliberately did
+   not touch them, but the date applies to them too.
+2. The local-status freshness stamps (`_calLocalStatusAt`, `_calMarkLocalStatus`,
+   `_calIsLocalStatusFresh`, `_calIsRowRecentlyTouched`, `CAL_LOCAL_STATUS_GRACE_MS`)
+   lost their only readers with the reconcile. The writers still run, from
+   fragments 170 and 190, so what remains is a write-only map. Sweeping it is
+   AFTER-STEP-7 work, not this PR's.
+3. Banner meta is now whatever the last successful fetch persisted, per browser,
+   under a 7-day TTL. `_calLinearMissingForCard` fails open on a missing entry
+   (no banner rather than a wrong one), and both lanes being SyncView-
+   authoritative already sealed every slot out of these banners, so the visible
+   effect today is none. If a lane is ever rolled back to Linear authority the
+   banner will be empty rather than wrong, and would need a native meta source.

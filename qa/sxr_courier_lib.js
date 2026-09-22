@@ -626,10 +626,15 @@ async function _ctx(browser, opts) {
       // OPEN_REPAIRS item 68 point 2. linear-issue-statuses used to fall into
       // the bare { ok: true } default below, with no `meta` key. index.html's
       // consumer (~32417) reads that as "an older backend that doesn't speak
-      // this feature" and permanently disables the Linear-meta banner for the
+      // this feature" and permanently disabled the Linear-meta banner for the
       // rest of the page session (_calStatusMetaUnsupported, memoised) --
       // this is item 62's own "why it survived two flips" mechanism, and it
       // was silently switching itself off in every courier-driven probe.
+      // As of 2026-09-22 the app makes no linear-issue-statuses request at
+      // all (OPEN_REPAIRS 236), so this branch should never fire from the
+      // calendar any more. It is kept because the courier also fronts probes
+      // of the server-side reconcilers, which still call this endpoint, and
+      // because a request arriving here again is now itself a signal.
       // An empty meta object is a safe, honest stand-in: the consumer's loop
       // finds no per-id entries and no-ops, same as a real backend reporting
       // nothing yet -- it just no longer looks like an unsupported backend.

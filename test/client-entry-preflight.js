@@ -96,7 +96,6 @@ const calSubscribeSource = extract('_calV2EnsureSubscribed');
 const calRealtimeSource = extract('_calV2OnRealtimeChange');
 const calLoadSource = extract('loadCalendarPosts');
 const calMetaSource = extract('_calRefreshParentLinkFlags');
-const calReconcileSource = extract('_calReconcileLinearStatuses');
 const calReturnSource = extract('_calRefreshOnReturn');
 const calClearSuspendSource = extract('_calClearSuspendedLoadOwnership');
 const calSuspendSource = extract('_calSuspendOnPagehide');
@@ -146,7 +145,6 @@ for (const token of [
   "surface: document.getElementById('calView')",
   'clientEntryRun: _isClientLink ? _syncviewClientEntryDataRun : null',
   "if ((!ok || !_calLoadRunCurrent(loadRun)) && _calActiveLoad === loadRun)",
-  'ownedTailTasks.push(_calReconcileLinearStatuses(loadRun))',
   'ownedTailTasks.push(_calRefreshParentLinkFlags(loadRun, false))',
   'ownedTailTasks.push(_calRefreshParentLinkFlags(loadRun, true))',
   'if (ownedTailTasks.length) await Promise.all(ownedTailTasks);',
@@ -160,40 +158,28 @@ assert(
     < calLoadSource.lastIndexOf('if (_calActiveLoad === loadRun) _calActiveLoad = null;'),
   'Calendar exact owner must remain attached until every owned post-load continuation settles',
 );
-for (const [name, fnSource] of [
-  ['metadata', calMetaSource],
-  ['reconcile', calReconcileSource],
-]) {
-  assert(
-    fnSource.includes('loadRun')
-      && fnSource.includes('signal: loadRun.controller ? loadRun.controller.signal : undefined')
-      && (fnSource.match(/_calLoadRunCurrent\(loadRun\)/g) || []).length >= 5,
-    `Calendar ${name} must carry the completed load/surface lease through its transport and mutations`,
-  );
-  const fetchAt = fnSource.indexOf('await fetch(');
-  const jsonAt = fnSource.indexOf('await resp.json()');
-  assert(
-    fetchAt >= 0
-      && fnSource.indexOf('_calLoadRunCurrent(loadRun)', fetchAt) < jsonAt
-      && fnSource.indexOf('_calLoadRunCurrent(loadRun)', jsonAt) > jsonAt,
-    `Calendar ${name} must re-check ownership after fetch and response-body awaits`,
-  );
-}
-for (const token of [
-  '_calLinearStatusMetaSig = sig;',
-  '_calLinearStatusMetaAt = Date.now();',
-  '_calPersistLinearMeta();',
-  '_calRenderBody({ preserveScroll: true });',
-]) {
-  assert(calMetaSource.includes(token), 'Calendar metadata guarded mutation is missing: ' + token);
-}
+/* The browser-side Linear reconcile and the Linear banner-meta fetch were both
+   removed on 2026-09-22 with the `linear-issue-statuses` webhook (OPEN_REPAIRS
+   235). What used to be proved here -- that each carried the completed load's
+   surface lease through its transport and re-checked ownership after every
+   await -- no longer has a transport to carry it through. The replacement
+   assertions are the stronger ones: neither function exists in a form that can
+   issue a request, and the load tail no longer schedules the reconcile. */
 assert(
-  calReconcileSource.includes('if (_calSaveInFlight[post.id] || _calPendingEdits[post.id]) continue;')
-    && calReconcileSource.includes('_calNoLinearPush.add(post.id);')
-    && calReconcileSource.includes('_calFlushCardSave(post.id);')
-    && calReconcileSource.includes('_calRenderBody({ preserveScroll: true });'),
-  'Calendar reconcile must skip user-owned save buckets and guard pending/write/render mutations',
+  !/function\s+_calReconcileLinearStatuses\b/.test(source),
+  'The browser-side Linear status reconcile must stay removed (OPEN_REPAIRS 236)',
 );
+assert(
+  !calLoadSource.includes('_calReconcileLinearStatuses'),
+  'The calendar load tail must not schedule a browser-side Linear status reconcile',
+);
+assert(
+  !calMetaSource.includes('fetch(')
+    && calMetaSource.includes('_calLoadRunCurrent(loadRun)')
+    && calMetaSource.includes('_calHydrateLinearMeta();'),
+  'Calendar banner metadata must hydrate the persisted copy under the load lease and issue no request',
+);
+
 assert(
   calReturnSource.includes('if (_calStaffPagehideSuspended) return;')
     && calReturnSource.includes('loadCalendarPosts({ background: true, forceMeta: true });')

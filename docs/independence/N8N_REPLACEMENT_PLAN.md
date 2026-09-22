@@ -328,6 +328,16 @@ Function or the `production_deliverables_browser_v1` view.
 
 ### 4.3 `linear-issue-statuses` → native batch/deliverable fields (banners only)
 
+> **DONE 2026-09-22 — both callers removed, ahead of this plan's ordering.**
+> The endpoint is revoked on 2026-09-27 and was ~35% of the n8n execution bill,
+> so the owner pulled it forward. The reconcile was retired as planned below.
+> The banner caller was removed WITHOUT the native replacement §4.3 asks for:
+> the banners now render from the persisted per-browser cache only, which is
+> visibly a no-op today because both lanes are SyncView-authoritative and every
+> slot is already sealed out of those banners. The native meta source remains
+> unbuilt and is what a rollback to Linear authority would need.
+> Measurement: OPEN_REPAIRS 233. Proof and consequences: OPEN_REPAIRS 236.
+
 Two callers, two fates.
 
 **RETIRE — `_calReconcileLinearStatuses` (:33846).** It early-returns whenever

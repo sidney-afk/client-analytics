@@ -1194,7 +1194,7 @@ async function uniqueActiveTestClient(supabase: SupabaseClient): Promise<ClientR
   return data[0] as ClientRow;
 }
 
-async function authenticateWithoutDiagnostics(
+async function authenticate(
   supabase: SupabaseClient,
   req: Request,
   body: JsonMap,
@@ -1216,7 +1216,7 @@ async function authenticateWithoutDiagnostics(
     if (!client || !isCanonicalActiveTestClient(client.active, client.kind)) {
       throw new GatewayError(403, "test_client_scope_required");
     }
-    return {
+    const testPrincipal: Principal = {
       kind: "test",
       keyRole: "test",
       actorName: "SyncView TEST write drill",
@@ -1228,6 +1228,8 @@ async function authenticateWithoutDiagnostics(
       client,
       testOnly: true,
     };
+    captureVerifiedPrincipal(req, testPrincipal);
+    return testPrincipal;
   }
 
   if (credentials === "staff") {
@@ -1257,6 +1259,7 @@ async function authenticateWithoutDiagnostics(
       client: null,
       testOnly: false,
     };
+    captureVerifiedPrincipal(req, principal);
     return principal;
   }
 
@@ -1288,6 +1291,7 @@ async function authenticateWithoutDiagnostics(
       client,
       testOnly: false,
     };
+    captureVerifiedPrincipal(req, principal);
     return principal;
   }
 
@@ -8508,5 +8512,3 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error: "write_failed" }, 500);
   }
 });
-
-async function authenticate(supabase: SupabaseClient, req: Request, body: JsonMap, targetClientSlug: string): Promise<Principal> { const principal = await authenticateWithoutDiagnostics(supabase, req, body, targetClientSlug); captureVerifiedPrincipal(req, principal); return principal; }

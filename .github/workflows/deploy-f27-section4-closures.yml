@@ -113,7 +113,7 @@ jobs:
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5
-      PRODUCTION_WRITE_FILE_COUNT: '6'
+      PRODUCTION_WRITE_FILE_COUNT: '8'
       # Re-pinned 2026-08-14 (fifth release): production-write gains the client
       # comment FRONT DOOR — clientCommentFrontDoorTargetAllowed admits
       # calendar-surface and unlinked-samples client comments under the
@@ -387,7 +387,27 @@ jobs:
       # applied BEFORE this lane is dispatched. The gateway refuses rather than
       # degrades when the count cannot be established.
       # (Previous pin: 9dd41919d1... -- production-write, 2026-09-18.)
-      PRODUCTION_WRITE_SOURCE_SHA256: 9630884e62bb80934444800995a39f40cc70f37b3bff42bd2a09551d159ef1e4
+      # Re-pinned 2026-09-22 for the WR-101 refusal-receipt release (ledger
+      # 240). The gateway records a durable, server-side receipt when it
+      # refuses a write: context capture after the JSON parse, verified
+      # principal capture in an `authenticate` wrapper, and one
+      # `reportGatewayRefusal` around the existing `GatewayError` response. The
+      # refusal status and body are byte-identical to before; the only visible
+      # addition is an `x-write-diagnostic-status` header. Recording waits at
+      # most 500ms, never retries, and never replaces the save error.
+      # Closure grows to EIGHT files: the new import is
+      # _shared/write-refusal-diagnostics.mjs, which pulls
+      # _shared/write-refusal-codes.mjs.
+      # PREREQUISITES, both BEFORE this lane is dispatched:
+      #   1. supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql
+      #      must be applied. Without it the record call fails; the gateway
+      #      fails soft and loses only the receipt, but there is no reason to
+      #      deploy into that state.
+      #   2. The `write-diagnostics` function should already be deployed
+      #      (deliberate-manual, --no-verify-jwt). It is dormant until
+      #      WRITE_DIAGNOSTICS_ENABLED=true, so it is safe to land first.
+      # (Previous pin: 9630884e62... -- production-write, files=6, 2026-09-19.)
+      PRODUCTION_WRITE_SOURCE_SHA256: fa25b9c193f86f08a313364cd5fb90d855b4d1c19dfb6a908faa081bbee83f57
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

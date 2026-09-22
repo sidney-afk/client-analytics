@@ -26,24 +26,35 @@ const path = require('path');
 const root = path.resolve(__dirname, '..');
 const GATEWAY = 'supabase/functions/production-write/index.ts';
 
-// Each entry is a fragment that must appear EXACTLY once in the released
-// gateway. Exactly-once matters in both directions: zero means the integration
-// point was removed, and more than one means a refactor duplicated a seam and
-// a single refusal would be recorded twice.
+/* Each entry is a fragment that must appear an EXACT number of times in the
+   released gateway. The count is checked in both directions: too few means an
+   integration point was removed, too many means a refactor duplicated a seam
+   and one refusal would be recorded twice.
+
+   The principal capture sits on `authenticate`'s three success returns rather
+   than in a wrapper around a renamed resolver, which is what the September 12
+   preparation did. Renaming it broke two unrelated suites --
+   `public-intake-open-submission` and `production-write-gateway` -- that
+   extract that resolver by the name `authenticate` and bound it on its own
+   final `credentials_required` refusal. The capture had to move to where it
+   does not disturb the shape those suites read. */
 const GATEWAY_INTEGRATION_POINTS = Object.freeze([
-  'import { captureRefusalContext, captureVerifiedPrincipal, reportGatewayRefusal } from "../_shared/write-refusal-diagnostics.mjs";',
-  'async function authenticateWithoutDiagnostics(',
-  'captureVerifiedPrincipal(req, principal);',
-  'captureRefusalContext(req, body);',
-  'return await reportGatewayRefusal(supabase, req, error, json({ ok: false, error: error.code, ...(error.detail || {}) }, error.status));',
+  Object.freeze({ fragment: 'import { captureRefusalContext, captureVerifiedPrincipal, reportGatewayRefusal } from "../_shared/write-refusal-diagnostics.mjs";', count: 1 }),
+  Object.freeze({ fragment: 'captureRefusalContext(req, body);', count: 1 }),
+  // One per success return of authenticate(): the TEST principal, the staff
+  // principal and the client principal. A refusal can then say WHICH kind of
+  // principal hit it.
+  Object.freeze({ fragment: 'captureVerifiedPrincipal(req, testPrincipal);', count: 1 }),
+  Object.freeze({ fragment: 'captureVerifiedPrincipal(req, principal);', count: 2 }),
+  Object.freeze({ fragment: 'return await reportGatewayRefusal(supabase, req, error, json({ ok: false, error: error.code, ...(error.detail || {}) }, error.status));', count: 1 }),
 ]);
 
 function gateway() {
   const source = fs.readFileSync(path.join(root, GATEWAY), 'utf8');
-  for (const fragment of GATEWAY_INTEGRATION_POINTS) {
-    const count = source.split(fragment).length - 1;
-    if (count !== 1) {
-      throw new Error(`WR101_GATEWAY_INTEGRATION_DRIFT: expected exactly one occurrence, found ${count}: ${fragment.slice(0, 72)}`);
+  for (const point of GATEWAY_INTEGRATION_POINTS) {
+    const found = source.split(point.fragment).length - 1;
+    if (found !== point.count) {
+      throw new Error(`WR101_GATEWAY_INTEGRATION_DRIFT: expected ${point.count} occurrence(s), found ${found}: ${point.fragment.slice(0, 72)}`);
     }
   }
   return {

@@ -6,7 +6,7 @@
 > 2026-07-26 window: `assignee_options` and the transition policy serve from `production-write`
 > v26, now retained in the F27 closure v27 — and the browser's keyset projection reads
 > the applied view v2; the §3 TEST drills of `docs/ops/SLICE5_APPLY_WINDOW.md` remain owed)
-> (25 literal + 4 composed app callers; 36 source slugs / 35 live — `description-image-upload`
+> (26 literal + 4 composed app callers; 36 source slugs / 35 live — `description-image-upload`
 > is source-only until its first path-triggered deploy on main — `production-archive` and
 > `kasper-ad-performance-read` are deployed and callable from `main`; both hiring functions are
 > deployed with a private sidecar, application capture and reviewer alerts are live, and
@@ -174,6 +174,16 @@ Other:
   merge `fd3e0eaa`; that live version still denies Creative list/set until the candidate source is
   manually deployed. Live readback matches the locked table posture represented by
   `2026-07-19-workload-plan.sql`, while F147 tracks the exact revoke-correction artifact provenance.
+- `functions/v1/write-diagnostics` — private WR-101 refusal-receipt endpoint (OPEN_REPAIRS 101/240).
+  The Calendar/Samples write path posts a fire-and-forget claim to it when a write is refused in the
+  browser, so a refusal the gateway never saw still leaves a durable, server-side record. It is not
+  awaited, never retried, aborts at 1.5 seconds, is capped at 20 reports per page, and carries only
+  six allowlisted identifiers — no comment body, author name or token. Identifiers are hashed to
+  sha256 before storage. Browser claims are always recorded as unverified principals; the operator
+  actions (`health`, `lookup`, `retention`) sit behind a separate runner key. Source-only and
+  DORMANT: it answers 503 until `WRITE_DIAGNOSTICS_ENABLED=true`, has no CI deploy path
+  (deliberate-manual, `--no-verify-jwt`), and needs
+  `supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql` applied first.
 - `functions/v1/workload-linear` — source-only deliberate-manual Workload metadata/deadline gateway.
   Admin/SMM/Creative may request bounded exact due dates and `2× Workload` / `3× Workload`
   label metadata for active mirrored sub-issues; Admin/SMM alone may update a Linear due date.

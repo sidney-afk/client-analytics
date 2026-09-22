@@ -28430,13 +28430,43 @@ alongside `test/f27-section4-deploy-lane.js`'s candidate contract and
 thing it shadows, so each one drifts silently and is discovered by a red CI run. Worth
 someone's attention as its own repair; this entry does not restructure them.
 
-**A measurement gap worth recording.** The first `run-all` comparison on this branch
-was made WITHOUT `F63_REQUIRE_POSTGRES=1`, `ARTIFACT_REQUIRE_POSTGRES=1` and a live
-PostgreSQL, which is how the `unit` CI job runs it. The comparison was honest but
-lower-coverage than CI, and the loader breakage lives entirely in the suites those
-variables switch on: 6 of 571 failing locally became 12 of 571 under the CI
-environment, on `origin/main` as well as here. Reproduce the CI job locally with
-those three, not with a bare `node test/run-all.js`.
+### A SHALLOW CLONE MAKES A LOCAL BASELINE COMPARISON WORTHLESS. CHECK `git rev-parse --is-shallow-repository` FIRST.
+
+This cost two red CI rounds on this branch and is the most reusable thing in this
+entry.
+
+A cloud session's checkout of this repository is **shallow**. `test/truth-sync.js`
+resolves each truth doc's freshness commit and asserts it is an ancestor of HEAD;
+with a shallow clone those commits are simply absent, so **12 assertions fail for
+the clone depth**, the suite goes red, and — this is the part that bites — the suite
+stops being able to tell you anything about its REAL assertions. Two genuine
+failures this change caused were sitting underneath that noise:
+`ENDPOINTS.md` did not list `functions/v1/write-diagnostics`, and SYSTEM_MAP's
+`"N literal + M composed"` count was stale. Both are the same root cause as the
+`system-map-sync` failure: the beacon put a new endpoint into `index.html`, and
+three separate documents track that inventory.
+
+The damage was not one suite. It was the **comparison**: "6 of 571 fail here and the
+same 6 fail on `origin/main`, so none of them is mine" was measured against a
+baseline that was itself broken by the clone, while `unit` was **green on `main` in
+CI**, including on this branch's exact base commit. A local set that matches a
+local baseline proves nothing when both are shaped by the same environmental defect.
+
+So, before using a local suite run as evidence about a branch:
+
+1. **`git rev-parse --is-shallow-repository`. If it says `true`, run
+   `git fetch --unshallow` before anything else.** Here that alone took
+   `truth-sync` from 12 failures to **536 passed, 0 failed**.
+2. **Reproduce the CI job's environment, not just its command.** The `unit` job runs
+   with `F63_REQUIRE_POSTGRES=1`, `ARTIFACT_REQUIRE_POSTGRES=1` and a live
+   PostgreSQL 16 service. A bare `node test/run-all.js` silently skips the suites
+   those switch on — which is where the loader breakage above lived.
+3. **Check whether the check is green on `main` in CI before trusting a local
+   baseline.** One API call answers "is this mine?" far more reliably than a local
+   re-run, and it is the only ground truth when the sandbox differs from the runner.
+4. **Give each postgres-heavy run a clean cluster.** CI gets a fresh container per
+   run; a reused local cluster accumulates state across runs and produces failures
+   that are neither the branch's nor the baseline's.
 
 All four preparation suites pass on this branch. Two needed environment rather than
 repair, which is why they read as failures on a bare checkout: the postgres suite

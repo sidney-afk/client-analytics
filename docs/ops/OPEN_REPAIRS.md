@@ -27630,3 +27630,76 @@ reasons; this fix adds no third one). A failed archive-marker read fails open
 blanking the board, matching AGENTS.md's permissive-guard rule for a check that can
 only ever hide a row, never wrongly show one. Pinned by
 `test/workload-archived-hidden.js`.
+
+## 230. [2026-09-22, FIXED] Cold Workload loads were cancelled by the browser's own 8-second budget: the native snapshot is a 2 MB answer behind a 3-to-8-second Edge Function
+
+**Report.** Owner, 2026-09-22 about 00:10Z: the Workload calendar loads, then
+paints no cards at all under two banners, "Saved work days are unavailable.
+Deadlines are shown as a clearly marked fallback; editing is disabled." and
+"Workload could not check for newer changes." The team workload strip stays a
+skeleton. The browser console has the whole story in one red line:
+`[SyncView] Workload fetch failed: AbortError: The user aborted a request.`
+thrown from `initWorkloadView`.
+
+**Root cause.** `wlFetchNativeSnapshot` (src/index/070-workload-source.js.part)
+arms one `AbortController` with `WL_PLAN_READ_TIMEOUT_MS` (8,000 ms) around the
+`workload-plan` POST (`action: 'native_snapshot'`), and that one budget has to
+cover the Edge Function's execution AND downloading the whole answer. Measured
+from `function_edge_logs` for 2026-09-21: `response.headers.content_length` =
+2,013,991 bytes on every call; `execution_time_ms` averaged 3.3 to 4.5 s in
+every two-hour bucket of the day and peaked at 8,195 ms (18:00Z bucket), which
+already exceeds the budget before a single byte reaches the browser. Between
+23:58 and 00:05Z the owner's six loads were all answered 200 by the server
+(2,957 to 4,067 ms) and all cancelled by the browser at 8 s; two of them are
+seven seconds apart, the rhythm of a cancel followed by a retry. Underneath,
+`explain analyze select workload_native_snapshot_v1()` = 2,160 ms and the
+function's jsonb is 9.69 MB before the Edge Function projects it down to 2 MB.
+The board showed NOTHING rather than yesterday's cards because the localStorage
+warm start (`wlReadCache`) only counts as fresh for `LINEAR_ISSUES_TTL_MS`,
+five minutes.
+
+**Not this afternoon's merges.** The abort is on the POST leg, which none of
+#1484, #1485 or #1487 touch: item 229's archive-marker reads run only after the
+body has been consumed, and the two B1 deletions leave zero references in the
+page. The server timing was the same before any of them merged (the 12:00Z and
+14:00Z buckets read 3,975 and 3,515 ms average, 6,396 ms max). The board is
+6,651 rows and grows every working day, so this was a ceiling the estate was
+always going to reach on the first slow evening.
+
+**Reproduced, then proven fixed, in a real headless Chromium** (Playwright, the
+committed page served locally, staff identity seeded, `key-verify` and
+`workload-plan` mocked, every `/rest/v1/` read live with the browser key). The
+mocked snapshot is production scale, 8,151 rows built from the live view's real
+ids with synthetic titles and clients, and the mock holds the answer 9 s:
+- page as of `bb5266cb` (main): `Workload fetch failed: AbortError`,
+  `planStatus = 'unknown'`, 0 rows, both banners; the owner's screen exactly.
+- page as of `bff5c419~1` (before item 229): the same failure.
+- fixed page: `planStatus = 'ready'`, 8,151 rows, roster of 5, 1,773 cards.
+
+**Fix (browser only, one constant).** `WL_SNAPSHOT_READ_TIMEOUT_MS = 30000`,
+read by the snapshot fetch alone. The budget has to cover the server peak AND
+the download: 30 s is about 3.7 times the 8.2 s server peak, and roughly twice
+an 8 s execution followed by a 2 MB download at 2 Mbps (8 s). The first
+draft of this entry and of the code comment said "roughly seven times the
+observed server maximum", which was wrong arithmetic (30 / 8.2 = 3.66); the
+Codex review on #1489 caught it. A longer budget would only delay the same
+empty board on a real hang. `WL_PLAN_READ_TIMEOUT_MS` stays 8,000 for the plan list, the popover
+reads and the archive-marker chunks. Guard: `test/workload-plan-source.js`
+now refuses a snapshot fetch on the 8 s budget or a snapshot budget under 30 s.
+
+**Left open by this, in order of urgency.**
+1. Item 229's archive check reads the view in 44 parallel `id=in.(...)`
+   chunks of 120, each on the 8 s budget, BEFORE the board paints. In the
+   reproduction 52 of 55 such reads were cancelled and the fail-open catch
+   left every row unfiltered, exactly as designed. So on the same connections
+   that hit this outage, the fix for item 229 is silently a no-op and the cold
+   load waits up to 8 s longer for nothing. The whole marker set is 278 rows of
+   6,688; one filtered read (`or=(status.eq.archived,raw_issue_archived_at.not.is.null,...)`)
+   replaces the 44. Next PR.
+2. The snapshot itself is the real ceiling: 2 MB and 3 to 8 s per cold load,
+   for a board that grows daily. Slimming the projection (the `url`,
+   `linear_parent_ids` and `parent_identifier` columns are Linear-era) is
+   phase B2/C work and wants its own measurement first.
+3. A five-minute warm start means any failure more than five minutes after the
+   last good load paints nothing. Whether a stale board is better than an empty
+   one is the owner's call (the code's own comments argue both ways).

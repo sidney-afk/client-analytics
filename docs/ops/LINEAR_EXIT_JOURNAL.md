@@ -14025,3 +14025,13 @@ is on anyone's board, because item 229 now hides them. Closing them would be a
 sweep of its own and wants the owner's word the same way this one did. The
 inbound webhook also stays enabled until the STEP 7 revoke, so a new late archive
 can still arrive.
+
+### 2026-09-22 — the native board's first capacity outage
+
+Not a Linear-exit regression, but recorded here because it is the first time
+the NATIVE Workload read fell over on its own weight: the snapshot answer is
+2 MB behind a 3-to-8-second Edge Function, and the browser's 8-second budget
+cancelled every cold load for the owner tonight. Fixed in the browser with a
+30-second budget for that one read (OPEN_REPAIRS 230). The 2 MB itself is
+mostly Linear-era columns the projection still carries; slimming it belongs to
+the deletion phases, not to tonight.

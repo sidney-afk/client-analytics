@@ -1372,3 +1372,11 @@ constants. The forward change leaves native intake, held drafts, saved legacy
 receipt identities, and visible recovery untouched, so an ordinary code revert
 is the complete inverse. No database, flag, Edge Function, n8n workflow, or live
 data action is involved; GitHub Pages redeploys the rebuilt page on merge.
+
+## 2026-09-22 — Workload snapshot read budget (OPEN_REPAIRS 230)
+
+Revert the commit. The change is one browser constant and the three test
+contexts that name it; no database, flag, Edge Function, n8n workflow or live
+data action is involved. GitHub Pages redeploys the rebuilt page on merge.
+Reverting restores the 8 s budget and, with it, the empty-board outage on any
+connection where the 2 MB snapshot takes longer than that to arrive.

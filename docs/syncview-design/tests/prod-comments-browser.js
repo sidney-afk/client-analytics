@@ -351,10 +351,12 @@ function expect(condition, message) {
       const table = url.pathname.split('/').pop();
       const flagKey = url.searchParams.get('key') || '';
       const rows = table === 'syncview_runtime_flags' && flagKey === 'eq.prod_authority'
-        // 2026-08-16 authority flip: graphics is SyncView-authoritative now.
-        // The video lane stays linear, so the client comment write below still
-        // travels with legacy_parity.
-        ? [{ value: { video: 'linear', graphics: 'syncview' } }]
+        // 2026-09-20 authority flip: BOTH lanes are SyncView-authoritative.
+        // This fixture used to hold video at linear so the client comment
+        // write below travelled with legacy_parity; that mixed state is no
+        // longer reachable and the gateway no longer derives parity from
+        // team authority, so the client write now goes on the native lane.
+        ? [{ value: { video: 'syncview', graphics: 'syncview' } }]
         : table === 'syncview_runtime_flags'
           ? [{ value: { clients: [] } }]
         // F42 crosswalk rows: the canonical projection resolves these five
@@ -633,13 +635,13 @@ function expect(condition, message) {
       expect(clientGatewayWrites[0].body.operation === 'comment'
         && clientGatewayWrites[0].body.surface === 'sxr'
         && clientGatewayWrites[0].body.id === 'client-deliverable-video'
-        && clientGatewayWrites[0].body.legacy_parity === true
+        && clientGatewayWrites[0].body.legacy_parity === undefined
         && clientGatewayWrites[0].body.comment
         && clientGatewayWrites[0].body.comment.card_id === 'client-card'
         && clientGatewayWrites[0].body.comment.component === 'video'
         && clientGatewayWrites[0].body.comment.audience === 'client'
         && clientGatewayWrites[0].headers['x-syncview-client-token'] === clientToken,
-      'verified client comment lost its exact gateway target, card binding, parity lane, or principal');
+      'verified client comment lost its exact gateway target, card binding, native lane, or principal');
       expect(clientFallbackWrites.length === 0,
         'flag-off verified client comment reached a legacy/source fallback: ' + clientFallbackWrites.join(' | '));
       expect(await clientPage.evaluate(() => {

@@ -27950,6 +27950,27 @@ was pulled forward, on the owner's instruction, because of the revoke date and
 the cost. **Every other reader endpoint on that row remains deferred and
 untouched.**
 
+**The boot QA scenario had to be re-pointed, not deleted.**
+`qa/boot/client-entry-sequence.js`'s "owned tail and BFCache recovery" group
+existed to prove that an ancillary transport which outlives the primary calendar
+read cannot, when released after the user has switched clients, rebind, mutate,
+render, write or re-cache under the new one. It held the two removed Linear
+requests, so it went red the moment they went away. The property is still worth
+proving, and one owned tail transport is still live: `_calAdoptDeliverableLinks`
+reads `/rest/v1/deliverables` after the primary read commits and writes an
+adopted Linear link straight onto a card. Both halves of the group now hold that
+read instead, with the fixtures changed to cards whose link slot is empty so the
+adoption actually runs.
+
+One assertion could not be carried over and is replaced by a stronger, honest
+one: the old transports carried the load's `AbortSignal`, so the suite asserted a
+client switch aborted them mid-flight. **The deliverables read passes no abort
+signal at all.** The suite now asserts exactly that, and everything after it
+tests the only guard that remains — the `_calLoadRunCurrent(loadRun)` re-check
+after the await. That check is real and it holds, but "this tail cannot be
+cancelled" is now a documented property of the calendar load rather than an
+assumption.
+
 **Left open by this.**
 1. `scripts/linear-sync-reconcile.js` and `scripts/sample-linear-reconcile.js`
    each hold their own copy of the same webhook URL. They are the 15-minute

@@ -104,6 +104,7 @@
         }
     }
 
+
     function wlSpinnerOn() {
         const btn = document.querySelector('[data-wl-nav="refresh"]');
         if (btn) btn.classList.add('wl-refreshing');
@@ -2855,8 +2856,6 @@
         chipsEl.__wlLooseSig = looseSignature;
 
         const externalMark = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.6 2.4h3v3"/><path d="M9.6 2.4 5.2 6.8"/><path d="M9.6 6.6v3h-7v-7h3"/></svg>`;
-        const linearMark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6.2 9.8 9.8 6.2M7 4.6h4.4V9"/></svg>`;
-
         chipsEl.innerHTML = clients.map(client => {
             const clientLabel = client.clientName || 'No client';
             const groups = [...client.groups.values()].sort((a, b) => {
@@ -2877,9 +2876,6 @@
                 const openBtn = syncUrl
                     ? `<a class="wl-loose-open" href="${wlEscape(syncUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape('Open ' + parentName + ' in SyncLinear to assign its sub-issues')}"><span>Open in SyncLinear</span>${externalMark}</a>`
                     : '';
-                const parentLinearBtn = parent && parent.url
-                    ? `<a class="wl-loose-open wl-loose-open-linear" href="${wlEscape(parent.url)}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape('Open ' + parentName + ' in Linear')}" data-tip="Open in Linear">${linearMark}</a>`
-                    : '';
                 const parentHead = parent
                     ? `<span class="wl-loose-parent-ident">${wlEscape(parent.identifier || 'Parent')}</span>${parent.title ? `<span class="wl-loose-parent-title">${wlEscape(parent.title)}</span>` : ''}`
                     : `<span class="wl-loose-parent-title wl-loose-parent-title-none">No parent issue</span>`;
@@ -2888,18 +2884,15 @@
                     const dot = `<span class="workload-legend-swatch" style="background:${team === 'graphics' ? 'var(--sv-misc-d97706)' : 'var(--sv-misc-6c5ce7)'}"></span>`;
                     const accessible = [s.identifier || '', s.title || '', s.clientName || ''].filter(Boolean).join(' · ');
                     const subSyncUrl = wlSyncLinearUrl(s.nativeId || s.identifier) || s.url || '';
-                    const subLinearBtn = s.url
-                        ? `<a class="workload-chip-linear" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape((s.identifier || s.title || 'Sub-issue') + ' in Linear')}" data-tip="Open in Linear">${linearMark}</a>`
-                        : '';
                     return `<span class="workload-loose-item"><a class="workload-chip" href="${wlEscape(subSyncUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape(accessible)}">
                         ${dot}<span>${wlEscape(s.title)}</span>
-                    </a>${subLinearBtn}</span>`;
+                    </a></span>`;
                 }).join('');
                 return `<div class="wl-loose-parent${parent ? '' : ' is-orphan'}">
                     <div class="wl-loose-parent-head">
                         ${parentHead}
                         <span class="wl-loose-parent-count">${subs.length}</span>
-                        ${openBtn}${parentLinearBtn}
+                        ${openBtn}
                     </div>
                     <div class="workload-chips wl-loose-parent-chips">${chips}</div>
                 </div>`;
@@ -3330,4 +3323,3 @@
             </div>`;
         }).join('');
     }
-

@@ -15,7 +15,7 @@
 | 7 | `050-market-briefs.js.part` | 1581 | Market Research Brief Tab Renderers |
 | 8 | `060-templates-filming.js.part` | 1784 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3333 | Workload Calendar |
-| 10 | `080-workload-render.js.part` | 3333 | WHAT THE BOARD DECIDED NOT TO SHOW, and why. |
+| 10 | `080-workload-render.js.part` | 3325 | WHAT THE BOARD DECIDED NOT TO SHOW, and why. |
 | 11 | `090-workload-popovers-navigation.js.part` | 2613 | Sub-issue popover |
 | 12 | `100-onboarding-staff-controls.js.part` | 2252 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2024 | Kasper Time Off calendar |

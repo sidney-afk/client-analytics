@@ -157,14 +157,11 @@ ok(sandbox.syncUrl('') === '' && sandbox.syncUrl('  ') === '',
   'no identifier means no button rather than a link to nowhere');
 
 // A parent absent from parentById still deep-links, because the sub-issue
-// carries parentIdentifier of its own. Only the title and the Linear escape
-// hatch degrade.
+// carries parentIdentifier of its own.
 ok(openHrefs.includes('/index.html?prod=1&amp;d=VID-812'),
   'a parent missing from this snapshot is still openable via the sub-issue own parentIdentifier');
-ok(!/wl-loose-open-linear[^>]*VID-812/.test(unassigned),
-  'and it honestly offers no Linear link, having no parent URL to offer');
-ok((unassigned.match(/wl-loose-open-linear/g) || []).length === 2,
-  'the parents we do hold keep Linear one small click away as a secondary link');
+ok(!/wl-loose-open-linear/.test(unassigned),
+  'no parent group renders the retired external Linear control');
 
 // ---- chips point at SyncLinear, not Linear ---------------------------------
 const chipHrefs = all(/class="workload-chip" href="([^"]*)"/g);
@@ -172,8 +169,8 @@ ok(chipHrefs.length === 6 && chipHrefs.every(h => h.startsWith('/index.html?prod
   'every chip opens its own SyncLinear row');
 ok(!chipHrefs.some(h => h.includes('linear.app')),
   'no chip opens linear.app as its main click -- the whole point of the request');
-ok((unassigned.match(/class="workload-chip-linear"/g) || []).length === 6,
-  'a per-chip Linear icon keeps the source of truth reachable');
+ok(!/class="workload-chip-linear"/.test(unassigned),
+  'no chip renders the retired external Linear control');
 
 // ---- the strips carry chips and nothing else -------------------------------
 /* The undated strip used to pair every chip with a "Set work day" button.

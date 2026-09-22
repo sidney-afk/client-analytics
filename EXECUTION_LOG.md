@@ -7869,3 +7869,11 @@ under item 230's open list. `index.html` 5,750,579 → 5,751,934 bytes, from the
 committed artifact. `docs/truth/README.md` freshness date refreshed in the
 same commit: truth-sync's 30-day rule rolled over at midnight, with the whole
 truth suite re-verified green on main `bb5266cb` in this session.
+
+## 2026-09-21 — Removed Workload's external Linear navigation
+
+Removed the two reachable "Open in Linear" anchor branches from the loose-issue
+strip while preserving its grouping, local SyncLinear navigation, and
+`wlSyncLinearUrl` path. This is an intentional UI behavior change now that
+outbound Linear sync is off and the key is being revoked; it made no live write,
+deployment, flag, backend, or workflow change.

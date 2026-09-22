@@ -7882,3 +7882,36 @@ The six style rules for the two removed controls (`.wl-loose-open-linear`,
 `.workload-chip-linear` and their `svg` / `:hover` variants in
 `010-styles-foundation.css.part`) went with them in a second commit on the same
 PR: the executor's "0 assembled hits" counted the anchors, not their styling.
+
+## 2026-09-22 — Workload archive markers use one filtered read (OPEN_REPAIRS 230, open item 1)
+
+Browser-only read-path repair; no live write, deployment, flag, backend, or
+workflow change. `_wlFetchArchiveMarkerRows` now replaces the per-snapshot
+`id=in.(...)` burst with one server-filtered, id-ordered marker read from the
+same public view. `_wlArchivedNativeIds` still delegates marker judgment to
+`_prodDeliverableLive`, then intersects the answer with the native sub-issue ids
+in the current snapshot. The existing 8-second abort and fail-open catch remain:
+a failed marker read leaves the board unfiltered. For a 5,254-id snapshot and
+the measured marker answer of 278 rows, the path makes one view request instead
+of 44.
+
+The executor's paging carried `limit=1000` in the URL as well as a `Range`
+header per page. Measured live against the view before publication: page one
+(`Range: 0-999`) is fine, but page two (`Range: 1000-1999` with the same
+`limit`) answers `PGRST103 "Requested range not satisfiable"`, which this
+function turns into a throw and the caller turns into an unfiltered board. So
+the follow-up page could never have worked -- latent today only because the
+whole marker set is 278 rows, well under one page. The `limit` parameter is
+dropped and `Range` alone drives the paging: measured, `Range: 0-999` returns
+all 278 rows with `content-range: 0-277/*`, and a page past the end answers
+`200 []` rather than an error, so the loop terminates cleanly either way.
+
+A follow-up on the same PR: the first draft of the cap's comment cited the
+review as a bare four-digit PR reference with a leading hash, and
+`test/no-hardcoded-colors.js` read it as a hex colour and failed the suite.
+Its allowlist skips a line only when the line's TRIMMED text opens with a
+comment marker, and this file's block comments do not prefix their
+continuation lines, so prose inside a multi-line comment is scanned as if it
+were code. Every other such reference in the fragments sits on a `//` line,
+which is why none of them trip it. PR numbers in these continuation lines are
+written without the hash.

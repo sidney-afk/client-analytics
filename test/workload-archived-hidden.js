@@ -132,19 +132,16 @@ ok(live(postCutoffRow) === true,
 
 // --- behavioural checks: _wlArchivedNativeIds end to end, fetch mocked -----
 
-function runArchivedNativeIds(rows, markerRowsByChunk) {
+function archivedContext(fetchImpl) {
   const ctx = {
     console, CAL_SUPABASE_URL: 'https://example.supabase.co', CAL_SUPABASE_ANON_KEY: 'anon-key',
     AbortController, setTimeout, clearTimeout,
   };
   vm.createContext(ctx);
   const calls = [];
-  ctx.fetch = async (url) => {
-    calls.push(url);
-    const match = /id=in\.\(([^)]*)\)/.exec(decodeURIComponent(url));
-    const idsInUrl = match ? match[1].split(',').map(s => s.replace(/^"|"$/g, '')) : [];
-    const answer = (markerRowsByChunk || []).filter(r => idsInUrl.includes(r.id));
-    return { ok: true, json: async () => answer };
+  ctx.fetch = async (url, options) => {
+    calls.push({ url: String(url), options });
+    return fetchImpl(url, options, calls.length - 1);
   };
   vm.runInContext([
     grabFunc('_prodHasOwn'),
@@ -159,8 +156,14 @@ function runArchivedNativeIds(rows, markerRowsByChunk) {
     grabFunc('_wlFetchArchiveMarkerRows'),
     grabFunc('_wlArchivedNativeIds'),
     'this.run = (rows) => _wlArchivedNativeIds(rows);',
+    'this.fetchMarkers = (ids) => _wlFetchArchiveMarkerRows(ids);',
   ].join('\n'), ctx);
-  return { result: ctx.run(rows), calls };
+  return { ctx, calls };
+}
+
+function runArchivedNativeIds(rows, markerRows) {
+  const harness = archivedContext(async () => ({ ok: true, json: async () => markerRows || [] }));
+  return { result: harness.ctx.run(rows), calls: harness.calls };
 }
 
 async function runAsyncChecks() {
@@ -175,11 +178,16 @@ async function runAsyncChecks() {
       { ...baseRow(), id: 'del_archived', raw_issue_archived_at: '2026-08-17T05:00:55.662Z' },
       { ...baseRow(), id: 'del_live' },
     ];
-    const archived = await runArchivedNativeIds(rows, markerRows).result;
+    const harness = runArchivedNativeIds(rows, markerRows);
+    const archived = await harness.result;
     ok(archived.has('del_archived') === true, '(a) the archived native sub-issue id is reported as excluded');
     ok(archived.has('del_live') === false, '(b) the live native sub-issue id is not reported as excluded');
     ok(archived.has('bat_parent') === false && archived.has('legacy-uuid') === false,
-      'a batch parent and a legacy (non-native) row are never sent to the archive-marker read at all');
+      'a batch parent and a legacy (non-native) row are ignored by the snapshot-id intersection');
+    ok(harness.calls.length === 1
+      && decodeURIComponent(harness.calls[0].url).includes('or=(status.eq.archived,raw_issue_archived_at.not.is.null,raw_webhook_delete.is.true,raw_deleted.is.true,raw_delete.is.true,raw_removed.is.true,raw_archived.is.true)')
+      && !decodeURIComponent(harness.calls[0].url).includes('id=in.('),
+    'one marker-filtered request replaces the id=in.(...) request burst');
   }
 
   {
@@ -189,6 +197,69 @@ async function runAsyncChecks() {
     const markerRows = [postCutoffRow];
     const archived = await runArchivedNativeIds(rows, markerRows).result;
     ok(archived.size === 0, '(c) a post-cutoff native row with no archive state is not excluded via the live fetch path');
+  }
+
+  {
+    const rows = [{ id: 'del_snapshot', source: 'native', is_sub_issue: true }];
+    const markerRows = [
+      { ...baseRow(), id: 'del_snapshot', raw_deleted: true },
+      { ...baseRow(), id: 'del_not_in_snapshot', raw_deleted: true },
+    ];
+    const archived = await runArchivedNativeIds(rows, markerRows).result;
+    ok(archived.has('del_snapshot') && !archived.has('del_not_in_snapshot'),
+      'marker ids absent from the current native snapshot are ignored');
+  }
+
+  {
+    const fullPage = Array.from({ length: 1000 }, (_, index) => ({
+      ...baseRow(), id: 'del_page_' + index, raw_archived: true,
+    }));
+    const harness = archivedContext(async (_url, _options, callIndex) => ({
+      ok: true,
+      json: async () => callIndex === 0 ? fullPage : [{ ...baseRow(), id: 'del_page_1000', raw_archived: true }],
+    }));
+    const markerRows = await harness.ctx.fetchMarkers(['del_snapshot']);
+    ok(harness.calls.length === 2 && markerRows.length === 1001,
+      'a full 1000-row marker page triggers one bounded follow-up page');
+    ok(harness.calls[0].options.headers.Range === '0-999'
+      && harness.calls[1].options.headers.Range === '1000-1999',
+    'marker pagination advances with Range headers');
+    /* AND THE URL CARRIES NO `limit`. Measured against the live view on
+       2026-09-22: `limit=1000` in the URL alongside these Range headers makes
+       page one answer normally and page TWO answer `PGRST103 "Requested range
+       not satisfiable"` -- which _wlFetchArchiveMarkerRows turns into a throw
+       and _wlArchivedNativeIds turns into an unfiltered board. Range alone
+       pages correctly. Unreachable while the marker set fits one page (278 of
+       6,688 rows today), so nothing but this assertion would catch it coming
+       back. */
+    ok(harness.calls.every(call => !/[?&]limit=/.test(call.url)),
+      'the marker read pages on Range alone; a `limit` parameter would make page two PGRST103 and fail the board open');
+  }
+
+  {
+    /* A TRUNCATED ANSWER MUST NEVER BE RETURNED AS A COMPLETE ONE (Codex, #1491).
+       If every page comes back full, rows remain unread -- and a marker this
+       read never saw is an archived card the board shows as live work, item
+       229's defect returning silently once the marker set outgrows the page
+       cap. The read must throw so _wlArchivedNativeIds's catch leaves the
+       board unfiltered and warns, rather than hand back a prefix. */
+    const fullPage = () => Array.from({ length: 1000 }, (_, index) => ({
+      ...baseRow(), id: 'del_endless_' + index, raw_archived: true,
+    }));
+    const harness = archivedContext(async () => ({ ok: true, json: async () => fullPage() }));
+    let threw = false;
+    try { await harness.ctx.fetchMarkers(['del_snapshot']); } catch (e) { threw = true; }
+    ok(threw === true,
+      'a marker read whose pages never run short throws instead of returning a silently truncated prefix');
+    ok(harness.calls.length > 5 && harness.calls.length <= 50,
+      'the page cap is a runaway guard well above the 5 pages that used to truncate, got ' + harness.calls.length);
+
+    // And that throw must land in the fail-open catch, not escape to the board.
+    const rows = [{ id: 'del_snapshot', source: 'native', is_sub_issue: true }];
+    const openHarness = archivedContext(async () => ({ ok: true, json: async () => fullPage() }));
+    const archived = await openHarness.ctx.run(rows);
+    ok(archived.size === 0,
+      'and that throw reaches the fail-open catch, leaving every row unfiltered rather than blanking the board');
   }
 
   {
@@ -215,7 +286,7 @@ async function runAsyncChecks() {
     // A hung request (overloaded/half-open connection, never rejects and
     // never resolves on its own) must still be bounded: the archive-marker
     // fetch gets the same AbortController timeout as the primary
-    // workload-plan fetch, so Promise.all settles and the fail-open catch in
+    // workload-plan fetch, so the request settles and the fail-open catch in
     // _wlArchivedNativeIds actually runs, instead of leaving a cold Workload
     // load pending on the archive check forever. `ctx.setTimeout` here fires
     // immediately (0ms) rather than waiting out the real WL_PLAN_READ_TIMEOUT_MS,

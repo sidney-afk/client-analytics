@@ -14043,3 +14043,14 @@ Removed only the parent and sub-issue external Linear anchors from
 grouping, `wlSyncLinearUrl`, and local `?prod=1&d=` / batch navigation remain.
 This deliberately removes a reachable "Open in Linear" escape hatch because
 outbound Linear sync is off and the key is being revoked.
+
+### 2026-09-22 — the archive-marker check stops scaling with board size
+
+OPEN_REPAIRS 230's first follow-up, browser-only. The Workload archive check no
+longer sends one `id=in.(...)` request per 120 native sub-issue ids before
+paint. It asks the same public view once for rows carrying any archive/delete
+marker, pages only if a response fills a page, and intersects those ids with the
+snapshot locally. `_prodDeliverableLive` remains the sole marker rule; the
+8-second abort and fail-open behavior are unchanged. At the measured marker
+count (278 of 6,688 rows), a 5,254-id snapshot makes one view request instead of
+44. No live state or backend changed.

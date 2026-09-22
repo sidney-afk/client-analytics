@@ -7877,3 +7877,8 @@ strip while preserving its grouping, local SyncLinear navigation, and
 `wlSyncLinearUrl` path. This is an intentional UI behavior change now that
 outbound Linear sync is off and the key is being revoked; it made no live write,
 deployment, flag, backend, or workflow change.
+
+The six style rules for the two removed controls (`.wl-loose-open-linear`,
+`.workload-chip-linear` and their `svg` / `:hover` variants in
+`010-styles-foundation.css.part`) went with them in a second commit on the same
+PR: the executor's "0 assembled hits" counted the anchors, not their styling.

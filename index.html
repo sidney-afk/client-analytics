@@ -30397,7 +30397,9 @@
         if (intent.legacyOnly && authority[intent.team] !== 'linear') {
             throw _writeUiGatewayError(409, 'legacy_parity_not_allowed');
         }
-        let legacyParity = !!intent.legacyOnly || authority[intent.team] === 'linear';
+        // Parity is now only ever the explicit legacy-queue drain. Linear-authority
+        // parity is retired: no team can be Linear-authoritative any more.
+        const legacyParity = !!intent.legacyOnly;
         const makePayload = () => {
             if (!intent.legacyOnly && !legacyParity && !intent.nativeId) {
                 throw _writeUiGatewayError(409, 'native_link_required');
@@ -30450,26 +30452,6 @@
                     return json;
                 }
                 lastError = _writeUiGatewayError(resp.status, json && json.error || 'write_failed');
-                if (!intent.legacyOnly && attempt === 0 && lastError.code === 'legacy_parity_not_allowed') {
-                    // The server can reclassify canonical TEST as SyncView even
-                    // while the global team flag is Linear. This is an explicit
-                    // pre-commit lane rejection, so rebuild once without parity.
-                    legacyParity = false;
-                    payload = makePayload();
-                    payloadBody = JSON.stringify(payload);
-                    await runHook('beforeAttempt', payloadBody);
-                    requireResumeOwner();
-                    continue;
-                }
-                if (!intent.legacyOnly && attempt === 0
-                    && ['legacy_parity_required', 'team_is_linear_authoritative'].includes(lastError.code)) {
-                    legacyParity = true;
-                    payload = makePayload();
-                    payloadBody = JSON.stringify(payload);
-                    await runHook('beforeAttempt', payloadBody);
-                    requireResumeOwner();
-                    continue;
-                }
                 // Ambiguous transport/server retries reuse the byte-identical
                 // payload. Never change authority lane under one request ID.
                 if (resp.status >= 500 && attempt === 0) { ambiguousSeen = true; continue; }

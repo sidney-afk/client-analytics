@@ -158,11 +158,18 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
   };
   vm.createContext(gatewayContext);
   vm.runInContext(extract('_writeUiGatewayPost'), gatewayContext);
-  await gatewayContext._writeUiGatewayPost({ surface: 'calendar', operation: 'status', team: 'video', nativeId: 'native-1', status: 'approved', requestId: 'stable-request', sourceEditedAt: '2026-07-12T00:00:00Z' });
-  const laneFirst = JSON.parse(transportCalls[0]), laneSecond = JSON.parse(transportCalls[1]);
-  assert(laneFirst.legacy_parity === true && laneSecond.legacy_parity === undefined
-    && laneFirst.request_id === laneSecond.request_id && laneFirst.source_edited_at === laneSecond.source_edited_at,
-  'an explicit server TEST/lane rejection retries once without parity under the same intent');
+  // Linear-authority parity is retired: a native intent never claims parity, so
+  // an explicit server lane rejection is terminal pre-commit, not a rebuild.
+  let laneRejection = null;
+  try {
+    await gatewayContext._writeUiGatewayPost({ surface: 'calendar', operation: 'status', team: 'video', nativeId: 'native-1', status: 'approved', requestId: 'stable-request', sourceEditedAt: '2026-07-12T00:00:00Z' });
+  } catch (error) { laneRejection = error; }
+  assert(laneRejection && laneRejection.code === 'legacy_parity_not_allowed'
+    && laneRejection.precommitSafe === true && transportCalls.length === 1,
+  'an explicit server lane rejection is a terminal pre-commit refusal with no parity rebuild');
+  const laneFirst = JSON.parse(transportCalls[0]);
+  assert(laneFirst.legacy_parity === undefined && laneFirst.id === 'native-1',
+    'a native intent posts on the native lane without claiming legacy parity');
   transportCalls = []; transportStep = 0;
   gatewayContext.fetch = async (_url, options) => {
     transportCalls.push(options.body); transportStep++;

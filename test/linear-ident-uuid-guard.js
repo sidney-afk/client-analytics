@@ -11,7 +11,9 @@
  * batch the linear-issue-statuses webhook sends to Linear, which then falls
  * back to ~50 parallel per-id calls and can blow the 60s task-runner cap
  * (observed live 2026-07-17: reconcile failures + execution burn). This suite
- * pins the strict extraction and the batch hygiene at every repo-side caller.
+ * pins the strict extraction; the batch-hygiene callers it used to check
+ * (the card/sample reconcilers) are retired along with the webhook itself
+ * (OPEN_REPAIRS 238) — see check 3 below for what remains reachable.
  */
 const fs = require('fs');
 const path = require('path');
@@ -49,15 +51,9 @@ check('bare UUID yields NO ident',
 check('empty/junk input yields NO ident',
   _calIdentFromUrl('') === '' && _calIdentFromUrl(null) === '' && _calIdentFromUrl('not a link') === '');
 
-// 2. The two reconcilers must filter unresolvable links out of the batch
-//    (and say so out loud) before posting to the shared webhook.
-for (const rel of ['scripts/linear-sync-reconcile.js', 'scripts/sample-linear-reconcile.js']) {
-  const text = fs.readFileSync(path.join(ROOT, rel), 'utf8');
-  check(rel + ': batch filtered to resolvable idents',
-    text.includes('all.filter(u => _calIdentFromUrl(u))'));
-  check(rel + ': skipped links are reported, not silent',
-    text.includes('link(s) skipped'));
-}
+// 2. The two card/sample reconcilers that used to batch links through the
+//    shared webhook are retired (OPEN_REPAIRS 238) along with the webhook
+//    they called — see check 3 below for what remains reachable.
 
 // 3. The browser status-import caller that this clause guarded was
 //    _calReconcileLinearStatuses, removed on 2026-09-22 with the

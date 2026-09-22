@@ -197,10 +197,10 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   | `sample_review_events` | **62,186** | 62,038 (99.8%) | `sample-review-reorder` 79 · `reconcile` **68** · `db` 1 |
 
   So `reconcile` does NOT bypass the ledger: it has written 2,159 calendar and 68
-  sample events, continuously from 2026-07-07 to today. **The mechanism is worth
-  knowing, because it is not what the old wording assumed.** The reconciler
-  writes no events itself; `scripts/linear-sync-reconcile.js` sets the header
-  `X-Syncview-Source: reconcile` and POSTs through the ordinary writer, and the
+  sample events, continuously from 2026-07-07 until its retirement 2026-09-22
+  (OPEN_REPAIRS 238). **The mechanism is worth knowing, because it is not what the
+  old wording assumed.** The reconciler wrote no events itself; it set the header
+  `X-Syncview-Source: reconcile` and POSTed through the ordinary writer, and the
   WRITER logs the change under whatever source the caller declared. Ledger
   coverage is therefore a property of the ROUTE, not of the caller.
 

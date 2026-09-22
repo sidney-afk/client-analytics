@@ -23,9 +23,14 @@ function ok(cond, msg) {
    2026-09-20 (LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md): one call site dropped
    out of 10 -- _writeLinearVideoCardsToCalendar's own per-card write loop was
    retired outright in favor of an all-or-nothing hold, so it no longer calls
-   _calUpsertFetch at all. */
+   _calUpsertFetch at all. 2026-09-22 (EXECUTION_LOG.md, "Kasper video tweak
+   comments were self-conflicting out of the Calendar row"): back to 10 -- a
+   NEW call site inside _kasperPersistPostWrite, a single bounded retry (never
+   a loop) issued only when calendar-upsert's own conflict guard refused a
+   write that this same action's native status push had just made stale out
+   from under it. */
 const frontendCalls = (INDEX.match(/_calUpsertFetch\(/g) || []).length;
-ok(frontendCalls === 9, 'expected _calUpsertFetch definition plus eight frontend call sites including native Submit materialization, deliverable-link adoption and component fill, got ' + frontendCalls);
+ok(frontendCalls === 10, 'expected _calUpsertFetch definition plus nine frontend call sites including native Submit materialization, deliverable-link adoption, component fill, and the Kasper self-conflict retry, got ' + frontendCalls);
 ok(!/fetch\(CALENDAR_UPSERT_URL/.test(INDEX), 'frontend must not fetch CALENDAR_UPSERT_URL directly');
 ok(/CALENDAR_UPSERT_N8N_URL/.test(INDEX), 'frontend n8n fallback URL constant missing');
 ok(/CALENDAR_UPSERT_EF_URL/.test(INDEX), 'frontend EF URL constant missing');

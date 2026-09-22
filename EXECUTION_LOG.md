@@ -7955,3 +7955,74 @@ neutral/warn styling, unchanged, because that is the "needs linking" cue.
 `test/cal-comp-dot-matches-slot-colors.js` now pins the colours, that the two
 halves differ, that all four linked controls emit the class, and that the empty
 slot does not.
+
+## 2026-09-22 — Kasper video tweak comments were self-conflicting out of the Calendar row (mirror bug)
+
+**Symptom, measured 2026-09-22 14:05Z.** Kasper's "Request change" on a video
+component committed the native comment (visible immediately on both the
+Production/SyncLinear card detail and the Calendar Notes panel -- both read
+native comments, never `calendar_posts.<comp>_tweaks`) but the follow-up
+Calendar-row save failed, threw "Card sync incomplete", and the text never
+landed in `calendar_posts.video_tweaks`. Of Kasper's 9 tweaks in a 90-minute
+window, all 8 video ones were affected; the 1 graphic one was not.
+
+**Root cause.** `migrations/2026-09-18-native-calendar-status-bridge.sql`
+(OPEN_REPAIRS 212) projects a native deliverable's status straight into
+`calendar_posts.<comp>_status` + `updated_at` the instant it commits, out of
+band, and by its own documented design never recomputes the card's overall
+`status` roll-up column ("Not done here... worth a decision, not a silent
+addition"). `_kasperRequestTweakComp` pushes exactly that kind of native status
+change and then, in the same action, calls `calendar-upsert` with the comment
+plus the freshly recomputed overall `status`. The bridge's write already moved
+`updated_at` past the browser's `_baseAt`, and `status` sits in calendar-upsert's
+`SCALAR_FIELDS` conflict list while the server's copy of `status` is now stale
+-- so calendar-upsert answers `HTTP 200 {ok:false, conflict:true}` ("someone
+else updated this card (status)..."), a self-inflicted conflict, not a real
+concurrent edit. `_kasperPersistPostWrite` threw after the native comment had
+already committed, which is exactly the branch that raises the "Card sync
+incomplete" dialog.
+
+Both video and graphic route through the identical bridge/conflict mechanism;
+the asymmetry is NOT a per-component code path. `wire.status` is only sent when
+the overall roll-up actually MOVES relative to the browser's own last-saved
+snapshot (`_patchBase`) -- a component's FIRST transition into "Tweaks Needed"
+moves it (worst-of, priority 0, nothing is lower), a second/third tweak comment
+on a component already sitting at "Tweaks Needed" does not, and with nothing
+scalar left to compare, calendar-upsert's conflict guard has nothing to trip on
+and the write goes through. All 8 video tweaks that day were fresh transitions;
+the 1 graphic tweak most likely was not. Not fully verifiable without a live
+read of that card's history, and said here as inference from the code, not
+confirmed against production.
+
+**Also found, not touched:** `calendar_posts.<comp>_tweaks` is not an orphaned
+mirror. `supabase/functions/production-comments/feedback.mjs`'s
+`readLegacyFeedback` reads it live, as the staff "Feedback & tweaks" panel's
+fallback for any card whose comment history predates canonical/native coverage
+-- most cards, per the F42 import's own count (615 applied / 6,032 deferred).
+So the honest fix keeps writing the column, rather than deprecating it.
+
+**Fix.** `_kasperPersistPostWrite` (`src/index/330-kasper-review-history.js.part`)
+now retries the `calendar-upsert` call exactly once when the response is this
+specific conflict AND this same call already committed a native status change
+(`gatewayCommitted`) -- reading a fresh `updated_at` first via the new
+`_calReadFreshCardStamp` helper (`src/index/120-calendar-flags-write-repair.js.part`)
+so the retry is no longer stale. A genuinely concurrent edit (not our own
+bridge) still conflicts again on the retry and is not swallowed. The "Card sync
+incomplete" dialog's wording no longer promises an automatic retry that was
+never implemented; it now says a retry already happened and gives an
+actionable next step. No Edge Function, migration, or live data changed.
+
+**Proof.** `test/kasper-tweak-calendar-sync-retry.js` (new), extracting the real
+`_kasperPersistPostWrite` from the built `index.html` and covering both video
+and graphic: the self-conflict retries once and keeps the comment on the
+retried write, a conflict with no native precommit does not retry, and a
+genuinely repeated conflict still surfaces after the one retry.
+`test/write-ui-writer-durability.js`'s pinned status-before-save ordering for
+`_kasperPersistPostWrite` still holds.
+
+**Not done here, flagged for a decision.** Backfilling the 8 already-missing
+video comments needs the owner's go-ahead (see the ledger entry) -- the text is
+recoverable from the native/canonical comment store (already committed there)
+and from each browser's local outbox/journal, matched by author + created_at
+per the id-namespace mismatch already on file (`pc_<uuid>` vs `c_<id>`), never
+by id.

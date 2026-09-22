@@ -1503,7 +1503,28 @@
             checkpointCommittedSource();
         }
         const resp = await _calUpsertFetch(item.slug, { client: item.slug, post: wire, comments_base_at: String(item.post._baseAt || '') });
-        const json = await resp.json().catch(() => ({}));
+        let json = await resp.json().catch(() => ({}));
+        /* SELF-CONFLICT RECOVERY (OPEN_REPAIRS 212's known gap): a status push
+           this same call just made (above) can make calendar-upsert refuse THIS
+           write a moment later -- production_native_calendar_status_project
+           writes <comp>_status + updated_at into calendar_posts the instant the
+           native status commits, but deliberately never recomputes the overall
+           `status` roll-up, so the freshly computed `wire.status` this call is
+           about to save collides with the server's still-stale copy under
+           calendar-upsert's own SCALAR_FIELDS conflict guard. gatewayCommitted
+           being true is what tells us the "someone else" the conflict blames is
+           almost certainly our own bridge, not a third party, so one retry
+           against a freshly read `updated_at` is safe: a genuinely concurrent
+           edit will still conflict on the retry and fall through unchanged. */
+        if (json && json.conflict === true && gatewayCommitted) {
+            const fresh = await _calReadFreshCardStamp(item.slug, item.post.id);
+            const freshAt = fresh && String(fresh.updated_at || '');
+            if (freshAt && freshAt > String(item.post._baseAt || '')) {
+                item.post._baseAt = freshAt;
+                const retry = await _calUpsertFetch(item.slug, { client: item.slug, post: wire, comments_base_at: String(item.post._baseAt || '') });
+                json = await retry.json().catch(() => ({}));
+            }
+        }
         if (!json || !json.ok) throw new Error((json && json.error) || 'Save failed');
         if (await _writeUiCompleteSourceRepairRefs(sourceRepairRefsForWrite)) _writeUiRemoveCompletedRepairRefs(item.post, sourceRepairRefsForWrite);
         delete item.post._writeUiRetrySourceAt;
@@ -1831,7 +1852,17 @@
                 _writeUiReportFailure('calendar', 'comment', e);
             } else {
                 _kasperPersistCache();
-                showNotify('Card sync incomplete', 'The native comment is safe; Calendar source sync will retry automatically.');
+                /* Honest wording, not a promise nothing keeps: _kasperPersistPostWrite
+                   already retried this exact save once (see its self-conflict
+                   recovery, OPEN_REPAIRS 212) before this catch ever ran, and
+                   nothing else retries it after this point -- the sheet write
+                   stays refused until a person acts. Said "will retry
+                   automatically" here from 2026-07 until this fix, which was
+                   simply false: there is no background sweep that replays a
+                   refused calendar-upsert call, so the card's Calendar row can
+                   sit without this note indefinitely while the dialog told
+                   Kasper to expect it to heal itself. */
+                showNotify('Card sync incomplete', 'The native comment is safe. We already retried the Calendar save once and it still did not go through — refresh the calendar, then resend the note if it is still missing.');
             }
             item._saving[comp] = false;
             item._errors[comp] = _writeUiFailureSentence(e);

@@ -2658,6 +2658,28 @@
             body: JSON.stringify(payload)
         });
     }
+    /* Read-only freshness check used to recover from the specific self-conflict
+       where `production_native_calendar_status_project` (2026-09-18) has
+       already written this card's `<comp>_status` + `updated_at` straight into
+       calendar_posts -- out of band, ahead of our own upsert -- as a side effect
+       of a native status push this SAME save just made. Never throws: a failed
+       refresh just means the caller keeps its original (stale) baseline and the
+       original conflict stands. */
+    async function _calReadFreshCardStamp(clientSlug, id) {
+        const slug = String(clientSlug || '').trim();
+        const postId = String(id || '').trim();
+        if (!slug || !postId) return null;
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=updated_at&client=eq.' + encodeURIComponent(slug) + '&id=eq.' + encodeURIComponent(postId) + '&limit=2';
+            const response = await fetch(url, {
+                cache: 'no-store',
+                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' }
+            });
+            if (!response.ok) return null;
+            const rows = await response.json().catch(() => null);
+            return Array.isArray(rows) && rows.length === 1 ? rows[0] : null;
+        } catch (e) { return null; }
+    }
     function _calUpsertFetchPinned(clientOrSlug, payload, source, transport) {
         if (transport !== 'supabase' && transport !== 'webhook') {
             return _calUpsertFetch(clientOrSlug, payload, source);

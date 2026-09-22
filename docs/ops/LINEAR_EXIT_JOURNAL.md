@@ -14066,6 +14066,23 @@ fragment had no matching CSS. The reachable "Open the linked Linear" escape
 hatches are deliberately gone because outbound sync is off and the key is being
 revoked.
 
+### 2026-09-22 — the native status bridge (item 212) self-conflicts with its own follow-up save
+
+Not a new bridge defect; the bridge trigger itself is unchanged and correct.
+Recorded here because item 212's own "Not done here" line -- the bridge
+deliberately never recomputes the card's overall `status` roll-up -- is exactly
+what a same-action Calendar save then trips over: `_kasperRequestTweakComp`
+pushes a native status change (which the bridge projects into
+`calendar_posts.<comp>_status` + `updated_at` out of band) and immediately
+calls `calendar-upsert` with the freshly recomputed overall `status`, which now
+disagrees with the server's still-stale copy under `SCALAR_FIELDS` --
+`{ok:false, conflict:true}`, a self-inflicted conflict rather than a real
+concurrent edit. Full writeup and fix in `EXECUTION_LOG.md` (2026-09-22, "Kasper
+video tweak comments were self-conflicting out of the Calendar row"). The
+"worth a decision, not a silent addition" item 212 left open (server-side
+overall-status recomputation) is still open; this fix is a client-side retry
+around it, not a resolution of it.
+
 ### 2026-09-22 — MIXED batches (born on Linear, added to natively) were orphaning every post-cutoff card
 
 The Production sub-issue tree has handled two shapes since the outbound cutoff:

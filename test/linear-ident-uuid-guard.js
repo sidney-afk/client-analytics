@@ -59,10 +59,15 @@ for (const rel of ['scripts/linear-sync-reconcile.js', 'scripts/sample-linear-re
     text.includes('link(s) skipped'));
 }
 
-// 3. The browser status-import caller must batch only resolvable links and
-//    key lookups through the shared helper — no inline loose regex.
-check('status-import batch gates links through _calIdentFromUrl',
-  SRC.includes('if (_calIdentFromUrl(p.linear_issue_id)) urls.push(p.linear_issue_id);'));
+// 3. The browser status-import caller that this clause guarded was
+//    _calReconcileLinearStatuses, removed on 2026-09-22 with the
+//    linear-issue-statuses webhook (OPEN_REPAIRS 236). F139's poison case can
+//    no longer be reached from the browser at all, which is stronger than
+//    gating it — so the assertion is that the caller stays gone. The two
+//    server-side reconcilers above still batch, and still carry the gate.
+check('no browser-side status-import batch remains to poison',
+  !/function\s+_calReconcileLinearStatuses\b/.test(SRC)
+  && !SRC.includes("urls.push(p.linear_issue_id)"));
 check('no loose anywhere-in-string ident regex remains in index.html',
   !/toUpperCase\(\)\.match\(\/\(\[A-Z\]\+-\\d\+\)\//.test(SRC));
 

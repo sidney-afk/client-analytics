@@ -128,7 +128,6 @@ while ((m = re.exec(code))) {
 const EXEMPT = {
   _calClientApprove: "writes 'Approved' to every component -- an outcome, never a review request",
   _calTogglePostPlatform: "clears title_status to '' when YouTube is removed; clearing is not sending",
-  _calReconcileLinearStatuses: 'mirrors the status Linear already holds; gating it would make the card disagree with Linear rather than stop a person sending an empty component',
   _calFlushCardSave: 'the transport -- it sends edits the writers above already staged and gated, and its own status line is the repair path',
   _calReviewRequestTweak: "writes 'Tweaks Needed', a rejection: the content being absent is frequently the reason for it",
   _calSyncStatusFromLinear: 'mirrors the status Linear already holds, like the reconciler above',
@@ -382,7 +381,12 @@ const ALL_EXEMPT = {
   _calMigratePostShape: 'load-time shape normalisation of a row already stored',
   _sxrMigrateShape: 'load-time shape normalisation, samples',
   _prodCacheUnpackRows: 'unpacks a cached snapshot; decides nothing',
-  _calReconcileLinearStatuses: 'mirrors the status Linear already holds -- KNOWN GAP, deliberate: the gate is browser-side and a Linear-side move to a review status lands here unchallenged',
+  /* _calReconcileLinearStatuses used to sit here as a deliberate KNOWN GAP:
+     a Linear-side move to a review status landed on the card unchallenged,
+     because the gate is browser-side. The function was removed on 2026-09-22
+     with the linear-issue-statuses webhook (OPEN_REPAIRS 236), so that gap is
+     closed for the calendar. _calSyncStatusFromLinear below still carries it
+     -- it runs at link time, off a different webhook, and is untouched. */
   _calSyncStatusFromLinear: 'mirrors the status Linear already holds, same gap',
   _sxrSyncStatusFromLinear: 'mirrors the status Linear already holds, samples',
   _calReviewRequestTweak: "writes Tweaks Needed, a rejection",

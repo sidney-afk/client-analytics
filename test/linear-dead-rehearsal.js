@@ -102,8 +102,12 @@ const {
   // escaping the harness.
   const app = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   const reached = [...new Set((app.match(/webhook\/linear-[a-z0-9-]+/g) || []))].sort();
-  ok(reached.length >= 7,
-    `expected the app to call at least seven linear-* webhooks, found ${reached.length}`);
+  /* Was >= 7 until 2026-09-22, when linear-issue-statuses was removed from the
+     app (OPEN_REPAIRS 236). The floor is a tripwire for a NEW Linear webhook
+     escaping the harness, so it tracks the real count down rather than being
+     deleted — and it is deliberately not a ceiling. */
+  ok(reached.length >= 6,
+    `expected the app to call at least six linear-* webhooks, found ${reached.length}`);
   for (const hook of reached) {
     ok(LINEAR_HOOK.test(`https://example.invalid/${hook}`),
       `${hook} must be intercepted — an un-intercepted Linear webhook reaches live n8n from a probe`);

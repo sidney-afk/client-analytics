@@ -27,7 +27,7 @@ clients fall to n8n. Flag-read failure and some EF failures also silently select
 n8n writer (F67); this is an open auth/failover defect, not a safe fallback contract. See the audit
 register and `ROLLBACK.md` before changing routing.
 
-## n8n webhooks (54)
+## n8n webhooks (53)
 
 **Corrected 2026-09-21:** The Linear bridge list below is a retained endpoint/source inventory. It is not a list of active staff write targets after cutoff. Outbound and parity are off; new native work must not require a provider request.
 
@@ -40,9 +40,16 @@ Samples (legacy) and sample reviews (SXR):
 - `webhook/sample-review-get`, `webhook/sample-review-upsert`, `webhook/sample-review-reorder`
 
 Linear bridge:
-- `webhook/linear-issues`, `webhook/linear-issue-statuses`, `webhook/linear-projects`,
+- `webhook/linear-issues`, `webhook/linear-projects`,
   `webhook/linear-subissues`, `webhook/linear-set-status`, `webhook/linear-add-comment`,
   `webhook/linear-tweak-comments`, `webhook/log-linear-submission`
+- The `linear-issue-statuses` webhook is **no longer called by the app** (removed
+  2026-09-22, OPEN_REPAIRS 236; the endpoint is revoked 2026-09-27). Its path is
+  deliberately not written out in full anywhere in this file: the inventory above is
+  compared for SET EQUALITY against the paths index.html actually calls
+  (`test/truth-sync.js`), so spelling it the usual way would re-add it to the inventory
+  and demand a caller that no longer exists. `scripts/linear-sync-reconcile.js` and
+  `scripts/sample-linear-reconcile.js` still call it from CI and are not yet replaced.
 
 `linear-set-status` and `linear-add-comment` have team-direction gates but no incoming caller
 authentication (F91). Do not confuse `prod_authority` with principal verification.

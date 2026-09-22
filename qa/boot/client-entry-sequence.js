@@ -151,6 +151,42 @@ const V1_CALENDAR_ROWS = {
     updated_at: '2020-01-01T00:00:00.000Z',
   }],
 };
+/* Fixture for the owned ancillary tail (deliverable adoption). Each card has an
+   EMPTY video link slot and a native deliverable id, which is what makes
+   `_calAdoptDeliverableLinks` run at all: with the slot already filled it
+   returns before any transport. The deliverable rows below are the answer the
+   held read is released with -- client A's deliverable, naming client A's card,
+   carrying a Linear URL. Released under B, it must adopt nothing. */
+const TAIL_ADOPT_A_DELIVERABLE = 'synthetic-deliverable-a';
+const TAIL_ADOPT_B_DELIVERABLE = 'synthetic-deliverable-b';
+const TAIL_ADOPT_CALENDAR_ROWS = {
+  [CLIENT_A_SLUG]: [{
+    ...CALENDAR_ROWS[0],
+    id: 'synthetic-tail-adopt-a',
+    name: 'Synthetic tail-adopt A row',
+    linear_issue_id: '',
+    video_deliverable_id: TAIL_ADOPT_A_DELIVERABLE,
+    video_status: 'In Progress',
+    status: 'In Progress',
+    updated_at: '2020-01-01T00:00:00.000Z',
+  }],
+  residualfixtureclient: [{
+    ...CALENDAR_ROWS[0],
+    id: 'synthetic-tail-adopt-b',
+    client: 'residualfixtureclient',
+    name: 'Synthetic tail-adopt B row',
+    linear_issue_id: '',
+    video_deliverable_id: TAIL_ADOPT_B_DELIVERABLE,
+    video_status: 'In Progress',
+    status: 'In Progress',
+    updated_at: '2020-01-01T00:00:00.000Z',
+  }],
+};
+const TAIL_ADOPT_DELIVERABLES = [{
+  id: TAIL_ADOPT_A_DELIVERABLE,
+  card_id: 'synthetic-tail-adopt-a',
+  linear_issue_url: LINEAR_LEASE_URL,
+}];
 const STAFF_BFCACHE_ROWS = [
   [{
     ...CALENDAR_ROWS[0],
@@ -511,8 +547,8 @@ function installBfcacheSyntheticNetwork(config) {
     heldCalendarRequests: 0,
     calendarResponsesCompleted: 0,
     calendarAbortEvents: 0,
-    linearMetaReads: [],
-    linearMetaCompleted: 0,
+    tailReads: [],
+    tailCompleted: 0,
     writeRequests: [],
     heldVerifierRequests: 0,
     writeUiRerouteReads: [],
@@ -552,11 +588,11 @@ function installBfcacheSyntheticNetwork(config) {
       resolve();
     });
   };
-  const heldLinearMetaResolvers = [];
-  window.__syncviewReleaseBfcacheLinearMeta = index => {
-    const resolve = heldLinearMetaResolvers[index];
+  const heldTailResolvers = [];
+  window.__syncviewReleaseBfcacheTail = index => {
+    const resolve = heldTailResolvers[index];
     if (!resolve) throw new Error(`held BFCache Linear-meta request ${index} is not pending`);
-    heldLinearMetaResolvers[index] = null;
+    heldTailResolvers[index] = null;
     resolve();
   };
   const heldWriteUiRerouteResolvers = [];
@@ -719,6 +755,51 @@ function installBfcacheSyntheticNetwork(config) {
         state.supportReads.push({ at, kind: 'templates', url: url.href });
         return jsonResponse([]);
       }
+      /* The owned ancillary tail. Until 2026-09-22 this held the
+         `linear-issue-statuses` banner-meta refresh; that webhook is gone
+         (OPEN_REPAIRS 236) and the tail that remains is
+         `_calAdoptDeliverableLinks`, which reads `/rest/v1/deliverables` after
+         the primary read commits and can write an adopted link onto a card. */
+      if (url.pathname === '/rest/v1/deliverables' && method === 'GET') {
+        let client = '';
+        try { client = typeof calState !== 'undefined' && calState ? String(calState.client || '') : ''; } catch {}
+        const idFilter = String(url.searchParams.get('id') || '');
+        const read = {
+          index: state.tailReads.length,
+          at,
+          client,
+          idFilter,
+          released: false,
+          completed: false,
+          // This read passes no AbortSignal; recorded so a scenario asserts
+          // that rather than assuming a cancel it never gets.
+          hasSignal: Boolean(init && init.signal),
+          signalAbortedBeforeRelease: false,
+        };
+        state.tailReads.push(read);
+        const holdTail = Array.isArray(config.holdTailPlan)
+          ? config.holdTailPlan[read.index] === true
+          : false;
+        const signal = init && init.signal;
+        const markAborted = () => {
+          if (!read.released) read.signalAbortedBeforeRelease = true;
+        };
+        if (signal) {
+          if (signal.aborted) markAborted();
+          else signal.addEventListener('abort', markAborted, { once: true });
+        }
+        if (holdTail) {
+          await new Promise(resolve => { heldTailResolvers[read.index] = resolve; });
+        }
+        read.released = true;
+        if (signal) signal.removeEventListener('abort', markAborted);
+        read.completed = true;
+        state.tailCompleted += 1;
+        const rows = (config.deliverableRows || []).filter(row => (
+          !idFilter || idFilter.includes(String(row.id))
+        ));
+        return jsonResponse(rows);
+      }
       if (url.pathname === '/rest/v1/calendar_posts') {
         const read = {
           index: state.sensitiveClientReads.filter(item => item.kind === 'calendar_posts').length,
@@ -807,54 +888,6 @@ function installBfcacheSyntheticNetwork(config) {
         state.sensitiveClientReads.push({ at, kind: 'calendar-get', url: url.href });
         return jsonResponse({ ok: true, posts: [] });
       }
-      if (url.pathname === '/webhook/linear-issue-statuses') {
-        let body = {};
-        try { body = JSON.parse(String(init && init.body || '{}')); } catch {}
-        let client = '';
-        try { client = typeof calState !== 'undefined' && calState ? String(calState.client || '') : ''; } catch {}
-        const read = {
-          index: state.linearMetaReads.length,
-          at,
-          client,
-          issues: Array.isArray(body.issues) ? body.issues.slice() : [],
-          released: false,
-          completed: false,
-          signalAbortedBeforeRelease: false,
-        };
-        state.linearMetaReads.push(read);
-        const holdLinearMeta = Array.isArray(config.holdLinearMetaPlan)
-          ? config.holdLinearMetaPlan[read.index] === true
-          : false;
-        const signal = init && init.signal;
-        const markAborted = () => {
-          if (!read.released) read.signalAbortedBeforeRelease = true;
-        };
-        if (signal) {
-          if (signal.aborted) markAborted();
-          else signal.addEventListener('abort', markAborted, { once: true });
-        }
-        if (holdLinearMeta) {
-          await new Promise(resolve => { heldLinearMetaResolvers[read.index] = resolve; });
-        }
-        read.released = true;
-        if (signal) signal.removeEventListener('abort', markAborted);
-        read.completed = true;
-        state.linearMetaCompleted += 1;
-        const plan = Array.isArray(config.linearMetaPlan) ? config.linearMetaPlan[read.index] : null;
-        const hasAll = !plan || plan.hasAll !== false;
-        return jsonResponse({
-          ok: true,
-          statuses: { [config.linearIdent]: hasAll ? 'In Progress' : 'Client Approval' },
-          meta: {
-            [config.linearIdent]: {
-              isSubIssue: true,
-              hasProject: hasAll,
-              hasDue: hasAll,
-              hasEditor: hasAll,
-            },
-          },
-        });
-      }
       if (method !== 'GET' && (
         url.pathname === '/webhook/calendar-upsert-post'
         || url.pathname === '/functions/v1/calendar-upsert'
@@ -928,23 +961,39 @@ function installHeldCalendarTransport(config) {
   };
 }
 
-function installHeldLinearPostLoad(config) {
+/* Holds the calendar load's ANCILLARY TAIL transport, the one that outlives the
+   primary read and can still enqueue a real Calendar write.
+
+   Until 2026-09-22 that meant the two `linear-issue-statuses` requests -- the v1
+   Linear→card reconcile and the banner-meta refresh. Both were removed with the
+   webhook (OPEN_REPAIRS 236), so the tail task that remains is
+   `_calAdoptDeliverableLinks`, which reads `/rest/v1/deliverables` after the
+   primary read has committed and adopts a missing Linear link onto a card. It
+   carries exactly the hazard this scenario exists for: a response released after
+   the user has switched clients, arriving into a page that now belongs to
+   someone else.
+
+   One difference is deliberate and asserted rather than hidden: that read passes
+   NO abort signal, so a client switch cannot cancel it in flight. Its lease is
+   the `_calLoadRunCurrent(loadRun)` re-check after the await, which is what the
+   release beats below actually exercise. */
+function installHeldTailPostLoad(config) {
   const nativeFetch = window.fetch.bind(window);
   const pending = [];
   const jsonResponse = value => new Response(JSON.stringify(value), {
     status: 200,
     headers: { 'content-type': 'application/json; charset=utf-8' },
   });
-  window.__syncviewHeldLinearPostLoad = {
+  window.__syncviewHeldTailPostLoad = {
     calendarReads: [],
-    linearReads: [],
-    linearCompleted: 0,
+    tailReads: [],
+    tailCompleted: 0,
     writeRequests: [],
   };
-  const state = window.__syncviewHeldLinearPostLoad;
-  window.__syncviewReleaseHeldLinear = index => {
+  const state = window.__syncviewHeldTailPostLoad;
+  window.__syncviewReleaseHeldTail = index => {
     const release = pending[index];
-    if (!release) throw new Error(`held Linear request ${index} is not pending`);
+    if (!release) throw new Error(`held tail request ${index} is not pending`);
     pending[index] = null;
     release();
   };
@@ -966,25 +1015,26 @@ function installHeldLinearPostLoad(config) {
       return jsonResponse({ ok: true, posts: config.rowsBySlug[slug] || [] });
     }
 
-    if (method === 'POST'
-      && url.hostname === 'synchrosocial.app.n8n.cloud'
-      && url.pathname === '/webhook/linear-issue-statuses') {
-      let body = {};
-      try { body = JSON.parse(String(init && init.body || '{}')); } catch {}
+    if (method === 'GET'
+      && url.hostname === 'uzltbbrjidmjwwfakwve.supabase.co'
+      && url.pathname === '/rest/v1/deliverables') {
       let client = '';
       try { client = typeof calState !== 'undefined' && calState ? String(calState.client || '') : ''; } catch {}
-      const issues = Array.isArray(body.issues) ? body.issues.slice() : [];
+      const idFilter = String(url.searchParams.get('id') || '');
       const read = {
-        index: state.linearReads.length,
+        index: state.tailReads.length,
         at: Date.now(),
         client,
-        kind: issues.some(issue => /^https?:/i.test(String(issue))) ? 'reconcile' : 'meta',
-        issues,
+        kind: 'adopt',
+        idFilter,
         released: false,
         completed: false,
+        // The deliverables read carries no AbortSignal at all; recorded so the
+        // scenario can assert that rather than quietly assume a cancel.
+        hasSignal: Boolean(init && init.signal),
         signalAbortedBeforeRelease: false,
       };
-      state.linearReads.push(read);
+      state.tailReads.push(read);
       const signal = init && init.signal;
       const markAborted = () => {
         if (!read.released) read.signalAbortedBeforeRelease = true;
@@ -997,22 +1047,14 @@ function installHeldLinearPostLoad(config) {
       read.released = true;
       if (signal) signal.removeEventListener('abort', markAborted);
       read.completed = true;
-      state.linearCompleted += 1;
-      const isA = client === config.clientA;
-      return jsonResponse({
-        ok: true,
-        statuses: {
-          [config.ident]: isA && read.kind === 'reconcile' ? 'Client Approval' : 'In Progress',
-        },
-        meta: {
-          [config.ident]: {
-            isSubIssue: true,
-            hasProject: true,
-            hasDue: true,
-            hasEditor: true,
-          },
-        },
-      });
+      state.tailCompleted += 1;
+      // Answer with the adoption the stale tail would have applied: client A's
+      // deliverable, naming client A's card, carrying a Linear URL. Released
+      // under B, it must change nothing.
+      const rows = (config.deliverableRows || []).filter(row => (
+        !idFilter || idFilter.includes(String(row.id))
+      ));
+      return jsonResponse(rows);
     }
 
     if (method !== 'GET' && (
@@ -1334,8 +1376,8 @@ async function openCase(browser, server, options = {}) {
   if (options.heldCalendarTransport) {
     await context.addInitScript(installHeldCalendarTransport, options.heldCalendarTransport);
   }
-  if (options.heldLinearPostLoad) {
-    await context.addInitScript(installHeldLinearPostLoad, options.heldLinearPostLoad);
+  if (options.heldTailPostLoad) {
+    await context.addInitScript(installHeldTailPostLoad, options.heldTailPostLoad);
   }
   const network = await installSyntheticNetwork(context, server.origin, options.network || {});
   const page = await context.newPage();
@@ -1375,11 +1417,10 @@ async function openBfcacheCase(browser, options = {}) {
     holdCalendarPlan: options.holdCalendarPlan || null,
     calendarRows: CALENDAR_ROWS,
     calendarRowsPlan: options.calendarRowsPlan || null,
-    holdLinearMetaPlan: options.holdLinearMetaPlan || null,
-    linearMetaPlan: options.linearMetaPlan || null,
+    holdTailPlan: options.holdTailPlan || null,
+    deliverableRows: options.deliverableRows || null,
     holdWriteUiReroutePlan: options.holdWriteUiReroutePlan || null,
     legacyQueueStatusPlan: options.legacyQueueStatusPlan || null,
-    linearIdent: LINEAR_LEASE_IDENT,
     sampleRows: SAMPLE_ROWS,
     sheets: {
       Metrics: METRICS_CSV,
@@ -3401,7 +3442,7 @@ async function runLegacySamplesScenario(browser, server) {
 }
 
 async function runStaffCalendarOwnedTailAndBfcacheScenario(browser, server) {
-  const label = 'staff Calendar owned Linear tail and BFCache recovery';
+  const label = 'staff Calendar owned ancillary tail and BFCache recovery';
   const staffStorage = {
     local: {
       syncview_staff_identity_v1: STAFF_GATE_IDENTITY,
@@ -3414,10 +3455,17 @@ async function runStaffCalendarOwnedTailAndBfcacheScenario(browser, server) {
     },
   };
 
-  // v1 Linear reconcile is an ancillary transport, but it can enqueue a real
-  // Calendar write. Hold A's reconcile, let A's independent metadata request
-  // settle, switch with the real B tab, then release A into B.
-  const v1Run = await openCase(browser, server, {
+  /* The owned ANCILLARY TAIL: a transport that starts after the primary read
+     has committed, outlives it, and can still enqueue a real Calendar write.
+
+     This used to be the v1 Linear reconcile, held while A's independent
+     metadata request settled. Both of those transports were removed on
+     2026-09-22 with the linear-issue-statuses webhook (OPEN_REPAIRS 236), so
+     the tail this now exercises is `_calAdoptDeliverableLinks`: it reads
+     `/rest/v1/deliverables` and, on an answer, writes the adopted Linear link
+     straight onto the card. Hold A's adopt, switch with the real B tab, then
+     release A's stale answer into B and prove it changes nothing. */
+  const tailRun = await openCase(browser, server, {
     storage: {
       local: {
         ...staffStorage.local,
@@ -3425,155 +3473,138 @@ async function runStaffCalendarOwnedTailAndBfcacheScenario(browser, server) {
       },
       session: staffStorage.session,
     },
-    heldLinearPostLoad: {
-      rowsBySlug: V1_CALENDAR_ROWS,
+    heldTailPostLoad: {
+      rowsBySlug: TAIL_ADOPT_CALENDAR_ROWS,
       clientA: CLIENT_A,
-      ident: LINEAR_LEASE_IDENT,
+      deliverableRows: TAIL_ADOPT_DELIVERABLES,
     },
   });
   try {
     await streamedNavigation(
-      v1Run.page,
+      tailRun.page,
       server,
-      () => v1Run.page.goto(`${server.origin}/index.html#calendar`, { waitUntil: 'load', timeout: 15_000 }),
+      () => tailRun.page.goto(`${server.origin}/index.html#calendar`, { waitUntil: 'load', timeout: 15_000 }),
       'static:calendar',
     );
-    await v1Run.page.waitForFunction(expectedClient => {
-      const held = window.__syncviewHeldLinearPostLoad;
+    await tailRun.page.waitForFunction(expectedClient => {
+      const held = window.__syncviewHeldTailPostLoad;
       return held?.calendarReads.length === 1
-        && held.linearReads.length === 2
-        && held.linearReads.every(read => read.client === expectedClient)
+        && held.tailReads.length === 1
+        && held.tailReads[0].client === expectedClient
         && calState.client === expectedClient;
     }, CLIENT_A, { timeout: 10_000 });
-    const initialLinear = await v1Run.page.evaluate(() => (
-      JSON.parse(JSON.stringify(window.__syncviewHeldLinearPostLoad.linearReads))
+    const initialTail = await tailRun.page.evaluate(() => (
+      JSON.parse(JSON.stringify(window.__syncviewHeldTailPostLoad.tailReads))
     ));
-    assert.deepEqual(initialLinear.map(read => read.kind), ['reconcile', 'meta'],
-      `${label}: A must start separate v1 reconcile and metadata transports`);
+    assert.deepEqual(initialTail.map(read => read.kind), ['adopt'],
+      `${label}: A must start its deliverable-adoption tail transport`);
+    /* Asserted, not assumed: this transport carries no AbortSignal, so a client
+       switch cannot cancel it in flight. Everything below therefore tests the
+       post-await `_calLoadRunCurrent(loadRun)` lease, which is the only thing
+       standing between a stale answer and a write under the wrong client. */
+    assert.equal(initialTail[0].hasSignal, false,
+      `${label}: the deliverables tail read carries no abort signal, so the lease is its only guard`);
 
-    // Settle normal A metadata before the switch; only reconcile remains late.
-    await v1Run.page.evaluate(() => window.__syncviewReleaseHeldLinear(1));
-    await v1Run.page.waitForFunction(() => (
-      window.__syncviewHeldLinearPostLoad.linearCompleted === 1
-      && window.__syncviewHeldLinearPostLoad.linearReads[1].completed === true
-    ), null, { timeout: 10_000 });
-    await armTrustedClickTraceBoundary(v1Run.page, '#calTabs .cal-tab', CLIENT_B);
-    await v1Run.page.locator('#calTabs .cal-tab', { hasText: CLIENT_B }).click();
-    await v1Run.page.waitForFunction(expectedClient => {
-      const held = window.__syncviewHeldLinearPostLoad;
+    await armTrustedClickTraceBoundary(tailRun.page, '#calTabs .cal-tab', CLIENT_B);
+    await tailRun.page.locator('#calTabs .cal-tab', { hasText: CLIENT_B }).click();
+    await tailRun.page.waitForFunction(expectedClient => {
+      const held = window.__syncviewHeldTailPostLoad;
       return calState.client === expectedClient
         && held?.calendarReads.length === 2
-        && held.linearReads.length === 3
-        && held.linearReads[2].client === expectedClient
-        && held.linearReads[2].kind === 'reconcile';
+        && held.tailReads.length === 2
+        && held.tailReads[1].client === expectedClient;
     }, CLIENT_B, { timeout: 10_000 });
 
-    await v1Run.page.evaluate(() => {
-      window.__syncviewLateLinearRenders = [];
+    await tailRun.page.evaluate(() => {
+      window.__syncviewLateTailRenders = [];
       const originalRender = _calRenderBody;
-      _calRenderBody = function guardedLinearRender() {
-        window.__syncviewLateLinearRenders.push({
+      _calRenderBody = function guardedTailRender() {
+        window.__syncviewLateTailRenders.push({
           client: calState.client,
           at: Math.round(performance.now()),
         });
         return originalRender.apply(this, arguments);
       };
+      window.__syncviewTailSnapshot = () => ({
+        transport: JSON.parse(JSON.stringify(window.__syncviewHeldTailPostLoad)),
+        client: calState.client,
+        posts: calState.posts.map(post => ({
+          id: post.id,
+          name: post.name,
+          linear_issue_id: post.linear_issue_id,
+          video_status: post.video_status,
+          status: post.status,
+        })),
+        pending: Object.keys(_calPendingEdits),
+        noLinearPush: Array.from(_calNoLinearPush),
+        cacheA: localStorage.getItem('syncview_calCache_v2:bootfixtureclient'),
+        cacheB: localStorage.getItem('syncview_calCache_v2:residualfixtureclient'),
+        body: document.getElementById('calBody')?.innerText || '',
+        owner: _calActiveLoad ? {
+          slug: _calActiveLoad.slug,
+          aborted: Boolean(_calActiveLoad.controller && _calActiveLoad.controller.signal.aborted),
+        } : null,
+      });
     });
-    const v1BeforeLateA = await v1Run.page.evaluate(() => ({
-      transport: JSON.parse(JSON.stringify(window.__syncviewHeldLinearPostLoad)),
-      client: calState.client,
-      posts: calState.posts.map(post => ({
-        id: post.id,
-        name: post.name,
-        video_status: post.video_status,
-        status: post.status,
-      })),
-      pending: Object.keys(_calPendingEdits),
-      noLinearPush: Array.from(_calNoLinearPush),
-      cacheA: localStorage.getItem('syncview_calCache_v2:bootfixtureclient'),
-      cacheB: localStorage.getItem('syncview_calCache_v2:residualfixtureclient'),
-      body: document.getElementById('calBody')?.innerText || '',
-      owner: _calActiveLoad ? {
-        slug: _calActiveLoad.slug,
-        aborted: Boolean(_calActiveLoad.controller && _calActiveLoad.controller.signal.aborted),
-      } : null,
-    }));
-    assert.equal(v1BeforeLateA.transport.linearReads[0].signalAbortedBeforeRelease, true,
-      `${label}: real A → B click must abort held A reconcile before release`);
-    assert.equal(v1BeforeLateA.client, CLIENT_B, `${label}: B owns state before stale A release`);
-    assert.equal(v1BeforeLateA.owner?.slug, 'residualfixtureclient',
-      `${label}: B retains the exact post-load owner while its reconcile is held`);
-    assert.equal(v1BeforeLateA.owner?.aborted, false, `${label}: B controller remains live`);
+    const beforeLateA = await tailRun.page.evaluate(() => window.__syncviewTailSnapshot());
+    assert.equal(beforeLateA.client, CLIENT_B, `${label}: B owns state before stale A release`);
+    assert.equal(beforeLateA.owner?.slug, 'residualfixtureclient',
+      `${label}: B retains the exact post-load owner while its tail is held`);
+    assert.equal(beforeLateA.owner?.aborted, false, `${label}: B controller remains live`);
+    assert.equal(beforeLateA.transport.writeRequests.length, 0,
+      `${label}: setup makes no Calendar writes`);
 
-    await v1Run.page.evaluate(() => window.__syncviewReleaseHeldLinear(0));
-    await v1Run.page.waitForFunction(() => (
-      window.__syncviewHeldLinearPostLoad.linearCompleted === 2
-      && window.__syncviewHeldLinearPostLoad.linearReads[0].completed === true
+    await tailRun.page.evaluate(() => window.__syncviewReleaseHeldTail(0));
+    await tailRun.page.waitForFunction(() => (
+      window.__syncviewHeldTailPostLoad.tailReads[0].completed === true
     ), null, { timeout: 10_000 });
-    await v1Run.page.waitForTimeout(200);
-    const v1AfterLateA = await v1Run.page.evaluate(() => ({
-      transport: JSON.parse(JSON.stringify(window.__syncviewHeldLinearPostLoad)),
-      client: calState.client,
-      posts: calState.posts.map(post => ({
-        id: post.id,
-        name: post.name,
-        video_status: post.video_status,
-        status: post.status,
-      })),
-      pending: Object.keys(_calPendingEdits),
-      noLinearPush: Array.from(_calNoLinearPush),
-      cacheA: localStorage.getItem('syncview_calCache_v2:bootfixtureclient'),
-      cacheB: localStorage.getItem('syncview_calCache_v2:residualfixtureclient'),
-      body: document.getElementById('calBody')?.innerText || '',
-      owner: _calActiveLoad ? {
-        slug: _calActiveLoad.slug,
-        aborted: Boolean(_calActiveLoad.controller && _calActiveLoad.controller.signal.aborted),
-      } : null,
-      renders: window.__syncviewLateLinearRenders.slice(),
+    await tailRun.page.waitForTimeout(200);
+    const afterLateA = await tailRun.page.evaluate(() => Object.assign(window.__syncviewTailSnapshot(), {
+      renders: window.__syncviewLateTailRenders.slice(),
       clickBoundary: Object.assign({}, window.__syncviewBootClickBoundary),
       trace: window.__syncviewBootTrace.slice(),
     }));
-    assert.equal(v1AfterLateA.client, CLIENT_B, `${label}: late A reconcile cannot rebind B`);
-    assert.deepEqual(v1AfterLateA.posts, v1BeforeLateA.posts,
-      `${label}: late A reconcile cannot create or mutate a B row`);
-    assert.deepEqual(v1AfterLateA.pending, v1BeforeLateA.pending,
-      `${label}: late A reconcile cannot enqueue A edits under B`);
-    assert.deepEqual(v1AfterLateA.noLinearPush, v1BeforeLateA.noLinearPush,
-      `${label}: late A reconcile cannot seed B suppression tokens`);
-    assert.equal(v1AfterLateA.transport.writeRequests.length, 0,
-      `${label}: late A reconcile must produce zero Calendar writes`);
-    assert.equal(v1AfterLateA.cacheA, v1BeforeLateA.cacheA,
-      `${label}: late reconcile cannot rewrite A cache`);
-    assert.equal(v1AfterLateA.cacheB, v1BeforeLateA.cacheB,
-      `${label}: late reconcile cannot rewrite B cache`);
-    assert.equal(v1AfterLateA.body, v1BeforeLateA.body,
+    assert.equal(afterLateA.client, CLIENT_B, `${label}: late A tail cannot rebind B`);
+    assert.deepEqual(afterLateA.posts, beforeLateA.posts,
+      `${label}: late A tail cannot adopt a link onto, or otherwise mutate, a B row`);
+    assert.deepEqual(afterLateA.pending, beforeLateA.pending,
+      `${label}: late A tail cannot enqueue A edits under B`);
+    assert.deepEqual(afterLateA.noLinearPush, beforeLateA.noLinearPush,
+      `${label}: late A tail cannot seed B suppression tokens`);
+    assert.equal(afterLateA.transport.writeRequests.length, 0,
+      `${label}: late A tail must produce zero Calendar writes`);
+    assert.equal(afterLateA.cacheA, beforeLateA.cacheA,
+      `${label}: late tail cannot rewrite A cache`);
+    assert.equal(afterLateA.cacheB, beforeLateA.cacheB,
+      `${label}: late tail cannot rewrite B cache`);
+    assert.equal(afterLateA.body, beforeLateA.body,
       `${label}: B visible Calendar must remain byte-stable across late A release`);
-    assert.deepEqual(v1AfterLateA.renders, [], `${label}: late A reconcile cannot render B`);
-    assert.equal(v1AfterLateA.owner?.slug, 'residualfixtureclient',
+    assert.deepEqual(afterLateA.renders, [], `${label}: late A tail cannot render B`);
+    assert.equal(afterLateA.owner?.slug, 'residualfixtureclient',
       `${label}: old A tail cannot clear B's owner`);
-    assert.equal(v1AfterLateA.owner?.aborted, false, `${label}: B transport remains live after A tail`);
-    assert.deepEqual(v1AfterLateA.clickBoundary, {
+    assert.equal(afterLateA.owner?.aborted, false, `${label}: B transport remains live after A tail`);
+    assert.deepEqual(afterLateA.clickBoundary, {
       count: 1,
       target: CLIENT_B,
       isTrusted: true,
     }, `${label}: trace boundary must fire once on the real B-tab click`);
-    assert.ok(v1AfterLateA.trace.length > 0, `${label}: B-tab click must produce observed frames`);
+    assert.ok(afterLateA.trace.length > 0, `${label}: B-tab click must produce observed frames`);
     assert.ok(
-      v1AfterLateA.trace.every(frame => (
+      afterLateA.trace.every(frame => (
         frame.calendarVisible === true
         && frame.calendarActiveClient === CLIENT_B
       )),
-      `${label}: every observed frame after the switch stays on B\n${JSON.stringify(traceExcerpt(v1AfterLateA.trace), null, 2)}`,
+      `${label}: every observed frame after the switch stays on B\n${JSON.stringify(traceExcerpt(afterLateA.trace), null, 2)}`,
     );
 
-    await v1Run.page.evaluate(() => window.__syncviewReleaseHeldLinear(2));
-    await v1Run.page.waitForFunction(() => (
-      window.__syncviewHeldLinearPostLoad.linearCompleted === 3
+    await tailRun.page.evaluate(() => window.__syncviewReleaseHeldTail(1));
+    await tailRun.page.waitForFunction(() => (
+      window.__syncviewHeldTailPostLoad.tailCompleted === 2
       && _calActiveLoad === null
     ), null, { timeout: 10_000 });
-    assertHealthyHarness(v1Run, `${label} v1 reconcile`);
+    assertHealthyHarness(tailRun, `${label} deliverable-adoption tail`);
   } finally {
-    await v1Run.context.close();
+    await tailRun.context.close();
   }
 
   // Pending staff primary read: pagehide must flush first, abort the exact
@@ -3786,28 +3817,37 @@ async function runStaffCalendarOwnedTailAndBfcacheScenario(browser, server) {
     await pendingRun.context.close();
   }
 
-  // Settled staff BFCache: remove the pre-hide channel, bypass the normal
-  // four-second return throttle, visibly refresh once, and hold the forced
-  // metadata continuation while a real A → B click takes ownership.
+  /* Settled staff BFCache: remove the pre-hide channel, bypass the normal
+     four-second return throttle, visibly refresh once, and hold the RESUMED
+     load's ancillary tail while a real A → B click takes ownership.
+
+     That tail used to be the forced banner-meta refresh; it is now the
+     deliverable-adoption read, for the reason written at the top of this
+     scenario (OPEN_REPAIRS 236). `holdTailPlan` holds tail read 1, which is
+     the resumed A load's, exactly as the old plan held meta read 1. */
   const settledRows = [
     [{
-      ...V1_CALENDAR_ROWS[CLIENT_A_SLUG][0],
+      ...TAIL_ADOPT_CALENDAR_ROWS[CLIENT_A_SLUG][0],
       id: 'synthetic-settled-a-before',
       name: 'Synthetic settled A before BFCache',
     }],
     [{
-      ...V1_CALENDAR_ROWS[CLIENT_A_SLUG][0],
+      ...TAIL_ADOPT_CALENDAR_ROWS[CLIENT_A_SLUG][0],
       id: 'synthetic-settled-a-after',
       name: 'Synthetic settled A after BFCache',
     }],
-    [V1_CALENDAR_ROWS.residualfixtureclient[0]],
+    [TAIL_ADOPT_CALENDAR_ROWS.residualfixtureclient[0]],
   ];
   const settledRun = await openBfcacheCase(browser, {
     storage: staffStorage,
     holdCalendarPlan: [false, true, false],
     calendarRowsPlan: settledRows,
-    holdLinearMetaPlan: [false, true],
-    linearMetaPlan: [{ hasAll: true }, { hasAll: false }],
+    holdTailPlan: [false, true],
+    deliverableRows: [{
+      id: TAIL_ADOPT_A_DELIVERABLE,
+      card_id: 'synthetic-settled-a-after',
+      linear_issue_url: LINEAR_LEASE_URL,
+    }],
     forbiddenClients: [],
   });
   try {
@@ -3820,7 +3860,7 @@ async function runStaffCalendarOwnedTailAndBfcacheScenario(browser, server) {
     await settledRun.page.waitForFunction(expectedRow => (
       calState.posts.some(post => post.name === expectedRow)
       && window.calV2Status().subscribed === true
-      && window.__syncviewBfcacheNetwork.linearMetaCompleted === 1
+      && window.__syncviewBfcacheNetwork.tailCompleted === 1
       && _calActiveLoad === null
     ), settledRows[0][0].name, { timeout: 10_000 });
     await settledRun.page.evaluate(() => {
@@ -3886,8 +3926,8 @@ async function runStaffCalendarOwnedTailAndBfcacheScenario(browser, server) {
     await settledRun.page.evaluate(() => window.__syncviewReleaseBfcacheCalendar(1));
     await settledRun.page.waitForFunction(expectedRow => (
       calState.posts.some(post => post.name === expectedRow)
-      && window.__syncviewBfcacheNetwork.linearMetaReads.length === 2
-      && window.__syncviewBfcacheNetwork.linearMetaReads[1].completed === false
+      && window.__syncviewBfcacheNetwork.tailReads.length === 2
+      && window.__syncviewBfcacheNetwork.tailReads[1].completed === false
       && window.__syncviewRealtimeTrace.created.filter(name => name === `cal-${calClientSlug(calState.client)}`).length === 2
       && _calActiveLoad !== null
     ), settledRows[1][0].name, { timeout: 10_000 });
@@ -3895,14 +3935,14 @@ async function runStaffCalendarOwnedTailAndBfcacheScenario(browser, server) {
     const forcedMetaHeld = await settledRun.page.evaluate(() => ({
       reads: window.__syncviewBfcacheNetwork.sensitiveClientReads
         .filter(read => read.kind === 'calendar_posts'),
-      linear: JSON.parse(JSON.stringify(window.__syncviewBfcacheNetwork.linearMetaReads)),
+      tail: JSON.parse(JSON.stringify(window.__syncviewBfcacheNetwork.tailReads)),
       posts: calState.posts.map(post => post.name),
       realtime: JSON.parse(JSON.stringify(window.__syncviewRealtimeTrace)),
       refreshingVisible: document.getElementById('calRefreshing')?.hidden === false,
       trace: window.__syncviewBootTrace.slice(),
     }));
     assert.equal(forcedMetaHeld.reads.length, 2, `${label}: resumed Calendar still owns exactly one new read`);
-    assert.equal(forcedMetaHeld.linear[1].client, CLIENT_A, `${label}: forced return meta is leased to A`);
+    assert.equal(forcedMetaHeld.tail[1].client, CLIENT_A, `${label}: the resumed return tail is leased to A`);
     assert.equal(forcedMetaHeld.refreshingVisible, false, `${label}: primary data settles while meta remains held`);
     assert.deepEqual(calendarRealtime(forcedMetaHeld.realtime).created,
       [`cal-${CLIENT_A_SLUG}`, `cal-${CLIENT_A_SLUG}`],
@@ -3942,23 +3982,26 @@ async function runStaffCalendarOwnedTailAndBfcacheScenario(browser, server) {
       })),
       meta: Array.from(_calLinearMetaByIdent.entries()),
       parents: Array.from(_calParentLinks),
-      metaSig: _calLinearStatusMetaSig,
-      metaAt: _calLinearStatusMetaAt,
       persistedMeta: localStorage.getItem(CAL_LINEAR_META_LS_KEY),
       cacheA: localStorage.getItem('syncview_calCache_v2:bootfixtureclient'),
       cacheB: localStorage.getItem('syncview_calCache_v2:residualfixtureclient'),
       body: document.getElementById('calBody')?.innerText || '',
       realtime: JSON.parse(JSON.stringify(window.__syncviewRealtimeTrace)),
     }));
-    assert.equal(beforeForcedMetaRelease.network.linearMetaReads[1].signalAbortedBeforeRelease, true,
-      `${label}: A → B aborts held forced-meta transport`);
+    /* The deliverables read passes no AbortSignal, so an A → B switch cannot
+       cancel it in flight. Asserted rather than assumed: what protects B below
+       is the post-await `_calLoadRunCurrent(loadRun)` lease, not a cancel. */
+    assert.equal(beforeForcedMetaRelease.network.tailReads[1].hasSignal, false,
+      `${label}: the held return tail carries no abort signal, so the lease is its only guard`);
     assert.equal(beforeForcedMetaRelease.client, CLIENT_B, `${label}: B owns state before forced-meta release`);
     assert.equal(beforeForcedMetaRelease.network.writeRequests.length, 0,
       `${label}: setup makes no Calendar writes`);
 
-    await settledRun.page.evaluate(() => window.__syncviewReleaseBfcacheLinearMeta(1));
+    await settledRun.page.evaluate(() => window.__syncviewReleaseBfcacheTail(1));
+    /* Three tail reads settle in all: the pre-hide A load, the resumed A load
+       held above, and B's own after the switch. */
     await settledRun.page.waitForFunction(() => (
-      window.__syncviewBfcacheNetwork.linearMetaCompleted === 2
+      window.__syncviewBfcacheNetwork.tailCompleted === 3
     ), null, { timeout: 10_000 });
     await settledRun.page.waitForTimeout(200);
     const afterForcedMetaRelease = await settledRun.page.evaluate(() => ({
@@ -3971,8 +4014,6 @@ async function runStaffCalendarOwnedTailAndBfcacheScenario(browser, server) {
       })),
       meta: Array.from(_calLinearMetaByIdent.entries()),
       parents: Array.from(_calParentLinks),
-      metaSig: _calLinearStatusMetaSig,
-      metaAt: _calLinearStatusMetaAt,
       persistedMeta: localStorage.getItem(CAL_LINEAR_META_LS_KEY),
       cacheA: localStorage.getItem('syncview_calCache_v2:bootfixtureclient'),
       cacheB: localStorage.getItem('syncview_calCache_v2:residualfixtureclient'),
@@ -3988,10 +4029,6 @@ async function runStaffCalendarOwnedTailAndBfcacheScenario(browser, server) {
       `${label}: late A meta cannot mutate shared B banner metadata`);
     assert.deepEqual(afterForcedMetaRelease.parents, beforeForcedMetaRelease.parents,
       `${label}: late A meta cannot mutate parent-link state`);
-    assert.equal(afterForcedMetaRelease.metaSig, beforeForcedMetaRelease.metaSig,
-      `${label}: late A meta cannot mutate global signature`);
-    assert.equal(afterForcedMetaRelease.metaAt, beforeForcedMetaRelease.metaAt,
-      `${label}: late A meta cannot mutate global throttle`);
     assert.equal(afterForcedMetaRelease.persistedMeta, beforeForcedMetaRelease.persistedMeta,
       `${label}: late A meta cannot persist localStorage`);
     assert.equal(afterForcedMetaRelease.cacheA, beforeForcedMetaRelease.cacheA,

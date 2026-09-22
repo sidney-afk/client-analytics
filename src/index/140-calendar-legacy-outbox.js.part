@@ -3134,12 +3134,11 @@
        tick — so an idle open tab costs nothing on n8n. */
     const CAL_LINEAR_META_LS_KEY = 'syncview_calLinearMeta_v2';
     const CAL_LINEAR_META_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-    const CAL_LINEAR_META_FORCE_MIN_MS = 5 * 60 * 1000; // cap Linear force-fetches to once / 5 min
     let _calLinearMetaHydrated = false;
-    // Throttle for the Linear-meta fetch (project/due/editor via the
-    // linear-issue-statuses webhook, the single source for the banner). Disabled
-    // for the session if that webhook doesn't return a `meta` field (older
-    // backend), so it can't add ongoing n8n load before the backend ships.
-    let _calLinearStatusMetaAt = 0;
-    let _calLinearStatusMetaSig = '';
-    let _calStatusMetaUnsupported = false;
+    /* The force-fetch throttle (CAL_LINEAR_META_FORCE_MIN_MS), the ident-set
+       signature (_calLinearStatusMetaSig / _calLinearStatusMetaAt) and the
+       unsupported-backend latch (_calStatusMetaUnsupported) were removed with
+       the linear-issue-statuses fetch itself on 2026-09-22 -- there is no
+       longer a Linear request to throttle or to switch off. The persisted
+       copy above (LS key + TTL) is what the banners read now.
+       See OPEN_REPAIRS 236. */

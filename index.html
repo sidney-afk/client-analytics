@@ -55018,6 +55018,44 @@
                 if (!nodesByBatch.has(bid)) nodesByBatch.set(bid, []);
                 nodesByBatch.get(bid).push(node);
             });
+            /* THE OTHER MIXED SHAPE, and the reason `nodesByBatch` alone is not
+               enough (Codex P1 on PR 1494). When a batch's Linear parent has
+               ITSELF been imported as a deliverable row, the `byUuid` pass
+               skips that uuid on purpose (`deliverableUuids`) -- the row is
+               already in the tree, so synthesising a second node for the same
+               issue would double it. The batch therefore never lands in
+               `linearBackedBatchIds`, and the native-minting loop then bails on
+               `hasUsableParentIds` because the batch DOES record a parent uuid.
+               Net effect: no node of any kind, so `nodesByBatch` is empty for
+               it and the fallback above cannot fire.
+               Its pre-cutoff children are fine -- `_prodResolveParentLinks`
+               maps them onto the parent's own native row id -- so the repair is
+               to send native-born children to that SAME row id, which is what
+               keeps both halves of the batch under one parent. Deliberately
+               mirrors that function's duplicate rule: a uuid claimed by two
+               rows is ambiguous and attaches nothing rather than guessing. */
+            const rowIdByUuid = new Map();
+            const ambiguousRowUuids = new Set();
+            rows.forEach(row => {
+                const rowId = String(row && row.id || '').trim();
+                const uuid = String(row && row.linear_issue_uuid || '').trim();
+                if (!rowId || !uuid) return;
+                if (rowIdByUuid.has(uuid) && rowIdByUuid.get(uuid) !== rowId) { ambiguousRowUuids.add(uuid); return; }
+                rowIdByUuid.set(uuid, rowId);
+            });
+            ambiguousRowUuids.forEach(uuid => rowIdByUuid.delete(uuid));
+            const deliverableParentsByBatch = new Map(); // batchId -> {team, rowId}[]
+            batches.forEach(batch => {
+                const batchId = String(batch && batch.id || '').trim();
+                if (!batchId || nodesByBatch.has(batchId)) return;
+                parseEntries(batch.linear_parent_ids).forEach(({ team, entry }) => {
+                    const uuid = String(entry.uuid || entry.id || entry.linear_issue_id || '').trim();
+                    const rowId = uuid ? rowIdByUuid.get(uuid) : '';
+                    if (!rowId) return;
+                    if (!deliverableParentsByBatch.has(batchId)) deliverableParentsByBatch.set(batchId, []);
+                    deliverableParentsByBatch.get(batchId).push({ team: normalizeChildTeam(team), rowId });
+                });
+            });
             const links = new Map();
             rows.forEach(row => {
                 const nativeId = String(row && row.id || '').trim();
@@ -55042,12 +55080,21 @@
                 if (!isNativeBorn(row)) return;
                 const bid = String(row && row.batch_id || '').trim();
                 if (!bid) return;
+                const childTeam = normalizeChildTeam(row && row.team);
                 const candidates = nodesByBatch.get(bid);
-                if (!candidates || !candidates.length) return;
-                const target = candidates.length === 1
-                    ? candidates[0]
-                    : (candidates.find(n => n.team === normalizeChildTeam(row && row.team)) || candidates[0]);
-                if (target && target.nodeId && bid !== nativeId) links.set(nativeId, target.nodeId);
+                if (candidates && candidates.length) {
+                    const target = candidates.length === 1
+                        ? candidates[0]
+                        : (candidates.find(n => n.team === childTeam) || candidates[0]);
+                    if (target && target.nodeId && bid !== nativeId) links.set(nativeId, target.nodeId);
+                    return;
+                }
+                const rowParents = deliverableParentsByBatch.get(bid);
+                if (!rowParents || !rowParents.length) return;
+                const rowTarget = rowParents.length === 1
+                    ? rowParents[0]
+                    : (rowParents.find(p => p.team === childTeam) || rowParents[0]);
+                if (rowTarget && rowTarget.rowId && rowTarget.rowId !== nativeId) links.set(nativeId, rowTarget.rowId);
             });
             return { links, nodes };
         }

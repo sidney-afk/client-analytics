@@ -144,8 +144,7 @@
   sees the same saved plan after manual deployment; Admin/SMM remain the only plan-date writers.
 - The legacy n8n inbound receiver `MJbMZ789B5ExZz9x` is **inactive/unpublished**
   (`activeVersionId=null`). Its saved graph has A1/A2 routing and authority gates, but it is not a
-  current real-time producer. Calendar/Samples status healing therefore depends on the scheduled
-  reconcilers unless the owner deliberately chooses, repairs, publishes, and drills that fast path.
+  current real-time producer.
 - The card and sample status reconcilers (formerly linear-sync-reconcile.js and
   sample-linear-reconcile.js under scripts/, both dispatch-only with no cron, last run 2026-09-20)
   are **retired** — deleted along with their workflows 2026-09-22 ahead of the Linear
@@ -153,6 +152,17 @@
   live roster/diff identifiers into public job summaries, is closed with their removal.
   `scripts/linear-deliverables-reconcile.js` remains (its workflow's cron is already commented
   out per the 2026-09-20 Linear cutoff; still hand-dispatchable).
+  **What this leaves for Calendar/Samples status healing, corrected here rather than left
+  contradicting itself:** `prod_authority` reads `{video: syncview, graphics: syncview}`
+  live — both teams are SyncView-authoritative, so a status change lands in `deliverables`
+  and reaches `calendar_posts`/`sample_reviews` through the native bridge trigger
+  (`migrations/2026-09-18-native-calendar-status-bridge.sql`) and the v2 realtime
+  subscription, never through Linear or either retired reconciler; `card-calendar-status-drift.yml`
+  measures that path hourly (Linear-free). **If a team's authority is ever moved back to
+  `linear`**, there is currently **no scheduled healing path** for it — the reconcilers that
+  used to provide one are gone, and neither the n8n receiver above nor any replacement is
+  live. That gap did not exist before this retirement; it is an open item, not yet filed as
+  a numbered repair.
 - Deliverables v2 currently has two independent callers: the unchanged repository `*/10` request
   (recently about 13 native deliveries/day) and an isolated hourly minute-0 n8n V2 branch. The qll
   shared trigger and its other lanes remain at 15 minutes. This branch-only relief is temporary until

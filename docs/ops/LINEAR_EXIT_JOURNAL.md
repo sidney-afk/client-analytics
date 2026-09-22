@@ -14035,3 +14035,11 @@ cancelled every cold load for the owner tonight. Fixed in the browser with a
 30-second budget for that one read (OPEN_REPAIRS 230). The 2 MB itself is
 mostly Linear-era columns the projection still carries; slimming it belongs to
 the deletion phases, not to tonight.
+
+## 2026-09-21 — B1-3 Workload external navigation removal
+
+Removed only the parent and sub-issue external Linear anchors from
+`renderLooseIssueStrip`, including their now-unused mark. The loose strip,
+grouping, `wlSyncLinearUrl`, and local `?prod=1&d=` / batch navigation remain.
+This deliberately removes a reachable "Open in Linear" escape hatch because
+outbound Linear sync is off and the key is being revoked.

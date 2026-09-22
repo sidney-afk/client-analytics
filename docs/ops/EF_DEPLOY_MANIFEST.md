@@ -14,7 +14,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | Main-push plus manual-dispatch paths | 12 |
 | Manual-dispatch-only paths | 8 |
 | No CI deploy path | 15 |
-| Deliberate-manual subset of no-CI paths | 3 |
+| Deliberate-manual subset of no-CI paths | 4 |
 
 ## Per-function ownership and dependencies
 
@@ -44,7 +44,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `production-archive` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | - |
 | `production-comments` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `production-comments/feedback.mjs`<br>`production-comments/policy.mjs` |
-| `production-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml)<br>[deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard)<br>workflow_dispatch only (pinned SHA guard) | `_shared/linear-create-id.mjs`<br>`_shared/native-brief-media.mjs`<br>`_shared/staff-role-auth.ts` | `production-write/policy.mjs`<br>`production-write/selected-label-pages.mjs` |
+| `production-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml)<br>[deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard)<br>workflow_dispatch only (pinned SHA guard) | `_shared/linear-create-id.mjs`<br>`_shared/native-brief-media.mjs`<br>`_shared/staff-role-auth.ts`<br>`_shared/write-refusal-codes.mjs`<br>`_shared/write-refusal-diagnostics.mjs` | `production-write/policy.mjs`<br>`production-write/selected-label-pages.mjs` |
 | `pto` | [deploy-pto](../../.github/workflows/deploy-pto-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | `pto/policy.js` |
 | `quiz-capture` | NONE | **NO CI DEPLOY PATH.** | - | - |
 | `quiz-leads-list` | NONE | **NO CI DEPLOY PATH.** | `_shared/staff-role-auth.ts` | - |
@@ -57,7 +57,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `thumbnail-revision-scan` | [deploy-thumbnail](../../.github/workflows/deploy-thumbnail-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
 | `workload-linear` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** Source-only Workload Linear metadata/deadline gateway; first deploy requires an exact-SHA operator release, `--no-verify-jwt`, fingerprint readback, and a TEST-client drill. | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `workload-linear/policy.mjs` |
 | `workload-plan` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** Live v2 deployed by operator from `fd3e0eaa` on 2026-07-20; future redeploys require `--no-verify-jwt` and exact-SHA fingerprint readback. | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `workload-plan/native-snapshot.mjs` |
-| `write-diagnostics` | NONE | **NO CI DEPLOY PATH.** | `_shared/staff-role-auth.ts`<br>`_shared/write-refusal-codes.mjs`<br>`_shared/write-refusal-diagnostics.mjs` | - |
+| `write-diagnostics` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** WR-101 refusal-receipt endpoint is deliberate-manual: the first deploy is an exact-SHA operator release with `--no-verify-jwt` (it accepts unauthenticated browser refusal claims by design; operator actions keep their own runner-key check) and a fingerprint readback. It stays dormant, answering 503, until `WRITE_DIAGNOSTICS_ENABLED=true`, and its SQL owner must be applied first. | `_shared/staff-role-auth.ts`<br>`_shared/write-refusal-codes.mjs`<br>`_shared/write-refusal-diagnostics.mjs` | - |
 
 ## Regeneration
 

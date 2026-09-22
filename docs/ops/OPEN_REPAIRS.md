@@ -28284,3 +28284,123 @@ of a `schedule:` trigger; the absence of any other `linear-issue-statuses` calle
 Not independently re-verified this session, taken from the task's own stated facts:
 the two workflows' last-run timestamp (GitHub Actions runs API) and the n8n pager's
 deactivation date.
+
+## 240. [2026-09-22] WR-101 server-side refusal receipts: the September 12 preparation composed into today's source as a reviewable release
+
+Ledger item **101** is the finding that a refused write leaves no trace anywhere
+except a 50-row `localStorage` ring inside one browser profile. The September 12
+preparation (`WRITE_REFUSAL_DIAGNOSTICS_PREPARATION_20260912.md`) built the
+pieces and deliberately stopped short of touching the shipping gateway or the
+shipping page. This entry composes them into real source. **Nothing here is
+deployed, no migration is applied, no flag is flipped and no secret is set** —
+all four remain the owner's steps, and the gateway half goes through the Section
+4 lane.
+
+**After this ships, a comment refused for a client is visible to us on our own
+server**: which card, which surface, which operation, which refusal code, at
+what time — instead of being discovered because the client says something is
+missing. That is the whole point of the item.
+
+### What the release contains
+
+- **The gateway**, `supabase/functions/production-write/index.ts`: four
+  integration points, applied programmatically rather than by hand, from the
+  preparation's composer. Context capture after the JSON parse, verified
+  principal capture in an `authenticate` wrapper (the original becomes
+  `authenticateWithoutDiagnostics`), and one `reportGatewayRefusal` around the
+  existing `GatewayError` response. The refusal status and body are byte-identical
+  to what they were; the only visible addition is an `x-write-diagnostic-status`
+  header saying whether telemetry recorded.
+- **The browser beacon**, in `src/index/120-calendar-flags-write-repair.js.part`
+  beside `_writeUiQueueDiagnostic`, reaching the page through
+  `npm run build:index`. It covers point 3 of item 101: the refusals the server
+  never sees, because the page decided them.
+- **The SQL owner is unchanged.** It was re-read and re-measured this session and
+  needs no repair.
+- **`write-diagnostics` is registered in `DELIBERATE_MANUAL`** in
+  `scripts/ef-deploy-manifest.js`, and the generated manifest was regenerated
+  with the tooling. It has no CI deploy path by decision, not by omission.
+
+### The composer no longer pins `index.html`, and that was the real defect
+
+`scripts/linear-exit-write-diagnostics-compose.js` used to store a sha256 of
+`index.html` and patch it in memory. `index.html` is a **build output**. Between
+September 12 and today it changed in **38 commits**, so the pin was stale and the
+browser suite failed with `WR101_SOURCE_DRIFT` — a failure about a build artifact,
+not about the diagnostics. Re-deriving the pin would have bought a few days at
+most.
+
+The gateway pin is gone too, for a different reason: an in-memory composition can
+never be deployed, because the Section 4 lane uploads the **committed** file. What
+the composer keeps is a structure check — each of the five integration fragments
+present **exactly once**, failing in both directions, so a refactor that drops one
+(or duplicates one, which would record a refusal twice) is a red test rather than
+a gateway that deploys and quietly records nothing.
+
+`test/linear-exit-write-diagnostics-browser.js` now reads the **built**
+`index.html` off disk. It proves the beacon reports once, never retries after a
+503, stops at its 20-per-page budget, sends no prose, name or token, sends the
+real status, and leaves the reply draft and the existing ring untouched. It does
+**not** prove a whole-SPA journey against a hosted gateway; that stays an
+installation-window requirement.
+
+### Three specific decisions, recorded so they are not re-litigated
+
+1. **The hardcoded `409` is gone.** The preparation's beacon stamped every browser
+   claim `status: 409`, including refusals that were nothing of the kind, writing a
+   number into the receipt that no refusal ever returned. The beacon now sends the
+   real `error.status` when it is an integer in 400–599, and **omits the field
+   entirely** otherwise; the Edge Function defaults an absent status rather than
+   inventing one. The test asserts both halves, and asserts the literal `409`
+   cannot come back.
+2. **`request_id` is DROPPED from the allowlist, not collected.** The gateway
+   payload carries one, but it never reaches `_writeUiReportFailure`'s `context`
+   argument — collecting it would mean editing every caller across fragments 140,
+   170 and 190, which is outside this hunk and outside this release. The six keys
+   sent are `id`, `client_slug`, `card`, `component`, `comment`, `parent`.
+3. **`client_slug` travels raw over HTTPS** to the private diagnostics function and
+   is hashed to sha256 before storage. This is accepted, not overlooked: the
+   transport is TLS to a function that serves nobody else, and nothing stores the
+   raw value. Recorded here so it is a known property rather than a later surprise.
+
+### Grants, stated precisely
+
+The earlier phase-1 summary said the migration "names all four roles" throughout.
+That is true of the schema and the table; it is **not** true of line 56. The
+function grants read:
+
+> `revoke all on function ... from public, anon, authenticated;`
+> `grant execute on function ... to service_role;`
+
+So the three functions are revoked from `public`, `anon` and `authenticated` only,
+and `service_role` is then granted `EXECUTE` explicitly. The outcome is the one we
+want — `service_role` alone can execute — but it is reached by granting rather than
+by revoking-then-regranting, and the claim should be stated that way. Measured, not
+assumed: on a disposable PostgreSQL 16 cluster this session, `anon`,
+`authenticated` and `service_role` were each refused direct `SELECT` on
+`write_refusal_diagnostics.receipts_v1`, and `anon` and `authenticated` were each
+refused `production_write_refusal_read_v1`.
+
+### Test state, measured this session
+
+All four preparation suites pass on this branch. Two needed environment rather than
+repair, which is why they read as failures on a bare checkout: the postgres suite
+is gated behind `F63_REQUIRE_POSTGRES=1` and needs `PROOF_OUTPUT_ROOT` and a
+running PostgreSQL 16 (13 checks, `LINEAR_EXIT_WRITE_DIAGNOSTICS_OK`), and the
+browser suite needs Playwright and Chromium, which — contrary to the 2026-09-17
+note in `LINEAR_EXIT_D22_DEFERRED_FIRST_PASS_20260917.md` — are available in this
+sandbox.
+
+### Correction to item 101's own account
+
+Item 101 says the ring carries "no card id". That has not been true since
+2026-09-02, when point 2's browser half shipped: `_writeUiDiagnosticIds` collects
+`id`, `client_slug`, `card`, `component`, `comment` and `parent`. The ring's
+remaining defect is that it is trapped in one browser profile, not that it is
+anonymous. Item 101 stays **open** until the release above is deployed and
+accepted on the host.
+
+**Duplicate `## N.` header count**, checked immediately before appending this entry
+and again after: **8** distinct numbers carry duplicate headers (13, 14, 22, 23,
+175, 176, 177, 180) — unchanged by this entry, which uses the next free number,
+240 (238 and 239 are claimed by concurrent branches).

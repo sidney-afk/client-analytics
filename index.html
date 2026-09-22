@@ -29298,7 +29298,61 @@
         }
         return out;
     }
+    /* WR-101 point 3: the leg for refusals the server never sees.
+
+       The ring above is durable only inside one browser profile, so a refusal
+       the gateway never received -- a local CAS guard, a
+       `canonical_comment_read_required`, a `legacy_parity_not_allowed` decided
+       in the page -- is invisible to everyone who could act on it. This beacon
+       posts the SAME allowlisted identifiers the ring records to the private
+       `write-diagnostics` function, which hashes them before they are stored.
+
+       It is fire-and-forget and must stay that way: it is not awaited, it has
+       no retry, it aborts at 1.5s, and every failure path is swallowed. Nothing
+       the person sees is delayed by it, and if the endpoint is dormant, blocked
+       or gone the save error they get is exactly the one they would have got
+       anyway.
+
+       No prose, name or token is sent. `_writeUiDiagnosticIds` is an allowlist,
+       and this narrows it further to the six keys the receipt table accepts.
+       `request_id` is deliberately NOT among them: the gateway payload carries
+       one, but it never reaches `_writeUiReportFailure`'s context object, so
+       collecting it would mean changing every caller rather than this seam. */
+    const WRITE_REFUSAL_BEACON_URL = CAL_SUPABASE_URL + '/functions/v1/write-diagnostics';
+    const WRITE_REFUSAL_BEACON_IDS = ['id', 'client_slug', 'card', 'component', 'comment', 'parent'];
+    const WRITE_REFUSAL_BEACON_MAX = 20;
+    let _writeRefusalBeaconBudget = WRITE_REFUSAL_BEACON_MAX;
+    function _writeRefusalBeacon(surface, outcome, item, error) {
+        if (outcome !== 'ui_write_failure' || _writeRefusalBeaconBudget <= 0) return;
+        _writeRefusalBeaconBudget--;
+        try {
+            const context = _writeUiDiagnosticIds(item);
+            const identifiers = {};
+            for (const key of WRITE_REFUSAL_BEACON_IDS) {
+                if (typeof context[key] === 'string' && context[key]) identifiers[key] = context[key];
+            }
+            // The REAL status, or none at all. A hardcoded one would write a
+            // number into the receipt that no refusal ever returned, and the
+            // function defaults an absent status rather than inventing one.
+            const status = error && Number.isInteger(error.status) && error.status >= 400 && error.status <= 599
+                ? error.status : null;
+            const claim = {
+                action: 'browser_claim', surface: String(surface || ''),
+                operation: item && item.kind, code: error && error.code, identifiers
+            };
+            if (status !== null) claim.status = status;
+            const body = JSON.stringify(claim);
+            if (new TextEncoder().encode(body).length > 2048) return;
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 1500);
+            fetch(WRITE_REFUSAL_BEACON_URL, {
+                method: 'POST', headers: { 'content-type': 'application/json' },
+                body, credentials: 'omit', keepalive: true, signal: controller.signal
+            }).catch(() => {}).finally(() => clearTimeout(timer));
+        } catch (e) {}
+    }
     function _writeUiQueueDiagnostic(surface, outcome, item, error) {
+        _writeRefusalBeacon(surface, outcome, item, error);
         try {
             const rows = JSON.parse(localStorage.getItem(WRITE_UI_QUEUE_DIAG_KEY) || '[]');
             const list = Array.isArray(rows) ? rows : [];

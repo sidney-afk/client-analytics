@@ -27890,6 +27890,7 @@ a rename can move a row — cosmetic, but it should not jump while the user is
 looking at it.
 
 **Status.** Designed, verified against source, not built. No branch, no PR.
+
 ## 236. [2026-09-22, FIXED] The calendar's two remaining `linear-issue-statuses` calls are gone — and one of them could overwrite a correct native status with a stale Linear one
 
 Entry 233 holds the measurement behind this: the `linear-issue-statuses` n8n

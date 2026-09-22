@@ -7915,3 +7915,13 @@ continuation lines, so prose inside a multi-line comment is scanned as if it
 were code. Every other such reference in the fragments sits on a `//` line,
 which is why none of them trip it. PR numbers in these continuation lines are
 written without the hash.
+
+## 2026-09-22 — Removed Calendar and Samples external Linear navigation
+
+Removed the reachable external Linear anchors and marks from the Calendar and
+Samples linked slots while retaining native Production navigation, link editing,
+and existing-link clearing. Removed the now-dead linked-anchor and overlay CSS
+from `020-styles-surfaces.css.part`; `010-styles-foundation.css.part` contained
+no matching rule. This is an intentional UI behavior change because outbound
+Linear sync is off and the key is being revoked. No live write, deployment,
+flag, backend, or workflow changed.

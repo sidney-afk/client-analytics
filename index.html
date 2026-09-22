@@ -5296,15 +5296,6 @@
             background: var(--field-bg); color: var(--sv-fg-bdbdb8); transition: background 0.13s, color 0.13s; text-decoration: none; }
         .cal-linear-btn:hover { background: var(--field-bg-hover); color: var(--sv-fg-6b6b66); }
         .cal-linear-btn svg { width: 14px; height: 14px; }
-        /* Video's linked pile icon (bottom-right of the thumbnail, see
-           .cal-linear-pile below) shares the same vibrant pink the Video
-           link field and status dot use, not Linear's own generic indigo --
-           that indigo is still correct everywhere ELSE Linear shows up
-           (Workload's plan-origin badge, the review panel's Linear link,
-           etc.), so it stays a component-scoped override here rather than a
-           change to --sv-fg-5e6ad2 itself. */
-        .cal-linear-btn.is-linked { background: var(--sv-slot-video-bg); color: var(--sv-slot-video-fg); }
-        .cal-linear-btn.is-linked:hover { background: var(--sv-slot-video-bg-hover); }
         /* Unlinked card — the Linear button warns it must be connected. */
         .cal-linear-btn.cal-linear-btn-warn { background: var(--sv-bg-ffedd5); color: var(--sv-fg-ea580c); }
         .cal-linear-btn.cal-linear-btn-warn:hover { background: var(--sv-bg-fed7aa); color: var(--sv-fg-c2410c); }
@@ -5315,16 +5306,13 @@
            thumbnail (owner, 2026-09-15: "both of them look the same... the
            sync linear button looks the fucking same"). Teal carried the
            SYSTEM but threw away the COMPONENT, and the component is what a
-           reader is actually picking between when four buttons stack up.
+           reader is actually picking between when both buttons stack up.
            So the two axes are split across two properties:
              - COLOUR = component. Pink for Video, blue for Thumbnail, the
-               same pair the link fields, the status dots and the Linear
-               buttons already use, so a pile reads as a pink half and a blue
-               half.
-             - SHAPE = system. Linear is a chip filled with its component TINT;
-               Production is a chip on the neutral raised surface, RINGED in
-               its component colour, on top of the already-different glyph —
-               the Linear mark versus the open-in-a-new-tab box.
+               same pair the link fields and status dots already use, so a
+               pile reads as a pink half and a blue half.
+             - SHAPE = Production is a chip on the neutral raised surface,
+               RINGED in its component colour around the open-in-a-new-tab box.
            The ring is a border, not a box-shadow: .cal-linear-pile sets its own
            drop box-shadow on every button in the pile and would clobber it.
            Global box-sizing is border-box, so the ring costs no footprint.
@@ -5354,7 +5342,7 @@
         /* Linear sub-issue buttons moved to a vertical pile at the bottom-right
            of the thumbnail box (video on top, graphic below). */
         .cal-linear-pile { position: absolute; right: 8px; bottom: 8px; z-index: 3; flex-direction: column; gap: 4px; }
-        .cal-linear-pile .cal-linear-btn, .cal-linear-pile .cal-linear-link-wrap { box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_18); }
+        .cal-linear-pile .cal-linear-btn { box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_18); }
         /* YouTube title status — small colour square to the left of the title. */
         .cal-title-status-sq { flex: 0 0 auto; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px; cursor: pointer; box-shadow: inset 0 0 0 1px var(--sv-shadow-rgba-0-0-0-0_10); transition: filter 0.12s; }
         .cal-title-status-sq:hover { filter: brightness(0.96); }
@@ -5468,20 +5456,6 @@
             70% { box-shadow: 0 0 0 4px var(--sv-shadow-rgba-94-106-210-0_45); }
             100% { box-shadow: 0 0 0 0 var(--sv-shadow-rgba-94-106-210-0); }
         }
-        /* Pencil overlay — pinned to the top-right corner of the link icon
-           so it doesn't take any layout space (the graphic icon used to
-           shift right when this appeared next to the video icon). */
-        .cal-linear-link-wrap { position: relative; display: inline-flex; }
-        .cal-linear-edit { position: absolute; top: -4px; right: -4px;
-            visibility: hidden; opacity: 0; pointer-events: none;
-            display: inline-flex; align-items: center; justify-content: center;
-            width: 14px; height: 14px; padding: 0; margin: 0; border: 1px solid var(--border);
-            border-radius: 50%; cursor: pointer; background: var(--sv-bg-fff); color: var(--sv-fg-6b6b66);
-            box-shadow: 0 1px 2px var(--sv-shadow-rgba-0-0-0-0_15);
-            transition: opacity 0.12s, background 0.12s, color 0.12s; }
-        .cal-linear-link-wrap:hover .cal-linear-edit { visibility: visible; opacity: 1; pointer-events: auto; }
-        .cal-linear-edit:hover { background: var(--field-bg); color: var(--sv-fg-2a2a26); }
-        .cal-linear-edit svg { width: 8px; height: 8px; }
         .cal-linear-input { flex: 1 1 0; min-width: 0; box-sizing: border-box; padding: 5px 9px;
             border: 1px solid var(--text-primary); border-radius: 7px; font-family: inherit;
             font-size: 0.78rem; color: var(--text-primary); background: var(--field-bg-focus); outline: 0; }
@@ -5955,29 +5929,6 @@
            title square rather than on the end of a segmented pill, so it has no
            flat edge to meet. */
         .cal-title-urgent-btn { flex: 0 0 auto; border-radius: 7px; }
-        /* Second Linear slot (graphics) in the title row — purple ONLY when
-           linked, so an unlinked graphic slot falls back to the neutral
-           gray (default) or warn-orange (cal-linear-btn-warn) the same way
-           the video slot does. The previous unscoped rule kept it purple
-           even when there was no link, which masked the "needs linking"
-           visual cue. */
-        /* Same reasoning as .cal-linear-btn.is-linked above: Thumbnail's
-           LINEAR pile icon takes the same vibrant blue the Thumbnail link
-           field and status dot use, in place of its own independent
-           fuchsia -- that pairing read backwards next to the field below it
-           (Thumbnail is blue everywhere else on the card).
-           :not(.cal-prod-btn) is load-bearing (Codex, PR 1401): this selector
-           and .cal-linear-btn.cal-prod-btn are equal specificity, and
-           .cal-prod-btn's own rule sits BEFORE this one in the stylesheet
-           -- so without the exclusion this rule would win on source order
-           and repaint the SyncView Production graphic link blue too,
-           erasing the teal that deliberately keeps Production and Linear
-           visually apart. That is a real latent bug (it broke the same way
-           to fuchsia before this PR), just never exercised until this
-           selector's colors changed enough to get a second look. */
-        .cal-linear-btn-graphic.is-linked:not(.cal-prod-btn) { color: var(--sv-slot-thumb-fg); background: var(--sv-slot-thumb-bg); }
-        .cal-linear-btn-graphic.is-linked:not(.cal-prod-btn):hover { background: var(--sv-slot-thumb-bg-hover); }
-
         /* Client-link view — read-only adjustments */
         .cal-fld-date-wrap.is-readonly .cal-date-chip { cursor: default; }
         .cal-fld-date-wrap.is-readonly:hover .cal-date-chip { background: var(--field-bg); }
@@ -41778,10 +41729,8 @@
         const compCls = ' cal-linear-btn-' + which;
         const sealed = _writeUiLinkSlotSealed(which);
         if (u) {
-            const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
-            const open = `<a class="cal-linear-btn is-linked${compCls}" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear ${label}">${_calLinearSvg()}</a>`;
-            /* Sealed slot: an existing link still OPENS, and can still be
-               REMOVED. The pencil goes -- it invites a fresh paste, which is
+            /* Sealed slot: an existing link can still be REMOVED. The pencil
+               goes -- it invites a fresh paste, which is
                the whole point of the seal -- but dropping edit entirely was a
                defect in the first version of this change, caught in review:
                the commit path deliberately leaves `val === ''` ungated because
@@ -41791,10 +41740,10 @@
                and an escape hatch nothing can reach is not an escape hatch. */
             if (sealed) {
                 const cross = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>`;
-                return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button></span>`;
+                return `<button class="cal-linear-btn${compCls}" type="button" onclick="_calLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button>`;
             }
             const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
-            return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button></span>`;
+            return `<button class="cal-linear-btn${compCls}" type="button" onclick="_calLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button>`;
         }
         // An EMPTY sealed slot renders nothing at all -- not a greyed button,
         // not the orange warn. Under SyncView authority an unlinked Linear slot
@@ -41809,9 +41758,9 @@
         const warn = !_calIsBlankId(pid) ? ' cal-linear-btn-warn' : '';
         return `<button class="cal-linear-btn${warn}${compCls}" type="button" onclick="_calLinearEdit('${pid}','${which}')" title="Link a Linear ${label}">${_calLinearSvg()}</button>`;
     }
-    /* Video (top) + graphic (bottom) Linear sub-issue buttons, stacked at the
-       bottom-right of the thumbnail box. stopPropagation so a click links/opens
-       Linear instead of triggering the thumbnail's own click. SMM-only (the slot
+    /* Video (top) + graphic (bottom) Linear sub-issue controls, stacked at the
+       bottom-right of the thumbnail box. stopPropagation keeps their link/edit
+       actions from triggering the thumbnail's own click. SMM-only (the slot
        html returns '' in the client view). */
     /* SyncView Production sub-issue link — shown beside the Linear icon when
        the card carries a native deliverable id for that component. Read-only
@@ -68998,16 +68947,14 @@
         const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
         const compCls = ' cal-linear-btn-' + which;
         if (u) {
-            const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
-            const open = `<a class="cal-linear-btn is-linked${compCls}" href="${_sxrEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear ${label}">${_sxrLinearSvg()}</a>`;
             const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
             if (_writeUiLinkSlotSealed(which)) {
-                // Same as the calendar: opening and REMOVING both survive the
-                // seal; only the paste is refused.
+                // Same as the calendar: REMOVING survives the seal; only the
+                // paste is refused.
                 const cross = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>`;
-                return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_sxrLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button></span>`;
+                return `<button class="cal-linear-btn${compCls}" type="button" onclick="_sxrLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button>`;
             }
-            return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_sxrLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button></span>`;
+            return `<button class="cal-linear-btn${compCls}" type="button" onclick="_sxrLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button>`;
         }
         const warn = !_sxrIsBlankId(pid) ? ' cal-linear-btn-warn' : '';
         // Sealed and empty renders nothing, exactly as on the calendar: under

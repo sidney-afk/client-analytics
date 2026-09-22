@@ -1125,16 +1125,14 @@
         const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
         const compCls = ' cal-linear-btn-' + which;
         if (u) {
-            const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
-            const open = `<a class="cal-linear-btn is-linked${compCls}" href="${_sxrEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear ${label}">${_sxrLinearSvg()}</a>`;
             const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
             if (_writeUiLinkSlotSealed(which)) {
-                // Same as the calendar: opening and REMOVING both survive the
-                // seal; only the paste is refused.
+                // Same as the calendar: REMOVING survives the seal; only the
+                // paste is refused.
                 const cross = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>`;
-                return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_sxrLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button></span>`;
+                return `<button class="cal-linear-btn${compCls}" type="button" onclick="_sxrLinearClear('${pid}','${which}')" title="Remove this ${label} link">${cross}</button>`;
             }
-            return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_sxrLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button></span>`;
+            return `<button class="cal-linear-btn${compCls}" type="button" onclick="_sxrLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button>`;
         }
         const warn = !_sxrIsBlankId(pid) ? ' cal-linear-btn-warn' : '';
         // Sealed and empty renders nothing, exactly as on the calendar: under

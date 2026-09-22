@@ -9,7 +9,7 @@
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `005-head-boot.html.part` | 206 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 3 | `010-styles-foundation.css.part` | 3900 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 4 | `020-styles-surfaces.css.part` | 3997 | Templates view |
+| 4 | `020-styles-surfaces.css.part` | 3948 | Templates view |
 | 5 | `030-body-shell.html.part` | 449 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 2363 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1581 | Market Research Brief Tab Renderers |
@@ -23,7 +23,7 @@
 | 15 | `130-calendar-model-cache.js.part` | 2746 | Returns the comments array for a given component. Falls back to the |
 | 16 | `140-calendar-legacy-outbox.js.part` | 3145 | OPEN_REPAIRS item 63: the direct-delivery branch below posts to the |
 | 17 | `150-calendar-hydration-import.js.part` | 2876 | For a card linked to a real sub-issue (not a parent), return which of |
-| 18 | `160-calendar-organize-ui.js.part` | 2717 | Lighter path for the Order switch: update the chrome in place so the |
+| 18 | `160-calendar-organize-ui.js.part` | 2715 | Lighter path for the Order switch: update the chrome in place so the |
 | 19 | `170-calendar-links-status.js.part` | 2634 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 20 | `180-calendar-native-post-media.js.part` | 2680 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 21 | `190-calendar-approval-comments.js.part` | 2966 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
@@ -34,7 +34,7 @@
 | 26 | `240-production-description.js.part` | 2607 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 27 | `250-production-controls-data.js.part` | 2743 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 28 | `260-production-refresh-boot.js.part` | 2176 | AND TYPING COUNTS, which is the case this guard was missing. |
-| 29 | `270-samples-model.js.part` | 2696 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
+| 29 | `270-samples-model.js.part` | 2694 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 30 | `280-samples-cards-notes.js.part` | 2887 | SURFACE 3: the save engine |
 | 31 | `290-samples-writes-review.js.part` | 1795 | Same rule as the comment writer beside this one. No caller reaches |
 | 32 | `300-tiktok-upload.js.part` | 1678 | TIKTOK UPLOAD MODULE |

@@ -2347,11 +2347,16 @@
                 // The browser-side Linear-status reconcile was removed with the
                 // `linear-issue-statuses` webhook (OPEN_REPAIRS 236). It was
                 // already unreachable under v2 (the default since 2026-06-14),
-                // convergence is owned by the 15-minute server-side reconciler
-                // (.github/workflows/linear-sync-reconcile.yml), and on a
-                // `?v2=0` browser it could overwrite a correct native status
-                // with a stale Linear one -- both lanes are SyncView-
-                // authoritative, so Linear is not the source of truth.
+                // and on a `?v2=0` browser it could overwrite a correct native
+                // status with a stale Linear one -- both lanes are SyncView-
+                // authoritative, so Linear is not the source of truth. There is
+                // no Linear reconcile anymore: the server-side reconciler this
+                // comment used to name was itself retired ahead of the Linear
+                // credential revoke (OPEN_REPAIRS 238). A native status change
+                // is written straight to `calendar_posts` and reaches every
+                // other open tab over the v2 realtime subscription on that
+                // table (`_calV2EnsureSubscribed`); every load re-reads it
+                // natively through `_calV2FetchPosts`.
                 if (!opts.background) {
                     ownedTailTasks.push(_calRefreshParentLinkFlags(loadRun, false));
                 } else if (opts.forceMeta) {

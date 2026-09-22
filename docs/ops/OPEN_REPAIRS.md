@@ -28198,11 +28198,14 @@ place to fail confusingly if someone ever hand-dispatched them after the 27th:
   tested lives anywhere else): `test/reconcile-na-parking.js`,
   `test/reconcile-poison-resilience.js`, `test/f50-reconcile-pull-only.js`,
   `test/linear-sync-reconcile-extraction.js`, `test/sample-reconcile-extraction.js`.
-- Edited (not skipped or disabled) four tests that audited the two reconcilers as ONE
+- Edited (not skipped or disabled) five tests that audited the two reconcilers as ONE
   of several call sites in a broader check, removing only the reconciler-specific
   assertions and leaving the rest of each suite exercising real, live code:
   `test/browser-writer-auth.js`, `test/calendar-upsert-routing.js`,
-  `test/a2-writer-edge-source.js`, `test/linear-ident-uuid-guard.js`.
+  `test/a2-writer-edge-source.js`, `test/linear-ident-uuid-guard.js`,
+  `test/prod-authority-guard.js` (found only by running the full suite — it builds
+  the reconciler's path with `path.join` rather than a literal string, which the
+  initial grep sweep missed).
 - Removed the two retired test files' and two retired script paths' entries from
   `test/suite-classification.json` and `REPO_MAP.md` (`test/repo-map-sync.js` and
   `node scripts/test-suite-routing.js --list` both pass clean), and corrected the
@@ -28245,6 +28248,30 @@ workflows (`b1-linear-incremental-refresh.yml`, `linear-outbound-drain.yml`,
 `linear-deliverables-reconcile.yml`) were out of this sweep's scope — they were
 handled by the 2026-09-20 Linear-cutoff runbook (STEP 6) and their watchdog lanes are
 already retired in `scripts/monitoring-watchdog.js`.
+
+**Lighthouse's follow-up check, verified by running commands, not by reading one
+function.** Three things this sweep's workflow-level table above does not cover on
+its own, checked live against the `uzltbbrjidmjwwfakwve` project:
+
+- The live Supabase project has **no `pg_cron` extension installed**
+  (`installed_version` reads `null` for `pg_cron` in a live `pg_extension` query), and
+  no migration under `migrations/` calls `cron.schedule` — confirmed by grep. So there
+  are no database-side timers that could reach Linear on their own.
+- **Three Edge Functions still reach `api.linear.app`**: `linear-outbound`,
+  `production-write`, `workload-linear` (grep of every `supabase/functions/*/index.ts`
+  for the literal string). None of the three runs on a schedule; each only runs when
+  called — `linear-outbound` by the drain workflow (already dispatch-only per the
+  2026-09-20 cutoff), the other two by staff action in the browser.
+- **Workload reaches `workload-linear` only for a team whose authority is
+  `'linear'`.** `src/index/070-workload-source.js.part`'s `wlFetchLinearMetadata`
+  routes an issue to `wlFetchForeignLinearMetadata` (which calls `workload-linear`)
+  only when `authority[team] === 'linear'` and the issue has no
+  `legacyBoundNativeId`; a `'syncview'` team's issues go the native `nativeIds` path
+  instead. `src/index/080-workload-render.js.part`'s `_wlDueWriteRequest` makes the
+  same split for writes: `route.authority === 'syncview'` routes to `production-write`
+  instead of `workload-linear`. A live read of `syncview_runtime_flags` key
+  `prod_authority` returns `{"video":"syncview","graphics":"syncview"}` — both teams —
+  so Workload makes no `workload-linear` call, read or write, after the revoke.
 
 **Duplicate `## N.` header count**, checked immediately before appending this entry
 and again after: **8** distinct numbers carry duplicate headers (13, 14, 22, 23, 175,

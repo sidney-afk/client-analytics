@@ -28357,14 +28357,31 @@ mistake for debt UI, and it is not.
 
 **How queued debt now drains as moot.** A `legacy_n8n` row is dropped at the
 storage READ (`_writeUiLegacyWithoutRetired`, 130, used by both outbox
-readers), which compacts it out of localStorage on the first read that sees
-one. It is dropped at the read rather than in the drain because every consumer
-has to agree at once — the drain, the deferred-tweak inspection that decides
-whether a client retry is still `active`, the committed-tweak ledger matcher,
-the resume loop's owned-debt test, the pagehide diagnostic and
-`peekWriteUiLegacyQueueState`. Filtering in one and not the rest is how a
-cleared queue still reports a count. It is not quarantined (a quarantine row is
-for a write an operator must still decide about) and not surfaced.
+readers), rather than in the drain, because every consumer has to agree at
+once — the drain, the deferred-tweak inspection that decides whether a client
+retry is still `active`, the committed-tweak ledger matcher, the resume loop's
+owned-debt test, the pagehide diagnostic and `peekWriteUiLegacyQueueState`.
+Filtering in one and not the rest is how a cleared queue still reports a count.
+It is not quarantined (a quarantine row is for a write an operator must still
+decide about) and not surfaced.
+
+**Hiding is not clearing, and the obvious way to clear was wrong.** The first
+implementation compacted storage from inside that reader. A read happens
+OUTSIDE the outbox mutation lock, so writing the filtered array back would
+clobber a source gate another tab staged between the read and the write —
+losing a live record to tidy away a dead one. The compaction is therefore a
+separate `_writeUiLegacyShedRetired(surface)` (140) that takes the surface
+lock, re-reads RAW storage inside it, and writes back only the rows that are
+not the retired transport.
+
+It is called from `_writeUiResumeLegacyQueues` (290), not from the drains, and
+that placement is the whole trick: the owned-debt tests that decide whether to
+START a drain read through the filter, so a queue holding nothing but retired
+rows looks empty, no drain runs, and rows shed from inside a drain would sit
+in storage forever. The resume loop runs on startup, focus, online,
+visibilitychange, the 60s timer and pageshow, takes the lock itself, and
+no-ops once a browser has shed its own. Found by the `F184` boot probe, which
+failed on exactly this.
 
 **What was deliberately kept.** The source-gate lane, which never touched the
 network: `_writeUiQueueDeferredLegacyTweak`, `_writeUiFlushDeferredLegacyTweak`,
@@ -28378,7 +28395,18 @@ receipts and owner checks are untouched, as are the A2 reader rows
 
 **Tests rewritten, never skipped** — each pinned the retired path, and each
 now pins the replacement. Reasons are one line per file in the PR body and in
-the test's own comment.
+the test's own comment. That includes the `F184` boot probe in
+`qa/boot/client-entry-sequence.js`, per the AGENTS rule that the harness moves
+with the road: its delivery choreography (POST, `attempts` 1 then 2, the armed
+and re-armed 60s timeout, the successful delivery on restore) described a lane
+that no longer exists. The lease properties it exists for — the verified client
+mounts its own Calendar with no Analytics flash, never reads staff-only
+storage, never invokes the staff-only runner, and installs every automatic
+resume trigger — are unchanged and still asserted on the real browser. Its
+byte-for-byte foreign-debt checks went deliberately: a retired row is
+deliverable by nobody, so the shed clears the whole retired set rather than
+holding one client's rows out of another's reach. Ownership of LIVE records is
+covered per owner by `test/client-entry-legacy-resume-lease.js`.
 
 **Duplicate `## N.` header count**, checked immediately before appending this
 entry and again after: **8** distinct numbers carry duplicate headers (13, 14,

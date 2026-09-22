@@ -618,6 +618,7 @@ const ownerB = Object.freeze({
   let resolvedOwner = null;
   let routingReads = 0;
   const clientFlushes = [];
+  const shed = [];
   const forbidden = [];
   const resumeContext = {
     _writeUiLegacyResumePromise: null,
@@ -640,6 +641,13 @@ const ownerB = Object.freeze({
     _calHydrateLinearMeta: () => forbidden.push('metadata-hydrate'),
     _calCardJobsRead: () => { forbidden.push('card-jobs'); return []; },
     _writeUiResumeSourceRepairs: async () => forbidden.push('source-repair'),
+    /* Added 2026-09-22 (OPEN_REPAIRS 239). The resume loop sheds retired
+       legacy rows before the owned-debt tests. It is deliberately NOT in
+       `forbidden`: shedding a row that can never be delivered is not one of
+       the staff-only lanes a verified client must stay out of, and it takes
+       the surface mutation lock itself. Recorded so the ordering below can
+       assert it happens before either flush. */
+    _writeUiLegacyShedRetired: async surface => { shed.push(surface); return false; },
     Promise
   };
   vm.createContext(resumeContext);
@@ -656,6 +664,8 @@ const ownerB = Object.freeze({
   assert.strictEqual(verified.deferred, false);
   assert.deepStrictEqual(clientFlushes, [['calendar', resumeOwner], ['sxr', resumeOwner]],
     'strict client success resumes only the two scoped queue lanes');
+  assert.deepStrictEqual(shed, ['calendar', 'sxr'],
+    'both surfaces shed their retired legacy rows, and only after the strict verdict');
   assert.deepStrictEqual(forbidden, [],
     'client resume never enters native intake, card, authority, metadata, or source-repair lanes');
 

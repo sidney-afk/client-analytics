@@ -20,8 +20,8 @@
 | 12 | `100-onboarding-staff-controls.js.part` | 2259 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2024 | Kasper Time Off calendar |
 | 14 | `120-calendar-flags-write-repair.js.part` | 2959 | The members a flag value offers, or null when it offers no member list at |
-| 15 | `130-calendar-model-cache.js.part` | 2744 | Returns the comments array for a given component. Falls back to the |
-| 16 | `140-calendar-legacy-outbox.js.part` | 3002 | `gate.linear_issue` used to have to be EMPTY here: a lone |
+| 15 | `130-calendar-model-cache.js.part` | 2748 | Returns the comments array for a given component. Falls back to the |
+| 16 | `140-calendar-legacy-outbox.js.part` | 3031 | Shed the retired legacy rows from storage, under the surface mutation |
 | 17 | `150-calendar-hydration-import.js.part` | 2709 | For a card linked to a real sub-issue (not a parent), return which of |
 | 18 | `160-calendar-organize-ui.js.part` | 2715 | Lighter path for the Order switch: update the chrome in place so the |
 | 19 | `170-calendar-links-status.js.part` | 2633 | Move a Linear sub-issue link from the old card onto the new one. The |
@@ -36,7 +36,7 @@
 | 28 | `260-production-refresh-boot.js.part` | 2176 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 29 | `270-samples-model.js.part` | 2694 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 30 | `280-samples-cards-notes.js.part` | 2831 | SURFACE 3: the save engine |
-| 31 | `290-samples-writes-review.js.part` | 1773 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
+| 31 | `290-samples-writes-review.js.part` | 1785 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 32 | `300-tiktok-upload.js.part` | 1678 | TIKTOK UPLOAD MODULE |
 | 33 | `310-tiktok-pilot-sales.js.part` | 1969 | TIKTOK PILOT MODULE (gated: ?ttpilot=1 → #tiktok-pilot) |
 | 34 | `320-kasper-dashboard-replies.js.part` | 2778 | Background poll for the Kasper review — same cadence as the client |

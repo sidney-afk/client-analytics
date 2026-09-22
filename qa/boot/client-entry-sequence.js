@@ -4133,9 +4133,13 @@ async function runClientLegacyResumeLeaseScenario(browser, server) {
   };
   const originalQueue = [queueA, queueB, unknownQueue, foreignGateQueue];
   const originalQueueBytes = JSON.stringify(originalQueue);
-  const foreignBytes = JSON.stringify(queueB);
-  const unknownBytes = JSON.stringify(unknownQueue);
-  const foreignGateBytes = JSON.stringify(foreignGateQueue);
+  /* `foreignBytes` / `unknownBytes` / `foreignGateBytes` are gone with the
+     delivery choreography they described (OPEN_REPAIRS 239): once the legacy
+     transport is retired no row in this fixture is deliverable by anyone, so
+     the drain clears the whole retired set rather than holding one client's
+     rows out of another's reach. The unverified phases below still assert the
+     WHOLE queue is untouched byte-for-byte, which is the property that matters
+     before a strict verdict. */
   const staffOnlyJobs = [{
     id: 'synthetic-f184-staff-card-job',
     clientName: CLIENT_B,
@@ -4356,19 +4360,35 @@ async function runClientLegacyResumeLeaseScenario(browser, server) {
     assert.equal(afterStaleRelease.staffRunnerCalls, 0, `${label}: stale release cannot invoke staff-only recovery`);
     assert.deepEqual(afterStaleRelease.network.legacyQueueWrites, [], `${label}: stale generation rechecks before POST`);
 
+    /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). From the final strict retry
+       onwards this scenario drove the LEGACY DELIVERY choreography: the
+       verified client's own debt POSTed once and took an injected 500, its
+       `attempts` went 1 then 2, a 60s retry timeout was armed, invoked, and
+       re-armed, and a later restore delivered it successfully. The legacy
+       transport is retired -- those rows can never be sent -- so every step of
+       that sequence describes a lane that no longer exists.
+
+       What this scenario is really for survives and is asserted below on the
+       same real browser: the verified client mounts its own Calendar with no
+       Analytics flash, never reads staff-only storage, never invokes the
+       staff-only runner, installs every automatic resume trigger, and starts
+       no POST at all. The queue is now cleared rather than delivered, and the
+       byte-for-byte foreign-debt checks are gone with it on purpose: a retired
+       row is deliverable by nobody, so the drain clears the whole retired set
+       instead of holding another client's rows for a delivery that can never
+       happen. Live records -- source gates -- keep every ownership rule, which
+       test/client-entry-legacy-resume-lease.js covers per owner. */
     await run.page.evaluate(() => window.__syncviewResetBootTrace());
     await run.page.locator('[data-client-entry-state="retry"] button', { hasText: 'Try again' }).click();
     await run.page.waitForFunction(key => {
       const network = window.__syncviewBfcacheNetwork;
       let rows = [];
       try { rows = JSON.parse(window.__syncviewReadStorageWithoutTrace(key) || '[]'); } catch {}
-      const rowA = rows.find(row => row && row.id === 'synthetic-f184-client-a');
       return network
         && network.verifierResponses.length === 4
         && network.verifierResponses[3].valid === true
-        && network.legacyQueueWrites.length === 1
-        && rowA
-        && rowA.attempts === 1
+        && network.legacyQueueWrites.length === 0
+        && rows.length === 0
         && _writeUiLegacyResumePromise === null;
     }, CALENDAR_LEGACY_OUTBOX_KEY, { timeout: 10_000 });
     await run.page.waitForFunction(expectedClient => (
@@ -4377,7 +4397,7 @@ async function runClientLegacyResumeLeaseScenario(browser, server) {
     await run.page.waitForFunction(() => (
       window.__syncviewBootTrace.some(frame => frame.surface === 'mounted:calendar')
     ), null, { timeout: 10_000 });
-    const afterQueue500 = await run.page.evaluate(key => {
+    const afterQueueDrain = await run.page.evaluate(key => {
       const rows = JSON.parse(window.__syncviewReadStorageWithoutTrace(key) || '[]');
       return {
         snapshot: window.__syncviewBootSnapshot(),
@@ -4389,73 +4409,28 @@ async function runClientLegacyResumeLeaseScenario(browser, server) {
         network: JSON.parse(JSON.stringify(window.__syncviewBfcacheNetwork)),
       };
     }, CALENDAR_LEGACY_OUTBOX_KEY);
-    assert.equal(afterQueue500.snapshot.calendarVisible, true, `${label}: final strict retry mounts Calendar`);
-    assert.equal(afterQueue500.snapshot.analyticsFlash, false, `${label}: final strict retry never flashes Analytics`);
-    assert.ok(afterQueue500.trace.some(frame => frame.surface === 'static:client-verify'
+    assert.equal(afterQueueDrain.snapshot.calendarVisible, true, `${label}: final strict retry mounts Calendar`);
+    assert.equal(afterQueueDrain.snapshot.analyticsFlash, false, `${label}: final strict retry never flashes Analytics`);
+    assert.ok(afterQueueDrain.trace.some(frame => frame.surface === 'static:client-verify'
       || frame.surface === 'loading:verify'), `${label}: final retry visibly returns through verification`);
-    assert.ok(afterQueue500.trace.some(frame => frame.surface === 'mounted:calendar'),
+    assert.ok(afterQueueDrain.trace.some(frame => frame.surface === 'mounted:calendar'),
       `${label}: final retry visibly settles on Calendar`);
-    assert.equal(afterQueue500.network.legacyQueueWrites[0].status, 500,
-      `${label}: matching A debt receives the injected retryable 500`);
-    assert.equal(afterQueue500.network.legacyQueueWrites[0].body.issue, queueA.payload.issue,
-      `${label}: only matching client A debt is posted`);
-    assert.equal(afterQueue500.rows.find(row => row.id === queueA.id)?.attempts, 1,
-      `${label}: A debt records its one failed attempt`);
-    assert.equal(JSON.stringify(afterQueue500.rows.find(row => row.id === queueB.id)), foreignBytes,
-      `${label}: foreign B debt remains byte-for-byte unchanged after A's 500`);
-    assert.equal(JSON.stringify(afterQueue500.rows.find(row => row.id === unknownQueue.id)), unknownBytes,
-      `${label}: unknown debt remains byte-for-byte unchanged after A's 500`);
-    assert.equal(JSON.stringify(afterQueue500.rows.find(row => row.id === foreignGateQueue.id)), foreignGateBytes,
-      `${label}: an A row with matching gate slug but foreign principal remains byte-for-byte unchanged after A's 500`);
-    assert.equal(afterQueue500.staffOnly, staffOnlyBytes, `${label}: A's 500 preserves staff-only debt bytes`);
-    assert.equal(afterQueue500.staffRunnerCalls, 0, `${label}: A's 500 never invokes staff-only recovery`);
-    const finalVerifierAt = afterQueue500.network.verifierResponses[3].at;
-    assert.ok(afterQueue500.queueReads.length > 0
-      && afterQueue500.queueReads.every(read => read.at >= finalVerifierAt),
+    assert.deepEqual(afterQueueDrain.network.legacyQueueWrites, [],
+      `${label}: the retired legacy queue starts no POST for any client`);
+    assert.deepEqual(afterQueueDrain.rows, [],
+      `${label}: the drain clears the retired debt instead of delivering it`);
+    assert.equal(afterQueueDrain.staffOnly, staffOnlyBytes, `${label}: the drain preserves staff-only debt bytes`);
+    assert.equal(afterQueueDrain.staffRunnerCalls, 0, `${label}: the drain never invokes staff-only recovery`);
+    const finalVerifierAt = afterQueueDrain.network.verifierResponses[3].at;
+    assert.ok(afterQueueDrain.queueReads.length > 0
+      && afterQueueDrain.queueReads.every(read => read.at >= finalVerifierAt),
     `${label}: every observed queue read occurs after the exact final strict verdict`);
-    assert.deepEqual(afterQueue500.queueReads.filter(read => read.key === CALENDAR_CARD_JOBS_KEY), [],
+    assert.deepEqual(afterQueueDrain.queueReads.filter(read => read.key === CALENDAR_CARD_JOBS_KEY), [],
       `${label}: verified client recovery never reads staff-only Calendar job storage`);
-    assert.deepEqual(await run.page.evaluate(() => window.__syncviewLegacyRetryTimeoutState()), [{
-      delay: 60 * 1000,
-      cleared: false,
-      invoked: false,
-    }], `${label}: retryable 500 arms the exact Calendar queue timeout`);
-
-    const invokedScheduledRetry = await run.page.evaluate(() => (
-      window.__syncviewInvokeLegacyRetryTimeout(0)
-    ));
-    assert.equal(invokedScheduledRetry, true, `${label}: the actual installed queue timeout is invoked`);
-    await run.page.waitForFunction(key => {
-      const network = window.__syncviewBfcacheNetwork;
-      let rows = [];
-      try { rows = JSON.parse(window.__syncviewReadStorageWithoutTrace(key) || '[]'); } catch {}
-      return network.legacyQueueWrites.length === 2
-        && rows.find(row => row && row.id === 'synthetic-f184-client-a')?.attempts === 2
-        && window.__syncviewCapturedLegacyRetryTimeouts.length === 2
-        && _writeUiLegacyResumePromise === null;
-    }, CALENDAR_LEGACY_OUTBOX_KEY, { timeout: 10_000 });
-    const afterScheduledRetry = await run.page.evaluate(key => ({
-      rows: JSON.parse(window.__syncviewReadStorageWithoutTrace(key) || '[]'),
-      staffOnly: window.__syncviewReadStorageWithoutTrace('syncview_calCardJobs_v1'),
-      retryTimeouts: window.__syncviewLegacyRetryTimeoutState(),
-      network: JSON.parse(JSON.stringify(window.__syncviewBfcacheNetwork)),
-    }), CALENDAR_LEGACY_OUTBOX_KEY);
-    assert.equal(afterScheduledRetry.network.legacyQueueWrites[1].status, 500,
-      `${label}: actual timeout callback drives the injected second retryable POST`);
-    assert.equal(afterScheduledRetry.rows.find(row => row.id === queueA.id)?.attempts, 2,
-      `${label}: scheduled callback records A's second failed attempt`);
-    assert.equal(JSON.stringify(afterScheduledRetry.rows.find(row => row.id === queueB.id)), foreignBytes,
-      `${label}: actual callback preserves B byte-for-byte`);
-    assert.equal(JSON.stringify(afterScheduledRetry.rows.find(row => row.id === unknownQueue.id)), unknownBytes,
-      `${label}: actual callback preserves unknown debt byte-for-byte`);
-    assert.equal(JSON.stringify(afterScheduledRetry.rows.find(row => row.id === foreignGateQueue.id)), foreignGateBytes,
-      `${label}: actual callback never posts or mutates foreign-principal source-gate debt`);
-    assert.equal(afterScheduledRetry.staffOnly, staffOnlyBytes,
-      `${label}: actual callback preserves staff-only debt bytes`);
-    assert.deepEqual(afterScheduledRetry.retryTimeouts, [
-      { delay: 60 * 1000, cleared: false, invoked: true },
-      { delay: 60 * 1000, cleared: false, invoked: false },
-    ], `${label}: failed scheduled retry arms one replacement timeout`);
+    /* Was: a retryable 500 armed the exact 60s Calendar queue timeout. Nothing
+       fails any more, so nothing is armed. */
+    assert.deepEqual(await run.page.evaluate(() => window.__syncviewLegacyRetryTimeoutState()), [],
+      `${label}: a cleared retired queue arms no retry timeout`);
 
     await run.page.evaluate(() => window.__syncviewResetBootTrace());
     await run.page.goto(`${awayOrigin}/boot-away`, { waitUntil: 'load', timeout: 15_000 });
@@ -4467,21 +4442,28 @@ async function runClientLegacyResumeLeaseScenario(browser, server) {
       try { rows = JSON.parse(window.__syncviewReadStorageWithoutTrace(key) || '[]'); } catch {}
       return network.verifierResponses.length === 5
         && network.verifierResponses[4].valid === true
-        && network.legacyQueueWrites.length === 3
-        && !rows.some(row => row && row.id === 'synthetic-f184-client-a')
+        && network.legacyQueueWrites.length === 0
+        && rows.length === 0
         && _writeUiLegacyResumePromise === null;
     }, CALENDAR_LEGACY_OUTBOX_KEY, { timeout: 10_000 });
     await run.page.waitForFunction(expectedClient => (
       document.querySelector('#calView .cal-embed-title strong')?.textContent.trim() === expectedClient
     ), CLIENT_A, { timeout: 10_000 });
+    /* Was: the armed retry callback proved non-invocable after the pagehide
+       purge, and attempting it started no fourth POST. No retry is ever armed
+       now (OPEN_REPAIRS 239), so the guarantee is asserted at its source --
+       the page registered no retry callback at all, and no POST was made.
+       (`__syncviewInvokeLegacyRetryTimeout` throws on an index that was never
+       registered, so asking it about one would test the harness, not the
+       app.) */
     const cancelledRetryInvocation = await run.page.evaluate(() => ({
-      invoked: window.__syncviewInvokeLegacyRetryTimeout(1),
+      registered: window.__syncviewCapturedLegacyRetryTimeouts.length,
       writes: window.__syncviewBfcacheNetwork.legacyQueueWrites.length,
     }));
-    assert.equal(cancelledRetryInvocation.invoked, false,
-      `${label}: pagehide purge makes the armed retry callback non-invocable`);
-    assert.equal(cancelledRetryInvocation.writes, 3,
-      `${label}: attempting the cancelled callback starts no fourth POST`);
+    assert.equal(cancelledRetryInvocation.registered, 0,
+      `${label}: no client retry callback is ever registered`);
+    assert.equal(cancelledRetryInvocation.writes, 0,
+      `${label}: and no POST is made`);
     await run.page.waitForTimeout(100);
     const settled = await run.page.evaluate(key => ({
       snapshot: window.__syncviewBootSnapshot(),
@@ -4496,22 +4478,14 @@ async function runClientLegacyResumeLeaseScenario(browser, server) {
     }), CALENDAR_LEGACY_OUTBOX_KEY);
     assert.equal(retryReturnRequestedDocument, false,
       `${label}: retry cancellation is exercised by a real pagehide and BFCache return`);
-    assert.equal(settled.network.legacyQueueWrites.length, 3,
-      `${label}: pagehide cancellation prevents an extra POST before strict restore resumes once`);
-    assert.equal(settled.network.legacyQueueWrites[2].status, 200,
-      `${label}: the new strict restore owner receives success`);
-    assert.deepEqual(settled.retryTimeouts, [
-      { delay: 60 * 1000, cleared: false, invoked: true },
-      { delay: 60 * 1000, cleared: true, invoked: false },
-    ], `${label}: pagehide purge cancels the armed client retry timeout itself`);
-    assert.deepEqual(settled.rows.map(row => row.id), [queueB.id, unknownQueue.id, foreignGateQueue.id],
-      `${label}: success removes only A debt`);
-    assert.equal(JSON.stringify(settled.rows[0]), foreignBytes, `${label}: B remains byte-for-byte unchanged after success`);
-    assert.equal(JSON.stringify(settled.rows[1]), unknownBytes, `${label}: unknown remains byte-for-byte unchanged after success`);
-    assert.equal(JSON.stringify(settled.rows[2]), foreignGateBytes,
-      `${label}: foreign-principal source-gate debt remains byte-for-byte unchanged after success`);
-    assert.equal(settled.staffOnly, staffOnlyBytes, `${label}: successful client retry preserves staff-only debt bytes`);
-    assert.equal(settled.staffRunnerCalls, 0, `${label}: successful client retry never invokes staff-only recovery`);
+    assert.deepEqual(settled.network.legacyQueueWrites, [],
+      `${label}: no phase of this scenario ever reaches the retired legacy transport`);
+    assert.deepEqual(settled.retryTimeouts, [],
+      `${label}: no client retry timeout is ever armed, so none needs cancelling`);
+    assert.deepEqual(settled.rows, [],
+      `${label}: the retired queue stays cleared across the BFCache return`);
+    assert.equal(settled.staffOnly, staffOnlyBytes, `${label}: the client lane preserves staff-only debt bytes throughout`);
+    assert.equal(settled.staffRunnerCalls, 0, `${label}: the client lane never invokes staff-only recovery`);
     assert.deepEqual(settled.storageReads.filter(read => read.key === CALENDAR_CARD_JOBS_KEY), [],
       `${label}: all verified/retry/BFCache client phases leave staff-only storage unread`);
     assert.deepEqual(settled.triggerMatrix, [

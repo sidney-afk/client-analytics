@@ -15,6 +15,35 @@
             : 'syncview-legacy-outbox:calendar';
         return navigator.locks.request(key, { mode: 'exclusive' }, callback);
     }
+    /* Shed the retired legacy rows from storage, under the surface mutation
+       lock (OPEN_REPAIRS 239).
+
+       `_writeUiLegacyWithoutRetired` hides them from every reader, but hiding
+       is not clearing: nothing else rewrites the array once the drain's
+       snapshot is empty, so without this they would sit in localStorage
+       forever. It reads RAW rather than through the filtered reader, because
+       the whole point is to see the rows the reader drops, and it writes only
+       inside the lock, so a source gate another tab stages cannot be lost to
+       tidying away a dead row. Everything that is not the retired transport is
+       preserved in order. */
+    function _writeUiLegacyRawOutboxRows(surface) {
+        const key = surface === 'sxr' ? SXR_LINEAR_OUTBOX_KEY : LINEAR_OUTBOX_KEY;
+        try {
+            const raw = JSON.parse(localStorage.getItem(key) || '[]');
+            return Array.isArray(raw) ? raw : [];
+        } catch (e) { return []; }
+    }
+    function _writeUiLegacyShedRetired(surface) {
+        if (!_writeUiLegacyRawOutboxRows(surface).some(_writeUiLegacyRetiredRow)) {
+            return Promise.resolve(false);
+        }
+        return _writeUiLegacyOutboxWithLock(surface, () => {
+            const rows = _writeUiLegacyRawOutboxRows(surface);
+            const kept = rows.filter(item => !_writeUiLegacyRetiredRow(item));
+            if (kept.length === rows.length) return false;
+            return _writeUiLegacyOutboxWrite(surface, kept);
+        }).catch(() => false);
+    }
     function _writeUiLegacyDrainWithLock(surface, callback) {
         if (typeof navigator === 'undefined' || !navigator.locks || typeof navigator.locks.request !== 'function') {
             const error = _writeUiGatewayError(503, 'legacy_outbox_lock_unavailable');

@@ -33527,9 +33527,17 @@
        whether a client retry is still `active`, the committed-tweak ledger
        matcher, the resume loop's owned-debt test, the pagehide diagnostic and
        `peekWriteUiLegacyQueueState`. Filtering in one of those and not the
-       rest is how a cleared queue still reports a count. Storage is compacted
-       on the first read that sees such a row, so each browser sheds its own
-       once and then stays empty.
+       rest is how a cleared queue still reports a count.
+
+       It FILTERS and does not itself write. Compacting here was the obvious
+       next step and is wrong: a read happens outside the outbox lock, so
+       writing the filtered array back would clobber a record another tab
+       staged between this read and that write -- losing a source gate, which
+       is a live record, to tidy away a dead one. The retired rows leave
+       storage on the first drain instead, whose finalize writes the retained
+       set under the lock and excludes them because they never entered its
+       snapshot. Until then they sit in localStorage where nothing can see,
+       count or send them.
 
        Quiet on purpose: not quarantined (a quarantine row is for a write an
        operator must still decide about, and this one has nothing left to
@@ -33540,19 +33548,15 @@
     function _writeUiLegacyRetiredRow(item) {
         return !!item && item.transport === 'legacy_n8n';
     }
-    function _writeUiLegacyWithoutRetired(rows, compact) {
+    function _writeUiLegacyWithoutRetired(rows) {
         const items = Array.isArray(rows) ? rows : [];
-        const kept = items.filter(item => !_writeUiLegacyRetiredRow(item));
-        if (kept.length !== items.length && typeof compact === 'function') {
-            try { compact(kept); } catch (e) {}
-        }
-        return kept;
+        return items.filter(item => !_writeUiLegacyRetiredRow(item));
     }
     function _linearOutboxRead() {
         try {
             const raw = localStorage.getItem(LINEAR_OUTBOX_KEY);
             const arr = raw ? JSON.parse(raw) : [];
-            return _writeUiLegacyWithoutRetired(Array.isArray(arr) ? arr : [], _linearOutboxWrite);
+            return _writeUiLegacyWithoutRetired(Array.isArray(arr) ? arr : []);
         } catch { return []; }
     }
     function _linearOutboxWrite(arr) {
@@ -33586,6 +33590,35 @@
             ? 'syncview-legacy-outbox:sxr'
             : 'syncview-legacy-outbox:calendar';
         return navigator.locks.request(key, { mode: 'exclusive' }, callback);
+    }
+    /* Shed the retired legacy rows from storage, under the surface mutation
+       lock (OPEN_REPAIRS 239).
+
+       `_writeUiLegacyWithoutRetired` hides them from every reader, but hiding
+       is not clearing: nothing else rewrites the array once the drain's
+       snapshot is empty, so without this they would sit in localStorage
+       forever. It reads RAW rather than through the filtered reader, because
+       the whole point is to see the rows the reader drops, and it writes only
+       inside the lock, so a source gate another tab stages cannot be lost to
+       tidying away a dead row. Everything that is not the retired transport is
+       preserved in order. */
+    function _writeUiLegacyRawOutboxRows(surface) {
+        const key = surface === 'sxr' ? SXR_LINEAR_OUTBOX_KEY : LINEAR_OUTBOX_KEY;
+        try {
+            const raw = JSON.parse(localStorage.getItem(key) || '[]');
+            return Array.isArray(raw) ? raw : [];
+        } catch (e) { return []; }
+    }
+    function _writeUiLegacyShedRetired(surface) {
+        if (!_writeUiLegacyRawOutboxRows(surface).some(_writeUiLegacyRetiredRow)) {
+            return Promise.resolve(false);
+        }
+        return _writeUiLegacyOutboxWithLock(surface, () => {
+            const rows = _writeUiLegacyRawOutboxRows(surface);
+            const kept = rows.filter(item => !_writeUiLegacyRetiredRow(item));
+            if (kept.length === rows.length) return false;
+            return _writeUiLegacyOutboxWrite(surface, kept);
+        }).catch(() => false);
     }
     function _writeUiLegacyDrainWithLock(surface, callback) {
         if (typeof navigator === 'undefined' || !navigator.locks || typeof navigator.locks.request !== 'function') {
@@ -72867,9 +72900,9 @@
     /* ── Legacy drain-only queue + native per-target serialized writes ── */
     const SXR_LINEAR_OUTBOX_MAX = 6, SXR_LINEAR_OUTBOX_RETRY_MS = 60 * 1000;
     let _sxrLinearOutboxTimer = null, _sxrLinearOutboxPromise = null, _sxrLinearOutboxOwnerKey = '';
-    // Same retired-row drop and compaction as the Calendar twin; see
-    // `_writeUiLegacyWithoutRetired` for why it belongs at the read.
-    function _sxrLinearOutboxRead() { try { const a = JSON.parse(localStorage.getItem(SXR_LINEAR_OUTBOX_KEY) || '[]'); return _writeUiLegacyWithoutRetired(Array.isArray(a) ? a : [], _sxrLinearOutboxWrite); } catch (e) { return []; } }
+    // Same retired-row drop as the Calendar twin; see
+    // `_writeUiLegacyWithoutRetired` for why it filters here and writes nowhere.
+    function _sxrLinearOutboxRead() { try { const a = JSON.parse(localStorage.getItem(SXR_LINEAR_OUTBOX_KEY) || '[]'); return _writeUiLegacyWithoutRetired(Array.isArray(a) ? a : []); } catch (e) { return []; } }
     function _sxrLinearOutboxWrite(a) { try { const items = Array.isArray(a) ? a : []; if (items.length) localStorage.setItem(SXR_LINEAR_OUTBOX_KEY, JSON.stringify(items)); else localStorage.removeItem(SXR_LINEAR_OUTBOX_KEY); return true; } catch (e) { return false; } }
     /* `_sxrLinearOutboxEnqueue` is retired (OPEN_REPAIRS 239). It existed only
        inside the catch of the two legacy Samples senders, so it went with
@@ -73916,6 +73949,18 @@
             const submissionHoldResume = typeof _linearResumeSubmissionHold === 'function'
                 ? _linearResumeSubmissionHold(reason || 'resume').catch(() => {})
                 : Promise.resolve();
+            /* Shed the retired legacy rows first (OPEN_REPAIRS 239). It has to
+               happen HERE rather than inside the drains: the owned-debt tests
+               below read through `_writeUiLegacyWithoutRetired`, so a queue
+               holding nothing but retired rows looks empty, no drain is
+               started, and the rows would sit in storage forever. This runs on
+               every resume trigger, takes the surface mutation lock itself and
+               is a no-op once a browser has shed its own. */
+            await Promise.all([
+                _writeUiLegacyShedRetired('calendar'),
+                _writeUiLegacyShedRetired('sxr'),
+            ]);
+            if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { deferred: true };
             const calendarHasOwnedDebt = _linearOutboxRead()
                 .some(item => _writeUiLegacyItemOwnedBy(item, owner));
             const sxrHasOwnedDebt = _sxrLinearOutboxRead()

@@ -3964,6 +3964,11 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     _calHydrateLinearMeta: () => {},
     _calCardJobsRead: () => [],
     _writeUiResumeSourceRepairs: async () => {},
+    /* Added 2026-09-22 (OPEN_REPAIRS 239). The resume loop sheds retired
+       legacy rows before it decides whether either surface has owned debt;
+       see `_writeUiLegacyShedRetired`. Stubbed as a no-op here because this
+       context is about the authority/hydration ordering, not the shed. */
+    _writeUiLegacyShedRetired: async () => false,
     _writeUiLastRenderedAuthoritySig: null,
     get currentNav() { return resumeCurrentNav; },
     _calRenderBody: () => { resumeCalRenderCalls++; },

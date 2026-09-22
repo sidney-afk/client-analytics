@@ -742,6 +742,18 @@
             const submissionHoldResume = typeof _linearResumeSubmissionHold === 'function'
                 ? _linearResumeSubmissionHold(reason || 'resume').catch(() => {})
                 : Promise.resolve();
+            /* Shed the retired legacy rows first (OPEN_REPAIRS 239). It has to
+               happen HERE rather than inside the drains: the owned-debt tests
+               below read through `_writeUiLegacyWithoutRetired`, so a queue
+               holding nothing but retired rows looks empty, no drain is
+               started, and the rows would sit in storage forever. This runs on
+               every resume trigger, takes the surface mutation lock itself and
+               is a no-op once a browser has shed its own. */
+            await Promise.all([
+                _writeUiLegacyShedRetired('calendar'),
+                _writeUiLegacyShedRetired('sxr'),
+            ]);
+            if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { deferred: true };
             const calendarHasOwnedDebt = _linearOutboxRead()
                 .some(item => _writeUiLegacyItemOwnedBy(item, owner));
             const sxrHasOwnedDebt = _sxrLinearOutboxRead()

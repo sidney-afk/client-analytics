@@ -2524,9 +2524,9 @@
     /* ── Legacy drain-only queue + native per-target serialized writes ── */
     const SXR_LINEAR_OUTBOX_MAX = 6, SXR_LINEAR_OUTBOX_RETRY_MS = 60 * 1000;
     let _sxrLinearOutboxTimer = null, _sxrLinearOutboxPromise = null, _sxrLinearOutboxOwnerKey = '';
-    // Same retired-row drop and compaction as the Calendar twin; see
-    // `_writeUiLegacyWithoutRetired` for why it belongs at the read.
-    function _sxrLinearOutboxRead() { try { const a = JSON.parse(localStorage.getItem(SXR_LINEAR_OUTBOX_KEY) || '[]'); return _writeUiLegacyWithoutRetired(Array.isArray(a) ? a : [], _sxrLinearOutboxWrite); } catch (e) { return []; } }
+    // Same retired-row drop as the Calendar twin; see
+    // `_writeUiLegacyWithoutRetired` for why it filters here and writes nowhere.
+    function _sxrLinearOutboxRead() { try { const a = JSON.parse(localStorage.getItem(SXR_LINEAR_OUTBOX_KEY) || '[]'); return _writeUiLegacyWithoutRetired(Array.isArray(a) ? a : []); } catch (e) { return []; } }
     function _sxrLinearOutboxWrite(a) { try { const items = Array.isArray(a) ? a : []; if (items.length) localStorage.setItem(SXR_LINEAR_OUTBOX_KEY, JSON.stringify(items)); else localStorage.removeItem(SXR_LINEAR_OUTBOX_KEY); return true; } catch (e) { return false; } }
     /* `_sxrLinearOutboxEnqueue` is retired (OPEN_REPAIRS 239). It existed only
        inside the catch of the two legacy Samples senders, so it went with

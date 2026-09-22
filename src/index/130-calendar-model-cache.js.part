@@ -2699,9 +2699,17 @@
        whether a client retry is still `active`, the committed-tweak ledger
        matcher, the resume loop's owned-debt test, the pagehide diagnostic and
        `peekWriteUiLegacyQueueState`. Filtering in one of those and not the
-       rest is how a cleared queue still reports a count. Storage is compacted
-       on the first read that sees such a row, so each browser sheds its own
-       once and then stays empty.
+       rest is how a cleared queue still reports a count.
+
+       It FILTERS and does not itself write. Compacting here was the obvious
+       next step and is wrong: a read happens outside the outbox lock, so
+       writing the filtered array back would clobber a record another tab
+       staged between this read and that write -- losing a source gate, which
+       is a live record, to tidy away a dead one. The retired rows leave
+       storage on the first drain instead, whose finalize writes the retained
+       set under the lock and excludes them because they never entered its
+       snapshot. Until then they sit in localStorage where nothing can see,
+       count or send them.
 
        Quiet on purpose: not quarantined (a quarantine row is for a write an
        operator must still decide about, and this one has nothing left to
@@ -2712,19 +2720,15 @@
     function _writeUiLegacyRetiredRow(item) {
         return !!item && item.transport === 'legacy_n8n';
     }
-    function _writeUiLegacyWithoutRetired(rows, compact) {
+    function _writeUiLegacyWithoutRetired(rows) {
         const items = Array.isArray(rows) ? rows : [];
-        const kept = items.filter(item => !_writeUiLegacyRetiredRow(item));
-        if (kept.length !== items.length && typeof compact === 'function') {
-            try { compact(kept); } catch (e) {}
-        }
-        return kept;
+        return items.filter(item => !_writeUiLegacyRetiredRow(item));
     }
     function _linearOutboxRead() {
         try {
             const raw = localStorage.getItem(LINEAR_OUTBOX_KEY);
             const arr = raw ? JSON.parse(raw) : [];
-            return _writeUiLegacyWithoutRetired(Array.isArray(arr) ? arr : [], _linearOutboxWrite);
+            return _writeUiLegacyWithoutRetired(Array.isArray(arr) ? arr : []);
         } catch { return []; }
     }
     function _linearOutboxWrite(arr) {

@@ -1,49 +1,28 @@
-    function _sxrLegacyPushStatusToLinear(issueUrl, status, meta) {
-        const url = String(issueUrl || '').trim(), st = String(status || '').trim();
-        const clientSlug = _writeUiSourceClientSlug('sxr', meta);
-        if (!url || !st || st === 'Scheduled' || st === 'Posted') return;
-        _sxrLinearPushLatest[url] = st;
-        const run = async () => {
-            if (_sxrLinearPushLatest[url] !== st) return;
-            const payload = { issue: url, status: st };
-            try {
-                const resp = await fetch(LINEAR_SET_STATUS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                let ok = resp && resp.ok;
-                try { const json = await resp.json(); if (json && json.ok === false) ok = false; } catch (e) {}
-                if (!ok) throw new Error('http ' + (resp && resp.status));
-            } catch (e) {
-                console.warn('[Samples] Linear status push failed - queued', e);
-                try {
-                    await _sxrLinearOutboxEnqueue('status', payload, (e && e.message) || String(e), clientSlug);
-                } catch (queueError) {
-                    console.warn('[Samples] Linear status retry could not be preserved', queueError);
-                }
-            }
-        };
-        _sxrLinearPushChain[url] = (_sxrLinearPushChain[url] || Promise.resolve()).then(run, run);
-    }
-    function _sxrLegacyPostLinearComment(issueUrl, body, author, meta) {
-        const url = String(issueUrl || '').trim(), txt = String(body || '').trim();
-        const clientSlug = _writeUiSourceClientSlug('sxr', meta);
-        if (!url || !txt) return;
-        const payload = { issue: url, body: txt, author: String(author || _sxrCurrentAuthor() || 'SyncView') };
-        (async () => {
-            try {
-                const resp = await fetch(LINEAR_ADD_COMMENT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                let ok = resp && resp.ok;
-                try { const json = await resp.json(); if (json && json.ok === false) ok = false; } catch (e) {}
-                if (!ok) throw new Error('http ' + (resp && resp.status));
-            } catch (e) {
-                console.warn('[Samples] Linear comment failed - queued', e);
-                try {
-                    await _sxrLinearOutboxEnqueue('comment', payload, (e && e.message) || String(e), clientSlug,
-                        { canonicalUnlinked: !!(meta && meta.canonicalUnlinked) });
-                } catch (queueError) {
-                    console.warn('[Samples] Linear comment retry could not be preserved', queueError);
-                }
-            }
-        })();
-    }
+    /* RETIRED 2026-09-22 (B1 order row 5, OPEN_REPAIRS 239):
+       `_sxrLegacyPushStatusToLinear` and `_sxrLegacyPostLinearComment` used to
+       POST every legacy-routed Samples status and comment to the n8n webhooks
+       `linear-set-status` / `linear-add-comment`, and enqueue a retry on the
+       Samples Linear outbox from inside their own catch.
+
+       The API key behind both webhooks is revoked 2026-09-27, so every such
+       send fails from that date on, forever, and the retry queue it fed has no
+       destination that could ever pay it. Deleting the send WITH its
+       bookkeeping is safe here because no Samples write's only home was Linear
+       -- every caller stores on the card and saves the source first:
+
+         - the status save loop writes the card and upserts at
+           `280-samples-cards-notes.js.part:456`, and only sent afterwards;
+         - the change-request path commits `<comp>_tweaks` through
+           `repairEdits` and `_sxrFlushCardSave`;
+         - the plain note add appends to the card array and calls
+           `_sxrWatchNoteSave` regardless of the transport's answer;
+         - `_sxrKasperApplyAndPersist` persists via `_sxrKasperPersist` before
+           it sent;
+         - the repair-journal replay reissues an intent the card already holds.
+
+       Nothing reads Linear any more (owner, 2026-09-22), so the outbound copy
+       has no reader to lose. The gateway lane, the card save and its ordering,
+       receipts and owner checks are untouched. */
     async function _sxrPushStatusToLinear(issueUrl, status, meta) {
         /* Same rule as the comment writer beside this one. No caller reaches
            here with a caption or title today -- `_kasperPersistPost` loops
@@ -61,11 +40,24 @@
                 : sourceOnly;
         }
         if (!(await _writeUiUseGatewayWhenReady('sxr', meta))) {
-            if (meta && meta.deferLegacyUntilSourceSave) {
-                return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
-            }
-            _sxrLegacyPushStatusToLinear(issueUrl, status, meta);
-            return Promise.resolve({ skipped: true, legacy_transport: true });
+            /* The legacy lane no longer has a destination (OPEN_REPAIRS 239),
+               so it neither sends nor records a retry.
+
+               When the caller asked to defer until the source save, answer the
+               SAME source-only shape every other source-only exit in this file
+               answers. That flag is what makes `_sxrReviewRequestTweak` /
+               `_calReviewRequestTweak` run `_writeUiQueueDeferredLegacyTweak`
+               and write the durable source-only ledger row. Dropping it here
+               dropped that row and its conflict check on every legacy-route
+               card: a card upsert that COMMITS but loses its response would
+               roll the UI back, and the retry would mint a second comment id
+               against the already-committed first -- the PR 1245 regression,
+               which the caption exit above exists to prevent. Same shape for
+               every caller means no caller has to learn a new flag. */
+            const retired = { skipped: true, source_only: true, legacy_transport_retired: true };
+            return Promise.resolve(meta && meta.deferLegacyUntilSourceSave
+                ? Object.assign({}, retired, { deferred_until_source_save: true })
+                : retired);
         }
         const url = String(issueUrl || '').trim(), st = String(status || '').trim();
         const component = meta && meta.component === 'graphic' ? 'graphic' : 'video';
@@ -143,11 +135,21 @@
                 throw _writeUiGatewayError(409, 'canonical_comment_read_required');
             }
         } else if (!(await _writeUiUseGatewayWhenReady('sxr', meta)) || (_isClientLink && !clientFrontDoorSurface) || canonicalUnlinkedAdd) {
-            if (meta && meta.deferLegacyUntilSourceSave) {
-                return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
-            }
-            _sxrLegacyPostLinearComment(issueUrl, body, author, meta);
-            return Promise.resolve({ skipped: true, legacy_transport: true });
+            /* Retired legacy lane (OPEN_REPAIRS 239). The comment's home is the
+               card either way: the change-request path commits it through
+               `repairEdits` and `_sxrFlushCardSave`, and the plain add appends
+               to the card array below this call's resolution. Resolving rather
+               than throwing keeps that append running, exactly as the legacy
+               fire-and-forget sender did.
+
+               Carries `deferred_until_source_save` when the caller asked for
+               it, so the durable source-only ledger row is still staged -- see
+               the calendar twin and the caption exit for the committed-but-
+               unacknowledged upsert this protects (PR 1245). */
+            const retired = { skipped: true, source_only: true, legacy_transport_retired: true };
+            return Promise.resolve(meta && meta.deferLegacyUntilSourceSave
+                ? Object.assign({}, retired, { deferred_until_source_save: true })
+                : retired);
         }
         const url = String(issueUrl || '').trim(), txt = String(body || '').trim();
         if (!txt) return Promise.resolve({ skipped: true });
@@ -761,6 +763,18 @@
             const submissionHoldResume = typeof _linearResumeSubmissionHold === 'function'
                 ? _linearResumeSubmissionHold(reason || 'resume').catch(() => {})
                 : Promise.resolve();
+            /* Shed the retired legacy rows first (OPEN_REPAIRS 239). It has to
+               happen HERE rather than inside the drains: the owned-debt tests
+               below read through `_writeUiLegacyWithoutRetired`, so a queue
+               holding nothing but retired rows looks empty, no drain is
+               started, and the rows would sit in storage forever. This runs on
+               every resume trigger, takes the surface mutation lock itself and
+               is a no-op once a browser has shed its own. */
+            await Promise.all([
+                _writeUiLegacyShedRetired('calendar'),
+                _writeUiLegacyShedRetired('sxr'),
+            ]);
+            if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { deferred: true };
             const calendarHasOwnedDebt = _linearOutboxRead()
                 .some(item => _writeUiLegacyItemOwnedBy(item, owner));
             const sxrHasOwnedDebt = _sxrLinearOutboxRead()
@@ -1494,7 +1508,8 @@
                     reserveStatusIntent: patch[comp + '_status'] ? { status: patch[comp + '_status'] } : null,
                     deferLegacyUntilSourceSave: true
                 });
-                deferredLegacyComment = !!(acknowledgement && acknowledgement.deferred_until_source_save);
+                deferredLegacyComment = !!(acknowledgement && (acknowledgement.deferred_until_source_save
+                    || acknowledgement.legacy_transport_retired));
                 if (deferredLegacyComment) gatewayAttempted = gatewayAttemptedBefore;
                 _writeUiAdoptRepairAck(p, acknowledgement);
                 _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
@@ -1524,7 +1539,8 @@
                         repairRecord: companion && companion.record,
                         deferLegacyUntilSourceSave: true
                     });
-                    deferredLegacyStatus = !!(acknowledgement && acknowledgement.deferred_until_source_save);
+                    deferredLegacyStatus = !!(acknowledgement && (acknowledgement.deferred_until_source_save
+                    || acknowledgement.legacy_transport_retired));
                     if (deferredLegacyStatus) gatewayAttempted = gatewayAttemptedBefore;
                     _writeUiAdoptRepairAck(p, acknowledgement);
                     _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
@@ -1537,17 +1553,12 @@
                 if (gatewayCommitted) { checkpointRepair(); repair.statusCommitted = true; checkpointRepair(); }
             }
             await _sxrKasperPersist(it, patch);
-            const persistedUrl = _sxrLinearUrlFor(p, comp);
-            if (deferredLegacyStatus) {
-                _sxrLegacyPushStatusToLinear(persistedUrl, patch[comp + '_status'], {
-                    post: p, component: comp, sourceEditedAt: p.updated_at, clientSlug: it.slug
-                });
-            }
-            if (deferredLegacyComment) {
-                _sxrLegacyPostLinearComment(persistedUrl, linearComment, 'Kasper', {
-                    post: p, component: comp, comment: linearMeta, audience: 'internal', clientSlug: it.slug
-                });
-            }
+            /* The two post-persist legacy sends that stood here are retired
+               (OPEN_REPAIRS 239). The persist above was always the write's
+               home and still is; only the outbound copy to Linear is gone.
+               `deferredLegacyStatus` / `deferredLegacyComment` stay because
+               they still mark a write that never reached the gateway, which is
+               what keeps `gatewayAttempted` honest in the catch below. */
             if (await _writeUiCompleteSourceRepairRefs(sourceRepairRefsForWrite)) _writeUiRemoveCompletedRepairRefs(p, sourceRepairRefsForWrite);
             delete p._writeUiKasperRepair;
             _kasperState.sxrRepairs = (_kasperState.sxrRepairs || []).filter(row => row && row.id !== p.id);

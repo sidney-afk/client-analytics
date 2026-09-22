@@ -1076,12 +1076,10 @@
         const precommittedForWrite = edits._writeUiPrecommittedNative === true
             || !!(retryPost && retryPost._writeUiRetrySourceAt);
         const companionRepairsForWrite = (Array.isArray(edits._writeUiCompanionRepairs) ? edits._writeUiCompanionRepairs : []).slice();
-        const deferLegacyStatusForWrite = edits._writeUiDeferLegacyStatusUntilSourceSave === true;
         const pinnedSourceTransportForWrite = String(edits._writeUiPinnedSourceTransport || '');
         delete edits._writeUiRepairRefs;
         delete edits._writeUiPrecommittedNative;
         delete edits._writeUiCompanionRepairs;
-        delete edits._writeUiDeferLegacyStatusUntilSourceSave;
         delete edits._writeUiPinnedSourceTransport;
         // Pin the destination client at the moment the save starts, BEFORE any
         // await. calClientSlug(calState.client) read later (post-await) could
@@ -1158,7 +1156,6 @@
         // so a later status/source failure becomes a durable source repair,
         // never an optimistic rollback that hides the committed comment.
         let gatewayCommitted = precommittedForWrite;
-        const deferredLegacyStatusPushes = [];
         const checkpointCommittedSource = () => {
             if (!gatewayCommitted) return;
             post._writeUiRetryEdits = Object.assign({}, edits);
@@ -1190,12 +1187,15 @@
                         post, component: 'video', sourceEditedAt,
                         // Preserve only this action's sign-off edit, never invent one from a status.
                         repairEdits: 'client_video_approved_at' in edits ? { client_video_approved_at: edits.client_video_approved_at } : {},
-                        repairRecord: companion && companion.record,
-                        deferLegacyUntilSourceSave: deferLegacyStatusForWrite
+                        repairRecord: companion && companion.record
                     });
-                    if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                    if (acknowledgement && (acknowledgement.deferred_until_source_save
+                        || acknowledgement.legacy_transport_retired)) {
+                        /* A write the retired legacy lane refused never reached the
+                           gateway either, so it must not leave `gatewayAttempted`
+                           set -- otherwise a later source failure is reported as a
+                           gateway failure (OPEN_REPAIRS 239). */
                         gatewayAttempted = gatewayAttemptedBefore;
-                        deferredLegacyStatusPushes.push({ component: 'video', sourceEditedAt });
                     }
                     _writeUiAdoptRepairAck(post, acknowledgement);
                     _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
@@ -1228,12 +1228,15 @@
                         post, component: 'graphic', sourceEditedAt,
                         // Preserve only this action's sign-off edit, never invent one from a status.
                         repairEdits: 'client_graphic_approved_at' in edits ? { client_graphic_approved_at: edits.client_graphic_approved_at } : {},
-                        repairRecord: companion && companion.record,
-                        deferLegacyUntilSourceSave: deferLegacyStatusForWrite
+                        repairRecord: companion && companion.record
                     });
-                    if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                    if (acknowledgement && (acknowledgement.deferred_until_source_save
+                        || acknowledgement.legacy_transport_retired)) {
+                        /* A write the retired legacy lane refused never reached the
+                           gateway either, so it must not leave `gatewayAttempted`
+                           set -- otherwise a later source failure is reported as a
+                           gateway failure (OPEN_REPAIRS 239). */
                         gatewayAttempted = gatewayAttemptedBefore;
-                        deferredLegacyStatusPushes.push({ component: 'graphic', sourceEditedAt });
                     }
                     _writeUiAdoptRepairAck(post, acknowledgement);
                     _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
@@ -1424,16 +1427,12 @@
                 if (Array.isArray(_okPost._writeUiRepairRefs) && _okPost._writeUiRepairRefs.length) _okPost._writeUiPrecommittedNative = true;
                 else delete _okPost._writeUiPrecommittedNative;
             }
-            if (_okPost) {
-                deferredLegacyStatusPushes.forEach(push => {
-                    const isGraphic = push.component === 'graphic';
-                    _calLegacyPushStatusToLinear(
-                        isGraphic ? _okPost.graphic_linear_issue_id : _okPost.linear_issue_id,
-                        _okPost[(isGraphic ? 'graphic' : 'video') + '_status'],
-                        { post: _okPost, component: push.component, sourceEditedAt: push.sourceEditedAt }
-                    );
-                });
-            }
+            /* The deferred legacy status drain that stood here is retired
+               (OPEN_REPAIRS 239), together with the accumulator that fed it
+               and the defer-until-source-save edit flag no producer ever set.
+               It fired only AFTER the upsert above, so removing it changes no
+               card state and no save ordering -- only the outbound copy to
+               Linear is gone. */
             _calCacheWrite(_saveSlug, calState.posts, { clearRepairIds: [realId] });
             _calSetCardStatus(realId, 'saved');
             // Only repaint the thumbnail when this save intentionally bumped

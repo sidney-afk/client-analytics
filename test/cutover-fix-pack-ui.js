@@ -59,8 +59,14 @@ assert(!/\bupdate\s+public\.syncview_runtime_flags/i.test(migration));
 assert(source.includes("const WRITE_UI_REROUTE_FLAG_KEY = 'write_ui_reroute_clients'"));
 assert(source.includes('const WRITE_UI_REROUTE_FLAG_TIMEOUT_MS = 2000'));
 assert(source.includes("filter: 'key=eq.' + WRITE_UI_REROUTE_FLAG_KEY"));
-assert(source.includes("const LINEAR_SET_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-set-status'"));
-assert(source.includes("const LINEAR_ADD_COMMENT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-add-comment'"));
+/* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). These pinned the two legacy write
+   endpoints as PRESENT, because the cutover's whole subject was routing each
+   write to the gateway instead of to them. The four writers that used them are
+   retired with their retry bookkeeping, no executable reference to either name
+   survives in the page, and the constants are deleted. Pinned absent, which is
+   the stronger end-state of the same cutover. */
+assert(!source.includes("const LINEAR_SET_STATUS_URL ="));
+assert(!source.includes("const LINEAR_ADD_COMMENT_URL ="));
 assert(!source.includes('webhook/video-form'));
 assert(!source.includes('webhook/graphic-form'));
 assert(extract('_writeUiFetchRerouteFlagOnce').includes("_writeUiSetRerouteFlagValue({ clients: [] })"), 'flag read failures must fail dark');
@@ -96,6 +102,13 @@ assert(failClosed.includes('if (_writeUiRerouteFlagFailed || _writeUiRerouteRost
 assert(failClosed.includes('return _writeUiRerouteUseGateway(clientOrSlug)'),
   'and a healthy flag read must still be answered by the allowlist itself');
 
+/* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). Each writer had to RETAIN its
+   legacy transport and answer `legacy_transport: true` so the source save
+   could continue immediately while the send ran fire-and-forget. The four
+   legacy senders are retired. Per-client routing is unchanged and still
+   pinned; the legacy branch must now refuse on the spot, still without
+   blocking the caller's card write or source save -- which is what
+   `legacy_transport_retired` reports. */
 for (const [wrapper, legacy, surface] of [
   ['_calPushStatusToLinear', '_calLegacyPushStatusToLinear', 'calendar'],
   ['_calPostLinearComment', '_calLegacyPostLinearComment', 'calendar'],
@@ -104,8 +117,9 @@ for (const [wrapper, legacy, surface] of [
 ]) {
   const body = extract(wrapper);
   assert(body.includes(`await _writeUiUseGatewayWhenReady('${surface}', meta)`), wrapper + ' must await per-client routing');
-  assert(body.includes(legacy), wrapper + ' must retain the legacy transport');
-  assert(body.includes('legacy_transport: true'), wrapper + ' must let the legacy source save continue immediately');
+  assert(!body.includes(legacy + '('), wrapper + ' must not call the retired legacy transport');
+  assert(!source.includes('function ' + legacy + '('), legacy + ' must be gone from the page, not merely uncalled');
+  assert(body.includes('legacy_transport_retired: true'), wrapper + ' must report the retired lane without blocking the source save');
 }
 
 const submitEntry = extract('submitLinearForm');
@@ -127,50 +141,23 @@ assert(addPost.includes('calClientSlug(calState.client) !== clientSlug'));
 assert(addPost.includes('_calOpenNativePost(clientName, clientSlug)'));
 assert(extract('_linearOutboxFlushRun').includes('await _writeUiPrimeRerouteFlag()'));
 assert(extract('_sxrLinearOutboxFlushRun').includes('await _writeUiPrimeRerouteFlag()'));
+/* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). Each legacy sender had to freeze
+   its client slug BEFORE its async fetch and hand that frozen local to the
+   retry enqueue, so debt queued after a tab switch could not be attributed to
+   whichever client happened to be open when the send failed. The senders and
+   the enqueues are retired together, so there is no debt to misattribute.
+   Pinned absent, both the functions and the enqueues. */
 for (const name of [
   '_calLegacyPushStatusToLinear', '_calLegacyPostLinearComment',
   '_sxrLegacyPushStatusToLinear', '_sxrLegacyPostLinearComment',
+  '_linearOutboxEnqueue', '_sxrLinearOutboxEnqueue',
 ]) {
-  const body = extract(name);
-  assert(body.indexOf('const clientSlug = _writeUiSourceClientSlug') < body.indexOf('fetch('), name + ' must capture its client before async I/O');
-  assert(body.includes("Enqueue('status', payload") || body.includes("Enqueue('comment', payload"));
-  // The captured slug must be the argument the enqueue persists. Matched as
-  // `, clientSlug` followed by a close-paren OR a comma, because the two
-  // comment enqueues now also pass a fifth argument (the add lane's
-  // deliberately-legacy stamp, OPEN_REPAIRS item 99). What is being pinned
-  // is that the FROZEN local is what travels, not the arity.
-  assert(/, clientSlug[,)]/.test(body), name + ' must persist the captured client with retry debt');
+  assert(!source.includes('function ' + name + '('), name + ' must be retired from the page');
 }
 
-// Execute the restored Calendar/SXR writers and prove the legacy n8n request
-// bodies remain the exact pre-#813 shapes (no gateway metadata added).
-const sent = [];
-const transportContext = {
-  LINEAR_SET_STATUS_URL: 'legacy-status',
-  LINEAR_ADD_COMMENT_URL: 'legacy-comment',
-  _calLinearPushLatest: Object.create(null),
-  _calLinearPushChain: Object.create(null),
-  _sxrLinearPushLatest: Object.create(null),
-  _sxrLinearPushChain: Object.create(null),
-  _calCurrentAuthor: () => 'Calendar actor',
-  _sxrCurrentAuthor: () => 'Samples actor',
-  _writeUiSourceClientSlug: () => 'real-client',
-  _linearOutboxEnqueue: () => { throw new Error('unexpected Calendar enqueue'); },
-  _sxrLinearOutboxEnqueue: () => { throw new Error('unexpected SXR enqueue'); },
-  fetch: async (url, options) => {
-    sent.push({ url, body: options.body, headers: options.headers });
-    return { ok: true, status: 200, json: async () => ({ ok: true }) };
-  },
-  console,
-};
-vm.createContext(transportContext);
-vm.runInContext([
-  extract('_calLegacyPushStatusToLinear'),
-  extract('_calLegacyPostLinearComment'),
-  extract('_sxrLegacyPushStatusToLinear'),
-  extract('_sxrLegacyPostLinearComment'),
-].join('\n'), transportContext);
-
+/* The block that stood here built a VM context and executed all four legacy
+   senders to prove their n8n request bodies stayed the exact pre-#813 shapes.
+   There are no senders and no request bodies (OPEN_REPAIRS 239). */
 // F04: URL-era and native-id-era linkages are interchangeable at all four
 // Kasper decisions and at both SMM/SXR pill locks.
 const linkageContext = {
@@ -421,7 +408,6 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
     'let _writeUiRerouteRosterUnusable = false;',
     extract('_writeUiRerouteUseGatewayFailClosed'),
     extract('_writeUiUseGatewayWhenReady'),
-    extract('_calLegacyPushStatusToLinear'),
     extract('_calPushStatusToLinear'),
   ].join('\n'), switchRouteContext);
   const switchedWrite = switchRouteContext._calPushStatusToLinear(
@@ -433,13 +419,18 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
   resolveSlowFlag();
   const switchedAck = await switchedWrite;
   await new Promise(resolve => setImmediate(resolve));
-  assert.strictEqual(switchedAck.legacy_transport, true);
+  /* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). The race this case exists to
+     pin is the ROUTING one: a write started for one client, with the tab
+     switched to another while the flag read was still pending, must be routed
+     by the client that was clicked. That is still asserted below, and is the
+     whole point. What changed is the losing branch's outcome -- it used to
+     answer `legacy_transport: true` and POST the status to `legacy-status`;
+     the lane is retired, so it answers `legacy_transport_retired` and sends
+     nothing. */
+  assert.strictEqual(switchedAck.legacy_transport_retired, true);
+  assert.strictEqual(switchedAck.legacy_transport, undefined);
   assert.deepStrictEqual(routedSlugs, ['originalclient']);
-  assert.deepStrictEqual(JSON.parse(JSON.stringify(switchedRequests)), [{
-    url: 'legacy-status',
-    body: '{"issue":"https://linear.invalid/VID-RACE","status":"Approved"}',
-    headers: { 'Content-Type': 'application/json' },
-  }]);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(switchedRequests)), []);
 
   // Top-level Create Post also freezes the clicked client. TEST is enrolled,
   // but switching to a real client while its flag read is pending must neither
@@ -510,45 +501,20 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
   await Promise.resolve();
   assert.deepStrictEqual(pendingCalls, [], 'pending routing must send to neither transport');
   resolveRoute(false);
-  await pendingWrite;
-  assert.deepStrictEqual(pendingCalls, ['legacy'], 'resolved non-enrolled routing must use legacy once');
+  const pendingAck = await pendingWrite;
+  /* Was: `['legacy']` -- once the read resolved non-enrolled, the write took
+     the legacy transport exactly once. The barrier property is unchanged and
+     asserted above; what the resolved non-enrolled branch does now is refuse,
+     so the send count stays zero on BOTH sides of the barrier
+     (OPEN_REPAIRS 239). */
+  assert.deepStrictEqual(pendingCalls, [], 'resolved non-enrolled routing sends nothing -- the lane is retired');
+  assert.strictEqual(pendingAck.legacy_transport_retired, true);
 
-  // Calendar retry debt retains the client that initiated the request even if
-  // the visible Calendar switches before the network failure settles.
-  const queuedClients = [];
-  const slugRaceContext = {
-    currentSlug: 'client-a',
-    _calLinearPushLatest: Object.create(null),
-    _calLinearPushChain: Object.create(null),
-    _calCurrentAuthor: () => 'Fixture',
-    _writeUiSourceClientSlug: () => slugRaceContext.currentSlug,
-    _linearOutboxEnqueue: (_kind, _payload, _error, slug) => queuedClients.push(slug),
-    LINEAR_SET_STATUS_URL: 'legacy-status',
-    LINEAR_ADD_COMMENT_URL: 'legacy-comment',
-    fetch: async () => { throw new Error('offline'); },
-    console: { warn() {} },
-  };
-  vm.createContext(slugRaceContext);
-  vm.runInContext(extract('_calLegacyPushStatusToLinear') + '\n' + extract('_calLegacyPostLinearComment'), slugRaceContext);
-  slugRaceContext._calLegacyPushStatusToLinear('VID-2', 'Approved', {});
-  slugRaceContext._calLegacyPostLinearComment('VID-2', 'Note', 'Fixture', {});
-  slugRaceContext.currentSlug = 'client-b';
-  await new Promise(resolve => setImmediate(resolve));
-  await new Promise(resolve => setImmediate(resolve));
-  assert.deepStrictEqual(queuedClients, ['client-a', 'client-a']);
-
-  transportContext._calLegacyPushStatusToLinear('https://linear.invalid/VID-1', 'Approved', {});
-  transportContext._calLegacyPostLinearComment('https://linear.invalid/VID-1', 'Tighten this', 'Kasper', {});
-  transportContext._sxrLegacyPushStatusToLinear('https://linear.invalid/GRA-2', 'Tweaks Needed', {});
-  transportContext._sxrLegacyPostLinearComment('https://linear.invalid/GRA-2', 'Use blue', 'SMM', {});
-  await new Promise(resolve => setImmediate(resolve));
-  await new Promise(resolve => setImmediate(resolve));
-  assert.deepStrictEqual(sent.map(row => [row.url, JSON.parse(row.body)]), [
-    ['legacy-comment', { issue: 'https://linear.invalid/VID-1', body: 'Tighten this', author: 'Kasper' }],
-    ['legacy-comment', { issue: 'https://linear.invalid/GRA-2', body: 'Use blue', author: 'SMM' }],
-    ['legacy-status', { issue: 'https://linear.invalid/VID-1', status: 'Approved' }],
-    ['legacy-status', { issue: 'https://linear.invalid/GRA-2', status: 'Tweaks Needed' }],
-  ]);
-  assert(sent.every(row => JSON.stringify(row.headers) === JSON.stringify({ 'Content-Type': 'application/json' })));
+  /* Removed 2026-09-22 (OPEN_REPAIRS 239): the slug-race case, which proved
+     a client slug frozen before the send still reached the enqueue after a tab
+     switch, and the payload-shape case, which pinned the four n8n request
+     bodies byte for byte. Both executed the retired senders. Neither property
+     has anything left to protect -- there is no send, no payload and no retry
+     debt to attribute. */
   console.log('cutover UI fix-pack allowlist, linkage, auth, quarantine, batch, and token checks: ok');
 })().catch(error => { console.error(error); process.exit(1); });

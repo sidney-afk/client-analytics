@@ -122,8 +122,6 @@ function harness(sources) {
     _prodClientCommentGatewayContext: async () => host.frontDoor,
     _prodCanonicalCommentGate: () => host.gate,
     _prodVerifiedClientCommentMutationContext: () => host.mutationContext,
-    _calLegacyPostLinearComment: (...args) => host.legacy.push(['calendar', args]),
-    _sxrLegacyPostLinearComment: (...args) => host.legacy.push(['sxr', args]),
     _writeUiGatewayWithRepair: async (intent, repair) => {
       host.gateway.push({ intent, repair });
       return { ok: true, native_committed: true };
@@ -143,6 +141,19 @@ function harness(sources) {
   // stub cannot drift from it. OPEN_REPAIRS 127.
   vm.runInContext([extract('_writeUiComponentHasWorkItem')].concat(sources).join('\n'), context);
   return { context, host };
+}
+
+/* REWRITTEN 2026-09-22 (OPEN_REPAIRS 239). This suite observed the legacy
+   lane by stubbing `_calLegacyPostLinearComment` / `_sxrLegacyPostLinearComment`
+   and counting calls. Both senders are retired, so the lane is observed where
+   it now reports itself: the writer resolves `legacy_transport_retired: true`
+   instead of sending. Every case below keeps its meaning -- "routes legacy"
+   reads as "leaves the canonical lane and sends nothing" -- and the negative
+   control still proves the `canonicalUnlinkedAdd` disjunct is what does it. */
+async function observe(context, fn, surface, host, ...args) {
+  const ack = await context[fn](...args);
+  if (ack && ack.legacy_transport_retired === true) host.legacy.push([surface, args, ack]);
+  return ack;
 }
 
 const SHIPPED = [CAL_SRC, SXR_SRC];
@@ -174,10 +185,10 @@ const LANES = [
       // whose crosswalk does not validate: the add lane takes the legacy card
       // store — the store this card is already read from — and succeeds.
       const { context, host } = harness(SHIPPED);
-      await context[fn]('https://linear.app/x/issue/T-1', 'Staff reply', 'SMM',
+      await observe(context, fn, surface, host, 'https://linear.app/x/issue/T-1', 'Staff reply', 'SMM',
         Object.assign(meta(), { canonicalUnlinked: true }));
       ok(host.legacy.length === 1 && host.legacy[0][0] === surface && host.gateway.length === 0,
-        `${surface}: an enrolled STAFF add on a CROSSWALK-BROKEN card routes legacy instead of 409ing`);
+        `${surface}: an enrolled STAFF add on a CROSSWALK-BROKEN card leaves the canonical lane and sends nothing, instead of 409ing`);
       ok(host.legacy[0][1][1] === 'Staff reply',
         `${surface}: and it carries the typed text, which is the whole point`);
     }
@@ -185,7 +196,7 @@ const LANES = [
       // The negative control. Without the disjunct the same call reaches the
       // gateway — which is the shipped defect, reproduced.
       const { context, host } = harness(REVERTED);
-      await context[fn]('https://linear.app/x/issue/T-1', 'Staff reply', 'SMM',
+      await observe(context, fn, surface, host, 'https://linear.app/x/issue/T-1', 'Staff reply', 'SMM',
         Object.assign(meta(), { canonicalUnlinked: true }));
       ok(host.gateway.length === 1 && host.legacy.length === 0,
         `${surface}: with the disjunct removed the same add goes to the gateway — the assertion has teeth`);
@@ -196,7 +207,7 @@ const LANES = [
       // that covers `unlinked`, `legacy_retained` and a failed lookup, all of
       // which `_prodCommentAddRoutesLegacy` answers false for.
       const { context, host } = harness(SHIPPED);
-      await context[fn]('https://linear.app/x/issue/T-1', 'Staff reply', 'SMM',
+      await observe(context, fn, surface, host, 'https://linear.app/x/issue/T-1', 'Staff reply', 'SMM',
         Object.assign(meta(), { canonicalUnlinked: false }));
       ok(host.gateway.length === 1 && host.legacy.length === 0
         && host.gateway[0].intent.comment.card_id === undefined
@@ -207,7 +218,7 @@ const LANES = [
       // 5. A caller that sends no verdict (review-tweak, repair drain, Kasper)
       // keeps its current routing. The repair is scoped to the add lane.
       const { context, host } = harness(SHIPPED);
-      await context[fn]('https://linear.app/x/issue/T-1', 'Staff reply', 'SMM', meta());
+      await observe(context, fn, surface, host, 'https://linear.app/x/issue/T-1', 'Staff reply', 'SMM', meta());
       ok(host.gateway.length === 1 && host.legacy.length === 0,
         `${surface}: a caller that sends no gate verdict at all is routed exactly as before`);
     }
@@ -218,7 +229,7 @@ const LANES = [
       const { context, host } = harness(SHIPPED);
       context._isClientLink = true;
       host.frontDoor = Object.freeze({ source_surface: surface, card_id: cardId, component: meta().component });
-      await context[fn]('https://linear.app/x/issue/T-1', 'Client note', 'Client',
+      await observe(context, fn, surface, host, 'https://linear.app/x/issue/T-1', 'Client note', 'Client',
         Object.assign(meta(), { canonicalUnlinked: true }));
       ok(host.gateway.length === 1 && host.legacy.length === 0
         && host.gateway[0].intent.comment.card_id === cardId,
@@ -229,10 +240,10 @@ const LANES = [
       const { context, host } = harness(SHIPPED);
       context._isClientLink = true;
       host.frontDoor = null;
-      await context[fn]('https://linear.app/x/issue/T-1', 'Client note', 'Client',
+      await observe(context, fn, surface, host, 'https://linear.app/x/issue/T-1', 'Client note', 'Client',
         Object.assign(meta(), { canonicalUnlinked: true }));
       ok(host.legacy.length === 1 && host.gateway.length === 0,
-        `${surface}: a CLIENT without a verified context still routes legacy (the 2026-08-13 P0 stays fixed)`);
+        `${surface}: a CLIENT without a verified context still takes the retired legacy lane rather than the gateway (the 2026-08-13 P0 stays fixed)`);
     }
   }
 

@@ -69,14 +69,17 @@
 
 **Corrected 2026-09-21:** This section’s app-to-Linear status/comment/create paths and authoritative inbound mirror describe the earlier system. Since 2026-09-20 there is no normal outbound or parity delivery; native work does not wait for Linear. The retained inbound webhook does not make Linear the system of record.
 
-- **Status:** app → Linear via `webhook/linear-set-status` (n8n maps app statuses to Linear
-  states; bumps dueDate +2d whenever called on an overdue issue). Calendar "Posted"/"Scheduled"
-  ARE pushed (`_calPushStatusToLinear()` has no guard); only SXR rejects pushing them.
+- **Status:** RETIRED 2026-09-22 (OPEN_REPAIRS 239). The app no longer calls
+  `webhook/linear-set-status` at all. Until then it did (n8n mapped app statuses to Linear
+  states and bumped dueDate +2d whenever called on an overdue issue), and Calendar
+  "Posted"/"Scheduled" were pushed while SXR rejected them. A status write now lands on the card
+  and the source row only.
 - **Status pills are Linear-link-locked** on both calendar and SXR cards — component status
   flow structurally depends on a linked Linear sub-issue today.
-- **Legacy Calendar/Samples card comments:** app → Linear via `webhook/linear-add-comment`,
-  prefixed `**{Reviewer} (via SyncView):**`. Those card-local arrays do not receive a complete
-  inbound comment/lifecycle projection; see F42/F43.
+- **Legacy Calendar/Samples card comments:** RETIRED 2026-09-22 (OPEN_REPAIRS 239). The app no
+  longer calls `webhook/linear-add-comment`; the comment's home was always the card array, and
+  only the outbound copy (prefixed `**{Reviewer} (via SyncView):**`) is gone. Those card-local
+  arrays do not receive a complete inbound comment/lifecycle projection; see F42/F43.
 - **Canonical comment thread (F39/F42/F43; live for the linked cohort):** the deployed slice
   protects the exact canonical
   thread by team/client, requires a two-surface Calendar+SXR snapshot with independently supplied
@@ -90,8 +93,9 @@
   `1738ad3`, and the F42 linked-cohort import executed 2026-07-25 (615 applied / 6,032 deferred /
   35 link defects). The TEST read/write/projection drills and the unlinked-cohort import remain
   gated.
-- **Current caller-auth defect (F91):** `linear-set-status`, `linear-add-comment`, `video-form`, and
-  `graphic-form` authenticate no incoming principal. Their authority checks only choose whether a
+- **Current caller-auth defect (F91):** `video-form` and `graphic-form` authenticate no incoming
+  principal. `linear-set-status` and `linear-add-comment` shared the defect but no longer have an
+  app caller (retired 2026-09-22, OPEN_REPAIRS 239). Their authority checks only choose whether a
   team may still write toward Linear; with both teams Linear-authoritative they permit the route.
   The `?intake=1` page deliberately bypasses staff sign-in. Contain now with an active immutable
   principal or an owner-ratified short-lived exact-client intake capability; do not wait for B5.

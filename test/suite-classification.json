@@ -227,6 +227,7 @@
     "kasper-urgent-ping.js",
     "kcard-thumb-reuse.js",
     "leave-evidence-fingerprint-coupling.js",
+    "legacy-route-deferred-source-checkpoint.js",
     "linear-autolink-parent-linkage.js",
     "linear-comment-normalize.js",
     "linear-dead-rehearsal.js",

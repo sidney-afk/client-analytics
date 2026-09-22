@@ -41,8 +41,7 @@ Samples (legacy) and sample reviews (SXR):
 
 Linear bridge:
 - `webhook/linear-issues`, `webhook/linear-projects`,
-  `webhook/linear-subissues`, `webhook/linear-set-status`, `webhook/linear-add-comment`,
-  `webhook/linear-tweak-comments`, `webhook/log-linear-submission`
+  `webhook/linear-subissues`, `webhook/linear-tweak-comments`, `webhook/log-linear-submission`
 - The `linear-issue-statuses` webhook is **no longer called by anything** (browser
   caller removed 2026-09-22, OPEN_REPAIRS 236; its last two CI callers — the card
   and sample status reconcilers — retired 2026-09-22, OPEN_REPAIRS 238; the
@@ -52,8 +51,13 @@ Linear bridge:
   it the usual way would re-add it to the inventory and demand a caller that no
   longer exists.
 
-`linear-set-status` and `linear-add-comment` have team-direction gates but no incoming caller
-authentication (F91). Do not confuse `prod_authority` with principal verification.
+The `linear-set-status` and `linear-add-comment` webhooks are **no longer called by the app**
+(the legacy Calendar and Samples write transports and their Linear retry queues were retired
+2026-09-22, OPEN_REPAIRS 239; the endpoints are revoked 2026-09-27). Like the
+`linear-issue-statuses` entry above, their paths are deliberately not spelled out in the
+inventory, which is compared for SET EQUALITY against the paths index.html actually calls
+(`test/truth-sync.js`). They had team-direction gates but no incoming caller authentication
+(F91); do not confuse `prod_authority` with principal verification.
 
 AI generation (briefs, captions, summaries):
 - `webhook/generate-brief`, `webhook/generate-caption`, `webhook/generate-content-summary`,

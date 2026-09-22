@@ -354,7 +354,6 @@
             [realId, pid].forEach(k => { _sxrNoLinearPush.delete(k); _sxrNoLinearPush.delete(k + '|video'); _sxrNoLinearPush.delete(k + '|graphic'); });
             let gatewayAttempted = false;
             let gatewayCommitted = precommittedForWrite;
-            const deferredLegacyStatusPushes = [];
             const checkpointCommittedSource = () => {
                 if (!gatewayCommitted) return;
                 post._writeUiRetryEdits = Object.assign({}, edits);
@@ -383,9 +382,13 @@
                             repairRecord: companion && companion.record,
                             deferLegacyUntilSourceSave: true
                         });
-                        if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                        if (acknowledgement && (acknowledgement.deferred_until_source_save
+                            || acknowledgement.legacy_transport_retired)) {
+                            /* A write the retired legacy lane refused never reached the
+                           gateway either, so it must not leave `gatewayAttempted`
+                           set -- otherwise a later source failure is reported as a
+                           gateway failure (OPEN_REPAIRS 239). */
                             gatewayAttempted = gatewayAttemptedBefore;
-                            deferredLegacyStatusPushes.push({ component: 'video', sourceEditedAt });
                         }
                         _writeUiAdoptRepairAck(post, acknowledgement);
                         _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
@@ -407,9 +410,13 @@
                             repairRecord: companion && companion.record,
                             deferLegacyUntilSourceSave: true
                         });
-                        if (acknowledgement && acknowledgement.deferred_until_source_save) {
+                        if (acknowledgement && (acknowledgement.deferred_until_source_save
+                            || acknowledgement.legacy_transport_retired)) {
+                            /* A write the retired legacy lane refused never reached the
+                           gateway either, so it must not leave `gatewayAttempted`
+                           set -- otherwise a later source failure is reported as a
+                           gateway failure (OPEN_REPAIRS 239). */
                             gatewayAttempted = gatewayAttemptedBefore;
-                            deferredLegacyStatusPushes.push({ component: 'graphic', sourceEditedAt });
                         }
                         _writeUiAdoptRepairAck(post, acknowledgement);
                         _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
@@ -503,16 +510,10 @@
                     const focusInThisCard = document.activeElement && document.activeElement.closest && document.activeElement.closest(`.cal-card[data-pid="${realId}"]`);
                     if (!focusInThisCard) { try { _sxrRenderBody({ preserveScroll: true }); } catch (e) {} }
                 }
-                if (_okPost) {
-                    deferredLegacyStatusPushes.forEach(push => {
-                        const isGraphic = push.component === 'graphic';
-                        _sxrLegacyPushStatusToLinear(
-                            isGraphic ? _okPost.graphic_linear_issue_id : _okPost.linear_issue_id,
-                            _okPost[(isGraphic ? 'graphic' : 'video') + '_status'],
-                            { post: _okPost, component: push.component, sourceEditedAt: push.sourceEditedAt }
-                        );
-                    });
-                }
+                /* The deferred legacy status drain that stood here is retired
+                   (OPEN_REPAIRS 239). It fired only AFTER the upsert above, so
+                   removing it changes no card state and no save ordering --
+                   only the outbound copy to Linear is gone. */
             } catch (e) {
                 console.warn('[Samples] save failed', e);
                 if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', 'status', e);
@@ -1406,7 +1407,7 @@
 
                 const acknowledgement = inspection.state === 'active'
                     || inspection.rearmed_team_delivery === true
-                    ? { skipped: true, legacy_transport: true, deferred_until_source_save: true }
+                    ? { skipped: true, source_gate_retry: true, deferred_until_source_save: true }
                     : await _sxrPostLinearComment(_sxrLinearUrlFor(post, comp), body, newComment.author, {
                         post,
                         component: comp,
@@ -2523,27 +2524,15 @@
     /* ── Legacy drain-only queue + native per-target serialized writes ── */
     const SXR_LINEAR_OUTBOX_MAX = 6, SXR_LINEAR_OUTBOX_RETRY_MS = 60 * 1000;
     let _sxrLinearOutboxTimer = null, _sxrLinearOutboxPromise = null, _sxrLinearOutboxOwnerKey = '';
-    function _sxrLinearOutboxRead() { try { const a = JSON.parse(localStorage.getItem(SXR_LINEAR_OUTBOX_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+    // Same retired-row drop as the Calendar twin; see
+    // `_writeUiLegacyWithoutRetired` for why it filters here and writes nowhere.
+    function _sxrLinearOutboxRead() { try { const a = JSON.parse(localStorage.getItem(SXR_LINEAR_OUTBOX_KEY) || '[]'); return _writeUiLegacyWithoutRetired(Array.isArray(a) ? a : []); } catch (e) { return []; } }
     function _sxrLinearOutboxWrite(a) { try { const items = Array.isArray(a) ? a : []; if (items.length) localStorage.setItem(SXR_LINEAR_OUTBOX_KEY, JSON.stringify(items)); else localStorage.removeItem(SXR_LINEAR_OUTBOX_KEY); return true; } catch (e) { return false; } }
-    async function _sxrLinearOutboxEnqueue(kind, payload, err, clientSlug, options) {
-        const record = {
-            id: 'slob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-            kind, payload, attempts: 0, lastError: err || '', queuedAt: Date.now(),
-            transport: 'legacy_n8n',
-            // Same principal stamp as _linearOutboxEnqueue: an enrolled
-            // client's deliberately-legacy comment must survive the drain's
-            // enrollment re-derivation instead of being quarantined.
-            client_link: _isClientLink === true,
-            // Twin of the calendar stamp: a comment the add lane routed legacy
-            // because the slot crosswalk is broken, on an enrolled slug. See
-            // _linearOutboxEnqueue for why the drain has to be told.
-            ...(options && options.canonicalUnlinked ? { canonical_unlinked: true } : {}),
-            client_slug: String(clientSlug || '')
-        };
-        await _writeUiLegacyAppendOutboxItem('sxr', record);
-        _sxrLinearOutboxScheduleRetry();
-        return true;
-    }
+    /* `_sxrLinearOutboxEnqueue` is retired (OPEN_REPAIRS 239). It existed only
+       inside the catch of the two legacy Samples senders, so it went with
+       them: a retry against a route that no longer has a destination is debt
+       nothing can ever pay. Source-only gate records, which never touch the
+       network, still queue through `_writeUiLegacyAppendOutboxItem`. */
     function _sxrLinearOutboxScheduleRetry(suppliedOwner) {
         const owner = suppliedOwner || _writeUiLegacyResumeOwner();
         if (!_writeUiLegacyResumeOwnerCurrent(owner) || _sxrLinearOutboxTimer) return;
@@ -2609,6 +2598,21 @@
                 break itemLoop;
             }
             const payload = it.payload || {};
+            /* RETIRED LEGACY TRANSPORT (OPEN_REPAIRS 239). A `legacy_n8n` item
+               is a queued POST to the revoked `linear-set-status` /
+               `linear-add-comment`. It can never be delivered, so it is
+               dropped here: not sent, not retried, and NOT quarantined -- a
+               quarantine row is for a write an operator must still decide
+               about, and this one has nothing left to decide.
+
+               `_writeUiLegacyWithoutRetired` already strips these at the
+               storage read, so in the app nothing reaches this line. It stays
+               because this loop must be correct on the items it is HANDED,
+               not only on the ones today's reader can hand it: without it,
+               an item arriving by any other route would fall through to the
+               unverifiable-actor quarantine below and be filed for a review
+               that can lead nowhere. */
+            if (it && it.transport === 'legacy_n8n') continue;
             if (it && it.source_gate) {
                 const gateKey = _writeUiLegacyGateSignature(it.source_gate);
                 const storedTerminal = _writeUiLegacyStoredTeamTerminalItem('sxr', it);
@@ -2739,71 +2743,12 @@
                     continue;
                 }
             }
-            /* it.client_link: twin of the calendar drain. A client comment is
-               deliberately legacy regardless of enrollment; without this
-               clause an ENROLLED slug's client item is quarantined
-               ('legacy_actor_unverifiable') with zero retries. Honoring the
-               stamp preserves the quarantine's point — blocking enrolled
-               STAFF writes from the legacy lane — because a client_link item
-               was never gateway traffic to begin with. */
-            if (it && it.transport === 'legacy_n8n'
-                && (it.source_gate || it.client_link || it.canonical_unlinked
-                    || !_writeUiRerouteUseGateway(it.client_slug))) {
-                // item 63: same authority test as the calendar drain, with the
-                // same deliberate source_gate exemption -- see the calendar
-                // drain comment for why quarantining a committed source
-                // gated pair breaks the client retry contract.
-                if (!it.source_gate) {
-                    const directIssue = String(payload.issue || '').trim();
-                    const directMatch = directIssue.match(/\b(VID|GRA)-\d+\b/i);
-                    if (!directMatch) {
-                        if (_writeUiLegacyQuarantine('sxr', it, 'legacy_issue_team_unverifiable')) continue;
-                        remaining.push(it);
-                        continue;
-                    }
-                    if (!drainAuthority) { remaining.push(it); continue; }
-                    const directTeam = directMatch[1].toUpperCase() === 'GRA' ? 'graphics' : 'video';
-                    if (drainAuthority[directTeam] === 'syncview') {
-                        if (_writeUiLegacyQuarantine('sxr', it, 'flipped_team_legacy_push')) continue;
-                        remaining.push(it);
-                        continue;
-                    }
-                }
-                if (Number(it.attempts || 0) >= SXR_LINEAR_OUTBOX_MAX) { remaining.push(it); continue; }
-                const endpoint = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
-                let delivered = false;
-                try {
-                    if (!_writeUiLegacyResumeOwnerCurrent(owner)) {
-                        leaseRevoked = true;
-                        _writeUiLegacyRetainFrom(items, itemIndex, remaining);
-                        break itemLoop;
-                    }
-                    deliveryStarted = true;
-                    const resp = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                    let ok = resp && resp.ok;
-                    try { const json = await resp.json(); if (json && json.ok === false) ok = false; } catch (e) {}
-                    if (!ok) throw new Error('http ' + (resp && resp.status));
-                    delivered = true;
-                } catch (e) {
-                    it.attempts = Number(it.attempts || 0) + 1;
-                    it.lastError = (e && e.message) || String(e);
-                    remaining.push(it);
-                }
-                if (delivered && it.source_gate) {
-                    const receiptItem = _writeUiLegacyTeamDeliveryReceiptItem(it);
-                    if (!_writeUiLegacyRememberCommittedTweak('sxr', receiptItem)) {
-                        remaining.push(receiptItem);
-                    } else {
-                        outcomes.push({
-                            id: String(it.id || ''),
-                            state: 'team_delivery_confirmed',
-                            comment_id: String(it.source_gate.comment_id || ''),
-                            item: receiptItem
-                        });
-                    }
-                }
-                continue;
-            }
+            /* The `legacy_n8n` delivery branch that stood here -- the
+               authority test, the attempt budget, the POST to
+               `linear-add-comment` / `linear-set-status` and the team-delivery
+               receipt it wrote on success -- is retired (OPEN_REPAIRS 239).
+               Those items are now dropped at the top of this loop, so nothing
+               below this point can reach the revoked webhooks. */
             const issue = String(payload.issue || '').trim();
             const issueMatch = issue.match(/\b(VID|GRA)-\d+\b/i);
             if (!issueMatch) {
@@ -2884,4 +2829,3 @@
     window.clearSxrLinearOutbox = function () { const n = _sxrLinearOutboxRead().length; _sxrLinearOutboxWrite([]); return 'cleared ' + n; };
     window.peekSxrLinearOutbox = function () { return _sxrLinearOutboxRead(); };
     const _sxrLinearPushChain = Object.create(null);
-    const _sxrLinearPushLatest = Object.create(null);

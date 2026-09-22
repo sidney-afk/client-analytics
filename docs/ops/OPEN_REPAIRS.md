@@ -27703,3 +27703,193 @@ now refuses a snapshot fetch on the 8 s budget or a snapshot budget under 30 s.
 3. A five-minute warm start means any failure more than five minutes after the
    last good load paints nothing. Whether a stale board is better than an empty
    one is the owner's call (the code's own comments argue both ways).
+
+---
+
+## 231. [fixed 2026-09-22, PR #1493] Kasper's "Card sync incomplete" — the card conflicting with itself
+
+**Reported.** Kasper hit a recurring "Card sync incomplete" dialog on Request
+change. The native comment always committed; the Calendar row's copy did not.
+
+**Root cause.** Request change does two things in one action: it pushes a native
+status change for the component, then calls `calendar-upsert` with the comment
+plus the recomputed overall `status`. The 2026-09-18 native-calendar-status
+bridge (item 212) projects that status push into `calendar_posts.<comp>_status`
+and `updated_at` the instant it commits, ahead of the browser's own save, and by
+its own documented design never recomputes the overall roll-up. The
+comment-bearing call therefore arrives with `existing.updated_at` newer than its
+`_baseAt` and a differing `status`, and trips `calendar-upsert`'s `SCALAR_FIELDS`
+guard. It answers **HTTP 200 with `{ok:false, conflict:true}`**, which is why
+this was invisible in status-code logs for months. The "someone else" the error
+blames is the card's own trigger a second earlier.
+
+**Measured.** `function_logs`, 24h to 2026-09-22: `calendar-upsert` outcome
+`conflict` **111 times, every one under the admin actor**, none from any client
+or SMM role.
+
+**Staff-only, structurally.** `_kasperPersistPostWrite` is the only call site in
+the application that sends a non-empty `comments_base_at`. The main calendar
+funnel sends `''` under v2 (`_calV2Enabled()`, default-on since 2026-06-14) and
+all six `_sxrUpsertFetch` sites hardcode `''`. With an empty baseline the server
+skips the scalar guard and `mergeCell` unions both sides' comments, so no client
+surface can reach this.
+
+**Fixed.** One bounded retry against a freshly read `updated_at`, gated on this
+same call having committed a native status change. Two review findings were
+fixed before merge: advancing the baseline would have had the server prune a
+concurrent reviewer's comment as a deliberate deletion (one field drives both
+the scalar guard and the comment merge, and they cannot be separated from the
+browser — the retry now carries the server's current comments in its payload);
+and the dialog claimed a retry on the path where none is issued.
+
+**Open.** The accepted narrowing: an edit landing just BEFORE the freshness read
+is absorbed into the new baseline and overwritten. Only an edit between the read
+and the retry still conflicts. Accepted because the clobber needs a second
+editor inside the same ~1s window, against a conflict that lost the comment
+outright every time it fired.
+
+**Not done.** No backfill of the comments already missing from `<comp>_tweaks`.
+They are safe in the native store; a repair would match by author +
+`created_at`, never by id (`pc_<uuid>` vs `c_<id>`).
+
+**Worth revisiting.** This is now the only surface sending a real
+`comments_base_at`. Sending `''` like every other path may be the simpler end
+state, but that switches off a guard whose reason for existing here is not
+established. Its own look, not a rider on a fix.
+
+---
+
+## 232. [fixed 2026-09-22, PR #1494] Native cards added to a mixed batch never attached to their parent
+
+**Reported.** An SMM added 4 videos and 4 thumbnails to an existing parent batch
+and they did not appear as sub-issues. 22 cards across 4 clients match the shape.
+
+**Root cause, two arrangements.** `_prodResolveBatchParentNodes` handled a fully
+Linear-backed batch and a fully native-born batch, but not a batch that is both —
+born on Linear, added to natively after the outbound cutoff.
+
+1. The batch has a synthesized Linear-backed node. The native-minting loop
+   correctly declines to mint a second parent, but the fallback that should
+   point new native children at the batch's *existing* node was built only from
+   nodes that same loop had minted — empty for any batch `linearBackedBatchIds`
+   already claims.
+2. The batch's Linear parent was itself imported as a deliverable row. The
+   `byUuid` pass skips that uuid on purpose (`deliverableUuids`) since the issue
+   is already in the tree, so the batch never enters `linearBackedBatchIds`,
+   while `hasUsableParentIds` stops the native mint because the batch *does*
+   record a parent uuid. Net: no node at all, and a nodes-only fallback cannot
+   see it. Found by review after the first fix.
+
+**Fixed.** Arrangement one builds the fallback from every node. Arrangement two
+falls back to the parent's own row id, where `_prodResolveParentLinks` already
+puts the pre-cutoff siblings, so both halves land under one parent. A uuid
+claimed by two rows attaches nothing rather than guessing, mirroring that
+function's existing duplicate rule.
+
+**No data repair.** All rows already carried the correct `batch_id`; the grouping
+was computed wrong at read time. Affected cards reattach on the next read.
+
+**Open, separate work.** Renaming a card does not propagate to the deliverable's
+title, and a sub-issue cannot be renamed in SyncLinear at all. The title is
+composed once at creation and was afterwards only ever written by Linear echoing
+a change back, so nothing writes it now. Note for whoever picks this up:
+`_shared/b4-write.ts` ALREADY implements `operation: "title"` and
+`deliverable-write` is already deployed — the gap is that the browser never
+calls it. Owner's decision, 2026-09-22: forward-only, **no backfill**, and
+built deliberately loose — a failed propagation must never block or roll back
+the rename, and card name and deliverable title are explicitly NOT a mirror
+that must agree.
+
+---
+
+## 233. [found 2026-09-22, measured] The n8n suite still reads Linear on every calendar load, at 35% of the execution bill
+
+**Measured**, read-only, on a working day. 23,117 n8n executions in the 7 days to
+2026-09-22 (~3,300/day, ~100k/month against a 200k plan). n8n retains only about
+a week of execution history, so no earlier trend is available for comparison.
+
+**`SyncView Calendar — Linear Issue Statuses` is 8,172 of those 7 days — 35% of
+the entire estate.** Its own description: "Returns {ok, statuses:{IDENTIFIER:
+stateName}} via one batched Linear GraphQL query, so the calendar can reconcile
+already-linked cards against Linear on load." It is called from
+`src/index/150-calendar-hydration-import.js.part:242` and `:397` via
+`LINEAR_STATUSES_URL`, for every card still carrying a Linear link, to source
+the banner meta. So every calendar load still asks Linear for status.
+
+`SyncView Calendar — Upsert Post` ran 313 times on 2026-09-22 against 23,042
+Edge Function upserts in the same 24h — roughly 1.3% of calendar writes still on
+the legacy n8n lane, so retiring it is not a no-op.
+
+**Why it matters now.** The Linear key revoke is set for 2026-09-27. If this
+workflow is still wired on that date it turns ~1,170 successful runs a day into
+~1,170 failures a day. Decide before the date, not after.
+
+**Sizing, for the plan downgrade question.** ~100k executions/month today.
+Removing the Linear status leg alone would take that to roughly 65k. A 50k plan
+does not fit at current volume without further cuts; a 30k plan is not close.
+Both figures are extrapolated from one retained week and want a second week's
+confirmation before anyone changes a subscription.
+
+---
+
+## 235. [2026-09-22, half done] B1-4: Linear-authority parity retries are gone; the legacy Calendar dispatch is NOT, and should not be deleted on the current evidence
+
+**Done, shipped.** `_writeUiGatewayPost` (fragment 120) no longer derives
+legacy parity from `authority[intent.team] === 'linear'`, and both
+Linear-authority retry legs are deleted — the `legacy_parity_not_allowed`
+rebuild-without-parity leg and the
+`legacy_parity_required` / `team_is_linear_authoritative`
+rebuild-with-parity leg. Parity is now only the explicit legacy-queue drain
+(`intent.legacyOnly`). No team can be Linear-authoritative, the owner has
+ruled that SyncView is not going back to Linear, and the key is revoked
+2026-09-27, so the rollback these legs served is retired by decision.
+`test/write-ui-writer-durability.js` asserted the retired leg byte for byte;
+it now asserts the replacement — a terminal pre-commit refusal, one
+transport attempt, no parity claim on a native intent. Page shrank
+5764261 -> 5763265 bytes.
+
+**Stopped, deliberately.** The second half — deleting
+`_calLegacyPushStatusToLinear` / `_calLegacyPostLinearComment` (fragment
+140) with the 170 call site — is NOT a dead-code deletion, and the audit row
+says so itself: "no whole-function deletion while callers remain."
+
+Every caller that remains is the client-context fallback, which A2 names an
+ACCEPTANCE BLOCKER rather than evidence of deadness:
+
+- `_calPushStatusToLinear` falls through to the legacy pipe when
+  `_writeUiUseGatewayWhenReady('calendar', meta)` is false.
+  `_writeUiRerouteUseGatewayFailClosed` returns false only when the roster
+  read SUCCEEDED and that client slug is genuinely not enrolled — a real,
+  current, client-dependent route, not a stale flag.
+- The fragment-170 site is that same route's completion: it drains
+  `deferredLegacyStatusPushes`, which only exist because the
+  gateway-not-ready branch deferred them until the source save landed.
+- `_calPostLinearComment` falls through on the same signal plus
+  `_isClientLink && !clientGatewaySurface` (a client tab that cannot build a
+  verified context) and `canonicalUnlinkedAdd`.
+
+The task's own measurement agrees: ~1.3% of real calendar writes went
+through the legacy lane in the last 24h measured. These pipes are carrying
+live traffic.
+
+**Why the bookkeeping cannot simply be lifted out.** The debt preservation
+IS inside the pipe: `_linearOutboxEnqueue` sits in the catch of each
+transport, so a write only becomes visible debt when delivery fails.
+Deleting the transport and keeping the enqueue would convert those writes
+from "delivered, debt only on failure" to "debt unconditionally" — a
+delivery regression on a reachable lane for the five days the key is still
+live, and after the 27th the outbox drain reads the same revoked key, so
+whether that debt is ever drained is an open question. Deleting the call
+sites instead removes the client-context fallback, which is the explicit
+stop.
+
+**What the owner has to decide before this can be built.** For a client not
+on the reroute roster, and for a client tab with no verified context, what
+should a Calendar status change and comment DO after 2026-09-27 — enroll
+every such client on the roster first and then delete the pipes as truly
+unreachable (cleanest), record unconditional debt, or refuse the write
+visibly? The first option makes B1-4's second half a genuine dead-code
+deletion instead of a behaviour change, and is the recommendation.
+
+**Status.** Half shipped. Second half blocked on the decision above, not on
+effort.

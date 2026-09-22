@@ -27,7 +27,7 @@ clients fall to n8n. Flag-read failure and some EF failures also silently select
 n8n writer (F67); this is an open auth/failover defect, not a safe fallback contract. See the audit
 register and `ROLLBACK.md` before changing routing.
 
-## n8n webhooks (54)
+## n8n webhooks (53)
 
 **Corrected 2026-09-21:** The Linear bridge list below is a retained endpoint/source inventory. It is not a list of active staff write targets after cutoff. Outbound and parity are off; new native work must not require a provider request.
 

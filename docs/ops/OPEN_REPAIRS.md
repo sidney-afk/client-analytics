@@ -28160,3 +28160,100 @@ workflow was read into or written from this measurement.
 **Identities.** The affected client slugs were reported to the owner in chat and
 are deliberately NOT recorded here; this repo is public and the identity gate
 fails on any slug a change adds. Refer to the counts above.
+
+## 238. [2026-09-22] Entry 236 said the two card/sample reconcilers "run every 15 minutes" — false since 2026-09-20; they are now retired ahead of the 2026-09-27 Linear credential revoke
+
+**The correction.** Entry 236 (point 2) and PR #1497 state that
+`.github/workflows/linear-sync-reconcile.yml` runs `scripts/linear-sync-reconcile.js`
+"every 15 minutes, dispatched by the monitored pager." That was true when written but
+is false as of 2026-09-20: both `linear-sync-reconcile.yml` and
+`sample-linear-reconcile.yml` carry **no `schedule:` trigger** — `workflow_dispatch`
+only — and their n8n dispatcher, workflow `qllIDZPkdNAPRj0b` ("SyncView Monitoring
+Pager + Reconciler V2 Trigger"), was independently read live via the n8n MCP tools
+this session: `active:false`, `activeVersionId:null`. That matches the code comment
+recording deactivation on 2026-09-20 — this is a live confirmation of it, not a
+re-derivation. GitHub's own Actions runs API showed both workflows' last run at
+2026-09-20 20:00 UTC, with none since. So for the two days before this entry, neither
+reconciler ran on any cadence; both were fully dormant, reachable only by hand.
+
+**Why this mattered before today.** A false "runs every 15 minutes" belief could have
+led someone to trust these reconcilers as the convergence backbone described in
+`docs/ops/LINEAR_SYNC_RECONCILE.md`, when in fact nothing was reconciling Linear
+against SyncView cards for two days, silently.
+
+**What was done about it — retirement, not just correction.** Both reconcilers called
+the `linear-issue-statuses` n8n webhook, which is revoked with the rest of the Linear
+credentials on 2026-09-27. A grep across `scripts/` and `.github/` confirmed (via two
+independently-shaped searches — a literal string search for the webhook path, and a
+file-name search for `*reconcile*`) that `scripts/linear-sync-reconcile.js` and
+`scripts/sample-linear-reconcile.js` were the only remaining callers; the browser's
+own caller was already removed in entry 236. Being dispatch-only, dead for two days,
+and about to lose the one credential they need, they were retired rather than left in
+place to fail confusingly if someone ever hand-dispatched them after the 27th:
+
+- Deleted: `scripts/linear-sync-reconcile.js`, `scripts/sample-linear-reconcile.js`,
+  `.github/workflows/linear-sync-reconcile.yml`, `.github/workflows/sample-linear-reconcile.yml`.
+- Deleted the tests whose entire purpose was exercising those two scripts as child
+  processes or re-testing their own `index.html`-extraction sandboxes (nothing they
+  tested lives anywhere else): `test/reconcile-na-parking.js`,
+  `test/reconcile-poison-resilience.js`, `test/f50-reconcile-pull-only.js`,
+  `test/linear-sync-reconcile-extraction.js`, `test/sample-reconcile-extraction.js`.
+- Edited (not skipped or disabled) four tests that audited the two reconcilers as ONE
+  of several call sites in a broader check, removing only the reconciler-specific
+  assertions and leaving the rest of each suite exercising real, live code:
+  `test/browser-writer-auth.js`, `test/calendar-upsert-routing.js`,
+  `test/a2-writer-edge-source.js`, `test/linear-ident-uuid-guard.js`.
+- Removed the two retired test files' and two retired script paths' entries from
+  `test/suite-classification.json` and `REPO_MAP.md` (`test/repo-map-sync.js` and
+  `node scripts/test-suite-routing.js --list` both pass clean), and corrected the
+  three `docs/truth/*.md` files (`ENDPOINTS.md`, `LINEAR.md`, `SUPABASE.md`) that
+  cited the two script paths as live callers — `test/truth-sync.js` enforces those as
+  current-state, and the retirement made those specific citations false.
+
+**Nothing load-bearing was found inside either script.** Both extracted the same
+canonical functions (`computeOverallStatus`, `_calMapLinearStatusStrict`,
+`_calIdentFromUrl`, etc.) straight out of `index.html` at load time rather than
+owning any logic of their own — the functions themselves are untouched and still
+live in `index.html`, exercised by their own tests (`test/f50-native-status-map.js`,
+`test/native-calendar-status-bridge.js`, and others, all still passing).
+
+**Other scheduled jobs and Edge Functions checked for post-revoke breakage —
+candidates named in the task, plus what a `cron:` sweep of every workflow in
+`.github/workflows/` turned up.** For each: does it run on a schedule, does it touch
+Linear, what happens after the 27th.
+
+| Job | Scheduled? | Touches Linear? | After 2026-09-27 |
+|---|---|---|---|
+| `card-calendar-status-drift.yml` (hourly :27) | Yes | **No** — compares `calendar_posts` against `deliverables` in Supabase only; the native bridge trigger it measures replaced the Linear round trip in entry 236 | Nothing — unaffected |
+| `client-signoff-reconcile.yml` | **No** — dispatch-only, no `schedule:`, confirmed by reading the file | No — only `production_native_signoff_verify` (Supabase RPC) and the calendar-upsert EF | Nothing to break; not reachable by any cadence |
+| `linear-deliverables-reconcile.yml` (`scripts/linear-deliverables-reconcile.js`) | **No** — its `schedule:` was already commented out 2026-09-20 by the same Linear-cutoff runbook that deactivated the n8n pager (STEP 6); `workflow_dispatch` only | **Yes**, directly, via GraphQL | If hand-dispatched after the 27th it will fail on the revoked credential — but it cannot page anyone (its watchdog lane `reconciler_pager` was already retired 2026-09-20, `scripts/monitoring-watchdog.js:92-94`) and nothing dispatches it automatically. No action taken; already covered by the prior cutoff work, out of this sweep's scope to touch further. |
+| `monitoring-deadman.yml` (*/15), `monitoring-crosscheck.yml` (*/20) | Yes | No — both run only `node scripts/monitoring-watchdog.js --check` against Supabase heartbeats, Slack, and the **n8n platform API** (`N8N_API_KEY`, unrelated to the Linear credentials) | Nothing — unaffected |
+| `workload-source-freshness.yml` (*/30) | Yes | No — deliberately holds no Linear credential (own file header: "It holds NO Linear credential on purpose") | Nothing — unaffected |
+| `outbox-debt-census.yml` (*/30, offset) | Yes | No — reads `mirror_outbox` row counts in Supabase only | Nothing — unaffected |
+| `native-intake-completion.yml`, `native-intake-completion-monitor.yml` | Yes (best-effort) | No — Supabase-only, and dormant (`NATIVE_INTAKE_COMPLETION_ENABLED` unset) | Nothing — unaffected |
+| `native-notification-sender.yml`, `native-notification-monitor.yml` | Yes | No — Supabase/native only | Nothing — unaffected |
+| `n8n-execution-quota-watchdog.yml` | Yes (daily) | No — reads n8n's own execution-quota API, not Linear | Nothing — unaffected |
+| `syncview-retirement-census.yml`, `thumbnail-revision-scan.yml`, `track-b-backup.yml`, `production-polish-gate.yml`, `assurance-ledger-freshness.yml`, `calendar-e2e-nightly.yml`, `samples-e2e-nightly.yml` | Yes | No direct Linear reach found (the two nightlies mock Linear per `docs/ops/LINEAR_CUTOFF_RUNBOOK.md` §"nightlies keep proving...", a separate, already-tracked open item — not touched here) | Nothing new from this sweep |
+
+**Method note, per the house rule that a search only proves what it found.** The
+"does it touch Linear" column above was checked two ways: (1) grepping every file
+each active-cron workflow's `run:` steps invoke for `api.linear.app` / `LINEAR_API` /
+`linear-issue-statuses` / `linear-set-status`, and (2) reading each workflow's `env:`
+block for a `LINEAR_*` secret. Both searches agreed for every row. The already-cron-commented
+workflows (`b1-linear-incremental-refresh.yml`, `linear-outbound-drain.yml`,
+`production-shadow-audit.yml`, `production-write-drill.yml`,
+`linear-deliverables-reconcile.yml`) were out of this sweep's scope — they were
+handled by the 2026-09-20 Linear-cutoff runbook (STEP 6) and their watchdog lanes are
+already retired in `scripts/monitoring-watchdog.js`.
+
+**Duplicate `## N.` header count**, checked immediately before appending this entry
+and again after: **8** distinct numbers carry duplicate headers (13, 14, 22, 23, 175,
+176, 177, 180) — unchanged by this entry, which uses the next free number, 238.
+
+**Verified vs. assumed, split out per the house rule.** Verified by direct read this
+session: the n8n pager's live `active`/`activeVersionId` state; both workflows' lack
+of a `schedule:` trigger; the absence of any other `linear-issue-statuses` caller in
+`scripts/`/`.github/`; every "touches Linear" cell in the table above, by source read.
+Not independently re-verified this session, taken from the task's own stated facts:
+the two workflows' last-run timestamp (GitHub Actions runs API) and the n8n pager's
+deactivation date.

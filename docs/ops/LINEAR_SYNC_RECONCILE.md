@@ -1,5 +1,12 @@
 # Linear ⇄ SyncView status reconciler
 
+**RETIRED 2026-09-22 (OPEN_REPAIRS 238).** `scripts/linear-sync-reconcile.js` and
+`scripts/sample-linear-reconcile.js`, and their GitHub Actions workflows, no
+longer exist. Both were dispatch-only with no cron and last ran 2026-09-20; the
+n8n pager that used to dispatch them was independently confirmed deactivated
+(`active:false`). Everything below describes retired machinery — kept for
+history, not as a current workflow.
+
 **Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
 
 > **CURRENT-STATE OVERRIDE (2026-07-14; F46/F67/F71).** The combined n8n Linear→card receiver

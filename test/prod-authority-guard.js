@@ -55,37 +55,11 @@ async function run() {
   ok(staleCold.allowed === false && staleCold.http_status === 503, 'cold authority state freezes stale queue requests');
   ok(stalePreflipCache.allowed === false && stalePreflipCache.http_status === 503, 'pre-flip Linear last-known-good cannot authorize APPLY during a flag outage');
 
-  const calendar = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'linear-sync-reconcile.js'), 'utf8');
-  const samples = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'sample-linear-reconcile.js'), 'utf8');
-  for (const [name, source] of [['calendar', calendar], ['samples', samples]]) {
-    ok(source.includes("require('./prod-authority-guard')"), `${name} reconciler uses shared authority reader`);
-    /* F50 (2026-08-10): a syncview team with a LIVE outbound mirror is
-     * reconciled pull-only instead of frozen. The two properties these pins
-     * protect are preserved, and pinned in their new form:
-     *   - gated corrections still never reach apply — the filter is strictly
-     *     NARROWER (it also drops card-side wins on pull-only components,
-     *     which belong to the outbound mirror, not the legacy webhook);
-     *   - a last-known-good cache still cannot authorize ANY write —
-     *     pullOnly itself requires write_safe === true, so write_safe=false
-     *     forces gated exactly as before. */
-    /* 2026-08-30: the filter narrowed AGAIN, so this pin is normalized rather
-     * than literal -- a foreign Linear value (one the canonical deliverable
-     * never held) is now also kept out of apply. Asserting the three clauses
-     * independently keeps the pin about the PROPERTIES it protects instead of
-     * about one line's exact whitespace. */
-    const actionableLine = (source.match(/const actionable = corrections\.filter\([\s\S]*?\);/) || [''])[0].replace(/\s+/g, ' ');
-    ok(actionableLine.includes('!c.gated'), `${name} filters gated corrections before apply`);
-    ok(actionableLine.includes("!(c.pullOnly && c.winner === 'card')"), `${name} keeps mirror-owned card wins out of apply`);
-    ok(actionableLine.includes("c.provenance !== 'foreign'"), `${name} keeps foreign-Linear pulls out of apply`);
-    ok(source.includes("authorityState.write_safe !== true || (authority === 'syncview' && !pullOnly)"), `${name} freezes APPLY when only last-known-good is available`);
-    ok(source.includes("authorityState.write_safe === true && authority === 'syncview' && outboundMode === 'live'"), `${name} pull-only mode itself demands a live write-safe read plus a live outbound mirror`);
-    ok(source.includes("(await loadOutboundMode()) === 'live'"), `${name} re-proves the outbound mirror is STILL live immediately before each pull-only mutation`);
-    ok(source.includes('for (const c of actionable)'), `${name} never iterates gated corrections in write loop`);
-    ok(source.includes('if (!gated) ledger[key] = led'), `${name} does not advance gated ledger clocks`);
-    ok(source.includes('freshAuthority = await loadAuthority') && source.indexOf('freshAuthority = await loadAuthority') < source.indexOf("if (c.winner === 'card')"), `${name} rechecks live authority immediately before each mutation`);
-    ok(source.includes('if (fail) break;'), `${name} aborts the remaining apply set when a fresh authority check or mutation fails`);
-    ok(source.includes('if (authorityFrozen)') && source.indexOf('if (authorityFrozen)') < source.lastIndexOf('saveLedger(ledger)'), `${name} refuses to persist ledger clocks after a mid-run authority freeze`);
-  }
+  // The card and sample status reconcilers this section used to audit
+  // (calendar-side and samples-side F50 pull-only/authority-gating pins) are
+  // retired — deleted along with their workflows 2026-09-22 ahead of the
+  // Linear credential revoke (OPEN_REPAIRS 238). Nothing they tested lives
+  // anywhere else; the b1-linear-backfill.js pins below are unaffected.
 
   const b1 = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'b1-linear-backfill.js'), 'utf8');
   // `strayBatchInserts` IS `batchCandidates` when the stray flag is off; the

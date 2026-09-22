@@ -125,21 +125,6 @@ function ok(condition, message) {
   ok(/k === "client_slug" \|\| k === "client_name" \|\| k === "updated_at"/.test(templates),
     'template patch aliases cannot override the authenticated row identity');
 
-  for (const relative of ['scripts/linear-sync-reconcile.js', 'scripts/sample-linear-reconcile.js']) {
-    const source = read(relative);
-    const name = path.basename(relative);
-    ok(/if \(url === UPSERT_EF_URL\)/.test(source)
-      && /headers\['X-Syncview-Key'\] = SYNCVIEW_STAFF_KEY/.test(source)
-      && /SYNCVIEW_STAFF_KEY is required/.test(source),
-    `${name} supplies a staff key only to protected EF writes and fails closed when missing`);
-  }
-  for (const relative of [
-    '.github/workflows/linear-sync-reconcile.yml',
-    '.github/workflows/sample-linear-reconcile.yml',
-  ]) {
-    ok(/SYNCVIEW_STAFF_KEY:\s*\$\{\{ secrets\.SYNCVIEW_STAFF_KEY \}\}/.test(read(relative)),
-      `${path.basename(relative)} wires the protected writer secret`);
-  }
   for (const relative of [
     'scripts/a1-calendar-upsert-parity.js',
     'scripts/a2-writer-parity.js',

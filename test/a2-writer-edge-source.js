@@ -10,7 +10,6 @@ const SQL = fs.readFileSync(path.join(ROOT, 'migrations/2026-07-04-a2-writer-edg
 const CAL_REORDER = fs.readFileSync(path.join(ROOT, 'supabase/functions/calendar-reorder/index.ts'), 'utf8');
 const SXR_UPSERT = fs.readFileSync(path.join(ROOT, 'supabase/functions/sample-review-upsert/index.ts'), 'utf8');
 const SXR_REORDER = fs.readFileSync(path.join(ROOT, 'supabase/functions/sample-review-reorder/index.ts'), 'utf8');
-const RECON = fs.readFileSync(path.join(ROOT, 'scripts/sample-linear-reconcile.js'), 'utf8');
 
 function ok(cond, msg) {
   if (!cond) {
@@ -102,16 +101,5 @@ ok(/let updated = 0/.test(SXR_REORDER) && /updated\+\+/.test(SXR_REORDER)
   && /return json\(\{ ok: true, updated \}\)/.test(SXR_REORDER)
   && !/updated: parsed\.items\.length/.test(SXR_REORDER),
   'sample reorder EF must report the true matched-row count (F141 silent-loss guard)');
-
-ok(/UPSERT_FLAG_URL/.test(RECON) && /sample_review_ef_clients/.test(RECON), 'sample reconciler runtime flag read missing');
-ok(/loadUpsertEfClients/.test(RECON) && /await loadUpsertEfClients\(\)/.test(RECON),
-  'sample reconciler must load flag once per run');
-ok(/upsertUrlForClient\(card\.client\)/.test(RECON), 'sample reconciler must route by card client');
-ok(!/fetch\(UPSERT_URL/.test(RECON), 'sample reconciler must not fetch UPSERT_URL directly');
-ok(/X-Syncview-Source': 'reconcile'/.test(RECON), 'sample reconciler source header missing');
-ok(/SYNCVIEW_STAFF_KEY/.test(RECON)
-  && /headers\['X-Syncview-Key'\] = SYNCVIEW_STAFF_KEY/.test(RECON)
-  && /if \(url === UPSERT_EF_URL\)/.test(RECON),
-  'sample reconciler must attach its staff key only to EF writes and fail closed when absent');
 
 console.log('A2 writer Edge Function source checks passed');

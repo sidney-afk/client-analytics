@@ -56,7 +56,8 @@
         popoverAnchor: null,                       // currently-open popover's anchor rollup element
         renderQueued: false,                       // background repaint deferred while a popover is open
         fetchedAt: null,
-        sourceSyncedAt: null,                       // newest workload_issues.synced_at represented by this snapshot
+        cachedBoardAt: null,                        // set while the board shows the localStorage copy, not a live snapshot
+        sourceSyncedAt: null,                      // newest workload_issues.synced_at represented by this snapshot
         loading: false,
         refreshing: false,
         backgroundError: null,                    // non-destructive warning; never replaces a warm calendar
@@ -1929,6 +1930,8 @@
             wlState.backgroundError = value.legacyTeams.length
                 ? 'Some teams still use the legacy Workload source.' : null;
             wlState.planLoading = false;
+            // The live snapshot has replaced any cached first paint.
+            wlState.cachedBoardAt = null;
             return value;
         } catch (error) {
             if (generation !== _wlPlanLoadGeneration || session !== _wlPlanSessionGeneration) return null;

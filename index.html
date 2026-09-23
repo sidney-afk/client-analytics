@@ -14360,7 +14360,8 @@
         popoverAnchor: null,                       // currently-open popover's anchor rollup element
         renderQueued: false,                       // background repaint deferred while a popover is open
         fetchedAt: null,
-        sourceSyncedAt: null,                       // newest workload_issues.synced_at represented by this snapshot
+        cachedBoardAt: null,                        // set while the board shows the localStorage copy, not a live snapshot
+        sourceSyncedAt: null,                      // newest workload_issues.synced_at represented by this snapshot
         loading: false,
         refreshing: false,
         backgroundError: null,                    // non-destructive warning; never replaces a warm calendar
@@ -16233,6 +16234,8 @@
             wlState.backgroundError = value.legacyTeams.length
                 ? 'Some teams still use the legacy Workload source.' : null;
             wlState.planLoading = false;
+            // The live snapshot has replaced any cached first paint.
+            wlState.cachedBoardAt = null;
             return value;
         } catch (error) {
             if (generation !== _wlPlanLoadGeneration || session !== _wlPlanSessionGeneration) return null;
@@ -17729,6 +17732,26 @@
         wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
         wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'refreshing' : 'loading';
         wlState.linearMetadataWithheldOnly = 0;
+        /* LAST GOOD BOARD FIRST (Loom, 2026-09-23). Measured on the live site:
+           a switch from the calendar spent 3.8-7.2 s waiting for the snapshot's
+           first byte and under 0.6 s on everything else, so no browser-side
+           tuning of the read can make it feel instant -- only not waiting can.
+           The cache holds issue rows only (never plans, which stay fail-closed
+           behind the live read), so it paints with planLoading=true: automatic
+           estimates, no private pins, editing off until the live snapshot lands.
+           OPEN_REPAIRS 230 item 3: a stale board is acceptable ONLY when it says
+           so, so wlState.cachedBoardAt drives a notice in renderWorkloadPlanStatus
+           until wlLoadSnapshot replaces it. Staff identity is required first:
+           the cache was written for a staff session and is not shown to anyone
+           the live read would refuse. */
+        const cachedIssues = cache && Array.isArray(cache.issues) && cache.issues.length
+            && _syncviewStaffIdentityForHeaders() ? cache.issues : null;
+        if (cachedIssues && !wlState.issueSnapshot.length) {
+            wlState.planLoading = true;
+            wlState.cachedBoardAt = cache.fetchedAt;
+            wlApplyData(cachedIssues, cache.fetchedAt);
+            wlState.loading = false;
+        }
         // Phase 1's exact due-date view remains a safe first paint even before
         // the plan sidecar has answered. This keeps the post-merge / pre-deploy
         // window useful without a runtime gate; saved overrides replace the
@@ -19641,6 +19664,20 @@
         const excludedShown = ((wlState.excluded && wlState.excluded.noAssigneeNoDate) || []).length
             + ((wlState.excluded && wlState.excluded.offTeamAssignee) || []).length;
         const boardShown = wlVisibleSubCount() > 0 || excludedShown > 0;
+
+        /* A board painted from the localStorage copy (initWorkloadView) is not
+           the live board, and OPEN_REPAIRS 230 item 3 allows it only if it says
+           so. Ranked first: every other notice describes a live read. */
+        if (wlState.cachedBoardAt != null) {
+            const at = new Date(wlState.cachedBoardAt);
+            const hhmm = String(at.getHours()).padStart(2, '0') + ':' + String(at.getMinutes()).padStart(2, '0');
+            const time = at.toDateString() === new Date().toDateString()
+                ? hhmm : at.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + hhmm;
+            const updating = wlState.loading || status === 'loading' || status === 'refreshing';
+            notices.push(updating
+                ? 'Showing the board from ' + time + ' while it updates. Saved work days and editing come back in a moment.'
+                : 'Couldn’t update. Showing the board from ' + time + '. Saved work days and editing are off until it refreshes. Try Refresh.');
+        }
 
         const droppedText = wlDroppedPlanWarningText(wlState.nativePlansDropped);
         if (droppedText) notices.push(droppedText);

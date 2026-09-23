@@ -104,7 +104,10 @@ jobs:
           deployed=0
           for fn in notify workload-plan write-diagnostics; do
             if [ "$fn" = "$DEPLOY_FUNCTION" ]; then
-              supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
+              # --use-api bundles on Supabase's side: no edge-runtime image pull
+              # from ghcr.io, whose rate limit failed this lane twice. The
+              # attestation below still proves live source == committed bytes.
+              supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt --use-api
               deployed=$((deployed + 1))
             fi
           done

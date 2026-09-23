@@ -43179,6 +43179,17 @@
             try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
             return;
         }
+        /* Statuses the gateway ALREADY committed for this card, and not changed
+           again since. A retry of a committed-then-failed save re-sends ONLY
+           the card row for these, never the status: replaying a committed
+           status through the gateway a second time lost its repair checkpoint
+           (repair_checkpoint_missing, live 2026-09-23) and turned a save that
+           had landed into "Save failed". A status the person changes again
+           is in the fresh bucket and still goes to the gateway as normal. */
+        const freshEditKeys = new Set(Object.keys(edits));
+        const committedStatusKeys = new Set(retryPost && retryPost._writeUiRetrySourceAt
+            ? Object.keys(retryPost._writeUiRetryEdits || {}).filter(k => /_status$/.test(k) && !freshEditKeys.has(k))
+            : []);
         if (retryPost && (retryPost._writeUiRetryEdits || retryPost._writeUiHeldSourceEdits)) {
             edits = Object.assign({}, retryPost._writeUiRetryEdits || {}, retryPost._writeUiHeldSourceEdits || {}, edits);
         }
@@ -43307,6 +43318,8 @@
             const statusPushes = ['video', 'graphic'].map(component => (async () => {
                 const suppressed = component === 'graphic' ? suppressGraphic : suppressVideo;
                 if (!((component + '_status') in edits) || suppressed) return null;
+                // Already committed by an earlier attempt: card row only.
+                if (committedStatusKeys.has(component + '_status')) return null;
                 const companion = companionRepairsForWrite.find(row => row && row.operation === 'status' && row.component === component);
                 const reconciled = companion && await _writeUiReconcileReplayStatus({ edits, source_at: companion.source_at }, companion.intent, post);
                 if (reconciled) return { component, reconciled: true };

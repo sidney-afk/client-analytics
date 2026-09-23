@@ -881,3 +881,21 @@ executes these files (see `README.md` › Repository layout).
   invalidates the copy). Tested in `test/workload-native-postgres.js`.
   **Undo:** `drop function if exists public.workload_native_snapshot_warm_v1();`
   (the browser stops asking on the resulting 501).
+
+- **`2026-09-23-workload-native-snapshot-server-warm.sql`** keeps the cached
+  Workload snapshot fresh from the server. **Apply AFTER
+  `2026-09-23-workload-native-snapshot-warm.sql`.** It (1) creates `pg_cron`;
+  (2) replaces each source table's statement trigger with transition-table
+  triggers (`workload_snapshot_note_insert/update/delete/truncate`) that note a
+  change only when a row actually changed. An UPDATE matching zero rows or
+  rewriting identical values no longer invalidates, and any real change
+  (`updated_at`, the due-write cursor, included) still does, in the same
+  transaction; (3) schedules `workload-snapshot-warm` every 10 seconds
+  (`select workload_native_snapshot_warm_v1()`), plus a daily prune of that
+  job's `cron.job_run_details`. Re-applying replaces the jobs, never
+  duplicates them. Tested in `test/workload-native-postgres.js` against a
+  stand-in `cron` schema (stock PG17 ships no pg_cron).
+  **Undo:** `select cron.unschedule(jobid) from cron.job where jobname in
+  ('workload-snapshot-warm','workload-snapshot-warm-history');` then, per
+  table, drop the four `workload_snapshot_note_*` triggers and recreate the
+  statement trigger from `2026-09-23-workload-native-snapshot-cache.sql`.

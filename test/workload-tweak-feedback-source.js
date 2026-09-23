@@ -678,7 +678,7 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
     const many = Object.assign(Array.from({ length: 5 }, (_, i) => ({ author: 'A', body: 'b' + i, createdAt: now })), { native: true });
     ok(!/Linear/i.test(context.wlRenderTweakComments(many)), 'the native overflow row drops "on the sub-issue in Linear"');
     const retired = context.wlRenderTweakComments(Object.assign([], { retired: true }));
-    ok(retired.includes('Open the post in SyncView') && !/Linear/i.test(retired) && !/Retry/.test(retired),
+    ok(retired.includes('open the post in the content calendar') && !/Linear/i.test(retired) && !/Retry/.test(retired),
       'a retired row says where to look, never names Linear, and offers no retry that cannot succeed');
   }
   {

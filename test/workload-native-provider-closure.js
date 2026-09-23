@@ -127,10 +127,12 @@ ok(/action: 'native_snapshot'/.test(html) && /workload_native_plan/.test(
     fs.readFileSync(path.join(root, 'supabase/functions/workload-plan/index.ts'), 'utf8')),
   'the plan gateway writes through the native alias RPCs');
 
+// --- 6. the Tweak Needed feedback popover no longer reads Linear --------------
+ok(!/webhook\/linear-tweak-comments/.test(html) && !/LINEAR_TWEAK_COMMENTS_WEBHOOK/.test(html),
+  'the feedback popover no longer calls the retired linear-tweak-comments webhook (B2, 2026-09-23)');
+
 console.log(`PASS workload native provider closure: ${checks} focused checks.
-NOTE, deliberately not asserted: the Tweak Needed popover (wlFetchTweakComments,
-index.html ~19270-19600) still reads the linear-tweak-comments n8n webhook. That
-block is lane D's exclusive region and lane A did not edit it; see OPEN_REPAIRS
-169. Until lane D lands, "zero Linear requests from Workload" is true of the
-board's population, status, assignee, weight, deadline and plan-day surface, and
-NOT of the feedback popover.`);
+The Tweak Needed feedback popover no longer calls linear-tweak-comments (retired in
+B2, 2026-09-23): unbound legacy rows show a notice pointing to the content calendar
+instead. "Zero Linear requests from Workload" now also holds for the feedback
+popover; the only remaining provider read is the legacy-gated metadata read above.`);

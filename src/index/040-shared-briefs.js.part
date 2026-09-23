@@ -334,6 +334,7 @@
     const TIKTOK_FORM_KEY          = 'syncview_tiktokUploadForm_v1';
     const TIKTOK_PENDING_KEY       = 'syncview_pendingTiktokUploads_v1';
     const TIKTOK_HIDDEN_KEY        = 'syncview_hiddenTiktokUploads_v1';
+    const TIKTOK_QUEUE_CACHE_KEY   = 'syncview_tiktokQueueCache_v1';
     const TIKTOK_OPTIMISTIC_TTL_MS = 5 * 60 * 1000; // drop unconfirmed local rows after 5 min
     const TIKTOK_MAX_BYTES         = 287 * 1024 * 1024; // TikTok upload size limit
     // Cloudflare's request-body ceiling in front of n8n Cloud. Only the legacy

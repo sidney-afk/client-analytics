@@ -1444,6 +1444,8 @@
         }
 
         function _resumePendingBriefPolling() {
+            // Reads the brief lists, which a saved-copy paint may still hold queued.
+            if (typeof _analyticsFlushPendingExtras === 'function') _analyticsFlushPendingExtras();
             Object.entries(pendingBriefs).forEach(([key,{triggerISO,type}])=>{
                 const triggerTime=new Date(triggerISO);
                 const sep=key.lastIndexOf('__');

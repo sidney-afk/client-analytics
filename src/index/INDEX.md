@@ -11,7 +11,7 @@
 | 3 | `010-styles-foundation.css.part` | 3900 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 4 | `020-styles-surfaces.css.part` | 3971 | Templates view |
 | 5 | `030-body-shell.html.part` | 449 | Confirmation modal |
-| 6 | `040-shared-briefs.js.part` | 2363 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
+| 6 | `040-shared-briefs.js.part` | 2387 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1581 | Market Research Brief Tab Renderers |
 | 8 | `060-templates-filming.js.part` | 1784 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3368 | Workload Calendar |
@@ -33,7 +33,7 @@
 | 25 | `230-production-create-comments.js.part` | 2597 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 26 | `240-production-description.js.part` | 2607 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 27 | `250-production-controls-data.js.part` | 2743 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 28 | `260-production-refresh-boot.js.part` | 2176 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 28 | `260-production-refresh-boot.js.part` | 2179 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 29 | `270-samples-model.js.part` | 2694 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 30 | `280-samples-cards-notes.js.part` | 2831 | SURFACE 3: the save engine |
 | 31 | `290-samples-writes-review.js.part` | 1806 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |

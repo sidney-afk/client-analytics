@@ -1441,12 +1441,14 @@
             }
 
             if (isClientCalendarLink) {
-                _syncviewWatchClientExtras(fetchExtras(clientEntryRun),clientEntryRun);
-                await fetchEssentials(clientEntryRun);
-                if(!_clientEntryStillCurrent())return;
+                // The verified client comes from the server capability, and
+                // the calendar reads Supabase, so no Sheets read gates this
+                // paint. Both Sheets stages load in the background; the
+                // Analytics/Brief gate waits for them, and the watcher applies
+                // the roster-dependent chrome once they land.
+                _syncviewWatchClientExtras(_syncviewClientAnalyticsData(clientEntryRun),clientEntryRun);
                 await Promise.resolve();
                 if(!_clientEntryStillCurrent())return;
-                _applyAllDataDependentChrome();
                 const _calLinkClient = _syncviewClientEntryCapability && _syncviewClientEntryCapability.client;
                 if (!(await _syncviewVerifyClientLinkAccess(_calLinkClient))) return;
                 if(!_clientEntryStillCurrent())return;
@@ -1878,6 +1880,7 @@
             _fetchExtrasPromise = null;
             ++_fetchExtrasAttempt;
             _fetchExtrasState = { status: 'idle', run: null };
+            _clientEssentialsLoad = { promise: null, status: 'idle', run: null };
             _autoSummaryAttempted.clear();
         } catch (e) {}
         try {

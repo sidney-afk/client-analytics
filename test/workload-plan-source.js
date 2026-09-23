@@ -67,7 +67,7 @@ const clientGroupMove = INDEX.slice(
 );
 const dayRollups = INDEX.slice(
   INDEX.indexOf('function renderDayRollups('),
-  INDEX.indexOf('const WL_TWEAK_COMMENTS_TTL_MS'),
+  INDEX.indexOf('let _wlTweakCommentsToken = 0;'),
 );
 const issueCards = INDEX.slice(
   INDEX.indexOf('function wlRenderPlanIssueCards('),

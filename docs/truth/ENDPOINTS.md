@@ -41,7 +41,9 @@ Samples (legacy) and sample reviews (SXR):
 
 Linear bridge:
 - `webhook/linear-issues`, `webhook/linear-projects`,
-  `webhook/linear-tweak-comments`, `webhook/log-linear-submission`
+  `webhook/log-linear-submission`
+- The Workload tweak-comment preview's Linear read is **no longer called** (retired
+  2026-09-23, B2; the popover reads `production-comments` only).
 - The sub-issues lookup webhook is **no longer called by the browser** (Import from
   Linear, Bulk Linear sync and link-time status adoption removed 2026-09-23, B2;
   see `docs/ops/B2_LINEAR_CLEANUP_PLAN.md`). Its path is not written out here for

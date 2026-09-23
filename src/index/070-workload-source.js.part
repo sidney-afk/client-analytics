@@ -1,6 +1,5 @@
     /* ── Workload Calendar ── */
     const LINEAR_ISSUES_WEBHOOK        = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issues';
-    const LINEAR_TWEAK_COMMENTS_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/linear-tweak-comments';
     const LINEAR_ISSUES_CACHE_KEY = 'syncview_linearIssuesCache_v1';
     const LINEAR_ISSUES_TTL_MS    = 5 * 60 * 1000;
     const WL_VIEW_PREF_KEY        = 'syncview_workloadView_v1';

@@ -290,6 +290,19 @@ Owner decisions recorded with this go-ahead:
 - **Proof:** new retirement guards in `test/import-from-linear-sealed.js` and `test/calendar-kebab-import-menu.js`; `test/linear-import-optional-graphics.js` deleted (its subject is gone) and unregistered; tests that expected the sync call now assert it never happens. `docs/independence/SYSTEM_MAP.md` and `docs/truth/ENDPOINTS.md` updated. `prod-write-gateway-browser.js` passes. `npm test`: 574 of 575 suites pass; the one failure, `truth-sync`, is only the pre-existing "freshness commit is an ancestor" check that also fails on `origin/main`.
 - **Rollback:** revert the PR.
 - **Next (owner, n8n):** deactivate workflow `Nk3pwR6Fbl4VAPqH` ("Calendar — Linear Sub-Issues") **only after this merges** and GitHub Pages has deployed it.
+- **Done 2026-09-23 ~19:57Z (after PR #1524 merged):** workflow `Nk3pwR6Fbl4VAPqH` deactivated (unpublished) in n8n; 0 runs in retained history. Rollback: re-activate it in n8n.
+
+### Slice 5 (plan Slice 3, part): Workload tweak-comment preview no longer calls `linear-tweak-comments`. DONE in the repo PR that carries this entry
+
+- **What changed:** the Tweak Needed popover in Workload already read native rows, and legacy rows bound to a native deliverable, from `production-comments`. Only rows with no native binding still went to the n8n webhook, which can only fail since the Linear keys were revoked. That lane is removed: `LINEAR_TWEAK_COMMENTS_WEBHOOK`, `_wlLegacyFetchTweakComments`, its 5-minute cache and TTL are gone (`070-workload-source`, `090-workload-popovers-navigation`).
+- **What users see:** before, an unbound row showed "Couldn't load this deliverable's feedback. Retry..." after the webhook failed. Retrying could never work. Now that row shows at once "Feedback for this item isn't shown here. Open the post in SyncView to check its review notes." No request is sent. Native and bound rows are unchanged. The "older comments ... in Linear" overflow text is gone.
+- **Proof:**
+  - `test/workload-tweak-feedback-source.js` (219 checks) now fails on any request to the retired webhook. It asserts that unbound, unclassifiable, and stale-bound rows settle as `retired` with no request.
+  - `test/system-map-sync.js` and `test/truth-sync.js` pass, apart from the 4 pre-existing shallow-clone freshness checks.
+  - The webhook was removed from `SYSTEM_MAP.md` (50 n8n webhooks) and `ENDPOINTS.md`.
+  - The `linear-dead-rehearsal` floor went from 4 to 3.
+- **Rollback:** revert the PR. The webhook comes back but still fails, because Linear is revoked.
+- **n8n:** deactivate workflow `d7Dod7OuQsVsl1CN` ("Workload — Tweak Comments") only **after this merges** and Pages serves it (**owner**). It is not touched here.
 
 ### Brief images on Linear's servers (measured 2026-09-23, read-only)
 

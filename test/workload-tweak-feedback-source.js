@@ -94,8 +94,9 @@ const NATIVE_TTL_MS = (() => {
 const READ_BUDGET = Number((fs.readFileSync(path.join(__dirname, '..',
   'migrations/2026-07-23-production-comment-thread-lifecycle.sql'), 'utf8')
   .match(/requests < (\d+)/) || [0, 0])[1]);
-const TTL_MS = valueOf((source.match(/^ *const WL_TWEAK_COMMENTS_TTL_MS = .*$/m) || [''])[0])
-  || 5 * 60 * 1000;
+// The retired Linear lane's cache TTL (B2). Kept as a fixed reference so the
+// native lane is still proven to cache for less time than that lane did.
+const TTL_MS = 5 * 60 * 1000;
 
 // ── A virtual clock ──────────────────────────────────────────────────────
 // The finding is about reads that HANG, not reads that reject: a rejection is
@@ -174,9 +175,6 @@ function build(options = {}) {
     AbortController, setTimeout, clearTimeout,
     CAL_SUPABASE_URL: 'https://fixture.invalid',
     WL_PLAN_READ_TIMEOUT_MS: ROW_TIMEOUT_MS,
-    WL_TWEAK_COMMENTS_TTL_MS: 5 * 60 * 1000,
-    LINEAR_TWEAK_COMMENTS_WEBHOOK: 'https://n8n.invalid/webhook/linear-tweak-comments',
-    _wlTweakCommentsCache: new Map(),
     _syncviewEfHeaders: (headers) => ({ ...headers, 'x-syncview-key': 'fictional' }),
     wlEscape: value => String(value == null ? '' : value).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
     _calFmtCommentTime: () => 'just now',
@@ -194,12 +192,8 @@ function build(options = {}) {
       const settled = value => { inFlight--; return value; };
       const done = promise => promise.then(settled, error => { settled(); throw error; });
       return done((async () => {
-      if (String(url).includes('linear-tweak-comments')) {
-        if (options.legacyHangs) return hangs(init);
-        if (options.legacyThrows) throw new Error('legacy lane unreachable');
-        return { ok: true, json: async () => ({ ok: true, comments: options.legacyComments
-          || { 'wl-1': [{ author: 'Legacy', body: 'legacy note', createdAt: now }] } }) };
-      }
+      // The Linear lane is retired (B2): any request to it is a regression.
+      if (String(url).includes('linear-tweak-comments')) throw new Error('retired linear-tweak-comments lane was called');
       // Multi-row scenarios queue pages per deliverable instead of one shared
       // list, so a rejection can be aimed at ONE row while its neighbours
       // answer normally. `{ reject }` is the real failure Codex named: an
@@ -241,7 +235,6 @@ function build(options = {}) {
     NATIVE_TTL_DECL,
     extract('wlFetchTweakComments'),
     extract('_wlNativeTweakComments'),
-    extract('_wlLegacyFetchTweakComments'),
     extract('wlRenderTweakComments'),
   ].join('\n'), context);
   return { context, calls, peak: () => peakInFlight };
@@ -258,7 +251,7 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
     const enforced = Number((guard.match(/body\.limit === (\d+)/) || [])[1]);
     ok(mine === shared, 'the Workload page size matches PROD_COMMENTS_PAGE_SIZE (' + mine + ' vs ' + shared + ')');
     ok(mine === enforced, 'and matches the limit the house read-shape guard enforces (' + enforced + ')');
-    ok(!/PROD_COMMENTS_PAGE_SIZE/.test(source.slice(source.indexOf('const WL_TWEAK_FEEDBACK_PAGE_SIZE'), source.indexOf('async function _wlLegacyFetchTweakComments'))),
+    ok(!/PROD_COMMENTS_PAGE_SIZE/.test(source.slice(source.indexOf('const WL_TWEAK_FEEDBACK_PAGE_SIZE'), source.indexOf('function wlRenderTweakComments('))),
       'and the Workload reader does not reach for a constant declared in a scope it cannot see');
   }
 
@@ -268,23 +261,24 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
     // classified native and the popover must behave exactly as it does now.
     const { context, calls } = build({ laneA: false });
     const out = await context.wlFetchTweakComments(['wl-1']);
-    ok(calls.length === 1 && calls[0].url.includes('linear-tweak-comments'),
-      'without lane A the reader stays entirely on the legacy lane');
-    ok(!calls.some(c => c.url.includes('production-comments')),
-      'and issues no production-comments request it cannot yet classify');
-    ok(out['wl-1'][0].body === 'legacy note', 'legacy comments still reach the popover unchanged');
+    ok(calls.length === 0,
+      'without lane A the reader issues no request at all -- the Linear lane is retired (B2)');
+    ok(out['wl-1'].retired === true && out['wl-1'].length === 0,
+      'and the row settles as retired, not as a failure or an empty read');
   }
   {
     const { context, calls } = build({ workloadSource: 'legacy', pages: [] });
     await context.wlFetchTweakComments(['wl-1']);
     ok(calls.every(c => !c.url.includes('production-comments')),
-      'a row lane A marks legacy keeps the legacy lane even once lane A is present');
+      'a row lane A marks legacy never reads production-comments without a binding');
+    ok(calls.length === 0, 'and no longer calls the retired linear-tweak-comments webhook');
   }
   {
     const { context, calls } = build({ snapshot: [], pages: [] });
     await context.wlFetchTweakComments(['wl-1']);
-    ok(calls.length === 1 && calls[0].url.includes('linear-tweak-comments'),
-      'an unclassifiable row falls back rather than refusing — an absence is the failure an editor cannot report');
+    const out = await context.wlFetchTweakComments(['wl-1']);
+    ok(calls.length === 0 && out['wl-1'].retired === true,
+      'an unclassifiable row gets an explicit retired answer rather than silence — an absence is the failure an editor cannot report');
   }
 
   // ── A legacy row the snapshot bound to a native deliverable ──────────
@@ -312,8 +306,8 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
     const snapshot = [{ id: 'wl-1', workloadSource: 'legacy', legacyBoundNativeId: '', nativeId: '' }];
     const { context, calls } = build({ snapshot, pages: [] });
     await context.wlFetchTweakComments(['wl-1']);
-    ok(calls.every(c => !c.url.includes('production-comments')) && calls.some(c => c.url.includes('linear-tweak-comments')),
-      'an unbound legacy row still falls to the legacy lane -- the coverage boundary in the plan doc');
+    ok(calls.length === 0,
+      'an unbound legacy row issues no request -- the coverage boundary in the plan doc, now without the Linear lane');
   }
   {
     // One bound legacy row and one unbound legacy row in the same popover:
@@ -324,15 +318,14 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
       { id: 'wl-2', workloadSource: 'legacy', legacyBoundNativeId: '', nativeId: '' },
     ];
     const { context, calls } = build({ snapshot, byDeliverable: {
-      del_bound_two: [page([canonical('a')], { feedback: { version: 1, status: 'complete', complete: true, rows: [] } })] },
-      legacyComments: { 'wl-2': [{ author: 'Legacy', body: 'legacy note', createdAt: now }] } });
+      del_bound_two: [page([canonical('a')], { feedback: { version: 1, status: 'complete', complete: true, rows: [] } })] } });
     const out = await context.wlFetchTweakComments(['wl-1', 'wl-2']);
     ok(out['wl-1'].native === true && out['wl-1'][0].body === 'canonical a',
       'the bound legacy row reads native feedback');
-    ok(out['wl-2'].native !== true && out['wl-2'][0].body === 'legacy note',
-      'the unbound legacy row beside it still reads the legacy lane');
-    ok(calls.some(c => c.url.includes('production-comments')) && calls.some(c => c.url.includes('linear-tweak-comments')),
-      'both lanes are used, each for the row that actually needs it');
+    ok(out['wl-2'].native !== true && out['wl-2'].retired === true,
+      'the unbound legacy row beside it settles as retired');
+    ok(calls.length === 1 && calls[0].url.includes('production-comments'),
+      'only the bound row issues a request');
   }
   {
     // The Codex P1 finding: `legacyBoundNativeId` is the legacy-issue-to-
@@ -344,13 +337,12 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
     // Edge Function change in scope, the bound lane fails closed once the
     // snapshot behind the binding is no longer fresh enough to vouch for it.
     const snapshot = [{ id: 'wl-1', workloadSource: 'legacy', legacyBoundNativeId: 'del_bound_one', nativeId: '' }];
-    const { context, calls } = build({ snapshot, fetchedAt: Date.now() - (NATIVE_TTL_MS + 1000),
-      legacyComments: { 'wl-1': [{ author: 'Legacy', body: 'legacy note', createdAt: now }] } });
+    const { context, calls } = build({ snapshot, fetchedAt: Date.now() - (NATIVE_TTL_MS + 1000) });
     const out = await context.wlFetchTweakComments(['wl-1']);
-    ok(calls.every(c => !c.url.includes('production-comments')) && calls.some(c => c.url.includes('linear-tweak-comments')),
-      'a bound legacy row falls to the legacy lane once its snapshot is older than the native TTL');
-    ok(out['wl-1'][0].body === 'legacy note',
-      'so the row shows the legacy thread rather than risking a stale alias\'s feedback');
+    ok(calls.length === 0,
+      'a bound legacy row does not read production-comments once its snapshot is older than the native TTL');
+    ok(out['wl-1'].retired === true,
+      'so the row shows the not-shown-here notice rather than risking a stale alias\'s feedback');
   }
   {
     // The boundary the check above lives on: a snapshot still inside the TTL
@@ -681,13 +673,13 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
     const rendered = context.wlRenderTweakComments(nativeEmpty);
     ok(rendered.includes('Open the post in SyncView'), 'an empty native read says where to look instead of rendering silence');
     ok(!/Linear/i.test(rendered), 'and never names Linear');
-    ok(context.wlRenderTweakComments([]) === '', 'an empty legacy read still renders nothing, as it does today');
+    ok(context.wlRenderTweakComments([]) === '', 'an empty non-native array still renders nothing');
 
     const many = Object.assign(Array.from({ length: 5 }, (_, i) => ({ author: 'A', body: 'b' + i, createdAt: now })), { native: true });
     ok(!/Linear/i.test(context.wlRenderTweakComments(many)), 'the native overflow row drops "on the sub-issue in Linear"');
-    const legacyMany = Array.from({ length: 5 }, (_, i) => ({ author: 'A', body: 'b' + i, createdAt: now }));
-    ok(/in Linear/.test(context.wlRenderTweakComments(legacyMany)),
-      'while a legacy row keeps it, because that is still where those comments are until the cutoff');
+    const retired = context.wlRenderTweakComments(Object.assign([], { retired: true }));
+    ok(retired.includes('open the post in the content calendar') && !/Linear/i.test(retired) && !/Retry/.test(retired),
+      'a retired row says where to look, never names Linear, and offers no retry that cannot succeed');
   }
   {
     // The failure path is the one that told staff to open a dead system.
@@ -789,19 +781,19 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
       { id: 'wl-1', nativeId: 'del-one', workloadSource: 'native' },
       { id: 'wl-2', nativeId: '', workloadSource: 'legacy' },
     ];
-    const { context } = build({ snapshot, legacyThrows: true,
+    const { context } = build({ snapshot,
       byDeliverable: { 'del-one': [page([canonical('a')], complete([]))] } });
     const out = await context.wlFetchTweakComments(['wl-1', 'wl-2']);
     ok(out['wl-1'].length === 1 && out['wl-1'].failed !== true,
-      'a legacy lane outage does not blank the native rows beside it');
-    ok(out['wl-2'].failed === true, 'and the legacy rows say they could not be read');
+      'an unbound legacy row does not blank the native rows beside it');
+    ok(out['wl-2'].retired === true, 'and the legacy row says feedback is not shown here');
   }
   {
     const { context } = build({ pages: [] });
     ok(/Couldn&rsquo;t load this deliverable&rsquo;s feedback/.test(context.wlRenderTweakComments(undefined)),
       'a row with no entry at all renders unavailable rather than an empty box');
     ok(context.wlRenderTweakComments([]) === '',
-      'while an empty legacy array still renders nothing, as it does today');
+      'while an empty non-native array still renders nothing');
   }
 
   // ── The collection is bounded, not just each row (finding 4) ────────
@@ -919,38 +911,26 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
       'and still never claims a client said nothing');
   }
 
-  // ── The legacy lane had no bound at all ─────────────────────────────
+  // ── The retired Linear lane cannot hold the popover ────────────────
   {
-    // `_wlLegacyFetchTweakComments` armed no AbortController, so a hung n8n
-    // webhook held the popover indefinitely — the same defect on the other
-    // lane, and it would have made "the collection is bounded" false.
     const clock = makeClock();
-    const { context } = build({ clock, legacyHangs: true,
-      snapshot: [{ id: 'wl-1', nativeId: '', workloadSource: 'legacy' }] });
-    const run = await runWithClock(clock, context.wlFetchTweakComments(['wl-1']));
-    ok(run.settled, 'a hung legacy webhook no longer holds the popover open forever');
-    ok(clock.now() <= (DEADLINE_MS || Infinity),
-      'it is cut at the same collection deadline (' + clock.now() + 'ms)');
-    ok(run.settled && !run.error && !!run.value && run.value['wl-1'].failed === true,
-      'and the legacy rows say they could not be read rather than reading as empty');
-  }
-  {
-    // And it runs BESIDE the native pool now, so its latency is no longer
-    // added to theirs.
-    const clock = makeClock();
-    const { context, calls } = build({ clock, legacyHangs: true, snapshot: [
+    const { context, calls } = build({ clock, snapshot: [
       { id: 'wl-1', nativeId: 'del-1', workloadSource: 'native' },
       { id: 'wl-2', nativeId: '', workloadSource: 'legacy' },
     ], byDeliverable: { 'del-1': [page([canonical('a')], complete([]))] } });
     const painted = [];
     const run = await runWithClock(clock,
       context.wlFetchTweakComments(['wl-1', 'wl-2'], (id) => painted.push({ id, at: clock.now() })));
-    const legacyCall = calls.find(entry => String(entry.url).includes('linear-tweak-comments'));
-    ok(legacyCall && legacyCall.at === 0, 'the legacy batch is issued at once rather than queued behind the native reads');
-    ok(painted.some(entry => entry.id === 'wl-1' && entry.at === 0),
-      'so a native row still renders at 0ms while the legacy lane hangs');
-    ok(run.settled && !!run.value && run.value['wl-1'].failed !== true && run.value['wl-2'].failed === true,
-      'and the legacy outage lands only on the legacy rows');
+    ok(!calls.some(entry => String(entry.url).includes('linear-tweak-comments')),
+      'no request is ever sent to the retired linear-tweak-comments webhook');
+    ok(painted.some(entry => entry.id === 'wl-2' && entry.at === 0),
+      'the unbound legacy row paints its notice at once');
+    ok(run.settled && !!run.value && run.value['wl-1'].failed !== true && run.value['wl-2'].retired === true,
+      'and the native row beside it reads normally');
+  }
+  {
+    ok(!/webhook\/linear-tweak-comments/.test(fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8')),
+      'index.html carries no URL for the retired linear-tweak-comments webhook');
   }
 
   // ── The pool must not spend the actor-wide read budget (finding 5) ──
@@ -1016,7 +996,7 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
     ok(!!out['wl-1'] && (out['wl-1'][0] || {}).body === 'canonical b', 'they get their own read');
   }
   {
-    // The cache expires on the same TTL the legacy lane has always used here.
+    // The native cache expires on its own TTL.
     const clock = makeClock();
     const snapshot = nativeRows(1);
     const { context, calls } = build({ clock, snapshot, byDeliverable: { 'del-1': [
@@ -1099,7 +1079,7 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
     // response skips that refusal entirely, and a deliverable re-linked to a
     // different CLIENT's card would put that client's notes under this one.
     ok(NATIVE_TTL_MS > 0 && NATIVE_TTL_MS < TTL_MS,
-      'the native lane has a TTL of its own, shorter than the legacy lane’s ('
+      'the native lane has a TTL of its own, shorter than the retired Linear lane’s ('
         + NATIVE_TTL_MS + 'ms vs ' + TTL_MS + 'ms)');
     ok(/feedbackCardMatches/.test(fs.readFileSync(path.join(__dirname, '..',
       'supabase/functions/production-comments/feedback.mjs'), 'utf8')),
@@ -1343,8 +1323,8 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
     const { context, calls } = build({ pages: [page([canonical('a')])] });
     context.wlState.issueSnapshot.push({ id: 'wl-2', nativeId: '', workloadSource: 'legacy' });
     const out = await context.wlFetchTweakComments(['wl-1', 'wl-2']);
-    ok(calls.some(c => c.url.includes('production-comments')) && calls.some(c => c.url.includes('linear-tweak-comments')),
-      'a board holding both kinds of row reads each on its own lane');
+    ok(calls.some(c => c.url.includes('production-comments')) && !calls.some(c => c.url.includes('linear-tweak-comments')),
+      'a board holding both kinds of row reads natively and never calls the retired lane');
     ok(out['wl-1'] && out['wl-2'], 'and returns both, keyed by row id');
   }
 

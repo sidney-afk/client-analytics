@@ -60,7 +60,7 @@ try{
  assert.equal(colorOf({...base,status:'status_tweak',comment:{author:'A',body:'x'}}),'#F2994A','merged tweak takes the status colour');
  assert.equal(colorOf({...base,status:'status_smm_approval',comment:{author:'A',body:'x'}}),'#B45CD6','merged approval takes the status colour');
  for(const v of ['compact','line'])assert.equal(fmt.formatNotification({...base,status:'status_tweak'},v).attachments,undefined,v+' stays uncoloured');
- {const m=fmt.formatNotification(evil,'card'),s2=JSON.stringify(m.attachments);assert(!s2.includes('<@')&&!s2.includes('<!'),'coloured card keeps the no-mention rule');assert.equal(m.text,fmt.fallbackText(evil),'coloured card keeps the plain fallback');}
+ {const m=fmt.formatNotification(evil,'card'),s2=JSON.stringify(m.attachments);assert(!s2.includes('<@')&&!s2.includes('<!'),'coloured card keeps the no-mention rule');assert.equal(m.text,fmt.fallbackText(evil),'coloured card keeps the plain fallback');assert.equal(m.attachments[0].fallback,m.text,'the attachment carries the plain line for notifications');}
 
  // Real handler, NOTIFY_FORMAT on: a status and its comment become ONE post.
  let handler,posts=[],receipts=[],env={NOTIFY_RUNNER_KEY:'k',SUPABASE_URL:'https://synthetic.invalid',SUPABASE_SERVICE_ROLE_KEY:'s',SLACK_BOT_TOKEN:'t',NOTIFY_FORMAT:'compact'};

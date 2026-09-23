@@ -21,9 +21,11 @@ export type NotifyInput = {
   cardId?: string | null;                // calendar_posts.id when origin is calendar
   comment?: { author?: string | null; body: string } | null;
 };
-export type SlackAttachment = { color: string; blocks: Record<string, unknown>[] };
+export type SlackAttachment = { color: string; fallback: string; blocks: Record<string, unknown>[] };
 // `attachments`, when present, is what is posted: the same blocks wrapped in one
-// attachment so Slack draws a coloured bar down the left edge.
+// attachment so Slack draws a coloured bar down the left edge. The plain line
+// then rides as the attachment's `fallback` (notification-only) and no
+// top-level text is sent, or Slack would draw it above the card as a duplicate.
 export type SlackMessage = { text: string; blocks: Record<string, unknown>[]; attachments?: SlackAttachment[] };
 
 const SITE = "https://syncview.synchrosocial.com/";
@@ -104,7 +106,7 @@ export function formatNotification(input: NotifyInput, variant: NotifyVariant): 
     const buttons = [{ type: "button", text: { type: "plain_text", text: "Open in SyncLinear" }, url: p.prod }];
     if (p.cal) buttons.push({ type: "button", text: { type: "plain_text", text: "Open on calendar" }, url: p.cal });
     blocks.push({ type: "actions", elements: buttons });
-    return { text, blocks, attachments: [{ color: p.status.color, blocks }] };
+    return { text, blocks, attachments: [{ color: p.status.color, fallback: text, blocks }] };
   } else if (variant === "line") {
     let line = p.status.emoji + " *" + p.status.label + "* · *" + boldSafe(p.title) + "*" + (p.client ? " · " + p.client : "");
     if (p.body) line += "\n" + quote(p.body) + "\n_" + p.author + "_";

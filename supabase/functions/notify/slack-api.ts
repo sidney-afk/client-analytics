@@ -44,7 +44,9 @@ export async function postSlackChannelMessage(
     response = await fetchImpl("https://slack.com/api/chat.postMessage", {
       method: "POST", redirect: "error", signal: controller.signal,
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ channel, text, client_msg_id: clientMsgId, parse: "none", link_names: false, mrkdwn: allowMentions, unfurl_links: false, unfurl_media: false, ...(attachments ? { attachments } : blocks ? { blocks } : {}) }),
+      // With attachments the plain line travels as each attachment's fallback;
+      // a top-level text would render visibly above the coloured card.
+      body: JSON.stringify({ channel, ...(attachments ? { attachments } : { text, ...(blocks ? { blocks } : {}) }), client_msg_id: clientMsgId, parse: "none", link_names: false, mrkdwn: allowMentions, unfurl_links: false, unfurl_media: false }),
     });
   } catch {
     clearTimeout(timer);
@@ -82,7 +84,7 @@ export async function postSlackDirectPreview(
     response = await fetchImpl("https://slack.com/api/chat.postMessage", {
       method: "POST", redirect: "error", signal: controller.signal,
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ channel: userId, text, ...(attachments ? { attachments } : { blocks }), parse: "none", link_names: false, mrkdwn: false, unfurl_links: false, unfurl_media: false }),
+      body: JSON.stringify({ channel: userId, ...(attachments ? { attachments } : { text, blocks }), parse: "none", link_names: false, mrkdwn: false, unfurl_links: false, unfurl_media: false }),
     });
   } catch {
     clearTimeout(timer);

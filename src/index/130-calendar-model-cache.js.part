@@ -2575,20 +2575,6 @@
         document.body.classList.remove('cal-modal-open');
     }
 
-    /* ── Import posts from a Linear parent issue ──────────────────────
-       Paste a parent-issue link; the linear-subissues webhook returns its
-       sub-issues; the user picks which become calendar posts. */
-    let _calLinearSubs = null;
-    let _calLinearParent = null;
-    let _calLinearGraphicParent = null;
-    let _calSubDragIdx = null;
-    /* Numeric part of a Linear identifier (VID-11949 -> 11949), used to sort
-       the import picker so sub-issues land smallest-first by default. */
-    function _calSubNum(s) {
-        const m = String((s && s.identifier) || '').match(/(\d+)/);
-        return m ? parseInt(m[1], 10) : 0;
-    }
-
     function _calMapLinearStatus(name) {
         const s = String(name || '').trim().toLowerCase();
         if (s.includes('tweak')) return 'Tweaks Needed';

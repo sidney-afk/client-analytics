@@ -303,6 +303,7 @@ Owner decisions recorded with this go-ahead:
   - The `linear-dead-rehearsal` floor went from 4 to 3.
 - **Rollback:** revert the PR. The webhook comes back but still fails, because Linear is revoked.
 - **n8n:** deactivate workflow `d7Dod7OuQsVsl1CN` ("Workload — Tweak Comments") only **after this merges** and Pages serves it (**owner**). It is not touched here.
+- **Done 2026-09-23 ~20:19Z (after PR #1526 merged):** workflow `d7Dod7OuQsVsl1CN` deactivated (unpublished) in n8n; 0 runs in retained history. Rollback: re-activate it in n8n.
 
 ### Brief images on Linear's servers (measured 2026-09-23, read-only)
 

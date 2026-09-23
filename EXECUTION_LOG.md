@@ -8098,3 +8098,43 @@ in the current write surface, not a regression; closing it is a scoped
 feature (a production-write title operation plus a Linear outbound push),
 so nothing was changed for it. Full writeup: `docs/ops/LINEAR_EXIT_JOURNAL.md`,
 2026-09-22.
+
+## 2026-09-23 — WR-101 refusal receipts released (PR #1499)
+
+Released in four steps, in order.
+
+1. **SQL owner.** `20260913044451_write_refusal_diagnostics_preparation.sql` was
+   found ALREADY applied on the live project before this release: the
+   `write_refusal_diagnostics` schema, `receipts_v1` and the three
+   `production_write_refusal_*_v1` functions existed. Their bodies were compared
+   by md5 of `prosrc` against the committed file and matched exactly for all
+   three; `SECURITY DEFINER` and `search_path=pg_catalog, public` match; EXECUTE
+   is held only by `postgres` and `service_role`; the table's ACL is `postgres`
+   only, RLS is on, and it held 0 rows. No SQL was re-run. When it was applied
+   is not recorded in `supabase_migrations` (only two rows exist there).
+2. **`write-diagnostics`** deployed deliberate-manual from main `344006c`
+   (4 files: the function plus `_shared/staff-role-auth.ts`,
+   `_shared/write-refusal-diagnostics.mjs`, `_shared/write-refusal-codes.mjs`),
+   `verify_jwt=false`, version 1. Readback of all four files matched the
+   committed source. It answered `503 dormant` before step 3.
+3. **Enabled** by the owner: `WRITE_DIAGNOSTICS_ENABLED=true` and a private
+   `WRITE_DIAGNOSTICS_RUNNER_KEY` (value not recorded anywhere in the repo).
+   Verified from outside: an unauthenticated `health` now answers `401`
+   instead of `503 dormant`.
+4. **Section 4 lane**, run `35800967363`, from `344006c511dcd03d668ee8bafec11e6f7c9218d6`,
+   rollback bundle `3e58e8e0…8a5cb2` (662946 bytes). Green.
+
+| function | active version | source closure SHA-256 | JWT |
+|---|---|---|---|
+| batch-write | 41 | 86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a | verify_jwt=false |
+| deliverable-write | 41 | 78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575 | verify_jwt=false |
+| linear-outbound | 54 | f59b6206e3ccabb7b2fe1972d8abddac5d2622f5948f759b66381dc71ec1cf9d | verify_jwt=false |
+| production-write | 82 | af8bf801b45830f95951d00636ce1103fb1b043652337b2c1bae68a37fd17422 | verify_jwt=false |
+
+**Live acceptance, one probe.** An unauthenticated `production-write` POST with no
+request id was refused exactly as before (`400 valid_request_id_required`, body
+unchanged) and carried `x-write-diagnostic-status: recorded`. One receipt landed:
+origin `gateway`, surface `calendar`, operation `comment`, that code, status 400,
+principal `unverified`, identifiers holding only a hashed `id`. That row is the
+probe, not a user refusal. Not yet proven live: a browser-claim receipt from a
+real page, and the runner-key `health` / `lookup` actions.

@@ -28658,3 +28658,23 @@ accepted on the host.
 and again after: **8** distinct numbers carry duplicate headers (13, 14, 22, 23,
 175, 176, 177, 180) — unchanged by this entry, which uses the next free number,
 240 (238 and 239 are claimed by concurrent branches).
+
+## 241. [2026-09-23] Correction to 240: the WR-101 SQL owner was already applied; two "not applied" checks were wrong the same way
+
+Entry 240 and PR #1499 say the live database had no refusal-diagnostics schema.
+It did. At release time the `write_refusal_diagnostics` schema, `receipts_v1` and
+all three `production_write_refusal_*_v1` functions already existed, with function
+bodies byte-identical to the committed migration (md5 of `prosrc` matched for all
+three) and grants exactly as the file sets them. It is not recorded in
+`supabase_migrations`, so when it was applied is unknown.
+
+Both wrong checks, the executor's and the supervisor's, searched `pg_class` for a
+relation name containing `refusal` or `write_diag`. The table is named
+`receipts_v1`; only its **schema** carries the feature name. The rule: look for
+an object by the schema or namespace the migration creates, or query
+`to_regclass('<schema>.<table>')` / `pg_proc` by the exact name, never by a
+substring guessed from the feature's name. An empty result from a guessed
+pattern is not evidence of absence.
+
+Release recorded in `EXECUTION_LOG.md` (2026-09-23). The live acceptance probe
+left one receipt row, from an unauthenticated test request, not a user.

@@ -139,19 +139,18 @@ const {
 //
 // OPEN_REPAIRS 181 (lane LX-N8N) named four webhooks that reached Linear through
 // their n8n workflow rather than through a `linear-*` name. The prefix match
-// cannot see them. The final native Editors reader removed `editors-week`; the
-// send-urgent-slack remains a browser route and must still be denied in dead
-// mode. B1-2 removed the orphan video-form and graphic-form sender chain.
+// cannot see them. The final native Editors reader removed `editors-week`.
+// send-urgent-slack left the app in B2 (the urgent editor ping is native-only);
+// the dead-mode pattern is KEPT deliberately as a safety net, so a stale cached
+// page that still posts to it is intercepted rather than reaching live n8n.
+// B1-2 removed the orphan video-form and graphic-form sender chain.
 // ---------------------------------------------------------------------------
 {
-  const backed = ['send-urgent-slack'];
   const app = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  for (const hook of backed) {
-    ok(app.includes(`webhook/${hook}`),
-      `${hook} must still be called by the app — if it is gone, drop it from LINEAR_BACKED_HOOK rather than leaving a dead pattern`);
-    ok(LINEAR_BACKED_HOOK.test(`https://example.invalid/webhook/${hook}`),
-      `${hook} reaches Linear through n8n and must be intercepted in dead mode`);
-  }
+  ok(!app.includes('webhook/send-urgent-slack'),
+    'send-urgent-slack left the app in B2: the urgent editor ping is native-only');
+  ok(LINEAR_BACKED_HOOK.test('https://example.invalid/webhook/send-urgent-slack'),
+    'send-urgent-slack reaches Linear through n8n and stays intercepted in dead mode for stale pages');
   ok(!app.includes('webhook/editors-week'),
     'the final app no longer calls the removed editors-week provider endpoint');
   for (const hook of ['video-form', 'graphic-form']) {

@@ -25103,12 +25103,9 @@
     const CAPTION_JOB_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-status';
     const CAPTION_JOB_UPDATE_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-update';
     const CAPTION_PROMPTS_SAVE_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-prompts-save';
-    /* "URGENT TWEAKS NEEDED" ping. The front-end sends only the video
-       sub-issue's Linear URL + client name; the send-urgent-slack workflow
-       validates the URL, resolves the editor from Linear, maps them to a Slack
-       user via the Video Editors sheet tab, and posts to #video-editing as the
-       SyncView Bot. The editor/mention is never trusted from the client. */
-    const URGENT_SLACK_URL = 'https://synchrosocial.app.n8n.cloud/webhook/send-urgent-slack';
+    /* "URGENT TWEAKS NEEDED" editor ping: native route only
+       (native_urgent_dispatch via production-write). The legacy n8n
+       send-urgent-slack webhook was retired in B2. */
     /* "URGENT — WAITING ON YOU" ping for a card parked at Kasper Approval. The
        twin of the one above, aimed the other way: the SMM fires it when a card
        has been sitting in Kasper's queue too long, and the send-urgent-kasper-slack
@@ -36810,9 +36807,13 @@
             + ' <button type="button" class="prod-comment-state-action" onclick="' + retryOnclick
             + '">Retry</button></div>';
     }
-    /* "URGENT TWEAKS NEEDED" ping for a video in tweaks. Sends only the video
-       sub-issue's Linear URL + client name to send-urgent-slack; the workflow
-       resolves the editor and posts to #video-editing as the SyncView Bot. A
+    /* "URGENT TWEAKS NEEDED" ping for a video in tweaks. Native route only:
+       the card's native video deliverable goes to production-write
+       (native_urgent_dispatch), which resolves the editor and posts to
+       #video-editing. The legacy n8n send-urgent-slack fallback (editor resolved
+       through the Linear API) was retired in B2 once the Linear keys were
+       revoked; a card with no native video deliverable is refused visibly
+       before any request (URGENT_EDITOR_NEEDS_NATIVE). A
        disclaimer gates the send, and the button latches to "Sent" for the rest
        of the session so a card can't be spam-pinged on re-render. */
     /* The URGENT ping has TWO flavours, and they are deliberately ONE machine:
@@ -36829,7 +36830,7 @@
        keeps its exact old behaviour without being touched. */
     const URGENT_PING_KINDS = {
         editor: {
-            url: () => URGENT_SLACK_URL,
+            url: null,   // native route only (B2): no legacy webhook
             btnTitle: 'Ping the editor in #video-editing that this needs urgent tweaks',
             confirmTitle: 'Send urgent tweak ping?',
             confirmBody: 'This posts an \u201cURGENT TWEAKS NEEDED\u201d message in the #video-editing Slack channel and tags the editor assigned to this video on Linear. Only use it for tweaks that genuinely need attention today.',
@@ -36850,6 +36851,10 @@
             alreadySent: 'Kasper was already pinged for this card in this session.',
             failBody: 'The ping to Kasper failed to send. Try again, or message him in Slack manually.'
         }
+    };
+    const URGENT_EDITOR_NEEDS_NATIVE = {
+        title: 'Link a native video deliverable first',
+        text: 'Nothing was sent. Urgent editor pings now go only through the native video deliverable, and this card is not linked to one yet. Link the card to its native video deliverable, then try again, or post in #video-editing manually.'
     };
     function _urgentKind(kind) { return URGENT_PING_KINDS[kind] || URGENT_PING_KINDS.editor; }
     function _calUrgentSameRound(a, b) {
@@ -37068,8 +37073,8 @@
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const issue = String(post.linear_issue_id || '').trim();
-        if (!issue && !String(post.video_deliverable_id || '').trim()) {
-            showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.');
+        if (!String(post.video_deliverable_id || '').trim()) {
+            showNotify(URGENT_EDITOR_NEEDS_NATIVE.title, URGENT_EDITOR_NEEDS_NATIVE.text);
             return;
         }
         const sourceClient = calState.client;
@@ -37083,8 +37088,8 @@
     }
     /* Four staff surfaces share confirmation and delivery handling. Native
        identity goes only to the authenticated gateway; legacy URL-only cards
-       retain their existing webhook, and so does a native-capable card for as
-       long as the gateway has not been redeployed (see the 400 branch below).
+       are refused before any request (B2 retired the send-urgent-slack webhook);
+       the Kasper flavour keeps its own webhook.
        A local hold prevents blind resubmission after uncertain native delivery.
        It is not a global delivery receipt. */
     async function _calCheckQueuedUrgent(btn, native, opts, attemptKey, holdValue, issue) {
@@ -37122,6 +37127,11 @@
         const kind = (opts && opts.kind === 'kasper') ? 'kasper' : 'editor';
         const spec = _urgentKind(kind);
         const native = kind === 'editor' && opts && opts.native;
+        // B2: the editor ping has no non-native lane any more. Refuse before any
+        // confirm or request, visibly, so no caller can reach a legacy webhook.
+        if (kind === 'editor' && !native) {
+            showNotify(URGENT_EDITOR_NEEDS_NATIVE.title, URGENT_EDITOR_NEEDS_NATIVE.text); return;
+        }
         const roundTime = native ? Date.parse(native.video_status_at) : NaN;
         const attemptKey = native ? 'syncview-native-urgent:v1:' + JSON.stringify(Object.assign({}, native,
             { video_status_at: Number.isFinite(roundTime) ? new Date(roundTime).toISOString() : native.video_status_at })) : '';
@@ -37209,26 +37219,17 @@
                            Reading it as unknown would retain the hold and disable the
                            URGENT button for the length of that window on every card
                            that already works today. So the hold is released and a card
-                           that still carries a Linear sub-issue falls through to the
-                           webhook it uses right now. A native-only card has no such
-                           lane and is told plainly that nothing was sent. Same
-                           doctrine as the Create Post editor picker; it retires with
-                           the provider lane, not before. */
+                           is told plainly that nothing was sent. The legacy webhook
+                           fallback that used to sit here was retired in B2 (it
+                           resolved the editor through Linear, whose keys are
+                           revoked, so it could only fail). */
                         if (nativeLane && resp.status === 400 && j && j.ok === false
                             && j.error === 'unsupported_action' && j.delivery === undefined) {
                             nativeLane = false;
                             releaseOwnHold();
-                            if (!issue) {
-                                if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
-                                showNotify('Could not send urgent ping', 'Nothing was sent. This video has no Linear sub-issue to fall back on, so post in #video-editing manually.');
-                                return;
-                            }
-                            resp = await fetch(URGENT_SLACK_URL, {
-                                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ issue, client, name: String(name || '') })
-                            });
-                            j = null;
-                            try { j = await resp.json(); } catch {}
+                            if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
+                            showNotify('Could not send urgent ping', 'Nothing was sent. The urgent ping service is not available yet, so post in #video-editing manually.');
+                            return;
                         }
                         if (nativeLane) {
                             knownNotSent = !!(j && j.ok === false && j.delivery === 'not_sent' && j.retry_safe === true);
@@ -71285,7 +71286,7 @@
         const post = sxrState.posts.find(p => p.id === pid);
         if (!post) return;
         const issue = String(post.linear_issue_id || '').trim();
-        if (!issue && !String(post.video_deliverable_id || '').trim()) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
+        if (!String(post.video_deliverable_id || '').trim()) { if (typeof showNotify === 'function') showNotify(URGENT_EDITOR_NEEDS_NATIVE.title, URGENT_EDITOR_NEEDS_NATIVE.text); return; }
         const sourceClient = sxrState.client;
         _calUrgentSlackDispatch(btn, issue, String(sourceClient || '').trim(), post.name, {
             native: String(post.video_deliverable_id || '').trim() ? { action: 'native_urgent_dispatch', client_slug: sxrClientSlug(sxrState.client),
@@ -76089,7 +76090,7 @@
         if (btn && btn.dataset.urgentSent === '1') { if (typeof showNotify === 'function') showNotify('Already sent', 'An urgent ping for this video was already sent in this session.'); return; }
         const it = _sxrKasperFindItem(pid); if (!it || !it.post) return;
         const issue = String(it.post.linear_issue_id || '').trim();
-        if (!issue && !String(it.post.video_deliverable_id || '').trim()) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
+        if (!String(it.post.video_deliverable_id || '').trim()) { if (typeof showNotify === 'function') showNotify(URGENT_EDITOR_NEEDS_NATIVE.title, URGENT_EDITOR_NEEDS_NATIVE.text); return; }
         const client = String(it.client || wlCanonicalClient(it.slug) || '').trim();
         _calUrgentSlackDispatch(btn, issue, client, it.post.name, {
             native: String(it.post.video_deliverable_id || '').trim() ? { action: 'native_urgent_dispatch', client_slug: String(it.slug || sxrClientSlug(client)),
@@ -83683,8 +83684,8 @@
                   || (_kasperState.replies || []).find(x => x && x.post && x.post.id === pid);
         if (!item || !item.post) return;
         const issue = String(item.post.linear_issue_id || '').trim();
-        if (!issue && !String(item.post.video_deliverable_id || '').trim()) {
-            showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.');
+        if (!String(item.post.video_deliverable_id || '').trim()) {
+            showNotify(URGENT_EDITOR_NEEDS_NATIVE.title, URGENT_EDITOR_NEEDS_NATIVE.text);
             return;
         }
         const client = String(item.client || wlCanonicalClient(item.slug) || '').trim();

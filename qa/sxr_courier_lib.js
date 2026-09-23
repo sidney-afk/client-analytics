@@ -134,6 +134,9 @@ const LINEAR_HOOK = /\/webhook\/(linear-[a-z0-9-]+)\b/;
  * nothing -- is precisely the n8n-mediated shape OPEN_REPAIRS 78 recorded twenty
  * times over.
  *
+ * `send-urgent-slack` left the APP in B2 (the urgent editor ping is native-only)
+ * but stays in this pattern as a safety net for stale cached pages.
+ *
  * `video-form` and `graphic-form` left this list with the orphan browser sender
  * in B1-2. NEITHER `log-linear-submission` NOR `kasper-queue` IS LISTED,
  * deliberately.

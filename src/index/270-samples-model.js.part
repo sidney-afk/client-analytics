@@ -2470,7 +2470,7 @@
         const post = sxrState.posts.find(p => p.id === pid);
         if (!post) return;
         const issue = String(post.linear_issue_id || '').trim();
-        if (!issue && !String(post.video_deliverable_id || '').trim()) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
+        if (!String(post.video_deliverable_id || '').trim()) { if (typeof showNotify === 'function') showNotify(URGENT_EDITOR_NEEDS_NATIVE.title, URGENT_EDITOR_NEEDS_NATIVE.text); return; }
         const sourceClient = sxrState.client;
         _calUrgentSlackDispatch(btn, issue, String(sourceClient || '').trim(), post.name, {
             native: String(post.video_deliverable_id || '').trim() ? { action: 'native_urgent_dispatch', client_slug: sxrClientSlug(sxrState.client),

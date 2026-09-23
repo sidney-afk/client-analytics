@@ -232,12 +232,16 @@ async function restoreRename(browser, t) {
 // Supabase function calls only -- the same credential the courier already
 // attaches to staff writes. The context is set up on an empty page so the timed
 // navigation starts clean.
-const STAFF_KEY = String(process.env.SYNCVIEW_STAFF_KEY || '').trim();
+// SYNCVIEW_ROLE_KEY (optional): a staff ROLE key. The repo's SYNCVIEW_STAFF_KEY
+// is accepted by the calendar writers but not by role-gated reads such as
+// workload-plan (401), so Workload can only be timed when a role key is set.
+const ROLE_KEY = String(process.env.SYNCVIEW_ROLE_KEY || process.env.SYNCVIEW_STAFF_KEY || '').trim();
+const HAS_ROLE_KEY = !!String(process.env.SYNCVIEW_ROLE_KEY || '').trim();
 async function readOnlyPage(browser, route) {
   const page = await open(browser, '/qa/dawn/blank.html');
   await page.context().route(u => u.toString().startsWith(SUPA + '/functions/v1/'), (r) => {
     const h = r.request().headers();
-    if (h['x-syncview-key'] && h['x-syncview-key'] !== STAFF_KEY) return r.fallback({ headers: Object.assign({}, h, { 'x-syncview-key': STAFF_KEY }) });
+    if (h['x-syncview-key'] && h['x-syncview-key'] !== ROLE_KEY) return r.fallback({ headers: Object.assign({}, h, { 'x-syncview-key': ROLE_KEY }) });
     return r.fallback();
   });
   await guard(page);
@@ -252,6 +256,14 @@ async function timeTab(browser, key, title, route, readyFn) {
   const p = await readOnlyPage(browser, route);
   const ms = await p.waitForFunction(readyFn, null, { timeout: TAB_CAP, polling: 50 }).then(() => Date.now() - p._t0).catch(() => null);
   const b = BASELINE[key];
+  // A 401 from a role-gated read with no role key configured is a credential
+  // gap in this harness, not an app failure: report it as blocked, loudly.
+  if (ms === null && !HAS_ROLE_KEY && p._failed.some(f => /^401 \/functions\/v1\//.test(f))) {
+    record(key, title, { ok: true, blocked: true, ms: null, baseline: b,
+      detail: 'not measured: this tab needs a staff role key and the run has none (set the SYNCVIEW_ROLE_KEY secret)' });
+    await p.context().close();
+    return;
+  }
   const ok = ms !== null;
   const slow = ok && ms > b.cold * SLOW_FACTOR;
   record(key, title, { ok, slow, ms, baseline: b,
@@ -277,14 +289,15 @@ function findRenameTarget() {
 function report(started, calMs) {
   const fails = results.filter(r => !r.ok);
   const slows = results.filter(r => r.ok && r.slow);
+  const blocked = results.filter(r => r.blocked);
   const L = [];
   L.push(`# Dawn check — ${new Date(started).toISOString().slice(0, 16).replace('T', ' ')} UTC`);
   L.push('');
-  L.push(fails.length ? `**${fails.length} of ${results.length} checks failed.**` : `**All ${results.length} checks passed.**` + (slows.length ? ` ${slows.length} ran slow.` : ''));
+  L.push(fails.length ? `**${fails.length} of ${results.length} checks failed.**` : `**All ${results.length - blocked.length} checks that ran passed.**` + (slows.length ? ` ${slows.length} ran slow.` : '') + (blocked.length ? ` ${blocked.length} could not run (see ⚠️).` : ''));
   if (violations.length) L.push(`\n⛔ Blocked ${violations.length} write(s) aimed at a client other than the test client.`);
   L.push('');
   for (const r of results) {
-    const mark = !r.ok ? '❌' : r.slow ? '🐢' : '✅';
+    const mark = !r.ok ? '❌' : r.blocked ? '⚠️' : r.slow ? '🐢' : '✅';
     L.push(`- ${mark} **${r.title}** — ${r.detail}` + (r.shot ? ` (screenshot: \`${path.relative(path.join(__dirname, '..', '..'), r.shot).replace(/\\/g, '/')}\`)` : ''));
   }
   L.push('');
@@ -295,7 +308,7 @@ function report(started, calMs) {
   for (const k of ['workload', 'synclinear', 'analytics']) {
     const r = results.find(x => x.key === k);
     if (!r) { L.push(`| ${k} | not reached | ${BASELINE[k].cold.toLocaleString('en-US')} ms | ${BASELINE[k].warm.toLocaleString('en-US')} ms |`); continue; }
-    L.push(`| ${r.title} | ${r.ms == null ? 'never' : r.ms.toLocaleString('en-US') + ' ms'} | ${BASELINE[k].cold.toLocaleString('en-US')} ms | ${BASELINE[k].warm.toLocaleString('en-US')} ms |`);
+    L.push(`| ${r.title} | ${r.blocked ? 'not measured' : r.ms == null ? 'never' : r.ms.toLocaleString('en-US') + ' ms'} | ${BASELINE[k].cold.toLocaleString('en-US')} ms | ${BASELINE[k].warm.toLocaleString('en-US')} ms |`);
   }
   L.push(`| Staff calendar, first card | ${calMs == null ? 'never' : calMs.toLocaleString('en-US') + ' ms'} | ${BASELINE.calendar.cold.toLocaleString('en-US')} ms | ${BASELINE.calendar.warm.toLocaleString('en-US')} ms |`);
   const others = results.filter(r => ['client-approve', 'client-request', 'staff-save', 'rename'].includes(r.key) && r.ms != null);

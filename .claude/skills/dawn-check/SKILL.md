@@ -31,6 +31,9 @@ clicks, `qa/test-client-entry.js` for the client link) instead of new machinery.
 - `SYNCVIEW_STAFF_KEY` in the environment (staff writes + minting the client link).
   It lives as a repo secret; locally it must be exported in the shell. Without it
   the script exits 2 and says so.
+- `SYNCVIEW_ROLE_KEY` (optional secret): a staff ROLE key. Role-gated reads refuse
+  the staff key above (`workload-plan` answers 401), so without it Workload is
+  reported ⚠️ "not measured" instead of failing. Adding the secret turns it on.
 - Baselines: the cold/warm medians in `qa/dawn/dawn-check.js` `BASELINE`, copied
   from the speed map §2. When a newer speed map lands, update that block.
 
@@ -42,7 +45,12 @@ clicks, `qa/test-client-entry.js` for the client link) instead of new machinery.
 | 2 | Client request changes | real Request-changes button with text; `Tweaks Needed` + the text saved |
 | 3 | Staff card save | caption typed + blurred; DB has it and the card's save mark reaches "Saved" (a "Saved, syncing" step is allowed only if it clears) |
 | 4 | Card rename | card name and its linked sub-issue title both change; then both put back |
-| 5–7 | Workload / SyncLinear / Analytics | first real content within 30 s; 🐢 "slow" if over 1.5× the speed-map cold median |
+| 5–7 | Workload / SyncLinear / Analytics | first real content within 30 s; 🐢 "slow" if over 1.5× the speed-map cold median; ⚠️ "not measured" if the tab needs a role key the run lacks |
+
+Client flows act on the **caption**: a disposable seed has no native work item,
+and a video approval without one is refused by design (`native_link_required`,
+since the 2026-08-28 video flip). Caption writes are source-only, so the seed takes
+them and the real Approve / Request-changes buttons and save path are exercised.
 
 Stop conditions are built in: every wait has a cap (35 s DB, 60 s sub-issue, 30 s
 tab); the run ends after one pass. Exit 0 = all passed (slow is a warning), 1 = a

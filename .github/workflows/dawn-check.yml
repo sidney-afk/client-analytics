@@ -34,6 +34,8 @@ jobs:
         env:
           SXR_COURIER: '0'
           SYNCVIEW_STAFF_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
+          # Optional staff ROLE key: role-gated reads (Workload) refuse the key above.
+          SYNCVIEW_ROLE_KEY: ${{ secrets.SYNCVIEW_ROLE_KEY }}
         run: node qa/dawn/dawn-check.js
       - name: Publish the report to the run summary
         if: always()

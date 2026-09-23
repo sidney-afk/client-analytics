@@ -10,7 +10,7 @@ const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir()
  globalThis.__notifyHealthDb={rpc:async name=>{calls.push(name);assert.equal(name,'production_notification_health_summary');return response;}};
  let source=fs.readFileSync(path.join(root,'supabase/functions/notify/index.ts'),'utf8');
  const sdk='import { createClient } from "npm:@supabase/supabase-js@2.49.8";';assert.equal(source.split(sdk).length,2);source=source.replace(sdk,'const createClient = () => globalThis.__notifyHealthDb;');
- source=source.replace('"../_shared/staff-role-auth.ts"',JSON.stringify(pathToFileURL(path.join(root,'supabase/functions/_shared/staff-role-auth.ts')).href)).replace('"./slack-api.ts"',JSON.stringify(pathToFileURL(path.join(root,'supabase/functions/notify/slack-api.ts')).href));
+ source=source.replace('"../_shared/staff-role-auth.ts"',JSON.stringify(pathToFileURL(path.join(root,'supabase/functions/_shared/staff-role-auth.ts')).href)).replaceAll('"./slack-api.ts"',JSON.stringify(pathToFileURL(path.join(root,'supabase/functions/notify/slack-api.ts')).href)).replace('"./format.ts"',JSON.stringify(pathToFileURL(path.join(root,'supabase/functions/notify/format.ts')).href));
  source=source.replace('"./urgent-link.ts"',JSON.stringify(pathToFileURL(path.join(root,'supabase/functions/notify/urgent-link.ts')).href));
  const file=path.join(tmp,'notify.ts');fs.writeFileSync(file,source,{flag:'wx'});await import(pathToFileURL(file));assert.equal(typeof handler,'function');
  const counts={pending_stale:0,sending_stale:0,blocked:0,unknown:0,retryable_overdue:0,total_open:0};

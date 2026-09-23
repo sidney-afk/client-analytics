@@ -34,6 +34,7 @@ export async function postSlackChannelMessage(
   clientMsgId: string,
   allowMentions = false,
   fetchImpl: typeof fetch = fetch,
+  blocks?: Record<string, unknown>[],
 ): Promise<SlackPostResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 5000);
@@ -42,7 +43,7 @@ export async function postSlackChannelMessage(
     response = await fetchImpl("https://slack.com/api/chat.postMessage", {
       method: "POST", redirect: "error", signal: controller.signal,
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ channel, text, client_msg_id: clientMsgId, parse: "none", link_names: false, mrkdwn: allowMentions, unfurl_links: false, unfurl_media: false }),
+      body: JSON.stringify({ channel, text, client_msg_id: clientMsgId, parse: "none", link_names: false, mrkdwn: allowMentions, unfurl_links: false, unfurl_media: false, ...(blocks ? { blocks } : {}) }),
     });
   } catch {
     clearTimeout(timer);
@@ -59,4 +60,35 @@ export async function postSlackChannelMessage(
   if (response.status === 429 || body?.error === "ratelimited") return { kind: "retryable", code: "slack_rate_limited" };
   if (response.status >= 500 || !body) return { kind: "unknown", code: "slack_response_unconfirmed" };
   return { kind: "blocked", code: "slack_api_rejected" };
+}
+
+// Owner-only preview: posts into one person's direct message with the bot,
+// never into a channel. A user id (U…/W…) is the only accepted target, and the
+// reply must come back from a DM conversation (D…) or it counts as refused.
+export async function postSlackDirectPreview(
+  token: string,
+  userId: string,
+  text: string,
+  blocks: Record<string, unknown>[],
+  fetchImpl: typeof fetch = fetch,
+): Promise<SlackPostResult> {
+  if (!/^[UW][A-Z0-9]{8,}$/.test(userId)) return { kind: "blocked", code: "preview_target_not_a_user" };
+  let response: Response;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    response = await fetchImpl("https://slack.com/api/chat.postMessage", {
+      method: "POST", redirect: "error", signal: controller.signal,
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ channel: userId, text, blocks, parse: "none", link_names: false, mrkdwn: false, unfurl_links: false, unfurl_media: false }),
+    });
+  } catch {
+    clearTimeout(timer);
+    return { kind: "unknown", code: "slack_transport_unconfirmed" };
+  }
+  const body = await boundedBody(response);
+  clearTimeout(timer);
+  if (response.ok && body?.ok === true && typeof body.channel === "string" && body.channel.startsWith("D")
+      && typeof body.ts === "string" && SLACK_TS.test(body.ts)) return { kind: "sent", messageId: body.ts };
+  return { kind: "blocked", code: typeof body?.error === "string" && /^[a-z_]{1,60}$/.test(body.error) ? "slack_" + body.error : "slack_api_rejected" };
 }

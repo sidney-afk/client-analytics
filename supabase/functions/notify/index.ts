@@ -14,7 +14,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { timingSafeEqual } from "../_shared/staff-role-auth.ts";
 import { postSlackChannelMessage } from "./slack-api.ts";
 import { postSlackDirectPreview } from "./slack-api.ts";
-import { formatNotification, isNotifyVariant, NOTIFY_VARIANTS, type NotifyInput, type NotifyVariant } from "./format.ts";
+import { formatNotification, isNotifyVariant, NOTIFY_VARIANTS, type NotifyInput, type NotifyVariant, type SlackMessage } from "./format.ts";
 import { urgentWebsiteText } from "./urgent-link.ts";
 
 type Claim = { intent_id: string; attempt: number; destination_channel_id: string; text: string; client_msg_id: string; allow_mentions: boolean };
@@ -124,7 +124,7 @@ Deno.serve(async (req: Request) => {
   return json({ ok: failed === 0, claimed: claim.data.length, ...counts }, failed ? 502 : 200);
 });
 
-type RichPlan = { message: { text: string; blocks: Record<string, unknown>[] }; partnerId?: string; skip?: boolean };
+type RichPlan = { message: SlackMessage; partnerId?: string; skip?: boolean };
 const MERGE_WINDOW_MS = 120_000;
 // deno-lint-ignore no-explicit-any
 type Db = any;

@@ -123,7 +123,7 @@ Templates:
 
 Other:
 - `webhook/kasper-queue` — Kasper review queue
-- `webhook/send-urgent-slack` — urgent pings to Slack
+- The editor urgent ping no longer has a webhook: its n8n route (send-urgent-slack) was retired 2026-09-23 (B2); it is native only (`native_urgent_dispatch` in production-write).
 - `webhook/send-urgent-kasper-slack` — urgent ping DMing Kasper about a card parked at Kasper Approval, with a link to his review tab
 - `webhook/weekly-slack-top-reel` — weekly top-reel Slack post
 - `webhook/filming-plan-tabs` — filming-plans tab data

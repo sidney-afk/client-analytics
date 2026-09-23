@@ -40,6 +40,9 @@ assert(wf.indexOf('merge-base --is-ancestor') < wf.indexOf('ref: ${{ env.DEPLOY_
 assert(!/^    env:[\s\S]*?SUPABASE_ACCESS_TOKEN[\s\S]*?steps:/m.test(wf), 'token is never job-wide');
 assert.equal((wf.match(/supabase functions deploy/g) || []).length, 1, 'one deploy command');
 assert(wf.includes('--no-verify-jwt') && wf.includes('test "$deployed" = 1'), 'exactly one function, no JWT verification');
+// Server-side bundling: no Docker image pull (ghcr rate limits failed this lane),
+// and the post-deploy fingerprint still proves live source == committed bytes.
+assert(/supabase functions deploy "\$fn" --project-ref "\$PROJECT_REF" --no-verify-jwt --use-api\n/.test(wf) && !wf.includes('--use-docker'), 'bundles server-side with --use-api, never Docker');
 assert(wf.includes('scripts/ef-fingerprint.js "$DEPLOY_COMMIT" --slugs="$DEPLOY_FUNCTION" --format=json') && wf.includes('x.result!=="PASS"'), 'attests that one function');
 assert(!/always\(\)/.test(wf.replace(/^\s*#.*$/gm, "")), 'attestation is never produced after a failed step');
 assert(!/secrets\.(?!SUPABASE_ACCESS_TOKEN\b)/.test(wf), 'uses no secret besides the existing access token');

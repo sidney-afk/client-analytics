@@ -1086,8 +1086,8 @@
                   || (_kasperState.replies || []).find(x => x && x.post && x.post.id === pid);
         if (!item || !item.post) return;
         const issue = String(item.post.linear_issue_id || '').trim();
-        if (!issue && !String(item.post.video_deliverable_id || '').trim()) {
-            showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.');
+        if (!String(item.post.video_deliverable_id || '').trim()) {
+            showNotify(URGENT_EDITOR_NEEDS_NATIVE.title, URGENT_EDITOR_NEEDS_NATIVE.text);
             return;
         }
         const client = String(item.client || wlCanonicalClient(item.slug) || '').trim();

@@ -1086,12 +1086,9 @@
     const CAPTION_JOB_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-status';
     const CAPTION_JOB_UPDATE_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-update';
     const CAPTION_PROMPTS_SAVE_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-prompts-save';
-    /* "URGENT TWEAKS NEEDED" ping. The front-end sends only the video
-       sub-issue's Linear URL + client name; the send-urgent-slack workflow
-       validates the URL, resolves the editor from Linear, maps them to a Slack
-       user via the Video Editors sheet tab, and posts to #video-editing as the
-       SyncView Bot. The editor/mention is never trusted from the client. */
-    const URGENT_SLACK_URL = 'https://synchrosocial.app.n8n.cloud/webhook/send-urgent-slack';
+    /* "URGENT TWEAKS NEEDED" editor ping: native route only
+       (native_urgent_dispatch via production-write). The legacy n8n
+       send-urgent-slack webhook was retired in B2. */
     /* "URGENT — WAITING ON YOU" ping for a card parked at Kasper Approval. The
        twin of the one above, aimed the other way: the SMM fires it when a card
        has been sitting in Kasper's queue too long, and the send-urgent-kasper-slack

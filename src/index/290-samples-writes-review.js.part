@@ -1725,7 +1725,7 @@
         if (btn && btn.dataset.urgentSent === '1') { if (typeof showNotify === 'function') showNotify('Already sent', 'An urgent ping for this video was already sent in this session.'); return; }
         const it = _sxrKasperFindItem(pid); if (!it || !it.post) return;
         const issue = String(it.post.linear_issue_id || '').trim();
-        if (!issue && !String(it.post.video_deliverable_id || '').trim()) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
+        if (!String(it.post.video_deliverable_id || '').trim()) { if (typeof showNotify === 'function') showNotify(URGENT_EDITOR_NEEDS_NATIVE.title, URGENT_EDITOR_NEEDS_NATIVE.text); return; }
         const client = String(it.client || wlCanonicalClient(it.slug) || '').trim();
         _calUrgentSlackDispatch(btn, issue, client, it.post.name, {
             native: String(it.post.video_deliverable_id || '').trim() ? { action: 'native_urgent_dispatch', client_slug: String(it.slug || sxrClientSlug(client)),

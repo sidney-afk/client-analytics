@@ -17,12 +17,12 @@
 | 9 | `070-workload-source.js.part` | 3512 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3359 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
 | 11 | `090-workload-popovers-navigation.js.part` | 2613 | Sub-issue popover |
-| 12 | `100-onboarding-staff-controls.js.part` | 2261 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
+| 12 | `100-onboarding-staff-controls.js.part` | 2258 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2024 | Kasper Time Off calendar |
 | 14 | `120-calendar-flags-write-repair.js.part` | 3013 | The members a flag value offers, or null when it offers no member list at |
 | 15 | `125-title-name-rule.js.part` | 219 | Title name rule (browser copy) |
 | 16 | `130-calendar-model-cache.js.part` | 2734 | Returns the comments array for a given component. Falls back to the |
-| 17 | `140-calendar-legacy-outbox.js.part` | 3055 | Shed the retired legacy rows from storage, under the surface mutation |
+| 17 | `140-calendar-legacy-outbox.js.part` | 3059 | Shed the retired legacy rows from storage, under the surface mutation |
 | 18 | `150-calendar-hydration-import.js.part` | 2068 | For a card linked to a real sub-issue (not a parent), return which of |
 | 19 | `160-calendar-organize-ui.js.part` | 2710 | Lighter path for the Order switch: update the chrome in place so the |
 | 20 | `170-calendar-links-status.js.part` | 2760 | Move a Linear sub-issue link from the old card onto the new one. The |

@@ -35,14 +35,16 @@ ok(!source.includes('<h3>Edit platforms</h3>'), 'Platform modal title should not
 ok(menu.includes('<span class="cal-kebab-label">Import</span>'), 'Import toggle should be labeled Import.');
 ok(menu.includes('onclick="_calToggleImportActions(event)"'), 'Import toggle should expand in place.');
 
-for (const label of ['Import from Excel', 'Import from Linear', 'Bulk Linear sync']) {
+for (const label of ['Import from Excel']) {
   const labelIndex = menu.indexOf(label);
   ok(labelIndex > importPanelIndex, `${label} should be inside the collapsed Import panel.`);
 }
 
 ok(!menu.slice(0, importToggleIndex).includes('Import from Excel'), 'Import from Excel should not be a top-level item.');
-ok(!menu.slice(0, importToggleIndex).includes('Import from Linear'), 'Import from Linear should not be a top-level item.');
-ok(!menu.slice(0, importToggleIndex).includes('Bulk Linear sync'), 'Bulk Linear sync should not be a top-level item.');
+// Import from Linear and Bulk Linear sync were retired in B2 (2026-09-23):
+// they read the dead linear-subissues webhook. Neither may come back.
+ok(!menu.includes('Import from Linear'), 'Import from Linear must not be in the kebab (retired in B2).');
+ok(!menu.includes('Bulk Linear sync'), 'Bulk Linear sync must not be in the kebab (retired in B2).');
 
 ok(source.includes('.cal-kebab-import-panel { display: none;'), 'Import panel should be collapsed by default.');
 ok(source.includes('.cal-kebab-import-panel.is-open { display: block;'), 'Import panel should have an expanded state.');

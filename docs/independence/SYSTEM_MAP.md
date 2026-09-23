@@ -98,7 +98,7 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   samples unauthenticated compatibility writers (selected by F67 fail-open routing, not safe
   rollback), the `linear-*` bridge, reads + AI
   generation (`generate-*`, `caption-*`), intake (`onboarding-*`, `sales-intake-*`,
-  `ai-onboarding-*`), TikTok (`tiktok-*`, `ttp-*`), and Slack pings (`send-urgent-slack`, `send-urgent-kasper-slack`,
+  `ai-onboarding-*`), TikTok (`tiktok-*`, `ttp-*`), and Slack pings (`send-urgent-kasper-slack`; the editor URGENT ping is native-only since B2,
   `weekly-slack-top-reel`).
 - **Linear.** 4 webhook configurations in — 2 new HMAC-signed → the active `linear-inbound` EF
   (realtime mirror, B3), 2 legacy → inactive/unpublished n8n workflow `MJbMZ789B5ExZz9x`.
@@ -346,8 +346,8 @@ n8n in the metric read path.*
   catch-up snapshot on reconnect). Linear card-banner meta is no longer read from n8n at all: the
   `linear-issue-statuses` fetch and the v1-only Linear-to-card reconcile were both removed on
   2026-09-22 ahead of the endpoint's 2026-09-27 revoke (OPEN_REPAIRS 236), leaving only the
-  persisted per-browser banner cache. `linear-subissues` still serves parent expansion for
-  link-adopt / import / bulk-match.
+  persisted per-browser banner cache. `linear-subissues` was retired from the browser on
+  2026-09-23 (B2): Import from Linear, Bulk Linear sync and link-time status adoption are gone.
   **F125:** both the v1 selector and automatic REST-failure fallback change only reads; full-roster
   writes/reorders still route to Supabase-only Edge Functions. Either is unsafe split-brain, not
   writable recovery.
@@ -382,7 +382,7 @@ n8n in the metric read path.*
   shapes until 2026-09-22, when both legs were retired from the app ahead of the endpoints'
   2026-09-27 revoke (OPEN_REPAIRS 239): that route now saves the card and the source row and
   sends nothing outbound. Gateway recovery reads the linked `deliverables` row only to compare current native
-  status clocks and uses the authenticated receipt described in §9.2. `send-urgent-slack` (URGENT tweak ping) and `send-urgent-kasper-slack` (URGENT ping DMing Kasper about a card at Kasper Approval; feeds the Urgent section of his review tab), gated by the `kasper_urgent_ping_enabled` runtime flag which fails closed — off until the four `kasper_urgent_*` marker fields are live in the frozen writers). Caption AI: `generate-caption`,
+  status clocks and uses the authenticated receipt described in §9.2. The URGENT tweak ping is native-only (`native_urgent_dispatch` via production-write; its legacy `send-urgent-slack` fallback was retired in B2, 2026-09-23) and `send-urgent-kasper-slack` (URGENT ping DMing Kasper about a card at Kasper Approval; feeds the Urgent section of his review tab), gated by the `kasper_urgent_ping_enabled` runtime flag which fails closed — off until the four `kasper_urgent_*` marker fields are live in the frozen writers). Caption AI: `generate-caption`,
   `caption-job-update`. `caption-prompts-save` (EF/n8n by settings flag). `thumbnail-folder-resolve`
   EF (Drive parent-folder link; skipped for client links) is currently anonymous (F79), and its
   remote-read/final-update sequence lacks atomic URL/version CAS (F80). URGENT "sent" marker → **`calendar-upsert`
@@ -518,8 +518,8 @@ n8n in the metric read path.*
   `In Progress`. Overall/client-ready logic includes the absent sibling while its pill is disabled
   and bulk actions skip it. The #850 native cohort preserves the same contradiction. Enforce the
   locked paired model or implement explicit active/N/A component semantics before reroute.
-- **Notable / corrections.** `linear-subissues` is a **read** used by Calendar/SXR, not a Linear-tab
-  write. The durable card-job system exists because of a real data-loss incident (tab closed during
+- **Notable / corrections.** `linear-subissues` was a **read** used by Calendar/SXR, not a Linear-tab
+  write; retired from the browser 2026-09-23 (B2). The durable card-job system exists because of a real data-loss incident (tab closed during
   the pre-write window). Due dates are computed client-side in 5-working-day batches.
 - **Track B.** Unlisted clients still create in Linear and mirror in. The Part 2
   backend implements authenticated native-first mixed-team intake, server-owned project mapping /
@@ -764,12 +764,12 @@ n8n in the metric read path.*
 - **Reads.** Per-client `sample_reviews` REST (Archived excluded server-side) with n8n
   `sample-review-get` fallback; realtime `sxr-<slug>`. Kasper queue: **unscoped cross-client**
   `sample_reviews` REST (no client filter, **no webhook fallback**) + unfiltered `kasper-sxr`
-  realtime. n8n `linear-subissues` on fresh link-adopt. Runtime-flag read (sample-review key).
+  realtime. (n8n `linear-subissues` link-adopt retired 2026-09-23, B2.) Runtime-flag read (sample-review key).
   Shared: SMM-directory CSV, client-token-verify EF, bounded ID-only
   `thumbnail-revision-read` availability checks, and exact-card protected comparison URLs.
 - **Writes.** `sample-review-upsert` (EF iff flagged, else n8n — **no EF→n8n fallback**),
   `sample-review-reorder` (flagged EF failures are fail-closed; no auth downgrade to n8n).
-  `send-urgent-slack`, `send-urgent-kasper-slack`, `thumbnail-folder-resolve` (all shared). URGENT marker
+  native urgent dispatch, `send-urgent-kasper-slack`, `thumbnail-folder-resolve` (all shared). URGENT marker
   → `sample-review-upsert` EF directly (bypasses the flag).
   For a client enrolled in the #850 reroute cohort, status/comments use authenticated
   `production-write`. The Linear legs (`linear-set-status`, `linear-add-comment`) that unlisted
@@ -899,7 +899,7 @@ n8n in the metric read path.*
 - **Writes.** Approvals/tweaks/comments/finish-close stamps via the shared calendar & sample upsert
   fetches (flag-routed), field-level patches diffed against a per-card base. The Linear tweak legs
   (`linear-set-status` / `linear-add-comment`) were retired 2026-09-22 (OPEN_REPAIRS 239).
-  `send-urgent-slack` / `send-urgent-kasper-slack` +
+  native urgent dispatch / `send-urgent-kasper-slack` +
   direct EF urgent markers (bypass flags). n8n `sales-intake-submit`. `client-credentials` EF
   (upsert/delete/reassign/bulk_import/log_reveal). Admin-only `pto` decisions, adjustments, and
   member start-date/enabled-state updates; candidate source adds lifecycle-bounded cancellation of
@@ -1584,7 +1584,7 @@ so it runs on every push) re-derives every list below from `index.html` and fail
 they drift — in either direction, including the counts. When it fails: update the owning surface's
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
-- **n8n webhooks (50):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `kasper-queue` · `linear-issues` · `linear-projects` · `linear-subissues` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-kasper-slack` / `send-urgent-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-direct` · `tiktok-upload-status` · `tiktok-upload-url` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `weekly-slack-top-reel`
+- **n8n webhooks (48):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `kasper-queue` · `linear-issues` · `linear-projects` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-kasper-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-direct` · `tiktok-upload-status` · `tiktok-upload-url` · `tiktok-uploads-list` · `ttp-accounts-list` · `ttp-auth-init` · `ttp-creator-info` · `ttp-list` · `ttp-status` · `ttp-submit` · `weekly-slack-top-reel`
 - **Edge functions (30):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `description-image-upload` · `filming-plans` · `hiring-applications` · `kasper-ad-performance-read` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-archive` · `production-comments` · `production-write` · `pto` · `quiz-leads-list` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-linear` · `workload-plan` · `write-diagnostics`
 - **Not counted above:** 26 of the 30 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. `description-image-upload` (2026-09-05) is app-called candidate source with a path-triggered deploy lane (`.github/workflows/deploy-description-image-upload.yml`) and is not live until that lane's first run on `main` plus the owner-applied `migrations/2026-09-05-description-images.sql`. Seven more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, `thumbnail-revision-scan`, `quiz-capture` (called from the separate `synchrosocial` repo's `/quiz` page, not from this app), and the private n8n bridge `hiring-automation`. `workload-plan` is app-called and live; `production-archive` is app-called and live since its 2026-07-24 exact-SHA deploy (`1738ad3`, run `30129490033`); `workload-linear` is app-called candidate source but is not live until its exact-SHA owner-gated deploy. `kasper-ad-performance-read` is app-called candidate source, deliberate-manual (no CI deploy path, matching `workload-plan`'s first-release precedent) and not yet live. `quiz-leads-list` is app-called candidate source, admin-gated, and not yet live — depends on `migrations/2026-08-24-quiz-responses.sql` being applied first. `hiring-applications` is app-called, admin-only, and deployed with its separate invitation flag false; the deployed `hiring-automation` bridge now captures the dedicated application, alerts Kasper, and records the dedicated interview booking without running sales nodes. Candidate email remains disabled until the flag is deliberately enabled and the inactive dispatcher is run. `write-diagnostics` (2026-09-22, OPEN_REPAIRS 101/240) is app-called candidate source: the Calendar/Samples write path posts a fire-and-forget refusal claim to it when a write is refused in the browser. It is deliberate-manual (no CI deploy path, matching `workload-plan`'s first-release precedent), was deployed 2026-09-23 from `344006c511dcd03d668ee8bafec11e6f7c9218d6` with `WRITE_DIAGNOSTICS_ENABLED=true`, and its SQL owner `supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql` is on the live project. Live.
 - **Supabase REST tables, literal (12):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `production_deliverables_browser_v1` · `rename_propagation_status_v1` · `rpc` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues` (rpc is the PostgREST function prefix, used only by the rename propagation poke and retry calls; see 4.2)

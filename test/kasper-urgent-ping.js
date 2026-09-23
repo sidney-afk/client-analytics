@@ -53,6 +53,7 @@ function grabBlockConst(name) {
 
 const SRC = [
   grabBlockConst('URGENT_PING_KINDS'),
+  grabBlockConst('URGENT_EDITOR_NEEDS_NATIVE'),
   grabFunc('_urgentKind'),
   grabFunc('_calUrgentSlackDispatch'),
   grabFunc('_calSendUrgentSlack'),
@@ -77,7 +78,6 @@ function build(env) {
       if (env.persists) env.persists.push({ client, post, ping });
       return Promise.resolve({ ok: true });
     },
-    URGENT_SLACK_URL: 'http://x/webhook/send-urgent-slack',
     URGENT_KASPER_SLACK_URL: 'http://x/webhook/send-urgent-kasper-slack',
     calState: env.calState || { client: '', posts: [] },
     _kasperState: env._kasperState || { items: [], replies: [] },
@@ -101,42 +101,38 @@ const VID = 'https://linear.app/synchro-social/issue/VID-12624/video-1';
 (async () => {
   console.log('— behaviour: SMM + Kasper both fire the identical ping —');
 
-  // SMM button still works, now through the shared dispatch.
+  // B2: the legacy send-urgent-slack fallback is retired. A card that only
+  // carries a Linear sub-issue (no native video deliverable) is refused
+  // visibly on BOTH surfaces: no confirm, no request, no Sent latch.
   {
-    const env = { notes: [], fetches: [], calState: { client: 'Miki Agrawal', posts: [{ id: 'p1', linear_issue_id: VID, name: 'Video 6' }] } };
+    const env = { notes: [], fetches: [], calState: { client: 'Fixture Client', posts: [{ id: 'p1', linear_issue_id: VID, name: 'Video 6' }] } };
     const m = build(env);
     const btn = fakeBtn();
     m._calSendUrgentSlack(evt(btn), 'p1');
     await tick(); await tick();
-    check('SMM: posts exactly once', env.fetches.length === 1);
-    check('SMM: payload = { issue, client, name }',
-      !!env.fetches[0] && env.fetches[0].body.issue === VID
-      && env.fetches[0].body.client === 'Miki Agrawal' && env.fetches[0].body.name === 'Video 6');
-    check('SMM: button latches to Sent', btn.dataset.urgentSent === '1' && btn.classList.contains('is-sent'));
+    check('SMM: Linear-only card sends nothing', env.fetches.length === 0);
+    check('SMM: Linear-only card gets the native-deliverable notice', env.notes.some((n) => /native video deliverable/i.test(n.t)));
+    check('SMM: notice says nothing was sent', env.notes.some((n) => /Nothing was sent/.test(n.m)));
+    check('SMM: button does not latch', btn.dataset.urgentSent !== '1' && !btn.classList.contains('is-sent'));
   }
-
-  // Kasper button resolves the post CROSS-CLIENT from the review queue, even
-  // though the actively-loaded calendar client is someone else entirely.
   {
     const env = {
       notes: [], fetches: [],
       calState: { client: 'Some Other Client', posts: [] },
-      _kasperState: { items: [{ post: { id: 'k1', linear_issue_id: VID, name: 'June 11th Video 1' }, client: 'Terrin Ammar', slug: 'terrinammar' }], replies: [] },
+      _kasperState: { items: [{ post: { id: 'k1', linear_issue_id: VID, name: 'Video 1' }, client: 'Fixture Client', slug: 'fixture' }], replies: [] },
     };
     const m = build(env);
     const btn = fakeBtn();
     m._kasperSendUrgentSlack(evt(btn), 'k1');
     await tick(); await tick();
-    check('Kasper: posts exactly once', env.fetches.length === 1);
-    check("Kasper: sends the card's OWN client + sub-issue (cross-client)",
-      !!env.fetches[0] && env.fetches[0].body.issue === VID
-      && env.fetches[0].body.client === 'Terrin Ammar' && env.fetches[0].body.name === 'June 11th Video 1');
-    check('Kasper: button latches to Sent', btn.dataset.urgentSent === '1' && btn.classList.contains('is-sent'));
+    check('Kasper: Linear-only card sends nothing', env.fetches.length === 0);
+    check('Kasper: Linear-only card gets the native-deliverable notice', env.notes.some((n) => /native video deliverable/i.test(n.t)));
+    check('Kasper: button does not latch', btn.dataset.urgentSent !== '1');
   }
 
   // The per-session latch blocks a double-ping on the same button.
   {
-    const env = { notes: [], fetches: [], _kasperState: { items: [{ post: { id: 'k1', linear_issue_id: VID, name: 'X' }, client: 'Terrin Ammar', slug: 'terrinammar' }], replies: [] } };
+    const env = { notes: [], fetches: [], _kasperState: { items: [{ post: { id: 'k1', linear_issue_id: VID, name: 'X' }, client: 'Fixture Client', slug: 'fixture' }], replies: [] } };
     const m = build(env);
     const btn = fakeBtn(); btn.dataset.urgentSent = '1';
     m._kasperSendUrgentSlack(evt(btn), 'k1');
@@ -145,14 +141,14 @@ const VID = 'https://linear.app/synchro-social/issue/VID-12624/video-1';
     check('Kasper: warns "Already sent"', env.notes.some((n) => /already sent/i.test(n.t)));
   }
 
-  // No linked sub-issue → can't resolve an editor → don't post, say why.
+  // No link at all -> same honest refusal.
   {
-    const env = { notes: [], fetches: [], _kasperState: { items: [{ post: { id: 'k2', linear_issue_id: '', name: 'X' }, client: 'Terrin Ammar', slug: 'terrinammar' }], replies: [] } };
+    const env = { notes: [], fetches: [], _kasperState: { items: [{ post: { id: 'k2', linear_issue_id: '', name: 'X' }, client: 'Fixture Client', slug: 'fixture' }], replies: [] } };
     const m = build(env);
     m._kasperSendUrgentSlack(evt(fakeBtn()), 'k2');
     await tick();
-    check('Kasper: no Linear link → no post', env.fetches.length === 0);
-    check('Kasper: no Linear link → "No Linear link" notice', env.notes.some((n) => /no linear link/i.test(n.t)));
+    check('Kasper: unlinked card → no post', env.fetches.length === 0);
+    check('Kasper: unlinked card → native-deliverable notice', env.notes.some((n) => /native video deliverable/i.test(n.t)));
   }
 
   console.log('\n— source-form guards —');
@@ -166,6 +162,7 @@ const VID = 'https://linear.app/synchro-social/issue/VID-12624/video-1';
     /_calUrgentSlackDispatch\(/.test(grabFunc('_calSendUrgentSlack')) && /_calUrgentSlackDispatch\(/.test(grabFunc('_kasperSendUrgentSlack')));
   check('Kasper handler resolves from the review queue, not calState.posts',
     /_kasperState\.items/.test(grabFunc('_kasperSendUrgentSlack')) && !/calState\.posts/.test(grabFunc('_kasperSendUrgentSlack')));
+  check('the app no longer calls the legacy send-urgent-slack webhook', !INDEX.includes('webhook/send-urgent-slack'));
   check('.kcard-urgent-btn CSS exists', /\.kcard-urgent-btn\s*\{/.test(INDEX));
 
   if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }

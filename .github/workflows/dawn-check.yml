@@ -10,8 +10,6 @@ on:
   schedule:
     - cron: '30 11 * * 1-5'   # 11:30 UTC Mon-Fri = 07:30 New York (EDT) / 06:30 (EST)
   workflow_dispatch:
-  push:                      # TEMP validation; removed in the next commit
-    branches: [dawn/morning-check]
 
 concurrency:
   group: dawn-check

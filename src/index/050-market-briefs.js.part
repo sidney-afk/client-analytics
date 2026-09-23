@@ -1001,11 +1001,11 @@
            than drawing the page without them. */
         if(sel!=='all'){
             if(typeof _analyticsFlushPendingExtras==='function')_analyticsFlushPendingExtras();
-            if(!clientOnly&&tab!=='calendar'&&typeof _analyticsExtrasApplied!=='undefined'&&!_analyticsExtrasApplied&&_fetchExtrasPromise){
+            const arrival=(!clientOnly&&tab!=='calendar'&&typeof _analyticsExtrasApplied!=='undefined'&&!_analyticsExtrasApplied)?_analyticsExtrasArrival():null;
+            if(arrival){
                 content.innerHTML=_svLoadingSkeletonHtml('analytics-client');
                 const want=sel;
-                const again=()=>{ const st=history.state; if(currentNav==='home'&&st&&st.client&&wlCanonicalClient(st.client)===want) render(want,false); };
-                _fetchExtrasPromise.then(again,again);
+                arrival.then(()=>{ const st=history.state; if(currentNav==='home'&&st&&st.client&&wlCanonicalClient(st.client)===want) render(want,false); });
                 return;
             }
         }

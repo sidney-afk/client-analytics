@@ -1247,14 +1247,24 @@
        raw) against a ~5.2 M-character origin budget in an ordinary browser, so
        _analyticsCacheWrite fails there on every visit and staff wait ~5 s for
        the sheets each time. The localStorage path is unchanged; only a write
-       it refuses is kept here. Never in a client-link session: a client link
-       never paints from a snapshot (init() gates on ?c=), and now it does not
-       leave one behind either. Writes are a serialized read-merge-write, so
-       the essentials and extras halves cannot overwrite each other. */
+       it refuses is kept here.
+
+       THREE RECORDS, NOT ONE. `ess` (Metrics + Clients Info, ~2.6 MB) is all
+       the overview needs; `ext` (TopVideos and the briefs, ~17 MB) is for the
+       per-client pages. Stored as one record, the overview had to deserialize
+       all of TopVideos first and painted LATER than with no copy at all
+       (measured: ~2.2 s vs ~1.8 s). `meta` holds both timestamps, so freshness
+       and completeness are checked without reading either body.
+
+       Never in a client-link session: a client link never paints from a
+       snapshot (init() gates on ?c=), and now it does not leave one behind
+       either. Writes are serialized, so the two halves cannot interleave. */
     const ANALYTICS_IDB_NAME = 'syncview_analytics';
     const ANALYTICS_IDB_STORE = 'snapshot';
+    const ANALYTICS_IDB_META = 'meta', ANALYTICS_IDB_ESS = 'ess', ANALYTICS_IDB_EXT = 'ext';
     let _analyticsIdbPromise = null;
     let _analyticsIdbChain = Promise.resolve();
+    let _analyticsIdbExtRead = null;        // the saved `ext` read, while one is out
     function _analyticsIsClientSession(){
         try { return (typeof _isClientLink !== 'undefined' && !!_isClientLink)
             || !!new URLSearchParams(location.search).get('c'); } catch (e) { return true; }
@@ -1281,39 +1291,74 @@
             tx.onerror = tx.onabort = () => reject(tx.error || new Error('indexedDB transaction failed'));
         }));
     }
+    const _analyticsIdbGet = key => _analyticsIdbRequest('readonly', store => store.get(key));
     function _analyticsIdbSpill(partial){
         if (_analyticsIsClientSession() || !partial) return;
-        const next = Object.assign({}, partial);
-        if (next.clients) next.clients = _clientsInfoPublicRows(next.clients);
+        const now = Date.now();
+        const ess = (partial.metrics != null || partial.clients != null)
+            ? { metrics: partial.metrics, clients: partial.clients ? _clientsInfoPublicRows(partial.clients) : partial.clients } : null;
+        const ext = (partial.topvids != null || partial.briefs != null || partial.mrbriefs != null)
+            ? { topvids: partial.topvids, briefs: partial.briefs, mrbriefs: partial.mrbriefs, summaries: partial.summaries || '' } : null;
+        if (!ess && !ext) return;
         _analyticsIdbChain = _analyticsIdbChain
-            .then(() => _analyticsIdbRequest('readonly', store => store.get(ANALYTICS_CACHE_KEY)).catch(() => null))
-            .then(cur => {
-                const merged = Object.assign({}, (cur && typeof cur === 'object') ? cur : {}, next, { at: Date.now() });
-                return _analyticsIdbRequest('readwrite', store => store.put(merged, ANALYTICS_CACHE_KEY));
-            })
+            .then(() => _analyticsIdbGet(ANALYTICS_IDB_META).catch(() => null))
+            .then(meta => _analyticsIdbRequest('readwrite', store => {
+                const m = Object.assign({}, (meta && typeof meta === 'object') ? meta : {});
+                if (ess) { store.put(ess, ANALYTICS_IDB_ESS); m.essAt = now; }
+                if (ext) { store.put(ext, ANALYTICS_IDB_EXT); m.extAt = now; }
+                return store.put(m, ANALYTICS_IDB_META);
+            }))
             .catch(() => {});
     }
     function _analyticsIdbDelete(){
         _analyticsIdbChain = _analyticsIdbChain
-            .then(() => _analyticsIdbRequest('readwrite', store => store.delete(ANALYTICS_CACHE_KEY)))
+            .then(() => _analyticsIdbRequest('readwrite', store => store.clear()))
             .catch(() => {});
         return _analyticsIdbChain;
     }
-    /* Resolves true only if the IndexedDB copy was painted: complete, fresh,
-       staff session, and no fresh sheet data applied in the meantime. */
+    /* Resolves true only if the saved overview numbers were painted: staff
+       session, both halves saved and fresh, and no live sheet data applied in
+       the meantime. The `ext` half is then read behind the paint and queued
+       like the localStorage path's, unless live extras land first. */
     function _analyticsHydrateFromIdb(){
         if (_analyticsIsClientSession()) return Promise.resolve(false);
+        const fresh = at => at && (Date.now() - at) <= ANALYTICS_CACHE_TTL_MS;
         return _analyticsIdbChain
-            .then(() => _analyticsIdbRequest('readonly', store => store.get(ANALYTICS_CACHE_KEY)))
-            .then(c => {
-                if (!c || typeof c !== 'object' || _analyticsLiveEssentials) return false;
-                if (!c.at || (Date.now() - c.at) > ANALYTICS_CACHE_TTL_MS) return false;
-                if (!c.metrics || !c.clients || !c.topvids || !c.briefs || !c.mrbriefs) return false;
-                _analyticsApplySnapshot(c, _clientsInfoPublicRows(c.clients));
-                console.log('[SyncView] painted from analytics IndexedDB snapshot (' + Math.round((Date.now() - c.at) / 60000) + ' min old)');
+            .then(() => _analyticsIdbGet(ANALYTICS_IDB_META))
+            .then(meta => {
+                if (!meta || !fresh(meta.essAt) || !fresh(meta.extAt)) return null;
+                return _analyticsIdbGet(ANALYTICS_IDB_ESS).then(ess => ess ? { meta, ess } : null);
+            })
+            .then(found => {
+                if (!found || _analyticsLiveEssentials) return false;
+                const { meta, ess } = found;
+                if (!ess.metrics || !ess.clients) return false;
+                _applyEssentialTexts(ess.metrics, _clientsInfoPublicRows(ess.clients));
+                _analyticsCachedAt = Math.min(meta.essAt, meta.extAt);
+                _analyticsSyncCachedNote();
+                _analyticsIdbExtRead = _analyticsIdbGet(ANALYTICS_IDB_EXT).then(ext => {
+                    _analyticsIdbExtRead = null;
+                    if (!ext || _analyticsExtrasApplied || _analyticsPendingExtras) return;
+                    if (!ext.topvids || !ext.briefs || !ext.mrbriefs) return;
+                    _analyticsPendingExtras = [ext.topvids, ext.briefs, ext.mrbriefs, ext.summaries || null];
+                    _analyticsFlushPendingExtras();
+                }, () => { _analyticsIdbExtRead = null; });
+                console.log('[SyncView] painted from analytics IndexedDB snapshot (' + Math.round((Date.now() - meta.essAt) / 60000) + ' min old)');
                 return true;
             })
             .catch(() => false);
+    }
+    /* What a client page waits on when its data is not applied yet: whichever
+       arrives first of the saved `ext` half and the live sheets. */
+    function _analyticsExtrasArrival(){
+        const waits = [];
+        if (_analyticsIdbExtRead) waits.push(_analyticsIdbExtRead.then(() => { if (!_analyticsExtrasApplied) throw new Error('no saved extras'); }));
+        if (_fetchExtrasPromise) waits.push(_fetchExtrasPromise);
+        if (!waits.length) return null;
+        return new Promise(resolve => {
+            let left = waits.length;
+            waits.forEach(w => w.then(resolve, () => { if (--left === 0) resolve(); }));
+        });
     }
     /* Re-render whatever analytics view is on screen after fresh sheet data
        replaced a cached paint. Gentle by design: skipped while the user is

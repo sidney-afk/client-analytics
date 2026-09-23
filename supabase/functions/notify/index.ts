@@ -110,7 +110,7 @@ Deno.serve(async (req: Request) => {
       : lookupFailed
       ? { kind: "retryable" as const, code: "urgent_link_context_unavailable" }
       : plan && !plan.skip
-      ? await postSlackChannelMessage(slackToken, clean(row.destination_channel_id), plan.message.text, clean(row.client_msg_id), false, fetch, plan.message.blocks)
+      ? await postSlackChannelMessage(slackToken, clean(row.destination_channel_id), plan.message.text, clean(row.client_msg_id), false, fetch, plan.message.blocks, plan.message.attachments)
       : await postSlackChannelMessage(slackToken, clean(row.destination_channel_id), text, clean(row.client_msg_id), row.allow_mentions === true);
     done.set(row.intent_id, result.kind === "sent" ? { kind: "sent", messageId: result.messageId } : { kind: result.kind, code: result.code });
     const args = result.kind === "sent"
@@ -235,7 +235,7 @@ async function preview(supabase: Db, token: string, body: JsonMap): Promise<Resp
     if (intro.kind !== "sent") break;
     for (const sample of samples) {
       const message = formatNotification(sample, variant);
-      results.push((await postSlackDirectPreview(token, target, message.text, message.blocks)).kind);
+      results.push((await postSlackDirectPreview(token, target, message.text, message.blocks, fetch, message.attachments)).kind);
     }
   }
   const sent = results.filter(r => r === "sent").length;

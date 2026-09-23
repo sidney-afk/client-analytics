@@ -14,5 +14,7 @@ const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir()
  assert.equal((await call(new Response(JSON.stringify({ok:false,error:'ratelimited'}),{status:429}))).kind,'retryable','429 is known non-delivery');
  const hanging=await postSlackChannelMessage('token',channel,text,'00000000-0000-4000-8000-000000000001',false,async(_u,o)=>new Promise((_,reject)=>o.signal.addEventListener('abort',()=>reject(Error('aborted')))));
  assert.equal(hanging.kind,'unknown','deadline abort is unknown');
+ {let seen;await postSlackChannelMessage('token',channel,text,'00000000-0000-4000-8000-000000000001',false,async(_u,o)=>{seen=JSON.parse(o.body);return new Response(JSON.stringify({ok:true,channel,ts:'1788800000.123456'}));},[{type:'section'}],[{color:'#F2994A',blocks:[{type:'section'}]}]);
+  assert.equal(seen.attachments[0].color,'#F2994A');assert.equal(seen.blocks,undefined,'attachments replace top-level blocks');assert.equal(seen.text,text);assert.equal(seen.link_names,false);}
  console.log('native notification Slack adapter: ok');
 }finally{fs.rmSync(tmp,{recursive:true,force:true});}})().catch(e=>{console.error(e);process.exitCode=1;});

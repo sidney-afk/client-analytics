@@ -21,7 +21,10 @@ export type NotifyInput = {
   cardId?: string | null;                // calendar_posts.id when origin is calendar
   comment?: { author?: string | null; body: string } | null;
 };
-export type SlackMessage = { text: string; blocks: Record<string, unknown>[] };
+export type SlackAttachment = { color: string; blocks: Record<string, unknown>[] };
+// `attachments`, when present, is what is posted: the same blocks wrapped in one
+// attachment so Slack draws a coloured bar down the left edge.
+export type SlackMessage = { text: string; blocks: Record<string, unknown>[]; attachments?: SlackAttachment[] };
 
 const SITE = "https://syncview.synchrosocial.com/";
 const TITLE_CAP = 140;
@@ -51,11 +54,14 @@ export function calendarUrl(clientSlug?: string | null, cardId?: string | null):
   return SITE + "#calendar/" + encodeURIComponent(clientSlug) + "/" + encodeURIComponent(cardId);
 }
 
-const STATUS: Record<StatusKind | "comment", { label: string; emoji: string }> = {
-  status_tweak: { label: "Needs tweaks", emoji: "🔧" },
-  status_smm_approval: { label: "Ready for SMM approval", emoji: "✅" },
-  comment: { label: "New comment", emoji: "💬" },
+// Card colours, owner-picked: the left bar says what happened at a glance. A
+// merged status + comment post takes the status colour.
+const STATUS: Record<StatusKind | "comment", { label: string; emoji: string; color: string }> = {
+  status_tweak: { label: "Needs tweaks", emoji: "🔧", color: "#F2994A" },
+  status_smm_approval: { label: "Ready for SMM approval", emoji: "✅", color: "#B45CD6" },
+  comment: { label: "New comment", emoji: "💬", color: "#9AA0A6" },
 };
+export function cardColor(input: Pick<NotifyInput, "status">): string { return STATUS[input.status || "comment"].color; }
 
 function prepared(input: NotifyInput) {
   const title = cap(oneLine(slackSafe(input.title)) || "Untitled", TITLE_CAP);
@@ -98,6 +104,7 @@ export function formatNotification(input: NotifyInput, variant: NotifyVariant): 
     const buttons = [{ type: "button", text: { type: "plain_text", text: "Open in SyncLinear" }, url: p.prod }];
     if (p.cal) buttons.push({ type: "button", text: { type: "plain_text", text: "Open on calendar" }, url: p.cal });
     blocks.push({ type: "actions", elements: buttons });
+    return { text, blocks, attachments: [{ color: p.status.color, blocks }] };
   } else if (variant === "line") {
     let line = p.status.emoji + " *" + p.status.label + "* · *" + boldSafe(p.title) + "*" + (p.client ? " · " + p.client : "");
     if (p.body) line += "\n" + quote(p.body) + "\n_" + p.author + "_";

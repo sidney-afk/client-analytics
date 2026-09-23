@@ -35,6 +35,7 @@ export async function postSlackChannelMessage(
   allowMentions = false,
   fetchImpl: typeof fetch = fetch,
   blocks?: Record<string, unknown>[],
+  attachments?: Record<string, unknown>[],
 ): Promise<SlackPostResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 5000);
@@ -43,7 +44,7 @@ export async function postSlackChannelMessage(
     response = await fetchImpl("https://slack.com/api/chat.postMessage", {
       method: "POST", redirect: "error", signal: controller.signal,
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ channel, text, client_msg_id: clientMsgId, parse: "none", link_names: false, mrkdwn: allowMentions, unfurl_links: false, unfurl_media: false, ...(blocks ? { blocks } : {}) }),
+      body: JSON.stringify({ channel, text, client_msg_id: clientMsgId, parse: "none", link_names: false, mrkdwn: allowMentions, unfurl_links: false, unfurl_media: false, ...(attachments ? { attachments } : blocks ? { blocks } : {}) }),
     });
   } catch {
     clearTimeout(timer);
@@ -71,6 +72,7 @@ export async function postSlackDirectPreview(
   text: string,
   blocks: Record<string, unknown>[],
   fetchImpl: typeof fetch = fetch,
+  attachments?: Record<string, unknown>[],
 ): Promise<SlackPostResult> {
   if (!/^[UW][A-Z0-9]{8,}$/.test(userId)) return { kind: "blocked", code: "preview_target_not_a_user" };
   let response: Response;
@@ -80,7 +82,7 @@ export async function postSlackDirectPreview(
     response = await fetchImpl("https://slack.com/api/chat.postMessage", {
       method: "POST", redirect: "error", signal: controller.signal,
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ channel: userId, text, blocks, parse: "none", link_names: false, mrkdwn: false, unfurl_links: false, unfurl_media: false }),
+      body: JSON.stringify({ channel: userId, text, ...(attachments ? { attachments } : { blocks }), parse: "none", link_names: false, mrkdwn: false, unfurl_links: false, unfurl_media: false }),
     });
   } catch {
     clearTimeout(timer);

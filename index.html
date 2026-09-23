@@ -9686,7 +9686,10 @@
             packed = 'P1:' + _lsPackUtf8(JSON.stringify(cur));
             let failedAt = 0;
             try { failedAt = Number(sessionStorage.getItem(ANALYTICS_CACHE_FAIL_KEY)) || 0; } catch (e) {}
-            if (failedAt && packed.length >= failedAt * 0.9) return;   // known-doomed this session
+            if (failedAt && packed.length >= failedAt * 0.9) {   // known-doomed this session
+                if (typeof _analyticsIdbSpill === 'function') _analyticsIdbSpill(partial);
+                return;
+            }
             try {
                 localStorage.setItem(ANALYTICS_CACHE_KEY, packed);
             } catch (quotaErr) {
@@ -9699,6 +9702,7 @@
             // Quota or private mode — drop the cache rather than half-write it,
             // remember the losing size, and say so once instead of every load.
             try { localStorage.removeItem(ANALYTICS_CACHE_KEY); } catch (e2) {}
+            if (typeof _analyticsIdbSpill === 'function') _analyticsIdbSpill(partial);
             let warned = 0;
             try {
                 warned = Number(sessionStorage.getItem(ANALYTICS_CACHE_FAIL_KEY)) || 0;
@@ -9732,11 +9736,190 @@
             if (!c.metrics || !c.clients || !c.topvids || !c.briefs || !c.mrbriefs) return false;
             // Migrate older raw-CSV snapshots in place before hydration. Keep
             // the original timestamp so sanitization cannot extend freshness.
-            _applyEssentialTexts(c.metrics, publicClients);
-            _applyExtraTexts(c.topvids, c.briefs, c.mrbriefs, c.summaries || null);
+            _analyticsApplySnapshot(c, publicClients);
             console.log('[SyncView] painted from analytics snapshot cache (' + Math.round((Date.now() - c.at) / 60000) + ' min old)');
             return true;
         }catch(e){ console.warn('[SyncView] analytics cache hydrate failed:', e); return false; }
+    }
+    /* ESSENTIALS NOW, EXTRAS AFTER THE FIRST FRAME. The staff overview draws
+       from Metrics and Clients Info only; TopVideos (15.8 MB, 56,881 rows,
+       measured 2026-09-23) and the two brief sheets feed the per-client pages.
+       Parsing them before the overview could paint cost ~370 ms of a ~650 ms
+       cached paint. They are applied one frame later -- or at once by anything
+       that reads them first (_analyticsFlushPendingExtras, called from
+       render() for a client page and from brief polling) -- so no view ever
+       draws without them. A live fetchExtras that lands first wins and the
+       queued copy is dropped. */
+    let _analyticsPendingExtras = null;
+    let _analyticsExtrasApplied = false;
+    let _analyticsLiveEssentials = false;   // set when fresh sheet texts are applied
+    let _analyticsCachedAt = 0;             // saved-copy time while its numbers are on screen
+    function _analyticsApplySnapshot(c, publicClients){
+        _applyEssentialTexts(c.metrics, publicClients);
+        _analyticsCachedAt = Number(c.at) || Date.now();
+        _analyticsPendingExtras = [c.topvids, c.briefs, c.mrbriefs, c.summaries || null];
+        // Fingerprinted now, so the revalidation compare in init() sees what
+        // this paint stands for even before the queued texts are parsed.
+        _analyticsAppliedFp.ext = _analyticsFp([c.topvids, c.briefs, c.mrbriefs, c.summaries || '']);
+        const later = () => setTimeout(_analyticsFlushPendingExtras, 0);
+        if (document.hidden || typeof requestAnimationFrame !== 'function') later();
+        else requestAnimationFrame(later);
+        _analyticsSyncCachedNote();
+    }
+    function _analyticsFlushPendingExtras(){
+        const p = _analyticsPendingExtras;
+        if (!p) return;
+        _analyticsPendingExtras = null;
+        _applyExtraTexts(p[0], p[1], p[2], p[3]);
+    }
+    /* "Showing numbers saved at HH:MM · updating…" while a saved copy is on
+       screen; "Couldn't update" if the refresh fails; gone once fresh sheets
+       apply. It sits in the analytics page header (#pageTop), which every
+       other tab already hides, so no other view can show it. */
+    function _analyticsSyncCachedNote(failed){
+        try{
+            const top = document.getElementById('pageTop');
+            let note = document.getElementById('analyticsCachedNote');
+            if (!_analyticsCachedAt) { if (note) note.remove(); return; }
+            if (!top) return;
+            if (!note) {
+                note = document.createElement('div');
+                note.id = 'analyticsCachedNote';
+                note.className = 'page-sub';
+                note.setAttribute('aria-live', 'polite');
+                top.appendChild(note);
+            }
+            const at = new Date(_analyticsCachedAt);
+            const hhmm = String(at.getHours()).padStart(2, '0') + ':' + String(at.getMinutes()).padStart(2, '0');
+            const time = at.toDateString() === new Date().toDateString()
+                ? hhmm : at.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + hhmm;
+            note.setAttribute('data-analytics-cached', failed ? 'failed' : 'updating');
+            note.textContent = failed
+                ? 'Couldn\u2019t update \u00b7 showing numbers saved at ' + time
+                : 'Showing numbers saved at ' + time + ' \u00b7 updating\u2026';
+        }catch(e){}
+    }
+    function _analyticsLiveApplied(){
+        _analyticsCachedAt = 0;
+        _analyticsSyncCachedNote();
+    }
+    /* THE SNAPSHOT THAT DOES NOT FIT localStorage GOES TO IndexedDB. Measured
+       2026-09-23 it is 10.95 M characters packed (TopVideos alone is 15.8 MB
+       raw) against a ~5.2 M-character origin budget in an ordinary browser, so
+       _analyticsCacheWrite fails there on every visit and staff wait ~5 s for
+       the sheets each time. The localStorage path is unchanged; only a write
+       it refuses is kept here.
+
+       THREE RECORDS, NOT ONE. `ess` (Metrics + Clients Info, ~2.6 MB) is all
+       the overview needs; `ext` (TopVideos and the briefs, ~17 MB) is for the
+       per-client pages. Stored as one record, the overview had to deserialize
+       all of TopVideos first and painted LATER than with no copy at all
+       (measured: ~2.2 s vs ~1.8 s). `meta` holds both timestamps, so freshness
+       and completeness are checked without reading either body.
+
+       Never in a client-link session: a client link never paints from a
+       snapshot (init() gates on ?c=), and now it does not leave one behind
+       either. Writes are serialized, so the two halves cannot interleave. */
+    const ANALYTICS_IDB_NAME = 'syncview_analytics';
+    const ANALYTICS_IDB_STORE = 'snapshot';
+    const ANALYTICS_IDB_META = 'meta', ANALYTICS_IDB_ESS = 'ess', ANALYTICS_IDB_EXT = 'ext';
+    let _analyticsIdbPromise = null;
+    let _analyticsIdbChain = Promise.resolve();
+    let _analyticsIdbExtRead = null;        // the saved `ext` read, while one is out
+    function _analyticsIsClientSession(){
+        try { return (typeof _isClientLink !== 'undefined' && !!_isClientLink)
+            || !!new URLSearchParams(location.search).get('c'); } catch (e) { return true; }
+    }
+    function _analyticsIdbOpen(){
+        if (_analyticsIdbPromise) return _analyticsIdbPromise;
+        _analyticsIdbPromise = new Promise((resolve, reject) => {
+            try {
+                if (typeof indexedDB === 'undefined' || !indexedDB) return reject(new Error('no indexedDB'));
+                const req = indexedDB.open(ANALYTICS_IDB_NAME, 1);
+                req.onupgradeneeded = () => { try { req.result.createObjectStore(ANALYTICS_IDB_STORE); } catch (e) {} };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error || new Error('indexedDB open failed'));
+                req.onblocked = () => reject(new Error('indexedDB blocked'));
+            } catch (e) { reject(e); }
+        }).catch(error => { _analyticsIdbPromise = null; throw error; });
+        return _analyticsIdbPromise;
+    }
+    function _analyticsIdbRequest(mode, run){
+        return _analyticsIdbOpen().then(db => new Promise((resolve, reject) => {
+            const tx = db.transaction(ANALYTICS_IDB_STORE, mode);
+            const req = run(tx.objectStore(ANALYTICS_IDB_STORE));
+            tx.oncomplete = () => resolve(req ? req.result : undefined);
+            tx.onerror = tx.onabort = () => reject(tx.error || new Error('indexedDB transaction failed'));
+        }));
+    }
+    const _analyticsIdbGet = key => _analyticsIdbRequest('readonly', store => store.get(key));
+    function _analyticsIdbSpill(partial){
+        if (_analyticsIsClientSession() || !partial) return;
+        const now = Date.now();
+        const ess = (partial.metrics != null || partial.clients != null)
+            ? { metrics: partial.metrics, clients: partial.clients ? _clientsInfoPublicRows(partial.clients) : partial.clients } : null;
+        const ext = (partial.topvids != null || partial.briefs != null || partial.mrbriefs != null)
+            ? { topvids: partial.topvids, briefs: partial.briefs, mrbriefs: partial.mrbriefs, summaries: partial.summaries || '' } : null;
+        if (!ess && !ext) return;
+        _analyticsIdbChain = _analyticsIdbChain
+            .then(() => _analyticsIdbGet(ANALYTICS_IDB_META).catch(() => null))
+            .then(meta => _analyticsIdbRequest('readwrite', store => {
+                const m = Object.assign({}, (meta && typeof meta === 'object') ? meta : {});
+                if (ess) { store.put(ess, ANALYTICS_IDB_ESS); m.essAt = now; }
+                if (ext) { store.put(ext, ANALYTICS_IDB_EXT); m.extAt = now; }
+                return store.put(m, ANALYTICS_IDB_META);
+            }))
+            .catch(() => {});
+    }
+    function _analyticsIdbDelete(){
+        _analyticsIdbChain = _analyticsIdbChain
+            .then(() => _analyticsIdbRequest('readwrite', store => store.clear()))
+            .catch(() => {});
+        return _analyticsIdbChain;
+    }
+    /* Resolves true only if the saved overview numbers were painted: staff
+       session, both halves saved and fresh, and no live sheet data applied in
+       the meantime. The `ext` half is then read behind the paint and queued
+       like the localStorage path's, unless live extras land first. */
+    function _analyticsHydrateFromIdb(){
+        if (_analyticsIsClientSession()) return Promise.resolve(false);
+        const fresh = at => at && (Date.now() - at) <= ANALYTICS_CACHE_TTL_MS;
+        return _analyticsIdbChain
+            .then(() => _analyticsIdbGet(ANALYTICS_IDB_META))
+            .then(meta => {
+                if (!meta || !fresh(meta.essAt) || !fresh(meta.extAt)) return null;
+                return _analyticsIdbGet(ANALYTICS_IDB_ESS).then(ess => ess ? { meta, ess } : null);
+            })
+            .then(found => {
+                if (!found || _analyticsLiveEssentials) return false;
+                const { meta, ess } = found;
+                if (!ess.metrics || !ess.clients) return false;
+                _applyEssentialTexts(ess.metrics, _clientsInfoPublicRows(ess.clients));
+                _analyticsCachedAt = Math.min(meta.essAt, meta.extAt);
+                _analyticsSyncCachedNote();
+                _analyticsIdbExtRead = _analyticsIdbGet(ANALYTICS_IDB_EXT).then(ext => {
+                    _analyticsIdbExtRead = null;
+                    if (!ext || _analyticsExtrasApplied || _analyticsPendingExtras) return;
+                    if (!ext.topvids || !ext.briefs || !ext.mrbriefs) return;
+                    _analyticsPendingExtras = [ext.topvids, ext.briefs, ext.mrbriefs, ext.summaries || null];
+                    _analyticsFlushPendingExtras();
+                }, () => { _analyticsIdbExtRead = null; });
+                console.log('[SyncView] painted from analytics IndexedDB snapshot (' + Math.round((Date.now() - meta.essAt) / 60000) + ' min old)');
+                return true;
+            })
+            .catch(() => false);
+    }
+    /* What a client page waits on when its data is not applied yet: whichever
+       arrives first of the saved `ext` half and the live sheets. */
+    function _analyticsExtrasArrival(){
+        const waits = [];
+        if (_analyticsIdbExtRead) waits.push(_analyticsIdbExtRead.then(() => { if (!_analyticsExtrasApplied) throw new Error('no saved extras'); }));
+        if (_fetchExtrasPromise) waits.push(_fetchExtrasPromise);
+        if (!waits.length) return null;
+        return new Promise(resolve => {
+            let left = waits.length;
+            waits.forEach(w => w.then(resolve, () => { if (--left === 0) resolve(); }));
+        });
     }
     /* Re-render whatever analytics view is on screen after fresh sheet data
        replaced a cached paint. Gentle by design: skipped while the user is
@@ -9820,6 +10003,7 @@
             }catch(e){console.warn('[SyncView] ContentSummaries load error:',e);}
         }
         _analyticsAppliedFp.ext = _analyticsFp([topvidsText, briefsText, mrbText, csText || '']);
+        _analyticsExtrasApplied = true;
     }
 
     async function fetchEssentials(clientEntryRun){
@@ -9827,6 +10011,7 @@
         const [mr,cr]=await Promise.all([fetch(METRICS_URL,requestOpts),fetch(CLIENTS_URL,requestOpts)]);
         const metricsText=await mr.text(), clientsText=await cr.text();
         if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
+        _analyticsLiveEssentials = true;
         const publicClientRows = _applyEssentialTexts(metricsText, clientsText);
         _analyticsCacheWrite({ metrics: metricsText, clients: publicClientRows });
     }
@@ -9868,6 +10053,7 @@
             const mrbText=await mrb.text();
             const csText=cs&&cs.ok?await cs.text():null;
             if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
+            _analyticsPendingExtras = null;   // fresh texts win over a queued saved copy
             _applyExtraTexts(topvidsText, briefsText, mrbText, csText);
             _analyticsCacheWrite({ topvids: topvidsText, briefs: briefsText, mrbriefs: mrbText, summaries: csText || '' });
         })();
@@ -11962,6 +12148,21 @@
             pageTop.classList.add('overview-mode');
             pageTitle.style.display='';pageSub.style.display='';selectorWrap.style.display='';
             if(existingBack)existingBack.remove();
+        }
+        /* A client page reads TopVideos and the briefs. A saved copy queues
+           them one frame behind the overview (_analyticsApplySnapshot), so
+           apply them now if they are still queued; if they have not arrived
+           at all yet, show the client skeleton and draw once they land rather
+           than drawing the page without them. */
+        if(sel!=='all'){
+            if(typeof _analyticsFlushPendingExtras==='function')_analyticsFlushPendingExtras();
+            const arrival=(!clientOnly&&tab!=='calendar'&&typeof _analyticsExtrasApplied!=='undefined'&&!_analyticsExtrasApplied)?_analyticsExtrasArrival():null;
+            if(arrival){
+                content.innerHTML=_svLoadingSkeletonHtml('analytics-client');
+                const want=sel;
+                arrival.then(()=>{ const st=history.state; if(currentNav==='home'&&st&&st.client&&wlCanonicalClient(st.client)===want) render(want,false); });
+                return;
+            }
         }
         if(sel==='all'){
             content.innerHTML=renderOverview(latestPerClient());
@@ -52323,6 +52524,8 @@
         }
 
         function _resumePendingBriefPolling() {
+            // Reads the brief lists, which a saved-copy paint may still hold queued.
+            if (typeof _analyticsFlushPendingExtras === 'function') _analyticsFlushPendingExtras();
             Object.entries(pendingBriefs).forEach(([key,{triggerISO,type}])=>{
                 const triggerTime=new Date(triggerISO);
                 const sep=key.lastIndexOf('__');
@@ -52982,7 +53185,13 @@
             try {
                 const raw = localStorage.getItem(PROD_CACHE_KEY);
                 if (!raw) return null;
-                const parsed = JSON.parse(raw);
+                return _prodCacheValidate(JSON.parse(raw));
+            } catch { return null; }
+        }
+        /* Shared by both stores, so an IndexedDB snapshot is held to exactly
+           the checks a localStorage one is: schema, age, and column lists. */
+        function _prodCacheValidate(parsed) {
+            try {
                 if (!parsed || parsed.schema !== PROD_CACHE_SCHEMA || !parsed.savedAt) return null;
                 if (Date.now() - Number(parsed.savedAt) > PROD_CACHE_TTL_MS) return null;
                 if (!Array.isArray(parsed.clients) || !Array.isArray(parsed.members)) return null;
@@ -53011,21 +53220,33 @@
         function _prodCacheWrite(data) {
             if (!_prodCacheEnabled() || !data) return false;
             let payload;
+            let snapshot;
             try {
-                payload = JSON.stringify(Object.assign(
+                snapshot = Object.assign(
                     { schema: PROD_CACHE_SCHEMA, savedAt: Date.now() },
                     _prodCacheProject(data),
-                ));
+                );
+                payload = JSON.stringify(snapshot);
             } catch { return false; }
+            // Refused here, kept in IndexedDB (see _prodIdbCacheWrite). Guarded
+            // so this function still runs where only it has been loaded.
+            const spill = () => { if (typeof _prodIdbCacheWrite === 'function') _prodIdbCacheWrite(snapshot); };
             // Rule 1: an oversized payload costs its neighbours nothing. The
             // eviction loop below only makes sense for a write that could
             // succeed once there is room; checking after the first failure
             // would already have started deleting.
             if (payload.length > PROD_CACHE_MAX_CHARS) {
                 try { localStorage.removeItem(PROD_CACHE_KEY); } catch {}
+                spill();
                 return false;
             }
-            try { localStorage.setItem(PROD_CACHE_KEY, payload); return true; }
+            try {
+                localStorage.setItem(PROD_CACHE_KEY, payload);
+                // One store holds the snapshot at a time, so an older spilled
+                // copy can never outlive the one written here.
+                if (typeof _prodIdbCacheDelete === 'function') _prodIdbCacheDelete();
+                return true;
+            }
             catch (e) {
                 // QuotaExceededError — evict oldest same-family snapshots
                 // (calendar / samples) and our own prior entry to make room,
@@ -53071,6 +53292,7 @@
                         try { localStorage.setItem(PROD_CACHE_KEY, payload); return true; } catch {}
                     }
                 } catch {}
+                spill();
                 return false;
             }
         }
@@ -53081,10 +53303,67 @@
         // reader — the cached copy is stale and must not seed the next paint.
         function _prodCachePurge() {
             try { localStorage.removeItem(PROD_CACHE_KEY); } catch {}
+            _prodIdbCacheDelete();
             try { if (typeof _prodState !== 'undefined' && _prodState) _prodState.fromCache = false; } catch {}
         }
-        function _prodHydrateFromCache() {
-            const cached = _prodCacheRead();
+        /* THE SNAPSHOT THAT DOES NOT FIT localStorage GOES TO IndexedDB.
+           Measured 2026-09-23: the projection is 2,588,656 characters against
+           PROD_CACHE_MAX_CHARS 2,400,000 (2,432 live rows, 1,755 batches), so
+           _prodCacheWrite refused it on every load and every visit started
+           from nothing. The localStorage path is left exactly as it was -- its
+           budget protects the calendar's snapshots -- and only a payload it
+           refuses is kept here instead, where the origin has far more room.
+           Same projected object, same validation on the way out
+           (_prodCacheValidate), same purge. */
+        const PROD_IDB_NAME = 'syncview_production';
+        const PROD_IDB_STORE = 'snapshot';
+        const PROD_IDB_KEY = PROD_CACHE_KEY;
+        let _prodIdbPromise = null;
+        function _prodIdbOpen() {
+            if (_prodIdbPromise) return _prodIdbPromise;
+            _prodIdbPromise = new Promise((resolve, reject) => {
+                try {
+                    if (typeof indexedDB === 'undefined' || !indexedDB) return reject(new Error('no indexedDB'));
+                    const req = indexedDB.open(PROD_IDB_NAME, 1);
+                    req.onupgradeneeded = () => { try { req.result.createObjectStore(PROD_IDB_STORE); } catch (e) {} };
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error || new Error('indexedDB open failed'));
+                    req.onblocked = () => reject(new Error('indexedDB blocked'));
+                } catch (e) { reject(e); }
+            }).catch(error => { _prodIdbPromise = null; throw error; });
+            return _prodIdbPromise;
+        }
+        function _prodIdbRequest(mode, run) {
+            return _prodIdbOpen().then(db => new Promise((resolve, reject) => {
+                const tx = db.transaction(PROD_IDB_STORE, mode);
+                const req = run(tx.objectStore(PROD_IDB_STORE));
+                tx.oncomplete = () => resolve(req ? req.result : undefined);
+                tx.onerror = tx.onabort = () => reject(tx.error || new Error('indexedDB transaction failed'));
+            }));
+        }
+        /* Bumped by every purge and every write, so a read that started before
+           a sign-out (or before a newer write) can never paint what it found. */
+        let _prodIdbCacheSeq = 0;
+        function _prodIdbCacheWrite(payload) {
+            const seq = ++_prodIdbCacheSeq;
+            return _prodIdbRequest('readwrite', store => store.put(payload, PROD_IDB_KEY))
+                .then(() => seq === _prodIdbCacheSeq, () => false);
+        }
+        function _prodIdbCacheDelete() {
+            _prodIdbCacheSeq++;
+            try { return _prodIdbRequest('readwrite', store => store.delete(PROD_IDB_KEY)).catch(() => {}); }
+            catch (e) { return Promise.resolve(); }
+        }
+        function _prodIdbCacheRead() {
+            if (!_prodCacheEnabled()) return Promise.resolve(null);
+            const seq = _prodIdbCacheSeq;
+            return _prodIdbRequest('readonly', store => store.get(PROD_IDB_KEY))
+                .then(parsed => (seq === _prodIdbCacheSeq ? _prodCacheValidate(parsed) : null), () => null);
+        }
+        /* `snapshot` is the IndexedDB copy when there is one (_prodMountFromIdbOrLoad);
+           otherwise the localStorage copy is read here, as it always was. */
+        function _prodHydrateFromCache(snapshot) {
+            const cached = snapshot || _prodCacheRead();
             if (!cached) return false;
             const clients = cached.clients;
             const members = cached.members;
@@ -53102,6 +53381,7 @@
             _prodState.authorityReadAt = 0;
             _prodState.adapter = _prodAdapter({ clients, members, batches, deliverables });
             _prodState.loaded = true;
+            _prodState.cachedAt = Number(cached.savedAt) || 0;
             _prodState.fromCache = true;
             _prodState.cachePartial = true;
             // A deep-link target absent from the CACHED snapshot shows the list
@@ -64383,8 +64663,68 @@
             let hydrated = false;
             if (!_prodState.loaded && !_prodState.loading) hydrated = _prodHydrateFromCache();
             _prodRender();
-            if (hydrated) _prodLoadData({ silent: true });
-            else if (!_prodState.loaded && !_prodState.loading) _prodLoadData();
+            if (hydrated) _prodRevalidateCachedPaint();
+            else if (!_prodState.loaded && !_prodState.loading) _prodMountFromIdbOrLoad();
+        }
+        /* The live read behind a saved-copy paint. A silent load that fails only
+           returns false, so the outcome is handled here: the notice turns into
+           "Couldn't update" instead of saying "updating" forever, and a refused
+           session (401/403 -- the cache is already purged) stops showing rows
+           it is no longer allowed to read. */
+        /* Settles once, the first time a live Production read finishes either
+           way (or after a 10 s ceiling). Work that competes with that read for
+           the network but does not draw SyncLinear waits on it: the Production
+           landing in init() starts Metrics and Clients Info (~2.6 MB, measured
+           2026-09-23) only once this settles. Those sheets draw nothing here --
+           they feed pins, the calendar's client resolution and brief polling
+           for the tabs visited next -- so the calls and end state are the same,
+           only later. */
+        let _prodFirstLoadSettle = () => {};
+        const _prodFirstLoadSettled = new Promise(resolve => {
+            let done = false;
+            _prodFirstLoadSettle = () => { if (!done) { done = true; resolve(); } };
+            setTimeout(() => _prodFirstLoadSettle(), 10000);
+        });
+        function _prodRevalidateCachedPaint() {
+            return Promise.resolve(_prodLoadData({ silent: true })).then(ok => {
+                _prodFirstLoadSettle();
+                if (ok !== false || !_prodState.fromCache) return;
+                const status = Number(_prodState.lastSilentLoadStatus || 0);
+                if (status === 401 || status === 403) {
+                    _prodState.fromCache = false;
+                    _prodState.loaded = false;
+                    _prodState.error = 'Your session can no longer read Production. Sign in again, then retry.';
+                } else if (!_prodState.lastSyncError) {
+                    _prodState.lastSyncError = 'Could not load the live list.';
+                }
+                if (document.getElementById('prodRoot')) _prodRender();
+            }, () => { _prodFirstLoadSettle(); });
+        }
+        /* The snapshot too big for localStorage lives in IndexedDB, and reading
+           it is asynchronous, so it RACES the live read rather than gating it.
+           Awaiting it first was measured on 2026-09-23 and rejected: on a
+           switch from the calendar the read sometimes took ~3 s, and the live
+           list then landed ~1.5 s later than with no cache at all. Now the live
+           read starts at once, exactly as it did before, and the saved copy is
+           painted only if it answers while that read is still out -- a copy
+           that loses the race is dropped unseen, so a stale list can never
+           replace a fresh one. */
+        function _prodMountFromIdbOrLoad() {
+            if (_prodState.loaded || _prodState.loading) return;
+            const generation = _prodState.projectionGeneration;
+            Promise.resolve(_prodLoadData()).then(() => _prodFirstLoadSettle(), () => _prodFirstLoadSettle());
+            let read;
+            try { read = _prodIdbCacheRead(); } catch (e) { return; }
+            Promise.resolve(read).then(cached => {
+                // Still the same boot, still waiting on it, nothing painted yet.
+                if (!cached || !_prodState.loading || _prodState.loaded || _prodState.error
+                    || generation !== _prodState.projectionGeneration) return;
+                if (!_prodHydrateFromCache(cached)) return;
+                // Hydration marks the tab loaded; the live read is still out and
+                // takes over when it lands (it clears fromCache and repaints).
+                _prodState.loading = false;
+                if (document.getElementById('prodRoot')) _prodRender();
+            }, () => {});
         }
         function _prodPrimeFromUrl() {
             try {
@@ -66056,7 +66396,30 @@
             if (age < 3600000) return 'updated ' + Math.round(age / 60000) + 'm ago';
             return 'updated ' + Math.round(age / 3600000) + 'h ago';
         }
+        /* While the list is the saved copy (fromCache, cleared by the first live
+           read), the control says so and when it was saved -- a stale list is
+           acceptable only when it says it is one, the rule Workload's cached
+           board follows (OPEN_REPAIRS 230 item 3). */
+        function _prodCachedNoticeHTML() {
+            const at = new Date(Number(_prodState.cachedAt) || Date.now());
+            const hhmm = String(at.getHours()).padStart(2, '0') + ':' + String(at.getMinutes()).padStart(2, '0');
+            const time = at.toDateString() === new Date().toDateString()
+                ? hhmm : at.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + hhmm;
+            const failed = !!_prodState.lastSyncError;
+            const label = failed ? 'Couldn’t update · saved list from ' + time : 'Showing saved list from ' + time + ' · updating…';
+            const detail = failed
+                ? 'This is the list saved at ' + time + '. It could not be updated just now. Try Refresh.'
+                : 'This is the list saved at ' + time + '. It is being replaced with the live list now.';
+            return '<div class="prod-freshness" data-prod-freshness="' + (failed ? 'degraded' : 'cached') + '">'
+                + '<span class="prod-freshness-age" data-prod-freshness-age aria-live="polite">' + _calEsc(label) + '</span>'
+                + '<button class="prod-icon-btn" type="button" data-prod-refresh="1"'
+                + (_prodState.refreshInFlight ? ' disabled' : '')
+                + ' aria-label="Refresh Production data" title="' + _calEscAttr(detail)
+                + '" data-prod-tip="' + _calEscAttr(label + '|' + detail) + '" onclick="return _prodManualRefresh()">'
+                + PROD_REFRESH_ICON + '</button></div>';
+        }
         function _prodFreshnessHTML() {
+            if (_prodState.fromCache) return _prodCachedNoticeHTML();
             const degraded = _prodRefreshDegraded();
             const label = _prodRefreshAgeLabel();
             const detail = _prodState.lastSyncError
@@ -66123,6 +66486,8 @@
         function _prodSyncFreshnessControl() {
             const button = document.querySelector('[data-prod-refresh="1"]');
             if (button) button.disabled = !!_prodState.refreshInFlight;
+            // The saved-copy notice owns this control until a live read lands.
+            if (_prodState.fromCache) return;
             const ageEl = document.querySelector('[data-prod-freshness-age]');
             if (ageEl) {
                 ageEl.textContent = _prodState.lastSyncError
@@ -67579,12 +67944,12 @@
 
             if (!_isClientLink && _prodEnabled()) {
                 setTimeout(function () { try { navTo('production', false); } catch (e) { console.error('[Production] mount failed', e); } }, 0);
-                fetchEssentials().then(() => {
+                _prodFirstLoadSettled.then(() => fetchEssentials().then(() => {
                     try { _resumePendingBriefPolling(); } catch (e) {}
                     _applyAllDataDependentChrome();
                 }, err => {
                     console.warn('[SyncView] Production preview background essentials failed', err);
-                });
+                }));
                 return;
             }
 
@@ -67790,13 +68155,38 @@
             // gate must check the live sheet, not yesterday's copy.
             let _paintedFromCache = false;
             if (!qp.get('c')) _paintedFromCache = _analyticsHydrateFromCache();
+            /* A staff landing on the overview draws from Metrics and Clients
+               Info alone, so it waits for those and not for TopVideos (15.8 MB,
+               the last sheet to arrive: ~4.3 s of a ~5.0 s wait measured
+               2026-09-23). Per-client pages still get everything: render()
+               waits for the extras before drawing one. */
+            const _overviewLanding = !_isClientLink && !qp.get('c')
+                && !(history.state && history.state.client) && (!hashRaw || hashRaw === 'home');
+            const _paintWaitsOn = _overviewLanding ? dataLoad.essentials : dataPromise;
+            /* The saved copy a normal browser's localStorage refuses lives in
+               IndexedDB. It RACES the live sheets rather than gating them: it
+               paints only if it answers first, and _analyticsHydrateFromIdb
+               refuses once fresh essentials have been applied. Staff only. */
+            if (!_paintedFromCache && !qp.get('c') && !_isClientLink) {
+                _paintedFromCache = await Promise.race([
+                    _analyticsHydrateFromIdb(),
+                    _paintWaitsOn.then(() => false, () => false)
+                ]);
+            }
             if (_paintedFromCache) {
                 const _fpAtPaint = _analyticsAppliedFp.ess + '|' + _analyticsAppliedFp.ext;
                 dataPromise.then(() => {
                     if (_analyticsAppliedFp.ess + '|' + _analyticsAppliedFp.ext !== _fpAtPaint) _analyticsRefreshCurrentView();
-                }, err => console.warn('[SyncView] background analytics revalidate failed:', err));
+                    _analyticsLiveApplied();
+                }, err => {
+                    console.warn('[SyncView] background analytics revalidate failed:', err);
+                    _analyticsSyncCachedNote(true);
+                });
             } else {
-                await dataPromise;
+                await _paintWaitsOn;
+                // The rest still loads; its failure is the per-client pages'
+                // to report (they wait on it), not the overview's.
+                if (_paintWaitsOn !== dataPromise) dataPromise.catch(err => console.warn('[SyncView] background analytics extras failed:', err));
             }
             if(!_clientEntryStillCurrent())return;
             if(!_isClientLink)_resumePendingBriefPolling();
@@ -68055,6 +68445,7 @@
     }
     function _syncviewClearClientEntryCaches(slug) {
         try { localStorage.removeItem(ANALYTICS_CACHE_KEY); } catch (e) {}
+        try { if (typeof _analyticsIdbDelete === 'function') _analyticsIdbDelete(); } catch (e) {}
         try { localStorage.removeItem('syncview_contentSummaryState_v1'); } catch (e) {}
         try { localStorage.removeItem('syncview_generalBriefState_v5'); } catch (e) {}
         if (!slug) return;

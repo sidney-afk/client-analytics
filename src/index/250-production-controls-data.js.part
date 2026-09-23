@@ -1051,8 +1051,68 @@
             let hydrated = false;
             if (!_prodState.loaded && !_prodState.loading) hydrated = _prodHydrateFromCache();
             _prodRender();
-            if (hydrated) _prodLoadData({ silent: true });
-            else if (!_prodState.loaded && !_prodState.loading) _prodLoadData();
+            if (hydrated) _prodRevalidateCachedPaint();
+            else if (!_prodState.loaded && !_prodState.loading) _prodMountFromIdbOrLoad();
+        }
+        /* The live read behind a saved-copy paint. A silent load that fails only
+           returns false, so the outcome is handled here: the notice turns into
+           "Couldn't update" instead of saying "updating" forever, and a refused
+           session (401/403 -- the cache is already purged) stops showing rows
+           it is no longer allowed to read. */
+        /* Settles once, the first time a live Production read finishes either
+           way (or after a 10 s ceiling). Work that competes with that read for
+           the network but does not draw SyncLinear waits on it: the Production
+           landing in init() starts Metrics and Clients Info (~2.6 MB, measured
+           2026-09-23) only once this settles. Those sheets draw nothing here --
+           they feed pins, the calendar's client resolution and brief polling
+           for the tabs visited next -- so the calls and end state are the same,
+           only later. */
+        let _prodFirstLoadSettle = () => {};
+        const _prodFirstLoadSettled = new Promise(resolve => {
+            let done = false;
+            _prodFirstLoadSettle = () => { if (!done) { done = true; resolve(); } };
+            setTimeout(() => _prodFirstLoadSettle(), 10000);
+        });
+        function _prodRevalidateCachedPaint() {
+            return Promise.resolve(_prodLoadData({ silent: true })).then(ok => {
+                _prodFirstLoadSettle();
+                if (ok !== false || !_prodState.fromCache) return;
+                const status = Number(_prodState.lastSilentLoadStatus || 0);
+                if (status === 401 || status === 403) {
+                    _prodState.fromCache = false;
+                    _prodState.loaded = false;
+                    _prodState.error = 'Your session can no longer read Production. Sign in again, then retry.';
+                } else if (!_prodState.lastSyncError) {
+                    _prodState.lastSyncError = 'Could not load the live list.';
+                }
+                if (document.getElementById('prodRoot')) _prodRender();
+            }, () => { _prodFirstLoadSettle(); });
+        }
+        /* The snapshot too big for localStorage lives in IndexedDB, and reading
+           it is asynchronous, so it RACES the live read rather than gating it.
+           Awaiting it first was measured on 2026-09-23 and rejected: on a
+           switch from the calendar the read sometimes took ~3 s, and the live
+           list then landed ~1.5 s later than with no cache at all. Now the live
+           read starts at once, exactly as it did before, and the saved copy is
+           painted only if it answers while that read is still out -- a copy
+           that loses the race is dropped unseen, so a stale list can never
+           replace a fresh one. */
+        function _prodMountFromIdbOrLoad() {
+            if (_prodState.loaded || _prodState.loading) return;
+            const generation = _prodState.projectionGeneration;
+            Promise.resolve(_prodLoadData()).then(() => _prodFirstLoadSettle(), () => _prodFirstLoadSettle());
+            let read;
+            try { read = _prodIdbCacheRead(); } catch (e) { return; }
+            Promise.resolve(read).then(cached => {
+                // Still the same boot, still waiting on it, nothing painted yet.
+                if (!cached || !_prodState.loading || _prodState.loaded || _prodState.error
+                    || generation !== _prodState.projectionGeneration) return;
+                if (!_prodHydrateFromCache(cached)) return;
+                // Hydration marks the tab loaded; the live read is still out and
+                // takes over when it lands (it clears fromCache and repaints).
+                _prodState.loading = false;
+                if (document.getElementById('prodRoot')) _prodRender();
+            }, () => {});
         }
         function _prodPrimeFromUrl() {
             try {
@@ -2724,7 +2784,30 @@
             if (age < 3600000) return 'updated ' + Math.round(age / 60000) + 'm ago';
             return 'updated ' + Math.round(age / 3600000) + 'h ago';
         }
+        /* While the list is the saved copy (fromCache, cleared by the first live
+           read), the control says so and when it was saved -- a stale list is
+           acceptable only when it says it is one, the rule Workload's cached
+           board follows (OPEN_REPAIRS 230 item 3). */
+        function _prodCachedNoticeHTML() {
+            const at = new Date(Number(_prodState.cachedAt) || Date.now());
+            const hhmm = String(at.getHours()).padStart(2, '0') + ':' + String(at.getMinutes()).padStart(2, '0');
+            const time = at.toDateString() === new Date().toDateString()
+                ? hhmm : at.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + hhmm;
+            const failed = !!_prodState.lastSyncError;
+            const label = failed ? 'Couldn’t update · saved list from ' + time : 'Showing saved list from ' + time + ' · updating…';
+            const detail = failed
+                ? 'This is the list saved at ' + time + '. It could not be updated just now. Try Refresh.'
+                : 'This is the list saved at ' + time + '. It is being replaced with the live list now.';
+            return '<div class="prod-freshness" data-prod-freshness="' + (failed ? 'degraded' : 'cached') + '">'
+                + '<span class="prod-freshness-age" data-prod-freshness-age aria-live="polite">' + _calEsc(label) + '</span>'
+                + '<button class="prod-icon-btn" type="button" data-prod-refresh="1"'
+                + (_prodState.refreshInFlight ? ' disabled' : '')
+                + ' aria-label="Refresh Production data" title="' + _calEscAttr(detail)
+                + '" data-prod-tip="' + _calEscAttr(label + '|' + detail) + '" onclick="return _prodManualRefresh()">'
+                + PROD_REFRESH_ICON + '</button></div>';
+        }
         function _prodFreshnessHTML() {
+            if (_prodState.fromCache) return _prodCachedNoticeHTML();
             const degraded = _prodRefreshDegraded();
             const label = _prodRefreshAgeLabel();
             const detail = _prodState.lastSyncError

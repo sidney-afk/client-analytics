@@ -48,6 +48,8 @@
         function _prodSyncFreshnessControl() {
             const button = document.querySelector('[data-prod-refresh="1"]');
             if (button) button.disabled = !!_prodState.refreshInFlight;
+            // The saved-copy notice owns this control until a live read lands.
+            if (_prodState.fromCache) return;
             const ageEl = document.querySelector('[data-prod-freshness-age]');
             if (ageEl) {
                 ageEl.textContent = _prodState.lastSyncError
@@ -1504,12 +1506,12 @@
 
             if (!_isClientLink && _prodEnabled()) {
                 setTimeout(function () { try { navTo('production', false); } catch (e) { console.error('[Production] mount failed', e); } }, 0);
-                fetchEssentials().then(() => {
+                _prodFirstLoadSettled.then(() => fetchEssentials().then(() => {
                     try { _resumePendingBriefPolling(); } catch (e) {}
                     _applyAllDataDependentChrome();
                 }, err => {
                     console.warn('[SyncView] Production preview background essentials failed', err);
-                });
+                }));
                 return;
             }
 
@@ -1715,13 +1717,38 @@
             // gate must check the live sheet, not yesterday's copy.
             let _paintedFromCache = false;
             if (!qp.get('c')) _paintedFromCache = _analyticsHydrateFromCache();
+            /* A staff landing on the overview draws from Metrics and Clients
+               Info alone, so it waits for those and not for TopVideos (15.8 MB,
+               the last sheet to arrive: ~4.3 s of a ~5.0 s wait measured
+               2026-09-23). Per-client pages still get everything: render()
+               waits for the extras before drawing one. */
+            const _overviewLanding = !_isClientLink && !qp.get('c')
+                && !(history.state && history.state.client) && (!hashRaw || hashRaw === 'home');
+            const _paintWaitsOn = _overviewLanding ? dataLoad.essentials : dataPromise;
+            /* The saved copy a normal browser's localStorage refuses lives in
+               IndexedDB. It RACES the live sheets rather than gating them: it
+               paints only if it answers first, and _analyticsHydrateFromIdb
+               refuses once fresh essentials have been applied. Staff only. */
+            if (!_paintedFromCache && !qp.get('c') && !_isClientLink) {
+                _paintedFromCache = await Promise.race([
+                    _analyticsHydrateFromIdb(),
+                    _paintWaitsOn.then(() => false, () => false)
+                ]);
+            }
             if (_paintedFromCache) {
                 const _fpAtPaint = _analyticsAppliedFp.ess + '|' + _analyticsAppliedFp.ext;
                 dataPromise.then(() => {
                     if (_analyticsAppliedFp.ess + '|' + _analyticsAppliedFp.ext !== _fpAtPaint) _analyticsRefreshCurrentView();
-                }, err => console.warn('[SyncView] background analytics revalidate failed:', err));
+                    _analyticsLiveApplied();
+                }, err => {
+                    console.warn('[SyncView] background analytics revalidate failed:', err);
+                    _analyticsSyncCachedNote(true);
+                });
             } else {
-                await dataPromise;
+                await _paintWaitsOn;
+                // The rest still loads; its failure is the per-client pages'
+                // to report (they wait on it), not the overview's.
+                if (_paintWaitsOn !== dataPromise) dataPromise.catch(err => console.warn('[SyncView] background analytics extras failed:', err));
             }
             if(!_clientEntryStillCurrent())return;
             if(!_isClientLink)_resumePendingBriefPolling();
@@ -1980,6 +2007,7 @@
     }
     function _syncviewClearClientEntryCaches(slug) {
         try { localStorage.removeItem(ANALYTICS_CACHE_KEY); } catch (e) {}
+        try { if (typeof _analyticsIdbDelete === 'function') _analyticsIdbDelete(); } catch (e) {}
         try { localStorage.removeItem('syncview_contentSummaryState_v1'); } catch (e) {}
         try { localStorage.removeItem('syncview_generalBriefState_v5'); } catch (e) {}
         if (!slug) return;

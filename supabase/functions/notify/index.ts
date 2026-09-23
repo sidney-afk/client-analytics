@@ -14,7 +14,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { timingSafeEqual } from "../_shared/staff-role-auth.ts";
 import { postSlackChannelMessage } from "./slack-api.ts";
 import { postSlackDirectPreview } from "./slack-api.ts";
-import { formatNotification, isNotifyVariant, NOTIFY_VARIANTS, type NotifyInput, type NotifyVariant } from "./format.ts";
+import { formatNotification, isNotifyVariant, NOTIFY_VARIANTS, type NotifyInput, type NotifyVariant, type SlackMessage } from "./format.ts";
 import { urgentWebsiteText } from "./urgent-link.ts";
 
 type Claim = { intent_id: string; attempt: number; destination_channel_id: string; text: string; client_msg_id: string; allow_mentions: boolean };
@@ -110,7 +110,7 @@ Deno.serve(async (req: Request) => {
       : lookupFailed
       ? { kind: "retryable" as const, code: "urgent_link_context_unavailable" }
       : plan && !plan.skip
-      ? await postSlackChannelMessage(slackToken, clean(row.destination_channel_id), plan.message.text, clean(row.client_msg_id), false, fetch, plan.message.blocks)
+      ? await postSlackChannelMessage(slackToken, clean(row.destination_channel_id), plan.message.text, clean(row.client_msg_id), false, fetch, plan.message.blocks, plan.message.attachments)
       : await postSlackChannelMessage(slackToken, clean(row.destination_channel_id), text, clean(row.client_msg_id), row.allow_mentions === true);
     done.set(row.intent_id, result.kind === "sent" ? { kind: "sent", messageId: result.messageId } : { kind: result.kind, code: result.code });
     const args = result.kind === "sent"
@@ -124,7 +124,7 @@ Deno.serve(async (req: Request) => {
   return json({ ok: failed === 0, claimed: claim.data.length, ...counts }, failed ? 502 : 200);
 });
 
-type RichPlan = { message: { text: string; blocks: Record<string, unknown>[] }; partnerId?: string; skip?: boolean };
+type RichPlan = { message: SlackMessage; partnerId?: string; skip?: boolean };
 const MERGE_WINDOW_MS = 120_000;
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -235,7 +235,7 @@ async function preview(supabase: Db, token: string, body: JsonMap): Promise<Resp
     if (intro.kind !== "sent") break;
     for (const sample of samples) {
       const message = formatNotification(sample, variant);
-      results.push((await postSlackDirectPreview(token, target, message.text, message.blocks)).kind);
+      results.push((await postSlackDirectPreview(token, target, message.text, message.blocks, fetch, message.attachments)).kind);
     }
   }
   const sent = results.filter(r => r === "sent").length;

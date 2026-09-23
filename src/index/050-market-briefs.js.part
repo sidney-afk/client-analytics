@@ -994,6 +994,21 @@
             pageTitle.style.display='';pageSub.style.display='';selectorWrap.style.display='';
             if(existingBack)existingBack.remove();
         }
+        /* A client page reads TopVideos and the briefs. A saved copy queues
+           them one frame behind the overview (_analyticsApplySnapshot), so
+           apply them now if they are still queued; if they have not arrived
+           at all yet, show the client skeleton and draw once they land rather
+           than drawing the page without them. */
+        if(sel!=='all'){
+            if(typeof _analyticsFlushPendingExtras==='function')_analyticsFlushPendingExtras();
+            const arrival=(!clientOnly&&tab!=='calendar'&&typeof _analyticsExtrasApplied!=='undefined'&&!_analyticsExtrasApplied)?_analyticsExtrasArrival():null;
+            if(arrival){
+                content.innerHTML=_svLoadingSkeletonHtml('analytics-client');
+                const want=sel;
+                arrival.then(()=>{ const st=history.state; if(currentNav==='home'&&st&&st.client&&wlCanonicalClient(st.client)===want) render(want,false); });
+                return;
+            }
+        }
         if(sel==='all'){
             content.innerHTML=renderOverview(latestPerClient());
             const pr=document.getElementById('pinsArea');

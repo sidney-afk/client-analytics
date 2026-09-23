@@ -52,6 +52,16 @@ try{
  // Control characters are dropped; empty title still readable.
  assert.equal(fmt.fallbackText({...base,title:'\u0000\u0007',comment:{author:'',body:'x'}}),'New comment: Untitled (Synthetic Client) · Someone: x');
 
+ // Card colours: one coloured attachment wrapping the card blocks; merged posts take the status colour.
+ const colorOf=input=>{const m=fmt.formatNotification(input,'card');assert.equal(m.attachments.length,1);assert.deepEqual(m.attachments[0].blocks,m.blocks,'attachment wraps the card blocks');return m.attachments[0].color;};
+ assert.equal(colorOf({...base,status:'status_tweak'}),'#F2994A','needs tweaks is orange');
+ assert.equal(colorOf({...base,status:'status_smm_approval'}),'#B45CD6','SMM approval is pink-purple');
+ assert.equal(colorOf({...base,comment:{author:'A',body:'x'}}),'#9AA0A6','comment is grey');
+ assert.equal(colorOf({...base,status:'status_tweak',comment:{author:'A',body:'x'}}),'#F2994A','merged tweak takes the status colour');
+ assert.equal(colorOf({...base,status:'status_smm_approval',comment:{author:'A',body:'x'}}),'#B45CD6','merged approval takes the status colour');
+ for(const v of ['compact','line'])assert.equal(fmt.formatNotification({...base,status:'status_tweak'},v).attachments,undefined,v+' stays uncoloured');
+ {const m=fmt.formatNotification(evil,'card'),s2=JSON.stringify(m.attachments);assert(!s2.includes('<@')&&!s2.includes('<!'),'coloured card keeps the no-mention rule');assert.equal(m.text,fmt.fallbackText(evil),'coloured card keeps the plain fallback');assert.equal(m.attachments[0].fallback,m.text,'the attachment carries the plain line for notifications');}
+
  // Real handler, NOTIFY_FORMAT on: a status and its comment become ONE post.
  let handler,posts=[],receipts=[],env={NOTIFY_RUNNER_KEY:'k',SUPABASE_URL:'https://synthetic.invalid',SUPABASE_SERVICE_ROLE_KEY:'s',SLACK_BOT_TOKEN:'t',NOTIFY_FORMAT:'compact'};
  globalThis.Deno={env:{get:k=>env[k]},serve:f=>{handler=f;}};
@@ -81,6 +91,10 @@ try{
  {const keep=globalThis.__post;posts=[];receipts=[];globalThis.__post=async(...a)=>{posts.push(a);return{kind:'unknown',code:'slack_response_unconfirmed'};};
   const u=await call({});assert.equal(posts.length,1,'no second post after unknown');assert.equal(u.unknown,2);
   assert.deepEqual(receipts.map(x=>x.p_outcome),['unknown','unknown']);globalThis.__post=keep;posts=[{},...[]];posts=[];receipts=[];await call({});}assert.equal(receipts[0].p_provider_message_id,receipts[1].p_provider_message_id,'both intents record the one post');
+ // Card variant on the real handler: the merged post goes out as one orange attachment, no top-level blocks.
+ {env.NOTIFY_FORMAT='card';posts=[];receipts=[];intents=[I('s1','status_tweak'),I('c1','comment',{source_comment_id:'c1',created_at:t1})];
+  await call({});assert.equal(posts.length,1);assert.equal(posts[0][7][0].color,'#F2994A');assert(JSON.stringify(posts[0][7]).includes('Trim the intro'));
+  assert.equal(posts[0][2],'Needs tweaks: Synthetic Title (Synthetic Client) · Synthetic Staff: Trim the intro','plain fallback line');env.NOTIFY_FORMAT='compact';}
  // Different person, or far apart: two separate posts.
  posts=[];receipts=[];intents=[I('s1','status_tweak'),I('c1','comment',{source_comment_id:'c1',actor_member_id:'m2'})];r=await call({});assert.equal(posts.length,2);
  posts=[];intents=[I('s1','status_tweak'),I('c1','comment',{source_comment_id:'c1',created_at:'2026-09-20T11:00:00Z'})];r=await call({});assert.equal(posts.length,2);

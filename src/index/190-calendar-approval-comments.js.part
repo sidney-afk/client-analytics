@@ -2108,11 +2108,12 @@
     }
 
     /* Sending waits while this deliverable's canonical read is in flight, and
-       also while the card's crosswalk is still being looked up for it: until
-       that lookup lands, the store a note belongs in is not known yet. */
+       while the card's crosswalk is being looked up, on every open: until that
+       lookup lands, neither the store a note belongs in nor whether an earlier
+       'ready' verdict still describes this card's binding is known. */
     function _calCommentSendPending(post, gate) {
         if (gate.linked && !gate.ready) return true;
-        return !!(post && post._canonicalProjectionInFlight && gate.status === 'crosswalk_unresolved');
+        return !!(post && post._canonicalCrosswalkInFlight);
     }
     function _calComposerHtml(post, comments) {
         const role     = _calCommentRole();

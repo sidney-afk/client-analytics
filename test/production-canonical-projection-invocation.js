@@ -911,6 +911,14 @@ function canonicalRow(body, extra) {
 
     // Another person adds a note between the two opens.
     threads['dlv-1'] = { items: [first, canonicalRow('Added later', { id: 'c-later' })] };
+    // The crosswalk is re-checked on the reopen, and the in-flight marker that
+    // holds Send is set for exactly that lookup.
+    const inflightDuringCrosswalk = [];
+    const baseFetch = app.fetch;
+    app.fetch = async (...args) => {
+      inflightDuringCrosswalk.push(app.calState.posts[0]._canonicalCrosswalkInFlight);
+      return baseFetch(...args);
+    };
     const rendersBefore = renders;
     await app._prodProjectCanonicalCardComments('calendar', 'card-1');
     ok(reads === 2, 'reopen: the second open re-reads the canonical thread');
@@ -919,6 +927,22 @@ function canonicalRow(body, extra) {
     ok(post.video_comments.map(r => r.id).join() === 'c-first,c-later',
       'reopen: the note added since the first open is picked up');
     ok(renders > rendersBefore, 'reopen: the open modal repaints once the re-read lands');
+    ok(inflightDuringCrosswalk.length === 1 && inflightDuringCrosswalk[0] === 1,
+      'reopen: the crosswalk is re-checked and marked in flight while it runs (Send held)');
+    ok(!post._canonicalCrosswalkInFlight, 'reopen: the in-flight marker clears once the lookup lands');
+  }
+  {
+    // A card re-bound since the first open: the re-checked crosswalk no longer
+    // validates, so the kept 'ready' verdict can no longer make the gate linked.
+    const app = makeApp({ deliverables: [DELIVERABLE], threads: { 'dlv-1': { items: [] } } });
+    app.calState.posts = [{ id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1', video_comments: [] }];
+    await app._prodProjectCanonicalCardComments('calendar', 'card-1');
+    const post = app.calState.posts[0];
+    ok(app._prodCanonicalCommentGate(post, 'video').ready, 'rebind: first open is linked and ready');
+    app.fetch = async () => ({ ok: true, json: async () => [Object.assign({}, DELIVERABLE, { card_id: 'card-2' })] });
+    await app._prodProjectCanonicalCardComments('calendar', 'card-1');
+    ok(!app._prodCanonicalCommentGate(post, 'video').linked,
+      'rebind: after the re-checked crosswalk mismatches, the old ready verdict no longer links the card');
   }
   {
     // Client links never keep a prior verdict: they re-verify from 'loading'.

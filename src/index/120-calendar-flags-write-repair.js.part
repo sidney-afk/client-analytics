@@ -823,6 +823,8 @@
         // and the Samples loader skips re-parsing entirely when the cached post
         // already carries its array, so nothing would ever recompute it.
         '_canonicalCrosswalk', '_canonicalCommentReads', '_legacyReadIncomplete',
+        // An in-flight marker: a cached copy would hold Send on a reload forever.
+        '_canonicalCrosswalkInFlight',
     ]);
     function _prodStripEphemeralCanonicalState(post) {
         if (!post || typeof post !== 'object') return post;

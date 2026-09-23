@@ -2001,12 +2001,15 @@
             // another card — mid-flight aborts instead of writing verdicts and
             // rows derived from the binding that no longer applies.
             const bindingToken = _prodCardBindingToken(surface, post, allComponents);
-            // Marks the whole projection (crosswalk lookup included) as in
-            // flight, so the composer can hold its send button from the first
-            // frame instead of briefly offering the pre-lookup lane.
-            post._canonicalProjectionInFlight = (post._canonicalProjectionInFlight || 0) + 1;
             try {
-            const validComponents = await _prodResolveCardCrosswalk(surface, post, allComponents);
+            // Send also waits on this lookup specifically: a kept 'ready' verdict
+            // may only be reused once the CURRENT crosswalk confirms the card is
+            // still bound to the same deliverable.
+            post._canonicalCrosswalkInFlight = (post._canonicalCrosswalkInFlight || 0) + 1;
+            const validComponents = await _prodResolveCardCrosswalk(surface, post, allComponents)
+                .finally(() => {
+                    post._canonicalCrosswalkInFlight = Math.max(0, (post._canonicalCrosswalkInFlight || 1) - 1);
+                });
             if (validComponents === null) return false;
             if (_prodCardBindingToken(surface, post, allComponents) !== bindingToken) return false;
             const components = allComponents.filter(component => validComponents.has(component));
@@ -2036,7 +2039,8 @@
                 // Reuse an authorization this page already holds: a staff read
                 // that already came back ready for this exact deliverable keeps
                 // its 'ready' verdict instead of being reset to 'loading', so
-                // reopening Notes does not lock Send again. The deliverable is
+                // reopening Notes does not lock Send again once the crosswalk
+                // above has re-confirmed this card's binding. The deliverable is
                 // already in `groups` above, so the canonical re-read below
                 // still runs and its rows repaint the open modal when they land.
                 // Client links always re-verify from 'loading'.
@@ -2234,7 +2238,6 @@
             }));
             return true;
             } finally {
-                post._canonicalProjectionInFlight = Math.max(0, (post._canonicalProjectionInFlight || 1) - 1);
                 if (calendar && _calOpenCommentsPid === pid) _calRenderCommentsModal();
                 if (!calendar && _sxrOpenCommentsPid === pid) _sxrRenderCommentsModal();
             }

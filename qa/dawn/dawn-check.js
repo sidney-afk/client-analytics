@@ -231,7 +231,7 @@ async function restoreRename(browser, t) {
 // every Linear write included, still falls through to the courier mock.
 const LINEAR_READS = /\/webhook\/linear-(issues|read|search|browser|data-model|plan-skeleton|tweak-comments)[a-z-]*(?:[/?]|$)/;
 async function readOnlyPage(browser, route) {
-  const page = await open(browser, '/favicon.ico');
+  const page = await open(browser, '/qa/dawn/blank.html')   // an empty page: the context is set up before the timed navigation;
   await page.route(u => LINEAR_READS.test(u.toString()), r => r.continue());
   await guard(page);
   page._t0 = Date.now();   // the clock starts at navigation, not at context setup

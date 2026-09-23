@@ -48,6 +48,8 @@
         function _prodSyncFreshnessControl() {
             const button = document.querySelector('[data-prod-refresh="1"]');
             if (button) button.disabled = !!_prodState.refreshInFlight;
+            // The saved-copy notice owns this control until a live read lands.
+            if (_prodState.fromCache) return;
             const ageEl = document.querySelector('[data-prod-freshness-age]');
             if (ageEl) {
                 ageEl.textContent = _prodState.lastSyncError
@@ -1504,12 +1506,12 @@
 
             if (!_isClientLink && _prodEnabled()) {
                 setTimeout(function () { try { navTo('production', false); } catch (e) { console.error('[Production] mount failed', e); } }, 0);
-                fetchEssentials().then(() => {
+                _prodFirstLoadSettled.then(() => fetchEssentials().then(() => {
                     try { _resumePendingBriefPolling(); } catch (e) {}
                     _applyAllDataDependentChrome();
                 }, err => {
                     console.warn('[SyncView] Production preview background essentials failed', err);
-                });
+                }));
                 return;
             }
 

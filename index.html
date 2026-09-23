@@ -42435,6 +42435,14 @@
            snapshot -- which can overwrite a field another tab changed in the
            meantime. Every early return below therefore has to happen before
            the bucket exists, not after. */
+        /* The pick is applied to the card BEFORE the save starts, so the save's
+           own snapshot already holds the new value. Remember what each moved
+           component really was, so a component the gateway refuses can be put
+           back on screen (see the catch in _calFlushCardSave). */
+        const rememberPrior = (bucket, key) => {
+            bucket._calPriorStatus = bucket._calPriorStatus || {};
+            if (!(key in bucket._calPriorStatus)) bucket._calPriorStatus[key] = post[key];
+        };
         if (which) {
             const key = which + '_status';
             if (post[key] === status) return;
@@ -42445,6 +42453,7 @@
                 return;
             }
             if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            rememberPrior(_calPendingEdits[pid], key);
             post[key] = status;
             _calPendingEdits[pid][key] = status;
             // Title is independent of the overall card status — never fold it in.
@@ -42469,6 +42478,7 @@
             }
             if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
             for (const c of movable) {
+                rememberPrior(_calPendingEdits[pid], c + '_status');
                 post[c + '_status'] = status;
                 _calPendingEdits[pid][c + '_status'] = status;
             }
@@ -43158,6 +43168,8 @@
         // save owns this card. The owner will dequeue the complete trailing
         // batch (including its repair refs) from finally.
         if (_calSaveInFlight[pid]) return _calAwaitCardSave(pid);
+        const priorStatusForWrite = Object.assign({}, edits._calPriorStatus || {});
+        delete edits._calPriorStatus;
         const retryPost = calState.posts.find(p => p.id === pid);
         const _saveSlug = calClientSlug(calState.client);
         const retryPrincipal = _writeUiPrincipalKey();
@@ -43650,7 +43662,7 @@
                 const cur = calState.posts[iErr];
                 if (!gatewayCommitted) {
                     _CAL_ROLLBACK_FIELDS.forEach(k => {
-                        if (k in edits) cur[k] = prevSnapshot[k];
+                        if (k in edits) cur[k] = k in priorStatusForWrite ? priorStatusForWrite[k] : prevSnapshot[k];
                     });
                 } else if (refusedStatusComponents.length) {
                     // Roll back ONLY the refused component(s), drop them from
@@ -43658,7 +43670,7 @@
                     // from what is actually true now.
                     refusedStatusComponents.forEach(c => {
                         [c + '_status', 'client_' + c + '_approved_at'].forEach(k => {
-                            if (k in edits) { cur[k] = prevSnapshot[k]; delete edits[k]; }
+                            if (k in edits) { cur[k] = k in priorStatusForWrite ? priorStatusForWrite[k] : prevSnapshot[k]; delete edits[k]; }
                         });
                     });
                     // Through the shared helper (one definition of "overall"),

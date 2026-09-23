@@ -2001,6 +2001,11 @@
             // another card — mid-flight aborts instead of writing verdicts and
             // rows derived from the binding that no longer applies.
             const bindingToken = _prodCardBindingToken(surface, post, allComponents);
+            // Marks the whole projection (crosswalk lookup included) as in
+            // flight, so the composer can hold its send button from the first
+            // frame instead of briefly offering the pre-lookup lane.
+            post._canonicalProjectionInFlight = (post._canonicalProjectionInFlight || 0) + 1;
+            try {
             const validComponents = await _prodResolveCardCrosswalk(surface, post, allComponents);
             if (validComponents === null) return false;
             if (_prodCardBindingToken(surface, post, allComponents) !== bindingToken) return false;
@@ -2028,6 +2033,12 @@
                 const clientSurface = _prodVerifiedClientCommentSurfaceContext(
                     surface, post, component, deliverableId
                 );
+                // Reuse an authorization this page already holds: a staff read
+                // that already came back ready for this exact deliverable stays
+                // ready while the refresh below runs, so reopening Notes does
+                // not lock the composer again. Client links always re-verify.
+                const priorRead = post._canonicalCommentReads[deliverableId];
+                if (!_isClientLink && priorRead && priorRead.status === 'ready') return;
                 post._canonicalCommentReads[deliverableId] = {
                     status: 'loading',
                     client: false,
@@ -2216,9 +2227,12 @@
                     clientSurface
                 };
             }));
-            if (calendar && _calOpenCommentsPid === pid) _calRenderCommentsModal();
-            if (!calendar && _sxrOpenCommentsPid === pid) _sxrRenderCommentsModal();
             return true;
+            } finally {
+                post._canonicalProjectionInFlight = Math.max(0, (post._canonicalProjectionInFlight || 1) - 1);
+                if (calendar && _calOpenCommentsPid === pid) _calRenderCommentsModal();
+                if (!calendar && _sxrOpenCommentsPid === pid) _sxrRenderCommentsModal();
+            }
         }
         function _prodCanonicalCommentGate(post, component) {
             const deliverableId = _writeUiNativeId(post, component);

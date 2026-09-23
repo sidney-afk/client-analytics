@@ -30962,6 +30962,129 @@
        seeded to that value so workflow position is preserved. `tweaks`
        column content seeds video_comments so historical feedback isn't
        lost. The overall `status` is recomputed from the sub-statuses. */
+    /* ── Title name rule (browser copy) ──────────────────────────────────
+       The one rule for splitting and renaming sub-issue titles
+       (`[Sample ]Video|Thumbnail N[ — name]`). The source is
+       supabase/functions/_shared/title-name-rule.mjs; the SQL copy is
+       `syncview_title_*` in migrations/2026-09-23-rename-propagation.sql.
+       test/title-name-rule-drift.js runs one fixture table through all
+       three and fails on any difference, so edit all three together.
+       Everything between the BEGIN/END markers is evaluated by that test. */
+    // SYNC_TITLE_RULE BEGIN
+    const SYNC_TITLE_RULE = (function () {
+        const TITLE_SEPARATOR = ' \u2014 ';
+        const NAME_MAX = 160;
+        const WS = '\\t\\n\\v\\f\\r \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff';
+        const LINE_BREAKS = '\\n\\r\\u2028\\u2029';
+        const TITLE_SOURCE = '^(Sample )?(Video|Thumbnail) ([1-9][0-9]*)(?:' + TITLE_SEPARATOR + '([^' + LINE_BREAKS + ']+))?$';
+        const WS_RUN = new RegExp('[' + WS + ']+', 'g');
+        const WS_EDGE = new RegExp('^[' + WS + ']+|[' + WS + ']+$', 'g');
+        const TITLE_RE = new RegExp(TITLE_SOURCE);
+        function trimText(value) {
+            return String(value == null ? '' : value).replace(WS_EDGE, '');
+        }
+        function cleanName(value) {
+            return trimText(String(value == null ? '' : value).replace(WS_RUN, ' '));
+        }
+        function nameLength(value) {
+            return Array.from(String(value == null ? '' : value)).length;
+        }
+        function titleParts(title) {
+            const match = TITLE_RE.exec(trimText(title));
+            if (!match) return null;
+            return { sample: !!match[1], kind: match[2], ordinal: Number(match[3]), digits: match[3], name: trimText(match[4] || '') };
+        }
+        function nameOfTitle(title) {
+            const parts = titleParts(title);
+            return parts ? parts.name : trimText(title);
+        }
+        function renameTitle(oldTitle, newName) {
+            const name = cleanName(newName);
+            if (nameLength(name) > NAME_MAX) return { ok: false, reason: 'name_too_long' };
+            const before = trimText(oldTitle);
+            const parts = titleParts(before);
+            let title;
+            if (parts) {
+                title = (parts.sample ? 'Sample ' : '') + parts.kind + ' ' + parts.digits
+                    + (name ? TITLE_SEPARATOR + name : '');
+            } else {
+                if (!name) return { ok: false, reason: 'empty_name_not_propagated' };
+                if (titleParts(name)) return { ok: false, reason: 'name_would_look_numbered' };
+                title = name;
+            }
+            return { ok: true, title, changed: title !== before };
+        }
+        return Object.freeze({
+            TITLE_SEPARATOR, NAME_MAX,
+            RULE_SOURCE: Object.freeze({ whitespace: WS, lineBreaks: LINE_BREAKS, title: TITLE_SOURCE }),
+            trimText, cleanName, nameLength, titleParts, nameOfTitle, renameTitle
+        });
+    })();
+    // SYNC_TITLE_RULE END
+
+    /* ── Rename propagation (browser side) ────────────────────────────────
+       A rename is recorded by the database when the card (or, in release 2,
+       the sub-issue) saves, and a background drain applies it to the other
+       side (migrations/2026-09-23-rename-propagation.sql). The browser only:
+         * pokes the drain right after a rename, so the other side usually
+           follows within a second instead of at the next scheduled run;
+         * reads the "name syncing" state for the cards on screen;
+         * re-queues a rename that gave up, when someone presses Retry.
+       None of these can affect the save itself: they run after it, every
+       failure is swallowed, and the scheduled drain is the backstop. */
+    const RENAME_PROP_ACTIVE = { pending: 1, deferred: 1 };
+    function _renamePropHeaders() {
+        return {
+            apikey: CAL_SUPABASE_ANON_KEY,
+            authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+            'content-type': 'application/json'
+        };
+    }
+    async function _renamePropPoke() {
+        try {
+            const res = await fetch(CAL_SUPABASE_URL + '/rest/v1/rpc/rename_propagation_poke', {
+                method: 'POST', headers: _renamePropHeaders(), body: '{}'
+            });
+            return res.ok ? await res.json() : null;
+        } catch (_) { return null; }
+    }
+    // Latest propagation state per source id: Map(id -> { id: outboxId, state }).
+    // sourceKind is 'card', 'sample_card' or 'deliverable'.
+    async function _renamePropStatus(sourceKind, ids) {
+        const out = new Map();
+        const list = Array.from(new Set((ids || []).map(v => String(v || '').trim()).filter(Boolean)));
+        if (!list.length) return out;
+        try {
+            for (let i = 0; i < list.length; i += 100) {
+                const chunk = list.slice(i, i + 100).map(v => '"' + v.replace(/"/g, '') + '"').join(',');
+                const url = CAL_SUPABASE_URL + '/rest/v1/rename_propagation_status_v1?select=id,source_id,state'
+                    + '&source_kind=eq.' + encodeURIComponent(sourceKind)
+                    + '&source_id=in.(' + encodeURIComponent(chunk) + ')';
+                const res = await fetch(url, { headers: _renamePropHeaders() });
+                if (!res.ok) return out; // not applied yet, or unavailable: show nothing
+                for (const row of await res.json()) out.set(String(row.source_id), { id: row.id, state: row.state });
+            }
+        } catch (_) { /* the marker is optional; never let it break a render */ }
+        return out;
+    }
+    // 'syncing' | 'failed' | '' for a status entry.
+    function _renamePropMarker(entry) {
+        if (!entry) return '';
+        if (RENAME_PROP_ACTIVE[entry.state]) return 'syncing';
+        return entry.state === 'failed' ? 'failed' : '';
+    }
+    async function _renamePropRetry(outboxId) {
+        try {
+            const res = await fetch(CAL_SUPABASE_URL + '/rest/v1/rpc/rename_propagation_retry', {
+                method: 'POST', headers: _renamePropHeaders(), body: JSON.stringify({ p_id: Number(outboxId) })
+            });
+            if (!res.ok) return false;
+            const retried = await res.json();
+            if (retried === true) _renamePropPoke();
+            return retried === true;
+        } catch (_) { return false; }
+    }
+
     function _calMigratePostShape(p) {
         if (!p || typeof p !== 'object') return p;
         const legacy = _calNormStatus(p.status || 'In Progress');

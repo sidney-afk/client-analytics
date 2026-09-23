@@ -39,6 +39,7 @@ import {
   thumbnailRevisionV2AllowsClient,
   thumbnailRevisionV2Config,
 } from "../_shared/thumbnail-revisions.ts";
+import { clientCardNameDecision } from "../_shared/client-card-rename-policy.mjs";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -587,6 +588,13 @@ Deno.serve(async (req: Request) => {
       outcome = guarded.conflict ? "conflict" : "read_failure";
       return json(guarded);
     }
+    // Clients may not rename cards. Only the name is refused; the rest of the
+    // save (an approval, a request for changes) still lands.
+    const nameDecision = clientCardNameDecision(actor.role, built.row, existingRead.row);
+    if (!nameDecision.keep) {
+      guarded.name = nameDecision.name;
+      built.row.name = nameDecision.name;
+    }
     if (shouldMintThumbRev(built.row, guarded, existingRead.row)) {
       let v2Enabled = false;
       try {
@@ -627,7 +635,11 @@ Deno.serve(async (req: Request) => {
     waitUntil(insertEvents(supabase, events));
 
     outcome = "ok";
-    return json({ ok: true, post: responsePayload(post) });
+    return json({
+      ok: true,
+      post: responsePayload(post),
+      ...(nameDecision.refused ? { name_refused: true } : {}),
+    });
   } catch (e) {
     outcome = "error";
     const auth = browserWriteAuthResponse(e);

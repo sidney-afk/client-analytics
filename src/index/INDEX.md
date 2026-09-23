@@ -20,26 +20,27 @@
 | 12 | `100-onboarding-staff-controls.js.part` | 2259 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2024 | Kasper Time Off calendar |
 | 14 | `120-calendar-flags-write-repair.js.part` | 3013 | The members a flag value offers, or null when it offers no member list at |
-| 15 | `130-calendar-model-cache.js.part` | 2748 | Returns the comments array for a given component. Falls back to the |
-| 16 | `140-calendar-legacy-outbox.js.part` | 3055 | Shed the retired legacy rows from storage, under the surface mutation |
-| 17 | `150-calendar-hydration-import.js.part` | 2709 | For a card linked to a real sub-issue (not a parent), return which of |
-| 18 | `160-calendar-organize-ui.js.part` | 2715 | Lighter path for the Order switch: update the chrome in place so the |
-| 19 | `170-calendar-links-status.js.part` | 2633 | Move a Linear sub-issue link from the old card onto the new one. The |
-| 20 | `180-calendar-native-post-media.js.part` | 2680 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
-| 21 | `190-calendar-approval-comments.js.part` | 2966 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
-| 22 | `200-intake-data-startup.js.part` | 1473 | Video-only and Thumbnail-only were already built, but sat |
-| 23 | `210-production-state-writes.js.part` | 3078 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
-| 24 | `220-production-attribution-views.js.part` | 2698 | An ABSENT persisted slug is missing evidence, not |
-| 25 | `230-production-create-comments.js.part` | 2597 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
-| 26 | `240-production-description.js.part` | 2607 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
-| 27 | `250-production-controls-data.js.part` | 2743 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 28 | `260-production-refresh-boot.js.part` | 2252 | AND TYPING COUNTS, which is the case this guard was missing. |
-| 29 | `270-samples-model.js.part` | 2694 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
-| 30 | `280-samples-cards-notes.js.part` | 2831 | SURFACE 3: the save engine |
-| 31 | `290-samples-writes-review.js.part` | 1806 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
-| 32 | `300-tiktok-upload.js.part` | 1678 | TIKTOK UPLOAD MODULE |
-| 33 | `310-tiktok-pilot-sales.js.part` | 1969 | TIKTOK PILOT MODULE (gated: ?ttpilot=1 → #tiktok-pilot) |
-| 34 | `320-kasper-dashboard-replies.js.part` | 2788 | Background poll for the Kasper review — same cadence as the client |
-| 35 | `330-kasper-review-history.js.part` | 2540 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
-| 36 | `340-editors-date-picker.js.part` | 1288 | Editor work model |
-| 37 | `350-footer.html.part` | 398 | Transcript preview modal |
+| 15 | `125-title-name-rule.js.part` | 123 | Title name rule (browser copy) |
+| 16 | `130-calendar-model-cache.js.part` | 2748 | Returns the comments array for a given component. Falls back to the |
+| 17 | `140-calendar-legacy-outbox.js.part` | 3055 | Shed the retired legacy rows from storage, under the surface mutation |
+| 18 | `150-calendar-hydration-import.js.part` | 2709 | For a card linked to a real sub-issue (not a parent), return which of |
+| 19 | `160-calendar-organize-ui.js.part` | 2715 | Lighter path for the Order switch: update the chrome in place so the |
+| 20 | `170-calendar-links-status.js.part` | 2633 | Move a Linear sub-issue link from the old card onto the new one. The |
+| 21 | `180-calendar-native-post-media.js.part` | 2680 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
+| 22 | `190-calendar-approval-comments.js.part` | 2966 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 23 | `200-intake-data-startup.js.part` | 1473 | Video-only and Thumbnail-only were already built, but sat |
+| 24 | `210-production-state-writes.js.part` | 3078 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
+| 25 | `220-production-attribution-views.js.part` | 2698 | An ABSENT persisted slug is missing evidence, not |
+| 26 | `230-production-create-comments.js.part` | 2597 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
+| 27 | `240-production-description.js.part` | 2607 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
+| 28 | `250-production-controls-data.js.part` | 2743 | F50 DISCLOSURE — say when a status has no word on the card. |
+| 29 | `260-production-refresh-boot.js.part` | 2252 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 30 | `270-samples-model.js.part` | 2694 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
+| 31 | `280-samples-cards-notes.js.part` | 2831 | SURFACE 3: the save engine |
+| 32 | `290-samples-writes-review.js.part` | 1806 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
+| 33 | `300-tiktok-upload.js.part` | 1678 | TIKTOK UPLOAD MODULE |
+| 34 | `310-tiktok-pilot-sales.js.part` | 1969 | TIKTOK PILOT MODULE (gated: ?ttpilot=1 → #tiktok-pilot) |
+| 35 | `320-kasper-dashboard-replies.js.part` | 2788 | Background poll for the Kasper review — same cadence as the client |
+| 36 | `330-kasper-review-history.js.part` | 2540 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
+| 37 | `340-editors-date-picker.js.part` | 1288 | Editor work model |
+| 38 | `350-footer.html.part` | 398 | Transcript preview modal |

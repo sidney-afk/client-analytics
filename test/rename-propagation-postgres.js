@@ -256,6 +256,35 @@ create trigger track_b_deliverable_ledger_guard_after after insert or update on 
     eq(one(`select name from public.calendar_posts where id = 'k11'`), 'Issue side', 'later sub-issue rename wins on the card');
     eq(title('k11-v'), 'Video 11' + SEP + 'Issue side', 'and on itself');
     eq(title('k11-g'), 'Thumbnail 11' + SEP + 'Issue side', 'and on the sibling');
+    eq(drain(), {}, 'race settles with nothing left and no loop');
+
+    // ── E4 reversed: the sub-issue first, the card a moment later -> card wins ──
+    seed('k13', 'Video 13', 'Thumbnail 13');
+    sql(`update public.deliverables set title = 'Video 13${SEP}Issue first' where id = 'k13-v'`);
+    sql(`select pg_sleep(0.01); update public.calendar_posts set name = 'Card later' where id = 'k13'`);
+    drain();
+    eq(one(`select name from public.calendar_posts where id = 'k13'`), 'Card later', 'later card rename wins on the card');
+    eq(title('k13-v'), 'Video 13' + SEP + 'Card later', 'and overwrites the earlier sub-issue rename');
+    eq(title('k13-g'), 'Thumbnail 13' + SEP + 'Card later', 'and reaches the sibling');
+    eq(drain(), {}, 'reverse race settles with no loop');
+
+    // ── Both sides in ONE drain batch, rows interleaved: card, issue, card ──
+    seed('k14', 'Video 14', 'Thumbnail 14');
+    sql(`update public.calendar_posts set name = 'C1' where id = 'k14'`);
+    sql(`select pg_sleep(0.01); update public.deliverables set title = 'Thumbnail 14${SEP}I1' where id = 'k14-g'`);
+    sql(`select pg_sleep(0.01); update public.calendar_posts set name = 'C2' where id = 'k14'`);
+    drain();
+    eq([one(`select name from public.calendar_posts where id = 'k14'`), title('k14-v'), title('k14-g')],
+      ['C2', 'Video 14' + SEP + 'C2', 'Thumbnail 14' + SEP + 'C2'], 'interleaved renames converge on the last one everywhere');
+    eq(drain(), {}, 'interleaved race leaves nothing behind');
+
+    // ── Sub-issue rename never touches the card's approvals or clock ──
+    seed('k15', 'Video 15', 'Thumbnail 15');
+    sql(`update public.calendar_posts set updated_at = '2026-01-02T03:04:05Z', status = 'Approved', video_status = 'Approved' where id = 'k15'`);
+    sql(`update public.deliverables set title = 'Video 15${SEP}Renamed' where id = 'k15-v'`);
+    drain();
+    eq(one(`select name || '|' || updated_at || '|' || title_status || '|' || client_title_approved_at || '|' || status || '|' || video_status from public.calendar_posts where id = 'k15'`),
+      'Renamed|2026-01-02T03:04:05Z|approved|2026-09-01T00:00:00Z|Approved|Approved', 'card renamed; approvals, statuses and clock untouched');
 
     // ── Samples ──
     seed('s1', 'Sample Video 1', 'Sample Thumbnail 1', { table: 'sample_reviews', origin: 'samples' });

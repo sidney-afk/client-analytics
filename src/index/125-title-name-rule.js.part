@@ -217,3 +217,72 @@
         _calNameSyncAfterSave(pid);
     }
 
+    /* ── SyncLinear: rename a sub-issue (release 2) ───────────────────────
+       The issue page's title becomes editable for anyone the gateway would
+       let rename it (admin, SMM, and an editor on their own assigned
+       sub-issue: _prodCanWrite(issue, 'title')). Only the NAME is edited;
+       the `Video 4 —` prefix is shown but fixed, because the number is data.
+       The save goes through production-write `title`; the linked card then
+       follows through the database outbox, so this page only nudges the
+       drain afterwards and never waits on it. */
+    function _prodDetailTitleHtml(d) {
+        const title = String(d && d.title || '') || 'Untitled deliverable';
+        const canRename = !!(d && d.syntheticBatchParent !== true && _prodCanWrite(d, 'title'));
+        if (!canRename) return '<h1 class="prod-detail-title">' + _calEsc(title) + '</h1>';
+        return '<h1 class="prod-detail-title prod-title-editable" tabindex="0" role="button"'
+            + ' data-prod-title-edit="' + _calEscAttr(d.id) + '" title="Rename"'
+            + ' onclick="_prodTitleEditStart(this)"'
+            + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_prodTitleEditStart(this)}">'
+            + _calEsc(title) + '</h1>';
+    }
+    function _prodTitleEditStart(el) {
+        if (!el || el.querySelector('input')) return;
+        const id = el.getAttribute('data-prod-title-edit');
+        const issue = _prodIssue(id);
+        if (!issue) return;
+        const parts = SYNC_TITLE_RULE.titleParts(issue.title);
+        const prefix = parts ? (parts.sample ? 'Sample ' : '') + parts.kind + ' ' + parts.digits + SYNC_TITLE_RULE.TITLE_SEPARATOR : '';
+        const name = SYNC_TITLE_RULE.nameOfTitle(issue.title);
+        el.innerHTML = (prefix ? '<span class="prod-title-prefix">' + _calEsc(prefix) + '</span>' : '')
+            + '<input class="prod-title-input" type="text" maxlength="400" aria-label="Sub-issue name" value="' + _calEscAttr(name) + '">';
+        const input = el.querySelector('input');
+        let done = false;
+        const finish = (save) => {
+            if (done) return;
+            done = true;
+            _prodTitleEditCommit(id, save ? input.value : null);
+        };
+        input.addEventListener('keydown', ev => {
+            ev.stopPropagation();
+            if (ev.key === 'Enter') { ev.preventDefault(); finish(true); }
+            else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+        });
+        input.addEventListener('blur', () => finish(true));
+        input.addEventListener('click', ev => ev.stopPropagation());
+        input.focus();
+        input.select();
+    }
+    async function _prodTitleEditCommit(id, value) {
+        const issue = _prodIssue(id);
+        if (!issue || value == null) { _prodRender(); return; }
+        const check = SYNC_TITLE_RULE.renameTitle(issue.title, value);
+        if (!check.ok) {
+            _prodToast(check.reason === 'name_too_long'
+                ? 'That name is too long (' + SYNC_TITLE_RULE.NAME_MAX + ' characters at most).'
+                : check.reason === 'name_would_look_numbered'
+                    ? 'That name looks like a numbered title. Choose a different name.'
+                    : 'Type a name for this sub-issue.');
+            _prodRender();
+            return;
+        }
+        if (!check.changed) { _prodRender(); return; }
+        try {
+            await _prodGatewayWrite(issue, 'title', { name: SYNC_TITLE_RULE.cleanName(value) });
+            _prodToast('Renamed. The card will follow.');
+            _renamePropPoke();
+        } catch (error) {
+            _prodToast(_prodWriteErrorText(error, issue, 'title'));
+        }
+        _prodRender();
+    }
+

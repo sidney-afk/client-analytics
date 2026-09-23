@@ -1154,7 +1154,7 @@
             return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
                 + '<div class="prod-detail-id">' + _calEsc(_prodIssueDisplayLabel(d)) + '</div>'
                 + _prodSubIssueContextHTML(d, parent)
-                + '<h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
+                + _prodDetailTitleHtml(d)
                 + _prodAttributionNoticeHTML(d)
                 + _prodDescriptionPanelHTML(d)
                 /* A synthesized batch parent is a container, not a deliverable:

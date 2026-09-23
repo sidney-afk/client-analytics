@@ -577,7 +577,8 @@
     "write-ui-reroute-usable-roster.js",
     "write-ui-soak-pager.js",
     "write-ui-writer-durability.js",
-    "title-name-rule-drift.js"
+    "title-name-rule-drift.js",
+    "subissue-rename-gateway.js"
   ],
   "profiles": [
     {

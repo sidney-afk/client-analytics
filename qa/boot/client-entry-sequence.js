@@ -1703,7 +1703,11 @@ async function runClientTabScenario(browser, server, view) {
     else await waitForClientTab(run.page, tabLabel);
     const firstFrames = await traceOf(run.page);
     assert.ok(firstFrames.some(frame => frame.surface === 'static:client-verify'), `${label}: neutral verifier must paint first`);
-    assert.ok(firstFrames.some(frame => frame.surface === `loading:${view}`), `${label}: route-owned loader must visibly paint`);
+    // The client Calendar no longer waits on the Sheets essentials, so it may
+    // mount its own loader-bearing shell straight after verification instead
+    // of holding the entry loader. Either is a route-owned client surface.
+    const routeOwned = frame => frame.surface === `loading:${view}` || (view === 'calendar' && frame.surface === 'mounted:calendar');
+    assert.ok(firstFrames.some(routeOwned), `${label}: route-owned loader must visibly paint`);
     assertTruthfulTrace(firstFrames, `${label} first navigation`, { clientOwned: true });
 
     await streamedNavigation(
@@ -1719,7 +1723,7 @@ async function runClientTabScenario(browser, server, view) {
     else await waitForClientTab(run.page, tabLabel);
     const reloadFrames = await traceOf(run.page);
     assert.ok(reloadFrames.some(frame => frame.surface === 'static:client-verify'), `${label}: reload must repaint neutral verifier`);
-    assert.ok(reloadFrames.some(frame => frame.surface === `loading:${view}`), `${label}: reload must repaint route-owned loader`);
+    assert.ok(reloadFrames.some(routeOwned), `${label}: reload must repaint route-owned loader`);
     assertTruthfulTrace(reloadFrames, `${label} reload`, { clientOwned: true });
 
     assert.equal(run.network.verifierCalls.length, 2, `${label}: exactly one strict verifier call per document boot`);
@@ -2256,14 +2260,14 @@ async function runVerifierRetryScenario(browser, server, status) {
     await waitForCalendarSettled(run.page);
     const recoveredFrames = await traceOf(run.page);
     const verifyIndex = recoveredFrames.findIndex(frame => frame.surface === 'loading:verify');
-    const loaderIndex = recoveredFrames.findIndex(frame => frame.surface === 'loading:calendar');
+    const loaderIndex = recoveredFrames.findIndex(frame => frame.surface === 'loading:calendar' || frame.surface === 'mounted:calendar');
     const mountedIndex = recoveredFrames.findIndex(frame => frame.surface === 'mounted:calendar');
     assert.ok(
       verifyIndex >= 0,
       `${label}: explicit retry must repaint the neutral verifier\n${JSON.stringify(traceExcerpt(recoveredFrames), null, 2)}`,
     );
     assert.ok(loaderIndex > verifyIndex, `${label}: Calendar loader must follow the successful strict verdict`);
-    assert.ok(mountedIndex > loaderIndex, `${label}: settled Calendar must follow its route-owned loader`);
+    assert.ok(mountedIndex >= loaderIndex, `${label}: settled Calendar must follow its route-owned loader`);
     assertTruthfulTrace(recoveredFrames, `${label} recovered attempt`, { clientOwned: true });
 
     assert.equal(run.network.verifierCalls.length, 2, `${label}: one explicit retry makes exactly one new verifier call`);

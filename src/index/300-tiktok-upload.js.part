@@ -1474,6 +1474,19 @@
         });
     }
 
+    /* Cached-first queue: the list webhook takes seconds, so the last good
+       server rows are kept locally and painted on mount; the live fetch then
+       replaces them behind the scenes. */
+    function _tkLoadQueueCache() {
+        try {
+            const c = JSON.parse(localStorage.getItem(TIKTOK_QUEUE_CACHE_KEY) || 'null');
+            return (c && Array.isArray(c.rows)) ? c.rows : [];
+        } catch { return []; }
+    }
+    function _tkSaveQueueCache(rows) {
+        try { localStorage.setItem(TIKTOK_QUEUE_CACHE_KEY, JSON.stringify({ at: Date.now(), rows: rows.slice(0, 100) })); } catch {}
+    }
+
     async function _tkFetchQueue() {
         try {
             // Timeout so a hung request can't stall the poll chain forever —
@@ -1482,12 +1495,15 @@
             if (!r.ok) throw new Error('HTTP ' + r.status);
             const json = await r.json();
             const rows = Array.isArray(json) ? json : (json.rows || json.items || []);
+            _tkSaveQueueCache(rows);
             const prunedPending = _tkPrunePending(_tkLoadPending());
+            const shownBefore = JSON.stringify(tkState.uploads);
             tkState.uploads = _tkMergeUploads(prunedPending, rows);
             // Trim local pending list of rows the server now knows about, plus stale optimistic ones.
             const knownIds = new Set(rows.map(r => r.id));
             _tkSavePending(prunedPending.filter(r => !knownIds.has(r.id)));
-            _tkRenderQueue();
+            // The cached list is usually still right; repaint only on a change.
+            if (JSON.stringify(tkState.uploads) !== shownBefore) _tkRenderQueue();
         } catch (e) {
             // Surface only on the very first failure — keep retrying quietly afterwards.
             const col = document.getElementById('tkQueueCol');
@@ -1643,7 +1659,10 @@
             tkState.profile = r.profile;
             tkState.profileSource = r.source;
         }
-        tkState.uploads = _tkPrunePending(_tkLoadPending());   // optimistic rows show instantly
+        // Optimistic rows plus the last server list show instantly; the fetch
+        // below refreshes them.
+        const cachedRows = _tkLoadQueueCache();
+        tkState.uploads = _tkMergeUploads(_tkPrunePending(_tkLoadPending()), cachedRows);
         _tkRenderForm();
         _tkRenderPreview();
         _tkRenderQueue();

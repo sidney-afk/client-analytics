@@ -8895,6 +8895,7 @@
     const TIKTOK_FORM_KEY          = 'syncview_tiktokUploadForm_v1';
     const TIKTOK_PENDING_KEY       = 'syncview_pendingTiktokUploads_v1';
     const TIKTOK_HIDDEN_KEY        = 'syncview_hiddenTiktokUploads_v1';
+    const TIKTOK_QUEUE_CACHE_KEY   = 'syncview_tiktokQueueCache_v1';
     const TIKTOK_OPTIMISTIC_TTL_MS = 5 * 60 * 1000; // drop unconfirmed local rows after 5 min
     const TIKTOK_MAX_BYTES         = 287 * 1024 * 1024; // TikTok upload size limit
     // Cloudflare's request-body ceiling in front of n8n Cloud. Only the legacy
@@ -28802,6 +28803,16 @@
     const WRITE_UI_QUEUE_DIAG_KEY = 'syncview_write_ui_queue_diag_v1';
     const WRITE_UI_SOURCE_REPAIR_KEY = 'syncview_write_ui_source_repairs_v1';
     let _writeUiAuthorityLive = null;
+    /* Render-only memory of the last live authority read. The first board
+       paint usually lands before the live read, and drawing it fail-open put
+       Linear link controls on screen for ~100 ms before a full repaint took
+       them away again. Only _writeUiLinkSlotSealed reads this; every write,
+       hydration and the live seal gate still require the live value. */
+    const WRITE_UI_AUTHORITY_RENDER_KEY = 'syncview_write_ui_authority_render_v1';
+    function _writeUiAuthorityForRender() {
+        if (_writeUiAuthorityLive) return _writeUiAuthorityLive;
+        try { return _writeUiNormalizeAuthority(localStorage.getItem(WRITE_UI_AUTHORITY_RENDER_KEY)); } catch (e) { return null; }
+    }
     let _writeUiAuthorityReadAt = 0;
     let _writeUiAuthorityPromise = null;
     const _writeUiFailureNoticeAt = Object.create(null);
@@ -28842,6 +28853,7 @@
                 if (!value) throw new Error('authority_malformed');
                 _writeUiAuthorityLive = value;
                 _writeUiAuthorityReadAt = Date.now();
+                try { localStorage.setItem(WRITE_UI_AUTHORITY_RENDER_KEY, JSON.stringify(value)); } catch (e) {}
                 return value;
             } catch (e) {
                 // Last-known-good is render-diagnostic only. Writes and cache
@@ -28925,11 +28937,12 @@
      * `_calAdoptDeliverableLinks` fills an empty slot FROM the deliverable, and
      * `_calProdSlotHtml` links straight to the Production row. */
     function _writeUiLinkSlotSealed(component) {
-        const authority = _writeUiAuthoritySnapshot();
-        // Render-side only, and deliberately fails OPEN: the snapshot is null
-        // until the first live read lands, and hiding a legitimate video
-        // control during first paint would be a worse lie than showing one that
-        // the commit gate below then refuses out loud.
+        const authority = _writeUiAuthorityForRender();
+        // Render-side only, and deliberately fails OPEN: before the first live
+        // read lands it draws from the last value this browser read live, and
+        // with none at all it shows the control, because hiding a legitimate
+        // video control during first paint would be a worse lie than showing
+        // one that the commit gate below then refuses out loud.
         return !!authority && authority[_writeUiTeam(component)] === 'syncview';
     }
     /* The gate that actually decides, on a LIVE read, because the renderer can
@@ -40872,9 +40885,12 @@
         }
     }
 
+    let _calLastBodyPaint = { el: null, view: null, html: null };
     function _calRenderBody(opts) {
         const body = document.getElementById('calBody');
         if (!body) return;
+        const lastPaint = _calLastBodyPaint;
+        _calLastBodyPaint = { el: null, view: null, html: null };   // early returns below repaint without it
         const preserveScroll = !!(opts && opts.preserveScroll);
         const stripBefore = preserveScroll ? document.getElementById('calStrip') : null;
         const scrollLeft0 = stripBefore ? stripBefore.scrollLeft : null;
@@ -40891,13 +40907,33 @@
             </div>`;
             return;
         }
+        /* skipIfUnchanged: a background caller (the boot/resume write-authority
+           check) asks for a repaint only in case its news changes the board.
+           Build the markup first and leave the DOM alone when it is identical
+           to the last paint of this same body, which is what the first
+           authority read usually turns out to be ~100 ms after first paint. */
+        const skipIfUnchanged = !!(opts && opts.skipIfUnchanged);
+        const viewHtml = (calState.view === 'review' || calState.view === 'smmreview') ? renderCalReview()
+            : calState.view === 'organizer' ? renderCalOrganizer()
+            : calState.view === 'month' ? renderCalMonth()
+            : calState.view === 'week' ? renderCalWeek()
+            : null;
+        if (skipIfUnchanged && viewHtml != null && lastPaint.el === body
+            && lastPaint.view === calState.view && lastPaint.html === viewHtml) {
+            _calLastBodyPaint = lastPaint;
+            _calUpdateReviewBadge();
+            _calSyncMonthWarnIcon();
+            _calSyncClientLinks();
+            return;
+        }
+        _calLastBodyPaint = { el: body, view: calState.view, html: viewHtml };
         if (calState.view === 'review' || calState.view === 'smmreview') {
             const reviewThumbs = _kcardHarvestThumbs(body, 'data-cal-review-pid');
-            body.innerHTML = renderCalReview();
+            body.innerHTML = viewHtml;
             _kcardRestoreThumbs(body, reviewThumbs, 'data-cal-review-pid');
             _calWireReviewExpand(body);
         } else if (calState.view === 'organizer') {
-            body.innerHTML = renderCalOrganizer();
+            body.innerHTML = viewHtml;
             // Re-insert previously-loaded <img> elements into the new cards
             // (same pid + same src) so the browser doesn't have to repaint
             // thumbnails from the cache — no card-height shift on refresh.
@@ -40911,11 +40947,11 @@
             }
             wireCalOrganizerDrag(preserveScroll);
         } else if (calState.view === 'month') {
-            body.innerHTML = renderCalMonth();
+            body.innerHTML = viewHtml;
             _calWireWheelNav(body.querySelector('.cal-month-wrap'), calMonthShift);
             _calWireDayDrag(body);
         } else if (calState.view === 'week') {
-            body.innerHTML = renderCalWeek();
+            body.innerHTML = viewHtml;
             _calWireWeekWheel(body);
             _calWireDayDrag(body);
         }
@@ -75203,7 +75239,7 @@
                             _calPendingBackgroundRender = true;
                             if (typeof _calSchedulePendingRender === 'function') _calSchedulePendingRender();
                         } else {
-                            _calRenderBody({ preserveScroll: true });
+                            _calRenderBody({ preserveScroll: true, skipIfUnchanged: true });
                         }
                     }
                     if (activeNav === 'sample-reviews' && typeof _sxrRenderBody === 'function') {
@@ -77636,6 +77672,19 @@
         });
     }
 
+    /* Cached-first queue: the list webhook takes seconds, so the last good
+       server rows are kept locally and painted on mount; the live fetch then
+       replaces them behind the scenes. */
+    function _tkLoadQueueCache() {
+        try {
+            const c = JSON.parse(localStorage.getItem(TIKTOK_QUEUE_CACHE_KEY) || 'null');
+            return (c && Array.isArray(c.rows)) ? c.rows : [];
+        } catch { return []; }
+    }
+    function _tkSaveQueueCache(rows) {
+        try { localStorage.setItem(TIKTOK_QUEUE_CACHE_KEY, JSON.stringify({ at: Date.now(), rows: rows.slice(0, 100) })); } catch {}
+    }
+
     async function _tkFetchQueue() {
         try {
             // Timeout so a hung request can't stall the poll chain forever —
@@ -77644,12 +77693,15 @@
             if (!r.ok) throw new Error('HTTP ' + r.status);
             const json = await r.json();
             const rows = Array.isArray(json) ? json : (json.rows || json.items || []);
+            _tkSaveQueueCache(rows);
             const prunedPending = _tkPrunePending(_tkLoadPending());
+            const shownBefore = JSON.stringify(tkState.uploads);
             tkState.uploads = _tkMergeUploads(prunedPending, rows);
             // Trim local pending list of rows the server now knows about, plus stale optimistic ones.
             const knownIds = new Set(rows.map(r => r.id));
             _tkSavePending(prunedPending.filter(r => !knownIds.has(r.id)));
-            _tkRenderQueue();
+            // The cached list is usually still right; repaint only on a change.
+            if (JSON.stringify(tkState.uploads) !== shownBefore) _tkRenderQueue();
         } catch (e) {
             // Surface only on the very first failure — keep retrying quietly afterwards.
             const col = document.getElementById('tkQueueCol');
@@ -77805,7 +77857,10 @@
             tkState.profile = r.profile;
             tkState.profileSource = r.source;
         }
-        tkState.uploads = _tkPrunePending(_tkLoadPending());   // optimistic rows show instantly
+        // Optimistic rows plus the last server list show instantly; the fetch
+        // below refreshes them.
+        const cachedRows = _tkLoadQueueCache();
+        tkState.uploads = _tkMergeUploads(_tkPrunePending(_tkLoadPending()), cachedRows);
         _tkRenderForm();
         _tkRenderPreview();
         _tkRenderQueue();

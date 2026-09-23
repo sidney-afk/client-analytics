@@ -826,9 +826,12 @@
         }
     }
 
+    let _calLastBodyPaint = { el: null, view: null, html: null };
     function _calRenderBody(opts) {
         const body = document.getElementById('calBody');
         if (!body) return;
+        const lastPaint = _calLastBodyPaint;
+        _calLastBodyPaint = { el: null, view: null, html: null };   // early returns below repaint without it
         const preserveScroll = !!(opts && opts.preserveScroll);
         const stripBefore = preserveScroll ? document.getElementById('calStrip') : null;
         const scrollLeft0 = stripBefore ? stripBefore.scrollLeft : null;
@@ -845,13 +848,33 @@
             </div>`;
             return;
         }
+        /* skipIfUnchanged: a background caller (the boot/resume write-authority
+           check) asks for a repaint only in case its news changes the board.
+           Build the markup first and leave the DOM alone when it is identical
+           to the last paint of this same body, which is what the first
+           authority read usually turns out to be ~100 ms after first paint. */
+        const skipIfUnchanged = !!(opts && opts.skipIfUnchanged);
+        const viewHtml = (calState.view === 'review' || calState.view === 'smmreview') ? renderCalReview()
+            : calState.view === 'organizer' ? renderCalOrganizer()
+            : calState.view === 'month' ? renderCalMonth()
+            : calState.view === 'week' ? renderCalWeek()
+            : null;
+        if (skipIfUnchanged && viewHtml != null && lastPaint.el === body
+            && lastPaint.view === calState.view && lastPaint.html === viewHtml) {
+            _calLastBodyPaint = lastPaint;
+            _calUpdateReviewBadge();
+            _calSyncMonthWarnIcon();
+            _calSyncClientLinks();
+            return;
+        }
+        _calLastBodyPaint = { el: body, view: calState.view, html: viewHtml };
         if (calState.view === 'review' || calState.view === 'smmreview') {
             const reviewThumbs = _kcardHarvestThumbs(body, 'data-cal-review-pid');
-            body.innerHTML = renderCalReview();
+            body.innerHTML = viewHtml;
             _kcardRestoreThumbs(body, reviewThumbs, 'data-cal-review-pid');
             _calWireReviewExpand(body);
         } else if (calState.view === 'organizer') {
-            body.innerHTML = renderCalOrganizer();
+            body.innerHTML = viewHtml;
             // Re-insert previously-loaded <img> elements into the new cards
             // (same pid + same src) so the browser doesn't have to repaint
             // thumbnails from the cache — no card-height shift on refresh.
@@ -865,11 +888,11 @@
             }
             wireCalOrganizerDrag(preserveScroll);
         } else if (calState.view === 'month') {
-            body.innerHTML = renderCalMonth();
+            body.innerHTML = viewHtml;
             _calWireWheelNav(body.querySelector('.cal-month-wrap'), calMonthShift);
             _calWireDayDrag(body);
         } else if (calState.view === 'week') {
-            body.innerHTML = renderCalWeek();
+            body.innerHTML = viewHtml;
             _calWireWeekWheel(body);
             _calWireDayDrag(body);
         }

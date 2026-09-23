@@ -500,6 +500,16 @@
     const WRITE_UI_QUEUE_DIAG_KEY = 'syncview_write_ui_queue_diag_v1';
     const WRITE_UI_SOURCE_REPAIR_KEY = 'syncview_write_ui_source_repairs_v1';
     let _writeUiAuthorityLive = null;
+    /* Render-only memory of the last live authority read. The first board
+       paint usually lands before the live read, and drawing it fail-open put
+       Linear link controls on screen for ~100 ms before a full repaint took
+       them away again. Only _writeUiLinkSlotSealed reads this; every write,
+       hydration and the live seal gate still require the live value. */
+    const WRITE_UI_AUTHORITY_RENDER_KEY = 'syncview_write_ui_authority_render_v1';
+    function _writeUiAuthorityForRender() {
+        if (_writeUiAuthorityLive) return _writeUiAuthorityLive;
+        try { return _writeUiNormalizeAuthority(localStorage.getItem(WRITE_UI_AUTHORITY_RENDER_KEY)); } catch (e) { return null; }
+    }
     let _writeUiAuthorityReadAt = 0;
     let _writeUiAuthorityPromise = null;
     const _writeUiFailureNoticeAt = Object.create(null);
@@ -540,6 +550,7 @@
                 if (!value) throw new Error('authority_malformed');
                 _writeUiAuthorityLive = value;
                 _writeUiAuthorityReadAt = Date.now();
+                try { localStorage.setItem(WRITE_UI_AUTHORITY_RENDER_KEY, JSON.stringify(value)); } catch (e) {}
                 return value;
             } catch (e) {
                 // Last-known-good is render-diagnostic only. Writes and cache
@@ -623,11 +634,12 @@
      * `_calAdoptDeliverableLinks` fills an empty slot FROM the deliverable, and
      * `_calProdSlotHtml` links straight to the Production row. */
     function _writeUiLinkSlotSealed(component) {
-        const authority = _writeUiAuthoritySnapshot();
-        // Render-side only, and deliberately fails OPEN: the snapshot is null
-        // until the first live read lands, and hiding a legitimate video
-        // control during first paint would be a worse lie than showing one that
-        // the commit gate below then refuses out loud.
+        const authority = _writeUiAuthorityForRender();
+        // Render-side only, and deliberately fails OPEN: before the first live
+        // read lands it draws from the last value this browser read live, and
+        // with none at all it shows the control, because hiding a legitimate
+        // video control during first paint would be a worse lie than showing
+        // one that the commit gate below then refuses out loud.
         return !!authority && authority[_writeUiTeam(component)] === 'syncview';
     }
     /* The gate that actually decides, on a LIVE read, because the renderer can

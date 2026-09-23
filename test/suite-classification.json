@@ -2,6 +2,7 @@
   "format": "explicit-test-suite-routing-v1",
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
+    "b2-brief-link-rewrite.mjs",
     "a2-writer-edge-source.js",
     "a4-settings-edge-source.js",
     "analytics-cache-quota.js",
@@ -283,7 +284,6 @@
     "linear-exit-storage-export-adapter.js",
     "linear-exit-write-diagnostics-handlers.js",
     "linear-ident-uuid-guard.js",
-    "linear-import-optional-graphics.js",
     "linear-inbound-assignee-clear.js",
     "linear-inbound-attribution-guard.js",
     "linear-inbound-comment-echo-label.js",

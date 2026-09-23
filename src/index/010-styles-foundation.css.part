@@ -3147,6 +3147,7 @@
         .prod-desc .prod-md-bullet-text { flex: 1 1 auto; min-width: 0; }
         /* display:none, not height:0: a zero-height block with a line box in it still stops the neighbouring heading and rule margins collapsing through, which is 2px to 14px the read view does not have. The block stays in the model; the caret helpers step over it. */
         .prod-desc .prod-md-gap { display: none; }
+        .prod-desc-media-pending, .prod-desc-media-ref { display: inline-flex; align-items: center; padding: 0 8px; border-radius: 6px; border: 1px dashed var(--prod-line); background: var(--prod-hover); color: var(--prod-muted); font-size: 12px; line-height: 20px; }
         .prod-desc-uploading { display: inline-flex; align-items: center; padding: 0 8px; border-radius: 6px; background: var(--prod-hover); color: var(--prod-muted); font-size: 12px; line-height: 20px; }
         .prod-description-footer-rich { min-height: 0; border-top: 0; padding: 4px 0 0; }
         .prod-description-footer-rich .prod-description-hint { margin-left: 0; }

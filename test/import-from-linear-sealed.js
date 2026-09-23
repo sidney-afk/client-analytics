@@ -57,32 +57,31 @@ function grabFunc(name) {
   throw new Error('unclosed ' + name);
 }
 
-/* ---- 1. The import function now checks the same seal its sibling uses --- */
+/* ---- 1-3. RETIRED (B2, 2026-09-23). The seal above is superseded: the
+   tool itself is gone, along with Bulk Linear sync and the link-time status
+   adoption, because all three read the n8n `linear-subissues` webhook and
+   Linear is no longer a work surface. Assert the removal is complete, so no
+   dialog, menu item or silent background call can come back unnoticed. ---- */
 
-const importFn = grabFunc('_calRunLinearImport');
-ok(/_writeUiLinkSlotSealedLive\('video'\)/.test(importFn),
-  '_calRunLinearImport reads live video authority before minting any cards');
-ok(/importSeal\.sealed/.test(importFn) && /_writeUiLinkSlotSealedNotice\('video', importSeal\.reason\)/.test(importFn),
-  'and refuses with the honest, shared seal notice when video is syncview-authoritative');
-
-/* ---- 2. THE TRAP: the seal check runs BEFORE the archive-ledger mutation - */
-/* A version that checked the seal after calling _calArchivedRemove would
-   refuse to import, but would already have unarchived the Linear URLs the
-   user picked -- so the next visit shows nothing, silently, instead of the
-   card the refusal explained was never written. */
-
-const sealAt = importFn.indexOf('importSeal.sealed');
-const archiveRemoveAt = importFn.indexOf('_calArchivedRemove(');
-ok(sealAt > 0 && archiveRemoveAt > 0 && sealAt < archiveRemoveAt,
-  'the seal check runs before _calArchivedRemove, so a refused import leaves the archive ledger untouched');
-
-/* ---- 3. The refusal actually stops the import: no upsert call reachable -- */
-/* Static shape only (no live DOM here) but the seal branch's own `return`
-   keeps everything below it, including the _calBulkUpsertPosts call, out of
-   reach on that path. */
-
-ok(/if \(importSeal\.sealed\) \{[\s\S]*?return;\s*\}/.test(importFn),
-  'the sealed branch returns, so the same call never falls through to _calBulkUpsertPosts');
+for (const name of ['openCalLinearImport', 'closeCalLinearImport', '_calLinearImportFetch',
+  '_calRenderLinearSubPick', '_calRunLinearImport', 'openCalBulkLinearSync',
+  '_calOpenBulkLinkOverlay', 'closeCalBulkLinkOverlay', '_calBulkLinkFetch', '_calBulkLinkApply',
+  '_calSyncStatusFromLinear', '_sxrSyncStatusFromLinear']) {
+  ok(INDEX.indexOf('function ' + name + '(') < 0, name + ' is no longer defined');
+  ok(!new RegExp('[^A-Za-z0-9_`]' + name + '\\(').test(INDEX.replace(/typeof _sxrSyncStatusFromLinear === 'function' && _sxrSyncStatusFromLinear\(/g, '')
+      .replace(/if \(value && post && typeof _sxrSyncStatusFromLinear === 'function'\) _sxrSyncStatusFromLinear\(/g, '')
+      .replace(/if \(val && typeof _sxrSyncStatusFromLinear === 'function'\) _sxrSyncStatusFromLinear\(/g, '')),
+    'and nothing calls ' + name + ' unguarded');
+}
+ok(!/LINEAR_SUBISSUES_URL\s*=/.test(INDEX), 'LINEAR_SUBISSUES_URL is no longer defined');
+ok(!/fetch\(LINEAR_SUBISSUES_URL/.test(INDEX), 'nothing fetches the linear-subissues webhook');
+ok(!/webhook\/linear-subissues/.test(INDEX), 'the linear-subissues webhook URL is gone from the app');
+ok(!/>Import from Linear<\/button>/.test(INDEX), 'the kebab no longer offers Import from Linear');
+ok(!/>Bulk Linear sync<\/button>/.test(INDEX), 'the kebab no longer offers Bulk Linear sync');
+ok(!/id="calLinearImportOverlay"/.test(INDEX) && !/id="calBulkLinkOverlay"/.test(INDEX),
+  'both Linear pull-in dialogs are gone from the page');
+ok(!/>Match to Linear<\/button>/.test(INDEX), 'the multi-select bar no longer offers Match to Linear');
+ok(/>Import from Excel<\/button>/.test(INDEX), 'the native Import from Excel entry point is still there');
 
 /* ---- 4. The three in-app recommendations no longer point at a tool that -- */
 /* ---- mints broken cards; they point at the one that still works ---------- */

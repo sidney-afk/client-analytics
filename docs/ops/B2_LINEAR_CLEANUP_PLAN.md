@@ -270,6 +270,41 @@ Owner decisions recorded with this go-ahead:
 - **Secrets these workflows used:** `LINEAR_API_KEY`, `ROLE_KEY_ADMIN`, `ROLE_KEY_SMM`, `ROLE_KEY_CREATIVE`, plus shared ones. Deleting any secret is a separate owner decision: `LINEAR_API_KEY` is still read by other workflows, and the `ROLE_KEY_*` secrets may have other users.
 - **Rollback:** revert only the workflow-retirement commit, `ci: retire unscheduled Linear-only GitHub workflows (B2 slice 6)` (`git revert <that sha>`). Do not revert the commit that adds this execution log: the n8n and flag changes it records stay live either way. The files come back as they were, and nothing ran them on a schedule.
 
+### Slice 5 (plan Slice 4): retired the legacy n8n fallback of the urgent editor ping. DONE in the repo PR that carries this entry (not deployed; Pages ships it on merge)
+
+- **What changed (browser only):** the URGENT editor ping ("URGENT TWEAKS NEEDED") now goes only through the native route (`native_urgent_dispatch` via production-write). `URGENT_SLACK_URL` and every browser POST to `/webhook/send-urgent-slack` are gone, including the branch that fell back to it when the gateway answered `400 unsupported_action`. A card with no `video_deliverable_id` is refused before any confirm or request with a visible notice: "Link a native video deliverable first … Nothing was sent." No fake success, no latch, no marker. The same guard sits in all four callers (calendar, samples, samples Kasper queue, calendar Kasper queue) and once more inside the shared dispatch. The native path is unchanged. The Kasper ping (`send-urgent-kasper-slack`) is untouched. URGENT stays video-only: the visibility gates answer false for graphic, thumbnail, caption and title, and the native payload always carries the video deliverable (both now covered by `test/native-urgent-ui.js`).
+- **Proof (read-only SQL, 2026-09-23, counts only):** non-archived cards whose video sits at Tweaks Needed (the only state that shows the editor URGENT action): 2 in `calendar_posts`, 0 in `sample_reviews`; **0** of them lack a `video_deliverable_id`, so no card that can show the action today would still take the fallback. Latent: 81 non-archived calendar cards (any status) carry a Linear link but no `video_deliverable_id`; if one reaches Tweaks Needed it now gets the honest refusal instead of a POST that could only fail. `sample_reviews`: 0.
+- **Tests:** `test/native-urgent-ui.js`, `test/kasper-urgent-ping.js` and `test/linear-dead-rehearsal.js` updated to the new contract (the dead-Linear harness keeps intercepting `send-urgent-slack` as a safety net for stale cached pages); `docs/independence/SYSTEM_MAP.md` inventory updated (n8n webhooks 51 → 50).
+- **Rollback:** revert the PR. Nothing server-side changed.
+- **Next (owner, n8n):** deactivate workflow `TJVMyfwl85qrFGeK` (Urgent Tweak → Slack) only AFTER this PR has merged and Pages has deployed it. Deactivating first would not break anything that works today (it can only fail since the revoke), but the order keeps the rollback clean.
+- **Done 2026-09-23 ~19:32Z (after PR #1522 merged):** workflow `TJVMyfwl85qrFGeK` deactivated (unpublished) in n8n; it had 0 runs in retained history. Rollback: re-activate it in n8n.
+
+### Plan Slice 3, part: browser stops calling `linear-subissues`. DONE in the repo PR that carries this entry (branch `claude/b2-import-from-linear`)
+
+- **What changed (browser only, `src/index/` then `npm run build:index`):**
+  - Removed the kebab items **Import from Linear** and **Bulk Linear sync**, their two dialogs, the multi-select "Match to Linear" bar, and every helper behind them (fragments 130, 150, 160, 180).
+  - Removed the link-time status adoption `_calSyncStatusFromLinear` (150) and its two callers (160 link commit, 170 link move), and `_sxrSyncStatusFromLinear` (290). Its two Samples callers in 270 already check `typeof` first, so they are now no-ops and 270 is untouched.
+  - Removed `LINEAR_SUBISSUES_URL` (100). `index.html` no longer contains `webhook/linear-subissues`.
+- **What users saw before:** Import / Bulk sync asked the dead webhook and showed its error inline ("Linear lookup failed" or "Could not reach Linear"). Link-time sync failed silently in a `catch`. **After:** the two menu items are gone (Import from Excel and Create Post stay). Pasting or moving a link saves exactly as before; the card keeps its SyncView status. No fake success, nothing silent left: nothing is attempted.
+- **Not changed:** existing linked cards still display their links and persisted banners; no sub-issue creation path was added; no n8n, Edge Function or database change.
+- **Proof:** new retirement guards in `test/import-from-linear-sealed.js` and `test/calendar-kebab-import-menu.js`; `test/linear-import-optional-graphics.js` deleted (its subject is gone) and unregistered; tests that expected the sync call now assert it never happens. `docs/independence/SYSTEM_MAP.md` and `docs/truth/ENDPOINTS.md` updated. `prod-write-gateway-browser.js` passes. `npm test`: 574 of 575 suites pass; the one failure, `truth-sync`, is only the pre-existing "freshness commit is an ancestor" check that also fails on `origin/main`.
+- **Rollback:** revert the PR.
+- **Next (owner, n8n):** deactivate workflow `Nk3pwR6Fbl4VAPqH` ("Calendar — Linear Sub-Issues") **only after this merges** and GitHub Pages has deployed it.
+- **Done 2026-09-23 ~19:57Z (after PR #1524 merged):** workflow `Nk3pwR6Fbl4VAPqH` deactivated (unpublished) in n8n; 0 runs in retained history. Rollback: re-activate it in n8n.
+
+### Slice 5 (plan Slice 3, part): Workload tweak-comment preview no longer calls `linear-tweak-comments`. DONE in the repo PR that carries this entry
+
+- **What changed:** the Tweak Needed popover in Workload already read native rows, and legacy rows bound to a native deliverable, from `production-comments`. Only rows with no native binding still went to the n8n webhook, which can only fail since the Linear keys were revoked. That lane is removed: `LINEAR_TWEAK_COMMENTS_WEBHOOK`, `_wlLegacyFetchTweakComments`, its 5-minute cache and TTL are gone (`070-workload-source`, `090-workload-popovers-navigation`).
+- **What users see:** before, an unbound row showed "Couldn't load this deliverable's feedback. Retry..." after the webhook failed. Retrying could never work. Now that row shows at once "Feedback for this item isn't shown here. Open the post in SyncView to check its review notes." No request is sent. Native and bound rows are unchanged. The "older comments ... in Linear" overflow text is gone.
+- **Proof:**
+  - `test/workload-tweak-feedback-source.js` (219 checks) now fails on any request to the retired webhook. It asserts that unbound, unclassifiable, and stale-bound rows settle as `retired` with no request.
+  - `test/system-map-sync.js` and `test/truth-sync.js` pass, apart from the 4 pre-existing shallow-clone freshness checks.
+  - The webhook was removed from `SYSTEM_MAP.md` (50 n8n webhooks) and `ENDPOINTS.md`.
+  - The `linear-dead-rehearsal` floor went from 4 to 3.
+- **Rollback:** revert the PR. The webhook comes back but still fails, because Linear is revoked.
+- **n8n:** deactivate workflow `d7Dod7OuQsVsl1CN` ("Workload — Tweak Comments") only **after this merges** and Pages serves it (**owner**). It is not touched here.
+- **Done 2026-09-23 ~20:19Z (after PR #1526 merged):** workflow `d7Dod7OuQsVsl1CN` deactivated (unpublished) in n8n; 0 runs in retained history. Rollback: re-activate it in n8n.
+
 ### Brief images on Linear's servers (measured 2026-09-23, read-only)
 
 - **Scope:** 41 in-progress deliverables (statuses todo, backlog, smm_approval, kasper_approval, client_approval) carry `uploads.linear.app` links. There are 90 references to 81 distinct files, all inside `brief`; none are in `file_url`.
@@ -292,3 +327,28 @@ Owner decisions recorded with this go-ahead:
 4. **Proof:** after the rewrite, count remaining `uploads.linear.app` matches in in-progress briefs (target 0). Also run one headless-browser render of an affected brief with no Linear session, and require every image to load with a 200 response from our storage.
 5. **Rollback:** before rewriting, snapshot each touched brief (id, old text, sha256) to the SyncView Backups drive. Restoring means writing the old text back through the same path.
 6. **Estate-wide:** the same rewrite can cover all 486 deliverables with copies (about 3.0 GB, already stored). Finished and archived work can go later, or never, since the archive viewer already resolves copies.
+
+### Brief image links (plan "Brief images on Linear's servers"): rewrite built, browser shipped, server needs an owner deploy. PREPARED 2026-09-23, nothing applied
+
+**Surfaces that render `deliverables.brief` (measured in `src/index/`).** Only the Production tab draws a deliverable brief. The read view (`_prodDescriptionHTML` → `_prodLinkify`, fragment 230) prefers the server projection `description_read.media.render_brief` and falls back to the raw brief (the fallback noted at 230, and after the 5-minute signed links expire). The rich editor (`_prodDescRichInline`/`_prodDescRichSerializeInline`, fragment 240) is always seeded from the raw brief, never the projection. Fragment 040 is the AI analytics/market "brief" (`raw_json`), not `deliverables.brief`; the project description at 260 reads a project field. Calendar, Samples, Workload and the client views do not render `deliverables.brief`.
+
+**Existing server behaviour.** `projectBriefMedia` (`supabase/functions/_shared/native-brief-media.mjs`, used only by production-write `description_read`) understood only `uploads.linear.app` links. production-write's `description` operation accepts any string up to the size limit (`canonicalDescription`), so a brief carrying a new reference form saves fine; saving a brief never re-triggers a media copy (copies are made only by `scripts/native-brief-media-copy.mjs`). `linear_outbound_enabled` is `off`, so a description write does not reach Linear.
+
+**Reference form: `syncview-media:<occurrence uuid>`.** It replaces only the URL characters at the occurrence's exact UTF-16 offset/length, so `![alt](...)` and `<...>` stay byte-identical. It names the verified `native_brief_media_occurrences` row directly, so no URL hash or offset has to survive later edits. It is never a URL: the bucket is private and only the server can sign, so a browser-only resolver is not possible with the publishable key.
+
+**What changed in this PR.**
+- Server source (needs deploy): `projectBriefMedia` also resolves `syncview-media:` ids, looked up only among the row's own verified same-client/team copies, with the same copy validation, and signs them exactly like Linear links. Legacy links still work, and a brief can mix both forms. An id that is not one of the row's copies leaves the projection incomplete.
+- Browser (ships with Pages on merge): an unresolved `syncview-media:` reference in the read view is drawn as a dashed "Image not loaded" placeholder, never an `<img>` or a link. In the rich editor it is a non-editable "Stored image" chip that serializes back to its exact source.
+- `scripts/b2-brief-link-rewrite.mjs`: the dry-run default prints counts only. `--apply --client=<slug> --snapshot=<file>` requires `B2_BRIEF_REWRITE_CONFIRM=REWRITE_BRIEF_LINKS`. It writes a 0600 snapshot (id, old sha256, old text, new sha256) before any write, then makes one audited production-write `description` write per deliverable with `expected_updated_at` CAS and reads it back. `--rollback=<snapshot>` restores only rows whose brief still equals the rewritten text. Before the first write it probes the deployed production-write (`description_read` on one target) and aborts, writing nothing, unless `media.reference_forms` lists `syncview_media_v1`; the new projection source adds that marker. A row whose slug equals the private `B2_TEST_CLIENT_SLUG` env uses the service `test_override` path (the server decides whether it is the test client). Real clients need `SYNCVIEW_STAFF_KEY` + `SYNCVIEW_ACTOR` + `SUPABASE_PUBLISHABLE_KEY`.
+- `test/b2-brief-link-rewrite.mjs`: tests offsets (including non-BMP text), duplicates, angle, plain and bare forms, edited briefs, wrong offsets, foreign or unverified copies, ambiguity, idempotency, the projection for legacy, new and mixed forms, and the shipped renderers.
+
+**Proof.**
+- The test client has no deliverable with a Linear-hosted brief image, so nothing was applied. No test data was fabricated.
+- Read-only dry-run on the 41 in-progress deliverables, done in SQL with the script's criteria and UTF-16 offsets corrected: 41 deliverables and 90 links. All 41 deliverables and all 90 links are rewritable, 0 were skipped as edited and 0 as unmapped.
+
+**Still needs the owner, in this order.**
+1. Deploy production-write through the Section 4 lane (capture first). Nothing else imports the shared module at runtime.
+2. Run `--apply` for one client, then check the Production tab. The count of `uploads.linear.app` matches in its in-progress briefs should be 0, and the images should load from storage.
+3. Run it for the rest.
+
+Put each snapshot in the SyncView Backups drive, not the repo, because it contains brief text. Applying before the deploy shows placeholders instead of images: honest, but a regression. Roll back with `--rollback`.

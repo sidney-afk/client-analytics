@@ -10,7 +10,7 @@ const source=urgentKinds+'\n'+extractFunction(html,'_urgentKind')+'\n'+gatewayDe
 function world(surface='calendar',store=new Map()){
  const post={id:'card-1',video_deliverable_id:'native-video-1',video_status:'Tweaks Needed',video_status_at:round,name:'Synthetic card'},sent=[],persisted=[],notices=[],confirms=[];
  const button=()=>({disabled:false,textContent:'URGENT',dataset:{},classList:{add(){}}});
- const item={post,slug:'fixture',client:'Fixture'},ctx={console:{warn(){}},JSON,String,Date,Map,AbortSignal,crypto:require('node:crypto').webcrypto,CAL_SUPABASE_URL:'https://project.invalid',CAL_SUPABASE_ANON_KEY:'synthetic-public',URGENT_SLACK_URL:'https://n8n.invalid/urgent',URGENT_KASPER_SLACK_URL:'https://n8n.invalid/kasper',_isClientLink:false,
+ const item={post,slug:'fixture',client:'Fixture'},ctx={console:{warn(){}},JSON,String,Date,Map,AbortSignal,crypto:require('node:crypto').webcrypto,CAL_SUPABASE_URL:'https://project.invalid',CAL_SUPABASE_ANON_KEY:'synthetic-public',URGENT_KASPER_SLACK_URL:'https://n8n.invalid/kasper',_isClientLink:false,
  _syncviewStaffIdentityForHeaders:()=>({key:'synthetic-staff',member:{name:'Synthetic Staff'},role:'smm'}),
  _calNormStatus:x=>x,_sxrNormStatus:x=>x,calClientSlug:()=>ctx.scope,sxrClientSlug:()=>ctx.scope,scope:'fixture',wlCanonicalClient:()=> 'Fixture',
  calState:{client:'Fixture',posts:[post]},sxrState:{client:'Fixture',posts:[post]},_kasperState:{items:[item],replies:[]},_sxrKasperFindItem:()=>item,
@@ -29,7 +29,8 @@ async function check(label,fn){await fn();passed++;console.log('PASS '+label);}
 (async()=>{
  for(const surface of ['calendar','samples','samples_queue','calendar_queue']){
   await check(surface+' native context uses protected origin and explicit sent receipt',async()=>{const w=world(surface),b=w.click();assert.equal(w.sent.length,0);await w.confirm();assert.equal(w.sent.length,1);const r=w.sent[0];assert.equal(r.url,vm.runInContext('WRITE_UI_PRODUCTION_WRITE_URL',w.ctx));assert.equal(vm.runInContext('typeof PROD_WRITE_EF_URL',w.ctx),'undefined');assert.equal(r.options.headers['X-Syncview-Key'],'synthetic-staff');assert.deepEqual(Object.keys(r.body).sort(),['action','card_id','client_slug','deliverable_id','surface','video_status_at']);assert.equal(r.body.surface,surface.startsWith('samples')?'samples':'calendar');assert.equal(r.body.client_slug,'fixture');assert.equal(r.body.deliverable_id,w.post.video_deliverable_id);assert.equal(r.body.video_status_at,round);assert.equal(w.persisted.length,1);assert.equal(b.dataset.urgentSent,'1');assert.equal(b.textContent,'Sent');});
-  await check(surface+' legacy webhook never receives staff credentials',async()=>{const w=world(surface);delete w.post.video_deliverable_id;w.post.linear_issue_id='https://linear.invalid/issue/1';w.ctx.reply={ok:true,editor:'Synthetic editor'};w.click();await w.confirm();assert.equal(w.sent[0].url,w.ctx.URGENT_SLACK_URL);assert.deepEqual(Object.keys(w.sent[0].options.headers),['Content-Type']);assert.equal(w.sent[0].body.issue,w.post.linear_issue_id);assert.equal(w.persisted.length,1);});
+  await check(surface+' URGENT targets only the video deliverable even when other components carry native ids',async()=>{const w=world(surface);Object.assign(w.post,{thumbnail_deliverable_id:'native-thumb',caption_deliverable_id:'native-cap',graphic_deliverable_id:'native-graphic'});w.click();await w.confirm();assert.equal(w.sent.length,1);assert.equal(w.sent[0].body.deliverable_id,'native-video-1');});
+  await check(surface+' card without a native video deliverable is refused visibly before any request (B2)',async()=>{const w=world(surface);delete w.post.video_deliverable_id;w.post.linear_issue_id='https://linear.invalid/issue/1';const b=w.click();assert.equal(w.confirms.length,0);assert.equal(w.sent.length,0);assert.equal(w.persisted.length,0);assert.equal(w.store.size,0);assert.notEqual(b.dataset.urgentSent,'1');assert.equal(w.notices.length,1);assert.match(w.notices[0][0],/native video deliverable/i);assert.match(w.notices[0][1],/Nothing was sent/);});
  }
  for(const scenario of ['lost','invalid_json','ok_without_sent','sent_missing_receipt','unknown'])await check(scenario+' holds without Sent, persistence or retry after reload',async()=>{const w=world(),b=w.click();if(scenario==='lost')w.ctx.lost=true;if(scenario==='invalid_json')w.ctx.invalidJson=true;if(scenario==='ok_without_sent')w.ctx.reply={ok:true};if(scenario==='sent_missing_receipt')w.ctx.reply={ok:true,delivery:'sent'};if(scenario==='unknown'){w.ctx.status=502;w.ctx.reply={ok:false,delivery:'unknown',retry_safe:false};}await w.confirm();assert.equal(w.sent.length,1);assert.equal(w.persisted.length,0);assert.equal(b.textContent,'Check delivery');assert.notEqual(b.dataset.urgentSent,'1');const reload=world('calendar',w.store);reload.click();assert.equal(reload.confirms.length,0);assert.equal(reload.sent.length,0);assert.match(reload.notices[0][1],/manually/);});
  await check('queued native admission stays visibly queued without Sent and checks its receipt before another attempt',async()=>{const w=world(),b=w.click();w.ctx.status=202;w.ctx.reply={ok:true,delivery:'pending',dispatch_id:'dispatch-queued'};await w.confirm();assert.equal(w.persisted.length,0);assert.equal(b.textContent,'Queued');assert.notEqual(b.dataset.urgentSent,'1');const reload=world('calendar',w.store);reload.ctx.reply={ok:true,delivery:'pending',sent:false};reload.click();await new Promise(r=>setImmediate(r));assert.equal(reload.sent.length,1);assert.equal(reload.confirms.length,0);assert.equal(reload.persisted.length,0);assert.equal(reload.notices[0][0],'Urgent ping queued');});
@@ -49,25 +50,24 @@ async function check(label,fn){await fn();passed++;console.log('PASS '+label);}
  await check('explicit pretransport refusal alone releases the local hold for manual retry',async()=>{const w=world(),b=w.click();w.ctx.status=409;w.ctx.reply={ok:false,delivery:'not_sent',retry_safe:true,error:'round_changed'};await w.confirm();assert.equal(w.store.size,0);assert.equal(w.persisted.length,0);assert.equal(b.disabled,false);w.click();assert.equal(w.confirms.length,1);assert.equal(w.sent.length,1);});
  for(const drift of ['round','identity','client','status'])await check('known delivery cannot mark changed '+drift,async()=>{const w=world(),b=w.click();w.ctx.afterFetch=()=>{if(drift==='round')w.post.video_status_at='2030-01-02T00:00:00.000Z';if(drift==='identity')w.post.video_deliverable_id='changed';if(drift==='client')w.ctx.scope='other';if(drift==='status')w.post.video_status='Approved';};await w.confirm();assert.equal(w.persisted.length,0);assert.notEqual(b.dataset.urgentSent,'1');assert.equal(b.textContent,'Earlier round sent');});
  await check('persistent marker failure never opens an acknowledged send to automatic retry',async()=>{const w=world(),b=w.click();w.ctx.persistFailure=true;await w.confirm();assert.equal(b.dataset.urgentSent,'1');const next=world('calendar',w.store);next.click();assert.equal(next.sent.length,0);assert.equal(next.confirms.length,0);});
- // The gateway that knows this action deploys AFTER this file reaches Pages.
- // Until it does, the deployed gateway answers `400 unsupported_action` with no
- // `delivery` field, and a card that works today must keep working.
+ // Before the gateway that knows this action is deployed it answers
+ // `400 unsupported_action` with no `delivery` field. B2 retired the legacy
+ // webhook fallback: nothing else is attempted, the hold is released and the
+ // failure is shown honestly.
  const UNSUPPORTED={status:400,reply:{ok:false,error:'unsupported_action'}};
  for(const surface of ['calendar','samples','samples_queue','calendar_queue'])
-  await check(surface+' pre-deployment gateway falls back to the legacy webhook without staff credentials',async()=>{
+  await check(surface+' pre-deployment gateway refusal sends nothing else and is shown honestly',async()=>{
    const w=world(surface);w.post.linear_issue_id='https://linear.invalid/issue/1';const b=w.click();
-   w.ctx.staged=[UNSUPPORTED,{status:200,reply:{ok:true,editor:'Synthetic editor'}}];
+   w.ctx.staged=[UNSUPPORTED];
    await w.confirm();
-   assert.equal(w.sent.length,2);
+   assert.equal(w.sent.length,1);
    assert.equal(w.sent[0].url,vm.runInContext('WRITE_UI_PRODUCTION_WRITE_URL',w.ctx));
-   assert.equal(w.sent[1].url,w.ctx.URGENT_SLACK_URL);
-   assert.deepEqual(Object.keys(w.sent[1].options.headers),['Content-Type']);
-   assert.equal(w.sent[1].body.issue,w.post.linear_issue_id);
    assert.equal(w.store.size,0);
-   assert.equal(w.persisted.length,1);
-   assert.equal(b.dataset.urgentSent,'1');assert.equal(b.textContent,'Sent');
-   const reload=world(surface,w.store);reload.post.linear_issue_id=w.post.linear_issue_id;reload.click();assert.equal(reload.confirms.length,1);
+   assert.equal(w.persisted.length,0);
+   assert.notEqual(b.dataset.urgentSent,'1');assert.equal(b.textContent,'URGENT');assert.equal(b.disabled,false);
+   assert.match(w.notices[0][1],/Nothing was sent/);
   });
+ await check('no urgent code path references the legacy webhook',async()=>{assert.ok(!html.includes('webhook/send-urgent-slack'));assert.ok(!/\bURGENT_SLACK_URL\b/.test(html));});
  await check('pre-deployment gateway leaves a native-only card explicitly unsent and retryable',async()=>{
   const w=world(),b=w.click();w.ctx.staged=[UNSUPPORTED];
   await w.confirm();
@@ -100,6 +100,6 @@ async function check(label,fn){await fn();passed++;console.log('PASS '+label);}
   await w.confirm();assert.equal(w.sent.length,0);assert.equal(w.persisted.length,0);assert.equal(b.disabled,false);
  });
  await check('client link cannot dispatch native urgent',async()=>{const w=world();w.ctx._isClientLink=true;w.click();assert.equal(w.confirms.length,0);assert.equal(w.sent.length,0);});
- await check('native video visibility preserves component and tweak status gates',async()=>{const w=world();for(const n of ['_calShowUrgent','_sxrShowUrgent']){assert.equal(w.ctx[n](w.post,'video'),true);assert.equal(w.ctx[n](w.post,'graphic'),false);assert.equal(w.ctx[n]({...w.post,video_status:'Approved'},'video'),false);assert.equal(w.ctx[n]({...w.post,video_deliverable_id:''},'video'),false);}});
+ await check('native video visibility preserves component and tweak status gates',async()=>{const w=world();for(const n of ['_calShowUrgent','_sxrShowUrgent']){assert.equal(w.ctx[n](w.post,'video'),true);for(const c of ['graphic','thumbnail','caption','title']){const q={...w.post,[c+'_status']:'Tweaks Needed',[c+'_deliverable_id']:'native-'+c};assert.equal(w.ctx[n](q,c),false,n+' must never show URGENT for '+c);}assert.equal(w.ctx[n]({...w.post,video_status:'Approved'},'video'),false);assert.equal(w.ctx[n]({...w.post,video_deliverable_id:''},'video'),false);}});
  console.log(JSON.stringify({status:'PASS',passed,classification:'OFFLINE_ACTUAL_VM',external_requests:0,limitations:['Synthetic delivery replies; no server, Slack, installed auth, browser layout or global exactly-once proof']}));
 })().catch(e=>{console.error(e.stack);process.exitCode=1;});

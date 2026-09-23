@@ -103,7 +103,6 @@ globalThis.fetch = async (url, opts) => {
 
 // Real helpers under test / used by the writer.
 const wlNormalizeClient = def('wlNormalizeClient');
-def('_calSubNum');
 const _calCardJobsRead = def('_calCardJobsRead');
 def('_calCardJobsWrite');
 def('_calCardJobSave');

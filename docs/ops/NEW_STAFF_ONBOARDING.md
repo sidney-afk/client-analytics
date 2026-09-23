@@ -64,9 +64,10 @@ returning id, name, email, role, team, active, created_at;
   required. `assigneeEligibility()` in `supabase/functions/production-write/policy.mjs`
   denies `assignee_out_of_scope` the moment `team` does not match the target team, `null`
   included. Use `null` for `admin` and `smm`, an SMM usually spans both teams.
-- Leave `linear_user_id` out of the insert, there is nothing to put there yet, see §4. Leave
-  `slack_user_id` out too, it has no reader anywhere in the codebase (§5), setting it buys
-  nothing.
+- Leave `linear_user_id` out of the insert, there is nothing to put there yet, see §4.
+  **For an editor, set `slack_user_id`** (their Slack member ID, `U...`): the native urgent
+  ping (`native_urgent_dispatch` in production-write) refuses with `urgent_editor_unavailable`
+  without a valid one (§5). For other roles it is optional.
 - `default_for_team` is not in the insert above either, so it lands on its column default,
   `false`. For a **designer only**, this is what actually gets new graphics work
   auto-assigned to them: exactly one active designer may hold it `true` at a time
@@ -129,9 +130,9 @@ returning id, name, linear_user_id;
 
 ## 5. Slack
 
-Invite them to the workspace. `team_members` has a `slack_user_id` field, but as of this
-writing nothing in the codebase reads it, filling it in is harmless bookkeeping, not the
-thing that actually wires up client notifications. The real mechanism is per client
+Invite them to the workspace. For an **editor**, `team_members.slack_user_id` is required:
+the native urgent ping reads it (see below). For other roles it is not what wires up
+client notifications. The real mechanism is per client
 assignment: the Client, Slack Creative Channel Finalizer reads the `slack_profile_url`
 column (misnamed, it actually holds a bare Slack user ID) on the assigned SMM's row in the
 Google Sheet's Social Media Managers tab, not anything on `team_members`
@@ -140,19 +141,16 @@ Google Sheet's Social Media Managers tab, not anything on `team_members`
 onboarding beyond the workspace invite, the rest happens at client assignment time (§7).
 
 **If this hire is an editor**, there is a second, separate Slack mechanism, general to
-them rather than tied to any one client: the "URGENT TWEAKS NEEDED" ping
-(`index.html`, `URGENT_SLACK_URL`, the `send-urgent-slack` n8n workflow) posts to the
-`#video-editing` channel and tags them there, it is not a DM, `URGENT_PING_KINDS.editor`
-in `index.html` confirms `sentWhere: 'Posted to #video-editing'`. It resolves who to tag
-by looking them up in the SyncView Google Sheet's "Video Editors" tab (name and email
-only, `docs/truth/SHEETS.md`). That sheet has no Slack column at all, the actual Slack
-identity comes from a second, hardcoded fallback map inside the n8n workflow itself. So a
-new editor needs a row in that sheet tab, and separately needs that n8n map updated to
-include them, or an urgent ping on their work resolves to nobody. Editing an n8n workflow
-needs the owner's explicit go-ahead in the same request (`client-analytics/CLAUDE.md`
-standing constraint), this is not something to do unilaterally even for a small addition.
-Confirming with an actual urgent ping on a TEST card is worth doing once both are in
-place, no automated check covers this path.
+them rather than tied to any one client: the "URGENT TWEAKS NEEDED" ping. Since
+2026-09-23 (B2) it is **native only**: the browser sends `native_urgent_dispatch` to
+production-write for a card with a `video_deliverable_id`, and the gateway tags the
+card's assigned editor in `#video-editing` using their `team_members.slack_user_id`. The
+old route (`URGENT_SLACK_URL`, the `send-urgent-slack` n8n workflow, the "Video Editors"
+sheet tab and the n8n fallback map) is retired and needs no setup. So a new editor needs
+only a valid `slack_user_id` on their `team_members` row; without it the ping refuses with
+`urgent_editor_unavailable`. Urgent is video-only: thumbnail and caption never ping.
+Confirming with an actual urgent ping on a TEST card (test client only) is worth doing
+once, no automated check covers the live Slack delivery.
 
 ## 6. Time Off (if this hire gets the benefit)
 
@@ -320,7 +318,7 @@ and confirming the hire actually shows up.
 | Time Off gating and admin setup action | `supabase/functions/pto/index.ts` (`requestTimeOff`, `setStartDate`), `index.html` (`ptoAdminMember` / `ptoAdminStart` / `ptoAdminEnabled`) |
 | SMM roster, client assignment, Linear key, Slack ID | SyncView Google Sheet, "Social Media Managers" tab (client-keyed, see §7), normalized by n8n's Manager Sync into person-keyed Supabase `public.social_media_managers` (gotcha 3) |
 | Identity exposure gate (diff mode, blocks a PR that adds a name or client slug) | `scripts/repo-identity-exposure-check.js`, `.github/workflows/calendar-unit-tests.yml`; see gotcha 1, gotcha 10 |
-| Editor urgent-tweak Slack resolution | `index.html` (`URGENT_SLACK_URL`), n8n `send-urgent-slack` workflow, SyncView Google Sheet "Video Editors" tab (`docs/truth/SHEETS.md`); see §5 |
+| Editor urgent-tweak Slack resolution | `supabase/functions/production-write/index.ts` (`native_urgent_dispatch`), `team_members.slack_user_id`; the n8n `send-urgent-slack` route was retired 2026-09-23 (B2); see §5 |
 | Graphics single-default auto-assignment | `supabase/functions/production-write/index.ts` (`autoAssigneeForIntake()`), `team_members.default_for_team`; see §2 |
 | Workload's hardcoded roster (separate from `team_members`) | `index.html` (`WL_ALLOWED_EDITORS`, `WL_ALLOWED_GRAPHICS`, `WL_VIDEO_EDITORS`, `wlNormalizeEditor()`); see §8, gotcha 10 |
 | Role and auth scaffold migration | `migrations/2026-07-05-b0-linear-auth-scaffold.sql` |

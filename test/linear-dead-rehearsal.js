@@ -105,11 +105,14 @@ const {
   /* Was >= 7 until 2026-09-22, when linear-issue-statuses was removed from the
      app (OPEN_REPAIRS 236), then >= 6 until later the same day, when
      linear-set-status and linear-add-comment went with the legacy Calendar and
-     Samples write transports (OPEN_REPAIRS 239). The floor is a tripwire for a
+     Samples write transports (OPEN_REPAIRS 239), then >= 4 until 2026-09-23,
+     when linear-subissues went with Import from Linear, Bulk Linear sync and
+     link-time status adoption (B2), then >= 3 until the Workload tweak-comment
+     preview dropped linear-tweak-comments (B2), leaving two. The floor is a tripwire for a
      NEW Linear webhook escaping the harness, so it tracks the real count down
      rather than being deleted — and it is deliberately not a ceiling. */
-  ok(reached.length >= 4,
-    `expected the app to call at least four linear-* webhooks, found ${reached.length}`);
+  ok(reached.length >= 2,
+    `expected the app to call at least two linear-* webhooks, found ${reached.length}`);
   for (const hook of reached) {
     ok(LINEAR_HOOK.test(`https://example.invalid/${hook}`),
       `${hook} must be intercepted — an un-intercepted Linear webhook reaches live n8n from a probe`);
@@ -139,19 +142,18 @@ const {
 //
 // OPEN_REPAIRS 181 (lane LX-N8N) named four webhooks that reached Linear through
 // their n8n workflow rather than through a `linear-*` name. The prefix match
-// cannot see them. The final native Editors reader removed `editors-week`; the
-// send-urgent-slack remains a browser route and must still be denied in dead
-// mode. B1-2 removed the orphan video-form and graphic-form sender chain.
+// cannot see them. The final native Editors reader removed `editors-week`.
+// send-urgent-slack left the app in B2 (the urgent editor ping is native-only);
+// the dead-mode pattern is KEPT deliberately as a safety net, so a stale cached
+// page that still posts to it is intercepted rather than reaching live n8n.
+// B1-2 removed the orphan video-form and graphic-form sender chain.
 // ---------------------------------------------------------------------------
 {
-  const backed = ['send-urgent-slack'];
   const app = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  for (const hook of backed) {
-    ok(app.includes(`webhook/${hook}`),
-      `${hook} must still be called by the app — if it is gone, drop it from LINEAR_BACKED_HOOK rather than leaving a dead pattern`);
-    ok(LINEAR_BACKED_HOOK.test(`https://example.invalid/webhook/${hook}`),
-      `${hook} reaches Linear through n8n and must be intercepted in dead mode`);
-  }
+  ok(!app.includes('webhook/send-urgent-slack'),
+    'send-urgent-slack left the app in B2: the urgent editor ping is native-only');
+  ok(LINEAR_BACKED_HOOK.test('https://example.invalid/webhook/send-urgent-slack'),
+    'send-urgent-slack reaches Linear through n8n and stays intercepted in dead mode for stale pages');
   ok(!app.includes('webhook/editors-week'),
     'the final app no longer calls the removed editors-week provider endpoint');
   for (const hook of ['video-form', 'graphic-form']) {

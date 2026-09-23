@@ -409,7 +409,7 @@ jobs:
       # The principal capture sits on authenticate's three success returns; the
       # function is NOT renamed, because two other suites extract it by name.
       # (Previous pin: 9630884e62... -- production-write, files=6, 2026-09-19.)
-      PRODUCTION_WRITE_SOURCE_SHA256: af8bf801b45830f95951d00636ce1103fb1b043652337b2c1bae68a37fd17422
+      PRODUCTION_WRITE_SOURCE_SHA256: 68cae746ad1fa5ebc3203ad3cc82415ea5699158ee07e16f7757715e0a8ef2ce
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

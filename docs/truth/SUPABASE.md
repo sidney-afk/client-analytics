@@ -125,6 +125,10 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   `synced_at` in the table is `2026-09-21 14:50:16Z` and has not moved since. Anything that reads
   this table — including Workload's `synced_at` watermark poll — is reading a fixed snapshot, which
   in the browser is indistinguishable from a healthy quiet system. See `docs/truth/N8N.md`.
+  **But the Workload board does not read it** (supervisor re-check, same day): the board loads
+  `workload_native_snapshot_v1()`, live 6,734 rows all `source: native` with `legacy_teams: []`,
+  and its live poll never reads the watermark. The frozen table is left only to a diagnostic and
+  unreachable legacy code; see the second correction in `docs/truth/APP.md`.
   (4 teams present: VID/GRA/CON/STR; the "56 messy `client_name` variants" count is from the older
   evidence and was not re-derived — normalize via `wlNormalizeClient()` regardless.)
 - `workload_plan` — **live internal sidecar**, keyed by stable sub-issue id, with normalized

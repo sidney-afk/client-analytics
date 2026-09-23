@@ -20,9 +20,8 @@
 //     body names another client and fails the run.
 //   - Seeds are archived and verified; the renamed card and its sub-issue are
 //     renamed back and verified. Nothing is left changed.
-//   - Linear is mocked by the courier context (write flows); the read-only tab
-//     timings let Linear READS through and abort every Linear write hook. The
-//     rename uses a card whose sub-issue has NO Linear mirror.
+//   - Linear is mocked by the courier context in every flow. The rename uses a
+//     card whose sub-issue has NO Linear mirror.
 //   - Client flows act on the CAPTION: it has no native work item, so a seeded
 //     card can take the write (a video approval needs a native deliverable,
 //     which a disposable seed cannot have: native_link_required).
@@ -34,7 +33,6 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const H = require('../probes/ot4_lib.js');
-const { seedStaffGate } = require('../staff-gate-seed.js');
 const { launch, open, smmCal, clientCal, upCal, archiveCalSafe, appErrs, SUPA, KEY, ORIGIN } = H;
 
 const TEST_SLUG = 'sidneylaruel';
@@ -226,20 +224,17 @@ async function restoreRename(browser, t) {
 }
 
 // ---- flows 5-7: tab timings ------------------------------------------------
-// READ-ONLY tabs use the courier staff context (staff key, Linear writes
-// mocked), plus one page-level rule: Linear READ hooks go to the network, since
-// the courier stubs reads too and that leaves Workload empty. Everything else,
-// every Linear write included, still falls through to the courier mock.
-const LINEAR_READS = /\/webhook\/linear-(issues|read|search|browser|data-model|plan-skeleton|tweak-comments)[a-z-]*(?:[/?]|$)/;
+// READ-ONLY tabs open straight into the courier staff context: the staff key
+// rides on its route, key-verify is stubbed, and every Linear hook is mocked.
+// Failed requests are kept so a tab that never shows says why.
 async function readOnlyPage(browser, route) {
-  const page = await open(browser, '/qa/dawn/blank.html')   // an empty page: the context is set up before the timed navigation;
-  await page.route(u => LINEAR_READS.test(u.toString()), r => r.continue());
+  const t0 = Date.now();
+  const page = await open(browser, route);
+  page._t0 = t0;
+  page._failed = [];
+  page.on('requestfailed', r => page._failed.push(r.url().replace(/^https?:\/\/[^/]+/, '').split('?')[0]));
+  page.on('response', r => { if (r.status() >= 400) page._failed.push(r.status() + ' ' + r.url().replace(/^https?:\/\/[^/]+/, '').split('?')[0]); });
   await guard(page);
-  // Workload is role-gated: seed the harness staff identity (key-verify answered
-  // locally, the same stub every staff suite uses).
-  await seedStaffGate(page);
-  page._t0 = Date.now();   // the clock starts at navigation, not at context setup
-  await page.goto(ORIGIN + route, { waitUntil: 'domcontentloaded', timeout: 45000 });
   return page;
 }
 async function timeTab(browser, key, title, route, readyFn) {
@@ -249,7 +244,7 @@ async function timeTab(browser, key, title, route, readyFn) {
   const ok = ms !== null;
   const slow = ok && ms > b.cold * SLOW_FACTOR;
   record(key, title, { ok, slow, ms, baseline: b,
-    detail: !ok ? `nothing showed within ${TAB_CAP / 1000} s` : slow ? `slow: ${ms} ms vs ${b.cold} ms map` : `${ms} ms vs ${b.cold} ms map`,
+    detail: !ok ? `nothing showed within ${TAB_CAP / 1000} s` + (p._failed.length ? `; failed requests: ${[...new Set(p._failed)].slice(0, 4).join(', ')}` : '') : slow ? `slow: ${ms} ms vs ${b.cold} ms map` : `${ms} ms vs ${b.cold} ms map`,
     shot: (!ok || slow) ? await shot(p, key) : null });
   await p.context().close();
 }

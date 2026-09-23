@@ -246,7 +246,7 @@ for (const token of [
   assert(clientExtrasGateSource.includes(token), 'client extras visible gate is missing: ' + token);
 }
 assert(
-  clientExtrasRetrySource.includes('const request=fetchExtras(run);')
+  clientExtrasRetrySource.includes('const request=_syncviewClientAnalyticsData(run);')
     && clientExtrasRetrySource.includes('_syncviewRenderClientExtrasGate(cap.client,tab);')
     && clientExtrasRetrySource.includes('_syncviewWatchClientExtras(request,run);')
     && !clientExtrasRetrySource.includes('_syncviewStartClientEntry'),

@@ -9573,6 +9573,10 @@
     let _fetchExtrasPromise = null;
     let _fetchExtrasAttempt = 0;
     let _fetchExtrasState = { status: 'idle', run: null };
+    /* Client links track the essentials read per entry run too: the Calendar
+       tab no longer waits on it (the verified client comes from the server,
+       not the sheet), so Analytics/Brief must know whether it has landed. */
+    let _clientEssentialsLoad = { promise: null, status: 'idle', run: null };
 
     /* ── Analytics snapshot cache (stale-while-revalidate) ────────────────
        The six analytics CSVs change once a day (the morning scrape), yet
@@ -9796,6 +9800,23 @@
         const publicClientRows = _applyEssentialTexts(metricsText, clientsText);
         _analyticsCacheWrite({ metrics: metricsText, clients: publicClientRows });
     }
+    function _syncviewClientEssentials(clientEntryRun){
+        const cur=_clientEssentialsLoad;
+        if(cur.run===clientEntryRun&&cur.promise&&cur.status!=='error')return cur.promise;
+        const load={promise:null,status:'loading',run:clientEntryRun};
+        load.promise=fetchEssentials(clientEntryRun).then(() => {
+            load.status='ready';
+        }, err => {
+            load.status=_syncviewClientEntryRunCurrent(clientEntryRun)?'error':'idle';
+            throw err;
+        });
+        _clientEssentialsLoad=load;
+        return load.promise;
+    }
+    // Everything the client Analytics/Brief tabs need: both Sheets stages.
+    function _syncviewClientAnalyticsData(clientEntryRun){
+        return Promise.all([_syncviewClientEssentials(clientEntryRun),fetchExtras(clientEntryRun)]).then(() => undefined);
+    }
     async function fetchExtras(clientEntryRun){
         if (_fetchExtrasPromise) return _fetchExtrasPromise;
         const attempt=++_fetchExtrasAttempt;
@@ -9841,7 +9862,7 @@
         // fast boot only needs that client roster to restore its active client,
         // staff toolbar, and deferred deep links. Unrelated analytics extras may
         // be slow or fail independently.
-        const essentials = fetchEssentials(clientEntryRun);
+        const essentials = clientEntryRun ? _syncviewClientEssentials(clientEntryRun) : fetchEssentials();
         const extras = fetchExtras(clientEntryRun);
         const complete = Promise.all([essentials, extras]).then(() => undefined);
         return { essentials, complete };
@@ -10373,7 +10394,10 @@
             _syncviewInvalidClientLinkScreen();
             return true;
         }
-        const state=_fetchExtrasState.run===run?_fetchExtrasState.status:'idle';
+        const extrasState=_fetchExtrasState.run===run?_fetchExtrasState.status:'idle';
+        const essState=_clientEssentialsLoad.run===run?_clientEssentialsLoad.status:'idle';
+        const state=(extrasState==='error'||essState==='error')?'error'
+            :(extrasState==='ready'&&essState==='ready')?'ready':'loading';
         if(state==='ready')return false;
         if(state==='error')_syncviewClientExtrasErrorScreen({client:cap.client,view:tab});
         else _syncviewClientEntryLoader({client:cap.client,view:tab},{extras:true});
@@ -10389,7 +10413,7 @@
         }
         const tab=clientViewTab[cap.client]||cap.view;
         if(!['analytics','brief'].includes(tab))return;
-        const request=fetchExtras(run);
+        const request=_syncviewClientAnalyticsData(run);
         _syncviewRenderClientExtrasGate(cap.client,tab);
         _syncviewWatchClientExtras(request,run);
     }
@@ -67025,12 +67049,14 @@
             }
 
             if (isClientCalendarLink) {
-                _syncviewWatchClientExtras(fetchExtras(clientEntryRun),clientEntryRun);
-                await fetchEssentials(clientEntryRun);
-                if(!_clientEntryStillCurrent())return;
+                // The verified client comes from the server capability, and
+                // the calendar reads Supabase, so no Sheets read gates this
+                // paint. Both Sheets stages load in the background; the
+                // Analytics/Brief gate waits for them, and the watcher applies
+                // the roster-dependent chrome once they land.
+                _syncviewWatchClientExtras(_syncviewClientAnalyticsData(clientEntryRun),clientEntryRun);
                 await Promise.resolve();
                 if(!_clientEntryStillCurrent())return;
-                _applyAllDataDependentChrome();
                 const _calLinkClient = _syncviewClientEntryCapability && _syncviewClientEntryCapability.client;
                 if (!(await _syncviewVerifyClientLinkAccess(_calLinkClient))) return;
                 if(!_clientEntryStillCurrent())return;
@@ -67462,6 +67488,7 @@
             _fetchExtrasPromise = null;
             ++_fetchExtrasAttempt;
             _fetchExtrasState = { status: 'idle', run: null };
+            _clientEssentialsLoad = { promise: null, status: 'idle', run: null };
             _autoSummaryAttempted.clear();
         } catch (e) {}
         try {

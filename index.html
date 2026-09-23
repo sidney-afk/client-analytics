@@ -43180,7 +43180,13 @@
             try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
             return;
         }
-        if (retryPost && retryPost._writeUiRetrySourceAt
+        /* The receipt guard exists for repairs restored from a cached copy of
+           the card (a reload, another tab), where nothing proves the edits are
+           current. A repair THIS page opened a moment ago -- still on its
+           sync-retry ladder -- is live state, not cache, so it must not be
+           parked as held just because the journal lane consumed its receipt
+           first (live 2026-09-23: the card stuck on "Saved, syncing"). */
+        if (retryPost && retryPost._writeUiRetrySourceAt && !_calSyncRetryState.has(pid)
             && !_writeUiJournalCoversRepairRefs(retryPost, 'calendar', 'card', _saveSlug, retryPrincipal)) {
             retryPost._writeUiHeldSourceEdits = Object.assign({}, retryPost._writeUiHeldSourceEdits || {},
                 _writeUiSourceEditsOnly(retryPost._writeUiRetryEdits), _writeUiSourceEditsOnly(edits));
@@ -43733,16 +43739,6 @@
             const post = calState.posts.find(p => p.id === pid);
             if (!post || !post._writeUiRetrySourceAt) { _calSyncRetryState.delete(pid); return; }
             if (_calHealLandedRepair(post)) return;
-            /* The journal lane (_writeUiResumeSourceRepairs) owns a repair whose
-               receipt has left this card's journal row. Flushing now would hit
-               the receipt guard, which parks the edits as held and needs manual
-               review -- the opposite of syncing. Wait for the next step; by then
-               the lane has either finished (the heal above) or not. */
-            const slug = calClientSlug(calState.client);
-            if (!_writeUiJournalCoversRepairRefs(post, 'calendar', 'card', slug, _writeUiPrincipalKey())) {
-                _calScheduleSyncRetry(pid);
-                return;
-            }
             _calRetrySave(pid);
         }, CAL_SYNC_RETRY_DELAYS_MS[state.attempt++]);
         _calSyncRetryState.set(pid, state);

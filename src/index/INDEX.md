@@ -24,7 +24,7 @@
 | 16 | `140-calendar-legacy-outbox.js.part` | 3055 | Shed the retired legacy rows from storage, under the surface mutation |
 | 17 | `150-calendar-hydration-import.js.part` | 2709 | For a card linked to a real sub-issue (not a parent), return which of |
 | 18 | `160-calendar-organize-ui.js.part` | 2715 | Lighter path for the Order switch: update the chrome in place so the |
-| 19 | `170-calendar-links-status.js.part` | 2752 | Move a Linear sub-issue link from the old card onto the new one. The |
+| 19 | `170-calendar-links-status.js.part` | 2748 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 20 | `180-calendar-native-post-media.js.part` | 2680 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 21 | `190-calendar-approval-comments.js.part` | 2969 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 22 | `200-intake-data-startup.js.part` | 1473 | Video-only and Thumbnail-only were already built, but sat |

@@ -40,6 +40,16 @@
  * of band, because `native_brief_media_occurrences` is service-only and the
  * gateway does not expose occurrence ids. Deliverables processed = distinct
  * (deliverable_id, client_slug) in that file, filtered by --client.
+ * --apply also REQUIRES --expect-deliverables=<n> --expect-links=<n>: counts
+ * from an INDEPENDENT read-only query, per --client, of in-progress
+ * deliverables whose brief contains uploads.linear.app, e.g.
+ *   select count(*) as deliverables, sum(<Linear links in brief>) as links
+ *   from deliverables where client_slug in (<allowlist>)
+ *     and status in (<in-progress statuses>) and brief like '%uploads.linear.app%'
+ * Before the probe, snapshot or any write, these must equal the deliverables
+ * and Linear links counted in the gateway-read briefs of the file's targets;
+ * any mismatch aborts (counts only). Dry-run prints both side by side.
+ * The CLI exits 1 when a run stopped early or counted any failure.
  * --stop-on-first-failure is ON by default (--no-stop-on-first-failure to
  * disable): the first write/readback failure stops the run and prints counts.
  * Readback passes only if the brief equals the planned text, holds 0 Linear
@@ -119,9 +129,10 @@ export function summarize(deliverables, occurrences) {
   return c;
 }
 
+function count(v, name) { if (!/^\d+$/.test(v)) throw Error(name + ' must be a non-negative integer'); return Number(v); }
 export function parseArgs(argv) {
   const a = { apply: false, clients: [], statuses: IN_PROGRESS, input: '', snapshot: '', rollback: '', occurrences: '',
-    stopOnFirstFailure: true };
+    stopOnFirstFailure: true, expectDeliverables: null, expectLinks: null };
   for (const arg of argv) {
     if (arg === '--apply') a.apply = true;
     else if (arg.startsWith('--client=')) a.clients = arg.slice(9).split(',').map(s => s.trim()).filter(Boolean);
@@ -130,6 +141,8 @@ export function parseArgs(argv) {
     else if (arg.startsWith('--snapshot=')) a.snapshot = arg.slice(11);
     else if (arg.startsWith('--rollback=')) a.rollback = arg.slice(11);
     else if (arg.startsWith('--occurrences=')) a.occurrences = arg.slice(14);
+    else if (arg.startsWith('--expect-deliverables=')) a.expectDeliverables = count(arg.slice(22), '--expect-deliverables');
+    else if (arg.startsWith('--expect-links=')) a.expectLinks = count(arg.slice(15), '--expect-links');
     else if (arg === '--stop-on-first-failure') a.stopOnFirstFailure = true;
     else if (arg === '--no-stop-on-first-failure') a.stopOnFirstFailure = false;
     else throw Error('unknown argument ' + arg.split('=')[0]);
@@ -137,6 +150,8 @@ export function parseArgs(argv) {
   if (a.apply && !a.clients.length) throw Error('--apply requires an explicit --client=<slug> allowlist');
   if (a.apply && !a.snapshot) throw Error('--apply requires --snapshot=<file> (rollback source)');
   if (a.apply && !a.occurrences) throw Error('--apply requires --occurrences=<file.json>');
+  if (a.apply && (a.expectDeliverables === null || a.expectLinks === null))
+    throw Error('--apply requires --expect-deliverables=<n> and --expect-links=<n> from an independent read-only count');
   if (a.apply && a.rollback) throw Error('--apply and --rollback are exclusive');
   return a;
 }
@@ -268,9 +283,15 @@ export async function run(argv, { fetchImpl = fetch, log = s => console.log(s) }
   let rows = data.deliverables.filter(d => statusOk.has(String(d.status || '').toLowerCase()));
   if (a.clients.length) rows = rows.filter(d => a.clients.includes(d.client_slug));
   const counts = summarize(rows, data.occurrences);
-  if (!a.apply) { log(JSON.stringify({ mode: 'dry-run', ...counts })); return counts; }
+  const expect = { expected_deliverables: a.expectDeliverables, expected_links: a.expectLinks,
+    file_deliverables: counts.deliverables, file_links: counts.links };
+  if (!a.apply) { log(JSON.stringify({ mode: 'dry-run', ...counts, ...expect })); return { ...counts, ...expect }; }
   if (a.input) throw Error('--apply reads live rows; --input is dry-run only');
   if (process.env.B2_BRIEF_REWRITE_CONFIRM !== CONFIRM) throw Error('set B2_BRIEF_REWRITE_CONFIRM to apply');
+  // Independent reconciliation: an incomplete or stale occurrences export must not silently drop deliverables.
+  if (counts.deliverables !== a.expectDeliverables || counts.links !== a.expectLinks)
+    throw Error('ABORTED before any write: expected ' + a.expectDeliverables + ' deliverables / ' + a.expectLinks
+      + ' links, occurrences file yields ' + counts.deliverables + ' / ' + counts.links);
   const plans = rows.map(row => ({ row, plan: planRewrite(row, data.occurrences) })).filter(x => x.plan.status === 'rewrite');
   if (plans.length) {
     const probe = await probeCapability(plans[0].row, fetchImpl);
@@ -296,6 +317,14 @@ export async function run(argv, { fetchImpl = fetch, log = s => console.log(s) }
   return out;
 }
 
+/* CLI wrapper: nonzero exit when a run stopped early or counted any failure. */
+export async function cli(argv, opts) {
+  try {
+    const out = await run(argv, opts);
+    if (out && (out.stopped || out.failed > 0)) process.exitCode = 1;
+    return out;
+  } catch (e) { console.error(String(e && e.message || e)); process.exitCode = 1; return null; }
+}
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
-  run(process.argv.slice(2)).catch(e => { console.error(String(e && e.message || e)); process.exitCode = 1; });
+  cli(process.argv.slice(2));
 }

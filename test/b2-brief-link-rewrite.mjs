@@ -191,12 +191,12 @@ console.log('gateway read/write/readback, occurrences file, stop-on-first-failur
       'reads carry the staff headers only');
     realEnv.B2_BRIEF_REWRITE_CONFIRM = 'REWRITE_BRIEF_LINKS';
     const snap = path.join(tmp, 'snap1.json');
-    const out = await R.run(['--apply', '--occurrences=' + occFile, '--client=fixture-client', '--snapshot=' + snap], { fetchImpl: g.fetchImpl, log });
+    const out = await R.run(['--apply', '--occurrences=' + occFile, '--client=fixture-client', '--expect-deliverables=2', '--expect-links=3', '--snapshot=' + snap], { fetchImpl: g.fetchImpl, log });
     ok(out.written === 2 && out.verified === 2 && out.failed === 0 && !out.stopped, 'apply writes and verifies the allowlisted client only');
     ok(g.db.get(f3.row.id).brief === f3.row.brief, 'the other client is untouched');
     ok(!/uploads\.linear/.test(g.db.get(f1.row.id).brief), 'written brief holds no Linear link');
     ok((fs.statSync(snap).mode & 0o777) === 0o600, 'snapshot is 0600');
-    let dup = 0; try { await R.run(['--apply', '--occurrences=' + occFile, '--client=fixture-client', '--snapshot=' + snap], { fetchImpl: g.fetchImpl, log }); } catch { dup++; }
+    let dup = 0; try { await R.run(['--apply', '--occurrences=' + occFile, '--client=fixture-client', '--expect-deliverables=2', '--expect-links=3', '--snapshot=' + snap], { fetchImpl: g.fetchImpl, log }); } catch { dup++; }
     ok(dup === 1, 'an existing snapshot file is never overwritten (wx)');
     const w = g.calls.filter(c => c.body.operation === 'description');
     ok(w.length === 2 && w.every(c => c.body.expected_updated_at && c.headers['x-syncview-key'] === 'sk'), 'writes are guarded by expected_updated_at');
@@ -210,19 +210,56 @@ console.log('gateway read/write/readback, occurrences file, stop-on-first-failur
   // stop-on-first-failure
   {
     const g = gateway(rowsAll, { failWriteFor: new Set([f1.row.id]) });
-    const out = await R.run(['--apply', '--occurrences=' + occFile, '--client=fixture-client,fixture-other', '--snapshot=' + path.join(tmp, 's2.json')], { fetchImpl: g.fetchImpl, log });
+    const out = await R.run(['--apply', '--occurrences=' + occFile, '--client=fixture-client,fixture-other', '--expect-deliverables=3', '--expect-links=4', '--snapshot=' + path.join(tmp, 's2.json')], { fetchImpl: g.fetchImpl, log });
     ok(out.failed === 1 && out.stopped && out.written === 0 && g.calls.filter(c => c.body.operation === 'description').length === 1,
       'the first write failure stops the run');
     const g2 = gateway(rowsAll, { failWriteFor: new Set([f1.row.id]) });
-    const out2 = await R.run(['--apply', '--no-stop-on-first-failure', '--occurrences=' + occFile, '--client=fixture-client,fixture-other', '--snapshot=' + path.join(tmp, 's3.json')], { fetchImpl: g2.fetchImpl, log });
+    const out2 = await R.run(['--apply', '--no-stop-on-first-failure', '--occurrences=' + occFile, '--client=fixture-client,fixture-other', '--expect-deliverables=3', '--expect-links=4', '--snapshot=' + path.join(tmp, 's3.json')], { fetchImpl: g2.fetchImpl, log });
     ok(out2.failed === 1 && !out2.stopped && out2.verified === 2, '--no-stop-on-first-failure continues');
     const g3 = gateway(rowsAll, { unresolved: 1 });
-    const out3 = await R.run(['--apply', '--occurrences=' + occFile, '--client=fixture-client', '--snapshot=' + path.join(tmp, 's4.json')], { fetchImpl: g3.fetchImpl, log });
+    const out3 = await R.run(['--apply', '--occurrences=' + occFile, '--client=fixture-client', '--expect-deliverables=2', '--expect-links=3', '--snapshot=' + path.join(tmp, 's4.json')], { fetchImpl: g3.fetchImpl, log });
     ok(out3.written === 1 && out3.verified === 0 && out3.failed === 1 && out3.stopped, 'readback with unresolved media fails and stops');
     const g4 = gateway(rowsAll, { forms: ['uploads_linear_app'] });
     const s5 = path.join(tmp, 's5.json'); let ab = 0;
-    try { await R.run(['--apply', '--occurrences=' + occFile, '--client=fixture-client', '--snapshot=' + s5], { fetchImpl: g4.fetchImpl, log }); } catch { ab++; }
+    try { await R.run(['--apply', '--occurrences=' + occFile, '--client=fixture-client', '--expect-deliverables=2', '--expect-links=3', '--snapshot=' + s5], { fetchImpl: g4.fetchImpl, log }); } catch { ab++; }
     ok(ab === 1 && !fs.existsSync(s5) && !g4.calls.some(c => c.body.operation), 'probe failure aborts before snapshot or any write');
+  }
+  // P1: independent reconciliation
+  {
+    const g = gateway(rowsAll); const s6 = path.join(tmp, 's6.json'); let msg = '';
+    try { await R.run(['--apply', '--occurrences=' + occFile, '--client=fixture-client', '--expect-deliverables=3', '--expect-links=3', '--snapshot=' + s6], { fetchImpl: g.fetchImpl, log }); }
+    catch (e) { msg = e.message; }
+    ok(/^ABORTED before any write: expected 3 deliverables \/ 3 links, occurrences file yields 2 \/ 3$/.test(msg), 'a deliverable-count mismatch aborts with counts only');
+    ok(!fs.existsSync(s6) && g.calls.every(c => c.body.action === 'description_read') && g.calls.length === 2,
+      'mismatch aborts before the probe, the snapshot and any write');
+    let lm = 0;
+    try { await R.run(['--apply', '--occurrences=' + occFile, '--client=fixture-client', '--expect-deliverables=2', '--expect-links=4', '--snapshot=' + s6], { fetchImpl: g.fetchImpl, log }); } catch { lm++; }
+    ok(lm === 1 && !fs.existsSync(s6), 'a link-count mismatch aborts too');
+    let missing = 0; try { R.parseArgs(['--apply', '--client=x', '--snapshot=s', '--occurrences=o']); } catch { missing++; }
+    ok(missing === 1, '--apply requires --expect-deliverables and --expect-links');
+    const out = await R.run(['--apply', '--occurrences=' + occFile, '--client=fixture-client', '--expect-deliverables=2', '--expect-links=3', '--snapshot=' + s6], { fetchImpl: g.fetchImpl, log });
+    ok(out.verified === 2, 'an exact match proceeds');
+    const dry = await R.run(['--occurrences=' + occFile, '--expect-deliverables=5', '--expect-links=9'], { fetchImpl: gateway(rowsAll).fetchImpl, log });
+    ok(dry.expected_deliverables === 5 && dry.expected_links === 9 && dry.file_deliverables === 3 && dry.file_links === 4
+      && /"expected_deliverables":5.*"file_deliverables":3/.test(logs[logs.length - 1]), 'dry-run prints expected and file counts side by side');
+  }
+  // P2: nonzero exit on failure
+  {
+    const prev = process.exitCode;
+    process.exitCode = 0;
+    await R.cli(['--apply', '--occurrences=' + occFile, '--client=fixture-client', '--expect-deliverables=2', '--expect-links=3', '--snapshot=' + path.join(tmp, 's7.json')],
+      { fetchImpl: gateway(rowsAll, { failWriteFor: new Set([f1.row.id]) }).fetchImpl, log });
+    ok(process.exitCode === 1, 'apply with a failure exits nonzero');
+    process.exitCode = 0;
+    await R.cli(['--apply', '--occurrences=' + occFile, '--client=fixture-client', '--expect-deliverables=2', '--expect-links=3', '--snapshot=' + path.join(tmp, 's8.json')],
+      { fetchImpl: gateway(rowsAll).fetchImpl, log });
+    ok(process.exitCode === 0, 'a clean apply exits zero');
+    const g = gateway(rowsAll, { failWriteFor: new Set([f1.row.id]) });
+    const s9 = path.join(tmp, 's9.json');
+    fs.writeFileSync(s9, JSON.stringify({ entries: [{ id: f1.row.id, client_slug: f1.row.client_slug, old_brief: 'x', old_sha256: sha('x'), new_sha256: sha(f1.row.brief) }] }));
+    await R.cli(['--rollback=' + s9], { fetchImpl: g.fetchImpl, log });
+    ok(process.exitCode === 1, 'rollback with a failure exits nonzero');
+    process.exitCode = prev;
   }
   let noOcc = 0; try { await R.run([], { fetchImpl: async () => { throw Error('no'); }, log }); } catch { noOcc++; }
   ok(noOcc === 1, 'a live dry-run without --occurrences is refused');

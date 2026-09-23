@@ -36,8 +36,12 @@
  *   SYNCVIEW_STAFF_KEY, SYNCVIEW_ACTOR,
  *   SUPABASE_PUBLISHABLE_KEY                  audited staff writes via production-write
  *   B2_BRIEF_REWRITE_CONFIRM=REWRITE_BRIEF_LINKS   required for --apply / --rollback
- * The canonical test client writes through production-write's service
- * test_override path instead (no staff key needed).
+ *   B2_TEST_CLIENT_SLUG (optional, private operator config) — a row whose slug
+ *     equals it is sent through production-write's service test_override path;
+ *     the SERVER still decides whether that slug is the canonical test client.
+ * Before the first write, --apply probes the DEPLOYED production-write
+ * (description_read on one target) and aborts unless its media projection
+ * advertises reference form `syncview_media_v1`.
  */
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -46,7 +50,6 @@ import { briefMediaOccurrences, briefMediaReferences, BRIEF_MEDIA_REF_PREFIX }
   from '../supabase/functions/_shared/native-brief-media.mjs';
 
 export const IN_PROGRESS = ['todo', 'backlog', 'smm_approval', 'kasper_approval', 'client_approval'];
-export const TEST_CLIENT = 'sidneylaruel';
 const CONFIRM = 'REWRITE_BRIEF_LINKS';
 export const sha256 = s => crypto.createHash('sha256').update(String(s), 'utf8').digest('hex');
 
@@ -145,13 +148,41 @@ async function readRow(id, client) {
     + '&client_slug=eq.' + encodeURIComponent(client));
   return rows[0] || null;
 }
+export const REQUIRED_REFERENCE_FORM = 'syncview_media_v1';
+/* Machine-checked capability probe: the deployed gateway must answer a
+   description_read for one target row with a media projection that lists the
+   new reference form. Anything else (older deploy, error, missing field,
+   wrong row) is a refusal: apply aborts before any write. */
+export async function probeCapability(row, fetchImpl = fetch) {
+  let json;
+  try {
+    const r = await fetchImpl(gatewayUrl(), { method: 'POST', headers: { ...authHeaders(row), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'description_read', surface: 'production', id: row.id, client_slug: row.client_slug,
+        ...testOverride(row) }) });
+    json = await r.json().catch(() => null);
+    if (!r.ok) return { ok: false, reason: 'probe_http_' + r.status };
+  } catch { return { ok: false, reason: 'probe_unreachable' }; }
+  if (!json || json.ok !== true || !json.row || json.row.id !== row.id) return { ok: false, reason: 'probe_ambiguous_response' };
+  const forms = json.media && json.media.reference_forms;
+  if (!Array.isArray(forms) || !forms.includes(REQUIRED_REFERENCE_FORM)) return { ok: false, reason: 'gateway_lacks_syncview_media_support' };
+  return { ok: true };
+}
+function gatewayUrl() { return env('SUPABASE_URL').replace(/\/+$/, '') + '/functions/v1/production-write'; }
+function isTestRow(row) { const t = String(process.env.B2_TEST_CLIENT_SLUG || ''); return !!t && row.client_slug === t; }
+function testOverride(row) { return isTestRow(row) ? { test_override: true, confirm: 'B4_TEST_ONLY' } : {}; }
+function authHeaders(row) {
+  if (isTestRow(row)) return { Authorization: 'Bearer ' + env('SUPABASE_SERVICE_ROLE_KEY') };
+  const pk = env('SUPABASE_PUBLISHABLE_KEY');
+  return { apikey: pk, Authorization: 'Bearer ' + pk, 'x-syncview-key': env('SYNCVIEW_STAFF_KEY'),
+    'x-syncview-actor': env('SYNCVIEW_ACTOR') };
+}
 async function gatewayWrite(row, description) {
   const base = env('SUPABASE_URL').replace(/\/+$/, '');
   const body = { operation: 'description', surface: 'production', entity: 'deliverable', id: row.id,
     client_slug: row.client_slug, expected_updated_at: row.updated_at, description,
     request_id: 'b2-brief-link-rewrite:' + row.id + ':' + sha256(description).slice(0, 16) };
   let headers;
-  if (row.client_slug === TEST_CLIENT) {
+  if (isTestRow(row)) {
     Object.assign(body, { test_override: true, confirm: 'B4_TEST_ONLY' });
     headers = { Authorization: 'Bearer ' + env('SUPABASE_SERVICE_ROLE_KEY') };
   } else {
@@ -190,6 +221,11 @@ async function main(argv) {
   if (a.input) throw Error('--apply reads live rows; --input is dry-run only');
   if (process.env.B2_BRIEF_REWRITE_CONFIRM !== CONFIRM) throw Error('set B2_BRIEF_REWRITE_CONFIRM to apply');
   const plans = rows.map(row => ({ row, plan: planRewrite(row, data.occurrences) })).filter(x => x.plan.status === 'rewrite');
+  if (plans.length) {
+    const probe = await probeCapability(plans[0].row);
+    if (!probe.ok) throw Error('ABORTED before any write: deployed production-write does not prove support for '
+      + REQUIRED_REFERENCE_FORM + ' (' + probe.reason + '). Deploy production-write first.');
+  }
   // Snapshot BEFORE any write; written with owner-only permissions. It holds brief text: keep it out of the repo.
   const snapshot = { format: 'b2-brief-link-rewrite-snapshot-v1', taken_at: new Date().toISOString(),
     entries: plans.map(({ row, plan }) => ({ id: row.id, client_slug: row.client_slug, updated_at: row.updated_at,

@@ -29,7 +29,7 @@ function occ(row, link, id, extra = {}) {
     mime_type: 'image/png', byte_length: 10, verified_at: '2026-09-20T00:00:00Z', storage_path: 'c'.repeat(64) + '/' + id, ...extra };
 }
 function fixture(brief, n = 1) {
-  const row = { id: 'D-' + n, client_slug: 'test-client', team: 'video', status: 'todo', brief, updated_at: '2026-09-21T00:00:00Z' };
+  const row = { id: 'D-' + n, client_slug: 'fixture-client', team: 'video', status: 'todo', brief, updated_at: '2026-09-21T00:00:00Z' };
   const links = M.briefMediaOccurrences(brief);
   return { row, links, occs: links.map((l, i) => occ(row, l, uuid(n * 100 + i))) };
 }
@@ -99,6 +99,31 @@ function mockDb(row, occs) {
   const f = await M.projectBriefMedia(mockDb(foreign, occs), foreign, 'https://proj.example', Date.parse('2026-09-23T00:00:00Z'));
   ok(!f.complete && f.render_brief === null, 'an id that is not one of this row\'s verified copies is unresolved, never guessed');
   ok(M.briefMediaReferences('syncview-media:' + uuid(1) + 'x').length === 0, 'a reference glued to more id characters is not matched');
+}
+
+console.log('capability probe (apply aborts unless the deployed gateway proves support)');
+{
+  process.env.SUPABASE_URL = 'https://proj.example'; process.env.SUPABASE_PUBLISHABLE_KEY = 'pk';
+  process.env.SYNCVIEW_STAFF_KEY = 'sk'; process.env.SYNCVIEW_ACTOR = 'actor';
+  const row = { id: 'D-9', client_slug: 'fixture-client' };
+  const reply = (status, body) => async () => ({ ok: status < 300, status, json: async () => body });
+  const good = { ok: true, row: { id: 'D-9' }, media: { reference_forms: ['uploads_linear_app', 'syncview_media_v1'] } };
+  ok((await R.probeCapability(row, reply(200, good))).ok === true, 'a gateway advertising syncview_media_v1 passes');
+  const cases = [
+    [reply(200, { ok: true, row: { id: 'D-9' }, media: { contract: 'native_brief_media_v1' } }), 'gateway_lacks_syncview_media_support', 'older deploy (no marker)'],
+    [reply(200, { ok: true, row: { id: 'D-9' }, media: { reference_forms: ['uploads_linear_app'] } }), 'gateway_lacks_syncview_media_support', 'marker without the new form'],
+    [reply(200, { ok: true, row: { id: 'OTHER' }, media: good.media }), 'probe_ambiguous_response', 'answer for another row'],
+    [reply(401, { error: 'x' }), 'probe_http_401', 'refused request'],
+    [async () => { throw Error('net'); }, 'probe_unreachable', 'network failure'],
+  ];
+  for (const [f, reason, label] of cases) {
+    const r = await R.probeCapability(row, f);
+    ok(r.ok === false && r.reason === reason, 'probe refuses: ' + label);
+  }
+  const { row: prow } = fixture('![a](' + L1 + ')', 3);
+  const p = await M.projectBriefMedia({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }) }, prow, 'https://proj.example');
+  ok(Array.isArray(p.reference_forms) && p.reference_forms.includes(R.REQUIRED_REFERENCE_FORM),
+    'the projection source advertises syncview_media_v1 even on its refusal path');
 }
 
 console.log('browser renderers (shipped index.html)');

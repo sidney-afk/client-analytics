@@ -15,6 +15,7 @@ export function briefMediaOccurrences(brief) {
    surrounding Markdown (`![alt](...)`, `<...>`) is untouched. It is an id, never
    a URL: a signed URL expires in 5 minutes and must never be stored. */
 export const BRIEF_MEDIA_REF_PREFIX = 'syncview-media:';
+export const BRIEF_MEDIA_REFERENCE_FORMS = Object.freeze(['uploads_linear_app', 'syncview_media_v1']);
 export const BRIEF_MEDIA_REF_RE = /syncview-media:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?![0-9a-z-])/g;
 export function briefMediaReferences(brief) {
   return [...String(brief || '').matchAll(BRIEF_MEDIA_REF_RE)]
@@ -41,6 +42,10 @@ export async function projectBriefMedia(db, row, storageOrigin, now = Date.now()
   const digest = await briefMediaHash(brief);
   const result = { contract: BRIEF_MEDIA_CONTRACT, mode: 'required', complete: false,
     coverage_scope: 'current_native_brief_uploads_linear_app',
+    // Capability marker: the reference forms this projection resolves. The
+    // B2 rewrite script refuses to write unless the deployed gateway lists
+    // syncview_media_v1 here.
+    reference_forms: BRIEF_MEDIA_REFERENCE_FORMS,
     id: row.id, client_slug: row.client_slug, team: row.team, source_updated_at: row.updated_at,
     brief_sha256: digest, occurrences: total, unresolved: total,
     render_brief: null, expires_at: null, deferred: 0, reason: 'media_unavailable' };

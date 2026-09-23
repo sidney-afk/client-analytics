@@ -578,7 +578,8 @@
     "write-ui-soak-pager.js",
     "write-ui-writer-durability.js",
     "title-name-rule-drift.js",
-    "subissue-rename-gateway.js"
+    "subissue-rename-gateway.js",
+    "dawn-report-allowlist.js"
   ],
   "profiles": [
     {

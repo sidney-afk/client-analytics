@@ -73,6 +73,12 @@ templates are not executable actions and must not use a `sql` fence.
 | **One-shot check** | `/master-test` — run every lane, then judge screenshots with eyes | `/human-audit` — hand-and-eyes parity loop vs the reference artifact |
 | **Continuous loop** | `/overnight-test` — autonomous probe-writing QA loop, morning report | `/feedback-expansion` — owner observations → rules → sweep → prove |
 
+Daily, fixed: `/dawn-check` — the weekday morning walk of the seven flows that
+matter most (client approve / request changes, staff save, rename with sub-issue,
+Workload / SyncLinear / Analytics timings vs the 2026-09-23 speed map), test client
+only, everything put back. Script `qa/dawn/dawn-check.js`; scheduled by
+`.github/workflows/dawn-check.yml` (Mon–Fri 11:30 UTC).
+
 Outside the 2×2: `/bug-archaeology` — preventive, history-driven. Mines past
 incidents into fracture patterns, sweeps the codebase for latent siblings,
 adversarially verifies every candidate, ships survivors as fixes + regression

@@ -8244,3 +8244,23 @@ origin `gateway`, surface `calendar`, operation `comment`, that code, status 400
 principal `unverified`, identifiers holding only a hashed `id`. That row is the
 probe, not a user refusal. Not yet proven live: a browser-claim receipt from a
 real page, and the runner-key `health` / `lookup` actions.
+
+## 2026-09-23 — Dawn check: a weekday morning walk of the seven flows that matter most
+
+New skill `/dawn-check` + `qa/dawn/dawn-check.js` + `.github/workflows/dawn-check.yml`
+(Mon–Fri 11:30 UTC). Test client only; three disposable seeds archived and verified;
+the rename target (a card whose sub-issue has no Linear mirror) renamed and put back.
+Nine validation runs on the branch; the last one passed every check that could run,
+with everything put back each time (a too-strict restore check in run 1 was corrected;
+the live state was verified clean by hand).
+
+Findings from building it, value-free:
+- A seeded card cannot take a client VIDEO approval: refused `native_link_required`
+  (by design since the video flip), so the client flows act on the caption.
+- The repo's staff key is refused by `workload-plan` (401): Workload cannot be timed
+  in CI without a staff ROLE key. Reported ⚠️ "not measured" until `SYNCVIEW_ROLE_KEY`
+  is set.
+- First measurements, one run each, fresh context: SyncLinear first rows ~1.4 s and
+  Analytics first numbers ~1.2 s, both well under the speed map's cold medians
+  (4.4 s / 5.9 s).
+

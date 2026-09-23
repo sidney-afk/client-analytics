@@ -28772,11 +28772,13 @@ finished until its receipt is in the log and the row is updated, in the same PR.
 - **SyncLinear browser.** The issue page's title edits in place (`_prodDetailTitleHtml`, a one-line hook in `260`). The `Video N —` prefix is shown but fixed. A saved rename nudges the drain.
   - `_prodRoleCanWrite` mirrors the gateway's editor scope.
   - `_prodApplyGatewayRow` now adopts `title`.
-- **Deploy.** Only production-write changes: source `3f6aba70…`, 9 files (the shared rule is new in its bundle), entrypoint unchanged. It was re-pinned with `ef-fingerprint.js` in the workflow and in `test/f27-section4-deploy-lane.js`. linear-outbound, deliverable-write and batch-write are byte-identical to main.
+- **Deploy.** Only production-write changes among the Section 4 four: source `c1b468cc…`, 9 files (the shared rule is new in its bundle), entrypoint unchanged. It was re-pinned with `ef-fingerprint.js` in the workflow and in `test/f27-section4-deploy-lane.js`. linear-outbound, deliverable-write and batch-write are byte-identical to main.
+- **The WR-101 receipt enum learns `title`.** Every gateway operation must be recordable as itself, so `_shared/write-refusal-diagnostics.mjs` gains it, and `migrations/2026-09-23-refusal-receipt-title-operation.sql` widens `receipts_v1_operation_check`. Apply that migration before the deploy.
+- **write-diagnostics** shares that file, so its repo source now differs from live. It needs no redeploy: it only records browser claims, which never carry `title`.
 
 **Proof.**
 
-- Throwaway PG17: 108 checks. They include three race shapes: sub-issue then card, card then sub-issue, and card/sub-issue/card interleaved in one drain batch. All converge on the last rename everywhere, with no loop and nothing left behind. A sub-issue rename leaves the card's approvals, statuses and clock untouched.
+- Throwaway PG17: 110 checks (plus the receipt migration: a `title` receipt is recorded as `title`). They include three race shapes: sub-issue then card, card then sub-issue, and card/sub-issue/card interleaved in one drain batch. All converge on the last rename everywhere, with no loop and nothing left behind. A sub-issue rename leaves the card's approvals, statuses and clock untouched.
 - Browser (mocked, built page): 33 checks, including the SyncLinear role matrix, the fixed prefix, the `{operation:'title', name}` payload with the row clock, the nudge, and refusals that send nothing.
 - `test/subissue-rename-gateway.js`: 20 checks.
 

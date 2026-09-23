@@ -98,6 +98,8 @@ create trigger track_b_deliverable_ledger_guard_after after insert or update on 
     sql(SCAFFOLD);
     psqlFile(path.join(ROOT, 'supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql'));
     psqlFile(path.join(ROOT, 'migrations/2026-09-23-rename-propagation.sql'));
+    psqlFile(path.join(ROOT, 'migrations/2026-09-23-refusal-receipt-title-operation.sql'));
+    psqlFile(path.join(ROOT, 'migrations/2026-09-23-refusal-receipt-title-operation.sql'));
     // Idempotent: a second apply must succeed and change nothing.
     psqlFile(path.join(ROOT, 'migrations/2026-09-23-rename-propagation.sql'));
     ok(true, 'migration applies twice');
@@ -293,6 +295,11 @@ create trigger track_b_deliverable_ledger_guard_after after insert or update on 
     sql(`update public.deliverables set title = 'Sample Thumbnail 1${SEP}Back' where id = 's1-g'`); drain();
     eq(one(`select name from public.sample_reviews where id = 's1'`), 'Back', 'sample sub-issue -> card');
     eq(title('s1-v'), 'Sample Video 1' + SEP + 'Back', 'sample sibling');
+
+    // ── Release 2: a refused rename's receipt is recorded as operation 'title' ──
+    const hash = 'a'.repeat(64);
+    eq(json(`select public.production_write_refusal_record_v1(jsonb_build_object('attempt_id', gen_random_uuid(), 'origin', 'gateway', 'surface', 'production', 'operation', 'title', 'code', 'invalid_intake_item_name', 'status', 400, 'principal_kind', 'staff', 'member_id', null, 'identifiers', jsonb_build_object('id', '${hash}')))`).recorded, true, 'logbook accepts a title receipt');
+    eq(one(`select count(*) from write_refusal_diagnostics.receipts_v1 where operation = 'title'`), '1', 'recorded as title, not other');
 
     // ── Privileges ──
     const priv = json(`select jsonb_build_object(

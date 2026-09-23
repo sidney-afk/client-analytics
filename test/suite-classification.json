@@ -344,6 +344,7 @@
     "native-label-seed-parity-contract.js",
     "native-label-seed-parity-postgres.js",
     "native-label-writes.js",
+    "native-notification-format.js",
     "native-notification-health-handler.js",
     "native-notification-slack-adapter.js",
     "native-notification-urgent-link.js",

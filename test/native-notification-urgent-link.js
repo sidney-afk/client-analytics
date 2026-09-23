@@ -16,6 +16,7 @@ const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir()
  let source=fs.readFileSync(path.join(root,'supabase/functions/notify/index.ts'),'utf8');
  const sdk='import { createClient } from "npm:@supabase/supabase-js@2.49.8";';assert.equal(source.split(sdk).length,2);source=source.replace(sdk,'const createClient = () => globalThis.__notifyUrgentDb;');
  source=source.replace('"../_shared/staff-role-auth.ts"',JSON.stringify(pathToFileURL(path.join(root,'supabase/functions/_shared/staff-role-auth.ts')).href)).replace('"./slack-api.ts"',JSON.stringify(pathToFileURL(path.join(root,'supabase/functions/notify/slack-api.ts')).href));
+ source=source.replace('import { postSlackDirectPreview } from "./slack-api.ts";','const postSlackDirectPreview = () => { throw Error("preview not under test"); };').replace('"./format.ts"',JSON.stringify(pathToFileURL(path.join(root,'supabase/functions/notify/format.ts')).href));
  source=source.replace('"./urgent-link.ts"',JSON.stringify(pathToFileURL(path.join(root,'supabase/functions/notify/urgent-link.ts')).href));
  source=source.replace(/import \{ postSlackChannelMessage \} from [^;]+;/,'const postSlackChannelMessage = (...args) => globalThis.__urgentPost(...args);');
  const file=path.join(tmp,'notify.ts');fs.writeFileSync(file,source,{flag:'wx'});await import(pathToFileURL(file));assert.equal(typeof handler,'function');

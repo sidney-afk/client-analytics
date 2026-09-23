@@ -9,7 +9,7 @@
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `005-head-boot.html.part` | 206 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 3 | `010-styles-foundation.css.part` | 3901 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 4 | `020-styles-surfaces.css.part` | 3986 | Templates view |
+| 4 | `020-styles-surfaces.css.part` | 3987 | Templates view |
 | 5 | `030-body-shell.html.part` | 449 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 2595 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1596 | Market Research Brief Tab Renderers |
@@ -20,7 +20,7 @@
 | 12 | `100-onboarding-staff-controls.js.part` | 2258 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2024 | Kasper Time Off calendar |
 | 14 | `120-calendar-flags-write-repair.js.part` | 3013 | The members a flag value offers, or null when it offers no member list at |
-| 15 | `125-title-name-rule.js.part` | 288 | Title name rule (browser copy) |
+| 15 | `125-title-name-rule.js.part` | 334 | Title name rule (browser copy) |
 | 16 | `130-calendar-model-cache.js.part` | 2734 | Returns the comments array for a given component. Falls back to the |
 | 17 | `140-calendar-legacy-outbox.js.part` | 3059 | Shed the retired legacy rows from storage, under the surface mutation |
 | 18 | `150-calendar-hydration-import.js.part` | 2084 | For a card linked to a real sub-issue (not a parent), return which of |

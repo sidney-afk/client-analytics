@@ -28746,7 +28746,7 @@ finished until its receipt is in the log and the row is updated, in the same PR.
 
 **Still to do.**
 
-1. Browser wiring in `160`/`170`/`190` waits for Mend's #1510: remove the client name field, poke after a rename, and show the syncing marker.
+1. ~~Browser wiring~~ **Done after #1510 merged (2026-09-23):** the client view's card name is read-only (and `_calOnFieldInput`/`_calOnFieldBlur` refuse a client rename even when called directly; a blank card a client is creating can still be named); a staff save that changed the name nudges the drain; the card shows "Name syncing…" while pending and "Name didn't sync · Retry" after a give-up (local WR-101 ring entry once per attempt). `docs/syncview-design/tests/rename-sync-browser.js` proves it on the built page, fully mocked (21 checks, and it fails when the client lock is removed). `190` needed no change.
 2. Release 2's `production-write` `title` op is not in this PR.
 3. The live proof on the test client can only run after Lighthouse applies the migration and turns on `card_to_subissue`.
 4. No `monitoring-watchdog` heartbeat lane is registered for the drain yet.

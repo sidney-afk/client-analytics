@@ -247,6 +247,13 @@ const LINEAR_SECRET = /\bLINEAR_[A-Z0-9_]+\b/;
     const beaten = present.filter(host => readWorkflow(host).includes(`monitoring-watchdog.js ${heartbeatFlagFor(lane)}`));
     const scheduled = (lane.hosts || []).filter(isActivelyScheduled);
 
+    // A host file may be DELETED only once its lane is retired (B2 slice 6
+    // removed the unscheduled Linear-only workflows). A watched lane naming a
+    // missing file would be pointing the switch at nothing.
+    const missing = (lane.hosts || []).filter(host => !workflowExists(host));
+    ok(lane.retired || missing.length === 0,
+      `${lane.key} is watched but its host(s) ${missing.join(', ')} do not exist — only a retired lane may name a deleted host`);
+
     if (lane.retired) {
       // THE HALF THAT KEEPS RETIREMENT HONEST IN ONE DIRECTION.
       ok(scheduled.length === 0,
@@ -327,7 +334,11 @@ const LINEAR_SECRET = /\bLINEAR_[A-Z0-9_]+\b/;
     if (lane.retires_with !== 'linear') continue;
     for (const host of lane.hosts || []) linearHosts.add(host);
     const credentialed = (lane.hosts || []).filter(host => workflowExists(host) && LINEAR_SECRET.test(readWorkflow(host)));
-    ok(credentialed.length > 0,
+    // A retired lane whose every host file has been deleted has nothing left
+    // to carry a credential; the marker is then a historical record, and the
+    // retirement check above already requires its date and reason.
+    const allHostsDeleted = Boolean(lane.retired) && (lane.hosts || []).every(host => !workflowExists(host));
+    ok(credentialed.length > 0 || allHostsDeleted,
       `${lane.key} claims retires_with:'linear' but none of its hosts references a LINEAR_* secret — the marker is wrong`);
   }
 

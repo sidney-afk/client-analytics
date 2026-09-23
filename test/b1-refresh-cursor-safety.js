@@ -80,17 +80,8 @@ ok(/clean\(last\.payload\.finished_at\)/.test(resolverBody),
     'the window after a failure must still include everything the failed run was supposed to read');
 }
 
-// --- the operator escape hatch must exist ---------------------------------
-{
-  const workflow = fs.readFileSync(
-    path.join(__dirname, '..', '.github', 'workflows', 'b1-linear-incremental-refresh.yml'), 'utf8');
-  ok(/changed_since:/.test(workflow),
-    'the workflow must accept a changed_since override so a skipped window can be re-read deliberately');
-  ok(/inputs\.apply/.test(workflow),
-    'the workflow must be able to measure a window read-only before anyone decides to re-read it');
-  ok(/B1_APPLY.*!=.*false|if \[ "\$B1_APPLY" != "false" \]/.test(workflow),
-    'scheduled runs must keep applying by default');
-}
+// The operator escape hatch (changed_since / apply inputs) lived in
+// b1-linear-incremental-refresh.yml, retired with B2 slice 6 (2026-09-23).
 
 console.log(failures ? `b1-refresh-cursor-safety: ${failures} check(s) failed` : 'b1-refresh-cursor-safety checks passed');
 process.exit(failures ? 1 : 0);

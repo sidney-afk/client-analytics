@@ -32,49 +32,12 @@ function ok(condition, message) {
 }
 
 const ROOT = path.join(__dirname, '..');
-const workflow = fs.readFileSync(
-  path.join(ROOT, '.github', 'workflows', 'b1-linear-incremental-refresh.yml'), 'utf8');
 const script = fs.readFileSync(path.join(ROOT, 'scripts', 'b1-linear-backfill.js'), 'utf8');
 
-// --- 1. The lane exists and is a named choice ------------------------------
-ok(/mode:\s*\n\s*description:/.test(workflow), 'the workflow exposes a mode input');
-ok(/options:\s*\n\s*- incremental\s*\n\s*- full/.test(workflow),
-  'mode offers exactly incremental and full, in that order (incremental first = default)');
-ok(/default:\s*incremental/.test(workflow), 'the default is incremental, never full');
-
-// --- 2. Cron can never reach the full path ---------------------------------
-/* The guard is an expression, not a convention: on any non-dispatch event the
- * mode collapses to the literal 'incremental' before the shell sees it. */
-ok(/B1_MODE:\s*\$\{\{\s*github\.event_name == 'workflow_dispatch' && inputs\.mode \|\| 'incremental'\s*\}\}/.test(workflow),
-  'a non-dispatch event resolves mode to the literal incremental — cron cannot take the full path');
-/* THE CRON IS RETIRED (2026-09-20, Linear cutoff STEP 6 — see the workflow's own
- * header), but the schedule block is kept in COMMENTED form rather than deleted,
- * so this check still does its job: it proves the guard asserted just above is
- * not being read against a workflow that never had a schedule at all. Matching
- * the commented form as well as the live one is what keeps that true across the
- * retirement, and the guard itself is unchanged and still separately asserted.
- * Un-commenting the cron matches the live form again with no edit here. */
-ok(/^[ \t]*#?[ \t]*schedule:[ \t]*\n[ \t]*#?[ \t]*- cron:/m.test(workflow),
-  'the schedule still exists, live or as the retired commented block (this test would be vacuous without it)');
-
-// --- 3. --incremental is now conditional, not unconditional ----------------
-/* The defect was that ARGS always contained --incremental. If it returns to the
- * base ARGS line, the full mode silently becomes a no-op that reports success —
- * the worst possible failure for a repair lane. */
-const argsLine = (workflow.match(/^\s*ARGS=\(.*$/m) || [''])[0];
-ok(Boolean(argsLine), 'the base ARGS line is extractable');
-ok(!/--incremental/.test(argsLine),
-  'the base ARGS line no longer hard-codes --incremental (that is what made the full lane unreachable)');
-ok(/ARGS\+=\(--incremental\)/.test(workflow),
-  '--incremental is appended only on the incremental branch');
-
-// --- 4. changed_since + full is refused, not ignored ------------------------
-/* Silently ignoring it would misreport coverage: the operator would believe a
- * window was targeted when the run actually swept everything. */
-ok(/changed_since is incompatible with mode=full/.test(workflow),
-  'combining changed_since with full is an explicit error');
-ok(/if \[ -n "\$B1_CHANGED_SINCE" \]; then\s*\n\s*echo "::error::/.test(workflow),
-  'the refusal happens before the run, not after');
+/* Sections 1-4 asserted the dispatch lane in b1-linear-incremental-refresh.yml
+ * (mode input, cron-cannot-take-full guard, conditional --incremental, and the
+ * changed_since+full refusal). That workflow was retired with B2 slice 6
+ * (2026-09-23), so only the script-side freeze below remains to pin. */
 
 // --- 5. The script-side freeze this lane depends on ------------------------
 /* The workflow does not enforce the pre-F1 constraint itself, and must not

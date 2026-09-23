@@ -1039,13 +1039,17 @@
        rebuilds paid by whoever opened Workload next (3.9-6.1 s vs 0.7-1.6 s),
        because the source tables change all day. So the rebuild is asked for
        here instead, off every save's path:
-       - after a staff save to an endpoint that writes a snapshot source, one
+       - after a staff SAVE (a successful POST whose action writes; reads that
+         travel as POSTs, e.g. production-write labels_read, never count), one
          warm-up ~1.5 s later (a burst of saves costs one);
-       - every 2 minutes from one visible staff tab per browser, which covers
-         the writes no staff browser makes (system bridges, client links).
-       The observer hands every request and response through untouched and only
-       looks at the URL and status after the response has already resolved, so
-       it cannot delay or alter a save. The warm-up returns no data. */
+       - every 2 minutes from one visible tab per browser that has Workload
+         loaded, which covers writes no staff browser makes (system bridges,
+         client links).
+       The observer is installed only once the page is confirmed staff, hands
+       every request and response through untouched (the caller gets the
+       network's own promise), and looks at the status only after the response
+       has already resolved, so it cannot delay or alter a save. The warm-up
+       returns no data. */
     const WL_WARM_DEBOUNCE_MS = 1500;
     const WL_WARM_INTERVAL_MS = 120000;
     const WL_WARM_SHARED_KEY = 'syncview_wlSnapshotWarmAt_v1';
@@ -1054,11 +1058,14 @@
     function wlIsSnapshotSourceWrite(url, init) {
         const method = String((init && init.method) || 'GET').toUpperCase();
         if (method !== 'POST') return false;
-        const match = /\/functions\/v1\/([a-z0-9-]+)/.exec(String(url || ''));
+        const match = /\/functions\/v1\/([a-z0-9-]+)(?:[/?#]|$)/.exec(String(url || ''));
         if (!match) return false;
-        if (WL_WARM_WRITE_FUNCTIONS.includes(match[1])) return true;
-        return match[1] === 'workload-plan' && typeof (init && init.body) === 'string'
-            && /"action"\s*:\s*"set"/.test(init.body);
+        const body = init && typeof init.body === 'string' ? init.body : '';
+        const action = (/"action"\s*:\s*"([a-z0-9_]+)"/.exec(body) || [])[1] || '';
+        if (match[1] === 'workload-plan') return action === 'set';
+        if (!WL_WARM_WRITE_FUNCTIONS.includes(match[1])) return false;
+        // Reads that travel as POSTs (labels_read, batch_files_read, ...).
+        return !/_(read|list|get)$/.test(action);
     }
     function wlScheduleSnapshotWarm(delay) {
         if (_wlWarm.off) return;
@@ -1091,22 +1098,31 @@
             if (_wlWarm.again) { _wlWarm.again = false; wlScheduleSnapshotWarm(4000); }
         }
     }
-    function wlInstallSnapshotWarmer() {
-        if (typeof window === 'undefined' || typeof window.fetch !== 'function' || _wlWarm.fetch) return;
+    function wlWrapFetchForSnapshotWarm() {
+        if (_wlWarm.fetch || typeof window.fetch !== 'function') return;
         const original = window.fetch;
         _wlWarm.fetch = original;
         window.fetch = function (input, init) {
             const pending = original.apply(this, arguments);
             try {
                 const url = typeof input === 'string' ? input : (input && input.url) || '';
-                if (wlIsSnapshotSourceWrite(url, init || (input && typeof input === 'object' ? input : null))) {
+                if (wlIsSnapshotSourceWrite(url, init)) {
                     pending.then(response => { if (response && response.ok) wlScheduleSnapshotWarm(); }, () => {});
                 }
             } catch {}
             return pending;
         };
+    }
+    function wlInstallSnapshotWarmer() {
+        if (typeof window === 'undefined' || typeof window.fetch !== 'function') return;
+        // Wrap only once this page is confirmed staff; client links never are.
+        const waitForStaff = setInterval(() => {
+            if (typeof _syncviewStaffIdentityForHeaders !== 'function' || !_syncviewStaffIdentityForHeaders()) return;
+            clearInterval(waitForStaff);
+            wlWrapFetchForSnapshotWarm();
+        }, 5000);
         setInterval(() => {
-            if (document.visibilityState !== 'visible') return;
+            if (!_wlWarm.fetch || document.visibilityState !== 'visible' || wlState.fetchedAt == null) return;
             let last = 0;
             try { last = Number(localStorage.getItem(WL_WARM_SHARED_KEY)) || 0; } catch {}
             if (Date.now() - last < WL_WARM_INTERVAL_MS - 5000) return;

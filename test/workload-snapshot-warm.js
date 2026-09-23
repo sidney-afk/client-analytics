@@ -12,9 +12,9 @@ function constSrc(name){const at=html.indexOf('const '+name+' ');if(at<0)throw E
  let depth=0;for(let i=at;i<html.length;i++){const c=html[i];if('([{'.includes(c))depth++;else if(')]}'.includes(c))depth--;else if(c===';'&&depth===0)return html.slice(at,i+1);}
  throw Error('unterminated const: '+name);}
 let checks=0;const ok=(v,m)=>{assert.ok(v,m);checks++;console.log('  ok  '+m);};
-ok(/\n\s*wlInstallSnapshotWarmer\(\);\n/.test(html),'the warmer is installed at boot, on every page');
+ok(/\n\s*wlInstallSnapshotWarmer\(\);\n/.test(html),'the warmer is set up at boot (it wraps fetch only once the page is confirmed staff)');
 
-function realm({staff=true,warmStatus=200,warmBody={ok:true,rebuilt:true,reason:''}}={}){
+function realm({staff=true,workloadLoaded=true,warmStatus=200,warmBody={ok:true,rebuilt:true,reason:''}}={}){
  let now=1e6;const timers=[];const store=new Map();const calls=[];const warms=[];
  const setTimeout=(fn,ms)=>{const t={fn,at:now+(ms||0),live:true};timers.push(t);return t;};
  const clearTimeout=t=>{if(t)t.live=false;};
@@ -25,15 +25,18 @@ function realm({staff=true,warmStatus=200,warmBody={ok:true,rebuilt:true,reason:
   return {ok:!/fail/.test(String(url)),status:/fail/.test(String(url))?500:200,json:async()=>({ok:true})};})();
   calls.push({url,init,p});return p;};
  const window={fetch:saveFetch};
- const context={window,console,JSON,Date:{now:()=>now},Number,String,Promise,setTimeout,clearTimeout,setInterval,
+ const context={window,console,JSON,Date:{now:()=>now},Number,String,Promise,setTimeout,clearTimeout,setInterval,clearInterval:()=>{},
   document:{visibilityState:'visible'},
   localStorage:{getItem:k=>store.has(k)?store.get(k):null,setItem:(k,v)=>store.set(k,String(v))},
   WORKLOAD_PLAN_URL:'https://x.invalid/functions/v1/workload-plan',
+  wlState:{fetchedAt:workloadLoaded?1:null},
   _syncviewStaffIdentityForHeaders:()=>staff?'staff':null,_syncviewEfHeaders:h=>h};
  vm.createContext(context);
  for(const c of ['WL_WARM_DEBOUNCE_MS','WL_WARM_INTERVAL_MS','WL_WARM_SHARED_KEY','WL_WARM_WRITE_FUNCTIONS','_wlWarm'])vm.runInContext(constSrc(c),context);
- for(const f of ['wlIsSnapshotSourceWrite','wlScheduleSnapshotWarm','wlWarmSnapshotNow','wlInstallSnapshotWarmer'])vm.runInContext(extract(f),context);
+ for(const f of ['wlIsSnapshotSourceWrite','wlScheduleSnapshotWarm','wlWarmSnapshotNow','wlWrapFetchForSnapshotWarm','wlInstallSnapshotWarmer'])vm.runInContext(extract(f),context);
  vm.runInContext('wlInstallSnapshotWarmer();',context);
+ // The wrapper waits for a confirmed staff page (first interval).
+ intervals[0].fn();
  const flush=()=>new Promise(r=>setImmediate(r));
  async function advance(ms){const end=now+ms;for(;;){await flush();const due=timers.filter(t=>t.live&&t.at<=end).sort((a,b)=>a.at-b.at)[0];
   if(!due)break;now=due.at;due.live=false;await due.fn();await flush();}now=end;await flush();}
@@ -61,8 +64,15 @@ const W='https://x.invalid/functions/v1/';
   await r.window.fetch(W+'workload-plan',{method:'POST',body:JSON.stringify({action:'set',issue_id:'x'})});
   for(const fn of ['production-archive','calendar-upsert','calendar-reorder'])await r.window.fetch(W+fn,{method:'POST',body:'{}'});
   await r.advance(5000);ok(r.warms.length===1,'a saved work day and every other source-writing endpoint warm (coalesced)');}
- {const r=realm({staff:false});await r.window.fetch(W+'production-write',{method:'POST'});await r.advance(5000);
-  ok(r.warms.length===0,'a page without staff sign-in never calls the staff-only warm-up');}
+ {const r=realm({staff:false});ok(vm.runInContext('_wlWarm.fetch===null',r.context),'a page not confirmed staff never wraps fetch at all');
+  await r.window.fetch(W+'production-write',{method:'POST'});await r.advance(5000);
+  ok(r.warms.length===0,'and never calls the staff-only warm-up');}
+ {const r=realm();
+  for(const action of ['labels_read','batch_files_read','description_read','asset_access_read','production_intake_epoch_read','legacy_intake_triage_list'])
+   await r.window.fetch(W+'production-write',{method:'POST',body:JSON.stringify({action,surface:'production'})});
+  await r.advance(5000);ok(r.warms.length===0,'reads that travel as POSTs to production-write never warm (the prod-polish structure subset failure)');
+  await r.window.fetch(W+'production-write',{method:'POST',body:JSON.stringify({action:'edit'})});await r.advance(5000);
+  ok(r.warms.length===1,'a real production-write edit does');}
  for(const status of [400,401,403,501]){const r=realm({warmStatus:status});
   await r.window.fetch(W+'production-write',{method:'POST'});await r.advance(5000);
   await r.window.fetch(W+'production-write',{method:'POST'});await r.advance(5000);
@@ -71,12 +81,14 @@ const W='https://x.invalid/functions/v1/';
   await r.window.fetch(W+'production-write',{method:'POST'});await r.advance(1500);
   ok(r.warms.length===1,'first warm-up sent');await r.advance(4000);
   ok(r.warms.length>=2,'"busy" (a rebuild already running, possibly older than this save) is retried');}
- {const r=realm();ok(r.intervals.length===1&&r.intervals[0].ms===120000,'one 2-minute timer per page');
-  r.store.set('syncview_wlSnapshotWarmAt_v1',String(r.now-30000));await r.intervals[0].fn();await r.advance(10);
+ {const q=realm({workloadLoaded:false});q.store.set('syncview_wlSnapshotWarmAt_v1','0');await q.intervals[1].fn();await q.advance(10);
+  ok(q.warms.length===0,'the timer only runs in a tab that has Workload loaded');}
+ {const r=realm();ok(r.intervals.length===2&&r.intervals[1].ms===120000,'one 2-minute timer per page');
+  r.store.set('syncview_wlSnapshotWarmAt_v1',String(r.now-30000));await r.intervals[1].fn();await r.advance(10);
   ok(r.warms.length===0,'the timer skips when another tab warmed in the last two minutes');
-  r.store.set('syncview_wlSnapshotWarmAt_v1',String(r.now-200000));await r.intervals[0].fn();await r.advance(10);
+  r.store.set('syncview_wlSnapshotWarmAt_v1',String(r.now-200000));await r.intervals[1].fn();await r.advance(10);
   ok(r.warms.length===1,'and warms when nobody has');
-  r.context.document.visibilityState='hidden';r.store.set('syncview_wlSnapshotWarmAt_v1','0');await r.intervals[0].fn();await r.advance(10);
+  r.context.document.visibilityState='hidden';r.store.set('syncview_wlSnapshotWarmAt_v1','0');await r.intervals[1].fn();await r.advance(10);
   ok(r.warms.length===1,'a hidden tab never warms on the timer');}
  console.log(`PASS workload snapshot warm-up: ${checks} checks; transports intercepted, no SQL or serving proof.`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

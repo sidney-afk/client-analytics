@@ -1,0 +1,126 @@
+name: Deploy one allowlisted Edge Function
+
+# Manual-only lane: ONE function per run, chosen from a fixed allowlist, at an
+# exact commit already on main, then that one function is attested. It exists so
+# these functions can ship without the onboarding lane, whose dispatch also
+# redeploys linear-outbound, production-write, production-comments and
+# production-archive outside the Section 4 ceremony.
+#
+# GATED functions are refused here and stay on their own lanes:
+# production-write, deliverable-write, batch-write, linear-outbound (Section 4)
+# and linear-inbound (its pinned-bundle lane). test/deploy-single-function.js
+# fails if any of them is ever added to the allowlist.
+# Same release order as that lane: ancestry is proven from the trusted default
+# branch with no secret in scope, the validated commit is checked out, and only
+# the deploy and attestation steps carry SUPABASE_ACCESS_TOKEN.
+on:
+  workflow_dispatch:
+    inputs:
+      function:
+        description: The one function to deploy
+        required: true
+        type: choice
+        options: [notify, workload-plan, calendar-upsert, sample-review-upsert, write-diagnostics]
+      commit_sha:
+        description: Exact 40-character commit SHA from main to deploy
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-single-function
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      PROJECT_REF: uzltbbrjidmjwwfakwve
+      DEPLOY_COMMIT: ${{ inputs.commit_sha }}
+      DEPLOY_FUNCTION: ${{ inputs.function }}
+    steps:
+      - name: Check out the trusted default branch for validation
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+      - name: Validate the function and the dispatched commit
+        shell: bash
+        run: |
+          # The choice input is not a security boundary on its own (the API can
+          # send any string), so the allowlist is enforced again here.
+          case "$DEPLOY_FUNCTION" in
+            notify|workload-plan|calendar-upsert|sample-review-upsert|write-diagnostics) ;;
+            *) echo "::error::Refused: '$DEPLOY_FUNCTION' is not on this lane's allowlist"; exit 1 ;;
+          esac
+          if ! [[ "$DEPLOY_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Manual deploys require an exact 40-character commit SHA"
+            exit 1
+          fi
+          git fetch origin main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$DEPLOY_COMMIT" origin/main; then
+            echo "::error::Manual deploy commit is not on origin/main"
+            exit 1
+          fi
+          if ! git cat-file -e "$DEPLOY_COMMIT:scripts/ef-fingerprint.js" 2>/dev/null; then
+            echo "::error::Pinned commit predates the required Edge Function fingerprint attestor"
+            exit 1
+          fi
+      - name: Check out the validated deploy commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_COMMIT }}
+          fetch-depth: 0
+      - name: Verify the validated commit is checked out
+        shell: bash
+        run: |
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$DEPLOY_COMMIT" ]; then
+            echo "::error::Checked out $actual instead of requested $DEPLOY_COMMIT"
+            exit 1
+          fi
+          node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" --slugs="$DEPLOY_FUNCTION" --expected-only --format=json > /dev/null
+          echo "Deploying $DEPLOY_FUNCTION from $actual" >> "$GITHUB_STEP_SUMMARY"
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Deploy the one selected function
+        id: function_deploy
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN secret is not set in the production Environment."
+            exit 1
+          fi
+          # The loop lists the allowlist once more and deploys only the match.
+          deployed=0
+          for fn in notify workload-plan calendar-upsert sample-review-upsert write-diagnostics; do
+            if [ "$fn" = "$DEPLOY_FUNCTION" ]; then
+              supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
+              deployed=$((deployed + 1))
+            fi
+          done
+          test "$deployed" = 1
+      - name: Attest the live source of that function
+        # No always(): an attestation is produced only after validation and deploy passed.
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -o pipefail
+          {
+            echo "## $DEPLOY_FUNCTION release attestation"
+            echo
+            echo "- Pinned SHA: \`$DEPLOY_COMMIT\`"
+            echo "- Deploy step: \`${{ steps.function_deploy.outcome }}\`"
+            echo "- JWT posture: expected verify_jwt=false"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          receipt="$(node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" --slugs="$DEPLOY_FUNCTION" --format=json)"
+          node -e 'const r=JSON.parse(process.argv[1]);const x=r.results&&r.results[0];if(r.pinned_sha!==process.env.DEPLOY_COMMIT||r.results.length!==1||x.slug!==process.env.DEPLOY_FUNCTION||x.result!=="PASS"||x.verify_jwt!==false)process.exit(1)' "$receipt"
+          echo "- Live $DEPLOY_FUNCTION source and JWT posture: PASS" >> "$GITHUB_STEP_SUMMARY"

@@ -2001,7 +2001,15 @@
             // another card — mid-flight aborts instead of writing verdicts and
             // rows derived from the binding that no longer applies.
             const bindingToken = _prodCardBindingToken(surface, post, allComponents);
-            const validComponents = await _prodResolveCardCrosswalk(surface, post, allComponents);
+            try {
+            // Send also waits on this lookup specifically: a kept 'ready' verdict
+            // may only be reused once the CURRENT crosswalk confirms the card is
+            // still bound to the same deliverable.
+            post._canonicalCrosswalkInFlight = (post._canonicalCrosswalkInFlight || 0) + 1;
+            const validComponents = await _prodResolveCardCrosswalk(surface, post, allComponents)
+                .finally(() => {
+                    post._canonicalCrosswalkInFlight = Math.max(0, (post._canonicalCrosswalkInFlight || 1) - 1);
+                });
             if (validComponents === null) return false;
             if (_prodCardBindingToken(surface, post, allComponents) !== bindingToken) return false;
             const components = allComponents.filter(component => validComponents.has(component));
@@ -2028,11 +2036,23 @@
                 const clientSurface = _prodVerifiedClientCommentSurfaceContext(
                     surface, post, component, deliverableId
                 );
-                post._canonicalCommentReads[deliverableId] = {
-                    status: 'loading',
-                    client: false,
-                    clientSurface
-                };
+                // Reuse an authorization this page already holds: a staff read
+                // that already came back ready for this exact deliverable keeps
+                // its 'ready' verdict instead of being reset to 'loading', so
+                // reopening Notes does not lock Send again once the crosswalk
+                // above has re-confirmed this card's binding. The deliverable is
+                // already in `groups` above, so the canonical re-read below
+                // still runs and its rows repaint the open modal when they land.
+                // Client links always re-verify from 'loading'.
+                const priorRead = post._canonicalCommentReads[deliverableId];
+                const keepPriorReady = !_isClientLink && priorRead && priorRead.status === 'ready';
+                if (!keepPriorReady) {
+                    post._canonicalCommentReads[deliverableId] = {
+                        status: 'loading',
+                        client: false,
+                        clientSurface
+                    };
+                }
                 // A client projection belongs to this exact card/component.
                 // Clear it before authorization so a failed binding switch can
                 // never retain rows from the previously verified card.
@@ -2216,9 +2236,11 @@
                     clientSurface
                 };
             }));
-            if (calendar && _calOpenCommentsPid === pid) _calRenderCommentsModal();
-            if (!calendar && _sxrOpenCommentsPid === pid) _sxrRenderCommentsModal();
             return true;
+            } finally {
+                if (calendar && _calOpenCommentsPid === pid) _calRenderCommentsModal();
+                if (!calendar && _sxrOpenCommentsPid === pid) _sxrRenderCommentsModal();
+            }
         }
         function _prodCanonicalCommentGate(post, component) {
             const deliverableId = _writeUiNativeId(post, component);

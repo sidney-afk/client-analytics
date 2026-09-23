@@ -881,6 +881,85 @@ function canonicalRow(body, extra) {
     'G4: the projection no longer calls the gate-dependent view');
   }
 
+  // ================================================ reopen re-reads behind 'ready'
+  {
+    // Staff reopen of Notes: the prior 'ready' verdict is kept so Send stays
+    // unlocked, but the canonical thread is still re-read and a note someone
+    // else added since the first open is projected onto the card.
+    const first = canonicalRow('First note', { id: 'c-first' });
+    const threads = { 'dlv-1': { items: [first] } };
+    const app = makeApp({ deliverables: [DELIVERABLE], threads });
+    let reads = 0;
+    const statusDuringRead = [];
+    const baseRead = app._prodComments.readCanonical;
+    app._prodComments.readCanonical = async (id, readOpts) => {
+      reads++;
+      const p = app.calState.posts[0];
+      statusDuringRead.push(p._canonicalCommentReads[id] && p._canonicalCommentReads[id].status);
+      return baseRead(id, readOpts);
+    };
+    let renders = 0;
+    app._calOpenCommentsPid = 'card-1';
+    app._calRenderCommentsModal = () => { renders++; };
+    app.calState.posts = [{ id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1', video_comments: [] }];
+
+    await app._prodProjectCanonicalCardComments('calendar', 'card-1');
+    const post = app.calState.posts[0];
+    ok(post._canonicalCommentReads['dlv-1'].status === 'ready'
+      && post.video_comments.map(r => r.id).join() === 'c-first',
+    'reopen: the first open projects the thread and stamps ready');
+
+    // Another person adds a note between the two opens.
+    threads['dlv-1'] = { items: [first, canonicalRow('Added later', { id: 'c-later' })] };
+    // The crosswalk is re-checked on the reopen, and the in-flight marker that
+    // holds Send is set for exactly that lookup.
+    const inflightDuringCrosswalk = [];
+    const baseFetch = app.fetch;
+    app.fetch = async (...args) => {
+      inflightDuringCrosswalk.push(app.calState.posts[0]._canonicalCrosswalkInFlight);
+      return baseFetch(...args);
+    };
+    const rendersBefore = renders;
+    await app._prodProjectCanonicalCardComments('calendar', 'card-1');
+    ok(reads === 2, 'reopen: the second open re-reads the canonical thread');
+    ok(statusDuringRead[1] === 'ready',
+      'reopen: the prior ready verdict is kept while the re-read is in flight (Send stays unlocked)');
+    ok(post.video_comments.map(r => r.id).join() === 'c-first,c-later',
+      'reopen: the note added since the first open is picked up');
+    ok(renders > rendersBefore, 'reopen: the open modal repaints once the re-read lands');
+    ok(inflightDuringCrosswalk.length === 1 && inflightDuringCrosswalk[0] === 1,
+      'reopen: the crosswalk is re-checked and marked in flight while it runs (Send held)');
+    ok(!post._canonicalCrosswalkInFlight, 'reopen: the in-flight marker clears once the lookup lands');
+  }
+  {
+    // A card re-bound since the first open: the re-checked crosswalk no longer
+    // validates, so the kept 'ready' verdict can no longer make the gate linked.
+    const app = makeApp({ deliverables: [DELIVERABLE], threads: { 'dlv-1': { items: [] } } });
+    app.calState.posts = [{ id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1', video_comments: [] }];
+    await app._prodProjectCanonicalCardComments('calendar', 'card-1');
+    const post = app.calState.posts[0];
+    ok(app._prodCanonicalCommentGate(post, 'video').ready, 'rebind: first open is linked and ready');
+    app.fetch = async () => ({ ok: true, json: async () => [Object.assign({}, DELIVERABLE, { card_id: 'card-2' })] });
+    await app._prodProjectCanonicalCardComments('calendar', 'card-1');
+    ok(!app._prodCanonicalCommentGate(post, 'video').linked,
+      'rebind: after the re-checked crosswalk mismatches, the old ready verdict no longer links the card');
+  }
+  {
+    // Client links never keep a prior verdict: they re-verify from 'loading'.
+    const app = makeApp({ clientLink: true, deliverables: [SXR_DELIVERABLE],
+      threads: { 'dlv-1': { items: [] } } });
+    const seen = [];
+    const baseRead = app._prodComments.readCanonical;
+    app._prodComments.readCanonical = async (id, readOpts) => {
+      seen.push(app.sxrState.posts[0]._canonicalCommentReads[id].status);
+      return baseRead(id, readOpts);
+    };
+    app.sxrState.posts = [{ id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1', video_comments: [],
+      _canonicalCommentReads: { 'dlv-1': { status: 'ready', client: true, clientSurface: null } } }];
+    await app._prodProjectCanonicalCardComments('sxr', 'card-1');
+    ok(seen[0] === 'loading', 'reopen: a client link resets to loading and re-verifies');
+  }
+
   if (failures) {
     console.error(`\n${failures} canonical projection invocation check(s) failed`);
     process.exit(1);

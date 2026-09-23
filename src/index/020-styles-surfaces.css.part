@@ -2383,6 +2383,7 @@
         .cal-cm-send:hover:not(:disabled) { transform: translateY(-1px); }
         .cal-cm-send:disabled { opacity: 0.35; cursor: not-allowed; }
         .cal-cm-send svg { width: 14px; height: 14px; }
+        .cal-cm-pending-hint { font-size: 0.72rem; color: var(--text-secondary); padding: 4px 2px 0 40px; }
         .cal-cm-replying-to { font-size: 0.7rem; color: var(--text-muted); padding: 0 4px 6px; display: flex; align-items: center; gap: 6px; }
         .cal-cm-replying-to strong { color: var(--text-primary); font-weight: 800; }
 

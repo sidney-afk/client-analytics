@@ -2107,6 +2107,14 @@
         return `<div class="cal-cm-actions">${replyBtn}${editBtn}${doneBtn}${delBtn}</div>`;
     }
 
+    /* Sending waits while this deliverable's canonical read is in flight, and
+       while the card's crosswalk is being looked up, on every open: until that
+       lookup lands, neither the store a note belongs in nor whether an earlier
+       'ready' verdict still describes this card's binding is known. */
+    function _calCommentSendPending(post, gate) {
+        if (gate.linked && !gate.ready) return true;
+        return !!(post && post._canonicalCrosswalkInFlight);
+    }
     function _calComposerHtml(post, comments) {
         const role     = _calCommentRole();
         const author   = _calCurrentAuthor();
@@ -2140,14 +2148,16 @@
         const canonicalGate = _prodCanonicalCommentGate(post, (isReply || isEdit) && target
             ? _calFindCompForCommentId(post, target.id)
             : _calComposeComp);
-        if (canonicalGate.linked && !canonicalGate.ready) {
-            return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">'
-                + (canonicalGate.status === 'error' ? 'Notes could not load' : 'Loading canonical notes')
-                + '</div>' + (canonicalGate.status === 'error'
-                    ? '<button type="button" class="prod-comment-state-action" onclick="_prodProjectCanonicalCardComments(\'calendar\',' + _jsAttrArg(post.id) + ')">Retry</button>'
-                    : 'The composer unlocks after this exact deliverable is authorized.')
+        if (canonicalGate.linked && !canonicalGate.ready && canonicalGate.status === 'error') {
+            return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">Notes could not load</div>'
+                + '<button type="button" class="prod-comment-state-action" onclick="_prodProjectCanonicalCardComments(\'calendar\',' + _jsAttrArg(post.id) + ')">Retry</button>'
                 + '</div>';
         }
+        /* While this exact deliverable's canonical read is still in flight the
+           composer is drawn in full, so the first paint is the final layout,
+           and only sending waits: the send button stays disabled, a quiet line
+           says why, and _calAppendComment refuses on the same gate. */
+        const sendPending = _calCommentSendPending(post, canonicalGate);
         const audienceToggle = (!isReply && !isEdit && role !== 'client' && canonicalGate.client)
             ? `<div class="cal-cm-audience" data-cm-toggle="audience" role="group" aria-label="Who can see this note">
                 <span class="cal-cm-audience-cap">Who sees this?</span>
@@ -2191,9 +2201,10 @@
                 <div class="cal-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_calEsc(initial)}</div>
                 <textarea id="calCommentComposer" rows="1" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnComposerInput(this)" onkeydown="_calOnComposerKey(event)">${_calEsc(draft)}</textarea>
                 <div class="cal-cm-composer-actions">
-                    <button class="cal-cm-send" type="button" onclick="_calSubmitComposer()" title="${isEdit ? 'Save edit' : 'Send'} (Enter)" ${draft.trim() ? '' : 'disabled'}>${sendIco}</button>
+                    <button class="cal-cm-send" type="button" onclick="_calSubmitComposer()" title="${sendPending ? 'Sending unlocks once this note thread has loaded' : (isEdit ? 'Save edit' : 'Send') + ' (Enter)'}" ${sendPending ? 'data-send-pending="1" ' : ''}${draft.trim() && !sendPending ? '' : 'disabled'}>${sendIco}</button>
                 </div>
             </div>
+            ${sendPending ? '<div class="cal-cm-pending-hint" data-cm-send-pending="1">Syncing this thread. Sending unlocks in a moment.</div>' : ''}
         </div>`;
     }
 
@@ -2218,11 +2229,15 @@
         const wrap = ta.closest('.cal-cm-composer');
         if (!wrap) return;
         const sendBtn = wrap.querySelector('.cal-cm-send');
-        if (sendBtn) sendBtn.disabled = !ta.value.trim();
+        if (sendBtn) sendBtn.disabled = !ta.value.trim() || sendBtn.hasAttribute('data-send-pending');
     }
     function _calOnComposerKey(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
+            // Enter follows the send button: nothing is sent while it waits.
+            const sendBtn = e.target && e.target.closest && e.target.closest('.cal-cm-composer')
+                ? e.target.closest('.cal-cm-composer').querySelector('.cal-cm-send') : null;
+            if (sendBtn && sendBtn.hasAttribute('data-send-pending')) return;
             _calSubmitComposer();
         } else if (e.key === 'Escape' && (_calReplyTarget || _calEditTarget)) {
             e.preventDefault();
@@ -2312,7 +2327,7 @@
             ? _calFindCompForCommentId(post, parentId)
             : (_calComponentsFor(post).indexOf(_calComposeComp) >= 0 ? _calComposeComp : 'video');
         const canonicalGate = _prodCanonicalCommentGate(post, comp);
-        if (canonicalGate.linked && !canonicalGate.ready) {
+        if ((canonicalGate.linked && !canonicalGate.ready) || _calCommentSendPending(post, canonicalGate)) {
             showNotify('Notes are still loading', 'Retry the canonical thread before sending.');
             return false;
         }

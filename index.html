@@ -6516,6 +6516,7 @@
         .cal-cm-send:hover:not(:disabled) { transform: translateY(-1px); }
         .cal-cm-send:disabled { opacity: 0.35; cursor: not-allowed; }
         .cal-cm-send svg { width: 14px; height: 14px; }
+        .cal-cm-pending-hint { font-size: 0.72rem; color: var(--text-secondary); padding: 4px 2px 0 40px; }
         .cal-cm-replying-to { font-size: 0.7rem; color: var(--text-muted); padding: 0 4px 6px; display: flex; align-items: center; gap: 6px; }
         .cal-cm-replying-to strong { color: var(--text-primary); font-weight: 800; }
 
@@ -29126,6 +29127,8 @@
         // and the Samples loader skips re-parsing entirely when the cached post
         // already carries its array, so nothing would ever recompute it.
         '_canonicalCrosswalk', '_canonicalCommentReads', '_legacyReadIncomplete',
+        // An in-flight marker: a cached copy would hold Send on a reload forever.
+        '_canonicalCrosswalkInFlight',
     ]);
     function _prodStripEphemeralCanonicalState(post) {
         if (!post || typeof post !== 'object') return post;
@@ -49803,6 +49806,14 @@
         return `<div class="cal-cm-actions">${replyBtn}${editBtn}${doneBtn}${delBtn}</div>`;
     }
 
+    /* Sending waits while this deliverable's canonical read is in flight, and
+       while the card's crosswalk is being looked up, on every open: until that
+       lookup lands, neither the store a note belongs in nor whether an earlier
+       'ready' verdict still describes this card's binding is known. */
+    function _calCommentSendPending(post, gate) {
+        if (gate.linked && !gate.ready) return true;
+        return !!(post && post._canonicalCrosswalkInFlight);
+    }
     function _calComposerHtml(post, comments) {
         const role     = _calCommentRole();
         const author   = _calCurrentAuthor();
@@ -49836,14 +49847,16 @@
         const canonicalGate = _prodCanonicalCommentGate(post, (isReply || isEdit) && target
             ? _calFindCompForCommentId(post, target.id)
             : _calComposeComp);
-        if (canonicalGate.linked && !canonicalGate.ready) {
-            return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">'
-                + (canonicalGate.status === 'error' ? 'Notes could not load' : 'Loading canonical notes')
-                + '</div>' + (canonicalGate.status === 'error'
-                    ? '<button type="button" class="prod-comment-state-action" onclick="_prodProjectCanonicalCardComments(\'calendar\',' + _jsAttrArg(post.id) + ')">Retry</button>'
-                    : 'The composer unlocks after this exact deliverable is authorized.')
+        if (canonicalGate.linked && !canonicalGate.ready && canonicalGate.status === 'error') {
+            return '<div class="cal-comments-empty"><div class="cal-comments-empty-title">Notes could not load</div>'
+                + '<button type="button" class="prod-comment-state-action" onclick="_prodProjectCanonicalCardComments(\'calendar\',' + _jsAttrArg(post.id) + ')">Retry</button>'
                 + '</div>';
         }
+        /* While this exact deliverable's canonical read is still in flight the
+           composer is drawn in full, so the first paint is the final layout,
+           and only sending waits: the send button stays disabled, a quiet line
+           says why, and _calAppendComment refuses on the same gate. */
+        const sendPending = _calCommentSendPending(post, canonicalGate);
         const audienceToggle = (!isReply && !isEdit && role !== 'client' && canonicalGate.client)
             ? `<div class="cal-cm-audience" data-cm-toggle="audience" role="group" aria-label="Who can see this note">
                 <span class="cal-cm-audience-cap">Who sees this?</span>
@@ -49887,9 +49900,10 @@
                 <div class="cal-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_calEsc(initial)}</div>
                 <textarea id="calCommentComposer" rows="1" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnComposerInput(this)" onkeydown="_calOnComposerKey(event)">${_calEsc(draft)}</textarea>
                 <div class="cal-cm-composer-actions">
-                    <button class="cal-cm-send" type="button" onclick="_calSubmitComposer()" title="${isEdit ? 'Save edit' : 'Send'} (Enter)" ${draft.trim() ? '' : 'disabled'}>${sendIco}</button>
+                    <button class="cal-cm-send" type="button" onclick="_calSubmitComposer()" title="${sendPending ? 'Sending unlocks once this note thread has loaded' : (isEdit ? 'Save edit' : 'Send') + ' (Enter)'}" ${sendPending ? 'data-send-pending="1" ' : ''}${draft.trim() && !sendPending ? '' : 'disabled'}>${sendIco}</button>
                 </div>
             </div>
+            ${sendPending ? '<div class="cal-cm-pending-hint" data-cm-send-pending="1">Syncing this thread. Sending unlocks in a moment.</div>' : ''}
         </div>`;
     }
 
@@ -49914,11 +49928,15 @@
         const wrap = ta.closest('.cal-cm-composer');
         if (!wrap) return;
         const sendBtn = wrap.querySelector('.cal-cm-send');
-        if (sendBtn) sendBtn.disabled = !ta.value.trim();
+        if (sendBtn) sendBtn.disabled = !ta.value.trim() || sendBtn.hasAttribute('data-send-pending');
     }
     function _calOnComposerKey(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
+            // Enter follows the send button: nothing is sent while it waits.
+            const sendBtn = e.target && e.target.closest && e.target.closest('.cal-cm-composer')
+                ? e.target.closest('.cal-cm-composer').querySelector('.cal-cm-send') : null;
+            if (sendBtn && sendBtn.hasAttribute('data-send-pending')) return;
             _calSubmitComposer();
         } else if (e.key === 'Escape' && (_calReplyTarget || _calEditTarget)) {
             e.preventDefault();
@@ -50008,7 +50026,7 @@
             ? _calFindCompForCommentId(post, parentId)
             : (_calComponentsFor(post).indexOf(_calComposeComp) >= 0 ? _calComposeComp : 'video');
         const canonicalGate = _prodCanonicalCommentGate(post, comp);
-        if (canonicalGate.linked && !canonicalGate.ready) {
+        if ((canonicalGate.linked && !canonicalGate.ready) || _calCommentSendPending(post, canonicalGate)) {
             showNotify('Notes are still loading', 'Retry the canonical thread before sending.');
             return false;
         }
@@ -59999,7 +60017,15 @@
             // another card — mid-flight aborts instead of writing verdicts and
             // rows derived from the binding that no longer applies.
             const bindingToken = _prodCardBindingToken(surface, post, allComponents);
-            const validComponents = await _prodResolveCardCrosswalk(surface, post, allComponents);
+            try {
+            // Send also waits on this lookup specifically: a kept 'ready' verdict
+            // may only be reused once the CURRENT crosswalk confirms the card is
+            // still bound to the same deliverable.
+            post._canonicalCrosswalkInFlight = (post._canonicalCrosswalkInFlight || 0) + 1;
+            const validComponents = await _prodResolveCardCrosswalk(surface, post, allComponents)
+                .finally(() => {
+                    post._canonicalCrosswalkInFlight = Math.max(0, (post._canonicalCrosswalkInFlight || 1) - 1);
+                });
             if (validComponents === null) return false;
             if (_prodCardBindingToken(surface, post, allComponents) !== bindingToken) return false;
             const components = allComponents.filter(component => validComponents.has(component));
@@ -60026,11 +60052,23 @@
                 const clientSurface = _prodVerifiedClientCommentSurfaceContext(
                     surface, post, component, deliverableId
                 );
-                post._canonicalCommentReads[deliverableId] = {
-                    status: 'loading',
-                    client: false,
-                    clientSurface
-                };
+                // Reuse an authorization this page already holds: a staff read
+                // that already came back ready for this exact deliverable keeps
+                // its 'ready' verdict instead of being reset to 'loading', so
+                // reopening Notes does not lock Send again once the crosswalk
+                // above has re-confirmed this card's binding. The deliverable is
+                // already in `groups` above, so the canonical re-read below
+                // still runs and its rows repaint the open modal when they land.
+                // Client links always re-verify from 'loading'.
+                const priorRead = post._canonicalCommentReads[deliverableId];
+                const keepPriorReady = !_isClientLink && priorRead && priorRead.status === 'ready';
+                if (!keepPriorReady) {
+                    post._canonicalCommentReads[deliverableId] = {
+                        status: 'loading',
+                        client: false,
+                        clientSurface
+                    };
+                }
                 // A client projection belongs to this exact card/component.
                 // Clear it before authorization so a failed binding switch can
                 // never retain rows from the previously verified card.
@@ -60214,9 +60252,11 @@
                     clientSurface
                 };
             }));
-            if (calendar && _calOpenCommentsPid === pid) _calRenderCommentsModal();
-            if (!calendar && _sxrOpenCommentsPid === pid) _sxrRenderCommentsModal();
             return true;
+            } finally {
+                if (calendar && _calOpenCommentsPid === pid) _calRenderCommentsModal();
+                if (!calendar && _sxrOpenCommentsPid === pid) _sxrRenderCommentsModal();
+            }
         }
         function _prodCanonicalCommentGate(post, component) {
             const deliverableId = _writeUiNativeId(post, component);

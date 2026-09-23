@@ -9,7 +9,7 @@
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `005-head-boot.html.part` | 206 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 3 | `010-styles-foundation.css.part` | 3901 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 4 | `020-styles-surfaces.css.part` | 3987 | Templates view |
+| 4 | `020-styles-surfaces.css.part` | 3988 | Templates view |
 | 5 | `030-body-shell.html.part` | 449 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 2595 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1596 | Market Research Brief Tab Renderers |
@@ -19,7 +19,7 @@
 | 11 | `090-workload-popovers-navigation.js.part` | 2571 | Sub-issue popover |
 | 12 | `100-onboarding-staff-controls.js.part` | 2258 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2024 | Kasper Time Off calendar |
-| 14 | `120-calendar-flags-write-repair.js.part` | 3013 | The members a flag value offers, or null when it offers no member list at |
+| 14 | `120-calendar-flags-write-repair.js.part` | 3015 | The members a flag value offers, or null when it offers no member list at |
 | 15 | `125-title-name-rule.js.part` | 334 | Title name rule (browser copy) |
 | 16 | `130-calendar-model-cache.js.part` | 2734 | Returns the comments array for a given component. Falls back to the |
 | 17 | `140-calendar-legacy-outbox.js.part` | 3059 | Shed the retired legacy rows from storage, under the surface mutation |
@@ -27,11 +27,11 @@
 | 19 | `160-calendar-organize-ui.js.part` | 2733 | Lighter path for the Order switch: update the chrome in place so the |
 | 20 | `170-calendar-links-status.js.part` | 2760 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 21 | `180-calendar-native-post-media.js.part` | 2676 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
-| 22 | `190-calendar-approval-comments.js.part` | 2969 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 22 | `190-calendar-approval-comments.js.part` | 2984 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 23 | `200-intake-data-startup.js.part` | 1475 | Video-only and Thumbnail-only were already built, but sat |
 | 24 | `210-production-state-writes.js.part` | 3155 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 25 | `220-production-attribution-views.js.part` | 2703 | An ABSENT persisted slug is missing evidence, not |
-| 26 | `230-production-create-comments.js.part` | 2609 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
+| 26 | `230-production-create-comments.js.part` | 2631 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 27 | `240-production-description.js.part` | 2622 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 28 | `250-production-controls-data.js.part` | 2826 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 29 | `260-production-refresh-boot.js.part` | 2280 | AND TYPING COUNTS, which is the case this guard was missing. |

@@ -9,7 +9,7 @@
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `005-head-boot.html.part` | 206 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 3 | `010-styles-foundation.css.part` | 3900 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 4 | `020-styles-surfaces.css.part` | 3971 | Templates view |
+| 4 | `020-styles-surfaces.css.part` | 3974 | Templates view |
 | 5 | `030-body-shell.html.part` | 449 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 2408 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1581 | Market Research Brief Tab Renderers |
@@ -24,9 +24,9 @@
 | 16 | `140-calendar-legacy-outbox.js.part` | 3055 | Shed the retired legacy rows from storage, under the surface mutation |
 | 17 | `150-calendar-hydration-import.js.part` | 2709 | For a card linked to a real sub-issue (not a parent), return which of |
 | 18 | `160-calendar-organize-ui.js.part` | 2715 | Lighter path for the Order switch: update the chrome in place so the |
-| 19 | `170-calendar-links-status.js.part` | 2633 | Move a Linear sub-issue link from the old card onto the new one. The |
+| 19 | `170-calendar-links-status.js.part` | 2749 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 20 | `180-calendar-native-post-media.js.part` | 2680 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
-| 21 | `190-calendar-approval-comments.js.part` | 2966 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 21 | `190-calendar-approval-comments.js.part` | 2969 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 22 | `200-intake-data-startup.js.part` | 1473 | Video-only and Thumbnail-only were already built, but sat |
 | 23 | `210-production-state-writes.js.part` | 3078 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 24 | `220-production-attribution-views.js.part` | 2698 | An ABSENT persisted slug is missing evidence, not |
@@ -36,7 +36,7 @@
 | 28 | `260-production-refresh-boot.js.part` | 2252 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 29 | `270-samples-model.js.part` | 2694 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 30 | `280-samples-cards-notes.js.part` | 2831 | SURFACE 3: the save engine |
-| 31 | `290-samples-writes-review.js.part` | 1806 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
+| 31 | `290-samples-writes-review.js.part` | 1822 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 32 | `300-tiktok-upload.js.part` | 1678 | TIKTOK UPLOAD MODULE |
 | 33 | `310-tiktok-pilot-sales.js.part` | 1969 | TIKTOK PILOT MODULE (gated: ?ttpilot=1 → #tiktok-pilot) |
 | 34 | `320-kasper-dashboard-replies.js.part` | 2788 | Background poll for the Kasper review — same cadence as the client |

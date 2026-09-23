@@ -5730,6 +5730,9 @@
         .cal-card-saving.is-saved { color: var(--sv-fg-166534); }
         .cal-card-saving.is-error { color: var(--dn); }
         button.cal-card-saving.is-error:hover { text-decoration: underline; }
+        /* Status committed, card row still syncing: not an error, so no red. */
+        .cal-card-saving.is-syncing { color: var(--text-muted); }
+        button.cal-card-saving.is-syncing:hover { text-decoration: underline; }
 
         /* ── Reusable modern save indicator (icon-only). See _svSaveIndHtml. ──
            Themed via CSS variables so it works in both light and dark. */
@@ -42035,7 +42038,7 @@
                 titleSq += _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', p, 'cal-title-urgent-btn', true, 'kasper');
             }
         }
-        return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
+        return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError && !p._writeUiRetrySourceAt ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
     }
     function _calLinearEdit(pid, comp) {
         if (_isClientLink) return;   // Linear linking is internal/SMM-only (never shown to clients)
@@ -42445,7 +42448,9 @@
                 ${canApprove ? `<button class="cal-approve-bar" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve post</button>` : ''}
                 <div class="cal-card-foot">
                     ${_calCommentsBtnHtml(p, pid)}
-                    ${p._saveError
+                    ${p._saveError && p._writeUiRetrySourceAt
+                        ? `<button type="button" class="cal-card-saving is-syncing" data-saving="${pid}" onclick="_calRetrySave('${pid}')" title="The status is saved. The card is still catching up and retries on its own — click to retry now.">Saved, syncing</button>`
+                        : p._saveError
                         ? `<button type="button" class="cal-card-saving is-error" data-saving="${pid}" onclick="_calRetrySave('${pid}')" title="${_calEscAttr(typeof p._saveError === 'string' ? p._saveError : 'Save failed')} — click to retry">Save failed · Retry</button>`
                         : `<span class="cal-card-saving" data-saving="${pid}" hidden></span>`}
                 </div>
@@ -42556,6 +42561,14 @@
            snapshot -- which can overwrite a field another tab changed in the
            meantime. Every early return below therefore has to happen before
            the bucket exists, not after. */
+        /* The pick is applied to the card BEFORE the save starts, so the save's
+           own snapshot already holds the new value. Remember what each moved
+           component really was, so a component the gateway refuses can be put
+           back on screen (see the catch in _calFlushCardSave). */
+        const rememberPrior = (bucket, key) => {
+            bucket._calPriorStatus = bucket._calPriorStatus || {};
+            if (!(key in bucket._calPriorStatus)) bucket._calPriorStatus[key] = post[key];
+        };
         if (which) {
             const key = which + '_status';
             if (post[key] === status) return;
@@ -42566,6 +42579,7 @@
                 return;
             }
             if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            rememberPrior(_calPendingEdits[pid], key);
             post[key] = status;
             _calPendingEdits[pid][key] = status;
             // Title is independent of the overall card status — never fold it in.
@@ -42590,6 +42604,7 @@
             }
             if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
             for (const c of movable) {
+                rememberPrior(_calPendingEdits[pid], c + '_status');
                 post[c + '_status'] = status;
                 _calPendingEdits[pid][c + '_status'] = status;
             }
@@ -43279,6 +43294,8 @@
         // save owns this card. The owner will dequeue the complete trailing
         // batch (including its repair refs) from finally.
         if (_calSaveInFlight[pid]) return _calAwaitCardSave(pid);
+        const priorStatusForWrite = Object.assign({}, edits._calPriorStatus || {});
+        delete edits._calPriorStatus;
         const retryPost = calState.posts.find(p => p.id === pid);
         const _saveSlug = calClientSlug(calState.client);
         const retryPrincipal = _writeUiPrincipalKey();
@@ -43289,7 +43306,14 @@
             try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
             return;
         }
+        /* The receipt guard exists for repairs restored from a cached copy of
+           the card (a reload, another tab), where nothing proves the edits are
+           current. A repair THIS page opened a moment ago -- still on its
+           sync-retry ladder -- is live state, not cache, so it must not be
+           parked as held just because the journal lane consumed its receipt
+           first (live 2026-09-23: the card stuck on "Saved, syncing"). */
         if (retryPost && retryPost._writeUiRetrySourceAt
+            && !(typeof _calSyncRetryState !== 'undefined' && _calSyncRetryState.has(pid))
             && !_writeUiJournalCoversRepairRefs(retryPost, 'calendar', 'card', _saveSlug, retryPrincipal)) {
             retryPost._writeUiHeldSourceEdits = Object.assign({}, retryPost._writeUiHeldSourceEdits || {},
                 _writeUiSourceEditsOnly(retryPost._writeUiRetryEdits), _writeUiSourceEditsOnly(edits));
@@ -43300,6 +43324,18 @@
             try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
             return;
         }
+        /* Statuses the gateway ALREADY committed for this card, and not changed
+           again since. A retry of a committed-then-failed save re-sends ONLY
+           the card row for these, never the status: replaying a committed
+           status through the gateway a second time lost its repair checkpoint
+           (repair_checkpoint_missing, live 2026-09-23) and turned a save that
+           had landed into "Save failed". A status the person changes again
+           is in the fresh bucket and still goes to the gateway as normal. */
+        // _calRetrySave seeds the bucket FROM the committed edits, so "same
+        // value as committed" is the test, not "absent from the bucket".
+        const committedEdits = retryPost && retryPost._writeUiRetrySourceAt ? (retryPost._writeUiRetryEdits || {}) : {};
+        const committedStatusKeys = new Set(Object.keys(committedEdits)
+            .filter(k => /_status$/.test(k) && (!(k in edits) || edits[k] === committedEdits[k])));
         if (retryPost && (retryPost._writeUiRetryEdits || retryPost._writeUiHeldSourceEdits)) {
             edits = Object.assign({}, retryPost._writeUiRetryEdits || {}, retryPost._writeUiHeldSourceEdits || {}, edits);
         }
@@ -43386,6 +43422,9 @@
         _calNoLinearPush.delete(pid + '|graphic');
 
         let gatewayAttempted = false;
+        // Components whose own gateway write was refused while a sibling
+        // committed (see the allSettled below and the catch).
+        let refusedStatusComponents = [];
         // A review tweak commits its native comment before entering this save
         // funnel. Treat that acknowledgement as a committed gateway mutation
         // so a later status/source failure becomes a durable source repair,
@@ -43411,78 +43450,81 @@
                 const suppressed = companion.component === 'graphic' ? suppressGraphic : suppressVideo;
                 if (!(key in edits) || suppressed) throw _writeUiGatewayError(409, 'repair_status_not_applied');
             }
-            if ('video_status' in edits && !suppressVideo) {
-                const companion = companionRepairsForWrite.find(row => row && row.operation === 'status' && row.component === 'video');
+            /* Video and graphic statuses go to the gateway TOGETHER, not one
+               after the other. Each push is its own deliverable with its own
+               request id, and the source-repair journal they both touch is
+               serialised by navigator.locks, so overlapping them is safe; running
+               them back to back is what made a "Set all" wait for two full
+               gateway round trips before the card upsert could even start
+               (measured 2026-09-23: ~1.3s per push warm, more cold).
+
+               allSettled, not all: if one push is refused while the other
+               commits, the committed one's acknowledgement must still be
+               adopted below -- otherwise gatewayCommitted stays false, the catch
+               rolls the committed status back on screen, and the card lies.
+               Acknowledgements are then processed in the old video-then-graphic
+               order, so everything downstream sees the same sequence as before. */
+            const statusPushes = ['video', 'graphic'].map(component => (async () => {
+                const suppressed = component === 'graphic' ? suppressGraphic : suppressVideo;
+                if (!((component + '_status') in edits) || suppressed) return null;
+                // Already committed by an earlier attempt: card row only.
+                if (committedStatusKeys.has(component + '_status')) return null;
+                const companion = companionRepairsForWrite.find(row => row && row.operation === 'status' && row.component === component);
                 const reconciled = companion && await _writeUiReconcileReplayStatus({ edits, source_at: companion.source_at }, companion.intent, post);
-                if (!reconciled) {
-                    const gatewayAttemptedBefore = gatewayAttempted;
-                    gatewayAttempted = true;
-                    const sourceEditedAt = companion ? companion.source_at : post.updated_at;
-                    const acknowledgement = await _calPushStatusToLinear(post.linear_issue_id, post.video_status, {
-                        post, component: 'video', sourceEditedAt,
-                        // Preserve only this action's sign-off edit, never invent one from a status.
-                        repairEdits: 'client_video_approved_at' in edits ? { client_video_approved_at: edits.client_video_approved_at } : {},
-                        repairRecord: companion && companion.record
-                    });
-                    if (acknowledgement && (acknowledgement.deferred_until_source_save
-                        || acknowledgement.legacy_transport_retired)) {
-                        /* A write the retired legacy lane refused never reached the
-                           gateway either, so it must not leave `gatewayAttempted`
-                           set -- otherwise a later source failure is reported as a
-                           gateway failure (OPEN_REPAIRS 239). */
-                        gatewayAttempted = gatewayAttemptedBefore;
-                    }
-                    _writeUiAdoptRepairAck(post, acknowledgement);
-                    _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
-                    gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
-                    const current = _writeUiAdoptReplayStatus(post, 'video', acknowledgement, recoveringWriteUiSource, 'calendar');
-                    if (current) edits.video_status = current;
-                    /* Adopting a replay status IS a sub-status change, so the
-                       stale-stamp rule owes this path too. Without it a client
-                       approval whose source upsert failed, retried after the
-                       native row moved on, writes the newer status while
-                       KEEPING edits.client_video_approved_at -- a card reading
-                       Tweaks Needed with a client sign-off on it. The journal
-                       replay has its own guard; the click-Retry path
-                       (_calRetrySave -> _calFlushCardSave) never reaches it.
-                       Reusing _calClearStaleApprovals rather than restating the
-                       status list keeps one definition of "below client
-                       approval" in the file. */
-                    _calClearStaleApprovals(post, edits);
-                }
-                checkpointCommittedSource();
+                if (reconciled) return { component, reconciled: true };
+                gatewayAttempted = true;
+                const approvedKey = 'client_' + component + '_approved_at';
+                const pushMeta = {
+                    post, component,
+                    sourceEditedAt: companion ? companion.source_at : post.updated_at,
+                    // Preserve only this action's sign-off edit, never invent one from a status.
+                    repairEdits: approvedKey in edits ? { [approvedKey]: edits[approvedKey] } : {},
+                    repairRecord: companion && companion.record
+                };
+                // Each component pushes ONLY its own issue and its own sub-status.
+                const acknowledgement = component === 'graphic'
+                    ? await _calPushStatusToLinear(post.graphic_linear_issue_id, post.graphic_status, pushMeta)
+                    : await _calPushStatusToLinear(post.linear_issue_id, post.video_status, pushMeta);
+                return { component, acknowledgement };
+            })());
+            const statusResults = await Promise.allSettled(statusPushes);
+            // Recomputed from the settled pushes: only a push that actually
+            // reached (or was refused by) the gateway counts as attempted.
+            gatewayAttempted = statusResults.some(r => r.status === 'rejected' || (r.value && r.value.acknowledgement
+                && !r.value.acknowledgement.deferred_until_source_save && !r.value.acknowledgement.legacy_transport_retired));
+            for (const settled of statusResults) {
+                if (settled.status !== 'fulfilled' || !settled.value || settled.value.reconciled) continue;
+                const { component, acknowledgement } = settled.value;
+                /* A write the retired legacy lane refused never reached the
+                   gateway either, so it does not count as attempted above --
+                   otherwise a later source failure is reported as a gateway
+                   failure (OPEN_REPAIRS 239). */
+                _writeUiAdoptRepairAck(post, acknowledgement);
+                _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
+                gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
+                // Spelled per component so each adoption site stays greppable
+                // next to its stale-approval clear (test/client-review-repair-stamp.js).
+                const current = component === 'graphic'
+                    ? _writeUiAdoptReplayStatus(post, 'graphic', acknowledgement, recoveringWriteUiSource, 'calendar')
+                    : _writeUiAdoptReplayStatus(post, 'video', acknowledgement, recoveringWriteUiSource, 'calendar');
+                if (current) edits[component + '_status'] = current;
+                /* Adopting a replay status IS a sub-status change, so the
+                   stale-stamp rule owes this path too. Without it a client
+                   approval whose source upsert failed, retried after the
+                   native row moved on, writes the newer status while
+                   KEEPING edits.client_video_approved_at -- a card reading
+                   Tweaks Needed with a client sign-off on it. The journal
+                   replay has its own guard; the click-Retry path
+                   (_calRetrySave -> _calFlushCardSave) never reaches it.
+                   Reusing _calClearStaleApprovals rather than restating the
+                   status list keeps one definition of "below client
+                   approval" in the file. */
+                _calClearStaleApprovals(post, edits);
             }
-            if ('graphic_status' in edits && !suppressGraphic) {
-                const companion = companionRepairsForWrite.find(row => row && row.operation === 'status' && row.component === 'graphic');
-                const reconciled = companion && await _writeUiReconcileReplayStatus({ edits, source_at: companion.source_at }, companion.intent, post);
-                if (!reconciled) {
-                    const gatewayAttemptedBefore = gatewayAttempted;
-                    gatewayAttempted = true;
-                    const sourceEditedAt = companion ? companion.source_at : post.updated_at;
-                    const acknowledgement = await _calPushStatusToLinear(post.graphic_linear_issue_id, post.graphic_status, {
-                        post, component: 'graphic', sourceEditedAt,
-                        // Preserve only this action's sign-off edit, never invent one from a status.
-                        repairEdits: 'client_graphic_approved_at' in edits ? { client_graphic_approved_at: edits.client_graphic_approved_at } : {},
-                        repairRecord: companion && companion.record
-                    });
-                    if (acknowledgement && (acknowledgement.deferred_until_source_save
-                        || acknowledgement.legacy_transport_retired)) {
-                        /* A write the retired legacy lane refused never reached the
-                           gateway either, so it must not leave `gatewayAttempted`
-                           set -- otherwise a later source failure is reported as a
-                           gateway failure (OPEN_REPAIRS 239). */
-                        gatewayAttempted = gatewayAttemptedBefore;
-                    }
-                    _writeUiAdoptRepairAck(post, acknowledgement);
-                    _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
-                    gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
-                    const current = _writeUiAdoptReplayStatus(post, 'graphic', acknowledgement, recoveringWriteUiSource, 'calendar');
-                    if (current) edits.graphic_status = current;
-                    // Same rule, same reason as the video branch above.
-                    _calClearStaleApprovals(post, edits);
-                }
-                checkpointCommittedSource();
-            }
+            if (statusResults.some(r => r.status === 'fulfilled' && r.value)) checkpointCommittedSource();
+            refusedStatusComponents = ['video', 'graphic'].filter((c, i) => statusResults[i].status === 'rejected');
+            const refused = statusResults.find(r => r.status === 'rejected');
+            if (refused) throw refused.reason;
             // A replay may have adopted a newer native component state above.
             // Derive the source shadow overall status from those current
             // component values before constructing the field patch.
@@ -43652,6 +43694,7 @@
             // chip clears and the poll-merge no longer force-keeps the card on
             // that basis (the recent-save guard now covers it).
             _calFailedNewCards.delete(realId);
+            _calSyncRetryState.delete(realId);
             const _okPost = calState.posts.find(p => p.id === realId);
                 if (_okPost) {
                     if (_okPost._saveError) delete _okPost._saveError;
@@ -43712,7 +43755,25 @@
         } catch (e) {
             console.warn('[Calendar] save failed', e);
             if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('calendar', 'status', e);
-            _calSetCardStatus(realId, 'error', e.message || 'save failed');
+            /* One component committed and its sibling was REFUSED. The refusal
+               is a real failure for that component: tell the person, and (below)
+               put that component back on screen, while the committed one stays
+               and goes on syncing. */
+            else if (gatewayCommitted && refusedStatusComponents.length) _writeUiReportFailure('calendar', 'status', e);
+            /* COMMITTED, THEN A LATER STEP FAILED. The gateway already saved the
+               status, so "Save failed" was false and made people redo a change
+               that had landed. It is now "Saved, syncing", the remaining step is
+               retried on its own, and the case goes into the WR-101 logbook
+               (the ring + beacon _writeUiReportFailure writes to) under its own
+               kind -- this branch used to leave no trace at all, which is why
+               the owner's sightings could not be diagnosed. No failure notice:
+               nothing the person did was lost. */
+            else if (gatewayCommitted && !wasNewRow) {
+                _writeUiQueueDiagnostic('calendar', 'ui_write_failure',
+                    { kind: 'status_committed_source_failed', card: realId, client_slug: _saveSlug }, e);
+            }
+            if (gatewayCommitted && !wasNewRow) _calSetCardStatus(realId, 'syncing');
+            else _calSetCardStatus(realId, 'error', e.message || 'save failed');
             // Roll back structural fields the upsert failed to persist.
             // Text fields (caption / name / cta / tweak comments / asset
             // urls) keep their optimistic value so the user's typing isn't
@@ -43734,8 +43795,21 @@
                 const cur = calState.posts[iErr];
                 if (!gatewayCommitted) {
                     _CAL_ROLLBACK_FIELDS.forEach(k => {
-                        if (k in edits) cur[k] = prevSnapshot[k];
+                        if (k in edits) cur[k] = k in priorStatusForWrite ? priorStatusForWrite[k] : prevSnapshot[k];
                     });
+                } else if (refusedStatusComponents.length) {
+                    // Roll back ONLY the refused component(s), drop them from
+                    // what the retry re-sends, and re-derive the overall status
+                    // from what is actually true now.
+                    refusedStatusComponents.forEach(c => {
+                        [c + '_status', 'client_' + c + '_approved_at'].forEach(k => {
+                            if (k in edits) { cur[k] = k in priorStatusForWrite ? priorStatusForWrite[k] : prevSnapshot[k]; delete edits[k]; }
+                        });
+                    });
+                    // Through the shared helper (one definition of "overall"),
+                    // told a component moved so it always recomputes.
+                    _writeUiApplyOverallStatus('calendar', cur, { [refusedStatusComponents[0] + '_status']: cur[refusedStatusComponents[0] + '_status'] }, false, false);
+                    if ('status' in edits) edits.status = cur.status;
                 }
                 // updated_at must also revert so the next background
                 // merge doesn't see a phantom "we wrote newer" stamp.
@@ -43750,6 +43824,7 @@
                 }
             }
             try { _calRenderBody({ preserveScroll: true }); } catch {}
+            if (gatewayCommitted && !wasNewRow) _calScheduleSyncRetry(realId);
         }
         } finally {
             // Release the per-card lock and, if the user kept editing while
@@ -43772,9 +43847,50 @@
     function _calRetrySave(pid) {
         if (!pid) return;
         const post = calState.posts.find(p => p.id === pid);
+        if (_calHealLandedRepair(post)) return;
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = Object.assign({}, post && post._writeUiRetryEdits || {});
         _calSetCardStatus(pid, 'saving');
         _calFlushCardSave(pid);
+    }
+    /* Automatic retry for "Saved, syncing": the gateway committed the status
+       and only the card row is behind. Same funnel as the Retry click, on a
+       short ladder; a newer save for the card clears the retry state, and
+       when the ladder runs out the chip stays clickable for a manual retry. */
+    const CAL_SYNC_RETRY_DELAYS_MS = [2000, 8000, 30000];
+    const _calSyncRetryState = new Map();
+    function _calScheduleSyncRetry(pid) {
+        const state = _calSyncRetryState.get(pid) || { attempt: 0, timer: null };
+        if (state.timer || state.attempt >= CAL_SYNC_RETRY_DELAYS_MS.length) return;
+        state.timer = setTimeout(() => {
+            state.timer = null;
+            const post = calState.posts.find(p => p.id === pid);
+            if (!post || !post._writeUiRetrySourceAt) { _calSyncRetryState.delete(pid); return; }
+            if (_calHealLandedRepair(post)) return;
+            _calRetrySave(pid);
+        }, CAL_SYNC_RETRY_DELAYS_MS[state.attempt++]);
+        _calSyncRetryState.set(pid, state);
+    }
+    /* A committed repair whose server row is already newer than its checkpoint
+       has landed (same proof _writeUiResumeSourceRepairs heals on): settle the
+       card to saved instead of re-sending anything.
+
+       Only for a save that carried nothing BUT status fields. The gateway
+       mirrors a committed status onto the card row server-side, which is what
+       moves updated_at -- so "newer" proves the status landed, not a caption
+       or date riding in the same save. Those still re-send the card row. */
+    // Only what the gateway mirrors: the video and graphic statuses. A caption
+    // or overall status in the same save still needs the card row.
+    const CAL_HEALABLE_KEY = /^(video|graphic)_status$/;
+    function _calHealLandedRepair(post) {
+        if (!post || !post._writeUiRetrySourceAt || _calSaveInFlight[post.id]) return false;
+        if (!Object.keys(post._writeUiRetryEdits || {}).every(k => CAL_HEALABLE_KEY.test(k))) return false;
+        if (!_writeUiSourceRepairSuperseded(post)) return false;
+        _writeUiClearSupersededSourceRepair(post);
+        _calSyncRetryState.delete(post.id);
+        try { _calCacheWrite(calClientSlug(calState.client), calState.posts, { clearRepairIds: [post.id] }); } catch (e) {}
+        try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+        _calSetCardStatus(post.id, 'saved');
+        return true;
     }
     /* ── Reusable modern save indicator ───────────────────────────────────
        An icon-only, circular save-state indicator, built as ONE component so
@@ -43852,8 +43968,9 @@
     }
 
     function _calSetCardStatus(pid, state, msg) {
-        // Modern icon-only indicator at the END of the card title row.
-        _svSaveIndApply(document.querySelector(`[data-sv-save-ind="${pid}"]`), state, msg);
+        // Modern icon-only indicator at the END of the card title row. A
+        // committed status that is still syncing reads as saved there.
+        _svSaveIndApply(document.querySelector(`[data-sv-save-ind="${pid}"]`), state === 'syncing' ? 'saved' : state, msg);
         // The foot element stays the Save-failed·Retry affordance. It no longer
         // carries the transient "Saving…"/"Saved" TEXT (that moved to the icon),
         // but it must still surface a failure inline; the catch's subsequent
@@ -43861,9 +43978,11 @@
         // the visibility of a save failure.
         const tag = document.querySelector(`[data-saving="${pid}"]`);
         if (tag) {
-            tag.classList.remove('is-saved', 'is-error');
+            tag.classList.remove('is-saved', 'is-error', 'is-syncing');
             if (state === 'error') {
                 tag.hidden = false; tag.textContent = msg || 'Save failed'; tag.classList.add('is-error');
+            } else if (state === 'syncing') {
+                tag.hidden = false; tag.textContent = 'Saved, syncing'; tag.classList.add('is-syncing');
             } else {
                 tag.hidden = true; tag.textContent = '';
             }
@@ -49415,12 +49534,15 @@
         const unread = _calHasUnreadNotes(post);
         const cls  = (open > 0 ? ' has-open' : '') + (unread ? ' has-unread' : '');
         const tip  = unread ? 'New replies — open Notes'
-                   : (open > 0 ? `${open} open tweak${open === 1 ? '' : 's'}` : 'Notes');
+                   // The count is open top-level change requests only (replies and
+                   // closed ones are not counted), so the badge says "N open" and
+                   // the tooltip names what is being counted.
+                   : (open > 0 ? `${open} open change request${open === 1 ? '' : 's'}` : 'Notes');
         const ico  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
         // Tweaks pill + "Approved after tweaks" badge are kept in one left-
         // aligned group so the badge sits right next to the pill (the footer is
         // space-between, which would otherwise fling the badge to the far right).
-        return `<span class="cal-foot-tweaks" data-comments-wrap="${pid}"><button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="${_calEscAttr(tip)}">${ico}<span class="cal-comments-label">Notes</span>${unread ? '<span class="cal-comments-dot" aria-label="New replies"></span>' : ''}<span class="cal-comments-count">${open}</span></button>${_calAatBadgeHtml(post)}</span>`;
+        return `<span class="cal-foot-tweaks" data-comments-wrap="${pid}"><button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="${_calEscAttr(tip)}">${ico}<span class="cal-comments-label">Notes</span>${unread ? '<span class="cal-comments-dot" aria-label="New replies"></span>' : ''}<span class="cal-comments-count">${open} open</span></button>${_calAatBadgeHtml(post)}</span>`;
     }
     function _calRefreshCommentsBtn(pid) {
         const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
@@ -74052,7 +74174,14 @@
         }
         const edits = _writeUiApplyJournalEdits(post, group.edits, group.surface);
         post.updated_at = group.source_at;
-        post._writeUiRetryEdits = Object.assign({}, edits);
+        /* MERGE, never replace. The journal row carries only the status half
+           of a save; the card's own retry edits can also hold fields that rode
+           in the same save (a caption status, a CTA). Replacing them dropped
+           those fields from every later retry -- live 2026-09-23 a Set-all's
+           caption never reached the card row. The journal's values win where
+           both name a field. */
+        const carried = group.surface === 'calendar' ? Object.assign({}, post._writeUiRetryEdits || {}) : {};
+        post._writeUiRetryEdits = Object.assign({}, carried, edits);
         post._writeUiRetrySourceAt = group.source_at;
         post._writeUiRetryPrincipal = principal;
         if (group.lane === 'kasper-calendar') {
@@ -74068,7 +74197,7 @@
                 _kasperPersistCache();
             }
         } else if (group.surface === 'calendar') {
-            _calPendingEdits[post.id] = Object.assign({}, edits, _calPendingEdits[post.id] || {}, {
+            _calPendingEdits[post.id] = Object.assign({}, carried, edits, _calPendingEdits[post.id] || {}, {
                 _writeUiPrecommittedNative: true,
                 _writeUiRepairRefs: group.refs.map(ref => ({ key: ref.key, token: ref.token }))
             });
@@ -74109,7 +74238,13 @@
         delete post._writeUiRetryPrincipal;
         delete post._writeUiRepairRefs;
         delete post._writeUiPrecommittedNative;
-        if (post._saveError && /^Source repair/.test(String(post._saveError))) delete post._saveError;
+        /* Superseded means the server row is strictly newer than this
+           checkpoint, so the committed write landed. Any save error still on
+           the card came from the failed step that checkpoint was covering
+           (e.g. "HTTP 503" from a committed-then-failed card save), so it goes
+           too. Keeping it, once the checkpoint was gone, turned "Saved,
+           syncing" into a false "Save failed" (live 2026-09-23). */
+        if (post._saveError) delete post._saveError;
     }
     function _writeUiResumeSourceRepairs() {
         _writeUiLegacyReconcileCommittedTombstones();
@@ -74150,6 +74285,9 @@
             });
             if (healedIds.length) {
                 try { _calCacheWrite(calClientSlug(calState.client), calState.posts, { clearRepairIds: healedIds }); } catch (e) {}
+                // Repaint so a "Saved, syncing" chip on a healed card settles
+                // to saved instead of waiting for an unrelated render.
+                try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
             }
         }
         if (typeof sxrState !== 'undefined' && sxrState && Array.isArray(sxrState.posts)) {

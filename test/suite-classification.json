@@ -2,6 +2,7 @@
   "format": "explicit-test-suite-routing-v1",
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
+    "b2-brief-link-rewrite.mjs",
     "a2-writer-edge-source.js",
     "a4-settings-edge-source.js",
     "analytics-cache-quota.js",

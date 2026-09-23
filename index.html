@@ -3379,6 +3379,7 @@
         .prod-desc .prod-md-bullet-text { flex: 1 1 auto; min-width: 0; }
         /* display:none, not height:0: a zero-height block with a line box in it still stops the neighbouring heading and rule margins collapsing through, which is 2px to 14px the read view does not have. The block stays in the model; the caret helpers step over it. */
         .prod-desc .prod-md-gap { display: none; }
+        .prod-desc-media-pending, .prod-desc-media-ref { display: inline-flex; align-items: center; padding: 0 8px; border-radius: 6px; border: 1px dashed var(--prod-line); background: var(--prod-hover); color: var(--prod-muted); font-size: 12px; line-height: 20px; }
         .prod-desc-uploading { display: inline-flex; align-items: center; padding: 0 8px; border-radius: 6px; background: var(--prod-hover); color: var(--prod-muted); font-size: 12px; line-height: 20px; }
         .prod-description-footer-rich { min-height: 0; border-top: 0; padding: 4px 0 0; }
         .prod-description-footer-rich .prod-description-hint { margin-left: 0; }
@@ -59768,6 +59769,18 @@
                 + ' alt="' + (String(alt || '').trim() || 'Pasted image') + '"'
                 + ' tabindex="0" role="link" title="Open full size"'
                 + ' loading="lazy" decoding="async" referrerpolicy="no-referrer">';
+            /* B2: a brief whose Linear links were rewritten carries
+               `syncview-media:<occurrence id>` -- an internal reference, never
+               a URL. The server projection (description_read) signs it into a
+               fresh https URL before this sees it; anything still in the
+               reference form here was NOT resolved (projection unavailable,
+               older deploy, stale render), so it is drawn as an honest
+               placeholder, never an <img> and never a link. Runs in every
+               mode so comments cannot print it as a bare token either. */
+            const mediaPending = (alt) => '<span class="prod-desc-media-pending" data-syncview-media-pending="1" role="img"'
+                + ' aria-label="Image not loaded">Image not loaded' + (String(alt || '').trim() ? ': ' + String(alt).trim() : '') + '</span>';
+            s = s.replace(/!?\[([^\]]*)\]\((?:&lt;)?syncview-media:[0-9a-f-]{36}(?:&gt;)?\)/g, (m, l) => keep(mediaPending(l)));
+            s = s.replace(/syncview-media:[0-9a-f-]{36}/g, () => keep(mediaPending('')));
             if (allowImages) {
                 s = s.replace(/!\[([^\]]*)\]\(&lt;(https:\/\/.*?)&gt;\)/g, (m, l, u) => keep(imageTag(l, u)));
                 s = s.replace(/!\[([^\]]*)\]\((https:\/\/[^\s)]+)\)/g, (m, l, u) => keep(imageTag(l, u)));
@@ -62027,6 +62040,7 @@
         function _prodDescRichAttr(s) {
           return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').split('"').join('&quot;');
         }
+        // PORT-DELTA: B2 keeps `syncview-media:<occurrence id>` stored-image references as an atomic chip (artifact has no stored-media form).
         function _prodDescRichInline(s) {
           s = _prodDescRichAttr(s);
           const st = [];
@@ -62053,6 +62067,12 @@
           };
           s = s.replace(/`([^`]+)`/g, (m, c) => keep('<code>' + c + '</code>'));
           s = s.replace(/!\[Uploading image (\d+)…\]\(\)/g, (m, n) => keep(placeholder(n)));
+          /* B2: a stored-image reference is kept as an atomic chip that
+             serializes back to its exact source (form + alt + id), so editing
+             around it never loses or alters the reference. No <img>: the id
+             is not a URL and the editor never signs anything. */
+          s = s.replace(/!\[([^\]]*)\]\((&lt;)?syncview-media:([0-9a-f-]{36})(&gt;)?\)/g, (m, l, lt, id, gt) => (!!lt !== !!gt) ? m
+            : keep('<span class="prod-desc-media-ref" data-md-media="' + id + '" data-md-media-form="' + (lt ? 'angle' : 'plain') + '" data-md-media-alt="' + l + '" contenteditable="false">Stored image' + (l.trim() ? ': ' + l : '') + '</span>'));
           s = s.replace(/!\[([^\]]*)\]\(&lt;(https:\/\/.*?)&gt;\)/g, (m, l, u) => keep(image(l, u, 'angle')));
           s = s.replace(/!\[([^\]]*)\]\((https:\/\/[^\s)]+)\)/g, (m, l, u) => keep(image(l, u, 'plain')));
           s = s.replace(/\[([^\]]+)\]\(&lt;(https?:\/\/.*?)&gt;\)/g, (m, l, u) => keep(anchor(l, u, 'angle')));
@@ -62094,6 +62114,7 @@
           if (block.getAttribute('data-md') === 'ul') return block.querySelector('.prod-md-bullet-text') || block;
           return block;
         }
+        // PORT-DELTA: B2 keeps `syncview-media:<occurrence id>` stored-image references as an atomic chip (artifact has no stored-media form).
         function _prodDescRichSerializeInline(el) {
           let out = '';
           Array.from(el.childNodes).forEach(n => {
@@ -62105,6 +62126,11 @@
               const alt = n.getAttribute('alt') || '';
               const src = n.getAttribute('src') || '';
               out += n.getAttribute('data-md') === 'angle' ? '![' + alt + '](<' + src + '>)' : '![' + alt + '](' + src + ')';
+              return;
+            }
+            if (n.hasAttribute('data-md-media')) {
+              const id = n.getAttribute('data-md-media') || '', alt = n.getAttribute('data-md-media-alt') || '';
+              out += n.getAttribute('data-md-media-form') === 'angle' ? '![' + alt + '](<syncview-media:' + id + '>)' : '![' + alt + '](syncview-media:' + id + ')';
               return;
             }
             if (n.hasAttribute('data-md-placeholder')) { out += '![Uploading image ' + n.getAttribute('data-md-placeholder') + '…]()'; return; }
@@ -62162,9 +62188,10 @@
           host.innerHTML = _prodDescRichBlockHTML(kind, prefix, '', '');
           return host.firstChild;
         }
+        // PORT-DELTA: B2 keeps `syncview-media:<occurrence id>` stored-image references as an atomic chip (artifact has no stored-media form).
         function _prodDescRichIsEmpty(container) {
           if (!container) return true;
-          if (container.querySelector && container.querySelector('img,[data-md-placeholder]')) return false;
+          if (container.querySelector && container.querySelector('img,[data-md-placeholder],[data-md-media]')) return false;
           return !String(container.textContent || '').length;
         }
         /* An empty container must hold exactly one <br>: an empty text node left
@@ -62183,6 +62210,7 @@
         /* Browser edits leave <b>, <i>, styled spans, nested divs and stray <br>s
            behind. Fold every one of them back into the block model so the serializer
            only ever sees shapes it knows. Idempotent. */
+        // PORT-DELTA: B2 keeps `syncview-media:<occurrence id>` stored-image references as an atomic chip (artifact has no stored-media form).
         function _prodDescRichNormalize(root) {
           const unwrap = el => { while (el.firstChild) el.parentNode.insertBefore(el.firstChild, el); el.remove(); };
           const clean = el => {
@@ -62205,7 +62233,7 @@
               if (tag === 'A') { if (!n.hasAttribute('data-md')) n.setAttribute('data-md', 'named'); n.setAttribute('target', '_blank'); n.setAttribute('rel', 'noopener noreferrer'); return; }
               if (tag === 'IMG') { if (String(n.getAttribute('src') || '').indexOf('https://') !== 0) n.remove(); else n.classList.add('prod-desc-image'); return; }
               if (tag === 'STRONG' || tag === 'EM' || tag === 'CODE' || tag === 'BR' || tag === 'HR') return;
-              if (tag === 'SPAN' && (n.hasAttribute('data-md-placeholder') || n.classList.contains('prod-md-bullet-mark') || n.classList.contains('prod-md-bullet-text'))) return;
+              if (tag === 'SPAN' && (n.hasAttribute('data-md-placeholder') || n.hasAttribute('data-md-media') || n.classList.contains('prod-md-bullet-mark') || n.classList.contains('prod-md-bullet-text'))) return;
               if (tag === 'DIV') return;
               unwrap(n);
             });

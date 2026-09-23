@@ -379,6 +379,38 @@ async function attachThreeImagesAndCaption(page, caption) {
       ok('no page errors during reorder/remove focus handling', pageErrors.length === 0);
       await page.close();
     }
+
+    /* ---------------------------------------------------------------- *
+     * 6. Cached queue paints first, read-only, then goes live           *
+     * ---------------------------------------------------------------- */
+    {
+      const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+      const pageErrors = [];
+      page.on('pageerror', e => pageErrors.push(e.stack || e.message));
+      await seedStaffGate(page);
+      await mockNetwork(page, {});
+      const row = { id: 'row-cached-1', client: 'Client A', status: 'scheduled', scheduled_for: '2099-01-01T10:00:00Z', title: 'cached row' };
+      await page.addInitScript(r => {
+        try { localStorage.setItem('syncview_tiktokQueueCache_v1', JSON.stringify({ at: Date.now(), rows: [r] })); } catch (e) {}
+      }, row);
+      let releaseList;
+      const listHeld = new Promise(resolve => { releaseList = resolve; });
+      await page.route('**/webhook/tiktok-uploads-list**', async route => {
+        await listHeld;
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ rows: [row] }) });
+      });
+      await page.goto(`http://127.0.0.1:${port}/#tiktok-upload`, { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('.tk-queue-item');
+      ok('the cached row paints before the live list answers', await page.$$eval('.tk-queue-item', els => els.length === 1));
+      ok('a cached row offers no Cancel/Retry/Dismiss until confirmed live',
+        await page.$$eval('.tk-queue-item button', els => els.length === 0));
+      releaseList();
+      await page.waitForSelector('.tk-queue-item button');
+      ok('once the live list confirms the row, Cancel becomes available',
+        await page.$$eval('.tk-queue-item button', els => els.some(b => b.textContent.trim() === 'Cancel')));
+      ok('no page errors across the cached-to-live transition', pageErrors.length === 0);
+      await page.close();
+    }
   } finally {
     await browser.close();
     await new Promise(resolve => server.close(resolve));

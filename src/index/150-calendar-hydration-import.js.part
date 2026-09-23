@@ -1217,6 +1217,7 @@
         if (el) el.hidden = !on;
     }
     const CAL_LOAD_TIMEOUT_MS = 20000;
+    const CAL_AUTHORITY_PAINT_WAIT_MS = 400;
     async function loadCalendarPosts(opts) {
         opts = opts || {};
         if (!calState.client) { _calInvalidateActiveLoad(); _calRenderBody(); return; }
@@ -1638,6 +1639,21 @@
         } finally {
             if (timeoutId) clearTimeout(timeoutId);
             loadRun.timeoutId = null;
+            /* The board usually arrives just before the live write-authority
+               read. Painting then draws the Linear link seal fail-open, and
+               the authority read repaints the whole board ~100-250 ms later
+               to change it. Give that read a short, bounded head start so the
+               first paint is already the live answer; if it is slow or down,
+               paint fail-open exactly as before. Client links never render
+               the seal, so they never wait. */
+            if (ok && !_isClientLink && !_writeUiAuthoritySnapshot() && _calLoadRunCurrent(loadRun)) {
+                try {
+                    await Promise.race([
+                        _writeUiRefreshAuthority(),
+                        new Promise(resolve => setTimeout(resolve, CAL_AUTHORITY_PAINT_WAIT_MS))
+                    ]);
+                } catch {}
+            }
             // A late completion from an aborted generation must never detach
             // the replacement controller or clear its in-flight indicators.
             if (_calLoadRunCurrent(loadRun)) {

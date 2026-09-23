@@ -1474,6 +1474,19 @@
         });
     }
 
+    /* Cached-first queue: the list webhook takes seconds, so the last good
+       server rows are kept locally and painted on mount; the live fetch then
+       replaces them behind the scenes. */
+    function _tkLoadQueueCache() {
+        try {
+            const c = JSON.parse(localStorage.getItem(TIKTOK_QUEUE_CACHE_KEY) || 'null');
+            return (c && Array.isArray(c.rows)) ? c.rows : [];
+        } catch { return []; }
+    }
+    function _tkSaveQueueCache(rows) {
+        try { localStorage.setItem(TIKTOK_QUEUE_CACHE_KEY, JSON.stringify({ at: Date.now(), rows: rows.slice(0, 100) })); } catch {}
+    }
+
     async function _tkFetchQueue() {
         try {
             // Timeout so a hung request can't stall the poll chain forever —
@@ -1482,12 +1495,17 @@
             if (!r.ok) throw new Error('HTTP ' + r.status);
             const json = await r.json();
             const rows = Array.isArray(json) ? json : (json.rows || json.items || []);
+            _tkSaveQueueCache(rows);
             const prunedPending = _tkPrunePending(_tkLoadPending());
+            const shownBefore = tkState.queueFromCache ? null : JSON.stringify(tkState.uploads);
             tkState.uploads = _tkMergeUploads(prunedPending, rows);
             // Trim local pending list of rows the server now knows about, plus stale optimistic ones.
             const knownIds = new Set(rows.map(r => r.id));
             _tkSavePending(prunedPending.filter(r => !knownIds.has(r.id)));
-            _tkRenderQueue();
+            tkState.queueFromCache = false;
+            // The live list is usually the same; repaint only on a change
+            // (or to turn the cached, read-only rows into live ones).
+            if (JSON.stringify(tkState.uploads) !== shownBefore) _tkRenderQueue();
         } catch (e) {
             // Surface only on the very first failure — keep retrying quietly afterwards.
             const col = document.getElementById('tkQueueCol');
@@ -1513,18 +1531,25 @@
                 : (r.posted_at ? `posted ${new Date(r.posted_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}` : 'now');
             const status = _tkEffectiveStatus(r);
             const actions = [];
-            if (status === 'scheduled' || status === 'queued') {
-                actions.push(`<button class="tk-mini-btn" onclick="_tkCancelRow('${_tkEscape(r.id)}')">Cancel</button>`);
+            // Rows painted from the local cache are read-only until the live
+            // list confirms them: the state may have moved on elsewhere.
+            const readOnly = tkState.queueFromCache && !r.optimistic;
+            if (readOnly) {
+                if (r.tiktok_url) actions.push(`<a class="tk-mini-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
+            } else {
+                if (status === 'scheduled' || status === 'queued') {
+                    actions.push(`<button class="tk-mini-btn" onclick="_tkCancelRow('${_tkEscape(r.id)}')">Cancel</button>`);
+                }
+                if (status === 'failed') {
+                    actions.push(`<button class="tk-mini-btn" onclick="_tkRetryRow('${_tkEscape(r.id)}')">Retry</button>`);
+                }
+                if (r.tiktok_url) {
+                    actions.push(`<a class="tk-mini-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
+                }
+                actions.push(`<button class="tk-mini-btn" onclick="_tkDismissRow('${_tkEscape(r.id)}')">Dismiss</button>`);
             }
-            if (status === 'failed') {
-                actions.push(`<button class="tk-mini-btn" onclick="_tkRetryRow('${_tkEscape(r.id)}')">Retry</button>`);
-            }
-            if (r.tiktok_url) {
-                actions.push(`<a class="tk-mini-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
-            }
-            actions.push(`<button class="tk-mini-btn" onclick="_tkDismissRow('${_tkEscape(r.id)}')">Dismiss</button>`);
             return `
-                <div class="tk-queue-item">
+                <div class="tk-queue-item${readOnly ? ' tk-queue-item-cached' : ''}">
                     <div class="tk-queue-top">
                         <div style="min-width:0">
                             <div class="tk-queue-client">${_tkEscape(r.client || '—')}</div>
@@ -1643,7 +1668,11 @@
             tkState.profile = r.profile;
             tkState.profileSource = r.source;
         }
-        tkState.uploads = _tkPrunePending(_tkLoadPending());   // optimistic rows show instantly
+        // Optimistic rows plus the last server list show instantly; the fetch
+        // below refreshes them.
+        const cachedRows = _tkLoadQueueCache();
+        tkState.uploads = _tkMergeUploads(_tkPrunePending(_tkLoadPending()), cachedRows);
+        tkState.queueFromCache = cachedRows.length > 0;
         _tkRenderForm();
         _tkRenderPreview();
         _tkRenderQueue();

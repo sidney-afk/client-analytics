@@ -863,7 +863,7 @@
                             _calPendingBackgroundRender = true;
                             if (typeof _calSchedulePendingRender === 'function') _calSchedulePendingRender();
                         } else {
-                            _calRenderBody({ preserveScroll: true });
+                            _calRenderBody({ preserveScroll: true, skipIfUnchanged: true });
                         }
                     }
                     if (activeNav === 'sample-reviews' && typeof _sxrRenderBody === 'function') {

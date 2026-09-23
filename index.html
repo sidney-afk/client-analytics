@@ -8902,6 +8902,7 @@
     const TIKTOK_FORM_KEY          = 'syncview_tiktokUploadForm_v1';
     const TIKTOK_PENDING_KEY       = 'syncview_pendingTiktokUploads_v1';
     const TIKTOK_HIDDEN_KEY        = 'syncview_hiddenTiktokUploads_v1';
+    const TIKTOK_QUEUE_CACHE_KEY   = 'syncview_tiktokQueueCache_v1';
     const TIKTOK_OPTIMISTIC_TTL_MS = 5 * 60 * 1000; // drop unconfirmed local rows after 5 min
     const TIKTOK_MAX_BYTES         = 287 * 1024 * 1024; // TikTok upload size limit
     // Cloudflare's request-body ceiling in front of n8n Cloud. Only the legacy
@@ -38576,6 +38577,7 @@
         if (el) el.hidden = !on;
     }
     const CAL_LOAD_TIMEOUT_MS = 20000;
+    const CAL_AUTHORITY_PAINT_WAIT_MS = 400;
     async function loadCalendarPosts(opts) {
         opts = opts || {};
         if (!calState.client) { _calInvalidateActiveLoad(); _calRenderBody(); return; }
@@ -38997,6 +38999,21 @@
         } finally {
             if (timeoutId) clearTimeout(timeoutId);
             loadRun.timeoutId = null;
+            /* The board usually arrives just before the live write-authority
+               read. Painting then draws the Linear link seal fail-open, and
+               the authority read repaints the whole board ~100-250 ms later
+               to change it. Give that read a short, bounded head start so the
+               first paint is already the live answer; if it is slow or down,
+               paint fail-open exactly as before. Client links never render
+               the seal, so they never wait. */
+            if (ok && !_isClientLink && !_writeUiAuthoritySnapshot() && _calLoadRunCurrent(loadRun)) {
+                try {
+                    await Promise.race([
+                        _writeUiRefreshAuthority(),
+                        new Promise(resolve => setTimeout(resolve, CAL_AUTHORITY_PAINT_WAIT_MS))
+                    ]);
+                } catch {}
+            }
             // A late completion from an aborted generation must never detach
             // the replacement controller or clear its in-flight indicators.
             if (_calLoadRunCurrent(loadRun)) {
@@ -40245,9 +40262,12 @@
         }
     }
 
+    let _calLastBodyPaint = { el: null, view: null, html: null };
     function _calRenderBody(opts) {
         const body = document.getElementById('calBody');
         if (!body) return;
+        const lastPaint = _calLastBodyPaint;
+        _calLastBodyPaint = { el: null, view: null, html: null };   // early returns below repaint without it
         const preserveScroll = !!(opts && opts.preserveScroll);
         const stripBefore = preserveScroll ? document.getElementById('calStrip') : null;
         const scrollLeft0 = stripBefore ? stripBefore.scrollLeft : null;
@@ -40264,13 +40284,33 @@
             </div>`;
             return;
         }
+        /* skipIfUnchanged: a background caller (the boot/resume write-authority
+           check) asks for a repaint only in case its news changes the board.
+           Build the markup first and leave the DOM alone when it is identical
+           to the last paint of this same body, which is what the first
+           authority read usually turns out to be ~100 ms after first paint. */
+        const skipIfUnchanged = !!(opts && opts.skipIfUnchanged);
+        const viewHtml = (calState.view === 'review' || calState.view === 'smmreview') ? renderCalReview()
+            : calState.view === 'organizer' ? renderCalOrganizer()
+            : calState.view === 'month' ? renderCalMonth()
+            : calState.view === 'week' ? renderCalWeek()
+            : null;
+        if (skipIfUnchanged && viewHtml != null && lastPaint.el === body
+            && lastPaint.view === calState.view && lastPaint.html === viewHtml) {
+            _calLastBodyPaint = lastPaint;
+            _calUpdateReviewBadge();
+            _calSyncMonthWarnIcon();
+            _calSyncClientLinks();
+            return;
+        }
+        _calLastBodyPaint = { el: body, view: calState.view, html: viewHtml };
         if (calState.view === 'review' || calState.view === 'smmreview') {
             const reviewThumbs = _kcardHarvestThumbs(body, 'data-cal-review-pid');
-            body.innerHTML = renderCalReview();
+            body.innerHTML = viewHtml;
             _kcardRestoreThumbs(body, reviewThumbs, 'data-cal-review-pid');
             _calWireReviewExpand(body);
         } else if (calState.view === 'organizer') {
-            body.innerHTML = renderCalOrganizer();
+            body.innerHTML = viewHtml;
             // Re-insert previously-loaded <img> elements into the new cards
             // (same pid + same src) so the browser doesn't have to repaint
             // thumbnails from the cache — no card-height shift on refresh.
@@ -40284,11 +40324,11 @@
             }
             wireCalOrganizerDrag(preserveScroll);
         } else if (calState.view === 'month') {
-            body.innerHTML = renderCalMonth();
+            body.innerHTML = viewHtml;
             _calWireWheelNav(body.querySelector('.cal-month-wrap'), calMonthShift);
             _calWireDayDrag(body);
         } else if (calState.view === 'week') {
-            body.innerHTML = renderCalWeek();
+            body.innerHTML = viewHtml;
             _calWireWeekWheel(body);
             _calWireDayDrag(body);
         }
@@ -74600,7 +74640,7 @@
                             _calPendingBackgroundRender = true;
                             if (typeof _calSchedulePendingRender === 'function') _calSchedulePendingRender();
                         } else {
-                            _calRenderBody({ preserveScroll: true });
+                            _calRenderBody({ preserveScroll: true, skipIfUnchanged: true });
                         }
                     }
                     if (activeNav === 'sample-reviews' && typeof _sxrRenderBody === 'function') {
@@ -77009,6 +77049,19 @@
         });
     }
 
+    /* Cached-first queue: the list webhook takes seconds, so the last good
+       server rows are kept locally and painted on mount; the live fetch then
+       replaces them behind the scenes. */
+    function _tkLoadQueueCache() {
+        try {
+            const c = JSON.parse(localStorage.getItem(TIKTOK_QUEUE_CACHE_KEY) || 'null');
+            return (c && Array.isArray(c.rows)) ? c.rows : [];
+        } catch { return []; }
+    }
+    function _tkSaveQueueCache(rows) {
+        try { localStorage.setItem(TIKTOK_QUEUE_CACHE_KEY, JSON.stringify({ at: Date.now(), rows: rows.slice(0, 100) })); } catch {}
+    }
+
     async function _tkFetchQueue() {
         try {
             // Timeout so a hung request can't stall the poll chain forever —
@@ -77017,12 +77070,17 @@
             if (!r.ok) throw new Error('HTTP ' + r.status);
             const json = await r.json();
             const rows = Array.isArray(json) ? json : (json.rows || json.items || []);
+            _tkSaveQueueCache(rows);
             const prunedPending = _tkPrunePending(_tkLoadPending());
+            const shownBefore = tkState.queueFromCache ? null : JSON.stringify(tkState.uploads);
             tkState.uploads = _tkMergeUploads(prunedPending, rows);
             // Trim local pending list of rows the server now knows about, plus stale optimistic ones.
             const knownIds = new Set(rows.map(r => r.id));
             _tkSavePending(prunedPending.filter(r => !knownIds.has(r.id)));
-            _tkRenderQueue();
+            tkState.queueFromCache = false;
+            // The live list is usually the same; repaint only on a change
+            // (or to turn the cached, read-only rows into live ones).
+            if (JSON.stringify(tkState.uploads) !== shownBefore) _tkRenderQueue();
         } catch (e) {
             // Surface only on the very first failure — keep retrying quietly afterwards.
             const col = document.getElementById('tkQueueCol');
@@ -77048,18 +77106,25 @@
                 : (r.posted_at ? `posted ${new Date(r.posted_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}` : 'now');
             const status = _tkEffectiveStatus(r);
             const actions = [];
-            if (status === 'scheduled' || status === 'queued') {
-                actions.push(`<button class="tk-mini-btn" onclick="_tkCancelRow('${_tkEscape(r.id)}')">Cancel</button>`);
+            // Rows painted from the local cache are read-only until the live
+            // list confirms them: the state may have moved on elsewhere.
+            const readOnly = tkState.queueFromCache && !r.optimistic;
+            if (readOnly) {
+                if (r.tiktok_url) actions.push(`<a class="tk-mini-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
+            } else {
+                if (status === 'scheduled' || status === 'queued') {
+                    actions.push(`<button class="tk-mini-btn" onclick="_tkCancelRow('${_tkEscape(r.id)}')">Cancel</button>`);
+                }
+                if (status === 'failed') {
+                    actions.push(`<button class="tk-mini-btn" onclick="_tkRetryRow('${_tkEscape(r.id)}')">Retry</button>`);
+                }
+                if (r.tiktok_url) {
+                    actions.push(`<a class="tk-mini-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
+                }
+                actions.push(`<button class="tk-mini-btn" onclick="_tkDismissRow('${_tkEscape(r.id)}')">Dismiss</button>`);
             }
-            if (status === 'failed') {
-                actions.push(`<button class="tk-mini-btn" onclick="_tkRetryRow('${_tkEscape(r.id)}')">Retry</button>`);
-            }
-            if (r.tiktok_url) {
-                actions.push(`<a class="tk-mini-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
-            }
-            actions.push(`<button class="tk-mini-btn" onclick="_tkDismissRow('${_tkEscape(r.id)}')">Dismiss</button>`);
             return `
-                <div class="tk-queue-item">
+                <div class="tk-queue-item${readOnly ? ' tk-queue-item-cached' : ''}">
                     <div class="tk-queue-top">
                         <div style="min-width:0">
                             <div class="tk-queue-client">${_tkEscape(r.client || '—')}</div>
@@ -77178,7 +77243,11 @@
             tkState.profile = r.profile;
             tkState.profileSource = r.source;
         }
-        tkState.uploads = _tkPrunePending(_tkLoadPending());   // optimistic rows show instantly
+        // Optimistic rows plus the last server list show instantly; the fetch
+        // below refreshes them.
+        const cachedRows = _tkLoadQueueCache();
+        tkState.uploads = _tkMergeUploads(_tkPrunePending(_tkLoadPending()), cachedRows);
+        tkState.queueFromCache = cachedRows.length > 0;
         _tkRenderForm();
         _tkRenderPreview();
         _tkRenderQueue();

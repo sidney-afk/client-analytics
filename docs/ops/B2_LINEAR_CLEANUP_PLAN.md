@@ -1,7 +1,11 @@
 # B2: server-side Linear cleanup. Inventory and removal plan
 
-Status: **inventory and plan only.** Nothing live was changed, nothing was
-deployed, no n8n workflow was edited. Measured 2026-09-23 (UTC) by the session
+Status: **partly executed.** Sections 1 to 3 were written on 2026-09-23 as
+inventory and plan only. On the same day, with the owner's go-ahead, plan
+Slices 1, 2, 5 and 6 were carried out; section 4 (execution log) records
+exactly what changed live and how to roll each change back. Every other slice
+is still pending. No Edge Function was deployed, and no table was changed
+except the one flag row recorded in section 4. Measured 2026-09-23 (UTC) by the session
 named Sweep, supervised by Lighthouse. No staff or clients are named; counts only.
 
 ## Starting facts (verified by Lighthouse, re-read live where noted)
@@ -238,9 +242,16 @@ Owner decisions recorded with this go-ahead:
 - **Proof it was unused:** `linear-inbound` had zero Edge Function log entries in the 24 hours before the change, and none since 2026-09-20 23:08Z.
 - **Change:** `syncview_runtime_flags` row `linear_inbound_enabled` went from `{"enabled": true}` to `{"enabled": false}`, `updated_by = 'owner-b2-slice5-inbound-off'`. The update was guarded on the old value.
 - **Audit:** `flag_flips` id 124 recorded it automatically (key `linear_inbound_enabled`, old `{"enabled": true}`, new `{"enabled": false}`, actor `owner-b2-slice5-inbound-off`, ts 2026-09-23 14:02:01.858898Z).
-- **Rollback:**
-  `update syncview_runtime_flags set value='{"enabled": true}'::jsonb, updated_by='owner-b2-slice5-rollback' where key='linear_inbound_enabled';`
-  The same trigger logs the reversal in `flag_flips`.
+- **Rollback:** guarded, so a newer change is never overwritten.
+  ```sql
+  update syncview_runtime_flags
+     set value='{"enabled": true}'::jsonb, updated_by='owner-b2-slice5-rollback'
+   where key='linear_inbound_enabled' and value='{"enabled": false}'::jsonb
+  returning key, value, updated_at;
+  ```
+  - It must return exactly one row. Zero rows means someone changed the flag since this entry: stop and read `flag_flips` before doing anything.
+  - Read the value back with `select value from syncview_runtime_flags where key='linear_inbound_enabled'`.
+  - Confirm the reversal row in `flag_flips`.
 - The Linear-side webhook subscription was left untouched, as the owner instructed.
 
 ### Slice 4 (plan Slice 6): retired 4 unscheduled Linear-only GitHub workflows. DONE in the repo PR that carries this entry
@@ -257,7 +268,7 @@ Owner decisions recorded with this go-ahead:
   - `scripts/monitoring-watchdog.js` itself is unchanged.
   - `npm test`: 566 of 572 suites pass. The 6 failures fail the same way on `origin/main`.
 - **Secrets these workflows used:** `LINEAR_API_KEY`, `ROLE_KEY_ADMIN`, `ROLE_KEY_SMM`, `ROLE_KEY_CREATIVE`, plus shared ones. Deleting any secret is a separate owner decision: `LINEAR_API_KEY` is still read by other workflows, and the `ROLE_KEY_*` secrets may have other users.
-- **Rollback:** revert the PR's commit. The files come back as they were, and nothing ran them on a schedule.
+- **Rollback:** revert only the workflow-retirement commit, `ci: retire unscheduled Linear-only GitHub workflows (B2 slice 6)` (`git revert <that sha>`). Do not revert the commit that adds this execution log: the n8n and flag changes it records stay live either way. The files come back as they were, and nothing ran them on a schedule.
 
 ### Brief images on Linear's servers (measured 2026-09-23, read-only)
 

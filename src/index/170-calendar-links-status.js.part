@@ -1603,9 +1603,16 @@
     }
     /* A committed repair whose server row is already newer than its checkpoint
        has landed (same proof _writeUiResumeSourceRepairs heals on): settle the
-       card to saved instead of re-sending anything. */
+       card to saved instead of re-sending anything.
+
+       Only for a save that carried nothing BUT status fields. The gateway
+       mirrors a committed status onto the card row server-side, which is what
+       moves updated_at -- so "newer" proves the status landed, not a caption
+       or date riding in the same save. Those still re-send the card row. */
+    const CAL_HEALABLE_KEY = /^(status|(video|graphic|caption|title)_status|client_(video|graphic|caption)_approved_at|kasper_approved_at)$/;
     function _calHealLandedRepair(post) {
         if (!post || !post._writeUiRetrySourceAt || _calSaveInFlight[post.id]) return false;
+        if (!Object.keys(post._writeUiRetryEdits || {}).every(k => CAL_HEALABLE_KEY.test(k))) return false;
         if (!_writeUiSourceRepairSuperseded(post)) return false;
         _writeUiClearSupersededSourceRepair(post);
         _calSyncRetryState.delete(post.id);

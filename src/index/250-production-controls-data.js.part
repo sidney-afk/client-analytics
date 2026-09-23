@@ -1089,32 +1089,30 @@
             }, () => { _prodFirstLoadSettle(); });
         }
         /* The snapshot too big for localStorage lives in IndexedDB, and reading
-           it is asynchronous. Measured 2026-09-23 the read answers in well under
-           the ~0.6 s the live read spends on key-verify alone, so it is awaited
-           rather than raced: a cached paint that could land AFTER the live one
-           would be a stale list replacing a fresh one. Nothing is in flight
-           meanwhile -- the skeleton is already on screen -- and a miss or an
-           error falls through to the same cold load as before. Every exit
-           re-checks the state, since a navigation or a load may have started
-           while the read was out. */
+           it is asynchronous, so it RACES the live read rather than gating it.
+           Awaiting it first was measured on 2026-09-23 and rejected: on a
+           switch from the calendar the read sometimes took ~3 s, and the live
+           list then landed ~1.5 s later than with no cache at all. Now the live
+           read starts at once, exactly as it did before, and the saved copy is
+           painted only if it answers while that read is still out -- a copy
+           that loses the race is dropped unseen, so a stale list can never
+           replace a fresh one. */
         function _prodMountFromIdbOrLoad() {
-            const idle = () => !_prodState.loaded && !_prodState.loading;
-            const cold = () => {
-                if (!idle()) return;
-                Promise.resolve(_prodLoadData()).then(() => _prodFirstLoadSettle(), () => _prodFirstLoadSettle());
-            };
+            if (_prodState.loaded || _prodState.loading) return;
+            const generation = _prodState.projectionGeneration;
+            Promise.resolve(_prodLoadData()).then(() => _prodFirstLoadSettle(), () => _prodFirstLoadSettle());
             let read;
-            try { read = _prodHydrateFromIdb(); } catch (e) { cold(); return; }
-            /* Held as loading while the read is out, so nothing else starts a
-               second load underneath it; released just before either branch. */
-            _prodState.loading = true;
-            Promise.resolve(read).then(snapshotHydrated => snapshotHydrated, () => false).then(snapshotHydrated => {
+            try { read = _prodIdbCacheRead(); } catch (e) { return; }
+            Promise.resolve(read).then(cached => {
+                // Still the same boot, still waiting on it, nothing painted yet.
+                if (!cached || !_prodState.loading || _prodState.loaded || _prodState.error
+                    || generation !== _prodState.projectionGeneration) return;
+                if (!_prodHydrateFromCache(cached)) return;
+                // Hydration marks the tab loaded; the live read is still out and
+                // takes over when it lands (it clears fromCache and repaints).
                 _prodState.loading = false;
-                if (snapshotHydrated && _prodState.fromCache) {
-                    if (document.getElementById('prodRoot')) _prodRender();
-                    _prodRevalidateCachedPaint();
-                } else cold();
-            });
+                if (document.getElementById('prodRoot')) _prodRender();
+            }, () => {});
         }
         function _prodPrimeFromUrl() {
             try {

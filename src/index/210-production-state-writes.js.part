@@ -805,10 +805,7 @@
             return _prodIdbRequest('readonly', store => store.get(PROD_IDB_KEY))
                 .then(parsed => (seq === _prodIdbCacheSeq ? _prodCacheValidate(parsed) : null), () => null);
         }
-        function _prodHydrateFromIdb() {
-            return _prodIdbCacheRead().then(cached => cached ? _prodHydrateFromCache(cached) : false, () => false);
-        }
-        /* `snapshot` is the IndexedDB copy when there is one (_prodHydrateFromIdb);
+        /* `snapshot` is the IndexedDB copy when there is one (_prodMountFromIdbOrLoad);
            otherwise the localStorage copy is read here, as it always was. */
         function _prodHydrateFromCache(snapshot) {
             const cached = snapshot || _prodCacheRead();

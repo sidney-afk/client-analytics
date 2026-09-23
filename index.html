@@ -60000,16 +60000,21 @@
                     surface, post, component, deliverableId
                 );
                 // Reuse an authorization this page already holds: a staff read
-                // that already came back ready for this exact deliverable stays
-                // ready while the refresh below runs, so reopening Notes does
-                // not lock the composer again. Client links always re-verify.
+                // that already came back ready for this exact deliverable keeps
+                // its 'ready' verdict instead of being reset to 'loading', so
+                // reopening Notes does not lock Send again. The deliverable is
+                // already in `groups` above, so the canonical re-read below
+                // still runs and its rows repaint the open modal when they land.
+                // Client links always re-verify from 'loading'.
                 const priorRead = post._canonicalCommentReads[deliverableId];
-                if (!_isClientLink && priorRead && priorRead.status === 'ready') return;
-                post._canonicalCommentReads[deliverableId] = {
-                    status: 'loading',
-                    client: false,
-                    clientSurface
-                };
+                const keepPriorReady = !_isClientLink && priorRead && priorRead.status === 'ready';
+                if (!keepPriorReady) {
+                    post._canonicalCommentReads[deliverableId] = {
+                        status: 'loading',
+                        client: false,
+                        clientSurface
+                    };
+                }
                 // A client projection belongs to this exact card/component.
                 // Clear it before authorization so a failed binding switch can
                 // never retain rows from the previously verified card.

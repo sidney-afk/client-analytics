@@ -41,7 +41,9 @@ Samples (legacy) and sample reviews (SXR):
 
 Linear bridge:
 - `webhook/linear-issues`, `webhook/linear-projects`,
-  `webhook/linear-subissues`, `webhook/linear-tweak-comments`, `webhook/log-linear-submission`
+  `webhook/linear-subissues`, `webhook/log-linear-submission`
+- The Workload tweak-comment preview's Linear read is **no longer called** (retired
+  2026-09-23, B2; the popover reads `production-comments` only).
 - The `linear-issue-statuses` webhook is **no longer called by anything** (browser
   caller removed 2026-09-22, OPEN_REPAIRS 236; its last two CI callers — the card
   and sample status reconcilers — retired 2026-09-22, OPEN_REPAIRS 238; the

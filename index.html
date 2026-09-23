@@ -14535,7 +14535,6 @@
     }
     /* ── Workload Calendar ── */
     const LINEAR_ISSUES_WEBHOOK        = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issues';
-    const LINEAR_TWEAK_COMMENTS_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/linear-tweak-comments';
     const LINEAR_ISSUES_CACHE_KEY = 'syncview_linearIssuesCache_v1';
     const LINEAR_ISSUES_TTL_MS    = 5 * 60 * 1000;
     const WL_VIEW_PREF_KEY        = 'syncview_workloadView_v1';
@@ -21410,25 +21409,24 @@
     // renders a popover anchored to the clicked rollup.
     /* ── Tweak-comment preview ──────────────────────────────────────────
        When a popover lists sub-issues that sit in "Tweak Needed", the
-       comment that bounced them back (client tweak from the review link,
-       Kasper tweak from his queue — both pushed onto the Linear sub-issue
-       by linear-add-comment) is fetched from Linear in one batched call
-       and shown inline, so the editor doesn't have to open Linear.
-       Tweaks left in Frame.io never reach Linear (sub-issues aren't
-       linked to Frame), hence the standing "always check Frame.io" note. */
-    const WL_TWEAK_COMMENTS_TTL_MS = 5 * 60 * 1000;
-    const _wlTweakCommentsCache = new Map(); // linear issue id -> { fetchedAt, comments[] }
+       feedback that bounced them back is read from SyncView's own
+       comments (`production-comments`, native rows and legacy rows bound
+       to a native deliverable) and shown inline. The old Linear read (the
+       `linear-tweak-comments` n8n webhook) was retired in B2 after the
+       Linear keys were revoked; a row with no native binding now says so
+       plainly instead of asking a dead webhook.
+       Tweaks left in Frame.io never reach SyncView, hence the standing
+       "always check Frame.io" note. */
     let _wlTweakCommentsToken = 0;           // invalidates in-flight fills when a newer popover opens
     // Native rows read their feedback from Supabase (`production-comments`);
     // so does a LEGACY row the snapshot bound to a native deliverable
     // (`legacyBoundNativeId`, Linear-exit Workload slice 1/2, item 3 in
     // LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md). Everything else -- unbound
     // legacy rows, and foreign/provider-authority rows with no native
-    // mapping -- keeps the legacy n8n lane in `_wlLegacyFetchTweakComments`.
-    // Lane A's native snapshot supplies `wlSnapshotIdentity()` and each row's
-    // `workloadSource` / `nativeId`; until that lands nothing classifies as
-    // native and every id takes the legacy path, i.e. this function's previous
-    // behaviour byte for byte.
+    // mapping -- has no feedback source this page can read any more: the
+    // Linear-backed n8n lane was retired (B2), so those rows settle at once
+    // as `retired` and render an explicit "not shown here" notice, never an
+    // empty box and never a retry that cannot succeed.
     //
     // Routing is deliberately PERMISSIVE (AGENTS.md): a row we cannot classify
     // falls back rather than refusing, because a refusal here renders as "no
@@ -21497,9 +21495,8 @@
     // anything new about that deliverable — the same identity signal
     // `_wlNativeTweakComments` already uses to refuse a read whose row moved.
     // Residual, stated rather than hidden: a re-link the browser has not yet
-    // refreshed into can still be served for up to this TTL. It is minutes
-    // shorter than the legacy lane's, and it is the reason this constant is
-    // separate from WL_TWEAK_COMMENTS_TTL_MS rather than borrowing it.
+    // refreshed into can still be served for up to this TTL, which is why it
+    // is kept short (the retired Linear lane cached for five minutes).
     const WL_NATIVE_TWEAK_COMMENTS_TTL_MS = 60 * 1000;
     const _wlNativeTweakCommentsCache = new Map(); // native deliverable id -> { fetchedAt, owner, issue, scope, rows }
     // The completed-value cache above cannot help two popovers that overlap:
@@ -21673,19 +21670,11 @@
         };
         const lanes = [];
         for (let i = 0; i < Math.min(WL_TWEAK_FEEDBACK_POOL, native.length); i++) lanes.push(drain());
-        // The legacy lane is ONE batched request covering every legacy id, so
-        // its failure genuinely leaves all of them unknown — but only them. It
-        // now runs BESIDE the native pool instead of after it: it is an
-        // independent request, and queueing it behind them only ever added
-        // their latency to its own.
-        if (legacy.length) {
-            lanes.push((async () => {
-                try {
-                    const got = await _wlLegacyFetchTweakComments(legacy, deadline);
-                    for (const id of legacy) settle(id, got[id]);
-                } catch (e) { for (const id of legacy) settle(id, unavailable()); }
-            })());
-        }
+        // Rows with no native binding have no readable feedback source since
+        // the Linear lane was retired (B2). They get an answer of their own --
+        // `retired`, distinct from a failed read -- so the popover says where
+        // to look instead of offering a retry that can never succeed.
+        for (const id of legacy) { const rows = []; rows.retired = true; settle(id, rows); }
         await Promise.all(lanes);
         // Every id asked for leaves with an answer of its own, because a row
         // missing from this map renders as an empty box — the same pixels as
@@ -21880,42 +21869,6 @@
         shown.scope = (feedback && feedback.scope) || null;
         return shown;
     }
-    async function _wlLegacyFetchTweakComments(ids, deadline) {
-        const now = Date.now();
-        const missing = ids.filter(id => {
-            const hit = _wlTweakCommentsCache.get(id);
-            return !(hit && (now - hit.fetchedAt) < WL_TWEAK_COMMENTS_TTL_MS);
-        });
-        if (missing.length) {
-            // This read carried NO timeout of any kind, so a hung n8n webhook
-            // held the popover on skeletons indefinitely — the same unbounded
-            // wait this change exists to remove, on the other lane. It gets the
-            // whole remaining collection deadline, which is more headroom than
-            // it had in practice: it no longer queues behind the native reads.
-            const controller = new AbortController();
-            const budget = Number.isFinite(deadline)
-                ? Math.max(0, deadline - now)
-                : WL_TWEAK_FEEDBACK_DEADLINE_MS;
-            const timer = setTimeout(() => controller.abort(), budget);
-            let resp, data;
-            try {
-                resp = await fetch(LINEAR_TWEAK_COMMENTS_WEBHOOK, {
-                    method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ids: missing })
-                });
-                if (!resp.ok) throw new Error('HTTP ' + resp.status);
-                data = await resp.json();
-            } finally { clearTimeout(timer); }
-            if (!data || data.ok === false) throw new Error((data && data.error) || 'comments fetch failed');
-            const got = data.comments || {};
-            for (const id of missing) {
-                _wlTweakCommentsCache.set(id, { fetchedAt: now, comments: Array.isArray(got[id]) ? got[id] : [] });
-            }
-        }
-        const out = {};
-        for (const id of ids) out[id] = (_wlTweakCommentsCache.get(id) || { comments: [] }).comments;
-        return out;
-    }
     function wlRenderTweakComments(comments) {
         // A row whose read FAILED is not a row with nothing to show. Both used
         // to arrive here as the same empty box, and "this deliverable has no
@@ -21923,6 +21876,10 @@
         // opposite facts — the second one an editor acts on by shipping the
         // cut unchanged. A row with no entry at all counts as a failure too:
         // silence is never evidence that a client said nothing.
+        if (comments && comments.retired) {
+            return '<div class="wl-tweak-comments-status is-unavailable" role="status">'
+                + 'Feedback for this item isn&rsquo;t shown here. Open the post in SyncView to check its review notes.</div>';
+        }
         if (!comments || comments.failed) {
             return '<div class="wl-tweak-comments-status is-unavailable" role="status">'
                 + 'Couldn&rsquo;t load this deliverable&rsquo;s feedback. Retry, or open the post in SyncView.</div>';
@@ -21952,7 +21909,7 @@
             <span class="wl-tweak-comment-body" onclick="wlToggleTweakComment(this)" onkeydown="wlOnTweakCommentKey(event,this)">${wlEscape(c.body || '')}</span>
             <span class="wl-tweak-comment-time">${wlEscape(_calFmtCommentTime(c.createdAt))}</span>
         </div>`).join('') + (more > 0
-            ? `<div class="wl-tweak-comment-more">+ ${more} older comment${more === 1 ? '' : 's'}${native ? '' : ' on the sub-issue in Linear'}</div>`
+            ? `<div class="wl-tweak-comment-more">+ ${more} older comment${more === 1 ? '' : 's'}</div>`
             : '') + incomplete;
     }
     // Expand/collapse is only offered on comments whose body genuinely
@@ -22240,7 +22197,7 @@
 
         // Frame.io disclaimer + comment fetch — only when the popover holds
         // at least one tweaks-needed sub-issue. Comments come from the
-        // batched linear-tweak-comments webhook and are cached for 5 min;
+        // native production-comments read (see wlFetchTweakComments);
         // the token guard stops a slow response from painting into a
         // popover that has since been reopened on another rollup.
         const tweakSubs = subs.filter(wlIsTweaksNeeded);

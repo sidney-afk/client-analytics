@@ -105,11 +105,13 @@ const {
   /* Was >= 7 until 2026-09-22, when linear-issue-statuses was removed from the
      app (OPEN_REPAIRS 236), then >= 6 until later the same day, when
      linear-set-status and linear-add-comment went with the legacy Calendar and
-     Samples write transports (OPEN_REPAIRS 239). The floor is a tripwire for a
+     Samples write transports (OPEN_REPAIRS 239), then >= 4 until 2026-09-23,
+     when the Workload tweak-comment preview dropped linear-tweak-comments
+     (B2). The floor is a tripwire for a
      NEW Linear webhook escaping the harness, so it tracks the real count down
      rather than being deleted — and it is deliberately not a ceiling. */
-  ok(reached.length >= 4,
-    `expected the app to call at least four linear-* webhooks, found ${reached.length}`);
+  ok(reached.length >= 3,
+    `expected the app to call at least three linear-* webhooks, found ${reached.length}`);
   for (const hook of reached) {
     ok(LINEAR_HOOK.test(`https://example.invalid/${hook}`),
       `${hook} must be intercepted — an un-intercepted Linear webhook reaches live n8n from a probe`);

@@ -270,6 +270,18 @@ Owner decisions recorded with this go-ahead:
 - **Secrets these workflows used:** `LINEAR_API_KEY`, `ROLE_KEY_ADMIN`, `ROLE_KEY_SMM`, `ROLE_KEY_CREATIVE`, plus shared ones. Deleting any secret is a separate owner decision: `LINEAR_API_KEY` is still read by other workflows, and the `ROLE_KEY_*` secrets may have other users.
 - **Rollback:** revert only the workflow-retirement commit, `ci: retire unscheduled Linear-only GitHub workflows (B2 slice 6)` (`git revert <that sha>`). Do not revert the commit that adds this execution log: the n8n and flag changes it records stay live either way. The files come back as they were, and nothing ran them on a schedule.
 
+### Slice 5 (plan Slice 3, part): Workload tweak-comment preview no longer calls `linear-tweak-comments`. DONE in the repo PR that carries this entry
+
+- **What changed:** the Tweak Needed popover in Workload already read native rows, and legacy rows bound to a native deliverable, from `production-comments`. Only rows with no native binding still went to the n8n webhook, which can only fail since the Linear keys were revoked. That lane is removed: `LINEAR_TWEAK_COMMENTS_WEBHOOK`, `_wlLegacyFetchTweakComments`, its 5-minute cache and TTL are gone (`070-workload-source`, `090-workload-popovers-navigation`).
+- **What users see:** before, an unbound row showed "Couldn't load this deliverable's feedback. Retry..." after the webhook failed. Retrying could never work. Now that row shows at once "Feedback for this item isn't shown here. Open the post in SyncView to check its review notes." No request is sent. Native and bound rows are unchanged. The "older comments ... in Linear" overflow text is gone.
+- **Proof:**
+  - `test/workload-tweak-feedback-source.js` (219 checks) now fails on any request to the retired webhook. It asserts that unbound, unclassifiable, and stale-bound rows settle as `retired` with no request.
+  - `test/system-map-sync.js` and `test/truth-sync.js` pass, apart from the 4 pre-existing shallow-clone freshness checks.
+  - The webhook was removed from `SYSTEM_MAP.md` (50 n8n webhooks) and `ENDPOINTS.md`.
+  - The `linear-dead-rehearsal` floor went from 4 to 3.
+- **Rollback:** revert the PR. The webhook comes back but still fails, because Linear is revoked.
+- **n8n:** deactivate workflow `d7Dod7OuQsVsl1CN` ("Workload — Tweak Comments") only **after this merges** and Pages serves it (**owner**). It is not touched here.
+
 ### Brief images on Linear's servers (measured 2026-09-23, read-only)
 
 - **Scope:** 41 in-progress deliverables (statuses todo, backlog, smm_approval, kasper_approval, client_approval) carry `uploads.linear.app` links. There are 90 references to 81 distinct files, all inside `brief`; none are in `file_url`.

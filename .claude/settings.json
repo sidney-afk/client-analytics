@@ -1,4 +1,21 @@
 {
+  "permissions": {
+    "allow": [
+      "mcp__github",
+      "mcp__Claude_Code_Remote__subscribe_pr_activity",
+      "mcp__Claude_Code_Remote__unsubscribe_pr_activity",
+      "mcp__Claude_Code_Remote__send_later",
+      "mcp__claude-code-remote__subscribe_pr_activity",
+      "mcp__claude-code-remote__unsubscribe_pr_activity",
+      "mcp__claude-code-remote__send_later",
+      "ReadNotifications"
+    ],
+    "deny": [
+      "mcp__github__delete_file",
+      "mcp__github__create_repository",
+      "mcp__github__fork_repository"
+    ]
+  },
   "hooks": {
     "Stop": [
       {

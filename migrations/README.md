@@ -867,3 +867,17 @@ executes these files (see `README.md` › Repository layout).
   each of the seven tables, `drop function if exists public.workload_snapshot_note_change();
   drop table if exists public.workload_snapshot_cache, public.workload_snapshot_invalidation;`
   The browser falls back to `native_snapshot` on the resulting 501.
+
+- **`2026-09-23-workload-native-snapshot-warm.sql`** adds
+  `workload_native_snapshot_warm_v1()` (`service_role` execute only), and
+  **must be applied AFTER `2026-09-23-workload-native-snapshot-cache.sql`**.
+  It rebuilds the cached Workload snapshot when it is stale and returns no
+  data: `fresh` when there is nothing to do, `busy` (via a try-lock, never a
+  wait) when another rebuild is already running. The `workload-plan` action
+  `warm_snapshot` calls it; the browser asks ~1.5 s after a staff save to a
+  source-writing endpoint and every 2 minutes from one visible staff tab, so
+  the rebuild a change forces is no longer paid by the next reader. It takes
+  no lock a writer needs (a save during a rebuild commits at once, and still
+  invalidates the copy). Tested in `test/workload-native-postgres.js`.
+  **Undo:** `drop function if exists public.workload_native_snapshot_warm_v1();`
+  (the browser stops asking on the resulting 501).

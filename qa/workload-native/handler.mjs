@@ -21,8 +21,8 @@ const db={rpc:async(name,params={})=>{rpcCalls++;
  // could not express that, so the lane could not see it.
  if(rpcHangMs)await new Promise(r=>setTimeout(r,rpcHangMs));
  if(rpcFault)return {data:null,error:{code:'fixture-refusal'}};
- if(rpcMissing&&name==='workload_native_snapshot_cached_v1')return {data:null,error:{code:'PGRST202'}};
- if(!['workload_native_snapshot_v1','workload_native_snapshot_cached_v1','workload_native_plan_target_v1','workload_native_plan_set_v1'].includes(name))throw Error('Unapproved SQL RPC');
+ if(rpcMissing&&['workload_native_snapshot_cached_v1','workload_native_snapshot_warm_v1'].includes(name))return {data:null,error:{code:'PGRST202'}};
+ if(!['workload_native_snapshot_v1','workload_native_snapshot_cached_v1','workload_native_snapshot_warm_v1','workload_native_plan_target_v1','workload_native_plan_set_v1'].includes(name))throw Error('Unapproved SQL RPC');
  try {return {data:JSON.parse(sql(`select public.${name}(${Object.entries(params).map(([k,v])=>k+'=>'+quote(v)).join(',')});`)||'null'),error:null};}
  catch {return {data:null,error:{code:'sql_refused'}};}},
  from:table=>{if(!['workload_plan','workload_issues','syncview_runtime_flags','clients','client_access'].includes(table))throw Error('Unapproved SQL table');
@@ -78,6 +78,12 @@ try{
   ok((await request({action:'native_snapshot_v2',if_version:'not-a-version'})).status===400,'a malformed version is refused');
   rpcMissing=true;const m=await request({action:'native_snapshot_v2'});rpcMissing=false;
   ok(m.status===501&&m.body.error==='snapshot_cache_unavailable','before the migration is applied v2 answers 501 so the browser falls back');
+  {const w=await request({action:'warm_snapshot'});
+   ok(w.status===200&&w.body.ok===true&&typeof w.body.rebuilt==='boolean'&&!('rows' in w.body),'staff warm-up answers rebuilt/fresh and no data');
+   const n2=rpcCalls;const aw=await request({action:'warm_snapshot'},'');
+   ok(aw.status===401&&rpcCalls===n2,'anonymous warm-up is refused before any SQL');
+   rpcMissing=true;const mw=await request({action:'warm_snapshot'});rpcMissing=false;
+   ok(mw.status===501,'before the warm-up migration is applied it answers 501 and the browser stops asking');}
   rpcFault=true;const f=await request({action:'native_snapshot_v2'});rpcFault=false;
   ok(f.status===503,'a failed cached read is a failed read, never empty success');}
  let before=rpcCalls;let r=await request({action:'native_snapshot'},'');ok(r.status===401&&rpcCalls===before,'anonymous refused before native roster/plan read');

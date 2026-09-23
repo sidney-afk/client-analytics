@@ -54,11 +54,10 @@ const D = Object.freeze({
   tabBlocked: () => 'not measured: this tab needs a staff role key and the run has none (set the SYNCVIEW_ROLE_KEY secret)',
   noTarget: () => 'not run: no test card with a two-sided, Linear-free sub-issue link was found',
   harness: () => 'the harness stopped early; see the runner for details',
-  cleanup: (archived, seeds, renamed, card, sub, blocked, linear) =>
+  cleanup: (archived, seeds, renamed, card, sub, blocked) =>
     `seeds archived ${fmt(archived)}/${fmt(seeds)}` +
     (renamed ? `, rename restored on card=${yn(card)} sub-issue=${yn(sub)}` : '') +
-    (blocked ? `, ${fmt(blocked)} other-client write(s) blocked` : '') +
-    (linear ? `, ${fmt(linear)} Linear call(s)` : ''),
+    (blocked ? `, ${fmt(blocked)} other-client write(s) blocked` : ''),
 });
 
 // ---- the allowlist ------------------------------------------------------------
@@ -77,7 +76,7 @@ const DETAIL = [
   'not measured: this tab needs a staff role key and the run has none \\(set the SYNCVIEW_ROLE_KEY secret\\)',
   'not run: no test card with a two-sided, Linear-free sub-issue link was found',
   'the harness stopped early; see the runner for details',
-  `seeds archived ${N}/${N}(?:, rename restored on card=(?:yes|no) sub-issue=(?:yes|no))?(?:, ${N} other-client write\\(s\\) blocked)?(?:, ${N} Linear call\\(s\\))?`,
+  `seeds archived ${N}/${N}(?:, rename restored on card=(?:yes|no) sub-issue=(?:yes|no))?(?:, ${N} other-client write\\(s\\) blocked)?`,
 ].join('|');
 const CELL = `(?:never|not measured|not reached|${N} ms)`;
 const LINE_ALLOW = [

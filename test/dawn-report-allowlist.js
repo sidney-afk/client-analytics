@@ -37,7 +37,7 @@ const everyShape = [
   { key: 'synclinear', ok: true, slow: true, ms: 9100, detail: D.tabSlow(9100, 4370), shot: 'runner' },
   { key: 'analytics', ok: false, ms: null, detail: D.tabNever(30, [401, 'network', 503]), shot: 'runner' },
   { key: 'harness', ok: false, detail: D.harness() },
-  { key: 'cleanup', ok: false, detail: D.cleanup(2, 3, true, true, false, 1, 1) },
+  { key: 'cleanup', ok: false, detail: D.cleanup(2, 3, true, true, false, 1) },
 ];
 for (const s of STEPS) everyShape.push({ key: 'client-approve', ok: false, detail: D.failedAt(s) });
 const mixed = buildReport({ started, results: everyShape, violations: 1, calMs: 2168, baseline: BASELINE });
@@ -48,7 +48,7 @@ const green = buildReport({ started, calMs: 2168, baseline: BASELINE, results: [
   { key: 'client-approve', ok: true, ms: 5183, detail: D.approveOk(3160, 4) },
   { key: 'workload', ok: true, blocked: true, ms: null, detail: D.tabBlocked() },
   { key: 'synclinear', ok: true, ms: 1374, detail: D.tabOk(1374, 4370) },
-  { key: 'cleanup', ok: true, detail: D.cleanup(3, 3, true, true, true, 0, 0) },
+  { key: 'cleanup', ok: true, detail: D.cleanup(3, 3, true, true, true, 0) },
 ] });
 ok(green.safe && /All 3 checks that ran passed/.test(green.md), 'green report renders');
 ok(/\| Workload opens \| not measured \|/.test(green.md), 'blocked tab shows as not measured');
@@ -60,7 +60,7 @@ const hostile = [
   'saved at 12 ms (no syncing step needed) Acme', '401 /functions/v1/workload-plan',
 ];
 for (const h of hostile) {
-  const r = buildReport({ started, calMs: 1, baseline: BASELINE, results: [{ key: 'client-approve', ok: false, detail: h }, { key: 'cleanup', ok: true, detail: D.cleanup(3, 3, false, true, true, 0, 0) }] });
+  const r = buildReport({ started, calMs: 1, baseline: BASELINE, results: [{ key: 'client-approve', ok: false, detail: h }, { key: 'cleanup', ok: true, detail: D.cleanup(3, 3, false, true, true, 0) }] });
   ok(!r.safe, 'withheld: ' + h.slice(0, 24));
   ok(!r.md.includes(h), 'withheld report does not echo the text');
   ok(assertReportSafe(r.md), 'the withheld stand-in is itself allowlisted');

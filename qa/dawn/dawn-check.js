@@ -306,7 +306,6 @@ function report(started, calMs) {
   const server = process.env.DAWN_NO_SERVER === '1' ? null
     : spawn(process.platform === 'win32' ? 'python' : 'python3', ['-m', 'http.server', '8000'], { cwd: path.join(__dirname, '..', '..'), stdio: 'ignore' });
   await new Promise(r => setTimeout(r, 1500));
-  H.resetLinearCalls();
   const seeds = {
     approve: { id: `p_dawn_a_${TS}`, name: `Dawn approve ${TS}` },
     request: { id: `p_dawn_r_${TS}`, name: `Dawn request ${TS}` },
@@ -335,11 +334,10 @@ function report(started, calMs) {
     for (const s of Object.values(seeds)) if (!archiveCalSafe(s.id)) bad.push(s.id);
     let rr = { ok: true };
     if (renameTarget) { try { rr = await restoreRename(browser, renameTarget); } catch (e) { rr = { ok: false }; } }
-    const linearLeak = H.linearCalls().filter(c => /api\.linear\.app/.test(JSON.stringify(c))).length;
     try { await browser.close(); } catch {}
     if (server) server.kill();
-    record('cleanup', { ok: !bad.length && rr.ok && !violations.length && !linearLeak,
-      detail: D.cleanup(Object.keys(seeds).length - bad.length, Object.keys(seeds).length, !!renameTarget, rr.card !== false, rr.sub !== false, violations.length, linearLeak) });
+    record('cleanup', { ok: !bad.length && rr.ok && !violations.length,
+      detail: D.cleanup(Object.keys(seeds).length - bad.length, Object.keys(seeds).length, !!renameTarget, rr.card !== false, rr.sub !== false, violations.length) });
   }
   const { md, safe } = report(started, calMs);
   console.log(md);

@@ -1262,6 +1262,18 @@
                 + ' alt="' + (String(alt || '').trim() || 'Pasted image') + '"'
                 + ' tabindex="0" role="link" title="Open full size"'
                 + ' loading="lazy" decoding="async" referrerpolicy="no-referrer">';
+            /* B2: a brief whose Linear links were rewritten carries
+               `syncview-media:<occurrence id>` -- an internal reference, never
+               a URL. The server projection (description_read) signs it into a
+               fresh https URL before this sees it; anything still in the
+               reference form here was NOT resolved (projection unavailable,
+               older deploy, stale render), so it is drawn as an honest
+               placeholder, never an <img> and never a link. Runs in every
+               mode so comments cannot print it as a bare token either. */
+            const mediaPending = (alt) => '<span class="prod-desc-media-pending" data-syncview-media-pending="1" role="img"'
+                + ' aria-label="Image not loaded">Image not loaded' + (String(alt || '').trim() ? ': ' + String(alt).trim() : '') + '</span>';
+            s = s.replace(/!?\[([^\]]*)\]\((?:&lt;)?syncview-media:[0-9a-f-]{36}(?:&gt;)?\)/g, (m, l) => keep(mediaPending(l)));
+            s = s.replace(/syncview-media:[0-9a-f-]{36}/g, () => keep(mediaPending('')));
             if (allowImages) {
                 s = s.replace(/!\[([^\]]*)\]\(&lt;(https:\/\/.*?)&gt;\)/g, (m, l, u) => keep(imageTag(l, u)));
                 s = s.replace(/!\[([^\]]*)\]\((https:\/\/[^\s)]+)\)/g, (m, l, u) => keep(imageTag(l, u)));

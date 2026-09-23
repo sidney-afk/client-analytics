@@ -303,6 +303,7 @@ Owner decisions recorded with this go-ahead:
   - The `linear-dead-rehearsal` floor went from 4 to 3.
 - **Rollback:** revert the PR. The webhook comes back but still fails, because Linear is revoked.
 - **n8n:** deactivate workflow `d7Dod7OuQsVsl1CN` ("Workload — Tweak Comments") only **after this merges** and Pages serves it (**owner**). It is not touched here.
+- **Done 2026-09-23 ~20:19Z (after PR #1526 merged):** workflow `d7Dod7OuQsVsl1CN` deactivated (unpublished) in n8n; 0 runs in retained history. Rollback: re-activate it in n8n.
 
 ### Brief images on Linear's servers (measured 2026-09-23, read-only)
 
@@ -326,3 +327,28 @@ Owner decisions recorded with this go-ahead:
 4. **Proof:** after the rewrite, count remaining `uploads.linear.app` matches in in-progress briefs (target 0). Also run one headless-browser render of an affected brief with no Linear session, and require every image to load with a 200 response from our storage.
 5. **Rollback:** before rewriting, snapshot each touched brief (id, old text, sha256) to the SyncView Backups drive. Restoring means writing the old text back through the same path.
 6. **Estate-wide:** the same rewrite can cover all 486 deliverables with copies (about 3.0 GB, already stored). Finished and archived work can go later, or never, since the archive viewer already resolves copies.
+
+### Brief image links (plan "Brief images on Linear's servers"): rewrite built, browser shipped, server needs an owner deploy. PREPARED 2026-09-23, nothing applied
+
+**Surfaces that render `deliverables.brief` (measured in `src/index/`).** Only the Production tab draws a deliverable brief. The read view (`_prodDescriptionHTML` → `_prodLinkify`, fragment 230) prefers the server projection `description_read.media.render_brief` and falls back to the raw brief (the fallback noted at 230, and after the 5-minute signed links expire). The rich editor (`_prodDescRichInline`/`_prodDescRichSerializeInline`, fragment 240) is always seeded from the raw brief, never the projection. Fragment 040 is the AI analytics/market "brief" (`raw_json`), not `deliverables.brief`; the project description at 260 reads a project field. Calendar, Samples, Workload and the client views do not render `deliverables.brief`.
+
+**Existing server behaviour.** `projectBriefMedia` (`supabase/functions/_shared/native-brief-media.mjs`, used only by production-write `description_read`) understood only `uploads.linear.app` links. production-write's `description` operation accepts any string up to the size limit (`canonicalDescription`), so a brief carrying a new reference form saves fine; saving a brief never re-triggers a media copy (copies are made only by `scripts/native-brief-media-copy.mjs`). `linear_outbound_enabled` is `off`, so a description write does not reach Linear.
+
+**Reference form: `syncview-media:<occurrence uuid>`.** It replaces only the URL characters at the occurrence's exact UTF-16 offset/length, so `![alt](...)` and `<...>` stay byte-identical. It names the verified `native_brief_media_occurrences` row directly, so no URL hash or offset has to survive later edits. It is never a URL: the bucket is private and only the server can sign, so a browser-only resolver is not possible with the publishable key.
+
+**What changed in this PR.**
+- Server source (needs deploy): `projectBriefMedia` also resolves `syncview-media:` ids, looked up only among the row's own verified same-client/team copies, with the same copy validation, and signs them exactly like Linear links. Legacy links still work, and a brief can mix both forms. An id that is not one of the row's copies leaves the projection incomplete.
+- Browser (ships with Pages on merge): an unresolved `syncview-media:` reference in the read view is drawn as a dashed "Image not loaded" placeholder, never an `<img>` or a link. In the rich editor it is a non-editable "Stored image" chip that serializes back to its exact source.
+- `scripts/b2-brief-link-rewrite.mjs`: the dry-run default prints counts only. `--apply --client=<slug> --snapshot=<file>` requires `B2_BRIEF_REWRITE_CONFIRM=REWRITE_BRIEF_LINKS`. It writes a 0600 snapshot (id, old sha256, old text, new sha256) before any write, then makes one audited production-write `description` write per deliverable with `expected_updated_at` CAS and reads it back. `--rollback=<snapshot>` restores only rows whose brief still equals the rewritten text. Before the first write it probes the deployed production-write (`description_read` on one target) and aborts, writing nothing, unless `media.reference_forms` lists `syncview_media_v1`; the new projection source adds that marker. A row whose slug equals the private `B2_TEST_CLIENT_SLUG` env uses the service `test_override` path (the server decides whether it is the test client). Real clients need `SYNCVIEW_STAFF_KEY` + `SYNCVIEW_ACTOR` + `SUPABASE_PUBLISHABLE_KEY`.
+- `test/b2-brief-link-rewrite.mjs`: tests offsets (including non-BMP text), duplicates, angle, plain and bare forms, edited briefs, wrong offsets, foreign or unverified copies, ambiguity, idempotency, the projection for legacy, new and mixed forms, and the shipped renderers.
+
+**Proof.**
+- The test client has no deliverable with a Linear-hosted brief image, so nothing was applied. No test data was fabricated.
+- Read-only dry-run on the 41 in-progress deliverables, done in SQL with the script's criteria and UTF-16 offsets corrected: 41 deliverables and 90 links. All 41 deliverables and all 90 links are rewritable, 0 were skipped as edited and 0 as unmapped.
+
+**Still needs the owner, in this order.**
+1. Deploy production-write through the Section 4 lane (capture first). Nothing else imports the shared module at runtime.
+2. Run `--apply` for one client, then check the Production tab. The count of `uploads.linear.app` matches in its in-progress briefs should be 0, and the images should load from storage.
+3. Run it for the rest.
+
+Put each snapshot in the SyncView Backups drive, not the repo, because it contains brief text. Applying before the deploy shows placeholders instead of images: honest, but a regression. Roll back with `--rollback`.

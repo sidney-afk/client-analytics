@@ -10,6 +10,17 @@ export function briefMediaOccurrences(brief) {
   return [...String(brief || '').matchAll(/<(https?:\/\/uploads\.linear\.app\/[^<>]+)>|(https?:\/\/uploads\.linear\.app\/[^\s<>"'\])]+)/gi)]
     .map(m => { const url = m[1] || m[2]; return { offset: m.index + (m[1] ? 1 : 0), length: url.length, url }; });
 }
+/* Stable internal reference to one verified occurrence row (B2 brief-link
+   rewrite). It replaces ONLY the URL characters of a former Linear link, so the
+   surrounding Markdown (`![alt](...)`, `<...>`) is untouched. It is an id, never
+   a URL: a signed URL expires in 5 minutes and must never be stored. */
+export const BRIEF_MEDIA_REF_PREFIX = 'syncview-media:';
+export const BRIEF_MEDIA_REFERENCE_FORMS = Object.freeze(['uploads_linear_app', 'syncview_media_v1']);
+export const BRIEF_MEDIA_REF_RE = /syncview-media:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?![0-9a-z-])/g;
+export function briefMediaReferences(brief) {
+  return [...String(brief || '').matchAll(BRIEF_MEDIA_REF_RE)]
+    .map(m => ({ offset: m.index, length: m[0].length, occurrence_id: m[1] }));
+}
 const hash = x => typeof x === 'string' && /^[a-f0-9]{64}$/.test(x);
 const downloads = { 'application/pdf': 'original.pdf', 'image/svg+xml': 'original.svg', 'video/mp4': 'original.mp4', 'video/quicktime': 'original.mov' };
 const mime = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', ...Object.keys(downloads)]);
@@ -26,11 +37,17 @@ export async function signNativeMedia(db, storagePath, storageOrigin, download=n
 export async function projectBriefMedia(db, row, storageOrigin, now = Date.now()) {
   const brief = typeof row.brief === 'string' ? row.brief : '';
   const refs = briefMediaOccurrences(brief);
+  const internal = briefMediaReferences(brief);
+  const total = refs.length + internal.length;
   const digest = await briefMediaHash(brief);
   const result = { contract: BRIEF_MEDIA_CONTRACT, mode: 'required', complete: false,
     coverage_scope: 'current_native_brief_uploads_linear_app',
+    // Capability marker: the reference forms this projection resolves. The
+    // B2 rewrite script refuses to write unless the deployed gateway lists
+    // syncview_media_v1 here.
+    reference_forms: BRIEF_MEDIA_REFERENCE_FORMS,
     id: row.id, client_slug: row.client_slug, team: row.team, source_updated_at: row.updated_at,
-    brief_sha256: digest, occurrences: refs.length, unresolved: refs.length,
+    brief_sha256: digest, occurrences: total, unresolved: total,
     render_brief: null, expires_at: null, deferred: 0, reason: 'media_unavailable' };
   try {
     const flag = await db.from('syncview_runtime_flags').select('value').eq('key', 'native_brief_media').maybeSingle();
@@ -41,8 +58,8 @@ export async function projectBriefMedia(db, row, storageOrigin, now = Date.now()
         || !hash(flag.data.value.recovery_receipt_sha256) || !hash(flag.data.value.coverage_receipt_sha256)) return result;
     const deferred = flag.data.value.owner_deferred_references ?? [];
     if (!Array.isArray(deferred) || deferred.length > 20) return result;
-    if (!refs.length) return { ...result, complete: true, unresolved: 0, render_brief: brief, reason: null };
-    if (refs.length > 200 || !row.updated_at || !row.id || !row.client_slug || !row.team
+    if (!total) return { ...result, complete: true, unresolved: 0, render_brief: brief, reason: null };
+    if (total > 200 || !row.updated_at || !row.id || !row.client_slug || !row.team
         || row.deleted_at || row.tombstoned_at || row.is_deleted === true) return result;
     const read = await db.from('native_brief_media_occurrences').select('*')
       .eq('deliverable_id', row.id).eq('client_slug', row.client_slug).eq('team', row.team)
@@ -50,7 +67,27 @@ export async function projectBriefMedia(db, row, storageOrigin, now = Date.now()
       .eq('state', 'verified').limit(1001);
     if (read.error || !Array.isArray(read.data) || read.data.length > 1000
         || new Set(read.data.map(copy => copy.id)).size !== read.data.length) return result;
+    const validCopy = (copy, length) => !(copy.state !== 'verified' || copy.audience !== 'staff'
+          || !/^[a-f0-9-]{36}$/.test(copy.id) || copy.deliverable_id !== row.id || copy.client_slug !== row.client_slug
+          || copy.source_kind !== 'native_brief' || copy.source_entity_id !== row.id
+          || copy.team !== row.team || !hash(copy.source_sha256)
+          || !Number.isSafeInteger(copy.source_offset) || copy.source_offset < 0
+          || (length == null ? !Number.isSafeInteger(copy.source_length) || copy.source_length < 1 : copy.source_length !== length)
+          || !Number.isFinite(Date.parse(copy.source_updated_at))
+          || !hash(copy.content_sha256) || copy.readback_sha256 !== copy.content_sha256
+          || !mime.has(copy.mime_type) || !Number.isSafeInteger(copy.byte_length) || copy.byte_length < 1
+          || copy.byte_length > 52428800 || !Number.isFinite(Date.parse(copy.verified_at))
+          || Date.parse(copy.verified_at) > now
+          || copy.storage_path !== copy.content_sha256 + '/' + copy.id);
     const mapped = [];
+    for (const ref of internal) {
+      // A rewritten brief names its verified copy by occurrence id. The id is
+      // looked up only inside this row's own verified, same-scope copies, so a
+      // reference pasted into another client's brief resolves to nothing.
+      const copy = read.data.find(x => x.id === ref.occurrence_id);
+      if (!copy || !validCopy(copy, null)) return result;
+      mapped.push({ ref: { ...ref, url: null }, copy });
+    }
     for (const ref of refs) {
       // A text edit/reorder is not a new image. Reuse only previously verified
       // copies of this exact original URL within the same source entity/scope,
@@ -72,19 +109,7 @@ export async function projectBriefMedia(db, row, storageOrigin, now = Date.now()
       }
       const matches = read.data.filter(x => x.original_url_sha256 === originalHash);
       if (!matches.length || new Set(matches.map(x => [x.content_sha256, x.byte_length, x.mime_type].join('|'))).size !== 1) return result;
-      for (const copy of matches) {
-      if (copy.state !== 'verified' || copy.audience !== 'staff'
-          || !/^[a-f0-9-]{36}$/.test(copy.id) || copy.deliverable_id !== row.id || copy.client_slug !== row.client_slug
-          || copy.source_kind !== 'native_brief' || copy.source_entity_id !== row.id
-          || copy.team !== row.team || !hash(copy.source_sha256)
-          || !Number.isSafeInteger(copy.source_offset) || copy.source_offset < 0 || copy.source_length !== ref.length
-          || !Number.isFinite(Date.parse(copy.source_updated_at))
-          || !hash(copy.content_sha256) || copy.readback_sha256 !== copy.content_sha256
-          || !mime.has(copy.mime_type) || !Number.isSafeInteger(copy.byte_length) || copy.byte_length < 1
-          || copy.byte_length > 52428800 || !Number.isFinite(Date.parse(copy.verified_at))
-          || Date.parse(copy.verified_at) > now
-          || copy.storage_path !== copy.content_sha256 + '/' + copy.id) return result;
-      }
+      for (const copy of matches) if (!validCopy(copy, ref.length)) return result;
       const exact = matches.filter(copy => copy.source_sha256 === digest && copy.source_offset === ref.offset);
       if (exact.length > 1) return result;
       mapped.push({ ref, copy: exact[0] || [...matches].sort((a, b) => a.id.localeCompare(b.id))[0] });
@@ -98,7 +123,7 @@ export async function projectBriefMedia(db, row, storageOrigin, now = Date.now()
       }
       const download = downloads[copy.mime_type] || null;
       const url = await signNativeMedia(db, copy.storage_path, storageOrigin, download);
-      replacements.push({ ...ref, original_url: ref.url, content_sha256: copy.content_sha256, url,
+      replacements.push({ ...ref, original_url: ref.url || null, content_sha256: copy.content_sha256, url,
         display: download ? 'download' : 'inline', mime_type: copy.mime_type });
     }
     // A row may move or change while URLs are signed. Never label that stale
@@ -109,7 +134,7 @@ export async function projectBriefMedia(db, row, storageOrigin, now = Date.now()
         || current.data.updated_at !== row.updated_at || current.data.brief !== brief || current.data.status !== row.status
         || current.data.deleted_at || current.data.tombstoned_at || current.data.is_deleted === true) return result;
     let rendered = brief;
-    for (const ref of [...replacements].reverse()) {
+    for (const ref of [...replacements].sort((x, y) => x.offset - y.offset).reverse()) {
       let offset = ref.offset, length = ref.length, value = ref.display === 'deferred' ? DEFERRED_TEXT : ref.url;
       if (ref.display === 'download' || ref.display === 'deferred') {
         // Match the same simple/angle image syntax accepted by the description

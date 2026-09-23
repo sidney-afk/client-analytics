@@ -521,7 +521,8 @@ const CANDIDATES = new Map([
     // Without it the receipt insert fails; the gateway fails soft and loses
     // only the receipt, but there is no reason to deploy into that state.
     // Regenerated with scripts/ef-fingerprint.js, never by hand.
-    source: 'af8bf801b45830f95951d00636ce1103fb1b043652337b2c1bae68a37fd17422',
+    // B2 (2026-09-23): _shared/native-brief-media.mjs learned syncview-media: refs; re-pinned with ef-fingerprint.
+    source: '68cae746ad1fa5ebc3203ad3cc82415ea5699158ee07e16f7757715e0a8ef2ce',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 8,
   }],

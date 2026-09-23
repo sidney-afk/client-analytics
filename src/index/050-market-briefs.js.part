@@ -481,6 +481,8 @@
     // behind it, so it shows the Generate button instead of a skeleton forever.
     const _contentSummaryStartedHere=new Set();
     async function generateContentSummary(clientName){
+        // Staff only (owner, 2026-09-23): a client link never starts a paid summary.
+        if(_isClientLink)return;
         _contentSummaryStartedHere.add(clientName);
         const clientEntryRun=_isClientLink?_syncviewClientEntryDataRun:null;
         if(_isClientLink&&!_syncviewClientEntryRunCurrent(clientEntryRun))return;
@@ -568,6 +570,9 @@
         // click: "Generate summary" below, or the existing Update / Regenerate.
         const hasData=!!state?.data;
         const hasError=!!state?.error;
+        // Client links see an existing summary and nothing else: no Generate,
+        // Update or Regenerate, and no empty/error/loading state to act on.
+        if(_isClientLink&&!hasData)return'';
         let inner='';
         if(hasError){
             // Attempt already ran and failed (e.g. transcripts unavailable). Stay subtle — no Retry button.
@@ -602,11 +607,11 @@
             if(latestScrape){
                 if(summaryDate&&summaryDate>=latestScrape){
                     statusBadge=`<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.65rem;font-weight:600;color:var(--sv-fg-10b981);opacity:0.85;"><svg width="10" height="10" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="var(--sv-fg-10b981)" stroke-width="1.3"/><path d="M3.5 6l2 2 3-3.5" stroke="var(--sv-fg-10b981)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg> Up to date</span>`;
-                }else{
+                }else if(!_isClientLink){
                     statusBadge=`<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.65rem;font-weight:600;color:var(--sv-fg-f59e0b);opacity:0.85;"><svg width="10" height="10" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="var(--sv-fg-f59e0b)" stroke-width="1.3"/><path d="M6 3.5v3M6 8.5v.01" stroke="var(--sv-fg-f59e0b)" stroke-width="1.3" stroke-linecap="round"/></svg> New data available · <a href="#" onclick="event.preventDefault();generateContentSummary(decodeURIComponent('${enc}'))" style="color:var(--sv-fg-f59e0b);text-decoration:underline;font-weight:600;">Update</a></span>`;
                 }
             }
-            inner=`<ul class="cs-bullets">${items}</ul><div style="display:flex;align-items:center;gap:10px;margin-top:6px;">${statusBadge}<button class="cs-regen-btn" onclick="generateContentSummary(decodeURIComponent('${enc}'))">↻ Regenerate</button></div>`;
+            inner=`<ul class="cs-bullets">${items}</ul><div style="display:flex;align-items:center;gap:10px;margin-top:6px;">${statusBadge}${_isClientLink?'':`<button class="cs-regen-btn" onclick="generateContentSummary(decodeURIComponent('${enc}'))">↻ Regenerate</button>`}</div>`;
         }
         return`<div class="content-summary-section" id="${id}"><div class="cs-header"><span class="cs-title">✦ What's Working This Month</span><span class="cs-subtitle">Based on top ${videos.length} video${videos.length!==1?'s':''} by views</span></div>${inner}</div>`;
     }

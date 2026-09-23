@@ -31145,6 +31145,11 @@
        the local WR-101 ring entry once per attempt). Clients never see it.
        Everything here is best-effort: a failed read shows nothing. */
     const _calNameSyncLogged = new Set();
+    // Cards THIS page renamed. The marker reads status only for these, so a
+    // render caused by anything else (boot, a BFCache restore, a forced-meta
+    // refresh, a realtime echo) makes no request at all -- the boot suite
+    // requires settled restore traffic to stay synthetic.
+    const _calNameSyncWatched = new Set();
     let _calNameSyncTimer = null;
     function _calNameSyncSlotHtml(pid) {
         return `<span class="cal-name-sync" data-name-sync="${pid}" hidden></span>`;
@@ -31187,18 +31192,24 @@
         if (_isClientLink) return new Map();
         const ids = (pids || []).filter(Boolean);
         const status = await _renamePropStatus('card', ids);
-        ids.forEach(pid => _calNameSyncPaint(pid, status.get(pid)));
+        ids.forEach(pid => {
+            const entry = status.get(pid);
+            _calNameSyncPaint(pid, entry);
+            // Settled (or unreadable): stop reading for this card on later renders.
+            if (!_renamePropMarker(entry)) _calNameSyncWatched.delete(String(pid));
+        });
         return status;
     }
-    // After any calendar render: one read for the linked cards on screen.
+    // After a calendar render: repaint the marker for cards this page renamed
+    // (a render replaces the card DOM, and with it the marker).
     function _calNameSyncScheduleRefresh() {
-        if (_isClientLink) return;
+        if (_isClientLink || !_calNameSyncWatched.size) return;
         if (_calNameSyncTimer) clearTimeout(_calNameSyncTimer);
         _calNameSyncTimer = setTimeout(() => {
             _calNameSyncTimer = null;
             const onScreen = new Set();
             document.querySelectorAll('[data-name-sync]').forEach(el => onScreen.add(el.getAttribute('data-name-sync')));
-            const ids = (calState.posts || []).filter(p => onScreen.has(String(p.id)) && _calNameSyncLinked(p)).map(p => String(p.id));
+            const ids = Array.from(_calNameSyncWatched).filter(pid => onScreen.has(pid));
             if (ids.length) _calNameSyncRefresh(ids);
         }, 400);
     }
@@ -31207,6 +31218,7 @@
     async function _calNameSyncAfterSave(pid) {
         const post = (calState.posts || []).find(p => p.id === pid);
         if (_isClientLink || !_calNameSyncLinked(post)) return;
+        _calNameSyncWatched.add(String(pid));
         _calNameSyncPaint(pid, { state: 'pending' });
         await _renamePropPoke();
         for (let i = 0; i < 6; i++) {

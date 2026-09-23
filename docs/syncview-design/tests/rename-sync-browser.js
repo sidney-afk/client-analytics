@@ -135,6 +135,12 @@ function mockBackend(page, state) {
     const readonlyStaff = await page.evaluate(() => /data-fld="name"[^>]*readonly/.test(_calTitleRowHtml('k9', { id: 'k9', name: 'x' }, false)));
     ok(!readonlyStaff, 'staff: card name stays editable');
 
+    // A render with no rename made by this page reads nothing (boot, BFCache
+    // restore and forced-meta renders must stay free of this traffic).
+    await page.evaluate(() => _calNameSyncScheduleRefresh());
+    await page.waitForTimeout(700);
+    ok(state.statusReads === 0, 'render without a rename from this page makes no status read');
+
     // 2. A rename save nudges the drain; the marker shows, then clears.
     state.statusQueue = [{ id: 11, source_id: 'k1', state: 'pending' }, { id: 11, source_id: 'k1', state: 'done' }];
     const saved = await page.evaluate(async () => {
@@ -152,6 +158,10 @@ function mockBackend(page, state) {
     ok(true, 'marker shows "Name syncing…" while pending');
     await page.waitForFunction(() => document.querySelector('[data-name-sync="k1"]').hidden, null, { timeout: 10000 });
     ok(true, 'marker clears once the rename lands');
+    const readsSettled = state.statusReads;
+    await page.evaluate(() => _calNameSyncScheduleRefresh());
+    await page.waitForTimeout(700);
+    ok(state.statusReads === readsSettled, 'after the rename settles, later renders read nothing');
 
     // A save that does not touch the name does not nudge.
     const pokesBefore = state.pokes;

@@ -936,33 +936,9 @@
             drain_state: unknown ? 'unknown' : 'observed'
         };
     };
-    /* Point-adoption: when a Linear sub-issue link is freshly set, adopt its current
-       Linear status onto the card (suppressing the outbound echo of that adopt).
-       Refuses a PARENT issue and rejects the calendar-only Scheduled/Posted. */
-    async function _sxrSyncStatusFromLinear(pid, issueUrl, comp) {
-        const which = (comp === 'graphic') ? 'graphic' : 'video';
-        let mapped;
-        try {
-            const resp = await fetch(LINEAR_SUBISSUES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: issueUrl }) });
-            const json = await resp.json();
-            if (!json.ok || !json.parent) return;
-            const subs = Array.isArray(json.subIssues) ? json.subIssues.filter(s => s && s.url) : [];
-            if (subs.length) { _sxrRenderBody({ preserveScroll: true }); return; }   // a parent — don't adopt
-            mapped = _sxrMapLinearStatusStrict(json.parent.status);
-        } catch (e) { return; }
-        const post = sxrState.posts.find(p => p.id === pid);
-        if (!post || !mapped || mapped === 'Scheduled' || mapped === 'Posted') return;
-        const subKey = which + '_status';
-        if (_sxrNormStatus(post[subKey] || '') === mapped) return;
-        post[subKey] = mapped;
-        post.status = computeSampleOverallStatus(post);
-        _sxrNoLinearPush.add(pid); _sxrNoLinearPush.add(pid + '|' + which);   // break the adopt→push echo
-        if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
-        _sxrPendingEdits[pid][subKey] = mapped; _sxrPendingEdits[pid].status = post.status;
-        _sxrClearStaleApprovals(post, _sxrPendingEdits[pid]);
-        _sxrFlushCardSave(pid);
-        _sxrRenderBody({ preserveScroll: true });
-    }
+    /* `_sxrSyncStatusFromLinear` (link-time status adoption through the
+       `linear-subissues` webhook) was removed 2026-09-23 (B2). Its callers
+       check `typeof` first, so they are now no-ops; the link still saves. */
 
     /* ── Realtime subscription (channel sxr-<slug> on sample_reviews) ── */
     let _sxrV2ClientObj = null, _sxrV2ClientPromise = null;

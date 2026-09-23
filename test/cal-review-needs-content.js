@@ -130,7 +130,6 @@ const EXEMPT = {
   _calTogglePostPlatform: "clears title_status to '' when YouTube is removed; clearing is not sending",
   _calFlushCardSave: 'the transport -- it sends edits the writers above already staged and gated, and its own status line is the repair path',
   _calReviewRequestTweak: "writes 'Tweaks Needed', a rejection: the content being absent is frequently the reason for it",
-  _calSyncStatusFromLinear: 'mirrors the status Linear already holds, like the reconciler above',
 };
 /* THE ROSTER MUST NOT BE EMPTY. An empty set makes the assertion below pass
    without examining anything -- the exact could-not-fail shape this repository
@@ -239,7 +238,6 @@ const SXR_WRITERS = ['_sxrStatusPick', '_sxrSetAllStatus', '_sxrApplyAutoStatus'
 const SXR_EXEMPT = {
   _sxrReviewRequestTweak: "writes 'Tweaks Needed', a rejection",
   _sxrFlushCardSave: 'the transport — it sends edits the writers above already staged and gated',
-  _sxrSyncStatusFromLinear: 'mirrors the status Linear already holds',
 };
 ok(sxrWriterNames.size >= SXR_WRITERS.length,
   'the derived samples writer roster actually found the writers (' + sxrWriterNames.size + ' found: '
@@ -385,10 +383,10 @@ const ALL_EXEMPT = {
      a Linear-side move to a review status landed on the card unchallenged,
      because the gate is browser-side. The function was removed on 2026-09-22
      with the linear-issue-statuses webhook (OPEN_REPAIRS 236), so that gap is
-     closed for the calendar. _calSyncStatusFromLinear below still carries it
-     -- it runs at link time, off a different webhook, and is untouched. */
-  _calSyncStatusFromLinear: 'mirrors the status Linear already holds, same gap',
-  _sxrSyncStatusFromLinear: 'mirrors the status Linear already holds, samples',
+     closed for the calendar. _calSyncStatusFromLinear and
+     _sxrSyncStatusFromLinear carried the same gap at link time; both were
+     removed on 2026-09-23 with the linear-subissues webhook (B2), so it is
+     closed for samples too. */
   _calReviewRequestTweak: "writes Tweaks Needed, a rejection",
   _sxrReviewRequestTweak: "writes Tweaks Needed, a rejection",
   _kasperRequestTweakComp: "writes Tweaks Needed, a rejection",

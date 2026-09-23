@@ -270,6 +270,18 @@ Owner decisions recorded with this go-ahead:
 - **Secrets these workflows used:** `LINEAR_API_KEY`, `ROLE_KEY_ADMIN`, `ROLE_KEY_SMM`, `ROLE_KEY_CREATIVE`, plus shared ones. Deleting any secret is a separate owner decision: `LINEAR_API_KEY` is still read by other workflows, and the `ROLE_KEY_*` secrets may have other users.
 - **Rollback:** revert only the workflow-retirement commit, `ci: retire unscheduled Linear-only GitHub workflows (B2 slice 6)` (`git revert <that sha>`). Do not revert the commit that adds this execution log: the n8n and flag changes it records stay live either way. The files come back as they were, and nothing ran them on a schedule.
 
+### Plan Slice 3, part: browser stops calling `linear-subissues`. DONE in the repo PR that carries this entry (branch `claude/b2-import-from-linear`)
+
+- **What changed (browser only, `src/index/` then `npm run build:index`):**
+  - Removed the kebab items **Import from Linear** and **Bulk Linear sync**, their two dialogs, the multi-select "Match to Linear" bar, and every helper behind them (fragments 130, 150, 160, 180).
+  - Removed the link-time status adoption `_calSyncStatusFromLinear` (150) and its two callers (160 link commit, 170 link move), and `_sxrSyncStatusFromLinear` (290). Its two Samples callers in 270 already check `typeof` first, so they are now no-ops and 270 is untouched.
+  - Removed `LINEAR_SUBISSUES_URL` (100). `index.html` no longer contains `webhook/linear-subissues`.
+- **What users saw before:** Import / Bulk sync asked the dead webhook and showed its error inline ("Linear lookup failed" or "Could not reach Linear"). Link-time sync failed silently in a `catch`. **After:** the two menu items are gone (Import from Excel and Create Post stay). Pasting or moving a link saves exactly as before; the card keeps its SyncView status. No fake success, nothing silent left: nothing is attempted.
+- **Not changed:** existing linked cards still display their links and persisted banners; no sub-issue creation path was added; no n8n, Edge Function or database change.
+- **Proof:** new retirement guards in `test/import-from-linear-sealed.js` and `test/calendar-kebab-import-menu.js`; `test/linear-import-optional-graphics.js` deleted (its subject is gone) and unregistered; tests that expected the sync call now assert it never happens. `docs/independence/SYSTEM_MAP.md` and `docs/truth/ENDPOINTS.md` updated. `prod-write-gateway-browser.js` passes. `npm test`: 574 of 575 suites pass; the one failure, `truth-sync`, is only the pre-existing "freshness commit is an ancestor" check that also fails on `origin/main`.
+- **Rollback:** revert the PR.
+- **Next (owner, n8n):** deactivate workflow `Nk3pwR6Fbl4VAPqH` ("Calendar — Linear Sub-Issues") **only after this merges** and GitHub Pages has deployed it.
+
 ### Brief images on Linear's servers (measured 2026-09-23, read-only)
 
 - **Scope:** 41 in-progress deliverables (statuses todo, backlog, smm_approval, kasper_approval, client_approval) carry `uploads.linear.app` links. There are 90 references to 81 distinct files, all inside `brief`; none are in `file_url`.

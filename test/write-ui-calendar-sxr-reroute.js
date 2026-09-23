@@ -50,7 +50,7 @@ assert(calendar.includes('return chain'), 'Calendar status exposes an awaitable 
 assert(calendar.includes('if (!url && !nativeId)') && calendar.includes("_writeUiClassifyTargetless('calendar'"), 'Calendar comment accepts native id and live-classifies every targetless write');
 assert(!source.includes('fetch(LINEAR_SET_STATUS_URL') && !source.includes('fetch(LINEAR_ADD_COMMENT_URL'), 'no lane fetches the retired n8n write endpoints any more');
 
-const sxr = between('function _sxrPushStatusToLinear', '/* Point-adoption:');
+const sxr = between('function _sxrPushStatusToLinear', '/* `_sxrSyncStatusFromLinear` (link-time');
 assert(sxr.includes("surface: 'sxr'"));
 assert(sxr.includes("await _writeUiUseGatewayWhenReady('sxr', meta)"), 'SXR reroute awaits its client allowlist');
 assert(sxr.includes('legacy_transport_retired: true')
@@ -129,7 +129,7 @@ assert(legacyOwner.includes("String(item && item.client_slug || '')")
   && legacyOwner.includes('if (!gateSlug || gateSlug !== owner.slug) return false'),
 'client queue ownership must fail closed for foreign, empty, or inconsistent client slugs');
 
-const lifecycle = between('function _writeUiResumeLegacyQueues', '/* Point-adoption:');
+const lifecycle = between('function _writeUiResumeLegacyQueues', '/* `_sxrSyncStatusFromLinear` (link-time');
 for (const event of ["'focus'", "'pageshow'", "'pagehide'", "'online'", "'visibilitychange'", "'startup'"]) {
   assert(lifecycle.includes(event), `legacy queue lifecycle missing ${event}`);
 }

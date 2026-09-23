@@ -17,16 +17,16 @@
 | 9 | `070-workload-source.js.part` | 3512 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3359 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
 | 11 | `090-workload-popovers-navigation.js.part` | 2613 | Sub-issue popover |
-| 12 | `100-onboarding-staff-controls.js.part` | 2259 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
+| 12 | `100-onboarding-staff-controls.js.part` | 2261 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2024 | Kasper Time Off calendar |
 | 14 | `120-calendar-flags-write-repair.js.part` | 3013 | The members a flag value offers, or null when it offers no member list at |
 | 15 | `125-title-name-rule.js.part` | 219 | Title name rule (browser copy) |
-| 16 | `130-calendar-model-cache.js.part` | 2748 | Returns the comments array for a given component. Falls back to the |
+| 16 | `130-calendar-model-cache.js.part` | 2734 | Returns the comments array for a given component. Falls back to the |
 | 17 | `140-calendar-legacy-outbox.js.part` | 3055 | Shed the retired legacy rows from storage, under the surface mutation |
-| 18 | `150-calendar-hydration-import.js.part` | 2709 | For a card linked to a real sub-issue (not a parent), return which of |
-| 19 | `160-calendar-organize-ui.js.part` | 2722 | Lighter path for the Order switch: update the chrome in place so the |
+| 18 | `150-calendar-hydration-import.js.part` | 2068 | For a card linked to a real sub-issue (not a parent), return which of |
+| 19 | `160-calendar-organize-ui.js.part` | 2710 | Lighter path for the Order switch: update the chrome in place so the |
 | 20 | `170-calendar-links-status.js.part` | 2760 | Move a Linear sub-issue link from the old card onto the new one. The |
-| 21 | `180-calendar-native-post-media.js.part` | 2680 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
+| 21 | `180-calendar-native-post-media.js.part` | 2676 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 22 | `190-calendar-approval-comments.js.part` | 2969 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 23 | `200-intake-data-startup.js.part` | 1475 | Video-only and Thumbnail-only were already built, but sat |
 | 24 | `210-production-state-writes.js.part` | 3155 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
@@ -37,7 +37,7 @@
 | 29 | `260-production-refresh-boot.js.part` | 2280 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 30 | `270-samples-model.js.part` | 2694 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 31 | `280-samples-cards-notes.js.part` | 2831 | SURFACE 3: the save engine |
-| 32 | `290-samples-writes-review.js.part` | 1822 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
+| 32 | `290-samples-writes-review.js.part` | 1798 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 33 | `300-tiktok-upload.js.part` | 1678 | TIKTOK UPLOAD MODULE |
 | 34 | `310-tiktok-pilot-sales.js.part` | 1969 | TIKTOK PILOT MODULE (gated: ?ttpilot=1 → #tiktok-pilot) |
 | 35 | `320-kasper-dashboard-replies.js.part` | 2788 | Background poll for the Kasper review — same cadence as the client |

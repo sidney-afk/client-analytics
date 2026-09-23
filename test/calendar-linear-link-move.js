@@ -287,8 +287,8 @@ globalThis.calState = { client: 'Sydney', posts: [tgt2] };
 await _calLinearCommit({ dataset: {}, value: VID1 }, 'new', 'video');
 ok(tgt2.linear_issue_id === VID1 && globalThis._calPendingEdits['new'].linear_issue_id === VID1,
    'a non-clashing link commits to the field + pending edit');
-ok(flushCalls.length === 1 && syncCalls.length === 1 && archRemoveCalls.length === 1 && showConflictCalls.length === 0,
-   'non-clash path saves, syncs status, clears archive ledger, shows no prompt');
+ok(flushCalls.length === 1 && syncCalls.length === 0 && archRemoveCalls.length === 1 && showConflictCalls.length === 0,
+   'non-clash path saves, clears archive ledger, shows no prompt, and never calls the retired Linear status sync (B2)');
 
 // (c) clearing the link (empty value) never consults the conflict check.
 resetCommitSpies();
@@ -478,7 +478,7 @@ function setupMove(oldC, newC, key) {
   ok(moveFlush.includes('old') && moveFlush.includes('new'), 'both cards saved');
   ok(moveFlush[0] === 'old', 'OLD card is flushed BEFORE the new one (clear-then-set ordering)');
   ok(maxHolders <= 1 && holdersOf(_calLinkKey(VID1)) === 1, 'never two cards on the issue at once; exactly one holds it after');
-  ok(moveSync.length === 1 && moveSync[0].pid === 'new' && moveSync[0].which === 'video', 'new card pulls its status from Linear');
+  ok(moveSync.length === 0, 'new card keeps its SyncView status: the retired Linear status sync is never called (B2)');
   ok(moveArch.length === 1 && moveArch[0].arr[0] === VID1, 'the moved link is removed from the archive ledger');
 }
 // old card holds the link in its GRAPHIC slot, moving into the new card's VIDEO slot
@@ -509,7 +509,7 @@ function setupMove(oldC, newC, key) {
   ok(globalThis._calPendingEdits['__blank__xyz'] && globalThis._calPendingEdits['__blank__xyz'].linear_issue_id === VID1,
      'blank-card move: link queued for the not-yet-in-state new card (flush will promote it)');
   ok(moveFlush.includes('old') && moveFlush.includes('__blank__xyz'), 'blank-card move: both old clear and new set are flushed');
-  ok(moveSync.some(s => s.pid === '__blank__xyz'), 'blank-card move: status sync attempted for the new card');
+  ok(!moveSync.some(s => s.pid === '__blank__xyz'), 'blank-card move: no Linear status sync for the new card (retired in B2)');
 }
 
 console.log('\n============================================================');

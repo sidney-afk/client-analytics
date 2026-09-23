@@ -1061,7 +1061,9 @@
     // (2 Google API calls server-side). The FE falls back to per-client
     // CALENDAR_GET_URL calls whenever this endpoint fails.
     const KASPER_QUEUE_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/kasper-queue';
-    const LINEAR_SUBISSUES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-subissues';
+    /* linear-subissues (LINEAR_SUBISSUES_URL) was removed 2026-09-23 (B2):
+       its callers -- Import from Linear, Bulk Linear sync and link-time
+       status adoption -- are gone. See docs/ops/B2_LINEAR_CLEANUP_PLAN.md. */
     /* linear-issue-statuses (LINEAR_STATUSES_URL) was removed 2026-09-22: the
        webhook is revoked on 2026-09-27 and its two front-end callers are gone.
        See OPEN_REPAIRS 236. linear-set-status (LINEAR_SET_STATUS_URL) and

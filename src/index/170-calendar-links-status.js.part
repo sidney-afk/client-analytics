@@ -13,8 +13,9 @@
        the clear means the old card no longer owns the link when the new write's
        twin-check runs. The clear is sent as __CLEAR_LINK__ by _calFlushCardSave
        (a bare '' is ignored by the link-clobber guard). Linear itself is
-       untouched — only WHICH card points at the issue changes; the new card's
-       status fills in from Linear via _calSyncStatusFromLinear. */
+       untouched — only WHICH card points at the issue changes; the new card
+       keeps its SyncView status (link-time Linear status adoption was
+       removed in B2, 2026-09-23). */
     async function _calMoveLink(oldPid, newPid, which, val) {
         if (_isClientLink) return;   // moving a Linear link is SMM-only
         /* Moving a link SETS one on the receiving card, so it is the same write
@@ -59,7 +60,6 @@
         _calFlushCardSave(newPid);
         if (val) _calArchivedRemove(slug, [val]);
         _calRenderBody({ preserveScroll: true });
-        if (val) _calSyncStatusFromLinear(newPid, val, which);
     }
 
     function _calRenderInlineCard(p, isBlank, isCurrent) {

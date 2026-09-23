@@ -32,10 +32,17 @@ async function main(){const server=await startStreamServer();let browser,run;con
  await run.context.routeWebSocket('**/*',socket=>{deniedSockets.push('blocked');socket.close();});
  const reply=(route,value,status=200)=>route.fulfill({status,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(value)});
  await run.context.route('**/functions/v1/key-verify',async route=>{assert.equal(route.request().method(),'POST');requests.push('key-verify');await reply(route,{ok:true,role:'smm',member});});
+ // Item 230's single filtered archive-marker read: nothing archived in this fixture.
+ await run.context.route('**/rest/v1/production_deliverables_browser_v1?*',route=>reply(route,[]));
+ // The older mirror-watermark read; empty, so it never contributes rows.
+ await run.context.route('**/rest/v1/workload_issues?*',route=>reply(route,[]));
  await run.context.route('**/functions/v1/workload-plan',async route=>{
   assert.equal(route.request().method(),'POST');const body=route.request().postDataJSON();
   assert.equal(route.request().headers()['x-syncview-key'],'synthetic-role-key');
   requests.push(body.action);
+  // The cached v2 action (#1511) is answered as if not yet deployed, so the page
+  // takes its documented v1 fallback and this lane keeps proving the v1 path.
+  if(body.action==='native_snapshot_v2')return reply(route,{ok:false,error:'snapshot_cache_unavailable'},501);
   if(body.action==='native_snapshot'){
    if(mode==='missing-sql')return reply(route,{ok:false,error:'Synthetic SQL prerequisite unavailable'},503);
    const value=snapshot();if(mode==='held'){mode='healthy';await new Promise(resolve=>held={resolve,value});}
@@ -86,7 +93,7 @@ async function main(){const server=await startStreamServer();let browser,run;con
  await visible(nativeId);groups.push('storage receipt during held background read triggers post-flight refresh');
  assert.deepEqual(run.network.unmocked,[]);assert.deepEqual(run.pageErrors,[]);assert.deepEqual(deniedSockets,[]);
  const providerRequests=run.network.requests.filter(r=>/linear-issues|linear-tweak-comments|workload-linear|api\.linear\.app/.test(r.url));assert.equal(providerRequests.length,0);
- const unexpectedErrors=run.consoleErrors.filter(v=>!v.includes('503 (Service Unavailable)'));assert.deepEqual(unexpectedErrors,[]);
+ const unexpectedErrors=run.consoleErrors.filter(v=>!v.includes('503 (Service Unavailable)')&&!v.includes('501 (Not Implemented)'));assert.deepEqual(unexpectedErrors,[]);
  assert.equal(groups.length,5);receipt.result='PASS';receipt.requests={native_snapshot:requests.filter(v=>v==='native_snapshot').length,set:requests.filter(v=>v==='set').length,unmocked:0,provider:0,websocket:0};
  }catch(error){receipt.result='FAIL';receipt.failure=String(error.message);if(run)receipt.diagnostic=await run.page.evaluate(()=>({
   nav:currentNav,loading:wlState.loading,plan:wlState.planStatus,issues:wlState.issueSnapshot.length,active:wlState.allActiveSubs.length,

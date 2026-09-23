@@ -14543,7 +14543,17 @@
     }
     /* ── Workload Calendar ── */
     const LINEAR_ISSUES_WEBHOOK        = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issues';
-    const LINEAR_ISSUES_CACHE_KEY = 'syncview_linearIssuesCache_v1';
+    /* The warm-start copy of the board. v1 stored every row (6,700+, ~4.9M
+       characters); stock Chrome allows ~5.2M characters per site in total, so
+       with any other SyncView cache present the write threw QuotaExceededError,
+       the empty catch swallowed it, and the page kept painting whatever v1 had
+       last managed to store -- a board days old (Loom, 2026-09-23). v2 stores
+       only what the board draws (active sub-issues and their parents, ~0.25M
+       characters, bucket-for-bucket identical), and the v1 key is deleted. */
+    const LINEAR_ISSUES_CACHE_KEY = 'syncview_workloadBoardCache_v2';
+    const WL_LEGACY_CACHE_KEY     = 'syncview_linearIssuesCache_v1';
+    // Never paint a cached board older than this; show the loading state instead.
+    const WL_CACHED_BOARD_MAX_AGE_MS = 6 * 60 * 60 * 1000;
     const LINEAR_ISSUES_TTL_MS    = 5 * 60 * 1000;
     const WL_VIEW_PREF_KEY        = 'syncview_workloadView_v1';
     const WL_DEADLINE_PREF_KEY    = 'syncview_workloadDeadlineOverlay_v1';
@@ -14631,7 +14641,30 @@
         } catch { return null; }
     }
     function wlWriteCache(payload) {
-        try { localStorage.setItem(LINEAR_ISSUES_CACHE_KEY, JSON.stringify(payload)); } catch {}
+        try { localStorage.removeItem(WL_LEGACY_CACHE_KEY); } catch {}
+        let issues = Array.isArray(payload && payload.issues) ? payload.issues : [];
+        try {
+            // Only what wlApplyData can draw: active sub-issues and their parents.
+            const parents = new Set();
+            const subs = issues.filter(issue => issue && issue.isSubIssue && wlIsActiveStatus(issue));
+            for (const sub of subs) if (sub.parentId) parents.add(sub.parentId);
+            issues = issues.filter(issue => issue && (issue.isSubIssue
+                ? wlIsActiveStatus(issue) : parents.has(issue.id)));
+        } catch {}
+        try {
+            localStorage.setItem(LINEAR_ISSUES_CACHE_KEY, JSON.stringify({ ...payload, issues }));
+        } catch (error) {
+            // A write that fails must not leave the PREVIOUS board behind to be
+            // painted as if it were the last good one.
+            wlDropCache();
+            console.warn('[Workload] could not store the warm-start board; it will not be shown', error && error.name);
+        }
+    }
+    /* A cached board is painted only when it is recent enough to be useful. */
+    function wlCachedBoardUsable(cache) {
+        return !!(cache && Array.isArray(cache.issues) && cache.issues.length
+            && typeof cache.fetchedAt === 'number' && cache.fetchedAt <= Date.now()
+            && Date.now() - cache.fetchedAt < WL_CACHED_BOARD_MAX_AGE_MS);
     }
     /* A snapshot known to be INCOMPLETE must not be replayed.
        A forced refresh writes whatever the Linear webhook returned straight
@@ -14643,6 +14676,7 @@
        the cache, reads the complete mirror, and the board comes back whole. */
     function wlDropCache() {
         try { localStorage.removeItem(LINEAR_ISSUES_CACHE_KEY); } catch {}
+        try { localStorage.removeItem(WL_LEGACY_CACHE_KEY); } catch {}
     }
     function wlIsFresh(fetchedAt) {
         return typeof fetchedAt === 'number' && (Date.now() - fetchedAt) < LINEAR_ISSUES_TTL_MS;
@@ -18123,7 +18157,9 @@
            until wlLoadSnapshot replaces it. Staff identity is required first:
            the cache was written for a staff session and is not shown to anyone
            the live read would refuse. */
-        const cachedIssues = cache && Array.isArray(cache.issues) && cache.issues.length
+        // Older than WL_CACHED_BOARD_MAX_AGE_MS: the normal loading state, not
+        // a board that far out of date.
+        const cachedIssues = wlCachedBoardUsable(cache)
             && _syncviewStaffIdentityForHeaders() ? cache.issues : null;
         if (cachedIssues && !wlState.issueSnapshot.length) {
             wlState.planLoading = true;

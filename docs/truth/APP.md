@@ -715,7 +715,7 @@ half-linked — one of them pasted by the SMM who reported the failure the next 
 | paste / change a link | refused, with a notice | allowed |
 | **clear** an existing link | **allowed** | allowed |
 | open the linked issue | allowed | allowed |
-| bulk "match cards to sub-issues" (graphic half) | skipped, and the count is reported | allowed |
+| bulk "match cards to sub-issues" | retired 2026-09-23 (B2): the flow and its dialog were removed with Import from Linear | retired |
 | "Move it here" conflict resolution | refused | allowed |
 
 Clearing is exempt because it is the **repair** for every half-linked card the old behaviour
@@ -727,7 +727,7 @@ sealed slot renders nothing at all — under SyncView authority an unlinked Line
 state, not a missing chore, and `_calProdSlotHtml` already links to where the work lives.
 
 Gated on both surfaces and at every writer, not just the button that usually calls it: the
-single-card commit, the move path, `_calBulkLinkApply`, and the sample-review twin. The
+single-card commit, the move path, and the sample-review twin. (The bulk writer `_calBulkLinkApply` was removed on 2026-09-23 along with Import from Linear, B2.) The
 deliverable→card direction (`_calAdoptDeliverableLinks` / `_sxrAdoptDeliverableLinks`) is untouched —
 it fills an empty slot FROM the deliverable, which is the safe direction and the one that replaces
 the paste.

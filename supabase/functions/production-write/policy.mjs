@@ -15,6 +15,7 @@ export const OPERATIONS = Object.freeze([
   "batch_asset",
   "batch_description",
   "component_fill",
+  "title",
 ]);
 
 // The two batch-level asset slots that may be written, and the columns they
@@ -205,7 +206,10 @@ export const CREATIVE_STATUS_TRANSITIONS = Object.freeze(
 // now decides ABOVE the team match, beside `batch_asset`. Neither binding is
 // left on it. See staffOperationAllowed for the ruling, and for why the
 // filming plan is untouched by it.
-const CREATIVE_ASSIGNEE_BOUND_OPERATIONS = new Set(["status"]);
+// `title` (rename a sub-issue, owner decision 2026-09-23): editors may rename
+// exactly the sub-issues they can already edit -- their team AND assigned to
+// them, the same scope as `status`.
+const CREATIVE_ASSIGNEE_BOUND_OPERATIONS = new Set(["status", "title"]);
 const TEAM_KEYS = Object.freeze({
   video: "video",
   vid: "video",
@@ -354,6 +358,7 @@ export function staffOperationAllowed(
   if (CREATIVE_ASSIGNEE_BOUND_OPERATIONS.has(op)
       && !creativeOwnsTarget(scope.actorMemberId, scope.targetAssigneeId)) return false;
   if (op === "comment") return true;
+  if (op === "title") return true;
   /* `attachment` used to be decided here, under the team match, admitting a
      creative only on their own team. It moved above that match on 2026-09-01
      by the owner ruling quoted there. Nothing is left for it to do here, and

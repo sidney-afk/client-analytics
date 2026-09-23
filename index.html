@@ -5295,6 +5295,12 @@
         .cal-name-sync { flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: var(--text-muted); white-space: nowrap; }
         .cal-name-sync[hidden] { display: none; }
         .cal-name-sync.is-failed { color: var(--dn); }
+        /* SyncLinear sub-issue rename (release 2): the title edits in place; the
+           numbered prefix is shown but fixed. */
+        .prod-title-editable { cursor: text; border-radius: 4px; }
+        .prod-title-editable:hover, .prod-title-editable:focus-visible { background: var(--prod-hover, rgba(0,0,0,.04)); }
+        .prod-title-editable .prod-title-prefix { opacity: .6; }
+        .prod-title-input { font: inherit; color: inherit; background: transparent; border: 0; outline: none; padding: 0; width: 70%; }
         .cal-name-sync-retry { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
         .cal-linear-slot { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; }
         .cal-linear-slot:empty { display: none; }
@@ -8896,6 +8902,7 @@
     const TIKTOK_FORM_KEY          = 'syncview_tiktokUploadForm_v1';
     const TIKTOK_PENDING_KEY       = 'syncview_pendingTiktokUploads_v1';
     const TIKTOK_HIDDEN_KEY        = 'syncview_hiddenTiktokUploads_v1';
+    const TIKTOK_QUEUE_CACHE_KEY   = 'syncview_tiktokQueueCache_v1';
     const TIKTOK_OPTIMISTIC_TTL_MS = 5 * 60 * 1000; // drop unconfirmed local rows after 5 min
     const TIKTOK_MAX_BYTES         = 287 * 1024 * 1024; // TikTok upload size limit
     // Cloudflare's request-body ceiling in front of n8n Cloud. Only the legacy
@@ -14536,7 +14543,17 @@
     }
     /* ── Workload Calendar ── */
     const LINEAR_ISSUES_WEBHOOK        = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issues';
-    const LINEAR_ISSUES_CACHE_KEY = 'syncview_linearIssuesCache_v1';
+    /* The warm-start copy of the board. v1 stored every row (6,700+, ~4.9M
+       characters); stock Chrome allows ~5.2M characters per site in total, so
+       with any other SyncView cache present the write threw QuotaExceededError,
+       the empty catch swallowed it, and the page kept painting whatever v1 had
+       last managed to store -- a board days old (Loom, 2026-09-23). v2 stores
+       only what the board draws (active sub-issues and their parents, ~0.25M
+       characters, bucket-for-bucket identical), and the v1 key is deleted. */
+    const LINEAR_ISSUES_CACHE_KEY = 'syncview_workloadBoardCache_v2';
+    const WL_LEGACY_CACHE_KEY     = 'syncview_linearIssuesCache_v1';
+    // Never paint a cached board older than this; show the loading state instead.
+    const WL_CACHED_BOARD_MAX_AGE_MS = 6 * 60 * 60 * 1000;
     const LINEAR_ISSUES_TTL_MS    = 5 * 60 * 1000;
     const WL_VIEW_PREF_KEY        = 'syncview_workloadView_v1';
     const WL_DEADLINE_PREF_KEY    = 'syncview_workloadDeadlineOverlay_v1';
@@ -14624,7 +14641,30 @@
         } catch { return null; }
     }
     function wlWriteCache(payload) {
-        try { localStorage.setItem(LINEAR_ISSUES_CACHE_KEY, JSON.stringify(payload)); } catch {}
+        try { localStorage.removeItem(WL_LEGACY_CACHE_KEY); } catch {}
+        let issues = Array.isArray(payload && payload.issues) ? payload.issues : [];
+        try {
+            // Only what wlApplyData can draw: active sub-issues and their parents.
+            const parents = new Set();
+            const subs = issues.filter(issue => issue && issue.isSubIssue && wlIsActiveStatus(issue));
+            for (const sub of subs) if (sub.parentId) parents.add(sub.parentId);
+            issues = issues.filter(issue => issue && (issue.isSubIssue
+                ? wlIsActiveStatus(issue) : parents.has(issue.id)));
+        } catch {}
+        try {
+            localStorage.setItem(LINEAR_ISSUES_CACHE_KEY, JSON.stringify({ ...payload, issues }));
+        } catch (error) {
+            // A write that fails must not leave the PREVIOUS board behind to be
+            // painted as if it were the last good one.
+            wlDropCache();
+            console.warn('[Workload] could not store the warm-start board; it will not be shown', error && error.name);
+        }
+    }
+    /* A cached board is painted only when it is recent enough to be useful. */
+    function wlCachedBoardUsable(cache) {
+        return !!(cache && Array.isArray(cache.issues) && cache.issues.length
+            && typeof cache.fetchedAt === 'number' && cache.fetchedAt <= Date.now()
+            && Date.now() - cache.fetchedAt < WL_CACHED_BOARD_MAX_AGE_MS);
     }
     /* A snapshot known to be INCOMPLETE must not be replayed.
        A forced refresh writes whatever the Linear webhook returned straight
@@ -14636,6 +14676,7 @@
        the cache, reads the complete mirror, and the board comes back whole. */
     function wlDropCache() {
         try { localStorage.removeItem(LINEAR_ISSUES_CACHE_KEY); } catch {}
+        try { localStorage.removeItem(WL_LEGACY_CACHE_KEY); } catch {}
     }
     function wlIsFresh(fetchedAt) {
         return typeof fetchedAt === 'number' && (Date.now() - fetchedAt) < LINEAR_ISSUES_TTL_MS;
@@ -18116,7 +18157,9 @@
            until wlLoadSnapshot replaces it. Staff identity is required first:
            the cache was written for a staff session and is not shown to anyone
            the live read would refuse. */
-        const cachedIssues = cache && Array.isArray(cache.issues) && cache.issues.length
+        // Older than WL_CACHED_BOARD_MAX_AGE_MS: the normal loading state, not
+        // a board that far out of date.
+        const cachedIssues = wlCachedBoardUsable(cache)
             && _syncviewStaffIdentityForHeaders() ? cache.issues : null;
         if (cachedIssues && !wlState.issueSnapshot.length) {
             wlState.planLoading = true;
@@ -31489,6 +31532,75 @@
         _calNameSyncAfterSave(pid);
     }
 
+    /* ── SyncLinear: rename a sub-issue (release 2) ───────────────────────
+       The issue page's title becomes editable for anyone the gateway would
+       let rename it (admin, SMM, and an editor on their own assigned
+       sub-issue: _prodCanWrite(issue, 'title')). Only the NAME is edited;
+       the `Video 4 —` prefix is shown but fixed, because the number is data.
+       The save goes through production-write `title`; the linked card then
+       follows through the database outbox, so this page only nudges the
+       drain afterwards and never waits on it. */
+    function _prodDetailTitleHtml(d) {
+        const title = String(d && d.title || '') || 'Untitled deliverable';
+        const canRename = !!(d && d.syntheticBatchParent !== true && _prodCanWrite(d, 'title'));
+        if (!canRename) return '<h1 class="prod-detail-title">' + _calEsc(title) + '</h1>';
+        return '<h1 class="prod-detail-title prod-title-editable" tabindex="0" role="button"'
+            + ' data-prod-title-edit="' + _calEscAttr(d.id) + '" title="Rename"'
+            + ' onclick="_prodTitleEditStart(this)"'
+            + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_prodTitleEditStart(this)}">'
+            + _calEsc(title) + '</h1>';
+    }
+    function _prodTitleEditStart(el) {
+        if (!el || el.querySelector('input')) return;
+        const id = el.getAttribute('data-prod-title-edit');
+        const issue = _prodIssue(id);
+        if (!issue) return;
+        const parts = SYNC_TITLE_RULE.titleParts(issue.title);
+        const prefix = parts ? (parts.sample ? 'Sample ' : '') + parts.kind + ' ' + parts.digits + SYNC_TITLE_RULE.TITLE_SEPARATOR : '';
+        const name = SYNC_TITLE_RULE.nameOfTitle(issue.title);
+        el.innerHTML = (prefix ? '<span class="prod-title-prefix">' + _calEsc(prefix) + '</span>' : '')
+            + '<input class="prod-title-input" type="text" maxlength="400" aria-label="Sub-issue name" value="' + _calEscAttr(name) + '">';
+        const input = el.querySelector('input');
+        let done = false;
+        const finish = (save) => {
+            if (done) return;
+            done = true;
+            _prodTitleEditCommit(id, save ? input.value : null);
+        };
+        input.addEventListener('keydown', ev => {
+            ev.stopPropagation();
+            if (ev.key === 'Enter') { ev.preventDefault(); finish(true); }
+            else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+        });
+        input.addEventListener('blur', () => finish(true));
+        input.addEventListener('click', ev => ev.stopPropagation());
+        input.focus();
+        input.select();
+    }
+    async function _prodTitleEditCommit(id, value) {
+        const issue = _prodIssue(id);
+        if (!issue || value == null) { _prodRender(); return; }
+        const check = SYNC_TITLE_RULE.renameTitle(issue.title, value);
+        if (!check.ok) {
+            _prodToast(check.reason === 'name_too_long'
+                ? 'That name is too long (' + SYNC_TITLE_RULE.NAME_MAX + ' characters at most).'
+                : check.reason === 'name_would_look_numbered'
+                    ? 'That name looks like a numbered title. Choose a different name.'
+                    : 'Type a name for this sub-issue.');
+            _prodRender();
+            return;
+        }
+        if (!check.changed) { _prodRender(); return; }
+        try {
+            await _prodGatewayWrite(issue, 'title', { name: SYNC_TITLE_RULE.cleanName(value) });
+            _prodToast('Renamed. The card will follow.');
+            _renamePropPoke();
+        } catch (error) {
+            _prodToast(_prodWriteErrorText(error, issue, 'title'));
+        }
+        _prodRender();
+    }
+
     function _calMigratePostShape(p) {
         if (!p || typeof p !== 'object') return p;
         const legacy = _calNormStatus(p.status || 'In Progress');
@@ -38501,6 +38613,7 @@
         if (el) el.hidden = !on;
     }
     const CAL_LOAD_TIMEOUT_MS = 20000;
+    const CAL_AUTHORITY_PAINT_WAIT_MS = 400;
     async function loadCalendarPosts(opts) {
         opts = opts || {};
         if (!calState.client) { _calInvalidateActiveLoad(); _calRenderBody(); return; }
@@ -38922,6 +39035,21 @@
         } finally {
             if (timeoutId) clearTimeout(timeoutId);
             loadRun.timeoutId = null;
+            /* The board usually arrives just before the live write-authority
+               read. Painting then draws the Linear link seal fail-open, and
+               the authority read repaints the whole board ~100-250 ms later
+               to change it. Give that read a short, bounded head start so the
+               first paint is already the live answer; if it is slow or down,
+               paint fail-open exactly as before. Client links never render
+               the seal, so they never wait. */
+            if (ok && !_isClientLink && !_writeUiAuthoritySnapshot() && _calLoadRunCurrent(loadRun)) {
+                try {
+                    await Promise.race([
+                        _writeUiRefreshAuthority(),
+                        new Promise(resolve => setTimeout(resolve, CAL_AUTHORITY_PAINT_WAIT_MS))
+                    ]);
+                } catch {}
+            }
             // A late completion from an aborted generation must never detach
             // the replacement controller or clear its in-flight indicators.
             if (_calLoadRunCurrent(loadRun)) {
@@ -40170,9 +40298,12 @@
         }
     }
 
+    let _calLastBodyPaint = { el: null, view: null, html: null };
     function _calRenderBody(opts) {
         const body = document.getElementById('calBody');
         if (!body) return;
+        const lastPaint = _calLastBodyPaint;
+        _calLastBodyPaint = { el: null, view: null, html: null };   // early returns below repaint without it
         const preserveScroll = !!(opts && opts.preserveScroll);
         const stripBefore = preserveScroll ? document.getElementById('calStrip') : null;
         const scrollLeft0 = stripBefore ? stripBefore.scrollLeft : null;
@@ -40189,13 +40320,33 @@
             </div>`;
             return;
         }
+        /* skipIfUnchanged: a background caller (the boot/resume write-authority
+           check) asks for a repaint only in case its news changes the board.
+           Build the markup first and leave the DOM alone when it is identical
+           to the last paint of this same body, which is what the first
+           authority read usually turns out to be ~100 ms after first paint. */
+        const skipIfUnchanged = !!(opts && opts.skipIfUnchanged);
+        const viewHtml = (calState.view === 'review' || calState.view === 'smmreview') ? renderCalReview()
+            : calState.view === 'organizer' ? renderCalOrganizer()
+            : calState.view === 'month' ? renderCalMonth()
+            : calState.view === 'week' ? renderCalWeek()
+            : null;
+        if (skipIfUnchanged && viewHtml != null && lastPaint.el === body
+            && lastPaint.view === calState.view && lastPaint.html === viewHtml) {
+            _calLastBodyPaint = lastPaint;
+            _calUpdateReviewBadge();
+            _calSyncMonthWarnIcon();
+            _calSyncClientLinks();
+            return;
+        }
+        _calLastBodyPaint = { el: body, view: calState.view, html: viewHtml };
         if (calState.view === 'review' || calState.view === 'smmreview') {
             const reviewThumbs = _kcardHarvestThumbs(body, 'data-cal-review-pid');
-            body.innerHTML = renderCalReview();
+            body.innerHTML = viewHtml;
             _kcardRestoreThumbs(body, reviewThumbs, 'data-cal-review-pid');
             _calWireReviewExpand(body);
         } else if (calState.view === 'organizer') {
-            body.innerHTML = renderCalOrganizer();
+            body.innerHTML = viewHtml;
             // Re-insert previously-loaded <img> elements into the new cards
             // (same pid + same src) so the browser doesn't have to repaint
             // thumbnails from the cache — no card-height shift on refresh.
@@ -40209,11 +40360,11 @@
             }
             wireCalOrganizerDrag(preserveScroll);
         } else if (calState.view === 'month') {
-            body.innerHTML = renderCalMonth();
+            body.innerHTML = viewHtml;
             _calWireWheelNav(body.querySelector('.cal-month-wrap'), calMonthShift);
             _calWireDayDrag(body);
         } else if (calState.view === 'week') {
-            body.innerHTML = renderCalWeek();
+            body.innerHTML = viewHtml;
             _calWireWeekWheel(body);
             _calWireDayDrag(body);
         }
@@ -57222,6 +57373,11 @@
                ever rendered for it. */
             if (operation === 'attachment') return !!memberTeam;
             if (!memberTeam || memberTeam !== _prodWriteTeam(issue.team)) return false;
+            /* Renaming a sub-issue (owner decision 2026-09-23): an editor may
+               rename exactly the sub-issues they can already edit -- their team
+               and assigned to them. Mirrors staffOperationAllowed, where
+               `title` sits in CREATIVE_ASSIGNEE_BOUND_OPERATIONS beside status. */
+            if (operation === 'title') return _prodCreativeOwnsTarget(issue);
             if (PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS.includes(operation)
                 && !_prodCreativeOwnsTarget(issue)) return false;
             if (operation === 'comment') return true;
@@ -58091,7 +58247,7 @@
             if (!row || !row.id) return;
             const target = (_prodState.deliverables || []).find(item => String(item && item.id || '') === String(row.id));
             if (target) {
-                ['status', 'status_at', 'due_date', 'assignee_id', 'brief', 'file_url', 'sync_state', 'updated_at',
+                ['status', 'status_at', 'due_date', 'title', 'assignee_id', 'brief', 'file_url', 'sync_state', 'updated_at',
                     'linear_raw', 'identity_repair_state', 'identity_repair_reason'].forEach(field => {
                     if (Object.prototype.hasOwnProperty.call(row, field)) target[field] = row[field];
                 });
@@ -67006,7 +67162,7 @@
             return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
                 + '<div class="prod-detail-id">' + _calEsc(_prodIssueDisplayLabel(d)) + '</div>'
                 + _prodSubIssueContextHTML(d, parent)
-                + '<h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
+                + _prodDetailTitleHtml(d)
                 + _prodAttributionNoticeHTML(d)
                 + _prodDescriptionPanelHTML(d)
                 /* A synthesized batch parent is a container, not a deliverable:
@@ -74520,7 +74676,7 @@
                             _calPendingBackgroundRender = true;
                             if (typeof _calSchedulePendingRender === 'function') _calSchedulePendingRender();
                         } else {
-                            _calRenderBody({ preserveScroll: true });
+                            _calRenderBody({ preserveScroll: true, skipIfUnchanged: true });
                         }
                     }
                     if (activeNav === 'sample-reviews' && typeof _sxrRenderBody === 'function') {
@@ -76929,6 +77085,19 @@
         });
     }
 
+    /* Cached-first queue: the list webhook takes seconds, so the last good
+       server rows are kept locally and painted on mount; the live fetch then
+       replaces them behind the scenes. */
+    function _tkLoadQueueCache() {
+        try {
+            const c = JSON.parse(localStorage.getItem(TIKTOK_QUEUE_CACHE_KEY) || 'null');
+            return (c && Array.isArray(c.rows)) ? c.rows : [];
+        } catch { return []; }
+    }
+    function _tkSaveQueueCache(rows) {
+        try { localStorage.setItem(TIKTOK_QUEUE_CACHE_KEY, JSON.stringify({ at: Date.now(), rows: rows.slice(0, 100) })); } catch {}
+    }
+
     async function _tkFetchQueue() {
         try {
             // Timeout so a hung request can't stall the poll chain forever —
@@ -76937,12 +77106,17 @@
             if (!r.ok) throw new Error('HTTP ' + r.status);
             const json = await r.json();
             const rows = Array.isArray(json) ? json : (json.rows || json.items || []);
+            _tkSaveQueueCache(rows);
             const prunedPending = _tkPrunePending(_tkLoadPending());
+            const shownBefore = tkState.queueFromCache ? null : JSON.stringify(tkState.uploads);
             tkState.uploads = _tkMergeUploads(prunedPending, rows);
             // Trim local pending list of rows the server now knows about, plus stale optimistic ones.
             const knownIds = new Set(rows.map(r => r.id));
             _tkSavePending(prunedPending.filter(r => !knownIds.has(r.id)));
-            _tkRenderQueue();
+            tkState.queueFromCache = false;
+            // The live list is usually the same; repaint only on a change
+            // (or to turn the cached, read-only rows into live ones).
+            if (JSON.stringify(tkState.uploads) !== shownBefore) _tkRenderQueue();
         } catch (e) {
             // Surface only on the very first failure — keep retrying quietly afterwards.
             const col = document.getElementById('tkQueueCol');
@@ -76968,18 +77142,25 @@
                 : (r.posted_at ? `posted ${new Date(r.posted_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}` : 'now');
             const status = _tkEffectiveStatus(r);
             const actions = [];
-            if (status === 'scheduled' || status === 'queued') {
-                actions.push(`<button class="tk-mini-btn" onclick="_tkCancelRow('${_tkEscape(r.id)}')">Cancel</button>`);
+            // Rows painted from the local cache are read-only until the live
+            // list confirms them: the state may have moved on elsewhere.
+            const readOnly = tkState.queueFromCache && !r.optimistic;
+            if (readOnly) {
+                if (r.tiktok_url) actions.push(`<a class="tk-mini-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
+            } else {
+                if (status === 'scheduled' || status === 'queued') {
+                    actions.push(`<button class="tk-mini-btn" onclick="_tkCancelRow('${_tkEscape(r.id)}')">Cancel</button>`);
+                }
+                if (status === 'failed') {
+                    actions.push(`<button class="tk-mini-btn" onclick="_tkRetryRow('${_tkEscape(r.id)}')">Retry</button>`);
+                }
+                if (r.tiktok_url) {
+                    actions.push(`<a class="tk-mini-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
+                }
+                actions.push(`<button class="tk-mini-btn" onclick="_tkDismissRow('${_tkEscape(r.id)}')">Dismiss</button>`);
             }
-            if (status === 'failed') {
-                actions.push(`<button class="tk-mini-btn" onclick="_tkRetryRow('${_tkEscape(r.id)}')">Retry</button>`);
-            }
-            if (r.tiktok_url) {
-                actions.push(`<a class="tk-mini-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
-            }
-            actions.push(`<button class="tk-mini-btn" onclick="_tkDismissRow('${_tkEscape(r.id)}')">Dismiss</button>`);
             return `
-                <div class="tk-queue-item">
+                <div class="tk-queue-item${readOnly ? ' tk-queue-item-cached' : ''}">
                     <div class="tk-queue-top">
                         <div style="min-width:0">
                             <div class="tk-queue-client">${_tkEscape(r.client || '—')}</div>
@@ -77098,7 +77279,11 @@
             tkState.profile = r.profile;
             tkState.profileSource = r.source;
         }
-        tkState.uploads = _tkPrunePending(_tkLoadPending());   // optimistic rows show instantly
+        // Optimistic rows plus the last server list show instantly; the fetch
+        // below refreshes them.
+        const cachedRows = _tkLoadQueueCache();
+        tkState.uploads = _tkMergeUploads(_tkPrunePending(_tkLoadPending()), cachedRows);
+        tkState.queueFromCache = cachedRows.length > 0;
         _tkRenderForm();
         _tkRenderPreview();
         _tkRenderQueue();

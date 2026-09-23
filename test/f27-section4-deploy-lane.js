@@ -522,9 +522,11 @@ const CANDIDATES = new Map([
     // only the receipt, but there is no reason to deploy into that state.
     // Regenerated with scripts/ef-fingerprint.js, never by hand.
     // B2 (2026-09-23): _shared/native-brief-media.mjs learned syncview-media: refs; re-pinned with ef-fingerprint.
-    source: '68cae746ad1fa5ebc3203ad3cc82415ea5699158ee07e16f7757715e0a8ef2ce',
+    // Rename release 2 (2026-09-23): production-write gains `title` and imports
+    // _shared/title-name-rule.mjs (8 -> 9 files); re-pinned with ef-fingerprint.
+    source: 'c1b468cc00bb095a7b7eabf0f7495a413eb314fc298c19d581d417f471882832',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
-    files: 8,
+    files: 9,
   }],
 ]);
 

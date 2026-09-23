@@ -44,6 +44,8 @@ export async function loadGateway() {
     `from "${pathToFileURL(path.join(ROOT, 'supabase', 'functions', '_shared', 'linear-create-id.mjs')).href}";`);
   source = rewriteOnce(source, 'from "../_shared/native-brief-media.mjs";',
     `from "${pathToFileURL(path.join(ROOT, 'supabase', 'functions', '_shared', 'native-brief-media.mjs')).href}";`);
+  source = rewriteOnce(source, 'from "../_shared/title-name-rule.mjs";',
+    `from "${pathToFileURL(path.join(ROOT, 'supabase', 'functions', '_shared', 'title-name-rule.mjs')).href}";`);
   // WR-101 (ledger 240): production-write imports the refusal-diagnostics
   // helper. Guarded like native-brief-media above, so this loader keeps working
   // if the import is ever removed again.

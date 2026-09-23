@@ -2125,6 +2125,11 @@
                ever rendered for it. */
             if (operation === 'attachment') return !!memberTeam;
             if (!memberTeam || memberTeam !== _prodWriteTeam(issue.team)) return false;
+            /* Renaming a sub-issue (owner decision 2026-09-23): an editor may
+               rename exactly the sub-issues they can already edit -- their team
+               and assigned to them. Mirrors staffOperationAllowed, where
+               `title` sits in CREATIVE_ASSIGNEE_BOUND_OPERATIONS beside status. */
+            if (operation === 'title') return _prodCreativeOwnsTarget(issue);
             if (PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS.includes(operation)
                 && !_prodCreativeOwnsTarget(issue)) return false;
             if (operation === 'comment') return true;

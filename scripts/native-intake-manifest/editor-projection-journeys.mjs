@@ -124,6 +124,8 @@ try {
   baselineSource=rewriteOnce(baselineSource,'Deno.serve(','globalThis.__nirServe(');
   if(baselineSource.includes('from "../_shared/native-brief-media.mjs";')) baselineSource=rewriteOnce(baselineSource,
     'from "../_shared/native-brief-media.mjs";', 'from '+JSON.stringify(pathToFileURL(path.resolve(FN_DIR,'../_shared/native-brief-media.mjs')).href)+';');
+  if(baselineSource.includes('from "../_shared/title-name-rule.mjs";')) baselineSource=rewriteOnce(baselineSource,
+    'from "../_shared/title-name-rule.mjs";', 'from '+JSON.stringify(pathToFileURL(path.resolve(FN_DIR,'../_shared/title-name-rule.mjs')).href)+';');
   if(baselineSource.includes('from "../_shared/write-refusal-diagnostics.mjs";')) baselineSource=rewriteOnce(baselineSource,
     'from "../_shared/write-refusal-diagnostics.mjs";', 'from '+JSON.stringify(pathToFileURL(path.resolve(FN_DIR,'../_shared/write-refusal-diagnostics.mjs')).href)+';');
   const baselineFile=path.join(scratch,'baseline.ts'),candidateHandler=handler;

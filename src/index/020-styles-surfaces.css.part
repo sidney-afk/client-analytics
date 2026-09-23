@@ -1162,6 +1162,12 @@
         .cal-name-sync { flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: var(--text-muted); white-space: nowrap; }
         .cal-name-sync[hidden] { display: none; }
         .cal-name-sync.is-failed { color: var(--dn); }
+        /* SyncLinear sub-issue rename (release 2): the title edits in place; the
+           numbered prefix is shown but fixed. */
+        .prod-title-editable { cursor: text; border-radius: 4px; }
+        .prod-title-editable:hover, .prod-title-editable:focus-visible { background: var(--prod-hover, rgba(0,0,0,.04)); }
+        .prod-title-editable .prod-title-prefix { opacity: .6; }
+        .prod-title-input { font: inherit; color: inherit; background: transparent; border: 0; outline: none; padding: 0; width: 70%; }
         .cal-name-sync-retry { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
         .cal-linear-slot { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; }
         .cal-linear-slot:empty { display: none; }

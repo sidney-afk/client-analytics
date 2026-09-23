@@ -2,7 +2,18 @@
 
 **Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
 
-> Last verified: 2026-08-24 @ c7f088a + scoped 2026-09-10 re-measurement of the two event
+> Last verified: 2026-09-23 @ 344006c5 — a live read-only re-verification (Supabase Management
+> API + SQL) of this document's countable current-state claims: the Edge Function inventory, every
+> `syncview_runtime_flags` row, the roster/enrolment 1:1, `client_access` coverage, the two event
+> ledgers' `source` breakdown, and the row counts for the tables named below. **Eight claims had
+> drifted and are corrected in place, each marked `Corrected 2026-09-23`; none were re-stamped
+> without being read.** What this pass did NOT re-verify, and which therefore still rests on its
+> older evidence: the F27 install receipts, the F88/F83/F87/F89 access findings, the Slice 4/5
+> deploy provenance, the write-contract and thumbnail-rotation behaviour, the measured read-path
+> timings, and the backup/PITR/disk/billing section (the Management API surface those need was not
+> exercised from this sandbox — see the note in that section).
+>
+> Earlier stamp, retained for provenance: 2026-08-24 @ c7f088a + scoped 2026-09-10 re-measurement of the two event
 > ledgers (row counts and the `source` breakdown, which corrected a "100% `source='ui'`"
 > claim that was never true) and the `kasper_urgent_ping_enabled` flag + the
 > fully-installed ledger trigger (see the runtime-flags and event-ledger bullets)
@@ -101,19 +112,30 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 > still reads it directly through `_prodRestRows('clients', ...)`. The other direct-use tables named
 > in F88 likewise remain separate projection work.
 
-- `calendar_posts` — main calendar store (~3.4k rows at last count; ~77% belong to the TEST
-  client; most rows archived).
-- `sample_reviews` — SXR store (GA but barely adopted by real clients at last count).
-  Referenced in code via `SXR_TABLE`.
-- `workload_issues` — **read-only mirror** of Linear (4 teams present: VID/GRA/CON/STR;
-  56 messy `client_name` variants — normalize via `wlNormalizeClient()`).
+- `calendar_posts` — main calendar store. **Corrected 2026-09-23: 12,647 rows live, not the
+  "~3.4k" this line claimed.** The store has roughly quadrupled since that count was taken; the
+  TEST-share and archived-share figures that used to sit here were not re-derived this pass, so
+  they are removed rather than carried forward as if measured.
+- `sample_reviews` — SXR store. **Corrected 2026-09-23: 7,318 rows live**, so "barely adopted by
+  real clients" is no longer a safe reading of this table; the per-client split was not measured
+  this pass. Referenced in code via `SXR_TABLE`.
+- `workload_issues` — **read-only mirror** of Linear; 3,836 rows, 2,097 of them active
+  (2026-09-23). **Corrected 2026-09-23: this mirror is FROZEN, not maintained.** Its only writer,
+  the n8n `SyncView Workload — Reconcile` workflow, was deactivated 2026-09-21; the newest
+  `synced_at` in the table is `2026-09-21 14:50:16Z` and has not moved since. Anything that reads
+  this table — including Workload's `synced_at` watermark poll — is reading a fixed snapshot, which
+  in the browser is indistinguishable from a healthy quiet system. See `docs/truth/N8N.md`.
+  (4 teams present: VID/GRA/CON/STR; the "56 messy `client_name` variants" count is from the older
+  evidence and was not re-derived — normalize via `wlNormalizeClient()` regardless.)
 - `workload_plan` — **live internal sidecar**, keyed by stable sub-issue id, with normalized
   client scope, nullable `plan_date`, and server-owned update attribution/time. It intentionally has
   no foreign key or added column on the rebuildable `workload_issues` mirror. Live readback shows
   RLS with zero policies, no browser PostgREST privilege, and service-role
-  SELECT/INSERT/UPDATE only; DELETE/TRUNCATE/REFERENCES/TRIGGER are explicitly revoked. Exact release
-  cleanup left the table empty. F147 tracks which exact SQL correction artifact established those
-  effective grants.
+  SELECT/INSERT/UPDATE only; DELETE/TRUNCATE/REFERENCES/TRIGGER are explicitly revoked.
+  **Corrected 2026-09-23: the table is no longer empty — it holds 408 saved plan rows.** "Exact
+  release cleanup left the table empty" described the state at release and is now history; do not
+  treat an empty read as the expected one. F147 tracks which exact SQL correction artifact
+  established those effective grants.
 - `kasper_ad_performance_daily` — **live, applied 2026-08-24.** One row per UTC day of Kasper's
   Meta prospecting campaign (raw spend/impressions/clicks/landing-page-views plus iClosed booking
   counts, both including and excluding cancellations). Same posture as `workload_plan`: RLS enabled,
@@ -145,9 +167,14 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   `email_sent_at`/`sms_sent_at` are set once the recovery email/SMS actually sends. Same
   locked-down posture as the other three `kasper_ad_*` tables. Read by
   `kasper-ad-performance-read`'s `unfinished_leads` field (deployed); written by a new independent
-  branch on the `Kasper Ad Performance — Daily Pull` n8n workflow — rebuilt twice same-week, now
-  `6OtjILbhkYLY6yVE` (superseding `CdCYzye6Khp6x5A6`, itself superseding `BKl9OFVMb4VS2IHf`),
-  published and live on the 2x/day cron. The second rebuild fixed a real filter bug found
+  branch on the `Kasper Ad Performance — Daily Pull` n8n workflow — rebuilt twice same-week to
+  `6OtjILbhkYLY6yVE` (superseding `CdCYzye6Khp6x5A6`, itself superseding `BKl9OFVMb4VS2IHf`).
+  **Corrected 2026-09-23: `6OtjILbhkYLY6yVE` is no longer the live workflow.** The live, active
+  `Kasper Ad Performance — Daily Pull` is `2Ax4c78jgI7roXzv` (created/published 2026-09-02,
+  15 nodes, active version `74798eb9-6b7f-449a-a526-64c7fdfd274b`, still a schedule trigger); all
+  three earlier ids are gone from the workflow list. What changed in that 2026-09-02 rebuild was
+  not read this pass and is NOT claimed here — only that the id in this document was stale. The
+  second 2026-08-25 rebuild fixed a real filter bug found
   2026-08-25 (`status='pending'` silently excluded already-contacted leads; fixed to exclude only
   on `suppressed_reason`) and is proven via real execution `431479`, whose branch correctly
   re-discovered and corrected 4 real leads that a manual backfill had gotten wrong — see
@@ -169,9 +196,24 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   B0's `BEFORE UPDATE` trigger maintains `updated_at`, and the separate `flag_flips` trigger records
   old/new value plus actor/time; read both after every change. Canonical `prod_authority` sides are
   only `linear`/`syncview`. F55 remains open because several backends also accept legacy `supabase`
-  while the browser rejects it; do not use that alias. Two additional live flags:
-  `write_ui_reroute_clients` (write-UI reroute allowlist; measured 2026-09-07 as the FULL roster —
-  43 enrolled slugs against 43 `active=true` clients, exact 1:1, no ghosts. A missing/unreadable read
+  while the browser rejects it; do not use that alias.
+  **Re-read live 2026-09-23 — 27 flag rows exist, and this bullet named only 5 of them.** The
+  material readings, all read-only:
+  `prod_authority` is `{"video":"syncview","graphics":"syncview"}` (both teams SyncView-owned since
+  2026-08-28; any statement anywhere in `docs/truth/` that a team is "presently Linear-authoritative"
+  is stale); `linear_outbound_enabled` is `{"mode":"off"}` and `linear_legacy_parity_enabled` is
+  `{"enabled": false}`, both set 2026-09-20 at the cutoff; `linear_inbound_enabled` is still
+  `{"enabled": true}`. Nine native-cutover flags the older text never mentioned are live and carry
+  the current work topology: `native_intake_epochs`, `native_assignment_epochs`,
+  `production_native_ordinary_receipts`, `production_native_identifier_mint` and
+  `production_native_label_catalog` all read `native`; `native_brief_media` reads `required`;
+  `native_card_materialization` reads `hold`. Also live and previously unlisted:
+  `client_comment_gateway_enabled`, `description_image_upload_enabled`, `public_intake_enabled`,
+  `quiz_intake_enabled` and `write_ui_overdue_due_bump`, all `{"enabled": true}`.
+  Named flags carried forward from the older text and re-read this pass:
+  `write_ui_reroute_clients` (write-UI reroute allowlist; re-measured 2026-09-23 and the FULL-roster
+  claim STILL HOLDS — 43 enrolled slugs against 43 `active=true` clients, set-equal in both
+  directions, no ghosts. A missing/unreadable read
   now routes a live write NATIVE rather than to the legacy lane, owner decision 2026-09-07, LX-C /
   OPEN_REPAIRS 175; the allowlist still answers factually for the outbox drain) and `pto_v1` (staff PTO
   tracker, live ON since 2026-07-15, owner decision D-36).
@@ -187,18 +229,23 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   ledger". All three parts were wrong**, and the counts by roughly 80x. Re-measured
   2026-09-10 by grouping each table on `source`:
 
-  Snapshot at **2026-09-10 ~23:22Z** — these are live counts and the `ui` column
+  Snapshot **re-derived 2026-09-23 ~01:30Z** — these are live counts and the `ui` column
   moves continuously, so treat the shape as the finding and re-derive the numbers
   rather than quoting these:
 
   | | rows | `ui` | other sources |
   |---|---|---|---|
-  | `calendar_post_events` | **39,550** | 32,216 (81%) | `calendar-reorder` 4,883 · `reconcile` **2,159** · `linear` 230 · `calendar-upsert` 58 · `sql` 2 · `db` 2 |
-  | `sample_review_events` | **62,186** | 62,038 (99.8%) | `sample-review-reorder` 79 · `reconcile` **68** · `db` 1 |
+  | `calendar_post_events` | **47,091** | 37,537 (80%) | `calendar-reorder` 6,355 · `reconcile` **2,429** · `native-bridge` **468** · `linear` 230 · `calendar-upsert` 58 · `db` 12 · `sql` 2 |
+  | `sample_review_events` | **65,017** | 64,863 (99.8%) | `sample-review-reorder` 81 · `reconcile` **72** · `db` 1 |
 
-  So `reconcile` does NOT bypass the ledger: it has written 2,159 calendar and 68
-  sample events, continuously from 2026-07-07 until its retirement 2026-09-22
-  (OPEN_REPAIRS 238). **The mechanism is worth knowing, because it is not what the
+  **New 2026-09-23: `native-bridge` is a source this table did not have at the 2026-09-10 count.**
+  It is the busiest non-`ui` writer still advancing on the calendar side (latest row
+  2026-09-23 01:04Z, seconds behind the latest `ui` row), which is what you would expect now that
+  native writes carry the work. `reconcile` last wrote **2026-09-18 15:46Z** on the calendar and
+  2026-09-14 on samples and has been silent since, consistent with the reconcilers' retirement.
+
+  So `reconcile` did NOT bypass the ledger: it wrote 2,429 calendar and 72
+  sample events, continuously from 2026-07-07 until its retirement (OPEN_REPAIRS 238). **The mechanism is worth knowing, because it is not what the
   old wording assumed.** The reconciler wrote no events itself; it set the header
   `X-Syncview-Source: reconcile` and POSTed through the ordinary writer, and the
   WRITER logs the change under whatever source the caller declared. Ledger
@@ -226,9 +273,13 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   on a premise that was never true. Track B still must not be bypassable, but that is
   a requirement, not an inherited property.
 
-  `db` is the Kasper urgent ping's source; all three rows above are it — one
+  `db` is the Kasper urgent ping's source. **Corrected 2026-09-23: there are 13 such rows now
+  (12 calendar + 1 sample), not the 3 this paragraph described**, and the newest is
+  2026-09-22 19:16Z — so `db` is an ongoing writer, not the frozen set of deliberate proof rows
+  the older wording implied. The original three remain what they were: one
   backfill of the ping that predated the triggers, and one end-to-end verification
   on EACH surface, both deliberately retained and labelled `LedgerVerification`.
+  What produced the other ten was not traced this pass.
   Both surfaces were proved the same way and separately: a real marker write to
   the live `calendar-upsert` and to the live `sample-review-upsert`, each followed
   by reading the row the trigger wrote. Samples is a distinct code path into a
@@ -348,10 +399,17 @@ uniform denials, bounded event retention, and explicit audit-outage behavior. F8
 window has zero valid-token events and cannot satisfy the spec's active-client validation gate.
 
 **`client_access` had no writer at all** (found 2026-08-04). Every row in it was created by the
-one-time 2026-07-05/06 B0 seed (`scripts/b0-seed-auth-scaffold.js`); nothing has added one since, so
-a client whose roster row postdates that seed has no `review_token` and `client-review-link` refuses
-their share link with `review_token_missing`. Live count as of 2026-08-04: exactly one such client
-(`lukecutting`, roster row 2026-07-29) — every other roster row predates the seed. The candidate fix
+one-time 2026-07-05/06 B0 seed (`scripts/b0-seed-auth-scaffold.js`), so a client whose roster row
+postdated that seed had no `review_token` and `client-review-link` refused their share link with
+`review_token_missing`. At 2026-08-04 exactly one active client was in that state.
+
+**Corrected 2026-09-23: the gap is closed on the data, though this pass did not establish which
+layer closed it.** A live left join of the roster against `client_access` returns **43 rows for 43
+active clients, zero missing and zero blank `review_token`** — so the one affected client now has a
+token and nothing currently active is refused for `review_token_missing`. Read the "no writer at
+all" sentence as the 2026-08-04 finding, not as today's state. Whether the roster-insert trigger,
+the on-demand mint, or a manual run of the script filled it was NOT determined here, so the
+provisioning layers below are still described as candidates. The candidate fix
 provisions at three layers (roster-insert trigger in the source-only
 `migrations/2026-08-04-client-access-auto-provision.sql`, on-demand minting in the deliberate-manual
 `client-review-link`, and `scripts/provision-client-access.js`), and none of them can rotate: writes
@@ -385,9 +443,17 @@ The 2026-07-26 v26 production-write run, the 2026-07-24 run, and the earlier
 merge/push still deploys neither manually gated function. `calendar-upsert` and
 `sample-review-upsert` remained frozen and unchanged throughout the F27 window.
 
-Live set in `docs/truth/ENDPOINTS.md`. Source represents 35 deployable function slugs and the live
-inventory is 35 after the 2026-08-25 deployments of `hiring-applications` and
-`hiring-automation`; its candidate-email kill switch remains exactly false;
+Live set in `docs/truth/ENDPOINTS.md`. **Corrected 2026-09-23: source represents 38 deployable
+function slugs and the live inventory is 38**, not the 35/35 this line claimed after the 2026-08-25
+`hiring-applications` / `hiring-automation` deployments. The three added since are
+`description-image-upload`, `notify`, and `write-diagnostics` — the last deployed 2026-09-23 as the
+private WR-101 refusal-receipt endpoint (`functions/v1/write-diagnostics`, called by the browser,
+listed in `docs/truth/ENDPOINTS.md`, OPEN_REPAIRS 101/240). Source directory set and live slug set
+were compared and match exactly, with no slug on one side only. `production-write` reads **v82**
+live (2026-09-23), superseding every earlier version integer quoted in this document; those older
+integers stay below as the release identity of their own dated receipts, not as current state. The
+hiring candidate-email kill switch is NOT "exactly false" any more — see the corrected Hiring
+sidecar note above;
 `workload-plan` is ACTIVE v2 with the four-file deployed source closure byte-identical to merge
 `fd3e0eaa`; that deployed version still denies Creative list and set. The candidate widens only list
 access and requires a deliberate manual deployment after merge. The release is a paired exact-SHA
@@ -432,6 +498,12 @@ returns aggregate counts only. Repository variable `THUMBNAIL_REVISION_SCAN_ENAB
 
 ## Backup and capacity truth
 
+> **NOT re-verified 2026-09-23.** Every claim in this section needs the Supabase Dashboard or the
+> billing/backup Management API surface, neither of which was reachable read-only from the
+> verification sandbox. The figures below are the 2026-07-13/15 readbacks and are now more than two
+> months old; treat the disk number in particular as unknown rather than current, given that
+> `calendar_posts` alone has roughly quadrupled since (see Tables).
+
 - The live project is on **Pro**, not Free. The 2026-07-13 readback showed seven completed daily
   physical backups spanning the included seven-day retention window; the newest completed that day.
 - PITR was **off** at the readback. That matches the approved temporary-window policy, but means PITR
@@ -454,7 +526,10 @@ returns aggregate counts only. Repository variable `THUMBNAIL_REVISION_SCAN_ENAB
 the underlying table's `linear_raw`, `brief`, `file_url` and legacy `comments` remain revoked. The
 view derives 24 of its 45 columns with separate `linear_raw #>> ...` extractions, and **each one
 detoasts the row's Linear document again**. Read-only anon probes
-(`qa/probes/prod_read_path_timing.js`) over the live 4,612-row mirror:
+(`qa/probes/prod_read_path_timing.js`) over the then-live 4,612-row mirror. **Scale note
+2026-09-23: `deliverables` now holds 6,766 rows (+47%) and `batches` 1,754**, so the per-page
+timings below are a shape, not a current measurement — the detoast cost they isolate is per row,
+so a fresh probe would read higher. The probe was not re-run this pass.
 
 | shape (1000-row page) | upstream |
 |---|---:|

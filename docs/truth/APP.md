@@ -8,7 +8,17 @@ mapped Calendar/Samples component. Missing or partial source coverage is explici
 client permissions, writers and lifecycle ownership remain unchanged. Contract,
 mixed-version behavior and proof limits: `docs/features/COMPONENT_FEEDBACK.md`.
 
-> Last verified: 2026-08-24 @ c7f088a + scoped Kasper Ad Performance panel v2 addition (see below)
+> Last verified: 2026-09-23 @ 344006c5 — a re-verification of this document's checkable
+> current-state claims against the app source (`src/index/` fragments plus the built `index.html`)
+> and, where a claim was about live backend state the app depends on, against read-only Supabase
+> and n8n reads. **Five claims had drifted and are corrected in place, each marked
+> `Corrected 2026-09-23`.** What this pass did NOT re-verify, and which therefore still rests on its
+> older dated evidence: the whole "Release and stale callers" section and its F172–F185 review
+> findings, the client-entry boot candidate section, every Production/Slice-4/Slice-5 deploy
+> receipt, the measured read-path timings, and the behavioural Workload placement rules (those are
+> covered by their own test suites, not by this pass). Nothing here was re-stamped without a read.
+>
+> Earlier stamp, retained for provenance: 2026-08-24 @ c7f088a + scoped Kasper Ad Performance panel v2 addition (see below)
 > + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 LIVE (F37/F94/F136 assignment and transition
 > policy introduced in `production-write` v26 and now served by F27 closure v27; F95
 > foreground refresh live in the browser; the read-path migration applied 2026-07-26 ~23:45Z,
@@ -92,7 +102,10 @@ mixed-version behavior and proof limits: `docs/features/COMPONENT_FEEDBACK.md`.
 
 **Corrected 2026-09-21:** The external Linear dependency described below is retired. Workload and Production/Sync use native data and native write paths after the 2026-09-20 cutoff; legacy names and read-only guard branches may remain in source.
 
-One ~45.8k-line single-file SPA. Major surfaces: content calendar, samples (SXR + legacy),
+One single-file SPA. **Corrected 2026-09-23: it is ~85.7k lines, not "~45.8k"** — the file has
+roughly doubled since that figure was written, so do not size any piece of work against the old
+number. Note also that `index.html` is a BUILD OUTPUT: the editable truth is the 37 ordered
+fragments in `src/index/`, assembled by `npm run build:index`. Major surfaces: content calendar, samples (SXR + legacy),
 three review flows (client / Kasper / SMM), the visible Linear mirror/work surface (internal
 `production`, `#production`, `?prod=1`), the visible Submit form (internal `linear`, `#linear`),
 onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly reports, TikTok pilot.
@@ -243,8 +256,14 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 
 - End-to-end logic map: `docs/audits/2026-07-05-logic-calendar.md` (evidence);
   write path + contract: `docs/truth/SUPABASE.md`.
-- Status pushes to Linear go through `_calPushStatusToLinear()` — **no guard** on
-  Posted/Scheduled (they ARE pushed; a stale code comment claims otherwise).
+- **Corrected 2026-09-23: status pushes to Linear no longer happen.** This line used to read
+  "status pushes to Linear go through `_calPushStatusToLinear()` — no guard on Posted/Scheduled
+  (they ARE pushed)". The function still exists and still has no Posted/Scheduled guard, but as of
+  the 2026-09-22 legacy-transport retirement its legacy branch has no destination: it returns
+  `{skipped: true, source_only: true, legacy_transport_retired: true}` without sending or queuing a
+  retry (`src/index/140-calendar-legacy-outbox.js.part`, OPEN_REPAIRS 239). Enrolled clients were
+  already going through the gateway. So the absent guard is no longer a live behaviour — but do not
+  delete it on that basis, because it is what the function would do if a destination ever returned.
 - `linear-set-status` and `linear-add-comment` **have no caller in the app** since 2026-09-22:
   the legacy Calendar and Samples write transports and their Linear retry queues were retired
   ahead of the endpoints' 2026-09-27 revoke (OPEN_REPAIRS 239). The F91 caller-auth defect is
@@ -306,10 +325,15 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - SXR rejects pushing Scheduled/Posted to Linear (unlike calendar).
 - `_sxrReassertLinearStatus` was **defined but never called** (dead drift-protection) and was
   DELETED 2026-09-21 with `_sxrLinearReassertAt` and `SXR_LINEAR_REASSERT_MS`, as roadmap phase
-  B1's first deletion. The Calendar twin `_calReassertLinearStatus` is live and untouched. Samples
-  reconciliation is currently on twice—pager dispatch plus its own GitHub schedule—so remove one
-  cadence, not both. Until F132 closes, retain the independent schedule and remove the pager dispatch
-  first if burn must fall (see `docs/truth/N8N.md`). The browser also has a 5-minute local-fresh merge guard.
+  B1's first deletion. The Calendar twin `_calReassertLinearStatus` is live and untouched.
+  **Corrected 2026-09-23: "Samples reconciliation is currently on twice … remove one cadence, not
+  both" is out of date and reads as an instruction that would now be wrong.** Both cadences are
+  already off: the `*/10` cron in `sample-linear-reconcile.yml` was commented out by the
+  2026-09-20 cutoff, and the n8n pager `qllIDZPkdNAPRj0b` that supplied the other dispatch was
+  deactivated the same day (verified `active: false`, live read 2026-09-23). Samples
+  reconciliation therefore runs only on a manual dispatch, and such a dispatch still writes unless
+  `dry_run` is left on. `docs/truth/N8N.md` has the mechanism and why the order mattered.
+  The browser also has a 5-minute local-fresh merge guard.
 - SXR writes `kasper_finish_log` which is silently dropped server-side
   (see `docs/truth/SUPABASE.md`).
 - Calendar and Samples reorder only through HTML5 mouse drag events; no touch/pointer or keyboard
@@ -367,10 +391,17 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   resume path; (2) **feedback for legacy rows**: `wlFetchTweakComments()` reads native rows' Tweak
   Needed feedback from `production-comments` but legacy rows' from the `linear-tweak-comments`
   webhook; (3) **metadata for Linear-authoritative rows**: due dates and labels, and due-date
-  writes, go through the `workload-linear` Edge Function, as described next. Behind all three, a
-  background n8n reconcile keeps rebuilding `workload_issues` from Linear; it supplies the legacy
-  rows and must not stop until nothing depends on them. Exit plan:
-  `docs/ops/LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md`.
+  writes, go through the `workload-linear` Edge Function, as described next.
+  **Corrected 2026-09-23 — the reconcile behind those three dependencies has STOPPED.** This bullet
+  used to end "a background n8n reconcile keeps rebuilding `workload_issues` from Linear; it
+  supplies the legacy rows and must not stop until nothing depends on them." It stopped anyway: the
+  n8n workflow was deactivated 2026-09-21 at ~14:57Z, and the mirror's newest `synced_at` is
+  `2026-09-21 14:50:16Z` and has not moved (live read 2026-09-23). Two consequences worth stating
+  plainly, because neither is visible on the page: the legacy rows Workload still renders are a
+  frozen snapshot of that moment, and the warm-entry/visibility/60-second poll described below reads
+  exactly that `synced_at` watermark — a watermark that can no longer advance — so the poll now
+  performs no snapshot fetch or repaint, forever, and looks identical to a healthy quiet system.
+  Exit plan: `docs/ops/LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md`.
 - F201/F40 candidate source partitions deadline/label metadata by the exact `prod_authority` team value:
   Linear-authoritative IDs use the isolated `workload-linear` reader, while SyncView-authoritative
   IDs read `deliverables.due_date`, native deliverable identity/`updated_at`, and the complete
@@ -837,7 +868,15 @@ reported by `scripts/calendar-native-link-gap-check.js`.
 Living section — findings land here with status tags: `[open]`, `[fixed <commit>]`,
 `[wontfix <reason>]`.
 
-### F1 `[open]` — 35 defined-but-unreferenced functions (dead-code candidates)
+### F1 `[open]` — defined-but-unreferenced functions (dead-code candidates)
+
+**Corrected 2026-09-23.** The heading used to say "35". Re-running the same name-occurrence scan
+over the 34 names still listed below shows **30 are still unreferenced and 4 have since gained a
+real caller**: `_prodById`, `_sxrSetAllSettable`, `wlAddDays` and `wlWeekMondayISO`. They are left
+in the table because the table is the audit record, but they are NOT deletion candidates any more —
+which is exactly why the instruction to re-verify each name at removal time sits below. The full
+scan was NOT re-derived from scratch this pass, so **this is not a current count of dead code in
+the file**; names that became dead since 2026-07-11 are not here.
 
 Found 2026-07-11 by an automated scan (`function foo(` / `const foo = (…)=>` definitions whose
 name appears exactly once in `index.html`, cross-checked against `onclick=""` strings and

@@ -829,3 +829,41 @@ executes these files (see `README.md` › Repository layout).
   already exist (owner-side, in the iClosed dashboard) before applying — a
   capture for that role fails closed with `invalid_event` until they do. This
   delta is source-only until EXECUTION_LOG.md records its manual application.
+
+- **`2026-09-23-workload-native-snapshot-cache.sql`** serves Workload's native
+  snapshot from a prebuilt copy, and **must be applied AFTER
+  `2026-09-09-workload-native-roster.sql`** (it wraps
+  `workload_native_snapshot_v1()`, which it does not change). Additive: two
+  tables (`workload_snapshot_cache`, one row; `workload_snapshot_invalidation`),
+  revoked from all four roles with RLS on; a statement-level trigger
+  `workload_snapshot_note_change` on the seven source tables (`deliverables`,
+  `batches`, `clients`, `team_members`, `workload_issues`, `workload_plan`,
+  `syncview_runtime_flags`); and `workload_native_snapshot_cached_v1(text)`,
+  `service_role` execute only.
+
+  - **Never stale.** Each writing transaction records its id; the copy stores
+    the `pg_snapshot` it was built under, and is served only while every
+    committed writer is visible in it. An open writer is invisible to the
+    reader and invalidates the copy the moment it commits. The body and its
+    snapshot come from one statement. Rebuilds serialize on an advisory lock.
+  - **Unchanged.** The version is `md5` of the body, so a write that leaves
+    the board identical keeps the browser's copy; a caller holding the current
+    version gets `{unchanged:true}` and no body.
+  - **Slimmer (contract `workload-native-snapshot-v2`, live 9.81 → 7.25 MB).**
+    `linear_parent_ids` dropped, `url` only on legacy rows,
+    `parent_identifier` once per parent in `parents`.
+  - **Cost.** A hit is ~60 ms of SQL (measured on a same-size body); a rebuild
+    is ~2.9 s live (2.3 s today plus ~0.65 s of slimming), paid only by the
+    first read after a change. Each rebuild writes one ~7 MB row.
+
+  Exercised: `test/workload-native-postgres.js` (now CI lane
+  `Isolated PG17 workload-native`) applies it and checks trigger coverage
+  (derived from `pg_depend`), a stale-read check per source table, the
+  open-writer case, fail-closed authority, and role refusals.
+
+  **Undo:** `drop function if exists public.workload_native_snapshot_cached_v1(text);
+  drop function if exists public.workload_native_snapshot_slim_v1(jsonb);`
+  then `drop trigger if exists workload_snapshot_note_change on public.<t>` for
+  each of the seven tables, `drop function if exists public.workload_snapshot_note_change();
+  drop table if exists public.workload_snapshot_cache, public.workload_snapshot_invalidation;`
+  The browser falls back to `native_snapshot` on the resulting 501.

@@ -2515,7 +2515,7 @@
                 titleSq += _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', p, 'cal-title-urgent-btn', true, 'kasper');
             }
         }
-        return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
+        return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError && !p._writeUiRetrySourceAt ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
     }
     function _calLinearEdit(pid, comp) {
         if (_isClientLink) return;   // Linear linking is internal/SMM-only (never shown to clients)

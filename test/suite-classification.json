@@ -344,6 +344,8 @@
     "native-label-seed-parity-contract.js",
     "native-label-seed-parity-postgres.js",
     "native-label-writes.js",
+    "deploy-single-function.js",
+    "native-notification-format.js",
     "native-notification-health-handler.js",
     "native-notification-slack-adapter.js",
     "native-notification-urgent-link.js",
@@ -1185,11 +1187,11 @@
     {
       "file": "workload-native-postgres.js",
       "route": "isolated_postgres",
-      "postgres_major": 16,
-      "portable_lane": null,
+      "postgres_major": 17,
+      "portable_lane": "workload-native",
       "required_inputs": "Fresh disposable loopback PostgreSQL and explicit required-lane environment",
       "reproduce": "WORKLOAD_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY WORKLOAD_TEST_REQUIRE=1 WORKLOAD_TEST_PSQL=ABSOLUTE_PSQL WORKLOAD_TEST_PORT=PORT WORKLOAD_TEST_PASSWORD=FIXTURE_PASSWORD node test/workload-native-postgres.js",
-      "ci": "not_run_by_unit_ci",
+      "ci": "representative",
       "required_for_release": true
     }
   ]

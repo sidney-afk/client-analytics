@@ -3,7 +3,12 @@
 export function projectNativeSnapshot(value, normalizeClient) {
   const fail = () => { throw new Error('workload_snapshot_incomplete'); };
   if (!value || value.ok !== true || value.complete !== true
-      || value.contract !== 'workload-native-snapshot-v1'
+      || !['workload-native-snapshot-v1','workload-native-snapshot-v2'].includes(value.contract)
+      // v2 (the cached, slimmed body) carries its content version and the
+      // once-per-parent identifier map; v1 carries neither.
+      || (value.contract === 'workload-native-snapshot-v2' && (typeof value.version !== 'string'
+        || !/^[0-9a-f]{32}$/.test(value.version) || !value.parents || typeof value.parents !== 'object'
+        || Array.isArray(value.parents)))
       || !Array.isArray(value.rows) || !Array.isArray(value.plans)
       || !Number.isSafeInteger(value.count) || value.count !== value.rows.length
       || value.count > 50000 || value.plans.length > 50000

@@ -172,6 +172,29 @@ async function nativeSnapshot(db: SupabaseClient): Promise<JsonMap> {
   catch { throw new WorkloadPlanError(503,"workload_snapshot_incomplete"); }
 }
 
+/* The cached, slimmed snapshot (migrations/2026-09-23-workload-native-snapshot-cache.sql).
+ * The SQL decides validity: it serves its prebuilt copy only while no committed
+ * write to a source table postdates it, and rebuilds otherwise. A browser that
+ * sends the version it holds gets `unchanged` and no body when nothing moved.
+ * Before that migration is applied the RPC does not exist; that answers 501 so
+ * the browser falls back to `native_snapshot`, never a blank board. */
+async function nativeSnapshotCached(db: SupabaseClient, ifVersion: string): Promise<JsonMap> {
+  const {data,error}=await db.rpc("workload_native_snapshot_cached_v1",{p_if_version:ifVersion||null});
+  if (error) {
+    if (error.code==="PGRST202") throw new WorkloadPlanError(501,"snapshot_cache_unavailable");
+    throw new WorkloadPlanError(503,"workload_snapshot_unavailable");
+  }
+  if (data && data.unchanged===true) {
+    if (!ifVersion || data.version!==ifVersion || data.contract!=="workload-native-snapshot-v2") {
+      throw new WorkloadPlanError(503,"workload_snapshot_incomplete");
+    }
+    return {ok:true,unchanged:true,version:data.version,contract:data.contract};
+  }
+  if (!data || data.contract!=="workload-native-snapshot-v2") throw new WorkloadPlanError(503,"workload_snapshot_incomplete");
+  try { return projectNativeSnapshot(data,normalizeBrowserWriteClient); }
+  catch { throw new WorkloadPlanError(503,"workload_snapshot_incomplete"); }
+}
+
 async function nativePlanTarget(db: SupabaseClient,issueId:string): Promise<JsonMap|null> {
   const {data,error}=await db.rpc("workload_native_plan_target_v1",{p_issue_id:issueId});
   if (error) throw new WorkloadPlanError(503,"workload_plan_target_unavailable");
@@ -263,10 +286,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const body = await requestBody(req);
     const requestedAction = clean(body.action).toLowerCase();
-    if (!["list","set","native_snapshot"].includes(requestedAction)) {
+    if (!["list","set","native_snapshot","native_snapshot_v2"].includes(requestedAction)) {
       throw new WorkloadPlanError(400, "invalid_action");
     }
     action = requestedAction;
+
+    if (action === "native_snapshot_v2") {
+      requireListStaff(req);
+      const ifVersion = clean(body.if_version);
+      if (ifVersion && !/^[0-9a-f]{32}$/.test(ifVersion)) throw new WorkloadPlanError(400, "invalid_version");
+      const snapshot = await nativeSnapshotCached(serviceClient(), ifVersion);
+      outcome = snapshot.unchanged === true ? "unchanged" : "ok";
+      return json(snapshot);
+    }
 
     if (action === "native_snapshot") {
       requireListStaff(req);

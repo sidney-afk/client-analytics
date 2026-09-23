@@ -35,6 +35,10 @@ const WORKFLOWS = Object.freeze([
     file: '.github/workflows/deploy-onboarding-edge-functions.yml',
   }),
   Object.freeze({
+    id: 'deploy-single-function',
+    file: '.github/workflows/deploy-single-function.yml',
+  }),
+  Object.freeze({
     id: 'deploy-pto',
     file: '.github/workflows/deploy-pto-edge-functions.yml',
   }),
@@ -67,6 +71,9 @@ const WORKFLOWS = Object.freeze([
 const REVIEWED_MULTI_OWNER = Object.freeze({
   'linear-outbound': Object.freeze(['deploy-f27-section4', 'deploy-onboarding']),
   'production-write': Object.freeze(['deploy-f27-section4', 'deploy-onboarding']),
+  // notify also has the one-function exact-SHA lane, so it can ship without
+  // redeploying the Track-B write/read set.
+  notify: Object.freeze(['deploy-single-function', 'deploy-onboarding']),
 });
 
 const DELIBERATE_MANUAL = Object.freeze({
@@ -299,6 +306,8 @@ function generateManifest() {
     let deployPath;
     if (ownerRows.length) {
       deployPath = ownerRows.map(owner => owner.deployPath).join('<br>');
+      // A deliberate-manual note still binds a lane that can deploy the slug.
+      if (DELIBERATE_MANUAL[slug]) deployPath += `<br>**Manual release note:** ${DELIBERATE_MANUAL[slug]}`;
     } else if (DELIBERATE_MANUAL[slug]) {
       deployPath = `**NO CI DEPLOY PATH - DELIBERATE-MANUAL.** ${DELIBERATE_MANUAL[slug]}`;
     } else {

@@ -266,12 +266,15 @@ const slugRows = manifest.split(/\r?\n/).filter(line => /^\| `[a-z0-9-]+` \|/.te
 // and additionally that its manual release states the --no-verify-jwt posture
 // it needs, since it accepts unauthenticated browser refusal claims by design.
 const writeDiagnosticsRow = slugRows.find(line => line.startsWith('| `write-diagnostics` |')) || '';
+// 2026-09-23: its manual release now runs through the one-function exact-SHA
+// lane, dispatch-only, and the deliberate-manual note stays on its row.
 ok(manifestCheck.status === 0 && slugRows.length === 38
-  && writeDiagnosticsRow.includes('| NONE |')
-  && writeDiagnosticsRow.includes('**NO CI DEPLOY PATH - DELIBERATE-MANUAL.**')
+  && writeDiagnosticsRow.includes('[deploy-single-function]')
+  && writeDiagnosticsRow.includes('| workflow_dispatch only (pinned SHA guard)<br>**Manual release note:**')
+  && !writeDiagnosticsRow.includes('main push')
   && writeDiagnosticsRow.includes('--no-verify-jwt')
   && writeDiagnosticsRow.includes('WRITE_DIAGNOSTICS_ENABLED=true'),
-`generated deploy manifest is current and contains all 38 slugs including dormant deliberate-manual write-diagnostics (${(manifestCheck.stderr || '').trim()})`);
+`generated deploy manifest is current and contains all 38 slugs including dormant write-diagnostics on the dispatch-only one-function lane (${(manifestCheck.stderr || '').trim()})`);
 /*
  * 2026-08-08: client-review-link left the deliberate-manual set. The manual
  * lane is WHY the #1016 mint-on-demand fix sat merged-but-undeployed for five
@@ -313,8 +316,8 @@ ok(/\| `client-token-verify` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUA
 ok(/\| `production-archive` \| \[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
   && /\| `production-comments` \| \[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
 'production-comments and production-archive deploy via the pinned-SHA dispatch-only lane, not local credentials');
-ok(/\| `notify` \| \[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
-'notify is owned by the pinned-SHA onboarding lane rather than a push or laptop deploy');
+ok(/\| `notify` \| \[deploy-onboarding\]\([^)]*\)<br>\[deploy-single-function\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
+'notify is owned only by pinned-SHA dispatch-only lanes (onboarding and the one-function lane), never a push or laptop deploy');
 ok(/\| `linear-inbound` \| \[deploy-f27-inbound\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
 'linear-inbound has one dispatch-only pinned-SHA owner and no push deploy path');
 ok(/\| `linear-outbound` \| \[deploy-f27-section4\]\([^)]*\)<br>\[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)

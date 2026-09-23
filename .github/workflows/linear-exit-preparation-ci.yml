@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        lane: [card-atomic-admission, retirement-switch]
+        lane: [card-atomic-admission, retirement-switch, workload-native]
     services:
       postgres:
         image: postgres:17

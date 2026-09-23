@@ -1867,12 +1867,15 @@
         const unread = _calHasUnreadNotes(post);
         const cls  = (open > 0 ? ' has-open' : '') + (unread ? ' has-unread' : '');
         const tip  = unread ? 'New replies — open Notes'
-                   : (open > 0 ? `${open} open tweak${open === 1 ? '' : 's'}` : 'Notes');
+                   // The count is open top-level change requests only (replies and
+                   // closed ones are not counted), so the badge says "N open" and
+                   // the tooltip names what is being counted.
+                   : (open > 0 ? `${open} open change request${open === 1 ? '' : 's'}` : 'Notes');
         const ico  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
         // Tweaks pill + "Approved after tweaks" badge are kept in one left-
         // aligned group so the badge sits right next to the pill (the footer is
         // space-between, which would otherwise fling the badge to the far right).
-        return `<span class="cal-foot-tweaks" data-comments-wrap="${pid}"><button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="${_calEscAttr(tip)}">${ico}<span class="cal-comments-label">Notes</span>${unread ? '<span class="cal-comments-dot" aria-label="New replies"></span>' : ''}<span class="cal-comments-count">${open}</span></button>${_calAatBadgeHtml(post)}</span>`;
+        return `<span class="cal-foot-tweaks" data-comments-wrap="${pid}"><button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="${_calEscAttr(tip)}">${ico}<span class="cal-comments-label">Notes</span>${unread ? '<span class="cal-comments-dot" aria-label="New replies"></span>' : ''}<span class="cal-comments-count">${open} open</span></button>${_calAatBadgeHtml(post)}</span>`;
     }
     function _calRefreshCommentsBtn(pid) {
         const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;

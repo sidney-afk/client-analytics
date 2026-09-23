@@ -1,0 +1,48 @@
+name: Send notification preview
+
+# Manual only. Asks the deployed notify function to render sample posts from
+# one client's real rows and send them to the single Slack DM pinned in its
+# NOTIFY_PREVIEW_SLACK_USER_ID function secret. Nothing reaches a channel and
+# the outbox is not touched. The client slug is typed at dispatch time so no
+# slug is committed to this public repository. Only counts are printed.
+on:
+  workflow_dispatch:
+    inputs:
+      client_slug:
+        description: Test client slug to render samples from
+        required: true
+        type: string
+      variant:
+        description: One variant, or all three
+        required: true
+        default: all
+        type: choice
+        options: [all, compact, card, line]
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    env:
+      NOTIFY_URL: ${{ secrets.NATIVE_NOTIFICATION_NOTIFY_URL }}
+      NOTIFY_RUNNER_KEY: ${{ secrets.NATIVE_NOTIFICATION_RUNNER_KEY }}
+      CLIENT_SLUG: ${{ inputs.client_slug }}
+      VARIANT: ${{ inputs.variant }}
+    steps:
+      - name: Request the DM preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$NOTIFY_URL" && test -n "$NOTIFY_RUNNER_KEY"
+          if ! [[ "$CLIENT_SLUG" =~ ^[a-z0-9][a-z0-9_-]{1,80}$ ]]; then echo "::error::invalid client slug"; exit 1; fi
+          body="$(node -e 'const b={action:"preview",client_slug:process.env.CLIENT_SLUG};if(process.env.VARIANT!=="all")b.variant=process.env.VARIANT;process.stdout.write(JSON.stringify(b))')"
+          status=0
+          response="$(curl --silent --show-error --max-time 75 -X POST "$NOTIFY_URL" \
+            -H 'content-type: application/json' -H "x-notify-runner-key: $NOTIFY_RUNNER_KEY" \
+            --data "$body")" || status=$?
+          # Print counts only: never the response body, the slug or the recipient.
+          node -e 'let r={};try{r=JSON.parse(process.argv[1])}catch{}const out={ok:r.ok===true,sent:Number.isSafeInteger(r.sent)?r.sent:null,attempted:Number.isSafeInteger(r.attempted)?r.attempted:null,error:typeof r.error==="string"&&/^[a-z_]{1,40}$/.test(r.error)?r.error:undefined};console.log(JSON.stringify(out));process.exit(out.ok?0:1)' "$response"
+          exit $status

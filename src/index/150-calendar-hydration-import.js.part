@@ -1644,8 +1644,9 @@
                the authority read repaints the whole board ~100-250 ms later
                to change it. Give that read a short, bounded head start so the
                first paint is already the live answer; if it is slow or down,
-               paint fail-open exactly as before. */
-            if (ok && !_writeUiAuthoritySnapshot() && _calLoadRunCurrent(loadRun)) {
+               paint fail-open exactly as before. Client links never render
+               the seal, so they never wait. */
+            if (ok && !_isClientLink && !_writeUiAuthoritySnapshot() && _calLoadRunCurrent(loadRun)) {
                 try {
                     await Promise.race([
                         _writeUiRefreshAuthority(),

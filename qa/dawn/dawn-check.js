@@ -32,6 +32,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { D, buildReport } = require('./dawn-report.js');
 const H = require('../probes/ot4_lib.js');
 const { launch, open, smmCal, clientCal, upCal, archiveCalSafe, appErrs, SUPA, KEY, ORIGIN } = H;
 
@@ -53,7 +54,7 @@ const BASELINE = {
 fs.mkdirSync(OUT, { recursive: true });
 const results = [];
 const violations = [];
-function record(key, title, r) { results.push(Object.assign({ key, title }, r)); }
+function record(key, r) { results.push(Object.assign({ key }, r)); }
 
 // ---- the other-client write guard -----------------------------------------
 async function guard(page) {
@@ -69,9 +70,13 @@ async function guard(page) {
     return route.fallback();
   });
 }
-async function shot(page, key) {
-  const f = path.join(OUT, key + '.png');
-  try { await page.screenshot({ path: f, fullPage: false }); return f; } catch { return null; }
+// Screenshots. Only the CLIENT-LINK flows may be published (that surface shows the
+// test client alone); every staff view can show other clients, so its shots stay
+// on the runner and are never uploaded. out/public/ is the only uploaded folder.
+async function shot(page, key, publishable = false) {
+  const dir = publishable ? path.join(OUT, 'public') : OUT;
+  fs.mkdirSync(dir, { recursive: true });
+  try { await page.screenshot({ path: path.join(dir, key + '.png'), fullPage: false }); return publishable ? 'attached' : 'runner'; } catch { return null; }
 }
 const rowCal = (id, cols) => H.rowCal(id, cols);
 async function deliverableTitle(id) {
@@ -110,11 +115,10 @@ async function clientFlows(browser, seeds) {
     await H.sleep(4000);
     const held = row ? rowCal(A.id, 'caption_status') : null;
     const ok = clicked === 'ok' && !!row && !!held && held.caption_status === 'Approved';
-    record('client-approve', 'Client approves', { ok, ms: ok ? Date.now() - t1 : null,
-      detail: ok ? `link opened on the Review tab in ${landed} ms (${onReview.cards} cards); approval saved`
-                 : `click=${clicked}, saved=${!!row}, held=${!!held && held.caption_status}; review cards on landing=${onReview.cards}`,
-      extra: landed, shot: ok ? null : await shot(p, 'client-approve') });
-  } catch (e) { record('client-approve', 'Client approves', { ok: false, detail: String(e.message || e), shot: await shot(p, 'client-approve') }); }
+    record('client-approve', { ok, ms: ok ? Date.now() - t1 : null,
+      detail: ok ? D.approveOk(landed || 0, onReview.cards) : D.failedAt(landed == null ? 'landing' : clicked !== 'ok' ? 'click' : !row ? 'save' : 'hold'),
+      shot: ok ? null : await shot(p, 'client-approve', true) });
+  } catch (e) { record('client-approve', { ok: false, detail: D.failedAt('error'), shot: await shot(p, 'client-approve', true) }); }
   // 2 request changes
   try {
     const txt = 'Dawn check: please adjust ' + TS;
@@ -123,12 +127,12 @@ async function clientFlows(browser, seeds) {
     const t1 = Date.now();
     const row = clicked === 'ok' ? await H.pollRow(() => rowCal(R.id, 'caption_status,caption_tweaks'), r => r.caption_status === 'Tweaks Needed', POLL) : null;
     const ok = clicked === 'ok' && !!row && JSON.stringify(row.caption_tweaks || '').includes(txt);
-    record('client-request', 'Client requests changes', { ok, ms: ok ? Date.now() - t1 : null,
-      detail: ok ? 'request saved with its text; status is Tweaks Needed' : `click=${clicked}, saved=${!!row}`,
-      shot: ok ? null : await shot(p, 'client-request') });
-  } catch (e) { record('client-request', 'Client requests changes', { ok: false, detail: String(e.message || e), shot: await shot(p, 'client-request') }); }
+    record('client-request', { ok, ms: ok ? Date.now() - t1 : null,
+      detail: ok ? D.requestOk() : D.failedAt(clicked !== 'ok' ? 'click' : 'save'),
+      shot: ok ? null : await shot(p, 'client-request', true) });
+  } catch (e) { record('client-request', { ok: false, detail: D.failedAt('error'), shot: await shot(p, 'client-request', true) }); }
   const errs = appErrs(p);
-  if (errs.length) record('client-errors', 'Client page has no app errors', { ok: false, detail: errs[0].slice(0, 200), shot: await shot(p, 'client-errors') });
+  if (errs.length) record('client-errors', { ok: false, detail: D.appErrors(errs.length), shot: await shot(p, 'client-errors', true) });
   await p.context().close();
   return landed;
 }
@@ -168,13 +172,13 @@ async function staffFlows(browser, seeds, renameTarget) {
     const d = await p.evaluate(() => window.__dawnSave);
     const rel = (x) => x ? Math.round(x - d.t0) : null;
     const ok = !!row && !!d.savedAt && !d.errorAt;
-    record('staff-save', 'Staff card save', { ok, ms: rel(d.savedAt),
-      detail: ok ? (d.syncingAt ? `"Saved, syncing" at ${rel(d.syncingAt)} ms, then saved at ${rel(d.savedAt)} ms` : `saved at ${rel(d.savedAt)} ms (no syncing step needed)`)
-                 : `db=${!!row}, saved-mark=${!!d.savedAt}, error=${!!d.errorAt}, syncing-stuck=${!!d.syncingAt && !d.savedAt}`,
+    record('staff-save', { ok, ms: rel(d.savedAt),
+      detail: ok ? D.saveOk(rel(d.syncingAt), rel(d.savedAt))
+                 : D.failedAt(!row ? 'save' : d.errorAt ? 'save-error' : d.syncingAt ? 'syncing-stuck' : 'saved-mark'),
       shot: ok ? null : await shot(p, 'staff-save') });
-  } catch (e) { record('staff-save', 'Staff card save', { ok: false, detail: String(e.message || e), shot: await shot(p, 'staff-save') }); }
+  } catch (e) { record('staff-save', { ok: false, detail: D.failedAt('error'), shot: await shot(p, 'staff-save') }); }
   // 4 rename (and restore)
-  if (!renameTarget) record('rename', 'Card rename, sub-issue follows', { ok: false, detail: 'no test card with a two-sided, Linear-free sub-issue link was found' });
+  if (!renameTarget) record('rename', { ok: false, detail: D.noTarget() });
   else {
     const { id, name, deliverableId } = renameTarget;
     const renamed = (name + ' · dawn').slice(0, 150);
@@ -190,13 +194,13 @@ async function staffFlows(browser, seeds, renameTarget) {
       const card = await H.pollRow(() => rowCal(id, 'name'), r => r.name === renamed, POLL);
       const sub = await pollAsync(async () => (await deliverableTitle(deliverableId)) || '', t => t.includes(renamed), 60000);
       const ok = c1 === 'ok' && !!card && !!sub;
-      record('rename', 'Card rename, sub-issue follows', { ok, ms: ok ? Date.now() - t1 : null,
-        detail: ok ? 'card and its sub-issue both took the new name' : `click=${c1}, card=${!!card}, sub-issue followed=${!!sub}`,
+      record('rename', { ok, ms: ok ? Date.now() - t1 : null,
+        detail: ok ? D.renameOk() : D.failedAt(c1 !== 'ok' ? 'field' : !card ? 'card' : 'sub-issue'),
         shot: ok ? null : await shot(p, 'rename') });
-    } catch (e) { record('rename', 'Card rename, sub-issue follows', { ok: false, detail: String(e.message || e), shot: await shot(p, 'rename') }); }
+    } catch (e) { record('rename', { ok: false, detail: D.failedAt('error'), shot: await shot(p, 'rename') }); }
   }
   const errs = appErrs(p);
-  if (errs.length) record('staff-errors', 'Staff calendar has no app errors', { ok: false, detail: errs[0].slice(0, 200), shot: await shot(p, 'staff-errors') });
+  if (errs.length) record('staff-errors', { ok: false, detail: D.appErrors(errs.length), shot: await shot(p, 'staff-errors') });
   await p.context().close();
   return calMs;
 }
@@ -246,28 +250,28 @@ async function readOnlyPage(browser, route) {
   });
   await guard(page);
   page._failed = [];
-  page.on('requestfailed', r => page._failed.push(r.url().replace(/^https?:\/\/[^/]+/, '').split('?')[0]));
-  page.on('response', r => { if (r.status() >= 400) page._failed.push(r.status() + ' ' + r.url().replace(/^https?:\/\/[^/]+/, '').split('?')[0]); });
+  // Kept as {status, fn}: only the HTTP status (or 'network') reaches the report.
+  page.on('requestfailed', () => page._failed.push({ status: 'network', fn: false }));
+  page.on('response', r => { if (r.status() >= 400) page._failed.push({ status: r.status(), fn: r.url().startsWith(SUPA + '/functions/v1/') }); });
   page._t0 = Date.now();   // the clock starts at the timed navigation
   await page.goto(ORIGIN + route, { waitUntil: 'domcontentloaded', timeout: 45000 });
   return page;
 }
-async function timeTab(browser, key, title, route, readyFn) {
+async function timeTab(browser, key, route, readyFn) {
   const p = await readOnlyPage(browser, route);
   const ms = await p.waitForFunction(readyFn, null, { timeout: TAB_CAP, polling: 50 }).then(() => Date.now() - p._t0).catch(() => null);
   const b = BASELINE[key];
   // A 401 from a role-gated read with no role key configured is a credential
   // gap in this harness, not an app failure: report it as blocked, loudly.
-  if (ms === null && !HAS_ROLE_KEY && p._failed.some(f => /^401 \/functions\/v1\//.test(f))) {
-    record(key, title, { ok: true, blocked: true, ms: null, baseline: b,
-      detail: 'not measured: this tab needs a staff role key and the run has none (set the SYNCVIEW_ROLE_KEY secret)' });
+  if (ms === null && !HAS_ROLE_KEY && p._failed.some(f => f.status === 401 && f.fn)) {
+    record(key, { ok: true, blocked: true, ms: null, detail: D.tabBlocked() });
     await p.context().close();
     return;
   }
   const ok = ms !== null;
   const slow = ok && ms > b.cold * SLOW_FACTOR;
-  record(key, title, { ok, slow, ms, baseline: b,
-    detail: !ok ? `nothing showed within ${TAB_CAP / 1000} s` + (p._failed.length ? `; failed requests: ${[...new Set(p._failed)].slice(0, 4).join(', ')}` : '') : slow ? `slow: ${ms} ms vs ${b.cold} ms map` : `${ms} ms vs ${b.cold} ms map`,
+  record(key, { ok, slow, ms,
+    detail: !ok ? D.tabNever(TAB_CAP / 1000, [...new Set(p._failed.map(f => f.status))].slice(0, 4)) : slow ? D.tabSlow(ms, b.cold) : D.tabOk(ms, b.cold),
     shot: (!ok || slow) ? await shot(p, key) : null });
   await p.context().close();
 }
@@ -287,38 +291,10 @@ function findRenameTarget() {
 }
 
 function report(started, calMs) {
-  const fails = results.filter(r => !r.ok);
-  const slows = results.filter(r => r.ok && r.slow);
-  const blocked = results.filter(r => r.blocked);
-  const L = [];
-  L.push(`# Dawn check — ${new Date(started).toISOString().slice(0, 16).replace('T', ' ')} UTC`);
-  L.push('');
-  L.push(fails.length ? `**${fails.length} of ${results.length} checks failed.**` : `**All ${results.length - blocked.length} checks that ran passed.**` + (slows.length ? ` ${slows.length} ran slow.` : '') + (blocked.length ? ` ${blocked.length} could not run (see ⚠️).` : ''));
-  if (violations.length) L.push(`\n⛔ Blocked ${violations.length} write(s) aimed at a client other than the test client.`);
-  L.push('');
-  for (const r of results) {
-    const mark = !r.ok ? '❌' : r.blocked ? '⚠️' : r.slow ? '🐢' : '✅';
-    L.push(`- ${mark} **${r.title}** — ${r.detail}` + (r.shot ? ` (screenshot: \`${path.relative(path.join(__dirname, '..', '..'), r.shot).replace(/\\/g, '/')}\`)` : ''));
-  }
-  L.push('');
-  L.push('## Timings vs the speed map (2026-09-23)');
-  L.push('');
-  L.push('| check | today | map cold | map warm |');
-  L.push('|---|---|---|---|');
-  for (const k of ['workload', 'synclinear', 'analytics']) {
-    const r = results.find(x => x.key === k);
-    if (!r) { L.push(`| ${k} | not reached | ${BASELINE[k].cold.toLocaleString('en-US')} ms | ${BASELINE[k].warm.toLocaleString('en-US')} ms |`); continue; }
-    L.push(`| ${r.title} | ${r.blocked ? 'not measured' : r.ms == null ? 'never' : r.ms.toLocaleString('en-US') + ' ms'} | ${BASELINE[k].cold.toLocaleString('en-US')} ms | ${BASELINE[k].warm.toLocaleString('en-US')} ms |`);
-  }
-  L.push(`| Staff calendar, first card | ${calMs == null ? 'never' : calMs.toLocaleString('en-US') + ' ms'} | ${BASELINE.calendar.cold.toLocaleString('en-US')} ms | ${BASELINE.calendar.warm.toLocaleString('en-US')} ms |`);
-  const others = results.filter(r => ['client-approve', 'client-request', 'staff-save', 'rename'].includes(r.key) && r.ms != null);
-  if (others.length) L.push('\nNo map numbers exist yet for the write flows; today’s: ' + others.map(r => `${r.title.toLowerCase()} ${r.ms.toLocaleString('en-US')} ms`).join(', ') + '.');
-  L.push('');
-  L.push(`Test client only. Seeds archived and verified, rename restored: ${results.find(r => r.key === 'cleanup').ok ? 'yes' : '**NO — see cleanup line**'}.`);
-  const md = L.join('\n') + '\n';
+  const { md, safe } = buildReport({ started, results, violations: violations.length, calMs, baseline: BASELINE });
+  if (!safe) console.error('dawn-check: report withheld, it failed the public allowlist');
   fs.writeFileSync(path.join(OUT, 'DAWN_REPORT.md'), md);
-  fs.writeFileSync(path.join(OUT, 'dawn.json'), JSON.stringify({ started, results, violations }, null, 2));
-  return md;
+  return { md, safe };
 }
 
 (async () => {
@@ -346,26 +322,26 @@ function report(started, calMs) {
     for (const s of Object.values(seeds)) await H.pollRow(() => rowCal(s.id, 'id'), r => !!r.id, POLL);
     await clientFlows(browser, seeds);
     calMs = await staffFlows(browser, seeds, renameTarget);
-    await timeTab(browser, 'workload', 'Workload opens', '/index.html#workload', () => !!document.querySelector('.workload-plan-item-content'));
-    await timeTab(browser, 'synclinear', 'SyncLinear first rows', '/index.html?prod=1', () => !!document.querySelector('#prodRoot .prod-row'));
-    await timeTab(browser, 'analytics', 'Analytics first numbers', '/index.html#home',
+    await timeTab(browser, 'workload', '/index.html#workload', () => !!document.querySelector('.workload-plan-item-content'));
+    await timeTab(browser, 'synclinear', '/index.html?prod=1', () => !!document.querySelector('#prodRoot .prod-row'));
+    await timeTab(browser, 'analytics', '/index.html#home',
       () => [...document.querySelectorAll('.cell-inner')].some(c => !c.querySelector('.sv-skeleton') && /\d/.test(c.textContent)));
   } catch (e) {
-    record('harness', 'Harness ran to the end', { ok: false, detail: String(e && e.stack || e).split('\n').slice(0, 3).join(' | ').slice(0, 400) });
+    // The message can quote card text; the public log gets the error class only.
+    console.error('dawn-check: harness stopped early (' + ((e && e.name) || 'Error') + ')');
+    record('harness', { ok: false, detail: D.harness() });
   } finally {
     const bad = [];
     for (const s of Object.values(seeds)) if (!archiveCalSafe(s.id)) bad.push(s.id);
     let rr = { ok: true };
-    if (renameTarget) { try { rr = await restoreRename(browser, renameTarget); } catch (e) { rr = { ok: false, err: String(e.message || e) }; } }
+    if (renameTarget) { try { rr = await restoreRename(browser, renameTarget); } catch (e) { rr = { ok: false }; } }
     const linearLeak = H.linearCalls().filter(c => /api\.linear\.app/.test(JSON.stringify(c))).length;
     try { await browser.close(); } catch {}
     if (server) server.kill();
-    record('cleanup', 'Everything put back', { ok: !bad.length && rr.ok && !violations.length && !linearLeak,
-      detail: `seeds archived ${Object.keys(seeds).length - bad.length}/${Object.keys(seeds).length}` +
-        (renameTarget ? `, rename restored on card=${rr.card !== false} sub-issue=${rr.sub !== false}` : '') +
-        (violations.length ? `, ${violations.length} other-client write(s) blocked` : '') + (linearLeak ? `, ${linearLeak} Linear call(s)` : '') });
+    record('cleanup', { ok: !bad.length && rr.ok && !violations.length && !linearLeak,
+      detail: D.cleanup(Object.keys(seeds).length - bad.length, Object.keys(seeds).length, !!renameTarget, rr.card !== false, rr.sub !== false, violations.length, linearLeak) });
   }
-  const md = report(started, calMs);
+  const { md, safe } = report(started, calMs);
   console.log(md);
-  process.exit(results.some(r => !r.ok) ? 1 : 0);
+  process.exit(!safe || results.some(r => !r.ok) ? 1 : 0);
 })();

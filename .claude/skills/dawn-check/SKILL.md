@@ -70,13 +70,21 @@ Locally (serves the app itself on :8000):
 SYNCVIEW_STAFF_KEY=... SXR_COURIER=0 node qa/dawn/dawn-check.js
 ```
 
-## Output contract
+## Output contract (PUBLIC — the repo, its logs, summaries and artifacts are open)
 
-`qa/dawn/out/DAWN_REPORT.md` (git-ignored; also the Actions run summary and the
-`dawn-check-<run>` artifact with screenshots): a one-line verdict, one line per
-flow (✅ / 🐢 / ❌ with a screenshot path), a timing table against the map, and
-the put-back line. When reporting to the owner, lead with failures, attach failure
-screenshots (SendUserFile), and keep it to a few lines.
+`qa/dawn/out/DAWN_REPORT.md`, also the Actions run summary: a one-line verdict, one
+line per flow (✅ / 🐢 / ⚠️ / ❌), a timing table against the map, and the put-back
+line. It may contain **only** check names, pass/fail, timings, counts, fixed step
+words and HTTP status codes — never a client or card name, caption, title, URL or
+error message. Every line comes from a template in `qa/dawn/dawn-report.js`, and a
+report that falls outside the allowlist is withheld. `test/dawn-report-allowlist.js`
+pins it.
+
+Screenshots: only the **client-link** flows' failure shots (test client alone) are
+uploaded, as `dawn-check-client-shots-<run>`. Staff-view shots (they can show other
+clients) stay on the runner. When reporting to the owner, lead with failures and
+keep it to a few lines. If you need more detail than the report gives, run the
+check locally and read the page yourself; don't widen the report.
 
 **Findings earn their name:** before calling a ❌ a product bug, re-run that one flow
 once (`gh workflow run` again or locally). A failure that does not reproduce is

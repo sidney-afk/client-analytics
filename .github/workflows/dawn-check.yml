@@ -35,15 +35,22 @@ jobs:
           # Optional staff ROLE key: role-gated reads (Workload) refuse the key above.
           SYNCVIEW_ROLE_KEY: ${{ secrets.SYNCVIEW_ROLE_KEY }}
         run: node qa/dawn/dawn-check.js
+      # PUBLIC REPO: the summary, log and artifacts are readable by anyone. The
+      # report carries only check names, pass/fail, timings and counts (enforced
+      # by qa/dawn/dawn-report.js + test/dawn-report-allowlist.js). Staff-view
+      # screenshots and the full out/ folder stay on this ephemeral runner.
       - name: Publish the report to the run summary
         if: always()
         run: cat qa/dawn/out/DAWN_REPORT.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "No report written." >> "$GITHUB_STEP_SUMMARY"
-      - name: Keep the report and failure screenshots
+      # Only the client-link flows' failure screenshots: that surface shows the
+      # test client alone. Nothing else in out/ is ever uploaded.
+      - name: Keep client-link failure screenshots (test client only)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dawn-check-${{ github.run_id }}
-          path: qa/dawn/out/
+          name: dawn-check-client-shots-${{ github.run_id }}
+          path: qa/dawn/out/public/
+          if-no-files-found: ignore
           retention-days: 14
       - name: Page the SyncView Bot on scheduled failure
         if: failure() && github.event_name == 'schedule'

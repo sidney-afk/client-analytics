@@ -1358,6 +1358,7 @@
         filmingPlansLoadPromise = (async () => {
             try {
                 const rows = await _fpLoadFromSupabase(false);
+                _fpSavedWrite(rows);
                 return _fpSetData(rows, 'edge-function');
             } catch (error) {
                 filmingPlansLoadError = error && error.message ? error.message : String(error || '');
@@ -1367,6 +1368,36 @@
             }
         })();
         return filmingPlansLoadPromise;
+    }
+    /* SAVED COPY. The plans list is small (one row per client), so it lives in
+       localStorage, bound to the signed-in staff member (never the key) and
+       dropped on sign-out by _fpPurgeSensitiveState. Client links never read or
+       write it. The tab paints from it at once and refreshes behind. */
+    const FP_SAVED_KEY = 'syncview_filmingPlansCache_v1';
+    const FP_SAVED_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+    const FP_SAVED_MAX_BYTES = 900 * 1024;
+    function _fpSavedOwner() {
+        if (typeof _isClientLink !== 'undefined' && _isClientLink) return '';
+        const ident = _syncviewStaffIdentityForHeaders();
+        return ident && ident.member && ident.member.id ? String(ident.role || '') + ':' + String(ident.member.id) : '';
+    }
+    function _fpSavedWrite(rows) {
+        try {
+            const owner = _fpSavedOwner();
+            if (!owner || !Array.isArray(rows)) return;
+            const json = JSON.stringify({ owner, at: Date.now(), rows });
+            if (json.length > FP_SAVED_MAX_BYTES) { localStorage.removeItem(FP_SAVED_KEY); return; }
+            localStorage.setItem(FP_SAVED_KEY, json);
+        } catch (e) {}
+    }
+    function _fpSavedRead() {
+        try {
+            const owner = _fpSavedOwner();
+            if (!owner) return null;
+            const o = JSON.parse(localStorage.getItem(FP_SAVED_KEY) || 'null');
+            if (!o || o.owner !== owner || !Array.isArray(o.rows) || !(Date.now() - Number(o.at) < FP_SAVED_MAX_AGE_MS)) return null;
+            return o.rows;
+        } catch (e) { return null; }
     }
     function _fpRerenderSurfaces() {
         if (currentNav === 'filming-plans') _fpRenderPage();
@@ -1384,6 +1415,7 @@
         _fpSavingSlug = '';
         try { _linearInvalidatePlanMap(); } catch (e) {}
         try { localStorage.removeItem(KASPER_FILMING_CACHE_KEY); } catch (e) {}
+        try { localStorage.removeItem(FP_SAVED_KEY); } catch (e) {}
         try {
             if (typeof _kasperState !== 'undefined' && _kasperState) {
                 _kasperState.filmingData = null;
@@ -1609,6 +1641,19 @@
         </div>`;
     }
     function mountFilmingPlansView() {
+        if (!filmingPlansData) {
+            const saved = _fpSavedRead();
+            if (saved) {
+                const before = JSON.stringify(_fpSetData(saved, 'saved').rows);
+                _fpEnsureLoaded(true).then(() => {
+                    if (currentNav !== 'filming-plans' || _fpEditSlug || _fpSavingSlug) return;
+                    if (JSON.stringify(filmingPlansData.rows) === before) return;
+                    _fpRenderPage();
+                }, () => {});
+                _fpRenderPage();
+                return;
+            }
+        }
         const hadData = !!filmingPlansData;
         _fpEnsureLoaded(false).then(() => { if (currentNav === 'filming-plans' && !hadData) _fpRenderPage(); }, e => _fpSetStatus((e && e.message) || 'Could not load filming plans'));
     }

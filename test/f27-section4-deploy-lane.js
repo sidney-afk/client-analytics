@@ -524,7 +524,7 @@ const CANDIDATES = new Map([
     // B2 (2026-09-23): _shared/native-brief-media.mjs learned syncview-media: refs; re-pinned with ef-fingerprint.
     // Rename release 2 (2026-09-23): production-write gains `title` and imports
     // _shared/title-name-rule.mjs (8 -> 9 files); re-pinned with ef-fingerprint.
-    source: '3f6aba707877bfa36c81cc1e68005ddcaf2f9da61d47de79a0035b647a8d037c',
+    source: 'c1b468cc00bb095a7b7eabf0f7495a413eb314fc298c19d581d417f471882832',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 9,
   }],

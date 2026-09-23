@@ -575,7 +575,8 @@
     "write-ui-reroute-flag-heal.js",
     "write-ui-reroute-usable-roster.js",
     "write-ui-soak-pager.js",
-    "write-ui-writer-durability.js"
+    "write-ui-writer-durability.js",
+    "title-name-rule-drift.js"
   ],
   "profiles": [
     {
@@ -1192,6 +1193,15 @@
       "required_inputs": "Fresh disposable loopback PostgreSQL and explicit required-lane environment",
       "reproduce": "WORKLOAD_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY WORKLOAD_TEST_REQUIRE=1 WORKLOAD_TEST_PSQL=ABSOLUTE_PSQL WORKLOAD_TEST_PORT=PORT WORKLOAD_TEST_PASSWORD=FIXTURE_PASSWORD node test/workload-native-postgres.js",
       "ci": "representative",
+      "required_for_release": true
+    },
+    {
+      "file": "rename-propagation-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 17,
+      "required_inputs": "Local PostgreSQL 17 bin directory (initdb, pg_ctl, psql) in RENAME_PG_BIN; creates and deletes its own loopback cluster",
+      "reproduce": "RENAME_PG_BIN=ABSOLUTE_PG_BIN node test/rename-propagation-postgres.js",
+      "ci": "not_run_by_unit_ci",
       "required_for_release": true
     }
   ]

@@ -974,8 +974,14 @@
     // gate that sets the readonly attribute). These handler-level checks stop a read-only
     // client persisting an edit by bypassing the UI gate (e.g. a direct handler call).
     function _calClientFieldEditBlocked() { return _isClientLink && !_calIsCollabOn(); }
+    // Clients may not rename a card (see _calTitleRowHtml). Handler-level twin
+    // of the readonly attribute, like _calClientFieldEditBlocked.
+    function _calClientRenameBlocked(el) {
+        return _isClientLink && el && el.dataset.fld === 'name' && !_calIsBlankId(el.dataset.pid);
+    }
     function _calOnFieldInput(el) {
         if (_calClientFieldEditBlocked()) return;
+        if (_calClientRenameBlocked(el)) return;
         const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
         _calPendingEdits[pid][fld] = val;
@@ -995,6 +1001,7 @@
     }
     function _calOnFieldBlur(el) {
         if (_calClientFieldEditBlocked()) return;
+        if (_calClientRenameBlocked(el)) return;
         const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
         _calPendingEdits[pid][fld] = val;
@@ -1389,6 +1396,10 @@
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const json = await resp.json();
             if (!json.ok) throw new Error(json.error || 'save failed');
+            // A staff rename is now recorded by the database; nudge the drain
+            // so the linked sub-issues follow at once. Fire-and-forget: it can
+            // never delay or fail this save.
+            if (!_isClientLink && Object.prototype.hasOwnProperty.call(edits, 'name')) _calNameSyncAfterSave(realId);
             if (await _writeUiCompleteSourceRepairRefs(sourceRepairRefsForWrite)) _writeUiRemoveCompletedRepairRefs(post, sourceRepairRefsForWrite);
             const saved = json.post || post;
             const i2 = calState.posts.findIndex(p => p.id === realId);

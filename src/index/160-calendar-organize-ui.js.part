@@ -878,6 +878,7 @@
         _calSyncMonthWarnIcon();
         _calSyncClientLinks();
         _thumbCompareScheduleAvailability('calendar');
+        _calNameSyncScheduleRefresh();
     }
 
     /* Drag a post pill from one day cell to another to reschedule it. */
@@ -2489,10 +2490,16 @@
     }
     function _calTitleRowHtml(pid, p, ro, editableText) {
         // editableText defaults to !ro so existing callers (the SMM-only
-        // render paths) keep their old behaviour. The new client-Collab
-        // flow passes editableText=true explicitly so the client can rename
-        // the post while everything else stays SMM-only.
-        const nameRo = (editableText == null) ? ro : !editableText;
+        // render paths) keep their old behaviour. Client-Collab passes
+        // editableText=true for the caption, CTA and date -- but NOT the name:
+        // clients may not rename a card (owner decision 2026-09-23), because a
+        // card's name now renames its linked sub-issues. A blank card the
+        // client is creating still takes a name; that is a name, not a rename.
+        // This is a browser gate only: the frozen card-save functions cannot
+        // tell a client from staff (OPEN_REPAIRS 242).
+        const nameRo = (_isClientLink && !_calIsBlankId(p && p.id))
+            ? true
+            : ((editableText == null) ? ro : !editableText);
         // YouTube title status — a small colour SQUARE to the LEFT of the title
         // (SMM-only; shown when the feature is on for a YouTube card, or the
         // title already carries review state). Click opens the same status menu.
@@ -2515,7 +2522,7 @@
                 titleSq += _calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', p, 'cal-title-urgent-btn', true, 'kasper');
             }
         }
-        return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError && !p._writeUiRetrySourceAt ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
+        return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_isClientLink ? '' : _calNameSyncSlotHtml(pid)}${_svSaveIndHtml(pid, null, p && p._saveError && !p._writeUiRetrySourceAt ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
     }
     function _calLinearEdit(pid, comp) {
         if (_isClientLink) return;   // Linear linking is internal/SMM-only (never shown to clients)

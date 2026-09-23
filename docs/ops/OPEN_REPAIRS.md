@@ -28700,3 +28700,53 @@ current (v82). The other three stay unrecorded: their versions exist only on
 their Actions summary pages. The standing rule, already in the lane's own
 output ("record these in EXECUTION_LOG.md"), is that a Section 4 deploy is not
 finished until its receipt is in the log and the row is updated, in the same PR.
+
+---
+
+## 242. [2026-09-23, BUILT not applied — release 1 of the card/sub-issue rename; follows 234 and docs/ops/RENAME_PLAN.md] Renaming a card now renames its sub-issues, through a record-then-drain outbox that cannot fail a save
+
+**What ships in this PR.**
+
+- **One name rule, three copies, one drift test.** The source is `supabase/functions/_shared/title-name-rule.mjs`, with a browser copy in `src/index/125-title-name-rule.js.part` and a SQL copy (`syncview_title_*`) in `migrations/2026-09-23-rename-propagation.sql`.
+  - `test/title-name-rule-drift.js` holds the module, the browser copy and `policy.mjs` to one fixture table, and pins the SQL regex text byte for byte.
+  - `test/rename-propagation-postgres.js` runs the same table through the SQL functions.
+- **The drift the plan found is fixed.** SQL now trims. A blank name no longer counts as a name. Length is counted in code points everywhere, and a long name is refused rather than silently cut.
+- **A new edge case is closed.** A title with no number that is renamed to something like `Video 7` would invent ordinal 7 in its batch, so that rename is refused and logged (`name_would_look_numbered`).
+- **Migration** `2026-09-23-rename-propagation.sql` (not applied):
+  - AFTER triggers on `calendar_posts.name`, `sample_reviews.name` and `deliverables.title` only *record* a row in `rename_propagation_outbox`, inside BEGIN/EXCEPTION, so a save can never fail because of it.
+  - `rename_propagation_drain()` applies each recorded rename in a subtransaction:
+    - it retries after 1, 2, 5, 15 and 60 minutes;
+    - after six failures it marks the row `failed` and writes a WR-101 logbook receipt;
+    - it defers sub-issues created in the last 15 minutes (in-flight append and replay);
+    - it skips sub-issues claimed by two cards (`ambiguous_link`) and logs them;
+    - it ignores titles that arrive from Linear (rule 6);
+    - the propagation origin marker plus a no-op on equal titles means it cannot loop.
+  - Approvals are never written (rule 2).
+- **One live function is changed:** `track_b_deliverable_touch_timestamps` leaves `updated_at` alone for a propagated title.
+  - Why: SyncLinear approve and request changes are compare-and-swap on `deliverables.updated_at` (`production-write` `assertCas`, surface `production`). A rename landing between a page load and an Approve click would otherwise fail the approval with `write_conflict`.
+  - The cost: an open SyncLinear tab shows the old title until it reloads.
+- **All three directions ship dormant.** The `rename_propagation` runtime flag is `{card_to_subissue:false, subissue_to_card:false, samples:false}`.
+- **The card-save functions are not touched.** `calendar-upsert` and `sample-review-upsert` are frozen by owner directive (AGENTS.md, "FROZEN — client write gate"): their live code is deliberately un-gated and differs from the repo source, and deploying the repo source 401s every client's approvals. So release 1 needs no Edge Function deploy of any kind.
+- **The client rename block is browser-only, and that is a real gap.** A database trigger cannot enforce it: the frozen functions accept tokenless calls and write with the service key, so no caller identity (client or staff) ever reaches `calendar_posts`. The only available block is hiding the name field in the client view (waiting for #1510). **What that leaves open:** anyone who calls the un-gated card-save endpoint directly (a client with dev tools, a stale open client tab from before the browser change, or the n8n fallback writer wherever a flag still selects it) can still rename a card, and once `card_to_subissue` is on, that rename spreads to the sub-issues like any other. This is the same exposure every other card field already has under the frozen gate. Closing it needs the gate re-applied, which only the owner can approve.
+- **Backstop:** `.github/workflows/rename-propagation-drain.yml` runs every 5 minutes and stays dormant until the repository variable `RENAME_PROPAGATION_DRAIN_ENABLED=true`.
+
+**Proof.** `test/rename-propagation-postgres.js` passes 100 checks on a disposable PostgreSQL 17, using the real WR-101 logbook migration and a scaffold of the live columns and trigger bodies. It covers:
+
+- every example in plan section D;
+- the edge cases: 160 and 161 characters, 160 emoji, whitespace, a name containing the separator;
+- deferral;
+- the ambiguous link;
+- six failures, then give-up, logbook, marker and retry;
+- a save succeeding while recording fails;
+- Linear-made titles ignored;
+- a double rename;
+- both sides renamed at once;
+- release-2 sub-issue to card to sibling, and Samples;
+- exact privileges.
+
+**Still to do.**
+
+1. ~~Browser wiring~~ **Done after #1510 merged (2026-09-23):** the client view's card name is read-only (and `_calOnFieldInput`/`_calOnFieldBlur` refuse a client rename even when called directly; a blank card a client is creating can still be named); a staff save that changed the name nudges the drain; the card shows "Name syncing…" while pending and "Name didn't sync · Retry" after a give-up (local WR-101 ring entry once per attempt). `docs/syncview-design/tests/rename-sync-browser.js` proves it on the built page, fully mocked (21 checks, and it fails when the client lock is removed). `190` needed no change.
+2. Release 2's `production-write` `title` op is not in this PR.
+3. The live proof on the test client can only run after Lighthouse applies the migration and turns on `card_to_subissue`.
+4. No `monitoring-watchdog` heartbeat lane is registered for the drain yet.

@@ -113,7 +113,7 @@ jobs:
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5
-      PRODUCTION_WRITE_FILE_COUNT: '8'
+      PRODUCTION_WRITE_FILE_COUNT: '9'
       # Re-pinned 2026-08-14 (fifth release): production-write gains the client
       # comment FRONT DOOR — clientCommentFrontDoorTargetAllowed admits
       # calendar-surface and unlinked-samples client comments under the
@@ -409,7 +409,15 @@ jobs:
       # The principal capture sits on authenticate's three success returns; the
       # function is NOT renamed, because two other suites extract it by name.
       # (Previous pin: 9630884e62... -- production-write, files=6, 2026-09-19.)
-      PRODUCTION_WRITE_SOURCE_SHA256: 68cae746ad1fa5ebc3203ad3cc82415ea5699158ee07e16f7757715e0a8ef2ce
+      # Re-pinned 2026-09-23 (card/sub-issue rename, release 2): production-write
+      # gains the `title` operation (rename a sub-issue in SyncLinear; its card
+      # follows through the database rename outbox). It imports the shared title
+      # rule, _shared/title-name-rule.mjs, so the bundle grows from 8 files to 9.
+      # Regenerated with scripts/ef-fingerprint.js --slugs=production-write
+      # --expected-only; entrypoint unchanged. The WR-101 receipt enum
+      # (_shared/write-refusal-diagnostics.mjs) also learns `title`.
+      # (Previous pin: 68cae746ad... -- production-write, files=8, #1527.)
+      PRODUCTION_WRITE_SOURCE_SHA256: c1b468cc00bb095a7b7eabf0f7495a413eb314fc298c19d581d417f471882832
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

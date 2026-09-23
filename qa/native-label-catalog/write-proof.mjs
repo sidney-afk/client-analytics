@@ -51,6 +51,7 @@ try{
  async function load(source,tag){
   const change=(a,b)=>{assert.equal(source.split(a).length,2);source=source.replace(a,b);};
   if(source.includes('from "../_shared/native-brief-media.mjs";'))change('from "../_shared/native-brief-media.mjs";',`from "${pathToFileURL(path.join(ROOT,'supabase/functions/_shared/native-brief-media.mjs')).href}";`);
+  if(source.includes('from "../_shared/title-name-rule.mjs";'))change('from "../_shared/title-name-rule.mjs";',`from "${pathToFileURL(path.join(ROOT,'supabase/functions/_shared/title-name-rule.mjs')).href}";`);
   // WR-101 (ledger 240): the refusal-diagnostics helper, guarded like the line above.
   if(source.includes('from "../_shared/write-refusal-diagnostics.mjs";'))change('from "../_shared/write-refusal-diagnostics.mjs";',`from "${pathToFileURL(path.join(ROOT,'supabase/functions/_shared/write-refusal-diagnostics.mjs')).href}";`);
   change('import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";',`import { createClient, SupabaseClient } from "${pathToFileURL(path.join(ROOT,'scripts/native-intake-manifest/supabase-shim.mjs')).href}";`);

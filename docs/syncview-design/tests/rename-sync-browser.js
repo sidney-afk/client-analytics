@@ -199,6 +199,95 @@ function mockBackend(page, state) {
     ok(hidden && hidden.hidden, 'unreadable status shows no marker rather than a wrong one');
     ok(!errors.some(e => /rename|NameSync|renameProp/i.test(e)), 'no page errors from the rename code');
 
+    // ── 5. SyncLinear: rename a sub-issue (release 2) ─────────────────────
+    {
+      const prodState = { pokes: 0, retries: [], statusReads: 0, statusQueue: [], saves: [], writes: [] };
+      const prod = await browser.newPage();
+      const prodErrors = [];
+      prod.on('pageerror', e => prodErrors.push(e.message));
+      await seedStaffGate(prod);
+      // Registered before the specific route: Playwright tries the LAST route first.
+      await mockBackend(prod, prodState);
+      await prod.route('**/functions/v1/production-write', async route => {
+        const body = JSON.parse(route.request().postData() || '{}');
+        prodState.writes.push(body);
+        const title = body.name ? 'Video 4 — ' + body.name : 'Video 4';
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+          ok: true, native_committed: true, row: { id: body.id, title, updated_at: '2026-09-23T12:00:01Z' } }) });
+      });
+      await prod.goto(base + '?prod=1', { waitUntil: 'domcontentloaded' });
+      await prod.waitForFunction(() => typeof _prodDetailTitleHtml === 'function' && typeof _prodRoleCanWrite === 'function');
+
+      // Role gate: the browser offers exactly what the gateway accepts.
+      const roles = await prod.evaluate(() => {
+        const issue = { id: 'd4', team: 'video' };
+        const as = (role, team, owns) => {
+          window._syncviewStaffIdentityForHeaders = () => ({ role, member: { team } });
+          window._prodCreativeOwnsTarget = () => owns;
+          return _prodRoleCanWrite(issue, 'title');
+        };
+        return {
+          admin: as('admin', '', false), smm: as('smm', '', false),
+          editorOwn: as('creative', 'video', true), editorOther: as('creative', 'video', false),
+          editorWrongTeam: as('creative', 'graphics', true),
+        };
+      });
+      ok(roles.admin && roles.smm, 'SyncLinear: admins and SMMs can rename');
+      ok(roles.editorOwn, 'SyncLinear: an editor can rename their own assigned sub-issue');
+      ok(!roles.editorOther && !roles.editorWrongTeam, 'SyncLinear: an editor cannot rename others or another team');
+
+      // The control: prefix fixed, name editable, Enter saves through `title`.
+      await prod.evaluate(() => {
+        window.__issue = { id: 'd4', team: 'video', title: 'Video 4 — Old name', updatedRaw: '2026-09-23T12:00:00Z',
+          authorityProject: 'qa-client', project: 'qa-client' };
+        window._prodIssue = (id) => (id === 'd4' ? window.__issue : null);
+        window._prodCanWrite = (issue, op) => op === 'title';
+        window.__toasts = [];
+        window._prodToast = (m) => window.__toasts.push(m);
+        window._prodRender = () => {};
+        const host = document.createElement('div');
+        host.id = 'rename-host';
+        host.innerHTML = _prodDetailTitleHtml(window.__issue);
+        document.body.appendChild(host);
+      });
+      ok(await prod.evaluate(() => !!document.querySelector('#rename-host [data-prod-title-edit="d4"]')), 'SyncLinear: title is editable for a permitted user');
+      await prod.click('#rename-host [data-prod-title-edit="d4"]');
+      const edit = await prod.evaluate(() => {
+        const el = document.querySelector('#rename-host [data-prod-title-edit="d4"]');
+        return { prefix: (el.querySelector('.prod-title-prefix') || {}).textContent, value: el.querySelector('input').value };
+      });
+      ok(edit.prefix === 'Video 4 — ' && edit.value === 'Old name', 'SyncLinear: the number is fixed and only the name is edited');
+      await prod.fill('#rename-host input', '  New   name ');
+      await prod.press('#rename-host input', 'Enter');
+      await prod.waitForFunction(() => window.__toasts.length > 0);
+      const w = prodState.writes[0] || {};
+      ok(prodState.writes.length === 1 && w.operation === 'title' && w.surface === 'production' && w.entity === 'deliverable'
+        && w.id === 'd4' && w.name === 'New name' && w.expected_updated_at === '2026-09-23T12:00:00Z',
+        'SyncLinear: Enter saves {operation: title, name} with the row clock');
+      await prod.waitForTimeout(300);
+      ok(prodState.pokes >= 1, 'SyncLinear: a saved rename nudges the drain so the card follows');
+
+      // Refusals happen before any request.
+      const before = prodState.writes.length;
+      const tryName = async (value, key) => {
+        await prod.evaluate(() => { const h = document.getElementById('rename-host'); h.innerHTML = _prodDetailTitleHtml(window.__issue); });
+        await prod.click('#rename-host [data-prod-title-edit="d4"]');
+        await prod.fill('#rename-host input', value);
+        await prod.press('#rename-host input', key);
+        await prod.waitForTimeout(200);
+      };
+      await tryName('x'.repeat(161), 'Enter');
+      await tryName('Old name', 'Escape');
+      await tryName('Old name', 'Enter');
+      await prod.evaluate(() => { window.__issue.title = 'Promo clip'; });
+      await tryName('Video 7', 'Enter');
+      ok(prodState.writes.length === before, 'SyncLinear: too long, Escape, unchanged and numbered-looking names send nothing');
+      ok(await prod.evaluate(() => window.__toasts.some(t => /too long/.test(t)) && window.__toasts.some(t => /numbered/.test(t))),
+        'SyncLinear: refusals say why');
+      ok(!prodErrors.some(e => /rename|Title|prodTitle/i.test(e)), 'SyncLinear: no page errors from the rename control');
+      await prod.close();
+    }
+
     console.log('rename-sync-browser: ' + n + ' checks passed ✅');
   } finally {
     await browser.close();

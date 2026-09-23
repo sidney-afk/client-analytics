@@ -28750,3 +28750,40 @@ finished until its receipt is in the log and the row is updated, in the same PR.
 2. Release 2's `production-write` `title` op is not in this PR.
 3. The live proof on the test client can only run after Lighthouse applies the migration and turns on `card_to_subissue`.
 4. No `monitoring-watchdog` heartbeat lane is registered for the drain yet.
+
+---
+
+## 243. [2026-09-23, BUILT not deployed — release 2 of the card/sub-issue rename; follows 242] A sub-issue can be renamed in SyncLinear, and its card follows
+
+**Release 1 status (for the record).** Live and proven on the test client (outbox rows 1-16, all test client). `card_to_subissue` is on, and the scheduled drain is enabled.
+
+**What release 2 adds.**
+
+- **production-write `title`**, allowed from the SyncLinear surface only (`assertSurfaceOperation`).
+  - Admins and SMMs can rename any sub-issue. Editors can rename only their own team's sub-issues that are assigned to them, the same scope as `status` (`CREATIVE_ASSIGNEE_BOUND_OPERATIONS`). Clients never can.
+  - Only the name is edited: the stored title is recomposed by `_shared/title-name-rule.mjs`, so a free-form title never gains a number. Invalid names are refused as `invalid_intake_item_name` with `{reason}`.
+  - The retry fingerprint is the cleaned name, not the composed title, so a replay still matches if something renamed the row in between.
+  - The write goes through the existing `production_deliverable_write`, which already treats `title` as a native ordinary operation. No SQL change was needed for it.
+- **The card follows through the release-1 outbox, never from the gateway.**
+  - The deliverables record trigger and the drain's sub-issue-to-card branch already shipped, dormant behind `subissue_to_card` (still false).
+  - Approvals, statuses and the card's `updated_at` are never written.
+  - Linear-origin titles are recorded as `ignored_linear`.
+  - Samples follow the same path when `samples` is on.
+- **SyncLinear browser.** The issue page's title edits in place (`_prodDetailTitleHtml`, a one-line hook in `260`). The `Video N —` prefix is shown but fixed. A saved rename nudges the drain.
+  - `_prodRoleCanWrite` mirrors the gateway's editor scope.
+  - `_prodApplyGatewayRow` now adopts `title`.
+- **Deploy.** Only production-write changes among the Section 4 four: source `c1b468cc…`, 9 files (the shared rule is new in its bundle), entrypoint unchanged. It was re-pinned with `ef-fingerprint.js` in the workflow and in `test/f27-section4-deploy-lane.js`. linear-outbound, deliverable-write and batch-write are byte-identical to main.
+- **The WR-101 receipt enum learns `title`.** Every gateway operation must be recordable as itself, so `_shared/write-refusal-diagnostics.mjs` gains it, and `migrations/2026-09-23-refusal-receipt-title-operation.sql` widens `receipts_v1_operation_check`. Apply that migration before the deploy.
+- **write-diagnostics** shares that file, so its repo source now differs from live. It needs no redeploy: it only records browser claims, which never carry `title`.
+
+**Proof.**
+
+- Throwaway PG17: 110 checks (plus the receipt migration: a `title` receipt is recorded as `title`). They include three race shapes: sub-issue then card, card then sub-issue, and card/sub-issue/card interleaved in one drain batch. All converge on the last rename everywhere, with no loop and nothing left behind. A sub-issue rename leaves the card's approvals, statuses and clock untouched.
+- Browser (mocked, built page): 33 checks, including the SyncLinear role matrix, the fixed prefix, the `{operation:'title', name}` payload with the row clock, the nudge, and refusals that send nothing.
+- `test/subissue-rename-gateway.js`: 20 checks.
+
+**Still to do.**
+
+1. Section 4 deploy, together with #1527.
+2. Lighthouse turns on `subissue_to_card` (and `samples`, if wanted).
+3. Live proof on the test client.

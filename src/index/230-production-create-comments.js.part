@@ -296,7 +296,7 @@
             if (!row || !row.id) return;
             const target = (_prodState.deliverables || []).find(item => String(item && item.id || '') === String(row.id));
             if (target) {
-                ['status', 'status_at', 'due_date', 'assignee_id', 'brief', 'file_url', 'sync_state', 'updated_at',
+                ['status', 'status_at', 'due_date', 'title', 'assignee_id', 'brief', 'file_url', 'sync_state', 'updated_at',
                     'linear_raw', 'identity_repair_state', 'identity_repair_reason'].forEach(field => {
                     if (Object.prototype.hasOwnProperty.call(row, field)) target[field] = row[field];
                 });

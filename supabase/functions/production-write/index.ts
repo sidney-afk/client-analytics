@@ -17,6 +17,7 @@ import { captureRefusalContext, captureVerifiedPrincipal, reportGatewayRefusal }
    ones. The guard earned itself on its first run. */
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { projectBriefMedia } from "../_shared/native-brief-media.mjs";
+import { cleanName as titleCleanName, renameTitle } from "../_shared/title-name-rule.mjs";
 import {
   matchingRoleForKey,
   timingSafeEqual,
@@ -1487,6 +1488,12 @@ function assertSurfaceOperation(surface: string, operation: string): void {
     if (surface !== "calendar" && surface !== "sxr") {
       throw new GatewayError(400, "invalid_surface_operation");
     }
+    return;
+  }
+  if (operation === "title") {
+    // A sub-issue is renamed in SyncLinear only. The calendar renames the CARD,
+    // and the database carries that to the sub-issues (rename propagation).
+    if (surface !== "production") throw new GatewayError(400, "invalid_surface_operation");
     return;
   }
   if (operation === "batch_asset") {
@@ -6654,6 +6661,26 @@ async function handleEntityOperation(
       patch = { brief: description };
       payload = { description };
       fingerprintPatch = patch;
+    } else if (operation === "title") {
+      /* Rename a sub-issue (docs/ops/RENAME_PLAN.md, OPEN_REPAIRS 242). Only
+         the NAME is edited: the `Video N` prefix carries the ordinal the next
+         append reads back, so the title is recomposed around it by the one
+         shared rule (_shared/title-name-rule.mjs). A title with no number takes
+         the name whole, but never one that would look numbered (that would
+         invent an ordinal). The card follows through the database outbox
+         (rename_propagation_record / drain), never from here, so a failed
+         card update can never fail this write.
+         The fingerprint is the cleaned NAME, not the composed title: a retry of
+         the same request must replay even if something else renamed the row
+         in between (the composed title would then differ). */
+      if (entity !== "deliverable") throw new GatewayError(400, "unsupported_batch_operation");
+      const nameValue = body.name !== undefined ? body.name : parseJson(body.patch).name;
+      if (typeof nameValue !== "string") throw new GatewayError(400, "invalid_intake_item_name", { reason: "name_required" });
+      const renamed = renameTitle(existing.title, nameValue);
+      if (!renamed.ok) throw new GatewayError(400, "invalid_intake_item_name", { reason: renamed.reason });
+      patch = { title: renamed.title };
+      payload = { title: renamed.title };
+      fingerprintPatch = { name: titleCleanName(nameValue) };
     } else {
       const assigneeId = clean(body.assignee_id == null ? parseJson(body.patch).assignee_id : body.assignee_id);
       patch = { assignee_id: assigneeId || null };

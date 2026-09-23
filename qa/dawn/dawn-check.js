@@ -284,6 +284,7 @@ function report(started, calMs) {
   L.push('|---|---|---|---|');
   for (const k of ['workload', 'synclinear', 'analytics']) {
     const r = results.find(x => x.key === k);
+    if (!r) { L.push(`| ${k} | not reached | ${BASELINE[k].cold.toLocaleString('en-US')} ms | ${BASELINE[k].warm.toLocaleString('en-US')} ms |`); continue; }
     L.push(`| ${r.title} | ${r.ms == null ? 'never' : r.ms.toLocaleString('en-US') + ' ms'} | ${BASELINE[k].cold.toLocaleString('en-US')} ms | ${BASELINE[k].warm.toLocaleString('en-US')} ms |`);
   }
   L.push(`| Staff calendar, first card | ${calMs == null ? 'never' : calMs.toLocaleString('en-US') + ' ms'} | ${BASELINE.calendar.cold.toLocaleString('en-US')} ms | ${BASELINE.calendar.warm.toLocaleString('en-US')} ms |`);
@@ -327,7 +328,7 @@ function report(started, calMs) {
     await timeTab(browser, 'analytics', 'Analytics first numbers', '/index.html#home',
       () => [...document.querySelectorAll('.cell-inner')].some(c => !c.querySelector('.sv-skeleton') && /\d/.test(c.textContent)));
   } catch (e) {
-    record('harness', 'Harness ran to the end', { ok: false, detail: String(e.message || e) });
+    record('harness', 'Harness ran to the end', { ok: false, detail: String(e && e.stack || e).split('\n').slice(0, 3).join(' | ').slice(0, 400) });
   } finally {
     const bad = [];
     for (const s of Object.values(seeds)) if (!archiveCalSafe(s.id)) bad.push(s.id);

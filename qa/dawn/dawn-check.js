@@ -34,9 +34,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const H = require('../probes/ot4_lib.js');
-const { launch, smmCal, clientCal, upCal, archiveCalSafe, appErrs, SUPA, KEY, ORIGIN } = H;
-const { seedStaffGate } = require('../staff-gate-seed.js');
-const REROUTE = require('../write_ui_reroute_fixture.js');
+const { launch, open, smmCal, clientCal, upCal, archiveCalSafe, appErrs, SUPA, KEY, ORIGIN } = H;
 
 const TEST_SLUG = 'sidneylaruel';
 const OUT = path.join(__dirname, 'out');
@@ -227,35 +225,22 @@ async function restoreRename(browser, t) {
 }
 
 // ---- flows 5-7: tab timings ------------------------------------------------
-// Staff context for READ-ONLY tabs. The courier context stubs every linear-*
-// hook, reads included, which leaves Workload empty; here Linear READS pass and
-// anything that could write to Linear is aborted.
-const LINEAR_READS = /\/webhook\/linear-(issues|read|search|browser|data-model|plan-skeleton|tweak-comments|favicon)[a-z-]*/;
+// READ-ONLY tabs use the courier staff context (staff key, Linear writes
+// mocked), plus one page-level rule: Linear READ hooks go to the network, since
+// the courier stubs reads too and that leaves Workload empty. Everything else,
+// every Linear write included, still falls through to the courier mock.
+const LINEAR_READS = /\/webhook\/linear-(issues|read|search|browser|data-model|plan-skeleton|tweak-comments)[a-z-]*(?:[/?]|$)/;
 async function readOnlyPage(browser, route) {
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, ignoreHTTPSErrors: true });
-  await seedStaffGate(ctx);
-  await ctx.route('**/*', (r) => {
-    const u = r.request().url();
-    if (REROUTE.isRerouteFlagRequest(u)) {
-      if (r.request().method() === 'OPTIONS') return r.fulfill({ status: 204, headers: REROUTE.WRITE_UI_REROUTE_CORS, body: '' });
-      return r.fulfill({ status: 200, contentType: 'application/json', headers: REROUTE.WRITE_UI_REROUTE_CORS, body: REROUTE.productionRosterBody() });
-    }
-    if (/^https?:\/\/(api|uploads)\.linear\.app/i.test(u)) return r.abort();
-    if (/\/webhook\/(linear-[a-z0-9-]+|send-urgent-slack)/.test(u) && !LINEAR_READS.test(u)) { linearWritesBlocked++; return r.abort(); }
-    return r.fallback();
-  });
-  const page = await ctx.newPage();
-  page._errs = [];
-  page.on('pageerror', e => page._errs.push(String(e && e.message || e)));
+  const page = await open(browser, '/favicon.ico');
+  await page.route(u => LINEAR_READS.test(u.toString()), r => r.continue());
+  await guard(page);
+  page._t0 = Date.now();   // the clock starts at navigation, not at context setup
   await page.goto(ORIGIN + route, { waitUntil: 'domcontentloaded', timeout: 45000 });
   return page;
 }
-let linearWritesBlocked = 0;
 async function timeTab(browser, key, title, route, readyFn) {
-  const t0 = Date.now();
   const p = await readOnlyPage(browser, route);
-  await guard(p);
-  const ms = await p.waitForFunction(readyFn, null, { timeout: TAB_CAP, polling: 50 }).then(() => Date.now() - t0).catch(() => null);
+  const ms = await p.waitForFunction(readyFn, null, { timeout: TAB_CAP, polling: 50 }).then(() => Date.now() - p._t0).catch(() => null);
   const b = BASELINE[key];
   const ok = ms !== null;
   const slow = ok && ms > b.cold * SLOW_FACTOR;

@@ -1157,6 +1157,12 @@
         .cal-title-fade { position: absolute; top: 0; right: 0; width: 22px; height: 100%; pointer-events: none;
             background: linear-gradient(to right, transparent, var(--white)); transition: opacity 0.15s ease; }
         .cal-title-name-wrap:focus-within .cal-title-fade { opacity: 0; }
+        /* Rename propagation marker (staff only): the card's new name is still on
+           its way to the linked sub-issues, or gave up (with a Retry). */
+        .cal-name-sync { flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: var(--text-muted); white-space: nowrap; }
+        .cal-name-sync[hidden] { display: none; }
+        .cal-name-sync.is-failed { color: var(--dn); }
+        .cal-name-sync-retry { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
         .cal-linear-slot { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; }
         .cal-linear-slot:empty { display: none; }
         .cal-linear-btn { display: inline-flex; align-items: center; justify-content: center;

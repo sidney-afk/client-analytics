@@ -39,7 +39,7 @@
 | 31 | `290-samples-writes-review.js.part` | 1806 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 32 | `300-tiktok-upload.js.part` | 1678 | TIKTOK UPLOAD MODULE |
 | 33 | `310-tiktok-pilot-sales.js.part` | 1969 | TIKTOK PILOT MODULE (gated: ?ttpilot=1 → #tiktok-pilot) |
-| 34 | `320-kasper-dashboard-replies.js.part` | 2778 | Background poll for the Kasper review — same cadence as the client |
-| 35 | `330-kasper-review-history.js.part` | 2516 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
+| 34 | `320-kasper-dashboard-replies.js.part` | 2788 | Background poll for the Kasper review — same cadence as the client |
+| 35 | `330-kasper-review-history.js.part` | 2540 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 36 | `340-editors-date-picker.js.part` | 1288 | Editor work model |
 | 37 | `350-footer.html.part` | 398 | Transcript preview modal |

@@ -18,7 +18,16 @@
         _kasperLoadReview(true);
     }
 
-    async function _kasperLoadReview(forceRefresh) {
+    // The in-flight review load, so background tab counts can queue behind it.
+    let _kasperReviewInFlight = null;
+    function _kasperLoadReview(forceRefresh) {
+        const run = _kasperLoadReviewRun(forceRefresh);
+        _kasperReviewInFlight = run;
+        const clear = () => { if (_kasperReviewInFlight === run) _kasperReviewInFlight = null; };
+        run.then(clear, clear);
+        return run;
+    }
+    async function _kasperLoadReviewRun(forceRefresh) {
         const body = document.getElementById('kasperReviewBody');
         const btn  = document.getElementById('kasperReviewRefresh');
         if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
@@ -38,19 +47,21 @@
         const myGen = ++_kasperLoadGen;
 
         try {
-            // SMM sheet + every client's calendar in parallel.
+            // SMM sheet + every client's calendar in parallel, but only the
+            // calendars gate the paint: the SMM name is card decoration, so the
+            // queue paints with the last known map (entry cache) and the fresh
+            // sheet re-decorates it when it lands (speed map 2026-09-23 §5).
             // forceRefresh propagates so the Refresh button bypasses the 5-min cache.
-            const [smmMap, fetched] = await Promise.all([
-                _kasperLoadSMMMap(),
-                _kasperFetchAllRelevantPosts(forceRefresh),
-            ]);
+            const smmPromise = _kasperLoadSMMMap();
+            const fetched = await _kasperFetchAllRelevantPosts(forceRefresh);
+            const smmMap = _kasperState.smmByClient instanceof Map ? _kasperState.smmByClient : new Map();
             // If the user clicked approve / submit tweak / dismiss while we
             // were fetching, _kasperLoadGen was bumped past myGen. Discard
             // this stale response — the next load (triggered by the
             // mutation's persist or the next poll tick) will repaint with
             // fresh data.
             if (myGen !== _kasperLoadGen) return;
-            _kasperState.smmByClient = smmMap;
+            smmPromise.then(fresh => _kasperApplySMMMap(fresh, myGen));
             // Honour explicit "Done reviewing" dismissals across refreshes.
             // The fetch re-includes any card with an unresolved Kasper tweak,
             // so without this a dismissed card would pop straight back into
@@ -163,6 +174,19 @@
             const pill = document.getElementById('kasperReviewRefreshPill');
             if (pill) pill.hidden = true;
         }
+    }
+
+    // Late half of _kasperLoadReview: the fresh SMM sheet arrived after the queue
+    // painted. Same end state as awaiting it up front, just repainted once.
+    function _kasperApplySMMMap(smmMap, gen) {
+        if (gen !== _kasperLoadGen) return;
+        _kasperState.smmByClient = smmMap;
+        const smmFor = it => smmMap.get(wlNormalizeClient(it.client)) || null;
+        for (const it of _kasperState.items) it.smm = smmFor(it);
+        for (const it of (_kasperState.replies || [])) it.smm = smmFor(it);
+        _kasperPersistCache();
+        if (_kasperIsReviewMounted()) _kasperPaintReview();
+        if (_kasperState.tab === 'replies') _kasperRenderReplies();
     }
 
     async function _kasperLoadSMMMap() {

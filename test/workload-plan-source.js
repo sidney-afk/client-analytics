@@ -156,7 +156,9 @@ ok(!/alter table public\.workload_issues/i.test(MIGRATION)
 
 ok(!/\[functions\.workload-plan\]/.test(CONFIG)
   && /-\s+['"]supabase\/config\.toml['"]/.test(THUMBNAIL_DEPLOY)
-  && /\| `workload-plan` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\*[\s\S]*`--no-verify-jwt`/.test(DEPLOY_MANIFEST),
+  // 2026-09-23: its exact-SHA manual release runs through the dispatch-only
+  // one-function lane; never a push path, and the release note still binds.
+  && /\| `workload-plan` \| \[deploy-single-function\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>\*\*Manual release note:\*\*[^\n]*`--no-verify-jwt`/.test(DEPLOY_MANIFEST),
   'manual-only function stays out of shared config and cannot trigger unrelated thumbnail deploys');
 
 for (const header of [

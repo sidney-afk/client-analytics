@@ -1074,10 +1074,11 @@
            (repair_checkpoint_missing, live 2026-09-23) and turned a save that
            had landed into "Save failed". A status the person changes again
            is in the fresh bucket and still goes to the gateway as normal. */
-        const freshEditKeys = new Set(Object.keys(edits));
-        const committedStatusKeys = new Set(retryPost && retryPost._writeUiRetrySourceAt
-            ? Object.keys(retryPost._writeUiRetryEdits || {}).filter(k => /_status$/.test(k) && !freshEditKeys.has(k))
-            : []);
+        // _calRetrySave seeds the bucket FROM the committed edits, so "same
+        // value as committed" is the test, not "absent from the bucket".
+        const committedEdits = retryPost && retryPost._writeUiRetrySourceAt ? (retryPost._writeUiRetryEdits || {}) : {};
+        const committedStatusKeys = new Set(Object.keys(committedEdits)
+            .filter(k => /_status$/.test(k) && (!(k in edits) || edits[k] === committedEdits[k])));
         if (retryPost && (retryPost._writeUiRetryEdits || retryPost._writeUiHeldSourceEdits)) {
             edits = Object.assign({}, retryPost._writeUiRetryEdits || {}, retryPost._writeUiHeldSourceEdits || {}, edits);
         }

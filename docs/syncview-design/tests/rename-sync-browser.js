@@ -211,6 +211,12 @@ function mockBackend(page, state) {
       await prod.route('**/functions/v1/production-write', async route => {
         const body = JSON.parse(route.request().postData() || '{}');
         prodState.writes.push(body);
+        // A real save takes time; the page must not show a blank title meanwhile.
+        if (prodState.delayMs) await new Promise(r => setTimeout(r, prodState.delayMs));
+        if (prodState.refuse) {
+          await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'write_conflict' }) });
+          return;
+        }
         const title = body.name ? 'Video 4 — ' + body.name : 'Video 4';
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
           ok: true, native_committed: true, row: { id: body.id, title, updated_at: '2026-09-23T12:00:01Z' } }) });
@@ -244,7 +250,14 @@ function mockBackend(page, state) {
         window._prodCanWrite = (issue, op) => op === 'title';
         window.__toasts = [];
         window._prodToast = (m) => window.__toasts.push(m);
-        window._prodRender = () => {};
+        // Like the real page: a render rebuilds the heading from the STORED
+        // title, which stays the old one until the gateway answers.
+        window.__renders = 0;
+        window._prodRender = () => {
+          window.__renders++;
+          const h = document.getElementById('rename-host');
+          if (h && !h.querySelector('input')) h.innerHTML = _prodDetailTitleHtml(window.__issue);
+        };
         const host = document.createElement('div');
         host.id = 'rename-host';
         host.innerHTML = _prodDetailTitleHtml(window.__issue);
@@ -267,6 +280,8 @@ function mockBackend(page, state) {
       await prod.waitForTimeout(300);
       ok(prodState.pokes >= 1, 'SyncLinear: a saved rename nudges the drain so the card follows');
 
+      ok(await prod.evaluate(() => window.__issue.title === 'Video 4 — New name'), 'SyncLinear: the open issue keeps the saved title');
+      await prod.evaluate(() => { window.__issue.title = 'Video 4 — Old name'; });
       // Refusals happen before any request.
       const before = prodState.writes.length;
       const tryName = async (value, key) => {
@@ -284,6 +299,58 @@ function mockBackend(page, state) {
       ok(prodState.writes.length === before, 'SyncLinear: too long, Escape, unchanged and numbered-looking names send nothing');
       ok(await prod.evaluate(() => window.__toasts.some(t => /too long/.test(t)) && window.__toasts.some(t => /numbered/.test(t))),
         'SyncLinear: refusals say why');
+      // ── Optimistic title: never blank while saving; rollback on refusal ──
+      const heading = () => prod.evaluate(() => {
+        const el = document.querySelector('#rename-host [data-prod-title-edit="d4"]');
+        return el ? { text: el.textContent, saving: el.classList.contains('is-saving') } : null;
+      });
+      const sampleDuringSave = async (value) => {
+        await prod.evaluate(() => {
+          window.__issue.title = 'Video 4 — Old name';
+          const h = document.getElementById('rename-host'); h.innerHTML = _prodDetailTitleHtml(window.__issue);
+        });
+        await prod.click('#rename-host [data-prod-title-edit="d4"]');
+        await prod.fill('#rename-host input', value);
+        // Click out, as the owner did, and sample the heading from that very
+        // moment: synchronously right after the blur, then on every frame.
+        await prod.evaluate(() => {
+          const read = () => {
+            const el = document.querySelector('#rename-host [data-prod-title-edit="d4"]');
+            return el ? (el.querySelector('input') ? '<input:' + el.textContent + '>' : el.textContent) : '<missing>';
+          };
+          window.__frames = [];
+          window.__sampling = true;
+          document.querySelector('#rename-host input').blur();
+          window.__frames.push(read());
+          const tick = () => { window.__frames.push(read()); if (window.__sampling) requestAnimationFrame(tick); };
+          requestAnimationFrame(tick);
+        });
+        const mid = await heading();
+        await prod.waitForTimeout(prodState.delayMs + 400);
+        const frames = await prod.evaluate(() => { window.__sampling = false; return window.__frames; });
+        return { mid, frames, end: await heading() };
+      };
+      prodState.delayMs = 900;
+      prodState.refuse = false;
+      const good = await sampleDuringSave('Fresh name');
+      if (process.env.RENAME_DEBUG) console.log('DEBUG', JSON.stringify(good.mid), JSON.stringify(good.frames.slice(0, 4)), JSON.stringify(good.end));
+      ok(good.mid && good.mid.text === 'Video 4 — Fresh name' && good.mid.saving,
+        'optimistic: the new title, prefix and all, shows the moment you click out, with a saving hint');
+      ok(good.frames.length > 10 && good.frames.every(t => t === 'Video 4 — Fresh name'),
+        'optimistic: no blank (or old) frame at any point while the save is in flight (' + good.frames.length + ' frames)');
+      ok(good.end && good.end.text === 'Video 4 — Fresh name' && !good.end.saving, 'optimistic: the saved title stays, hint gone');
+      ok(await prod.evaluate(() => window.__renders > 0), 'optimistic: the page re-rendered during the save and still held the new title');
+
+      prodState.refuse = true;
+      const bad = await sampleDuringSave('Refused name');
+      ok(bad.mid && bad.mid.text === 'Video 4 — Refused name', 'rollback: the new title shows while saving');
+      ok(!bad.frames.some(t => !t || t === '<missing>'), 'rollback: never blank, even on the refusal path');
+      ok(bad.end && bad.end.text === 'Video 4 — Old name' && !bad.end.saving, 'rollback: a refused save puts the old title back');
+      ok(await prod.evaluate(() => window.__toasts.length > 0 && !/Renamed/.test(window.__toasts[window.__toasts.length - 1])),
+        'rollback: the refusal is explained, not reported as success');
+      prodState.refuse = false;
+      prodState.delayMs = 0;
+
       ok(!prodErrors.some(e => /rename|Title|prodTitle/i.test(e)), 'SyncLinear: no page errors from the rename control');
       await prod.close();
     }

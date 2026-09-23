@@ -225,11 +225,37 @@
        The save goes through production-write `title`; the linked card then
        follows through the database outbox, so this page only nudges the
        drain afterwards and never waits on it. */
+    /* OPTIMISTIC RENAME (owner report 2026-09-23: the title went blank for
+       about a second after clicking out, then came back). From the moment a
+       rename is committed until the gateway answers, the issue page shows the
+       NEW composed title -- prefix and all -- from this map, whatever re-renders
+       in between; a refusal drops the entry and the old title comes back, with
+       the reason in a toast. The only saving hint is a slight fade. */
+    const _prodTitlePending = new Map();
+    function _prodTitleShown(d) {
+        const pending = d && _prodTitlePending.get(String(d.id));
+        return pending ? pending.title : String(d && d.title || '');
+    }
+    function _prodTitlePaint(id) {
+        const pending = _prodTitlePending.get(String(id));
+        document.querySelectorAll('[data-prod-title-edit]').forEach(el => {
+            if (el.getAttribute('data-prod-title-edit') !== String(id)) return;
+            // An input still being typed in is left alone; one that was just
+            // committed (clicked out of) is replaced by the title at once.
+            const input = el.querySelector('input');
+            if (input && document.activeElement === input) return;
+            const issue = _prodIssue(id);
+            el.textContent = _prodTitleShown(issue || { id, title: pending ? pending.title : '' }) || 'Untitled deliverable';
+            el.classList.toggle('is-saving', !!pending);
+        });
+    }
     function _prodDetailTitleHtml(d) {
-        const title = String(d && d.title || '') || 'Untitled deliverable';
+        const pending = !!(d && _prodTitlePending.has(String(d.id)));
+        const title = _prodTitleShown(d) || 'Untitled deliverable';
         const canRename = !!(d && d.syntheticBatchParent !== true && _prodCanWrite(d, 'title'));
-        if (!canRename) return '<h1 class="prod-detail-title">' + _calEsc(title) + '</h1>';
-        return '<h1 class="prod-detail-title prod-title-editable" tabindex="0" role="button"'
+        if (!canRename && !pending) return '<h1 class="prod-detail-title">' + _calEsc(title) + '</h1>';
+        return '<h1 class="prod-detail-title prod-title-editable' + (pending ? ' is-saving' : '') + '" tabindex="0" role="button"'
+            + (pending ? ' aria-busy="true"' : '')
             + ' data-prod-title-edit="' + _calEscAttr(d.id) + '" title="Rename"'
             + ' onclick="_prodTitleEditStart(this)"'
             + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_prodTitleEditStart(this)}">'
@@ -238,6 +264,7 @@
     function _prodTitleEditStart(el) {
         if (!el || el.querySelector('input')) return;
         const id = el.getAttribute('data-prod-title-edit');
+        if (_prodTitlePending.has(String(id))) return; // one rename at a time
         const issue = _prodIssue(id);
         if (!issue) return;
         const parts = SYNC_TITLE_RULE.titleParts(issue.title);
@@ -276,13 +303,32 @@
             return;
         }
         if (!check.changed) { _prodRender(); return; }
+        const key = String(id);
+        // Show the new title NOW, synchronously, before anything awaits or
+        // re-renders; every render until the answer reads it from the map.
+        _prodTitlePending.set(key, { title: check.title, previous: issue.title });
+        _prodTitlePaint(key);
+        let saved = false;
         try {
-            await _prodGatewayWrite(issue, 'title', { name: SYNC_TITLE_RULE.cleanName(value) });
+            const result = await _prodGatewayWrite(issue, 'title', { name: SYNC_TITLE_RULE.cleanName(value) });
+            if (result === null) throw Object.assign(new Error('write_pending'), { code: 'write_pending' });
+            saved = true;
+        } catch (error) {
+            _prodTitlePending.delete(key);
+            _prodTitlePaint(key);
+            _prodToast(error && error.code === 'write_pending'
+                ? 'Another change to this sub-issue is still saving. Try again in a moment.'
+                : _prodWriteErrorText(error, issue, 'title'));
+        }
+        if (saved) {
+            // The gateway row is adopted by _prodGatewayWrite; keep the open
+            // object in step too, so no frame can fall back to the old title.
+            issue.title = check.title;
+            _prodTitlePending.delete(key);
             _prodToast('Renamed. The card will follow.');
             _renamePropPoke();
-        } catch (error) {
-            _prodToast(_prodWriteErrorText(error, issue, 'title'));
         }
         _prodRender();
+        _prodTitlePaint(key);
     }
 

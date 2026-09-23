@@ -224,17 +224,28 @@ async function restoreRename(browser, t) {
 }
 
 // ---- flows 5-7: tab timings ------------------------------------------------
-// READ-ONLY tabs open straight into the courier staff context: the staff key
-// rides on its route, key-verify is stubbed, and every Linear hook is mocked.
-// Failed requests are kept so a tab that never shows says why.
+// READ-ONLY tabs use the courier staff context (Linear mocked, key-verify
+// stubbed). One addition: the app signs its function calls with the harness's
+// STUB staff key, and the courier only adds the real key when none is present,
+// so a read-gated function (Workload's workload-plan) answers 401 and the app
+// falls back to the sign-in screen. Here the stub is swapped for the real key on
+// Supabase function calls only -- the same credential the courier already
+// attaches to staff writes. The context is set up on an empty page so the timed
+// navigation starts clean.
+const STAFF_KEY = String(process.env.SYNCVIEW_STAFF_KEY || '').trim();
 async function readOnlyPage(browser, route) {
-  const t0 = Date.now();
-  const page = await open(browser, route);
-  page._t0 = t0;
+  const page = await open(browser, '/qa/dawn/blank.html');
+  await page.context().route(u => u.toString().startsWith(SUPA + '/functions/v1/'), (r) => {
+    const h = r.request().headers();
+    if (h['x-syncview-key'] && h['x-syncview-key'] !== STAFF_KEY) return r.fallback({ headers: Object.assign({}, h, { 'x-syncview-key': STAFF_KEY }) });
+    return r.fallback();
+  });
+  await guard(page);
   page._failed = [];
   page.on('requestfailed', r => page._failed.push(r.url().replace(/^https?:\/\/[^/]+/, '').split('?')[0]));
   page.on('response', r => { if (r.status() >= 400) page._failed.push(r.status() + ' ' + r.url().replace(/^https?:\/\/[^/]+/, '').split('?')[0]); });
-  await guard(page);
+  page._t0 = Date.now();   // the clock starts at the timed navigation
+  await page.goto(ORIGIN + route, { waitUntil: 'domcontentloaded', timeout: 45000 });
   return page;
 }
 async function timeTab(browser, key, title, route, readyFn) {

@@ -28658,3 +28658,45 @@ accepted on the host.
 and again after: **8** distinct numbers carry duplicate headers (13, 14, 22, 23,
 175, 176, 177, 180) — unchanged by this entry, which uses the next free number,
 240 (238 and 239 are claimed by concurrent branches).
+
+## 241. [2026-09-23] Correction to 240: the WR-101 SQL owner was already applied; two "not applied" checks were wrong the same way
+
+Entry 240 and PR #1499 say the live database had no refusal-diagnostics schema.
+It did. At release time the `write_refusal_diagnostics` schema, `receipts_v1` and
+all three `production_write_refusal_*_v1` functions already existed, with function
+bodies byte-identical to the committed migration (md5 of `prosrc` matched for all
+three) and grants exactly as the file sets them. It is not recorded in
+`supabase_migrations`, so when it was applied is unknown.
+
+Both wrong checks, the executor's and the supervisor's, searched `pg_class` for a
+relation name containing `refusal` or `write_diag`. The table is named
+`receipts_v1`; only its **schema** carries the feature name. The rule: look for
+an object by the schema or namespace the migration creates, or query
+`to_regclass('<schema>.<table>')` / `pg_proc` by the exact name, never by a
+substring guessed from the feature's name. An empty result from a guessed
+pattern is not evidence of absence.
+
+Release recorded in `EXECUTION_LOG.md` (2026-09-23). The live acceptance probe
+left one receipt row, from an unauthenticated test request, not a user.
+
+**Item 225 is resolved by this release.** 225 ("the write-refusal receipt table
+has never recorded a refusal") is no longer true: the gateway recorder is live in
+`production-write` version 82 and recorded the probe above. Its header is left
+as written because this ledger is append-only; treat 225 as FIXED as of
+2026-09-23. Item 101 stays open for the two paths not yet proven live: a
+browser-claim receipt from a real page, and the runner-key `health` / `lookup`
+actions. Kill switches for both halves are in `ROLLBACK.md`.
+
+**Found while recording this release: four Section 4 deploys were never
+logged.** Runs `34398255854` (2026-09-09), `34899436549` (2026-09-14),
+`34998109566` (2026-09-15) and `35424627891` (2026-09-19) have no entry in
+`EXECUTION_LOG.md`. So `ROLLBACK.md`'s live row still described 2026-09-07
+(`production-write` v69) while v79 was serving, and
+`scripts/rollback-row-freshness-check.js` stayed green throughout, because it
+compares the row with the newest receipt it can read and there was none newer.
+The guard proves that the row matches the log. It cannot prove that the log
+matches reality. 2026-09-19 is now recorded from its job summary, and the row is
+current (v82). The other three stay unrecorded: their versions exist only on
+their Actions summary pages. The standing rule, already in the lane's own
+output ("record these in EXECUTION_LOG.md"), is that a Section 4 deploy is not
+finished until its receipt is in the log and the row is updated, in the same PR.

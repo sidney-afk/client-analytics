@@ -401,6 +401,15 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   frozen snapshot of that moment, and the warm-entry/visibility/60-second poll described below reads
   exactly that `synced_at` watermark — a watermark that can no longer advance — so the poll now
   performs no snapshot fetch or repaint, forever, and looks identical to a healthy quiet system.
+  **Corrected again 2026-09-23 (supervisor, same day): both consequences above are wrong, and the
+  Workload board is NOT frozen.** The mirror table is frozen; the board no longer reads it. A live
+  call of `workload_native_snapshot_v1()` returns 6,734 rows, every one `source: native`, and
+  `legacy_teams: []`, so no row on the board comes from `workload_issues`. The poll wired to the
+  timer and the visibility/warm-entry hooks is `_wlV2CheckWatermark`, which reads no watermark and
+  calls `wlRefetchSilent()` every time; the watermark reader described above is
+  `_wlLegacyCheckWatermark`, which nothing calls. What still reads the frozen table: the
+  `?wlnative=1` diagnostic diff, the unreachable `_wlLegacyLoadLinearIssues` path, and
+  `requireWritableIssue` in `workload-plan`. Those are cleanup, not a live-data problem.
   Exit plan: `docs/ops/LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md`.
 - F201/F40 candidate source partitions deadline/label metadata by the exact `prod_authority` team value:
   Linear-authoritative IDs use the isolated `workload-linear` reader, while SyncView-authoritative

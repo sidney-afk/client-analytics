@@ -17,6 +17,7 @@ const assert = require('assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const ROOT = path.resolve(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -49,7 +50,7 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
   assert.ok(/renameTitle\(existing\.title, nameValue\)/.test(branch), 'title composed by the shared rule from the stored title'); n++;
   assert.ok(/fingerprintPatch = \{ name: titleCleanName\(nameValue\) \}/.test(branch), 'retry fingerprint is the name, not the composed title'); n++;
   assert.ok(/entity !== "deliverable"/.test(branch), 'batches are not renamed here'); n++;
-  const branchCode = branch.slice(0, branch.indexOf('} else {')).replace(/\/\*[\s\S]*?\*\//g, '');
+  const branchCode = stripBlockComments(branch.slice(0, branch.indexOf('} else {')), '');
   assert.ok(!/calendar_posts|sample_reviews|\.from\(/.test(branchCode), 'the gateway never writes the card itself'); n++;
   assert.ok(/from "\.\.\/_shared\/title-name-rule\.mjs"/.test(src), 'imports the shared rule'); n++;
 

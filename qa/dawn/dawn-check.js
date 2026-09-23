@@ -34,6 +34,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const H = require('../probes/ot4_lib.js');
+const { seedStaffGate } = require('../staff-gate-seed.js');
 const { launch, open, smmCal, clientCal, upCal, archiveCalSafe, appErrs, SUPA, KEY, ORIGIN } = H;
 
 const TEST_SLUG = 'sidneylaruel';
@@ -234,6 +235,9 @@ async function readOnlyPage(browser, route) {
   const page = await open(browser, '/qa/dawn/blank.html')   // an empty page: the context is set up before the timed navigation;
   await page.route(u => LINEAR_READS.test(u.toString()), r => r.continue());
   await guard(page);
+  // Workload is role-gated: seed the harness staff identity (key-verify answered
+  // locally, the same stub every staff suite uses).
+  await seedStaffGate(page);
   page._t0 = Date.now();   // the clock starts at navigation, not at context setup
   await page.goto(ORIGIN + route, { waitUntil: 'domcontentloaded', timeout: 45000 });
   return page;

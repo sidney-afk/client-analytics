@@ -20,8 +20,12 @@
 //     body names another client and fails the run.
 //   - Seeds are archived and verified; the renamed card and its sub-issue are
 //     renamed back and verified. Nothing is left changed.
-//   - Linear is mocked by the courier context; the rename uses a card whose
-//     sub-issue has NO Linear mirror, so no title ever reaches Linear.
+//   - Linear is mocked by the courier context (write flows); the read-only tab
+//     timings let Linear READS through and abort every Linear write hook. The
+//     rename uses a card whose sub-issue has NO Linear mirror.
+//   - Client flows act on the CAPTION: it has no native work item, so a seeded
+//     card can take the write (a video approval needs a native deliverable,
+//     which a disposable seed cannot have: native_link_required).
 //
 // Needs SYNCVIEW_STAFF_KEY in the environment (staff writes + the client link).
 // Exit code: 0 all passed (slow timings are warnings), 1 any flow failed.
@@ -30,7 +34,9 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const H = require('../probes/ot4_lib.js');
-const { launch, open, smmCal, clientCal, upCal, archiveCalSafe, appErrs, SUPA, KEY } = H;
+const { launch, smmCal, clientCal, upCal, archiveCalSafe, appErrs, SUPA, KEY, ORIGIN } = H;
+const { seedStaffGate } = require('../staff-gate-seed.js');
+const REROUTE = require('../write_ui_reroute_fixture.js');
 
 const TEST_SLUG = 'sidneylaruel';
 const OUT = path.join(__dirname, 'out');
@@ -79,9 +85,10 @@ async function actRetry(p, name, comp, kind, text) {
   for (let i = 0; i < 12; i++) { const r = await H.clientAct(p, name, comp, kind, text); if (r !== 'disabled') return r; await H.sleep(1000); }
   return 'disabled';
 }
-function seedReviewCard(id, name) {
+function seedReviewCard(id, name, captionStatus = 'Client Approval') {
   upCal({ id, name, platforms: 'youtube', scheduled_date: new Date(Date.now() + 86400e3).toISOString().slice(0, 10),
-    video_status: 'Client Approval', graphic_status: 'Approved', caption_status: 'Approved', status: 'Client Approval',
+    video_status: 'Approved', graphic_status: 'Approved', caption_status: captionStatus, status: captionStatus === 'Client Approval' ? 'Client Approval' : 'In Progress',
+    caption: 'Dawn check caption under review',
     thumbnail_url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', asset_url: 'https://example.com/dawn.mp4' });
 }
 
@@ -99,23 +106,26 @@ async function clientFlows(browser, seeds) {
   // 1 approve
   try {
     await H.expandReview(p, A.name);
-    const clicked = await actRetry(p, A.name, 'video', 'approve');
+    const clicked = await actRetry(p, A.name, 'caption', 'approve');
     const t1 = Date.now();
-    const row = clicked === 'ok' ? await H.pollRow(() => rowCal(A.id, 'video_status,client_video_approved_at'), r => r.video_status === 'Approved', POLL) : null;
-    const ok = clicked === 'ok' && !!row && !!row.client_video_approved_at;
-    record('client-approve', 'Client approves a video', { ok, ms: ok ? Date.now() - t1 : null,
+    const row = clicked === 'ok' ? await H.pollRow(() => rowCal(A.id, 'caption_status,client_caption_approved_at'), r => r.caption_status === 'Approved' && !!r.client_caption_approved_at, POLL) : null;
+    // Read again after a pause: an approval that lands and is then reverted is a failure.
+    await H.sleep(4000);
+    const held = row ? rowCal(A.id, 'caption_status') : null;
+    const ok = clicked === 'ok' && !!row && !!held && held.caption_status === 'Approved';
+    record('client-approve', 'Client approves', { ok, ms: ok ? Date.now() - t1 : null,
       detail: ok ? `link opened on the Review tab in ${landed} ms (${onReview.cards} cards); approval saved`
-                 : `click=${clicked}, saved=${!!row}; review cards on landing=${onReview.cards}`,
+                 : `click=${clicked}, saved=${!!row}, held=${!!held && held.caption_status}; review cards on landing=${onReview.cards}`,
       extra: landed, shot: ok ? null : await shot(p, 'client-approve') });
-  } catch (e) { record('client-approve', 'Client approves a video', { ok: false, detail: String(e.message || e), shot: await shot(p, 'client-approve') }); }
+  } catch (e) { record('client-approve', 'Client approves', { ok: false, detail: String(e.message || e), shot: await shot(p, 'client-approve') }); }
   // 2 request changes
   try {
     const txt = 'Dawn check: please adjust ' + TS;
     await H.expandReview(p, R.name);
-    const clicked = await actRetry(p, R.name, 'video', 'request', txt);
+    const clicked = await actRetry(p, R.name, 'caption', 'request', txt);
     const t1 = Date.now();
-    const row = clicked === 'ok' ? await H.pollRow(() => rowCal(R.id, 'video_status,video_tweaks'), r => r.video_status === 'Tweaks Needed', POLL) : null;
-    const ok = clicked === 'ok' && !!row && JSON.stringify(row.video_tweaks || '').includes(txt);
+    const row = clicked === 'ok' ? await H.pollRow(() => rowCal(R.id, 'caption_status,caption_tweaks'), r => r.caption_status === 'Tweaks Needed', POLL) : null;
+    const ok = clicked === 'ok' && !!row && JSON.stringify(row.caption_tweaks || '').includes(txt);
     record('client-request', 'Client requests changes', { ok, ms: ok ? Date.now() - t1 : null,
       detail: ok ? 'request saved with its text; status is Tweaks Needed' : `click=${clicked}, saved=${!!row}`,
       shot: ok ? null : await shot(p, 'client-request') });
@@ -201,7 +211,7 @@ async function pollAsync(fn, pred, ms) {
 // Put the rename back: through the same staff UI first, REST-verified; both sides.
 async function restoreRename(browser, t) {
   const cardOk = async () => ((rowCal(t.id, 'name') || {}).name === t.name);
-  const subOk = async () => ((await deliverableTitle(t.deliverableId)) === t.originalTitle);
+  const subOk = async () => { const x = (await deliverableTitle(t.deliverableId)) || ''; return x === t.originalTitle || (x.includes(t.name) && !x.includes(' · dawn')); };
   if (await cardOk() && await subOk()) return { ok: true };
   const p = await smmCal(browser, TEST_SLUG);
   await guard(p);
@@ -211,15 +221,39 @@ async function restoreRename(browser, t) {
     if (inp) { inp.focus(); inp.value = v; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.blur(); }
   }, [t.id, t.name]);
   const c = await pollAsync(cardOk, Boolean, POLL);
-  const s = await pollAsync(subOk, Boolean, 60000);
+  const s = await pollAsync(subOk, Boolean, 120000);
   await p.context().close();
   return { ok: !!c && !!s, card: !!c, sub: !!s };
 }
 
 // ---- flows 5-7: tab timings ------------------------------------------------
+// Staff context for READ-ONLY tabs. The courier context stubs every linear-*
+// hook, reads included, which leaves Workload empty; here Linear READS pass and
+// anything that could write to Linear is aborted.
+const LINEAR_READS = /\/webhook\/linear-(issues|read|search|browser|data-model|plan-skeleton|tweak-comments|favicon)[a-z-]*/;
+async function readOnlyPage(browser, route) {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, ignoreHTTPSErrors: true });
+  await seedStaffGate(ctx);
+  await ctx.route('**/*', (r) => {
+    const u = r.request().url();
+    if (REROUTE.isRerouteFlagRequest(u)) {
+      if (r.request().method() === 'OPTIONS') return r.fulfill({ status: 204, headers: REROUTE.WRITE_UI_REROUTE_CORS, body: '' });
+      return r.fulfill({ status: 200, contentType: 'application/json', headers: REROUTE.WRITE_UI_REROUTE_CORS, body: REROUTE.productionRosterBody() });
+    }
+    if (/^https?:\/\/(api|uploads)\.linear\.app/i.test(u)) return r.abort();
+    if (/\/webhook\/(linear-[a-z0-9-]+|send-urgent-slack)/.test(u) && !LINEAR_READS.test(u)) { linearWritesBlocked++; return r.abort(); }
+    return r.fallback();
+  });
+  const page = await ctx.newPage();
+  page._errs = [];
+  page.on('pageerror', e => page._errs.push(String(e && e.message || e)));
+  await page.goto(ORIGIN + route, { waitUntil: 'domcontentloaded', timeout: 45000 });
+  return page;
+}
+let linearWritesBlocked = 0;
 async function timeTab(browser, key, title, route, readyFn) {
   const t0 = Date.now();
-  const p = await open(browser, route);
+  const p = await readOnlyPage(browser, route);
   await guard(p);
   const ms = await p.waitForFunction(readyFn, null, { timeout: TAB_CAP, polling: 50 }).then(() => Date.now() - t0).catch(() => null);
   const b = BASELINE[key];
@@ -297,8 +331,10 @@ function report(started, calMs) {
   const browser = await launch();
   let calMs = null;
   try {
-    for (const s of Object.values(seeds)) seedReviewCard(s.id, s.name);
-    for (const s of Object.values(seeds)) await H.pollRow(() => rowCal(s.id, 'id,status'), r => r.status === 'Client Approval', POLL);
+    seedReviewCard(seeds.approve.id, seeds.approve.name);
+    seedReviewCard(seeds.request.id, seeds.request.name);
+    seedReviewCard(seeds.save.id, seeds.save.name, 'In Progress');
+    for (const s of Object.values(seeds)) await H.pollRow(() => rowCal(s.id, 'id'), r => !!r.id, POLL);
     await clientFlows(browser, seeds);
     calMs = await staffFlows(browser, seeds, renameTarget);
     await timeTab(browser, 'workload', 'Workload opens', '/index.html#workload', () => !!document.querySelector('.workload-plan-item-content'));

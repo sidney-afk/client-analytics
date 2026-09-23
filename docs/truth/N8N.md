@@ -2,7 +2,18 @@
 
 **Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
 
-> Last verified: 2026-08-24 @ c7f088a (F44 live Client Example durable-receipt/triage probe) +
+> Last verified: 2026-09-23 @ 344006c5 — a live READ-ONLY re-verification through the n8n API: a
+> full workflow census (count, active/inactive split), the active/inactive state and stored version
+> of every workflow id this document names, and the live identity of the Kasper Ad Performance pull.
+> **No workflow was edited, activated, deactivated, published or archived.** Four claims had
+> drifted and are corrected in place, each marked `Corrected 2026-09-23`. What this pass did NOT
+> re-verify, and which therefore still rests on its older dated evidence: every per-workflow node
+> topology and behavioural claim below (F44's receipt contract, the Kasper pull's node graph and
+> credentials, the backup workflow's error handling, the provisioning/sales gate logic), the
+> F09/F13/F115/F116/F126/F128–F132 findings, and the standing hazards — those need graph reads and
+> execution reads this pass deliberately did not perform.
+>
+> Earlier stamp, retained for provenance: 2026-08-24 @ c7f088a (F44 live Client Example durable-receipt/triage probe) +
 > scoped 2026-09-10 Kasper-approval urgent ping `1WjZZjfQjDlg1Crf` — created 2026-09-09, DM copy
 > corrected and published 2026-09-10 (see below) +
 > scoped 2026-08-03 qll V2-cadence publish/readback +
@@ -27,8 +38,18 @@
 
 ## Inventory
 
-The app-facing webhook surface (55 endpoints) is enumerated and machine-enforced in
-`docs/truth/ENDPOINTS.md`. A 2026-08-20 live census found **99 workflows, 83 active** (16 inactive),
+The app-facing webhook surface is enumerated and machine-enforced in `docs/truth/ENDPOINTS.md`.
+**Corrected 2026-09-23: that surface is 53 endpoints, not 55** — it dropped to 53 when
+`linear-issue-statuses` was retired from the app (PR #1497); `ENDPOINTS.md` owns the number and
+`test/truth-sync.js` enforces it against `index.html`, so read it there rather than from this line.
+
+**Corrected 2026-09-23 — the workflow census has moved a long way.** A live read-only census today
+returns **138 workflows, 96 active, 42 inactive**, superseding the 2026-08-20 count of 99/83. That
+is +39 workflows and +13 active in about a month, and the inactive half has more than doubled,
+which is the cutover's shape: retired Linear lanes stay as unpublished graphs rather than being
+deleted, and the inactive list is now dominated by one-off/backfill workflows. The per-workflow
+delta was not enumerated, so this corrects the count only — do not read a delta into it. The older
+2026-08-20 finding follows for provenance: it found 99/83 (16 inactive),
 superseding the 2026-07-14 count of 92/77; seven were added since, none deleted — the three
 Booking Recovery workflows, the Roam Creative Group Finalizer, two TikTok direct-upload
 workflows, and Onboarding — Append Client Row (inactive). A new
@@ -145,10 +166,13 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   **Verified by read-only API check on 2026-09-20: `active: false`, `activeVersionId: null`.** With
   both halves off, Samples reconciliation now runs only when a human dispatches it by hand, and such
   a dispatch still writes unless `dry_run` is left on.
-  Workload reconcile `lGwC9WWPVJtxphtf` remains ACTIVE by owner decision until the
-  workload-source-freshness watcher is confirmed — see STEP 6's warning that a stopped reconcile
-  freezes `workload_issues` rather than emptying it, which is indistinguishable from health in the
-  browser.
+  **Corrected 2026-09-23: Workload reconcile `lGwC9WWPVJtxphtf` is NOT still ACTIVE.** This
+  sentence contradicts the bullet further up that records its 2026-09-21 deactivation, and the
+  live read settles it — `active: false`. STEP 6's warning has therefore already come true, and
+  measurably: the newest `workload_issues.synced_at` is `2026-09-21 14:50:16Z` and has not moved,
+  so the mirror is frozen at 3,836 rows (2,097 active) rather than empty, which is exactly the
+  state the browser cannot distinguish from health. Whether the workload-source-freshness watcher
+  was confirmed before the deactivation was not established this pass.
 - `linear-set-status` is the only n8n dueDate writer (+2d when overdue, on every call). The
   nightly due-date roller is NOT in n8n (see `docs/truth/LINEAR.md`).
 - VIDEO PRODUCTION AUTOMATION ground truth: "Pick Freest Editor" = fewest open sub-issues
@@ -226,6 +250,16 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   limit. This closes the CLIENTS METRICS half of F124. TOP VIDEOS remains degraded: four retained
   green runs sent only 8–11 of 15 configured YouTube lanes through processed stats, while 4–7
   collapsed into the same no-source path used for missing/empty input.
+> **Corrected 2026-09-23 — every Kasper Ad Performance workflow id in the three bullets below is
+> stale.** The live, active `Kasper Ad Performance — Daily Pull` is **`2Ax4c78jgI7roXzv`**, created
+> and published 2026-09-02, 15 nodes (the v3 bullet describes 11), active version
+> `74798eb9-6b7f-449a-a526-64c7fdfd274b`, still on a schedule trigger. None of
+> `6OtjILbhkYLY6yVE`, `CdCYzye6Khp6x5A6`, `BKl9OFVMb4VS2IHf` or `19ZqxaOt09KPLGx1` appear in the
+> live workflow list at all. `UYUTvvj7YGJOeZuz` and the backfill `NeTWOfflUndxTe1C` still exist but
+> are **inactive**. What the 2026-09-02 rebuild changed was not read this pass and nothing is
+> claimed about it — only that the ids below name a superseded generation. Read the three bullets
+> as the dated build/debug history they are, not as current topology.
+
 - **Kasper Ad Performance pull — live (2026-08-24).** `Kasper Ad Performance — Daily Pull`
   (workflow id `UYUTvvj7YGJOeZuz`, published, cron `0 9,21 * * *`) pulls Meta Ads Insights
   (spend/impressions/clicks/landing-page-views, daily breakdown, for campaign
@@ -382,6 +416,12 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
   Authenticate/scope each fallback or retire it before enforcement; rollback must preserve the same
   principal/client boundary.
 - Four active Linear mutation routes are also caller-unauthenticated (F91): status, comment, video
-  intake, and graphics intake. Their `prod_authority` check constrains direction only; both teams are
-  presently Linear-authoritative. Contain them now with active immutable principal or a short-lived
-  exact-client intake capability, then complete the native reroute and retirement plan.
+  intake, and graphics intake. Their `prod_authority` check constrains direction only.
+  **Corrected 2026-09-23: "both teams are presently Linear-authoritative" is false.** Live
+  `prod_authority` reads `{"video":"syncview","graphics":"syncview"}` and has since 2026-08-28, so
+  the direction constraint now points the other way for both teams. Two of the four routes
+  (`linear-set-status`, `linear-add-comment`) also no longer have a caller in the app as of
+  2026-09-22 and are scheduled for revoke on 2026-09-27 — see `docs/truth/APP.md`. The endpoints
+  themselves still authenticate no incoming principal until revoked, so F91 stays open as an
+  exposure; it is simply no longer reachable through those two bridges from this app. Whether the
+  two intake routes still have callers was not established this pass.

@@ -160,7 +160,7 @@
             if (_sxrReorderPending) { const next = _sxrReorderPending; _sxrReorderPending = null; _sxrPersistReorder(next.items, next.prevOrder, next.slug); }
         }
     }
-    // _sxrPushStatusToLinear / _sxrSyncStatusFromLinear — real versions in Surface 7, hoisted.
+    // _sxrPushStatusToLinear — real version in Surface 7, hoisted. (_sxrSyncStatusFromLinear removed in B2.)
 
     function _sxrClientFieldEditBlocked() { return _isClientLink; }   // client never edits fields (no collab)
     function _sxrOnFieldInput(el) {

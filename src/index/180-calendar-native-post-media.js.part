@@ -1723,10 +1723,6 @@
         if (e.key !== 'Escape') return;
         const overlay = document.getElementById('calPromptOverlay');
         if (overlay && overlay.classList.contains('open')) { _calCloseCaptionPromptModal(); return; }
-        // The bulk Linear-link dialog is the one modal reachable from multi-select;
-        // Escape closes it (leaving select mode intact, so a second Escape exits).
-        const linkOvl = document.getElementById('calBulkLinkOverlay');
-        if (linkOvl && linkOvl.classList.contains('open')) { closeCalBulkLinkOverlay(); return; }
         // Otherwise Escape leaves multi-select entirely — same as the "Done"
         // button: clears the selection and restores the normal calendar. Guard on
         // cal-modal-open so we never tear down select mode behind an open modal.

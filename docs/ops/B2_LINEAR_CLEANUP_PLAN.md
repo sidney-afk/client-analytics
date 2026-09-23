@@ -277,6 +277,19 @@ Owner decisions recorded with this go-ahead:
 - **Tests:** `test/native-urgent-ui.js`, `test/kasper-urgent-ping.js` and `test/linear-dead-rehearsal.js` updated to the new contract (the dead-Linear harness keeps intercepting `send-urgent-slack` as a safety net for stale cached pages); `docs/independence/SYSTEM_MAP.md` inventory updated (n8n webhooks 51 → 50).
 - **Rollback:** revert the PR. Nothing server-side changed.
 - **Next (owner, n8n):** deactivate workflow `TJVMyfwl85qrFGeK` (Urgent Tweak → Slack) only AFTER this PR has merged and Pages has deployed it. Deactivating first would not break anything that works today (it can only fail since the revoke), but the order keeps the rollback clean.
+- **Done 2026-09-23 ~19:32Z (after PR #1522 merged):** workflow `TJVMyfwl85qrFGeK` deactivated (unpublished) in n8n; it had 0 runs in retained history. Rollback: re-activate it in n8n.
+
+### Plan Slice 3, part: browser stops calling `linear-subissues`. DONE in the repo PR that carries this entry (branch `claude/b2-import-from-linear`)
+
+- **What changed (browser only, `src/index/` then `npm run build:index`):**
+  - Removed the kebab items **Import from Linear** and **Bulk Linear sync**, their two dialogs, the multi-select "Match to Linear" bar, and every helper behind them (fragments 130, 150, 160, 180).
+  - Removed the link-time status adoption `_calSyncStatusFromLinear` (150) and its two callers (160 link commit, 170 link move), and `_sxrSyncStatusFromLinear` (290). Its two Samples callers in 270 already check `typeof` first, so they are now no-ops and 270 is untouched.
+  - Removed `LINEAR_SUBISSUES_URL` (100). `index.html` no longer contains `webhook/linear-subissues`.
+- **What users saw before:** Import / Bulk sync asked the dead webhook and showed its error inline ("Linear lookup failed" or "Could not reach Linear"). Link-time sync failed silently in a `catch`. **After:** the two menu items are gone (Import from Excel and Create Post stay). Pasting or moving a link saves exactly as before; the card keeps its SyncView status. No fake success, nothing silent left: nothing is attempted.
+- **Not changed:** existing linked cards still display their links and persisted banners; no sub-issue creation path was added; no n8n, Edge Function or database change.
+- **Proof:** new retirement guards in `test/import-from-linear-sealed.js` and `test/calendar-kebab-import-menu.js`; `test/linear-import-optional-graphics.js` deleted (its subject is gone) and unregistered; tests that expected the sync call now assert it never happens. `docs/independence/SYSTEM_MAP.md` and `docs/truth/ENDPOINTS.md` updated. `prod-write-gateway-browser.js` passes. `npm test`: 574 of 575 suites pass; the one failure, `truth-sync`, is only the pre-existing "freshness commit is an ancestor" check that also fails on `origin/main`.
+- **Rollback:** revert the PR.
+- **Next (owner, n8n):** deactivate workflow `Nk3pwR6Fbl4VAPqH` ("Calendar — Linear Sub-Issues") **only after this merges** and GitHub Pages has deployed it.
 
 ### Brief images on Linear's servers (measured 2026-09-23, read-only)
 

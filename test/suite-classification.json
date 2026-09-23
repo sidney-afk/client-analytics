@@ -283,7 +283,6 @@
     "linear-exit-storage-export-adapter.js",
     "linear-exit-write-diagnostics-handlers.js",
     "linear-ident-uuid-guard.js",
-    "linear-import-optional-graphics.js",
     "linear-inbound-assignee-clear.js",
     "linear-inbound-attribution-guard.js",
     "linear-inbound-comment-echo-label.js",

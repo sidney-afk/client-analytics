@@ -1165,6 +1165,9 @@
         _calNoLinearPush.delete(pid + '|graphic');
 
         let gatewayAttempted = false;
+        // Components whose own gateway write was refused while a sibling
+        // committed (see the allSettled below and the catch).
+        let refusedStatusComponents = [];
         // A review tweak commits its native comment before entering this save
         // funnel. Treat that acknowledgement as a committed gateway mutation
         // so a later status/source failure becomes a durable source repair,
@@ -1262,6 +1265,7 @@
                 _calClearStaleApprovals(post, edits);
             }
             if (statusResults.some(r => r.status === 'fulfilled' && r.value)) checkpointCommittedSource();
+            refusedStatusComponents = ['video', 'graphic'].filter((c, i) => statusResults[i].status === 'rejected');
             const refused = statusResults.find(r => r.status === 'rejected');
             if (refused) throw refused.reason;
             // A replay may have adopted a newer native component state above.
@@ -1494,6 +1498,11 @@
         } catch (e) {
             console.warn('[Calendar] save failed', e);
             if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('calendar', 'status', e);
+            /* One component committed and its sibling was REFUSED. The refusal
+               is a real failure for that component: tell the person, and (below)
+               put that component back on screen, while the committed one stays
+               and goes on syncing. */
+            else if (gatewayCommitted && refusedStatusComponents.length) _writeUiReportFailure('calendar', 'status', e);
             /* COMMITTED, THEN A LATER STEP FAILED. The gateway already saved the
                status, so "Save failed" was false and made people redo a change
                that had landed. It is now "Saved, syncing", the remaining step is
@@ -1531,6 +1540,19 @@
                     _CAL_ROLLBACK_FIELDS.forEach(k => {
                         if (k in edits) cur[k] = prevSnapshot[k];
                     });
+                } else if (refusedStatusComponents.length) {
+                    // Roll back ONLY the refused component(s), drop them from
+                    // what the retry re-sends, and re-derive the overall status
+                    // from what is actually true now.
+                    refusedStatusComponents.forEach(c => {
+                        [c + '_status', 'client_' + c + '_approved_at'].forEach(k => {
+                            if (k in edits) { cur[k] = prevSnapshot[k]; delete edits[k]; }
+                        });
+                    });
+                    // Through the shared helper (one definition of "overall"),
+                    // told a component moved so it always recomputes.
+                    _writeUiApplyOverallStatus('calendar', cur, { [refusedStatusComponents[0] + '_status']: cur[refusedStatusComponents[0] + '_status'] }, false, false);
+                    if ('status' in edits) edits.status = cur.status;
                 }
                 // updated_at must also revert so the next background
                 // merge doesn't see a phantom "we wrote newer" stamp.
@@ -1609,7 +1631,9 @@
        mirrors a committed status onto the card row server-side, which is what
        moves updated_at -- so "newer" proves the status landed, not a caption
        or date riding in the same save. Those still re-send the card row. */
-    const CAL_HEALABLE_KEY = /^(status|(video|graphic|caption|title)_status|client_(video|graphic|caption)_approved_at|kasper_approved_at)$/;
+    // Only what the gateway mirrors: the video and graphic statuses. A caption
+    // or overall status in the same save still needs the card row.
+    const CAL_HEALABLE_KEY = /^(video|graphic)_status$/;
     function _calHealLandedRepair(post) {
         if (!post || !post._writeUiRetrySourceAt || _calSaveInFlight[post.id]) return false;
         if (!Object.keys(post._writeUiRetryEdits || {}).every(k => CAL_HEALABLE_KEY.test(k))) return false;

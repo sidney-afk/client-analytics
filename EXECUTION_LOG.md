@@ -8099,7 +8099,68 @@ feature (a production-write title operation plus a Linear outbound push),
 so nothing was changed for it. Full writeup: `docs/ops/LINEAR_EXIT_JOURNAL.md`,
 2026-09-22.
 
-## 2026-09-23 — WR-101 refusal receipts released (PR #1499)
+## 2026-09-19 — F27 Section 4 deploy, run `35424627891`: production-write 78 → 79 (recorded retroactively 2026-09-23)
+
+Dispatched from `0b2f16ae6863482caf410b5137d5f77af65d2ad4`. This deploy was never
+written into this log when it ran; it is recorded here from the run's own job
+summary, which the owner copied from the Actions page on 2026-09-23 (ledger 241).
+The prior sealed bundle it was dispatched against:
+rollback_bundle_sha256 = `83e03566aaa5cc73683b1a0575e08885aa240f39e6acf742e8ddd71d892e6fac`,
+rollback_bundle_byte_length = `662320`. Prior live `production-write` was v78
+(closure `9dd41919d1690b6035146fad49504aa8d08fbc990efa62ac55ddd66abf5994aa`).
+
+| function | active version | source closure SHA-256 | JWT |
+|---|---|---|---|
+| `batch-write` | 39 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | verify_jwt=false |
+| `deliverable-write` | 39 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | verify_jwt=false |
+| `linear-outbound` | 52 | `f59b6206e3ccabb7b2fe1972d8abddac5d2622f5948f759b66381dc71ec1cf9d` | verify_jwt=false |
+| `production-write` | 79 | `9630884e62bb80934444800995a39f40cc70f37b3bff42bd2a09551d159ef1e4` | verify_jwt=false |
+
+```json
+{
+  "schema": "syncview_f27_section4_deployed_versions_v1",
+  "deploy_commit": "0b2f16ae6863482caf410b5137d5f77af65d2ad4",
+  "github_run_id": "35424627891",
+  "functions": [
+    {
+      "slug": "batch-write",
+      "active_version": "39",
+      "source_closure_sha256": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a",
+      "entrypoint_sha256": "15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5",
+      "provider_bundle_sha256": "ccc36ce94f39efbb8db84a554eeaef6b5ce013547be5d2349ee8adbdddc2fda5",
+      "verify_jwt": false
+    },
+    {
+      "slug": "deliverable-write",
+      "active_version": "39",
+      "source_closure_sha256": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575",
+      "entrypoint_sha256": "74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68",
+      "provider_bundle_sha256": "3868706acd8e86632c960a6d08cc8ed94e3e8787237a530b135c6e5a05a1f3dd",
+      "verify_jwt": false
+    },
+    {
+      "slug": "linear-outbound",
+      "active_version": "52",
+      "source_closure_sha256": "f59b6206e3ccabb7b2fe1972d8abddac5d2622f5948f759b66381dc71ec1cf9d",
+      "entrypoint_sha256": "606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684",
+      "provider_bundle_sha256": "3ffd5097baa1d9e75e86cd649e71385ec7503ef429a278b575f0838fdc4e6ba9",
+      "verify_jwt": false
+    },
+    {
+      "slug": "production-write",
+      "active_version": "79",
+      "source_closure_sha256": "9630884e62bb80934444800995a39f40cc70f37b3bff42bd2a09551d159ef1e4",
+      "entrypoint_sha256": "7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5",
+      "provider_bundle_sha256": "8e86d5eb34553ac61eb0cf8b4cedf09243373015173cdae0c5e94ebf10c1543a",
+      "verify_jwt": false
+    }
+  ]
+}
+```
+
+## 2026-09-23 — F27 Section 4 deploy, run `35800967363`: production-write 79 → 82 (WR-101 refusal receipts, PR #1499)
+
+Dispatched from `344006c511dcd03d668ee8bafec11e6f7c9218d6`.
 
 Released in four steps, in order.
 
@@ -8126,10 +8187,55 @@ Released in four steps, in order.
 
 | function | active version | source closure SHA-256 | JWT |
 |---|---|---|---|
-| batch-write | 41 | 86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a | verify_jwt=false |
-| deliverable-write | 41 | 78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575 | verify_jwt=false |
-| linear-outbound | 54 | f59b6206e3ccabb7b2fe1972d8abddac5d2622f5948f759b66381dc71ec1cf9d | verify_jwt=false |
-| production-write | 82 | af8bf801b45830f95951d00636ce1103fb1b043652337b2c1bae68a37fd17422 | verify_jwt=false |
+| `batch-write` | 41 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | verify_jwt=false |
+| `deliverable-write` | 41 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | verify_jwt=false |
+| `linear-outbound` | 54 | `f59b6206e3ccabb7b2fe1972d8abddac5d2622f5948f759b66381dc71ec1cf9d` | verify_jwt=false |
+| `production-write` | 82 | `af8bf801b45830f95951d00636ce1103fb1b043652337b2c1bae68a37fd17422` | verify_jwt=false |
+
+rollback_bundle_sha256 = `3e58e8e0e0f222f4efdd8ea3af10b974e0a76b9f0b660952da7e55f3ae8a5cb2`,
+rollback_bundle_byte_length = `662946`.
+
+```json
+{
+  "schema": "syncview_f27_section4_deployed_versions_v1",
+  "deploy_commit": "344006c511dcd03d668ee8bafec11e6f7c9218d6",
+  "github_run_id": "35800967363",
+  "functions": [
+    {
+      "slug": "batch-write",
+      "active_version": "41",
+      "source_closure_sha256": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a",
+      "entrypoint_sha256": "15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5",
+      "provider_bundle_sha256": "ccc36ce94f39efbb8db84a554eeaef6b5ce013547be5d2349ee8adbdddc2fda5",
+      "verify_jwt": false
+    },
+    {
+      "slug": "deliverable-write",
+      "active_version": "41",
+      "source_closure_sha256": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575",
+      "entrypoint_sha256": "74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68",
+      "provider_bundle_sha256": "3868706acd8e86632c960a6d08cc8ed94e3e8787237a530b135c6e5a05a1f3dd",
+      "verify_jwt": false
+    },
+    {
+      "slug": "linear-outbound",
+      "active_version": "54",
+      "source_closure_sha256": "f59b6206e3ccabb7b2fe1972d8abddac5d2622f5948f759b66381dc71ec1cf9d",
+      "entrypoint_sha256": "606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684",
+      "provider_bundle_sha256": "3ffd5097baa1d9e75e86cd649e71385ec7503ef429a278b575f0838fdc4e6ba9",
+      "verify_jwt": false
+    },
+    {
+      "slug": "production-write",
+      "active_version": "82",
+      "source_closure_sha256": "af8bf801b45830f95951d00636ce1103fb1b043652337b2c1bae68a37fd17422",
+      "entrypoint_sha256": "7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5",
+      "provider_bundle_sha256": "e14418caf7ea2f425d209193e7848d7e907f2f3f6c29b62ef1608c1d6244b907",
+      "verify_jwt": false
+    }
+  ]
+}
+```
 
 **Live acceptance, one probe.** An unauthenticated `production-write` POST with no
 request id was refused exactly as before (`400 valid_request_id_required`, body

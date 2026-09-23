@@ -28686,3 +28686,17 @@ as written because this ledger is append-only; treat 225 as FIXED as of
 2026-09-23. Item 101 stays open for the two paths not yet proven live: a
 browser-claim receipt from a real page, and the runner-key `health` / `lookup`
 actions. Kill switches for both halves are in `ROLLBACK.md`.
+
+**Found while recording this release: four Section 4 deploys were never
+logged.** Runs `34398255854` (2026-09-09), `34899436549` (2026-09-14),
+`34998109566` (2026-09-15) and `35424627891` (2026-09-19) have no entry in
+`EXECUTION_LOG.md`. So `ROLLBACK.md`'s live row still described 2026-09-07
+(`production-write` v69) while v79 was serving, and
+`scripts/rollback-row-freshness-check.js` stayed green throughout, because it
+compares the row with the newest receipt it can read and there was none newer.
+The guard proves that the row matches the log. It cannot prove that the log
+matches reality. 2026-09-19 is now recorded from its job summary, and the row is
+current (v82). The other three stay unrecorded: their versions exist only on
+their Actions summary pages. The standing rule, already in the lane's own
+output ("record these in EXECUTION_LOG.md"), is that a Section 4 deploy is not
+finished until its receipt is in the log and the row is updated, in the same PR.

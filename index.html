@@ -9576,6 +9576,10 @@
     let _fetchExtrasPromise = null;
     let _fetchExtrasAttempt = 0;
     let _fetchExtrasState = { status: 'idle', run: null };
+    /* Client links track the essentials read per entry run too: the Calendar
+       tab no longer waits on it (the verified client comes from the server,
+       not the sheet), so Analytics/Brief must know whether it has landed. */
+    let _clientEssentialsLoad = { promise: null, status: 'idle', run: null };
 
     /* ── Analytics snapshot cache (stale-while-revalidate) ────────────────
        The six analytics CSVs change once a day (the morning scrape), yet
@@ -9616,25 +9620,46 @@
           failed size, instead of serializing megabytes into a guaranteed
           exception on every load. */
     const ANALYTICS_CACHE_FAIL_KEY = 'syncview_analyticsCacheQuotaFail_v1';
+    /* Typed arrays, not a string grown one character at a time. The older
+       loops were the same encoding, but on the 2.5 MB Metrics sheet one cache
+       write (read + unpack + pack) held the main thread for ~2.1 s, measured
+       2026-09-23 -- and on a SyncLinear load that task landed between two
+       pages of the deliverable read, so the third page could not even start
+       until it finished. Output is byte-for-byte the old format, so snapshots
+       already in a browser still read. */
     function _lsPackUtf8(text){
-        const bytes = unescape(encodeURIComponent(String(text)));
+        const CHUNK = 8192;   // under the argument limit of fromCharCode.apply
+        const str = String(text);
+        // encodeURIComponent threw on a lone surrogate; TextEncoder would
+        // quietly write U+FFFD instead. Keep the throw, so the caller's catch
+        // still drops the write rather than caching altered text.
+        if (typeof str.isWellFormed === 'function' && !str.isWellFormed()) throw new URIError('URI malformed');
+        const bytes = new TextEncoder().encode(str);
+        const n = bytes.length;
+        const units = new Uint16Array((n + 1) >> 1);
+        for (let i = 0, j = 0; i < n; i += 2, j++) {
+            units[j] = (bytes[i] << 8) | (i + 1 < n ? bytes[i + 1] : 0);
+        }
         let out = '';
-        for (let i = 0; i < bytes.length; i += 2) {
-            out += String.fromCharCode((bytes.charCodeAt(i) << 8) | (i + 1 < bytes.length ? bytes.charCodeAt(i + 1) : 0));
+        for (let k = 0; k < units.length; k += CHUNK) {
+            out += String.fromCharCode.apply(null, units.subarray(k, k + CHUNK));
         }
         // A trailing odd byte is padded with NUL; record parity so unpack
         // knows whether to drop it.
-        return (bytes.length % 2 ? 'O' : 'E') + out;
+        return (n % 2 ? 'O' : 'E') + out;
     }
     function _lsUnpackUtf8(packed){
         const parity = packed[0];
-        let bytes = '';
-        for (let i = 1; i < packed.length; i++) {
+        const bytes = new Uint8Array(Math.max(0, packed.length - 1) * 2);
+        for (let i = 1, j = 0; i < packed.length; i++, j += 2) {
             const u = packed.charCodeAt(i);
-            bytes += String.fromCharCode(u >> 8) + String.fromCharCode(u & 0xff);
+            bytes[j] = u >> 8;
+            bytes[j + 1] = u & 0xff;
         }
-        if (parity === 'O') bytes = bytes.slice(0, -1);
-        return decodeURIComponent(escape(bytes));
+        const end = parity === 'O' ? bytes.length - 1 : bytes.length;
+        // fatal: bad UTF-8 throws, as decodeURIComponent did. ignoreBOM: a
+        // leading U+FEFF is text here, and the old path kept it.
+        return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, Math.max(0, end)));
     }
     function _analyticsCacheRead(){
         try{
@@ -9799,6 +9824,23 @@
         const publicClientRows = _applyEssentialTexts(metricsText, clientsText);
         _analyticsCacheWrite({ metrics: metricsText, clients: publicClientRows });
     }
+    function _syncviewClientEssentials(clientEntryRun){
+        const cur=_clientEssentialsLoad;
+        if(cur.run===clientEntryRun&&cur.promise&&cur.status!=='error')return cur.promise;
+        const load={promise:null,status:'loading',run:clientEntryRun};
+        load.promise=fetchEssentials(clientEntryRun).then(() => {
+            load.status='ready';
+        }, err => {
+            load.status=_syncviewClientEntryRunCurrent(clientEntryRun)?'error':'idle';
+            throw err;
+        });
+        _clientEssentialsLoad=load;
+        return load.promise;
+    }
+    // Everything the client Analytics/Brief tabs need: both Sheets stages.
+    function _syncviewClientAnalyticsData(clientEntryRun){
+        return Promise.all([_syncviewClientEssentials(clientEntryRun),fetchExtras(clientEntryRun)]).then(() => undefined);
+    }
     async function fetchExtras(clientEntryRun){
         if (_fetchExtrasPromise) return _fetchExtrasPromise;
         const attempt=++_fetchExtrasAttempt;
@@ -9844,7 +9886,7 @@
         // fast boot only needs that client roster to restore its active client,
         // staff toolbar, and deferred deep links. Unrelated analytics extras may
         // be slow or fail independently.
-        const essentials = fetchEssentials(clientEntryRun);
+        const essentials = clientEntryRun ? _syncviewClientEssentials(clientEntryRun) : fetchEssentials();
         const extras = fetchExtras(clientEntryRun);
         const complete = Promise.all([essentials, extras]).then(() => undefined);
         return { essentials, complete };
@@ -10376,7 +10418,10 @@
             _syncviewInvalidClientLinkScreen();
             return true;
         }
-        const state=_fetchExtrasState.run===run?_fetchExtrasState.status:'idle';
+        const extrasState=_fetchExtrasState.run===run?_fetchExtrasState.status:'idle';
+        const essState=_clientEssentialsLoad.run===run?_clientEssentialsLoad.status:'idle';
+        const state=(extrasState==='error'||essState==='error')?'error'
+            :(extrasState==='ready'&&essState==='ready')?'ready':'loading';
         if(state==='ready')return false;
         if(state==='error')_syncviewClientExtrasErrorScreen({client:cap.client,view:tab});
         else _syncviewClientEntryLoader({client:cap.client,view:tab},{extras:true});
@@ -10392,7 +10437,7 @@
         }
         const tab=clientViewTab[cap.client]||cap.view;
         if(!['analytics','brief'].includes(tab))return;
-        const request=fetchExtras(run);
+        const request=_syncviewClientAnalyticsData(run);
         _syncviewRenderClientExtrasGate(cap.client,tab);
         _syncviewWatchClientExtras(request,run);
     }
@@ -14339,7 +14384,8 @@
         popoverAnchor: null,                       // currently-open popover's anchor rollup element
         renderQueued: false,                       // background repaint deferred while a popover is open
         fetchedAt: null,
-        sourceSyncedAt: null,                       // newest workload_issues.synced_at represented by this snapshot
+        cachedBoardAt: null,                        // set while the board shows the localStorage copy, not a live snapshot
+        sourceSyncedAt: null,                      // newest workload_issues.synced_at represented by this snapshot
         loading: false,
         refreshing: false,
         backgroundError: null,                    // non-destructive warning; never replaces a warm calendar
@@ -16212,6 +16258,8 @@
             wlState.backgroundError = value.legacyTeams.length
                 ? 'Some teams still use the legacy Workload source.' : null;
             wlState.planLoading = false;
+            // The live snapshot has replaced any cached first paint.
+            wlState.cachedBoardAt = null;
             return value;
         } catch (error) {
             if (generation !== _wlPlanLoadGeneration || session !== _wlPlanSessionGeneration) return null;
@@ -17708,6 +17756,26 @@
         wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
         wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'refreshing' : 'loading';
         wlState.linearMetadataWithheldOnly = 0;
+        /* LAST GOOD BOARD FIRST (Loom, 2026-09-23). Measured on the live site:
+           a switch from the calendar spent 3.8-7.2 s waiting for the snapshot's
+           first byte and under 0.6 s on everything else, so no browser-side
+           tuning of the read can make it feel instant -- only not waiting can.
+           The cache holds issue rows only (never plans, which stay fail-closed
+           behind the live read), so it paints with planLoading=true: automatic
+           estimates, no private pins, editing off until the live snapshot lands.
+           OPEN_REPAIRS 230 item 3: a stale board is acceptable ONLY when it says
+           so, so wlState.cachedBoardAt drives a notice in renderWorkloadPlanStatus
+           until wlLoadSnapshot replaces it. Staff identity is required first:
+           the cache was written for a staff session and is not shown to anyone
+           the live read would refuse. */
+        const cachedIssues = cache && Array.isArray(cache.issues) && cache.issues.length
+            && _syncviewStaffIdentityForHeaders() ? cache.issues : null;
+        if (cachedIssues && !wlState.issueSnapshot.length) {
+            wlState.planLoading = true;
+            wlState.cachedBoardAt = cache.fetchedAt;
+            wlApplyData(cachedIssues, cache.fetchedAt);
+            wlState.loading = false;
+        }
         // Phase 1's exact due-date view remains a safe first paint even before
         // the plan sidecar has answered. This keeps the post-merge / pre-deploy
         // window useful without a runtime gate; saved overrides replace the
@@ -19620,6 +19688,20 @@
         const excludedShown = ((wlState.excluded && wlState.excluded.noAssigneeNoDate) || []).length
             + ((wlState.excluded && wlState.excluded.offTeamAssignee) || []).length;
         const boardShown = wlVisibleSubCount() > 0 || excludedShown > 0;
+
+        /* A board painted from the localStorage copy (initWorkloadView) is not
+           the live board, and OPEN_REPAIRS 230 item 3 allows it only if it says
+           so. Ranked first: every other notice describes a live read. */
+        if (wlState.cachedBoardAt != null) {
+            const at = new Date(wlState.cachedBoardAt);
+            const hhmm = String(at.getHours()).padStart(2, '0') + ':' + String(at.getMinutes()).padStart(2, '0');
+            const time = at.toDateString() === new Date().toDateString()
+                ? hhmm : at.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + hhmm;
+            const updating = wlState.loading || status === 'loading' || status === 'refreshing';
+            notices.push(updating
+                ? 'Showing the board from ' + time + ' while it updates. Saved work days and editing come back in a moment.'
+                : 'Couldn’t update. Showing the board from ' + time + '. Saved work days and editing are off until it refreshes. Try Refresh.');
+        }
 
         const droppedText = wlDroppedPlanWarningText(wlState.nativePlansDropped);
         if (droppedText) notices.push(droppedText);
@@ -65964,8 +66046,18 @@
             _prodEnsureOverlays();
             _prodHideTip();
             _prodCaptureListScroll(root);
-            root.innerHTML = _prodSidebar() + '<div class="prod-main">' + _prodTopbar() + '<div class="prod-content">' + _prodBody() + '</div></div>';
+            _prodListFillSeq++;
+            _prodListDeferred = [];
+            _prodListRowBudget = (!root.querySelector('.prod-row') && !_prodState.listScrollTop && !_prodState.focusRow)
+                ? _prodFirstScreenRows() : Infinity;
+            try {
+                root.innerHTML = _prodSidebar() + '<div class="prod-main">' + _prodTopbar() + '<div class="prod-content">' + _prodBody() + '</div></div>';
+            } finally {
+                _prodListRowBudget = Infinity;
+            }
             const list = root.querySelector('.prod-listwrap');
+            if (list && _prodListDeferred.length) _prodListFill(list, _prodListDeferred);
+            _prodListDeferred = [];
             if (list && _prodState.listScrollTop) list.scrollTop = _prodState.listScrollTop;
             /* Symmetric with the capture: the pane that just painted is asked
                who it is, and the offset is only put back on the same item it
@@ -66341,6 +66433,54 @@
                 + '<button class="abtn" type="button" id="prodBulkActions" onclick="return _prodOpenBulkActions(event,' + _jsAttrArg(first) + ')" title="Bulk actions for the selected issues"><span style="font-size:13px">⌘</span> Actions</button>'
                 + '<button class="ax" type="button" id="prodBulkClear" onclick="_prodState.selected.clear(); _prodState.selAnchor=' + _jsAttrArg('') + '; _prodState.focusRow=' + _jsAttrArg('') + '; _prodState.hoverRow=' + _jsAttrArg('') + '; _prodRender();" data-prod-tip="Clear · Esc">×</button></div>';
         }
+        /* FIRST SCREEN FIRST. Measured 2026-09-23: building the list's markup
+           cost ~400 ms (6.7 MB of HTML for ~1,570 rows) before a single row
+           could be seen, on every load and every switch into the tab. The
+           first paint now builds only what fits on screen, and the rest is
+           appended in order, a chunk per task, so the finished list is the
+           same markup in the same order.
+
+           Only the first paint of the list: a render that already has rows on
+           screen, a restored scroll offset or a keyboard focus row builds
+           everything at once, exactly as before, because each of those needs
+           rows that may be below the cut. Any render bumps the sequence, so a
+           fill still running for a replaced list stops instead of appending to
+           a list that is no longer there. */
+        let _prodListRowBudget = Infinity;
+        let _prodListDeferred = [];
+        let _prodListFillSeq = 0;
+        const PROD_LIST_FILL_CHUNK = 200;
+        /* Measured 2026-09-23 at 1440x950: every .prod-row is 44 px tall (group
+           headers 30 px). There are no rows on screen to measure at the first
+           paint, which is the only time this is asked, so the measured height
+           is a constant. Twice a screenful covers group headers and a fast
+           first scroll; the floor also covers a height that reads 0. */
+        const PROD_LIST_ROW_PX = 44;
+        function _prodFirstScreenRows() {
+            const screen = Number(window.innerHeight) || 0;
+            if (screen <= 0) return 60;
+            return Math.min(150, Math.max(60, Math.ceil(screen / PROD_LIST_ROW_PX) * 2));
+        }
+        function _prodListFill(list, parts) {
+            const seq = _prodListFillSeq;
+            let at = 0;
+            const step = () => {
+                if (seq !== _prodListFillSeq || !list.isConnected) return;
+                let html = '';
+                let built = 0;
+                while (at < parts.length && built < PROD_LIST_FILL_CHUNK) {
+                    const part = parts[at++];
+                    if (typeof part === 'string') html += part;
+                    else { html += _prodRow(part); built++; }
+                }
+                list.insertAdjacentHTML('beforeend', html);
+                if (at < parts.length) setTimeout(step, 0);
+            };
+            // After the frame that shows the first screen, not before it. A
+            // hidden tab gets no frames, so it goes straight to a task.
+            if (document.hidden || typeof requestAnimationFrame !== 'function') setTimeout(step, 0);
+            else requestAnimationFrame(() => setTimeout(step, 0));
+        }
         // PORT-DELTA: renderList consumes _prodAdapter live rows and preserves host type scale/classes.
         function _prodList() {
             const rows = _prodIssueRows();
@@ -66371,6 +66511,13 @@
                     : emptyHTML;
             }
             const selected = _prodState.selected || new Set();
+            /* First paint builds a screenful; the rest is queued IN ORDER --
+               the rows past the cut and every later group header -- for
+               _prodListFill to append. Every other render has an infinite
+               budget, queues nothing, and produces the same markup as before. */
+            let budget = _prodListRowBudget;
+            const deferred = [];
+            _prodListDeferred = deferred;
             return '<div class="prod-listwrap" tabindex="0" aria-label="Issues list">' + _prodDeepLinkNoticeHTML() + _prodGroupsFor(rows).map(group => {
                 const items = group.items || [];
                 const collapsed = _prodState.collapsed.has(group.key);
@@ -66383,8 +66530,16 @@
                 const title = projectNav
                     ? '<span class="prod-group-title navp" data-prod-project="' + _calEscAttr(group.key) + '" data-prod-tip="Open project" onclick="event.stopPropagation(); _prodOpenProject(' + _jsAttrArg(group.key) + ')">' + _calEsc(group.title) + '</span>'
                     : '<span class="prod-group-title">' + _calEsc(group.title) + '</span>';
-                return '<div class="prod-group' + (collapsed ? ' collapsed' : '') + '" data-prod-group="' + _calEscAttr(group.key) + '" onclick="_prodToggleGroup(' + _jsAttrArg(group.key) + ')"><span class="prod-group-chev" data-prod-group-toggle="' + _calEscAttr(group.key) + '">' + _prodIcon('chevD') + '</span><span class="prod-group-check' + checkClass + '" data-prod-group-check="' + _calEscAttr(group.key) + '" onclick="event.stopPropagation(); return _prodGuardGroupSelection(' + _jsAttrArg(group.key) + ')" data-prod-tip="' + _calEscAttr(PROD_GROUP_SELECT_UNSUPPORTED) + '"></span><span class="prod-group-ico prod-status">' + group.icon + '</span>' + title + '<span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span></div>'
-                    + (collapsed ? '' : items.map(_prodRow).join(''));
+                const head = '<div class="prod-group' + (collapsed ? ' collapsed' : '') + '" data-prod-group="' + _calEscAttr(group.key) + '" onclick="_prodToggleGroup(' + _jsAttrArg(group.key) + ')"><span class="prod-group-chev" data-prod-group-toggle="' + _calEscAttr(group.key) + '">' + _prodIcon('chevD') + '</span><span class="prod-group-check' + checkClass + '" data-prod-group-check="' + _calEscAttr(group.key) + '" onclick="event.stopPropagation(); return _prodGuardGroupSelection(' + _jsAttrArg(group.key) + ')" data-prod-tip="' + _calEscAttr(PROD_GROUP_SELECT_UNSUPPORTED) + '"></span><span class="prod-group-ico prod-status">' + group.icon + '</span>' + title + '<span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span></div>';
+                const shown = collapsed ? [] : items;
+                if (deferred.length || (budget <= 0 && shown.length)) {
+                    deferred.push(head, ...shown);
+                    return '';
+                }
+                const now = shown.length <= budget ? shown : shown.slice(0, budget);
+                budget -= now.length;
+                if (now.length < shown.length) deferred.push(...shown.slice(now.length));
+                return head + now.map(_prodRow).join('');
             }).join('') + '</div>' + _prodSelectionBar();
         }
         // PORT-DELTA: rowHTML uses live ids/displayIds and read-only picker hooks.
@@ -67147,12 +67302,14 @@
             }
 
             if (isClientCalendarLink) {
-                _syncviewWatchClientExtras(fetchExtras(clientEntryRun),clientEntryRun);
-                await fetchEssentials(clientEntryRun);
-                if(!_clientEntryStillCurrent())return;
+                // The verified client comes from the server capability, and
+                // the calendar reads Supabase, so no Sheets read gates this
+                // paint. Both Sheets stages load in the background; the
+                // Analytics/Brief gate waits for them, and the watcher applies
+                // the roster-dependent chrome once they land.
+                _syncviewWatchClientExtras(_syncviewClientAnalyticsData(clientEntryRun),clientEntryRun);
                 await Promise.resolve();
                 if(!_clientEntryStillCurrent())return;
-                _applyAllDataDependentChrome();
                 const _calLinkClient = _syncviewClientEntryCapability && _syncviewClientEntryCapability.client;
                 if (!(await _syncviewVerifyClientLinkAccess(_calLinkClient))) return;
                 if(!_clientEntryStillCurrent())return;
@@ -67584,6 +67741,7 @@
             _fetchExtrasPromise = null;
             ++_fetchExtrasAttempt;
             _fetchExtrasState = { status: 'idle', run: null };
+            _clientEssentialsLoad = { promise: null, status: 'idle', run: null };
             _autoSummaryAttempted.clear();
         } catch (e) {}
         try {
@@ -81464,7 +81622,17 @@
         // flag synchronously (before its first await), so the loading/loaded guards
         // below dedupe it — we never double-fetch the tab that's showing. Each loader
         // calls _kasperRefreshTabCounts() when it lands.
-        if (!_kasperState.loading) _kasperLoadReview(true);           // feeds review + replies
+        const review = _kasperState.loading ? _kasperReviewInFlight : _kasperLoadReview(true);   // feeds review + replies
+        // On the review tab the other counts are background work: start them
+        // once the queue has painted so they don't contend with its calendar
+        // reads (speed map 2026-09-23 §5). Other tabs keep the eager start.
+        if (_kasperState.tab === 'review' && review) {
+            Promise.resolve(review).then(_kasperEnsureOtherTabCounts, _kasperEnsureOtherTabCounts);
+            return;
+        }
+        _kasperEnsureOtherTabCounts();
+    }
+    function _kasperEnsureOtherTabCounts() {
         if (typeof _sxrKasperLoadQueue === 'function'
             && KASPER_SUBTABS.some(t => t.key === 'samples')
             && !_sxrKasperState.loading && !_sxrKasperState.loaded) {
@@ -81672,7 +81840,16 @@
         _kasperLoadReview(true);
     }
 
-    async function _kasperLoadReview(forceRefresh) {
+    // The in-flight review load, so background tab counts can queue behind it.
+    let _kasperReviewInFlight = null;
+    function _kasperLoadReview(forceRefresh) {
+        const run = _kasperLoadReviewRun(forceRefresh);
+        _kasperReviewInFlight = run;
+        const clear = () => { if (_kasperReviewInFlight === run) _kasperReviewInFlight = null; };
+        run.then(clear, clear);
+        return run;
+    }
+    async function _kasperLoadReviewRun(forceRefresh) {
         const body = document.getElementById('kasperReviewBody');
         const btn  = document.getElementById('kasperReviewRefresh');
         if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
@@ -81692,19 +81869,21 @@
         const myGen = ++_kasperLoadGen;
 
         try {
-            // SMM sheet + every client's calendar in parallel.
+            // SMM sheet + every client's calendar in parallel, but only the
+            // calendars gate the paint: the SMM name is card decoration, so the
+            // queue paints with the last known map (entry cache) and the fresh
+            // sheet re-decorates it when it lands (speed map 2026-09-23 §5).
             // forceRefresh propagates so the Refresh button bypasses the 5-min cache.
-            const [smmMap, fetched] = await Promise.all([
-                _kasperLoadSMMMap(),
-                _kasperFetchAllRelevantPosts(forceRefresh),
-            ]);
+            const smmPromise = _kasperLoadSMMMap();
+            const fetched = await _kasperFetchAllRelevantPosts(forceRefresh);
+            const smmMap = _kasperState.smmByClient instanceof Map ? _kasperState.smmByClient : new Map();
             // If the user clicked approve / submit tweak / dismiss while we
             // were fetching, _kasperLoadGen was bumped past myGen. Discard
             // this stale response — the next load (triggered by the
             // mutation's persist or the next poll tick) will repaint with
             // fresh data.
             if (myGen !== _kasperLoadGen) return;
-            _kasperState.smmByClient = smmMap;
+            smmPromise.then(fresh => _kasperApplySMMMap(fresh, myGen));
             // Honour explicit "Done reviewing" dismissals across refreshes.
             // The fetch re-includes any card with an unresolved Kasper tweak,
             // so without this a dismissed card would pop straight back into
@@ -81817,6 +81996,19 @@
             const pill = document.getElementById('kasperReviewRefreshPill');
             if (pill) pill.hidden = true;
         }
+    }
+
+    // Late half of _kasperLoadReview: the fresh SMM sheet arrived after the queue
+    // painted. Same end state as awaiting it up front, just repainted once.
+    function _kasperApplySMMMap(smmMap, gen) {
+        if (gen !== _kasperLoadGen) return;
+        _kasperState.smmByClient = smmMap;
+        const smmFor = it => smmMap.get(wlNormalizeClient(it.client)) || null;
+        for (const it of _kasperState.items) it.smm = smmFor(it);
+        for (const it of (_kasperState.replies || [])) it.smm = smmFor(it);
+        _kasperPersistCache();
+        if (_kasperIsReviewMounted()) _kasperPaintReview();
+        if (_kasperState.tab === 'replies') _kasperRenderReplies();
     }
 
     async function _kasperLoadSMMMap() {

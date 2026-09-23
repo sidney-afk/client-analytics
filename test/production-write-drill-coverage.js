@@ -30,7 +30,6 @@ function ok(condition, message) {
 
 const root = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'scripts', 'production-write-drill.js'), 'utf8');
-const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'production-write-drill.yml'), 'utf8');
 
 // --- parked, not deleted --------------------------------------------------
 ok(/PRODUCTION_WRITE_DRILL_DESCRIPTION_ROUNDTRIP/.test(source),
@@ -139,10 +138,6 @@ ok(/graphics_artifact_rejected/.test(source),
 }
 
 // --- both teams, every run ------------------------------------------------
-ok(/PRODUCTION_WRITE_DRILL_TEAMS: video,graphics/.test(workflow),
-  'the scheduled drill must cover Video and Graphics explicitly, not by relying on a default');
-ok(/PRODUCTION_WRITE_DRILL_DESCRIPTION_ROUNDTRIP: observe/.test(workflow),
-  'the scheduled drill must run with the round-trip parked until the Edge Function is deployed');
 {
   // The loop is ordered, so a hard failure in the first team hides the second.
   // That is exactly how Graphics coverage vanished; keep the ordering visible.
@@ -196,30 +191,9 @@ ok(/PRODUCTION_WRITE_DRILL_DESCRIPTION_ROUNDTRIP: observe/.test(workflow),
     'only a machine-shaped code may be lifted out of a response body — never prose');
   ok(!/failure\.message/.test(source.replace(/writePrivateFailure[\s\S]*?\n}/, '')),
     'the raw assertion message must not reach the public artifact or the event ledger');
-  ok(/public-safe aggregate/.test(workflow),
-    'the uploaded artifact must stay aggregate-only (F122)');
-
-  /* F12's switch must be REACHABLE, not merely read.
-   *
-   * scripts/production-write-drill.js has read
-   * PRODUCTION_WRITE_DRILL_REAL_GRAPHIC_GENERATION since the drill was written,
-   * and forces `skip_graphic_generation` whenever it is unset — but the
-   * workflow never passed it and declared no inputs. GitHub does not inject
-   * repository variables as env, so neither the cron nor a dispatch could turn
-   * real generation on, and every artifact ever produced reads
-   * `graphic_generation_verified: false`. The gate was structurally
-   * unsatisfiable while looking like a one-variable change, and the plan
-   * written for it on 2026-07-28 would have produced another green skipped run.
-   *
-   * Two properties, both load-bearing:
-   *   1. the workflow passes the name the script reads; and
-   *   2. it defaults OFF, so the nightly lane never spends a billed provider
-   *      call and only one explicitly authorized dispatch drills it.
-   */
-  ok(/PRODUCTION_WRITE_DRILL_REAL_GRAPHIC_GENERATION:\s*\$\{\{\s*inputs\.real_graphic_generation/.test(workflow),
-    'the workflow must pass the real-generation switch the drill script reads (F12 was unsatisfiable without it)');
-  ok(/real_graphic_generation:[\s\S]{0,400}?type:\s*boolean[\s\S]{0,120}?default:\s*false/.test(workflow),
-    'the real-generation input must default to false, so the scheduled lane keeps skipping and never spends a billed call');
+  // The production-write-drill.yml wiring assertions (aggregate-only upload,
+  // team list, real-generation input) were removed when that workflow was
+  // retired (B2 slice 6, 2026-09-23). The script-side guard below remains.
   ok(/REAL_GRAPHIC_GENERATION\s*\|\|\s*DRILL_TEAMS\.includes\('graphics'\)/.test(source),
     'real generation must still refuse to run unless the graphics team is in scope');
 }

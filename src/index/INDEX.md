@@ -11,11 +11,11 @@
 | 3 | `010-styles-foundation.css.part` | 3900 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 4 | `020-styles-surfaces.css.part` | 3974 | Templates view |
 | 5 | `030-body-shell.html.part` | 449 | Confirmation modal |
-| 6 | `040-shared-briefs.js.part` | 2363 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
+| 6 | `040-shared-briefs.js.part` | 2408 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1581 | Market Research Brief Tab Renderers |
 | 8 | `060-templates-filming.js.part` | 1784 | Multiple links per link field (client photos, thumbnail, reference reel) |
-| 9 | `070-workload-source.js.part` | 3368 | Workload Calendar |
-| 10 | `080-workload-render.js.part` | 3325 | WHAT THE BOARD DECIDED NOT TO SHOW, and why. |
+| 9 | `070-workload-source.js.part` | 3371 | Workload Calendar |
+| 10 | `080-workload-render.js.part` | 3359 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
 | 11 | `090-workload-popovers-navigation.js.part` | 2613 | Sub-issue popover |
 | 12 | `100-onboarding-staff-controls.js.part` | 2259 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2024 | Kasper Time Off calendar |
@@ -33,13 +33,13 @@
 | 25 | `230-production-create-comments.js.part` | 2597 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 26 | `240-production-description.js.part` | 2607 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 27 | `250-production-controls-data.js.part` | 2743 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 28 | `260-production-refresh-boot.js.part` | 2176 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 28 | `260-production-refresh-boot.js.part` | 2252 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 29 | `270-samples-model.js.part` | 2694 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 30 | `280-samples-cards-notes.js.part` | 2831 | SURFACE 3: the save engine |
 | 31 | `290-samples-writes-review.js.part` | 1822 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 32 | `300-tiktok-upload.js.part` | 1678 | TIKTOK UPLOAD MODULE |
 | 33 | `310-tiktok-pilot-sales.js.part` | 1969 | TIKTOK PILOT MODULE (gated: ?ttpilot=1 → #tiktok-pilot) |
-| 34 | `320-kasper-dashboard-replies.js.part` | 2778 | Background poll for the Kasper review — same cadence as the client |
-| 35 | `330-kasper-review-history.js.part` | 2516 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
+| 34 | `320-kasper-dashboard-replies.js.part` | 2788 | Background poll for the Kasper review — same cadence as the client |
+| 35 | `330-kasper-review-history.js.part` | 2540 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 36 | `340-editors-date-picker.js.part` | 1288 | Editor work model |
 | 37 | `350-footer.html.part` | 398 | Transcript preview modal |

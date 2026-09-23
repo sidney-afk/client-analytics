@@ -80,7 +80,6 @@ ok(stableJson(descriptionReadbackScopes(['video', 'graphics'], [
 }), 'description readback scope preserves only per-asset completed proof');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'production-write-drill.js'), 'utf8');
-const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'production-write-drill.yml'), 'utf8');
 for (const token of [
   "operation: 'intake_create'",
   "request('status'",
@@ -185,9 +184,6 @@ try { writePrivateFailure(new Error('must not land in repo'), 'fixture', path.jo
 ok(repoPathRejected && !fs.existsSync(path.join(__dirname, 'private-failure.json')), 'private failure log is refused inside the public repository');
 ok(!source.includes('console.log(privatePayload)') && !source.includes('error: failure ?'), 'raw private failure detail is absent from console and public payload wiring');
 ok(!/Sidney Laruel|Test Project|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(source), 'drill contains no client/project names or private ids');
-ok(/cron: '17 4 \* \* \*'/.test(workflow) && /workflow_dispatch:/.test(workflow), 'drill has daily and manual triggers');
-ok(/secrets\.SUPABASE_SERVICE_ROLE_KEY/.test(workflow) && /secrets\.LINEAR_API_KEY/.test(workflow), 'drill uses existing service/read secrets');
-ok(!/PRODUCTION_WRITE_TEST_/.test(workflow), 'drill workflow introduces no missing TEST secret dependency');
 
 /*
  * NATIVE INTAKE LANE (2026-09-18, run 35327383049).

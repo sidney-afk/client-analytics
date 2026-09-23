@@ -1,7 +1,11 @@
 # B2: server-side Linear cleanup. Inventory and removal plan
 
-Status: **inventory and plan only.** Nothing live was changed, nothing was
-deployed, no n8n workflow was edited. Measured 2026-09-23 (UTC) by the session
+Status: **partly executed.** Sections 1 to 3 were written on 2026-09-23 as
+inventory and plan only. On the same day, with the owner's go-ahead, plan
+Slices 1, 2, 5 and 6 were carried out; section 4 (execution log) records
+exactly what changed live and how to roll each change back. Every other slice
+is still pending. No Edge Function was deployed, and no table was changed
+except the one flag row recorded in section 4. Measured 2026-09-23 (UTC) by the session
 named Sweep, supervised by Lighthouse. No staff or clients are named; counts only.
 
 ## Starting facts (verified by Lighthouse, re-read live where noted)
@@ -201,3 +205,90 @@ Every slice is one PR (or one owner action) and waits for the previous one to be
 2. Urgent-tweak Slack ping: how many cards still lack a native deliverable and would take the legacy fallback (Slice 4)?
 3. Keep the legacy `workload_issues` arm (frozen since 2026-09-21) or cut it (Slice 9)?
 4. Confirm nothing outside the repo reads the blanked sheet column, and whether the three unnamed webhook paths (`linear-issues`, `linear-projects`, `log-linear-submission`) are served by any workflow.
+
+---
+
+## 4. Execution log (2026-09-23, owner go-ahead for the n8n changes)
+
+Owner decisions recorded with this go-ahead:
+- Keep the frozen `workload_issues` table for now; its drop in Slice 9 is skipped.
+- Leave everything on the Linear side untouched.
+- The urgent-ping fallback, "Import from Linear", the tweak-comment preview, and every Edge Function or table change stay for later, because other sessions are editing that browser code.
+
+### Slice 1 (plan Slice 1): archived the 5 inactive Linear-only n8n workflows. DONE 2026-09-23 ~13:55Z
+
+| Workflow | id | Proof it was unused, re-checked right before archiving |
+|---|---|---|
+| Calendar - Linear Status Sync | `MJbMZ789B5ExZz9x` | inactive, 0 runs in retained history |
+| Calendar - Linear Reconcile Trigger | `AkiFmromoDkmsh39` | inactive, 0 runs |
+| Samples - Linear Reconcile Trigger | `ZJOtYpQZj73DcBB1` | inactive, 0 runs |
+| Samples — Linear Status Sync | `qmDGbKnvrK0sPFKj` | inactive, 0 runs |
+| Workload — Reconcile | `lGwC9WWPVJtxphtf` | inactive now; **correction to section 1b:** it had 390 runs in retained history, the last on 2026-09-21 14:50Z. That is exactly when `workload_issues.synced_at` froze, so this was the table's writer and was switched off then. It reads Linear, so it cannot run with the keys revoked. Archiving it does not touch the table, which the owner keeps. |
+
+- **Rollback:** unarchive each workflow in n8n (Workflows, then the archived filter, then Unarchive). Its version history is kept. They stay inactive after unarchiving, which is how they were.
+
+### Slice 2 (plan Slice 2): deactivated the 3 active Linear-only webhooks with no callers. DONE 2026-09-23 ~13:57Z
+
+| Workflow | id | Last run, re-checked right before deactivating |
+|---|---|---|
+| Calendar - Linear Add Comment | `8stSpZUiyG7f2LQX` | none in retained history |
+| Calendar - Linear Set Status | `VQqqeY9B2GZbh2Bt` | none in retained history |
+| Calendar — Linear Issue Statuses | `GP8CSZDNcy5sGdFr` | 2026-09-22 21:43:37Z, the same as the inventory; nothing since |
+
+- **Rollback:** re-activate (publish) each workflow in n8n with one toggle. They were deactivated only, not archived or edited. Archive them after two quiet weeks.
+
+### Slice 3 (plan Slice 5): `linear_inbound_enabled` turned off. DONE 2026-09-23 14:02:01Z
+
+- **Proof it was unused:** `linear-inbound` had zero Edge Function log entries in the 24 hours before the change, and none since 2026-09-20 23:08Z.
+- **Change:** `syncview_runtime_flags` row `linear_inbound_enabled` went from `{"enabled": true}` to `{"enabled": false}`, `updated_by = 'owner-b2-slice5-inbound-off'`. The update was guarded on the old value.
+- **Audit:** `flag_flips` id 124 recorded it automatically (key `linear_inbound_enabled`, old `{"enabled": true}`, new `{"enabled": false}`, actor `owner-b2-slice5-inbound-off`, ts 2026-09-23 14:02:01.858898Z).
+- **Rollback:** guarded, so a newer change is never overwritten.
+  ```sql
+  update syncview_runtime_flags
+     set value='{"enabled": true}'::jsonb, updated_by='owner-b2-slice5-rollback'
+   where key='linear_inbound_enabled' and value='{"enabled": false}'::jsonb
+  returning key, value, updated_at;
+  ```
+  - It must return exactly one row. Zero rows means someone changed the flag since this entry: stop and read `flag_flips` before doing anything.
+  - Read the value back with `select value from syncview_runtime_flags where key='linear_inbound_enabled'`.
+  - Confirm the reversal row in `flag_flips`.
+- The Linear-side webhook subscription was left untouched, as the owner instructed.
+
+### Slice 4 (plan Slice 6): retired 4 unscheduled Linear-only GitHub workflows. DONE in the repo PR that carries this entry
+
+- **Deleted:** `b1-linear-incremental-refresh.yml`, `production-shadow-audit.yml`, `production-write-drill.yml`, `slice5-test-drills.yml`.
+- **Proof they were unused:** all were dispatch-only (schedules commented out 2026-09-20). Every one was already marked `retired: 2026-09-20, linear-cutoff` in `scripts/monitoring-watchdog.js`. No other workflow triggers them.
+- **Skipped, still present:**
+  - `linear-outbound-drain.yml`: the PR-triggered `graphics-f2-evidence` lane looks up its runs by file name.
+  - `linear-deliverables-reconcile.yml`: its contents are pinned by the F27 reconciler closure that `f27-team-rollback-proof` checks.
+  - Both need those lanes retired first.
+- **Tests:**
+  - YAML assertions were removed from 8 tests; their script checks stay.
+  - The watchdog tests now accept a deleted host file for a retired lane, and still fail on a missing host for a watched lane.
+  - `scripts/monitoring-watchdog.js` itself is unchanged.
+  - `npm test`: 566 of 572 suites pass. The 6 failures fail the same way on `origin/main`.
+- **Secrets these workflows used:** `LINEAR_API_KEY`, `ROLE_KEY_ADMIN`, `ROLE_KEY_SMM`, `ROLE_KEY_CREATIVE`, plus shared ones. Deleting any secret is a separate owner decision: `LINEAR_API_KEY` is still read by other workflows, and the `ROLE_KEY_*` secrets may have other users.
+- **Rollback:** revert only the workflow-retirement commit, `ci: retire unscheduled Linear-only GitHub workflows (B2 slice 6)` (`git revert <that sha>`). Do not revert the commit that adds this execution log: the n8n and flag changes it records stay live either way. The files come back as they were, and nothing ran them on a schedule.
+
+### Brief images on Linear's servers (measured 2026-09-23, read-only)
+
+- **Scope:** 41 in-progress deliverables (statuses todo, backlog, smm_approval, kasper_approval, client_approval) carry `uploads.linear.app` links. There are 90 references to 81 distinct files, all inside `brief`; none are in `file_url`.
+- **Do the originals load from the live site's point of view?** No. We requested 3 sample files with no credentials and the live site as the page they come from. Every one answered `401` with a small JSON error, so they need a Linear login. The Linear side is to stay untouched and the API keys are revoked, so these originals are gone to us.
+- **Copies already exist.**
+  - `native_brief_media_occurrences` holds a `verified` copy for all 90 references (41 deliverables), 124.5 MB in total (JPEG, PNG and SVG). The copies were verified on 2026-09-20 by `native-brief-media-copy`.
+  - All 90 objects exist in the private bucket `syncview-native-brief-media`.
+  - `native_brief_media` has been in `mode: required` since 2026-09-21 (`flag_flips` id 123).
+  - Estate-wide, 1,338 references across 486 deliverables were copied, about 3.0 GB.
+- **What the site shows today.**
+  - The Production tab renders briefs through the native media projection. That projection swaps each Linear link for a 5-minute signed link to our copy, so the images load there.
+  - The stored `brief` text still holds the Linear links. Any view that renders the raw text shows broken images: the fallback path noted in `230-production-create-comments.js.part:2344-2353`, and any other surface that prints `brief` directly (fragments 040 and 240 read it).
+
+**Proposal (plan only, nothing done).** Make the copies the only source by rewriting the brief text.
+1. **Where:** keep the files where they already are, in the private `syncview-native-brief-media` bucket. There is nothing new to copy for these 41 deliverables: 0 MB to move now, 124.5 MB already stored.
+2. **How the links are rewritten:** replace each `https://uploads.linear.app/...` link in `brief` with a stable internal reference to its occurrence, for example `syncview-media:<occurrence id>`. Do not use a signed URL, which expires after 5 minutes. The projection that already signs links would resolve the new form the same way it resolves Linear links today.
+   - Use one guarded write per deliverable, through the normal production write path, so the change is audited.
+   - Do it only when the stored `source_sha256` still matches the current brief. A brief edited since the copy is skipped and reported.
+3. **Before the rewrite:** make every renderer of `brief` (fragments 040, 230, 240 and any client view) resolve the internal reference, and teach the projection the new form. That is browser work, so it waits until the other sessions finish there.
+4. **Proof:** after the rewrite, count remaining `uploads.linear.app` matches in in-progress briefs (target 0). Also run one headless-browser render of an affected brief with no Linear session, and require every image to load with a 200 response from our storage.
+5. **Rollback:** before rewriting, snapshot each touched brief (id, old text, sha256) to the SyncView Backups drive. Restoring means writing the old text back through the same path.
+6. **Estate-wide:** the same rewrite can cover all 486 deliverables with copies (about 3.0 GB, already stored). Finished and archived work can go later, or never, since the archive viewer already resolves copies.

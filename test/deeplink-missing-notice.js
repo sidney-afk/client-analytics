@@ -157,9 +157,6 @@ ok(/async function incrementalChangedSince\(\)/.test(B1)
   && /const lastFinished = last && last\.payload && clean\(last\.payload\.finished_at\);/.test(B1)
   && /minutesAgoIso\(Number\(args\.get\('--since-minutes'\) \|\| 30\)\)/.test(B1),
   'the stray importer really does scan only from its previous run, so an older Linear-only issue is outside every scheduled window');
-ok(/B1_STRAY_CATCHER: '1'/.test(
-    fs.readFileSync(path.join(ROOT, '.github/workflows/b1-linear-incremental-refresh.yml'), 'utf8')),
-  'and stray mode really is the standing mode, so the gap is the WINDOW rather than the importer being switched off');
 
 console.log(failures === 0
   ? '\ndeep-link missing notice checks passed'

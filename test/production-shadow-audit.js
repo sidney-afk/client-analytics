@@ -1,7 +1,5 @@
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
 const { publicPayload } = require('../scripts/production-shadow-audit');
 
 let failures = 0;
@@ -63,10 +61,7 @@ ok(liveMovement.ok === true
 const drift = publicPayload({ ...base, divergences: { unexpected: 1 } });
 ok(drift.ok === false && drift.unexpected_divergences === 1, 'unexpected divergence is red');
 
-const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'production-shadow-audit.yml'), 'utf8');
-ok(/cron: '17 5 \* \* \*'/.test(workflow) && /workflow_dispatch:/.test(workflow), 'shadow audit has nightly and manual triggers');
-ok(/runner\.temp.*production-shadow-private\.json/.test(workflow), 'row-level shadow evidence stays in runner-temporary storage');
-ok(/path: artifacts\/production-shadow-audit\.json/.test(workflow) && !/path:.*runner\.temp/.test(workflow), 'only the public aggregate is uploaded');
+// production-shadow-audit.yml was retired (B2 slice 6, 2026-09-23); its wiring assertions went with it.
 
 if (failures) process.exit(1);
 console.log('\nProduction shadow audit telemetry checks passed');

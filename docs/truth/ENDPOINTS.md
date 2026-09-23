@@ -184,10 +184,13 @@ Other:
   awaited, never retried, aborts at 1.5 seconds, is capped at 20 reports per page, and carries only
   six allowlisted identifiers — no comment body, author name or token. Identifiers are hashed to
   sha256 before storage. Browser claims are always recorded as unverified principals; the operator
-  actions (`health`, `lookup`, `retention`) sit behind a separate runner key. Source-only and
-  DORMANT: it answers 503 until `WRITE_DIAGNOSTICS_ENABLED=true`, has no CI deploy path
-  (deliberate-manual, `--no-verify-jwt`), and needs
-  `supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql` applied first.
+  actions (`health`, `lookup`, `retention`) sit behind a separate runner key. LIVE and ENABLED
+  since 2026-09-23: deployed deliberate-manual (`--no-verify-jwt`, no CI deploy path) from
+  `344006c511dcd03d668ee8bafec11e6f7c9218d6`, `WRITE_DIAGNOSTICS_ENABLED=true` and a runner key
+  set by the owner, and its SQL owner
+  (`supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql`) is on the live
+  project. An unauthenticated operator call answers 401. The gateway half (receipts written by
+  `production-write` on refusal) is live from Section 4 run `35800967363`. Kill switch in `ROLLBACK.md`.
 - `functions/v1/workload-linear` — source-only deliberate-manual Workload metadata/deadline gateway.
   Admin/SMM/Creative may request bounded exact due dates and `2× Workload` / `3× Workload`
   label metadata for active mirrored sub-issues; Admin/SMM alone may update a Linear due date.

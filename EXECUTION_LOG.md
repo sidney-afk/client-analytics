@@ -8112,7 +8112,7 @@ Released in four steps, in order.
    is held only by `postgres` and `service_role`; the table's ACL is `postgres`
    only, RLS is on, and it held 0 rows. No SQL was re-run. When it was applied
    is not recorded in `supabase_migrations` (only two rows exist there).
-2. **`write-diagnostics`** deployed deliberate-manual from main `344006c`
+2. **`write-diagnostics`** deployed deliberate-manual from main `344006c511dcd03d668ee8bafec11e6f7c9218d6`
    (4 files: the function plus `_shared/staff-role-auth.ts`,
    `_shared/write-refusal-diagnostics.mjs`, `_shared/write-refusal-codes.mjs`),
    `verify_jwt=false`, version 1. Readback of all four files matched the
@@ -8122,7 +8122,7 @@ Released in four steps, in order.
    Verified from outside: an unauthenticated `health` now answers `401`
    instead of `503 dormant`.
 4. **Section 4 lane**, run `35800967363`, from `344006c511dcd03d668ee8bafec11e6f7c9218d6`,
-   rollback bundle `3e58e8e0…8a5cb2` (662946 bytes). Green.
+   rollback bundle `3e58e8e0e0f222f4efdd8ea3af10b974e0a76b9f0b660952da7e55f3ae8a5cb2` (662946 bytes). Green.
 
 | function | active version | source closure SHA-256 | JWT |
 |---|---|---|---|

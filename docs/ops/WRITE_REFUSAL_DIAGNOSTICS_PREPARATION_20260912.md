@@ -7,8 +7,11 @@
 > `src/index/120-calendar-flags-write-repair.js.part`. The composer no longer
 > pins or patches `index.html` — that pin was a build output and went stale on
 > every merge — and it no longer patches the gateway either, since only the
-> committed file can be deployed. Still deployed: nothing. See ledger 240 for
-> what changed and why.
+> committed file can be deployed. See ledger 240 for what changed and why.
+>
+> **Released 2026-09-23 (ledger 241, `EXECUTION_LOG.md`).** The SQL owner is on
+> the live project, `write-diagnostics` is deployed and enabled, and the gateway
+> recorder is live in `production-write` version 82. Kill switch: `ROLLBACK.md`.
 
 Prepared and tested in isolation; not merged, deployed or activated. Existing
 gateway and browser source files are unchanged. The companion composer produces

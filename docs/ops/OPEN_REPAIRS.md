@@ -28678,3 +28678,11 @@ pattern is not evidence of absence.
 
 Release recorded in `EXECUTION_LOG.md` (2026-09-23). The live acceptance probe
 left one receipt row, from an unauthenticated test request, not a user.
+
+**Item 225 is resolved by this release.** 225 ("the write-refusal receipt table
+has never recorded a refusal") is no longer true: the gateway recorder is live in
+`production-write` version 82 and recorded the probe above. Its header is left
+as written because this ledger is append-only; treat 225 as FIXED as of
+2026-09-23. Item 101 stays open for the two paths not yet proven live: a
+browser-claim receipt from a real page, and the runner-key `health` / `lookup`
+actions. Kill switches for both halves are in `ROLLBACK.md`.

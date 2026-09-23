@@ -8,8 +8,11 @@ name: Deploy one allowlisted Edge Function
 #
 # GATED functions are refused here and stay on their own lanes:
 # production-write, deliverable-write, batch-write, linear-outbound (Section 4)
-# and linear-inbound (its pinned-bundle lane). test/deploy-single-function.js
-# fails if any of them is ever added to the allowlist.
+# and linear-inbound (its pinned-bundle lane). calendar-upsert and
+# sample-review-upsert are FROZEN by owner directive (AGENTS.md): their repo
+# source re-applies the client write gate and would 401 every client link, so
+# they must never be deployable from here. test/deploy-single-function.js
+# fails if any of these is ever added to the allowlist.
 # Same release order as that lane: ancestry is proven from the trusted default
 # branch with no secret in scope, the validated commit is checked out, and only
 # the deploy and attestation steps carry SUPABASE_ACCESS_TOKEN.
@@ -20,7 +23,7 @@ on:
         description: The one function to deploy
         required: true
         type: choice
-        options: [notify, workload-plan, calendar-upsert, sample-review-upsert, write-diagnostics]
+        options: [notify, workload-plan, write-diagnostics]
       commit_sha:
         description: Exact 40-character commit SHA from main to deploy
         required: true
@@ -53,7 +56,7 @@ jobs:
           # The choice input is not a security boundary on its own (the API can
           # send any string), so the allowlist is enforced again here.
           case "$DEPLOY_FUNCTION" in
-            notify|workload-plan|calendar-upsert|sample-review-upsert|write-diagnostics) ;;
+            notify|workload-plan|write-diagnostics) ;;
             *) echo "::error::Refused: '$DEPLOY_FUNCTION' is not on this lane's allowlist"; exit 1 ;;
           esac
           if ! [[ "$DEPLOY_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
@@ -99,7 +102,7 @@ jobs:
           fi
           # The loop lists the allowlist once more and deploys only the match.
           deployed=0
-          for fn in notify workload-plan calendar-upsert sample-review-upsert write-diagnostics; do
+          for fn in notify workload-plan write-diagnostics; do
             if [ "$fn" = "$DEPLOY_FUNCTION" ]; then
               supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
               deployed=$((deployed + 1))

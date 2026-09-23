@@ -8,8 +8,7 @@
 //   NOTIFY_FORMAT      "compact" | "card" | "line" turns on the rich layout for
 //                      creative-channel posts. Unset keeps the plain SQL text.
 //   NOTIFY_PREVIEW_SLACK_USER_ID  the only DM the preview action may post to.
-//                      Kept out of the repo; a call-time slack_user_id is used
-//                      only when this secret is unset.
+//                      Kept out of the repo. Unset means preview is refused.
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { timingSafeEqual } from "../_shared/staff-role-auth.ts";
@@ -103,8 +102,11 @@ Deno.serve(async (req: Request) => {
     }
     // The second half of a merged status+comment pair shares its partner's one
     // post: it records the same Slack receipt instead of posting again.
-    const result = earlier && earlier.kind === "sent" && plan?.skip
-      ? { kind: "sent" as const, messageId: earlier.messageId as string }
+    // Any outcome is mirrored, never re-posted: an unknown merged post may
+    // already be in the channel, so the partner must not post again.
+    const result = earlier && plan?.skip
+      ? (earlier.kind === "sent" ? { kind: "sent" as const, messageId: earlier.messageId as string }
+        : { kind: earlier.kind as "retryable" | "blocked" | "unknown", code: earlier.code || "merged_partner_not_sent" })
       : lookupFailed
       ? { kind: "retryable" as const, code: "urgent_link_context_unavailable" }
       : plan && !plan.skip
@@ -201,7 +203,9 @@ async function richPlan(supabase: Db, claims: Claim[], variant: NotifyVariant): 
 // through formatNotification and sends them to one person's DM with the bot.
 // It reads nothing from, and writes nothing to, the notification outbox.
 async function preview(supabase: Db, token: string, body: JsonMap): Promise<Response> {
-  const target = clean(Deno.env.get("NOTIFY_PREVIEW_SLACK_USER_ID")) || clean(body.slack_user_id);
+  // Only the pinned secret decides the recipient; the runner key is shared
+  // with automated callers and does not prove who is asking.
+  const target = clean(Deno.env.get("NOTIFY_PREVIEW_SLACK_USER_ID"));
   if (!/^[UW][A-Z0-9]{8,}$/.test(target)) return json({ ok: false, error: "preview_target" }, 400);
   const slug = clean(body.client_slug);
   if (!/^[a-z0-9][a-z0-9_-]{1,80}$/.test(slug)) return json({ ok: false, error: "client_slug" }, 400);

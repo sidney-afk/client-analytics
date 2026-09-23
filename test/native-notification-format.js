@@ -76,7 +76,11 @@ try{
  let r=await call({});
  assert.equal(r.sent,2);assert.equal(posts.length,1,'merged into one post');
  assert(JSON.stringify(posts[0][6]).includes('Trim the intro')&&JSON.stringify(posts[0][6]).includes('Needs tweaks'));
- assert.equal(posts[0][4],false,'no mentions');assert.equal(receipts[0].p_provider_message_id,receipts[1].p_provider_message_id,'both intents record the one post');
+ assert.equal(posts[0][4],false,'no mentions');
+ // An unknown merged post is mirrored to its partner, never re-posted.
+ {const keep=globalThis.__post;posts=[];receipts=[];globalThis.__post=async(...a)=>{posts.push(a);return{kind:'unknown',code:'slack_response_unconfirmed'};};
+  const u=await call({});assert.equal(posts.length,1,'no second post after unknown');assert.equal(u.unknown,2);
+  assert.deepEqual(receipts.map(x=>x.p_outcome),['unknown','unknown']);globalThis.__post=keep;posts=[{},...[]];posts=[];receipts=[];await call({});}assert.equal(receipts[0].p_provider_message_id,receipts[1].p_provider_message_id,'both intents record the one post');
  // Different person, or far apart: two separate posts.
  posts=[];receipts=[];intents=[I('s1','status_tweak'),I('c1','comment',{source_comment_id:'c1',actor_member_id:'m2'})];r=await call({});assert.equal(posts.length,2);
  posts=[];intents=[I('s1','status_tweak'),I('c1','comment',{source_comment_id:'c1',created_at:'2026-09-20T11:00:00Z'})];r=await call({});assert.equal(posts.length,2);
@@ -89,9 +93,10 @@ try{
  posts=[];env.NOTIFY_PREVIEW_SLACK_USER_ID='U0SYNTHETIC1';r=await call({action:'preview',client_slug:'synthetic-slug',slack_user_id:'C1234567890'});
  assert.equal(r.ok,true);assert.equal(posts.length,12,'3 variants x (intro + 3 samples)');assert(posts.every(p=>p[1]==='U0SYNTHETIC1'),'secret wins over call-time id');
  env.NOTIFY_PREVIEW_SLACK_USER_ID=undefined;posts=[];
- assert.equal((await call({action:'preview',client_slug:'synthetic-slug',slack_user_id:'C1234567890'})).error,'preview_target');
+ assert.equal((await call({action:'preview',client_slug:'synthetic-slug',slack_user_id:'U0SYNTHETIC1'})).error,'preview_target','no call-time recipient without the secret');
+ env.NOTIFY_PREVIEW_SLACK_USER_ID='U0SYNTHETIC1';
  assert.equal((await call({action:'preview',slack_user_id:'U0SYNTHETIC1'})).error,'client_slug');
- assert.equal((await call({action:'preview',client_slug:'synthetic-slug',slack_user_id:'U0SYNTHETIC1',variant:'card'})).sent,4);
+ assert.equal((await call({action:'preview',client_slug:'synthetic-slug',variant:'card'})).sent,4);
  assert.equal(posts.length,4);
  assert.equal(receipts.filter(x=>x.p_intent_id==null).length,0);
  // The DM adapter refuses a non-user target and a non-DM reply.

@@ -182,11 +182,39 @@ const CACHED_ROW={id:'warm',isSubIssue:true,workloadSource:'native',
   ok(projectNativeSnapshot(mixed,s=>s.toLowerCase()).plans_dropped===1,
    'a real lost day beside a cleared one counts exactly the real one');}
  for(const force of [false,true]){const b=browser();const result=await b.context.loadLinearIssues(force);
- ok(b.calls.length===1&&b.calls[0].body.action==='native_snapshot','normal and forced loads use one native snapshot');
+ ok(b.calls.length===1&&b.calls[0].body.action==='native_snapshot_v2','normal and forced loads use one (cached v2) native snapshot');
  ok(result.issues[1].id==='del_fixture'&&result.issues[1].nativeId==='del_fixture'&&result.issues[1].url==='','native direct identity has no Linear link');
  ok(result.metadata[0].workload.weight===3&&result.metadata[0].native_target.id==='del_fixture','native complete weight and due target');
  ok(b.context.wlIssueClientAllowed(result.issues[1])&&b.context.wlIssueEditorAllowed(result.issues[1]),'native membership ignores obsolete name allowlists');
  ok(result.roster.length===1&&result.roster[0].id==='member-fixture','authenticated snapshot carries stable native roster identity');}
+ // ---- Cached v2 snapshot (migrations/2026-09-23-workload-native-snapshot-cache.sql).
+ // parent_identifier travels once per parent; a refresh sends the version it
+ // holds and reuses its copy on "unchanged"; an "unchanged" for a version this
+ // page never validated is refused; 400/501 (not yet deployed/applied) falls
+ // back to v1 for the page, and an auth refusal never does.
+ {const VER='0123456789abcdef0123456789abcdef';
+  const v2=()=>{const f=fixture();f.contract='workload-native-snapshot-v2';f.version=VER;f.parents={bat_fixture:'Fixture batch'};return f;};
+  const unchanged={ok:true,unchanged:true,version:VER,contract:'workload-native-snapshot-v2'};
+  const b=browser(v2());let r=await b.context.loadLinearIssues(false);
+  ok(r.issues[1].parentIdentifier==='Fixture batch','v2 parent_identifier is restored from the once-per-parent map');
+  ok(b.calls[0].body.if_version==='','a page holding nothing sends no version');
+  b.context.fetch=async(url,init)=>{b.calls.push({url,body:JSON.parse(init.body)});return {ok:true,status:200,json:async()=>copy(unchanged)};};
+  r=await b.context.loadLinearIssues(false);
+  ok(b.calls.at(-1).body.if_version===VER,'a refresh sends the version it holds');
+  ok(r.issues.length===2&&r.issues[1].parentIdentifier==='Fixture batch'&&r.plans.rows.length===1,'"unchanged" reuses the held, validated snapshot');
+  const c=browser(copy(unchanged));let refused=false;
+  try{await c.context.loadLinearIssues(false);}catch{refused=true;}
+  ok(refused,'"unchanged" for a version this page never validated is refused, never an empty board');
+  const d=browser((url,init)=>JSON.parse(init.body).action==='native_snapshot_v2'
+   ?{ok:false,status:501,json:async()=>({ok:false,error:'snapshot_cache_unavailable'})}
+   :{ok:true,status:200,json:async()=>copy(fixture())});
+  r=await d.context.loadLinearIssues(false);
+  ok(d.calls.map(x=>x.body.action).join()==='native_snapshot_v2,native_snapshot'&&r.issues.length===2,'before the migration is applied, v2 falls back to the v1 snapshot');
+  await d.context.loadLinearIssues(false);
+  ok(d.calls.length===3&&d.calls[2].body.action==='native_snapshot','and v2 stays off for the rest of the page');
+  const e=browser(()=>({ok:false,status:401,json:async()=>({ok:false,error:'unauthorized'})}));refused=false;
+  try{await e.context.loadLinearIssues(false);}catch{refused=true;}
+  ok(refused&&e.calls.length===1,'an auth refusal on v2 is answered as before, never retried through v1');}
  // ---- Linear-exit Workload slice 2: a legacy row bound to a native deliverable
  // The gateway's `workload_native_snapshot_v1()` already joins a legacy row to
  // `workload_issues_native_v1` by linear_id and reports it as `native_plan_id`

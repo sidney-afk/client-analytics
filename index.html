@@ -14360,6 +14360,10 @@
         popoverAnchor: null,                       // currently-open popover's anchor rollup element
         renderQueued: false,                       // background repaint deferred while a popover is open
         fetchedAt: null,
+        // The last validated v2 snapshot this page holds, keyed by staff
+        // identity, so a refresh sends its version and reuses it on "unchanged".
+        snapshotMemo: null,
+        snapshotV2Unavailable: false,                // 400/501 from v2: use the v1 action for this page
         cachedBoardAt: null,                        // set while the board shows the localStorage copy, not a live snapshot
         sourceSyncedAt: null,                      // newest workload_issues.synced_at represented by this snapshot
         loading: false,
@@ -15112,14 +15116,51 @@
         // WL_SNAPSHOT_READ_TIMEOUT_MS for the measurement that forced it.
         const timer = setTimeout(() => controller.abort(), WL_SNAPSHOT_READ_TIMEOUT_MS);
         try {
-            const response = await fetch(WORKLOAD_PLAN_URL, {
+            /* CACHED v2 FIRST (migrations/2026-09-23-workload-native-snapshot-cache.sql).
+               The server serves a prebuilt copy and answers `unchanged` with no
+               body when this page already holds its version. 400 (Edge Function
+               not yet deployed) or 501 (migration not yet applied) falls back to
+               the v1 action for the rest of this page; anything else, including
+               401/403, is answered exactly as before. */
+            const memo = wlState.snapshotMemo && wlState.snapshotMemo.owner === owner ? wlState.snapshotMemo : null;
+            const post = body => fetch(WORKLOAD_PLAN_URL, {
                 method: 'POST', cache: 'no-store', signal: controller.signal,
                 headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, WORKLOAD_PLAN_URL),
-                body: JSON.stringify({ action: 'native_snapshot' })
+                body: JSON.stringify(body)
             });
-            const value = await response.json();
+            let response = null;
+            if (!wlState.snapshotV2Unavailable) {
+                response = await post({ action: 'native_snapshot_v2', if_version: memo ? memo.version : '' });
+                if (response.status === 400 || response.status === 501) {
+                    wlState.snapshotV2Unavailable = true;
+                    response = null;
+                }
+            }
+            if (!response) response = await post({ action: 'native_snapshot' });
+            let value = await response.json(), nextMemo = null;
+            if (response.ok && value && value.unchanged === true) {
+                // Only the version this page sent can come back unchanged.
+                if (!memo || value.version !== memo.version) {
+                    throw new Error('Workload could not load a complete snapshot. Please retry.');
+                }
+                value = memo.value;
+            } else if (response.ok && value && value.contract === 'workload-native-snapshot-v2') {
+                if (typeof value.version !== 'string' || !value.version
+                    || !value.parents || typeof value.parents !== 'object' || !Array.isArray(value.rows)) {
+                    throw new Error('Workload could not load a complete snapshot. Please retry.');
+                }
+                // parent_identifier travels once per parent; put it back on
+                // each row so every reader downstream sees the v1 shape.
+                for (const slimRow of value.rows) {
+                    if (slimRow && slimRow.parent_id != null && !('parent_identifier' in slimRow)
+                        && Object.prototype.hasOwnProperty.call(value.parents, slimRow.parent_id)) {
+                        slimRow.parent_identifier = value.parents[slimRow.parent_id];
+                    }
+                }
+                nextMemo = { owner, version: value.version, value };
+            }
             if (!response.ok || !value || value.ok !== true || value.complete !== true
-                || value.contract !== 'workload-native-snapshot-v1'
+                || !['workload-native-snapshot-v1', 'workload-native-snapshot-v2'].includes(value.contract)
                 || !Array.isArray(value.rows) || !Array.isArray(value.plans)
                 || value.count !== value.rows.length || !Number.isSafeInteger(value.count)
                 || !Array.isArray(value.legacy_teams)
@@ -15279,6 +15320,9 @@
             if (session !== _wlPlanSessionGeneration || owner !== wlSnapshotIdentity()) {
                 throw new Error('Staff session changed while Workload was loading.');
             }
+            // Remembered only once the whole answer validated, so a refused
+            // copy can never come back as "unchanged".
+            if (nextMemo) wlState.snapshotMemo = nextMemo;
             return { issues, metadata, plans: { rows: value.plans, readGeneration },
                 roster: roster.map(member => ({ ...member })), rosterComplete,
                 fetchedAt: Date.now(), fromCache: false, legacyTeams: value.legacy_teams,

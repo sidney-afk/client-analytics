@@ -46,6 +46,7 @@ const ok=(v,m)=>{assert.ok(v,m);checks++;};
  sql(read('migrations/2026-09-05-workload-native-membership.sql'));
  sql(read('migrations/2026-09-08-workload-native-label-state-shape.sql'));
  sql(read('migrations/2026-09-09-workload-native-roster.sql'));
+ sql(read('migrations/2026-09-23-workload-native-snapshot-cache.sql'));
  checks++;
  sql(`insert into clients(slug,display_name)values('fixture','Fixture'),('other','Other');
  insert into team_members(id,name,role,team,active,linear_user_id)values
@@ -160,8 +161,84 @@ const ok=(v,m)=>{assert.ok(v,m);checks++;};
  await done;const during=JSON.parse(stdout.trim().replace(/^\|/,''));
  ok(during.plans.find(p=>p.issue_id==='old-fixture').plan_date===null,'snapshot cannot mix a later committed plan');
  ok(json('select workload_native_snapshot_v1();').plans.find(p=>p.issue_id==='old-fixture').plan_date==='2030-02-01','next snapshot observes plan-only update');
+ // ---- CACHED v2 SNAPSHOT (migrations/2026-09-23-workload-native-snapshot-cache.sql).
+ // Every source relation carries the invalidation trigger: the explicit reads
+ // plus every base table behind the two views, derived here from pg_depend so a
+ // view that starts reading a new table fails this lane instead of serving a
+ // copy that never notices its writes.
+ const sources=sql(`with recursive dep(oid) as (
+  select c.oid from pg_class c where c.relnamespace='public'::regnamespace
+   and c.relname in ('workload_issues_native_v1','production_deliverables_browser_v1')
+  union select d.refobjid from dep join pg_rewrite r on r.ev_class=dep.oid
+   join pg_depend d on d.objid=r.oid and d.classid='pg_rewrite'::regclass and d.refclassid='pg_class'::regclass
+   where d.refobjid<>dep.oid)
+  select coalesce(string_agg(c.relname,',' order by c.relname),'') from dep join pg_class c on c.oid=dep.oid
+  where c.relkind in ('r','p') and not exists (select 1 from pg_trigger t where t.tgrelid=c.oid
+   and t.tgname='workload_snapshot_note_change');`);
+ ok(sources==='','every base table behind the snapshot views carries the invalidation trigger (missing: '+sources+')');
+ ok(sql(`select count(*) from pg_trigger where tgname='workload_snapshot_note_change' and tgrelid in
+  ('workload_issues'::regclass,'workload_plan'::regclass,'syncview_runtime_flags'::regclass,
+   'deliverables'::regclass,'batches'::regclass,'clients'::regclass,'team_members'::regclass);`)==='7',
+  'and so do the tables the function reads directly');
+ const cached=(v=null)=>json(`select workload_native_snapshot_cached_v1(${v===null?'null':"'"+v+"'"});`);
+ const builtAt=()=>sql('select built_at from workload_snapshot_cache;');
+ const v1=json('select workload_native_snapshot_v1();');
+ let c2=cached();
+ ok(c2.contract==='workload-native-snapshot-v2'&&/^[0-9a-f]{32}$/.test(c2.version)&&c2.count===v1.count
+  &&c2.rows.length===v1.rows.length,'v2 serves the same population as v1, with a content version');
+ ok(c2.rows.every(r=>!('linear_parent_ids' in r)),'linear_parent_ids is dropped');
+ ok(c2.rows.filter(r=>r.source==='native').every(r=>!('url' in r))
+  &&c2.rows.filter(r=>r.source==='legacy').every(r=>'url' in r||!('url' in v1.rows.find(o=>o.id===r.id))),'url travels only on legacy rows');
+ {const byId=new Map(v1.rows.map(r=>[r.id,r]));
+  ok(c2.rows.every(r=>{const o=byId.get(r.id);const ident='parent_identifier' in r?r.parent_identifier:c2.parents[r.parent_id];
+   return (o.parent_identifier??null)===(ident??null);}),'every row parent_identifier is recoverable exactly from the row or the parents map');
+  ok(JSON.stringify(c2.plans)===JSON.stringify(v1.plans)&&JSON.stringify(c2.roster)===JSON.stringify(v1.roster)
+   &&JSON.stringify(c2.authority)===JSON.stringify(v1.authority),'plans, roster and authority are unchanged');}
+ const first=builtAt();
+ ok(cached().version===c2.version&&builtAt()===first,'a second read is served from the copy, not rebuilt');
+ {const u=cached(c2.version);ok(u.unchanged===true&&u.version===c2.version&&!('rows' in u)&&!('plans' in u),'the held version gets "unchanged" with no body');}
+ ok(cached('ffffffffffffffffffffffffffffffff').rows.length===c2.rows.length,'a different version gets the full body');
+ // A write that does not change the board rebuilds but keeps the version.
+ sql(`update syncview_runtime_flags set value=value where key='prod_authority';`);
+ ok(cached(c2.version).unchanged===true&&builtAt()!==first,'a no-op write rebuilds, and an identical board keeps its version');
+ // Each source table, one real change each: the next read must reflect it.
+ const edits=[
+  [`update deliverables set title='Retitled fixture' where id='del_fixture';`,v=>v.rows.find(r=>r.id==='del_fixture').title==='Retitled fixture'],
+  [`update batches set name='Renamed batch' where id='bat_fixture';`,v=>v.parents.bat_fixture==='Renamed batch'],
+  [`update clients set active=false where slug='fixture';`,v=>v.rows.find(r=>r.id==='del_fixture').native_client_active===false],
+  [`update clients set active=true where slug='fixture';`,v=>v.rows.find(r=>r.id==='del_fixture').native_client_active===true],
+  [`update team_members set name='Renamed editor' where id='00000000-0000-0000-0000-000000000001';`,v=>v.roster.some(m=>m.name==='Renamed editor')],
+  [`update workload_plan set plan_date='2030-04-01' where issue_id='old-fixture';`,v=>v.plans.some(p=>p.plan_date==='2030-04-01')],
+  [`insert into workload_issues values('legacy-new',true,true,'CON','Content','Fixture','started',null);`,v=>v.rows.some(r=>r.id==='legacy-new')],
+  [`update syncview_runtime_flags set value='{"video":"linear","graphics":"syncview"}' where key='prod_authority';`,v=>v.authority.video==='linear'],
+  [`update syncview_runtime_flags set value='{"video":"syncview","graphics":"syncview"}' where key='prod_authority';`,v=>v.authority.video==='syncview']];
+ for(const [write,sees] of edits){const before=cached();sql(write);const after=cached(before.version);
+  ok(!after.unchanged&&after.version!==before.version&&sees(after),'a committed change is never served stale: '+write.slice(0,48));}
+ // A writer still open is invisible; the moment it commits, the copy is stale.
+ {const held=cached();
+  const writer=spawn(bin,args(db),{env,windowsHide:true,stdio:['pipe','pipe','pipe']});let werr='';writer.stderr.on('data',v=>werr+=v);
+  writer.stdin.end(`begin;update deliverables set title='Committed later' where id='del_fixture';select pg_sleep(1.5);commit;`);
+  const closed=new Promise((resolve,reject)=>{writer.on('error',reject);writer.on('close',code=>code===0?resolve():reject(Error(werr)));});
+  await new Promise(r=>setTimeout(r,500));
+  ok(cached(held.version).unchanged===true,'an uncommitted writer does not change what is served');
+  await closed;
+  const after=cached(held.version);
+  ok(!after.unchanged&&after.rows.find(r=>r.id==='del_fixture').title==='Committed later','and its commit invalidates the copy on the next read');}
+ // Fail-closed survives the cache: a broken authority refuses, never serves the copy.
+ sql(`update syncview_runtime_flags set value='{}' where key='prod_authority';`);
+ sql('select workload_native_snapshot_cached_v1(null);',db,true);checks++;
+ sql(`update syncview_runtime_flags set value='{"video":"syncview","graphics":"syncview"}' where key='prod_authority';`);
+ ok(cached().authority.video==='syncview','and it recovers once authority is readable');
+ ok(Number(sql('select count(*) from workload_snapshot_invalidation;'))<=1,'absorbed invalidations are pruned at rebuild');
+ // Staff-only: the RPC is service_role only, the tables are closed to every role.
+ for(const role of ['anon','authenticated']){sql(`set role ${role};select workload_native_snapshot_cached_v1(null);`,db,true);checks++;}
+ for(const role of ['anon','authenticated','service_role'])for(const t of ['workload_snapshot_cache','workload_snapshot_invalidation']){
+  sql(`set role ${role};select count(*) from ${t};`,db,true);checks++;}
+ ok(json('set role service_role;select workload_native_snapshot_cached_v1(null);').contract==='workload-native-snapshot-v2','service_role reads through the RPC only');
+ sql(`update workload_plan set plan_date='2030-02-01' where issue_id='old-fixture';update team_members set name='Fixture editor' where id='00000000-0000-0000-0000-000000000001';
+ update batches set name='Fixture batch' where id='bat_fixture';update deliverables set title='Fixture work' where id='del_fixture';delete from workload_issues where id='legacy-new';`);
  const handler=spawnSync(process.execPath,['--experimental-strip-types',path.join(root,'qa/workload-native/handler.mjs')],{env:{...env,WORKLOAD_TEST_DB:db},encoding:'utf8',windowsHide:true,timeout:60000,maxBuffer:4e6});
  process.stdout.write(handler.stdout||'');if(handler.status!==0)throw Error(handler.stderr||'Actual handler lane failed');
- passed=true;console.log(JSON.stringify({classification:'ISOLATED_POSTGRES',checks,source:'workload-native-membership',external_calls:0,limits:['minimal legacy/flag fixtures','consumed-column production view with real label helper','no installed schema or serving proof']}));
+ passed=true;console.log('WORKLOAD_NATIVE_POSTGRES_OK');console.log(JSON.stringify({classification:'ISOLATED_POSTGRES',checks,source:'workload-native-membership',external_calls:0,limits:['minimal legacy/flag fixtures','consumed-column production view with real label helper','no installed schema or serving proof']}));
  }finally{if(passed)sql(`drop database ${db};`,'postgres');else console.error('Failed uniquely owned disposable database preserved: '+db);}
 })().catch(e=>{console.error(e);process.exitCode=1;});

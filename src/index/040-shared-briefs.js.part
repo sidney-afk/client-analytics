@@ -1065,25 +1065,46 @@
           failed size, instead of serializing megabytes into a guaranteed
           exception on every load. */
     const ANALYTICS_CACHE_FAIL_KEY = 'syncview_analyticsCacheQuotaFail_v1';
+    /* Typed arrays, not a string grown one character at a time. The older
+       loops were the same encoding, but on the 2.5 MB Metrics sheet one cache
+       write (read + unpack + pack) held the main thread for ~2.1 s, measured
+       2026-09-23 -- and on a SyncLinear load that task landed between two
+       pages of the deliverable read, so the third page could not even start
+       until it finished. Output is byte-for-byte the old format, so snapshots
+       already in a browser still read. */
     function _lsPackUtf8(text){
-        const bytes = unescape(encodeURIComponent(String(text)));
+        const CHUNK = 8192;   // under the argument limit of fromCharCode.apply
+        const str = String(text);
+        // encodeURIComponent threw on a lone surrogate; TextEncoder would
+        // quietly write U+FFFD instead. Keep the throw, so the caller's catch
+        // still drops the write rather than caching altered text.
+        if (typeof str.isWellFormed === 'function' && !str.isWellFormed()) throw new URIError('URI malformed');
+        const bytes = new TextEncoder().encode(str);
+        const n = bytes.length;
+        const units = new Uint16Array((n + 1) >> 1);
+        for (let i = 0, j = 0; i < n; i += 2, j++) {
+            units[j] = (bytes[i] << 8) | (i + 1 < n ? bytes[i + 1] : 0);
+        }
         let out = '';
-        for (let i = 0; i < bytes.length; i += 2) {
-            out += String.fromCharCode((bytes.charCodeAt(i) << 8) | (i + 1 < bytes.length ? bytes.charCodeAt(i + 1) : 0));
+        for (let k = 0; k < units.length; k += CHUNK) {
+            out += String.fromCharCode.apply(null, units.subarray(k, k + CHUNK));
         }
         // A trailing odd byte is padded with NUL; record parity so unpack
         // knows whether to drop it.
-        return (bytes.length % 2 ? 'O' : 'E') + out;
+        return (n % 2 ? 'O' : 'E') + out;
     }
     function _lsUnpackUtf8(packed){
         const parity = packed[0];
-        let bytes = '';
-        for (let i = 1; i < packed.length; i++) {
+        const bytes = new Uint8Array(Math.max(0, packed.length - 1) * 2);
+        for (let i = 1, j = 0; i < packed.length; i++, j += 2) {
             const u = packed.charCodeAt(i);
-            bytes += String.fromCharCode(u >> 8) + String.fromCharCode(u & 0xff);
+            bytes[j] = u >> 8;
+            bytes[j + 1] = u & 0xff;
         }
-        if (parity === 'O') bytes = bytes.slice(0, -1);
-        return decodeURIComponent(escape(bytes));
+        const end = parity === 'O' ? bytes.length - 1 : bytes.length;
+        // fatal: bad UTF-8 throws, as decodeURIComponent did. ignoreBOM: a
+        // leading U+FEFF is text here, and the old path kept it.
+        return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, Math.max(0, end)));
     }
     function _analyticsCacheRead(){
         try{

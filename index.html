@@ -9617,25 +9617,46 @@
           failed size, instead of serializing megabytes into a guaranteed
           exception on every load. */
     const ANALYTICS_CACHE_FAIL_KEY = 'syncview_analyticsCacheQuotaFail_v1';
+    /* Typed arrays, not a string grown one character at a time. The older
+       loops were the same encoding, but on the 2.5 MB Metrics sheet one cache
+       write (read + unpack + pack) held the main thread for ~2.1 s, measured
+       2026-09-23 -- and on a SyncLinear load that task landed between two
+       pages of the deliverable read, so the third page could not even start
+       until it finished. Output is byte-for-byte the old format, so snapshots
+       already in a browser still read. */
     function _lsPackUtf8(text){
-        const bytes = unescape(encodeURIComponent(String(text)));
+        const CHUNK = 8192;   // under the argument limit of fromCharCode.apply
+        const str = String(text);
+        // encodeURIComponent threw on a lone surrogate; TextEncoder would
+        // quietly write U+FFFD instead. Keep the throw, so the caller's catch
+        // still drops the write rather than caching altered text.
+        if (typeof str.isWellFormed === 'function' && !str.isWellFormed()) throw new URIError('URI malformed');
+        const bytes = new TextEncoder().encode(str);
+        const n = bytes.length;
+        const units = new Uint16Array((n + 1) >> 1);
+        for (let i = 0, j = 0; i < n; i += 2, j++) {
+            units[j] = (bytes[i] << 8) | (i + 1 < n ? bytes[i + 1] : 0);
+        }
         let out = '';
-        for (let i = 0; i < bytes.length; i += 2) {
-            out += String.fromCharCode((bytes.charCodeAt(i) << 8) | (i + 1 < bytes.length ? bytes.charCodeAt(i + 1) : 0));
+        for (let k = 0; k < units.length; k += CHUNK) {
+            out += String.fromCharCode.apply(null, units.subarray(k, k + CHUNK));
         }
         // A trailing odd byte is padded with NUL; record parity so unpack
         // knows whether to drop it.
-        return (bytes.length % 2 ? 'O' : 'E') + out;
+        return (n % 2 ? 'O' : 'E') + out;
     }
     function _lsUnpackUtf8(packed){
         const parity = packed[0];
-        let bytes = '';
-        for (let i = 1; i < packed.length; i++) {
+        const bytes = new Uint8Array(Math.max(0, packed.length - 1) * 2);
+        for (let i = 1, j = 0; i < packed.length; i++, j += 2) {
             const u = packed.charCodeAt(i);
-            bytes += String.fromCharCode(u >> 8) + String.fromCharCode(u & 0xff);
+            bytes[j] = u >> 8;
+            bytes[j + 1] = u & 0xff;
         }
-        if (parity === 'O') bytes = bytes.slice(0, -1);
-        return decodeURIComponent(escape(bytes));
+        const end = parity === 'O' ? bytes.length - 1 : bytes.length;
+        // fatal: bad UTF-8 throws, as decodeURIComponent did. ignoreBOM: a
+        // leading U+FEFF is text here, and the old path kept it.
+        return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, Math.max(0, end)));
     }
     function _analyticsCacheRead(){
         try{
@@ -65903,8 +65924,18 @@
             _prodEnsureOverlays();
             _prodHideTip();
             _prodCaptureListScroll(root);
-            root.innerHTML = _prodSidebar() + '<div class="prod-main">' + _prodTopbar() + '<div class="prod-content">' + _prodBody() + '</div></div>';
+            _prodListFillSeq++;
+            _prodListDeferred = [];
+            _prodListRowBudget = (!root.querySelector('.prod-row') && !_prodState.listScrollTop && !_prodState.focusRow)
+                ? _prodFirstScreenRows() : Infinity;
+            try {
+                root.innerHTML = _prodSidebar() + '<div class="prod-main">' + _prodTopbar() + '<div class="prod-content">' + _prodBody() + '</div></div>';
+            } finally {
+                _prodListRowBudget = Infinity;
+            }
             const list = root.querySelector('.prod-listwrap');
+            if (list && _prodListDeferred.length) _prodListFill(list, _prodListDeferred);
+            _prodListDeferred = [];
             if (list && _prodState.listScrollTop) list.scrollTop = _prodState.listScrollTop;
             /* Symmetric with the capture: the pane that just painted is asked
                who it is, and the offset is only put back on the same item it
@@ -66280,6 +66311,54 @@
                 + '<button class="abtn" type="button" id="prodBulkActions" onclick="return _prodOpenBulkActions(event,' + _jsAttrArg(first) + ')" title="Bulk actions for the selected issues"><span style="font-size:13px">⌘</span> Actions</button>'
                 + '<button class="ax" type="button" id="prodBulkClear" onclick="_prodState.selected.clear(); _prodState.selAnchor=' + _jsAttrArg('') + '; _prodState.focusRow=' + _jsAttrArg('') + '; _prodState.hoverRow=' + _jsAttrArg('') + '; _prodRender();" data-prod-tip="Clear · Esc">×</button></div>';
         }
+        /* FIRST SCREEN FIRST. Measured 2026-09-23: building the list's markup
+           cost ~400 ms (6.7 MB of HTML for ~1,570 rows) before a single row
+           could be seen, on every load and every switch into the tab. The
+           first paint now builds only what fits on screen, and the rest is
+           appended in order, a chunk per task, so the finished list is the
+           same markup in the same order.
+
+           Only the first paint of the list: a render that already has rows on
+           screen, a restored scroll offset or a keyboard focus row builds
+           everything at once, exactly as before, because each of those needs
+           rows that may be below the cut. Any render bumps the sequence, so a
+           fill still running for a replaced list stops instead of appending to
+           a list that is no longer there. */
+        let _prodListRowBudget = Infinity;
+        let _prodListDeferred = [];
+        let _prodListFillSeq = 0;
+        const PROD_LIST_FILL_CHUNK = 200;
+        /* Measured 2026-09-23 at 1440x950: every .prod-row is 44 px tall (group
+           headers 30 px). There are no rows on screen to measure at the first
+           paint, which is the only time this is asked, so the measured height
+           is a constant. Twice a screenful covers group headers and a fast
+           first scroll; the floor also covers a height that reads 0. */
+        const PROD_LIST_ROW_PX = 44;
+        function _prodFirstScreenRows() {
+            const screen = Number(window.innerHeight) || 0;
+            if (screen <= 0) return 60;
+            return Math.min(150, Math.max(60, Math.ceil(screen / PROD_LIST_ROW_PX) * 2));
+        }
+        function _prodListFill(list, parts) {
+            const seq = _prodListFillSeq;
+            let at = 0;
+            const step = () => {
+                if (seq !== _prodListFillSeq || !list.isConnected) return;
+                let html = '';
+                let built = 0;
+                while (at < parts.length && built < PROD_LIST_FILL_CHUNK) {
+                    const part = parts[at++];
+                    if (typeof part === 'string') html += part;
+                    else { html += _prodRow(part); built++; }
+                }
+                list.insertAdjacentHTML('beforeend', html);
+                if (at < parts.length) setTimeout(step, 0);
+            };
+            // After the frame that shows the first screen, not before it. A
+            // hidden tab gets no frames, so it goes straight to a task.
+            if (document.hidden || typeof requestAnimationFrame !== 'function') setTimeout(step, 0);
+            else requestAnimationFrame(() => setTimeout(step, 0));
+        }
         // PORT-DELTA: renderList consumes _prodAdapter live rows and preserves host type scale/classes.
         function _prodList() {
             const rows = _prodIssueRows();
@@ -66310,6 +66389,13 @@
                     : emptyHTML;
             }
             const selected = _prodState.selected || new Set();
+            /* First paint builds a screenful; the rest is queued IN ORDER --
+               the rows past the cut and every later group header -- for
+               _prodListFill to append. Every other render has an infinite
+               budget, queues nothing, and produces the same markup as before. */
+            let budget = _prodListRowBudget;
+            const deferred = [];
+            _prodListDeferred = deferred;
             return '<div class="prod-listwrap" tabindex="0" aria-label="Issues list">' + _prodDeepLinkNoticeHTML() + _prodGroupsFor(rows).map(group => {
                 const items = group.items || [];
                 const collapsed = _prodState.collapsed.has(group.key);
@@ -66322,8 +66408,16 @@
                 const title = projectNav
                     ? '<span class="prod-group-title navp" data-prod-project="' + _calEscAttr(group.key) + '" data-prod-tip="Open project" onclick="event.stopPropagation(); _prodOpenProject(' + _jsAttrArg(group.key) + ')">' + _calEsc(group.title) + '</span>'
                     : '<span class="prod-group-title">' + _calEsc(group.title) + '</span>';
-                return '<div class="prod-group' + (collapsed ? ' collapsed' : '') + '" data-prod-group="' + _calEscAttr(group.key) + '" onclick="_prodToggleGroup(' + _jsAttrArg(group.key) + ')"><span class="prod-group-chev" data-prod-group-toggle="' + _calEscAttr(group.key) + '">' + _prodIcon('chevD') + '</span><span class="prod-group-check' + checkClass + '" data-prod-group-check="' + _calEscAttr(group.key) + '" onclick="event.stopPropagation(); return _prodGuardGroupSelection(' + _jsAttrArg(group.key) + ')" data-prod-tip="' + _calEscAttr(PROD_GROUP_SELECT_UNSUPPORTED) + '"></span><span class="prod-group-ico prod-status">' + group.icon + '</span>' + title + '<span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span></div>'
-                    + (collapsed ? '' : items.map(_prodRow).join(''));
+                const head = '<div class="prod-group' + (collapsed ? ' collapsed' : '') + '" data-prod-group="' + _calEscAttr(group.key) + '" onclick="_prodToggleGroup(' + _jsAttrArg(group.key) + ')"><span class="prod-group-chev" data-prod-group-toggle="' + _calEscAttr(group.key) + '">' + _prodIcon('chevD') + '</span><span class="prod-group-check' + checkClass + '" data-prod-group-check="' + _calEscAttr(group.key) + '" onclick="event.stopPropagation(); return _prodGuardGroupSelection(' + _jsAttrArg(group.key) + ')" data-prod-tip="' + _calEscAttr(PROD_GROUP_SELECT_UNSUPPORTED) + '"></span><span class="prod-group-ico prod-status">' + group.icon + '</span>' + title + '<span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span></div>';
+                const shown = collapsed ? [] : items;
+                if (deferred.length || (budget <= 0 && shown.length)) {
+                    deferred.push(head, ...shown);
+                    return '';
+                }
+                const now = shown.length <= budget ? shown : shown.slice(0, budget);
+                budget -= now.length;
+                if (now.length < shown.length) deferred.push(...shown.slice(now.length));
+                return head + now.map(_prodRow).join('');
             }).join('') + '</div>' + _prodSelectionBar();
         }
         // PORT-DELTA: rowHTML uses live ids/displayIds and read-only picker hooks.

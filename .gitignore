@@ -35,6 +35,7 @@ supabase/.temp/
 # Master tester — per-run artifacts (regenerated every run)
 qa/visual/
 qa/MASTER_REPORT.md
+qa/dawn/out/
 
 # Overnight runner — live runtime log (churns constantly; curated results go
 # into qa/OVERNIGHT_TEST_REPORT.md instead). Per-run master JSON reports too.

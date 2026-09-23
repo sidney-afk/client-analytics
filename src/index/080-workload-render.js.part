@@ -69,7 +69,9 @@
            until wlLoadSnapshot replaces it. Staff identity is required first:
            the cache was written for a staff session and is not shown to anyone
            the live read would refuse. */
-        const cachedIssues = cache && Array.isArray(cache.issues) && cache.issues.length
+        // Older than WL_CACHED_BOARD_MAX_AGE_MS: the normal loading state, not
+        // a board that far out of date.
+        const cachedIssues = wlCachedBoardUsable(cache)
             && _syncviewStaffIdentityForHeaders() ? cache.issues : null;
         if (cachedIssues && !wlState.issueSnapshot.length) {
             wlState.planLoading = true;

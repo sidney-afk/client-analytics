@@ -12,7 +12,7 @@ const sqlEnv=Object.fromEntries(Object.entries(process.env).filter(([key])=>!/^P
 if(process.env.WORKLOAD_TEST_PASSWORD!==undefined)sqlEnv.PGPASSWORD=process.env.WORKLOAD_TEST_PASSWORD;
 const quote=v=>v==null?'null':"'"+String(v).replaceAll("'","''")+"'";
 function sql(text){const r=spawnSync(psql,['-X','-w','-q','-A','-t','-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p',port,'-U','postgres','-d',database],{input:text,encoding:'utf8',env:sqlEnv,windowsHide:true,timeout:10000,maxBuffer:16e6});if(r.status!==0)throw Error(r.stderr);return r.stdout.trim();}
-let rpcFault=false, rpcHangMs=0, planReadHangMs=0, rpcCalls=0, legacyWrites=0, external=0;
+let rpcMissing=false, rpcFault=false, rpcHangMs=0, planReadHangMs=0, rpcCalls=0, legacyWrites=0, external=0;
 const db={rpc:async(name,params={})=>{rpcCalls++;
  // A HANGING rpc, not a rejecting one. Codex P1 on #1344: `unavailable` is most
  // often SLOW rather than thrown, and a promise that never settles slips past
@@ -21,7 +21,8 @@ const db={rpc:async(name,params={})=>{rpcCalls++;
  // could not express that, so the lane could not see it.
  if(rpcHangMs)await new Promise(r=>setTimeout(r,rpcHangMs));
  if(rpcFault)return {data:null,error:{code:'fixture-refusal'}};
- if(!['workload_native_snapshot_v1','workload_native_plan_target_v1','workload_native_plan_set_v1'].includes(name))throw Error('Unapproved SQL RPC');
+ if(rpcMissing&&name==='workload_native_snapshot_cached_v1')return {data:null,error:{code:'PGRST202'}};
+ if(!['workload_native_snapshot_v1','workload_native_snapshot_cached_v1','workload_native_plan_target_v1','workload_native_plan_set_v1'].includes(name))throw Error('Unapproved SQL RPC');
  try {return {data:JSON.parse(sql(`select public.${name}(${Object.entries(params).map(([k,v])=>k+'=>'+quote(v)).join(',')});`)||'null'),error:null};}
  catch {return {data:null,error:{code:'sql_refused'}};}},
  from:table=>{if(!['workload_plan','workload_issues','syncview_runtime_flags','clients','client_access'].includes(table))throw Error('Unapproved SQL table');
@@ -66,6 +67,19 @@ const log=console.log;console.log=()=>{};
 try{
  const file=path.join(scratch,'candidate.ts');fs.writeFileSync(file,rewritten(current));await import(pathToFileURL(file).href);
  for(const key of ['fixture-admin','fixture-smm','fixture-creative']){const r=await request({action:'native_snapshot'},key);ok(r.status===200&&r.body.complete&&r.body.count===1009,'actual staff reader exposes complete native snapshot');}
+ // Cached v2 (migrations/2026-09-23-workload-native-snapshot-cache.sql), through the real handler.
+ {let v=await request({action:'native_snapshot_v2'});
+  ok(v.status===200&&v.body.contract==='workload-native-snapshot-v2'&&v.body.count===1009&&/^[0-9a-f]{32}$/.test(v.body.version)
+   &&typeof v.body.parents==='object'&&v.body.rows.every(row=>!('linear_parent_ids' in row)),'staff v2 read serves the slim cached body with its version');
+  const u=await request({action:'native_snapshot_v2',if_version:v.body.version});
+  ok(u.status===200&&u.body.unchanged===true&&u.body.version===v.body.version&&!('rows' in u.body),'the held version is answered "unchanged" with no body');
+  const n=rpcCalls;const anon=await request({action:'native_snapshot_v2',if_version:v.body.version},'');
+  ok(anon.status===401&&rpcCalls===n,'anonymous v2 is refused before any SQL, even with a valid version');
+  ok((await request({action:'native_snapshot_v2',if_version:'not-a-version'})).status===400,'a malformed version is refused');
+  rpcMissing=true;const m=await request({action:'native_snapshot_v2'});rpcMissing=false;
+  ok(m.status===501&&m.body.error==='snapshot_cache_unavailable','before the migration is applied v2 answers 501 so the browser falls back');
+  rpcFault=true;const f=await request({action:'native_snapshot_v2'});rpcFault=false;
+  ok(f.status===503,'a failed cached read is a failed read, never empty success');}
  let before=rpcCalls;let r=await request({action:'native_snapshot'},'');ok(r.status===401&&rpcCalls===before,'anonymous refused before native roster/plan read');
  r=await request({action:'native_snapshot'},'bad',{'x-syncview-role':'admin'});ok(r.status===401&&rpcCalls===before,'forged role cannot read private snapshot');
  r=await request({action:'set',issue_id:'del_fixture',client:'Fixture',plan_date:'2030-03-01'},'fixture-creative');ok(r.status===403,'creative writer policy unchanged');

@@ -19,11 +19,11 @@
 | 11 | `090-workload-popovers-navigation.js.part` | 2613 | Sub-issue popover |
 | 12 | `100-onboarding-staff-controls.js.part` | 2259 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2024 | Kasper Time Off calendar |
-| 14 | `120-calendar-flags-write-repair.js.part` | 3025 | The members a flag value offers, or null when it offers no member list at |
+| 14 | `120-calendar-flags-write-repair.js.part` | 3013 | The members a flag value offers, or null when it offers no member list at |
 | 15 | `125-title-name-rule.js.part` | 219 | Title name rule (browser copy) |
 | 16 | `130-calendar-model-cache.js.part` | 2748 | Returns the comments array for a given component. Falls back to the |
 | 17 | `140-calendar-legacy-outbox.js.part` | 3055 | Shed the retired legacy rows from storage, under the surface mutation |
-| 18 | `150-calendar-hydration-import.js.part` | 2709 | For a card linked to a real sub-issue (not a parent), return which of |
+| 18 | `150-calendar-hydration-import.js.part` | 2724 | For a card linked to a real sub-issue (not a parent), return which of |
 | 19 | `160-calendar-organize-ui.js.part` | 2745 | Lighter path for the Order switch: update the chrome in place so the |
 | 20 | `170-calendar-links-status.js.part` | 2760 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 21 | `180-calendar-native-post-media.js.part` | 2680 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
@@ -38,7 +38,7 @@
 | 30 | `270-samples-model.js.part` | 2694 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 31 | `280-samples-cards-notes.js.part` | 2831 | SURFACE 3: the save engine |
 | 32 | `290-samples-writes-review.js.part` | 1822 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
-| 33 | `300-tiktok-upload.js.part` | 1697 | TIKTOK UPLOAD MODULE |
+| 33 | `300-tiktok-upload.js.part` | 1707 | TIKTOK UPLOAD MODULE |
 | 34 | `310-tiktok-pilot-sales.js.part` | 1969 | TIKTOK PILOT MODULE (gated: ?ttpilot=1 → #tiktok-pilot) |
 | 35 | `320-kasper-dashboard-replies.js.part` | 2788 | Background poll for the Kasper review — same cadence as the client |
 | 36 | `330-kasper-review-history.js.part` | 2540 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |

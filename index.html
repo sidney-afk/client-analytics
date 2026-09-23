@@ -28803,16 +28803,6 @@
     const WRITE_UI_QUEUE_DIAG_KEY = 'syncview_write_ui_queue_diag_v1';
     const WRITE_UI_SOURCE_REPAIR_KEY = 'syncview_write_ui_source_repairs_v1';
     let _writeUiAuthorityLive = null;
-    /* Render-only memory of the last live authority read. The first board
-       paint usually lands before the live read, and drawing it fail-open put
-       Linear link controls on screen for ~100 ms before a full repaint took
-       them away again. Only _writeUiLinkSlotSealed reads this; every write,
-       hydration and the live seal gate still require the live value. */
-    const WRITE_UI_AUTHORITY_RENDER_KEY = 'syncview_write_ui_authority_render_v1';
-    function _writeUiAuthorityForRender() {
-        if (_writeUiAuthorityLive) return _writeUiAuthorityLive;
-        try { return _writeUiNormalizeAuthority(localStorage.getItem(WRITE_UI_AUTHORITY_RENDER_KEY)); } catch (e) { return null; }
-    }
     let _writeUiAuthorityReadAt = 0;
     let _writeUiAuthorityPromise = null;
     const _writeUiFailureNoticeAt = Object.create(null);
@@ -28853,7 +28843,6 @@
                 if (!value) throw new Error('authority_malformed');
                 _writeUiAuthorityLive = value;
                 _writeUiAuthorityReadAt = Date.now();
-                try { localStorage.setItem(WRITE_UI_AUTHORITY_RENDER_KEY, JSON.stringify(value)); } catch (e) {}
                 return value;
             } catch (e) {
                 // Last-known-good is render-diagnostic only. Writes and cache
@@ -28937,12 +28926,11 @@
      * `_calAdoptDeliverableLinks` fills an empty slot FROM the deliverable, and
      * `_calProdSlotHtml` links straight to the Production row. */
     function _writeUiLinkSlotSealed(component) {
-        const authority = _writeUiAuthorityForRender();
-        // Render-side only, and deliberately fails OPEN: before the first live
-        // read lands it draws from the last value this browser read live, and
-        // with none at all it shows the control, because hiding a legitimate
-        // video control during first paint would be a worse lie than showing
-        // one that the commit gate below then refuses out loud.
+        const authority = _writeUiAuthoritySnapshot();
+        // Render-side only, and deliberately fails OPEN: the snapshot is null
+        // until the first live read lands, and hiding a legitimate video
+        // control during first paint would be a worse lie than showing one that
+        // the commit gate below then refuses out loud.
         return !!authority && authority[_writeUiTeam(component)] === 'syncview';
     }
     /* The gate that actually decides, on a LIVE read, because the renderer can
@@ -39208,6 +39196,7 @@
         if (el) el.hidden = !on;
     }
     const CAL_LOAD_TIMEOUT_MS = 20000;
+    const CAL_AUTHORITY_PAINT_WAIT_MS = 400;
     async function loadCalendarPosts(opts) {
         opts = opts || {};
         if (!calState.client) { _calInvalidateActiveLoad(); _calRenderBody(); return; }
@@ -39629,6 +39618,20 @@
         } finally {
             if (timeoutId) clearTimeout(timeoutId);
             loadRun.timeoutId = null;
+            /* The board usually arrives just before the live write-authority
+               read. Painting then draws the Linear link seal fail-open, and
+               the authority read repaints the whole board ~100-250 ms later
+               to change it. Give that read a short, bounded head start so the
+               first paint is already the live answer; if it is slow or down,
+               paint fail-open exactly as before. */
+            if (ok && !_writeUiAuthoritySnapshot() && _calLoadRunCurrent(loadRun)) {
+                try {
+                    await Promise.race([
+                        _writeUiRefreshAuthority(),
+                        new Promise(resolve => setTimeout(resolve, CAL_AUTHORITY_PAINT_WAIT_MS))
+                    ]);
+                } catch {}
+            }
             // A late completion from an aborted generation must never detach
             // the replacement controller or clear its in-flight indicators.
             if (_calLoadRunCurrent(loadRun)) {
@@ -77695,12 +77698,14 @@
             const rows = Array.isArray(json) ? json : (json.rows || json.items || []);
             _tkSaveQueueCache(rows);
             const prunedPending = _tkPrunePending(_tkLoadPending());
-            const shownBefore = JSON.stringify(tkState.uploads);
+            const shownBefore = tkState.queueFromCache ? null : JSON.stringify(tkState.uploads);
             tkState.uploads = _tkMergeUploads(prunedPending, rows);
             // Trim local pending list of rows the server now knows about, plus stale optimistic ones.
             const knownIds = new Set(rows.map(r => r.id));
             _tkSavePending(prunedPending.filter(r => !knownIds.has(r.id)));
-            // The cached list is usually still right; repaint only on a change.
+            tkState.queueFromCache = false;
+            // The live list is usually the same; repaint only on a change
+            // (or to turn the cached, read-only rows into live ones).
             if (JSON.stringify(tkState.uploads) !== shownBefore) _tkRenderQueue();
         } catch (e) {
             // Surface only on the very first failure — keep retrying quietly afterwards.
@@ -77727,18 +77732,25 @@
                 : (r.posted_at ? `posted ${new Date(r.posted_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}` : 'now');
             const status = _tkEffectiveStatus(r);
             const actions = [];
-            if (status === 'scheduled' || status === 'queued') {
-                actions.push(`<button class="tk-mini-btn" onclick="_tkCancelRow('${_tkEscape(r.id)}')">Cancel</button>`);
+            // Rows painted from the local cache are read-only until the live
+            // list confirms them: the state may have moved on elsewhere.
+            const readOnly = tkState.queueFromCache && !r.optimistic;
+            if (readOnly) {
+                if (r.tiktok_url) actions.push(`<a class="tk-mini-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
+            } else {
+                if (status === 'scheduled' || status === 'queued') {
+                    actions.push(`<button class="tk-mini-btn" onclick="_tkCancelRow('${_tkEscape(r.id)}')">Cancel</button>`);
+                }
+                if (status === 'failed') {
+                    actions.push(`<button class="tk-mini-btn" onclick="_tkRetryRow('${_tkEscape(r.id)}')">Retry</button>`);
+                }
+                if (r.tiktok_url) {
+                    actions.push(`<a class="tk-mini-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
+                }
+                actions.push(`<button class="tk-mini-btn" onclick="_tkDismissRow('${_tkEscape(r.id)}')">Dismiss</button>`);
             }
-            if (status === 'failed') {
-                actions.push(`<button class="tk-mini-btn" onclick="_tkRetryRow('${_tkEscape(r.id)}')">Retry</button>`);
-            }
-            if (r.tiktok_url) {
-                actions.push(`<a class="tk-mini-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
-            }
-            actions.push(`<button class="tk-mini-btn" onclick="_tkDismissRow('${_tkEscape(r.id)}')">Dismiss</button>`);
             return `
-                <div class="tk-queue-item">
+                <div class="tk-queue-item${readOnly ? ' tk-queue-item-cached' : ''}">
                     <div class="tk-queue-top">
                         <div style="min-width:0">
                             <div class="tk-queue-client">${_tkEscape(r.client || '—')}</div>
@@ -77861,6 +77873,7 @@
         // below refreshes them.
         const cachedRows = _tkLoadQueueCache();
         tkState.uploads = _tkMergeUploads(_tkPrunePending(_tkLoadPending()), cachedRows);
+        tkState.queueFromCache = cachedRows.length > 0;
         _tkRenderForm();
         _tkRenderPreview();
         _tkRenderQueue();

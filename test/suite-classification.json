@@ -576,8 +576,7 @@
     "write-ui-reroute-usable-roster.js",
     "write-ui-soak-pager.js",
     "write-ui-writer-durability.js",
-    "title-name-rule-drift.js",
-    "client-card-rename-refusal.js"
+    "title-name-rule-drift.js"
   ],
   "profiles": [
     {

@@ -165,13 +165,9 @@ function validateArtifact(value) {
 
 validateArtifact(publicB1Artifact(plan, { deliverable_rpc_writes: 2 }, null));
 
-const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'b1-linear-incremental-refresh.yml'), 'utf8');
-assert(!/--out\s+artifacts\//.test(workflow), 'public workflow must not upload the detailed Markdown report');
-assert(/> \.codex-tmp\/b1-private\.log 2>&1/.test(workflow), 'detailed stdout/stderr must stay runner-local');
-assert(/--json-out artifacts\/b1-linear-incremental-refresh\.json/.test(workflow), 'public workflow must upload only the aggregate JSON serializer');
-assert(/if:\s*success\(\)[\s\S]{0,180}path:\s*artifacts\/b1-linear-incremental-refresh\.json/.test(workflow), 'upload must be success-only and name the exact aggregate file');
-assert(/Prove public artifact projection[\s\S]*node test\/public-b1-artifact\.js[\s\S]*Run incremental refresh/.test(workflow), 'privacy projection test must run before live apply');
-assert(/node test\/public-b1-artifact\.js artifacts\/b1-linear-incremental-refresh\.json/.test(workflow), 'generated artifact must pass exact-schema validation before upload');
+// The b1-linear-incremental-refresh.yml wiring assertions were removed when
+// that workflow was retired (B2 slice 6, 2026-09-23); the projection itself is
+// still proven above.
 
 const gitignore = fs.readFileSync(path.join(__dirname, '..', '.gitignore'), 'utf8');
 assert(/^\.codex-tmp\/$/m.test(gitignore) && /^\/artifacts\/$/m.test(gitignore), 'local live-derived output directories must be gitignored');

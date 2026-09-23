@@ -14,7 +14,6 @@ const { pathToFileURL } = require('node:url');
 
 const ROOT = path.resolve(__dirname, '..');
 const SCRIPT_PATH = path.join(ROOT, 'scripts', 'slice5-test-drills.js');
-const WORKFLOW_PATH = path.join(ROOT, '.github', 'workflows', 'slice5-test-drills.yml');
 const POLICY_PATH = path.join(
   ROOT,
   'supabase',
@@ -188,14 +187,6 @@ function scanRefusals(rawSource, only) {
   return found.sort((a, b) => a.line - b.line);
 }
 
-function stepBlock(workflow, name) {
-  const marker = `      - name: ${name}`;
-  const start = workflow.indexOf(marker);
-  if (start < 0) return '';
-  const next = workflow.indexOf('\n      - ', start + marker.length);
-  return workflow.slice(start, next < 0 ? workflow.length : next);
-}
-
 function sourceFunction(source, name) {
   const match = new RegExp(
     `(?:async\\s+)?function\\s+${name}\\s*\\([\\s\\S]*?\\)\\s*\\{`,
@@ -298,65 +289,18 @@ function publicLeavesAreSafe(value) {
 
 (async () => {
   ok(fs.existsSync(SCRIPT_PATH), 'the Slice 5 runner exists');
-  ok(fs.existsSync(WORKFLOW_PATH), 'the owner-gated workflow exists');
-  if (!fs.existsSync(SCRIPT_PATH) || !fs.existsSync(WORKFLOW_PATH)) {
+  if (!fs.existsSync(SCRIPT_PATH)) {
     process.exit(1);
   }
 
   const source = fs.readFileSync(SCRIPT_PATH, 'utf8');
-  const workflow = fs.readFileSync(WORKFLOW_PATH, 'utf8').replace(/\r/g, '');
   const runner = require(SCRIPT_PATH);
   const policy = await import(`${pathToFileURL(POLICY_PATH).href}?slice5-drill-contract`);
 
-  // ---- Workflow: manual, pinned, trusted-main provenance ----------------
-  ok(/^on:\n  workflow_dispatch:\n    inputs:\n      commit_sha:/m.test(workflow),
-    'workflow_dispatch exposes the required commit_sha input');
-  ok(/commit_sha:[\s\S]{0,180}required: true[\s\S]{0,80}type: string/.test(workflow),
-    'commit_sha is a required string');
-  ok(!/^  (?:push|pull_request|pull_request_target|schedule|workflow_call):/m.test(workflow),
-    'the live drill has no push, PR, schedule, or reusable-workflow trigger');
-  ok(/^permissions:\n  contents: read$/m.test(workflow)
-    && !/contents:\s*write/.test(workflow),
-  'workflow permissions are contents-read only');
-  ok(/^concurrency:\n  group: slice5-test-drills\n  cancel-in-progress: false$/m.test(workflow),
-    'one non-canceling concurrency group serializes TEST fixture use');
-  ok(/^    environment: production$/m.test(workflow),
-    'the drill job is protected by the production Environment');
-  ok(/^    timeout-minutes: 180$/m.test(workflow),
-    'the full matrix has enough bounded runner time to reach its own cleanup');
-  // Exactly one always() step is permitted: the public-safety validator must
-  // also run when the drill step fails, because the failure-only report is the
-  // artifact a reviewer reads and it must be validated before it is uploaded.
-  const alwaysSteps = (workflow.match(/\balways\(\)/g) || []).length;
-  ok(alwaysSteps === 1, 'exactly one always() step exists (the public-safety validator)');
-  ok(/- name: Validate the public-safe aggregate\n        if: always\(\)/.test(workflow),
-    'the always() step is the validator, so a failure report is never uploaded unvalidated');
-  ok(/stage=\$\{stage\} code=\$\{code\}/.test(workflow),
-    'a failed run names the refusing stage and an allowlisted failure code in the job log');
-  ok(/if: failure\(\)\n        uses: actions\/upload-artifact@v4/.test(workflow),
-    'the failure-only report is uploaded when the drill step fails');
-
-  // ---- Preflight-only mode and per-assert failure codes ------------------
-  ok(/^      preflight_only:$/m.test(workflow)
-    && /^        default: false$/m.test(workflow)
-    && /^        type: boolean$/m.test(workflow),
-  'preflight_only is an optional boolean dispatch input defaulting to false');
-  ok(/SLICE5_TEST_DRILLS_PREFLIGHT_ONLY: \$\{\{ inputs\.preflight_only \}\}/.test(workflow),
-    'the preflight_only input reaches the script as an env var');
-  ok(/fs\.unlinkSync\(reportPath\)/.test(workflow)
-    && /if \(rejected\) process\.exit\(1\)/.test(workflow),
-  'a report the validator rejects is deleted so the failure upload cannot publish it');
-
-  // The workflow validator allowlist must equal the script allowlist exactly,
-  // or a legitimate failure code would be rejected as unsafe at the last step.
-  const workflowEnums = new Set(
-    (workflow.slice(workflow.indexOf('const safeEnums = new Set(['),
-      workflow.indexOf(']);', workflow.indexOf('const safeEnums = new Set(['))
-    ).match(/'[a-z0-9_]+'/g) || []).map(v => v.slice(1, -1)),
-  );
-  const missingFromWorkflow = [...runner.FAILURE_CODES].filter(c => !workflowEnums.has(c));
-  ok(missingFromWorkflow.length === 0,
-    'every script failure code is accepted by the workflow public-safety validator');
+  // The slice5-test-drills.yml dispatch lane (trigger, provenance gate,
+  // secrets wiring, public-safety validator, upload) was retired with B2
+  // slice 6 on 2026-09-23; its YAML assertions went with it. The runner's own
+  // contract below is unchanged.
 
   // ---- Failure-code coverage: the WHOLE file, not a slice of one function ----
   // Every reported stage runs through shared helpers, so bounding this scan to
@@ -559,86 +503,6 @@ function publicLeavesAreSafe(value) {
   ok(/assert\(!runtime\.config\.preflightOnly[\s\S]{0,160}preflight_only_browser_blocked/
     .test(source.slice(source.indexOf('async function launchBrowser('))),
   'launchBrowser refuses outright in preflight-only mode');
-
-  const drillClock = stepBlock(workflow, 'Start the bounded drill clock');
-  const trustedCheckout = stepBlock(workflow, 'Check out trusted main for the provenance gate');
-  const provenance = stepBlock(workflow, 'Verify requested commit is an exact ancestor of origin/main');
-  const pinnedCheckout = stepBlock(workflow, 'Check out the verified commit');
-  const exactHead = stepBlock(workflow, 'Reverify exact checked-out commit');
-  const trustedAt = workflow.indexOf('      - name: Check out trusted main for the provenance gate');
-  const clockAt = workflow.indexOf('      - name: Start the bounded drill clock');
-  const provenanceAt = workflow.indexOf('      - name: Verify requested commit is an exact ancestor of origin/main');
-  const pinnedAt = workflow.indexOf('      - name: Check out the verified commit');
-  ok(trustedAt >= 0 && provenanceAt > trustedAt && pinnedAt > provenanceAt,
-    'trusted main checkout and ancestry proof precede dispatched-SHA checkout');
-  ok(clockAt >= 0 && clockAt < trustedAt
-    && /SLICE5_JOB_STARTED_AT_MS=%s/.test(drillClock)
-    && /\$GITHUB_ENV/.test(drillClock)
-    && !/secrets\./.test(drillClock),
-  'a credential-free workflow clock starts before checkout and dependency setup');
-  ok(/ref: refs\/heads\/main/.test(trustedCheckout)
-    && /fetch-depth: 0/.test(trustedCheckout)
-    && /persist-credentials: false/.test(trustedCheckout),
-  'the provenance gate begins from a credential-free full-depth main checkout');
-  ok(/\^\[0-9a-f\]\{40\}\$/.test(provenance)
-    && /git merge-base --is-ancestor "\$RUN_COMMIT" origin\/main/.test(provenance)
-    && /git cat-file -e "\$RUN_COMMIT\^\{commit\}"/.test(provenance),
-  'the gate requires exact lowercase 40-hex commit shape, existence, and main ancestry');
-  ok(/ref: \$\{\{ steps\.provenance\.outputs\.validated_commit \}\}/.test(pinnedCheckout)
-    && /fetch-depth: 0/.test(pinnedCheckout)
-    && /persist-credentials: false/.test(pinnedCheckout),
-  'only the gate output can select the full-depth drill checkout');
-  ok(/git rev-parse HEAD/.test(exactHead)
-    && /\[ "\$actual" != "\$RUN_COMMIT" \]/.test(exactHead),
-  'the checked-out HEAD is reverified against the gated SHA');
-
-  ok(/uses: actions\/setup-node@v4[\s\S]{0,100}node-version: '22'/.test(workflow),
-    'the lane uses Node 22');
-  ok(/npm install --no-save --package-lock=false/.test(workflow)
-    && !/npm ci/.test(workflow),
-  'dependencies install without inventing a lockfile in this lockfile-free repository');
-  ok(/npx playwright install --with-deps chromium/.test(workflow),
-    'the owner lane installs Playwright Chromium');
-
-  const drillStep = stepBlock(workflow, 'Run the guarded TEST-only drill suite');
-  const secretNames = [
-    'SUPABASE_SERVICE_ROLE_KEY',
-    'LINEAR_API_KEY',
-    'ROLE_KEY_ADMIN',
-    'ROLE_KEY_SMM',
-    'ROLE_KEY_CREATIVE',
-  ];
-  ok(secretNames.every(name =>
-    drillStep.includes(`${name}: \${{ secrets.${name} }}`)),
-  'all service/provider/role credentials are present under their exact environment-secret names');
-  ok(secretNames.every(name => occurrences(workflow, `secrets.${name}`) === 1)
-    && occurrences(workflow, 'secrets.') === secretNames.length,
-  'all secrets are referenced exactly once and only by the drill step');
-  ok(/for name in[\s\S]{0,220}SUPABASE_SERVICE_ROLE_KEY LINEAR_API_KEY[\s\S]{0,120}ROLE_KEY_ADMIN ROLE_KEY_SMM ROLE_KEY_CREATIVE/.test(drillStep)
-    && /if \[ -z "\$\{!name\}" \]/.test(drillStep),
-  'the credential-bearing step refuses a missing service, provider, or role key before running');
-  ok(!workflow.slice(0, workflow.indexOf('    steps:')).includes('secrets.'),
-    'no secret is job-scoped');
-  ok(drillStep.includes("SLICE5_TEST_DRILLS_CONFIRM: 'SLICE5_TEST_ONLY'")
-    && drillStep.includes('SLICE5_TEST_DRILLS_REPORT: artifacts/slice5-test-drills.json')
-    && drillStep.includes('SLICE5_TEST_DRILLS_PRIVATE_LOG: ${{ runner.temp }}/slice5-test-drills-private.json'),
-  'confirmation, public report, and runner-private failure paths are fixed');
-  ok(/> "\$\{RUNNER_TEMP\}\/slice5-test-drills-console\.log" 2>&1/.test(drillStep)
-    && !/\btee\b/.test(drillStep),
-  'raw drill process output remains runner-private and is never teed to the public log');
-
-  const aggregateStep = stepBlock(workflow, 'Validate the public-safe aggregate');
-  const uploadStep = stepBlock(workflow, 'Upload public-safe drill aggregate');
-  ok(/forbiddenKey/.test(aggregateStep)
-    && /safeEnums/.test(aggregateStep)
-    && /'read_rebaseline'/.test(aggregateStep)
-    && /unsafe_public_aggregate/.test(aggregateStep),
-  'an independent recursive allowlist validates aggregate keys and leaf values');
-  ok(/uses: actions\/upload-artifact@v4/.test(uploadStep)
-    && /path: artifacts\/slice5-test-drills\.json/.test(uploadStep)
-    && /if-no-files-found: error/.test(uploadStep)
-    && !/\n\s+if:/.test(uploadStep),
-  'only the success-path public aggregate is uploaded');
 
   // ---- Runner: import-safe, fail-closed TEST target ----------------------
   ok(/if \(require\.main === module\)/.test(source),
@@ -946,9 +810,8 @@ function publicLeavesAreSafe(value) {
     && runner.F94_PROBES.every(probe => factsFor({ probe }).probe === probe),
   'every F94 probe label round-trips through the public facts');
 
-  // The workflow echoes the pair and accepts every value it can hold.
   // Built from PUBLIC_FACT_FIELDS itself, so a new fact field cannot be added
-  // without its enum set being checked against the validator allowlist.
+  // without its enum set being enumerated here.
   const factEnums = [...new Set(
     Object.values(runner.PUBLIC_FACT_FIELDS)
       .map(field => field.enums)
@@ -957,16 +820,6 @@ function publicLeavesAreSafe(value) {
   )].filter(value => value !== 'none');
   ok(factEnums.length > 60,
     `the fact allowlist is built from every field's own enum set (${factEnums.length})`);
-  const missingFactEnums = factEnums.filter(code => !workflowEnums.has(code));
-  ok(missingFactEnums.length === 0,
-    'the workflow validator accepts every probe and gateway enum the facts can carry'
-      + (missingFactEnums.length ? `: ${missingFactEnums.join(', ')}` : ''));
-  // The job log prints exactly the facts that are NOT at their default, so it
-  // needs no per-field knowledge and stays correct as fields are added.
-  ok(/Object\.entries\(f\)\.map\(\(\[k,v\]\)=>`\$\{k\}=\$\{v\}`\)/.test(workflow),
-    'the job log names every public fact the refusal carried');
-  ok(/if\(p\.length\)process\.stdout\.write\(" "\+p\.join\(" "\)\)/.test(workflow),
-    'a failure with no facts adds nothing to the error line rather than printing none/0');
   ok(/facts: failure instanceof DrillError \? failure\.reportedFacts : \{\}/.test(source),
     'the failure report carries only the fields the refusal populated');
   // Proven end to end against the real reportedFacts output.
@@ -993,8 +846,6 @@ function publicLeavesAreSafe(value) {
   }) === 'list_element=missing client_height=0 scroll_height=0'
     + ' offset_parent_height=0 viewport_width=1280 viewport_height=800 row_count=0',
   'a scroll failure prints its own measurements, zeros included, and no matrix fields');
-  ok(/code=\$\{code\} http_status=\$\{http\}\$\{facts\}/.test(workflow),
-    'the pair rides the same ::error:: line as the stage and code');
 
   // The wiring at the two probe sites. publicFacts and DrillError are proven
   // behaviourally above; exercising the probes themselves needs a live

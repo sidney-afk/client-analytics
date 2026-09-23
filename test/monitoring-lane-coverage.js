@@ -68,8 +68,17 @@ for (const [lane, files] of writtenLanes) {
   ok(watchedLanes.has(lane),
     `the heartbeat written by ${files.join(', ')} names a lane the watchdog watches (${lane})`);
 }
+/*
+ * A retired lane whose every host workflow has been deleted (B2 slice 6,
+ * 2026-09-23) has no writer left by design; the watchdog no longer watches it
+ * and reports it as retired on every --check. Only that case is exempt.
+ */
+const { LANES } = require(path.join(ROOT, 'scripts', 'monitoring-watchdog.js'));
+const RETIRED_HOSTLESS = new Set(LANES
+  .filter(lane => lane.retired && (lane.hosts || []).every(host => !fs.existsSync(path.join(WORKFLOW_DIR, host))))
+  .map(lane => lane.key));
 for (const lane of watchedLanes) {
-  ok(writtenLanes.has(lane) || NON_WORKFLOW_LANES.has(lane),
+  ok(writtenLanes.has(lane) || NON_WORKFLOW_LANES.has(lane) || RETIRED_HOSTLESS.has(lane),
     `watched lane "${lane}" has a workflow that actually writes its heartbeat`);
 }
 

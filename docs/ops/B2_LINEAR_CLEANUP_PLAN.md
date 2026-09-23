@@ -35,7 +35,7 @@ Legend for "Still called?": **LIVE** = measured traffic now; **IDLE** = code pat
 | `linear-inbound` (deployed v52) | Receives Linear's signed webhook, writes deliverables/batches/comments. Kill switch `linear_inbound_enabled` (still **true**). Secret `LINEAR_INBOUND_SIGNING_SECRET`. | **IDLE since 2026-09-20 23:08Z.** Edge logs: 1,346 calls on 2026-09-20 (12:00 to 12:00Z window), zero from 2026-09-21 to now. No browser caller (comments only). The Linear-side webhook subscription itself is not visible from here and may still exist. | Deploy lane `deploy-f27-linear-inbound.yml`, `f27-team-rollback-proof.yml`, about 15 scripts, tests importing its helpers (`comment-normalize`, `f27-echo`, `label-normalize`). Nothing user-facing. |
 | `linear-outbound` (deployed v54) | Drains `mirror_outbox` to the Linear GraphQL API. Secret `LINEAR_MIRROR_API_KEY` (now revoked). | **IDLE since 2026-09-20 20:03Z** (104 calls then 38, then zero). Its caller `linear-outbound-drain.yml` has its schedule commented out. Flag `off`, key revoked, so **DEAD**. | Section 4 lane (it is one of the four functions), the onboarding deploy lane, `scripts/ef-deploy-manifest.js` (multi-owner entry), `linear-outbound-drain.yml`, `graphics-f2-evidence.yml`, `f42-apply-rehearsal.yml`, about 30 scripts, b4 tests. |
 | `workload-linear` (deployed v12) | Old Linear deadline reader/writer for Workload. | **DEAD.** Zero edge-log calls on every day checked (2026-09-16 to 2026-09-23). Returns 409 while both teams are syncview (its own header, OPEN_REPAIRS 79). | Two unreachable browser fetch sites (`070-workload-source.js.part:1232`, `080-workload-render.js.part:963`) and the manifest's manual-deploy entry. |
-| Linear branches in `production-write` (about 340 mentions) | Label catalog read from Linear (`:848`), `linearRead` project-mapping validation (`:2497` to `:2925`, secrets `LINEAR_READ_API_KEY`, `LINEAR_MIRROR_API_KEY`, `LINEAR_API_KEY`), about 15 `mirror_outbox` enqueue sites, parent routing through `batches.linear_parent_ids`. Gated by `prod_authority`, `linear_outbound_enabled`, `linear_legacy_parity_enabled`. | **LIVE, partly.** The enqueue still runs: `mirror_outbox` got 1,177 new rows 2026-09-19 to 2026-09-23, **all `status=skipped`** (last 02:52Z today). Every one is created and immediately parked. Linear API reads are dead (keys revoked); whether any path still attempts one needs a log check (Slice 5). | Removing the flag reads without code changes makes every write return 503 (`:1373`, `:1434`). Must be a code change + Section 4 deploy. |
+| Linear branches in `production-write` (about 340 mentions) | Label catalog read from Linear (`:848`), `linearRead` project-mapping validation (`:2497` to `:2925`, secrets `LINEAR_READ_API_KEY`, `LINEAR_MIRROR_API_KEY`, `LINEAR_API_KEY`), about 15 `mirror_outbox` enqueue sites, parent routing through `batches.linear_parent_ids`. Gated by `prod_authority`, `linear_outbound_enabled`, `linear_legacy_parity_enabled`. | **LIVE, partly.** The enqueue still runs: `mirror_outbox` got 1,177 new rows 2026-09-19 to 2026-09-23, **all `status=skipped`** (last 02:52Z today). Every one is created and immediately parked. Linear API reads are dead (keys revoked); whether any path still attempts one needs a log check (Slice 8). | Removing the flag reads without code changes makes every write return 503 (`:1373`, `:1434`). Must be a code change + Section 4 deploy. |
 | `_shared/b4-write.ts`, `_shared/linear-create-id.mjs`, `_shared/write-refusal-codes.mjs` | Linear payload handling, deterministic Linear-issue id, 4 Linear refusal codes. | Shared by production-write/linear-outbound. | Fingerprints of every function that imports them (they change the digest). |
 | `production-archive` | Read-only reader over `linear_archive`. | **LIVE** (40 calls in the last 24h). This is the history viewer, not integration. | **Keep.** |
 | `calendar-upsert`, `sample-review-upsert`, `production-comments`, `workload-plan` | Carry `linear_issue_id` link columns, a duplicate-link guard, and a `prod_authority` check. | LIVE functions; the Linear parts are columns/guards only. | Out of B2 scope except as column consumers (Slice 8). |
@@ -51,7 +51,7 @@ Execution counts are "since 2026-09-18 23:59Z" (retention limit).
 | Calendar — Linear Issue Statuses (`GP8CSZDNcy5sGdFr`) `/webhook/linear-issue-statuses` | yes | 367 since 2026-09-21; **last run 2026-09-22 21:43Z, none since** | Browser callers removed 2026-09-22 (OPEN_REPAIRS 236); the traffic stopped exactly then. Was 35% of the n8n bill (OPEN_REPAIRS 233). Breaks nothing now; a cached old page could still call it and get an error, harmless. |
 | Calendar — Linear Sub-Issues (`Nk3pwR6Fbl4VAPqH`) `/webhook/linear-subissues` | yes | **0** | **Browser still calls it** ("Import from Linear" and link-time sync: `150:234, 350, 648`, `290:930`). With keys revoked it can only fail. Remove the browser caller first (B1), then deactivate. |
 | Workload — Tweak Comments (`d7Dod7OuQsVsl1CN`) `/webhook/linear-tweak-comments` | yes | **0** | **Browser still calls it** (`090:496`, tweak-comment preview). Dead now. Browser first, then workflow. |
-| Urgent Tweak → Slack (`TJVMyfwl85qrFGeK`) `/webhook/send-urgent-slack` | yes | **0** | **Browser still calls it** (`100:1092`). It resolves the editor through the Linear API, so **the urgent-tweak Slack ping is broken since the revoke.** Not a removal; needs a native replacement (look up the assignee in SyncView). Owner decision. |
+| Urgent Tweak → Slack (`TJVMyfwl85qrFGeK`) `/webhook/send-urgent-slack` | yes | **0** | Only the **legacy fallback** uses it: cards with a `video_deliverable_id` already go through the native route (`native_urgent_dispatch` in production-write, called from fragments 140, 270, 330). Cards without one fall back to this workflow (`100:1092`), which resolves the editor through the Linear API and so fails since the revoke. Urgent editor pings must be preserved (AGENTS.md owner clarification 2026-09-14). |
 | Calendar — Upsert Post (`pWSqaqVw7dmqhYOA`) | yes | 1,355 in window, last 2026-09-22 21:05Z | NOT Linear-only: the legacy calendar write lane (about 1.3% of calendar writes, OPEN_REPAIRS 233). Its duplicate-Linear-link guard is incidental. **Out of B2.** |
 | Calendar — Append Post (`iA54ipMOybicmYBh`) | yes | 0 | Legacy calendar append with a Linear-link guard. Not Linear-only. Out of B2; list for the n8n-lane retirement. |
 | Calendar - Linear Status Sync (`MJbMZ789B5ExZz9x`) | no | 0 | Inbound Linear webhook to calendar. Inactive since 2026-07-13. Safe to archive. |
@@ -110,7 +110,7 @@ So dropping the three fields from the snapshot saves about **27% of the uncompre
 
 - **Linear-only workflows, all already unscheduled (dispatch only):** `b1-linear-incremental-refresh.yml`, `linear-deliverables-reconcile.yml`, `linear-outbound-drain.yml`, `production-shadow-audit.yml`, `production-write-drill.yml`, `slice5-test-drills.yml`, `monitoring-cutover-proof.yml`, `graphics-f2-evidence.yml`, `f27-team-rollback-proof.yml`, `f42-apply-rehearsal.yml`, `linear-exit-preparation-ci.yml`, and the lane `deploy-f27-linear-inbound.yml`.
 - **Still scheduled and Linear-adjacent:** `outbox-debt-census.yml` (watches `mirror_outbox`), `workload-source-freshness.yml` (watches the frozen `workload_issues.synced_at`), `card-calendar-status-drift.yml`, `monitoring-crosscheck.yml`.
-- **Secrets that only exist for Linear** (names from workflow files; the secret list itself is not readable from here): `LINEAR_API_KEY`, `LINEAR_MIRROR_API_KEY`, `LINEAR_READ_API_KEY` (Edge secret), `LINEAR_STATE_UUID_MAP`, `LINEAR_INBOUND_SIGNING_SECRET` (Edge secret), `B4_TEST_PROJECT_IDS`. All key values are already revoked at Linear, so deleting them is hygiene, not security.
+- **Secrets that only exist for Linear** (names from workflow files; the secret list itself is not readable from here): `LINEAR_API_KEY`, `LINEAR_MIRROR_API_KEY`, `LINEAR_READ_API_KEY` (Edge secret), `LINEAR_STATE_UUID_MAP`, `LINEAR_INBOUND_SIGNING_SECRET` (Edge secret). `B4_TEST_PROJECT_IDS` is not Linear-only while the TEST lane uses it (see Slice 7). All key values are already revoked at Linear, so deleting them is hygiene, not security.
 - **Scripts:** 88 with "linear" in the name; about 135 in the wider B1/B4/F27/track-b/outbox family.
 - **Tests:** 128 starting with `linear`; about 201 in the wider family.
 - **Docs:** 54 in `docs/ops` with "linear" in the name (about 48 `LINEAR_EXIT_*`). Recommend archiving into one folder, not deleting: they are the audit trail.
@@ -144,26 +144,28 @@ Every slice is one PR (or one owner action) and waits for the previous one to be
 - Rollback: revert the PR (Pages redeploys on merge).
 - Then (**owner**) deactivate Linear Sub-Issues and Tweak Comments in n8n, same as Slice 2.
 
-### Slice 4. Urgent Tweak → Slack (**owner decision**, then a small build)
-- Not a removal: this ping is broken since the revoke because it looks up the editor in Linear. Options: rebuild the lookup natively (assignee from SyncView data), or retire the button. The owner picks; any n8n edit needs their go-ahead.
+### Slice 4. Urgent Tweak → Slack: retire only the legacy fallback (repo PR, then **owner** for n8n)
+- The urgent editor ping stays; it must keep working (AGENTS.md, 2026-09-14). Only the n8n fallback for cards without a `video_deliverable_id` goes.
+- Prove unused first: count cards whose urgent action would still take the fallback (no `video_deliverable_id`). If it is zero, remove the fallback branch in the browser. If not, bind those cards to native deliverables first.
+- Rollback: revert the PR. Then (**owner**) deactivate the n8n workflow.
 
 ### Slice 5. Turn `linear_inbound_enabled` off (**owner**, one flag row)
 - Removes: the last "on" Linear flag. linear-inbound then acknowledges without writing.
 - Prove unused: zero edge-log calls since 2026-09-20 23:08Z.
 - Rollback: set the flag back (one row update; the change is logged in `flag_flips`).
-- Also ask the owner to delete the webhook subscription on the Linear side, so nothing can arrive at all.
+- Leave the webhook subscription on the Linear side untouched. Everything inside Linear stays as it is (AGENTS.md, 2026-09-14). With the flag off and the function deleted in Slice 7, a delivery simply fails on our side.
 
 ### Slice 6. Retire unscheduled Linear GitHub workflows and their secrets (repo PR, then **owner** for secrets)
 - Removes: the dispatch-only workflows listed in 1f (keep `deploy-f27-linear-inbound.yml` until Slice 7), plus paired entries in `scripts/monitoring-watchdog.js`.
 - Prove unused: schedules already commented out since 2026-09-20; no run in Actions history since then (check the Actions tab per workflow).
-- Rollback: revert the PR. Secrets: the owner deletes `LINEAR_API_KEY`, `LINEAR_MIRROR_API_KEY`, `LINEAR_STATE_UUID_MAP`, `B4_TEST_PROJECT_IDS` from repo settings only after the PR merges (values are revoked anyway, so no rollback is needed).
+- Rollback: revert the PR. Secrets: the owner deletes `LINEAR_API_KEY`, `LINEAR_MIRROR_API_KEY`, `LINEAR_STATE_UUID_MAP` from repo settings only after the PR merges (values are revoked anyway, so no rollback is needed).
 
 ### Slice 7. Delete the three Linear Edge Functions (**owner**, deploy-class)
 - Order: `workload-linear` first (zero calls in 7+ days, returns 409), then `linear-outbound`, then `linear-inbound`.
 - Before: a repo PR removes them from `ef-deploy-manifest.js`, the Section 4 lane's function set and pins, the onboarding lane, the inbound lane, and their tests and scripts. That PR changes a deploy lane, so it needs the normal review.
 - Prove unused: edge logs show zero calls for 72 hours before deletion.
 - Rollback: redeploy from the last green commit (the Section 4 lane's sealed bundle already captures linear-outbound's live source). Keep the source in git history; note the commit SHA in OPEN_REPAIRS.
-- Edge secrets to delete afterwards (owner): `LINEAR_MIRROR_API_KEY`, `LINEAR_READ_API_KEY`, `LINEAR_API_KEY`, `LINEAR_INBOUND_SIGNING_SECRET`, `B4_TEST_PROJECT_IDS`.
+- Edge secrets to delete afterwards (owner): `LINEAR_MIRROR_API_KEY`, `LINEAR_READ_API_KEY`, `LINEAR_API_KEY`, `LINEAR_INBOUND_SIGNING_SECRET`. **Keep `B4_TEST_PROJECT_IDS`**: production-write's TEST intake path (`projectForIntake`, `:2475`) builds its allowlist from it and refuses with 403 without it. It goes only after Slice 8 moves the TEST override off project ids.
 
 ### Slice 8. production-write: stop enqueueing to `mirror_outbox` and stop reading Linear (**owner**, Section 4 deploy)
 - Removes: about 15 enqueue sites (today 100% of new rows are `skipped`), the `linearRead` / label-catalog Linear calls, the parity-flag reads. Treat both authorities as permanently syncview.
@@ -179,10 +181,14 @@ Every slice is one PR (or one owner action) and waits for the previous one to be
 
 ### Slice 10. Drop Linear-only database objects (**owner** for apply; last)
 - Order inside the slice: views and SQL functions that only the deleted functions used, then `linear_intake_receipts`, `linear_outbound_cutoff_control`, the two one-off backup tables, `track_b_*` rollback ledger, the `linear_exit_*` schemas, then `mirror_outbox` (21 MB), and last the four `linear_*` flags (keep `prod_authority` until every reader is gone).
-- Before dropping, export each table to a dated file in the SyncView Backups drive.
+- Before dropping, capture a full restore kit and store it in the SyncView Backups drive:
+  - a schema-only dump of every object in the slice (tables, views, functions, triggers, the three schemas), including grants;
+  - a data dump of each table;
+  - the four flag rows, copied as they are.
+- Rehearse the restore on the `syncview-restore-scratch` project before touching production. The drop does not ship until the kit recreates every object, grant and flag there, and the contract tests pass against it.
 - Revokes and drops must name all four roles (`public`, `anon`, `authenticated`, `service_role`) where grants are touched.
 - **Keep:** `linear_archive` and the link columns on deliverables, calendar posts, samples, and comments, because they are how old cards reach their history. Dropping those is a separate owner decision, not B2.
-- Rollback: restore from the export.
+- Rollback: apply the rehearsed restore kit (schema, then data, then grants, then flag rows).
 
 ### Slice 11. Docs and credentials tidy (repo PR + **owner** in n8n)
 - Move the Linear-exit docs into `docs/archive/linear-exit/` with an index; do not delete.
@@ -192,6 +198,6 @@ Every slice is one PR (or one owner action) and waits for the previous one to be
 
 ## 3. Open questions for the owner
 1. Brief media: accept that Linear-hosted images in old briefs may no longer be fetchable (Slice 0)?
-2. Urgent-tweak Slack ping: rebuild natively or retire (Slice 4)?
+2. Urgent-tweak Slack ping: how many cards still lack a native deliverable and would take the legacy fallback (Slice 4)?
 3. Keep the legacy `workload_issues` arm (frozen since 2026-09-21) or cut it (Slice 9)?
 4. Confirm nothing outside the repo reads the blanked sheet column, and whether the three unnamed webhook paths (`linear-issues`, `linear-projects`, `log-linear-submission`) are served by any workflow.

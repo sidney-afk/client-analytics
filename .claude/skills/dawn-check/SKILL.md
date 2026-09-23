@@ -41,7 +41,7 @@ clicks, `qa/test-client-entry.js` for the client link) instead of new machinery.
 
 | # | flow | pass means |
 |---|---|---|
-| 1 | Client approve | fresh client context lands on the Review tab; the real Approve button saves `video_status=Approved` + approval stamp |
+| 1 | Client approve | fresh client context lands on the Review tab; the real Approve button saves the caption as `Approved` + approval stamp, and it holds |
 | 2 | Client request changes | real Request-changes button with text; `Tweaks Needed` + the text saved |
 | 3 | Staff card save | caption typed + blurred; DB has it and the card's save mark reaches "Saved" (a "Saved, syncing" step is allowed only if it clears) |
 | 4 | Card rename | card name and its linked sub-issue title both change; then both put back |

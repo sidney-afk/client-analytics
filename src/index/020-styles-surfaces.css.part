@@ -1598,6 +1598,9 @@
         .cal-card-saving.is-saved { color: var(--sv-fg-166534); }
         .cal-card-saving.is-error { color: var(--dn); }
         button.cal-card-saving.is-error:hover { text-decoration: underline; }
+        /* Status committed, card row still syncing: not an error, so no red. */
+        .cal-card-saving.is-syncing { color: var(--text-muted); }
+        button.cal-card-saving.is-syncing:hover { text-decoration: underline; }
 
         /* ── Reusable modern save indicator (icon-only). See _svSaveIndHtml. ──
            Themed via CSS variables so it works in both light and dark. */

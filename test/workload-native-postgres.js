@@ -47,6 +47,7 @@ const ok=(v,m)=>{assert.ok(v,m);checks++;};
  sql(read('migrations/2026-09-08-workload-native-label-state-shape.sql'));
  sql(read('migrations/2026-09-09-workload-native-roster.sql'));
  sql(read('migrations/2026-09-23-workload-native-snapshot-cache.sql'));
+ sql(read('migrations/2026-09-23-workload-native-snapshot-warm.sql'));
  checks++;
  sql(`insert into clients(slug,display_name)values('fixture','Fixture'),('other','Other');
  insert into team_members(id,name,role,team,active,linear_user_id)values
@@ -235,6 +236,45 @@ const ok=(v,m)=>{assert.ok(v,m);checks++;};
  for(const role of ['anon','authenticated','service_role'])for(const t of ['workload_snapshot_cache','workload_snapshot_invalidation']){
   sql(`set role ${role};select count(*) from ${t};`,db,true);checks++;}
  ok(json('set role service_role;select workload_native_snapshot_cached_v1(null);').contract==='workload-native-snapshot-v2','service_role reads through the RPC only');
+ // ---- BACKGROUND WARM-UP (migrations/2026-09-23-workload-native-snapshot-warm.sql).
+ {const warm=()=>json('select workload_native_snapshot_warm_v1();');
+  const held=cached();let w=warm();
+  ok(w.ok===true&&w.rebuilt===false&&w.reason==='fresh'&&!('rows' in w)&&!('body' in w),'a valid copy is left alone, and a warm-up never returns data');
+  sql(`update deliverables set title='Warmed title' where id='del_fixture';`);
+  w=warm();ok(w.rebuilt===true&&/^[0-9a-f]{32}$/.test(w.version),'after a committed change the warm-up rebuilds');
+  const at=builtAt();const read=cached(held.version);
+  ok(!read.unchanged&&read.version===w.version&&read.rows.find(r=>r.id==='del_fixture').title==='Warmed title'&&builtAt()===at,
+   'the next reader gets the fresh copy without rebuilding it');
+  ok(Number(sql('select count(*) from workload_snapshot_invalidation;'))===0,'and the absorbed change is pruned');
+  // A rebuild already running: the warm-up does not queue behind it.
+  const holder=spawn(bin,args(db),{env,windowsHide:true,stdio:['pipe','pipe','pipe']});let herr='';holder.stderr.on('data',v=>herr+=v);
+  holder.stdin.end(`begin;select pg_advisory_xact_lock(hashtext('workload_native_snapshot_cache'));select pg_sleep(1.5);commit;`);
+  const held2=new Promise((resolve,reject)=>{holder.on('error',reject);holder.on('close',code=>code===0?resolve():reject(Error(herr)));});
+  await new Promise(r=>setTimeout(r,500));
+  const t0=Date.now();w=warm();
+  ok(w.rebuilt===false&&w.reason==='busy'&&Date.now()-t0<1000,'a warm-up during another rebuild answers "busy" at once instead of waiting');
+  await held2;
+  // An open writer is invisible to the warm-up; its commit makes the next one rebuild.
+  const writer=spawn(bin,args(db),{env,windowsHide:true,stdio:['pipe','pipe','pipe']});let werr='';writer.stderr.on('data',v=>werr+=v);
+  writer.stdin.end(`begin;update deliverables set title='Late title' where id='del_fixture';select pg_sleep(1.5);commit;`);
+  const done=new Promise((resolve,reject)=>{writer.on('error',reject);writer.on('close',code=>code===0?resolve():reject(Error(werr)));});
+  await new Promise(r=>setTimeout(r,500));
+  ok(warm().reason==='fresh','an uncommitted save does not trigger a rebuild of data it has not written yet');
+  await done;
+  ok(warm().rebuilt===true&&cached().rows.find(r=>r.id==='del_fixture').title==='Late title','once it commits, the warm-up rebuilds it');
+  // A save is never slowed: the warm-up takes no lock a writer needs.
+  const rebuild=spawn(bin,args(db),{env,windowsHide:true,stdio:['pipe','pipe','pipe']});let rerr='';rebuild.stderr.on('data',v=>rerr+=v);
+  sql(`update deliverables set title='Retitle again' where id='del_fixture';`);
+  rebuild.stdin.end(`begin;select workload_native_snapshot_warm_v1();select pg_sleep(1.5);commit;`);
+  const rdone=new Promise((resolve,reject)=>{rebuild.on('error',reject);rebuild.on('close',code=>code===0?resolve():reject(Error(rerr)));});
+  await new Promise(r=>setTimeout(r,500));
+  const s0=Date.now();sql(`update deliverables set title='Saved during rebuild' where id='del_fixture';update workload_plan set plan_date='2030-05-01' where issue_id='old-fixture';`);
+  ok(Date.now()-s0<1000,'a save during a warm-up rebuild commits at once, without waiting on it');
+  await rdone;
+  ok(cached().rows.find(r=>r.id==='del_fixture').title==='Saved during rebuild','and that save still invalidates the copy the warm-up built');
+  sql(`set role anon;select workload_native_snapshot_warm_v1();`,db,true);checks++;
+  sql(`set role authenticated;select workload_native_snapshot_warm_v1();`,db,true);checks++;
+  ok(json('set role service_role;select workload_native_snapshot_warm_v1();').ok===true,'the warm-up is service_role only');}
  sql(`update workload_plan set plan_date='2030-02-01' where issue_id='old-fixture';update team_members set name='Fixture editor' where id='00000000-0000-0000-0000-000000000001';
  update batches set name='Fixture batch' where id='bat_fixture';update deliverables set title='Fixture work' where id='del_fixture';delete from workload_issues where id='legacy-new';`);
  const handler=spawnSync(process.execPath,['--experimental-strip-types',path.join(root,'qa/workload-native/handler.mjs')],{env:{...env,WORKLOAD_TEST_DB:db},encoding:'utf8',windowsHide:true,timeout:60000,maxBuffer:4e6});

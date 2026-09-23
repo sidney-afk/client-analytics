@@ -15563,6 +15563,87 @@
                     ? value.plans_dropped : 0 };
         } finally { clearTimeout(timer); }
     }
+    /* BACKGROUND SNAPSHOT WARM-UP (migrations/2026-09-23-workload-native-snapshot-warm.sql).
+       Measured after the cached snapshot went live: half the full reads were
+       rebuilds paid by whoever opened Workload next (3.9-6.1 s vs 0.7-1.6 s),
+       because the source tables change all day. So the rebuild is asked for
+       here instead, off every save's path:
+       - after a staff save to an endpoint that writes a snapshot source, one
+         warm-up ~1.5 s later (a burst of saves costs one);
+       - every 2 minutes from one visible staff tab per browser, which covers
+         the writes no staff browser makes (system bridges, client links).
+       The observer hands every request and response through untouched and only
+       looks at the URL and status after the response has already resolved, so
+       it cannot delay or alter a save. The warm-up returns no data. */
+    const WL_WARM_DEBOUNCE_MS = 1500;
+    const WL_WARM_INTERVAL_MS = 120000;
+    const WL_WARM_SHARED_KEY = 'syncview_wlSnapshotWarmAt_v1';
+    const WL_WARM_WRITE_FUNCTIONS = ['production-write', 'production-archive', 'calendar-upsert', 'calendar-reorder'];
+    const _wlWarm = { timer: null, inFlight: false, again: false, off: false, fetch: null };
+    function wlIsSnapshotSourceWrite(url, init) {
+        const method = String((init && init.method) || 'GET').toUpperCase();
+        if (method !== 'POST') return false;
+        const match = /\/functions\/v1\/([a-z0-9-]+)/.exec(String(url || ''));
+        if (!match) return false;
+        if (WL_WARM_WRITE_FUNCTIONS.includes(match[1])) return true;
+        return match[1] === 'workload-plan' && typeof (init && init.body) === 'string'
+            && /"action"\s*:\s*"set"/.test(init.body);
+    }
+    function wlScheduleSnapshotWarm(delay) {
+        if (_wlWarm.off) return;
+        if (_wlWarm.inFlight) { _wlWarm.again = true; return; }
+        clearTimeout(_wlWarm.timer);
+        _wlWarm.timer = setTimeout(wlWarmSnapshotNow, delay == null ? WL_WARM_DEBOUNCE_MS : delay);
+    }
+    async function wlWarmSnapshotNow() {
+        _wlWarm.timer = null;
+        if (_wlWarm.off || _wlWarm.inFlight || !_wlWarm.fetch) return;
+        if (typeof _syncviewStaffIdentityForHeaders !== 'function' || !_syncviewStaffIdentityForHeaders()) return;
+        _wlWarm.inFlight = true;
+        try { localStorage.setItem(WL_WARM_SHARED_KEY, String(Date.now())); } catch {}
+        try {
+            const response = await _wlWarm.fetch.call(window, WORKLOAD_PLAN_URL, {
+                method: 'POST', cache: 'no-store', keepalive: true,
+                headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, WORKLOAD_PLAN_URL),
+                body: JSON.stringify({ action: 'warm_snapshot' })
+            });
+            // Not deployed yet (400/501) or not staff (401/403): stop for this page.
+            if ([400, 401, 403, 501].includes(response.status)) _wlWarm.off = true;
+            else if (response.ok) {
+                const value = await response.json().catch(() => null);
+                // Another rebuild was already running; it may predate our save.
+                if (value && value.reason === 'busy') _wlWarm.again = true;
+            }
+        } catch { /* best effort: the next reader still rebuilds on its own */ }
+        finally {
+            _wlWarm.inFlight = false;
+            if (_wlWarm.again) { _wlWarm.again = false; wlScheduleSnapshotWarm(4000); }
+        }
+    }
+    function wlInstallSnapshotWarmer() {
+        if (typeof window === 'undefined' || typeof window.fetch !== 'function' || _wlWarm.fetch) return;
+        const original = window.fetch;
+        _wlWarm.fetch = original;
+        window.fetch = function (input, init) {
+            const pending = original.apply(this, arguments);
+            try {
+                const url = typeof input === 'string' ? input : (input && input.url) || '';
+                if (wlIsSnapshotSourceWrite(url, init || (input && typeof input === 'object' ? input : null))) {
+                    pending.then(response => { if (response && response.ok) wlScheduleSnapshotWarm(); }, () => {});
+                }
+            } catch {}
+            return pending;
+        };
+        setInterval(() => {
+            if (document.visibilityState !== 'visible') return;
+            let last = 0;
+            try { last = Number(localStorage.getItem(WL_WARM_SHARED_KEY)) || 0; } catch {}
+            if (Date.now() - last < WL_WARM_INTERVAL_MS - 5000) return;
+            wlScheduleSnapshotWarm(0);
+        }, WL_WARM_INTERVAL_MS);
+    }
+    wlInstallSnapshotWarmer();
+
     async function loadLinearIssues(force) {
         // The public symbol is retained for intake discovery callers. Default,
         // explicit Refresh and forced post-create discovery share one source.

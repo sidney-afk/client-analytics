@@ -195,6 +195,21 @@ async function nativeSnapshotCached(db: SupabaseClient, ifVersion: string): Prom
   catch { throw new WorkloadPlanError(503,"workload_snapshot_incomplete"); }
 }
 
+/* Background rebuild (migrations/2026-09-23-workload-native-snapshot-warm.sql).
+ * Called by a staff browser shortly after it saves, and on a short timer, so
+ * the rebuild a change forces is paid here instead of by the next reader. It
+ * returns no snapshot data: only whether it rebuilt ('fresh' / 'busy' mean
+ * there was nothing to do, or another rebuild is already producing it). */
+async function warmNativeSnapshot(db: SupabaseClient): Promise<JsonMap> {
+  const {data,error}=await db.rpc("workload_native_snapshot_warm_v1");
+  if (error) {
+    if (error.code==="PGRST202") throw new WorkloadPlanError(501,"snapshot_cache_unavailable");
+    throw new WorkloadPlanError(503,"workload_snapshot_unavailable");
+  }
+  if (!data || data.ok!==true || typeof data.rebuilt!=="boolean") throw new WorkloadPlanError(503,"workload_snapshot_incomplete");
+  return {ok:true,rebuilt:data.rebuilt,reason:typeof data.reason==="string"?data.reason:""};
+}
+
 async function nativePlanTarget(db: SupabaseClient,issueId:string): Promise<JsonMap|null> {
   const {data,error}=await db.rpc("workload_native_plan_target_v1",{p_issue_id:issueId});
   if (error) throw new WorkloadPlanError(503,"workload_plan_target_unavailable");
@@ -286,10 +301,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const body = await requestBody(req);
     const requestedAction = clean(body.action).toLowerCase();
-    if (!["list","set","native_snapshot","native_snapshot_v2"].includes(requestedAction)) {
+    if (!["list","set","native_snapshot","native_snapshot_v2","warm_snapshot"].includes(requestedAction)) {
       throw new WorkloadPlanError(400, "invalid_action");
     }
     action = requestedAction;
+
+    if (action === "warm_snapshot") {
+      requireListStaff(req);
+      const warmed = await warmNativeSnapshot(serviceClient());
+      outcome = warmed.rebuilt ? "rebuilt" : (clean(warmed.reason) || "fresh");
+      return json(warmed);
+    }
 
     if (action === "native_snapshot_v2") {
       requireListStaff(req);

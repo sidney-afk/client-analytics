@@ -172,7 +172,7 @@ async function rejectsCode(run, code) {
   const f27GateStep = f27.slice(f27.lastIndexOf('- name:', f27Gate), f27.indexOf('\n      - name:', f27Gate));
   ok('the F27 SQL gate is forward-only, leaving captured old-source restore independent',
     /inputs\.operation == 'deploy-reviewed-release'/.test(f27GateStep)
-      && !/restore-captured-prior-four/.test(f27GateStep));
+      && !/restore-captured-prior-three/.test(f27GateStep));
 
   console.log(JSON.stringify({ status: 'PASS', checks: checks.length, contract: CONTRACT }));
 })().catch(error => { console.error(error); process.exit(1); });

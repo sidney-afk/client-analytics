@@ -56900,8 +56900,19 @@
             const p = typeof project === 'string' ? _prodClient(project) : project;
             return p && p.emoji ? _calEsc(p.emoji) : _prodIcon('project');
         }
+        /* The batch view lists the batch's WORK, never the batch itself.
+           Two kinds of row stand for the batch rather than for a deliverable,
+           and both used to show up as an extra first "deliverable" titled
+           with the batch's own name:
+           - the synthetic batch parent this app mints in memory (it carries
+             the batch's id, so a plain batchId filter caught it), and
+           - an imported Linear parent issue that B1 filed as a row inside the
+             same batch as its own children.
+           A row with no children in this batch is real work and stays. */
         function _prodBatchRows(batchId) {
-            return _prodIssues().filter(d => batchId && d.batchId === batchId).sort(_prodChildOrder);
+            const inBatch = _prodIssues().filter(d => batchId && d.batchId === batchId);
+            const parentsHere = new Set(inBatch.map(d => d.parent).filter(Boolean));
+            return inBatch.filter(d => d.syntheticBatchParent !== true && !parentsHere.has(d.id)).sort(_prodChildOrder);
         }
         /* Sub-issues group by TEAM first, then read alphabetically inside each
            group -- video work (Reel 1..12, Video 1..12) then graphics work
@@ -76495,7 +76506,8 @@
         if (!Number.isFinite(n) || n <= 0) return '0 B';
         const u = ['B', 'KB', 'MB', 'GB'];
         let i = 0; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
-        return `${n.toFixed(i === 0 ? 0 : 1)} ${u[i]}`;
+        // One decimal, but never a bare ".0": a limit reads "287 MB", a file "12.4 MB".
+        return `${n.toFixed(i === 0 ? 0 : 1).replace(/\.0$/, '')} ${u[i]}`;
     }
 
     function _tkEscape(s) {
@@ -77939,7 +77951,8 @@
         if (!Number.isFinite(n) || n <= 0) return '0 B';
         const u = ['B', 'KB', 'MB', 'GB'];
         let i = 0; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
-        return `${n.toFixed(i === 0 ? 0 : 1)} ${u[i]}`;
+        // One decimal, but never a bare ".0": a limit reads "287 MB", a file "12.4 MB".
+        return `${n.toFixed(i === 0 ? 0 : 1).replace(/\.0$/, '')} ${u[i]}`;
     }
     function _ttpFmtDuration(sec) {
         if (!Number.isFinite(sec) || sec <= 0) return '';

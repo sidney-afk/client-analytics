@@ -21,15 +21,15 @@
 | 13 | `110-time-off-reports.js.part` | 2152 | Kasper Time Off calendar |
 | 14 | `120-calendar-flags-write-repair.js.part` | 3062 | The members a flag value offers, or null when it offers no member list at |
 | 15 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
-| 16 | `130-calendar-model-cache.js.part` | 1339 | Returns the comments array for a given component. Falls back to the |
+| 16 | `130-calendar-model-cache.js.part` | 1340 | Returns the comments array for a given component. Falls back to the |
 | 17 | `131-core-html.js.part` | 12 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 18 | `132-calendar-dates-ids.js.part` | 10 | — |
 | 19 | `133-core-loading-skeletons.js.part` | 363 | Modern animated loader — a single rotating ring with a subtle label. |
-| 20 | `134-calendar-prefs-mount.js.part` | 1010 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
+| 20 | `134-calendar-prefs-mount.js.part` | 1011 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
 | 21 | `140-calendar-legacy-outbox.js.part` | 3059 | Shed the retired legacy rows from storage, under the surface mutation |
 | 22 | `150-calendar-hydration-import.js.part` | 2084 | For a card linked to a real sub-issue (not a parent), return which of |
-| 23 | `160-calendar-organize-ui.js.part` | 2744 | Lighter path for the Order switch: update the chrome in place so the |
-| 24 | `170-calendar-links-status.js.part` | 2760 | Move a Linear sub-issue link from the old card onto the new one. The |
+| 23 | `160-calendar-organize-ui.js.part` | 2741 | Lighter path for the Order switch: update the chrome in place so the |
+| 24 | `170-calendar-links-status.js.part` | 2756 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 25 | `180-calendar-native-post-media.js.part` | 2676 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 26 | `190-calendar-approval-comments.js.part` | 2984 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 27 | `200-intake-data-startup.js.part` | 1453 | Video-only and Thumbnail-only were already built, but sat |
@@ -39,7 +39,7 @@
 | 31 | `240-production-description.js.part` | 2646 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 32 | `250-production-controls-data.js.part` | 2826 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 33 | `260-production-refresh-boot.js.part` | 2279 | AND TYPING COUNTS, which is the case this guard was missing. |
-| 34 | `270-samples-model.js.part` | 2697 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
+| 34 | `270-samples-model.js.part` | 2694 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 35 | `280-samples-cards-notes.js.part` | 2831 | SURFACE 3: the save engine |
 | 36 | `290-samples-writes-review.js.part` | 1798 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 37 | `300-tiktok-upload.js.part` | 1718 | TIKTOK UPLOAD MODULE |

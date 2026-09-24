@@ -2311,12 +2311,9 @@
         const other = target === 'graphic' ? 'video' : 'graphic';
         const idOf = comp => String((comp === 'graphic'
             ? p.graphic_deliverable_id : p.video_deliverable_id) || '').trim();
-        const linkOf = comp => String((comp === 'graphic'
-            ? p.graphic_linear_issue_id : p.linear_issue_id) || '').trim();
-        // The slot must be empty BOTH ways. A card carrying a Linear url with
-        // no native id is a legacy half-link, not a missing component, and
-        // filling it would leave the card pointing at two different issues.
-        if (idOf(target) || linkOf(target)) return '';
+        // Linear is retired: a stored Linear URL with no native id is treated
+        // as absent (see _calCompLinked), so only the deliverable id decides.
+        if (idOf(target)) return '';
         // Only where the target team is SyncView-authoritative. Under a
         // rollback the native create is refused at the database, so offering
         // the button would be offering a dead one.

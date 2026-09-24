@@ -30424,16 +30424,17 @@
        legacy Linear URL column or the native deliverable-id column. Keep every
        Kasper gate and staff pill lock on this one predicate so a native-only
        thumbnail remains visible and actionable after the Graphics flip. */
+    /* Linear is retired (owner + Lighthouse, 2026-09-24): a component is
+       linked only when it carries its own SyncView deliverable id. A stored
+       Linear URL with no deliverable id reads as ABSENT -- the pill shows the
+       honest locked N/A instead of an editable status the gateway refuses
+       with native_link_required, and the card offers SyncView's own "add the
+       missing video/thumbnail". The stored URL is not read here, not cleared
+       and not rewritten anywhere. */
     function _calCompLinked(post, comp) {
         if (!post) return false;
-        if (comp === 'graphic') {
-            return !!(String(post.graphic_linear_issue_id || '').trim()
-                || String(post.graphic_deliverable_id || '').trim());
-        }
-        if (comp === 'video') {
-            return !!(String(post.linear_issue_id || '').trim()
-                || String(post.video_deliverable_id || '').trim());
-        }
+        if (comp === 'graphic') return !!String(post.graphic_deliverable_id || '').trim();
+        if (comp === 'video') return !!String(post.video_deliverable_id || '').trim();
         return true;
     }
     /* WHAT A COMPONENT PILL SHOULD DISPLAY (owner ruling 2026-08-20).
@@ -32221,9 +32222,10 @@
        native fallback (a Set-membership check, not a pairwise compare) but
        reads the same two fields for the same reason. */
     function _calDupeKey(post, comp) {
+        // Linear is retired: two cards sharing an old Linear URL are not a
+        // conflict any more; only a shared SyncView deliverable is.
         return {
-            linear: _calLinkKey(comp === 'graphic'
-                ? (post && post.graphic_linear_issue_id) : (post && post.linear_issue_id)),
+            linear: '',
             native: _calLinkKey(comp === 'graphic'
                 ? (post && post.graphic_deliverable_id) : (post && post.video_deliverable_id)),
         };
@@ -32282,7 +32284,7 @@
     // Human label for the dupe banner: the calendar calls the graphic slot "Thumbnail".
     function _calDupeWarnText(groups) {
         return groups.map(g => 'Same ' + (g.comp === 'graphic' ? 'thumbnail' : 'video')
-            + ' Linear issue as ' + g.names.join(', ')).join(' · ');
+            + ' work item as ' + g.names.join(', ')).join(' · ');
     }
     /* The open client tabs (calendar AND samples) live here in localStorage and
        ARE the persistence for "which tabs are open". We deliberately do NOT
@@ -40465,12 +40467,9 @@
         const other = target === 'graphic' ? 'video' : 'graphic';
         const idOf = comp => String((comp === 'graphic'
             ? p.graphic_deliverable_id : p.video_deliverable_id) || '').trim();
-        const linkOf = comp => String((comp === 'graphic'
-            ? p.graphic_linear_issue_id : p.linear_issue_id) || '').trim();
-        // The slot must be empty BOTH ways. A card carrying a Linear url with
-        // no native id is a legacy half-link, not a missing component, and
-        // filling it would leave the card pointing at two different issues.
-        if (idOf(target) || linkOf(target)) return '';
+        // Linear is retired: a stored Linear URL with no native id is treated
+        // as absent (see _calCompLinked), so only the deliverable id decides.
+        if (idOf(target)) return '';
         // Only where the target team is SyncView-authoritative. Under a
         // rollback the native create is refused at the database, so offering
         // the button would be offering a dead one.
@@ -41007,7 +41006,8 @@
         // Review tab — the Sheet tab is now read-only for them. Approval
         // lives in _calReviewCardBody / _calReviewPanelHtml exclusively.
         const canApprove = false;
-        const needsLinear = !ro && !isBlank && !_writeUiLinkSlotSealed('video') && !String(p.linear_issue_id || '').trim();
+        // Linear is retired: no card asks for, or warns about, a Linear link.
+        const needsLinear = false;
         // Other active cards that point at this card's Linear sub-issue(s) — drives the
         // duplicate warning banner. Computed here (render) from the live card list.
         const dupePeers = (!_isClientLink && !isBlank) ? _calLinkDuplicatePeers(p) : [];
@@ -41017,16 +41017,11 @@
            instruction to perform exactly the write the seal now refuses, so a
            sealed component drops out of this banner entirely. The video half is
            unaffected while video stays Linear-authoritative. */
-        const parentComp = (!ro && !isBlank && !needsLinear)
-            ? (_calIsParentLinked(p.linear_issue_id) && !_writeUiLinkSlotSealed('video') ? 'video'
-                : (_calIsParentLinked(p.graphic_linear_issue_id) && !_writeUiLinkSlotSealed('graphic') ? 'graphic' : ''))
-            : '';
+        const parentComp = '';
         // Linked to a real sub-issue, but the sub-issue itself is missing
         // project / due date / editor on Linear — same orange thumb banner,
         // clicks open the Linear issue so the SMM can fill the gap.
-        const linearMissing = (!ro && !isBlank && !needsLinear && !parentComp)
-            ? _calLinearMissingForCard(p)
-            : null;
+        const linearMissing = null;
         const subStatusHtml = (ro || _isClientLink) ? '' : CAL_COMPONENTS.map(c => {
             // Don't fall back to overall — overall is lower-priority-wins,
             // so seeding a blank sub from it would lie about state. Migrate
@@ -41098,7 +41093,7 @@
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
             <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : (parentComp ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}'${parentComp === 'graphic' ? ",'graphic'" : ''})" title="This card links the parent issue — statuses pushed there never reach the editor’s Workload. Paste the ${parentComp === 'graphic' ? 'GRA (graphic)' : 'VID (video)'} sub-issue link instead."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Parent issue linked — link the sub-issue</button>` : (linearMissing ? `<a class="cal-thumb-linear-warn" href="${_calEscAttr(/^https?:\/\//i.test(linearMissing.url) ? linearMissing.url : 'https://' + linearMissing.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="This Linear ${linearMissing.comp === 'graphic' ? 'graphic' : 'video'} sub-issue has no ${linearMissing.missing.join(', no ')} set. Open it on Linear to fix."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Sub-issue has no ${linearMissing.missing.join(', no ')}</a>` : ''))}${_calThumbContent(p)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}${_isClientLink ? '' : _calSmmWarnOverlayHtml(p)}${(_isClientLink || ro) ? '' : _calLinearPileHtml(pid, p)}</div>
             <div class="cal-card-body">
-                ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_calEscAttr(_calDupeWarnText(dupePeers))}. Two cards can't own the same Linear sub-issue — archive one of them, or change one card's link.">⚠ ${_calEsc(_calDupeWarnText(dupePeers))} — archive one or change its link</div>` : ''}
+                ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_calEscAttr(_calDupeWarnText(dupePeers))}. Two cards can't own the same work item — archive one of them.">⚠ ${_calEsc(_calDupeWarnText(dupePeers))} — archive one of them</div>` : ''}
                 <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro, editableText)}</div>
                 <div class="cal-meta-row">${dateHtml}</div>
                 ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, _isClientLink && !isBlank, p)}
@@ -68146,12 +68141,8 @@
         const other = target === 'graphic' ? 'video' : 'graphic';
         const idOf = comp => String((comp === 'graphic'
             ? p.graphic_deliverable_id : p.video_deliverable_id) || '').trim();
-        const linkOf = comp => String((comp === 'graphic'
-            ? p.graphic_linear_issue_id : p.linear_issue_id) || '').trim();
-        // Empty BOTH ways. A card carrying a Linear url with no native id is a
-        // legacy half-link, not a missing component, and filling it would leave
-        // the card pointing at two different issues.
-        if (idOf(target) || linkOf(target)) return '';
+        // Linear is retired: a stored Linear URL alone counts as absent.
+        if (idOf(target)) return '';
         if (!_writeUiLinkSlotSealed(target)) return '';
         return idOf(other);
     }
@@ -68991,13 +68982,14 @@
         try { archived = _sxrArchivedRefs(sxrClientSlug(sxrState.client)); } catch (e) {}
         const isArch = (p) => (String((p && p.status) || '').toLowerCase() === 'archived') || (() => { try { return !!(archived && _sxrIsArchivedRef(p, archived)); } catch (e) { return false; } })();
         if (isArch(post)) return [];
-        const vKey = _sxrLinkKey(post.linear_issue_id), gKey = _sxrLinkKey(post.graphic_linear_issue_id);
+        // Linear is retired: only a shared SyncView deliverable is a conflict.
+        const vKey = _sxrLinkKey(post.video_deliverable_id), gKey = _sxrLinkKey(post.graphic_deliverable_id);
         if (!vKey && !gKey) return [];
         const vPeers = new Set(), gPeers = new Set();
         for (const p of (sxrState.posts || [])) {
             if (!p || p.id === post.id || isArch(p)) continue;
             const nm = String(p.name || '').trim() || 'Untitled sample';
-            const pv = _sxrLinkKey(p.linear_issue_id), pg = _sxrLinkKey(p.graphic_linear_issue_id);
+            const pv = _sxrLinkKey(p.video_deliverable_id), pg = _sxrLinkKey(p.graphic_deliverable_id);
             if (vKey && (pv === vKey || pg === vKey)) vPeers.add(nm);
             if (gKey && (pv === gKey || pg === gKey)) gPeers.add(nm);
         }
@@ -69007,7 +68999,7 @@
         return out;
     }
     function _sxrDupeWarnText(groups) {
-        return groups.map(g => 'Same ' + (g.comp === 'graphic' ? 'thumbnail' : 'video') + ' Linear issue as ' + g.names.join(', ')).join(' · ');
+        return groups.map(g => 'Same ' + (g.comp === 'graphic' ? 'thumbnail' : 'video') + ' work item as ' + g.names.join(', ')).join(' · ');
     }
 
     /* ── Status menu + Set-all (samples: 6 statuses, video+graphic, always settable) ── */
@@ -69482,7 +69474,7 @@
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveSxrCard('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
             <div class="cal-card-thumb" onclick="_sxrThumbClick(event,'${pid}')">${warnHtml}${_sxrThumbContent(p)}${(_isClientLink || ro) ? '' : _sxrLinearPileHtml(pid, p)}</div>
             <div class="cal-card-body">
-                ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_sxrEscAttr(_sxrDupeWarnText(dupePeers))}. Two cards can't own the same Linear sub-issue — archive one of them, or change one card's link.">⚠ ${_sxrEsc(_sxrDupeWarnText(dupePeers))} — archive one or change its link</div>` : ''}
+                ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_sxrEscAttr(_sxrDupeWarnText(dupePeers))}. Two cards can't own the same work item — archive one of them.">⚠ ${_sxrEsc(_sxrDupeWarnText(dupePeers))} — archive one of them</div>` : ''}
                 <div class="cal-title-row" data-title-row="${pid}">${_sxrTitleRowHtml(pid, p, ro, editableText)}</div>
                 ${_sxrLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, p)}
                 ${_sxrLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro, p)}

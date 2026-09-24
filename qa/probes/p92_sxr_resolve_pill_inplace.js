@@ -37,6 +37,12 @@ const now = () => new Date().toISOString();
       // for: the pill updating IN PLACE, with no reload.
       linear_issue_id: 'https://linear.app/x/VID-p92-' + TS,
       graphic_linear_issue_id: 'https://linear.app/x/GRA-p92-' + TS,
+      // Since Linear was retired (2026-09-24) only a SyncView deliverable id
+      // makes a component linked (_calCompLinked). These ids name no real
+      // deliverable: the probe measures the pill updating in place, not a
+      // write, so a placeholder id is all the display rule needs.
+      video_deliverable_id: 'del_p92v_' + TS,
+      graphic_deliverable_id: 'del_p92g_' + TS,
       thumbnail_url: 'https://via.placeholder.com/320x180.png', asset_url: 'https://example.com/v.mp4',
       video_tweaks: JSON.stringify([{ id: TW, parent_id: null, author: 'Client', role: 'client', is_tweak: true, round: 1, audience: 'client', body: 'p92 client change-request', created_at: now(), updated_at: now(), done: false, done_at: '', done_by: '' }]),
     });

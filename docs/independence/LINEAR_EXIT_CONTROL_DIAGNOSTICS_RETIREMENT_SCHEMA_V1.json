@@ -24,14 +24,6 @@
     [
       "supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql",
       "4b3efa038c40b72b1c85dc22bad02527d115d13a80f2b8e96dd583a906dcf705"
-    ],
-    [
-      "migrations/2026-09-23-refusal-receipt-title-operation.sql",
-      "e55b4cef1fb3d281062733944da59723bc95d5fed93a1a7b5f292b52d85fb48f"
-    ],
-    [
-      "migrations/2026-09-24-refusal-receipt-browser-codes.sql",
-      "cb67cf07640a70cd4e01d1e893b2d6e8816e6d9448c3a341368b60acc3c6f778"
     ]
   ],
   "prerequisite": [

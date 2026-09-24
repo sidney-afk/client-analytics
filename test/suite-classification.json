@@ -403,6 +403,7 @@
     "prod-create-graphics-parent-scope.js",
     "prod-create-parents-native.js",
     "prod-deep-link-fast-paint.js",
+    "staff-gate-stub-refusal-local.js",
     "prod-deep-link-linear-identifier.js",
     "prod-deep-link-open-id-key.js",
     "prod-description-image-paste.js",

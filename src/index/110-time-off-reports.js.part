@@ -1752,20 +1752,125 @@
         const i = raw.indexOf('?');
         return new URLSearchParams(i >= 0 ? raw.slice(i + 1) : '');
     }
-    async function _srpLoadReports() {
-        const mount = document.getElementById('smmWeeklyReportsMount');
-        if (mount) mount.innerHTML = `<div class="srp-head"><div><div class="srp-kicker">Kasper view</div><h1 class="srp-title">SMM weekly reports</h1><p class="srp-sub">Review reports by week, social media manager, and client.</p></div></div>${_srpSkeletonHtml('reports')}`;
+    /* SAVED COPY, the way Filming Plans and Workload do it. The reports page
+       used to show a skeleton until both of its reads answered (the managers
+       list and the week's reports, ~1 s each on top of sign-in). It now paints
+       the last answer it saw for the same week and SMM filter at once and
+       refreshes behind. The copy is bound to the signed-in staff member and
+       role (never the key), read only once the identity has verified, capped
+       in size and age, and dropped on sign-out by _srpPurgeSensitiveState.
+       Client links never read or write it.
+
+       The managers list is also fetched once per page load now, not again on
+       every week or SMM change: it is the roster of SMMs, not per-week data. */
+    const SRP_SAVED_KEY = 'syncview_smmWeeklyReportsCache_v1';
+    const SRP_SAVED_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+    const SRP_SAVED_MAX_BYTES = 900 * 1024;
+    const SRP_SAVED_MAX_VIEWS = 8;
+    let _srpLoadSeq = 0;
+    let _srpOptionsFetched = false;
+    let _srpPaintedSig = '';
+    function _srpSavedOwner() {
+        if (typeof _isClientLink !== 'undefined' && _isClientLink) return '';
+        const ident = _syncviewStaffIdentityForHeaders();
+        return ident && ident.member && ident.member.id ? String(ident.role || '') + ':' + String(ident.member.id) : '';
+    }
+    function _srpSavedViewKey() {
+        return String(_srpState.filters.week || '') + '|' + String(_srpState.filters.smm || '');
+    }
+    function _srpSavedLoad(owner) {
         try {
+            const o = JSON.parse(localStorage.getItem(SRP_SAVED_KEY) || 'null');
+            return o && o.owner === owner && o.views && typeof o.views === 'object' ? o : null;
+        } catch (e) { return null; }
+    }
+    function _srpSavedRead(viewKey) {
+        const owner = _srpSavedOwner();
+        if (!owner) return null;
+        const o = _srpSavedLoad(owner);
+        const v = o && o.views[viewKey];
+        if (!v || !Array.isArray(v.reports) || !(Date.now() - Number(v.at) < SRP_SAVED_MAX_AGE_MS)) return null;
+        return { view: v, options: o.options || null };
+    }
+    function _srpSavedWrite(viewKey, data, options) {
+        try {
+            const owner = _srpSavedOwner();
+            if (!owner) return;
+            const o = _srpSavedLoad(owner) || { owner, views: {} };
+            if (options && Array.isArray(options.managers)) o.options = { managers: options.managers, current_week_start: options.current_week_start || '' };
+            o.views[viewKey] = { at: Date.now(), reports: Array.isArray(data.reports) ? data.reports : [], weeks: Array.isArray(data.weeks) ? data.weeks : [] };
+            const keys = Object.keys(o.views).sort((a, b) => Number(o.views[b].at) - Number(o.views[a].at));
+            keys.slice(SRP_SAVED_MAX_VIEWS).forEach(k => { delete o.views[k]; });
+            const json = JSON.stringify(o);
+            if (json.length > SRP_SAVED_MAX_BYTES) { localStorage.removeItem(SRP_SAVED_KEY); return; }
+            localStorage.setItem(SRP_SAVED_KEY, json);
+        } catch (e) {}
+    }
+    function _srpPurgeSensitiveState() {
+        try { localStorage.removeItem(SRP_SAVED_KEY); } catch (e) {}
+        _srpLoadSeq++;
+        _srpOptionsFetched = false;
+        _srpPaintedSig = '';
+        _srpState.reports = [];
+        _srpState.weeks = [];
+        _srpState.managers = [];
+        _srpState.managersLoaded = false;
+    }
+    function _srpDataSig() {
+        return JSON.stringify([_srpSavedViewKey(), _srpState.reports, _srpState.weeks, _srpState.managers, _srpState.currentWeek]);
+    }
+    function _srpPaintIfChanged() {
+        const sig = _srpDataSig();
+        if (sig === _srpPaintedSig && document.getElementById('srpReportStats')) return;
+        const mount = document.getElementById('smmWeeklyReportsMount');
+        const active = document.activeElement;
+        // Someone typing in the client filter keeps their caret: refresh only
+        // the numbers and the cards, not the toolbar they are using.
+        if (mount && active && mount.contains(active) && document.getElementById('srpReportStats')) _srpPaintReportResults();
+        else _srpPaintReports();
+        _srpPaintedSig = sig;
+    }
+    async function _srpLoadReports() {
+        const seq = ++_srpLoadSeq;
+        const mount = document.getElementById('smmWeeklyReportsMount');
+        const viewKey = _srpSavedViewKey();
+        let painted = false;
+        try {
+            await _syncviewRequireStaffIdentity('weekly-report-manage');
+            if (seq !== _srpLoadSeq) return;
+            const saved = _srpSavedRead(viewKey);
+            if (saved) {
+                if (!_srpState.managersLoaded && saved.options) {
+                    _srpState.managers = Array.isArray(saved.options.managers) ? saved.options.managers : [];
+                    if (!_srpState.currentWeek) _srpState.currentWeek = saved.options.current_week_start || '';
+                }
+                _srpState.reports = saved.view.reports;
+                _srpState.weeks = saved.view.weeks;
+                _srpPaintIfChanged();
+                painted = true;
+            }
+        } catch (e) {}
+        const liveMount = document.getElementById('smmWeeklyReportsMount');
+        if (!painted && liveMount) {
+            _srpPaintedSig = '';
+            liveMount.innerHTML = `<div class="srp-head"><div><div class="srp-kicker">Kasper view</div><h1 class="srp-title">SMM weekly reports</h1><p class="srp-sub">Review reports by week, social media manager, and client.</p></div></div>${_srpSkeletonHtml('reports')}`;
+        }
+        try {
+            const needOptions = !_srpOptionsFetched;
             const [options, data] = await Promise.all([
-                _srpLoadOptions().catch(() => ({})),
+                needOptions ? _srpLoadOptions().then(o => { _srpOptionsFetched = true; return o; }).catch(() => ({})) : Promise.resolve(null),
                 _srpApi({ action: 'reports', week: _srpState.filters.week, smm: _srpState.filters.smm })
             ]);
-            if (!_srpState.filters.week) _srpState.filters.week = (options && options.current_week_start) || _srpWeekStartISO();
+            if (seq !== _srpLoadSeq) return;
+            if (!_srpState.filters.week) _srpState.filters.week = (options && options.current_week_start) || _srpState.currentWeek || _srpWeekStartISO();
             _srpState.reports = Array.isArray(data.reports) ? data.reports : [];
             _srpState.weeks = Array.isArray(data.weeks) ? data.weeks : [];
-            _srpPaintReports();
+            _srpSavedWrite(viewKey, data, options && _srpState.managersLoaded ? { managers: _srpState.managers, current_week_start: _srpState.currentWeek } : null);
+            _srpPaintIfChanged();
         } catch (e) {
-            if (mount) mount.innerHTML = `<div class="srp-head"><div><div class="srp-kicker">Kasper view</div><h1 class="srp-title">SMM weekly reports</h1></div></div><div class="srp-empty">Could not load reports: ${_srpEsc(e.message || e)}</div>`;
+            if (seq !== _srpLoadSeq || painted) return;
+            const m = document.getElementById('smmWeeklyReportsMount') || mount;
+            if (m) m.innerHTML = `<div class="srp-head"><div><div class="srp-kicker">Kasper view</div><h1 class="srp-title">SMM weekly reports</h1></div></div><div class="srp-empty">Could not load reports: ${_srpEsc(e.message || e)}</div>`;
         }
     }
     function _srpReportModel() {
@@ -1899,7 +2004,7 @@
             });
         }
         if (status) status.addEventListener('change', () => { _srpState.filters.status = status.value; updateHash(); _srpPaintReportResults(); });
-        if (refresh) refresh.addEventListener('click', () => _srpLoadReports());
+        if (refresh) refresh.addEventListener('click', () => { _srpOptionsFetched = false; _srpLoadReports(); });
         _srpEnsureClientOutsideWired();
     }
     function _srpPickReportClientFilter(name, updateHash) {

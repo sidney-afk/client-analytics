@@ -24186,7 +24186,7 @@
        top-level `let`s initialise (a fragment moved or turned into a module,
        phase C), and reading one then throws "Cannot access X before
        initialization". Unguarded, that aborted navTo() half way: ?intake=1 kept
-       its loading skeleton forever once #1551 made the boot router stand down
+       its loading skeleton forever once PR 1551 made the boot router stand down
        after any navTo(). Only that load-order error is absorbed; any other
        error still throws. */
     function _navTeardownSafe(fn) {

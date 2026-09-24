@@ -68,6 +68,7 @@
     "batch-parent-same-kind-tiebreak.js",
     "batch-parent-state-and-nesting.js",
     "batches-column-grants.js",
+    "boot-entry-tax.js",
     "boot-gate-parity.js",
     "browser-writer-auth.js",
     "bulk-refusals-honest.js",

@@ -88,6 +88,62 @@
             var authed = false;
             try { authed = !!localStorage.getItem('syncview_staff_identity_v1'); } catch (e) {}
             if (!authed) { de.classList.add('boot-gate'); return; }
+            // Start the two things every staff tab waits on NOW, while the
+            // rest of this document is still parsing, instead of after it
+            // (2026-09-24 speed map, "Cross-cutting"). Neither grants anything:
+            //  - the key-verify POST is the same request, same body, the app
+            //    would send from _syncviewStaffIdentityBoot() a second later.
+            //    init() still awaits the server's answer before any staff data
+            //    is read, and the app only accepts this answer for the exact
+            //    key + member it was sent for (_syncviewTakeEarlyKeyVerify).
+            //  - the flags read is ONE public-flag read replacing six
+            //    separate boot reads of the same table. Each consumer takes
+            //    its row once (_svTakeBootFlag); every later re-read (focus,
+            //    click-time, realtime) is live as before, and a failed batch
+            //    makes each consumer fall back to its own read.
+            // Same URL and key as CAL_SUPABASE_URL / CAL_SUPABASE_ANON_KEY
+            // (test/boot-entry-tax.js asserts they, and the flag keys, match).
+            if (window.fetch) {
+                var svBase = 'https://uzltbbrjidmjwwfakwve.supabase.co';
+                var svKey = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';
+                try {
+                    var svId = JSON.parse(localStorage.getItem('syncview_staff_identity_v1') || 'null');
+                    if (svId && svId.key && svId.member && svId.member.id) {
+                        var svVerify = fetch(svBase + '/functions/v1/key-verify', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': String(svId.key) },
+                            body: JSON.stringify({ surface: 'staff-boot', member: { id: svId.member.id } })
+                        });
+                        svVerify.catch(function () {});
+                        window.__svEarlyKeyVerify = { key: String(svId.key), memberId: String(svId.member.id), at: Date.now(), response: svVerify };
+                    }
+                } catch (e) {}
+                var svFlagKeys = ['calendar_upsert_ef_clients', 'kasper_urgent_ping_enabled', 'write_ui_reroute_clients', 'client_comment_gateway_enabled', 'settings_ef_clients', 'sample_review_ef_clients'];
+                var svFlags = fetch(svBase + '/rest/v1/syncview_runtime_flags?select=key,value&key=in.(' + encodeURIComponent(svFlagKeys.join(',')) + ')&limit=' + svFlagKeys.length, {
+                    headers: { apikey: svKey, Authorization: 'Bearer ' + svKey, Accept: 'application/json' }
+                }).then(function (r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                }).then(function (rows) {
+                    if (!Array.isArray(rows)) throw new Error('flags_shape');
+                    return rows;
+                });
+                svFlags.catch(function () {});
+                var svTaken = {};
+                // Resolves { row } (row null = flag absent) or null = "not
+                // available, read it yourself". Once per key, and only within
+                // the first minute, so it can never stand in for a later read.
+                window.__svTakeBootFlag = function (key) {
+                    if (svFlagKeys.indexOf(key) < 0 || svTaken[key]) return Promise.resolve(null);
+                    svTaken[key] = true;
+                    return svFlags.then(function (rows) {
+                        if (performance.now() > 60000) return null;
+                        var hit = null;
+                        for (var i = 0; i < rows.length; i++) if (rows[i] && rows[i].key === key) hit = rows[i];
+                        return { row: hit };
+                    }, function () { return null; });
+                };
+            }
             // Authed staff: predict the landing tab (mirror of init()'s
             // router, conservative — when unsure, tag nothing and boot
             // exactly as today) so a refresh on e.g. #calendar never paints
@@ -25667,8 +25723,34 @@
             .sort((a, b) => String(a.name).localeCompare(String(b.name)));
         return _syncviewStaffRosterCache;
     }
+    /* The <head> boot script starts the boot key-verify POST while the document
+       parses. Hand its response over at most once, only to the boot surface,
+       only for the exact key + member it was sent for, and only while fresh.
+       It is the server's answer either way; this only moves when it was asked. */
+    function _syncviewTakeEarlyKeyVerify(candidate, surface) {
+        let early = null;
+        try { early = window.__svEarlyKeyVerify; window.__svEarlyKeyVerify = null; } catch (e) {}
+        if (!early || surface !== 'staff-boot' || !candidate || !candidate.member) return null;
+        if (early.key !== String(candidate.key || '') || early.memberId !== String(candidate.member.id || '')) return null;
+        if (!(Date.now() - early.at < 60000)) return null;
+        return early.response;
+    }
+    /* Boot-time runtime flag rows from the single batched read the <head> boot
+       script starts. Resolves the rows a `key=eq.<key>` read would return, or
+       null when the batch is unavailable (client link, already taken, failed,
+       stale): the caller then reads the flag itself exactly as before. */
+    async function _svBootFlagRows(key) {
+        try {
+            if (typeof window.__svTakeBootFlag !== 'function') return null;
+            const hit = await window.__svTakeBootFlag(key);
+            return hit ? (hit.row ? [hit.row] : []) : null;
+        } catch (e) { return null; }
+    }
     async function _syncviewVerifyStaffIdentity(candidate, surface) {
-        const response = await fetch(STAFF_KEY_VERIFY_URL, {
+        const early = _syncviewTakeEarlyKeyVerify(candidate, surface);
+        let response = null;
+        if (early) { try { response = await early; } catch (e) { response = null; } }
+        if (!response) response = await fetch(STAFF_KEY_VERIFY_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': String(candidate && candidate.key || '') },
             body: JSON.stringify({ surface: surface || 'staff-login', member: { id: candidate && candidate.member && candidate.member.id } })
@@ -28788,9 +28870,12 @@
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _kasperUrgentFlagValue = null; return; }
         try {
             const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(KASPER_URGENT_FLAG_KEY) + '&limit=1';
-            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const rows = await resp.json();
+            let rows = (typeof _svBootFlagRows === 'function' ? await _svBootFlagRows(KASPER_URGENT_FLAG_KEY) : null);
+            if (!rows) {
+                const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                rows = await resp.json();
+            }
             const row = Array.isArray(rows) ? rows[0] : null;
             const was = JSON.stringify(_kasperUrgentFlagValue);
             _kasperUrgentFlagValue = (row && row.value && typeof row.value === 'object') ? row.value : null;
@@ -28810,9 +28895,12 @@
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _calSetUpsertFlagValue({ clients: [] }); return; }
         try {
             const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(CALENDAR_UPSERT_FLAG_KEY) + '&limit=1';
-            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const rows = await resp.json();
+            let rows = (typeof _svBootFlagRows === 'function' ? await _svBootFlagRows(CALENDAR_UPSERT_FLAG_KEY) : null);
+            if (!rows) {
+                const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                rows = await resp.json();
+            }
             const row = Array.isArray(rows) ? rows[0] : null;
             _calSetUpsertFlagValue(row && row.value ? row.value : { clients: [] });
         } catch (e) {
@@ -28843,6 +28931,11 @@
             const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=key,value&key=in.('
                 + encodeURIComponent(WRITE_UI_REROUTE_FLAG_KEY + ',' + CLIENT_COMMENT_GATEWAY_FLAG_KEY) + ')&limit=2';
             const request = (async () => {
+                // Both keys come from the boot batch or neither does, so one
+                // routing decision never mixes a batched row with a live one.
+                const bootReroute = (typeof _svBootFlagRows === 'function' ? await _svBootFlagRows(WRITE_UI_REROUTE_FLAG_KEY) : null);
+                const bootGateway = (typeof _svBootFlagRows === 'function' ? await _svBootFlagRows(CLIENT_COMMENT_GATEWAY_FLAG_KEY) : null);
+                if (bootReroute && bootGateway) return bootReroute.concat(bootGateway);
                 const resp = await fetch(url, {
                     headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' },
                     ...(controller ? { signal: controller.signal } : {})
@@ -31414,9 +31507,12 @@
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _settingsSetFlagValue({ clients: [] }); return; }
         try {
             const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(SETTINGS_EF_FLAG_KEY) + '&limit=1';
-            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const rows = await resp.json();
+            let rows = (typeof _svBootFlagRows === 'function' ? await _svBootFlagRows(SETTINGS_EF_FLAG_KEY) : null);
+            if (!rows) {
+                const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                rows = await resp.json();
+            }
             const row = Array.isArray(rows) ? rows[0] : null;
             _settingsSetFlagValue(row && row.value ? row.value : { clients: [] });
         } catch (e) {
@@ -68853,9 +68949,12 @@
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _sxrSetSampleFlagValue({ clients: [] }); return; }
         try {
             const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(SXR_SAMPLE_REVIEW_FLAG_KEY) + '&limit=1';
-            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const rows = await resp.json();
+            let rows = (typeof _svBootFlagRows === 'function' ? await _svBootFlagRows(SXR_SAMPLE_REVIEW_FLAG_KEY) : null);
+            if (!rows) {
+                const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                rows = await resp.json();
+            }
             const row = Array.isArray(rows) ? rows[0] : null;
             _sxrSetSampleFlagValue(row && row.value ? row.value : { clients: [] });
         } catch (e) {

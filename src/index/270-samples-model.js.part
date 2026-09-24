@@ -118,9 +118,12 @@
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _sxrSetSampleFlagValue({ clients: [] }); return; }
         try {
             const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(SXR_SAMPLE_REVIEW_FLAG_KEY) + '&limit=1';
-            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const rows = await resp.json();
+            let rows = (typeof _svBootFlagRows === 'function' ? await _svBootFlagRows(SXR_SAMPLE_REVIEW_FLAG_KEY) : null);
+            if (!rows) {
+                const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                rows = await resp.json();
+            }
             const row = Array.isArray(rows) ? rows[0] : null;
             _sxrSetSampleFlagValue(row && row.value ? row.value : { clients: [] });
         } catch (e) {

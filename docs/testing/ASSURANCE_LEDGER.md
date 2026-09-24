@@ -147,7 +147,7 @@ still owner-gated, and it is the half that matters most.
 - **Kasper Samples half: not proven.** `sxr_kasper_audit_holes` and `sxr_gating_flags` are red on the Kasper approve/request steps, and both are documented in-file as expected red until migrated to the native write lane (OPEN_REPAIRS 175). A live drill goes through the same role-gated writer as above.
 - **Workload saves: not attempted.** `workload-plan` is role-gated (the dawn check records 401 with the staff key); same role key needed.
 - **Market research:** TEST client Brief tab opens (Keywords / Competitors) and shows the "No Keywords Brief yet" empty state with 0 page errors. The populated tabs exist only on real clients, which the mandate excludes, so that half stays unproven.
-- **Confirmed findings: none.** **Uncertain (for review):** the TEST card's video sub-issue reads "Video 1 — Video 1 — TEST 2" (a doubled prefix); could be old test data or a title-composition slip, not verified.
+- **Confirmed findings: none.** Refuted: a TEST sub-issue titled "Video 1 — Video 1 — TEST 2" looked like a doubled prefix, but the card itself is named "Video 1 — TEST 2" (test data), so the composed title is correct.
 - **Unit fix:** `test/assurance-ledger-staleness.js` now reads the real ledger's State stamp instead of pinning 2026-08-22, keeping every other assertion.
 
 

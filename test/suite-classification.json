@@ -1189,6 +1189,14 @@
       "ci": "not_run_by_unit_ci"
     },
     {
+      "file": "tiktok-preview-empty-clearance-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
+      "reproduce": "node test/tiktok-preview-empty-clearance-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
       "file": "kasper-hiring-reload-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

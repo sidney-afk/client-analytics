@@ -4,6 +4,9 @@
 
 All times are UTC unless noted.
 
+## 2026-09-24 — six native rows re-stamped with the native attribution (owner-approved)
+
+Attribution fields only (`source`, `reason`, `native_epoch`) on 6 rows whose Linear issues never existed; before values and the one-line undo are in OPEN_REPAIRS 246. A read-only sweep found no other row in this state.
 ## 2026-09-24 — two imported Linear parent rows archived (owner-approved)
 
 `linear_raw.archived = true` on `b1_d_1e3acd42ec9940988c8ec801a804372a` and `b1_d_54f839e2875a4a369331e399ac9de1a1` (batch `b1_b_5924c395f710cb46e22a9a368541`). Nothing was deleted; the one-line undo is in OPEN_REPAIRS 245.
@@ -8360,7 +8363,7 @@ Nobody logged these two installs at the time they happened. This entry records w
 - **Edge Function** `workload-plan`: the provider list shows it last updated 2026-09-24 02:29:44Z, with `ezbr_sha256` `aac6a2ba829274939b3cce38912d45c164927ba6f991691c1270fd3261fbdeb3`. It read v26 after that deploy and reads v29 now, because of the three secret deletions recorded above (no code change). The repo source (latest change #1542) serves the `native_snapshot_v2` action. The deploy's run id and source-closure readback were not recorded, and this check did not take them.
 - **Cached snapshot body on 2026-09-24:** 6,770 rows, all native. 7,286,083 bytes.
 
-## 2026-09-24 — Browser refusal reason codes live: `receipts_v1_code_check` widened and `write-diagnostics` deployed (PR #1570, OPEN_REPAIRS 246)
+## 2026-09-24 — Browser refusal reason codes live: `receipts_v1_code_check` widened and `write-diagnostics` deployed (PR #1570, OPEN_REPAIRS 247)
 
 - **Migration** `migrations/2026-09-24-refusal-receipt-browser-codes.sql`, applied by the session named Lighthouse. `supabase_migrations.schema_migrations` records it as version `20260924171734`, name `refusal_receipt_browser_codes`. A read-only check afterwards counted 218 codes in the live `receipts_v1_code_check`, which is exactly the gateway + browser list in `_shared/write-refusal-codes.mjs`. No grant or revoke: only the check constraint changed.
 - **Edge Function** `write-diagnostics`, deployed by the owner from `3469b785622519d63a70b2e98e6d4d64a2515dc3`. Attestation PASS. The run id and version were not recorded in this session.

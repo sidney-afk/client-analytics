@@ -31351,6 +31351,7 @@
             if (repair && initiallyExisting === false && error && error.precommitSafe === true) {
                 await _writeUiDiscardSourceRepair(repair);
             }
+            if (typeof _writeUiTagDiagIds !== 'function') throw error;
             throw _writeUiTagDiagIds(error, {
                 card: String(repair && repair.post_id || ''),
                 component: String(intent && (intent.component
@@ -31380,96 +31381,96 @@
         return error;
     }
     async function _writeUiGatewayPost(intent, hooks) {
-        try { return await _writeUiGatewayPostOnce(intent, hooks); }
-        catch (error) {
-            throw _writeUiTagDiagIds(error, { id: String(intent && intent.nativeId || '') });
-        }
-    }
-    async function _writeUiGatewayPostOnce(intent, hooks) {
-        const resumeOwner = intent && intent.legacyResumeOwner || null;
-        const requireResumeOwner = () => {
-            if (resumeOwner && !_writeUiLegacyResumeOwnerCurrent(resumeOwner)) {
-                throw _writeUiGatewayError(409, 'legacy_resume_lease_revoked');
-            }
-        };
-        requireResumeOwner();
-        const requestId = String(intent.requestId || _writeUiIntentId(intent.surface, intent.operation, [Date.now()]));
-        const sourceEditedAt = _writeUiSourceTime(intent.sourceEditedAt);
-        const authority = await _writeUiRefreshAuthority();
-        requireResumeOwner();
-        if (!authority) throw _writeUiGatewayError(503, 'authority_unavailable');
-        if (!_writeUiHasCredential()) throw _writeUiGatewayError(401, 'credentials_required');
-        if (intent.legacyOnly && authority[intent.team] !== 'linear') {
-            throw _writeUiGatewayError(409, 'legacy_parity_not_allowed');
-        }
-        // Parity is now only ever the explicit legacy-queue drain. Linear-authority
-        // parity is retired: no team can be Linear-authoritative any more.
-        const legacyParity = !!intent.legacyOnly;
-        const makePayload = () => {
-            if (!intent.legacyOnly && !legacyParity && !intent.nativeId) {
-                throw _writeUiGatewayError(409, 'native_link_required');
-            }
-            const payload = {
-                operation: intent.operation,
-                surface: intent.surface,
-                entity: 'deliverable',
-                request_id: requestId,
-                source_edited_at: sourceEditedAt
+        try {
+            const resumeOwner = intent && intent.legacyResumeOwner || null;
+            const requireResumeOwner = () => {
+                if (resumeOwner && !_writeUiLegacyResumeOwnerCurrent(resumeOwner)) {
+                    throw _writeUiGatewayError(409, 'legacy_resume_lease_revoked');
+                }
             };
-            if (legacyParity) payload.legacy_parity = true;
-            if (!intent.legacyOnly && intent.nativeId) payload.id = intent.nativeId;
-            else payload.issue = intent.issue;
-            if (intent.operation === 'status') payload.status = intent.status;
-            else payload.comment = intent.comment;
-            return payload;
-        };
-        const runHook = async (name, value) => {
-            if (!hooks || typeof hooks[name] !== 'function') return;
-            try { await hooks[name](value); }
-            catch (error) { error.noTransportRetry = true; throw error; }
-        };
-        let payload = makePayload();
-        let payloadBody = JSON.stringify(payload);
-        await runHook('beforeAttempt', payloadBody);
-        requireResumeOwner();
-        let lastError = null;
-        let ambiguousSeen = false;
-        for (let attempt = 0; attempt < 2; attempt++) {
-            try {
-                requireResumeOwner();
-                if (resumeOwner && typeof intent.onLegacyResumeTransportStart === 'function') {
-                    intent.onLegacyResumeTransportStart();
-                }
-                const resp = await fetch(WRITE_UI_PRODUCTION_WRITE_URL, {
-                    method: 'POST', cache: 'no-store',
-                    headers: _syncviewEfHeaders({
-                        apikey: CAL_SUPABASE_ANON_KEY,
-                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
-                        Accept: 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-Syncview-Source': intent.surface
-                    }, WRITE_UI_PRODUCTION_WRITE_URL),
-                    body: payloadBody
-                });
-                const json = await resp.json().catch(() => ({}));
-                if (resp.ok && json && json.ok === true && json.native_committed === true) {
-                    await runHook('afterCommit', json);
-                    return json;
-                }
-                lastError = _writeUiGatewayError(resp.status, json && json.error || 'write_failed');
-                // Ambiguous transport/server retries reuse the byte-identical
-                // payload. Never change authority lane under one request ID.
-                if (resp.status >= 500 && attempt === 0) { ambiguousSeen = true; continue; }
-                if (resp.status >= 400 && resp.status < 500 && !ambiguousSeen) lastError.precommitSafe = true;
-                throw lastError;
-            } catch (e) {
-                lastError = e;
-                if (e && e.noTransportRetry) throw e;
-                if (attempt === 0 && (!e.status || e.status >= 500)) { ambiguousSeen = true; continue; }
-                throw e;
+            requireResumeOwner();
+            const requestId = String(intent.requestId || _writeUiIntentId(intent.surface, intent.operation, [Date.now()]));
+            const sourceEditedAt = _writeUiSourceTime(intent.sourceEditedAt);
+            const authority = await _writeUiRefreshAuthority();
+            requireResumeOwner();
+            if (!authority) throw _writeUiGatewayError(503, 'authority_unavailable');
+            if (!_writeUiHasCredential()) throw _writeUiGatewayError(401, 'credentials_required');
+            if (intent.legacyOnly && authority[intent.team] !== 'linear') {
+                throw _writeUiGatewayError(409, 'legacy_parity_not_allowed');
             }
+            // Parity is now only ever the explicit legacy-queue drain. Linear-authority
+            // parity is retired: no team can be Linear-authoritative any more.
+            const legacyParity = !!intent.legacyOnly;
+            const makePayload = () => {
+                if (!intent.legacyOnly && !legacyParity && !intent.nativeId) {
+                    throw _writeUiGatewayError(409, 'native_link_required');
+                }
+                const payload = {
+                    operation: intent.operation,
+                    surface: intent.surface,
+                    entity: 'deliverable',
+                    request_id: requestId,
+                    source_edited_at: sourceEditedAt
+                };
+                if (legacyParity) payload.legacy_parity = true;
+                if (!intent.legacyOnly && intent.nativeId) payload.id = intent.nativeId;
+                else payload.issue = intent.issue;
+                if (intent.operation === 'status') payload.status = intent.status;
+                else payload.comment = intent.comment;
+                return payload;
+            };
+            const runHook = async (name, value) => {
+                if (!hooks || typeof hooks[name] !== 'function') return;
+                try { await hooks[name](value); }
+                catch (error) { error.noTransportRetry = true; throw error; }
+            };
+            let payload = makePayload();
+            let payloadBody = JSON.stringify(payload);
+            await runHook('beforeAttempt', payloadBody);
+            requireResumeOwner();
+            let lastError = null;
+            let ambiguousSeen = false;
+            for (let attempt = 0; attempt < 2; attempt++) {
+                try {
+                    requireResumeOwner();
+                    if (resumeOwner && typeof intent.onLegacyResumeTransportStart === 'function') {
+                        intent.onLegacyResumeTransportStart();
+                    }
+                    const resp = await fetch(WRITE_UI_PRODUCTION_WRITE_URL, {
+                        method: 'POST', cache: 'no-store',
+                        headers: _syncviewEfHeaders({
+                            apikey: CAL_SUPABASE_ANON_KEY,
+                            Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-Syncview-Source': intent.surface
+                        }, WRITE_UI_PRODUCTION_WRITE_URL),
+                        body: payloadBody
+                    });
+                    const json = await resp.json().catch(() => ({}));
+                    if (resp.ok && json && json.ok === true && json.native_committed === true) {
+                        await runHook('afterCommit', json);
+                        return json;
+                    }
+                    lastError = _writeUiGatewayError(resp.status, json && json.error || 'write_failed');
+                    // Ambiguous transport/server retries reuse the byte-identical
+                    // payload. Never change authority lane under one request ID.
+                    if (resp.status >= 500 && attempt === 0) { ambiguousSeen = true; continue; }
+                    if (resp.status >= 400 && resp.status < 500 && !ambiguousSeen) lastError.precommitSafe = true;
+                    throw lastError;
+                } catch (e) {
+                    lastError = e;
+                    if (e && e.noTransportRetry) throw e;
+                    if (attempt === 0 && (!e.status || e.status >= 500)) { ambiguousSeen = true; continue; }
+                    throw e;
+                }
+            }
+            throw lastError || _writeUiGatewayError(503, 'write_failed');
+        } catch (error) {
+            // typeof-guarded: several suites load this function on its own.
+            throw typeof _writeUiTagDiagIds === 'function'
+                ? _writeUiTagDiagIds(error, { id: String(intent && intent.nativeId || '') }) : error;
         }
-        throw lastError || _writeUiGatewayError(503, 'write_failed');
     }
     function _writeUiFilterCachedPosts(posts, authority) {
         if (!Array.isArray(posts) || !authority) return [];

@@ -62,8 +62,10 @@ function grabConst(name) {
     grabFunc('_writeRefusalBeacon'),
     grabFunc('_writeUiQueueDiagnostic'),
     grabFunc('_writeUiTagDiagIds'),
-    // The real wrapper, with the network half replaced by a refusal.
-    'async function _writeUiGatewayPostOnce() { throw _writeUiGatewayError(409, "status_reapply_required"); }',
+    // The real send path, with its first dependency refusing.
+    'const _writeUiLegacyResumeOwnerCurrent = () => true;',
+    'const _writeUiSourceTime = value => String(value || "");',
+    'async function _writeUiRefreshAuthority() { throw _writeUiGatewayError(409, "status_reapply_required"); }',
     'async ' + grabFunc('_writeUiGatewayPost'),
     'this._writeUiGatewayPost = _writeUiGatewayPost; this._writeUiTagDiagIds = _writeUiTagDiagIds;',
     'this._writeUiQueueDiagnostic = _writeUiQueueDiagnostic; this._writeUiGatewayError = _writeUiGatewayError;',
@@ -77,7 +79,7 @@ function grabConst(name) {
 
   let caught = null;
   try {
-    await ctx._writeUiGatewayPost({ nativeId: 'b1_d_test', surface: 'calendar', operation: 'status',
+    await ctx._writeUiGatewayPost({ nativeId: 'b1_d_test', requestId: 'req-1', surface: 'calendar', operation: 'status',
       issue: 'VID-1', comment: { body: 'secret prose' } });
   } catch (e) { caught = e; }
   ok(caught && caught.code === 'status_reapply_required', 'the refusal still propagates unchanged');

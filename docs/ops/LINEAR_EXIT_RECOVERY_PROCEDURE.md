@@ -127,7 +127,7 @@ The same reasoning applies to any function this migration adds later.
 
 ### Route C2: previous functions were mixed versions or unmatched captured source
 
-The onboarding lane cannot select a different previous commit per slug or deploy arbitrary captured source. The separate [Section 4 lane](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-section4-closures.yml) has restore-captured-prior-four for its sealed set (batch-write, deliverable-write, production-write, linear-outbound); it is NOT a rollback for notify, the readers or all eight staff functions. Do not substitute it for a 13-function recovery.
+The onboarding lane cannot select a different previous commit per slug or deploy arbitrary captured source. The separate [Section 4 lane](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-section4-closures.yml) has restore-captured-prior-three for its sealed set (batch-write, deliverable-write, production-write; linear-outbound is deleted live, B2 Slice 8); it is NOT a rollback for notify, the readers or all eight staff functions. Do not substitute it for a 13-function recovery.
 
 No ready captured-13 restoration lane has been prepared or tested. Stop before the forward release unless C1 is proven applicable or a separate exact-capture recovery lane has been prepared, reviewed and authorized. Direct laptop deployments, a newly invented CLI loop or a generic old-SHA dispatch are not equivalent recovery. This is a concrete conditional blocker, not a promised automatic restore.
 

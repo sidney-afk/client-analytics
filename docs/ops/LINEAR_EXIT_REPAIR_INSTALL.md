@@ -30,7 +30,7 @@ keys. It reads no application rows and prints no token, function body, flag
 value, client identity or private source.
 
 The F27 check is intentionally limited to `deploy-reviewed-release`.
-`restore-captured-prior-four` does **not** require the new forward schema: an
+`restore-captured-prior-three` does **not** require the new forward schema: an
 old-source recovery must remain available when a failed or absent new SQL
 prerequisite is the reason for restoring.
 
@@ -221,7 +221,7 @@ acceptable way to make mirror debt stay at zero.
 | Before SQL | Captured schema/recovery prerequisite differs from the reviewed baseline | Apply nothing; reconcile the candidate against the captured state. |
 | During SQL | A transaction refuses or a post-step readback differs | Start no Edge Function deploy. Preserve the failure receipt and inspect partial earlier transactions; never “finish” by applying an old append replacement. |
 | Preflight | Any non-PASS result | Zero functions deploy. Correct or complete SQL, then rerun the read-only check. |
-| Partial F27 forward deploy | A deploy/readback fails after an earlier function changed | Hold affected admission, inspect exact live versions, then use the already-sealed `restore-captured-prior-four` operation or complete the reviewed compatible set. Restore remains independent of the new preflight. |
+| Partial F27 forward deploy | A deploy/readback fails after an earlier function changed | Hold affected admission, inspect exact live versions, then use the already-sealed `restore-captured-prior-three` operation or complete the reviewed compatible set. Restore remains independent of the new preflight. |
 | Partial onboarding manual deploy | Any of the 13 deploys or final attestation fails | Hold affected admission and identify every live closure. This lane has no equivalent bundled 13-function restore; do not infer rollback from the job's final red state. In particular, never enable gateway notification wakes until compatible `notify` readback passes. |
 | After accepted native work | A later canary or capability fails | Hold new admission and repair forward while preserving names, epochs, manifests, event attribution and receipts. Do not restore provider-only/bare-title functions or delete retained evidence. |
 

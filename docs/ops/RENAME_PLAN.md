@@ -372,7 +372,7 @@ cards. If they do, change them to compare the name part.
   3. Dispatch `deploy-f27-section4-closures.yml` with main's tip SHA and the bundle sha256 and length.
 - **DO-NOT-MERGE window:** from handing over the SHA until the owner reports green.
 - After deploy: update `ROLLBACK.md:124` (enforced by `scripts/rollback-row-freshness-check.js`), then turn on `rename_from_subissue` and ship the SyncLinear title input.
-- **Rollback:** turn off the flag, which stops propagation immediately. If the op itself misbehaves, run `restore-captured-prior-four` with the fresh bundle.
+- **Rollback:** turn off the flag, which stops propagation immediately. If the op itself misbehaves, run `restore-captured-prior-three` with the fresh bundle.
 - The UI input may merge before the deploy only if it is hidden behind the same flag. Otherwise it would call an op that doesn't exist.
 
 ---

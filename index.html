@@ -4235,6 +4235,39 @@
         .tpl-toggle-btn.active { background: var(--sv-bg-111110); color: var(--sv-fg-fff); }
 
         .tpl-section { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; margin-bottom: 14px; }
+        .tpl-brain-spec-row { display: flex; gap: 12px; align-items: baseline; padding: 6px 0; flex-wrap: wrap; }
+        .tpl-brain-spec-label { font-size: 0.78rem; font-weight: 700; min-width: 90px; color: var(--text-muted); }
+        .tpl-brain-spec-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .tpl-brain-chip { font-size: 0.82rem; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); display: inline-flex; gap: 6px; align-items: center; }
+        .tpl-brain-k { color: var(--text-muted); font-size: 0.74rem; }
+        .tpl-brain-swatch { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: copy; }
+        .tpl-brain-swatch span { width: 13px; height: 13px; border-radius: 4px; border: 1px solid var(--border); display: inline-block; }
+        .tpl-brain-swatch.copied { color: var(--text-primary); font-weight: 700; }
+        .tpl-brain-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-top: 10px; }
+        .tpl-brain-card.empty { opacity: 0.75; }
+        .tpl-brain-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+        .tpl-brain-title { font-weight: 700; font-size: 0.92rem; }
+        .tpl-brain-metas { display: inline-flex; gap: 8px; align-items: center; font-size: 0.72rem; color: var(--text-muted); }
+        .tpl-brain-status { font-weight: 700; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); }
+        .tpl-brain-status.empty { font-style: italic; }
+        .tpl-brain-body { font-size: 0.86rem; line-height: 1.55; margin-top: 8px; overflow-wrap: anywhere; }
+        .tpl-brain-body p { margin: 0 0 8px; }
+        .tpl-brain-quote { margin: 0 0 8px; padding-left: 10px; border-left: 3px solid var(--border); }
+        .tpl-brain-source { font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; }
+        .tpl-brain-change-btn { margin-top: 8px; font-size: 0.78rem; border: 1px solid var(--border); background: none; border-radius: 8px; padding: 4px 10px; cursor: pointer; color: inherit; }
+        .tpl-brain-form { margin-top: 10px; }
+        .tpl-brain-text { width: 100%; box-sizing: border-box; font: inherit; font-size: 0.86rem; border: 1px solid var(--border); border-radius: 8px; padding: 8px; background: var(--white); color: inherit; }
+        .tpl-brain-form-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+        .tpl-brain-from { flex: 1; min-width: 120px; font: inherit; font-size: 0.82rem; border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; background: var(--white); color: inherit; }
+        .tpl-brain-send, .tpl-brain-cancel { font-size: 0.8rem; border-radius: 8px; padding: 5px 12px; cursor: pointer; border: 1px solid var(--border); background: none; color: inherit; }
+        .tpl-brain-send { font-weight: 700; }
+        .tpl-brain-sent { margin-top: 8px; font-size: 0.8rem; color: var(--text-muted); font-style: italic; }
+        .tpl-brain-err { margin-top: 6px; font-size: 0.78rem; color: var(--prod-danger); }
+        .tpl-brain-missing { margin-top: 12px; }
+        .tpl-brain-missing summary { cursor: pointer; font-size: 0.8rem; color: var(--text-muted); }
+        .tpl-brain-count { opacity: 0.6; font-size: 0.75em; }
+        .tpl-brain-empty-note { font-size: 0.84rem; color: var(--text-muted); margin-top: 8px; }
+        .tpl-brain-add { margin-top: 12px; }
         .tpl-section-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 14px; }
 
         /* Filming-plans card (view mode top callout, but not yellow) */
@@ -11909,6 +11942,8 @@
         // a realtime echo lands: covers plain fields, the color-set inputs, and
         // the multiple-link inputs (each keyed by its own data-attr).
         if (ae && ae.hasAttribute && (ae.hasAttribute('data-tpl-field') || ae.hasAttribute('data-tpl-set') || ae.hasAttribute('data-tpl-link-set'))) return;
+        // Same for a "Send a change" box being typed into.
+        if (ae && ae.closest && ae.closest('.tpl-brain-form')) return;
         content.innerHTML = renderTemplatesView();
         mountTemplatesView();
     }
@@ -13102,6 +13137,192 @@
         }
     }
 
+    /* ── Synchro Brain on the Templates page ─────────────────────────────
+       Facts come from the private brain repo through the `brain` Edge Function
+       (the site never holds the brain token). The page lays out whatever facts
+       exist with one generic card, so a bigger brain needs no change here.
+       Facts carrying a `spec:` line are pinned at the top as a quick-look
+       strip. Corrections go through "Send a change": saved word for word into
+       the brain and processed there; nothing on this page edits a fact. */
+    // Resolved lazily: CAL_SUPABASE_URL is declared in a later fragment.
+    function _tplBrainUrl() { return CAL_SUPABASE_URL + '/functions/v1/brain'; }
+    const TPL_BRAIN_FILES = [['editing', 'Editing'], ['voice', 'Voice'], ['identity', 'Identity'], ['relationship', 'Relationship']];
+    const TPL_BRAIN_NAME_KEY = 'syncview_brain_sender_name';
+    const _tplBrain = {};            // client -> { state: 'loading'|'ready'|'error', facts, found, error }
+    let _tplBrainTab = 'editing';
+    const _tplBrainSent = {};        // `${client}::${factId}` -> 'sending'|'sent'|'error'
+    let _tplBrainOpenForm = '';      // `${client}::${factId}` currently showing the change box
+    const _tplBrainDraft = {};       // key -> unsent text, survives background rerenders
+    const TPL_BRAIN_STALE_MS = 3 * 60 * 1000;
+
+    function _tplBrainPost(payload) {
+        const url = _tplBrainUrl();
+        return fetch(url, {
+            method: 'POST',
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': 'brain' }, url),
+            body: JSON.stringify(payload),
+        }).then(async r => {
+            const j = await r.json().catch(() => ({}));
+            if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+            return j;
+        });
+    }
+    function _tplBrainEnsure(name, force) {
+        const cur = _tplBrain[name];
+        // Errors retry only from the button; a ready copy refreshes once stale.
+        if (cur && !force && (cur.state !== 'ready' || Date.now() - (cur.at || 0) < TPL_BRAIN_STALE_MS)) return;
+        // A background refresh keeps showing the current facts instead of a skeleton.
+        _tplBrain[name] = cur && cur.state === 'ready' ? Object.assign({}, cur, { refreshing: true }) : { state: 'loading', facts: cur && cur.facts || [] };
+        _tplBrainPost({ action: 'read', clientName: name }).then(j => {
+            _tplBrain[name] = { state: 'ready', at: Date.now(), facts: Array.isArray(j.facts) ? j.facts : [], found: !!j.found };
+        }).catch(e => {
+            _tplBrain[name] = { state: 'error', facts: [], error: e && e.message || String(e) };
+        }).then(() => { if (_templatesSelected === name) _maybeRerenderTemplates(); });
+    }
+    function tplBrainRetry() { if (_templatesSelected) { _tplBrainEnsure(_templatesSelected, true); _maybeRerenderTemplates(); } }
+    function tplBrainSetTab(tab) { _tplBrainTab = tab; _maybeRerenderTemplates(); }
+
+    // Plain-text facts with light markdown: **bold**, > quotes, paragraphs.
+    function _tplBrainProse(text) {
+        const out = [];
+        let quote = [];
+        const flush = () => { if (quote.length) { out.push('<blockquote class="tpl-brain-quote">' + quote.join('<br>') + '</blockquote>'); quote = []; } };
+        String(text || '').split(/\n{2,}/).forEach(block => {
+            const lines = block.split('\n');
+            if (lines.every(l => /^>\s?/.test(l))) { quote.push(...lines.map(l => _tplBrainInline(l.replace(/^>\s?/, '')))); return; }
+            flush();
+            out.push('<p>' + lines.map(_tplBrainInline).join('<br>') + '</p>');
+        });
+        flush();
+        return out.join('');
+    }
+    function _tplBrainInline(line) {
+        return _tplEsc(line)
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/(https?:\/\/[^\s<]+)/g, u => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
+    }
+    function _tplBrainSpecChips(spec) {
+        return String(spec || '').split(';').map(x => x.trim()).filter(Boolean).map(part => {
+            const html = _tplEsc(part)
+                .replace(/(^|\s)([a-z0-9]+)=/gi, (m, sp, k) => `${sp}<span class="tpl-brain-k">${k.charAt(0).toUpperCase() + k.slice(1)}</span> `)
+                .replace(/#[0-9a-fA-F]{3,8}\b/g, hex =>
+                `<button type="button" class="tpl-brain-swatch" title="Copy ${hex}" onclick="tplBrainCopy('${hex}', this)"><span style="background:${hex}"></span>${hex}</button>`);
+            return `<span class="tpl-brain-chip">${html}</span>`;
+        }).join('');
+    }
+    function tplBrainCopy(text, el) {
+        try { navigator.clipboard.writeText(text); } catch (e) {}
+        if (el) { el.classList.add('copied'); setTimeout(() => el.classList.remove('copied'), 900); }
+    }
+    function _tplBrainSpecStrip(name) {
+        const b = _tplBrain[name];
+        if (!b || b.state !== 'ready') return '';
+        const specs = b.facts.filter(f => f.spec && f.status === 'written');
+        if (!specs.length) return '';
+        return `<div class="tpl-section tpl-brain-strip">
+            <div class="tpl-section-title">Quick look</div>
+            ${specs.map(f => `<div class="tpl-brain-spec-row"><span class="tpl-brain-spec-label">${_tplEsc(f.heading.replace(/\s*spec$/i, ''))}</span><span class="tpl-brain-spec-chips">${_tplBrainSpecChips(f.spec)}</span></div>`).join('')}
+        </div>`;
+    }
+    function _tplBrainKey(name, id) { return name + '::' + (id || '_new'); }
+    function _tplBrainChangeBox(name, fact) {
+        const key = _tplBrainKey(name, fact && fact.id);
+        const st = _tplBrainSent[key];
+        if (st === 'sent') return `<div class="tpl-brain-sent">Change sent. It is being processed into the brain and will show here once it is in. <button type="button" class="tpl-brain-change-btn" onclick="tplBrainAnother('${_tplEscAttr(key)}')">Send another</button></div>`;
+        if (_tplBrainOpenForm !== key) {
+            const label = !fact ? 'Add something the brain is missing' : (fact.status === 'written' ? 'Send a change' : 'Write this');
+            return `<button type="button" class="tpl-brain-change-btn" onclick="tplBrainOpen('${_tplEscAttr(key)}')">${label}</button>`;
+        }
+        let sender = '';
+        try { sender = localStorage.getItem(TPL_BRAIN_NAME_KEY) || ''; } catch (e) {}
+        return `<div class="tpl-brain-form" data-brain-key="${_tplEscAttr(key)}">
+            <textarea class="tpl-brain-text" rows="4" oninput="_tplBrainDraft['${_tplEscAttr(key)}']=this.value" placeholder="${fact ? 'What is true now? Write it the way you would tell a teammate.' : 'What should the brain know about this client?'}">${_tplEsc(_tplBrainDraft[key] || '')}</textarea>
+            <div class="tpl-brain-form-row">
+                <input class="tpl-brain-from" type="text" placeholder="Your name" value="${_tplEscAttr(sender)}">
+                <button type="button" class="tpl-brain-cancel" onclick="tplBrainOpen('')">Cancel</button>
+                <button type="button" class="tpl-brain-send" onclick="tplBrainSend('${_tplEscAttr(key)}')">${st === 'sending' ? 'Sending…' : 'Send'}</button>
+            </div>
+            ${st === 'error' ? '<div class="tpl-brain-err">Couldn\'t send. Your text is still here; try again.</div>' : ''}
+        </div>`;
+    }
+    function tplBrainAnother(key) { delete _tplBrainSent[key]; tplBrainOpen(key); }
+    function tplBrainOpen(key) { _tplBrainOpenForm = key; _maybeRerenderTemplates(); const ta = document.querySelector('.tpl-brain-text'); if (ta) ta.focus(); }
+    function tplBrainSend(key) {
+        const name = _templatesSelected;
+        const form = document.querySelector(`.tpl-brain-form[data-brain-key="${CSS.escape(key)}"]`);
+        if (!name || !form) return;
+        const text = form.querySelector('.tpl-brain-text').value.trim();
+        const from = form.querySelector('.tpl-brain-from').value.trim();
+        if (!text) { form.querySelector('.tpl-brain-text').focus(); return; }
+        try { if (from) localStorage.setItem(TPL_BRAIN_NAME_KEY, from); } catch (e) {}
+        const factId = key.slice(name.length + 2);
+        const fact = ((_tplBrain[name] || {}).facts || []).find(f => f.id === factId);
+        const btn = form.querySelector('.tpl-brain-send');
+        if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+        _tplBrainSent[key] = 'sending';
+        _tplBrainPost({ action: 'change', clientName: name, factId: fact ? fact.id : '', heading: fact ? fact.heading : '', from, text })
+            .then(() => {
+                _tplBrainSent[key] = 'sent'; _tplBrainOpenForm = ''; delete _tplBrainDraft[key]; _maybeRerenderTemplates();
+                // Processing takes a minute or two; pick the result up without a reload.
+                [90, 240].forEach(sec => setTimeout(() => { if (_templatesSelected === name) _tplBrainEnsure(name, true); }, sec * 1000));
+            })
+            .catch(() => {
+                _tplBrainSent[key] = 'error';
+                if (btn) { btn.disabled = false; btn.textContent = 'Send'; }
+                if (!form.querySelector('.tpl-brain-err')) form.insertAdjacentHTML('beforeend', '<div class="tpl-brain-err">Couldn\'t send. Your text is still here; try again.</div>');
+            });
+    }
+    function _tplBrainCard(name, f) {
+        const meta = f.status === 'written'
+            ? `<span class="tpl-brain-status ok">Written</span>${f.owner ? `<span class="tpl-brain-meta">${_tplEsc(f.owner)}</span>` : ''}${f.updated ? `<span class="tpl-brain-meta">${_tplEsc(f.updated)}</span>` : ''}`
+            : `<span class="tpl-brain-status empty">Not written yet</span>`;
+        return `<div class="tpl-brain-card${f.status === 'written' ? '' : ' empty'}">
+            <div class="tpl-brain-head"><span class="tpl-brain-title">${_tplEsc(f.heading)}</span><span class="tpl-brain-metas">${meta}</span></div>
+            ${f.body ? `<div class="tpl-brain-body">${_tplBrainProse(f.body)}</div>` : ''}
+            ${f.source ? `<div class="tpl-brain-source" title="${_tplEscAttr(f.source)}">Source: ${_tplEsc(f.source.split(';')[0].split('/').pop())}${f.source.includes(';') ? ' and more' : ''}</div>` : ''}
+            ${_tplBrainChangeBox(name, f)}
+        </div>`;
+    }
+    // While the brain is unreachable, show the last values typed into SyncView
+    // (read-only) so editors are never left without fonts and colours.
+    function _tplBrainFallback(name) {
+        const hlR = !!_tplGet(name, 'reels_subtitle_highlight_off');
+        const hlT = !!_tplGet(name, 'thumbnails_highlight_off');
+        return `<div class="tpl-section">
+            <div class="tpl-section-title">Last values saved in SyncView</div>
+            <div class="tpl-view-grid">
+                ${_tplViewText(name, 'reels_subtitle_font', 'Subtitle font')}
+                ${_tplViewColor(name, 'reels_subtitle_main_color', 'Subtitle main color')}
+                ${hlR ? '' : _tplViewColor(name, 'reels_subtitle_highlight_color', 'Subtitle highlight color')}
+                ${_tplViewText(name, 'thumbnails_title_font', 'Thumbnail title font')}
+            </div>
+            <div class="tpl-view-color-sets-wrap">${_tplRenderColorSetsView(name, hlT)}</div>
+            ${_tplViewProse(name, 'reels_preferences')}
+            ${_tplViewProse(name, 'thumbnails_preferences')}
+        </div>`;
+    }
+    function _tplBrainSection(name) {
+        const b = _tplBrain[name];
+        const head = `<div class="tpl-section-title">From the Synchro Brain</div>`;
+        if (!b || b.state === 'loading') return `<div class="tpl-section">${head}<div class="tpl-skeleton tpl-skeleton-line" style="width:70%;"></div><div class="tpl-skeleton tpl-skeleton-line" style="width:50%;margin-top:10px;"></div></div>`;
+        if (b.state === 'error') return `<div class="tpl-section">${head}<div class="tpl-config-banner">Couldn't reach the brain (${_tplEsc(b.error || 'error')}). <button type="button" class="tpl-brain-change-btn" onclick="tplBrainRetry()">Try again</button></div></div>${_tplBrainFallback(name)}`;
+        if (!b.found) return `<div class="tpl-section">${head}<div class="tpl-brain-empty-note">This client has no folder in the brain yet.</div>${_tplBrainChangeBox(name, null)}</div>`;
+        const tabs = TPL_BRAIN_FILES.map(([k, label]) => {
+            const n = b.facts.filter(f => f.file === k && f.status === 'written').length;
+            return `<button class="tpl-toggle-btn ${_tplBrainTab === k ? 'active' : ''}" onclick="tplBrainSetTab('${k}')">${label} <span class="tpl-brain-count">${n}</span></button>`;
+        }).join('');
+        const inTab = b.facts.filter(f => f.file === _tplBrainTab);
+        const written = inTab.filter(f => f.status === 'written');
+        const empty = inTab.filter(f => f.status !== 'written');
+        return `<div class="tpl-section tpl-brain">
+            ${head}
+            <div class="tpl-toggle-row" role="tablist">${tabs}</div>
+            ${written.map(f => _tplBrainCard(name, f)).join('') || '<div class="tpl-brain-empty-note">Nothing written here yet.</div>'}
+            ${empty.length ? `<details class="tpl-brain-missing"><summary>${empty.length} not written yet</summary>${empty.map(f => _tplBrainCard(name, f)).join('')}</details>` : ''}
+            <div class="tpl-brain-add">${_tplBrainChangeBox(name, null)}</div>
+        </div>`;
+    }
+
     function renderClientTemplate(name) {
         // Loading state — first paint while the GET is in flight.
         if (!_tplClientReady(name) && !templatesLoadError) {
@@ -13130,104 +13351,31 @@
         }
 
         const isEdit = _templatesEditMode;
-        const reelsActive = _templatesActiveTab === 'reels' ? 'active' : '';
-        const thumbActive = _templatesActiveTab === 'thumbnails' ? 'active' : '';
-        const reelsHlOff = !!_tplGet(name, 'reels_subtitle_highlight_off');
-        const thumbsHlOff = !!_tplGet(name, 'thumbnails_highlight_off');
+        _tplBrainEnsure(name);
 
-        // Reels block.
-        let reels = '';
-        if (_templatesActiveTab === 'reels') {
-            if (isEdit) {
-                reels = `
-                <div class="tpl-section">
-                    <div class="tpl-section-title">Subtitles</div>
-                    <div class="tpl-fields two">
-                        ${_tplFieldText(name, 'reels_subtitle_font', 'Font', 'e.g. TheBoldFont, Inter Bold')}
-                        ${_tplRenderLinksEdit(name, 'reels_reference_link', 'Reference reel (placement & sizing)', 'https://instagram.com/reel/…')}
-                    </div>
-                    <div class="tpl-fields two" style="margin-top:14px;">
-                        ${_tplFieldColor(name, 'reels_subtitle_main_color', 'Main color')}
-                        ${_tplFieldColor(name, 'reels_subtitle_highlight_color', 'Highlight color', 'reels_subtitle_highlight_off')}
-                    </div>
+        // Working links: the only part of the page that is edited in SyncView.
+        // Every other fact (fonts, colours, preferences, voice…) comes from the
+        // Synchro Brain and is corrected with "Send a change".
+        const links = isEdit
+            ? `<div class="tpl-section">
+                <div class="tpl-section-title">Working links</div>
+                <div class="tpl-fields two">
+                    ${_tplRenderLinksEdit(name, 'reels_reference_link', 'Reference reel (placement & sizing)', 'https://instagram.com/reel/…')}
+                    ${_tplRenderLinksEdit(name, 'thumbnails_photos_link', 'Client photos (Drive / Dropbox)', 'https://drive.google.com/…')}
                 </div>
-                <div class="tpl-section">
-                    <div class="tpl-section-title">Client preferences</div>
-                    <div class="tpl-fields">
-                        ${_tplFieldTextarea(name, 'reels_preferences', 'Notes', 'Music preferences, b-roll preferences, hooks they like, things to avoid…')}
-                    </div>
-                </div>`;
-            } else {
-                const hl = reelsHlOff ? '' : _tplViewColor(name, 'reels_subtitle_highlight_color', 'Highlight color');
-                reels = `
-                <div class="tpl-section">
-                    <div class="tpl-section-title">Subtitles</div>
-                    <div class="tpl-view-grid">
-                        ${_tplViewText(name, 'reels_subtitle_font', 'Font')}
-                        ${_tplRenderLinksView(name, 'reels_reference_link', 'Reference reel', 'Open reference')}
-                        ${_tplViewColor(name, 'reels_subtitle_main_color', 'Main color')}
-                        ${hl}
-                    </div>
+                <div class="tpl-fields two" style="margin-top:14px;">
+                    ${_tplRenderLinksEdit(name, 'thumbnails_canva_link', 'Editable Canva link', 'https://canva.com/design/…')}
+                    ${_tplFieldLink(name, 'reels_editor_folder_link', 'Editor folder (Google Drive)', 'https://drive.google.com/…')}
                 </div>
-                <div class="tpl-section">
-                    <div class="tpl-section-title">Client preferences</div>
-                    ${_tplViewProse(name, 'reels_preferences')}
-                </div>`;
-            }
-        }
-
-        // Thumbnails block.
-        let thumbs = '';
-        if (_templatesActiveTab === 'thumbnails') {
-            const colorSets = _tplGetColorSets(name);
-            if (isEdit) {
-                thumbs = `
-                <div class="tpl-section">
-                    <div class="tpl-section-title">Thumbnails</div>
-                    <div class="tpl-fields">
-                        ${_tplFieldText(name, 'thumbnails_title_font', 'Title font', 'e.g. Anton, Bebas Neue')}
-                    </div>
-                    <div class="tpl-subsection">
-                        <div class="tpl-subsection-head">
-                            <span class="tpl-subsection-label">Color sets</span>
-                            <label class="tpl-toggle-mini">
-                                <input type="checkbox" data-tpl-client="${_tplEsc(name)}" data-tpl-field="thumbnails_highlight_off" data-tpl-bool data-tpl-disables-color-sets${thumbsHlOff?' checked':''} />
-                                <span class="tpl-toggle-mini-track"><span class="tpl-toggle-mini-thumb"></span></span>
-                                <span>No highlight</span>
-                            </label>
-                        </div>
-                        ${_tplRenderColorSetsEdit(name, colorSets, thumbsHlOff)}
-                    </div>
-                    <div class="tpl-fields two" style="margin-top:14px;">
-                        ${_tplRenderLinksEdit(name, 'thumbnails_photos_link', 'Client photos (Drive / Dropbox)', 'https://drive.google.com/…')}
-                        ${_tplRenderLinksEdit(name, 'thumbnails_canva_link', 'Editable Canva link', 'https://canva.com/design/…')}
-                    </div>
+              </div>`
+            : `<div class="tpl-section">
+                <div class="tpl-section-title">Working links</div>
+                <div class="tpl-view-grid">
+                    ${_tplRenderLinksView(name, 'reels_reference_link', 'Reference reel', 'Open reference')}
+                    ${_tplRenderLinksView(name, 'thumbnails_photos_link', 'Client photos', 'Open photos')}
+                    ${_tplRenderLinksView(name, 'thumbnails_canva_link', 'Editable Canva', 'Open Canva')}
                 </div>
-                <div class="tpl-section">
-                    <div class="tpl-section-title">Client preferences</div>
-                    <div class="tpl-fields">
-                        ${_tplFieldTextarea(name, 'thumbnails_preferences', 'Notes', 'Style preferences, things to avoid, what kinds of thumbnails resonate with their audience…')}
-                    </div>
-                </div>`;
-            } else {
-                thumbs = `
-                <div class="tpl-section">
-                    <div class="tpl-section-title">Thumbnails</div>
-                    <div class="tpl-view-grid">
-                        ${_tplViewText(name, 'thumbnails_title_font', 'Title font')}
-                        ${_tplRenderLinksView(name, 'thumbnails_photos_link', 'Client photos', 'Open photos')}
-                        ${_tplRenderLinksView(name, 'thumbnails_canva_link', 'Editable Canva', 'Open Canva')}
-                    </div>
-                    <div class="tpl-view-color-sets-wrap">
-                        ${_tplRenderColorSetsView(name, thumbsHlOff)}
-                    </div>
-                </div>
-                <div class="tpl-section">
-                    <div class="tpl-section-title">Client preferences</div>
-                    ${_tplViewProse(name, 'thumbnails_preferences')}
-                </div>`;
-            }
-        }
+              </div>`;
 
         // Filming plans block (rendered at the BOTTOM, after the active tab's sections).
         const filmingPlans = (() => {
@@ -13250,13 +13398,8 @@
         // Editor folder block (Reels only) — rendered at the BOTTOM, just after filming plans.
         // Lets the team paste a Google Drive folder link for the editor.
         let editorFolder = '';
-        if (_templatesActiveTab === 'reels') {
-            editorFolder = isEdit
-                ? `<div class="tpl-section">
-                    <div class="tpl-section-title">Editor folder</div>
-                    ${_tplFieldLink(name, 'reels_editor_folder_link', 'Link to editor folder (Google Drive)', 'https://drive.google.com/…')}
-                  </div>`
-                : (() => {
+        if (!isEdit) {
+            editorFolder = (() => {
                     const v = _tplGet(name, 'reels_editor_folder_link');
                     const isUrl = /^https?:\/\//i.test(v);
                     let host = ''; if (isUrl) { try { host = new URL(v).hostname.replace(/^www\./,''); } catch {} }
@@ -13276,7 +13419,7 @@
 
         const editToggle = isEdit
             ? `<button class="tpl-edit-btn done" onclick="setTemplatesEditMode(false)">Done</button>`
-            : `<button class="tpl-edit-btn" onclick="setTemplatesEditMode(true)"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11 2l3 3-8 8H3v-3l8-8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Edit</button>`;
+            : `<button class="tpl-edit-btn" onclick="setTemplatesEditMode(true)"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11 2l3 3-8 8H3v-3l8-8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Edit links</button>`;
 
         // Onboarding button next to the name — opens this client's onboarding in a
         // new tab. Shown only when a matching onboarding record exists (by slug).
@@ -13291,13 +13434,11 @@
                 <div class="tpl-client-name-wrap"><div class="tpl-client-name">${_tplEsc(name)}</div>${obBtn}</div>
                 <div class="tpl-head-right">${_svSaveIndHtml('templates')}${editToggle}</div>
             </div>
-            <div class="tpl-toggle-row" role="tablist">
-                <button class="tpl-toggle-btn ${reelsActive}" onclick="switchTemplatesTab('reels')">Reels</button>
-                <button class="tpl-toggle-btn ${thumbActive}" onclick="switchTemplatesTab('thumbnails')">Thumbnails</button>
-            </div>
-            ${reels}${thumbs}
+            ${_tplBrainSpecStrip(name)}
             <div class="tpl-filming-wrap">${filmingPlans}</div>
             ${editorFolder ? `<div class="tpl-filming-wrap">${editorFolder}</div>` : ''}
+            ${links}
+            ${_tplBrainSection(name)}
         </div>`;
     }
 

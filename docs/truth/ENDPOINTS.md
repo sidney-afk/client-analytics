@@ -145,6 +145,7 @@ Other:
 - `functions/v1/calendar-upsert`, `functions/v1/calendar-reorder` — Track A ports of the
   calendar write path
 - `functions/v1/sample-review-upsert`, `functions/v1/sample-review-reorder` — SXR write ports
+- `functions/v1/brain` — Templates page: reads one client's Synchro Brain facts and records "Send a change" text into the private brain repo's syncview-changes inputs folder (staff key only).
 - `functions/v1/templates-save`, `functions/v1/caption-prompts-save` — save-path ports. Candidate
   source applies the same fail-closed policy to all six writers: exactly one configured staff/
   automation key or active exact-client token, server-derived attribution, and no trust in caller

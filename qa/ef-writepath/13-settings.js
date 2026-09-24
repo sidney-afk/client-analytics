@@ -13,7 +13,7 @@ const OUT = '/tmp/qa-efwp/results-settings.json';
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const SLUG = 'sidneylaruel';
 const PROMPT_RESTORE_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save';
-const TPL_FIELD = 'reels_preferences';
+const TPL_FIELD = 'reels_editor_folder_link';
 const readTplField = () => { const r = L.supaGet('templates', `client_slug=eq.${SLUG}&select=data`); return (Array.isArray(r) && r[0] && r[0].data) ? (r[0].data[TPL_FIELD] == null ? '' : String(r[0].data[TPL_FIELD])) : null; };
 const readPrompt = () => { const r = L.supaGet('caption_prompts', `client_slug=eq.${SLUG}&select=prompt`); return (Array.isArray(r) && r[0]) ? r[0].prompt : null; };
 
@@ -97,7 +97,7 @@ async function run() {
     if (tplOrig == null) {
       s.ok(false, 'test client has a templates row to edit', 'no row');
     } else {
-      const tplDummy = 'efwp dummy template preference, test only';
+      const tplDummy = 'https://example.invalid/efwp-test-only';
       let tk = await saveTplField(tplDummy);
       s.ok(tk.includes('settings-ef'), 'Templates edit routed to templates-save EF', JSON.stringify(tk));
       s.ok(!tk.includes('settings-n8n'), 'NO n8n templates-save', JSON.stringify(tk));

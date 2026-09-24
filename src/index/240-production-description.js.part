@@ -1,3 +1,21 @@
+import { CAL_SUPABASE_ANON_KEY, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature, _syncviewStaffVerificationEpoch } from './100-onboarding-staff-controls.js';
+import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
+import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import {
+  PROD_ASSET_SPECS, PROD_BATCH_DESCRIPTION_SELECT, PROD_DESCRIPTION_IMAGE_EF_URL,
+  PROD_WRITE_EF_URL, _prodAssetState, _prodHasOwn, _prodIssueScopeSignature, _prodRestRows,
+  _prodState
+} from './210-production-state-writes.js';
+import {
+  _prodCanWrite, _prodDescriptionOperation, _prodIssue, _prodOpenRowId, _prodToast,
+  _prodWriteGateAttrs, _prodWriteGateText, _prodWriteRequestId, _prodWriteTeam
+} from './220-production-attribution-views.js';
+import {
+  _prodDescriptionHTML, _prodDescriptionState, _prodDescriptionText, _prodGatewayWrite,
+  _prodNextDescriptionRequestToken, _prodSyncBatchDescriptionRow, _prodWriteErrorText,
+  _prodWritePending
+} from './230-production-create-comments.js';
+import { _prodRender } from './260-production-refresh-boot.js';
         function _prodSyncDescriptionRow(id, value, updatedAt) {
             const row = (_prodState.deliverables || []).find(item => String(item && item.id || '') === String(id || ''));
             if (!row) return;
@@ -2620,3 +2638,9 @@
             pop.style.top = ny + 'px';
         }
         // PORT-DELTA: body overlay IDs/classes are namespaced for the embedded Production tab.
+export {
+  _prodAssetStateLabel, _prodAssetsPanelHTML, _prodCaptureDescriptionFocus, _prodCaptureFocus,
+  _prodDescriptionPanelHTML, _prodEnsureBatchDescription, _prodEnsureDescription,
+  _prodFileLinkLabel, _prodInvalidateBatchDescriptionReads, _prodNextBatchDescriptionToken,
+  _prodPlacePop, _prodRestoreDescriptionFocus, _prodRestoreFocus
+};

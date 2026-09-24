@@ -19,7 +19,7 @@
 | 11 | `090-workload-popovers-navigation.js.part` | 2579 | Sub-issue popover |
 | 12 | `100-onboarding-staff-controls.js.part` | 2296 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2152 | Kasper Time Off calendar |
-| 14 | `120-calendar-flags-write-repair.js.part` | 3029 | The members a flag value offers, or null when it offers no member list at |
+| 14 | `120-calendar-flags-write-repair.js.part` | 3062 | The members a flag value offers, or null when it offers no member list at |
 | 15 | `125-title-name-rule.js.part` | 334 | Title name rule (browser copy) |
 | 16 | `130-calendar-model-cache.js.part` | 2734 | Returns the comments array for a given component. Falls back to the |
 | 17 | `140-calendar-legacy-outbox.js.part` | 3059 | Shed the retired legacy rows from storage, under the surface mutation |
@@ -34,7 +34,7 @@
 | 26 | `230-production-create-comments.js.part` | 2582 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 27 | `240-production-description.js.part` | 2622 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 28 | `250-production-controls-data.js.part` | 2826 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 29 | `260-production-refresh-boot.js.part` | 2301 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 29 | `260-production-refresh-boot.js.part` | 2320 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 30 | `270-samples-model.js.part` | 2697 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 31 | `280-samples-cards-notes.js.part` | 2831 | SURFACE 3: the save engine |
 | 32 | `290-samples-writes-review.js.part` | 1798 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |

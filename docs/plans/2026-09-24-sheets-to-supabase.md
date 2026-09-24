@@ -45,12 +45,12 @@ absolute). All 21 downloads returned HTTP 200 on the first try.
 | Constant | Tab | Screen / function that reads it | Size | Read time | Blocks first paint? | n8n writer |
 |---|---|---|---|---|---|---|
 | `METRICS_URL` | Metrics | Analytics overview and per-client Analytics; `fetchEssentials()` | 2.68 MB | 0.64 s | Yes. The staff Analytics overview waits for it (a saved copy is shown first if one exists). Client share links always wait for it. | CLIENTS METRICS (daily; Apify for Instagram and TikTok, YouTube API; appends rows) |
-| `CLIENTS_URL` | Clients Info | Client roster for every screen: allowlist, client picker, share-link check, Calendar fast boot; `fetchEssentials()` | 74 KB | 0.32 s | Yes, same as Metrics. It is also the live client allowlist. | Mostly hand-edited. Onboarding: Append Client Row (webhook, on demand) upserts rows. Read by CLIENTS METRICS, TOP VIDEOS, MARKET RESEARCH. |
+| `CLIENTS_URL` | Clients Info | Client roster for every screen: allowlist, client picker, share-link check, Calendar fast boot; `fetchEssentials()` | 74 KB | 0.32 s | Yes, same as Metrics. It is also the live client allowlist. | Mostly hand-edited. Onboarding: Append Client Row (live; runs on each client onboarding, owner confirmed 2026-09-24) upserts rows. Read by CLIENTS METRICS, TOP VIDEOS, MARKET RESEARCH. |
 | `TOPVIDS_URL` | TopVideos | Per-client Analytics top videos; `fetchExtras()` | 16.08 MB | 2.88 s | Not for the overview (it no longer waits for it). Yes for a per-client Analytics page, which waits for all extras. | TOP VIDEOS (daily 04:00; Apify for Instagram and TikTok, YouTube API; appends rows, never deletes) |
-| `BRIEFS_URL` | Competitor Briefs | Per-client Brief tab; `fetchExtras()` | 243 KB | 0.44 s | Per-client pages only | Unknown. No current n8n workflow was found that writes this tab. Older docs mention a COMPETITOR RESEARCH job, but no workflow by that name exists today. |
+| `BRIEFS_URL` | Competitor Briefs | **Retiring, not migrating.** The competitor brief generators were removed on 2026-09-24 (#1590); the site still downloads this tab in `fetchExtras()` | 243 KB | 0.44 s | Per-client pages only | None. Owner confirmed 2026-09-24 the tab is retired. |
 | `MR_BRIEFS_URL` | Market Research Briefs | Per-client Brief tab; `fetchExtras()` | 790 KB | 0.52 s | Per-client pages only | MARKET RESEARCH (scheduled; Apify Instagram and TikTok search; append-or-update) |
 | `CONTENT_SUMMARIES_URL` | ContentSummaries | Per-client content summary bullets; `fetchExtras()` (optional, failure tolerated) | 3.7 KB | 0.43 s | No (optional) | MARKET RESEARCH (daily 06:00 branch; reads TopVideos, append-or-update) |
-| `KASPER_SMM_URL` | Social Media Managers | Review queue: which manager owns each client; `_kasperLoadSMMMap()` | 1.8 KB | 0.43 s | Not the first card, but manager names fill in after it lands | Hand-edited. Onboarding: Append Client Row also upserts. SMM Reports: Manager Sync (daily 06:00) already COPIES it into Supabase `social_media_managers`. |
+| `KASPER_SMM_URL` | Social Media Managers | Review queue: which manager owns each client; `_kasperLoadSMMMap()` | 1.8 KB | 0.43 s | Not the first card, but manager names fill in after it lands | Hand-edited. Onboarding: Append Client Row (live) also upserts. SMM Reports: Manager Sync (daily 06:00) already COPIES it into Supabase `social_media_managers`. |
 
 Sum: about 19.9 MB per full load, of which TopVideos is 81 percent.
 
@@ -70,8 +70,8 @@ Hook Library (MARKET RESEARCH).
   review queue uses.
 - `syncview_runtime_flags` table, already used for several site switches.
   Reuse it for the new data-source flags.
-- No tables exist yet for Metrics, TopVideos, Competitor Briefs, Market
-  Research Briefs or ContentSummaries. The migrations folder has no matches.
+- No tables exist yet for Metrics, TopVideos, Market Research Briefs or
+  ContentSummaries. The migrations folder has no matches.
 
 ## 3. The plan, in three phases
 
@@ -85,7 +85,7 @@ the place the results are stored changes.
 What gets built:
 
 1. One migration per dataset, creating these tables:
-   `analytics_metrics`, `analytics_top_videos`, `analytics_competitor_briefs`,
+   `analytics_metrics`, `analytics_top_videos`,
    `analytics_market_research_briefs`, `analytics_content_summaries`, plus
    the missing roster columns on `clients` (or a companion
    `client_profiles` table) and per-client manager fields (or a
@@ -123,8 +123,10 @@ What gets built:
 
 **The owner must approve every n8n edit in the same request that makes it.
 This document edits none.** Workflows affected: CLIENTS METRICS, TOP VIDEOS,
-MARKET RESEARCH, Onboarding: Append Client Row, and whichever job writes
-Competitor Briefs once found.
+MARKET RESEARCH, and Onboarding: Append Client Row. Append Client Row is
+live and runs during every client onboarding, writing the Clients Info and
+Social Media Managers tabs, so its dual-write must cover both tabs and be
+tested on the test client before it is switched on.
 
 Risks: the n8n edit breaks a production job; the Supabase write silently
 fails and the two copies drift; a wrong grant exposes a column.
@@ -152,8 +154,9 @@ Switch order (most blocking and smallest first):
    so the share-link check must give the same answer from both sources
    before the flag flips.
 2. **Social Media Managers.** Tiny, and half done already.
-3. **ContentSummaries**, then **Market Research Briefs**, then **Competitor
-   Briefs**. Small, per-client, low risk.
+3. **ContentSummaries**, then **Market Research Briefs**. Small,
+   per-client, low risk. Competitor Briefs is not migrated (see Retiring
+   now, below).
 4. **TopVideos last.** At 16 MB it is the biggest win but needs a real
    change in how it is read: the site must ask for ONE client's rows (and
    only recent periods), filtered on the server, instead of downloading all
@@ -200,11 +203,22 @@ client per day match, and only then (4) restore the site's Sheet fallback
 code. This catch-up job is written and rehearsed on a copy of the Sheet
 BEFORE any Sheet write is switched off.
 
+## Retiring now: Competitor Briefs
+
+The owner retired competitor briefs on 2026-09-24 (#1590 removed the
+generators). The tab is not migrated. Separate from the phases above:
+
+1. Remove the site's download of `BRIEFS_URL` from `fetchExtras()` and the
+   saved copy (243 KB and one request off every per-client page), and remove
+   whatever still renders it on the Brief tab. One small code PR.
+2. Leave the tab in the Sheet, frozen, as an archive. Nothing writes it.
+3. Delete it with the rest of the Sheet in Phase 3.
+
 ## 4. What the owner must decide
 
 1. Approve Phase 1 n8n edits, one workflow at a time.
-2. Who writes Competitor Briefs today? No workflow was found. If it is manual
-   or retired, should the tab move at all, or be frozen as-is?
+2. ~~Who writes Competitor Briefs?~~ Decided 2026-09-24: retired, not
+   migrated (see Retiring now).
 3. Should Clients Info stay hand-edited in the Sheet for now (n8n copies it
    to Supabase daily), or should editing move into SyncView itself?
 4. How much TopVideos history the site needs (for example the last 90 days),

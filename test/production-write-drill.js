@@ -32,7 +32,6 @@ ok(stableJson({ b: 2, a: 1 }) === stableJson({ a: 1, b: 2 }), 'flag comparison i
 const stance = (authority, mode) => ({
   prod_authority: { value: authority, updated_at: 'one' },
   linear_outbound_enabled: { value: { mode }, updated_at: 'two' },
-  linear_inbound_enabled: { value: { enabled: true }, updated_at: 'three' },
   auth_enforcement: { value: { mode: 'enforced' }, updated_at: 'four' },
 });
 let mixedAccepted = true;

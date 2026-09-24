@@ -106,8 +106,9 @@ async function edge(name, body) {
 
 async function flags() {
   const rows = await rest('syncview_runtime_flags?select=key,value,updated_at'
-    + '&key=in.(prod_authority,linear_outbound_enabled,linear_inbound_enabled,auth_enforcement)&order=key.asc');
-  assert(rows.length === 4, `expected four protected runtime flags, found ${rows.length}`);
+    + '&key=in.(prod_authority,linear_outbound_enabled,auth_enforcement)&order=key.asc');
+  // B2 Slice 10 deletes the linear_inbound_enabled row (linear-inbound is gone).
+  assert(rows.length === 3, `expected three protected runtime flags, found ${rows.length}`);
   return Object.fromEntries(rows.map(row => [row.key, { value: row.value, updated_at: clean(row.updated_at) }]));
 }
 

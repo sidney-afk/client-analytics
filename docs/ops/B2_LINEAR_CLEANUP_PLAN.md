@@ -74,6 +74,8 @@ Execution counts are "since 2026-09-18 23:59Z" (retention limit).
 
 No pg_cron or pg_net jobs exist (the `cron` schema is absent); all schedulers are GitHub Actions or n8n.
 
+> **Stale (corrected 2026-09-24, Slice 10):** the `cron` schema now exists and holds 2 pg_cron jobs, `workload-snapshot-warm` (calls `workload_native_snapshot_warm_v1()`) and `workload-snapshot-warm-history` (prunes its run history). Neither touches any Linear object. The Linear schedulers are still GitHub Actions or n8n only.
+
 | Object | Size / rows | Last write | Still used? | Removal breaks |
 |---|---|---|---|---|
 | `mirror_outbox` | 21.3 MB, 11,706 rows (46 unprocessed, newest 2026-09-20 09:19Z) | **2026-09-23 02:52Z** (skipped rows) | LIVE as a sink: production-write and linear-inbound still enqueue. `outbox-debt-census.yml` watches it twice an hour. | production-write (about 15 queries), linear-inbound, census workflow. Code first, then the table. |
@@ -422,3 +424,71 @@ Put each snapshot in the SyncView Backups drive, not the repo, because it contai
 - **Later tidy-ups (not this slice):** the legacy arm of the view, `workload-source-freshness.yml`, the boot early-fetch, and an optional follow-up that moves parent-name search and labels to batch names so `parent_identifier` and `parents` can leave the snapshot (about 115 KB, 1.6%).
 - **Receipts:** the cache migration apply and the `workload-plan` deploy had no ledger entry; `EXECUTION_LOG.md` now records them from live read-only evidence (2026-09-24), and `ROLLBACK.md` has a "B2 Slice 9" row.
 - **Rollback:** this slice changes no code, SQL or live state; to undo the already-live slim snapshot see `ROLLBACK.md`, row "B2 Slice 9".
+
+### Slice 10 (plan Slice 10, first cut): drop the Linear objects with zero live callers. Repo PR ready 2026-09-24; apply is the owner's
+- **Scope (owner and Lighthouse decision):** drop only Linear objects with ZERO live callers, each with evidence. Anything still wired into a write, or pinned by a live assert, stays and is listed below with what it needs first.
+- **Migration:** `migrations/2026-09-24-b2-slice10-drop-unused-linear-views-and-flags.sql`. Four `DROP VIEW` (no `CASCADE`) and one `DELETE` of two flag rows by exact key, in one transaction. The file carries a read-only pre-flight query and a ROLLBACK block with the live view definitions, owner, grants (naming all four roles) and the two flag rows exactly as read.
+- **Evidence, read-only against production 2026-09-24 ~18:00Z** (same checks for every object; "refs" means the name appears in it):
+
+| Object | Exists | Dependent views (`pg_depend`) | Function `prosrc` refs (full name and name fragment) | View / RLS policy / `cron.job` refs | 24h logs, all sources | Repo callers |
+|---|---|---|---|---|---|---|
+| view `linear_deliverable_comment_ids_v1` | yes; owner postgres, `security_invoker`, SELECT for `service_role` only | 0 | 0 | 0 / 0 / 0 | 0 hits | only `scripts/linear-deliverables-reconcile.js` (lane unscheduled 2026-09-20, dispatch only) and a test that builds its own scratch database from the old migration |
+| view `linear_deliverables_reconcile_input_v1` | yes; same | 0 | 0 | 0 / 0 / 0 | 0 | same |
+| view `linear_reconcile_projection_status_v1` | yes; same, plus `security_barrier` | 0 | 0 | 0 / 0 / 0 | 0 | same |
+| view `linear_outbound_cutoff_debt_v1` | yes; same | 0 | 0 | 0 / 0 / 0 | 0 | `scripts/track-b-recovery-rehearsal.js` (dispatch only; builds a synthetic source from migrations, not from production); `outbox-debt-census.js` mentions it only in a comment and does not read it |
+| flag `linear_inbound_enabled` (`{"enabled": false}`) | yes | n/a | 0 | 0 / 0 / 0 | 0 | readers were `linear-inbound` (deleted: not in the live function list) and dispatch-only scripts. `production-write-drill.js` and `f203-test-residue-cleanup.js` asserted exactly four flag rows including it; this PR drops the key from both (three rows) |
+| flag `linear_outbound_pending_age_alert` (`{"minutes": 30}`) | yes | n/a | 0 | 0 / 0 / 0 | 0 | only `linear-outbound` (deleted: not in the live function list) |
+
+  - Live Edge Functions (list read 2026-09-24): no `linear-*` function is deployed. Edge logs, 24h: 0 invocations of any `linear-*` path.
+  - `cron.job`: 2 jobs, both workload snapshot warmers (see the note in 1c); neither mentions these objects.
+  - No `production_retirement_contract_assert_v1` or other function pins any of the six (0 `prosrc` refs, including fragments `cutoff_debt`, `comment_ids_v`, `reconcile_input`, `projection_status`, `pending_age`, `inbound_enabled`).
+  - Scheduled or PR CI: no scheduled workflow reads them. `linear-exit-deploy-preflight.js` does not name them. Tests that name them read the old migration files (which stay) or fixtures.
+- **Repo change in this PR:** `production-write-drill.js` and `f203-test-residue-cleanup.js` read three protected flags instead of four (and the drill no longer asserts inbound is on, which was already false since Slice 5), plus the matching drill test fixture. Both scripts run only from the dispatch-only `monitoring-cutover-proof.yml`.
+- **Left in the repo, broken only if someone runs them by hand after the apply:** `linear-deliverables-reconcile.yml` / `.js` (reads the three reconcile views; unscheduled since the cutoff), `track-b-recovery-rehearsal.yml` (the rehearsal compares the cutoff-debt view on a synthetic source it builds itself, so it is unaffected unless its source is production), and the dead B4 scripts `b4-outbound-shadow-audit.js` / `b4-linear-outbound-harness.js`. They go with Slice 11 or the next Slice 10 cut.
+
+**KEEP (not droppable yet) and what each needs first:**
+
+| Object | Why it stays | Needs before it can go |
+|---|---|---|
+| the two one-off backup tables | `production_retirement_contract_assert_v1` pins their triggers' md5s | a migration that re-pins the retirement assert without them |
+| `linear_intake_receipts` | production-write `legacy_intake_*` actions still write it | remove those actions from production-write and deploy (Section 4) |
+| `linear_outbound_cutoff_control` | `mirror_outbox` triggers raise without its row | drop `mirror_outbox` and its triggers first |
+| `track_b_*` tables | hold guard and write authorization read them | move the hold guard and write authorization off them |
+| `linear_exit_*` schemas | seal trigger on `card_write_admission_v1` | remove the seal trigger |
+| `mirror_outbox` + sequence | write RPCs still create receipts (738 new rows in 24h, all `skipped`), deploy preflight and census read it | stop the RPCs enqueueing, retire the census and preflight reads, unschedule `outbox-debt-census.yml` |
+| flags `linear_outbound_enabled`, `linear_legacy_parity_enabled` | production-write gate reads return 503 without them | code change plus Section 4 deploy |
+| flag `prod_authority` | read by production-write, the browser and SQL | every reader gone |
+| about 45 Linear SQL functions | live ones are on write paths; the apparently dead reconcile / drill / provider family is pinned by the retirement assert | re-pin the assert, then drop in dependency order |
+| `outbox-debt-census.yml` | still scheduled | retire with `mirror_outbox` |
+
+- **Restore kit (owner, before the apply; we have no database password).** In PowerShell, with `$env:SYNCVIEW_DB_URL` set to the production session-pooler URL, from any directory:
+
+```powershell
+$d = "$env:USERPROFILE\.syncview\B2-slice10"; New-Item -ItemType Directory -Force $d | Out-Null
+pg_dump "$env:SYNCVIEW_DB_URL" --schema-only `
+  -t public.linear_deliverable_comment_ids_v1 -t public.linear_deliverables_reconcile_input_v1 `
+  -t public.linear_outbound_cutoff_debt_v1 -t public.linear_reconcile_projection_status_v1 `
+  -f "$d\views-schema.sql"
+psql "$env:SYNCVIEW_DB_URL" -v ON_ERROR_STOP=1 -c "\copy (select key, value::text, updated_at, updated_by from public.syncview_runtime_flags where key in ('linear_inbound_enabled','linear_outbound_pending_age_alert') order by key) to '$d\flags.csv' with csv header"
+# also copy migrations\2026-09-24-b2-slice10-drop-unused-linear-views-and-flags.sql from the merged main into $d
+Get-FileHash "$d\*" -Algorithm SHA256 | Format-Table Hash, Path -AutoSize | Out-File "$d\SHA256SUMS.txt"
+Get-Content "$d\SHA256SUMS.txt"
+```
+
+  Then drag the `B2-slice10` folder into the `SyncView Backups/` Shared Drive (as `B2-slice10/`). Expected: `views-schema.sql` holds four `CREATE VIEW` statements with `security_invoker`, `ALTER VIEW ... OWNER TO postgres` and `GRANT SELECT ... TO service_role`; `flags.csv` holds 2 rows.
+- **Rehearsal (owner) on the scratch project `pmzamicipnansdgomxfd`, with `$env:SYNCVIEW_SCRATCH_DB_URL`:**
+  1. The views call four helper functions and read `deliverables` / `deliverable_events`; restore those first from the full public schema: `pg_dump "$env:SYNCVIEW_DB_URL" --schema-only -n public -f "$d\public-schema.sql"` then `psql "$env:SYNCVIEW_SCRATCH_DB_URL" -v ON_ERROR_STOP=1 -f "$d\public-schema.sql"` (skip if the scratch project already carries the public schema). Load the flag rows: `psql "$env:SYNCVIEW_SCRATCH_DB_URL" -c "\copy public.syncview_runtime_flags (key, value, updated_at, updated_by) from '$d\flags.csv' with csv header"`.
+  2. Snapshot: `pg_dump "$env:SYNCVIEW_SCRATCH_DB_URL" --schema-only -t 'public.linear_*_v1' -f "$d\before.sql"` and `psql ... -c "\copy (select * from public.syncview_runtime_flags where key like 'linear%' order by key) to '$d\flags-before.csv' csv header"`.
+  3. Run the pre-flight query from the migration header (expect 0 dependents and refs, 1 flag row per key), then apply the migration: `psql "$env:SYNCVIEW_SCRATCH_DB_URL" -v ON_ERROR_STOP=1 -f migrations\2026-09-24-b2-slice10-drop-unused-linear-views-and-flags.sql`. Confirm the four views are gone and the two keys return 0 rows.
+  4. Apply the ROLLBACK block (copy the commented block, strip the leading `-- `, run it with `psql -v ON_ERROR_STOP=1`).
+  5. Take `after.sql` / `flags-after.csv` the same way and diff: `Compare-Object (Get-Content "$d\before.sql") (Get-Content "$d\after.sql")` and the same for the CSVs. Expected: no difference other than dump header timestamps. Only then apply to production (pre-flight first).
+- **Rollback:** the ROLLBACK block in the migration, or the restore kit (`views-schema.sql`, then `flags.csv`); see `ROLLBACK.md`, row "B2 Slice 10".
+- **Browser approve path and Linear (question for Mason's step 2), answered 2026-09-24: NO Linear sending remains on any approve path.** Every approve entry point ends at a SyncView Edge Function or an n8n Sheets/Supabase workflow:
+  - Calendar review approve (SMM, client link): `_calReviewApprove` / `_calReviewApplyApprove` (`src/index/190-calendar-approval-comments.js.part:631`, `:687`) and `_calClientApprove` (`170-calendar-links-status.js.part:648`) write through `_calFlushCardSave` (`170:1059`). Its status leg calls `_calPushStatusToLinear` (`140-calendar-legacy-outbox.js.part:2014`), which despite its name either returns `legacy_transport_retired` (legacy lane, no send) or posts `operation: 'status'` to `production-write` via `_writeUiGatewayWithRepair`; the card itself goes to `calendar-upsert` (`_calUpsertFetchPinned`).
+  - Kasper approve: `_kasperApproveComp` / `_kasperApproveAfterTweaksComp` (`330-kasper-review-history.js.part:1714`, `:1830`) go through `_kasperPersistPost` (`330:1491`) and the same `_calPushStatusToLinear` gateway path.
+  - Samples review approve: `_sxrReviewApprove` / `_sxrReviewApplyApprove` (`280-samples-cards-notes.js.part:1147`, `:1195`) and Kasper `_sxrKasperApproveComp` / `_sxrKasperApproveAfterTweaksComp` (`290-samples-writes-review.js.part:1592`, `:1766`) go through `_sxrFlushCardSave` (`280:264`) / `_sxrKasperApplyAndPersist` (`290:1444`) to `sample-review-upsert` (the Edge Function, or its n8n fallback webhook of the same name when the per-client EF switch is off, `270-samples-model.js.part:163`; that live workflow, read-only, 17 nodes, writes `sample_reviews` / `sample_review_events` through Supabase only, no Linear node) and `_sxrPushStatusToLinear` / `_sxrPostLinearComment` (`290:26`, `:85`), which have the same retired-legacy / `production-write` gateway shape.
+  - Samples Old approve: `_smApprApprove` / `_smApprKasper` (`090-workload-popovers-navigation.js.part:1413-1418`) via `_smApprApply` (`090:1404`) and `_smFlushCardSave` (`090:2076`) POST to n8n `samples-upsert`. Its live workflow (read-only, 12 nodes) writes Google Sheets and `content_samples` only; no Linear node.
+  - Production tab status changes post to `production-write` (`210-production-state-writes.js.part:174`).
+  - The retired `linear-set-status` / `linear-add-comment` sends are gone (`140:1724`, `140:1994`, `280:2602`, `290:1`); queued `legacy_n8n` items are dropped unsent.
+  - Server side: the live `production-write` is the Slice 8 build (deployed 15:55Z by run `36023623936` from `049d3e68`); that source has 0 references to `api.linear.app`, the Linear keys, or `functions/v1/linear*`. Its outbound fetches are the asset probe (Drive/Dropbox/Storage hosts), a service-role probe, the Anthropic API and `notify` (Slack only). `calendar-upsert`, `sample-review-upsert`, `production-comments` and `notify` have no Linear host. `linear-outbound` is not deployed, and no `linear-*` path was invoked in 24h. `mirror_outbox` still receives receipts (738 in 24h), all `status=skipped`, and nothing drains them (`linear-outbound-drain.yml` is dispatch-only and its target is deleted).
+

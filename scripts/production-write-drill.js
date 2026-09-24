@@ -202,8 +202,9 @@ async function poll(label, fn, timeoutMs = 60000, intervalMs = 750) {
 }
 
 async function flags() {
-  const rows = await rest('syncview_runtime_flags?select=key,value,updated_at&key=in.(prod_authority,linear_outbound_enabled,linear_inbound_enabled,auth_enforcement)&order=key.asc');
-  assert(rows.length === 4, `expected four protected runtime flags, found ${rows.length}`);
+  const rows = await rest('syncview_runtime_flags?select=key,value,updated_at&key=in.(prod_authority,linear_outbound_enabled,auth_enforcement)&order=key.asc');
+  // B2 Slice 10 deletes the linear_inbound_enabled row (linear-inbound is gone).
+  assert(rows.length === 3, `expected three protected runtime flags, found ${rows.length}`);
   return Object.fromEntries(rows.map(row => [row.key, {
     value: row.value,
     updated_at: clean(row.updated_at),
@@ -213,7 +214,6 @@ async function flags() {
 function assertFlipTolerantStance(snapshot) {
   const authority = parseJson(snapshot.prod_authority && snapshot.prod_authority.value);
   const outbound = parseJson(snapshot.linear_outbound_enabled && snapshot.linear_outbound_enabled.value);
-  const inbound = parseJson(snapshot.linear_inbound_enabled && snapshot.linear_inbound_enabled.value);
   const auth = parseJson(snapshot.auth_enforcement && snapshot.auth_enforcement.value);
   for (const team of ['video', 'graphics']) {
     assert(['linear', 'syncview'].includes(clean(authority[team]).toLowerCase()),
@@ -221,10 +221,9 @@ function assertFlipTolerantStance(snapshot) {
   }
   assert(['off', 'shadow', 'live'].includes(clean(outbound.mode).toLowerCase()),
     'production outbound mode is invalid');
-  assert(inbound.enabled === true, 'production inbound must remain enabled');
   assert(['permissive', 'enforced'].includes(clean(auth.mode).toLowerCase()),
     'production auth mode is invalid');
-  return { authority, outbound, inbound, auth };
+  return { authority, outbound, auth };
 }
 
 function descriptionReadbackMatches(authority, team, native, mirrored, expected) {

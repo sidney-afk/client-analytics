@@ -1420,6 +1420,9 @@
                 if (typeof currentNav !== 'undefined' && currentNav === 'kasper' && typeof _kasperRenderTab === 'function') _kasperRenderTab();
             }
         } catch (e) {}
+        // A Kasper subtab that fell back only because the key check had not
+        // answered yet (a reload) comes back now that it has.
+        try { if (typeof _kasperRestorePendingSubtab === 'function') _kasperRestorePendingSubtab(); } catch (e) {}
         try {
             if (valid && typeof _thumbCompareScheduleAvailability === 'function') {
                 if (typeof currentNav !== 'undefined' && currentNav === 'calendar') _thumbCompareScheduleAvailability('calendar');

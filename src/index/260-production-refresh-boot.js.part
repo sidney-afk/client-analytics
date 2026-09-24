@@ -1610,6 +1610,9 @@
             // Clients Info roster has populated its saved client. Reconcile as
             // soon as essentials land; analytics extras must never hold the
             // More / multi-select / zoom toolbar recovery hostage.
+            // A Kasper landing holds the analytics extras until its first
+            // content paints (see _analyticsHoldExtras).
+            if (skipAwait && !_isClientLink && (_kasperHashLanding || (_kasperArrivedFromUnlockParam && _kasperUnlocked && !hashRaw))) _analyticsHoldExtras(8000);
             const dataLoad = fetchAll(_isClientLink?clientEntryRun:null);
             const dataPromise = dataLoad.complete;
             dataLoad.essentials.then(() => {

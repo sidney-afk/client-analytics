@@ -804,6 +804,10 @@
             <div class="kasper-history-body">${waitingBodyHtml}</div>
         </div>`;
         const _thumbs = _kcardHarvestThumbs(body, 'data-kasper-pid');
+        // The queue has content on screen: the held analytics extras may start.
+        // Only once the queue has actually loaded -- the SMM sheet can land
+        // first and repaint an empty body, which is not content.
+        if (_kasperState.lastLoaded && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
         body.innerHTML = _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + _kasperRenderUrgentSection(urgent) + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection();
         _kcardRestoreThumbs(body, _thumbs, 'data-kasper-pid');
     }

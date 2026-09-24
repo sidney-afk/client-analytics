@@ -11,13 +11,13 @@
 | 3 | `010-styles-foundation.css.part` | 3901 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 4 | `020-styles-surfaces.css.part` | 3988 | Templates view |
 | 5 | `030-body-shell.html.part` | 449 | Confirmation modal |
-| 6 | `040-shared-briefs.js.part` | 2627 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
+| 6 | `040-shared-briefs.js.part` | 2657 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1668 | Market Research Brief Tab Renderers |
 | 8 | `060-templates-filming.js.part` | 1846 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3569 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3369 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
-| 11 | `090-workload-popovers-navigation.js.part` | 2572 | Sub-issue popover |
-| 12 | `100-onboarding-staff-controls.js.part` | 2293 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
+| 11 | `090-workload-popovers-navigation.js.part` | 2579 | Sub-issue popover |
+| 12 | `100-onboarding-staff-controls.js.part` | 2296 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2152 | Kasper Time Off calendar |
 | 14 | `120-calendar-flags-write-repair.js.part` | 3029 | The members a flag value offers, or null when it offers no member list at |
 | 15 | `125-title-name-rule.js.part` | 334 | Title name rule (browser copy) |
@@ -34,13 +34,13 @@
 | 26 | `230-production-create-comments.js.part` | 2631 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 27 | `240-production-description.js.part` | 2622 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 28 | `250-production-controls-data.js.part` | 2826 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 29 | `260-production-refresh-boot.js.part` | 2298 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 29 | `260-production-refresh-boot.js.part` | 2301 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 30 | `270-samples-model.js.part` | 2697 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 31 | `280-samples-cards-notes.js.part` | 2831 | SURFACE 3: the save engine |
 | 32 | `290-samples-writes-review.js.part` | 1798 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 33 | `300-tiktok-upload.js.part` | 1707 | TIKTOK UPLOAD MODULE |
 | 34 | `310-tiktok-pilot-sales.js.part` | 1969 | TIKTOK PILOT MODULE (gated: ?ttpilot=1 → #tiktok-pilot) |
-| 35 | `320-kasper-dashboard-replies.js.part` | 2788 | Background poll for the Kasper review — same cadence as the client |
-| 36 | `330-kasper-review-history.js.part` | 2610 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
+| 35 | `320-kasper-dashboard-replies.js.part` | 2836 | RELOAD RACE (speed map §7). On a reload the stored staff |
+| 36 | `330-kasper-review-history.js.part` | 2614 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 37 | `340-editors-date-picker.js.part` | 1288 | Editor work model |
 | 38 | `350-footer.html.part` | 398 | Transcript preview modal |

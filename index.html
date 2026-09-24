@@ -10010,6 +10010,11 @@
     /* What a client page waits on when its data is not applied yet: whichever
        arrives first of the saved `ext` half and the live sheets. */
     function _analyticsExtrasArrival(){
+        // A client page wants the extras NOW. If a Kasper landing is still
+        // holding them, stop holding and start the download here: some routes
+        // to a client page (client search, Back into a client entry) bypass
+        // navTo(), which is where the hold is otherwise released.
+        if (_analyticsExtrasHold) { _analyticsReleaseExtras(); fetchExtras(null); }
         const waits = [];
         if (_analyticsIdbExtRead) waits.push(_analyticsIdbExtRead.then(() => { if (!_analyticsExtrasApplied) throw new Error('no saved extras'); }));
         if (_fetchExtrasPromise) waits.push(_fetchExtrasPromise);
@@ -10170,6 +10175,28 @@
         _fetchExtrasPromise=tracked;
         return _fetchExtrasPromise;
     }
+    /* A Kasper landing displays none of the analytics extras (TopVideos, the
+       briefs and content summaries: ~17 MB of Sheets, parsed on the main
+       thread), yet starting them at boot put them on the review queue's
+       critical path (speed map 2026-09-23 §5: they were the last requests to
+       finish before the first card). The boot holds them until Kasper's first
+       content paints, the visitor leaves Kasper, or a safety timeout -- the
+       download still happens, just not in front of the queue. Anything that
+       needs the extras sooner calls fetchExtras() itself, which is unaffected. */
+    let _analyticsExtrasHold = null;
+    function _analyticsHoldExtras(ms){
+        let release;
+        const promise = new Promise(resolve => { release = resolve; });
+        const timer = setTimeout(() => _analyticsReleaseExtras(), ms);
+        _analyticsExtrasHold = { promise, release: () => { clearTimeout(timer); release(); } };
+        return promise;
+    }
+    function _analyticsReleaseExtras(){
+        const hold = _analyticsExtrasHold;
+        if (!hold) return;
+        _analyticsExtrasHold = null;
+        hold.release();
+    }
     function fetchAll(clientEntryRun){
         // Kick off both halves in parallel so the SMM flow keeps its original
         // total time. Expose the essentials stage separately because Calendar's
@@ -10177,7 +10204,10 @@
         // staff toolbar, and deferred deep links. Unrelated analytics extras may
         // be slow or fail independently.
         const essentials = clientEntryRun ? _syncviewClientEssentials(clientEntryRun) : fetchEssentials();
-        const extras = fetchExtras(clientEntryRun);
+        const hold = typeof _analyticsExtrasHold !== 'undefined' ? _analyticsExtrasHold : null;
+        const extras = (!clientEntryRun && hold)
+            ? hold.promise.then(() => fetchExtras(clientEntryRun))
+            : fetchExtras(clientEntryRun);
         const complete = Promise.all([essentials, extras]).then(() => undefined);
         return { essentials, complete };
     }
@@ -24045,6 +24075,7 @@
         } catch (e) {}
     }
     function navTo(page, push = true) {
+        if (page !== 'kasper' && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
         if (_isClientLink) {
             const cap = _syncviewClientEntryCapability;
             if (cap && cap.verified && cap.view === 'sample-reviews' && _resolveRetiredSamplesRoute(page) === 'sample-reviews') {
@@ -24179,6 +24210,12 @@
         } else {
             let hash = (page !== 'home' ? '#' + page : '');
             if (page === 'templates' && _templatesSelected) hash = '#templates/' + encodeURIComponent(_templatesSelected);
+            // Same for Kasper's subtab: writing a bare #kasper here is what made
+            // every reload of a Kasper subtab land on review (speed map
+            // 2026-09-23 §7) -- the first load rendered the subtab, then this
+            // line erased it from the URL the reload reads.
+            if (page === 'kasper' && typeof _kasperState !== 'undefined' && _kasperState
+                && _kasperState.tab && _kasperState.tab !== 'review') hash = '#kasper/' + _kasperState.tab;
             const query = new URLSearchParams(location.search);
             if (page === 'production') query.set('prod', '1');
             else query.delete('prod');
@@ -25697,6 +25734,9 @@
                 if (typeof currentNav !== 'undefined' && currentNav === 'kasper' && typeof _kasperRenderTab === 'function') _kasperRenderTab();
             }
         } catch (e) {}
+        // A Kasper subtab that fell back only because the key check had not
+        // answered yet (a reload) comes back now that it has.
+        try { if (typeof _kasperRestorePendingSubtab === 'function') _kasperRestorePendingSubtab(); } catch (e) {}
         try {
             if (valid && typeof _thumbCompareScheduleAvailability === 'function') {
                 if (typeof currentNav !== 'undefined' && currentNav === 'calendar') _thumbCompareScheduleAvailability('calendar');
@@ -68137,6 +68177,9 @@
             // Clients Info roster has populated its saved client. Reconcile as
             // soon as essentials land; analytics extras must never hold the
             // More / multi-select / zoom toolbar recovery hostage.
+            // A Kasper landing holds the analytics extras until its first
+            // content paints (see _analyticsHoldExtras).
+            if (skipAwait && !_isClientLink && (_kasperHashLanding || (_kasperArrivedFromUnlockParam && _kasperUnlocked && !hashRaw))) _analyticsHoldExtras(8000);
             const dataLoad = fetchAll(_isClientLink?clientEntryRun:null);
             const dataPromise = dataLoad.complete;
             dataLoad.essentials.then(() => {
@@ -79928,8 +79971,53 @@
     const FILMING_CONTENT_RED_COUNT = 10;
     const FILMING_CONTENT_COVERED_COUNT = 21;
     const FILMING_PLAN_SOON_DAYS = 14;
+    /* RELOAD RACE (speed map 2026-09-23 §7). On a reload the stored staff
+       identity is not yet re-verified, so every _syncviewStaffCan() check reads
+       false until key-verify answers. The capability gates below used to treat
+       that as "not allowed" and fall back to review -- rewriting both the URL
+       and the saved subtab to review, so nothing was left to restore once the
+       check passed. Hiring (admin only) lost every reload; onboarding lost
+       whenever the tab painted before key-verify answered.
+
+       While verification is pending the fallback is now TEMPORARY: review
+       shows, but the hash and saved subtab keep the requested tab, and
+       _kasperRestorePendingSubtab() puts it back when the check settles. A
+       real denial (verified, wrong role; or signed out) falls back as before. */
+    let _kasperPendingSubtab = '';
+    let _kasperPendingEpoch = -1;   // _syncviewNavEpoch when it was parked (Phase D guard)
+    function _kasperStaffCheckPending() {
+        try {
+            if (typeof _syncviewStaffIdentityValid === 'function' && _syncviewStaffIdentityValid()) return false;
+            const id = typeof _syncviewStaffIdentityLoad === 'function' ? _syncviewStaffIdentityLoad() : null;
+            return !!(id && id.key && id.member && id.member.id);
+        } catch (e) { return false; }
+    }
+    function _kasperDenySubtab(capability) {
+        if (!_kasperStaffCheckPending()) _syncviewOfferStaffSignIn(capability);
+        _kasperFallbackToReview();
+    }
+    function _kasperRestorePendingSubtab() {
+        const want = _kasperPendingSubtab;
+        if (!want) return;
+        if (_kasperStaffCheckPending()) return;          // still waiting on key-verify
+        _kasperPendingSubtab = '';
+        // Phase D's navigation epoch: any navTo since this was parked means the
+        // visitor moved on, and their choice wins over the restore.
+        if (_syncviewNavEpoch !== _kasperPendingEpoch || currentNav !== 'kasper' || _kasperState.tab !== 'review') return;
+        // _kasperGotoTab runs every subtab's own capability check; if it
+        // declines, the denial is settled, so persist review as before.
+        _kasperGotoTab(want);
+        if (_kasperState.tab !== want) { _kasperState.tab = want; _kasperFallbackToReview(); }
+    }
     function _kasperFallbackToReview() {
+        const wanted = _kasperState.tab;
         _kasperState.tab = 'review';
+        if (wanted && wanted !== 'review' && _kasperStaffCheckPending()) {
+            _kasperPendingSubtab = wanted;
+            _kasperPendingEpoch = _syncviewNavEpoch;
+            if (typeof _kasperSyncTabNav === 'function') _kasperSyncTabNav();
+            return;
+        }
         try { localStorage.setItem(KASPER_SUBTAB_KEY, 'review'); } catch (e) {}
         try {
             if (typeof currentNav !== 'undefined' && currentNav === 'kasper') {
@@ -80437,6 +80525,7 @@
 
     function _kasperGotoTab(tab) {
         if (!KASPER_SUBTABS.some(t => t.key === tab)) return;
+        _kasperPendingSubtab = '';
         if (tab === 'time-off' && !_ptoEnabled()) return;
         if (tab === 'time-off' && !_syncviewStaffCan('pto-admin')) return;
         if (tab === 'client-credentials' && !_syncviewStaffCan('credentials')) { _syncviewOfferStaffSignIn('credentials'); return; }
@@ -80463,18 +80552,20 @@
         if (_kasperState.tab === 'time-off' && !_ptoEnabled()) _kasperFallbackToReview();
         if (_kasperState.tab === 'time-off' && !_syncviewStaffCan('pto-admin')) _kasperFallbackToReview();
         if (_kasperState.tab === 'client-credentials' && !_syncviewStaffCan('credentials')) {
-            _syncviewOfferStaffSignIn('credentials'); _kasperFallbackToReview();
+            _kasperDenySubtab('credentials');
         }
         if (_kasperState.tab === 'onboarding' && !_syncviewStaffCan('onboarding')) {
-            _syncviewOfferStaffSignIn('onboarding'); _kasperFallbackToReview();
+            _kasperDenySubtab('onboarding');
         }
         if (_kasperState.tab === 'hiring-process' && !_syncviewStaffCan('hiring')) {
-            _syncviewOfferStaffSignIn('hiring'); _kasperFallbackToReview();
+            _kasperDenySubtab('hiring');
         }
         if (_kasperState.tab === 'quiz-leads' && !_syncviewStaffCan('quiz-leads')) {
-            _syncviewOfferStaffSignIn('quiz-leads'); _kasperFallbackToReview();
+            _kasperDenySubtab('quiz-leads');
         }
         _kasperSyncTabNav();
+        // Only the review queue holds the analytics extras back (see _analyticsHoldExtras).
+        if (_kasperState.tab !== 'review' && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
         if (_kasperState.tab === 'samples' && typeof _sxrKasperRenderQueue === 'function') return _sxrKasperRenderQueue(); // SXR_LINE
         if (_kasperState.tab === 'review')  return _kasperRenderReview();
         if (_kasperState.tab === 'replies') return _kasperRenderReplies();
@@ -80963,7 +81054,7 @@
     function _kasperRenderHiringProcess() {
         const el = document.getElementById('kasperContent');
         if (!el) return;
-        if (!_syncviewStaffCan('hiring')) { _syncviewOfferStaffSignIn('hiring'); _kasperFallbackToReview(); return; }
+        if (!_syncviewStaffCan('hiring')) { _kasperDenySubtab('hiring'); return; }
         el.innerHTML = renderHiringProcessView();
         _hpPaint();
         _hpLoadList(false);
@@ -83419,6 +83510,10 @@
             <div class="kasper-history-body">${waitingBodyHtml}</div>
         </div>`;
         const _thumbs = _kcardHarvestThumbs(body, 'data-kasper-pid');
+        // The queue has content on screen: the held analytics extras may start.
+        // Only once the queue has actually loaded -- the SMM sheet can land
+        // first and repaint an empty body, which is not content.
+        if (_kasperState.lastLoaded && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
         body.innerHTML = _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + _kasperRenderUrgentSection(urgent) + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection();
         _kcardRestoreThumbs(body, _thumbs, 'data-kasper-pid');
     }

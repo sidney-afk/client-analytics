@@ -1384,6 +1384,11 @@
     /* What a client page waits on when its data is not applied yet: whichever
        arrives first of the saved `ext` half and the live sheets. */
     function _analyticsExtrasArrival(){
+        // A client page wants the extras NOW. If a Kasper landing is still
+        // holding them, stop holding and start the download here: some routes
+        // to a client page (client search, Back into a client entry) bypass
+        // navTo(), which is where the hold is otherwise released.
+        if (_analyticsExtrasHold) { _analyticsReleaseExtras(); fetchExtras(null); }
         const waits = [];
         if (_analyticsIdbExtRead) waits.push(_analyticsIdbExtRead.then(() => { if (!_analyticsExtrasApplied) throw new Error('no saved extras'); }));
         if (_fetchExtrasPromise) waits.push(_fetchExtrasPromise);
@@ -1544,6 +1549,28 @@
         _fetchExtrasPromise=tracked;
         return _fetchExtrasPromise;
     }
+    /* A Kasper landing displays none of the analytics extras (TopVideos, the
+       briefs and content summaries: ~17 MB of Sheets, parsed on the main
+       thread), yet starting them at boot put them on the review queue's
+       critical path (speed map 2026-09-23 §5: they were the last requests to
+       finish before the first card). The boot holds them until Kasper's first
+       content paints, the visitor leaves Kasper, or a safety timeout -- the
+       download still happens, just not in front of the queue. Anything that
+       needs the extras sooner calls fetchExtras() itself, which is unaffected. */
+    let _analyticsExtrasHold = null;
+    function _analyticsHoldExtras(ms){
+        let release;
+        const promise = new Promise(resolve => { release = resolve; });
+        const timer = setTimeout(() => _analyticsReleaseExtras(), ms);
+        _analyticsExtrasHold = { promise, release: () => { clearTimeout(timer); release(); } };
+        return promise;
+    }
+    function _analyticsReleaseExtras(){
+        const hold = _analyticsExtrasHold;
+        if (!hold) return;
+        _analyticsExtrasHold = null;
+        hold.release();
+    }
     function fetchAll(clientEntryRun){
         // Kick off both halves in parallel so the SMM flow keeps its original
         // total time. Expose the essentials stage separately because Calendar's
@@ -1551,7 +1578,10 @@
         // staff toolbar, and deferred deep links. Unrelated analytics extras may
         // be slow or fail independently.
         const essentials = clientEntryRun ? _syncviewClientEssentials(clientEntryRun) : fetchEssentials();
-        const extras = fetchExtras(clientEntryRun);
+        const hold = typeof _analyticsExtrasHold !== 'undefined' ? _analyticsExtrasHold : null;
+        const extras = (!clientEntryRun && hold)
+            ? hold.promise.then(() => fetchExtras(clientEntryRun))
+            : fetchExtras(clientEntryRun);
         const complete = Promise.all([essentials, extras]).then(() => undefined);
         return { essentials, complete };
     }

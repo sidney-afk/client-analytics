@@ -4,8 +4,10 @@ Status: **partly executed.** Sections 1 to 3 were written on 2026-09-23 as
 inventory and plan only. On the same day, with the owner's go-ahead, plan
 Slices 1, 2, 5 and 6 were carried out; section 4 (execution log) records
 exactly what changed live and how to roll each change back. Every other slice
-is still pending. No Edge Function was deployed, and no table was changed
-except the one flag row recorded in section 4. Measured 2026-09-23 (UTC) by the session
+is still pending. production-write was deployed by the owner for the brief
+link rewrite, and 40 in-progress `deliverables.brief` rows were rewritten; both
+are recorded at the end of section 4. No other table was changed except the one
+flag row recorded in section 4. Measured 2026-09-23 (UTC) by the session
 named Sweep, supervised by Lighthouse. No staff or clients are named; counts only.
 
 ## Starting facts (verified by Lighthouse, re-read live where noted)
@@ -328,7 +330,7 @@ Owner decisions recorded with this go-ahead:
 5. **Rollback:** before rewriting, snapshot each touched brief (id, old text, sha256) to the SyncView Backups drive. Restoring means writing the old text back through the same path.
 6. **Estate-wide:** the same rewrite can cover all 486 deliverables with copies (about 3.0 GB, already stored). Finished and archived work can go later, or never, since the archive viewer already resolves copies.
 
-### Brief image links (plan "Brief images on Linear's servers"): rewrite built, browser shipped, server needs an owner deploy. PREPARED 2026-09-23, nothing applied
+### Brief image links (plan "Brief images on Linear's servers"): rewrite built, browser shipped, server needs an owner deploy. PREPARED 2026-09-23 (superseded: deployed and applied, see the DONE entry below)
 
 **Surfaces that render `deliverables.brief` (measured in `src/index/`).** Only the Production tab draws a deliverable brief. The read view (`_prodDescriptionHTML` → `_prodLinkify`, fragment 230) prefers the server projection `description_read.media.render_brief` and falls back to the raw brief (the fallback noted at 230, and after the 5-minute signed links expire). The rich editor (`_prodDescRichInline`/`_prodDescRichSerializeInline`, fragment 240) is always seeded from the raw brief, never the projection. Fragment 040 is the AI analytics/market "brief" (`raw_json`), not `deliverables.brief`; the project description at 260 reads a project field. Calendar, Samples, Workload and the client views do not render `deliverables.brief`.
 
@@ -346,7 +348,7 @@ Owner decisions recorded with this go-ahead:
 - The test client has no deliverable with a Linear-hosted brief image, so nothing was applied. No test data was fabricated.
 - Read-only dry-run on the 41 in-progress deliverables, done in SQL with the script's criteria and UTF-16 offsets corrected: 41 deliverables and 90 links. All 41 deliverables and all 90 links are rewritable, 0 were skipped as edited and 0 as unmapped.
 
-**Still needs the owner, in this order.**
+**Still needs the owner, in this order.** (Historical: all three steps are done; see the DONE entry below. Do not re-run.)
 1. Deploy production-write through the Section 4 lane (capture first). Nothing else imports the shared module at runtime.
 2. Run `--apply` for one client, then check the Production tab. The count of `uploads.linear.app` matches in its in-progress briefs should be 0, and the images should load from storage.
 3. Run it for the rest.
@@ -356,3 +358,12 @@ Put each snapshot in the SyncView Backups drive, not the repo, because it contai
 **Update 2026-09-23: runner no longer needs the service role for real clients.** `scripts/b2-brief-link-rewrite.mjs` now reads every brief (dry-run, `--apply`, readback, `--rollback`) through production-write `description_read` with the staff headers (`SUPABASE_PUBLISHABLE_KEY` as apikey/Authorization, `SYNCVIEW_STAFF_KEY`, `SYNCVIEW_ACTOR`; `SUPABASE_URL` from env). The target list comes from `--occurrences=<file.json>`, an array of occurrence metadata rows (no brief text) exported read-only out of band, because the publishable key cannot read `deliverables.brief` or `native_brief_media_occurrences` (both 401) and the gateway does not expose occurrence ids. It is required for a live dry-run and for `--apply`; `--input` still works offline. Readback now also requires `media.unresolved === 0`, and `--stop-on-first-failure` is on by default (`--no-stop-on-first-failure` to continue). The service role is read only for the `B2_TEST_CLIENT_SLUG` test override. Progress: 1 of 13 clients was done on 2026-09-23 with an equivalent runner; its snapshot is in the SyncView Backups drive.
 
 **Reconciliation guard (review follow-up).** An incomplete or stale occurrences export would silently drop whole deliverables, so `--apply` now also requires `--expect-deliverables=<n> --expect-links=<n>`. The operator gets these from an independent read-only query, per `--client` allowlist: count the in-progress deliverables (`status in (todo, backlog, smm_approval, kasper_approval, client_approval)`) whose `brief` contains `uploads.linear.app`, and sum the Linear links in those briefs. Before the probe, the snapshot or any write, the runner compares these numbers with the deliverables and links it counts in the gateway-read briefs of the file's targets. Any mismatch aborts with counts only. Dry-run prints both sets of numbers side by side. The CLI exits 1 when a run stops early or counts any failure, for both apply and rollback.
+
+### Brief image links: in-progress rewrite applied. DONE 2026-09-23, one client at a time
+
+- **Scope:** 41 in-progress deliverables with 90 Linear links across 13 client buckets, one of them the unattributed bucket.
+- **Applied:** 12 client buckets, 40 deliverables and 89 links. Every run passed the dry run with the expected counts and wrote and verified every row, with 0 failures. Readback found 0 Linear links and 0 unresolved references. All 88 inline images load from storage, and the 1 SVG shows as its download link.
+- **Left out:** 1 deliverable with 1 link in the unattributed bucket. production-write `description_read` refused it with 403, so the owner chose to leave it out of this job. It keeps its Linear link.
+- **Snapshots:** one per client in the SyncView Backups drive, each the same size as the local file. The local copies were deleted.
+- **Download-only copies:** the projection shows a stored PDF, SVG, MP4 or MOV copy as a download link (`display: download`), never as an inline image, so an image check must count these separately. Two different type fields are involved. The storage object's Content-Type is `application/octet-stream`, because the bucket only admits the four raster image types, and it must stay that way. The occurrence row's `mime_type` keeps the real type (`application/pdf`, `image/svg+xml`, `video/mp4`, `video/quicktime`), and the projection uses it to choose `display: download`. It must never be set to octet-stream, because the copy validation rejects that and the link would show as unresolved. 27 stored objects have a non-image Content-Type: 20 PDF, 2 SVG, 4 MP4 and 1 MOV by their occurrence `mime_type`. All 27 are referenced from a brief: 1 by a `syncview-media:` reference and 26 by the Linear link in an older brief.
+- **Out of scope, measured only:** 445 older deliverables (approved, duplicate, posted, scheduled) still hold 1,248 Linear links. Every link has a verified copy, with 0 missing and 0 partial.

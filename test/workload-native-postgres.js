@@ -48,6 +48,18 @@ const ok=(v,m)=>{assert.ok(v,m);checks++;};
  sql(read('migrations/2026-09-09-workload-native-roster.sql'));
  sql(read('migrations/2026-09-23-workload-native-snapshot-cache.sql'));
  sql(read('migrations/2026-09-23-workload-native-snapshot-warm.sql'));
+ // pg_cron is not in a stock PG17 (local or CI), so the lane applies everything
+ // after `create extension` against a minimal stand-in `cron` schema that
+ // records schedules; the job commands themselves are executed below.
+ sql(`create schema if not exists cron;
+ create table if not exists cron.job(jobid bigserial primary key,jobname text,schedule text,command text);
+ create table if not exists cron.job_run_details(jobid bigint,end_time timestamptz);
+ create or replace function cron.schedule(p_name text,p_schedule text,p_command text) returns bigint language sql as
+  $$insert into cron.job(jobname,schedule,command) values(p_name,p_schedule,p_command) returning jobid$$;
+ create or replace function cron.unschedule(p_jobid bigint) returns boolean language sql as
+  $$delete from cron.job where jobid=p_jobid returning true$$;`);
+ const serverWarm=read('migrations/2026-09-23-workload-native-snapshot-server-warm.sql').replace('create extension if not exists pg_cron;','');
+ sql(serverWarm);sql(serverWarm);
  checks++;
  sql(`insert into clients(slug,display_name)values('fixture','Fixture'),('other','Other');
  insert into team_members(id,name,role,team,active,linear_user_id)values
@@ -175,9 +187,9 @@ const ok=(v,m)=>{assert.ok(v,m);checks++;};
    where d.refobjid<>dep.oid)
   select coalesce(string_agg(c.relname,',' order by c.relname),'') from dep join pg_class c on c.oid=dep.oid
   where c.relkind in ('r','p') and not exists (select 1 from pg_trigger t where t.tgrelid=c.oid
-   and t.tgname='workload_snapshot_note_change');`);
+   and t.tgname='workload_snapshot_note_update');`);
  ok(sources==='','every base table behind the snapshot views carries the invalidation trigger (missing: '+sources+')');
- ok(sql(`select count(*) from pg_trigger where tgname='workload_snapshot_note_change' and tgrelid in
+ ok(sql(`select count(*) from pg_trigger where tgname='workload_snapshot_note_update' and tgrelid in
   ('workload_issues'::regclass,'workload_plan'::regclass,'syncview_runtime_flags'::regclass,
    'deliverables'::regclass,'batches'::regclass,'clients'::regclass,'team_members'::regclass);`)==='7',
   'and so do the tables the function reads directly');
@@ -201,7 +213,13 @@ const ok=(v,m)=>{assert.ok(v,m);checks++;};
  ok(cached('ffffffffffffffffffffffffffffffff').rows.length===c2.rows.length,'a different version gets the full body');
  // A write that does not change the board rebuilds but keeps the version.
  sql(`update syncview_runtime_flags set value=value where key='prod_authority';`);
- ok(cached(c2.version).unchanged===true&&builtAt()!==first,'a no-op write rebuilds, and an identical board keeps its version');
+ ok(cached(c2.version).unchanged===true&&builtAt()===first,'a write of identical values no longer invalidates at all (no rebuild)');
+ sql(`update deliverables set title=title where id='no-such-deliverable';update workload_plan set plan_date=plan_date where issue_id='no-such-plan';`);
+ ok(Number(sql('select count(*) from workload_snapshot_invalidation;'))===0&&cached(c2.version).unchanged===true&&builtAt()===first,
+  'nor does an UPDATE that matches zero rows');
+ sql(`update deliverables set updated_at=updated_at+interval '1 second' where id='del_fixture';`);
+ ok(!cached(c2.version).unchanged&&builtAt()!==first,'but a change to updated_at alone (the due-write cursor) still invalidates');
+ c2=cached();
  // Each source table, one real change each: the next read must reflect it.
  const edits=[
   [`update deliverables set title='Retitled fixture' where id='del_fixture';`,v=>v.rows.find(r=>r.id==='del_fixture').title==='Retitled fixture'],
@@ -275,6 +293,22 @@ const ok=(v,m)=>{assert.ok(v,m);checks++;};
   sql(`set role anon;select workload_native_snapshot_warm_v1();`,db,true);checks++;
   sql(`set role authenticated;select workload_native_snapshot_warm_v1();`,db,true);checks++;
   ok(json('set role service_role;select workload_native_snapshot_warm_v1();').ok===true,'the warm-up is service_role only');}
+ // ---- SERVER-SIDE WARM-UP (migrations/2026-09-23-workload-native-snapshot-server-warm.sql).
+ {const jobs=JSON.parse(sql(`select coalesce(jsonb_agg(jsonb_build_object('name',jobname,'schedule',schedule,'command',command) order by jobname),'[]') from cron.job;`));
+  ok(jobs.length===2&&jobs[0].name==='workload-snapshot-warm'&&jobs[0].schedule==='10 seconds',
+   'applying the migration twice leaves exactly one 10-second warm job (plus its history prune)');
+  const beforeJob=cached();sql(`update deliverables set title='Cron title' where id='del_fixture';`);
+  sql(jobs[0].command+';');
+  const at=builtAt();const after=cached(beforeJob.version);
+  ok(!after.unchanged&&after.rows.find(r=>r.id==='del_fixture').title==='Cron title'&&builtAt()===at,
+   'the scheduled job rebuilds after a change, so the next reader gets a hit');
+  sql(jobs[1].command+';');checks++;
+  ok(sql(`select count(*) from pg_trigger where tgname like 'workload_snapshot_note_%' and not tgisinternal;`)==='28'
+   &&sql(`select count(*) from pg_trigger where tgname='workload_snapshot_note_change';`)==='0',
+   'each source table has exactly its insert/update/delete/truncate triggers, and the old statement trigger is gone');
+  sql(`insert into clients(slug,display_name)values('cron-extra','Cron extra');`);
+  ok(Number(sql('select count(*) from workload_snapshot_invalidation;'))===1,'a real insert invalidates');
+  sql(`delete from clients where slug='cron-extra';`);cached();}
  sql(`update workload_plan set plan_date='2030-02-01' where issue_id='old-fixture';update team_members set name='Fixture editor' where id='00000000-0000-0000-0000-000000000001';
  update batches set name='Fixture batch' where id='bat_fixture';update deliverables set title='Fixture work' where id='del_fixture';delete from workload_issues where id='legacy-new';`);
  const handler=spawnSync(process.execPath,['--experimental-strip-types',path.join(root,'qa/workload-native/handler.mjs')],{env:{...env,WORKLOAD_TEST_DB:db},encoding:'utf8',windowsHide:true,timeout:60000,maxBuffer:4e6});

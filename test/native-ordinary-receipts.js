@@ -4,8 +4,11 @@ const fs = require('fs');
 const assert = require('assert');
 const gateway = fs.readFileSync('supabase/functions/production-write/index.ts','utf8');
 assert(gateway.includes('async function nativeOrdinaryReceipt'), 'gateway must classify the typed receipt without provider calls');
-assert(gateway.includes('!nativeLabels && !nativeOrdinary && !suppressLabelDrain'), 'native receipt must suppress live drain');
-assert(gateway.includes('!nativeAssignment && !nativeLabels && !nativeOrdinary'), 'native receipt must have no mirror pending/drain branch');
+// B2 Slice 8: the gateway has no provider drain at all, so a native receipt
+// (like every write) can never drain and never reports a pending mirror.
+assert(gateway.includes('nativeOrdinary = await nativeOrdinaryReceipt(supabase, dedup)'), 'gateway must still classify the native receipt');
+assert(!/\b(shouldDrain|syncviewLiveDrain|awaitedDrain)\b/.test(gateway), 'native receipt must never reach a live drain (no drain exists)');
+assert(gateway.includes('const mirrorPending = false;') && gateway.includes('const mirror = notApplicableMirror();'), 'native receipt must have no mirror pending/drain branch');
 const sql = fs.readFileSync('migrations/2026-09-09-native-ordinary-receipts.sql','utf8');
 const need = text => assert(sql.includes(text), 'missing '+text);
 need('production_native_ordinary_receipt_admissions');

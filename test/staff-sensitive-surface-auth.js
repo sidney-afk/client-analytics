@@ -70,8 +70,8 @@ ok(safeLoop === 'onboarding-list ai-onboarding-list legacy-onboarding-list onboa
   'push-safe deploy loop must retain the current main function list exactly');
 ok(/(?:^|\s)key-verify(?:\s|$)/.test(safeLoop),
   'the shared auth deployment loop must deploy key-verify with its dependents');
-ok(pinnedLoop === 'linear-outbound notify production-write production-comments production-archive',
-  'manual pinned deploy runs the provider and notification sender before the write gateway and comment/archive readers');
+ok(pinnedLoop === 'notify production-write production-comments production-archive',
+  'manual pinned deploy runs the notification sender before the write gateway and comment/archive readers');
 
 const pinnedStepAt = DEPLOY_WORKFLOW.indexOf('- name: Deploy pinned Track-B write/read functions');
 const pinnedStep = pinnedStepAt >= 0 ? DEPLOY_WORKFLOW.slice(pinnedStepAt) : '';

@@ -269,11 +269,12 @@ function checkSideValidator(parse, label) {
   {
     const fn = extractFunction(productionWriteSource, 'authorityFor');
     ok(!/"supabase"/.test(fn), 'edge fn production-write authorityFor no longer accepts the legacy supabase alias');
-    ok(/authority === "syncview"/.test(fn) && /authority === "linear"/.test(fn),
-      'edge fn production-write authorityFor still compares against exactly "syncview"/"linear"');
-    ok((fn.match(/throw new GatewayError\(503, "authority_unavailable"\);/g) || []).length >= 1
-      && fn.trim().endsWith('throw new GatewayError(503, "authority_unavailable");\n}'),
-      'edge fn production-write authorityFor still rejects any other value with 503 authority_unavailable');
+    // Slice 8 (Linear exit): production-write no longer reads the authority
+    // flag at all -- it is constant "syncview", and an unknown team still refuses.
+    ok(/return "syncview";/.test(fn) && !/"linear"/.test(fn),
+      'edge fn production-write authorityFor is the constant "syncview" and never returns "linear"');
+    ok(/throw new GatewayError\(409, "team_authority_unknown"\);/.test(fn),
+      'edge fn production-write authorityFor still refuses an unknown team with 409 team_authority_unknown');
   }
 
   {

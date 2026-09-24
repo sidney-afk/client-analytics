@@ -171,7 +171,7 @@ function withFetch(queue, run) {
     path.join(ROOT, '.github', 'workflows', 'deploy-f27-section4-closures.yml'), 'utf8');
   const swallowed = workflow.match(/2> "\$F27_PRIVATE_DIR\/[A-Za-z0-9._-]+\.error"; then/g) || [];
   const echoed = workflow.match(/public_failure "\$F27_PRIVATE_DIR\/[A-Za-z0-9._-]+\.error"/g) || [];
-  ok(swallowed.length >= 13 && echoed.length === swallowed.length,
+  ok(swallowed.length >= 11 && echoed.length === swallowed.length,
     `every step that redirects stderr to a private file echoes it back (${echoed.length}/${swallowed.length})`);
   const helperCount = (workflow.match(/^\s*public_failure\(\) \{$/gm) || []).length;
   ok(helperCount >= 1,

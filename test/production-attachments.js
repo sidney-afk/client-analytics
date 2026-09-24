@@ -337,7 +337,11 @@ function extractFunction(source, name) {
   ok(/if \(!client \|\| client\.active !== true\)[\s\S]{0,80}asset_scope_forbidden/.test(edge)
       && /handleAssetAccessRead[\s\S]*if \(!client \|\| client\.active !== true\)[\s\S]{0,80}asset_scope_forbidden/.test(edge),
   'both guarded attachment writes and protected asset reads require an active roster client');
-  ok(/scope\.team === "graphics" && status === "smm_approval"[\s\S]{0,220}artifact_not_resolvable/.test(edge)
+  // Create leg: the Production-tab create is closed (owner ruling 2026-08-23),
+  // so no new create can ever land a Graphics row in smm_approval without an
+  // artifact. B2 Slice 8 deleted the unreachable create body that followed
+  // the closure; the create handler must still END at the 403 closure.
+  ok(/throw new GatewayError\(403, "production_create_closed"\);\s*\}/.test(edge)
       && /operation === "status" && nextStatus === "smm_approval"[\s\S]{0,100}assertGraphicsApprovalArtifact/.test(edge)
       && /for \(const planned of plannedItems\)[\s\S]{0,320}lower\(row\.status\) !== "smm_approval"[\s\S]{0,500}assertGraphicsApprovalArtifact/.test(edge),
   'create, status/reconcile, append intake, and new-batch intake all enforce the Graphics SMM artifact gate');

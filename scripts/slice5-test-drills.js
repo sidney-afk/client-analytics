@@ -151,17 +151,16 @@ const GATEWAY_REFUSAL_ENUMS = new Set([
   'assignee_mapping_unavailable',
   'assignee_provider_inactive',
   'assignee_provider_unverified',
-  'assignee_provider_unavailable',
   'assignee_lookup_unavailable',
   'assignee_load_unavailable',
   'assignee_scope_forbidden',
-  // The write-authority chain, resolved BEFORE eligibility.
+  // The write-authority chain, resolved BEFORE eligibility. B2 Slice 8 removed
+  // the provider assignee lane and legacy parity, so assignee_provider_unavailable,
+  // legacy_parity_disabled and legacy_parity_required are no longer thrown.
   'authority_unavailable',
   'team_authority_unknown',
   'team_is_linear_authoritative',
-  'legacy_parity_disabled',
   'legacy_parity_not_allowed',
-  'legacy_parity_required',
   'legacy_parity_gate_unavailable',
   // CAS, idempotency and scope, shared by every write.
   'write_conflict',

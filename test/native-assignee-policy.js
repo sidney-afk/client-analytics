@@ -152,19 +152,15 @@ function slice(from, to) {
     'garbage input is an empty roster, not a crash');
 
   /* 4. Gateway wiring pins. */
-  const lanePolicyFor = slice('async function assigneeLanePolicyFor(', 'async function assigneeProviderPool(');
-  const flagReader = slice('async function assigneeEligibilityPolicyFor(', 'async function assigneeLanePolicyFor(');
-  ok(/if \(clean\(nativeEpoch\)\) return assigneeLanePolicy\(nativeEpoch, null, "read"\);/.test(lanePolicyFor)
-    && lanePolicyFor.indexOf('return assigneeLanePolicy(nativeEpoch') < lanePolicyFor.indexOf('assigneeEligibilityPolicyFor(supabase)')
-    && /if \(error \|\| !data\) return \{ providerMappingRequired: true \}/.test(flagReader)
-    && /catch \(_error\) \{\s*return \{ providerMappingRequired: true \};/.test(flagReader)
-    && !/from\("syncview_runtime_flags"\)/.test(lanePolicyFor),
-    'assigneeLanePolicyFor returns the native policy BEFORE the unchanged flag reader runs; missing and unreadable reads stay strictest on the provider lane');
+  // B2 Slice 8 retired the provider (Linear) half outright: the context is
+  // the native lane unconditionally, no eligibility flag is read, and neither
+  // the provider pool nor any Linear read exists in the gateway any more.
   const context = slice('async function assigneeEligibilityContext(', 'async function assigneeRosterRow(');
-  ok(/nativeEpoch = ""/.test(context) && /assigneeLanePolicyFor\(supabase, nativeEpoch\)/.test(context)
-    && /if \(!policy\.providerMappingRequired \|\| !needsProvider\) \{[\s\S]{0,120}return \{ \.\.\.policy, providerActiveFor: \(\) => null \};/.test(context)
-    && context.indexOf('providerActiveFor: () => null') < context.indexOf('await assigneeProviderPool()'),
-    'assigneeEligibilityContext cannot reach assigneeProviderPool when the lane policy does not require a mapping');
+  ok(/return \{ providerMappingRequired: false, providerActiveFor: \(\) => null \};/.test(context)
+    && !/assigneeProviderPool|assigneeLanePolicyFor|assigneeEligibilityPolicyFor|syncview_runtime_flags/.test(context)
+    && !/async function assigneeProviderPool\(|async function assigneeLanePolicyFor\(|async function assigneeEligibilityPolicyFor\(/.test(edge)
+    && !/ASSIGNEE_ELIGIBILITY_FLAG|linearRead\(|api\.linear\.app/.test(edge),
+    'assigneeEligibilityContext is the forced native lane: no flag read, no provider pool, no Linear read anywhere in the gateway');
   const assertFn = slice('async function assertEligibleAssignee(', 'async function validateAssignee(');
   ok(/nativeEpoch = ""/.test(assertFn) && /if \(!assigneeId\) return null;/.test(assertFn)
     && assertFn.indexOf('if (!assigneeId) return null;') < assertFn.indexOf('assigneeRosterRow(')
@@ -186,9 +182,8 @@ function slice(from, to) {
     && intake.indexOf('const nativeEpochByTeam = await intakeEpochs(') < intake.indexOf('assertEligibleAssignee(supabase, requestedByTeam'),
     'intake resolves its native epochs first and hands them to both the explicit and the automatic assignment path');
   ok(/validateAssignee\([\s\S]{0,120}assertEligibleAssignee\(supabase, assigneeId, team\);/.test(edge)
-    && /validateCreateAssignee\([\s\S]{0,140}return await assertEligibleAssignee\(supabase, assigneeId, team\);/.test(edge)
     && /if \(!epoch\) return await mappedCreateAssignees\(supabase, team\);/.test(edge),
-    'Production create and the existing-assignee provider fallback keep their original eligibility contract');
+    'the existing-assignee fallback keeps its eligibility contract (the dead Production create assignee check was removed with the closed create body)');
   ok(/production_assignment_context/.test(edge)
     && /assignees: await existingAssignmentOptions\(supabase, team, clean\(assignment.epoch\)\)/.test(edge)
     && /nativeAssignment \? "production_assignee_write" : "production_deliverable_write"/.test(edge),

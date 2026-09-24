@@ -269,11 +269,15 @@ function checkSideValidator(parse, label) {
   {
     const fn = extractFunction(productionWriteSource, 'authorityFor');
     ok(!/"supabase"/.test(fn), 'edge fn production-write authorityFor no longer accepts the legacy supabase alias');
-    ok(/authority === "syncview"/.test(fn) && /authority === "linear"/.test(fn),
-      'edge fn production-write authorityFor still compares against exactly "syncview"/"linear"');
-    ok((fn.match(/throw new GatewayError\(503, "authority_unavailable"\);/g) || []).length >= 1
-      && fn.trim().endsWith('throw new GatewayError(503, "authority_unavailable");\n}'),
-      'edge fn production-write authorityFor still rejects any other value with 503 authority_unavailable');
+    // Slice 8 (Linear exit): production-write still reads the live flag but
+    // only "syncview" passes; "linear", missing or malformed fail closed.
+    ok(/\.eq\("key", "prod_authority"\)/.test(fn) && /=== "syncview"\) return "syncview";/.test(fn)
+      && /=== "linear"\) throw new GatewayError\(409, "team_is_linear_authoritative"\);/.test(fn) && !/return "linear"/.test(fn),
+      'edge fn production-write authorityFor reads prod_authority live and accepts only exactly "syncview"');
+    ok(fn.trim().endsWith('throw new GatewayError(503, "authority_unavailable");\n}'),
+      'edge fn production-write authorityFor fails closed: 409 on linear, 503 on anything else');
+    ok(/throw new GatewayError\(409, "team_authority_unknown"\);/.test(fn),
+      'edge fn production-write authorityFor still refuses an unknown team with 409 team_authority_unknown');
   }
 
   {

@@ -223,6 +223,13 @@ async function rpcSql(args, role = 'service_role') {
 }
 
 try {
+  /* B2 Slice 8: production-write no longer reads Linear, so the provider-era
+     (non-native) intake route is refused before any write. The manifest proof
+     therefore runs on server-admitted native epochs; the negative control keeps
+     its pinned pre-manifest handler on the route it was written against. */
+  if (!negativeControl) {
+    await sql(`update public.syncview_runtime_flags set value='{"video":{"enabled":true,"epoch":"manifest-video-1"},"graphics":{"enabled":true,"epoch":"manifest-graphics-1"}}'::jsonb where key='native_intake_epochs'`);
+  }
   // Real generation gate and original retry path. After a parent exists the
   // existing code deliberately skips generation; changed template/plan metadata
   // must not turn the original caller's resend into a conflict or lose its brief.
@@ -475,7 +482,8 @@ try {
   reset();
   ok('inflight-new-caller-resumes-after-retained-data-rollback', (await post(lost)).status === 201
     && JSON.stringify((await manifests(lost.request_id))[0]) === JSON.stringify(lostManifest));
-  ok('provider-prerequisite-remains', net.requests.some(r => r.url.startsWith('https://api.linear.app/')));
+  // Inverted by B2 Slice 8: the native manifest lane made no Linear request at all.
+  ok('no-provider-request-anywhere-in-the-manifest-lane', !net.requests.some(r => r.url.startsWith('https://api.linear.app/') || /linear-outbound/.test(r.url)));
 
   console.log(JSON.stringify({ suite: 'native-root-manifest', passed: checks.filter(c => c.pass).length,
     failed: checks.filter(c => !c.pass).length, live_proof: false, reconstruction: 'NOT_IMPLEMENTED' }));

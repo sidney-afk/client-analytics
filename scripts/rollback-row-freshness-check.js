@@ -47,6 +47,13 @@ const ROOT = rootArg ? path.resolve(rootArg.slice('--root='.length)) : path.reso
    check would be testing its own copy, not the shipped roster. */
 const REPO = path.resolve(__dirname, '..');
 const SLUGS = ['production-write', 'linear-outbound', 'deliverable-write', 'batch-write'];
+/* B2 Slice 8 (2026-09-24): linear-outbound left the Section 4 RELEASE set, so a
+   receipt from a three-function release names only the other three. It is still
+   compared wherever a receipt does name it (every older four-function run), but
+   its absence no longer makes a receipt incomplete. The three below must always
+   be named. */
+const OPTIONAL_SLUGS = new Set(['linear-outbound']);
+const REQUIRED_SLUGS = SLUGS.filter(slug => !OPTIONAL_SLUGS.has(slug));
 const SCHEMA = 'syncview_f27_section4_deployed_versions_v1';
 /* The JSON key line that marks a receipt block. The bare token also appears
    in prose ("`syncview_f27_section4_deployed_versions_v1` JSON block"), which
@@ -126,11 +133,11 @@ function receiptsFromJson(log) {
             receiptsMeta.unreadableAttestations.push({ at: b.from });
             continue;
         }
-        const named = SLUGS.filter(slug => fns[slug]);
-        if (named.length < SLUGS.length) {
+        const named = REQUIRED_SLUGS.filter(slug => fns[slug]);
+        if (named.length < REQUIRED_SLUGS.length) {
             receiptsMeta.incompleteAttestations.push({
                 at: m.index, run: String(obj.github_run_id || '').trim(), named: named.length,
-                missing: SLUGS.filter(slug => !fns[slug]),
+                missing: REQUIRED_SLUGS.filter(slug => !fns[slug]),
             });
         }
         out.push({
@@ -1397,7 +1404,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
             if (group.length) {
                 rejected += group.filter(g => !receiptsMeta.parsedRows.has(g.at)).length;
                 const distinct = new Set(group.map(g => g.slug));
-                if (distinct.size < SLUGS.length || distinct.size !== group.length) truncated += 1;
+                if (distinct.size < REQUIRED_SLUGS.length || distinct.size !== group.length) truncated += 1;
             }
             group = [];
         };
@@ -1718,7 +1725,7 @@ function main() {
     }
     for (const i of (receiptsMeta.incompleteAttestations || [])) {
         failures.push('an attestation block at character ' + i.at + ' of EXECUTION_LOG.md (run ' + (i.run || '?') + ') names '
-            + i.named + ' of the four functions and omits ' + i.missing.join(', ') + '. The §4 lane attests all four, always;'
+            + i.named + ' of the ' + REQUIRED_SLUGS.length + ' required functions and omits ' + i.missing.join(', ') + '. The §4 lane attests every function it releases, always;'
             + ' a block naming fewer is truncated or hand-written, and under another entry\'s run id it would fold into that'
             + ' run\'s receipt with the omitted function never compared. Copy the lane\'s full attestation.');
     }
@@ -1819,6 +1826,11 @@ function main() {
             /* A truncated receipt must not leave a function silently unchecked:
                the §4 lane deploys the four as one serial set, so a receipt naming
                three of them is incomplete, not a receipt about three functions. */
+            if (!a && OPTIONAL_SLUGS.has(slug)) {
+                notes.push(slug + ' is not in the newest receipt (run ' + (live.run || '?')
+                    + '): it left the Section 4 release set in B2 Slice 8, so it is not compared');
+                continue;
+            }
             if (!a) {
                 failures.push(slug + ' is missing from the newest receipt (run ' + (live.run || '?')
                     + '), so ROLLBACK.md\'s claim about it was not verified against anything');

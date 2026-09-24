@@ -83,17 +83,17 @@ ok(parentOwnerTeamFor({ graphics: { uuid: 'u', owner_team: 'gra' } }, 'graphics'
 // --- the gateway actually uses it ----------------------------------------
 ok(/parentOwnerTeamFor,/.test(gatewaySrc),
 'the gateway imports the resolver');
-ok(/const ownerTeam = parentOwnerTeamFor\(batch\.linear_parent_ids, team\) \|\| team;/.test(gatewaySrc),
-'the append route resolves the owner team, falling back to the asker');
-ok(/await validateLinearBatchParent\(directIds\[0\], ownerTeam, projectId\);/.test(gatewaySrc),
-'the direct-parent validation is given the owner team');
-ok(!/await validateLinearBatchParent\(directIds\[0\], team, projectId\);/.test(gatewaySrc),
-'the direct-parent validation no longer uses the asking team');
-
-// The dependency route is per-team by construction (the outbox row is looked
-// up with .eq("team", ...)), so it must keep validating against that team.
-ok(/await validateLinearBatchParent\(writtenParentId, team, projectId\);/.test(gatewaySrc),
-'the dependency route still validates against its own team, which is already exact');
+// B2 Slice 8 removed the Linear parent read (validateLinearBatchParent) that
+// the owner team was resolved for. Neither the direct-parent route nor the
+// dependency route may validate against Linear any more -- for ANY team -- so
+// both fail closed where that read used to happen, and nothing can validate
+// with the asking team by mistake.
+ok(!/validateLinearBatchParent/.test(gatewaySrc),
+'no parent route validates against Linear, with the owner team or the asking team');
+ok(/if \(validateExternal\) \{\s*\/\/ No Linear read is available to validate the parent \(B2 Slice 8\)\.\s*throw new GatewayError\(409, "legacy_intake_native_epoch_required"\);/.test(gatewaySrc),
+'the direct-parent route fails closed where it used to read Linear');
+ok(/if \(validateExternal && lower\(parent\.status\) === "written"\) \{[\s\S]{0,260}throw new GatewayError\(409, "legacy_intake_native_epoch_required"\);/.test(gatewaySrc),
+'the dependency route fails closed where it used to read Linear');
 
 if (failures) process.exit(1);
 console.log('\nBatch parent owner-team validation checks passed');

@@ -29,8 +29,23 @@ let checks=0;
 function pass(label){checks++;console.log('ok '+label);}
 assert.equal(extractFunction(html,'_calLegacyVideoEditorPool').replace('_calLegacyVideoEditorPool','_calNativeVideoEditorPool'),extractFunction(oldHtml,'_calNativeVideoEditorPool'));
 pass('provider browser loader body remains exact');
-for(const symbol of ['intakeAssigneePool','assertEligibleAssignee','handleCreateOptions']) {
+for(const symbol of ['intakeAssigneePool','assertEligibleAssignee']) {
  assert.equal(extractFunction(gateway,symbol),extractFunction(gatewaySymbolSource,symbol));pass(symbol+' remains exact');
+}
+/*
+ * B2 Slice 8 (production-write makes no Linear reads) changed exactly one line
+ * of handleCreateOptions: its catalog now comes from the native label catalog
+ * instead of Linear. That one literal is named here; every other byte must
+ * still equal the reviewed baseline, and each literal occurs exactly once.
+ */
+{
+ const CATALOG_WAS='    linearLabelCatalog(scope.teamId, scope.team),\n';
+ const CATALOG_NOW='    nativeCatalogOrHeld(supabase, scope.team),\n';
+ const was=extractFunction(gatewaySymbolSource,'handleCreateOptions'),now=extractFunction(gateway,'handleCreateOptions');
+ assert.equal(was.split(CATALOG_WAS).length,2);assert.equal(now.split(CATALOG_NOW).length,2);
+ assert.equal(now,was.replace(CATALOG_WAS,CATALOG_NOW));
+ assert.ok(!/linearLabelCatalog|api\.linear\.app/.test(gateway));
+ pass('handleCreateOptions remains exact apart from its native-only catalog source');
 }
 /*
  * autoAssigneeForIntake is no longer byte-equal to the reviewed baseline, and
@@ -123,7 +138,41 @@ const OPEN_LOAD_IS = `  const counted = await intakeOpenLoad(supabase, "video", 
 // Remove ONLY these exact additive bytes before pinning the entire historical
 // handler. Authorization, intake/receipt creation and every old response field
 // must still match; this does not waive arbitrary handler drift.
-const currentIntake=extractFunction(gateway,'handleIntakeCreate');
+/*
+ * B2 Slice 8 (every team SyncView-authoritative; production-write never calls
+ * linear-outbound) changed exactly these bounded regions of the handler: the
+ * per-team parity derivation is constant false, the legacy-parity gate call is
+ * gone, and each drain leg is the static not-applicable mirror result with
+ * mirror_pending false. Each [now, was] pair must occur exactly once and is put
+ * back before the whole-handler equality below, so no other drift is waived.
+ */
+const SLICE8_INTAKE_CHANGES=[
+ ["    authorityByTeam[team] = principal.testOnly ? \"syncview\" : await authorityFor(supabase, team);\n    // Every team is SyncView-authoritative (B2 Slice 8): no parity lane.\n    parityByTeam[team] = false;\n",
+  "    authorityByTeam[team] = principal.testOnly ? \"syncview\" : await authorityFor(supabase, team);\n    // Native intake is already an authenticated native-first flow. The server\n    // selects parity only for the still-Linear-authoritative leg; a mixed\n    // graphics-first request therefore takes one normal and one parity lane.\n    parityByTeam[team] = !principal.testOnly && authorityByTeam[team] === \"linear\";\n    if (nativeEpochByTeam[team] && parityByTeam[team]) throw new GatewayError(409, \"team_is_linear_authoritative\");\n"],
+ ["    generationByTeam[team] = await f27WriteAuthorizationGeneration(supabase, team);\n  }\n",
+  "    generationByTeam[team] = await f27WriteAuthorizationGeneration(supabase, team);\n  }\n  if (Object.values(parityByTeam).some(Boolean)) await assertLegacyParityEnabled(supabase);\n"],
+ ["     * be resolved for each team. That happens a few lines below -- the shared\n     * route and `ownsDistinctParent`. (The Linear parent read that used to\n     * compare the parent issue's PROJECT was removed in B2 Slice 8; a route\n     * that would need it now fails closed.) A batch that genuinely cannot\n",
+  "     * be resolved for each team. That happens a few lines below -- the shared\n     * route, `ownsDistinctParent`, and `validateLinearBatchParent`, which still\n     * compares the parent issue's PROJECT and so still refuses the mirrored\n     * shape `synthesizeParentMap` can produce. A batch that genuinely cannot\n"],
+ ["    drainPlans = await providerDrainPlans(supabase, drainPlans);\n    const mirrorResults: JsonMap[] = drainPlans.map(plan => ({\n      dedup_key: plan.dedup_key,\n      ...notApplicableMirror(),\n    }));\n    const mirrorPending = false;\n",
+  "    drainPlans = await providerDrainPlans(supabase, drainPlans);\n    const mirrorResults: JsonMap[] = [];\n    for (const plan of drainPlans) {\n      if (plan.targeted === true) {\n        mirrorResults.push({ dedup_key: plan.dedup_key, ...await targetedDrain(clean(plan.dedup_key), principal) });\n      }\n    }\n    const syncviewLiveDrain = drainPlans.some(plan => plan.targeted !== true\n      && authorityByTeam[normalizeTeam(plan.team)] === \"syncview\")\n      && await outboundLiveForDrain(supabase);\n    if (syncviewLiveDrain) {\n      scheduleSyncviewLiveDrains(\n        drainPlans.filter(plan => plan.targeted !== true\n          && authorityByTeam[normalizeTeam(plan.team)] === \"syncview\")\n          .map(plan => clean(plan.dedup_key)),\n        principal,\n      );\n    }\n    const targetedFailure = mirrorResults.some(result => result.acknowledged !== true);\n    const hasNormalPending = drainPlans.some(plan => plan.targeted !== true);\n    const mirrorPending = targetedFailure || hasNormalPending;\n"],
+ ["      started_at_create_normalized: startedAtCreate.normalized,\n    }, exactReplay ? 200 : 201);\n",
+  "      started_at_create_normalized: startedAtCreate.normalized,\n    }, targetedFailure ? 202 : (exactReplay ? 200 : 201));\n"],
+ ["  drainPlans = await providerDrainPlans(supabase, drainPlans);\n  const mirrorResults: JsonMap[] = drainPlans.map(plan => ({\n    dedup_key: plan.dedup_key,\n    ...notApplicableMirror(),\n  }));\n",
+  "  drainPlans = await providerDrainPlans(supabase, drainPlans);\n  const mirrorResults: JsonMap[] = [];\n  for (const plan of drainPlans) {\n    if (plan.targeted === true) {\n      mirrorResults.push({ dedup_key: plan.dedup_key, ...await targetedDrain(clean(plan.dedup_key), principal) });\n    }\n  }\n  const syncviewLiveDrain = drainPlans.some(plan => plan.targeted !== true\n    && authorityByTeam[normalizeTeam(plan.team)] === \"syncview\")\n    && await outboundLiveForDrain(supabase);\n  if (syncviewLiveDrain) {\n    scheduleSyncviewLiveDrains(\n      drainPlans.filter(plan => plan.targeted !== true\n        && authorityByTeam[normalizeTeam(plan.team)] === \"syncview\")\n        .map(plan => clean(plan.dedup_key)),\n      principal,\n    );\n  }\n"],
+ ["  }\n  const mirrorPending = false;\n",
+  "  }\n  const targetedFailure = mirrorResults.some(result => result.acknowledged !== true);\n  const hasNormalPending = drainPlans.some(plan => plan.targeted !== true);\n  const mirrorPending = targetedFailure || hasNormalPending;\n"],
+ ["    started_at_create_normalized: startedAtCreate.normalized,\n  }, 201);\n",
+  "    started_at_create_normalized: startedAtCreate.normalized,\n  }, targetedFailure ? 202 : 201);\n"]
+];
+function slice8Restore(source){
+ let out=source;
+ for(const [now,was] of SLICE8_INTAKE_CHANGES){
+  assert.equal(out.split(now).length,2,'B2 Slice 8 intake block must occur exactly once');
+  out=out.replace(now,was);
+ }
+ return out;
+}
+const currentIntake=slice8Restore(extractFunction(gateway,'handleIntakeCreate'));
 const materializationBlock=`  // Browser routing metadata only. The epoch was resolved server-side from
   // the accepted manifest/receipt before any provider read; absent metadata
   // intentionally leaves existing provider-era browser jobs unchanged.

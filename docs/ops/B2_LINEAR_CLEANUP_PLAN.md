@@ -385,3 +385,18 @@ Put each snapshot in the SyncView Backups drive, not the repo, because it contai
   - `mirror_outbox`: 0 rows waiting. 101 are `stale`, a finished state, and the newest is 150 hours old.
 - **Repo change:** removes `deploy-f27-linear-inbound.yml`, the `workload-linear` source and its two function tests, and both functions' deploy-manifest entries. `linear-inbound` is recorded as RETIRED with no deploy path. Its source stays only as the frozen reference about ten contract tests read, and goes in Slice 10. `B4_TEST_PROJECT_IDS` is untouched until Slice 8 is done.
 - **Rollback:** see `ROLLBACK.md`, row "B2 Slice 7".
+- **Done:** the owner deleted both functions on 2026-09-24; `list_edge_functions` no longer shows either.
+
+### Slice 8 (plan Slice 8): `production-write` stops reading Linear and loses its Linear-send paths; Section 4 lane releases three functions. Repo PR ready 2026-09-24; deploy and `linear-outbound` deletion are the owner's
+
+- **Owner decisions 2026-09-24:**
+  - `mirror_outbox` rows keep being created. They are the receipts the reconcile check reads (#1544), and the DB trigger writes them as `skipped`. No migration. Renaming the table can come later.
+  - `B4_TEST_PROJECT_IDS` stays as it is. Replacing it with a native project list is a later tidy-up.
+- **Live evidence (read-only, 2026-09-24):**
+  - `mirror_outbox`: 12,611 rows in total. All 2,082 created since 2026-09-19 are `skipped`; the last row actually sent to Linear was 2026-09-18 16:08Z.
+  - Edge logs: 0 calls to `linear-outbound` in the latest 24 hours (0 over 72 hours at Slice 7).
+  - Flags: `prod_authority` is `syncview` for both teams, `linear_outbound_enabled` off, parity off. Native label catalog mode is `native`; native intake and native assignment epochs are on for both teams. So the new refusals (409 on legacy parity or non-native intake, 503 on a non-native label catalog) cannot fire for today's traffic.
+- **Repo change:** `production-write` loses every `api.linear.app` read, the outbox drain, its calls to `linear-outbound` and the provider assignee lane; mirror results report `not_applicable`. The Section 4 lane now deploys and attests three functions (`production-write`, `deliverable-write`, `batch-write`) but still inspects and restores the sealed four-function prior bundle, so the owner's capture script is unchanged for this release. `linear-outbound` leaves the onboarding deploy loop and is marked RETIRING in the manifest. The rollback-row freshness check treats it as optional. `production-write` re-pinned with `ef-fingerprint`.
+- **After the deploy is green:** the owner deletes `linear-outbound` and the secrets `LINEAR_MIRROR_API_KEY`, `LINEAR_READ_API_KEY`, `LINEAR_API_KEY`. A follow-up PR narrows the prior set to three and gives the owner a one-line change to the capture script.
+- **Later tidy-ups (not this slice):** rename `mirror_outbox`; replace `B4_TEST_PROJECT_IDS`; remove the browser's `workload-linear` fallback, dead behind the authority guard.
+- **Rollback:** see `ROLLBACK.md`, row "B2 Slice 8".

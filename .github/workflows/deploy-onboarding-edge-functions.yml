@@ -2,8 +2,9 @@ name: Deploy staff-sensitive edge functions
 
 # Auto-deploys onboarding, credentials, filming-plan, and SMM-report functions
 # plus their shared role-key helper whenever they change on main, or on manual
-# dispatch. The Track-B write/read set — linear-outbound, production-write,
-# production-comments, production-archive — is manual-only: it must come from an
+# dispatch. The Track-B write/read set — production-write,
+# production-comments, production-archive — is manual-only (linear-outbound left
+# this set in B2 Slice 8, 2026-09-24): it must come from an
 # exact commit already on main, and within the set the provider and the write
 # gateway deploy BEFORE the comment/archive readers: the new reader emits
 # can_edit/can_delete and unlocks the lifecycle UI, so a new reader running
@@ -154,7 +155,7 @@ jobs:
           # mis-handled as a create (silent duplicate comment); the reverse
           # (new writer, old reader) stays safe because the old reader never
           # exposes those flags.
-          for fn in linear-outbound notify production-write production-comments production-archive; do
+          for fn in notify production-write production-comments production-archive; do
             echo "Deploying $fn…"
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
           done
@@ -173,11 +174,11 @@ jobs:
             echo "- Pinned SHA: \`$DEPLOY_COMMIT\`"
             echo "- Push-safe deploy step: \`${{ steps.push_safe_deploy.outcome }}\`"
             echo "- Track-B deploy step: \`${{ steps.track_b_deploy.outcome }}\`"
-            echo "- Fingerprint scope: 13 functions deployed by this workflow"
+            echo "- Fingerprint scope: 12 functions deployed by this workflow"
             echo "- JWT posture: expected verify_jwt=false (each function self-authenticates); the attestation FAILs any function whose live posture differs"
             echo "- Drill outcome: \`PENDING\` (the separate service-only TEST drill does not run in this deploy job)"
             echo
           } >> "$GITHUB_STEP_SUMMARY"
           node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" \
-            --slugs=onboarding-list,ai-onboarding-list,legacy-onboarding-list,onboarding-full,client-credentials,filming-plans,smm-weekly-reports,key-verify,linear-outbound,notify,production-comments,production-archive,production-write \
+            --slugs=onboarding-list,ai-onboarding-list,legacy-onboarding-list,onboarding-full,client-credentials,filming-plans,smm-weekly-reports,key-verify,notify,production-comments,production-archive,production-write \
             --format=markdown | tee -a "$GITHUB_STEP_SUMMARY"

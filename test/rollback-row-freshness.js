@@ -272,6 +272,16 @@ const NEWEST_FIRST = [
 const reversed = run(fixture('reversed', NEWEST_FIRST, rollback()));
 ok(reversed.code === 0 && reversed.json && reversed.json.live.run === '33684111985',
     'the NEWEST deploy is selected by run id even when it is written FIRST in the file');
+
+/* B2 Slice 8: a three-function release attests only production-write,
+   deliverable-write and batch-write. The same newest receipt without its
+   linear-outbound row must still pass against a matching row. */
+const threeFunction = run(fixture('three-function', NEWEST_FIRST
+    .replace('| `linear-outbound` | 46 → **47** | `' + H.lo47 + '` | `verify_jwt=false` |\n', ''), rollback()));
+ok(threeFunction.code === 0 && threeFunction.json && threeFunction.json.live.run === '33684111985'
+    && !threeFunction.json.failures.length
+    && threeFunction.json.notes.some(n => /linear-outbound is not in the newest receipt/.test(n)),
+    'a three-function newest receipt (no linear-outbound) passes, with a note that linear-outbound is no longer compared');
 const reversedStale = run(fixture('reversedstale', NEWEST_FIRST, rollback({
     date: '2026-09-01', deploy: '#24', run: '33555586230', commit: 'da2195f0',
     pw: '65', pwh: '2af7fe6d', lo: '46', loh: 'd83f0d7c', dw: '34', bw: '34', captures: '64',
@@ -361,8 +371,9 @@ const oneRow = run(fixture('onerow', veryShort, rollback()));
 ok(oneRow.code === 1, 'a newest receipt truncated to ONE function fails');
 ok(oneRow.json && oneRow.json.live.run === '33684111985',
     'and it is still read as the newest receipt — it does not vanish and hand the title to the deploy before it');
-ok(oneRow.json && oneRow.json.failures.filter(f => /is missing from the newest receipt/.test(f)).length === 3,
-    'failing for the three functions it does not name');
+ok(oneRow.json && oneRow.json.failures.filter(f => /is missing from the newest receipt/.test(f)).length === 2
+    && !oneRow.json.failures.some(f => /^linear-outbound is missing/.test(f)),
+    'failing for the two still-released functions it does not name (linear-outbound left the release set in B2 Slice 8)');
 
 const noBundle = rollback().replace(/\*\*The newest sealed[^*]*\*\* /, '');
 const unverifiable = run(fixture('nobundle', LOG, noBundle));
@@ -517,8 +528,8 @@ const CONCISE_NEWEST = [
 const conciseNewest = run(fixture('concisenewest', CONCISE_NEWEST, rollback()));
 ok(conciseNewest.code === 1 && conciseNewest.json.live.run === '33684111985',
     'a concise entry that IS the newest is read as the newest, not skipped over');
-ok(conciseNewest.json.failures.filter(f => /is missing from the newest receipt/.test(f)).length === 3,
-    'and fails by name for the three functions it does not record');
+ok(conciseNewest.json.failures.filter(f => /is missing from the newest receipt/.test(f)).length === 2,
+    'and fails by name for the two still-released functions it does not record');
 
 /* ---- 6. nothing to compare is a failure, not a pass -------------------- */
 
@@ -1116,7 +1127,7 @@ const shortAttestation = [
 ].join('\n');
 const shortRun = run(fixture('short-attestation', appended(shortAttestation), realRb));
 ok(shortRun.code === 1 && shortRun.json
-    && shortRun.json.failures.some(f => /an attestation block at character \d+ .*\(run 35800967363\) names 3 of the four functions and omits production-write/.test(f))
+    && shortRun.json.failures.some(f => /an attestation block at character \d+ .*\(run 35800967363\) names 2 of the 3 required functions and omits production-write/.test(f))
     && shortRun.json.failures.some(f => /two receipts claim run 35800967363 but disagree on production-write: the attestation block says v82, an attestation block .* does not name it/.test(f)),
     'A TRUNCATED ATTESTATION IS CAUGHT TWICE: a three-function block under the v68 run is named for the function it omits, and its keyset disagreement with the complete block is a conflict');
 const deepHeading = nestedReadable.replace('### 2026-09-24 — Deploy #40, run `35809634735`', '##### 2026-09-24 — Deploy #40, run `35809634735`');

@@ -306,34 +306,23 @@ function nativeOk(label, pass, evidence) { nativeJourneys.push({label, zeroProvi
 
 let before;
 try {
-  /* ---- Provider lane (both epochs disabled): the pre-existing contract, unchanged ---- */
-  reset(); net.linear='down'; before=await inventory();
-  const p0=await post(chosen('video', EDITOR_ONE));
-  ok('provider-lane-linear-down-refuses-at-project-read-first', p0.status===503 && p0.json.error==='project_mapping_validation_unavailable' && await unchanged(before), p0);
-  reset(); net.linear='pooldown'; before=await inventory();
-  const p1=await post(chosen('video', EDITOR_ONE));
-  ok('provider-chosen-editor-linear-down-refused-zero-commit', p1.status===503 && p1.json.error==='assignee_provider_unavailable' && poolAttempted() && await unchanged(before), p1);
-  reset(); const p2=await post(chosen('video', EDITOR_ONE));
-  ok('provider-chosen-editor-linear-up-accepted-with-pool-read', p2.status===201 && await videoAssignee(p2)===EDITOR_ONE && poolAttempted(), p2.status);
-  reset(); const p2b=await post(chosen('video', EDITOR_TWO));
-  ok('provider-chosen-second-editor-accepted', p2b.status===201 && await videoAssignee(p2b)===EDITOR_TWO, p2b.status);
-  reset(); before=await inventory(); const p4=await post(chosen('video', UNMAPPED));
-  ok('provider-chosen-unmapped-editor-refused-409', p4.status===409 && p4.json.error==='assignee_mapping_unavailable' && await unchanged(before), p4);
-  reset(); const p3=await post(rootBody('video', requestId()));
-  const p3Assignee=await videoAssignee(p3);
-  ok('provider-automatic-excludes-unmapped-editor', p3.status===201 && p3Assignee!==UNMAPPED && [EDITOR_ONE,EDITOR_TWO].includes(p3Assignee) && !poolAttempted(), p3Assignee);
-  reset(); net.linear='pooldown'; faultEligibilityFlagRead(); before=await inventory();
-  const p5=await post(chosen('video', EDITOR_ONE));
-  ok('provider-flag-unreadable-stays-strictest', p5.status===503 && faults.attempted.length===1 && poolAttempted() && await unchanged(before), {status:p5.status, attempted:faults.attempted.length});
-  reset(); await eligibilityFlag({provider_mapping_required:false});
-  const p6=await post(chosen('video', UNMAPPED));
-  ok('provider-flag-retired-drops-provider-requirement-without-pool-read', p6.status===201 && await videoAssignee(p6)===UNMAPPED && !poolAttempted(), p6.status);
+  /* ---- Provider lane (both epochs disabled): RETIRED in B2 Slice 8 ----
+     production-write no longer reads Linear, so a non-native intake route
+     cannot validate its project and is refused before any read or write,
+     whatever the Linear transport, the chosen editor or the eligibility flag. */
+  const providerRetired=async (label, body, setup)=>{
+    reset(); if(setup) await setup(); before=await inventory(); const r=await post(body);
+    ok(label, r.status===409 && r.json.error==='legacy_intake_native_epoch_required' && noProvider() && await unchanged(before), {status:r.status, error:r.json.error});
+  };
+  await providerRetired('provider-lane-refused-before-any-linear-read-linear-down', chosen('video', EDITOR_ONE), ()=>{ net.linear='down'; });
+  await providerRetired('provider-lane-chosen-editor-refused-linear-up', chosen('video', EDITOR_ONE));
+  await providerRetired('provider-lane-chosen-unmapped-editor-refused', chosen('video', UNMAPPED));
+  await providerRetired('provider-lane-automatic-refused', rootBody('video', requestId()));
+  await providerRetired('provider-lane-unreadable-flag-refused-without-flag-or-pool-read', chosen('video', EDITOR_ONE), ()=>{ net.linear='pooldown'; faultEligibilityFlagRead(); });
+  await eligibilityFlag({provider_mapping_required:false});
+  await providerRetired('provider-lane-retired-flag-still-refused', chosen('video', UNMAPPED));
   await eligibilityFlag(undefined);
-  // Existing provider-era graphics default rule: an unmapped default designer is unavailable.
-  await sql("update public.team_members set linear_user_id=null where id="+q(DESIGNER));
-  reset(); before=await inventory(); const p7=await post(rootBody('thumbnail', requestId()));
-  ok('provider-graphics-unmapped-default-refused-409', p7.status===409 && p7.json.error==='graphics_default_assignee_unavailable' && await unchanged(before), p7);
-  await sql("update public.team_members set linear_user_id='lin_user_designer' where id="+q(DESIGNER));
+  await providerRetired('provider-lane-graphics-automatic-refused', rootBody('thumbnail', requestId()));
 
   const preserved=await rows("select id, assignee_id from public.deliverables order by id");
 
@@ -395,35 +384,26 @@ try {
   const soleSmmReady=await readinessNow();
   nativeOk('native-sole-unmapped-smm-graphics-default-refused-409-zero-commit', soleSmmNative.status===409 && soleSmmNative.json.error==='graphics_default_assignee_unavailable' && await unchanged(before)
     && soleSmmReady.teams.graphics.ready===false && soleSmmReady.teams.graphics.eligible_defaults===0, {status:soleSmmNative.status, error:soleSmmNative.json.error, readiness:soleSmmReady.teams.graphics});
-  await flags(); reset(); before=await inventory(); const soleSmmProvider=await post(rootBody('thumbnail', requestId()));
-  ok('provider-sole-unmapped-smm-graphics-default-refused-409-control', soleSmmProvider.status===409 && soleSmmProvider.json.error==='graphics_default_assignee_unavailable' && await unchanged(before), {status:soleSmmProvider.status, error:soleSmmProvider.json.error});
+  await flags(); await providerRetired('provider-lane-sole-smm-default-refused-retired-control', rootBody('thumbnail', requestId()));
   await graphicsDefaults({ designer: { default: true, mapped: true }, smm: { default: true, mapped: false } });
   await flags('epoch-video-11','epoch-graphics-11'); reset(); net.linear='down';
   const twoDefaultsNative=await post(rootBody('thumbnail', requestId()));
   const twoDefaultsRows=await assignedRows(twoDefaultsNative.json.batch?.id); const twoDefaultsReady=await readinessNow();
   nativeOk('native-designer-default-beside-smm-default-assigns-designer', twoDefaultsNative.status===201 && twoDefaultsRows.length===1 && twoDefaultsRows[0].assignee_id===DESIGNER
     && twoDefaultsReady.teams.graphics.ready===true && twoDefaultsReady.teams.graphics.eligible_defaults===1 && twoDefaultsReady.teams.graphics.defaults===2, {status:twoDefaultsNative.status, error:twoDefaultsNative.json.error, readiness:twoDefaultsReady.teams.graphics});
-  await flags(); reset(); const twoDefaultsProvider=await post(rootBody('thumbnail', requestId()));
-  const twoDefaultsProviderRows=await assignedRows(twoDefaultsProvider.json.batch?.id);
-  ok('provider-designer-default-beside-unmapped-smm-default-assigns-designer-control', twoDefaultsProvider.status===201 && twoDefaultsProviderRows.length===1 && twoDefaultsProviderRows[0].assignee_id===DESIGNER, {status:twoDefaultsProvider.status, error:twoDefaultsProvider.json.error});
-  /* Provider automatic contract, ORIGINAL and unchanged by this draft: a mapped
-     SMM default is admitted (role was never enforced on that path), the stored
-     mapping is required whatever the eligibility flag says, and the flag is not
-     read at all. The native lane enforces the creative role instead. */
+  await flags(); await providerRetired('provider-lane-two-defaults-refused-retired-control', rootBody('thumbnail', requestId()));
+  /* The provider automatic contract is retired with the provider lane (B2 Slice 8). */
   await graphicsDefaults({ designer: { default: false, mapped: true }, smm: { default: true, mapped: true } });
-  reset(); const mappedSmmProvider=await post(rootBody('thumbnail', requestId()));
-  const mappedSmmProviderRows=await assignedRows(mappedSmmProvider.json.batch?.id);
-  ok('provider-mapped-smm-graphics-default-admitted-original-contract', mappedSmmProvider.status===201 && mappedSmmProviderRows.length===1 && mappedSmmProviderRows[0].assignee_id===GRAPHICS_SMM, {status:mappedSmmProvider.status, error:mappedSmmProvider.json.error});
+  await providerRetired('provider-lane-mapped-smm-default-refused-retired', rootBody('thumbnail', requestId()));
   await flags('epoch-video-11','epoch-graphics-11'); reset(); net.linear='down'; before=await inventory();
   const mappedSmmNative=await post(rootBody('thumbnail', requestId()));
   nativeOk('native-mapped-smm-graphics-default-refused-exact-role', mappedSmmNative.status===409 && mappedSmmNative.json.error==='graphics_default_assignee_unavailable' && await unchanged(before), {status:mappedSmmNative.status, error:mappedSmmNative.json.error});
   await graphicsDefaults({ designer: { default: true, mapped: true }, smm: { default: false, mapped: false } });
-  await flags(); await eligibilityFlag({provider_mapping_required:false}); reset();
-  const retiredAuto=await post(rootBody('video', requestId())); const retiredAutoAssignee=await videoAssignee(retiredAuto);
-  ok('provider-automatic-under-retired-flag-still-excludes-unmapped', retiredAuto.status===201 && retiredAutoAssignee!==UNMAPPED && [EDITOR_ONE,EDITOR_TWO].includes(retiredAutoAssignee), {status:retiredAuto.status, picked:retiredAutoAssignee});
-  await eligibilityFlag(undefined); reset(); faultEligibilityFlagRead();
-  const noFlagAuto=await post(rootBody('both', requestId())); const noFlagRows=await assignedRows(noFlagAuto.json.batch?.id);
-  ok('provider-automatic-does-not-read-the-eligibility-flag', noFlagAuto.status===201 && noFlagRows.length===2 && noFlagRows.every(r=>r.assignee_id && r.assignee_id!==UNMAPPED) && faults.attempted.length===0, {status:noFlagAuto.status, flagReads:faults.attempted.length});
+  await flags(); await eligibilityFlag({provider_mapping_required:false});
+  await providerRetired('provider-lane-automatic-under-retired-flag-refused', rootBody('video', requestId()));
+  await eligibilityFlag(undefined);
+  await providerRetired('provider-lane-both-teams-automatic-refused-without-flag-read', rootBody('both', requestId()), ()=>{ faultEligibilityFlagRead(); });
+  ok('provider-lane-refusals-read-no-eligibility-flag', faults.attempted.length===0, {flagReads:faults.attempted.length});
   reset();
   // Back to the native lane the following journeys assume.
   await flags('epoch-video-1','epoch-graphics-1'); reset(); net.linear='down';
@@ -483,20 +463,23 @@ try {
   /* ---- SyncLinear assignee operation on an existing native row (provider lane by design) ---- */
   const targetRow=(await assignedRows(n1.json.batch?.id)).find(r=>r.team==='video'); const target=targetRow ? targetRow.id : 'missing-native-row';
   const rowOf=async ()=>(await assignedRows(n1.json.batch?.id)).find(r=>r.id===target) || {};
+  // B2 Slice 8 forced the native assignee lane: a non-null assignment no longer
+  // depends on a Linear provider read, so Linear being down cannot refuse it.
   reset(); net.linear='down'; const opDown=await post(await assigneeOp(target, EDITOR_TWO));
-  ok('assignee-op-nonnull-linear-down-refused-provider-dependency-remains', opDown.status===503 && opDown.json.error==='assignee_provider_unavailable' && (await rowOf()).assignee_id===EDITOR_ONE, {status:opDown.status, error:opDown.json.error});
+  ok('assignee-op-nonnull-linear-down-accepted-no-provider-dependency', opDown.status===200 && noLinearApi() && !poolAttempted() && (await rowOf()).assignee_id===EDITOR_TWO, {status:opDown.status, error:opDown.json.error});
   reset(); net.linear='down'; const unassign=await post(await assigneeOp(target, ''));
   const unassignedRow=await rowOf();
   ok('assignee-op-null-unassign-no-linear-api-call', unassign.status===200 && unassignedRow.assignee_id===null && noLinearApi() && faults.attempted.length===0, {status:unassign.status, error:unassign.json.error, drainAttempts:net.requests.filter(r=>/linear-outbound/.test(r.url)).length});
   const unassignDrainAttempts=net.requests.filter(r=>/linear-outbound/.test(r.url)).length;
   reset(); net.linear='down'; const reassignDown=await post(await assigneeOp(target, EDITOR_ONE));
-  ok('assignee-op-reassign-after-unassign-linear-down-still-refused', reassignDown.status===503, {status:reassignDown.status});
+  ok('assignee-op-reassign-after-unassign-linear-down-accepted-no-provider', reassignDown.status===200 && noLinearApi() && (await rowOf()).assignee_id===EDITOR_ONE, {status:reassignDown.status, error:reassignDown.json.error});
   reset(); await eligibilityFlag({provider_mapping_required:false}); net.linear='down'; const reassignRetired=await post(await assigneeOp(target, EDITOR_ONE));
   ok('assignee-op-retired-flag-reassigns-without-pool-read', reassignRetired.status===200 && !poolAttempted() && (await rowOf()).assignee_id===EDITOR_ONE, {status:reassignRetired.status, error:reassignRetired.json.error});
   await eligibilityFlag(undefined);
 
   /* ---- Existing assigned work is preserved by every journey above ---- */
-  const preservedAfter=await rows("select id, assignee_id from public.deliverables where id in ("+preserved.map(r=>q(r.id)).join(',')+") order by id");
+  // Since B2 Slice 8 the retired provider lane commits nothing, so the set may be empty.
+  const preservedAfter=preserved.length ? await rows("select id, assignee_id from public.deliverables where id in ("+preserved.map(r=>q(r.id)).join(',')+") order by id") : [];
   ok('existing-provider-era-assignments-preserved', JSON.stringify(preserved)===JSON.stringify(preservedAfter), {rows:preserved.length});
   ok('every-native-journey-made-zero-provider-requests', nativeJourneys.length>0 && nativeJourneys.every(j=>j.zeroProvider), nativeJourneys.filter(j=>!j.zeroProvider).map(j=>j.label));
 
@@ -507,9 +490,9 @@ try {
       chosen_editor_provider_independence: ['native-chosen-mapped-editor-accepted-no-provider','native-chosen-unmapped-editor-accepted','native-policy-flag-unreadable-no-provider-no-flag-read'].every(id=>checks.find(c=>c.id===id)?.pass)?'PASS':'FAIL',
       automatic_assignment_provider_independence: ['native-automatic-video-balances-over-all-active-editors','native-graphics-unmapped-default-designer-assigned','native-public-intake-automatic-no-provider'].every(id=>checks.find(c=>c.id===id)?.pass)?'PASS':'FAIL',
       native_automatic_exact_role_contract: ['native-sole-unmapped-smm-graphics-default-refused-409-zero-commit','native-designer-default-beside-smm-default-assigns-designer','native-mapped-smm-graphics-default-refused-exact-role'].every(id=>checks.find(c=>c.id===id)?.pass)?'PASS':'FAIL',
-      provider_automatic_original_contract: ['provider-mapped-smm-graphics-default-admitted-original-contract','provider-automatic-under-retired-flag-still-excludes-unmapped','provider-automatic-does-not-read-the-eligibility-flag'].every(id=>checks.find(c=>c.id===id)?.pass)?'PASS':'FAIL',
+      provider_lane_retired: checks.filter(c=>/^provider-lane-/.test(c.id)).length>0 && checks.filter(c=>/^provider-lane-/.test(c.id)).every(c=>c.pass)?'PASS':'FAIL',
       null_unassign_linear_api_independence: checks.find(c=>c.id==='assignee-op-null-unassign-no-linear-api-call')?.pass?'PASS':'FAIL',
-      synclinear_nonnull_assignee_op: 'PROVIDER_LANE (not in this slice)',
+      synclinear_nonnull_assignee_op: 'NATIVE_LANE (B2 Slice 8)',
       unassign_drain_attempts: unassignDrainAttempts,
       public_intake_explicit_editor_status: publicChoiceStatus,
       replay_after_member_deactivation_status: replayAfterDeactivation,

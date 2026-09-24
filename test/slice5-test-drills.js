@@ -818,7 +818,7 @@ function publicLeavesAreSafe(value) {
       .filter(Boolean)
       .flatMap(allowed => [...allowed]),
   )].filter(value => value !== 'none');
-  ok(factEnums.length > 60,
+  ok(factEnums.length >= 60,
     `the fact allowlist is built from every field's own enum set (${factEnums.length})`);
   ok(/facts: failure instanceof DrillError \? failure\.reportedFacts : \{\}/.test(source),
     'the failure report carries only the fields the refusal populated');

@@ -119,7 +119,6 @@ type Principal = {
   client: ClientRow | null;
   testOnly: boolean;
 };
-type TargetDrainLane = "test" | "legacy_parity" | "syncview_live";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -253,11 +252,7 @@ const MAX_PUBLIC_INTAKE_ITEMS = 50;
 const PUBLIC_INTAKE_WINDOW_MINUTES = 60;
 const PUBLIC_INTAKE_MAX_PER_CLIENT = 12;
 const PUBLIC_INTAKE_MAX_TOTAL = 60;
-const OUTBOUND_FLAG = "linear_outbound_enabled";
 const OVERDUE_STATUS_BUMP_FLAG = "write_ui_overdue_due_bump";
-const LINEAR_URL = "https://api.linear.app/graphql";
-const LABEL_PAGE_SIZE = 100;
-const MAX_LABEL_PAGES = 50;
 const ASSET_PROBE_TIMEOUT_MS = 8_000;
 const MAX_ASSET_REDIRECTS = 3;
 /* Enough rows to hold a whole post: the parent and every sub-issue. A post is
@@ -301,21 +296,6 @@ const PRODUCTION_CREATE_FIELDS = new Set([
   "test_override",
   "confirm",
 ]);
-const LINEAR_STATUS_NAMES: Record<string, string> = {
-  triage: "Triage",
-  backlog: "Backlog",
-  todo: "Todo",
-  in_progress: "In Progress",
-  smm_approval: "For SMM approval",
-  kasper_approval: "For Kasper approval",
-  client_approval: "For Client approval",
-  tweak: "Tweak Needed",
-  approved: "Approved",
-  scheduled: "Scheduled",
-  posted: "Posted",
-  canceled: "Canceled",
-  duplicate: "Duplicate",
-};
 
 class GatewayError extends Error {
   status: number;
@@ -335,18 +315,6 @@ function json(body: JsonMap, status = 200): Response {
     status,
     headers: { ...CORS, "Content-Type": "application/json" },
   });
-}
-
-function waitUntil(promise: Promise<unknown>): void {
-  const edge = (globalThis as unknown as {
-    EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void };
-  }).EdgeRuntime;
-  try {
-    if (edge && typeof edge.waitUntil === "function") edge.waitUntil(promise.catch(() => null));
-    else promise.catch(() => null);
-  } catch (_error) {
-    promise.catch(() => null);
-  }
 }
 
 function parseJson(value: unknown): JsonMap {
@@ -846,32 +814,6 @@ function selectedLabelReceipt(row: JsonMap): JsonMap {
   };
 }
 
-async function linearLabelsRequest(query: string, variables: JsonMap): Promise<JsonMap> {
-  const key = clean(Deno.env.get("LINEAR_MIRROR_API_KEY"));
-  if (!key) throw new GatewayError(503, "label_catalog_unavailable");
-  let response: Response;
-  try {
-    response = await fetch(LINEAR_URL, {
-      method: "POST",
-      headers: { authorization: key, "content-type": "application/json" },
-      body: JSON.stringify({ query, variables }),
-    });
-  } catch (_error) {
-    throw new GatewayError(503, "label_catalog_unavailable");
-  }
-  const body = await response.json().catch(() => null) as JsonMap | null;
-  if (!response.ok || !body || (Array.isArray(body.errors) && body.errors.length)) {
-    throw new GatewayError(503, "label_catalog_unavailable");
-  }
-  return parseJson(body.data);
-}
-
-type LabelSnapshot = {
-  catalog: JsonMap[];
-  selectedLabels: JsonMap[];
-  selectedLabelIds: string[];
-};
-
 const NATIVE_LABEL_CATALOG_FLAG = "production_native_label_catalog";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -952,118 +894,15 @@ async function readNativeLabelCatalog(
   return verifiedNativeCatalog(reply.data, version, team);
 }
 
-async function linearLabelCatalog(teamId: string, expectedTeam = ""): Promise<JsonMap[]> {
-  const catalogQuery = `query SyncViewProductionLabelCatalog($teamId: String!, $after: String) {
-    team(id: $teamId) { id key }
-    issueLabels(first: ${LABEL_PAGE_SIZE}, after: $after) {
-      nodes { id name color description archivedAt retiredAt isGroup team { id } }
-      pageInfo { hasNextPage endCursor }
-    }
-  }`;
-  let after: string | null = null;
-  const catalogCursors = new Set<string>();
-  const catalogById = new Map<string, JsonMap>();
-
-  for (let page = 0; page < MAX_LABEL_PAGES; page++) {
-    const data = await linearLabelsRequest(catalogQuery, { teamId, after });
-    const currentTeam = parseJson(data.team);
-    if (clean(currentTeam.id) !== teamId
-        || (expectedTeam && normalizeTeam(currentTeam.key) !== normalizeTeam(expectedTeam))) {
-      throw new GatewayError(409, "linear_team_mapping_unavailable");
-    }
-    const catalogConnection = parseJson(data.issueLabels);
-    const rawCatalogNodes = catalogConnection.nodes;
-    const catalogNodes = labelNodes(catalogConnection);
-    if (!Array.isArray(rawCatalogNodes) || catalogNodes.length !== rawCatalogNodes.length) {
-      throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
-    }
-    for (const node of catalogNodes) {
-      if (!Object.prototype.hasOwnProperty.call(node, "team")
-          || typeof node.isGroup !== "boolean"
-          || !Object.prototype.hasOwnProperty.call(node, "archivedAt")
-          // Required, not optional: a response without it cannot tell a retired
-          // label from a live one, and guessing "live" is the defect.
-          || !Object.prototype.hasOwnProperty.call(node, "retiredAt")) {
-        throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
-      }
-      const labelTeamId = clean(parseJson(node.team).id);
-      // Retired is a separate state from archived and both are excluded from
-      // what this lane offers as applicable. An existing selection of either
-      // still resolves for display, because mergeLabelCatalog keeps
-      // selected-only labels as additional rows.
-      if (node.isGroup === true || clean(node.archivedAt) || clean(node.retiredAt)
-          || (labelTeamId && labelTeamId !== teamId)) continue;
-      const label = sanitizedLabel(node, true);
-      if (!label) throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
-      if (catalogById.has(clean(label.id))) {
-        throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
-      }
-      catalogById.set(clean(label.id), label);
-    }
-
-    const pageInfo = parseJson(catalogConnection.pageInfo);
-    if (pageInfo.hasNextPage === false) break;
-    if (pageInfo.hasNextPage !== true) {
-      throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
-    }
-    after = clean(pageInfo.endCursor);
-    if (!after || catalogCursors.has(after) || page === MAX_LABEL_PAGES - 1) {
-      throw new GatewayError(502, "label_catalog_incomplete", { complete: false });
-    }
-    catalogCursors.add(after);
-  }
-  return [...catalogById.values()].sort((a, b) => {
-    const byName = lower(a.name).localeCompare(lower(b.name));
-    return byName || clean(a.id).localeCompare(clean(b.id));
-  });
-}
-
-async function linearLabelSnapshot(issueId: string): Promise<LabelSnapshot> {
-  const identity = await linearLabelsRequest(
-    "query SyncViewProductionLabelIssue($id: String!) { issue(id: $id) { id team { id } } }",
-    { id: issueId },
-  );
-  const currentIssue = parseJson(identity.issue);
-  if (clean(currentIssue.id) !== issueId) {
-    throw new GatewayError(409, "linear_issue_unavailable");
-  }
-  const issueTeamId = clean(parseJson(currentIssue.team).id);
-  if (!issueTeamId) throw new GatewayError(409, "linear_issue_team_unavailable");
-  const catalog = await linearLabelCatalog(issueTeamId);
-  const selectedQuery = `query SyncViewProductionSelectedLabels($id: String!, $selectedAfter: String) {
-    issue(id: $id) {
-      id
-      team { id }
-      labels(first: ${LABEL_PAGE_SIZE}, after: $selectedAfter, includeArchived: true) {
-        nodes { id name color description archivedAt isGroup team { id } }
-        pageInfo { hasNextPage endCursor }
-      }
-    }
-  }`;
-  let selected: { labels: JsonMap[]; ids: string[] };
-  try {
-    selected = await collectCompleteSelectedLabels({
-      issueId,
-      expectedTeamId: issueTeamId,
-      maxPages: MAX_LABEL_PAGES,
-      fetchPage: (selectedAfter: string | null) =>
-        linearLabelsRequest(selectedQuery, { id: issueId, selectedAfter }),
-    }) as { labels: JsonMap[]; ids: string[] };
-  } catch (error) {
-    if (error instanceof GatewayError) throw error;
-    if (error instanceof SelectedLabelPageError && error.kind === "identity") {
-      throw new GatewayError(409, "label_selection_invalid");
-    }
-    if (error instanceof SelectedLabelPageError && error.kind === "invalid") {
-      throw new GatewayError(502, "label_selection_invalid");
-    }
-    throw new GatewayError(502, "label_selection_incomplete", { complete: false });
-  }
-  return {
-    catalog,
-    selectedLabels: selected.labels,
-    selectedLabelIds: selected.ids,
-  };
+/*
+ * B2 Slice 8: the label catalog is native-only. There is no Linear fallback;
+ * a team whose native catalog is not installed is refused as held.
+ */
+async function nativeCatalogOrHeld(supabase: SupabaseClient, team: string): Promise<JsonMap[]> {
+  const config = await nativeLabelCatalogConfig(supabase, team);
+  if (config.mode !== "native") throw new GatewayError(503, "native_label_catalog_held");
+  const read = await readNativeLabelCatalog(supabase, String(config.version_id), team);
+  return read.catalog as JsonMap[];
 }
 
 function bearer(req: Request): string {
@@ -1363,7 +1202,11 @@ function publicIntakePrincipal(client: ClientRow): Principal {
   };
 }
 
-async function authorityFor(supabase: SupabaseClient, team: string): Promise<"linear" | "syncview"> {
+// B2 Slice 8: Linear is never an authority here. The live `prod_authority`
+// flag is still read so the gateway fails closed (read-only) unless the
+// team's value is exactly "syncview": a rollback to "linear" refuses with 409
+// team_is_linear_authoritative, a missing or malformed value with 503.
+async function authorityFor(supabase: SupabaseClient, team: string): Promise<"syncview"> {
   const normalizedTeam = normalizeTeam(team);
   if (!normalizedTeam) throw new GatewayError(409, "team_authority_unknown");
   const { data, error } = await supabase.from("syncview_runtime_flags")
@@ -1372,10 +1215,9 @@ async function authorityFor(supabase: SupabaseClient, team: string): Promise<"li
     .maybeSingle();
   if (error || !data) throw new GatewayError(503, "authority_unavailable");
   const value = parseJson((data as JsonMap).value);
-  if (!(normalizedTeam in value)) throw new GatewayError(503, "authority_unavailable");
   const authority = lower(value[normalizedTeam]);
   if (authority === "syncview") return "syncview";
-  if (authority === "linear") return "linear";
+  if (authority === "linear") throw new GatewayError(409, "team_is_linear_authoritative");
   throw new GatewayError(503, "authority_unavailable");
 }
 
@@ -1403,22 +1245,6 @@ async function f27WriteAuthorizationGeneration(
   return generation;
 }
 
-async function outboundLiveForDrain(supabase: SupabaseClient): Promise<boolean> {
-  try {
-    const { data, error } = await supabase.from("syncview_runtime_flags")
-      .select("value")
-      .eq("key", OUTBOUND_FLAG)
-      .maybeSingle();
-    if (error || !data) return false;
-    return lower(parseJson((data as JsonMap).value).mode) === "live";
-  } catch (_error) {
-    // The native write is already durable. A missing fast-drain decision must
-    // not turn that success into a failure; the scheduled drainer remains the
-    // recovery path.
-    return false;
-  }
-}
-
 async function overdueStatusBumpEnabled(supabase: SupabaseClient): Promise<boolean> {
   try {
     const { data, error } = await supabase.from("syncview_runtime_flags")
@@ -1430,16 +1256,6 @@ async function overdueStatusBumpEnabled(supabase: SupabaseClient): Promise<boole
   } catch (_error) {
     return true;
   }
-}
-
-async function assertLegacyParityEnabled(supabase: SupabaseClient): Promise<void> {
-  const { data, error } = await supabase.from("syncview_runtime_flags")
-    .select("value")
-    .eq("key", "linear_legacy_parity_enabled")
-    .maybeSingle();
-  if (error || !data) throw new GatewayError(503, "legacy_parity_gate_unavailable");
-  const value = parseJson((data as JsonMap).value);
-  if (value.enabled !== true) throw new GatewayError(409, "legacy_parity_disabled");
 }
 
 function surfaceFor(body: JsonMap): string {
@@ -1509,29 +1325,17 @@ function assertSurfaceOperation(surface: string, operation: string): void {
   }
 }
 
+// Every team is SyncView-authoritative (B2 Slice 8), so there is no legacy
+// parity lane left: a request asking for one is refused, never honoured.
 function authorityLane(
-  authority: "linear" | "syncview",
-  principal: Principal,
-  surface: string,
-  operation: string,
+  _authority: "syncview",
+  _principal: Principal,
+  _surface: string,
+  _operation: string,
   requestedParity: boolean,
 ): boolean {
-  if (principal.testOnly) {
-    if (requestedParity) throw new GatewayError(409, "legacy_parity_not_allowed");
-    return false;
-  }
-  if (requestedParity) {
-    if (!legacyParityAllowed(surface, operation) || authority !== "linear") {
-      throw new GatewayError(409, "legacy_parity_not_allowed");
-    }
-    return true;
-  }
-  if (authority === "syncview") return false;
-  if (surface === "production") throw new GatewayError(409, "team_is_linear_authoritative");
-  if (!legacyParityAllowed(surface, operation)) {
-    throw new GatewayError(409, "team_is_linear_authoritative");
-  }
-  throw new GatewayError(409, "legacy_parity_required");
+  if (requestedParity) throw new GatewayError(409, "legacy_parity_not_allowed");
+  return false;
 }
 
 function requestIdFor(body: JsonMap): string {
@@ -1841,71 +1645,14 @@ function assertCas(body: JsonMap, existing: JsonMap, includeDescription = false)
   }
 }
 
-async function targetedDrain(
-  dedup: string,
-  principal: Principal,
-  lane: TargetDrainLane = principal.testOnly ? "test" : "legacy_parity",
-): Promise<JsonMap> {
-  const url = clean(Deno.env.get("SUPABASE_URL"));
-  const key = clean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
-  if (!url || !key) return { attempted: false, acknowledged: false, error: "drainer_unavailable" };
-  const body = lane === "test"
-    ? {
-      target_dedup_key: dedup,
-      test_override: { client_slug: principal.clientSlug, mode: "live", authority: "syncview" },
-      confirm: "B4_TEST_ONLY",
-    }
-    : lane === "legacy_parity"
-      ? {
-      target_dedup_key: dedup,
-      legacy_parity: true,
-      confirm: "WRITE_UI_LEGACY_PARITY",
-      }
-      : {
-        target_dedup_key: dedup,
-        syncview_live: true,
-        confirm: "WRITE_UI_SYNCVIEW_LIVE",
-      };
-  try {
-    const response = await fetch(`${url}/functions/v1/linear-outbound`, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${key}`,
-        apikey: key,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    const result = await response.json().catch(() => ({})) as JsonMap;
-    const target = parseJson(result.target);
-    const targetStatus = lower(target.status);
-    const conflict = parseJson(parseJson(target.linear_result).conflict);
-    const terminalConflict = targetStatus === "skipped"
-      && clean(target.operation) === "create"
-      && lower(conflict.decision) === "idempotency_conflict";
-    const terminal = targetStatus === "written"
-      || (targetStatus === "skipped" && ["already_applied", "already_exists"].includes(lower(conflict.decision)));
-    return {
-      attempted: true,
-      acknowledged: response.ok && result.ok === true && terminal,
-      status: response.status,
-      target_status: targetStatus || null,
-      terminal_conflict: terminalConflict,
-      ...(terminalConflict ? { error: "idempotency_conflict" } : {}),
-    };
-  } catch (_error) {
-    return { attempted: true, acknowledged: false, error: "drainer_unavailable" };
-  }
-}
-
-function scheduleSyncviewLiveDrains(dedupKeys: string[], principal: Principal): void {
-  const unique = [...new Set(dedupKeys.map(clean).filter(Boolean))];
-  if (!unique.length) return;
-  waitUntil((async () => {
-    // Keep create dependencies ordered (batch parent before child). A failed
-    // background attempt remains durable for the scheduled drainer.
-    for (const dedup of unique) await targetedDrain(dedup, principal, "syncview_live");
-  })());
+/*
+ * B2 Slice 8: production-write never calls the `linear-outbound` Edge Function
+ * (it is being deleted). mirror_outbox rows are still created by the write RPCs
+ * as idempotency / reconcile receipts, but nothing here drains them, so every
+ * mirror leg reports the static not-applicable result.
+ */
+function notApplicableMirror(): JsonMap {
+  return { attempted: false, acknowledged: true, not_applicable: true };
 }
 
 async function findOutboxId(supabase: SupabaseClient, dedup: string): Promise<number> {
@@ -2501,91 +2248,6 @@ function configuredTestProjectForTeam(team: string): string {
   return "";
 }
 
-function linearReadKey(): string {
-  return clean(
-    Deno.env.get("LINEAR_READ_API_KEY")
-      || Deno.env.get("LINEAR_MIRROR_API_KEY")
-      || Deno.env.get("LINEAR_API_KEY"),
-  );
-}
-
-async function linearRead(
-  query: string,
-  variables: JsonMap,
-  unavailableCode = "project_mapping_validation_unavailable",
-): Promise<JsonMap> {
-  const apiKey = linearReadKey();
-  if (!apiKey) throw new GatewayError(503, unavailableCode);
-  let response: Response;
-  try {
-    response = await fetch("https://api.linear.app/graphql", {
-      method: "POST",
-      headers: { authorization: apiKey, "content-type": "application/json" },
-      body: JSON.stringify({ query, variables }),
-    });
-  } catch (_error) {
-    throw new GatewayError(503, unavailableCode);
-  }
-  const result = await response.json().catch(() => null) as JsonMap | null;
-  if (!response.ok || !result || Array.isArray(result.errors)) {
-    throw new GatewayError(503, unavailableCode);
-  }
-  return parseJson(result.data);
-}
-
-function compactLinearProject(value: unknown): JsonMap {
-  const project = parseJson(value);
-  const nodes = parseJson(project.teams).nodes;
-  const teams: string[] = [];
-  if (Array.isArray(nodes)) {
-    for (const node of nodes) {
-      const team = normalizeTeam(parseJson(node).key);
-      if (team && !teams.includes(team)) teams.push(team);
-    }
-  }
-  return { id: clean(project.id), name: clean(project.name), teams };
-}
-
-async function readLinearProject(projectId: string): Promise<JsonMap> {
-  const apiKey = clean(
-    Deno.env.get("LINEAR_READ_API_KEY")
-      || Deno.env.get("LINEAR_MIRROR_API_KEY")
-      || Deno.env.get("LINEAR_API_KEY"),
-  );
-  if (!apiKey) throw new GatewayError(503, "project_mapping_validation_unavailable");
-  const data = await linearRead(
-    "query ProductionWriteProjectScope($id: String!) { project(id: $id) { id name teams { nodes { id key } } } }",
-    { id: projectId },
-  );
-  const project = compactLinearProject(data.project);
-  if (clean(project.id) !== projectId) throw new GatewayError(409, "project_mapping_missing");
-  return project;
-}
-
-function projectMatchesTeam(project: JsonMap, team: string): boolean {
-  return Array.isArray(project.teams) && project.teams.includes(normalizeTeam(team));
-}
-
-async function validateLinearBatchParent(
-  parentId: string,
-  team: string,
-  projectId: string,
-  requireRoot = false,
-): Promise<void> {
-  const data = await linearRead(
-    "query ProductionWriteBatchParentScope($id: String!) { issue(id: $id) { id team { key } project { id } parent { id } } }",
-    { id: parentId },
-    "batch_parent_validation_unavailable",
-  );
-  const issue = parseJson(data.issue);
-  if (clean(issue.id) !== parentId
-      || normalizeTeam(parseJson(issue.team).key) !== normalizeTeam(team)
-      || clean(parseJson(issue.project).id) !== projectId
-      || (requireRoot && !!clean(parseJson(issue.parent).id))) {
-    throw new GatewayError(409, "batch_parent_mapping_missing");
-  }
-}
-
 async function parentRouteForAppend(
   supabase: SupabaseClient,
   batch: JsonMap,
@@ -2638,7 +2300,9 @@ async function parentRouteForAppend(
     }
     if (validateExternal && lower(parent.status) === "written") {
       if (!writtenParentId) throw new GatewayError(409, "batch_parent_mapping_missing");
-      await validateLinearBatchParent(writtenParentId, team, projectId);
+      // Validating a written Linear parent needed a Linear read, which this
+      // function no longer makes (B2 Slice 8). Fail closed instead.
+      throw new GatewayError(409, "legacy_intake_native_epoch_required");
     }
     // A native batch keeps its original team-parent dependency forever. This
     // is stable across pending -> written/linkage and therefore keeps an exact
@@ -2657,8 +2321,8 @@ async function parentRouteForAppend(
     // sole reason that a video issue is not a graphics issue. An unstamped
     // (older) map yields "" and validates exactly as it did before.
     if (validateExternal) {
-      const ownerTeam = parentOwnerTeamFor(batch.linear_parent_ids, team) || team;
-      await validateLinearBatchParent(directIds[0], ownerTeam, projectId);
+      // No Linear read is available to validate the parent (B2 Slice 8).
+      throw new GatewayError(409, "legacy_intake_native_epoch_required");
     }
     return { parent_linear_issue_id: directIds[0], depends_on_id: null, dependency_dedup_key: null };
   }
@@ -2822,19 +2486,15 @@ async function projectForIntake(client: ClientRow, team: string, principal: Prin
     }
     if (!allowlist.has(projectId)) throw new GatewayError(403, "test_project_scope_required");
     if (nativeEpoch) return projectId;
-    const project = await readLinearProject(projectId);
-    if (!projectMatchesTeam(project, team)) {
-      throw new GatewayError(403, "test_project_scope_required");
-    }
-    return projectId;
+    // A non-native route could only be proven by reading the Linear project;
+    // production-write makes no Linear reads (B2 Slice 8).
+    throw new GatewayError(409, "legacy_intake_native_epoch_required");
   }
   const tagged = projectIdsForTeam(client.linear_project_ids, team);
   if (tagged.length > 1) throw new GatewayError(409, "project_mapping_ambiguous");
   if (tagged.length === 1) {
     if (nativeEpoch) return tagged[0];
-    const project = await readLinearProject(tagged[0]);
-    if (!projectMatchesTeam(project, team)) throw new GatewayError(409, "project_mapping_missing");
-    return tagged[0];
+    throw new GatewayError(409, "legacy_intake_native_epoch_required");
   }
   if (nativeEpoch) {
     // A native route is eligible only after there are zero explicit legacy
@@ -2858,117 +2518,17 @@ function teamIdFor(team: string): string {
     : "LINEAR_VIDEO_TEAM_ID"));
 }
 
-async function linearStateIdForCreate(teamId: string, team: string, status: string): Promise<string> {
-  if (!teamId) throw new GatewayError(503, "linear_team_mapping_unavailable");
-  const data = await linearRead(
-    "query ProductionCreateTeam($id: String!) { team(id: $id) { id key states { nodes { id name } } } }",
-    { id: teamId },
-    "linear_team_mapping_unavailable",
-  );
-  const linearTeam = parseJson(data.team);
-  if (clean(linearTeam.id) !== teamId
-      || normalizeTeam(linearTeam.key) !== normalizeTeam(team)) {
-    throw new GatewayError(409, "linear_team_mapping_unavailable");
-  }
-  const states = parseJson(linearTeam.states).nodes;
-  const expectedName = lower(LINEAR_STATUS_NAMES[status]).replace(/\s+/g, " ");
-  const matching = Array.isArray(states)
-    ? states.filter(value => lower(parseJson(value).name).replace(/\s+/g, " ") === expectedName)
-    : [];
-  if (matching.length !== 1 || !clean(parseJson(matching[0]).id)) {
-    throw new GatewayError(409, "status_mapping_unavailable");
-  }
-  return clean(parseJson(matching[0]).id);
-}
-
-// F94 — the provider half of the eligible-assignee projection. One bounded
-// Linear read per gateway invocation resolves every candidate's provider state;
-// an incomplete page, an unreachable provider, or a missing key is a denial,
-// never an assumed-active pass. Only id + active are requested, so no provider
-// name or email enters this function.
-const ASSIGNEE_ELIGIBILITY_FLAG = "production_assignee_eligibility";
-const ASSIGNEE_PROVIDER_POOL_LIMIT = 250;
-
-/*
- * THE LANE DECIDES WHETHER THE FLAG IS EVEN READ (2026-09-05).
- *
- * `nativeEpoch` is the server-resolved native epoch for the team (see
- * intakeEpochs: accepted manifest/receipt first, the native_intake_epochs flag
- * only for new admission). Non-empty means the write is native work whose
- * outbox receipt is terminal, so no provider mapping and no provider read can
- * be a prerequisite; the flag below is not consulted at all, and a missing,
- * unreadable or strict value can therefore never re-introduce a Linear call
- * on that lane. Empty means provider work and keeps the pre-existing contract
- * exactly: an absent flag row is the normal pre-retirement state and must not
- * turn an otherwise valid write into a 503 -- absence means "strictest".
- */
-async function assigneeEligibilityPolicyFor(
-  supabase: SupabaseClient,
-): Promise<{ providerMappingRequired: boolean }> {
-  try {
-    const { data, error } = await supabase.from("syncview_runtime_flags")
-      .select("value")
-      .eq("key", ASSIGNEE_ELIGIBILITY_FLAG)
-      .maybeSingle();
-    // An absent flag row is the normal pre-retirement state and must not turn
-    // an otherwise valid write into a 503; absence means "strictest".
-    if (error || !data) return { providerMappingRequired: true };
-    return assigneeEligibilityPolicy((data as JsonMap).value);
-  } catch (_error) {
-    return { providerMappingRequired: true };
-  }
-}
-
-async function assigneeLanePolicyFor(
-  supabase: SupabaseClient,
-  nativeEpoch = "",
-): Promise<ReturnType<typeof assigneeLanePolicy>> {
-  if (clean(nativeEpoch)) return assigneeLanePolicy(nativeEpoch, null, "read");
-  const flag = await assigneeEligibilityPolicyFor(supabase);
-  return assigneeLanePolicy("", { provider_mapping_required: flag.providerMappingRequired }, "read");
-}
-
-async function assigneeProviderPool(): Promise<Map<string, boolean>> {
-  const data = await linearRead(
-    "query ProductionWriteAssigneeProviderPool($first: Int!) {"
-      + " users(first: $first, includeArchived: true) {"
-      + " nodes { id active } pageInfo { hasNextPage } } }",
-    { first: ASSIGNEE_PROVIDER_POOL_LIMIT },
-    "assignee_provider_unavailable",
-  );
-  const users = parseJson(data.users);
-  const nodes = users.nodes;
-  const page = parseJson(users.pageInfo);
-  // A truncated pool cannot prove that an absent id is merely absent, so a
-  // partial answer fails closed instead of silently denying real members.
-  if (!Array.isArray(nodes) || page.hasNextPage !== false) {
-    throw new GatewayError(503, "assignee_provider_unavailable");
-  }
-  const pool = new Map<string, boolean>();
-  for (const node of nodes) {
-    const user = parseJson(node);
-    const id = canonicalLinearUserId(user.id);
-    if (id) pool.set(id, user.active === true);
-  }
-  return pool;
-}
-
+// F94 — the eligible-assignee projection. B2 Slice 8 retired the provider
+// (Linear) half: no Linear read is made, no eligibility flag is consulted, and
+// every lane is the native lane.
 async function assigneeEligibilityContext(
-  supabase: SupabaseClient,
-  needsProvider: boolean,
-  nativeEpoch = "",
+  _supabase: SupabaseClient,
+  _needsProvider: boolean,
+  _nativeEpoch = "",
 ): Promise<{ providerMappingRequired: boolean; providerActiveFor: (id: string) => boolean | null }> {
-  const policy = await assigneeLanePolicyFor(supabase, nativeEpoch);
-  // A native lane returns here unconditionally: providerMappingRequired is
-  // false by construction, so assigneeProviderPool is unreachable for it.
-  if (!policy.providerMappingRequired || !needsProvider) {
-    return { ...policy, providerActiveFor: () => null };
-  }
-  const pool = await assigneeProviderPool();
-  return {
-    ...policy,
-    providerActiveFor: (id: string) => (pool.has(id) ? pool.get(id) === true : null),
-  };
+  // Forced native lane (B2 Slice 8): no provider mapping is required and no
+  // provider (Linear) read is ever made, whatever the eligibility flag says.
+  return { providerMappingRequired: false, providerActiveFor: () => null };
 }
 
 async function assigneeRosterRow(
@@ -3021,14 +2581,6 @@ async function validateAssignee(
   team: string,
 ): Promise<void> {
   await assertEligibleAssignee(supabase, assigneeId, team);
-}
-
-async function validateCreateAssignee(
-  supabase: SupabaseClient,
-  assigneeId: string,
-  team: string,
-): Promise<{ id: string; linearUserId: string } | null> {
-  return await assertEligibleAssignee(supabase, assigneeId, team);
 }
 
 async function mappedCreateAssignees(
@@ -4033,7 +3585,7 @@ async function handleCreateOptions(
   }
   const scope = await productionCreateScope(supabase, req, body);
   const [catalog, assignees] = await Promise.all([
-    linearLabelCatalog(scope.teamId, scope.team),
+    nativeCatalogOrHeld(supabase, scope.team),
     mappedCreateAssignees(supabase, scope.team),
   ]);
   return json({
@@ -4110,111 +3662,6 @@ function currentLinearParentIssueId(value: JsonMap): string {
   return clean(parseJson(issue.parent).id || issue.parentId);
 }
 
-async function productionCreateParentRoute(
-  supabase: SupabaseClient,
-  parentId: string,
-  scope: ProductionCreateScope,
-): Promise<ProductionCreateParentRoute | null> {
-  if (!parentId) return null;
-  const { data: parentData, error: parentError } = await supabase.from("deliverables")
-    .select("*")
-    .eq("id", parentId)
-    .maybeSingle();
-  if (parentError) throw new GatewayError(503, "create_parent_lookup_unavailable");
-  if (!parentData) throw new GatewayError(404, "create_parent_not_found");
-  const parent = parentData as JsonMap;
-  await assertDeliverableIdentityWritable(supabase, parent);
-  const raw = parseJson(parent.linear_raw);
-  const issue = parseJson(raw.issue);
-  const attribution = parseJson(raw.attribution);
-  const parentProjectId = clean(parseJson(issue.project).id);
-  const linearIssueId = parentLinearIssueId(parent);
-  if (clean(parent.client_slug) !== scope.clientSlug
-      || normalizeTeam(parent.team) !== scope.team
-      || attribution.state !== "resolved"
-      || clean(attribution.client_slug) !== scope.clientSlug
-      || parentProjectId !== scope.projectId
-      || !linearIssueId) {
-    throw new GatewayError(409, "production_create_parent_scope");
-  }
-  if (clean(parseJson(issue.parent).id || issue.parentId)) {
-    throw new GatewayError(409, "production_create_parent_nested");
-  }
-
-  const { data: batchData, error: batchError } = await supabase.from("batches")
-    .select("*")
-    .eq("id", clean(parent.batch_id))
-    .maybeSingle();
-  if (batchError) throw new GatewayError(503, "batch_lookup_unavailable");
-  if (!batchData
-      || clean(batchData.client_slug) !== scope.clientSlug
-      || (normalizeTeam(batchData.team) && normalizeTeam(batchData.team) !== scope.team)
-      || lower(batchData.status) !== "active") {
-    throw new GatewayError(409, "production_create_batch_scope");
-  }
-  const batch = batchData as JsonMap;
-  const batchParentIds = parentIdsForTeam(batch.linear_parent_ids, scope.team);
-  if (batchParentIds.length !== 1 || batchParentIds[0] !== linearIssueId) {
-    throw new GatewayError(409, "production_create_parent_route");
-  }
-
-  const { data: dependencyRows, error: dependencyError } = await supabase.from("mirror_outbox")
-    .select("id,dedup_key,status,entity,entity_id,operation,client_slug,team,payload,linear_result,test_only,legacy_parity")
-    .eq("entity", "deliverable")
-    .eq("entity_id", parentId)
-    .eq("operation", "create")
-    .eq("client_slug", scope.clientSlug)
-    .eq("team", scope.team);
-  if (dependencyError) throw new GatewayError(503, "create_parent_lookup_unavailable");
-  const candidates = ((dependencyRows || []) as JsonMap[]).filter(row =>
-    ["pending", "failed", "shadow_ok", "written"].includes(lower(row.status))
-      && clean(parseJson(row.payload).project_id) === scope.projectId
-  );
-  if (((dependencyRows || []) as JsonMap[]).some(row => {
-    const conflict = parseJson(parseJson(row.linear_result).conflict);
-    return lower(row.status) === "skipped"
-      && clean(parseJson(row.payload).project_id) === scope.projectId
-      && lower(conflict.decision) === "idempotency_conflict";
-  })) {
-    throw new GatewayError(409, "production_create_parent_route");
-  }
-  if (candidates.length > 1) throw new GatewayError(409, "production_create_parent_route");
-  if (candidates.length === 1) {
-    const dependency = candidates[0];
-    const dependencyId = Number(dependency.id);
-    const dependencyDedupKey = clean(dependency.dedup_key);
-    if (!Number.isSafeInteger(dependencyId) || dependencyId < 1 || !dependencyDedupKey) {
-      throw new GatewayError(409, "production_create_parent_route");
-    }
-    if (lower(dependency.status) === "written") {
-      const result = parseJson(dependency.linear_result);
-      const resultId = clean(result.issue_id || result.linear_issue_id || parseJson(result.issue).id);
-      if (resultId !== linearIssueId) {
-        throw new GatewayError(409, "production_create_parent_route");
-      }
-      await validateLinearBatchParent(linearIssueId, scope.team, scope.projectId, true);
-    } else if (dependency.test_only !== scope.principal.testOnly
-        || dependency.legacy_parity === true) {
-      throw new GatewayError(409, "production_create_parent_route");
-    }
-    return {
-      parent,
-      batch,
-      parentLinearIssueId: linearIssueId,
-      dependsOnId: dependencyId,
-      dependencyDedupKey,
-    };
-  }
-  await validateLinearBatchParent(linearIssueId, scope.team, scope.projectId, true);
-  return {
-    parent,
-    batch,
-    parentLinearIssueId: linearIssueId,
-    dependsOnId: null,
-    dependencyDedupKey: null,
-  };
-}
-
 async function handleProductionCreate(
   supabase: SupabaseClient,
   req: Request,
@@ -4285,252 +3732,6 @@ async function handleProductionCreate(
    * After the replay, every request that reaches this line is a NEW create.
    */
   throw new GatewayError(403, "production_create_closed");
-
-  const scope = await productionCreateScope(supabase, req, body, principalScope);
-  if (scope.team === "graphics" && status === "smm_approval") {
-    throw new GatewayError(409, "artifact_not_resolvable", {
-      asset_state: "missing",
-      checked_at: new Date().toISOString(),
-      guidance: assetGuidance("missing"),
-    });
-  }
-  const [authorityGeneration, stateId, catalog, assignee, parentRoute] = await Promise.all([
-    f27WriteAuthorizationGeneration(supabase, scope.team),
-    linearStateIdForCreate(scope.teamId, scope.team, status),
-    linearLabelCatalog(scope.teamId, scope.team),
-    validateCreateAssignee(supabase, assigneeId, scope.team),
-    productionCreateParentRoute(supabase, parentId, scope),
-  ]);
-  const catalogById = new Map(catalog.map(label => [clean(label.id), label]));
-  if (labelIds.some(id => !catalogById.has(id))) {
-    throw new GatewayError(400, "label_selection_out_of_catalog", { complete: true });
-  }
-  const selectedLabels = labelIds.map(id => catalogById.get(id) as JsonMap);
-  const batchId = parentRoute
-    ? clean(parentRoute.batch.id)
-    : rootBatchId;
-  const parentLinearId = parentRoute ? parentRoute.parentLinearIssueId : "";
-  const teamKey = scope.team === "graphics" ? "GRA" : "VID";
-  // Full f200 key set. `ancestor_issue_id` and `ancestor_distance` are
-  // definitionally null for `source: "direct_project"` -- omitting them made
-  // the reconciler's stamp comparison structurally unsatisfiable, because a
-  // missing key and an explicit null are not the same JSON.
-  //
-  // `mapping_revision` stays empty on purpose. It is a sha256 over the entire
-  // client roster, so a writer that stamped the current value would produce a
-  // row that matches only until the next onboarding, at which point every stamp
-  // in the estate goes stale at once. The reconciler treats provenance as
-  // non-gating and counts an empty revision separately from a stale one -- see
-  // docs/audits/2026-08-05-attribution-stamp-soak-signal.md.
-  const attribution: JsonMap = {
-    schema: "syncview_attribution_v1",
-    state: "resolved",
-    client_slug: scope.clientSlug,
-    owner_kind: lower(scope.client.kind || "client"),
-    source: "direct_project",
-    project_id: scope.projectId,
-    direct_project_id: scope.projectId,
-    ancestor_issue_id: null,
-    ancestor_distance: null,
-    mapping_revision: "",
-    repair_required: false,
-    reason: "direct_project_mapped",
-  };
-  const linearIssue: JsonMap = {
-    id: plannedLinearIssueId,
-    identifier: null,
-    title,
-    description,
-    createdAt: sourceEditedAt,
-    updatedAt: sourceEditedAt,
-    dueDate,
-    state: { id: stateId, name: LINEAR_STATUS_NAMES[status] },
-    team: { id: scope.teamId, key: teamKey },
-    project: { id: scope.projectId },
-    assignee: assignee ? { id: assignee.linearUserId } : null,
-    parent: parentRoute
-      ? {
-        id: parentLinearId,
-        identifier: clean(parentRoute.parent.linear_identifier) || null,
-        title: clean(parentRoute.parent.title),
-      }
-      : null,
-    labelIds,
-    labels: {
-      nodes: selectedLabels,
-      pageInfo: { hasNextPage: false, endCursor: null },
-    },
-  };
-  const row: JsonMap = {
-    id: deliverableId,
-    identifier: null,
-    batch_id: batchId,
-    client_slug: scope.clientSlug,
-    team: scope.team,
-    kind: "other",
-    title,
-    brief: description,
-    status,
-    status_at: sourceEditedAt,
-    assignee_id: assignee ? assignee.id : null,
-    due_date: dueDate,
-    priority: null,
-    origin: "manual",
-    card_id: null,
-    sync_state: "pending",
-    created_by: scope.principal.actorKey,
-    created_at: sourceEditedAt,
-    linear_issue_uuid: plannedLinearIssueId,
-    linear_raw: { issue: linearIssue, attribution },
-  };
-  const batchRow: JsonMap | null = parentRoute ? null : {
-    id: batchId,
-    client_slug: scope.clientSlug,
-    team: scope.team,
-    name: title,
-    description: null,
-    status: "active",
-    created_by: scope.principal.actorKey,
-    created_at: sourceEditedAt,
-    linear_parent_ids: {
-      [scope.team]: {
-        uuid: plannedLinearIssueId,
-        identifier: "",
-        url: "",
-      },
-    },
-  };
-  const routeFingerprint = {
-    parent_id: parentId || null,
-    parent_linear_issue_id: parentLinearId || null,
-    depends_on_id: parentRoute?.dependsOnId || null,
-    dependency_dedup_key: parentRoute?.dependencyDedupKey || null,
-  };
-  const fingerprint = await intentFingerprint({
-    operation: "create",
-    requestId,
-    sourceEditedAt,
-    surface,
-    actorKey: scope.principal.actorKey,
-    clientSlug: scope.clientSlug,
-    team: scope.team,
-    projectId: scope.projectId,
-    teamId: scope.teamId,
-    route: routeFingerprint,
-    row: {
-      id: deliverableId,
-      batch_id: batchId,
-      title,
-      description,
-      status,
-      due_date: dueDate,
-      assignee_id: assignee ? assignee.id : null,
-      linear_user_id: assignee ? assignee.linearUserId : null,
-      label_ids: labelIds,
-      planned_linear_issue_id: plannedLinearIssueId,
-    },
-  });
-  const outbound: JsonMap = {
-    entity: "deliverable",
-    entity_id: deliverableId,
-    team: scope.team,
-    operation: "create",
-    dedup_key: dedup,
-    source_edited_at: sourceEditedAt,
-    test_only: scope.principal.testOnly,
-    legacy_parity: false,
-    ...(parentRoute?.dependsOnId ? { depends_on_id: parentRoute.dependsOnId } : {}),
-    payload: f27FencedPayload({
-      team_id: scope.teamId,
-      project_id: scope.projectId,
-      title,
-      description,
-      status,
-      state_id: stateId,
-      due_date: dueDate,
-      assignee_id: assignee ? assignee.id : null,
-      linear_user_id: assignee ? assignee.linearUserId : null,
-      parent_linear_issue_id: parentRoute?.dependsOnId ? null : parentLinearId || null,
-      label_ids: labelIds,
-      planned_linear_issue_id: plannedLinearIssueId,
-      _intent_fingerprint: fingerprint,
-    }, authorityGeneration, false),
-  };
-  const event: JsonMap = {
-    ...eventFor("create", scope.principal, sourceEditedAt, surface, outbound, null, status),
-    parent_deliverable_id: parentId || null,
-  };
-  const preexisting = await assertDedupIntent(
-    supabase,
-    dedup,
-    dedupExpectation(scope.principal, scope.team, sourceEditedAt, outbound, fingerprint),
-  );
-  const result = parseJson(await rpc(supabase, "production_issue_create", {
-    p_batch: batchRow || {},
-    p_row: row,
-    p_event: event,
-  }));
-  const resultRow = parseJson(result.row);
-  const resultBatch = parseJson(result.batch);
-  if (!clean(resultRow.id) || !clean(resultBatch.id)) {
-    throw new GatewayError(500, "native_response_refresh_failed");
-  }
-
-  const drainPlans = [
-    ...(parentRoute?.dependencyDedupKey
-      ? [{ dedup_key: parentRoute.dependencyDedupKey }]
-      : []),
-    { dedup_key: dedup },
-  ];
-  const mirror: JsonMap[] = [];
-  if (scope.principal.testOnly) {
-    for (const plan of drainPlans) {
-      mirror.push({
-        dedup_key: plan.dedup_key,
-        ...await targetedDrain(clean(plan.dedup_key), scope.principal),
-      });
-    }
-  } else if (await outboundLiveForDrain(supabase)) {
-    scheduleSyncviewLiveDrains(drainPlans.map(plan => clean(plan.dedup_key)), scope.principal);
-  }
-  const targetedFailure = mirror.some(item => item.acknowledged !== true);
-  const mirrorPending = scope.principal.testOnly ? targetedFailure : true;
-  const [currentRowResult, currentBatchResult] = await Promise.all([
-    supabase.from("deliverables").select("*").eq("id", deliverableId).maybeSingle(),
-    supabase.from("batches").select("*").eq("id", batchId).maybeSingle(),
-  ]);
-  if (currentRowResult.error || currentBatchResult.error
-      || !currentRowResult.data || !currentBatchResult.data) {
-    throw new GatewayError(500, "native_response_refresh_failed");
-  }
-  const currentRow = currentRowResult.data as JsonMap;
-  const terminalConflict = mirror.some(item =>
-    item.terminal_conflict === true && clean(item.error) === "idempotency_conflict"
-  );
-  if (terminalConflict) {
-    throw new GatewayError(409, "idempotency_conflict", {
-      native_committed: true,
-      row: {
-        ...publicDescriptionRow(currentRow),
-        ...selectedLabelReceipt(currentRow),
-      },
-      batch: publicRow(currentBatchResult.data),
-      mirror_pending: false,
-      mirror,
-    });
-  }
-  return json({
-    ok: true,
-    native_committed: true,
-    authority: scope.authority,
-    row: {
-      ...publicDescriptionRow(currentRow),
-      ...selectedLabelReceipt(currentRow),
-    },
-    batch: publicRow(currentBatchResult.data),
-    mirror_pending: mirrorPending,
-    mirror,
-  }, targetedFailure ? 202 : (preexisting || result.replay === true ? 200 : 201));
 }
 
 function linearIssueIdForLabels(row: JsonMap): string {
@@ -5638,41 +4839,18 @@ async function handleLabelsRead(
   const principal = await authenticate(supabase, req, body, targetClientSlug);
   if (principal.kind === "client") throw new GatewayError(403, "operation_forbidden");
   const authority = principal.testOnly ? "syncview" : await authorityFor(supabase, team);
-  const config = authority === "syncview"
-    ? await nativeLabelCatalogConfig(supabase, team)
-    : null;
-  if (config?.mode === "hold") throw new GatewayError(503, "native_label_catalog_held");
-  if (config?.mode === "native") {
-    const nativeVersion = String(config.version_id);
-    const native = nativeLabelSnapshot(existing);
-    if (!native) throw new GatewayError(409, "native_label_state_incomplete", { complete: false });
-    const read = await readNativeLabelCatalog(supabase, nativeVersion, team);
-    return json({
-      ok: true, complete: true, authority, catalog_version: nativeVersion,
-      catalog: mergeLabelCatalog(read.catalog as JsonMap[], native.labels),
-      selected_label_ids: native.ids, selected_labels: native.labels,
-    });
-  }
-  const issueId = linearIssueIdForLabels(existing);
-  if (!issueId) throw new GatewayError(409, "linear_issue_unavailable");
-  const snapshot = await linearLabelSnapshot(issueId);
-  const linearSelected = {
-    labels: snapshot.selectedLabels,
-    ids: snapshot.selectedLabelIds,
-  };
-  const selected = authority === "syncview"
-    ? (nativeLabelSnapshot(existing) || (principal.testOnly ? linearSelected : null))
-    : linearSelected;
-  if (!selected) {
-    throw new GatewayError(409, "native_label_state_incomplete", { complete: false });
-  }
+  // Native catalog only (B2 Slice 8): anything but an installed native
+  // catalog is refused as held; there is no Linear fallback.
+  const config = await nativeLabelCatalogConfig(supabase, team);
+  if (config.mode !== "native") throw new GatewayError(503, "native_label_catalog_held");
+  const nativeVersion = String(config.version_id);
+  const native = nativeLabelSnapshot(existing);
+  if (!native) throw new GatewayError(409, "native_label_state_incomplete", { complete: false });
+  const read = await readNativeLabelCatalog(supabase, nativeVersion, team);
   return json({
-    ok: true,
-    complete: true,
-    authority,
-    catalog: mergeLabelCatalog(snapshot.catalog, selected.labels),
-    selected_label_ids: selected.ids,
-    selected_labels: selected.labels,
+    ok: true, complete: true, authority, catalog_version: nativeVersion,
+    catalog: mergeLabelCatalog(read.catalog as JsonMap[], native.labels),
+    selected_label_ids: native.ids, selected_labels: native.labels,
   });
 }
 
@@ -6061,7 +5239,6 @@ async function handleEntityOperation(
     operation,
     body.legacy_parity === true,
   );
-  if (legacyParity) await assertLegacyParityEnabled(supabase);
   const authorityGeneration = await f27WriteAuthorizationGeneration(supabase, team);
   if (operation === "status" && nextStatus === "smm_approval") {
     await assertGraphicsApprovalArtifact(supabase, existing);
@@ -6475,61 +5652,9 @@ async function handleEntityOperation(
         result = await rpc(supabase, "production_labels_write", { p_row: existing, p_event: event });
         nativeLabels = true;
       } else {
-        const issueId = linearIssueIdForLabels(existing);
-        if (!issueId) throw new GatewayError(409, "linear_issue_unavailable");
-        const snapshot = await linearLabelSnapshot(issueId);
-        // The service-only TEST lane may bootstrap pre-F201 rows from this
-        // already-proven complete Linear selection. Normal SyncView authority
-        // remains strictly native and cannot foreign-round-trip label state.
-        const native = nativeLabelSnapshot(existing) || (principal.testOnly ? {
-          labels: snapshot.selectedLabels,
-          ids: snapshot.selectedLabelIds,
-        } : null);
-        if (!native) {
-          throw new GatewayError(409, "native_label_state_incomplete", { complete: false });
-        }
-        const applicable = new Map(
-          [...native.labels, ...snapshot.catalog]
-            .map(label => [clean(label.id), label]),
-        );
-        const selectedLabels = labelIds.map(labelId => applicable.get(labelId));
-        if (selectedLabels.some(label => !label)) {
-          throw new GatewayError(400, "label_not_applicable");
-        }
-        const raw = parseJson(existing.linear_raw);
-        const rawIssue = parseJson(raw.issue);
-        raw.issue = {
-          ...rawIssue,
-          id: clean(rawIssue.id) || issueId,
-          labelIds,
-          labels: {
-            nodes: selectedLabels,
-            pageInfo: { hasNextPage: false, endCursor: null },
-          },
-        };
-        const row: JsonMap = { ...existing, linear_raw: raw };
-        const event = eventFor(
-          operation,
-          principal,
-          sourceEditedAt,
-          surface,
-          outbound,
-          existing,
-          clean(row.status),
-        );
-        event.expected_updated_at = clean(body.expected_updated_at);
-        try {
-          result = await rpc(supabase, "production_deliverable_write", { p_row: row, p_event: event });
-        } catch (error) {
-          if (error instanceof GatewayError && error.code === "write_conflict") {
-            const { data: current } = await supabase.from("deliverables").select("*").eq("id", id).maybeSingle();
-            throw new GatewayError(409, "write_conflict", {
-              conflict: true,
-              row: publicRow(current || existing),
-            });
-          }
-          throw error;
-        }
+        // A provider-mode catalog would need a Linear read; production-write
+        // makes none (B2 Slice 8), so the write is refused as held.
+        throw new GatewayError(503, "native_label_catalog_held");
       }
     }
     labelsReceipt = selectedLabelReceipt(parseJson(result));
@@ -6767,24 +5892,10 @@ async function handleEntityOperation(
   // A typed terminal native receipt proves the SQL transaction committed. It
   // has no provider work, including on exact response-loss replay.
   if (!nativeAssignment && !nativeLabels) nativeOrdinary = await nativeOrdinaryReceipt(supabase, dedup);
-  const syncviewLiveDrain = !nativeLabels && !nativeOrdinary && !suppressLabelDrain && authority === "syncview"
-    && !principal.testOnly
-    && !legacyParity
-    && await outboundLiveForDrain(supabase);
-  const mutationHasMirror = !nativeAssignment && !nativeLabels && !nativeOrdinary && (operation !== "comment" || commentMirrorApplicable);
-  const shouldDrain = mutationHasMirror && !suppressLabelDrain && (legacyParity || principal.testOnly || syncviewLiveDrain);
-  const awaitedDrain = !suppressLabelDrain && (legacyParity || principal.testOnly);
-  const mirror = !mutationHasMirror
-    ? { attempted: false, acknowledged: true, not_applicable: true }
-    : awaitedDrain
-    ? await targetedDrain(dedup, principal)
-    : syncviewLiveDrain
-      ? { attempted: true, acknowledged: false, asynchronous: true }
-      : { attempted: false, acknowledged: false };
-  if (shouldDrain && !awaitedDrain) scheduleSyncviewLiveDrains([dedup], principal);
-  const mirrorPending = !mutationHasMirror
-    ? false
-    : awaitedDrain ? mirror.acknowledged !== true : true;
+  // No provider drain exists any more (B2 Slice 8); the outbox row, when one
+  // was written, is a receipt only.
+  const mirror = notApplicableMirror();
+  const mirrorPending = false;
   // The SQL event/comment observer has committed before this point. Wake the
   // manual sender best-effort for ordinary native status/comment writes too;
   // failure cannot roll back this accepted production mutation.
@@ -6810,7 +5921,7 @@ async function handleEntityOperation(
     ...(labelsReceipt || {}),
     ...(nativeLabels ? { catalog_version: labelCatalogVersion } : {}),
     ...(projectionReceipt ? { projection: projectionReceipt } : {}),
-  }, mirrorPending && awaitedDrain ? 202 : 200);
+  }, 200);
 }
 
 async function ensureBatch(
@@ -7195,14 +6306,7 @@ async function handleComponentFill(
     ...(routeFingerprint.dependency_dedup_key ? [clean(routeFingerprint.dependency_dedup_key)] : []),
     dedup,
   ];
-  const mirrorResults: JsonMap[] = [];
-  if (principal.testOnly) {
-    for (const key of drainKeys) {
-      mirrorResults.push({ dedup_key: key, ...await targetedDrain(key, principal) });
-    }
-  } else if (await outboundLiveForDrain(supabase)) {
-    scheduleSyncviewLiveDrains(drainKeys, principal);
-  }
+  const mirrorResults: JsonMap[] = drainKeys.map(key => ({ dedup_key: key, ...notApplicableMirror() }));
 
   // Re-read after any drain: a targeted create checkpoints Linear linkage
   // through the ledger RPCs and advances updated_at, so returning the
@@ -7220,8 +6324,7 @@ async function handleComponentFill(
     native_committed: true,
     authority: { [team]: authority },
     legacy_parity: { [team]: false },
-    mirror_pending: mirrorResults.some(result => result.acknowledged !== true)
-      || (!principal.testOnly && drainKeys.length > 0),
+    mirror_pending: false,
     mirror: mirrorResults,
     card_id: cardId,
     team,
@@ -7382,14 +6485,10 @@ async function handleIntakeCreate(
   for (const team of teamList) {
     projectByTeam[team] = await projectForIntake(client, team, principal, nativeEpochByTeam[team]);
     authorityByTeam[team] = principal.testOnly ? "syncview" : await authorityFor(supabase, team);
-    // Native intake is already an authenticated native-first flow. The server
-    // selects parity only for the still-Linear-authoritative leg; a mixed
-    // graphics-first request therefore takes one normal and one parity lane.
-    parityByTeam[team] = !principal.testOnly && authorityByTeam[team] === "linear";
-    if (nativeEpochByTeam[team] && parityByTeam[team]) throw new GatewayError(409, "team_is_linear_authoritative");
+    // Every team is SyncView-authoritative (B2 Slice 8): no parity lane.
+    parityByTeam[team] = false;
     generationByTeam[team] = await f27WriteAuthorizationGeneration(supabase, team);
   }
-  if (Object.values(parityByTeam).some(Boolean)) await assertLegacyParityEnabled(supabase);
 
   let appendBatch: JsonMap | null = null;
   let appendBatchRows: JsonMap[] = [];
@@ -7423,9 +6522,9 @@ async function handleIntakeCreate(
      *
      * What decides it instead is what always should have: whether a parent can
      * be resolved for each team. That happens a few lines below -- the shared
-     * route, `ownsDistinctParent`, and `validateLinearBatchParent`, which still
-     * compares the parent issue's PROJECT and so still refuses the mirrored
-     * shape `synthesizeParentMap` can produce. A batch that genuinely cannot
+     * route and `ownsDistinctParent`. (The Linear parent read that used to
+     * compare the parent issue's PROJECT was removed in B2 Slice 8; a route
+     * that would need it now fails closed.) A batch that genuinely cannot
      * file a team is still refused, by `batch_parent_mapping_missing`, which
      * names the real reason.
      *
@@ -7963,26 +7062,11 @@ async function handleIntakeCreate(
     }
 
     drainPlans = await providerDrainPlans(supabase, drainPlans);
-    const mirrorResults: JsonMap[] = [];
-    for (const plan of drainPlans) {
-      if (plan.targeted === true) {
-        mirrorResults.push({ dedup_key: plan.dedup_key, ...await targetedDrain(clean(plan.dedup_key), principal) });
-      }
-    }
-    const syncviewLiveDrain = drainPlans.some(plan => plan.targeted !== true
-      && authorityByTeam[normalizeTeam(plan.team)] === "syncview")
-      && await outboundLiveForDrain(supabase);
-    if (syncviewLiveDrain) {
-      scheduleSyncviewLiveDrains(
-        drainPlans.filter(plan => plan.targeted !== true
-          && authorityByTeam[normalizeTeam(plan.team)] === "syncview")
-          .map(plan => clean(plan.dedup_key)),
-        principal,
-      );
-    }
-    const targetedFailure = mirrorResults.some(result => result.acknowledged !== true);
-    const hasNormalPending = drainPlans.some(plan => plan.targeted !== true);
-    const mirrorPending = targetedFailure || hasNormalPending;
+    const mirrorResults: JsonMap[] = drainPlans.map(plan => ({
+      dedup_key: plan.dedup_key,
+      ...notApplicableMirror(),
+    }));
+    const mirrorPending = false;
     const [currentBatchResult, currentItemsResult] = await Promise.all([
       supabase.from("batches").select("*").eq("id", batchId).maybeSingle(),
       supabase.from("deliverables").select("*").in("id", deliverableIds),
@@ -8013,7 +7097,7 @@ async function handleIntakeCreate(
       batch: publicRow(currentBatchResult.data),
       items: responseItems,
       started_at_create_normalized: startedAtCreate.normalized,
-    }, targetedFailure ? 202 : (exactReplay ? 200 : 201));
+    }, exactReplay ? 200 : 201);
   }
 
   const batchRow: JsonMap = {
@@ -8279,31 +7363,16 @@ async function handleIntakeCreate(
   }
 
   drainPlans = await providerDrainPlans(supabase, drainPlans);
-  const mirrorResults: JsonMap[] = [];
-  for (const plan of drainPlans) {
-    if (plan.targeted === true) {
-      mirrorResults.push({ dedup_key: plan.dedup_key, ...await targetedDrain(clean(plan.dedup_key), principal) });
-    }
-  }
-  const syncviewLiveDrain = drainPlans.some(plan => plan.targeted !== true
-    && authorityByTeam[normalizeTeam(plan.team)] === "syncview")
-    && await outboundLiveForDrain(supabase);
-  if (syncviewLiveDrain) {
-    scheduleSyncviewLiveDrains(
-      drainPlans.filter(plan => plan.targeted !== true
-        && authorityByTeam[normalizeTeam(plan.team)] === "syncview")
-        .map(plan => clean(plan.dedup_key)),
-      principal,
-    );
-  }
+  const mirrorResults: JsonMap[] = drainPlans.map(plan => ({
+    dedup_key: plan.dedup_key,
+    ...notApplicableMirror(),
+  }));
   if (displacedBatchIds.size) {
     // Runs after the targeted drains so the deterministic batch's
     // linear_parent_ids already carries the parent linkage the reclaim needs.
     await reclaimMirrorBatches(supabase, displacedBatchIds, batchId, clientSlug);
   }
-  const targetedFailure = mirrorResults.some(result => result.acknowledged !== true);
-  const hasNormalPending = drainPlans.some(plan => plan.targeted !== true);
-  const mirrorPending = targetedFailure || hasNormalPending;
+  const mirrorPending = false;
   // A targeted create drain checkpoints Linear linkage through the ledger RPCs,
   // which deliberately advances updated_at. Return that post-linkage version so
   // the caller's first scalar CAS cannot reject its own successful create.
@@ -8346,7 +7415,7 @@ async function handleIntakeCreate(
     batch: publicRow(currentBatchResult.data),
     items: currentResponseItems,
     started_at_create_normalized: startedAtCreate.normalized,
-  }, targetedFailure ? 202 : 201);
+  }, 201);
 }
 
 function legacyIntakeStableJson(value: unknown): string {

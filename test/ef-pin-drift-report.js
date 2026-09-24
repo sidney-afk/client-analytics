@@ -39,7 +39,6 @@ const WORKFLOWS = path.join(ROOT, '.github', 'workflows');
 const PINS = [
   { workflow: 'deploy-f27-section4-closures.yml', slug: 'batch-write', digestKey: 'BATCH_WRITE_SOURCE_SHA256', countKey: 'BATCH_WRITE_FILE_COUNT' },
   { workflow: 'deploy-f27-section4-closures.yml', slug: 'deliverable-write', digestKey: 'DELIVERABLE_WRITE_SOURCE_SHA256', countKey: 'DELIVERABLE_WRITE_FILE_COUNT' },
-  { workflow: 'deploy-f27-section4-closures.yml', slug: 'linear-outbound', digestKey: 'LINEAR_OUTBOUND_SOURCE_SHA256', countKey: 'LINEAR_OUTBOUND_FILE_COUNT' },
   { workflow: 'deploy-f27-section4-closures.yml', slug: 'production-write', digestKey: 'PRODUCTION_WRITE_SOURCE_SHA256', countKey: 'PRODUCTION_WRITE_FILE_COUNT' },
 ];
 

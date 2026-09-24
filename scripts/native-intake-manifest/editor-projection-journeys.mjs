@@ -55,7 +55,8 @@ try {
   const replay=await post(explicitPayload);
   nativePass('accepted-native-epoch-replay-after-disable',replay.status===201&&selectedAssignee(replay)===U,replay);
   const next=await post(selected(U));
-  ok('new-submit-after-disable-uses-current-provider-contract',next.status===503&&net.requests.some(r=>/api.linear.app/.test(r.url)),next);
+  // B2 Slice 8 retired the provider lane: a NEW submit with admission disabled is refused before any Linear read.
+  ok('new-submit-after-disable-refused-without-linear-read',next.status===409&&next.json.error==='legacy_intake_native_epoch_required'&&!net.requests.some(r=>/api.linear.app/.test(r.url)),next);
   reset(); await flags('native-editor-1','native-graphics-1'); net.linear='down';
   await post(options());await sql('update public.team_members set active=false where id='+q(U));
   const refused=await post(selected(U));nativePass('deactivated-after-open-refused-on-submit',refused.status===403,refused);

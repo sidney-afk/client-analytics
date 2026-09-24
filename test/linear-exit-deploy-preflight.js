@@ -162,12 +162,12 @@ async function rejectsCode(run, code) {
   const f27 = fs.readFileSync(path.join(ROOT, '.github/workflows/deploy-f27-section4-closures.yml'), 'utf8');
   const onboardingGate = onboarding.indexOf('node scripts/linear-exit-deploy-preflight.js');
   const onboardingFirstDeploy = onboarding.indexOf('supabase functions deploy');
-  ok('manual onboarding gates SQL before the first of its 13 function deployments',
+  ok('manual onboarding gates SQL before the first of its 12 function deployments',
     onboardingGate > 0 && onboardingGate < onboardingFirstDeploy
-      && onboarding.includes('Fingerprint scope: 13 functions deployed by this workflow')
-      && onboarding.includes('for fn in linear-outbound notify production-write production-comments production-archive'));
+      && onboarding.includes('Fingerprint scope: 12 functions deployed by this workflow')
+      && onboarding.includes('for fn in notify production-write production-comments production-archive'));
   const f27Gate = f27.indexOf('node scripts/linear-exit-deploy-preflight.js');
-  const f27FirstDeploy = f27.indexOf('supabase functions deploy linear-outbound');
+  const f27FirstDeploy = f27.indexOf('supabase functions deploy production-write');
   ok('F27 Section 4 gates SQL before its first forward deployment', f27Gate > 0 && f27Gate < f27FirstDeploy);
   const f27GateStep = f27.slice(f27.lastIndexOf('- name:', f27Gate), f27.indexOf('\n      - name:', f27Gate));
   ok('the F27 SQL gate is forward-only, leaving captured old-source restore independent',

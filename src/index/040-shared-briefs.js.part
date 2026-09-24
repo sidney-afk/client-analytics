@@ -1117,9 +1117,10 @@
     }
     function _analyticsCacheWrite(partial){
         let packed = '';
-        let cur = null;
+        let cur = null, curAt = 0;
         try{
             cur = _analyticsCacheRead() || {};
+            curAt = Number(cur.at) || 0;   // before the merge below restamps it
             if (cur.clients) cur.clients = _clientsInfoPublicRows(cur.clients);
             const next = Object.assign({}, partial || {});
             if (next.clients) next.clients = _clientsInfoPublicRows(next.clients);
@@ -1152,7 +1153,7 @@
             if (typeof _analyticsIdbSpill === 'function') _analyticsIdbSpill(Object.assign({}, cur || {}, partial || {},
                 // Numbers carried over from the key keep that key's age, so a
                 // move between stores never makes old numbers look fresh.
-                (partial && (partial.metrics != null || partial.clients != null)) ? {} : { essAt: cur && cur.at }));
+                (partial && (partial.metrics != null || partial.clients != null)) ? {} : { essAt: curAt }));
             let warned = 0;
             try {
                 warned = Number(sessionStorage.getItem(ANALYTICS_CACHE_FAIL_KEY)) || 0;

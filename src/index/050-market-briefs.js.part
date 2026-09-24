@@ -1011,7 +1011,19 @@
             if(arrival){
                 content.innerHTML=_svLoadingSkeletonHtml('analytics-client');
                 const want=sel;
-                arrival.then(()=>{ const st=history.state; if(currentNav==='home'&&st&&st.client&&wlCanonicalClient(st.client)===want) render(want,false); });
+                arrival.then(()=>{
+                    const st=history.state;
+                    if(!(currentNav==='home'&&st&&st.client&&wlCanonicalClient(st.client)===want))return;
+                    // Neither the saved nor the live extras applied: say so and
+                    // offer a retry, never draw the page with empty videos/briefs.
+                    if(!_analyticsExtrasApplied){
+                        content.innerHTML='<div class="error-state">Couldn\'t load this client\'s videos and briefs. <button type="button" class="back-btn" id="analyticsExtrasRetry">Try again</button></div>';
+                        const b=document.getElementById('analyticsExtrasRetry');
+                        if(b)b.onclick=()=>{ content.innerHTML=_svLoadingSkeletonHtml('analytics-client'); fetchExtras().then(()=>render(want,false),()=>render(want,false)); };
+                        return;
+                    }
+                    render(want,false);
+                });
                 return;
             }
         }

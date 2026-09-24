@@ -4242,7 +4242,7 @@
         .tpl-brain-k { color: var(--text-muted); font-size: 0.74rem; }
         .tpl-brain-swatch { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: copy; }
         .tpl-brain-swatch span { width: 13px; height: 13px; border-radius: 4px; border: 1px solid var(--border); display: inline-block; }
-        .tpl-brain-swatch.copied { color: var(--accent, #2f7a4f); }
+        .tpl-brain-swatch.copied { color: var(--text-primary); font-weight: 700; }
         .tpl-brain-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-top: 10px; }
         .tpl-brain-card.empty { opacity: 0.75; }
         .tpl-brain-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; }
@@ -4262,7 +4262,7 @@
         .tpl-brain-send, .tpl-brain-cancel { font-size: 0.8rem; border-radius: 8px; padding: 5px 12px; cursor: pointer; border: 1px solid var(--border); background: none; color: inherit; }
         .tpl-brain-send { font-weight: 700; }
         .tpl-brain-sent { margin-top: 8px; font-size: 0.8rem; color: var(--text-muted); font-style: italic; }
-        .tpl-brain-err { margin-top: 6px; font-size: 0.78rem; color: #c0392b; }
+        .tpl-brain-err { margin-top: 6px; font-size: 0.78rem; color: var(--prod-danger); }
         .tpl-brain-missing { margin-top: 12px; }
         .tpl-brain-missing summary { cursor: pointer; font-size: 0.8rem; color: var(--text-muted); }
         .tpl-brain-count { opacity: 0.6; font-size: 0.75em; }
@@ -13918,7 +13918,7 @@
     }
     function _tplBrainEnsure(name, force) {
         const cur = _tplBrain[name];
-        if (cur && !force && cur.state !== 'error') return;
+        if (cur && !force) return;
         _tplBrain[name] = { state: 'loading', facts: cur && cur.facts || [] };
         _tplBrainPost({ action: 'read', clientName: name }).then(j => {
             _tplBrain[name] = { state: 'ready', facts: Array.isArray(j.facts) ? j.facts : [], found: !!j.found };
@@ -14025,11 +14025,29 @@
             ${_tplBrainChangeBox(name, f)}
         </div>`;
     }
+    // While the brain is unreachable, show the last values typed into SyncView
+    // (read-only) so editors are never left without fonts and colours.
+    function _tplBrainFallback(name) {
+        const hlR = !!_tplGet(name, 'reels_subtitle_highlight_off');
+        const hlT = !!_tplGet(name, 'thumbnails_highlight_off');
+        return `<div class="tpl-section">
+            <div class="tpl-section-title">Last values saved in SyncView</div>
+            <div class="tpl-view-grid">
+                ${_tplViewText(name, 'reels_subtitle_font', 'Subtitle font')}
+                ${_tplViewColor(name, 'reels_subtitle_main_color', 'Subtitle main color')}
+                ${hlR ? '' : _tplViewColor(name, 'reels_subtitle_highlight_color', 'Subtitle highlight color')}
+                ${_tplViewText(name, 'thumbnails_title_font', 'Thumbnail title font')}
+            </div>
+            <div class="tpl-view-color-sets-wrap">${_tplRenderColorSetsView(name, hlT)}</div>
+            ${_tplViewProse(name, 'reels_preferences')}
+            ${_tplViewProse(name, 'thumbnails_preferences')}
+        </div>`;
+    }
     function _tplBrainSection(name) {
         const b = _tplBrain[name];
         const head = `<div class="tpl-section-title">From the Synchro Brain</div>`;
         if (!b || b.state === 'loading') return `<div class="tpl-section">${head}<div class="tpl-skeleton tpl-skeleton-line" style="width:70%;"></div><div class="tpl-skeleton tpl-skeleton-line" style="width:50%;margin-top:10px;"></div></div>`;
-        if (b.state === 'error') return `<div class="tpl-section">${head}<div class="tpl-config-banner">Couldn't reach the brain (${_tplEsc(b.error || 'error')}). <button type="button" class="tpl-brain-change-btn" onclick="tplBrainRetry()">Try again</button></div></div>`;
+        if (b.state === 'error') return `<div class="tpl-section">${head}<div class="tpl-config-banner">Couldn't reach the brain (${_tplEsc(b.error || 'error')}). <button type="button" class="tpl-brain-change-btn" onclick="tplBrainRetry()">Try again</button></div></div>${_tplBrainFallback(name)}`;
         if (!b.found) return `<div class="tpl-section">${head}<div class="tpl-brain-empty-note">This client has no folder in the brain yet.</div>${_tplBrainChangeBox(name, null)}</div>`;
         const tabs = TPL_BRAIN_FILES.map(([k, label]) => {
             const n = b.facts.filter(f => f.file === k && f.status === 'written').length;

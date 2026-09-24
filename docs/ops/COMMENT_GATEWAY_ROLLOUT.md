@@ -127,7 +127,7 @@ a long wait during which `main` moves turns into a refused run.
   `EXECUTION_LOG.md`, as the workflow instructs (that attestation is F51's
   answer to "what is actually running").
 
-**Rollback for Step A:** same workflow, `operation=restore-captured-prior-four`,
+**Rollback for Step A:** same workflow, `operation=restore-captured-prior-three`,
 `confirm=RESTORE_CAPTURED_F27_SECTION4_CLOSURES`, same two sealed-bundle values
 from A.1. A failed or ambiguous forward run is **never retried forward** —
 restore is the only correct response (full procedure:
@@ -309,7 +309,7 @@ front-door flag needs no change at flip time in either direction.
 | Step | Rollback |
 |---|---|
 | Preconditions | Nothing to roll back — a failed check is a stop. |
-| A — EF deploy | Same lane, `operation=restore-captured-prior-four`, `confirm=RESTORE_CAPTURED_F27_SECTION4_CLOSURES`, the A.1 sealed-bundle values. Never retry a failed forward. |
+| A — EF deploy | Same lane, `operation=restore-captured-prior-three`, `confirm=RESTORE_CAPTURED_F27_SECTION4_CLOSURES`, the A.1 sealed-bundle values. Never retry a failed forward. |
 | B — flag ON | The OFF block in Step B (CAS from `{"enabled": true}`, stamp `owner-comment-gateway-off`), then read back. No deploy required. |
 | C — drilled proof | Flag OFF (same block); the PR #1064 stopgap resumes governing all client comments; diagnose before re-flipping. |
 | D — flip week | Governed by `FLIP_RUNBOOK.md` (F2 kill / F27 §R2), not this file. |

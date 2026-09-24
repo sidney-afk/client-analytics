@@ -1780,7 +1780,7 @@
         linearProjectsLoading = true;
         let legacyProjects = linearLegacyProjects.slice();
         let nativeRows = linearClientRows.slice();
-        // The legacy source (n8n webhook/linear-projects) read Linear with a key
+        // The legacy source (the n8n Linear projects webhook) read Linear with a key
         // that is now revoked: every open of Submit failed with 401 and raised an
         // "n8n workflow failed" Slack alert, and returned no names. Every active
         // client is in the native cohort, so the dropdown comes from the clients

@@ -1212,7 +1212,7 @@ Supabase REST read is a flag-gated OVERLAY, not a fallback. Templates: Supabase 
   `syncview-templates`, now used only for the working links. Client facts (fonts, colours, notes,
   voice, identity, relationship) come from the private Synchro Brain via the `brain` EF
   (`action: read`, staff key only; the page never holds the brain token), laid out generically,
-  with `spec:` facts pinned as a quick-look strip. Recent Frame folder / Raw footage links come from the same EF (`action: folders`, service-role read of `batches`, newest first, de-duplicated, 8 each). The n8n `templates-get` sheet base was retired 2026-09-24 once every row
+  with `spec:` facts pinned as a quick-look strip. When the client has a generated `brief.md`, the EF also returns it parsed and the page shows that Editor brief first (each line can show its source facts or send a change), with all facts folded under "All facts, with sources". Recent Frame folder / Raw footage links come from the same EF (`action: folders`, service-role read of `batches`, newest first, de-duplicated, 8 each). The n8n `templates-get` sheet base was retired 2026-09-24 once every row
   was confirmed in Supabase. Prompts: n8n `caption-prompts-get` base + flag-gated `caption_prompts` REST
   overlay (no realtime channel for prompts). Runtime-flag read (settings key). Shared: filming-plans
   store, onboarding slug-index EFs (gate the profile's Onboarding button).

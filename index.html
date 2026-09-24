@@ -4270,6 +4270,22 @@
         .tpl-folder-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); text-decoration: none; color: inherit; font-size: 0.86rem; }
         .tpl-folder-row:hover .tpl-folder-name { text-decoration: underline; }
         .tpl-folder-meta { color: var(--text-muted); font-size: 0.74rem; white-space: nowrap; }
+        .tpl-brief-sec { margin-top: 14px; }
+        .tpl-brief-sec:first-of-type { margin-top: 4px; }
+        .tpl-brief-h { font-weight: 700; font-size: 0.95rem; margin-bottom: 6px; }
+        .tpl-brief-list { list-style: none; margin: 0; padding: 0; }
+        .tpl-brief-li { padding: 6px 0; border-bottom: 1px solid var(--border); }
+        .tpl-brief-li:last-child { border-bottom: 0; }
+        .tpl-brief-row { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; }
+        .tpl-brief-text { font-size: 0.9rem; line-height: 1.5; }
+        .tpl-brief-acts { display: inline-flex; gap: 6px; opacity: 0; transition: opacity 0.12s; white-space: nowrap; }
+        .tpl-brief-li:hover .tpl-brief-acts, .tpl-brief-acts:focus-within { opacity: 1; }
+        @media (hover: none) { .tpl-brief-acts { opacity: 1; } }
+        .tpl-brief-act { font-size: 0.72rem; border: 1px solid var(--border); background: none; border-radius: 6px; padding: 2px 7px; cursor: pointer; color: var(--text-muted); }
+        .tpl-brief-sources { margin: 8px 0 4px; padding: 8px 12px; border-left: 3px solid var(--border); }
+        .tpl-brief-source-h { font-weight: 700; font-size: 0.8rem; margin-bottom: 4px; }
+        .tpl-brain-allfacts { margin-top: 16px; }
+        .tpl-brain-allfacts > summary { cursor: pointer; font-size: 0.8rem; color: var(--text-muted); }
         .tpl-section-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 14px; }
 
         /* Filming-plans card (view mode top callout, but not yellow) */
@@ -12890,7 +12906,7 @@
         // A background refresh keeps showing the current facts instead of a skeleton.
         _tplBrain[name] = cur && cur.state === 'ready' ? Object.assign({}, cur, { refreshing: true }) : { state: 'loading', facts: cur && cur.facts || [] };
         _tplBrainPost({ action: 'read', clientName: name }).then(j => {
-            _tplBrain[name] = { state: 'ready', at: Date.now(), facts: Array.isArray(j.facts) ? j.facts : [], found: !!j.found };
+            _tplBrain[name] = { state: 'ready', at: Date.now(), facts: Array.isArray(j.facts) ? j.facts : [], brief: Array.isArray(j.brief) ? j.brief : [], found: !!j.found };
         }).catch(e => {
             _tplBrain[name] = { state: 'error', facts: [], error: e && e.message || String(e) };
         }).then(() => { if (_templatesSelected === name) _maybeRerenderTemplates(); });
@@ -13045,6 +13061,35 @@
             ${_tplViewProse(name, 'thumbnails_preferences')}
         </div>`;
     }
+    // The editor brief: a short plain-English page Claude writes from the facts.
+    // Each line can show the fact(s) behind it and send a change to them.
+    let _tplBriefSourceOpen = '';
+    function tplBriefToggleSource(key) { _tplBriefSourceOpen = _tplBriefSourceOpen === key ? '' : key; _maybeRerenderTemplates(); }
+    function tplBriefChange(key) { _tplBriefSourceOpen = ''; tplBrainOpen(key); }
+    function _tplBriefView(name, b) {
+        const byId = {};
+        b.facts.forEach(f => { byId[f.id] = f; });
+        return b.brief.map((sec, si) => `<div class="tpl-brief-sec">
+            <div class="tpl-brief-h">${_tplEsc(sec.heading)}</div>
+            <ul class="tpl-brief-list">${sec.bullets.map((bl, bi) => {
+                const srcKey = name + '::b' + si + '.' + bi;
+                const fact = byId[bl.facts[0]] || null;
+                const changeKey = _tplBrainKey(name, fact ? fact.id : '');
+                const open = _tplBriefSourceOpen === srcKey;
+                const formOpen = _tplBrainOpenForm === changeKey || _tplBrainSent[changeKey];
+                const sources = bl.facts.map(id => byId[id]).filter(Boolean);
+                return `<li class="tpl-brief-li">
+                    <div class="tpl-brief-row"><span class="tpl-brief-text">${_tplBrainInline(bl.text)}</span>
+                        <span class="tpl-brief-acts">
+                            ${sources.length ? `<button type="button" class="tpl-brief-act" onclick="tplBriefToggleSource('${_tplEscAttr(srcKey)}')">${open ? 'Hide source' : 'Source'}</button>` : ''}
+                            ${fact ? `<button type="button" class="tpl-brief-act" onclick="tplBriefChange('${_tplEscAttr(changeKey)}')">Change</button>` : ''}
+                        </span></div>
+                    ${open ? `<div class="tpl-brief-sources">${sources.map(f => `<div class="tpl-brief-source"><div class="tpl-brief-source-h">${_tplEsc(f.heading)}</div><div class="tpl-brain-body">${_tplBrainProse(f.body)}</div></div>`).join('')}</div>` : ''}
+                    ${formOpen && fact ? _tplBrainChangeBox(name, fact) : ''}
+                </li>`;
+            }).join('')}</ul>
+        </div>`).join('');
+    }
     function _tplBrainSection(name) {
         const b = _tplBrain[name];
         const head = `<div class="tpl-section-title">From the Synchro Brain</div>`;
@@ -13055,14 +13100,22 @@
             const n = b.facts.filter(f => f.file === k && f.status === 'written').length;
             return `<button class="tpl-toggle-btn ${_tplBrainTab === k ? 'active' : ''}" onclick="tplBrainSetTab('${k}')">${label} <span class="tpl-brain-count">${n}</span></button>`;
         }).join('');
+        const hasBrief = Array.isArray(b.brief) && b.brief.length;
         const inTab = b.facts.filter(f => f.file === _tplBrainTab);
         const written = inTab.filter(f => f.status === 'written');
         const empty = inTab.filter(f => f.status !== 'written');
+        const factsView = `<div class="tpl-toggle-row" role="tablist">${tabs}</div>
+            ${written.map(f => _tplBrainCard(name, f)).join('') || '<div class="tpl-brain-empty-note">Nothing written here yet.</div>'}
+            ${empty.length ? `<details class="tpl-brain-missing"><summary>${empty.length} not written yet</summary>${empty.map(f => _tplBrainCard(name, f)).join('')}</details>` : ''}`;
+        if (hasBrief) return `<div class="tpl-section tpl-brain">
+            <div class="tpl-section-title">Editor brief</div>
+            ${_tplBriefView(name, b)}
+            <div class="tpl-brain-add">${_tplBrainChangeBox(name, null)}</div>
+            <details class="tpl-brain-allfacts"${_tplBrainOpenForm && !b.brief.some(sec => sec.bullets.some(bl => _tplBrainKey(name, bl.facts[0] || '') === _tplBrainOpenForm)) && _tplBrainOpenForm.indexOf(name + '::_new') !== 0 ? ' open' : ''}><summary>All facts, with sources</summary>${factsView}</details>
+        </div>`;
         return `<div class="tpl-section tpl-brain">
             ${head}
-            <div class="tpl-toggle-row" role="tablist">${tabs}</div>
-            ${written.map(f => _tplBrainCard(name, f)).join('') || '<div class="tpl-brain-empty-note">Nothing written here yet.</div>'}
-            ${empty.length ? `<details class="tpl-brain-missing"><summary>${empty.length} not written yet</summary>${empty.map(f => _tplBrainCard(name, f)).join('')}</details>` : ''}
+            ${factsView}
             <div class="tpl-brain-add">${_tplBrainChangeBox(name, null)}</div>
         </div>`;
     }

@@ -972,7 +972,7 @@
         // A background refresh keeps showing the current facts instead of a skeleton.
         _tplBrain[name] = cur && cur.state === 'ready' ? Object.assign({}, cur, { refreshing: true }) : { state: 'loading', facts: cur && cur.facts || [] };
         _tplBrainPost({ action: 'read', clientName: name }).then(j => {
-            _tplBrain[name] = { state: 'ready', at: Date.now(), facts: Array.isArray(j.facts) ? j.facts : [], found: !!j.found };
+            _tplBrain[name] = { state: 'ready', at: Date.now(), facts: Array.isArray(j.facts) ? j.facts : [], brief: Array.isArray(j.brief) ? j.brief : [], found: !!j.found };
         }).catch(e => {
             _tplBrain[name] = { state: 'error', facts: [], error: e && e.message || String(e) };
         }).then(() => { if (_templatesSelected === name) _maybeRerenderTemplates(); });
@@ -1127,6 +1127,35 @@
             ${_tplViewProse(name, 'thumbnails_preferences')}
         </div>`;
     }
+    // The editor brief: a short plain-English page Claude writes from the facts.
+    // Each line can show the fact(s) behind it and send a change to them.
+    let _tplBriefSourceOpen = '';
+    function tplBriefToggleSource(key) { _tplBriefSourceOpen = _tplBriefSourceOpen === key ? '' : key; _maybeRerenderTemplates(); }
+    function tplBriefChange(key) { _tplBriefSourceOpen = ''; tplBrainOpen(key); }
+    function _tplBriefView(name, b) {
+        const byId = {};
+        b.facts.forEach(f => { byId[f.id] = f; });
+        return b.brief.map((sec, si) => `<div class="tpl-brief-sec">
+            <div class="tpl-brief-h">${_tplEsc(sec.heading)}</div>
+            <ul class="tpl-brief-list">${sec.bullets.map((bl, bi) => {
+                const srcKey = name + '::b' + si + '.' + bi;
+                const fact = byId[bl.facts[0]] || null;
+                const changeKey = _tplBrainKey(name, fact ? fact.id : '');
+                const open = _tplBriefSourceOpen === srcKey;
+                const formOpen = _tplBrainOpenForm === changeKey || _tplBrainSent[changeKey];
+                const sources = bl.facts.map(id => byId[id]).filter(Boolean);
+                return `<li class="tpl-brief-li">
+                    <div class="tpl-brief-row"><span class="tpl-brief-text">${_tplBrainInline(bl.text)}</span>
+                        <span class="tpl-brief-acts">
+                            ${sources.length ? `<button type="button" class="tpl-brief-act" onclick="tplBriefToggleSource('${_tplEscAttr(srcKey)}')">${open ? 'Hide source' : 'Source'}</button>` : ''}
+                            ${fact ? `<button type="button" class="tpl-brief-act" onclick="tplBriefChange('${_tplEscAttr(changeKey)}')">Change</button>` : ''}
+                        </span></div>
+                    ${open ? `<div class="tpl-brief-sources">${sources.map(f => `<div class="tpl-brief-source"><div class="tpl-brief-source-h">${_tplEsc(f.heading)}</div><div class="tpl-brain-body">${_tplBrainProse(f.body)}</div></div>`).join('')}</div>` : ''}
+                    ${formOpen && fact ? _tplBrainChangeBox(name, fact) : ''}
+                </li>`;
+            }).join('')}</ul>
+        </div>`).join('');
+    }
     function _tplBrainSection(name) {
         const b = _tplBrain[name];
         const head = `<div class="tpl-section-title">From the Synchro Brain</div>`;
@@ -1137,14 +1166,22 @@
             const n = b.facts.filter(f => f.file === k && f.status === 'written').length;
             return `<button class="tpl-toggle-btn ${_tplBrainTab === k ? 'active' : ''}" onclick="tplBrainSetTab('${k}')">${label} <span class="tpl-brain-count">${n}</span></button>`;
         }).join('');
+        const hasBrief = Array.isArray(b.brief) && b.brief.length;
         const inTab = b.facts.filter(f => f.file === _tplBrainTab);
         const written = inTab.filter(f => f.status === 'written');
         const empty = inTab.filter(f => f.status !== 'written');
+        const factsView = `<div class="tpl-toggle-row" role="tablist">${tabs}</div>
+            ${written.map(f => _tplBrainCard(name, f)).join('') || '<div class="tpl-brain-empty-note">Nothing written here yet.</div>'}
+            ${empty.length ? `<details class="tpl-brain-missing"><summary>${empty.length} not written yet</summary>${empty.map(f => _tplBrainCard(name, f)).join('')}</details>` : ''}`;
+        if (hasBrief) return `<div class="tpl-section tpl-brain">
+            <div class="tpl-section-title">Editor brief</div>
+            ${_tplBriefView(name, b)}
+            <div class="tpl-brain-add">${_tplBrainChangeBox(name, null)}</div>
+            <details class="tpl-brain-allfacts"${_tplBrainOpenForm && !b.brief.some(sec => sec.bullets.some(bl => _tplBrainKey(name, bl.facts[0] || '') === _tplBrainOpenForm)) && _tplBrainOpenForm.indexOf(name + '::_new') !== 0 ? ' open' : ''}><summary>All facts, with sources</summary>${factsView}</details>
+        </div>`;
         return `<div class="tpl-section tpl-brain">
             ${head}
-            <div class="tpl-toggle-row" role="tablist">${tabs}</div>
-            ${written.map(f => _tplBrainCard(name, f)).join('') || '<div class="tpl-brain-empty-note">Nothing written here yet.</div>'}
-            ${empty.length ? `<details class="tpl-brain-missing"><summary>${empty.length} not written yet</summary>${empty.map(f => _tplBrainCard(name, f)).join('')}</details>` : ''}
+            ${factsView}
             <div class="tpl-brain-add">${_tplBrainChangeBox(name, null)}</div>
         </div>`;
     }

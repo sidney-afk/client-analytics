@@ -409,7 +409,7 @@ function extractFunction(name, bodyMarker = '{') {
 
   // B2 Slice 8: Linear is never an authority. The live prod_authority flag
   // is still read and anything but exactly "syncview" fails closed (503).
-  ok(/async function authorityFor\(supabase: SupabaseClient, team: string\): Promise<"syncview"> \{[\s\S]{0,160}team_authority_unknown[\s\S]{0,200}\.eq\("key", "prod_authority"\)[\s\S]{0,300}=== "syncview"\) return "syncview";\s*throw new GatewayError\(503, "authority_unavailable"\);\s*\}/.test(edge),
+  ok(/async function authorityFor\(supabase: SupabaseClient, team: string\): Promise<"syncview"> \{[\s\S]{0,160}team_authority_unknown[\s\S]{0,200}\.eq\("key", "prod_authority"\)[\s\S]{0,300}=== "syncview"\) return "syncview";\s*if \(authority === "linear"\) throw new GatewayError\(409, "team_is_linear_authoritative"\);\s*throw new GatewayError\(503, "authority_unavailable"\);\s*\}/.test(edge),
   'server authority reads the live flag, passes only exactly syncview, and fails closed on linear, missing or malformed');
   ok(/const SURFACES = new Set\(\["production", "workload", "calendar", "sxr", "submission"\]\)/.test(edge)
     && /surface === "workload"[\s\S]{0,120}operation !== "due"[\s\S]{0,80}invalid_surface_operation/.test(edge)

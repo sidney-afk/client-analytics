@@ -1204,8 +1204,8 @@ function publicIntakePrincipal(client: ClientRow): Principal {
 
 // B2 Slice 8: Linear is never an authority here. The live `prod_authority`
 // flag is still read so the gateway fails closed (read-only) unless the
-// team's value is exactly "syncview": a rollback to "linear", or a missing or
-// malformed value, refuses with 503 authority_unavailable.
+// team's value is exactly "syncview": a rollback to "linear" refuses with 409
+// team_is_linear_authoritative, a missing or malformed value with 503.
 async function authorityFor(supabase: SupabaseClient, team: string): Promise<"syncview"> {
   const normalizedTeam = normalizeTeam(team);
   if (!normalizedTeam) throw new GatewayError(409, "team_authority_unknown");
@@ -1215,7 +1215,9 @@ async function authorityFor(supabase: SupabaseClient, team: string): Promise<"sy
     .maybeSingle();
   if (error || !data) throw new GatewayError(503, "authority_unavailable");
   const value = parseJson((data as JsonMap).value);
-  if (lower(value[normalizedTeam]) === "syncview") return "syncview";
+  const authority = lower(value[normalizedTeam]);
+  if (authority === "syncview") return "syncview";
+  if (authority === "linear") throw new GatewayError(409, "team_is_linear_authoritative");
   throw new GatewayError(503, "authority_unavailable");
 }
 

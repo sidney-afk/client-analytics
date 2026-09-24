@@ -1,5 +1,7 @@
 # Making this repo private: cost study (2026-09-24)
 
+**Decision (owner, 2026-09-24):** this repo stays public. Going private is deferred to SyncView v2, which would start in its own private repo (likely hosted on Vercel).
+
 Read-only research. Nothing was changed in GitHub settings, workflows or Supabase.
 
 ## Answers
@@ -7,15 +9,15 @@ Read-only research. Nothing was changed in GitHub settings, workflows or Supabas
 | Question | Answer | Source |
 |---|---|---|
 | Does Pages work from a private repo on the current plan? | **No, if the account is on GitHub Free.** Free serves Pages only from public repos; Pro, Team and Enterprise serve Pages from private repos. The plan itself is not readable with this session's token, so confirm at github.com/settings/billing. | [GitHub's plans](https://docs.github.com/en/get-started/learning-about-github/githubs-plans) |
-| Actions minutes, last 30 days | **About 67,000 run-minutes** (18,976 runs, 2026-08-26 to 2026-09-24). Billed minutes are higher: GitHub rounds each *job* up to a whole minute and the biggest PR checks run 2 to 3 jobs. Last-7-day pace, after the Linear lanes were retired: ~14,800 run-minutes/week, i.e. **~63,000/month, likely 80,000+ billed**. | Actions REST API, summed below |
+| Actions minutes, last 30 days | **About 67,000 run-minutes** (18,976 runs, 2026-08-26 to 2026-09-24). Billing counts each *job* rounded up to a whole minute, so the last 7 days were re-summed per job: **16,959 billed-equivalent minutes** (4,351 runs, 7,394 jobs, all `ubuntu-latest`), a pace of **~72,700/month**. | Actions REST API, per-run and per-job |
 | Free minutes for a private repo | Free: 2,000/month. Pro: 3,000. Team: 3,000. Public repos: unlimited, free. Overage on the standard Linux runner: $0.006/minute. | [Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions) |
 | What Pro costs and covers | $4/month (as listed on github.com/pricing; the docs pages do not print the price). Adds Pages in private repos, 3,000 Actions minutes, protected branches, code owners, 2 GB Packages storage. | [Pricing](https://github.com/pricing), [plans](https://docs.github.com/en/get-started/learning-about-github/githubs-plans) |
 
-**Bottom line:** at today's usage a private repo on Pro would overspend its 3,000 minutes about 20 to 25 times over, roughly **$350 to $500/month** in overage. Pages is not the expensive part; Actions is.
+**Bottom line:** at today's usage a private repo on Pro would use about 24 times its 3,000 minutes: (72,700 - 3,000) x $0.006 = **about $420/month** in overage. Pages is not the expensive part; Actions is.
 
 ## Minutes by workflow, last 30 days
 
-Run-minutes = run wall time rounded up per run. Per-job rounding adds more (sampled: calendar-unit-tests 3 jobs, production-polish-gate 3 jobs, linear-exit-preparation-ci 2 jobs).
+Run-minutes = run wall time rounded up per run; this undercounts workflows whose jobs run in parallel. Per-job totals for the last 7 days: calendar-unit-tests 7,561, production-polish-gate 2,004, linear-exit-preparation-ci 1,044, pto-ui-tests 881, calendar-e2e-nightly 845, client-entry-visible-boot 584, pages-build-deployment 531.
 
 | Run-min | Runs | Workflow | Note |
 |---:|---:|---|---|
@@ -39,7 +41,7 @@ Run-minutes = run wall time rounded up per run. Per-job rounding adds more (samp
 | 467 | 230 | f27-team-rollback-proof | PR check |
 | ~1,300 | ~1,100 | all others (30 workflows) | each under 250 |
 
-Last 7 days, top five: calendar-unit-tests 6,494, production-polish-gate 1,400, pto-ui-tests 902, calendar-e2e-nightly 845, linear-exit-preparation-ci 655. **PR checks are now roughly two thirds of all minutes.**
+**PR checks are now roughly three quarters of billed minutes.**
 
 Note: the "every 5 minutes" crons fire far less often than written (native-notification-sender ran 48 times in 30 days), because GitHub drops scheduled runs under load. Their minutes are tiny.
 
@@ -64,8 +66,8 @@ calendar-unit-tests, client-entry-visible-boot, edge-function-type-ratchet, f27-
 ## Recommendation
 
 1. **Cheapest overall: stay public ($0).** Nothing else is free at this volume.
-2. **Cheapest safe private path: Pro ($4/month) plus a self-hosted runner.** A self-hosted runner is a computer you own (a small always-on cloud server, about $5 to $10/month, or a spare machine) that GitHub sends jobs to; its minutes do not count against the 3,000. Point the 10 PR checks and 3 browser nightlies at it (`runs-on: self-hosted`), leave the light schedules and deploy lanes on GitHub's runners, where they fit inside 3,000. Expected total: about **$10 to $15/month**. Check GitHub's current terms for any per-minute platform fee on self-hosted runners before committing.
-3. **Do not** go private on Pro with today's workflows unchanged: about $350 to $500/month.
+2. **Cheapest safe private path: Pro ($4/month) plus a self-hosted runner.** A self-hosted runner is a computer you own (a small always-on cloud server, about $5 to $10/month, or a spare machine) that GitHub sends jobs to; its minutes do not count against the 3,000. Point the 10 PR checks and 3 browser nightlies at it (`runs-on: self-hosted`), leave the light schedules and deploy lanes on GitHub's runners, where they fit inside 3,000. Expected total: about **$10 to $15/month**. GitHub's billing page states: "GitHub Actions usage is free for self-hosted runners" ([Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions), read 2026-09-24).
+3. **Do not** go private on Pro with today's workflows unchanged: about $420/month.
 4. Set an Actions spending limit of $0 before flipping to private, so a miscount stops jobs instead of billing.
 5. Before flipping, confirm the custom domain survives the Pages source re-check.
 

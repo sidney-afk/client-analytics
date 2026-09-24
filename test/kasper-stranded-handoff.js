@@ -233,11 +233,17 @@ ok(out.stranded.every(s => s.client === 'Sidney Laruel' && s.slug === 'sidneylar
 /* ---- 2. The notice renderer -------------------------------------------- */
 
 const notice = grabFunc('_kasperRenderStrandedNotice');
+const viewerGate = grabFunc('_kasperStrandedViewerIsStaff');
+/* The verified staff identity the page holds. Defaults to an SMM so the
+   rendering checks below run as a staff viewer. */
+let viewer = { role: 'smm', member: { id: 'm1', name: 'Test Smm' } };
 const render = new Function('deps', `
-  const { _kasperState, _calEsc } = deps;
+  const { _kasperState, _calEsc, _syncviewStaffIdentityForHeaders } = deps;
+  ${viewerGate}
   ${notice}
   return _kasperRenderStrandedNotice;
 `)({
+  _syncviewStaffIdentityForHeaders: () => viewer,
   _kasperState: { get stranded() { return renderState; } },
   _calEsc: s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
 });
@@ -247,7 +253,7 @@ ok(render() === '', 'a healthy queue renders no notice at all');
 
 renderState = [{ id: 'a', client: 'Sidney Laruel', slug: 'sidneylaruel', name: 'Video 1', native: true }];
 const one = render();
-ok(/1 card is waiting on content, not on you/.test(one),
+ok(/1 card is with Kasper but missing content/.test(one),
   'a single stranded card reads in the singular');
 ok(one.includes('Sidney Laruel') && one.includes('Video 1'),
   'and names the client and the card');
@@ -257,9 +263,26 @@ renderState = [
   { id: 'b', client: 'Two', slug: 't', name: 'Video 2', native: false },
 ];
 const two = render();
-ok(/2 cards are waiting on content/.test(two), 'two stranded cards read in the plural');
+ok(/2 cards are with Kasper but missing content/.test(two), 'two stranded cards read in the plural');
 ok(!/<script>/.test(two) && /&lt;script&gt;/.test(two) && /A &amp; B/.test(two),
   'client and card names are escaped -- they are sheet-sourced text, not markup');
+
+/* ---- 2b. Who sees it: staff yes, Kasper no ----------------------------- */
+renderState = [{ id: 'a', client: 'Test client', slug: 't', name: 'Video 1', native: true }];
+viewer = { role: 'admin', member: { id: 'm2', name: 'Test Admin' } };
+ok(/data-kasper-stranded="1"/.test(render()), 'an admin viewing Kasper\'s tab sees the notice');
+viewer = { role: 'smm', member: { id: 'm1', name: 'Test Smm' } };
+ok(/data-kasper-stranded="1"/.test(render()), 'an SMM viewing Kasper\'s tab sees the notice');
+viewer = { role: 'admin', member: { id: 'm3', name: 'Kasper Test' } };
+ok(render() === '', 'Kasper himself (admin role) does not see it');
+viewer = { role: 'admin', member: { id: 'm3', name: '  kasper ' } };
+ok(render() === '', 'the Kasper match ignores case and spacing');
+viewer = { role: 'creative', member: { id: 'm4', name: 'Test Editor' } };
+ok(render() === '', 'other staff roles do not see it');
+viewer = null;
+ok(render() === '', 'no verified identity shows no notice (fail closed)');
+viewer = { role: 'smm', member: { id: 'm1', name: 'Test Smm' } };
+ok(!/not on you/.test(render()), 'the copy no longer addresses Kasper');
 
 renderState = Array.from({ length: 15 }, (_, i) => ({ id: 'x' + i, client: 'C' + i, slug: 'c', name: 'N' + i, native: true }));
 const many = render();

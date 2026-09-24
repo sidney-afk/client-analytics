@@ -12,11 +12,11 @@
 | 4 | `020-styles-surfaces.css.part` | 3988 | Templates view |
 | 5 | `030-body-shell.html.part` | 449 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 2595 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
-| 7 | `050-market-briefs.js.part` | 1651 | Market Research Brief Tab Renderers |
-| 8 | `060-templates-filming.js.part` | 1823 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 7 | `050-market-briefs.js.part` | 1652 | Market Research Brief Tab Renderers |
+| 8 | `060-templates-filming.js.part` | 1831 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3569 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3369 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
-| 11 | `090-workload-popovers-navigation.js.part` | 2571 | Sub-issue popover |
+| 11 | `090-workload-popovers-navigation.js.part` | 2572 | Sub-issue popover |
 | 12 | `100-onboarding-staff-controls.js.part` | 2266 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2024 | Kasper Time Off calendar |
 | 14 | `120-calendar-flags-write-repair.js.part` | 3015 | The members a flag value offers, or null when it offers no member list at |
@@ -34,7 +34,7 @@
 | 26 | `230-production-create-comments.js.part` | 2631 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 27 | `240-production-description.js.part` | 2622 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 28 | `250-production-controls-data.js.part` | 2826 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 29 | `260-production-refresh-boot.js.part` | 2280 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 29 | `260-production-refresh-boot.js.part` | 2295 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 30 | `270-samples-model.js.part` | 2694 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 31 | `280-samples-cards-notes.js.part` | 2831 | SURFACE 3: the save engine |
 | 32 | `290-samples-writes-review.js.part` | 1798 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |

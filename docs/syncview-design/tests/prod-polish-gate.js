@@ -15,6 +15,7 @@ if (!groups.has(lane)) {
 
 const suites = [
   ['fast', 'Production boot budget', 'docs/syncview-design/tests/prod-boot-budget.js'],
+  ['fast', 'Tab switch during boot (Phase D)', 'docs/syncview-design/tests/tab-switch-boot-browser.js'],
   ['fast', 'Production structure subset', 'docs/syncview-design/tests/prod-structure-subset.js'],
   ['fast', 'Production read-only smoke', 'docs/syncview-design/tests/prod-readonly-smoke.js'],
   ['fast', 'Production comment thread', 'docs/syncview-design/tests/prod-comments-browser.js'],

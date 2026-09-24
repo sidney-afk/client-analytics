@@ -1702,6 +1702,14 @@
     const SMM_WEEKLY_ROUTES = ['smm-weekly-report', 'smm-weekly-reports'];
     function _isSmmWeeklyRoute(page) { return SMM_WEEKLY_ROUTES.includes(page); }
     let currentNav = 'home';
+    /* Phase D: the last tab you clicked always wins. Every staff route change
+       (navTo, render) bumps this; init() remembers the value it started with
+       and gives up routing the moment it moves, so a landing tab that finishes
+       loading after you left can never pull you back, rewrite the address bar
+       or move focus. `var`, not `let`: navTo can run before this line has
+       been evaluated on some boot paths, and a TDZ throw there would be worse
+       than the bug. */
+    var _syncviewNavEpoch = 0;
     const LINEAR_DEFAULT_VIDEO_COUNT = 12;
     let linearVideoCount = LINEAR_DEFAULT_VIDEO_COUNT;
     let linearJustCreated = false;

@@ -1172,6 +1172,14 @@
       "required_for_release": true
     },
     {
+      "file": "staff-gate-stub-refusal-local.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; intercepted routes only, no hosted credentials and no live backend.",
+      "reproduce": "node test/staff-gate-stub-refusal-local.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
       "file": "prod-row-cell-overflow.js",
       "route": "isolated_browser",
       "required_for_release": true,

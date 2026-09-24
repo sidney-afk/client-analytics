@@ -1197,8 +1197,9 @@ n8n in the metric read path.*
 
 ### 4.11 Templates + Caption prompts
 
-*The v1 "caption-prompts read path" item. Answer for BOTH templates and prompts: n8n is the live
-mandatory base; the Supabase REST read is a flag-gated OVERLAY, not a fallback.*
+*The v1 "caption-prompts read path" item. Caption prompts: n8n is the live mandatory base; the
+Supabase REST read is a flag-gated OVERLAY, not a fallback. Templates: Supabase only since
+2026-09-24 (the n8n sheet lane is retired; `settings_ef_clients` no longer affects Templates).*
 
 - **Entry.** Staff-only tab `#templates[/<client>]`; the caption-prompts half is entered from the
   Calendar (prompts load on every calendar mount; the edit modal opens from the card kebab).
@@ -1212,16 +1213,16 @@ mandatory base; the Supabase REST read is a flag-gated OVERLAY, not a fallback.*
   even in Kasper mode, and never attach a client token.
 - **State.** `syncview_tpl_pinned_clients`, `syncview_tpl_recent_searches`, in-memory
   `templatesData` + prompt cache + `_settingsEfClients`. History-state carries the client + Reels/
-  Thumbnails tab. Kill switch: `settings_ef_clients` (gates both writes, both overlays, and the
-  templates realtime).
+  Thumbnails tab. Kill switch: `settings_ef_clients` gates caption prompts only. Templates has
+  **no flag kill switch and no n8n fallback**; containment is reverting the Templates change.
 - **Roles.** Main-team-only by chrome (nav hidden for client/intake/onboarding); Kasper is the same
   staff session. Prompt *read* fires for all roles incl. client links; the edit modal is SMM-only.
-- **Failure/fallback.** n8n base fail → whole load fails, overlay never attempted, error banner, **no
-  retry until a full refresh** (no localStorage persistence, unlike calendar). Overlay/flag/realtime
-  failures → silent, keep n8n base. Save fail → persistent "Save failed" indicator, re-sends only on
+- **Failure/fallback.** Templates: `templates` REST fail → last saved browser copy if any, else error
+  banner; no n8n fallback. Prompts: n8n base fail → whole load fails, overlay never attempted, error
+  banner, no retry until a full refresh. Prompt overlay/flag failures → silent, keep n8n base. Save fail → persistent "Save failed" indicator, re-sends only on
   next edit. Prompt use sites fall back to the default prompt string.
-- **Notable / corrections.** Neither direction is "REST live, n8n fallback" — overlay-over-base both
-  ways. `settings_ef_clients` gates exactly templates + caption-prompts (not credentials). Multi-link
+- **Notable / corrections.** Prompts are overlay-over-base, not "REST live, n8n fallback".
+  `settings_ef_clients` gates exactly caption-prompts now (not templates, not credentials). Multi-link
   fields persist a JSON sibling column plus a mirrored legacy single column (2–3 patches per edit).
   The templates/settings realtime channels are deliberately never torn down.
 - **Track B.** Low. All active clients on the A4 EFs. Only Track-B touch: §6 role-key enforcement on
@@ -1572,7 +1573,7 @@ enforcement, a global return to permissive is a security incident—not routine 
 - **Workload feeder** → §4.8: `workload_issues` REST (default) with n8n `linear-issues` fallback; the
   realtime channel is dormant.
 - **caption-prompts read path** → §4.11: n8n `caption-prompts-get` base + flag-gated `caption_prompts`
-  REST **overlay** (not a fallback); same shape for templates.
+  REST **overlay** (not a fallback). Templates is Supabase-only since 2026-09-24.
 - **Per-surface state / logic depth** → §4 (every surface's localStorage keys, kill switches, caches,
   URL params, roles, failure paths).
 - **The mechanical sync test** → §7 + §8 (`test/system-map-sync.js`, wired into `npm test`).

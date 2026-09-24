@@ -124,7 +124,8 @@ and cannot be used as a new-client readiness receipt. The current operator hando
 standard/AI inbox, not the replaced Notion intake (F111).
 
 Templates:
-- `webhook/templates-get`, `webhook/templates-save`
+- none on n8n. `webhook/templates-get` and `webhook/templates-save` (the Google Sheet lane) were
+  retired 2026-09-24; Templates reads the `templates` table and writes `functions/v1/templates-save`.
 
 Other:
 - `webhook/kasper-queue` — Kasper review queue

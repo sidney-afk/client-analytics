@@ -1441,6 +1441,12 @@
         // immediately instead of only on the next unrelated form interaction.
         try { if (typeof _tkMounted !== 'undefined' && _tkMounted) _tkRenderForm(); }
         catch(e){ console.warn('[SyncView] TikTok Upload roster refresh deferred:', e && e.message); }
+        // Same story for the Calendar's social-profiles (globe) button: its
+        // handles come from clientMap, but it was only re-synced when the
+        // calendar body repainted. When the calendar painted first and this
+        // sheet arrived after, the button stayed missing until a client switch.
+        try { if (typeof _calSyncClientLinks === 'function') _calSyncClientLinks(); }
+        catch(e){ console.warn('[SyncView] calendar profile links refresh deferred:', e && e.message); }
         // Add placeholder rows for clients in Clients Info sheet that don't have metrics yet
         const metricsClients=new Set(allData.map(r=>r.client_name));
         Object.keys(clientMap).forEach(name=>{

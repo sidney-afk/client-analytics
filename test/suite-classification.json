@@ -584,7 +584,8 @@
     "write-ui-writer-durability.js",
     "title-name-rule-drift.js",
     "subissue-rename-gateway.js",
-    "dawn-report-allowlist.js"
+    "dawn-report-allowlist.js",
+    "calendar-client-links-after-sheet.js"
   ],
   "profiles": [
     {

@@ -522,6 +522,7 @@
     "syncview-retirement-admission.js",
     "system-map-sync.js",
     "brain-parse.js",
+    "templates-brain-page.js",
     "templates-multilink.js",
     "templates-refresh-routing.js",
     "test-client-entry-harness.js",

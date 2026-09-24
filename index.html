@@ -12695,6 +12695,8 @@
         // a realtime echo lands: covers plain fields, the color-set inputs, and
         // the multiple-link inputs (each keyed by its own data-attr).
         if (ae && ae.hasAttribute && (ae.hasAttribute('data-tpl-field') || ae.hasAttribute('data-tpl-set') || ae.hasAttribute('data-tpl-link-set'))) return;
+        // Same for a "Send a change" box being typed into.
+        if (ae && ae.closest && ae.closest('.tpl-brain-form')) return;
         content.innerHTML = renderTemplatesView();
         mountTemplatesView();
     }
@@ -13903,6 +13905,8 @@
     let _tplBrainTab = 'editing';
     const _tplBrainSent = {};        // `${client}::${factId}` -> 'sending'|'sent'|'error'
     let _tplBrainOpenForm = '';      // `${client}::${factId}` currently showing the change box
+    const _tplBrainDraft = {};       // key -> unsent text, survives background rerenders
+    const TPL_BRAIN_STALE_MS = 3 * 60 * 1000;
 
     function _tplBrainPost(payload) {
         const url = _tplBrainUrl();
@@ -13918,10 +13922,12 @@
     }
     function _tplBrainEnsure(name, force) {
         const cur = _tplBrain[name];
-        if (cur && !force) return;
-        _tplBrain[name] = { state: 'loading', facts: cur && cur.facts || [] };
+        // Errors retry only from the button; a ready copy refreshes once stale.
+        if (cur && !force && (cur.state !== 'ready' || Date.now() - (cur.at || 0) < TPL_BRAIN_STALE_MS)) return;
+        // A background refresh keeps showing the current facts instead of a skeleton.
+        _tplBrain[name] = cur && cur.state === 'ready' ? Object.assign({}, cur, { refreshing: true }) : { state: 'loading', facts: cur && cur.facts || [] };
         _tplBrainPost({ action: 'read', clientName: name }).then(j => {
-            _tplBrain[name] = { state: 'ready', facts: Array.isArray(j.facts) ? j.facts : [], found: !!j.found };
+            _tplBrain[name] = { state: 'ready', at: Date.now(), facts: Array.isArray(j.facts) ? j.facts : [], found: !!j.found };
         }).catch(e => {
             _tplBrain[name] = { state: 'error', facts: [], error: e && e.message || String(e) };
         }).then(() => { if (_templatesSelected === name) _maybeRerenderTemplates(); });
@@ -13975,7 +13981,7 @@
     function _tplBrainChangeBox(name, fact) {
         const key = _tplBrainKey(name, fact && fact.id);
         const st = _tplBrainSent[key];
-        if (st === 'sent') return `<div class="tpl-brain-sent">Change sent. It is being processed into the brain and will show here once it is in.</div>`;
+        if (st === 'sent') return `<div class="tpl-brain-sent">Change sent. It is being processed into the brain and will show here once it is in. <button type="button" class="tpl-brain-change-btn" onclick="tplBrainAnother('${_tplEscAttr(key)}')">Send another</button></div>`;
         if (_tplBrainOpenForm !== key) {
             const label = !fact ? 'Add something the brain is missing' : (fact.status === 'written' ? 'Send a change' : 'Write this');
             return `<button type="button" class="tpl-brain-change-btn" onclick="tplBrainOpen('${_tplEscAttr(key)}')">${label}</button>`;
@@ -13983,7 +13989,7 @@
         let sender = '';
         try { sender = localStorage.getItem(TPL_BRAIN_NAME_KEY) || ''; } catch (e) {}
         return `<div class="tpl-brain-form" data-brain-key="${_tplEscAttr(key)}">
-            <textarea class="tpl-brain-text" rows="4" placeholder="${fact ? 'What is true now? Write it the way you would tell a teammate.' : 'What should the brain know about this client?'}"></textarea>
+            <textarea class="tpl-brain-text" rows="4" oninput="_tplBrainDraft['${_tplEscAttr(key)}']=this.value" placeholder="${fact ? 'What is true now? Write it the way you would tell a teammate.' : 'What should the brain know about this client?'}">${_tplEsc(_tplBrainDraft[key] || '')}</textarea>
             <div class="tpl-brain-form-row">
                 <input class="tpl-brain-from" type="text" placeholder="Your name" value="${_tplEscAttr(sender)}">
                 <button type="button" class="tpl-brain-cancel" onclick="tplBrainOpen('')">Cancel</button>
@@ -13992,6 +13998,7 @@
             ${st === 'error' ? '<div class="tpl-brain-err">Couldn\'t send. Your text is still here; try again.</div>' : ''}
         </div>`;
     }
+    function tplBrainAnother(key) { delete _tplBrainSent[key]; tplBrainOpen(key); }
     function tplBrainOpen(key) { _tplBrainOpenForm = key; _maybeRerenderTemplates(); const ta = document.querySelector('.tpl-brain-text'); if (ta) ta.focus(); }
     function tplBrainSend(key) {
         const name = _templatesSelected;
@@ -14007,7 +14014,11 @@
         if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
         _tplBrainSent[key] = 'sending';
         _tplBrainPost({ action: 'change', clientName: name, factId: fact ? fact.id : '', heading: fact ? fact.heading : '', from, text })
-            .then(() => { _tplBrainSent[key] = 'sent'; _tplBrainOpenForm = ''; _maybeRerenderTemplates(); })
+            .then(() => {
+                _tplBrainSent[key] = 'sent'; _tplBrainOpenForm = ''; delete _tplBrainDraft[key]; _maybeRerenderTemplates();
+                // Processing takes a minute or two; pick the result up without a reload.
+                [90, 240].forEach(sec => setTimeout(() => { if (_templatesSelected === name) _tplBrainEnsure(name, true); }, sec * 1000));
+            })
             .catch(() => {
                 _tplBrainSent[key] = 'error';
                 if (btn) { btn.disabled = false; btn.textContent = 'Send'; }

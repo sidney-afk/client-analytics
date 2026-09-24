@@ -68134,8 +68134,14 @@
         _syncviewAppBooted = true;
         init();
         if(_isIntake){
-            try{ navTo('linear', false); }catch(e){}
+            // Defer to a macrotask, like the onboarding link above: navTo()
+            // reaches module-level bindings declared later in the page (e.g.
+            // TikTok upload's _tkMounted), so a synchronous call here threw a
+            // temporal-dead-zone ReferenceError that the catch swallowed. Since
+            // #1551 the boot router backs off once a nav has been attempted, so
+            // nothing drew the Submit form and ?intake=1 stayed on its skeleton.
             setTimeout(function(){
+                try{ navTo('linear', false); }catch(e){ console.error('[intake] mount failed', e); }
                 try{ _linearResumeSubmissionHold('startup').catch(function(){}); }catch(e){}
             }, 0);
         }

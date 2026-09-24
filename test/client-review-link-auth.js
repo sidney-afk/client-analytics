@@ -17,7 +17,8 @@ ok(/CLIENT_REVIEW_LINK_URL[\s\S]{0,2600}json\.token/.test(index),
   'share links obtain the current token from the private issuer');
 // Scoped by the extractor, not a 900-character window: _sxrCopyShareLink is 478
 // characters long, so the old window read 422 characters of the next function.
-const SHARE_FNS = ['copyShareLink', 'smCopyShareLink', 'calCopyShareLink', '_sxrCopyShareLink'];
+// smCopyShareLink went with the Samples Old page (removed 2026-09-24).
+const SHARE_FNS = ['copyShareLink', 'calCopyShareLink', '_sxrCopyShareLink'];
 const shareBody = fn => { try { return extractFunction(index, fn); } catch (e) { return ''; } };
 ok(!SHARE_FNS.map(shareBody).join('\n').includes('client_review_token'),
   'share-link generation no longer depends on the removed Clients Info token column');

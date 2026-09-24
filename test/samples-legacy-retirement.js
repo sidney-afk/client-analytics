@@ -1,10 +1,12 @@
 'use strict';
 /*
- * Phase-1 retirement guard for Samples Old.
+ * Retirement guard for Samples Old.
  *
- * This is intentionally source-level and offline: it proves the legacy nav is
- * absent, executes the route resolver used by navTo(), and pins the dormant
- * legacy/SXR boundaries so a later cleanup cannot accidentally happen here.
+ * Phase 1 hid the page and routed its links to Samples New (Sample reviews).
+ * Phase 2 (2026-09-24, owner-approved) deleted the old page's code; only the
+ * one-line route resolver remains, so old #samples links still land. This is
+ * source-level and offline: it executes that resolver, proves the old code and
+ * its samples-* webhooks are gone, and pins the SXR boundaries.
  */
 const fs = require('fs');
 const path = require('path');
@@ -40,10 +42,10 @@ check('navTo applies the retirement resolver before selecting currentNav',
 check('boot predictor sends old hashes to Samples New',
   (INDEX.match(/target = [^;]*samples[^;]*sample-reviews[^;]*;/g) || []).length >= 2);
 
-check('legacy renderer remains dormant for Phase 1',
-  /function renderSamplesView\(/.test(INDEX) && /function mountSamplesView\(/.test(INDEX));
-check('legacy endpoints remain intact for Phase 1',
-  /webhook\/samples-get/.test(INDEX) && /webhook\/samples-upsert/.test(INDEX) && /webhook\/samples-reorder/.test(INDEX));
+check('legacy renderer is removed (Phase 2)',
+  !/function renderSamplesView\(/.test(INDEX) && !/function mountSamplesView\(/.test(INDEX) && !/\bsmState\b/.test(INDEX));
+check('legacy samples-* webhooks are no longer called (Phase 2)',
+  !/webhook\/samples-get/.test(INDEX) && !/webhook\/samples-upsert/.test(INDEX) && !/webhook\/samples-reorder/.test(INDEX));
 check('Samples New renderer and route remain intact',
   /page === 'sample-reviews'/.test(INDEX) && /renderSxrView\(\)/.test(INDEX) && /mountSxrView\(\)/.test(INDEX));
 
@@ -68,7 +70,7 @@ check('client Samples boot uses the exact verified client and direct SXR mount',
   && clientSxrBoot.includes('mountSxrClientView(_sxrLink)')
   && !clientSxrBoot.includes("navTo('samples'"));
 check('client Samples boot never seeds the retired generic client preference',
-  (INDEX.match(/_smLinkClient\s*=/g) || []).length === 1);
+  (INDEX.match(/_smLinkClient\s*=/g) || []).length === 0);
 const clientMount = (INDEX.match(/function mountSxrClientView\(clientName\) \{[\s\S]*?\n    \}/) || [])[0] || '';
 check('client SXR mount rejects wrong-client or non-review capabilities',
   clientMount.includes("cap.view !== 'sample-reviews'")

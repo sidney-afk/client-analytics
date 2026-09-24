@@ -57,7 +57,7 @@ assert(keysDecl, 'missing client-entry query-key allowlist');
   'localStorage.removeItem(ANALYTICS_CACHE_KEY)',
   'localStorage.removeItem(CAL_CACHE_KEY_PREFIX + slug)',
   'localStorage.removeItem(SXR_CACHE_PREFIX + slug)',
-  'localStorage.removeItem(SM_CACHE_PREFIX + slug)',
+  "localStorage.removeItem('syncview_samplesCache_v1:' + slug)",
   'run.href === location.href',
   'fetchEssentials(clientEntryRun)',
   'fetchExtras(clientEntryRun)',

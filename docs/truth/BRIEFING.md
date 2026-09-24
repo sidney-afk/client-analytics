@@ -2,7 +2,7 @@
 
 **Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook was switched off on 2026-09-23 (`linear_inbound_enabled` = false, re-read live 2026-09-24), and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
 
-> Last verified: 2026-09-24 @ 69e1d82c — a LIVE read-only re-read (Supabase Management API: every
+> Last verified: 2026-09-24 @ 69e1d82c95102a369f05f055760ad2f8706a2d27 — a LIVE read-only re-read (Supabase Management API: every
 > `syncview_runtime_flags` row, every deployed Edge Function version, roster counts; plus `index.html`
 > line count at that commit) of the same current-state claims the 2026-08-25 pass covered. FIVE DRIFTS
 > FOUND AND CORRECTED IN PLACE, one in the dangerous direction: `linear_inbound_enabled` is now
@@ -58,7 +58,7 @@ You are working on **SyncView**, the internal production app for a social-media 
 
 ## What the system is (60 seconds)
 
-**Corrected 2026-09-21:** Linear is no longer the team’s issue tracker or a live two-way mirror. SMMs work in Content Calendar and creatives in Sync; native receipts, not Linear delivery, establish completion. The remaining inbound webhook and STEP 7 are covered in the cutoff record.
+**Corrected 2026-09-21:** Linear is no longer the team’s issue tracker or a live two-way mirror. SMMs work in Content Calendar and creatives in Sync; native receipts, not Linear delivery, establish completion. The inbound webhook endpoint is still deployed but switched off (`linear_inbound_enabled` false since 2026-09-23T14:02Z); it and STEP 7 are covered in the cutoff record.
 
 - **The entire app is `index.html`** — a single-file SPA (~86.4k lines as of 2026-09-24, ~70.4k on 2026-08-25; it was ~45.8k at the original checkpoint), served by GitHub Pages
   from `main` at `syncview.synchrosocial.com`. **Merging to `main` deploys immediately.**

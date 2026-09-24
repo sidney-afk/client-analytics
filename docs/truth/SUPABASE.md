@@ -206,8 +206,9 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
   `prod_authority` is `{"video":"syncview","graphics":"syncview"}` (both teams SyncView-owned since
   2026-08-28; any statement anywhere in `docs/truth/` that a team is "presently Linear-authoritative"
   is stale); `linear_outbound_enabled` is `{"mode":"off"}` and `linear_legacy_parity_enabled` is
-  `{"enabled": false}`, both set 2026-09-20 at the cutoff; `linear_inbound_enabled` is still
-  `{"enabled": true}`. Nine native-cutover flags the older text never mentioned are live and carry
+  `{"enabled": false}`, both set 2026-09-20 at the cutoff; `linear_inbound_enabled` was
+  `{"enabled": true}` at that read and is `{"enabled": false}` since 2026-09-23T14:02Z (read live
+  2026-09-24 for the BRIEFING re-verification). Nine native-cutover flags the older text never mentioned are live and carry
   the current work topology: `native_intake_epochs`, `native_assignment_epochs`,
   `production_native_ordinary_receipts`, `production_native_identifier_mint` and
   `production_native_label_catalog` all read `native`; `native_brief_media` reads `required`;

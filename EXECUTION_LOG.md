@@ -8367,4 +8367,4 @@ Nobody logged these two installs at the time they happened. This entry records w
 
 - **Migration** `migrations/2026-09-24-refusal-receipt-browser-codes.sql`, applied by the session named Lighthouse. `supabase_migrations.schema_migrations` records it as version `20260924171734`, name `refusal_receipt_browser_codes`. A read-only check afterwards counted 218 codes in the live `receipts_v1_code_check`, which is exactly the gateway + browser list in `_shared/write-refusal-codes.mjs`. No grant or revoke: only the check constraint changed.
 - **Edge Function** `write-diagnostics`, deployed by the owner from `3469b785622519d63a70b2e98e6d4d64a2515dc3`. Attestation PASS. The run id and version were not recorded in this session.
-- **Not deployed:** `production-write` shares the changed module and picks it up on its next Section 4 release (its re-pinned source closure is in `deploy-f27-section4-closures.yml`).
+- **Not deployed:** `production-write` shares the changed module and picks it up the next time it is released (its re-pinned source closure is in `deploy-f27-section4-closures.yml`); nothing in this entry deployed it.

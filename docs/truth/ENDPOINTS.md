@@ -100,8 +100,10 @@ TikTok pilot (uploads + TTP auth):
   Post For Me `media[]` array (photo post); `mediaUrl` alone is unchanged from the description
   above (video post). `n8n-backups/tiktok-upload-direct.2026-09-08.json` is the matching
   point-in-time backup.
-- `webhook/ttp-auth-init`, `webhook/ttp-accounts-list`, `webhook/ttp-creator-info`,
-  `webhook/ttp-list`, `webhook/ttp-status`, `webhook/ttp-submit`
+- **Removed 2026-09-24:** the TikTok Pilot's six `ttp-*` webhooks (auth-init, accounts-list,
+  creator-info, list, status, submit) are no longer called; the pilot was abandoned after TikTok
+  rejected the app and its browser code was deleted. The n8n workflows and pilot tables still
+  exist; what to do with them is the owner's call.
 
 Onboarding + intake forms:
 - `webhook/onboarding-submit`, `webhook/onboarding-fallback`, `webhook/ai-onboarding-submit`,

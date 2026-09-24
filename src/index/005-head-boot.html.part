@@ -147,7 +147,6 @@
             var RESTORABLE_FAST = FAST.filter(function (nav) { return nav !== 'smm-weekly-report' && nav !== 'smm-weekly-reports'; });
             var ses = function (k) { try { return sessionStorage.getItem(k) === 'ok'; } catch (e) { return false; } };
             var kasperOk = function () { return q.get('Kasper') === '1' || ses('syncview_kasper_unlocked'); };
-            var ttpOk = function () { return q.get('ttpilot') === '1' || ses('syncview_ttpilot_unlocked'); };
             var sxrOn = function () {
                 // Must mirror _sxrEnabled(): GA default-ON, ?sxr=0 / sticky
                 // opt-out off, storage failure = ON (F73).
@@ -171,7 +170,6 @@
             // an exact match, so a sub-path there gets no prediction.
             else if (seg === 'calendar' || seg === 'samples' || seg === 'templates') target = seg === 'samples' ? 'sample-reviews' : seg;
             else if (seg === 'kasper' && kasperOk()) target = 'kasper'; // kasper + kasper/<subtab>
-            else if (hash === 'tiktok-pilot' && ttpOk()) target = 'tiktok-pilot'; // exact only
             else if (seg === 'sample-reviews' && sxrOn()) target = 'sample-reviews';
             else if (!hash) {
                 var saved = null; try { saved = localStorage.getItem('syncview_nav'); } catch (e) {}
@@ -179,14 +177,14 @@
                 // Mirror of init(): the fast path restores (stateNav ||
                 // savedNav) for FAST tabs even in a NEW tab (fallbackFast —
                 // no history.state needed); the post-await router restores
-                // savedNav kasper/tiktok-pilot only on a real refresh
+                // savedNav kasper only on a real refresh
                 // (history.state present) and only while unlocked.
                 if (nav === 'smm-weekly-report' || nav === 'smm-weekly-reports') {
                     if (saved === 'smm-weekly-report' || saved === 'smm-weekly-reports') {
                         try { localStorage.removeItem('syncview_nav'); } catch (e) {}
                     }
                 } else if (RESTORABLE_FAST.indexOf(nav) >= 0) target = nav;
-                else if (st && st.nav && ((saved === 'kasper' && kasperOk()) || (saved === 'tiktok-pilot' && ttpOk()))) target = saved;
+                else if (st && st.nav && saved === 'kasper' && kasperOk()) target = saved;
             }
             if (target) {
                 de.setAttribute('data-boot-nav', target);

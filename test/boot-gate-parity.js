@@ -101,9 +101,12 @@ check("kasper session key mirrored",
 check("kasper subtab key mirrored",
   GATE.includes("localStorage.getItem('syncview_kasper_subtab_v1')")
   && APP.includes("KASPER_SUBTAB_KEY = 'syncview_kasper_subtab_v1'"));
-check("tiktok-pilot session key mirrored",
-  GATE.includes("'syncview_ttpilot_unlocked'")
-  && APP.includes("TTP_UNLOCK_KEY = 'syncview_ttpilot_unlocked'"));
+// The TikTok Pilot was removed 2026-09-24 (TikTok rejected the app). Its route
+// must be gone from BOTH copies: a gate that still predicts #tiktok-pilot would
+// paint a tab the app no longer has.
+check("tiktok-pilot route and unlock key removed from gate and app alike",
+  !GATE.includes('syncview_ttpilot_unlocked') && !APP.includes('syncview_ttpilot_unlocked')
+  && !GATE.includes("'tiktok-pilot'") && !APP.includes("'tiktok-pilot'"));
 
 // 3. The gate's FAST list must equal init()'s FAST_TABS, element for element.
 const gateFast = (GATE.match(/var FAST = \[([^\]]*)\]/) || [])[1];

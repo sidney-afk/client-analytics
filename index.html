@@ -10551,6 +10551,12 @@
     }
 
 
+    /* True only while a client page is drawn from Metrics before TopVideos
+       and the briefs have applied (render()'s early paint). Sections that
+       read them show a placeholder instead of "none", and actions that send
+       them wait. Never set for a client link, which always waits. */
+    let _analyticsExtrasEarly=false;
+    const _analyticsExtrasSkelHtml=id=>`<div class="top-videos-section" id="${id}" aria-busy="true"><div class="top-videos-head"><span class="top-videos-title">Top Performing</span></div><div class="sv-skeleton sv-skeleton-line" style="width:72%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:54%;"></div></div>`;
     function getTopVideos(clientName,platform,period){
         const plat=platform.toLowerCase(),per=period.toLowerCase();
         let filtered=topVideos.filter(v=>v.client_name===clientName&&(v.platform||'').toLowerCase()===plat&&(v.period||'').toLowerCase().includes(per));
@@ -10798,6 +10804,7 @@
         _contentSummaryStartedHere.add(clientName);
         const clientEntryRun=_isClientLink?_syncviewClientEntryDataRun:null;
         if(_isClientLink&&!_syncviewClientEntryRunCurrent(clientEntryRun))return;
+        if(!_isClientLink&&typeof _analyticsExtrasApplied!=='undefined'&&!_analyticsExtrasApplied){showNotify('Still loading','Top videos are still loading. Try again in a moment.');return;}
         const videos=getTopMonthlyVideos(clientName,5);
         if(!videos.length){alert('No top monthly videos found for this client.');return;}
         contentSummaryState[clientName]={loading:true,data:null,error:null};
@@ -10873,6 +10880,7 @@
         const id=`content-summary-${clientName.replace(/\s+/g,'_')}`;
         const enc=encodeURIComponent(clientName);
         const state=contentSummaryState[clientName];
+        if(typeof _analyticsExtrasEarly!=='undefined'&&_analyticsExtrasEarly)return'';
         const videos=getTopMonthlyVideos(clientName,5);
         if(!videos.length)return'';
         // CLICK-ONLY (owner, 2026-09-23). Each generation is a paid model call, and
@@ -10929,6 +10937,7 @@
     }
 
     function buildTopVideosSection(clientName,platform,containerId){
+        if(typeof _analyticsExtrasEarly!=='undefined'&&_analyticsExtrasEarly)return _analyticsExtrasSkelHtml(containerId);
         const period=getActivePeriod(clientName,platform),videos=getTopVideos(clientName,platform,period);
         const weekActive=period==='week'?'active':'',monthActive=period==='month'?'active':'';
         const wv=getTopVideos(clientName,platform,'week'),mv=getTopVideos(clientName,platform,'month');
@@ -11090,6 +11099,7 @@
         try{
             const info=clientMap[clientName]||{};
             const channelId=info.slack_channel_id||'';
+            if(!_isClientLink&&typeof _analyticsExtrasApplied!=='undefined'&&!_analyticsExtrasApplied){showNotify('Still loading','Top videos are still loading. Try again in a moment.');if(btn){btn.disabled=false;btn.innerHTML=_slackBtnContent;}return;}
             if(!channelId){showNotify('No Slack channel','Add a slack_channel_id column to Clients Info for '+clientName);if(btn){btn.disabled=false;btn.innerHTML=_slackBtnContent;}return;}
             const clientVids=topVideos.filter(v=>v.client_name===clientName&&(v.period||'').toLowerCase().includes('week'));
             const latestDate=clientVids.reduce((max,v)=>{const d=v.scraped_date||'';return d>max?d:max;},'');
@@ -11328,15 +11338,33 @@
             };
             if(needsExtras&&!arrival){showExtrasError();return;}
             if(arrival){
-                content.innerHTML=_svLoadingSkeletonHtml('analytics-client');
                 const want=sel;
+                /* PAINT FROM WHAT ARRIVED. The Analytics tab's numbers and
+                   charts come from Metrics, which is already applied; only
+                   the top-videos and summary sections need TopVideos (16 MB,
+                   ~0.5 s to read and parse even from the saved copy, measured
+                   2026-09-24). Draw the page now with placeholders there and
+                   redraw once they land. The Brief tab still waits. */
+                const early=tab==='analytics'&&clientHistory(sel).length>0;
+                if(early){
+                    _analyticsExtrasEarly=true;
+                    try{ content.innerHTML=renderClient(sel,clientHistory(sel),clientOnly); }
+                    finally{ _analyticsExtrasEarly=false; }
+                    const hist=clientHistory(sel);
+                    setTimeout(()=>{renderChart(hist);renderViewsChart(hist);},0);
+                }else content.innerHTML=_svLoadingSkeletonHtml('analytics-client');
+                const wantTab=tab;
                 arrival.then(()=>{
                     const st=history.state;
                     if(!(currentNav==='home'&&st&&st.client&&wlCanonicalClient(st.client)===want))return;
+                    // Same client on another tab (e.g. its Calendar): leave it alone.
+                    if((clientViewTab[want]||'analytics')!==wantTab)return;
                     // Neither the saved nor the live extras applied: say so and
                     // offer a retry, never draw the page with empty videos/briefs.
                     if(!_analyticsExtrasApplied){showExtrasError();return;}
+                    const sc=window.scrollY;
                     render(want,false);
+                    if(early)window.scrollTo({top:sc,behavior:'instant'});
                 });
                 return;
             }

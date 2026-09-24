@@ -437,14 +437,14 @@ const result = {
   const projectSource = extract('fetchLinearProjects');
   const projectBuilder = extract('_linearRebuildProjectSource');
   const rerouteSetter = extract('_writeUiSetRerouteFlagValue');
-  ok(/webhook\/linear-projects/.test(source)
+  ok(!/LINEAR_PROJECTS_WEBHOOK/.test(source)
     && /rest\/v1\/clients\?select=slug,display_name,kind,active/.test(projectSource)
     && projectSource.indexOf('await _writeUiPrimeRerouteFlag()') < projectSource.indexOf('/rest/v1/clients')
     && projectBuilder.includes('.filter(row => failNative || _writeUiRerouteUseGateway(row.slug))')
     && /_writeUiRerouteFlagFailed \|\| _writeUiRerouteRosterUnusable/.test(extract('_linearRosterFailsNative'))
     && projectBuilder.includes('linearLegacyProjects.map')
     && rerouteSetter.includes('_linearRefreshProjectsForRerouteChange(previousClients, nextClients)'),
-  'Submit keeps legacy project names outside the reroute cohort and uses native names only inside it');
+  'Submit no longer calls the dead linear-projects webhook, keeps held legacy names outside the reroute cohort and uses native names only inside it');
   const intakeItems = extract('_linearIntakeItems');
   /* Was: "graphics brief remains server-owned" — the browser sent no graphics
      brief at all, because the server used to generate it and refused a

@@ -40,8 +40,11 @@ Samples (legacy) and sample reviews (SXR):
 - `webhook/sample-review-get`, `webhook/sample-review-upsert`, `webhook/sample-review-reorder`
 
 Linear bridge:
-- `webhook/linear-issues`, `webhook/linear-projects`,
-  `webhook/log-linear-submission`
+- `webhook/linear-issues`, `webhook/log-linear-submission`
+- Submit's Linear projects read is **no longer called** (removed 2026-09-24: it
+  read Linear with the revoked key, failed 401 and raised an n8n alert on every
+  open; the client list comes from the native `clients` registry). Its path is
+  not written out here for the same set-equality reason given below.
 - The Workload tweak-comment preview's Linear read is **no longer called** (retired
   2026-09-23, B2; the popover reads `production-comments` only).
 - The sub-issues lookup webhook is **no longer called by the browser** (Import from

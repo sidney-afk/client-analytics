@@ -14586,7 +14586,6 @@
     window._fpSaveExisting = _fpSaveExisting;
     window._fpSaveNew = _fpSaveNew;
 
-    const LINEAR_PROJECTS_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/linear-projects';
     const LOG_SUBMISSION_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/log-linear-submission';
     /*
      * The gateway's own cap on ONE credential-less submission, mirrored here so
@@ -14725,16 +14724,11 @@
         linearProjectsLoading = true;
         let legacyProjects = linearLegacyProjects.slice();
         let nativeRows = linearClientRows.slice();
-        try {
-            const resp = await fetch(LINEAR_PROJECTS_WEBHOOK, { method: 'POST' });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const data = await resp.json();
-            const raw = Array.isArray(data) ? data : (data.projects || []);
-            legacyProjects = [...new Set(raw)];
-            console.log('[SyncView] Loaded', legacyProjects.length, 'Linear projects');
-        } catch (e) {
-            console.error('[SyncView] Failed to fetch Linear projects:', e);
-        }
+        // The legacy source (the n8n Linear projects webhook) read Linear with a key
+        // that is now revoked: every open of Submit failed with 401 and raised an
+        // "n8n workflow failed" Slack alert, and returned no names. Every active
+        // client is in the native cohort, so the dropdown comes from the clients
+        // registry below; the legacy list stays whatever it already held.
         let nativeError = null;
         try {
             if (typeof _writeUiPrimeRerouteFlag === 'function') await _writeUiPrimeRerouteFlag();

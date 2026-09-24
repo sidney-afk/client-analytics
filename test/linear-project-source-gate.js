@@ -51,7 +51,6 @@ function clientSlug(value) {
 async function runCase({ reroute = [], legacy, native = [], nativeError = null, pendingSlug = '', rosterFailed = false, rosterUnusable = false }) {
   const events = [];
   const context = {
-    LINEAR_PROJECTS_WEBHOOK: 'https://legacy.invalid/webhook/linear-projects',
     CAL_SUPABASE_URL: 'https://native.invalid',
     CAL_SUPABASE_ANON_KEY: 'anon',
     linearProjects: [],
@@ -59,7 +58,9 @@ async function runCase({ reroute = [], legacy, native = [], nativeError = null, 
     linearProjectsLoading: false,
     linearProjectsLoaded: false,
     linearProjectsLoadGeneration: 0,
-    linearLegacyProjects: [],
+    // The legacy list is no longer fetched (webhook/linear-projects is dead);
+    // a case's `legacy` names model what the page already held.
+    linearLegacyProjects: [...new Set(Array.isArray(legacy) ? legacy : ((legacy && legacy.projects) || []))],
     _writeUiRerouteClients: new Set(reroute),
     _writeUiRerouteFlagFailed: rosterFailed,
     _writeUiRerouteRosterUnusable: rosterUnusable,
@@ -80,10 +81,8 @@ async function runCase({ reroute = [], legacy, native = [], nativeError = null, 
     saveLinearForm: () => {},
     console: { log() {}, error() {} },
     fetch: async (url, options = {}) => {
-      if (url === context.LINEAR_PROJECTS_WEBHOOK) {
-        events.push('legacy');
-        assert.strictEqual(options.method, 'POST', 'legacy project source must retain its POST contract');
-        return { ok: true, json: async () => legacy };
+      if (/webhook\/linear-projects/.test(String(url))) {
+        throw new Error('Submit must never call the dead n8n linear-projects webhook');
       }
       if (String(url).startsWith(context.CAL_SUPABASE_URL + '/rest/v1/clients?')) {
         events.push('native');
@@ -114,8 +113,8 @@ async function runCase({ reroute = [], legacy, native = [], nativeError = null, 
   });
   assert.deepStrictEqual(Array.from(dark.context.linearProjects), ['Legacy First', 'Legacy Second']);
   assert.deepStrictEqual(Array.from(dark.context.linearClientRows), []);
-  assert.deepStrictEqual(dark.events, ['legacy', 'flag'],
-    'an empty cohort must use only the legacy project source');
+  assert.deepStrictEqual(dark.events, ['flag'],
+    'an empty cohort makes no network read beyond the flag, and never the dead webhook');
 
   const mixed = await runCase({
     reroute: ['enrolledclient', 'nativeonly'],
@@ -162,10 +161,7 @@ async function runCase({ reroute = [], legacy, native = [], nativeError = null, 
   let markStaleNativeStarted;
   const staleNativeStarted = new Promise(resolve => { markStaleNativeStarted = resolve; });
   racing.context.fetch = async (url, options = {}) => {
-    if (url === racing.context.LINEAR_PROJECTS_WEBHOOK) {
-      assert.strictEqual(options.method, 'POST');
-      return { ok: true, json: async () => ['Dr Enrolled Client'] };
-    }
+    if (/webhook\/linear-projects/.test(String(url))) throw new Error('dead webhook called');
     if (String(url).startsWith(racing.context.CAL_SUPABASE_URL + '/rest/v1/clients?')) {
       markStaleNativeStarted();
       return new Promise(resolve => { releaseStaleNative = () => resolve({
@@ -219,5 +215,7 @@ async function runCase({ reroute = [], legacy, native = [], nativeError = null, 
   const healthyEmpty = await runCase({ native: activeNative });
   assert.deepStrictEqual(Array.from(healthyEmpty.context.linearProjects), [],
     'a usable roster that enrols nobody still lists no native names');
+  assert(!/fetch\(LINEAR_PROJECTS_WEBHOOK|webhook\/linear-projects'/.test(extract('fetchLinearProjects')),
+    'fetchLinearProjects must not reference the dead linear-projects webhook');
   console.log('Linear project source gate checks passed');
 })().catch(error => { console.error(error); process.exit(1); });

@@ -22,14 +22,14 @@
 --
 -- PRE-APPLY: re-run the read-only comparison in the doc; it must still show
 -- exactly these seven differences and nothing else.
--- VERIFY: select public.production_retirement_contract_assert_v1();  -- returns void, no raise
+-- SELF-CHECK: the transaction runs the new assert before commit; if anything
+-- drifted between the 2026-09-24 read and the apply, it raises and the
+-- replacement rolls back (live assert left as it was).
+-- VERIFY (after commit): select public.production_retirement_contract_assert_v1();  -- returns void
 --
--- ROLLBACK (restores the pre-repin body, which raises again):
---   re-run this file with each "new" value above swapped back to its "old"
---   value (six body_raw_md5 strings, the epoch acl string, and the epoch
---   "service_execute":false back to true), or re-apply the live body captured
---   in the doc's evidence section. Owner and grants are unchanged by
---   create or replace; the revoke below is repeated for safety.
+-- ROLLBACK: migrations/2026-09-24-retirement-assert-repin.ROLLBACK.sql (NOT APPLIED)
+--   holds the exact live definition read 2026-09-24 (prosrc md5
+--   c28cb0972b52596d75134a05a7980418); running it restores the old pins verbatim.
 -- ============================================================
 begin;
 create or replace function public.production_retirement_contract_assert_v1() returns void
@@ -49,4 +49,5 @@ begin
  if not exists(select from pg_trigger t join pg_proc p on p.oid=t.tgfoid where t.tgrelid='linear_exit_provider.send_attempts_v1'::regclass and t.tgname='retirement_send_fence_v1' and t.tgenabled='A' and not t.tgisinternal and p.pronamespace='linear_exit_provider'::regnamespace and p.proname='retirement_send_fence_v1' and md5(p.prosrc)='575f10ca7b9865005d9666393628c395' and p.prosecdef and p.proconfig=array['search_path=pg_catalog, public'] and pg_get_userbyid(p.proowner)='postgres' and not has_function_privilege('service_role',p.oid,'EXECUTE') and not has_function_privilege('anon',p.oid,'EXECUTE') and not has_function_privilege('authenticated',p.oid,'EXECUTE') and t.tgtype=7 and t.tgnargs=0 and t.tgqual is null) then raise exception 'retirement_provider_fence_missing';end if;
 end $contract$;
 revoke all on function public.production_retirement_contract_assert_v1() from public,anon,authenticated,service_role;
+select public.production_retirement_contract_assert_v1();
 commit;

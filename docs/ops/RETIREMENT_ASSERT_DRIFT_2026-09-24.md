@@ -76,7 +76,7 @@ just not scheduled or called by anything today. Reopen is its reverse.
 
 **A. Re-pin (recommended).** `migrations/2026-09-24-retirement-assert-repin.sql`
 recreates the assert with the live body verbatim and changes only seven JSON
-values (listed in the file header). Activate/reopen keep working and keep
+values (listed in the file header). It runs the new assert before `commit`, so drift since this read aborts the apply. Rollback: `migrations/2026-09-24-retirement-assert-repin.ROLLBACK.sql`, the exact live definition read 2026-09-24 (body md5 `c28cb0972b52596d75134a05a7980418`, bytes incl. CRLF preserved). Neither file is applied. Activate/reopen keep working and keep
 failing closed on any future unreviewed drift.
 
 **B. Retire the assert.** Drop it or make it a no-op. Activate and reopen

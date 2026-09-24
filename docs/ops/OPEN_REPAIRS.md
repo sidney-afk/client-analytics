@@ -28840,6 +28840,6 @@ Lighthouse applied `migrations/2026-09-24-refusal-receipt-browser-codes.sql` (li
 
 **Fix (proposed):** `migrations/2026-09-24-retirement-assert-repin.sql` recreates the assert with the live body and only those seven expected values changed. Evidence and options: `docs/ops/RETIREMENT_ASSERT_DRIFT_2026-09-24.md`.
 
-**Undo:** ROLLBACK block in the migration header.
+**Undo:** `migrations/2026-09-24-retirement-assert-repin.ROLLBACK.sql` (exact live definition, prosrc md5 `c28cb097…`). The migration also runs the new assert before `commit`, so any drift since the read rolls it back.
 
 **Apply:** owner applies; then `select public.production_retirement_contract_assert_v1();` must return without raising. Until then, the post-apply check in 248 raises for this reason.

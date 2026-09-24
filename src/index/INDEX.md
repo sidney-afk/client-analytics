@@ -13,7 +13,7 @@
 | 5 | `030-body-shell.html.part` | 449 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 2595 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1651 | Market Research Brief Tab Renderers |
-| 8 | `060-templates-filming.js.part` | 1784 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 8 | `060-templates-filming.js.part` | 1829 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3545 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3361 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
 | 11 | `090-workload-popovers-navigation.js.part` | 2571 | Sub-issue popover |
@@ -41,6 +41,6 @@
 | 33 | `300-tiktok-upload.js.part` | 1707 | TIKTOK UPLOAD MODULE |
 | 34 | `310-tiktok-pilot-sales.js.part` | 1969 | TIKTOK PILOT MODULE (gated: ?ttpilot=1 → #tiktok-pilot) |
 | 35 | `320-kasper-dashboard-replies.js.part` | 2788 | Background poll for the Kasper review — same cadence as the client |
-| 36 | `330-kasper-review-history.js.part` | 2594 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
+| 36 | `330-kasper-review-history.js.part` | 2610 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 37 | `340-editors-date-picker.js.part` | 1288 | Editor work model |
 | 38 | `350-footer.html.part` | 398 | Transcript preview modal |

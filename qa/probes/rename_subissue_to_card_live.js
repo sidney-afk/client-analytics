@@ -52,6 +52,8 @@ async function renameIn(browser, id, name) {
     ok(!!c, 'card name followed');
     const g = await poll(() => del(t.card.graphic_deliverable_id), r => r && r.title.includes(NEW), 180000);
     ok(!!g, 'sibling (graphic) sub-issue followed');
+  } catch (e) {
+    ok(false, 'rename flow raised: ' + String(e && e.message || e).split('\n')[0].replace(/[?&]t=[^&\s]+/g, '').slice(0, 120));
   } finally {
     await renameIn(browser, t.card.video_deliverable_id, orig).catch(() => {});
     const c = await poll(async () => (H.supaCal(`id=eq.${t.card.id}&select=name`) || [])[0], r => r && r.name === orig, 180000);

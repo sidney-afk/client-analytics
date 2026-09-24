@@ -5964,10 +5964,19 @@ async function handleEntityOperation(
     throw new GatewayError(403, "operation_forbidden");
   }
   // Client transition policy is resolved before any provider probe. A
-  // forbidden status request must not gain an artifact-existence oracle, and
-  // reconcile-only requests use the same ordering.
+  // forbidden status request must not gain an artifact-existence oracle.
+  // A reconcile-only request is exempt from the CURRENT-status half: it writes
+  // nothing, it only asks whether this principal's own earlier request landed,
+  // so judging it against where the card sits NOW refuses the question once
+  // the card has moved on. Live 2026-09-23: one client's approve committed on
+  // 2026-08-15, the card went to Posted on 2026-08-21, and the client's browser
+  // repair journal re-asked "did my approve land?" on every calendar refresh,
+  // drawing 46 silent 403 operation_forbidden refusals in one day.
+  // reconcileEntityOperation still refuses any client status outside
+  // approved/tweak, and a client never reaches the smm_approval probe below.
   if (operation === "status"
       && principal.kind === "client"
+      && body.reconcile_only !== true
       && !clientOperationAllowed(operation, existing.status, nextStatus)) {
     throw new GatewayError(403, "operation_forbidden");
   }

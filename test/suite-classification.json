@@ -117,6 +117,7 @@
     "client-entry-preflight.js",
     "analytics-content-summary-click-only.js",
     "client-links-refresh.js",
+    "client-reconcile-after-posted.js",
     "client-review-link-auth.js",
     "client-review-link-security.js",
     "client-review-repair-stamp.js",

@@ -664,14 +664,13 @@
         if((clientViewTab[name]||'analytics')==='brief'){
             const _enc=encodeURIComponent(name);
             if(_clientBriefTabAvailable(name,clientOnly)){
-                const _briefMeta=getBriefMetaLine(name);
                 return`<div class="client-view">
                     <div class="view-tab-toggle">
                         <button class="view-tab-btn" onclick="setClientViewTab('${_enc}','analytics')">Analytics</button>
                         <button class="view-tab-btn" onclick="setClientViewTab('${_enc}','calendar')">Content Calendar</button>
                         <button class="view-tab-btn active" onclick="setClientViewTab('${_enc}','brief')">Brief</button>
                     </div>
-                    <div class="detail-hero" style="margin-bottom:16px;"><div><div class="detail-name" style="display:flex;align-items:center;">${name}${(()=>{const _d=clientMap[name]?.content_description||'';return _d?`<button class="detail-info-btn" title="About this client" onclick="event.stopPropagation();showClientInfoModal(${_jsAttrArg(name)})">i</button>`:'';})()}</div>${_briefMeta?`<div class="detail-meta">${_briefMeta}</div>`:''}</div></div>
+                    <div class="detail-hero" style="margin-bottom:16px;"><div><div class="detail-name" style="display:flex;align-items:center;">${name}${(()=>{const _d=clientMap[name]?.content_description||'';return _d?`<button class="detail-info-btn" title="About this client" onclick="event.stopPropagation();showClientInfoModal(${_jsAttrArg(name)})">i</button>`:'';})()}</div></div></div>
                     <div id="briefViewContainer">${renderBriefContent(name)}</div>
                 </div>`;
             }
@@ -763,10 +762,9 @@
         }
 
         if(tab==='brief'&&showBriefTab){
-            const briefMeta=getBriefMetaLine(name);
             return`<div class="client-view">
                 ${toggleHtml}
-                <div class="detail-hero" style="margin-bottom:16px;"><div><div class="detail-name" style="display:flex;align-items:center;">${name}${(()=>{const _d=clientMap[name]?.content_description||'';return _d?`<button class="detail-info-btn" title="About this client" onclick="event.stopPropagation();showClientInfoModal(${_jsAttrArg(name)})">i</button>`:'';})()}</div>${briefMeta?`<div class="detail-meta">${briefMeta}</div>`:''}</div></div>
+                <div class="detail-hero" style="margin-bottom:16px;"><div><div class="detail-name" style="display:flex;align-items:center;">${name}${(()=>{const _d=clientMap[name]?.content_description||'';return _d?`<button class="detail-info-btn" title="About this client" onclick="event.stopPropagation();showClientInfoModal(${_jsAttrArg(name)})">i</button>`:'';})()}</div></div></div>
                 <div id="briefViewContainer">${renderBriefContent(name)}</div>
             </div>`;
         }

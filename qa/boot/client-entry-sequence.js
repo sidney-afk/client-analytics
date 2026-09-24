@@ -1910,7 +1910,7 @@ async function runClientTabScenario(browser, server, view) {
 }
 
 async function runBriefWorkTeardownScenario(browser, server) {
-  const label = 'client Brief BFCache retires polling and tab-summary work';
+  const label = 'client Brief BFCache retires tab-summary work';
   const run = await openBfcacheCase(browser, { view: 'brief', validVerifierCalls: 2 });
   try {
     const query = new URLSearchParams({ c: CLIENT_A, v: 'brief', t: CURRENT_TOKEN });
@@ -1933,16 +1933,10 @@ async function runBriefWorkTeardownScenario(browser, server) {
       window.__syncviewPageShows = [];
       const state = {
         requests: [],
-        pollCallback: null,
-        pollIntervalId: null,
-        pollCleared: false,
-        pollPromise: null,
         tabPromise: null,
         pagehide: null,
         oldGeneration: _syncviewClientEntryDataRun && _syncviewClientEntryDataRun.generation,
         originalFetch: window.fetch,
-        originalSetInterval: window.setInterval,
-        originalClearInterval: window.clearInterval,
       };
       window.__syncviewBriefLifetime = state;
 
@@ -1951,28 +1945,12 @@ async function runBriefWorkTeardownScenario(browser, server) {
         const body = String(init && init.body || '');
         let kind = '';
         if (rawUrl === TAB_SUMMARY_WEBHOOK && body.includes('synthetic-held-tab')) kind = 'tab-summary';
-        else if (rawUrl.startsWith(MR_BRIEFS_URL)) kind = 'mr-briefs';
-        else if (rawUrl.startsWith(BRIEFS_URL)) kind = 'briefs';
         if (!kind) return state.originalFetch.call(window, input, init);
         return new Promise(resolve => {
           state.requests.push({ kind, signal: init && init.signal || null, resolve });
         });
       };
 
-      window.setInterval = (callback, delay, ...args) => {
-        const id = state.originalSetInterval.call(window, () => {}, Math.max(Number(delay) || 0, 60_000));
-        state.pollCallback = () => callback(...args);
-        state.pollIntervalId = id;
-        return id;
-      };
-      window.clearInterval = id => {
-        if (id === state.pollIntervalId) state.pollCleared = true;
-        return state.originalClearInterval.call(window, id);
-      };
-
-      startBriefPolling(clientName, new Date(), 'comp');
-      window.setInterval = state.originalSetInterval;
-      state.pollPromise = Promise.resolve().then(() => state.pollCallback());
       state.tabPromise = fetchTabSummary(
         clientName,
         'comp',
@@ -1982,13 +1960,11 @@ async function runBriefWorkTeardownScenario(browser, server) {
 
       window.addEventListener('pagehide', () => {
         state.pagehide = {
-          pollCleared: state.pollCleared,
           signalsAborted: state.requests.map(request => Boolean(request.signal && request.signal.aborted)),
           capability: Boolean(_syncviewClientEntryCapability),
           dataRun: Boolean(_syncviewClientEntryDataRun),
           controllers: tabSummaryControllers.size,
           startTimers: tabSummaryStartTimers.size,
-          pollingKeys: Object.keys(briefPollingState),
           surface: window.__syncviewBootSnapshot().surface,
         };
         window.__syncviewResetBootTrace();
@@ -1997,7 +1973,7 @@ async function runBriefWorkTeardownScenario(browser, server) {
 
     await run.page.waitForFunction(() => (
       window.__syncviewBriefLifetime
-      && window.__syncviewBriefLifetime.requests.length === 3
+      && window.__syncviewBriefLifetime.requests.length === 1
     ), null, { timeout: 10_000 });
     await run.page.waitForTimeout(60);
     const beforeHide = await traceOf(run.page);
@@ -2012,7 +1988,6 @@ async function runBriefWorkTeardownScenario(browser, server) {
     await run.page.evaluate(() => {
       const state = window.__syncviewBriefLifetime;
       window.fetch = state.originalFetch;
-      window.setInterval = state.originalSetInterval;
     });
     const awayOrigin = server.origin.replace('127.0.0.1', 'localhost');
     await run.page.goto(`${awayOrigin}/boot-away`, { waitUntil: 'load', timeout: 15_000 });
@@ -2030,7 +2005,6 @@ async function runBriefWorkTeardownScenario(browser, server) {
 
     const beforeLateRelease = await run.page.evaluate(clientName => {
       const state = window.__syncviewBriefLifetime;
-      window.clearInterval = state.originalClearInterval;
       const tabKey = getTabSummaryKey(clientName, 'comp', 'synthetic-held-tab');
       return {
         pagehide: state.pagehide,
@@ -2053,13 +2027,11 @@ async function runBriefWorkTeardownScenario(browser, server) {
       beforeLateRelease.pageShows.some(event => event.persisted === true),
       `${label}: pageshow.persisted must prove actual BFCache restoration`,
     );
-    assert.equal(beforeLateRelease.pagehide.pollCleared, true, `${label}: purge must clear the retained polling interval handle`);
-    assert.deepEqual(beforeLateRelease.pagehide.signalsAborted, [true, true, true], `${label}: every held Brief transport must observe revocation`);
+    assert.deepEqual(beforeLateRelease.pagehide.signalsAborted, [true], `${label}: every held Brief transport must observe revocation`);
     assert.equal(beforeLateRelease.pagehide.capability, false, `${label}: pagehide must revoke client capability`);
     assert.equal(beforeLateRelease.pagehide.dataRun, false, `${label}: pagehide must retire the old client data generation`);
     assert.equal(beforeLateRelease.pagehide.controllers, 0, `${label}: purge must drop every tab-summary controller`);
     assert.equal(beforeLateRelease.pagehide.startTimers, 0, `${label}: purge must drop every delayed tab-summary launch`);
-    assert.deepEqual(beforeLateRelease.pagehide.pollingKeys, [], `${label}: purge must clear visible polling state only after cancellation`);
     assert.equal(beforeLateRelease.pagehide.surface, 'loading:verify', `${label}: pagehide must synchronously install the neutral verifier`);
     assert.ok(
       beforeLateRelease.freshGeneration > beforeLateRelease.oldGeneration,
@@ -2077,16 +2049,10 @@ async function runBriefWorkTeardownScenario(browser, server) {
     const afterLateRelease = await run.page.evaluate(async ({ clientName, marker }) => {
       const state = window.__syncviewBriefLifetime;
       for (const request of state.requests) {
-        let text = '';
-        if (request.kind === 'tab-summary') text = JSON.stringify({ summary: marker });
-        else if (request.kind === 'briefs') {
-          text = `client_name,raw_json,id\n${clientName},"{}",2099-01-01T00:00:00.000Z\n`;
-        } else {
-          text = `client_name,brief_name,brief_date,brief_content\n${clientName},${marker},2099-01-01,${marker}\n`;
-        }
+        const text = JSON.stringify({ summary: marker });
         request.resolve({ ok: true, status: 200, text: async () => text });
       }
-      await Promise.allSettled([state.pollPromise, state.tabPromise]);
+      await Promise.allSettled([state.tabPromise]);
       await new Promise(resolve => setTimeout(resolve, 0));
       const tabKey = getTabSummaryKey(clientName, 'comp', 'synthetic-held-tab');
       return {

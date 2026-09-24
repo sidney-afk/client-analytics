@@ -1443,22 +1443,6 @@
             try { _calResolveClientAfterDataReady(); } catch {}
         }
 
-        function _resumePendingBriefPolling() {
-            // Reads the brief lists, which a saved-copy paint may still hold queued.
-            if (typeof _analyticsFlushPendingExtras === 'function') _analyticsFlushPendingExtras();
-            Object.entries(pendingBriefs).forEach(([key,{triggerISO,type}])=>{
-                const triggerTime=new Date(triggerISO);
-                const sep=key.lastIndexOf('__');
-                const clientName=sep>-1?key.substring(0,sep):key;
-                const briefType=type||(sep>-1?key.substring(sep+2):'comp');
-                const briefList=briefType==='mr'?mrBriefs:briefs;
-                const alreadyDone=briefList.find(b=>b.client_name===clientName&&b.raw_json&&new Date(b.id)>triggerTime);
-                if(alreadyDone){delete pendingBriefs[key];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}return;}
-                briefPollingState[key]={loading:true,triggerTime,intervalId:null,lastChecked:null};
-                startBriefPolling(clientName,triggerTime,briefType);
-            });
-        }
-
         // Kasper unlock state — declared early so the unlock block near the
         // top of init() can assign to _kasperUnlocked without triggering a
         // TDZ ReferenceError that the surrounding try/catch would swallow

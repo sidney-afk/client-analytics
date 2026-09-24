@@ -28787,3 +28787,13 @@ finished until its receipt is in the log and the row is updated, in the same PR.
 1. Section 4 deploy, together with #1527.
 2. Lighthouse turns on `subissue_to_card` (and `samples`, if wanted).
 3. Live proof on the test client.
+
+## 244. [2026-09-24, BUILT — test-harness only, nothing to deploy] Headless suites no longer flood the refusal log with invalid_staff_key
+
+**Measured before:** `write_refusal_diagnostics.receipts_v1` held 3,000 `invalid_staff_key` rows for 2026-09-23 on surface `production`, operation `other`, in bursts of ~150 to 460 an hour over the same ~82 card ids. Real refusals that day were under 200 in total, so the headless noise was over 90% of the log.
+
+**Cause:** `qa/staff-gate-seed.js` signs every headless suite in with the stub key `qa-staff-gate-key`. The `?prod=1` preview then POSTs `labels_read` to the LIVE production-write once per card with that key, and each call is refused and recorded.
+
+**Fix:** the seed now answers a production-write POST carrying the stub key inside the browser, with the same 401 `{ok:false,error:"invalid_staff_key"}` the live function returns (plus `x-write-diagnostic-status: headless-stub`). Any other key falls through untouched, and a suite's own production-write mock still wins. The Edge Function and the refusal recorder are unchanged, so real refusals are recorded exactly as before. Guard: `test/staff-gate-stub-refusal-local.js` (fails without the fix).
+
+**Still to measure:** the after count, one day after merge: `select count(*) from write_refusal_diagnostics.receipts_v1 where code='invalid_staff_key' and surface='production' and operation='other' and recorded_at >= <merge time>`. Expected near 0. A few calendar/sxr probes set their own fake keys (`probe-staff-key`, `synthetic-role-key`); they were not the flood but would show as small residue.

@@ -20,7 +20,7 @@ import {
   staffAuthFailureStatus,
   type StaffRoleKey,
 } from "../_shared/staff-role-auth.ts";
-import { projectNativeSnapshot, legacyPlanAliases } from "./native-snapshot.mjs";
+import { projectNativeSnapshot, legacyPlanAliases, boardSnapshot } from "./native-snapshot.mjs";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -194,7 +194,8 @@ async function nativeSnapshotCached(db: SupabaseClient, ifVersion: string, steps
   }
   if (!data || data.contract!=="workload-native-snapshot-v2") throw new WorkloadPlanError(503,"workload_snapshot_incomplete");
   const projectStarted=Date.now();
-  try { return projectNativeSnapshot(data,normalizeBrowserWriteClient); }
+  // Validate the whole snapshot, then send only what the board draws.
+  try { return boardSnapshot(projectNativeSnapshot(data,normalizeBrowserWriteClient)); }
   catch { throw new WorkloadPlanError(503,"workload_snapshot_incomplete"); }
   finally { steps.project_ms=Date.now()-projectStarted; }
 }

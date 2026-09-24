@@ -111,3 +111,33 @@ export function legacyPlanAliases(snapshot) {
     return alternate && alternate!==plan.issue_id ? [plan,{...plan,issue_id:alternate}] : [plan];
   });
 }
+
+// The v2 wire body carries only what the Workload board can draw: sub-issues
+// that are not closed, plus the parents they point at -- the same set the
+// page's own warm-start cache keeps (wlWriteCache). Closed sub-issues were 54%
+// of the 6.85 MB answer and every one of them was dropped on arrival. Backlog
+// stays in on purpose: the page decides that, so the server never has to
+// mirror its status rules. Runs AFTER projectNativeSnapshot, so validation
+// and saved-day re-keying still see every row. Saved days whose card is closed
+// stay in `plans`; the page looks plans up by id and ignores the unmatched.
+const WL_CLOSED_STATUS_TYPES = new Set(['completed','canceled','duplicate','triage']);
+// Never read by the page (checked against src/index on 2026-09-24).
+const WL_UNREAD_ROW_FIELDS = ['native_assignee_id','native_sync_state','native_sort_key','native_kind'];
+
+export function boardSnapshot(snapshot) {
+  const open = snapshot.rows.filter(row => row.is_sub_issue
+    && !WL_CLOSED_STATUS_TYPES.has(String(row.status_type || '').toLowerCase()));
+  const parentIds = new Set(open.map(row => row.parent_id).filter(id => id != null));
+  const rows = snapshot.rows.filter(row => row.is_sub_issue
+    ? !WL_CLOSED_STATUS_TYPES.has(String(row.status_type || '').toLowerCase())
+    : parentIds.has(row.id)).map(row => {
+      const slim = {...row};
+      for (const field of WL_UNREAD_ROW_FIELDS) delete slim[field];
+      return slim;
+    });
+  const parents = {};
+  for (const id of parentIds) {
+    if (Object.prototype.hasOwnProperty.call(snapshot.parents || {}, id)) parents[id] = snapshot.parents[id];
+  }
+  return {...snapshot, rows, count: rows.length, parents};
+}

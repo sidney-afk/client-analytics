@@ -75,12 +75,7 @@ const SRC_DIR = path.join(ROOT, 'src', 'index');
 // Earlier copies are dead today (the later declaration wins in a classic
 // script). Remove a name from this list in the same change that deletes its
 // earlier copy.
-const KNOWN_DUPLICATES = new Set([
-  '_prodCommentDraftFor',
-  '_prodCommentDraftInput',
-  '_prodComposerHTML',
-  '_prodSubmitComment',
-]);
+const KNOWN_DUPLICATES = new Set([]);
 
 const args = process.argv.slice(2);
 const againstArg = args.find(a => a.startsWith('--against='));

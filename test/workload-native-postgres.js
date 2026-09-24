@@ -309,6 +309,49 @@ const ok=(v,m)=>{assert.ok(v,m);checks++;};
   sql(`insert into clients(slug,display_name)values('cron-extra','Cron extra');`);
   ok(Number(sql('select count(*) from workload_snapshot_invalidation;'))===1,'a real insert invalidates');
   sql(`delete from clients where slug='cron-extra';`);cached();}
+ // ---- BOARD BUILDER (migrations/2026-09-24-workload-native-snapshot-board-builder.sql, NOT APPLIED live).
+ // The cached path builds only boardSnapshot's rows. Proven against boardSnapshot
+ // itself (imported from the Edge Function) on a fixture with closed rows.
+ {const base='migrations/2026-09-24-workload-native-snapshot-board-builder';
+  const mig=read(base+'.sql'),verify=read(base+'.VERIFY.sql'),rollback=read(base+'.ROLLBACK.sql');
+  const {boardSnapshot}=await import(require('node:url').pathToFileURL(path.join(root,'supabase/functions/workload-plan/native-snapshot.mjs')).href);
+  const src=name=>sql(`select md5(prosrc) from pg_proc where proname='${name}';`);
+  const cachedSrc=src('workload_native_snapshot_cached_v1'),warmSrc=src('workload_native_snapshot_warm_v1');
+  const lbl=`'{"issue":{"labels":{"nodes":[],"pageInfo":{"hasNextPage":false}}}}'`;
+  sql(`insert into batches(id,client_slug,name)values('bat_board_closed','fixture','Closed only'),('bat_board_mixed','fixture','Mixed');
+   insert into deliverables(id,batch_id,client_slug,team,kind,title,status,linear_raw)values
+   ('del_board_posted','bat_board_closed','fixture','video','video','Posted','posted',${lbl}),
+   ('del_board_canceled','bat_board_closed','fixture','video','video','Canceled','canceled',${lbl}),
+   ('del_board_dup','bat_board_mixed','fixture','video','video','Duplicate','duplicate',${lbl}),
+   ('del_board_triage','bat_board_mixed','fixture','video','video','Triage','triage',${lbl}),
+   ('del_board_backlog','bat_board_mixed','fixture','video','video','Backlog','backlog',${lbl});
+   insert into workload_issues values('legacy-board-closed',true,true,'OPS','Ops','Fixture','completed',null);`);
+  const v1=json('select workload_native_snapshot_v1();'),want=boardSnapshot(v1);
+  ok(want.rows.length<v1.rows.length&&!want.rows.some(r=>r.id==='bat_board_closed')&&want.rows.some(r=>r.id==='bat_board_mixed')
+   &&want.rows.some(r=>r.id==='del_board_backlog')&&!want.rows.some(r=>r.id==='legacy-board-closed')&&v1.legacy_teams.includes('OPS'),
+   'fixture has closed native and legacy rows, a closed-only parent and a kept backlog row');
+  const vr=sql(verify).split('\n').pop().split('|');
+  ok(vr.slice(0,3).join()==='0,0,0'&&Number(vr[3])===v1.rows.length&&Number(vr[4])===want.rows.length,
+   'VERIFY: board builder rows equal boardSnapshot(v1) by id and content, envelope equal');
+  ok(sql(`select count(*) from pg_proc where proname='workload_native_snapshot_board_v1';`)==='0','VERIFY rolls back and leaves nothing behind');
+  sql(mig);sql(mig);
+  const board=json('select workload_native_snapshot_board_v1();');const strip=r=>Object.fromEntries(Object.entries(r).filter(([k])=>!['native_assignee_id','native_sync_state','native_sort_key','native_kind'].includes(k)));
+  ok(JSON.stringify(board.rows.map(strip))===JSON.stringify(want.rows)&&board.count===want.rows.length
+   &&JSON.stringify({...board,rows:0,count:0})===JSON.stringify({...v1,rows:0,count:0}),'board builder rows equal boardSnapshot(v1) exactly (the four unread fields are still stripped by the Edge Function), applied twice');
+  ok(sql(`select count(*) from information_schema.routine_privileges where routine_name='workload_native_snapshot_board_v1' and grantee in ('PUBLIC','anon','authenticated','service_role');`)==='0'
+   &&sql(`select string_agg(grantee,',' order by grantee) from information_schema.routine_privileges where routine_name in ('workload_native_snapshot_cached_v1','workload_native_snapshot_warm_v1') and grantee in ('PUBLIC','anon','authenticated','service_role');`)==='service_role,service_role',
+   'no role can call the builder directly; cached/warm stay service_role only');
+  const c=cached();ok(c.rows.length===want.rows.length&&c.count===want.rows.length&&!c.rows.some(r=>r.id==='del_board_posted'),'the migration marks the old copy stale and the cached read rebuilds with the board builder');
+  sql(`update deliverables set title='Board warm' where id='del_fixture';`);
+  ok(json('select workload_native_snapshot_warm_v1();').rebuilt===true&&cached(c.version).rows.length===want.rows.length,'the warm job rebuilds with the board builder too');
+  sql(rollback);
+  ok(sql(`select count(*) from pg_proc where proname='workload_native_snapshot_board_v1';`)==='0'
+   &&src('workload_native_snapshot_warm_v1')===warmSrc&&cached().rows.length===json('select workload_native_snapshot_v1();').rows.length,
+   'ROLLBACK drops the builder, restores warm_v1 byte-for-byte and the cache rebuilds from v1');
+  ok(sql(`select count(*) from information_schema.routine_privileges where routine_name in ('workload_native_snapshot_cached_v1','workload_native_snapshot_warm_v1') and grantee in ('PUBLIC','anon','authenticated');`)==='0','ROLLBACK keeps browser roles off both functions');
+  void cachedSrc;
+  sql(mig);
+  sql(`update deliverables set title='Fixture work' where id='del_fixture';delete from deliverables where id like 'del_board_%';delete from batches where id like 'bat_board_%';delete from workload_issues where id='legacy-board-closed';`);cached();}
  sql(`update workload_plan set plan_date='2030-02-01' where issue_id='old-fixture';update team_members set name='Fixture editor' where id='00000000-0000-0000-0000-000000000001';
  update batches set name='Fixture batch' where id='bat_fixture';update deliverables set title='Fixture work' where id='del_fixture';delete from workload_issues where id='legacy-new';`);
  const handler=spawnSync(process.execPath,['--experimental-strip-types',path.join(root,'qa/workload-native/handler.mjs')],{env:{...env,WORKLOAD_TEST_DB:db},encoding:'utf8',windowsHide:true,timeout:60000,maxBuffer:4e6});

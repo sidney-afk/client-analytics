@@ -1,7 +1,9 @@
 'use strict';
 /*
- * check-modules.js -- phase C step C3, step 0/1 of
- * docs/plans/2026-09-24-modularization-c3-plan.md.
+ * check-modules.js -- phase C step C3, step 1 of the C3 plan,
+ * docs/plans/2026-09-24-modularization-c3-plan.md (added by PR #1564, which
+ * merges before this one; the roadmap it follows is
+ * docs/plans/2026-09-21-post-modularization-roadmap.md).
  *
  * Proves, over the src/index/ script fragments, the facts that the plan's
  * one-fragment-at-a-time conversion to ES modules depends on. It changes
@@ -30,10 +32,17 @@
  *      a top-level name that a LATER fragment declares. Measured 0 on
  *      2026-09-24; it is what makes converting one fragment at a time safe,
  *      and what a module loader would turn into a real ordering bug.
- *      Approximation, stated: names bound inside the statement itself
- *      (block let/const, catch parameters, destructuring) are excluded by
- *      name, not by exact scope. That can only hide a violation whose name is
- *      also a local binding in the same statement.
+ *      Function bodies are skipped because they run later, EXCEPT a function
+ *      invoked where it is written (`(() => x)()`, `new function(){}`,
+ *      `(function(){}).call(this)`), whose body runs at load and is walked;
+ *      class computed keys, static field initialisers and static blocks are
+ *      walked for the same reason. Approximations, stated: (a) names bound
+ *      inside the statement itself (block let/const, catch and invoked-
+ *      function parameters, destructuring) are excluded by name, not by exact
+ *      scope, which can only hide a violation whose name is also such a local
+ *      binding; (b) a callback handed to a function that happens to call it
+ *      synchronously (`list.forEach(x => ...)` at top level) is treated as
+ *      deferred, because that cannot be known without running the code.
  *
  *   5. --against=<git-ref> (optional). Assembles index.html from the
  *      fragments exactly as scripts/build-index.js does (raw bytes, manifest
@@ -187,24 +196,49 @@ if (ast) {
 
   // ---- 4. no load-time forward reference ------------------------------------
   const isFunction = t => t === 'FunctionDeclaration' || t === 'FunctionExpression' || t === 'ArrowFunctionExpression';
+  // A function body normally runs later, not at load. The exception is a
+  // function invoked where it is written: `(() => x)()`, `new function () {}`,
+  // `(function () {}).call(this)`. Its body runs at load, so it is walked.
+  const runsWhereWritten = (node, parent, key, grand) => {
+    if (!parent) return false;
+    if ((parent.type === 'CallExpression' || parent.type === 'NewExpression') && key === 'callee') return true;
+    return parent.type === 'MemberExpression' && key === 'object' && !parent.computed
+      && parent.property.type === 'Identifier' && (parent.property.name === 'call' || parent.property.name === 'apply')
+      && !!grand && grand.type === 'CallExpression' && grand.callee === parent;
+  };
   let forward = 0;
   for (const stmt of ast.body) {
     if (stmt.type === 'FunctionDeclaration') continue;
     const frag = fragAt(stmt.start);
     const myIndex = fragIndex.get(frag);
-    // Names this statement binds for itself (never a top-level reference).
+    // Names this statement binds for itself (never a top-level reference),
+    // including the parameters and locals of functions invoked where written.
     const local = new Set();
-    const collectLocal = (node) => {
-      if (isFunction(node.type)) { if (node.id && node.type === 'FunctionDeclaration') local.add(node.id.name); return; }
+    const collectLocal = (node, parent, key, grand) => {
+      if (isFunction(node.type)) {
+        if (node.id && node.type === 'FunctionDeclaration') local.add(node.id.name);
+        if (!runsWhereWritten(node, parent, key, grand)) return;
+        for (const param of node.params) bindingNames(param, local);
+      }
       if (node.type === 'VariableDeclaration' && node !== stmt) for (const d of node.declarations) bindingNames(d.id, local);
       if (node.type === 'CatchClause' && node.param) bindingNames(node.param, local);
       if (node.type === 'ClassDeclaration' && node.id && node !== stmt) local.add(node.id.name);
-      for (const [c] of children(node)) collectLocal(c);
+      for (const [c, p, k] of children(node)) collectLocal(c, p, k, parent);
     };
-    collectLocal(stmt);
-    const visit = (node, parent, key) => {
-      if (isFunction(node.type)) return; // runs later, not at load
-      if (node.type === 'ClassBody') return; // methods run later; field initialisers are not used here
+    collectLocal(stmt, null, null, null);
+    const visit = (node, parent, key, grand) => {
+      // Runs later, not at load -- unless invoked where it is written.
+      if (isFunction(node.type) && !runsWhereWritten(node, parent, key, grand)) return;
+      if (node.type === 'ClassBody') {
+        // Methods and instance fields run later. Computed keys, static field
+        // initialisers and static blocks run when the class is defined.
+        for (const el of node.body) {
+          if (el.computed) visit(el.key, el, 'key', node);
+          if (el.type === 'StaticBlock') for (const b of el.body) visit(b, el, 'body', node);
+          else if (el.type === 'PropertyDefinition' && el.static && el.value) visit(el.value, el, 'value', node);
+        }
+        return;
+      }
       if (node.type === 'Identifier') {
         if (parent && parent.type === 'MemberExpression' && key === 'property' && !parent.computed) return;
         if (parent && (parent.type === 'Property' || parent.type === 'PropertyDefinition' || parent.type === 'MethodDefinition') && key === 'key' && !parent.computed) return;
@@ -220,9 +254,9 @@ if (ast) {
         }
         return;
       }
-      for (const [c, p, k] of children(node)) visit(c, p, k);
+      for (const [c, p, k] of children(node)) visit(c, p, k, parent);
     };
-    visit(stmt, null, null);
+    visit(stmt, null, null, null);
   }
 
   // ---- report ---------------------------------------------------------------

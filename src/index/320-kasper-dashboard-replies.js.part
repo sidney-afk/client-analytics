@@ -101,8 +101,53 @@
     const FILMING_CONTENT_RED_COUNT = 10;
     const FILMING_CONTENT_COVERED_COUNT = 21;
     const FILMING_PLAN_SOON_DAYS = 14;
+    /* RELOAD RACE (speed map 2026-09-23 §7). On a reload the stored staff
+       identity is not yet re-verified, so every _syncviewStaffCan() check reads
+       false until key-verify answers. The capability gates below used to treat
+       that as "not allowed" and fall back to review -- rewriting both the URL
+       and the saved subtab to review, so nothing was left to restore once the
+       check passed. Hiring (admin only) lost every reload; onboarding lost
+       whenever the tab painted before key-verify answered.
+
+       While verification is pending the fallback is now TEMPORARY: review
+       shows, but the hash and saved subtab keep the requested tab, and
+       _kasperRestorePendingSubtab() puts it back when the check settles. A
+       real denial (verified, wrong role; or signed out) falls back as before. */
+    let _kasperPendingSubtab = '';
+    let _kasperPendingEpoch = -1;   // _syncviewNavEpoch when it was parked (Phase D guard)
+    function _kasperStaffCheckPending() {
+        try {
+            if (typeof _syncviewStaffIdentityValid === 'function' && _syncviewStaffIdentityValid()) return false;
+            const id = typeof _syncviewStaffIdentityLoad === 'function' ? _syncviewStaffIdentityLoad() : null;
+            return !!(id && id.key && id.member && id.member.id);
+        } catch (e) { return false; }
+    }
+    function _kasperDenySubtab(capability) {
+        if (!_kasperStaffCheckPending()) _syncviewOfferStaffSignIn(capability);
+        _kasperFallbackToReview();
+    }
+    function _kasperRestorePendingSubtab() {
+        const want = _kasperPendingSubtab;
+        if (!want) return;
+        if (_kasperStaffCheckPending()) return;          // still waiting on key-verify
+        _kasperPendingSubtab = '';
+        // Phase D's navigation epoch: any navTo since this was parked means the
+        // visitor moved on, and their choice wins over the restore.
+        if (_syncviewNavEpoch !== _kasperPendingEpoch || currentNav !== 'kasper' || _kasperState.tab !== 'review') return;
+        // _kasperGotoTab runs every subtab's own capability check; if it
+        // declines, the denial is settled, so persist review as before.
+        _kasperGotoTab(want);
+        if (_kasperState.tab !== want) { _kasperState.tab = want; _kasperFallbackToReview(); }
+    }
     function _kasperFallbackToReview() {
+        const wanted = _kasperState.tab;
         _kasperState.tab = 'review';
+        if (wanted && wanted !== 'review' && _kasperStaffCheckPending()) {
+            _kasperPendingSubtab = wanted;
+            _kasperPendingEpoch = _syncviewNavEpoch;
+            if (typeof _kasperSyncTabNav === 'function') _kasperSyncTabNav();
+            return;
+        }
         try { localStorage.setItem(KASPER_SUBTAB_KEY, 'review'); } catch (e) {}
         try {
             if (typeof currentNav !== 'undefined' && currentNav === 'kasper') {
@@ -610,6 +655,7 @@
 
     function _kasperGotoTab(tab) {
         if (!KASPER_SUBTABS.some(t => t.key === tab)) return;
+        _kasperPendingSubtab = '';
         if (tab === 'time-off' && !_ptoEnabled()) return;
         if (tab === 'time-off' && !_syncviewStaffCan('pto-admin')) return;
         if (tab === 'client-credentials' && !_syncviewStaffCan('credentials')) { _syncviewOfferStaffSignIn('credentials'); return; }
@@ -636,18 +682,20 @@
         if (_kasperState.tab === 'time-off' && !_ptoEnabled()) _kasperFallbackToReview();
         if (_kasperState.tab === 'time-off' && !_syncviewStaffCan('pto-admin')) _kasperFallbackToReview();
         if (_kasperState.tab === 'client-credentials' && !_syncviewStaffCan('credentials')) {
-            _syncviewOfferStaffSignIn('credentials'); _kasperFallbackToReview();
+            _kasperDenySubtab('credentials');
         }
         if (_kasperState.tab === 'onboarding' && !_syncviewStaffCan('onboarding')) {
-            _syncviewOfferStaffSignIn('onboarding'); _kasperFallbackToReview();
+            _kasperDenySubtab('onboarding');
         }
         if (_kasperState.tab === 'hiring-process' && !_syncviewStaffCan('hiring')) {
-            _syncviewOfferStaffSignIn('hiring'); _kasperFallbackToReview();
+            _kasperDenySubtab('hiring');
         }
         if (_kasperState.tab === 'quiz-leads' && !_syncviewStaffCan('quiz-leads')) {
-            _syncviewOfferStaffSignIn('quiz-leads'); _kasperFallbackToReview();
+            _kasperDenySubtab('quiz-leads');
         }
         _kasperSyncTabNav();
+        // Only the review queue holds the analytics extras back (see _analyticsHoldExtras).
+        if (_kasperState.tab !== 'review' && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
         if (_kasperState.tab === 'samples' && typeof _sxrKasperRenderQueue === 'function') return _sxrKasperRenderQueue(); // SXR_LINE
         if (_kasperState.tab === 'review')  return _kasperRenderReview();
         if (_kasperState.tab === 'replies') return _kasperRenderReplies();
@@ -1136,7 +1184,7 @@
     function _kasperRenderHiringProcess() {
         const el = document.getElementById('kasperContent');
         if (!el) return;
-        if (!_syncviewStaffCan('hiring')) { _syncviewOfferStaffSignIn('hiring'); _kasperFallbackToReview(); return; }
+        if (!_syncviewStaffCan('hiring')) { _kasperDenySubtab('hiring'); return; }
         el.innerHTML = renderHiringProcessView();
         _hpPaint();
         _hpLoadList(false);

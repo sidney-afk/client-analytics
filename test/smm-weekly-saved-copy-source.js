@@ -19,3 +19,7 @@ ok(/_srpOptionsFetched = false; _srpLoadReports\(\)/.test(SRC), 'Refresh re-read
 ok(/removeItem\(SRP_SAVED_KEY\)/.test(SRC.slice(SRC.indexOf('function _srpPurgeSensitiveState()'))), 'purge drops the saved copy');
 ok(/_srpPurgeSensitiveState\(\)/.test(STAFF.slice(STAFF.indexOf('function _syncviewStaffPurgeSensitiveState()'), STAFF.indexOf('function _syncviewStaffPurgeSensitiveState()') + 1200)), 'sign-out purge calls the reports purge');
 console.log('smm-weekly-saved-copy-source: ok');
+const failPath = load.slice(load.indexOf('} catch (e) {', load.indexOf('_srpApi({ action: \'reports\'')));
+ok(/if \(painted\) \{[\s\S]*_srpStaleNote\('Showing reports saved/.test(failPath), 'a failed refresh over a saved copy is shown, never silent');
+ok(/active\.id === 'srpClientFilter'/.test(SRC), 'only the client filter keeps the partial paint; Refresh repaints the toolbar');
+console.log('smm-weekly-saved-copy-source: stale + toolbar pins ok');

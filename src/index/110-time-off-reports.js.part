@@ -1825,16 +1825,32 @@
         const mount = document.getElementById('smmWeeklyReportsMount');
         const active = document.activeElement;
         // Someone typing in the client filter keeps their caret: refresh only
-        // the numbers and the cards, not the toolbar they are using.
-        if (mount && active && mount.contains(active) && document.getElementById('srpReportStats')) _srpPaintReportResults();
+        // the numbers and the cards. Any other focus (Refresh, a select) gets
+        // the full paint, so a new manager or week reaches the toolbar.
+        if (mount && active && active.id === 'srpClientFilter' && document.getElementById('srpReportStats')) { _srpPaintReportResults(); _srpPaintedSig = ''; return; }
         else _srpPaintReports();
         _srpPaintedSig = sig;
+    }
+    function _srpStaleNote(text) {
+        const stats = document.getElementById('srpReportStats');
+        let note = document.getElementById('srpStaleNote');
+        if (!text) { if (note) note.remove(); return; }
+        if (!stats) return;
+        if (!note) {
+            note = document.createElement('div');
+            note.id = 'srpStaleNote';
+            note.className = 'srp-empty';
+            note.setAttribute('role', 'status');
+            stats.parentNode.insertBefore(note, stats);
+        }
+        note.textContent = text;
     }
     async function _srpLoadReports() {
         const seq = ++_srpLoadSeq;
         const mount = document.getElementById('smmWeeklyReportsMount');
         const viewKey = _srpSavedViewKey();
         let painted = false;
+        let savedAt = 0;
         try {
             await _syncviewRequireStaffIdentity('weekly-report-manage');
             if (seq !== _srpLoadSeq) return;
@@ -1847,6 +1863,7 @@
                 _srpState.reports = saved.view.reports;
                 _srpState.weeks = saved.view.weeks;
                 _srpPaintIfChanged();
+                savedAt = Number(saved.view.at) || 0;
                 painted = true;
             }
         } catch (e) {}
@@ -1867,8 +1884,14 @@
             _srpState.weeks = Array.isArray(data.weeks) ? data.weeks : [];
             _srpSavedWrite(viewKey, data, options && _srpState.managersLoaded ? { managers: _srpState.managers, current_week_start: _srpState.currentWeek } : null);
             _srpPaintIfChanged();
+            _srpStaleNote('');
         } catch (e) {
-            if (seq !== _srpLoadSeq || painted) return;
+            if (seq !== _srpLoadSeq) return;
+            if (painted) {
+                // Keep the saved cards, but never let them pass for live data.
+                _srpStaleNote('Showing reports saved ' + (_srpDateTimeLabel(savedAt) || 'earlier') + '. Could not refresh: ' + String(e && e.message || e));
+                return;
+            }
             const m = document.getElementById('smmWeeklyReportsMount') || mount;
             if (m) m.innerHTML = `<div class="srp-head"><div><div class="srp-kicker">Kasper view</div><h1 class="srp-title">SMM weekly reports</h1></div></div><div class="srp-empty">Could not load reports: ${_srpEsc(e.message || e)}</div>`;
         }

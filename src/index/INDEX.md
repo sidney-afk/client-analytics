@@ -18,7 +18,7 @@
 | 10 | `080-workload-render.js.part` | 3369 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
 | 11 | `090-workload-popovers-navigation.js.part` | 2572 | Sub-issue popover |
 | 12 | `100-onboarding-staff-controls.js.part` | 2267 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
-| 13 | `110-time-off-reports.js.part` | 2129 | Kasper Time Off calendar |
+| 13 | `110-time-off-reports.js.part` | 2152 | Kasper Time Off calendar |
 | 14 | `120-calendar-flags-write-repair.js.part` | 3015 | The members a flag value offers, or null when it offers no member list at |
 | 15 | `125-title-name-rule.js.part` | 334 | Title name rule (browser copy) |
 | 16 | `130-calendar-model-cache.js.part` | 2734 | Returns the comments array for a given component. Falls back to the |

@@ -1,3 +1,23 @@
+import { currentNav } from './060-templates-filming.js';
+import {
+  CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svSelectHtml, _syncviewStaffIdentityForHeaders,
+  _syncviewStaffIdentitySignature, _syncviewStaffIdentityValid, _syncviewStaffVerificationEpoch
+} from './100-onboarding-staff-controls.js';
+import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
+import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import { CAL_CACHE_KEY_PREFIX } from './150-calendar-hydration-import.js';
+import {
+  _prodAdapter, _prodCanWrite, _prodChildrenOf, _prodClearLayer, _prodClients, _prodEnsureOverlays,
+  _prodIssue, _prodIssues, _prodTeamLabel, _prodToast, _prodWriteGateText, _prodWriteRequestId,
+  _prodWriteTeam
+} from './220-production-attribution-views.js';
+import {
+  _prodGatewayWrite, _prodLabelsPopHTML, _prodLinkify, _prodWireLabelsPop, _prodWriteErrorText
+} from './230-production-create-comments.js';
+import { _prodAssetStateLabel } from './240-production-description.js';
+import { _prodApplyDeepLinkFallback, _prodCurVal, _prodPickerHTML, _prodWirePicker } from './250-production-controls-data.js';
+import { _prodRender } from './260-production-refresh-boot.js';
+import { SXR_CACHE_PREFIX } from './270-samples-model.js';
         /* ============================================================
            PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI
            Hidden behind ?prod=1 / verified staff navigation. Reads the native
@@ -3153,3 +3173,28 @@
             });
             return { links, nodes };
         }
+export {
+  PROD_ASSET_SPECS, PROD_ATTRIBUTION_CONFLICT, PROD_ATTRIBUTION_NEEDS,
+  PROD_BATCH_DESCRIPTION_SELECT, PROD_BATCH_SELECT, PROD_BOARD_ORDER, PROD_BOARD_STATUS,
+  PROD_COMMENTS_EF_URL, PROD_COMMENTS_PAGE_SIZE, PROD_COMMENTS_READ_TIMEOUT_MS,
+  PROD_CREATED_STATUS, PROD_CREATE_CLOSED_TEXT, PROD_CREATE_DRAFT_KEY,
+  PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS, PROD_CREATIVE_STATUS_TRANSITIONS,
+  PROD_DELETE_UNSUPPORTED, PROD_DELIVERABLE_SELECT, PROD_DESCRIPTION_IMAGE_EF_URL,
+  PROD_EDITOR_COLORS, PROD_GROUP_KEYS, PROD_GROUP_SELECT_UNSUPPORTED, PROD_LIVE_FILTER,
+  PROD_MOVE_UNSUPPORTED, PROD_ORDER_KEYS, PROD_PROJECT_MOVE_UNSUPPORTED, PROD_STATUS,
+  PROD_STATUS_FROM_ARTIFACT, PROD_STATUS_META, PROD_STATUS_ORDER, PROD_STATUS_TO_ARTIFACT,
+  PROD_TERMINAL_FILTER, PROD_WRITE_EF_URL, _prodAccessAllowed, _prodAdoptLabelPayload,
+  _prodApplyDisplayPrefs, _prodArtifactStatus, _prodAssetDefaultEvidence, _prodAssetState,
+  _prodAssigneeOptionsState, _prodBatchFileFor, _prodBoardStatus, _prodBrowserProjectionMissing,
+  _prodBrowserProjectionRows, _prodCacheIsTerminal, _prodCachePurge, _prodCacheWrite,
+  _prodCarryBatchDescriptions, _prodClientRows, _prodDeliverableLive, _prodEnabled,
+  _prodEnsureAssets, _prodEnsureAssigneeOptions, _prodEnsureBatchFiles, _prodEnsureLabels,
+  _prodFetchAuthority, _prodFetchNativeEpochTeams, _prodHasOwn, _prodHashText, _prodHeaders,
+  _prodHydrateFromCache, _prodIdbCacheRead, _prodInitials, _prodIssueScopeSignature,
+  _prodLabelState, _prodLinearRaw, _prodLoadDeliverableProjection, _prodLoadDisplayPrefs,
+  _prodModeText, _prodNativeEpochOn, _prodNextLabelRequestToken, _prodNormalizeLabelList,
+  _prodPostRows, _prodPreserveProjectedFields, _prodPreviewText, _prodRefreshAuthority,
+  _prodRefreshLabelSurfaces, _prodResolveBatchParentNodes, _prodResolveParentLinks, _prodRestRows,
+  _prodSaveDisplayPrefs, _prodScopeSignatures, _prodSmmArtifactGate, _prodStartAuthorityRefresh,
+  _prodState
+};

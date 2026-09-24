@@ -6,6 +6,7 @@
 'use strict';
 const H = require('./ot4_lib.js');
 const L = require('../sxr_courier_lib.js');
+const { TEST_CLIENT } = require('../test-client-entry.js');
 const { launch, open, SUPA, KEY } = H;
 const TEST = 'sidneylaruel';
 const results = []; const ok = (c, m, x) => { results.push(!!c); console.log((c ? '✓  ' : '✗  ') + m + (x ? '  [' + x + ']' : '')); };
@@ -46,7 +47,7 @@ async function prodStatus(browser, id, status) {
     const p = await page(browser, '/index.html?sxr=1#sample-reviews/' + TEST);
     await p.waitForFunction(() => window.sxrV2Status && window.sxrV2Status().ready, null, { timeout: 60000 }).catch(() => {});
     await p.waitForTimeout(3000);
-    await p.evaluate(s => _calOpenNativePost('Sidney Laruel', s, 'sxr'), TEST);
+    await p.evaluate(([n, s]) => _calOpenNativePost(n, s, 'sxr'), [TEST_CLIENT.name, TEST]);
     await p.waitForSelector('#calNativePostCreate', { timeout: 20000 });
     await p.check('input[name=calNativeModeChoice][value=video]').catch(() => {});
     await p.locator('#calNativePostNames input').first().fill(name);

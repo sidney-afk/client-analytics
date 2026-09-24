@@ -14,8 +14,8 @@
 | 6 | `040-shared-briefs.js.part` | 2595 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1651 | Market Research Brief Tab Renderers |
 | 8 | `060-templates-filming.js.part` | 1784 | Multiple links per link field (client photos, thumbnail, reference reel) |
-| 9 | `070-workload-source.js.part` | 3545 | Workload Calendar |
-| 10 | `080-workload-render.js.part` | 3361 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
+| 9 | `070-workload-source.js.part` | 3569 | Workload Calendar |
+| 10 | `080-workload-render.js.part` | 3369 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
 | 11 | `090-workload-popovers-navigation.js.part` | 2571 | Sub-issue popover |
 | 12 | `100-onboarding-staff-controls.js.part` | 2266 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2024 | Kasper Time Off calendar |

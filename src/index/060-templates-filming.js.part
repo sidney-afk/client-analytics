@@ -972,10 +972,38 @@
         // A background refresh keeps showing the current facts instead of a skeleton.
         _tplBrain[name] = cur && cur.state === 'ready' ? Object.assign({}, cur, { refreshing: true }) : { state: 'loading', facts: cur && cur.facts || [] };
         _tplBrainPost({ action: 'read', clientName: name }).then(j => {
-            _tplBrain[name] = { state: 'ready', at: Date.now(), facts: Array.isArray(j.facts) ? j.facts : [], found: !!j.found };
+            _tplBrain[name] = { state: 'ready', at: Date.now(), facts: Array.isArray(j.facts) ? j.facts : [], brief: Array.isArray(j.brief) ? j.brief : [], found: !!j.found };
         }).catch(e => {
             _tplBrain[name] = { state: 'error', facts: [], error: e && e.message || String(e) };
         }).then(() => { if (_templatesSelected === name) _maybeRerenderTemplates(); });
+    }
+    // Recent Frame folder / Raw footage links from production batches, via the
+    // same staff-only helper (the page cannot read `batches` itself).
+    const _tplFolders = {};          // client -> { state, frame, raw }
+    function _tplFoldersEnsure(name, force) {
+        if (_tplFolders[name] && !force) return;
+        _tplFolders[name] = { state: 'loading', frame: [], raw: [] };
+        _tplBrainPost({ action: 'folders', clientName: name }).then(j => {
+            _tplFolders[name] = { state: 'ready', frame: j.frame || [], raw: j.raw || [] };
+        }).catch(() => { _tplFolders[name] = { state: 'error', frame: [], raw: [] }; })
+          .then(() => { if (_templatesSelected === name) _maybeRerenderTemplates(); });
+    }
+    function tplFoldersRetry() { if (_templatesSelected) { _tplFoldersEnsure(_templatesSelected, true); _maybeRerenderTemplates(); } }
+    function _tplFolderHost(u) {
+        try { const h = new URL(u).hostname.replace(/^www\./, ''); return /dropbox/.test(h) ? 'Dropbox' : /frame\.io/.test(h) ? 'Frame.io' : /google/.test(h) ? 'Google Drive' : h; } catch (e) { return ''; }
+    }
+    function _tplFolderDate(at) {
+        const d = new Date(at); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    function _tplRecentFolders(name) {
+        _tplFoldersEnsure(name);
+        const f = _tplFolders[name];
+        if (f && f.state === 'error') return `<div class="tpl-brain-empty-note">Couldn't load recent folders. <button type="button" class="tpl-brain-change-btn" onclick="tplFoldersRetry()">Try again</button></div>`;
+        if (!f || f.state !== 'ready' || (!f.frame.length && !f.raw.length)) return '';
+        const col = (label, items) => `<div class="tpl-folders-col"><div class="tpl-view-label">${label}</div>${items.length
+            ? items.map(i => `<a class="tpl-folder-row" href="${_tplEscAttr(i.url)}" target="_blank" rel="noopener"><span class="tpl-folder-name">${_tplEsc(i.name || 'Untitled batch')}</span><span class="tpl-folder-meta">${_tplEsc([_tplFolderHost(i.url), _tplFolderDate(i.at)].filter(Boolean).join(' · '))}</span></a>`).join('')
+            : '<div class="tpl-view-empty">None yet</div>'}</div>`;
+        return `<div class="tpl-folders">${col('Frame folders', f.frame)}${col('Raw footage', f.raw)}</div>`;
     }
     function tplBrainRetry() { if (_templatesSelected) { _tplBrainEnsure(_templatesSelected, true); _maybeRerenderTemplates(); } }
     function tplBrainSetTab(tab) { _tplBrainTab = tab; _maybeRerenderTemplates(); }
@@ -1023,28 +1051,33 @@
         </div>`;
     }
     function _tplBrainKey(name, id) { return name + '::' + (id || '_new'); }
-    function _tplBrainChangeBox(name, fact) {
+    function _tplBrainChangeBox(name, fact, fromBrief) {
         const key = _tplBrainKey(name, fact && fact.id);
+        // A change opened from a brief line shows its form on that line only.
+        if (fact && !fromBrief && _tplBriefFormRow) return `<button type="button" class="tpl-brain-change-btn" data-k="${_tplEscAttr(key)}" onclick="tplBrainOpen(this.dataset.k)">${fact.status === 'written' ? 'Send a change' : 'Write this'}</button>`;
         const st = _tplBrainSent[key];
-        if (st === 'sent') return `<div class="tpl-brain-sent">Change sent. It is being processed into the brain and will show here once it is in. <button type="button" class="tpl-brain-change-btn" onclick="tplBrainAnother('${_tplEscAttr(key)}')">Send another</button></div>`;
+        if (st === 'sent') return `<div class="tpl-brain-sent">Change sent. It is being processed into the brain and will show here once it is in. <button type="button" class="tpl-brain-change-btn" data-k="${_tplEscAttr(key)}" onclick="tplBrainAnother(this.dataset.k)">Send another</button></div>`;
         if (_tplBrainOpenForm !== key) {
             const label = !fact ? 'Add something the brain is missing' : (fact.status === 'written' ? 'Send a change' : 'Write this');
-            return `<button type="button" class="tpl-brain-change-btn" onclick="tplBrainOpen('${_tplEscAttr(key)}')">${label}</button>`;
+            return `<button type="button" class="tpl-brain-change-btn" data-k="${_tplEscAttr(key)}" onclick="tplBrainOpen(this.dataset.k)">${label}</button>`;
         }
         let sender = '';
         try { sender = localStorage.getItem(TPL_BRAIN_NAME_KEY) || ''; } catch (e) {}
         return `<div class="tpl-brain-form" data-brain-key="${_tplEscAttr(key)}">
-            <textarea class="tpl-brain-text" rows="4" oninput="_tplBrainDraft['${_tplEscAttr(key)}']=this.value" placeholder="${fact ? 'What is true now? Write it the way you would tell a teammate.' : 'What should the brain know about this client?'}">${_tplEsc(_tplBrainDraft[key] || '')}</textarea>
+            <textarea class="tpl-brain-text" rows="4" data-k="${_tplEscAttr(key)}" oninput="_tplBrainDraft[this.dataset.k]=this.value" placeholder="${fact ? 'What is true now? Write it the way you would tell a teammate.' : 'What should the brain know about this client?'}">${_tplEsc(_tplBrainDraft[key] || '')}</textarea>
             <div class="tpl-brain-form-row">
                 <input class="tpl-brain-from" type="text" placeholder="Your name" value="${_tplEscAttr(sender)}">
                 <button type="button" class="tpl-brain-cancel" onclick="tplBrainOpen('')">Cancel</button>
-                <button type="button" class="tpl-brain-send" onclick="tplBrainSend('${_tplEscAttr(key)}')">${st === 'sending' ? 'Sending…' : 'Send'}</button>
+                <button type="button" class="tpl-brain-send" data-k="${_tplEscAttr(key)}" onclick="tplBrainSend(this.dataset.k)">${st === 'sending' ? 'Sending…' : 'Send'}</button>
             </div>
             ${st === 'error' ? '<div class="tpl-brain-err">Couldn\'t send. Your text is still here; try again.</div>' : ''}
         </div>`;
     }
-    function tplBrainAnother(key) { delete _tplBrainSent[key]; tplBrainOpen(key); }
-    function tplBrainOpen(key) { _tplBrainOpenForm = key; _maybeRerenderTemplates(); const ta = document.querySelector('.tpl-brain-text'); if (ta) ta.focus(); }
+    function tplBrainAnother(key) { delete _tplBrainSent[key]; tplBrainOpen(key, _tplBriefFormRow); }
+    function tplBrainOpen(key, row) {
+        // Set only when opened from a brief line, so the form shows on that line alone.
+        _tplBriefFormRow = row || '';
+        _tplBrainOpenForm = key; _maybeRerenderTemplates(); const ta = document.querySelector('.tpl-brain-text'); if (ta) ta.focus(); }
     function tplBrainSend(key) {
         const name = _templatesSelected;
         const form = document.querySelector(`.tpl-brain-form[data-brain-key="${CSS.escape(key)}"]`);
@@ -1099,6 +1132,36 @@
             ${_tplViewProse(name, 'thumbnails_preferences')}
         </div>`;
     }
+    // The editor brief: a short plain-English page Claude writes from the facts.
+    // Each line can show the fact(s) behind it and send a change to them.
+    let _tplBriefSourceOpen = '';
+    function tplBriefToggleSource(key) { _tplBriefSourceOpen = _tplBriefSourceOpen === key ? '' : key; _maybeRerenderTemplates(); }
+    let _tplBriefFormRow = '';
+    function tplBriefChange(key, row) { _tplBriefSourceOpen = ''; tplBrainOpen(key, row); }
+    function _tplBriefView(name, b) {
+        const byId = {};
+        b.facts.forEach(f => { byId[f.id] = f; });
+        return b.brief.map((sec, si) => `<div class="tpl-brief-sec">
+            <div class="tpl-brief-h">${_tplEsc(sec.heading)}</div>
+            <ul class="tpl-brief-list">${sec.bullets.map((bl, bi) => {
+                const srcKey = name + '::b' + si + '.' + bi;
+                const fact = byId[bl.facts[0]] || null;
+                const changeKey = _tplBrainKey(name, fact ? fact.id : '');
+                const open = _tplBriefSourceOpen === srcKey;
+                const formOpen = _tplBriefFormRow === srcKey && (_tplBrainOpenForm === changeKey || _tplBrainSent[changeKey]);
+                const sources = bl.facts.map(id => byId[id]).filter(Boolean);
+                return `<li class="tpl-brief-li">
+                    <div class="tpl-brief-row"><span class="tpl-brief-text">${_tplBrainInline(bl.text)}</span>
+                        <span class="tpl-brief-acts">
+                            ${sources.length ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(srcKey)}" onclick="tplBriefToggleSource(this.dataset.k)">${open ? 'Hide source' : 'Source'}</button>` : ''}
+                            ${fact ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(changeKey)}" data-row="${_tplEscAttr(srcKey)}" onclick="tplBriefChange(this.dataset.k, this.dataset.row)">Change</button>` : ''}
+                        </span></div>
+                    ${open ? `<div class="tpl-brief-sources">${sources.map(f => `<div class="tpl-brief-source"><div class="tpl-brief-source-h">${_tplEsc(f.heading)}</div><div class="tpl-brain-body">${_tplBrainProse(f.body)}</div></div>`).join('')}</div>` : ''}
+                    ${formOpen && fact ? _tplBrainChangeBox(name, fact, true) : ''}
+                </li>`;
+            }).join('')}</ul>
+        </div>`).join('');
+    }
     function _tplBrainSection(name) {
         const b = _tplBrain[name];
         const head = `<div class="tpl-section-title">From the Synchro Brain</div>`;
@@ -1109,14 +1172,22 @@
             const n = b.facts.filter(f => f.file === k && f.status === 'written').length;
             return `<button class="tpl-toggle-btn ${_tplBrainTab === k ? 'active' : ''}" onclick="tplBrainSetTab('${k}')">${label} <span class="tpl-brain-count">${n}</span></button>`;
         }).join('');
+        const hasBrief = Array.isArray(b.brief) && b.brief.length;
         const inTab = b.facts.filter(f => f.file === _tplBrainTab);
         const written = inTab.filter(f => f.status === 'written');
         const empty = inTab.filter(f => f.status !== 'written');
+        const factsView = `<div class="tpl-toggle-row" role="tablist">${tabs}</div>
+            ${written.map(f => _tplBrainCard(name, f)).join('') || '<div class="tpl-brain-empty-note">Nothing written here yet.</div>'}
+            ${empty.length ? `<details class="tpl-brain-missing"><summary>${empty.length} not written yet</summary>${empty.map(f => _tplBrainCard(name, f)).join('')}</details>` : ''}`;
+        if (hasBrief) return `<div class="tpl-section tpl-brain">
+            <div class="tpl-section-title">Editor brief</div>
+            ${_tplBriefView(name, b)}
+            <div class="tpl-brain-add">${_tplBrainChangeBox(name, null)}</div>
+            <details class="tpl-brain-allfacts"${_tplBrainOpenForm && !b.brief.some(sec => sec.bullets.some(bl => _tplBrainKey(name, bl.facts[0] || '') === _tplBrainOpenForm)) && _tplBrainOpenForm.indexOf(name + '::_new') !== 0 ? ' open' : ''}><summary>All facts, with sources</summary>${factsView}</details>
+        </div>`;
         return `<div class="tpl-section tpl-brain">
             ${head}
-            <div class="tpl-toggle-row" role="tablist">${tabs}</div>
-            ${written.map(f => _tplBrainCard(name, f)).join('') || '<div class="tpl-brain-empty-note">Nothing written here yet.</div>'}
-            ${empty.length ? `<details class="tpl-brain-missing"><summary>${empty.length} not written yet</summary>${empty.map(f => _tplBrainCard(name, f)).join('')}</details>` : ''}
+            ${factsView}
             <div class="tpl-brain-add">${_tplBrainChangeBox(name, null)}</div>
         </div>`;
     }
@@ -1173,6 +1244,7 @@
                     ${_tplRenderLinksView(name, 'thumbnails_photos_link', 'Client photos', 'Open photos')}
                     ${_tplRenderLinksView(name, 'thumbnails_canva_link', 'Editable Canva', 'Open Canva')}
                 </div>
+                ${_tplRecentFolders(name)}
               </div>`;
 
         // Filming plans block (rendered at the BOTTOM, after the active tab's sections).

@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 
 (async () => {
-  const { findClientFolder, parseBrainFacts, parseSpec } = await import(path.join(__dirname, '../supabase/functions/brain/parse.mjs'));
+  const { findClientFolder, parseBrainFacts, parseSpec, parseBrief } = await import(path.join(__dirname, '../supabase/functions/brain/parse.mjs'));
 
   assert.strictEqual(findClientFolder(['alpha-beta', 'gamma'], 'alphabeta'), 'alpha-beta');
   assert.strictEqual(findClientFolder(['alpha-beta'], 'Alpha Beta'), 'alpha-beta');
@@ -31,6 +31,12 @@ const fs = require('fs');
   assert.strictEqual(facts[1].body, '');
   assert.ok(facts[2].body.includes('## A heading with no block') && facts[2].body.includes('still part of Notes.'), 'unblocked heading kept as prose');
   assert.deepStrictEqual(parseSpec('font=Serif; main=#fff'), [{ key: 'font', value: 'Serif' }, { key: 'main', value: '#fff' }]);
+
+  const brief = parseBrief(['<!-- brief', 'generated: 2026-09-24', '-->', '', '## Look', '- **Subtitles:** Serif, white. <!-- fact: a.b.c, a.b.d -->', '', '## Empty', '', '## Avoid', '- No stock music. <!-- fact: a.b.e -->'].join('\n'));
+  assert.deepStrictEqual(brief, [
+    { heading: 'Look', bullets: [{ text: '**Subtitles:** Serif, white.', facts: ['a.b.c', 'a.b.d'] }] },
+    { heading: 'Avoid', bullets: [{ text: 'No stock music.', facts: ['a.b.e'] }] },
+  ], 'brief parses into sections, drops empty ones, keeps fact ids');
 
   const src = fs.readFileSync(path.join(__dirname, '../supabase/functions/brain/index.ts'), 'utf8');
   assert.ok(/contents\/clients\/\$\{folder\}\/\$\{file\}\.md/.test(src), 'reads only clients/<folder>/<file>.md');

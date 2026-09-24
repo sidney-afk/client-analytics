@@ -108,7 +108,9 @@ number. Note also that `index.html` is a BUILD OUTPUT: the editable truth is the
 fragments in `src/index/`, assembled by `npm run build:index`. Major surfaces: content calendar, samples (SXR + legacy),
 three review flows (client / Kasper / SMM), the visible Linear mirror/work surface (internal
 `production`, `#production`, `?prod=1`), the visible Submit form (internal `linear`, `#linear`),
-onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly reports, TikTok pilot.
+onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly reports, TikTok upload.
+**Corrected 2026-09-24:** the TikTok pilot (`#tiktok-pilot`, `?ttpilot=1`) was removed from the app after
+TikTok rejected it; TikTok posting is the TikTok Upload tab (Post For Me) only.
 
 ## Release and stale callers
 

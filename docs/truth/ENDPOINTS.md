@@ -75,7 +75,7 @@ AI generation (briefs, captions, summaries):
 - `webhook/caption-job-status`, `webhook/caption-job-update`, `webhook/caption-prompts-get`,
   `webhook/caption-prompts-save`
 
-TikTok pilot (uploads + TTP auth):
+TikTok upload (Post For Me; the TikTok pilot and its TTP auth were removed 2026-09-24, see below):
 - `webhook/tiktok-upload`, `webhook/tiktok-upload-status`, `webhook/tiktok-upload-cancel`,
   `webhook/tiktok-uploads-list`
 - `webhook/tiktok-upload-url`, `webhook/tiktok-upload-direct` — direct-to-storage transport

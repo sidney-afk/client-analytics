@@ -225,6 +225,7 @@
     "kasper-priority-more-nav.js",
     "kasper-review-state-global.js",
     "kasper-stranded-handoff.js",
+    "kasper-waiting-sent-order.js",
     "kasper-tweak-calendar-sync-retry.js",
     "kasper-tweak-chip-scope.js",
     "kasper-urgent-ping.js",

@@ -62,7 +62,9 @@
  * F27 reviewed closure and the leave-evidence fingerprint both hash it), so
  * acorn is NOT a declared dependency: CI installs it into a temp prefix and
  * points NODE_PATH at it (see calendar-unit-tests.yml, `module-check`).
- * Locally: npm install --no-save --no-package-lock --prefix /tmp/c3 acorn@8.15.0
+ * Once any fragment is listed in src/index/modules.txt it also needs
+ * `eslint-scope` (the scope analyser ESLint uses), installed the same way.
+ * Locally: npm install --no-save --no-package-lock --prefix /tmp/c3 acorn@8.15.0 eslint-scope@9.1.2
  * then NODE_PATH=/tmp/c3/node_modules node scripts/check-modules.js
  *
  * Usage: node scripts/check-modules.js [--against=<git-ref>] [--report]
@@ -71,6 +73,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { readModuleList, splitModuleFragment, servedBytes } = require('./index-modules');
 
 let acorn;
 try { acorn = require('acorn'); } catch (e) {
@@ -98,12 +101,23 @@ const manifest = fs.readFileSync(path.join(SRC_DIR, 'manifest.txt'), 'utf8')
   .split(/\r?\n/).map(s => s.trim()).filter(Boolean);
 const scriptFrags = manifest.filter(f => f.endsWith('.js.part'));
 const short = f => f.split('-')[0];
+const modules = readModuleList(SRC_DIR);
+for (const m of modules) {
+  if (!scriptFrags.includes(m)) fail(`modules.txt lists ${m}, which is not a script fragment in the manifest`);
+}
+const moduleParts = new Map(); // fragment -> { header, body, footer } as strings
 
 // ---- 1. every script fragment parses on its own ---------------------------
 const SCRIPT_OPEN = '<script>';
 const pieces = [];
 for (const f of scriptFrags) {
-  let text = fs.readFileSync(path.join(SRC_DIR, f), 'utf8');
+  const raw = fs.readFileSync(path.join(SRC_DIR, f));
+  if (modules.has(f)) {
+    const parts = splitModuleFragment(raw);
+    moduleParts.set(f, { header: parts.header.toString('utf8'), body: parts.body.toString('utf8'), footer: parts.footer.toString('utf8') });
+  }
+  // The page gets a module fragment without its import header and export footer.
+  let text = servedBytes(f, raw, modules).toString('utf8');
   let lead = 0;
   // The first script fragment carries the opening tag of the main <script>.
   if (text.startsWith(SCRIPT_OPEN)) { lead = SCRIPT_OPEN.length; text = text.slice(lead); }
@@ -280,9 +294,129 @@ if (ast) {
   }
 }
 
+// ---- 6. module fragments (src/index/modules.txt) ---------------------------
+/*
+ * A fragment listed in modules.txt is written as an ES module (import header,
+ * untouched body, export footer; see scripts/index-modules.js). While the page
+ * is still one classic script these rules are what make its imports and
+ * exports TRUE, so the list of what a screen shares is written down and
+ * enforced rather than implied by the global scope:
+ *   - it parses as a module; imports only in the header, exports only in the
+ *     footer, as plain named lists with no renaming (the served code still
+ *     uses the original names);
+ *   - each import names another script fragment ('./<fragment>.js') that
+ *     declares that name, and if that fragment is itself a module, exports it;
+ *   - every name it uses that another fragment declares is imported (a
+ *     `typeof x` guard counts as a use), no import is unused, and no import is
+ *     reassigned;
+ *   - it exports exactly the names other fragments use: a missing export is a
+ *     hidden dependency, an unused one is a stale promise.
+ * Reassignments of its names by other (not yet module) fragments are reported
+ * as pending setters; they become errors when the writer is converted.
+ */
+if (ast && modules.size) {
+  let eslintScope;
+  try { eslintScope = require('eslint-scope'); } catch (e) {
+    console.error('check-modules: modules are listed but eslint-scope is not installed. See the DEPENDENCY note at the top of this file.');
+    process.exit(2);
+  }
+  const ownerOf = (name) => { const list = decls.get(name); return list ? list[list.length - 1].frag : null; };
+  const specOf = (f) => './' + f.replace(/\.part$/, '');
+  const fragBySpec = new Map(scriptFrags.map(f => [specOf(f), f]));
+
+  // Who uses (and who reassigns) each top-level name, from the assembled script.
+  const globalScope = eslintScope.analyze(ast, { ecmaVersion: 2022, sourceType: 'script' }).globalScope;
+  const usedBy = new Map();   // name -> Set(fragment)
+  const writtenBy = new Map(); // name -> Set(fragment)
+  const note = (map, name, frag) => { if (!map.has(name)) map.set(name, new Set()); map.get(name).add(frag); };
+  for (const v of globalScope.variables) {
+    for (const r of v.references) {
+      if (r.init) continue;
+      const frag = fragAt(r.identifier.range[0]);
+      note(usedBy, v.name, frag);
+      if (r.isWrite()) note(writtenBy, v.name, frag);
+    }
+  }
+
+  const exportsOf = new Map();
+  const parsed = new Map();
+  for (const [m, parts] of moduleParts) {
+    const full = parts.header + parts.body + parts.footer;
+    let mast;
+    try {
+      mast = acorn.parse(full, { ecmaVersion: 'latest', sourceType: 'module', ranges: true });
+    } catch (e) {
+      fail(`${m}: does not parse as a module (${e.message})`);
+      continue;
+    }
+    parsed.set(m, { mast, parts });
+    const headerEnd = parts.header.length;
+    const footerStart = parts.header.length + parts.body.length;
+    const exported = new Set();
+    for (const node of mast.body) {
+      if (node.type === 'ImportDeclaration') {
+        if (node.end > headerEnd) fail(`${m}: an import sits outside the column-0 header at the top of the fragment`);
+      } else if (node.type === 'ExportNamedDeclaration' && !node.declaration && !node.source) {
+        if (node.start < footerStart) fail(`${m}: an export list sits outside the column-0 footer at the end of the fragment`);
+        for (const sp of node.specifiers) {
+          if (sp.local.name !== sp.exported.name) fail(`${m}: export renames ${sp.local.name} as ${sp.exported.name}; the served code keeps one name, so renaming is not allowed`);
+          exported.add(sp.local.name);
+        }
+      } else if (/^Export/.test(node.type)) {
+        fail(`${m}: only plain export lists in the footer are allowed (found ${node.type}${node.declaration ? ' with a declaration' : ''})`);
+      }
+    }
+    exportsOf.set(m, exported);
+  }
+
+  for (const [m, { mast, parts }] of parsed) {
+    const exported = exportsOf.get(m);
+    for (const node of mast.body) {
+      if (node.type !== 'ImportDeclaration') continue;
+      const target = fragBySpec.get(node.source.value);
+      if (!target) { fail(`${m}: imports from ${node.source.value}, which is not a script fragment (expected './<fragment>.js')`); continue; }
+      if (target === m) fail(`${m}: imports from itself`);
+      for (const sp of node.specifiers) {
+        if (sp.type !== 'ImportSpecifier') { fail(`${m}: only named imports are allowed (found ${sp.type} from ${node.source.value})`); continue; }
+        const name = sp.imported.name;
+        if (sp.local.name !== name) fail(`${m}: import renames ${name} as ${sp.local.name}; the served code keeps one name, so renaming is not allowed`);
+        const owner = ownerOf(name);
+        if (owner !== target) fail(`${m}: imports ${name} from ${target}, but ${owner ? 'it is declared in ' + owner : 'no fragment declares it'}`);
+        else if (modules.has(target) && exportsOf.has(target) && !exportsOf.get(target).has(name)) fail(`${m}: imports ${name} from ${target}, which is a module that does not export it`);
+      }
+    }
+    const scope = eslintScope.analyze(mast, { ecmaVersion: 2022, sourceType: 'module' });
+    const moduleScope = scope.globalScope.childScopes.find(sc => sc.type === 'module');
+    const missing = new Set();
+    for (const r of scope.globalScope.through) {
+      const owner = ownerOf(r.identifier.name);
+      if (owner && owner !== m) missing.add(`${r.identifier.name} (from ${owner})`);
+    }
+    for (const x of missing) fail(`${m}: uses ${x} without importing it`);
+    for (const v of moduleScope ? moduleScope.variables : []) {
+      if (!v.defs.length || v.defs[0].type !== 'ImportBinding') continue;
+      if (!v.references.length) fail(`${m}: imports ${v.name} but never uses it`);
+      if (v.references.some(r => r.isWrite())) fail(`${m}: reassigns the imported ${v.name}; the owner must offer a setter`);
+    }
+    for (const name of exported) {
+      if (ownerOf(name) !== m) fail(`${m}: exports ${name}, which it does not declare`);
+    }
+    const required = new Set();
+    for (const [name, frags] of usedBy) {
+      if (ownerOf(name) !== m) continue;
+      if ([...frags].some(f => f !== m)) required.add(name);
+    }
+    for (const name of required) if (!exported.has(name)) fail(`${m}: ${name} is used by ${[...usedBy.get(name)].filter(f => f !== m).map(short).join(', ')} but not exported`);
+    for (const name of exported) if (!required.has(name)) fail(`${m}: exports ${name}, but no other fragment uses it`);
+    const pending = [...required].filter(n => [...(writtenBy.get(n) || [])].some(f => f !== m));
+    const imports = mast.body.filter(n => n.type === 'ImportDeclaration').reduce((a, n) => a + n.specifiers.length, 0);
+    console.log(`module ${m}: ${imports} imports, ${exported.size} exports` + (pending.length ? `; pending setters (reassigned elsewhere): ${pending.join(', ')}` : ''));
+  }
+}
+
 // ---- 5. byte identity against a base commit ---------------------------------
 if (against) {
-  const built = Buffer.concat(manifest.map(f => fs.readFileSync(path.join(SRC_DIR, f))));
+  const built = Buffer.concat(manifest.map(f => servedBytes(f, fs.readFileSync(path.join(SRC_DIR, f)), modules)));
   let base;
   try {
     base = execFileSync('git', ['show', `${against}:index.html`], { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 });

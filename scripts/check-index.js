@@ -25,6 +25,7 @@
  */
 
 const fs = require('fs');
+const { readModuleList, servedBytes } = require('./index-modules');
 const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
@@ -87,9 +88,13 @@ function validateManifest(entries) {
 
 function assembleFromManifest(entries, readable) {
   const bufs = [];
+  // Module fragments (src/index/modules.txt) are served without their import
+  // header and export footer, exactly as build-index.js assembles them.
+  const modules = readModuleList(SRC_DIR);
+  for (const m of modules) if (!entries.includes(m)) fail('modules.txt lists a fragment that is not in the manifest: ' + m);
   for (const entry of entries) {
     if (!readable.has(entry)) continue; // already failed for this entry above
-    bufs.push(fs.readFileSync(path.join(SRC_DIR, entry)));
+    bufs.push(servedBytes(entry, fs.readFileSync(path.join(SRC_DIR, entry)), modules));
   }
   return Buffer.concat(bufs);
 }

@@ -1,3 +1,11 @@
+import {
+  TIKTOK_FORM_KEY, TIKTOK_HIDDEN_KEY, TIKTOK_LEGACY_MAX_BYTES, TIKTOK_MAX_BYTES, TIKTOK_MAX_PHOTOS,
+  TIKTOK_OPTIMISTIC_TTL_MS, TIKTOK_PENDING_KEY, TIKTOK_PHOTO_MAX_BYTES, TIKTOK_QUEUE_CACHE_KEY,
+  TIKTOK_UPLOADS_LIST_URL, TIKTOK_UPLOAD_CANCEL_URL, TIKTOK_UPLOAD_DIRECT_WEBHOOK,
+  TIKTOK_UPLOAD_STATUS_URL, TIKTOK_UPLOAD_URL_WEBHOOK, TIKTOK_UPLOAD_WEBHOOK, clientMap,
+  showConfirm, showNotify
+} from './040-shared-briefs.js';
+import { WL_CLIENT_NAMES } from './070-workload-source.js';
     /* ============================================================
        TIKTOK UPLOAD MODULE
        Posts videos to Post For Me (api.postforme.dev) through a
@@ -1707,3 +1715,7 @@
     window._tkRetryRow = _tkRetryRow;
     window._tkDismissRow = _tkDismissRow;
 
+export {
+  _tkMounted, _tkRenderForm, _tkTeardown, _ttpActiveXhr, _ttpMounted, _ttpPollTimer, _ttpSaveTimer,
+  _ttpVisHooked, mountTiktokUploadView, renderTiktokUploadView, ttpState
+};

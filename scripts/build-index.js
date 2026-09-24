@@ -45,6 +45,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { readModuleList, servedBytes } = require('./index-modules');
 
 const ROOT = path.resolve(__dirname, '..');
 const SRC_DIR = path.join(ROOT, 'src', 'index');
@@ -204,7 +205,12 @@ function main() {
   validateManifest(entries);
 
   const fragmentBufs = entries.map((entry) => fs.readFileSync(path.join(SRC_DIR, entry)));
-  const assembled = Buffer.concat(fragmentBufs);
+  // Fragments listed in modules.txt are written as ES modules; the page gets
+  // them with their import header and export footer removed (see
+  // scripts/index-modules.js). INDEX.md still describes the fragment as written.
+  const modules = readModuleList(SRC_DIR);
+  for (const m of modules) if (!entries.includes(m)) fail('modules.txt lists a fragment that is not in the manifest: ' + m);
+  const assembled = Buffer.concat(entries.map((entry, i) => servedBytes(entry, fragmentBufs[i], modules)));
   fs.writeFileSync(OUTPUT_PATH, assembled);
 
   const indexMd = buildIndexMd(entries, fragmentBufs);

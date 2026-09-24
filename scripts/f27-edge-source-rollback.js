@@ -36,8 +36,6 @@ const EXPECTED_SUPABASE_CLI_VERSION = '2.109.0';
 const F27_EDGE_SLUGS = Object.freeze([
   'batch-write',
   'deliverable-write',
-  'linear-inbound',
-  'linear-outbound',
   'production-write',
 ]);
 

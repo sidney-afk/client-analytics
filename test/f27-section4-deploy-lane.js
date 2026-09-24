@@ -13,19 +13,14 @@ const manifestGenerator = fs.readFileSync(path.join(ROOT, 'scripts', 'ef-deploy-
 const manifest = fs.readFileSync(path.join(ROOT, 'docs', 'ops', 'EF_DEPLOY_MANIFEST.md'), 'utf8');
 const runbook = fs.readFileSync(path.join(ROOT, 'docs', 'ops', 'F27_INSTALL_RUNBOOK.md'), 'utf8');
 
-// B2 Slice 8 (2026-09-24): the RELEASE set is three functions. The PRIOR set
-// (the sealed capture and the restore) stays four while linear-outbound is live.
-const PRIOR_SLUGS = [
-  'linear-outbound',
-  'production-write',
-  'deliverable-write',
-  'batch-write',
-];
 const EXACT_SLUGS = [
   'production-write',
   'deliverable-write',
   'batch-write',
 ];
+// B2 Slice 8 (2026-09-24): linear-outbound is deleted live, so the PRIOR set
+// (the sealed capture and the restore) is the same three as the RELEASE set.
+const PRIOR_SLUGS = EXACT_SLUGS;
 const CANDIDATES = new Map([
   ['batch-write', {
     source: '86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a',
@@ -542,7 +537,7 @@ const trigger = workflow.slice(workflow.indexOf('on:'), workflow.indexOf('permis
 ok(/^on:\n  workflow_dispatch:\n/m.test(trigger)
   && !/^\s{2}(?:push|pull_request|schedule):/m.test(trigger)
   && /commit_sha:[\s\S]*?required: true[\s\S]*?type: string/.test(trigger)
-  && /operation:[\s\S]*?type: choice[\s\S]*?- deploy-reviewed-release\n\s*- restore-captured-prior-four/.test(trigger)
+  && /operation:[\s\S]*?type: choice[\s\S]*?- deploy-reviewed-release\n\s*- restore-captured-prior-three/.test(trigger)
   && /confirm:[\s\S]*?required: true[\s\S]*?type: string/.test(trigger)
   && /rollback_bundle_sha256:[\s\S]*?required: true[\s\S]*?type: string/.test(trigger)
   && /rollback_bundle_byte_length:[\s\S]*?required: true[\s\S]*?type: string/.test(trigger),
@@ -550,8 +545,8 @@ ok(/^on:\n  workflow_dispatch:\n/m.test(trigger)
 
 const validationAt = workflow.indexOf('- name: Validate the reviewed Section 4 release and operation');
 const firstSecretAt = workflow.search(/secrets\./);
-const privateFetchAt = workflow.indexOf('- name: Fetch and independently verify the sealed prior-four source');
-const priorInspectAt = workflow.indexOf('- name: Inspect the exact sealed prior-four rollback set');
+const privateFetchAt = workflow.indexOf('- name: Fetch and independently verify the sealed prior-three source');
+const priorInspectAt = workflow.indexOf('- name: Inspect the exact sealed prior-three rollback set');
 const releaseCheckoutAt = workflow.indexOf('- name: Check out exactly the reviewed release');
 const dockerGateAt = workflow.indexOf('- name: Verify exact Supabase CLI and Docker bundler');
 const providerGateAt = workflow.indexOf('- name: Bind the sealed restore provider target and CLI');
@@ -575,8 +570,8 @@ ok(priorInspectBlock.includes("typeof row.verify_jwt !== 'boolean'")
   && !priorInspectBlock.includes('row.verify_jwt !== false')
   && forwardGateBlock.includes('"$F27_PRIVATE_DIR/prior-inspect.json"')
   && forwardGateBlock.includes('row.verify_jwt !== false')
-  && forwardGateBlock.includes('Captured forward JWT arguments: PASS (4 at `--no-verify-jwt`)'),
-'the sealed capture retains arbitrary exact JWT booleans for restore while forward deploy binds all four captured arguments to --no-verify-jwt');
+  && forwardGateBlock.includes('Captured forward JWT arguments: PASS (3 at `--no-verify-jwt`)'),
+'the sealed capture retains arbitrary exact JWT booleans for restore while forward deploy binds all three captured arguments to --no-verify-jwt');
 ok(workflow.includes('if [ "$GITHUB_SHA" != "$current_main_sha" ]')
   && workflow.includes('if [ "$DEPLOY_COMMIT" != "$GITHUB_SHA" ]')
   && workflow.includes('git -C operator merge-base --is-ancestor "$DEPLOY_COMMIT" "$GITHUB_SHA"')
@@ -613,7 +608,7 @@ ok(/^  deploy:\n(?:    [^\n]*\n)*    environment: production\n/m.test(workflow)
   && sqlPreflightAt > validationAt && sqlPreflightAt < firstDeployAt
   && /if: github\.event_name == 'workflow_dispatch' && inputs\.operation == 'deploy-reviewed-release'/.test(sqlPreflightBlock)
   && occurrences(sqlPreflightBlock, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 1
-  && !/F27_PRIVATE_SHARED_DRIVE_ROOT_ID|TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON|restore-captured-prior-four/.test(sqlPreflightBlock),
+  && !/F27_PRIVATE_SHARED_DRIVE_ROOT_ID|TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON|restore-captured-prior-three/.test(sqlPreflightBlock),
 'production credentials are protected-Environment and step-scoped, with separate forward-only SQL and notify proof boundaries');
 
 ok(notifyPreflightAt > sqlPreflightAt && notifyPreflightAt < firstDeployAt
@@ -621,8 +616,8 @@ ok(notifyPreflightAt > sqlPreflightAt && notifyPreflightAt < firstDeployAt
   && occurrences(notifyPreflightBlock, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 1
   && /--slugs=notify --format=json/.test(notifyPreflightBlock)
   && /x\.slug!=="notify"\|\|x\.result!=="PASS"\|\|x\.verify_jwt!==false/.test(notifyPreflightBlock)
-  && !/restore-captured-prior-four/.test(notifyPreflightBlock),
-'F27 forward deployment requires exact live notify source/JWT proof, while prior-four restore remains independent');
+  && !/restore-captured-prior-three/.test(notifyPreflightBlock),
+'F27 forward deployment requires exact live notify source/JWT proof, while prior-three restore remains independent');
 
 ok(/uses: supabase\/setup-cli@v1\n\s*with:\n\s*version: 2\.109\.0/.test(workflow)
   && workflow.includes('if [ "$cli_version" != "$EXPECTED_CLI_VERSION" ]')
@@ -661,11 +656,11 @@ ok(serialReadbacks,
 'each literal deploy is followed by source/entrypoint/JWT/status/version readback before the next deploy can start');
 
 const finalForwardAt = workflow.indexOf('- name: Verify the final exact three-function release');
-const finalRestoreCaptureAt = workflow.indexOf('final-restored-four-capture.json');
+const finalRestoreCaptureAt = workflow.indexOf('final-restored-three-capture.json');
 ok(finalForwardAt > firstDeployAt
   && workflow.indexOf('--bundle="$F27_PRIVATE_DIR/final-release-live.sourcebundle"', finalForwardAt) > finalForwardAt
-  && workflow.slice(finalForwardAt, workflow.indexOf('- name: Restore the exact captured prior four')).includes('finalCapture.function_count !== 3')
-  && !workflow.slice(finalForwardAt, workflow.indexOf('- name: Restore the exact captured prior four')).includes('linear-outbound')
+  && workflow.slice(finalForwardAt, workflow.indexOf('- name: Restore the exact captured prior three')).includes('finalCapture.function_count !== 3')
+  && !workflow.slice(finalForwardAt, workflow.indexOf('- name: Restore the exact captured prior three')).includes('linear-outbound')
   && workflow.includes('String(finalCaptured.captured_version) !== String(row.version)')
   && workflow.includes('String(stepCaptured.captured_version) !== String(row.version)')
   && workflow.includes('stepLive.bundle_fingerprint !== row.bundle_fingerprint')
@@ -674,7 +669,7 @@ ok(finalForwardAt > firstDeployAt
   && workflow.includes('finalRow.source_closure_sha256 !== captured.source_closure_sha256')
   && workflow.includes('finalRow.entrypoint_sha256 !== captured.entrypoint_sha256')
   && workflow.includes('finalRow.verify_jwt !== captured.verify_jwt'),
-'the final forward receipt re-captures the three released and the restore receipt all four, binding versions, provider/source, entrypoint, and JWT to the serial receipts');
+'the final forward receipt re-captures the three released and the restore receipt the three captured, binding versions, provider/source, entrypoint, and JWT to the serial receipts');
 
 /*
  * F51: the forward receipt must say WHAT IS RUNNING, not merely that it passed.
@@ -753,7 +748,9 @@ ok(JSON.stringify(actualImportSites) === JSON.stringify(sourceFiles.map(file => 
 'the exact 2.49.8 imports are proven and zero current lockfiles is an explicit fail-on-appearance contract');
 
 ok(workflow.includes(`--slugs=${PRIOR_SLUGS.join(',')}`)
-  && workflow.includes('F27_EDGE_ROLLBACK_CONFIRM: RESTORE_CAPTURED_SOURCE_SET:batch-write,deliverable-write,linear-outbound,production-write')
+  && workflow.includes('F27_EDGE_ROLLBACK_CONFIRM: RESTORE_CAPTURED_SOURCE_SET:batch-write,deliverable-write,production-write')
+  && !/--slugs=[^\n]*linear-outbound/.test(workflow)
+  && !workflow.includes('restore-captured-prior-four')
   && workflow.includes('--expected-bundle-sha256="$ROLLBACK_BUNDLE_SHA256"')
   && workflow.includes('--apply')
   && rollbackLibrary.includes('for (const captured of capture.functions) functions.push(await restoreOne(adapter, captured));')
@@ -761,7 +758,7 @@ ok(workflow.includes(`--slugs=${PRIOR_SLUGS.join(',')}`)
   && workflow.includes("row.entrypoint_sha256 !== captured.entrypoint_sha256")
   && workflow.includes("row.verify_jwt !== captured.verify_jwt")
   && workflow.includes("row.deployed_source_readback !== 'PASS'"),
-'restore consumes the exact four-function sealed capture and performs serial source/entrypoint/JWT readback without workstation dependence');
+'restore consumes the exact three-function sealed capture and performs serial source/entrypoint/JWT readback without workstation dependence');
 
 ok(!/upload-artifact/.test(workflow)
   && !/\$\{\{ vars\./.test(workflow)

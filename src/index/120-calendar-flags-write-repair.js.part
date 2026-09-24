@@ -142,9 +142,12 @@
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _kasperUrgentFlagValue = null; return; }
         try {
             const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(KASPER_URGENT_FLAG_KEY) + '&limit=1';
-            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const rows = await resp.json();
+            let rows = (typeof _svBootFlagRows === 'function' ? await _svBootFlagRows(KASPER_URGENT_FLAG_KEY) : null);
+            if (!rows) {
+                const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                rows = await resp.json();
+            }
             const row = Array.isArray(rows) ? rows[0] : null;
             const was = JSON.stringify(_kasperUrgentFlagValue);
             _kasperUrgentFlagValue = (row && row.value && typeof row.value === 'object') ? row.value : null;
@@ -164,9 +167,12 @@
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _calSetUpsertFlagValue({ clients: [] }); return; }
         try {
             const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(CALENDAR_UPSERT_FLAG_KEY) + '&limit=1';
-            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const rows = await resp.json();
+            let rows = (typeof _svBootFlagRows === 'function' ? await _svBootFlagRows(CALENDAR_UPSERT_FLAG_KEY) : null);
+            if (!rows) {
+                const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                rows = await resp.json();
+            }
             const row = Array.isArray(rows) ? rows[0] : null;
             _calSetUpsertFlagValue(row && row.value ? row.value : { clients: [] });
         } catch (e) {
@@ -197,6 +203,11 @@
             const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=key,value&key=in.('
                 + encodeURIComponent(WRITE_UI_REROUTE_FLAG_KEY + ',' + CLIENT_COMMENT_GATEWAY_FLAG_KEY) + ')&limit=2';
             const request = (async () => {
+                // Both keys come from the boot batch or neither does, so one
+                // routing decision never mixes a batched row with a live one.
+                const bootReroute = (typeof _svBootFlagRows === 'function' ? await _svBootFlagRows(WRITE_UI_REROUTE_FLAG_KEY) : null);
+                const bootGateway = (typeof _svBootFlagRows === 'function' ? await _svBootFlagRows(CLIENT_COMMENT_GATEWAY_FLAG_KEY) : null);
+                if (bootReroute && bootGateway) return bootReroute.concat(bootGateway);
                 const resp = await fetch(url, {
                     headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' },
                     ...(controller ? { signal: controller.signal } : {})
@@ -2768,9 +2779,12 @@
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _settingsSetFlagValue({ clients: [] }); return; }
         try {
             const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(SETTINGS_EF_FLAG_KEY) + '&limit=1';
-            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const rows = await resp.json();
+            let rows = (typeof _svBootFlagRows === 'function' ? await _svBootFlagRows(SETTINGS_EF_FLAG_KEY) : null);
+            if (!rows) {
+                const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                rows = await resp.json();
+            }
             const row = Array.isArray(rows) ? rows[0] : null;
             _settingsSetFlagValue(row && row.value ? row.value : { clients: [] });
         } catch (e) {

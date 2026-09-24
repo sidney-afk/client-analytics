@@ -1440,8 +1440,34 @@
             .sort((a, b) => String(a.name).localeCompare(String(b.name)));
         return _syncviewStaffRosterCache;
     }
+    /* The <head> boot script starts the boot key-verify POST while the document
+       parses. Hand its response over at most once, only to the boot surface,
+       only for the exact key + member it was sent for, and only while fresh.
+       It is the server's answer either way; this only moves when it was asked. */
+    function _syncviewTakeEarlyKeyVerify(candidate, surface) {
+        let early = null;
+        try { early = window.__svEarlyKeyVerify; window.__svEarlyKeyVerify = null; } catch (e) {}
+        if (!early || surface !== 'staff-boot' || !candidate || !candidate.member) return null;
+        if (early.key !== String(candidate.key || '') || early.memberId !== String(candidate.member.id || '')) return null;
+        if (!(Date.now() - early.at < 60000)) return null;
+        return early.response;
+    }
+    /* Boot-time runtime flag rows from the single batched read the <head> boot
+       script starts. Resolves the rows a `key=eq.<key>` read would return, or
+       null when the batch is unavailable (client link, already taken, failed,
+       stale): the caller then reads the flag itself exactly as before. */
+    async function _svBootFlagRows(key) {
+        try {
+            if (typeof window.__svTakeBootFlag !== 'function') return null;
+            const hit = await window.__svTakeBootFlag(key);
+            return hit ? (hit.row ? [hit.row] : []) : null;
+        } catch (e) { return null; }
+    }
     async function _syncviewVerifyStaffIdentity(candidate, surface) {
-        const response = await fetch(STAFF_KEY_VERIFY_URL, {
+        const early = _syncviewTakeEarlyKeyVerify(candidate, surface);
+        let response = null;
+        if (early) { try { response = await early; } catch (e) { response = null; } }
+        if (!response) response = await fetch(STAFF_KEY_VERIFY_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': String(candidate && candidate.key || '') },
             body: JSON.stringify({ surface: surface || 'staff-login', member: { id: candidate && candidate.member && candidate.member.id } })

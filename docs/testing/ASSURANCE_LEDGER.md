@@ -142,6 +142,15 @@ still owner-gated, and it is the half that matters most.
 
 ## Run history
 
+### Run 2026-09-24 (Atlas, follow-up) — mandate: sub-issue-to-card rename live, Kasper Samples half, Workload saves, market research; TEST client only
+- **Sub-issue-to-card rename: BLOCKED on credentials, not proven.** New probe `qa/probes/rename_subissue_to_card_live.js` drives the real SyncLinear title edit on a TEST card with two native sub-issues. `production-write` answers 401 to the harness stub key and 403 to the repo `SYNCVIEW_STAFF_KEY`; the page shows "This write is not allowed for the selected issue." (refusal visible, nothing changed, restore verified). Needs an editor/admin role key in the runner (`SYNCVIEW_ROLE_KEY`).
+- **Kasper Samples half: not proven.** `sxr_kasper_audit_holes` and `sxr_gating_flags` are red on the Kasper approve/request steps, and both are documented in-file as expected red until migrated to the native write lane (OPEN_REPAIRS 175). A live drill goes through the same role-gated writer as above.
+- **Workload saves: not attempted.** `workload-plan` is role-gated (the dawn check records 401 with the staff key); same role key needed.
+- **Market research:** TEST client Brief tab opens (Keywords / Competitors) and shows the "No Keywords Brief yet" empty state with 0 page errors. The populated tabs exist only on real clients, which the mandate excludes, so that half stays unproven.
+- **Confirmed findings: none.** **Uncertain (for review):** the TEST card's video sub-issue reads "Video 1 — Video 1 — TEST 2" (a doubled prefix); could be old test data or a title-composition slip, not verified.
+- **Unit fix:** `test/assurance-ledger-staleness.js` now reads the real ledger's State stamp instead of pinning 2026-08-22, keeping every other assertion.
+
+
 ### Run 2026-09-23 (Atlas) — mandate: client-first sweep of this week's changes; TEST-client writes only, all restored; one fix PR per confirmed bug
 - **Proven (real Chromium, live backend, test client only):** client link lands on Review; client approve and request-changes save and hold; staff card save ("Saved, syncing" path, saved at 760 ms); card-to-sub-issue rename follows and restores; Notes audience filtering (client sees only client notes) and the unread-note lifecycle; Samples review comment, graphic request-change, worst-of status and cleanup; staff tabs Workload, SyncLinear, Analytics, Kasper, Calendar and TikTok Upload render with 0 page errors.
 - **Not reached:** sub-issue-to-card rename (release 2 ships flag off, nothing live to prove); TikTok Upload write path (no test-client post made).

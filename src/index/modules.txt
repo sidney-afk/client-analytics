@@ -3,4 +3,5 @@
 300-tiktok-upload.js.part
 340-editors-date-picker.js.part
 240-production-description.js.part
+125-title-name-rule.js.part
 070-workload-source.js.part

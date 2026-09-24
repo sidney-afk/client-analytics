@@ -1,0 +1,10 @@
+    function _calIsoFmt(y, m, d) { return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+    function _calIsoOf(d) { const x = (d instanceof Date) ? d : new Date(d); return _calIsoFmt(x.getFullYear(), x.getMonth() + 1, x.getDate()); }
+    function _calIsoFirstOfMonth(d) { const x = (d instanceof Date) ? d : new Date(d); return _calIsoFmt(x.getFullYear(), x.getMonth() + 1, 1); }
+    function _calParseIso(iso) { const [Y,M,D] = String(iso).split('-').map(Number); return new Date(Y, (M||1) - 1, D || 1); }
+    function _calIsoMondayOf(d) { const x = (d instanceof Date) ? new Date(d.getFullYear(), d.getMonth(), d.getDate()) : _calParseIso(d); const dow = (x.getDay() + 6) % 7; x.setDate(x.getDate() - dow); return _calIsoOf(x); }
+    function _calAddDaysISO(iso, n) { const x = _calParseIso(iso); x.setDate(x.getDate() + n); return _calIsoOf(x); }
+    function _calAddMonthsISO(iso, n) { const x = _calParseIso(iso); const d = new Date(x.getFullYear(), x.getMonth() + n, 1); return _calIsoOf(d); }
+
+    function _calMintId() { return 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7); }
+

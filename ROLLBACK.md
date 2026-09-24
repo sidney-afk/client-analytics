@@ -1395,3 +1395,14 @@ Revert this change's commit, or restore `_prodBatchRows` to
 The synthetic batch parent and any imported Linear parent filed beside its own
 children then list again as a first "deliverable" row. No database, flag, Edge
 Function or n8n state is involved; GitHub Pages redeploys on push.
+
+## 2026-09-24 — inverse for securing the parent-claim backup table (OPEN_REPAIRS 248; NOT APPLIED)
+
+`migrations/2026-09-24-secure-batches-parent-claim-backup.sql` enables RLS on
+`public.batches_parent_claim_backup_20260824` and revokes all from public, anon
+and authenticated. Nothing reads the table, so no website behavior depends on
+it. Inverse (re-opens the exposure; only if something unexpectedly needs
+browser-key access): `alter table public.batches_parent_claim_backup_20260824
+disable row level security; grant select, insert, update, delete, truncate,
+references, trigger, maintain on table public.batches_parent_claim_backup_20260824
+to anon, authenticated;` No flag, Edge Function, n8n or row data is involved.

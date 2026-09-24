@@ -84,6 +84,22 @@
         .tpl-folder-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); text-decoration: none; color: inherit; font-size: 0.86rem; }
         .tpl-folder-row:hover .tpl-folder-name { text-decoration: underline; }
         .tpl-folder-meta { color: var(--text-muted); font-size: 0.74rem; white-space: nowrap; }
+        .tpl-brief-sec { margin-top: 14px; }
+        .tpl-brief-sec:first-of-type { margin-top: 4px; }
+        .tpl-brief-h { font-weight: 700; font-size: 0.95rem; margin-bottom: 6px; }
+        .tpl-brief-list { list-style: none; margin: 0; padding: 0; }
+        .tpl-brief-li { padding: 6px 0; border-bottom: 1px solid var(--border); }
+        .tpl-brief-li:last-child { border-bottom: 0; }
+        .tpl-brief-row { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; }
+        .tpl-brief-text { font-size: 0.9rem; line-height: 1.5; }
+        .tpl-brief-acts { display: inline-flex; gap: 6px; opacity: 0; transition: opacity 0.12s; white-space: nowrap; }
+        .tpl-brief-li:hover .tpl-brief-acts, .tpl-brief-acts:focus-within { opacity: 1; }
+        @media (hover: none) { .tpl-brief-acts { opacity: 1; } }
+        .tpl-brief-act { font-size: 0.72rem; border: 1px solid var(--border); background: none; border-radius: 6px; padding: 2px 7px; cursor: pointer; color: var(--text-muted); }
+        .tpl-brief-sources { margin: 8px 0 4px; padding: 8px 12px; border-left: 3px solid var(--border); }
+        .tpl-brief-source-h { font-weight: 700; font-size: 0.8rem; margin-bottom: 4px; }
+        .tpl-brain-allfacts { margin-top: 16px; }
+        .tpl-brain-allfacts > summary { cursor: pointer; font-size: 0.8rem; color: var(--text-muted); }
         .tpl-section-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 14px; }
 
         /* Filming-plans card (view mode top callout, but not yellow) */

@@ -43,3 +43,19 @@ export function parseSpec(spec) {
     return i < 0 ? { key: "", value: p } : { key: p.slice(0, i).trim(), value: p.slice(i + 1).trim() };
   });
 }
+
+// brief.md -> [{ heading, bullets: [{ text, facts: [ids] }] }]
+export function parseBrief(text) {
+  const sections = [];
+  let cur = null;
+  for (const line of String(text || "").replace(/\r\n/g, "\n").split("\n")) {
+    const h = /^##\s+(.+)$/.exec(line);
+    if (h) { cur = { heading: h[1].trim(), bullets: [] }; sections.push(cur); continue; }
+    const b = /^-\s+(.*)$/.exec(line);
+    if (!b || !cur) continue;
+    const m = /<!--\s*fact:\s*([^>]*?)\s*-->/.exec(b[1]);
+    const facts = m ? m[1].split(",").map((x) => x.trim()).filter(Boolean) : [];
+    cur.bullets.push({ text: b[1].replace(/<!--[\s\S]*?-->/g, "").trim(), facts });
+  }
+  return sections.filter((x) => x.bullets.length);
+}

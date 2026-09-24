@@ -8,12 +8,12 @@
 |---|---|---|---|
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `005-head-boot.html.part` | 260 | NOT render-blocking, and the reason is measured rather than assumed. |
-| 3 | `010-styles-foundation.css.part` | 3900 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 4 | `020-styles-surfaces.css.part` | 3790 | Templates view |
+| 3 | `010-styles-foundation.css.part` | 3902 | Video and Thumbnail share the same vibrant pink/blue pair the |
+| 4 | `020-styles-surfaces.css.part` | 3812 | Templates view |
 | 5 | `030-body-shell.html.part` | 445 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 1891 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1622 | Market Research Brief Tab Renderers |
-| 8 | `060-templates-filming.js.part` | 2021 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 8 | `060-templates-filming.js.part` | 2071 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3608 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3369 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
 | 11 | `090-workload-popovers-navigation.js.part` | 1599 | Sub-issue popover |

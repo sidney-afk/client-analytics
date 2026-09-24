@@ -1,5 +1,6 @@
     <style>
         :root {
+            --brief-look: #7c5cff; --brief-look-bg: #f4f1ff; --brief-edit: #2f7de1; --brief-edit-bg: #eef5fe; --brief-music: #0e9f8e; --brief-music-bg: #eafaf7; --brief-avoid: #e0445a; --brief-avoid-bg: #fdf0f2; --brief-about: #d98a12; --brief-about-bg: #fdf6ea; --brief-asks: #d4509a; --brief-asks-bg: #fcf0f7; --brief-know: #5b6b82; --brief-know-bg: #f1f4f8;
             color-scheme: light;
             --white:  #ffffff; --bg: #f4f4f2; --border: #e4e4e0; --border-light: #ededea;
             --surface-raised: #ffffff; --surface-hover: #f8f8f6; --surface-subtle: #f3f3f1;
@@ -33,6 +34,7 @@
             --upload-progress-track: var(--bg); --upload-progress-fill: var(--sv-bg-111110); --upload-progress-glow: rgba(0,0,0,0);
         }
         html[data-theme="dark"] {
+            --brief-look: #a996ff; --brief-look-bg: #221d38; --brief-edit: #6aa8f5; --brief-edit-bg: #172536; --brief-music: #43d1bf; --brief-music-bg: #13302d; --brief-avoid: #ff7b8c; --brief-avoid-bg: #37191f; --brief-about: #f0b454; --brief-about-bg: #332713; --brief-asks: #f08cc4; --brief-asks-bg: #361b2c; --brief-know: #9fb0c8; --brief-know-bg: #1d2330;
             color-scheme: dark;
             --white: #181a1f; --bg: #101114; --border: #343842; --border-light: #282c34;
             --surface-raised: #20232a; --surface-hover: #242730; --surface-subtle: #15171c;

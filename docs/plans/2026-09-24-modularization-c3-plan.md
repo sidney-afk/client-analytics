@@ -21,7 +21,7 @@ names only; no client names or slugs.
 3. Recommended shape: **write the fragments as ES modules, but keep shipping the same
    single script until the very end.** The build strips the `import` lines and the
    `export` words, so each conversion step produces a **byte-identical `index.html`**
-   and keeps the strongest gate we have (`npm run check:index`). The runtime switch to
+   and can be checked against the base commit's page byte for byte (a check step 0 adds; §6). The runtime switch to
    real modules is one separate, measured step at the end (§6, step 13).
 4. Order: pure helpers first, then shared state, then single-screen areas, then the
    production hub, and **the client approve / request-changes path last** (§5).
@@ -234,8 +234,16 @@ Ranked by what breaks and who notices.
 Stage 1 converts sources only. `scripts/build-index.js` learns one extra rule for
 fragments marked as modules: drop their `import` lines and the leading `export ` word,
 then concatenate as today. Because nothing is re-ordered, **the built `index.html` stays
-byte-identical**, so `npm run check:index` proves "no runtime change" on every step that
-only adds imports and exports. A new checker (`scripts/check-modules.js`, step 0) parses
+byte-identical to the base commit's**, which proves "no runtime change" on every step that
+only adds imports and exports.
+
+**`npm run check:index` alone does not prove that.** It compares the assembled output
+with the working tree and `HEAD`, and an annotate PR commits the regenerated page, so a
+stripping bug would be present in all three copies and still pass. Step 0 therefore adds
+a base comparison (`npm run check:index -- --against=origin/main`, or a separate script)
+that fails unless the built page equals `git show <base>:index.html` byte for byte, and
+runs it in CI on every PR labelled annotate-only. Until that exists, "byte-identical" in
+this plan is a claim, not a check. A new checker (`scripts/check-modules.js`, step 0) parses
 each module fragment as a real module and fails if it uses a name it did not import,
 imports a name nobody exports, reassigns an import, or guards an unimported name with
 `typeof`.
@@ -250,7 +258,7 @@ Stage 2 (step 13) is the one step that changes how the page runs.
 
 | step | PR | kind | proof | notes |
 |---|---|---|---|---|
-| 0 | Module checker + strip rule in the build; no fragment marked yet | tooling | byte-identical | checker = the analysis in §3, checked in; lists the 480 unbridged handlers and 229 guards as a report |
+| 0 | Module checker + strip rule in the build + base comparison against the base commit's `index.html`; no fragment marked yet | tooling | byte-identical against base | checker = the analysis in §3, checked in; lists the 480 unbridged handlers and 229 guards as a report |
 | 1 | Delete the 4 first-copy duplicates in `230` | move | browser gate + `npm test` | behaviour-identical (the later copy already wins) |
 | 2 | New `core-html` module: move `_calEsc`, `_calEscAttr`, `_jsAttrArg`, `_svLoadingSkeletonHtml` and siblings out of `130` | move | full | pure functions, no state; hoisted, so moving is safe |
 | 3 | `125-title-name-rule` as a module in place | annotate | byte-identical | 0 foreign writes, 0 load-time code; first real module |
@@ -353,8 +361,9 @@ another.
 
 ## 9. Gate summary per PR
 
-- Annotate-only steps: `npm run build:index` then `npm run check:index` (byte-identical)
-  and `scripts/check-modules.js` green.
+- Annotate-only steps: `npm run build:index`, `npm run check:index`, **the base
+  comparison from step 0 (built page equals the base commit's `index.html`)**, and
+  `scripts/check-modules.js` green.
 - Move or setter steps: the above, plus `node docs/syncview-design/tests/prod-write-gateway-browser.js`,
   `node docs/syncview-design/tests/prod-boot-budget.js`, `npm test`, and `/master-test`
   focused on the touched screens.

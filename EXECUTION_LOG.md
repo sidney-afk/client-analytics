@@ -8339,3 +8339,11 @@ no code change, so the provider list now reads `production-write` v91,
 `deliverable-write` v48, `batch-write` v48, with `ezbr_sha256` and `updated_at`
 unchanged from this deploy (same source). The versions above (v88/v45/v45) are
 this run's own result. `linear-outbound` is confirmed absent live.
+
+## 2026-09-24 — Receipt recorded after the fact: workload snapshot cache migration and `workload-plan` `native_snapshot_v2` live (B2 Slice 9 evidence)
+
+Nobody logged these two installs at the time they happened. This entry records what a read-only check on 2026-09-24 found live. It is not a first-hand log of the apply or the deploy.
+
+- **Migration** `migrations/2026-09-23-workload-native-snapshot-cache.sql` (PR #1511, plus #1520): `supabase_migrations.schema_migrations` records it as version `20260923164647`, name `workload_native_snapshot_cache`, so it was applied 2026-09-23 16:46:47Z. The objects it creates exist live: the `workload_snapshot_cache` table, `workload_native_snapshot_cached_v1`, `workload_native_snapshot_slim_v1` and `workload_native_snapshot_warm_v1`. The live `pg_get_functiondef` of `workload_native_snapshot_slim_v1` matches the repo migration line for line. The older `workload_native_snapshot_v1` is still present.
+- **Edge Function** `workload-plan`: the provider list shows it last updated 2026-09-24 02:29:44Z, with `ezbr_sha256` `aac6a2ba829274939b3cce38912d45c164927ba6f991691c1270fd3261fbdeb3`. It read v26 after that deploy and reads v29 now, because of the three secret deletions recorded above (no code change). The repo source (latest change #1542) serves the `native_snapshot_v2` action. The deploy's run id and source-closure readback were not recorded, and this check did not take them.
+- **Cached snapshot body on 2026-09-24:** 6,770 rows, all native. 7,286,083 bytes.

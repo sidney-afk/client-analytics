@@ -420,4 +420,5 @@ Put each snapshot in the SyncView Backups drive, not the repo, because it contai
   - `linear_parent_ids` is already gone from the snapshot; its other browser uses read the `batches` table directly.
 - **Kept, per owner decision:** the frozen `workload_issues` table and the legacy arm of the view.
 - **Later tidy-ups (not this slice):** the legacy arm of the view, `workload-source-freshness.yml`, the boot early-fetch, and an optional follow-up that moves parent-name search and labels to batch names so `parent_identifier` and `parents` can leave the snapshot (about 115 KB, 1.6%).
-- **Rollback:** none needed; this slice changes no code, SQL or live state.
+- **Receipts:** the cache migration apply and the `workload-plan` deploy had no ledger entry; `EXECUTION_LOG.md` now records them from live read-only evidence (2026-09-24), and `ROLLBACK.md` has a "B2 Slice 9" row.
+- **Rollback:** this slice changes no code, SQL or live state; to undo the already-live slim snapshot see `ROLLBACK.md`, row "B2 Slice 9".

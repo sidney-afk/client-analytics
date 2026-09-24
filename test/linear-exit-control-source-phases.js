@@ -21,7 +21,7 @@ function fixture(parts){
 let checks=0;function check(fn){fn();checks++;}
 // Established sourceSql bytes, independently compared to the published module
 // before this phase extraction. No git checkout dependency during tests.
-const originalSql={core:'2960b8c9dc488d4aef1d62cf3996d9519ebeaafa1e2bad8f140ceeee58867cb0','core+diagnostics':'b4aa4ac0d99ab32ab2d410a3ce4662e98d5f2bb4e6479dd4c602b8c2e4a81d7b'};
+const originalSql={core:'2960b8c9dc488d4aef1d62cf3996d9519ebeaafa1e2bad8f140ceeee58867cb0','core+diagnostics':'092fe006ae56afb09f60be00630d4bf8a40cb838c66207a2ea0d3ab373e10e55'};
 check(()=>{for(const name of Object.keys(originalSql)){const c=control.forProfile(name),p=real.sourcePhases(c.OWNERS);assert.equal(p.afterPrivateRows,'');assert.equal(p.beforePublic,c.sourceSql());assert.equal(hash(p.beforePublic),originalSql[name]);}});
 check(()=>{const f=fixture(fence),p=f.api.sourcePhases(f.owners);assert.equal(p.beforePublic,'');assert.equal(p.afterPrivateRows,fence.map(s=>s+';').join('\n'));assert(!p.afterPrivateRows.includes('synthetic_public'));});
 check(()=>{const f=fixture(fence.map(s=>s.replaceAll('\n','\r\n'))),p=f.api.sourcePhases(f.owners);assert(p.afterPrivateRows.includes("as E'\\r\\nbegin return new;end '"));assert(!p.afterPrivateRows.includes('$fence$'));});

@@ -25141,7 +25141,15 @@
     const CAL_SUPABASE_URL      = 'https://uzltbbrjidmjwwfakwve.supabase.co';
     const CAL_SUPABASE_ANON_KEY = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA'; // browser-safe publishable key; read-only via RLS
     const CAL_SUPABASE_LIB_URL  = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; // UMD → window.supabase
-    const WORKLOAD_PLAN_URL = CAL_SUPABASE_URL + '/functions/v1/workload-plan';
+    /* Pinned to us-east-1, the Edge region nearest the database (us-east-2 is
+       not an Edge region). By default a request runs in the region nearest the
+       CALLER; measured 2026-09-24, most Workload traffic ran in sa-east-1 and
+       every answer crossed to Ohio and back -- full snapshot p50 4.5 s there vs
+       0.8-3.5 s in us-east-1, "unchanged" 460-750 ms vs ~270 ms. The query
+       parameter (not the x-region header) keeps the CORS preflight unchanged.
+       https://supabase.com/docs/guides/functions/regional-invocation -- a pinned
+       region is not re-routed during a regional outage. */
+    const WORKLOAD_PLAN_URL = CAL_SUPABASE_URL + '/functions/v1/workload-plan?forceFunctionRegion=us-east-1';
     const WORKLOAD_LINEAR_URL = CAL_SUPABASE_URL + '/functions/v1/workload-linear';
     const CLIENT_TOKEN_VERIFY_URL = CAL_SUPABASE_URL + '/functions/v1/client-token-verify';
     const SYNCVIEW_CLIENT_ENTRY_PROTOCOL = 'syncview-client-entry-v1';

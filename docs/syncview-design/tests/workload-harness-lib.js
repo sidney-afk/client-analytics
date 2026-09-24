@@ -295,7 +295,7 @@ async function launchWorkloadHarness(options) {
   });
 
   // The saved-plan sidecar: the only write path this surface has.
-  await context.route('**/functions/v1/workload-plan', async route => {
+  await context.route('**/functions/v1/workload-plan*', async route => {
     const body = JSON.parse(route.request().postData() || '{}');
     if (body.action === 'list') {
       if (state.planListStatus !== 200) {

@@ -36,7 +36,7 @@ async function main(){const server=await startStreamServer();let browser,run;con
  await run.context.route('**/rest/v1/production_deliverables_browser_v1?*',route=>reply(route,[]));
  // The older mirror-watermark read; empty, so it never contributes rows.
  await run.context.route('**/rest/v1/workload_issues?*',route=>reply(route,[]));
- await run.context.route('**/functions/v1/workload-plan',async route=>{
+ await run.context.route('**/functions/v1/workload-plan*',async route=>{
   assert.equal(route.request().method(),'POST');const body=route.request().postDataJSON();
   assert.equal(route.request().headers()['x-syncview-key'],'synthetic-role-key');
   requests.push(body.action);

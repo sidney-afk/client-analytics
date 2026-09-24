@@ -213,6 +213,7 @@
     "inactive-editor-roster.js",
     "index-build.js",
     "index-inline-script-syntax.js",
+    "index-modules-strip.js",
     "intake-created-status-server-guard.js",
     "intake-post-names.js",
     "intake-retry-mirror-convergence.js",

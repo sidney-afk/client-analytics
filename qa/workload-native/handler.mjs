@@ -86,6 +86,26 @@ try{
    ok(mw.status===501,'before the warm-up migration is applied it answers 501 and the browser stops asking');}
   rpcFault=true;const f=await request({action:'native_snapshot_v2'});rpcFault=false;
   ok(f.status===503,'a failed cached read is a failed read, never empty success');}
+  // v2 sends only what the board draws (boardSnapshot): closed sub-issues and
+  // parents with no open child are omitted, count follows, and four unread row
+  // fields are dropped. Proven through the real handler, not just the helper.
+  {sql(`insert into batches(id,client_slug,name)values('bat_closed','fixture','Closed batch');
+   insert into deliverables(id,batch_id,client_slug,team,kind,title,status,linear_raw)values
+   ('del_closed_a','bat_closed','fixture','video','video','Closed work','posted','{"issue":{"labels":{"nodes":[],"pageInfo":{"hasNextPage":false}}}}'),
+   ('del_closed_b','bat_closed','fixture','video','video','Canceled work','canceled','{"issue":{"labels":{"nodes":[],"pageInfo":{"hasNextPage":false}}}}'),
+   ('del_closed_c','bat_fixture','fixture','video','video','Closed beside open','posted','{"issue":{"labels":{"nodes":[],"pageInfo":{"hasNextPage":false}}}}');`);
+   const full=(await request({action:'native_snapshot'})).body,slim=(await request({action:'native_snapshot_v2'})).body;
+   const closed=new Set(['completed','canceled','duplicate','triage']);
+   const open=full.rows.filter(row=>row.is_sub_issue&&!closed.has(String(row.status_type||'').toLowerCase()));
+   const parents=new Set(open.map(row=>row.parent_id));
+   const want=full.rows.filter(row=>row.is_sub_issue?!closed.has(String(row.status_type||'').toLowerCase()):parents.has(row.id)).map(row=>row.id);
+   const got=slim.rows.map(row=>row.id);
+   ok(['del_closed_a','del_closed_b','del_closed_c'].every(id=>full.rows.some(row=>row.id===id)),'fixture closed rows are in the full snapshot');
+   ok(full.rows.length>want.length&&JSON.stringify(got)===JSON.stringify(want)&&slim.count===got.length,'v2 omits closed sub-issues and childless parents and counts what it sends');
+   ok(['del_closed_a','del_closed_b','del_closed_c'].every(id=>!got.includes(id))&&got.includes('del_fixture'),'closed work is absent from v2, open work stays');
+   ok(slim.rows.every(row=>['native_assignee_id','native_sync_state','native_sort_key','native_kind'].every(f=>!(f in row))),'v2 drops the four unread row fields');
+   ok(JSON.stringify(slim.plans.map(p=>p.issue_id).sort())===JSON.stringify(full.plans.map(p=>p.issue_id).sort()),'v2 keeps every saved work day');
+   sql(`delete from deliverables where id like 'del_closed_%';delete from batches where id='bat_closed';`);}
  let before=rpcCalls;let r=await request({action:'native_snapshot'},'');ok(r.status===401&&rpcCalls===before,'anonymous refused before native roster/plan read');
  r=await request({action:'native_snapshot'},'bad',{'x-syncview-role':'admin'});ok(r.status===401&&rpcCalls===before,'forged role cannot read private snapshot');
  r=await request({action:'set',issue_id:'del_fixture',client:'Fixture',plan_date:'2030-03-01'},'fixture-creative');ok(r.status===403,'creative writer policy unchanged');

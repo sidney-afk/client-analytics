@@ -1306,6 +1306,18 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
     let _wlNativeDueReceiptGeneration = 0;
     let _wlNativeDueReceiptRetryTimer = null;
     let _wlNativeDueReceiptRetryAttempt = 0;
+    // Setters for the Workload render module (080). ES module imports are
+    // read-only, so 080 changes these through the functions below instead
+    // of assigning them directly (phase C step C3).
+    function _wlSetBackgroundRefreshPromise(value) { _wlBackgroundRefreshPromise = value; }
+    function _wlSetBackgroundRefreshMode(value) { _wlBackgroundRefreshMode = value; }
+    function _wlSetNativeDueReceiptRetryPromise(value) { _wlNativeDueReceiptRetryPromise = value; }
+    function _wlSetNativeDueReceiptRetryTimer(value) { _wlNativeDueReceiptRetryTimer = value; }
+    function _wlSetNativeDueReceiptRetryAttempt(value) { _wlNativeDueReceiptRetryAttempt = value; }
+    function _wlTakeNativeDueReceiptRetryAttempt() { return _wlNativeDueReceiptRetryAttempt++; }
+    function _wlNextNativeDueReceiptGeneration() { return ++_wlNativeDueReceiptGeneration; }
+    function _wlNextPlanLoadGeneration() { return ++_wlPlanLoadGeneration; }
+    function _wlNextPlanWriteGeneration() { return ++_wlPlanWriteGeneration; }
 
     function wlPlanEditingEnabled() {
         return wlState.planStatus === 'ready' && _syncviewStaffCan('workload-plan');
@@ -3588,21 +3600,25 @@ export {
   WL_VIEW_PREF_KEY, _wlBackgroundRefreshMode, _wlBackgroundRefreshPromise, _wlDueWriteInFlight,
   _wlNativeDiffEnabled, _wlNativeDueReceiptGeneration, _wlNativeDueReceiptRetryAttempt,
   _wlNativeDueReceiptRetryPromise, _wlNativeDueReceiptRetryTimer,
+  _wlNextNativeDueReceiptGeneration, _wlNextPlanLoadGeneration, _wlNextPlanWriteGeneration,
   _wlPendingNativeDueReceiptByTarget, _wlPlanLastWriteGeneration, _wlPlanLoadGeneration,
-  _wlPlanSessionGeneration, _wlPlanWriteGeneration, _wlPlanWriteInFlight, _wlV2CheckWatermark,
-  _wlV2EnsureSubscribed, _wlV2EnsureWatermarkPoll, _wlV2FetchIssues, _wlV2FetchLatestWatermark,
-  _wlV2Ready, _wlV2Teardown, getClientRoster, renderWorkloadShell, wlAddDays, wlAddWorkingDays,
-  wlAdoptLinearMetadata, wlAdoptPlanRows, wlApplySettleAnimation, wlAutoPlacementTip,
-  wlBackgroundBusinessFingerprint, wlBucketByDisplayDate, wlCachedBoardUsable, wlCachedRoster,
-  wlCalendarDayDiff, wlCanonicalClient, wlCompareClientGroups, wlComputeAutoPlacements,
-  wlDayOverCapacity, wlDeadlineDotHtml, wlDeadlineMeta, wlDeadlineTagHtml, wlDisplayDate,
-  wlDisplayName, wlEditorCapacity, wlFetchLinearMetadata, wlFetchPlanRows, wlFormatShort,
-  wlGroupDeadlineHtml, wlGroupDeadlineSummary, wlGroupDragHandleHtml, wlGroupPlanOriginHtml,
-  wlGroupWorkloadHtml, wlISO, wlInitials, wlIsActiveStatus, wlIsAllowedClient, wlIsInProgress,
-  wlIsToDo, wlIsTweaksNeeded, wlIsWeekend, wlIssueClientAllowed, wlIssueDragHandleHtml,
-  wlIssueEditorAllowed, wlLinearEditingEnabled, wlLoadSnapshot, wlMarkLinearMetadataFailure,
-  wlMergeClientsFromSheet, wlMetadataTeamBucket, wlNativeDueDate, wlNormalizeClient, wlParseISO,
-  wlPlacementMode, wlPlanDate, wlPlanEditingEnabled, wlPlanOriginHtml, wlPurgePlanSensitiveState,
-  wlReadCache, wlSnapshotIdentity, wlState, wlTeamBucket, wlTodayISO, wlValidRfc3339Timestamp,
-  wlWeekMondayISO, wlWorkloadBadgeHtml, wlWorkloadTodayISO, wlWorkloadUnits, wlWorkloadWeight
+  _wlPlanSessionGeneration, _wlPlanWriteInFlight, _wlSetBackgroundRefreshMode,
+  _wlSetBackgroundRefreshPromise, _wlSetNativeDueReceiptRetryAttempt,
+  _wlSetNativeDueReceiptRetryPromise, _wlSetNativeDueReceiptRetryTimer,
+  _wlTakeNativeDueReceiptRetryAttempt, _wlV2CheckWatermark, _wlV2EnsureSubscribed,
+  _wlV2EnsureWatermarkPoll, _wlV2FetchIssues, _wlV2FetchLatestWatermark, _wlV2Ready, _wlV2Teardown,
+  getClientRoster, renderWorkloadShell, wlAddDays, wlAddWorkingDays, wlAdoptLinearMetadata,
+  wlAdoptPlanRows, wlApplySettleAnimation, wlAutoPlacementTip, wlBackgroundBusinessFingerprint,
+  wlBucketByDisplayDate, wlCachedBoardUsable, wlCachedRoster, wlCalendarDayDiff, wlCanonicalClient,
+  wlCompareClientGroups, wlComputeAutoPlacements, wlDayOverCapacity, wlDeadlineDotHtml,
+  wlDeadlineMeta, wlDeadlineTagHtml, wlDisplayDate, wlDisplayName, wlEditorCapacity,
+  wlFetchLinearMetadata, wlFetchPlanRows, wlFormatShort, wlGroupDeadlineHtml,
+  wlGroupDeadlineSummary, wlGroupDragHandleHtml, wlGroupPlanOriginHtml, wlGroupWorkloadHtml, wlISO,
+  wlInitials, wlIsActiveStatus, wlIsAllowedClient, wlIsInProgress, wlIsToDo, wlIsTweaksNeeded,
+  wlIsWeekend, wlIssueClientAllowed, wlIssueDragHandleHtml, wlIssueEditorAllowed,
+  wlLinearEditingEnabled, wlLoadSnapshot, wlMarkLinearMetadataFailure, wlMergeClientsFromSheet,
+  wlMetadataTeamBucket, wlNativeDueDate, wlNormalizeClient, wlParseISO, wlPlacementMode,
+  wlPlanDate, wlPlanEditingEnabled, wlPlanOriginHtml, wlPurgePlanSensitiveState, wlReadCache,
+  wlSnapshotIdentity, wlState, wlTeamBucket, wlTodayISO, wlValidRfc3339Timestamp, wlWeekMondayISO,
+  wlWorkloadBadgeHtml, wlWorkloadTodayISO, wlWorkloadUnits, wlWorkloadWeight
 };

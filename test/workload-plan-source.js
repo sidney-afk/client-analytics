@@ -467,7 +467,7 @@ ok(/wlRefreshSensitiveStateSilent/.test(workloadInit)
   && /!_syncviewStaffIdentityForHeaders\(\)/.test(backgroundRefresh),
 'sign-in and warm remount refresh only behind the actual staff identity boundary');
 ok(/if \(_wlBackgroundRefreshPromise\) return _wlBackgroundRefreshPromise/.test(backgroundRefresh)
-  && /finally\s*\{\s*if \(_wlBackgroundRefreshPromise === pending\)\s*\{?\s*_wlBackgroundRefreshPromise = null/.test(backgroundRefresh),
+  && /finally\s*\{\s*if \(_wlBackgroundRefreshPromise === pending\)\s*\{?\s*_wlSetBackgroundRefreshPromise\(null\)/.test(backgroundRefresh),
 'atomic refresh is single-flight and a stale finally cannot clear a newer session flight');
 ok(backgroundRefresh.includes('wlPlanEditingEnabled()') && backgroundRefresh.includes('wlLinearEditingEnabled()')
   && /before !== wlBackgroundBusinessFingerprint\(\)/.test(backgroundRefresh),

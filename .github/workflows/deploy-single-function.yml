@@ -23,7 +23,7 @@ on:
         description: The one function to deploy
         required: true
         type: choice
-        options: [notify, workload-plan, write-diagnostics]
+        options: [brain, notify, workload-plan, write-diagnostics]
       commit_sha:
         description: Exact 40-character commit SHA from main to deploy
         required: true
@@ -56,7 +56,7 @@ jobs:
           # The choice input is not a security boundary on its own (the API can
           # send any string), so the allowlist is enforced again here.
           case "$DEPLOY_FUNCTION" in
-            notify|workload-plan|write-diagnostics) ;;
+            brain|notify|workload-plan|write-diagnostics) ;;
             *) echo "::error::Refused: '$DEPLOY_FUNCTION' is not on this lane's allowlist"; exit 1 ;;
           esac
           if ! [[ "$DEPLOY_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
@@ -102,7 +102,7 @@ jobs:
           fi
           # The loop lists the allowlist once more and deploys only the match.
           deployed=0
-          for fn in notify workload-plan write-diagnostics; do
+          for fn in brain notify workload-plan write-diagnostics; do
             if [ "$fn" = "$DEPLOY_FUNCTION" ]; then
               # --use-api bundles on Supabase's side: no edge-runtime image pull
               # from ghcr.io, whose rate limit failed this lane twice. The

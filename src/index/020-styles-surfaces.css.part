@@ -46,6 +46,39 @@
         .tpl-toggle-btn.active { background: var(--sv-bg-111110); color: var(--sv-fg-fff); }
 
         .tpl-section { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; margin-bottom: 14px; }
+        .tpl-brain-spec-row { display: flex; gap: 12px; align-items: baseline; padding: 6px 0; flex-wrap: wrap; }
+        .tpl-brain-spec-label { font-size: 0.78rem; font-weight: 700; min-width: 90px; color: var(--text-muted); }
+        .tpl-brain-spec-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .tpl-brain-chip { font-size: 0.82rem; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); display: inline-flex; gap: 6px; align-items: center; }
+        .tpl-brain-k { color: var(--text-muted); font-size: 0.74rem; }
+        .tpl-brain-swatch { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: copy; }
+        .tpl-brain-swatch span { width: 13px; height: 13px; border-radius: 4px; border: 1px solid var(--border); display: inline-block; }
+        .tpl-brain-swatch.copied { color: var(--text-primary); font-weight: 700; }
+        .tpl-brain-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-top: 10px; }
+        .tpl-brain-card.empty { opacity: 0.75; }
+        .tpl-brain-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+        .tpl-brain-title { font-weight: 700; font-size: 0.92rem; }
+        .tpl-brain-metas { display: inline-flex; gap: 8px; align-items: center; font-size: 0.72rem; color: var(--text-muted); }
+        .tpl-brain-status { font-weight: 700; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); }
+        .tpl-brain-status.empty { font-style: italic; }
+        .tpl-brain-body { font-size: 0.86rem; line-height: 1.55; margin-top: 8px; overflow-wrap: anywhere; }
+        .tpl-brain-body p { margin: 0 0 8px; }
+        .tpl-brain-quote { margin: 0 0 8px; padding-left: 10px; border-left: 3px solid var(--border); }
+        .tpl-brain-source { font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; }
+        .tpl-brain-change-btn { margin-top: 8px; font-size: 0.78rem; border: 1px solid var(--border); background: none; border-radius: 8px; padding: 4px 10px; cursor: pointer; color: inherit; }
+        .tpl-brain-form { margin-top: 10px; }
+        .tpl-brain-text { width: 100%; box-sizing: border-box; font: inherit; font-size: 0.86rem; border: 1px solid var(--border); border-radius: 8px; padding: 8px; background: var(--white); color: inherit; }
+        .tpl-brain-form-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap; }
+        .tpl-brain-from { flex: 1; min-width: 120px; font: inherit; font-size: 0.82rem; border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; background: var(--white); color: inherit; }
+        .tpl-brain-send, .tpl-brain-cancel { font-size: 0.8rem; border-radius: 8px; padding: 5px 12px; cursor: pointer; border: 1px solid var(--border); background: none; color: inherit; }
+        .tpl-brain-send { font-weight: 700; }
+        .tpl-brain-sent { margin-top: 8px; font-size: 0.8rem; color: var(--text-muted); font-style: italic; }
+        .tpl-brain-err { margin-top: 6px; font-size: 0.78rem; color: var(--prod-danger); }
+        .tpl-brain-missing { margin-top: 12px; }
+        .tpl-brain-missing summary { cursor: pointer; font-size: 0.8rem; color: var(--text-muted); }
+        .tpl-brain-count { opacity: 0.6; font-size: 0.75em; }
+        .tpl-brain-empty-note { font-size: 0.84rem; color: var(--text-muted); margin-top: 8px; }
+        .tpl-brain-add { margin-top: 12px; }
         .tpl-section-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 14px; }
 
         /* Filming-plans card (view mode top callout, but not yellow) */

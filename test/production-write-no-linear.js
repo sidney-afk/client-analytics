@@ -32,8 +32,9 @@ ok(!/\b(targetedDrain|outboundLiveForDrain|scheduleSyncviewLiveDrains|linearRead
 
 const authority = edge.slice(edge.indexOf('async function authorityFor('), edge.indexOf('async function f27WriteAuthorizationGeneration('));
 ok(/Promise<"syncview">/.test(authority) && /return "syncview";/.test(authority)
-    && !/syncview_runtime_flags|prod_authority|"linear"/.test(authority),
-  'authority is the constant syncview for every known team, with no flag read');
+    && /\.eq\("key", "prod_authority"\)/.test(authority) && !/"linear"/.test(authority)
+    && authority.trim().endsWith('throw new GatewayError(503, "authority_unavailable");\n}'),
+  'authority reads prod_authority live, passes only exactly syncview and fails closed otherwise');
 ok(/f27WriteAuthorizationGeneration\(supabase, team\)/.test(edge),
   'the F27 write-authorization generation fence is still enforced');
 ok(/if \(requestedParity\) throw new GatewayError\(409, "legacy_parity_not_allowed"\);/.test(edge),

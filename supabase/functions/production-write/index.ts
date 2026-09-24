@@ -1202,12 +1202,21 @@ function publicIntakePrincipal(client: ClientRow): Principal {
   };
 }
 
-// B2 Slice 8: both teams are permanently SyncView-authoritative. The
-// `prod_authority` flag is no longer read; Linear is never an authority here.
-async function authorityFor(_supabase: SupabaseClient, team: string): Promise<"syncview"> {
+// B2 Slice 8: Linear is never an authority here. The live `prod_authority`
+// flag is still read so the gateway fails closed (read-only) unless the
+// team's value is exactly "syncview": a rollback to "linear", or a missing or
+// malformed value, refuses with 503 authority_unavailable.
+async function authorityFor(supabase: SupabaseClient, team: string): Promise<"syncview"> {
   const normalizedTeam = normalizeTeam(team);
   if (!normalizedTeam) throw new GatewayError(409, "team_authority_unknown");
-  return "syncview";
+  const { data, error } = await supabase.from("syncview_runtime_flags")
+    .select("value")
+    .eq("key", "prod_authority")
+    .maybeSingle();
+  if (error || !data) throw new GatewayError(503, "authority_unavailable");
+  const value = parseJson((data as JsonMap).value);
+  if (lower(value[normalizedTeam]) === "syncview") return "syncview";
+  throw new GatewayError(503, "authority_unavailable");
 }
 
 async function f27WriteAuthorizationGeneration(

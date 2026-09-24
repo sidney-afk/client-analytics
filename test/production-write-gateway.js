@@ -407,12 +407,10 @@ function extractFunction(name, bodyMarker = '{') {
     && /test_project_mapping_unavailable/.test(edge),
   'TEST intake uses one secret-selected allowlisted project per team and fails closed when absent');
 
-  // B2 Slice 8: both teams are permanently SyncView-authoritative. Authority
-  // is a server constant (never a caller value, never a flag read) and an
-  // unknown team still fails closed.
-  ok(/async function authorityFor\(_supabase: SupabaseClient, team: string\): Promise<"syncview"> \{[\s\S]{0,160}team_authority_unknown[\s\S]{0,40}return "syncview";\s*\}/.test(edge)
-    && !/\.eq\("key", "prod_authority"\)/.test(edge),
-  'server authority is the constant syncview for every team, with no flag read and no Linear-authoritative lane');
+  // B2 Slice 8: Linear is never an authority. The live prod_authority flag
+  // is still read and anything but exactly "syncview" fails closed (503).
+  ok(/async function authorityFor\(supabase: SupabaseClient, team: string\): Promise<"syncview"> \{[\s\S]{0,160}team_authority_unknown[\s\S]{0,200}\.eq\("key", "prod_authority"\)[\s\S]{0,300}=== "syncview"\) return "syncview";\s*throw new GatewayError\(503, "authority_unavailable"\);\s*\}/.test(edge),
+  'server authority reads the live flag, passes only exactly syncview, and fails closed on linear, missing or malformed');
   ok(/const SURFACES = new Set\(\["production", "workload", "calendar", "sxr", "submission"\]\)/.test(edge)
     && /surface === "workload"[\s\S]{0,120}operation !== "due"[\s\S]{0,80}invalid_surface_operation/.test(edge)
     && /surface === "workload" && operation === "due" && !clean\(body\.expected_updated_at\)/.test(edge),

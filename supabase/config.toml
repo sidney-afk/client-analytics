@@ -50,6 +50,9 @@ verify_jwt = false
 [functions.templates-save]
 verify_jwt = false
 
+[functions.brain]
+verify_jwt = false
+
 [functions.caption-prompts-save]
 verify_jwt = false
 

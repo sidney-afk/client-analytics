@@ -2220,6 +2220,25 @@
     if(_isIntake&&!_isClientLink){document.body.classList.add('intake-mode');}
     if(_isOnboarding&&!_isClientLink){document.body.classList.add('onboarding-mode');}
     if(_isSmmWeeklyEntry&&!_isClientLink){document.body.classList.add('smm-weekly-mode');}
+    /* Start the write-authority read now, beside key-verify, instead of after
+       it. The Calendar may only paint its saved copy once this live answer is
+       in hand (_calCacheRead fails closed without it), and it used to be
+       asked for only after sign-in cleared, so a returning staff member
+       watched a spinner for the length of one more round trip with their
+       saved cards already on disk. It is the same public flag read the page
+       makes anyway (deduped by _writeUiRefreshAuthority), carries no client
+       data and no staff key, and decides nothing on its own: writes still
+       re-read it live. Client links and the special entry modes skip it.
+       Only a saved-identity boot asks: that is the boot that mounts the
+       Calendar about a second from now, so the answer is fresh when used. A
+       signed-out page may sit on the sign-in gate for any length of time, and
+       an early answer held that long could paint stale Linear links; it
+       reads the flag after sign-in, as before (Codex, PR 1569). */
+    let _bootHasSavedStaffIdentity = false;
+    try { _bootHasSavedStaffIdentity = !!localStorage.getItem('syncview_staff_identity_v1'); } catch (e) {}
+    if (_bootHasSavedStaffIdentity && !_isClientLink && !_isIntake && !_isOnboarding && !_isSmmWeeklyEntry) {
+        try { _writeUiRefreshAuthority(); } catch (e) {}
+    }
     if(_isClientLink){
         // A client query never enters a staff/special-mode route directly.
         // Keep the neutral validation skeleton and staff chrome lock in place

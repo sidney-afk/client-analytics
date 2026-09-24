@@ -294,7 +294,8 @@
         if (!Number.isFinite(n) || n <= 0) return '0 B';
         const u = ['B', 'KB', 'MB', 'GB'];
         let i = 0; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
-        return `${n.toFixed(i === 0 ? 0 : 1)} ${u[i]}`;
+        // One decimal, but never a bare ".0": a limit reads "287 MB", a file "12.4 MB".
+        return `${n.toFixed(i === 0 ? 0 : 1).replace(/\.0$/, '')} ${u[i]}`;
     }
 
     function _tkEscape(s) {

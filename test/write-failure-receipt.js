@@ -244,7 +244,7 @@ ok(/_writeUiReportFailure\(surface, 'comment', error, \{[\s\S]{0,200}?card: post
 'the canonical comment gateway refusal reports the card it was raised for');
 ok(/function _writeUiReportFailure\(surface, operation, error, context\)/.test(INDEX),
 'the failure reporter accepts identifiers for the sites that can supply them');
-ok(/Object\.assign\(\{ kind: operation \}, context \|\| \{\}\)/.test(INDEX),
+ok(/Object\.assign\(\{ kind: operation \}, error && error\.diagIds \|\| \{\}, context \|\| \{\}\)/.test(INDEX),
 'and merges them into the diagnostic item, so they pass through the same allowlist');
 
 if (failures) {

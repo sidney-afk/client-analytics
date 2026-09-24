@@ -571,6 +571,7 @@
     "workload-tweak-exclusive-bucket.js",
     "workload-tweak-feedback-source.js",
     "write-failure-receipt.js",
+    "write-refusal-beacon-card-id.js",
     "write-ui-calendar-sxr-reroute.js",
     "write-ui-failure-messages.js",
     "write-ui-link-slot-seal.js",
@@ -582,9 +583,11 @@
     "write-ui-reroute-usable-roster.js",
     "write-ui-soak-pager.js",
     "write-ui-writer-durability.js",
+    "tiktok-size-label.js",
     "title-name-rule-drift.js",
     "subissue-rename-gateway.js",
     "dawn-report-allowlist.js",
+    "prod-batch-view-hides-batch-parent.js",
     "calendar-client-links-after-sheet.js"
   ],
   "profiles": [

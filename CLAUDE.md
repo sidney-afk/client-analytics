@@ -64,7 +64,7 @@ Dispatching first fails in about 20 seconds with:
 ```
 {"status":"FAIL","code":"OBJECT_MISSING",
  "message":"The content-addressed private object was missing."}
-##[error]The sealed prior-four private fetch or independent round-trip failed
+##[error]The sealed prior-three private fetch or independent round-trip failed
 ```
 
 **That error means the upload, nothing else.** Nothing deployed, the capture is

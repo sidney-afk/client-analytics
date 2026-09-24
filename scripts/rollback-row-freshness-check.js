@@ -46,14 +46,14 @@ const ROOT = rootArg ? path.resolve(rootArg.slice('--root='.length)) : path.reso
    fixture that had to carry a copy of .github/workflows to exercise the lane
    check would be testing its own copy, not the shipped roster. */
 const REPO = path.resolve(__dirname, '..');
-const SLUGS = ['production-write', 'linear-outbound', 'deliverable-write', 'batch-write'];
-/* B2 Slice 8 (2026-09-24): linear-outbound left the Section 4 RELEASE set, so a
-   receipt from a three-function release names only the other three. It is still
-   compared wherever a receipt does name it (every older four-function run), but
-   its absence no longer makes a receipt incomplete. The three below must always
-   be named. */
-const OPTIONAL_SLUGS = new Set(['linear-outbound']);
-const REQUIRED_SLUGS = SLUGS.filter(slug => !OPTIONAL_SLUGS.has(slug));
+const SLUGS = ['production-write', 'deliverable-write', 'batch-write'];
+/* B2 Slice 8 (2026-09-24): linear-outbound is deleted live and left both the
+   Section 4 release and prior sets, so it is no longer compared anywhere and
+   every receipt must name exactly these three. Older four-function tables in
+   the log still carry a linear-outbound row; RETIRED_ROW makes the table sweep
+   step over that row without splitting the group around it. */
+const RETIRED_ROW = /^[ \t]*\|\s*\**`?linear-outbound`?\**\s*\|[^|\n]*\|[^|\n]*\|/;
+const REQUIRED_SLUGS = SLUGS;
 const SCHEMA = 'syncview_f27_section4_deployed_versions_v1';
 /* The JSON key line that marks a receipt block. The bare token also appears
    in prose ("`syncview_f27_section4_deployed_versions_v1` JSON block"), which
@@ -124,7 +124,7 @@ function receiptsFromJson(log) {
                 closure: String(f.source_closure_sha256 || '').trim().toLowerCase(),
             };
         }
-        /* The §4 lane attests all four functions, always. A block naming fewer
+        /* The §4 lane attests all three functions, always. A block naming fewer
            is truncated or hand-written, and the dangerous kind: under an old
            entry's run id it folds into that run's complete receipt and the
            function it omitted -- the one that changed -- is never compared
@@ -150,7 +150,7 @@ function receiptsFromJson(log) {
     return out;
 }
 
-/* A four-function table. The version cell is "34", "**51**" or "65 → **66**";
+/* A three-function table. The version cell is "34", "**51**" or "65 → **66**";
    the deployed version is the LAST number in it, never the first — reading the
    first would report the version this deploy replaced as the one that is live,
    which is the precise error this whole check exists to catch. */
@@ -1388,9 +1388,9 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
        round). Only the rejected rows are counted. The 2026-08-31 entry
        abbreviates one closure beside three full ones; it predates the newest
        receipt, so it is a note, as the GAP section is. */
-    const candidateRow = /^[ \t]*\|\s*\**`?(batch-write|deliverable-write|linear-outbound|production-write)`?\**\s*\|[^|\n]*\|[^|\n]*\|/;
-    /* A group must also name all four functions, once each. The §4 lane
-       deploys the four as one serial set, so a table naming one or two of them
+    const candidateRow = /^[ \t]*\|\s*\**`?(batch-write|deliverable-write|production-write)`?\**\s*\|[^|\n]*\|[^|\n]*\|/;
+    /* A group must also name all three functions, once each. The §4 lane
+       deploys the three as one serial set, so a table naming one or two of them
        is a truncated record -- and a truncated record whose rows all PARSE is
        the dangerous kind: it inherits the entry's run id, folds into that run's
        receipt, and disappears (Codex, twelfth round). Measured on the real log:
@@ -1411,7 +1411,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
         for (const line of block.split('\n')) {
             const m = line.match(candidateRow);
             if (m) group.push({ at: blockStart + offset, slug: m[1] });
-            else flush();
+            else if (!RETIRED_ROW.test(line)) flush();
             offset += line.length + 1;
         }
         flush();
@@ -1650,7 +1650,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
                 + (unreadableRows
                     ? 'carries ' + unreadableRows + ' versions-table row(s) this guard cannot read'
                     : truncatedTables
-                    ? 'carries ' + truncatedTables + ' versions table(s) that do not name all four functions once each -- a'
+                    ? 'carries ' + truncatedTables + ' versions table(s) that do not name all three functions once each -- a'
                         + ' truncated record, which the §4 lane never produces, and one whose parsed rows would otherwise inherit'
                         + ' this entry\'s run id and fold silently into its receipt'
                     : attestations
@@ -1659,7 +1659,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
                     : 'reads as a Section 4 deploy' + (namesSection4(h.text) ? ''
                         : underSection4 ? ' (under a Section 4 heading)' : ' (Section 4 named in its body)')
                         + ' but holds no receipt this guard can read, in it or under it')
-                + ': quote the four slugs in the table (`production-write`, not production-write or'
+                + ': quote the three slugs in the table (`production-write`, not production-write or'
                 + ' **production-write**), put the run id in the heading as run `<id>`, write "dispatched from'
                 + ' `<sha>`", and copy the lane\'s JSON attestation block; if the section is commentary about a'
                 + ' deploy recorded elsewhere, do not call it a deploy. Until then the deploy it records is'
@@ -1824,13 +1824,8 @@ function main() {
         for (const slug of SLUGS) {
             const a = live.fns[slug], b = claim.fns[slug];
             /* A truncated receipt must not leave a function silently unchecked:
-               the §4 lane deploys the four as one serial set, so a receipt naming
+               the §4 lane deploys the three as one serial set, so a receipt naming
                three of them is incomplete, not a receipt about three functions. */
-            if (!a && OPTIONAL_SLUGS.has(slug)) {
-                notes.push(slug + ' is not in the newest receipt (run ' + (live.run || '?')
-                    + '): it left the Section 4 release set in B2 Slice 8, so it is not compared');
-                continue;
-            }
             if (!a) {
                 failures.push(slug + ' is missing from the newest receipt (run ' + (live.run || '?')
                     + '), so ROLLBACK.md\'s claim about it was not verified against anything');

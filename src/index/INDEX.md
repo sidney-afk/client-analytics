@@ -38,8 +38,8 @@
 | 30 | `270-samples-model.js.part` | 2697 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 31 | `280-samples-cards-notes.js.part` | 2831 | SURFACE 3: the save engine |
 | 32 | `290-samples-writes-review.js.part` | 1798 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
-| 33 | `300-tiktok-upload.js.part` | 1707 | TIKTOK UPLOAD MODULE |
-| 34 | `310-tiktok-pilot-sales.js.part` | 1969 | TIKTOK PILOT MODULE (gated: ?ttpilot=1 → #tiktok-pilot) |
+| 33 | `300-tiktok-upload.js.part` | 1708 | TIKTOK UPLOAD MODULE |
+| 34 | `310-tiktok-pilot-sales.js.part` | 1970 | TIKTOK PILOT MODULE (gated: ?ttpilot=1 → #tiktok-pilot) |
 | 35 | `320-kasper-dashboard-replies.js.part` | 2836 | RELOAD RACE (speed map §7). On a reload the stored staff |
 | 36 | `330-kasper-review-history.js.part` | 2614 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 37 | `340-editors-date-picker.js.part` | 1288 | Editor work model |

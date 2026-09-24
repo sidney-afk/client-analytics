@@ -582,6 +582,7 @@
     "write-ui-reroute-usable-roster.js",
     "write-ui-soak-pager.js",
     "write-ui-writer-durability.js",
+    "tiktok-size-label.js",
     "title-name-rule-drift.js",
     "subissue-rename-gateway.js",
     "dawn-report-allowlist.js",

@@ -1352,6 +1352,11 @@
     /* What a client page waits on when its data is not applied yet: whichever
        arrives first of the saved `ext` half and the live sheets. */
     function _analyticsExtrasArrival(){
+        // A client page wants the extras NOW. If a Kasper landing is still
+        // holding them, stop holding and start the download here: some routes
+        // to a client page (client search, Back into a client entry) bypass
+        // navTo(), which is where the hold is otherwise released.
+        if (_analyticsExtrasHold) { _analyticsReleaseExtras(); fetchExtras(null); }
         const waits = [];
         if (_analyticsIdbExtRead) waits.push(_analyticsIdbExtRead.then(() => { if (!_analyticsExtrasApplied) throw new Error('no saved extras'); }));
         if (_fetchExtrasPromise) waits.push(_fetchExtrasPromise);

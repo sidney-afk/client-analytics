@@ -146,6 +146,8 @@ const h = new Function(`
   ok(/_kasperState\.lastLoaded && typeof _analyticsReleaseExtras === 'function'/.test(grabFunc('_kasperPaintReview')),
     'the review releases them only after the queue has loaded and painted');
   ok(/page !== 'kasper' && typeof _analyticsReleaseExtras/.test(navTo), 'leaving Kasper releases them');
+  ok(/if \(_analyticsExtrasHold\) \{ _analyticsReleaseExtras\(\); fetchExtras\(null\); \}/.test(grabFunc('_analyticsExtrasArrival')),
+    'a client page reached without navTo (search, Back) releases and starts them itself');
 
   if (failures) { console.error('\n' + failures + ' check(s) failed'); process.exit(1); }
   console.log('\nKasper subtab reload + extras hold checks passed');

@@ -22165,6 +22165,21 @@
             if (link.getAttribute('href') !== next) link.setAttribute('href', next);
         } catch (e) {}
     }
+    /* A teardown whose fragment has not run yet has nothing mounted, so there
+       is nothing to tear down. Boot can call navTo() before a later fragment's
+       top-level `let`s initialise (a fragment moved or turned into a module,
+       phase C), and reading one then throws "Cannot access X before
+       initialization". Unguarded, that aborted navTo() half way: ?intake=1 kept
+       its loading skeleton forever once PR 1551 made the boot router stand down
+       after any navTo(). Only that load-order error is absorbed; any other
+       error still throws. */
+    function _navTeardownSafe(fn) {
+        try { fn(); }
+        catch (e) {
+            if (e instanceof ReferenceError && /before initiali[sz]ation|uninitiali[sz]ed variable/i.test(String(e.message || ''))) return;
+            throw e;
+        }
+    }
     function navTo(page, push = true) {
         if (page !== 'kasper' && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
         if (_isClientLink) {
@@ -22243,12 +22258,12 @@
 
         // Tear down the TikTok-upload polling timer whenever we leave the page so
         // it doesn't keep hitting the queue webhook in the background.
-        if (page !== 'tiktok-upload' && typeof _tkTeardown === 'function') _tkTeardown();
+        if (page !== 'tiktok-upload' && typeof _tkTeardown === 'function') _navTeardownSafe(_tkTeardown);
         // Same for Kasper review's 30 s background poller + visibility listeners.
-        if (page !== 'kasper' && typeof _kasperTeardown === 'function') _kasperTeardown();
+        if (page !== 'kasper' && typeof _kasperTeardown === 'function') _navTeardownSafe(_kasperTeardown);
         // Phase 2: drop the calendar's Supabase realtime subscription when
         // leaving the calendar so it isn't held open in the background.
-        if (page !== 'calendar' && typeof _calV2Teardown === 'function') _calV2Teardown();
+        if (page !== 'calendar' && typeof _calV2Teardown === 'function') _navTeardownSafe(_calV2Teardown);
         /* LEAVING THE CALENDAR ENDS THE FOCUS PIN. onCalViewChange drops it when
            you leave the Sheet and _calSetClient drops it when the client
            changes, but neither fires when you navigate to Home or another
@@ -22271,8 +22286,8 @@
          * so this is a shared function, not inline here, called from every
          * route that already shares the _calV2Teardown line beside it. */
         if (typeof _calAbandonLinkOnCalendarExit === 'function') _calAbandonLinkOnCalendarExit(page === 'calendar');
-        if (page !== 'sample-reviews' && typeof _sxrV2Teardown === 'function') _sxrV2Teardown(); // SXR_LINE
-        if (page !== 'workload' && typeof _wlV2Teardown === 'function') _wlV2Teardown();
+        if (page !== 'sample-reviews' && typeof _sxrV2Teardown === 'function') _navTeardownSafe(_sxrV2Teardown); // SXR_LINE
+        if (page !== 'workload' && typeof _wlV2Teardown === 'function') _navTeardownSafe(_wlV2Teardown);
 
         const state = {nav: page, client: null};
         // Templates keeps the selected client + active tab in the URL / history

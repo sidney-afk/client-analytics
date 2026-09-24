@@ -8,12 +8,12 @@ const {extractFunction}=require('./helpers/extract-function');
 const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
 const extract=name=>(html.includes('async function '+name+'(')?'async ':'')+extractFunction(html,name);
 let checks=0;const ok=(v,m)=>{assert.ok(v,m);checks++;console.log('  ok  '+m);};
-function realm(state){
+function realm(state,{clientLink=false}={}){
  const calls=[],timers=[];
  const context={console,JSON,Date,Promise,Error,AbortController,encodeURIComponent,decodeURIComponent,
   setTimeout:(fn,ms)=>{timers.push(fn);return timers.length;},clearTimeout:()=>{},alert:()=>{},
   localStorage:{setItem(){},getItem(){return null;}},document:{getElementById:()=>null},
-  _isClientLink:false,_syncviewClientEntryDataRun:null,_syncviewClientEntryRunCurrent:()=>true,
+  _isClientLink:clientLink,_syncviewClientEntryDataRun:null,_syncviewClientEntryRunCurrent:()=>true,
   CONTENT_SUMMARY_WEBHOOK:'https://x.invalid/webhook/generate-content-summary',
   contentSummaryState:state,clientMap:{},topVideos:[{client_name:'Fixture',scraped_date:'2026-09-20'}],
   getTopMonthlyVideos:()=>[{platform:'instagram',video_url:'u',caption:'c',views:1,likes:1,comments:1}],n:Number,
@@ -41,5 +41,17 @@ function realm(state){
  {const r=realm({});r.context.contentSummaryState.Fixture={loading:true,data:null,error:null};
   vm.runInContext("_contentSummaryStartedHere.add('Fixture')",r.context);
   ok(/sk/.test(r.context.buildContentSummarySection('Fixture'))&&r.calls.length===0,'a generation started on this page shows the loading skeleton');}
+ // Staff only: a client link never sees a way to start a paid summary.
+ {const fresh={Fixture:{data:{bullets:'- current',date:'2026-09-21'}}};
+  const stale={Fixture:{data:{bullets:'- old',date:'2026-09-01'}}};
+  for(const [label,state] of [['no summary',{}],['an error',{Fixture:{loading:false,data:null,error:'x'}}],['a restored loading state',{Fixture:{loading:true,data:null,error:null}}]]){
+   const r=realm(state,{clientLink:true});ok(r.context.buildContentSummarySection('Fixture')==='',`client link with ${label}: the section is not shown at all`);}
+  let r=realm(fresh,{clientLink:true});let out=r.context.buildContentSummarySection('Fixture');
+  ok(/current/.test(out)&&!/generateContentSummary/.test(out),'client link with a summary: the summary shows, with no Regenerate');
+  r=realm(stale,{clientLink:true});out=r.context.buildContentSummarySection('Fixture');
+  ok(/old/.test(out)&&!/generateContentSummary/.test(out)&&!/Update/.test(out),'client link with a stale summary: shown, with no Update link or Regenerate');
+  await r.context.generateContentSummary('Fixture');ok(r.calls.length===0,'and generateContentSummary itself refuses on a client link (no request)');
+  r=realm(stale);out=r.context.buildContentSummarySection('Fixture');
+  ok(/Update/.test(out)&&/Regenerate/.test(out),'staff still get Update and Regenerate');}
  console.log(`PASS analytics content summary click-only: ${checks} checks; webhook intercepted.`);
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -9687,8 +9687,10 @@
     }
     function _analyticsCacheWrite(partial){
         let packed = '';
+        let cur = null, curAt = 0;
         try{
-            const cur = _analyticsCacheRead() || {};
+            cur = _analyticsCacheRead() || {};
+            curAt = Number(cur.at) || 0;   // before the merge below restamps it
             if (cur.clients) cur.clients = _clientsInfoPublicRows(cur.clients);
             const next = Object.assign({}, partial || {});
             if (next.clients) next.clients = _clientsInfoPublicRows(next.clients);
@@ -9697,6 +9699,9 @@
             let failedAt = 0;
             try { failedAt = Number(sessionStorage.getItem(ANALYTICS_CACHE_FAIL_KEY)) || 0; } catch (e) {}
             if (failedAt && packed.length >= failedAt * 0.9) {   // known-doomed this session
+                // Fresh numbers headed for IndexedDB must not leave older ones
+                // here, where they would paint first on the next load.
+                if (next.metrics != null || next.clients != null) { try { localStorage.removeItem(ANALYTICS_CACHE_KEY); } catch (e) {} }
                 if (typeof _analyticsIdbSpill === 'function') _analyticsIdbSpill(partial);
                 return;
             }
@@ -9711,8 +9716,14 @@
         }catch(e){
             // Quota or private mode — drop the cache rather than half-write it,
             // remember the losing size, and say so once instead of every load.
+            // Spill everything this key held, not just the new part: dropping
+            // the key used to lose the saved numbers whenever the extras were
+            // the write that overflowed, so the next load had nothing to paint.
             try { localStorage.removeItem(ANALYTICS_CACHE_KEY); } catch (e2) {}
-            if (typeof _analyticsIdbSpill === 'function') _analyticsIdbSpill(partial);
+            if (typeof _analyticsIdbSpill === 'function') _analyticsIdbSpill(Object.assign({}, cur || {}, partial || {},
+                // Numbers carried over from the key keep that key's age, so a
+                // move between stores never makes old numbers look fresh.
+                (partial && (partial.metrics != null || partial.clients != null)) ? {} : { essAt: curAt }));
             let warned = 0;
             try {
                 warned = Number(sessionStorage.getItem(ANALYTICS_CACHE_FAIL_KEY)) || 0;
@@ -9741,9 +9752,17 @@
                 localStorage.setItem(ANALYTICS_CACHE_KEY, 'P1:' + _lsPackUtf8(JSON.stringify(c)));
             }
             if (!c.at || (Date.now() - c.at) > ANALYTICS_CACHE_TTL_MS) return false;
-            // Only paint from a COMPLETE snapshot — a half-written cache would
-            // render an overview with no top videos / briefs.
-            if (!c.metrics || !c.clients || !c.topvids || !c.briefs || !c.mrbriefs) return false;
+            /* PAINT FROM WHAT ARRIVED. The overview draws from Metrics and
+               Clients Info only, so those two are all this paint needs. The
+               extras used to be required here too, but they no longer fit
+               localStorage: the write path keeps the numbers here and spills
+               the extras to IndexedDB, and the IndexedDB path wanted both
+               halves in IndexedDB. So neither saved copy ever painted, and
+               every warm Analytics visit waited on the live sheets (measured
+               on the live site 2026-09-24). Missing extras are read from
+               IndexedDB behind the paint; a client page still waits for them
+               (render() -> _analyticsExtrasArrival). */
+            if (!c.metrics || !c.clients) return false;
             // Migrate older raw-CSV snapshots in place before hydration. Keep
             // the original timestamp so sanitization cannot extend freshness.
             _analyticsApplySnapshot(c, publicClients);
@@ -9767,6 +9786,8 @@
     function _analyticsApplySnapshot(c, publicClients){
         _applyEssentialTexts(c.metrics, publicClients);
         _analyticsCachedAt = Number(c.at) || Date.now();
+        _analyticsSyncCachedNote();
+        if (!(c.topvids && c.briefs && c.mrbriefs)) { _analyticsIdbReadExtras(); return; }
         _analyticsPendingExtras = [c.topvids, c.briefs, c.mrbriefs, c.summaries || null];
         // Fingerprinted now, so the revalidation compare in init() sees what
         // this paint stands for even before the queued texts are parsed.
@@ -9774,7 +9795,6 @@
         const later = () => setTimeout(_analyticsFlushPendingExtras, 0);
         if (document.hidden || typeof requestAnimationFrame !== 'function') later();
         else requestAnimationFrame(later);
-        _analyticsSyncCachedNote();
     }
     function _analyticsFlushPendingExtras(){
         const p = _analyticsPendingExtras;
@@ -9875,7 +9895,7 @@
             .then(() => _analyticsIdbGet(ANALYTICS_IDB_META).catch(() => null))
             .then(meta => _analyticsIdbRequest('readwrite', store => {
                 const m = Object.assign({}, (meta && typeof meta === 'object') ? meta : {});
-                if (ess) { store.put(ess, ANALYTICS_IDB_ESS); m.essAt = now; }
+                if (ess) { store.put(ess, ANALYTICS_IDB_ESS); m.essAt = Number(partial.essAt) || now; }
                 if (ext) { store.put(ext, ANALYTICS_IDB_EXT); m.extAt = now; }
                 return store.put(m, ANALYTICS_IDB_META);
             }))
@@ -9897,7 +9917,8 @@
         return _analyticsIdbChain
             .then(() => _analyticsIdbGet(ANALYTICS_IDB_META))
             .then(meta => {
-                if (!meta || !fresh(meta.essAt) || !fresh(meta.extAt)) return null;
+                // The numbers alone paint the overview; `ext` is optional.
+                if (!meta || !fresh(meta.essAt)) return null;
                 return _analyticsIdbGet(ANALYTICS_IDB_ESS).then(ess => ess ? { meta, ess } : null);
             })
             .then(found => {
@@ -9905,19 +9926,30 @@
                 const { meta, ess } = found;
                 if (!ess.metrics || !ess.clients) return false;
                 _applyEssentialTexts(ess.metrics, _clientsInfoPublicRows(ess.clients));
-                _analyticsCachedAt = Math.min(meta.essAt, meta.extAt);
+                _analyticsCachedAt = meta.essAt;
                 _analyticsSyncCachedNote();
-                _analyticsIdbExtRead = _analyticsIdbGet(ANALYTICS_IDB_EXT).then(ext => {
-                    _analyticsIdbExtRead = null;
-                    if (!ext || _analyticsExtrasApplied || _analyticsPendingExtras) return;
-                    if (!ext.topvids || !ext.briefs || !ext.mrbriefs) return;
-                    _analyticsPendingExtras = [ext.topvids, ext.briefs, ext.mrbriefs, ext.summaries || null];
-                    _analyticsFlushPendingExtras();
-                }, () => { _analyticsIdbExtRead = null; });
+                _analyticsIdbReadExtras();
                 console.log('[SyncView] painted from analytics IndexedDB snapshot (' + Math.round((Date.now() - meta.essAt) / 60000) + ' min old)');
                 return true;
             })
             .catch(() => false);
+    }
+    /* Read the saved `ext` half behind a paint and queue it like the
+       localStorage path's, unless live extras land first. Stale or absent,
+       it never blocks the overview. */
+    function _analyticsIdbReadExtras(){
+        if (_analyticsIsClientSession() || _analyticsIdbExtRead) return;
+        const fresh = at => at && (Date.now() - at) <= ANALYTICS_CACHE_TTL_MS;
+        _analyticsIdbExtRead = _analyticsIdbChain
+            .then(() => _analyticsIdbGet(ANALYTICS_IDB_META))
+            .then(meta => (meta && fresh(meta.extAt)) ? _analyticsIdbGet(ANALYTICS_IDB_EXT) : null)
+            .then(ext => {
+                _analyticsIdbExtRead = null;
+                if (!ext || _analyticsExtrasApplied || _analyticsPendingExtras) return;
+                if (!ext.topvids || !ext.briefs || !ext.mrbriefs) return;
+                _analyticsPendingExtras = [ext.topvids, ext.briefs, ext.mrbriefs, ext.summaries || null];
+                _analyticsFlushPendingExtras();
+            }, () => { _analyticsIdbExtRead = null; });
     }
     /* What a client page waits on when its data is not applied yet: whichever
        arrives first of the saved `ext` half and the live sheets. */
@@ -12172,11 +12204,27 @@
            than drawing the page without them. */
         if(sel!=='all'){
             if(typeof _analyticsFlushPendingExtras==='function')_analyticsFlushPendingExtras();
-            const arrival=(!clientOnly&&tab!=='calendar'&&typeof _analyticsExtrasApplied!=='undefined'&&!_analyticsExtrasApplied)?_analyticsExtrasArrival():null;
+            const needsExtras=!clientOnly&&tab!=='calendar'&&typeof _analyticsExtrasApplied!=='undefined'&&!_analyticsExtrasApplied;
+            const arrival=needsExtras?_analyticsExtrasArrival():null;
+            // Nothing left to wait on and nothing applied: the load already
+            // failed. Offer a retry rather than a page with empty videos/briefs.
+            const showExtrasError=()=>{
+                content.innerHTML='<div class="error-state">Couldn\'t load this client\'s videos and briefs. <button type="button" class="back-btn" id="analyticsExtrasRetry">Try again</button></div>';
+                const b=document.getElementById('analyticsExtrasRetry');
+                if(b)b.onclick=()=>{ content.innerHTML=_svLoadingSkeletonHtml('analytics-client'); fetchExtras().then(()=>render(sel,false),()=>render(sel,false)); };
+            };
+            if(needsExtras&&!arrival){showExtrasError();return;}
             if(arrival){
                 content.innerHTML=_svLoadingSkeletonHtml('analytics-client');
                 const want=sel;
-                arrival.then(()=>{ const st=history.state; if(currentNav==='home'&&st&&st.client&&wlCanonicalClient(st.client)===want) render(want,false); });
+                arrival.then(()=>{
+                    const st=history.state;
+                    if(!(currentNav==='home'&&st&&st.client&&wlCanonicalClient(st.client)===want))return;
+                    // Neither the saved nor the live extras applied: say so and
+                    // offer a retry, never draw the page with empty videos/briefs.
+                    if(!_analyticsExtrasApplied){showExtrasError();return;}
+                    render(want,false);
+                });
                 return;
             }
         }
@@ -68003,9 +68051,12 @@
                paints only if it answers first, and _analyticsHydrateFromIdb
                refuses once fresh essentials have been applied. Staff only. */
             if (!_paintedFromCache && !qp.get('c') && !_isClientLink) {
+                // A live load that FAILS must not win the race: then the
+                // saved copy is the only thing left to show.
+                const _idbPaint = _analyticsHydrateFromIdb();
                 _paintedFromCache = await Promise.race([
-                    _analyticsHydrateFromIdb(),
-                    _paintWaitsOn.then(() => false, () => false)
+                    _idbPaint,
+                    _paintWaitsOn.then(() => false, () => _idbPaint)
                 ]);
             }
             if (_paintedFromCache) {

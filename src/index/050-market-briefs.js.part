@@ -1007,11 +1007,27 @@
            than drawing the page without them. */
         if(sel!=='all'){
             if(typeof _analyticsFlushPendingExtras==='function')_analyticsFlushPendingExtras();
-            const arrival=(!clientOnly&&tab!=='calendar'&&typeof _analyticsExtrasApplied!=='undefined'&&!_analyticsExtrasApplied)?_analyticsExtrasArrival():null;
+            const needsExtras=!clientOnly&&tab!=='calendar'&&typeof _analyticsExtrasApplied!=='undefined'&&!_analyticsExtrasApplied;
+            const arrival=needsExtras?_analyticsExtrasArrival():null;
+            // Nothing left to wait on and nothing applied: the load already
+            // failed. Offer a retry rather than a page with empty videos/briefs.
+            const showExtrasError=()=>{
+                content.innerHTML='<div class="error-state">Couldn\'t load this client\'s videos and briefs. <button type="button" class="back-btn" id="analyticsExtrasRetry">Try again</button></div>';
+                const b=document.getElementById('analyticsExtrasRetry');
+                if(b)b.onclick=()=>{ content.innerHTML=_svLoadingSkeletonHtml('analytics-client'); fetchExtras().then(()=>render(sel,false),()=>render(sel,false)); };
+            };
+            if(needsExtras&&!arrival){showExtrasError();return;}
             if(arrival){
                 content.innerHTML=_svLoadingSkeletonHtml('analytics-client');
                 const want=sel;
-                arrival.then(()=>{ const st=history.state; if(currentNav==='home'&&st&&st.client&&wlCanonicalClient(st.client)===want) render(want,false); });
+                arrival.then(()=>{
+                    const st=history.state;
+                    if(!(currentNav==='home'&&st&&st.client&&wlCanonicalClient(st.client)===want))return;
+                    // Neither the saved nor the live extras applied: say so and
+                    // offer a retry, never draw the page with empty videos/briefs.
+                    if(!_analyticsExtrasApplied){showExtrasError();return;}
+                    render(want,false);
+                });
                 return;
             }
         }

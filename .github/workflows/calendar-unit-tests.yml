@@ -147,8 +147,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install the parser into a temp prefix (package.json untouched)
-        run: npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/c3" acorn@8.15.0
+      - name: Install the parser and scope analyser into a temp prefix (package.json untouched)
+        run: npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/c3" acorn@8.15.0 eslint-scope@9.1.2
       - name: Module readiness checks
         env:
           NODE_PATH: ${{ runner.temp }}/c3/node_modules

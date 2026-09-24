@@ -269,6 +269,7 @@ Stage 2 (step 13) is the one step that changes how the page runs.
 | 7 | New `core-flags`: the 14 flag-state names out of `110`, with setters for `120`, and the head-boot batch hand-off from `005` | move | full | removes the biggest misplaced shared state |
 | 8 | New `core-nav`: `currentNav`, nav epoch, `navTo`, `_isClientLink`, client-entry capability, with setters for their 5 writers | move | full | Phase D's router work lands on this module |
 | 9 | Single-screen areas in place, one PR each, loosest first: `300`, `310`, `340`, `240`, `080`, `200`, `110`, `050`+`060` (together, they are two-way), `070`+`090` | annotate (+ setters where §4.3 lists writes) | byte-identical where no setter was needed, full otherwise | each PR lists the names it now exports |
+|  | **Started 2026-09-24 with `300` (TikTok upload), ahead of steps 3 to 8 at the owner's call.** That PR also lands the missing half of step 0: the strip rule (`scripts/index-modules.js`, used by `build-index.js` and `check-index.js`), the module list `src/index/modules.txt`, and the module rules in `check-modules.js` (import everything used from other fragments, nothing unused, never reassign an import, export exactly what others use). Format: column-0 `import { ... } from './<fragment>.js';` header, column-0 `export { ... };` footer, no renaming. `300` imports 19 names from `040` and `070` and exports 11; its 5 timer variables are reassigned by `310` and get setters when `310` is converted. | annotate | byte-identical | |
 | 10 | Production: `210`, `220`, `250`, `230`, then `260` last | annotate + setters | full | `260` needs setters for 30 foreign writes; split that PR by owner if it grows |
 | 11 | Calendar model and UI: `130`, `150`, `160`, `180` | annotate + setters | full | `150` needs 13 setters into `130` |
 | 12 | Approve path, one PR each: `120`, `140` (after B1 empties it, §8), `170`, `190`, `270`, `280`, `290`, `320`, `330` | annotate + setters | full + dawn-check approve / request-changes / Kasper review save on the test client | the riskiest block; nothing else in these PRs |
@@ -281,8 +282,8 @@ handler exists on `window` (480 to add, generated from the checker's report, one
 serve native `<script type="module">` files or bundle them (the choice is made on
 measured numbers, not in this plan). Two runtime differences to prove harmless: module
 scripts run after the whole document is parsed (today the main script runs before the
-`350` footer markup and its own script exist), and `305`-style load-time listeners in
-`340` (29 statements) run later. Measure boot again (`prod-boot-budget.js` and the
+`350` footer markup and its own script exist), and the 29 load-time statements in
+`340` run later. Measure boot again (`prod-boot-budget.js` and the
 speed-map rig) in the same PR.
 
 ### Parallelism

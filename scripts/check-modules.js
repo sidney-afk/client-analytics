@@ -52,6 +52,9 @@
  *      regenerated page passes it even if the page changed; this is the check
  *      that proves an annotate-only step left the served page untouched.
  *
+ *   6. MODULE FRAGMENTS. Every fragment listed in src/index/modules.txt is
+ *      checked as a module; the rules are stated at section 6 below.
+ *
  * REPORT (--report, informational, never fails): per-fragment top-level
  * declaration counts, functions named in inline handler strings that are not
  * copied onto `window`, and `typeof x === 'function'` guards. These are the

@@ -4,6 +4,10 @@
 
 All times are UTC unless noted.
 
+## 2026-09-24 — six native rows re-stamped with the native attribution (owner-approved)
+
+Attribution fields only (`source`, `reason`, `native_epoch`) on 6 rows whose Linear issues never existed; before values and the one-line undo are in OPEN_REPAIRS 246. A read-only sweep found no other row in this state.
+
 ## 2026-09-19 — one shared capture-phase guard fixed the backdrop-dismiss-on-drag bug across all twenty-four dialog overlays (OPEN_REPAIRS 215)
 
 ## 2026-09-19 — the naming mint was applied on 2026-09-17 and nobody wrote it down

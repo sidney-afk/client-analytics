@@ -28797,3 +28797,17 @@ finished until its receipt is in the log and the row is updated, in the same PR.
 **Fix:** the seed now answers a production-write POST carrying the stub key inside the browser, with the same 401 `{ok:false,error:"invalid_staff_key"}` the live function returns (plus `x-write-diagnostic-status: headless-stub`). Any other key falls through untouched, and a suite's own production-write mock still wins. The Edge Function and the refusal recorder are unchanged, so real refusals are recorded exactly as before. Guard: `test/staff-gate-stub-refusal-local.js` (fails without the fix).
 
 **Still to measure:** the after count, one day after merge: `select count(*) from write_refusal_diagnostics.receipts_v1 where code='invalid_staff_key' and surface='production' and operation='other' and recorded_at >= <merge time>`. Expected near 0. A few calendar/sxr probes set their own fake keys (`probe-staff-key`, `synthetic-role-key`); they were not the flood but would show as small residue.
+
+## 246. [2026-09-24, APPLIED — owner-approved data change] Six native rows re-stamped with the native attribution so they stop showing "Needs attribution"
+
+**Cause:** 6 open rows in batches `bat_380ea26d-964d-458b-baba-72eb5d16b413` and `bat_90288092-9eb0-4aae-8f42-7a1dd3f74f32` (one active client, created 2026-09-15) carried the pre-18-Sept stamp `source: direct_project`. That stamp counts as attributed only when a Linear issue copy shows the project. These rows never had a Linear issue: their identifiers (VID-15010, VID-15012, VID-15013, VID-15024, GRA-8007, GRA-8008) return "not found" from Linear. So the browser correctly refused them. The client's mapping was fine.
+
+**Change:** on those 6 rows only, and only inside `linear_raw.attribution`, set the fields rows created since 18 Sept carry: `source` → `native_intake_legacy_project`, `reason` → `native_intake_legacy_project_mapped`, `native_epoch` → `native-video-20260917` / `native-graphics-20260917` by team. `project_id`, `client_slug`, `owner_kind`, `schema` and `state` were already correct and are unchanged. Row ids: `del_02d2f879-e31d-40b7-95f9-e96d4807b571`, `del_b73738bd-a008-4257-96fa-1c9b4d0e651a`, `del_9e375961-b690-4e82-8bd9-c6d63df1966c`, `del_25a29ddb-b428-4441-8b7c-8a11e3c4d441` (video); `del_7118d1dc-50a8-43b9-bd7d-920d2b3b9c5e`, `del_00daf6df-ae9a-498f-9286-184f80c26406` (graphics).
+
+**Before (all 6 identical):** `source: direct_project`, `reason: direct_project_mapped`, no `native_epoch` key.
+
+**Undo (one line):** `update public.deliverables set linear_raw = jsonb_set(linear_raw, '{attribution}', (linear_raw->'attribution' - 'native_epoch') || '{"source":"direct_project","reason":"direct_project_mapped"}') where id in ('del_02d2f879-e31d-40b7-95f9-e96d4807b571','del_b73738bd-a008-4257-96fa-1c9b4d0e651a','del_9e375961-b690-4e82-8bd9-c6d63df1966c','del_25a29ddb-b428-4441-8b7c-8a11e3c4d441','del_7118d1dc-50a8-43b9-bd7d-920d2b3b9c5e','del_00daf6df-ae9a-498f-9286-184f80c26406');`
+
+**Verified:** the browser view now returns the native stamp for all 6. Fed those values, the shipped browser resolver `_prodResolveAttributions` returns `resolved` for all 6. Exactly one active client maps that project, so there is no ownership conflict.
+
+**Sweep (read-only, nothing changed):** 5,598 rows across 45 clients carry the old `direct_project` stamp. **0** of them lack a Linear issue id (the 6 above were the only ones). A random sample of 5 of the rest all exist in Linear. No other rows need this repair.

@@ -964,6 +964,7 @@
             }
             sel=cap.client;
         }
+        _syncviewNavEpoch++; // Phase D: a client profile is a route too.
         // Boot-gate belt-and-braces: today's render()-first boot paths
         // (client links, history.state.client, client-name hashes) never set
         // data-boot-nav, but lift it here anyway so a future render()-first

@@ -11,6 +11,7 @@
     "test:prod-polish": "node docs/syncview-design/tests/prod-polish-gate.js",
     "test:prod-a11y": "node docs/syncview-design/tests/prod-a11y-focus.js",
     "test:prod-boot": "node docs/syncview-design/tests/prod-boot-budget.js",
+    "test:tab-switch": "node docs/syncview-design/tests/tab-switch-boot-browser.js",
     "test:b4-login": "node docs/syncview-design/tests/b4-staff-login.js",
     "test:pto-ui": "node docs/syncview-design/tests/pto-ui-polish.js",
     "test:pto-lifecycle": "node qa/pto-lifecycle/run.js",

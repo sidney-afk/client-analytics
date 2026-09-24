@@ -940,7 +940,7 @@
 
     function renderClientTemplate(name) {
         // Loading state — first paint while the GET is in flight.
-        if (!templatesLoaded && !templatesLoadError) {
+        if (!_tplClientReady(name) && !templatesLoadError) {
             return `<div class="tpl-view">
                 <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
                 <div class="tpl-client-head"><div class="tpl-client-name">${_tplEsc(name)}</div></div>
@@ -957,7 +957,7 @@
                 </div>
             </div>`;
         }
-        if (templatesLoadError && !templatesLoaded) {
+        if (templatesLoadError && !_tplClientReady(name)) {
             return `<div class="tpl-view">
                 <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
                 <div class="tpl-client-head"><div class="tpl-client-name">${_tplEsc(name)}</div></div>

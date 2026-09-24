@@ -1743,9 +1743,12 @@
                paints only if it answers first, and _analyticsHydrateFromIdb
                refuses once fresh essentials have been applied. Staff only. */
             if (!_paintedFromCache && !qp.get('c') && !_isClientLink) {
+                // A live load that FAILS must not win the race: then the
+                // saved copy is the only thing left to show.
+                const _idbPaint = _analyticsHydrateFromIdb();
                 _paintedFromCache = await Promise.race([
-                    _analyticsHydrateFromIdb(),
-                    _paintWaitsOn.then(() => false, () => false)
+                    _idbPaint,
+                    _paintWaitsOn.then(() => false, () => _idbPaint)
                 ]);
             }
             if (_paintedFromCache) {

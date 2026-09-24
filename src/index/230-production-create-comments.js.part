@@ -902,17 +902,6 @@
             if (value instanceof Date) return _prodIsoFromDate(value);
             return _prodParseDue(value) || '';
         }
-        function _prodCommentDraftFor(id) {
-            id = String(id || '');
-            if (!_prodState.commentDrafts.has(id)) _prodState.commentDrafts.set(id, { body: '', audience: 'internal', requestId: '' });
-            return _prodState.commentDrafts.get(id);
-        }
-        function _prodCommentDraftInput(id, body) {
-            const draft = _prodCommentDraftFor(id);
-            body = String(body || '');
-            if (draft.body !== body) draft.requestId = '';
-            draft.body = body;
-        }
         function _prodCommentDraftAudience(id, audience) {
             const draft = _prodCommentDraftFor(id);
             audience = audience === 'client' ? 'client' : 'internal';
@@ -927,47 +916,9 @@
                 else _prodSubmitComment(event, id);
             }
         }
-        function _prodComposerHTML(issue) {
-            const writable = _prodCanWrite(issue, 'comment');
-            const gate = _prodWriteGateText(issue, 'comment');
-            if (!writable) {
-                return '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><button class="prod-composer-box" type="button" data-prod-disabled="composer" onclick="_prodToast(' + _jsAttrArg(gate) + ');return false" title="' + _calEscAttr(gate) + '" data-prod-tip="' + _calEscAttr(gate) + '">' + _calEsc(gate) + '</button></div>';
-            }
-            const draft = _prodCommentDraftFor(issue.id);
-            const pending = _prodWritePending(issue.id, 'comment');
-            return '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><form class="prod-composer-form" data-prod-comment-form="' + _calEscAttr(issue.id) + '" onsubmit="return _prodSubmitComment(event,' + _jsAttrArg(issue.id) + ')">'
-                + '<textarea class="prod-composer-input" data-prod-comment-input="1" maxlength="20000" placeholder="Write a comment…" oninput="_prodCommentDraftInput(' + _jsAttrArg(issue.id) + ',this.value)" onkeydown="_prodComposerKeydown(event,' + _jsAttrArg(issue.id) + ')"' + (pending ? ' disabled' : '') + '>' + _calEsc(draft.body) + '</textarea>'
-                + '<div class="prod-composer-actions"><select class="prod-composer-audience" aria-label="Comment visibility" onchange="_prodCommentDraftAudience(' + _jsAttrArg(issue.id) + ',this.value)"' + (pending ? ' disabled' : '') + '><option value="internal"' + (draft.audience === 'internal' ? ' selected' : '') + '>Internal</option><option value="client"' + (draft.audience === 'client' ? ' selected' : '') + '>Client-visible</option></select><span class="prod-spacer"></span>'
-                + (pending ? '<span class="prod-write-state" role="status">Saving…</span>' : '<span class="prod-write-state">Ctrl/⌘ Enter</span>')
-                + '<button class="prod-composer-submit" type="submit"' + (pending ? ' disabled' : '') + '>' + (pending ? 'Saving…' : 'Comment') + '</button></div></form></div>';
-        }
-        function _prodSubmitComment(event, id) {
-            if (event) event.preventDefault();
-            const issue = _prodIssue(id);
-            const form = event && event.currentTarget && event.currentTarget.tagName === 'FORM'
-                ? event.currentTarget
-                : document.querySelector('[data-prod-comment-form="' + CSS.escape(String(id || '')) + '"]');
-            const input = form && form.querySelector('[data-prod-comment-input]');
-            const draft = _prodCommentDraftFor(id);
-            if (input) _prodCommentDraftInput(id, input.value);
-            if (!String(draft.body || '').trim()) {
-                _prodToast('Write a comment first.');
-                return false;
-            }
-            if (!draft.requestId) draft.requestId = _prodWriteRequestId('comment');
-            _prodGatewayWrite(issue, 'comment', { comment: { body: String(draft.body).trim(), audience: draft.audience } }, draft.requestId)
-                .then(result => {
-                    if (!result) return;
-                    _prodState.commentDrafts.delete(String(id));
-                    _prodComments.retry(id);
-                    _prodToast('Comment added');
-                })
-                .catch(error => _prodToast(_prodWriteErrorText(error, issue, 'comment')));
-            return false;
-        }
-        // F43 canonical-thread composer. These declarations intentionally
-        // replace the Phase-2 top-level-only composer above while keeping the
-        // surrounding Production port mechanically stable.
+        // F43 canonical-thread composer. The Phase-2 top-level-only copies of
+        // these four functions were removed (C3 step 1): a later declaration
+        // already replaced them everywhere, and an ES module refuses duplicates.
         function _prodCommentDraftFor(id) {
             id = String(id || '');
             if (!_prodState.commentDrafts.has(id)) _prodState.commentDrafts.set(id, {

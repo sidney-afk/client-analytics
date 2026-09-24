@@ -400,3 +400,10 @@ Put each snapshot in the SyncView Backups drive, not the repo, because it contai
 - **After the deploy is green:** the owner deletes `linear-outbound` and the secrets `LINEAR_MIRROR_API_KEY`, `LINEAR_READ_API_KEY`, `LINEAR_API_KEY`. A follow-up PR narrows the prior set to three and gives the owner a one-line change to the capture script.
 - **Later tidy-ups (not this slice):** rename `mirror_outbox`; replace `B4_TEST_PROJECT_IDS`; remove the browser's `workload-linear` fallback, dead behind the authority guard.
 - **Rollback:** see `ROLLBACK.md`, row "B2 Slice 8".
+
+### Slice 8, part 2: Section 4 prior set narrowed to three; `linear-outbound` deleted. Repo PR ready 2026-09-24; function and secret deletion are the owner's
+- **Deploy (owner, 2026-09-24):** Section 4 run 36023623936 from `049d3e68` was green. Live afterwards: `production-write` v88, `deliverable-write` v45, `batch-write` v45.
+- **Live evidence before deletion (read-only):** 0 edge-log requests to `linear-outbound` in the latest 24 hours. No function source left outside the frozen `linear-outbound`/`linear-inbound` directories reads `LINEAR_MIRROR_API_KEY`, `LINEAR_READ_API_KEY` or `LINEAR_API_KEY`.
+- **Repo change:** the Section 4 lane's prior (sealed) set becomes the same three functions as its release set, and `restore-captured-prior-four` becomes `restore-captured-prior-three`. The rollback CLI allowlist, the rollback-row freshness check and final verification drop both Linear slugs. The manifest marks `linear-outbound` RETIRED. Its source stays frozen until Slice 10.
+- **Owner's capture script:** one line changes, only after this PR merges: `--slugs=production-write,deliverable-write,batch-write`.
+- **Rollback:** see `ROLLBACK.md`, row "B2 Slice 8".

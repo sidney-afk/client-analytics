@@ -210,7 +210,7 @@ async function main() {
       bundleFile: firstFile,
       expectedBundleSha256: first.sealed_bundle_sha256,
     });
-    ok(restored.result === 'PASS' && restored.function_count === 5
+    ok(restored.result === 'PASS' && restored.function_count === F27_EDGE_SLUGS.length
       && restored.rollback_standard === 'source-exact-readback'
       && restored.deployed_source_readback === 'PASS'
       && restored.functions.every(row => row.deployed_source_readback === 'PASS'
@@ -255,20 +255,20 @@ async function main() {
 
     const floating = new ThrowawayEdgeAdapter();
     floating.seed({
-      slug: 'linear-inbound', version: '39', status: 'ACTIVE', verifyJwt: false,
-      entrypointPath: 'functions/linear-inbound/index.ts',
+      slug: 'batch-write', version: '39', status: 'ACTIVE', verifyJwt: false,
+      entrypointPath: 'functions/batch-write/index.ts',
       files: new Map([[
-        'functions/linear-inbound/index.ts',
+        'functions/batch-write/index.ts',
         Buffer.from('import "https://esm.sh/@supabase/supabase-js@2";\n'),
       ]]),
       dependencyFiles: new Map([[
-        'functions/linear-inbound/deno.lock', Buffer.from('must never enter provider source capture'),
+        'functions/batch-write/deno.lock', Buffer.from('must never enter provider source capture'),
       ]]),
     });
     const v39File = path.join(temp, 'v39-provider-source.f27src');
     const v39Capture = await captureFunctions({
       adapter: floating,
-      slugs: ['linear-inbound'],
+      slugs: ['batch-write'],
       bundleFile: v39File,
       capturedAt: '2026-07-22T00:00:00.000Z',
     });
@@ -304,20 +304,20 @@ async function main() {
       return new Response(multipart, { headers: { 'content-type': `multipart/form-data; boundary=${boundary}` } });
     };
     try {
-      const providerRead = await functionSource('a'.repeat(20), 'linear-inbound', 'fixture-token', {
+      const providerRead = await functionSource('a'.repeat(20), 'batch-write', 'fixture-token', {
         entrypoint_path: 'file:///tmp/source/index.ts',
       });
       ok(readMethod === 'GET'
-        && providerRead.entrypointPath === 'functions/linear-inbound/index.ts'
+        && providerRead.entrypointPath === 'functions/batch-write/index.ts'
         && [...providerRead.files.keys()].join(',')
-          === 'functions/linear-inbound/index.ts,functions/linear-inbound/helper.ts',
+          === 'functions/batch-write/index.ts,functions/batch-write/helper.ts',
       'Management body read canonicalizes and preserves the exact provider source path inventory');
     } finally {
       global.fetch = originalFetch;
     }
 
     const stableMetadata = {
-      slug: 'linear-inbound', version: 39, status: 'ACTIVE', verify_jwt: false,
+      slug: 'batch-write', version: 39, status: 'ACTIVE', verify_jwt: false,
       ezbr_sha256: 'a'.repeat(64), entrypoint_path: 'file:///tmp/source/index.ts',
     };
     const metadataResponse = metadata => new Response(JSON.stringify([metadata]), {
@@ -332,7 +332,7 @@ async function main() {
       return String(url).endsWith('/body') ? bodyResponse() : metadataResponse(stableMetadata);
     };
     try {
-      const stable = await versionStableFunctionSource('a'.repeat(20), 'linear-inbound', 'fixture-token');
+      const stable = await versionStableFunctionSource('a'.repeat(20), 'batch-write', 'fixture-token');
       ok(stableReads.length === 3 && stableReads.every(read => read.method === 'GET')
         && !stableReads[0].url.endsWith('/body') && stableReads[1].url.endsWith('/body')
         && !stableReads[2].url.endsWith('/body') && stable.metadata.version === 39,
@@ -357,7 +357,7 @@ async function main() {
       try {
         allGenerationRacesRejected = allGenerationRacesRejected
           && await rejects(() => versionStableFunctionSource(
-            'a'.repeat(20), 'linear-inbound', 'fixture-token',
+            'a'.repeat(20), 'batch-write', 'fixture-token',
           ), /metadata changed during source body readback/)
           && requestCount === 3;
       } finally {
@@ -427,12 +427,14 @@ async function main() {
       && cliSource.includes("provider_contract: 'PASS'"),
     'operator capture proves exact reviewed project, CLI 2.109.0, and sealed provider contract before pre-DDL evidence can pass');
 
-    ok(exactAllowedSlugs(['linear-inbound']).join(',') === 'linear-inbound'
-      && exactAllowedSlugs(['linear-outbound', 'batch-write', 'production-write', 'deliverable-write']).join(',')
-        === 'batch-write,deliverable-write,linear-outbound,production-write'
+    ok(exactAllowedSlugs(['batch-write']).join(',') === 'batch-write'
+      && exactAllowedSlugs(['batch-write', 'production-write', 'deliverable-write']).join(',')
+        === 'batch-write,deliverable-write,production-write'
+      && await rejects(async () => exactAllowedSlugs(['linear-outbound']), /allowlist/)
+      && await rejects(async () => exactAllowedSlugs(['linear-inbound']), /allowlist/)
       && await rejects(async () => exactAllowedSlugs(['calendar-upsert']), /allowlist/)
-      && await rejects(async () => exactAllowedSlugs(['linear-inbound', 'linear-inbound']), /allowlist/),
-    'operator CLI accepts strict inbound-only or four-function subsets and rejects frozen/duplicate slugs');
+      && await rejects(async () => exactAllowedSlugs(['batch-write', 'batch-write']), /allowlist/),
+    'operator CLI accepts strict three-function subsets and rejects deleted/frozen/duplicate slugs');
 
     const cliPath = path.join(ROOT, 'scripts', 'f27-edge-source-rollback.js');
     const inspect = spawnSync(process.execPath, [
@@ -440,7 +442,7 @@ async function main() {
       `--expected-bundle-sha256=${first.sealed_bundle_sha256}`,
     ], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
     const inspectWrongSet = spawnSync(process.execPath, [
-      cliPath, 'inspect', '--slugs=linear-inbound', `--bundle=${firstFile}`,
+      cliPath, 'inspect', '--slugs=batch-write', `--bundle=${firstFile}`,
       `--expected-bundle-sha256=${first.sealed_bundle_sha256}`,
     ], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
     const inspectApply = spawnSync(process.execPath, [
@@ -466,7 +468,7 @@ async function main() {
       `--expected-bundle-sha256=${first.sealed_bundle_sha256}`, '--apply',
     ], {
       cwd: ROOT, encoding: 'utf8', timeout: 30_000,
-      env: { ...process.env, F27_EDGE_ROLLBACK_CONFIRM: 'RESTORE_CAPTURED_SOURCE_SET:linear-inbound' },
+      env: { ...process.env, F27_EDGE_ROLLBACK_CONFIRM: 'RESTORE_CAPTURED_SOURCE_SET:batch-write' },
     });
     const missingExpectedHash = spawnSync(process.execPath, [
       cliPath, 'restore', `--slugs=${F27_EDGE_SLUGS.join(',')}`, `--bundle=${firstFile}`, '--apply',
@@ -482,14 +484,14 @@ async function main() {
       env: { ...process.env, F27_EDGE_ROLLBACK_CONFIRM: `RESTORE_CAPTURED_SOURCE_SET:${F27_EDGE_SLUGS.join(',')}` },
     });
     const retiredMode = spawnSync(process.execPath, [
-      cliPath, 'capture', '--slugs=linear-inbound', `--bundle=${path.join(temp, 'retired-mode.f27src')}`,
+      cliPath, 'capture', '--slugs=batch-write', `--bundle=${path.join(temp, 'retired-mode.f27src')}`,
       '--preparatory-source-text-only',
     ], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
     const relativeCapture = spawnSync(process.execPath, [
-      cliPath, 'capture', '--slugs=linear-inbound', '--bundle=relative.f27src',
+      cliPath, 'capture', '--slugs=batch-write', '--bundle=relative.f27src',
     ], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
     const worktreeCapture = spawnSync(process.execPath, [
-      cliPath, 'capture', '--slugs=linear-inbound', `--bundle=${path.join(ROOT, `.f27-cli-${process.pid}.f27src`)}`,
+      cliPath, 'capture', '--slugs=batch-write', `--bundle=${path.join(ROOT, `.f27-cli-${process.pid}.f27src`)}`,
     ], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
     ok(missingApply.status === 1 && /RESTORE_APPLY_REQUIRED/.test(missingApply.stderr)
       && wrongConfirmation.status === 1 && /RESTORE_CONFIRMATION_REQUIRED/.test(wrongConfirmation.stderr)

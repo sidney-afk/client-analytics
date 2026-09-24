@@ -128,7 +128,8 @@ ok(agree.code === 0, 'a row that matches the newest receipt passes');
 ok(agree.json && agree.json.live && agree.json.live.functions['production-write'].version === '66',
     'the ARROW cell "65 → **66**" is read as v66 — the deployed version, not the one it replaced');
 ok(agree.json && agree.json.rollback.fns['production-write'].version === '66'
-    && agree.json.rollback.fns['linear-outbound'].version === '47',
+    && agree.json.rollback.fns['deliverable-write'].version === '35'
+    && !agree.json.rollback.fns['linear-outbound'],
     'the live claim is read from the bold row, not from the superseded history in the same cell');
 ok(agree.json && agree.json.receipts === 2, 'both receipts in the log are found, not just the last');
 
@@ -200,9 +201,9 @@ ok(oneBack.code === 0, 'a bundle capturing the release immediately before live i
 
 /* ---- 4. a single wrong hash is not a rounding error --------------------- */
 
-const badHash = run(fixture('badhash', LOG, rollback({ loh: 'deadbeef' })));
+const badHash = run(fixture('badhash', LOG, rollback({ pwh: 'deadbeef' })));
 ok(badHash.code === 1, 'a closure hash that does not prefix-match the receipt fails');
-ok(badHash.json && /linear-outbound: ROLLBACK closure deadbeef/.test(badHash.json.failures.join(' ')),
+ok(badHash.json && /production-write: ROLLBACK closure deadbeef/.test(badHash.json.failures.join(' ')),
     'and names which function and which hash');
 
 /* ---- 5. the attestation block is preferred and reported ---------------- */
@@ -273,15 +274,15 @@ const reversed = run(fixture('reversed', NEWEST_FIRST, rollback()));
 ok(reversed.code === 0 && reversed.json && reversed.json.live.run === '33684111985',
     'the NEWEST deploy is selected by run id even when it is written FIRST in the file');
 
-/* B2 Slice 8: a three-function release attests only production-write,
-   deliverable-write and batch-write. The same newest receipt without its
-   linear-outbound row must still pass against a matching row. */
+/* B2 Slice 8: linear-outbound is deleted live and no longer compared. The same
+   newest receipt without its linear-outbound row must still pass against a
+   matching row, and an older four-row table must not split around that row. */
 const threeFunction = run(fixture('three-function', NEWEST_FIRST
     .replace('| `linear-outbound` | 46 → **47** | `' + H.lo47 + '` | `verify_jwt=false` |\n', ''), rollback()));
 ok(threeFunction.code === 0 && threeFunction.json && threeFunction.json.live.run === '33684111985'
     && !threeFunction.json.failures.length
-    && threeFunction.json.notes.some(n => /linear-outbound is not in the newest receipt/.test(n)),
-    'a three-function newest receipt (no linear-outbound) passes, with a note that linear-outbound is no longer compared');
+    && !threeFunction.json.notes.some(n => /linear-outbound/.test(n)),
+    'a three-function newest receipt (no linear-outbound) passes, and linear-outbound is not compared at all');
 const reversedStale = run(fixture('reversedstale', NEWEST_FIRST, rollback({
     date: '2026-09-01', deploy: '#24', run: '33555586230', commit: 'da2195f0',
     pw: '65', pwh: '2af7fe6d', lo: '46', loh: 'd83f0d7c', dw: '34', bw: '34', captures: '64',
@@ -373,7 +374,7 @@ ok(oneRow.json && oneRow.json.live.run === '33684111985',
     'and it is still read as the newest receipt — it does not vanish and hand the title to the deploy before it');
 ok(oneRow.json && oneRow.json.failures.filter(f => /is missing from the newest receipt/.test(f)).length === 2
     && !oneRow.json.failures.some(f => /^linear-outbound is missing/.test(f)),
-    'failing for the two still-released functions it does not name (linear-outbound left the release set in B2 Slice 8)');
+    'failing for the two still-released functions it does not name (linear-outbound is deleted live, B2 Slice 8)');
 
 const noBundle = rollback().replace(/\*\*The newest sealed[^*]*\*\* /, '');
 const unverifiable = run(fixture('nobundle', LOG, noBundle));
@@ -636,8 +637,8 @@ ok(otherLane.code === 1,
     'a dispatch of another lane that owns these functions, recorded after the newest receipt, FAILS');
 const otherText = otherLane.json ? otherLane.json.failures.join(' | ') : '';
 ok(/deploy-onboarding-edge-functions/.test(otherText)
-    && /production-write/.test(otherText) && /linear-outbound/.test(otherText),
-    'and names the lane and which of the four it can move');
+    && /production-write/.test(otherText) && !/linear-outbound/.test(otherText),
+    'and names the lane and which of the three it can move (linear-outbound is deleted live and not tracked)');
 ok(/2026-09-03/.test(otherText) && /33684111985/.test(otherText),
     'and both dates, so the reader can see which deploy the row was compared against');
 
@@ -748,7 +749,7 @@ const malformed = [
 ].join('\n');
 const unread = run(fixture('unreadable-entry', appended(malformed), realRb));
 ok(unread.code === 1 && unread.json
-    && unread.json.failures.some(f => /section at line \d+ \("2026-09-24 — F27 Section 4 deploy, run #40/.test(f) && /4 versions-table row\(s\) this guard cannot read/.test(f)),
+    && unread.json.failures.some(f => /section at line \d+ \("2026-09-24 — F27 Section 4 deploy, run #40/.test(f) && /3 versions-table row\(s\) this guard cannot read/.test(f)),
     'THE SHAPE THAT BLINDED THE GUARD: a Section 4 deploy entry with unquoted slugs, no run id and no attestation is named as unreadable, by line and heading, instead of being silently skipped');
 ok(unread.json && unread.json.live && unread.json.live.run === '35800967363',
     'and the verdict still shows the last receipt it COULD read, so the writer sees both what it saw and what it could not');
@@ -757,7 +758,7 @@ const headless = malformed.replace(
     '## 2026-09-24 — production-write 82 → 83 shipped');
 const headlessRun = run(fixture('unreadable-table', appended(headless), realRb));
 ok(headlessRun.code === 1 && headlessRun.json
-    && headlessRun.json.failures.some(f => /section at line \d+ \("2026-09-24 — production-write 82 → 83 shipped/.test(f) && /4 versions-table row\(s\) this guard cannot read/.test(f)),
+    && headlessRun.json.failures.some(f => /section at line \d+ \("2026-09-24 — production-write 82 → 83 shipped/.test(f) && /3 versions-table row\(s\) this guard cannot read/.test(f)),
     'a four-function versions table the guard cannot read is caught even when the heading never says Section 4');
 const readable = malformed
     .replace('run #40', 'run `35809634734`')
@@ -784,12 +785,12 @@ const subsection = malformed.replace(
     '### Later the same day, deploy #40: production-write 82 → 83');
 const subRun = run(fixture('unreadable-subsection', appended(subsection), realRb));
 ok(subRun.code === 1 && subRun.json
-    && subRun.json.failures.some(f => /section at line \d+ \("Later the same day, deploy #40/.test(f) && /4 versions-table row\(s\) this guard cannot read/.test(f)),
+    && subRun.json.failures.some(f => /section at line \d+ \("Later the same day, deploy #40/.test(f) && /3 versions-table row\(s\) this guard cannot read/.test(f)),
     'THE RIDE-ALONG: a malformed deploy written as a ### subsection under an entry that already holds a readable receipt is named on its own, by its own heading');
 const sameBlock = malformed.split('\n').filter(l => !/^## /.test(l) && !/^Deployed from commit/.test(l)).join('\n');
 const sameBlockRun = run(fixture('unreadable-same-block', appended(sameBlock), realRb));
 ok(sameBlockRun.code === 1 && sameBlockRun.json
-    && sameBlockRun.json.failures.some(f => /section at line \d+ \("2026-09-23 — F27 Section 4 deploy, run `35800967363`/.test(f) && /4 versions-table row\(s\) this guard cannot read/.test(f)),
+    && sameBlockRun.json.failures.some(f => /section at line \d+ \("2026-09-23 — F27 Section 4 deploy, run `35800967363`/.test(f) && /3 versions-table row\(s\) this guard cannot read/.test(f)),
     'and a malformed table appended to the readable entry with no heading at all is caught in the same block, because unreadable rows are counted against parsed rows rather than excused by a neighbour');
 const container = [
     '',
@@ -966,7 +967,7 @@ const abbreviated = [
 ].join('\n');
 const abbreviatedRun = run(fixture('abbreviated-closures', appended(abbreviated), realRb));
 ok(abbreviatedRun.code === 1 && abbreviatedRun.json
-    && abbreviatedRun.json.failures.some(f => /\("2026-09-24 — production-write 82 → 83 shipped"\) carries 4 versions-table row\(s\) this guard cannot read/.test(f)),
+    && abbreviatedRun.json.failures.some(f => /\("2026-09-24 — production-write 82 → 83 shipped"\) carries 3 versions-table row\(s\) this guard cannot read/.test(f)),
     'ABBREVIATED CLOSURES: a four-function table whose closures are shortened is still a table, and one the guard cannot read, so it is named -- a 64-hex closure is not a precondition for being counted');
 
 /* ---- 8h. "accepted by the parser", not "looks strict" (round nine) --------- */
@@ -988,7 +989,7 @@ const unknownVersion = [
 ].join('\n');
 const unknownVersionRun = run(fixture('unknown-version-row', appended(unknownVersion), realRb));
 ok(unknownVersionRun.code === 1 && unknownVersionRun.json
-    && unknownVersionRun.json.failures.some(f => /\("2026-09-24 — production-write 82 → 83 shipped"\) carries 4 versions-table row\(s\) this guard cannot read/.test(f)),
+    && unknownVersionRun.json.failures.some(f => /\("2026-09-24 — production-write 82 → 83 shipped"\) carries 3 versions-table row\(s\) this guard cannot read/.test(f)),
     'ACCEPTED, NOT LOOKALIKE: a group whose one strict-looking row the parser actually rejected (version "unknown") is wholly unreadable and named -- the detector defers to the parser by position');
 
 /* ---- 8i. one accepted row does not excuse three rejected ones (round ten) --- */
@@ -1009,8 +1010,8 @@ const mixedGroup = [
 ].join('\n');
 const mixedRun = run(fixture('mixed-group', appended(mixedGroup), realRb));
 ok(mixedRun.code === 1 && mixedRun.json
-    && mixedRun.json.failures.some(f => /\("2026-09-23 — F27 Section 4 deploy, run `35800967363`/.test(f) && /carries 3 versions-table row\(s\) this guard cannot read/.test(f)),
-    'ONE ACCEPTED ROW EXCUSES NOTHING: a second table under the v68 entry with one parsed row and three abbreviated ones is named for its three unreadable rows');
+    && mixedRun.json.failures.some(f => /\("2026-09-23 — F27 Section 4 deploy, run `35800967363`/.test(f) && /carries 2 versions-table row\(s\) this guard cannot read/.test(f)),
+    'ONE ACCEPTED ROW EXCUSES NOTHING: a second table under the v68 entry with one parsed row and two abbreviated ones (its retired linear-outbound row is stepped over) is named for its two unreadable rows');
 
 /* ---- 8j. indented tables (round eleven) ------------------------------------ */
 /* Markdown tables inside list content are routinely indented by a space or
@@ -1030,8 +1031,8 @@ const indentedMalformed = [
 ].join('\n');
 const indentedMalformedRun = run(fixture('indented-malformed', appended(indentedMalformed), realRb));
 ok(indentedMalformedRun.code === 1 && indentedMalformedRun.json
-    && indentedMalformedRun.json.failures.some(f => /\("2026-09-24 — production-write 82 → 83 shipped"\) carries 4 versions-table row\(s\) this guard cannot read/.test(f)),
-    'INDENTATION HIDES NOTHING: a malformed four-function table indented by one space is still counted, four rows, under a heading with no Section 4 signal of its own');
+    && indentedMalformedRun.json.failures.some(f => /\("2026-09-24 — production-write 82 → 83 shipped"\) carries 3 versions-table row\(s\) this guard cannot read/.test(f)),
+    'INDENTATION HIDES NOTHING: a malformed table indented by one space is still counted, three rows (the retired linear-outbound row is stepped over), under a heading with no Section 4 signal of its own');
 const indentedReadable = [
     '',
     '## 2026-09-24 — F27 Section 4 deploy, run `35809634638`: production-write 82 → 83',
@@ -1055,7 +1056,7 @@ ok(indentedReadableRun.json && !indentedReadableRun.json.failures.some(f => UNRE
 /* Codex, twelfth round. (1) A second, syntactically valid one-row v82 table
    appended to the v68 entry: every row parses, the row inherits the entry's run
    id and folds into that run's attestation at deduplication. Two guards now:
-   a candidate group must name all four functions once each, and two receipts
+   a candidate group must name all three functions once each, and two receipts
    for one run must agree. (2) A READABLE nested deploy dated by its own heading
    inside the 2026-08-05 container was dated by the container, so the newest
    deploy by run id failed chronology instead of comparing against the row. */
@@ -1068,7 +1069,7 @@ const oneRowValid = [
 ].join('\n');
 const oneRowRun = run(fixture('one-row-valid', appended(oneRowValid), realRb));
 ok(oneRowRun.code === 1 && oneRowRun.json
-    && oneRowRun.json.failures.some(f => /\("2026-09-23 — F27 Section 4 deploy, run `35800967363`/.test(f) && /1 versions table\(s\) that do not name all four functions/.test(f))
+    && oneRowRun.json.failures.some(f => /\("2026-09-23 — F27 Section 4 deploy, run `35800967363`/.test(f) && /1 versions table\(s\) that do not name all three functions/.test(f))
     && oneRowRun.json.failures.some(f => /two receipts claim run 35800967363 but disagree on production-write: the attestation block says v82, a summary table .* says v83/.test(f)),
     'A PARSED ROW THAT FOLDS AWAY IS CAUGHT TWICE: a valid one-row v83 table under the v68 entry is a truncated table, and its inherited run id disagrees with the surviving attestation');
 const fullValidNoHeading = [
@@ -3230,7 +3231,7 @@ const proseRunUnreadable = [
 const proseRunUnreadableRun = run(fixture('prose-run-unreadable', appended(proseRunUnreadable), realRb));
 ok(proseRunUnreadableRun.code === 1 && proseRunUnreadableRun.json
     && proseRunUnreadableRun.json.failures.some(f => /"2026-09-04 — F27 Section 4 deploy"/.test(f)
-        && /4 versions-table row\(s\) this guard cannot read/.test(f)),
+        && /3 versions-table row\(s\) this guard cannot read/.test(f)),
     'A RESULT SENTENCE DATES A BROKEN ENTRY: an unreadable section whose prose names a run NEWER than the live receipt is a failure, not history softened by its older heading date');
 
 /* And the sentence must still say THIS deploy finished. A planned run, a

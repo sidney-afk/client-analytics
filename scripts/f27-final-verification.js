@@ -66,7 +66,6 @@ const PINNED_INBOUND_SLUG = 'linear-inbound';
 const SECTION4_SLUGS = Object.freeze([
   'batch-write',
   'deliverable-write',
-  'linear-outbound',
   'production-write',
 ]);
 const FROZEN_WRITER_SLUGS = Object.freeze([

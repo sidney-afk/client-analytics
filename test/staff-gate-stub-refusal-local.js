@@ -36,6 +36,9 @@ async function callFrom(page, key) {
     const context = await browser.newContext();
     let reachedNetwork = 0;
     await context.route('**/functions/v1/production-write', route => {
+      // The cross-origin preflight is not a production-write call; answer it
+      // the way the live function's CORS does and do not count it.
+      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'POST, OPTIONS', 'access-control-allow-headers': '*' } });
       reachedNetwork++;
       return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{"ok":true,"from":"network"}' });
     });

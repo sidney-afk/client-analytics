@@ -176,3 +176,6 @@ test/linear-exit-install-operator-postgres.js -text whitespace=cr-at-eol
 test/helpers/install-operator-worker.mjs -text whitespace=cr-at-eol
 
 scripts/linear-exit-install-profiles.js -text whitespace=cr-at-eol
+
+migrations/2026-09-24-retirement-assert-repin.sql -text whitespace=cr-at-eol
+migrations/2026-09-24-retirement-assert-repin.ROLLBACK.sql -text whitespace=cr-at-eol

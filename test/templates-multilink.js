@@ -197,8 +197,8 @@ check('thumbnails_canva_link (thumbnail) uses the multi-link renderers',
   INDEX.includes("_tplRenderLinksEdit(name, 'thumbnails_canva_link'") && INDEX.includes("_tplRenderLinksView(name, 'thumbnails_canva_link'"));
 check('the multi-link containers are wired in mountTemplatesView',
   INDEX.includes("root.querySelectorAll('[data-tpl-links]')"));
-check('saving still rides the existing flag-routed templates flow (n8n webhook + EF), no new endpoint',
-  INDEX.includes('_settingsWriteUrlForClient(name, TEMPLATES_SAVE_EF_URL, TEMPLATES_SAVE_URL)'));
+check('saving still rides the existing templates-save Edge Function, no new endpoint',
+  INDEX.includes('const writeUrl = TEMPLATES_SAVE_EF_URL;'));
 check('templates-save Edge Function already stores arbitrary string patch keys (no shape change needed)',
   /function patchObject/.test(EF) && /out\[k\] = String\(/.test(EF));
 

@@ -185,6 +185,7 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
   const submissionLogs = [];
   const legacyCreateHits = [];
   const legacyProjectReads = [];
+  const deadLinearHookHits = [];
   const restHits = [];
   const networkOrder = [];
   const implicitCardWrites = [];
@@ -197,6 +198,10 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
   page.on('pageerror', error => pageErrors.push(error.stack || error.message));
   page.on('request', request => {
     if (/\/webhook\/(video-form|graphic-form)(?:\?|$)/.test(request.url())) legacyCreateHits.push(request.url());
+    // n8n webhooks that read Linear with the revoked key: each call fails with
+    // 401 and raises an "n8n workflow failed" Slack alert. The browser must
+    // never send one. (log-linear-submission writes a sheet and is kept.)
+    if (/\/webhook\/(linear-projects|linear-issues)(?:[/?]|$)/.test(request.url())) deadLinearHookHits.push(request.url());
     if (request.method() !== 'GET'
         && /(?:calendar-upsert|sample-review-upsert|samples-upsert)/i.test(request.url())) {
       implicitCardWrites.push({ method: request.method(), url: request.url() });
@@ -1959,8 +1964,8 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       'post-commit submission telemetry omitted the native batch');
     expect(commitLog.intakeWritesAtArrival === 1,
       'post-commit telemetry did not follow the gateway write');
-    expect(legacyProjectReads.length >= 1 && legacyProjectReads.every(read => read.method === 'POST'),
-      'Submit did not retain the mocked legacy project-name read for non-enrolled clients');
+    expect(legacyProjectReads.length === 0 && deadLinearHookHits.length === 0,
+      'opening and using Submit called a dead Linear n8n webhook: ' + JSON.stringify(deadLinearHookHits));
     expect(legacyCreateHits.length === 0, 'Submit touched a legacy Linear create webhook');
     // The calendar write is observed inside the durable job, before its final
     // checkpoint removes the pending record and releases the cross-surface lock.

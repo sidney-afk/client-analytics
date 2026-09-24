@@ -3,11 +3,10 @@
   "targets": {
     "production-write": {
       "counts": {
-        "TS2352": 1,
-        "TS18047": 14
+        "TS2352": 1
       },
-      "total": 15,
-      "measured_on": "2026-09-03"
+      "total": 1,
+      "measured_on": "2026-09-24"
     },
     "linear-outbound": {
       "counts": {

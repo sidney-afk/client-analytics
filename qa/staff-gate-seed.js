@@ -88,6 +88,15 @@ async function seedStaffIdentity(target, member, key) {
 // proceeds and the anon reads still run.
 async function dropVerificationAfterBoot(target) {
   await target.addInitScript(() => {
+    // The <head> boot script starts key-verify while the document parses and
+    // the app takes that answer as soon as init() runs, which can land before
+    // the 5 ms poll below has wrapped anything. These suites want the old
+    // posture (verification dropped the instant the gate lifts), so switch the
+    // early start off for them: the app then verifies after the parse, over a
+    // round trip, exactly as the poll expects. It never sees an early answer.
+    try {
+      Object.defineProperty(window, '__svEarlyKeyVerify', { configurable: true, get() { return null; }, set() {} });
+    } catch (e) {}
     // Poll: the app declares this function partway through a multi-megabyte
     // script, and an init script runs before any of it. The gate lift waits on a
     // network round trip, so this wins the race by a wide margin.

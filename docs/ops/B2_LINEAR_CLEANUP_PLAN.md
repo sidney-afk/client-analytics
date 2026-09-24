@@ -427,24 +427,21 @@ Put each snapshot in the SyncView Backups drive, not the repo, because it contai
 
 ### Slice 10 (plan Slice 10, first cut): drop the Linear objects with zero live callers. Repo PR ready 2026-09-24; apply is the owner's
 - **Scope (owner and Lighthouse decision):** drop only Linear objects with ZERO live callers, each with evidence. Anything still wired into a write, or pinned by a live assert, stays and is listed below with what it needs first.
-- **Migration:** `migrations/2026-09-24-b2-slice10-drop-unused-linear-views-and-flags.sql`. Four `DROP VIEW` (no `CASCADE`) and one `DELETE` of two flag rows by exact key, in one transaction. The file carries a read-only pre-flight query and a ROLLBACK block with the live view definitions, owner, grants (naming all four roles) and the two flag rows exactly as read.
+- **Migration:** `migrations/2026-09-24-b2-slice10-drop-unused-linear-views-and-flags.sql`. One `DROP VIEW` (no `CASCADE`, `linear_outbound_cutoff_debt_v1` only) and one `DELETE` of two flag rows by exact key, in one transaction. The file carries a read-only pre-flight query and a ROLLBACK block with the live view definition, owner, grants (naming all four roles) and the two flag rows exactly as read. The filename still says "views": the first draft dropped four, and review (2026-09-24) moved the three reconcile views to KEEP because `scripts/linear-deliverables-reconcile.js` still reads them (see below).
 - **Evidence, read-only against production 2026-09-24 ~18:00Z** (same checks for every object; "refs" means the name appears in it):
 
 | Object | Exists | Dependent views (`pg_depend`) | Function `prosrc` refs (full name and name fragment) | View / RLS policy / `cron.job` refs | 24h logs, all sources | Repo callers |
 |---|---|---|---|---|---|---|
-| view `linear_deliverable_comment_ids_v1` | yes; owner postgres, `security_invoker`, SELECT for `service_role` only | 0 | 0 | 0 / 0 / 0 | 0 hits | only `scripts/linear-deliverables-reconcile.js` (lane unscheduled 2026-09-20, dispatch only) and a test that builds its own scratch database from the old migration |
-| view `linear_deliverables_reconcile_input_v1` | yes; same | 0 | 0 | 0 / 0 / 0 | 0 | same |
-| view `linear_reconcile_projection_status_v1` | yes; same, plus `security_barrier` | 0 | 0 | 0 / 0 / 0 | 0 | same |
-| view `linear_outbound_cutoff_debt_v1` | yes; same | 0 | 0 | 0 / 0 / 0 | 0 | `scripts/track-b-recovery-rehearsal.js` (dispatch only; builds a synthetic source from migrations, not from production); `outbox-debt-census.js` mentions it only in a comment and does not read it |
+| view `linear_outbound_cutoff_debt_v1` | yes; same | 0 | 0 | 0 / 0 / 0 | 0 | `scripts/track-b-recovery-rehearsal.js` (dispatch only, LOCAL ONLY: creates its own disposable source, target and quarantine databases on the `TRACK_B_RECOVERY_TEST_PG*` local server and builds the source from migrations, never production; re-read 2026-09-24); `outbox-debt-census.js` mentions it only in a comment and does not read it |
 | flag `linear_inbound_enabled` (`{"enabled": false}`) | yes | n/a | 0 | 0 / 0 / 0 | 0 | readers were `linear-inbound` (deleted: not in the live function list) and dispatch-only scripts. `production-write-drill.js` and `f203-test-residue-cleanup.js` asserted exactly four flag rows including it; this PR drops the key from both (three rows) |
 | flag `linear_outbound_pending_age_alert` (`{"minutes": 30}`) | yes | n/a | 0 | 0 / 0 / 0 | 0 | only `linear-outbound` (deleted: not in the live function list) |
 
   - Live Edge Functions (list read 2026-09-24): no `linear-*` function is deployed. Edge logs, 24h: 0 invocations of any `linear-*` path.
   - `cron.job`: 2 jobs, both workload snapshot warmers (see the note in 1c); neither mentions these objects.
-  - No `production_retirement_contract_assert_v1` or other function pins any of the six (0 `prosrc` refs, including fragments `cutoff_debt`, `comment_ids_v`, `reconcile_input`, `projection_status`, `pending_age`, `inbound_enabled`).
+  - No `production_retirement_contract_assert_v1` or other function pins any of the three (0 `prosrc` refs, including fragments `cutoff_debt`, `pending_age`, `inbound_enabled`).
   - Scheduled or PR CI: no scheduled workflow reads them. `linear-exit-deploy-preflight.js` does not name them. Tests that name them read the old migration files (which stay) or fixtures.
-- **Repo change in this PR:** `production-write-drill.js` and `f203-test-residue-cleanup.js` read three protected flags instead of four (and the drill no longer asserts inbound is on, which was already false since Slice 5), plus the matching drill test fixture. Both scripts run only from the dispatch-only `monitoring-cutover-proof.yml`.
-- **Left in the repo, broken only if someone runs them by hand after the apply:** `linear-deliverables-reconcile.yml` / `.js` (reads the three reconcile views; unscheduled since the cutoff), `track-b-recovery-rehearsal.yml` (the rehearsal compares the cutoff-debt view on a synthetic source it builds itself, so it is unaffected unless its source is production), and the dead B4 scripts `b4-outbound-shadow-audit.js` / `b4-linear-outbound-harness.js`. They go with Slice 11 or the next Slice 10 cut.
+- **Repo change in this PR:** `production-write-drill.js` and `f203-test-residue-cleanup.js` read three protected flags instead of four (and the drill no longer asserts inbound is on, which was already false since Slice 5), plus the matching drill test fixture. Both scripts run only from the dispatch-only `monitoring-cutover-proof.yml`. The drill reads only `prod_authority`, `linear_outbound_enabled`, `auth_enforcement` and the native epoch/receipt flags; it does not read `linear_outbound_pending_age_alert` (re-checked 2026-09-24). Only the undeployed `linear-outbound` source reads that key, with a coded default when the row is missing.
+- **Left in the repo, unaffected by this apply:** `track-b-recovery-rehearsal.yml` (the rehearsal compares the cutoff-debt view on a local disposable source it builds itself, never production), and the dead B4 scripts `b4-outbound-shadow-audit.js` / `b4-linear-outbound-harness.js`. They go with Slice 11 or the next Slice 10 cut.
 
 **KEEP (not droppable yet) and what each needs first:**
 
@@ -460,28 +457,31 @@ Put each snapshot in the SyncView Backups drive, not the repo, because it contai
 | flag `prod_authority` | read by production-write, the browser and SQL | every reader gone |
 | about 45 Linear SQL functions | live ones are on write paths; the apparently dead reconcile / drill / provider family is pinned by the retirement assert | re-pin the assert, then drop in dependency order |
 | `outbox-debt-census.yml` | still scheduled | retire with `mirror_outbox` |
+| view `linear_deliverable_comment_ids_v1` | read by `scripts/linear-deliverables-reconcile.js`, which the `monitoring-cutover-proof.yml` TEST write drill spawns (`reconcileDrilledFixtures()` in `scripts/production-write-drill.js`) and the dispatch-only `linear-deliverables-reconcile.yml` runs | retire or rewrite the drill's reconcile step and retire the reconcile lane and script, then drop in a later Slice 10 cut |
+| view `linear_deliverables_reconcile_input_v1` | same reader | same |
+| view `linear_reconcile_projection_status_v1` | same reader | same |
 
-- **Restore kit (owner, before the apply; we have no database password).** In PowerShell, with `$env:SYNCVIEW_DB_URL` set to the production session-pooler URL, from any directory:
+- **Restore kit (owner, before the apply; we have no database password).** In PowerShell, with `$env:SYNCVIEW_DB_URL` set to the production session-pooler URL and `main` pulled in your clone, from any directory (every path below is absolute):
 
 ```powershell
+# Your client-analytics clone. Change this line if your clone lives elsewhere.
+$repo = "$env:USERPROFILE\client-analytics"
 $d = "$env:USERPROFILE\.syncview\B2-slice10"; New-Item -ItemType Directory -Force $d | Out-Null
-pg_dump "$env:SYNCVIEW_DB_URL" --schema-only `
-  -t public.linear_deliverable_comment_ids_v1 -t public.linear_deliverables_reconcile_input_v1 `
-  -t public.linear_outbound_cutoff_debt_v1 -t public.linear_reconcile_projection_status_v1 `
-  -f "$d\views-schema.sql"
+Copy-Item -LiteralPath "$repo\migrations\2026-09-24-b2-slice10-drop-unused-linear-views-and-flags.sql" -Destination "$d\migration.sql" -ErrorAction Stop
+$m = "$d\migration.sql"
+pg_dump "$env:SYNCVIEW_DB_URL" --schema-only -t public.linear_outbound_cutoff_debt_v1 -f "$d\views-schema.sql"
 psql "$env:SYNCVIEW_DB_URL" -v ON_ERROR_STOP=1 -c "\copy (select key, value::text, updated_at, updated_by from public.syncview_runtime_flags where key in ('linear_inbound_enabled','linear_outbound_pending_age_alert') order by key) to '$d\flags.csv' with csv header"
-# also copy migrations\2026-09-24-b2-slice10-drop-unused-linear-views-and-flags.sql from the merged main into $d
 Get-FileHash "$d\*" -Algorithm SHA256 | Format-Table Hash, Path -AutoSize | Out-File "$d\SHA256SUMS.txt"
 Get-Content "$d\SHA256SUMS.txt"
 ```
 
-  Then drag the `B2-slice10` folder into the `SyncView Backups/` Shared Drive (as `B2-slice10/`). Expected: `views-schema.sql` holds four `CREATE VIEW` statements with `security_invoker`, `ALTER VIEW ... OWNER TO postgres` and `GRANT SELECT ... TO service_role`; `flags.csv` holds 2 rows.
-- **Rehearsal (owner) on the scratch project `pmzamicipnansdgomxfd`, with `$env:SYNCVIEW_SCRATCH_DB_URL`:**
-  1. The views call four helper functions and read `deliverables` / `deliverable_events`; restore those first from the full public schema: `pg_dump "$env:SYNCVIEW_DB_URL" --schema-only -n public -f "$d\public-schema.sql"` then `psql "$env:SYNCVIEW_SCRATCH_DB_URL" -v ON_ERROR_STOP=1 -f "$d\public-schema.sql"` (skip if the scratch project already carries the public schema). Load the flag rows: `psql "$env:SYNCVIEW_SCRATCH_DB_URL" -c "\copy public.syncview_runtime_flags (key, value, updated_at, updated_by) from '$d\flags.csv' with csv header"`.
-  2. Snapshot: `pg_dump "$env:SYNCVIEW_SCRATCH_DB_URL" --schema-only -t 'public.linear_*_v1' -f "$d\before.sql"` and `psql ... -c "\copy (select * from public.syncview_runtime_flags where key like 'linear%' order by key) to '$d\flags-before.csv' csv header"`.
-  3. Run the pre-flight query from the migration header (expect 0 dependents and refs, 1 flag row per key), then apply the migration: `psql "$env:SYNCVIEW_SCRATCH_DB_URL" -v ON_ERROR_STOP=1 -f migrations\2026-09-24-b2-slice10-drop-unused-linear-views-and-flags.sql`. Confirm the four views are gone and the two keys return 0 rows.
-  4. Apply the ROLLBACK block (copy the commented block, strip the leading `-- `, run it with `psql -v ON_ERROR_STOP=1`).
-  5. Take `after.sql` / `flags-after.csv` the same way and diff: `Compare-Object (Get-Content "$d\before.sql") (Get-Content "$d\after.sql")` and the same for the CSVs. Expected: no difference other than dump header timestamps. Only then apply to production (pre-flight first).
+  Then drag the `B2-slice10` folder into the `SyncView Backups/` Shared Drive (as `B2-slice10/`). Expected: `views-schema.sql` holds one `CREATE VIEW` (`linear_outbound_cutoff_debt_v1`) with `security_invoker`, `ALTER VIEW ... OWNER TO postgres` and `GRANT SELECT ... TO service_role`; `flags.csv` holds 2 rows; `migration.sql` is the exact file you will apply.
+- **Rehearsal (owner) on the scratch project `pmzamicipnansdgomxfd`, with `$env:SYNCVIEW_SCRATCH_DB_URL`, in the same PowerShell window (so `$d` and `$m` are still set):**
+  1. The view calls the helper `linear_outbound_cutoff_debt_rows_v1()`, which reads `mirror_outbox` and `linear_outbound_cutoff_control`; restore those first from the full public schema: `pg_dump "$env:SYNCVIEW_DB_URL" --schema-only -n public -f "$d\public-schema.sql"` then `psql "$env:SYNCVIEW_SCRATCH_DB_URL" -v ON_ERROR_STOP=1 -f "$d\public-schema.sql"` (skip if the scratch project already carries the public schema). Load the flag rows: `psql "$env:SYNCVIEW_SCRATCH_DB_URL" -c "\copy public.syncview_runtime_flags (key, value, updated_at, updated_by) from '$d\flags.csv' with csv header"`.
+  2. Snapshot: `pg_dump "$env:SYNCVIEW_SCRATCH_DB_URL" --schema-only -t public.linear_outbound_cutoff_debt_v1 -f "$d\before.sql"` and `psql "$env:SYNCVIEW_SCRATCH_DB_URL" -c "\copy (select * from public.syncview_runtime_flags where key like 'linear%' order by key) to '$d\flags-before.csv' csv header"`.
+  3. Run the pre-flight query from the migration header (expect 0 dependents and refs, 1 flag row per key), then apply the copied migration: `psql "$env:SYNCVIEW_SCRATCH_DB_URL" -v ON_ERROR_STOP=1 -f "$m"`. Confirm the view is gone and the two keys return 0 rows.
+  4. Apply the ROLLBACK block from `$m` (copy the commented block, strip the leading `-- `, run it with `psql "$env:SYNCVIEW_SCRATCH_DB_URL" -v ON_ERROR_STOP=1`).
+  5. Take `after.sql` / `flags-after.csv` the same way and diff: `Compare-Object (Get-Content "$d\before.sql") (Get-Content "$d\after.sql")` and the same for the CSVs. Expected: no difference other than dump header timestamps. Only then apply `$m` to production (pre-flight first).
 - **Rollback:** the ROLLBACK block in the migration, or the restore kit (`views-schema.sql`, then `flags.csv`); see `ROLLBACK.md`, row "B2 Slice 10".
 - **Browser approve path and Linear (question for Mason's step 2), answered 2026-09-24: NO Linear sending remains on any approve path.** Every approve entry point ends at a SyncView Edge Function or an n8n Sheets/Supabase workflow:
   - Calendar review approve (SMM, client link): `_calReviewApprove` / `_calReviewApplyApprove` (`src/index/190-calendar-approval-comments.js.part:631`, `:687`) and `_calClientApprove` (`170-calendar-links-status.js.part:648`) write through `_calFlushCardSave` (`170:1059`). Its status leg calls `_calPushStatusToLinear` (`140-calendar-legacy-outbox.js.part:2014`), which despite its name either returns `legacy_transport_retired` (legacy lane, no send) or posts `operation: 'status'` to `production-write` via `_writeUiGatewayWithRepair`; the card itself goes to `calendar-upsert` (`_calUpsertFetchPinned`).

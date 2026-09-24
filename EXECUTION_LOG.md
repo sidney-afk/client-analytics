@@ -8386,3 +8386,16 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
 - **Rule deviation:** no pre-edit JSON export was taken (ROLLBACK.md rule 2 / 4(b)). The connector cannot read archived workflows, so one can no longer be taken from here.
 - **Rollback:** in n8n, Archived view, then Unarchive and re-activate the ones marked "yes". n8n keeps each workflow's version history through archive.
 - **Permanent deletion is blocked** until each is unarchived, exported privately to the SyncView Backups Drive folder, and given a public-safe stub in `n8n-backups/`.
+
+## 2026-09-24 — n8n: remaining five dead workflows archived (OPEN_REPAIRS 252, session Pruner, approved by owner via Lighthouse)
+
+| Workflow | ID | Was active |
+|---|---|---|
+| SyncView TikTok Pilot — Accounts List | `76Y1a5eN6wHCW7iN` | yes |
+| SyncView TikTok Pilot — List | `biL6G1HbSCtePeJs` | yes |
+| SyncView TikTok Pilot — Auth Init | `8dYHvU6RaoLts4GU` | yes |
+| SyncView TikTok Pilot — Token Refresh | `4quw8c3zwhJFwJWZ` | yes |
+| SyncView Samples — Get | `HyrucW0X8ckJogip` | yes |
+
+- Same deviation and rollback as the entry above: no pre-edit export; Unarchive restores; permanent deletion is blocked until exported.
+- **Database, by Lighthouse:** `content_samples` anon read policy dropped. Rights revoked from public, anon and authenticated. `service_role` keeps read. The three TikTok tables were verified already locked. No table was dropped.

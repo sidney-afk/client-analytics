@@ -4,3 +4,4 @@
 340-editors-date-picker.js.part
 240-production-description.js.part
 125-title-name-rule.js.part
+250-production-controls-data.js.part

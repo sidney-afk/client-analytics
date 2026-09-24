@@ -1,8 +1,16 @@
 # Session briefing — read this first
 
-**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
+**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook was switched off on 2026-09-23 (`linear_inbound_enabled` = false, re-read live 2026-09-24), and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
 
-> Last verified: 2026-08-25 @ 61a1d5f6 — a LIVE re-read of this document's current-state claims
+> Last verified: 2026-09-24 @ 69e1d82c — a LIVE read-only re-read (Supabase Management API: every
+> `syncview_runtime_flags` row, every deployed Edge Function version, roster counts; plus `index.html`
+> line count at that commit) of the same current-state claims the 2026-08-25 pass covered. FIVE DRIFTS
+> FOUND AND CORRECTED IN PLACE, one in the dangerous direction: `linear_inbound_enabled` is now
+> `{"enabled":false}` (since 2026-09-23 14:02Z) while this document still said the inbound webhook was
+> on. Also corrected: the three Track-A allowlists and the reroute roster are 43 each (not 38/41); the
+> Section 4 function versions; the `index.html` size; and the flags added since (listed in Live-system
+> safety). The historical narrative was NOT re-derived in this pass and keeps its original stamps.
+> Previous stamp: 2026-08-25 @ 61a1d5f6 — a LIVE re-read of this document's current-state claims
 > (runtime flags, deployed Edge Function versions, roster membership, index.html size, which teams
 > are writable). FOUR DRIFTS FOUND AND CORRECTED IN PLACE, one in the dangerous direction: the
 > flag section still described authority as Linear/Linear with outbound OFF and the reroute
@@ -52,7 +60,7 @@ You are working on **SyncView**, the internal production app for a social-media 
 
 **Corrected 2026-09-21:** Linear is no longer the team’s issue tracker or a live two-way mirror. SMMs work in Content Calendar and creatives in Sync; native receipts, not Linear delivery, establish completion. The remaining inbound webhook and STEP 7 are covered in the cutoff record.
 
-- **The entire app is `index.html`** — a single-file SPA (~70.4k lines as of 2026-08-25; it was ~45.8k at the original checkpoint), served by GitHub Pages
+- **The entire app is `index.html`** — a single-file SPA (~86.4k lines as of 2026-09-24, ~70.4k on 2026-08-25; it was ~45.8k at the original checkpoint), served by GitHub Pages
   from `main` at `syncview.synchrosocial.com`. **Merging to `main` deploys immediately.**
 - Backends: **Supabase** (Postgres REST + Edge Functions), **n8n** (webhook workflows),
   **Google Sheets** (roster/config via unauthenticated gviz CSV), **Linear** (the team's
@@ -127,8 +135,8 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   - `linear_outbound_enabled` = `{"mode":"off"}` since 2026-09-20T17:26:22.363379Z.
   - `write_ui_reroute_clients` = the **full roster**, stamped
     `owner-enrollment-wave-3-full-roster` — NOT "TEST client only". Wave 3 executed 2026-08-14;
-    membership tracks the `*_ef_clients` rosters by equality (41 at the video flip; the count
-    moves with onboarding).
+    membership tracks the `*_ef_clients` rosters by equality (41 at the video flip, 43 when
+    re-read live 2026-09-24; the count moves with onboarding).
     **Its fail direction CHANGED on 2026-09-07** (owner decision, LX-C / OPEN_REPAIRS 175), and
     this bullet said the opposite until 2026-09-08: for ROUTING a live write, a read that failed
     — or that succeeded and returned no USABLE roster (absent key, empty list, or members that are
@@ -139,13 +147,22 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
     which is why the two are tracked separately. This makes it the SAME direction as the Track-A
     allowlists, not the opposite one.
   - `auth_enforcement` = `{"mode":"permissive"}` — unchanged.
-  - `linear_inbound_enabled`, `client_comment_gateway_enabled` — both `{"enabled":true}`.
+  - `linear_inbound_enabled` = `{"enabled":false}` since 2026-09-23T14:02Z (**was true**; re-read
+    live 2026-09-24). `client_comment_gateway_enabled` = `{"enabled":true}`.
+  - `rename_propagation` = `{"card_to_subissue":true,"subissue_to_card":true,"samples":true}` since
+    2026-09-23T22:24Z (all three directions live).
+  - Added since 2026-08-25 and live (re-read 2026-09-24): `native_intake_epochs` (video + graphics
+    enabled), `native_assignment_epochs`, `production_native_ordinary_receipts`,
+    `production_native_identifier_mint`, `production_native_label_catalog` (all `native`),
+    `native_brief_media` (`required`), `native_card_materialization` (`hold`),
+    `hiring_invites_enabled`, `hiring_practical_tests_enabled`, `description_image_upload_enabled`,
+    `kasper_urgent_ping_enabled` (all enabled).
   - `linear_legacy_parity_enabled` = `{"enabled":false}` since 2026-09-20T17:35:54.465602Z (was `{"enabled":true}`, armed 2026-07-28; rollback is the same write with `{"enabled":true}`, read back before trusting it).
   - `public_intake_enabled` = `{"enabled":true}` since 2026-08-25 03:22Z, turned on by the owner
     after the `production-write` deploy that made the public intake path safe to admit.
   - `pto_v1` (staff PTO tracker) live ON since 2026-07-15 under owner decision D-36.
-  The three Track-A client allowlists carry the full active roster (38 each, identical
-  membership, re-checked 2026-08-25). The exact TEST fixture identity stays in private operator
+  The three Track-A client allowlists carry the full active roster (43 each, re-read live
+  2026-09-24; 38 on 2026-08-25). The exact TEST fixture identity stays in private operator
   config; `ROLLBACK.md` has the public-safe live-state table, and
   `docs/ops/PRE_FLIP_HEALTH_CHECK.md` item 4 is the authority on expected flag values.
 - F27 is installed. The 2026-08-02 migration applied exactly once from
@@ -159,7 +176,9 @@ claim**, correct the doc, bump the stamp. Full re-audits are a last resort, not 
   **Those four versions are HISTORICAL.** The same lane ran again 2026-08-25 (run
   `32804779008`, from `61a1d5f6`) and the live versions are now `linear-outbound` v45,
   `production-write` v51, `deliverable-write` v33, `batch-write` v33 — `EXECUTION_LOG.md`
-  carries that run's full readback.
+  carries that run's full readback. **Those are historical too:** re-read live 2026-09-24,
+  `linear-outbound` v56, `production-write` v85, `deliverable-write` v43, `batch-write` v43
+  (and `linear-inbound` v54).
   The reserved drill retained its audit and changed no real outbox/fence/flag
   state. Final production verification passed every one of its 17 enumerated
   assertions; at close, parity was restored enabled and the reconciler was

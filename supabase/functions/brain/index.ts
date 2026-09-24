@@ -130,7 +130,6 @@ async function recordChange(slug: string, body: Record<string, unknown>, princip
     `- fact heading: ${heading || "none"}`,
     `- sent by (as typed): ${sender || "not given"}`,
     `- SyncView role: ${principal.role}`,
-    "- status: unprocessed",
     "",
     "## What they sent, word for word",
     "",

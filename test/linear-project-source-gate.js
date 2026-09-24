@@ -48,7 +48,7 @@ function clientSlug(value) {
   return normalized.replace(/[^a-z0-9&]+/g, '');
 }
 
-async function runCase({ reroute = [], legacy, native = [], nativeError = null, pendingSlug = '' }) {
+async function runCase({ reroute = [], legacy, native = [], nativeError = null, pendingSlug = '', rosterFailed = false, rosterUnusable = false }) {
   const events = [];
   const context = {
     CAL_SUPABASE_URL: 'https://native.invalid',
@@ -62,6 +62,8 @@ async function runCase({ reroute = [], legacy, native = [], nativeError = null, 
     // a case's `legacy` names model what the page already held.
     linearLegacyProjects: [...new Set(Array.isArray(legacy) ? legacy : ((legacy && legacy.projects) || []))],
     _writeUiRerouteClients: new Set(reroute),
+    _writeUiRerouteFlagFailed: rosterFailed,
+    _writeUiRerouteRosterUnusable: rosterUnusable,
     _writeUiPrimeRerouteFlag: async () => { events.push('flag'); },
     _writeUiRerouteUseGateway: slug => context._writeUiRerouteClients.has(clientSlug(slug)),
     _calRuntimeFlagClients: value => {
@@ -93,6 +95,7 @@ async function runCase({ reroute = [], legacy, native = [], nativeError = null, 
   vm.createContext(context);
   vm.runInContext([
     extract('_linearPendingNativeClientSlug'),
+    extract('_linearRosterFailsNative'),
     extract('_linearRebuildProjectSource'),
     extract('_linearRenderProjectSource'),
     extract('_linearReconcileProjectSelection'),
@@ -195,6 +198,23 @@ async function runCase({ reroute = [], legacy, native = [], nativeError = null, 
     'a de-enrolled pending job must retain its native client row for recovery');
   assert(pending.events.includes('native'));
 
+  // The roster read failed (or landed unusable): Submit routes every client to
+  // the native gateway, so the dropdown must list every active native client
+  // instead of going empty.
+  const activeNative = [
+    { slug: 'alphaclient', display_name: 'Alpha Client', kind: 'client', active: true },
+    { slug: 'betaclient', display_name: 'Beta Client', kind: 'client', active: true },
+  ];
+  for (const state of [{ rosterFailed: true }, { rosterUnusable: true }]) {
+    const failed = await runCase({ ...state, native: activeNative });
+    assert.deepStrictEqual(Array.from(failed.context.linearProjects), ['Alpha Client', 'Beta Client'],
+      'a failed or unusable roster must show the native client list, not an empty dropdown: ' + JSON.stringify(state));
+    assert.deepStrictEqual(failed.events.filter(e => e !== 'legacy'), ['flag', 'native'],
+      'the native list is read after the roster decision');
+  }
+  const healthyEmpty = await runCase({ native: activeNative });
+  assert.deepStrictEqual(Array.from(healthyEmpty.context.linearProjects), [],
+    'a usable roster that enrols nobody still lists no native names');
   assert(!/fetch\(LINEAR_PROJECTS_WEBHOOK|webhook\/linear-projects'/.test(extract('fetchLinearProjects')),
     'fetchLinearProjects must not reference the dead linear-projects webhook');
   console.log('Linear project source gate checks passed');

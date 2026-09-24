@@ -1344,15 +1344,21 @@ separate hidden first-party Direct-Post surface.*
   analytics fetch. Anonymous GET now returns `401`.
 - **Writes.** `smm-weekly-reports` EF POST `{action:'submit', report}` (13 fields required; server
   dedupes via 409 `already_submitted`).
-- **State.** In-memory `_srpState` only (no persistence). Shared theme/palette. No kill switch.
+- **State.** In-memory `_srpState`, plus (viewer only, 2026-09-24) a saved copy in `localStorage`
+  `syncview_smmWeeklyReportsCache_v1`: the last reports answer per week+SMM filter (at most 8, 7 days,
+  900 KB) and the roster, bound to the verified staff member and role (never the key), read only
+  after the `weekly-report-manage` identity is required, never on client links, dropped on sign-out
+  by `_srpPurgeSensitiveState`. The viewer paints it at once and refreshes behind; the roster is
+  read once per page load (Refresh re-reads it). Shared theme/palette. No kill switch.
 - **Roles / P0 (F76).** The active anonymous disclosure/deactivation paths are closed: the EF denies
   anonymous reads and `sync_managers` with `401`, the existing signed n8n caller reaches its
   authenticated branch, and anon SELECT on both underlying tables is revoked. Admin/SMM may use the
   intended form/report actions; roster sync is Admin-only. Candidate browser key plumbing still must
   merge, and shared-key/per-human identity plus incident review remain open.
 - **Failure/fallback.** Options fail → in-card error, Submit disabled. Submit 409 → "already
-  submitted"; other errors → inline, no retry/queue. Reports fail → viewer replaced by an error empty-
-  state.
+  submitted"; other errors → inline, no retry/queue. Reports fail with no saved copy → viewer replaced by an error
+  empty-state; with a saved copy on screen → the saved cards stay, under a notice naming when they
+  were saved and that the refresh failed.
 - **Notable.** The `smm-weekly-reports` EF is the only inventory endpoint using GET-query + POST-JSON
   on one URL. Do not restore anonymous access to recover UI availability while the protected Pages
   caller is pending.

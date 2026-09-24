@@ -1731,9 +1731,24 @@
         } catch (e) { return ''; }
     }
 
+    /* WHEN THE ROSTER CANNOT BE TRUSTED, THE DROPDOWN FOLLOWS THE ROUTER.
+       Submit routes with _writeUiRerouteUseGatewayFailClosed: if the reroute
+       flag read failed, or landed with nothing usable, every client goes to the
+       native gateway. The dropdown used the factual allowlist instead, which is
+       empty in exactly that state, and the legacy Linear projects source that
+       used to fill it is gone -- so a slow or failed flag read left Submit with
+       no clients at all, while the submit path would have sent any of them
+       natively. In that state the dropdown now lists every active native
+       client, the same set the router would accept. With a usable roster it is
+       unchanged: enrolled clients only. */
+    function _linearRosterFailsNative() {
+        try { return !!(_writeUiRerouteFlagFailed || _writeUiRerouteRosterUnusable); } catch (e) { return false; }
+    }
+
     function _linearRebuildProjectSource() {
+        const failNative = _linearRosterFailsNative();
         const enrolledBySlug = new Map(linearClientRows
-            .filter(row => _writeUiRerouteUseGateway(row.slug))
+            .filter(row => failNative || _writeUiRerouteUseGateway(row.slug))
             .map(row => [calClientSlug(row.slug), row]));
         const includedNativeSlugs = new Set();
         const mixedProjects = linearLegacyProjects.map(name => {
@@ -1800,7 +1815,7 @@
             // The visible native source is cohort-only. A de-enrolled client may
             // still need its registry row to resume an already-checkpointed native
             // intake, but that recovery exception never changes dropdown names.
-            if (_writeUiRerouteClients.size || pendingNativeClientSlug) {
+            if (_writeUiRerouteClients.size || pendingNativeClientSlug || _linearRosterFailsNative()) {
                 const url = CAL_SUPABASE_URL + '/rest/v1/clients?select=slug,display_name,kind,active&active=eq.true&order=display_name.asc';
                 const resp = await fetch(url, { headers: {
                     apikey: CAL_SUPABASE_ANON_KEY,

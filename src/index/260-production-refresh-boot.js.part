@@ -1505,7 +1505,6 @@
             if (!_isClientLink && _prodEnabled()) {
                 setTimeout(function () { try { if (_bootOwnsNav()) navTo('production', false); } catch (e) { console.error('[Production] mount failed', e); } }, 0);
                 _prodFirstLoadSettled.then(() => fetchEssentials().then(() => {
-                    try { _resumePendingBriefPolling(); } catch (e) {}
                     _applyAllDataDependentChrome();
                 }, err => {
                     console.warn('[SyncView] Production preview background essentials failed', err);
@@ -1606,7 +1605,6 @@
                 // already revealed unconditionally above.
                 if (_kasperArrivedFromUnlockParam && _kasperUnlocked && !hashRaw) {
                     await Promise.resolve();
-                    _resumePendingBriefPolling();
                     loadTemplates();
                     if (_bootOwnsNav()) navTo('kasper', false);
                     dataPromise.catch(err => console.warn('[SyncView] background fetchAll failed', err));
@@ -1619,7 +1617,6 @@
                 // hit a TDZ error on a direct calendar refresh.
                 await Promise.resolve();
                 // Paint immediately; fetchAll fills the global chrome when it lands.
-                _resumePendingBriefPolling();
                 loadTemplates();
                 if (!_bootOwnsNav()) {
                     // Someone clicked a tab while the landing was deciding.
@@ -1741,7 +1738,6 @@
                 if (_paintWaitsOn !== dataPromise) dataPromise.catch(err => console.warn('[SyncView] background analytics extras failed:', err));
             }
             if(!_clientEntryStillCurrent())return;
-            if(!_isClientLink)_resumePendingBriefPolling();
             // Content summaries now generate lazily — only when the user opens a specific client's profile.
             // See buildContentSummarySection for the per-profile auto-trigger.
             // Load shared client templates from the Apps Script backend (non-blocking).
@@ -1957,8 +1953,7 @@
         try {
             allData = []; clientMap = {}; topVideos = []; briefs = []; mrBriefs = [];
             currentClientHistory = []; clientViewTab = {};
-            contentSummaryState = {}; generalBriefState = {}; tabSummaryCache = {};
-            pendingBriefs = {}; briefPollingState = {};
+            contentSummaryState = {}; tabSummaryCache = {};
             _fetchExtrasPromise = null;
             ++_fetchExtrasAttempt;
             _fetchExtrasState = { status: 'idle', run: null };

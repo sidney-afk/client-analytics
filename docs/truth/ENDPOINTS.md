@@ -70,11 +70,16 @@ inventory, which is compared for SET EQUALITY against the paths index.html actua
 (F91); do not confuse `prod_authority` with principal verification.
 
 AI generation (briefs, captions, summaries):
-- `webhook/generate-brief`, `webhook/generate-caption`, `webhook/generate-content-summary`,
-  `webhook/generate-general-brief`, `webhook/generate-market-brief`,
+- `webhook/generate-caption`, `webhook/generate-content-summary`,
   `webhook/generate-tab-summary`
 - `webhook/caption-job-status`, `webhook/caption-job-update`, `webhook/caption-prompts-get`,
   `webhook/caption-prompts-save`
+
+The three brief generators (the Keywords, Competitors and Synthesis briefs) are **no longer
+called by the app** (buttons, polling and the auto-run Synthesis card removed 2026-09-24).
+Existing briefs still display from the two brief sheets. The n8n workflows behind them were
+left untouched for the owner to decide on; their paths are listed in that removal's PR, not
+here, because this inventory is compared for SET EQUALITY against index.html.
 
 TikTok upload (Post For Me; the TikTok pilot and its TTP auth were removed 2026-09-24, see below):
 - `webhook/tiktok-upload`, `webhook/tiktok-upload-status`, `webhook/tiktok-upload-cancel`,

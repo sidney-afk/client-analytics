@@ -283,8 +283,9 @@ n8n in the metric read path.*
   or table rows; also the landing view for a bare `?c=` client link.
 - **Reads.** Six `gviz` CSV tabs from one workbook: `Metrics` + `Clients Info` (essentials) and
   `TopVideos`, `Competitor Briefs`, `Market Research Briefs`, `ContentSummaries` (extras). AI tab/
-  synthesis summaries via n8n `generate-tab-summary` and `generate-general-brief` (compute-on-read,
-  cached client-side). `client-token-verify` EF only on client links. Chart.js CDN asset.
+  summaries via n8n `generate-tab-summary` (compute-on-read, cached client-side). Existing
+  Keywords and Competitors briefs display read-only; generating new ones from the app was removed
+  2026-09-24. `client-token-verify` EF only on client links. Chart.js CDN asset.
   Scheduled CLIENTS METRICS/TOP VIDEOS jobs populate the first/third tabs. CLIENTS METRICS version
   `b92fb693-1dd4-4ce2-a60e-98a1701c369d` now emits typed terminal coverage receipts: scheduled
   execution `287059` proved 29/29 unique clients, 29 writes, zero write failures, last-good
@@ -292,27 +293,26 @@ n8n in the metric read path.*
   must still appear in that receipt, with quota/coverage monitoring. TOP VIDEOS still has no
   per-client/platform completeness receipt and can serialize source failure as valid-looking empty
   or partial truth (F124).
-- **Writes.** All n8n, all fire-and-forget-then-poll: `generate-market-brief`, `generate-brief`
-  (competitor) — completion detected by re-polling the same CSVs every 30 s for a new row, *there is
-  no brief-read webhook*; `generate-content-summary` (also logs to the `ContentSummaries` sheet);
+- **Writes.** All n8n: `generate-content-summary` (also logs to the `ContentSummaries` sheet);
   `add-hook-to-library` (appends a Hook Library sheet row — **not** gated by `_isClientLink`);
   `weekly-slack-top-reel` (team + client has a Slack channel).
 - **State.** `syncview_analyticsCache_v1` (7-day stale-while-revalidate snapshot of all six CSVs +
   a djb2 fingerprint for skip-repaint), `syncview_viewMode`, `syncview_gainPeriod`,
   `syncview_savedHooks`, `syncview_tabSummaryCache_v2` / `syncview_tabSummaryBriefIds_v1`,
-  `syncview_generalBriefState_v5`, `syncview_pendingBriefs_v1` (in-flight generations, polling
-  resumes across reloads), `syncview_contentSummaryState_v1`, `syncview_submittedMRKeywords_v1`,
+  `syncview_contentSummaryState_v1`, `syncview_submittedMRKeywords_v1` (read-only since
+  2026-09-24: it only relabels the keywords of an existing Keywords brief),
   `syncview_recent_searches`, `syncview_pinned_clients`. `syncview_gainMode` is **dead state**
   (written, never read). No REST tables, no kill switches, no realtime.
-- **Roles.** Team: full overview + brief-generation panels + share/Slack buttons. Client link:
-  `clientOnly` render, generation UIs replaced with "Check back soon", Brief tab only if data already
-  exists. The public roster has no token column; real tokens are protected. The verifier path is
-  still permissive/cached under failure and revocation as scoped in F38, so sheet absence is not an
+- **Roles.** Team: full overview + share/Slack buttons. Client link:
+  `clientOnly` render, Brief tab only if data already exists. Since 2026-09-24 nobody can start a
+  brief from the app: with no brief on file, staff see "No … brief on file" and client links keep
+  "Check back soon". `syncview_generalBriefState_v5` and `syncview_pendingBriefs_v1` are no longer
+  written or read (the client-entry purge still removes the first as legacy cleanup).
+  The public roster has no token column; real tokens are protected. The verifier path is still permissive/cached under failure and revocation as scoped in F38, so sheet absence is not an
   authorization mechanism.
 - **Failure/fallback.** Awaited home path with no cache → full error card. After a cache paint,
   fetch failure is `console.warn` only (stale data stays). `ContentSummaries` fetch is
-  `.catch(()=>null)`. Brief POST errors keep polling (pending state persisted *before* the POST);
-  polling times out at 40 min (MR) / 15 min (competitor) → timeout card. `generate-tab-summary`
+  `.catch(()=>null)`. `generate-tab-summary`
   errors render **nothing** (silent). Chart.js CDN miss retries 40× then charts silently absent.
   F124 is now partial rather than wholly open. CLIENTS METRICS scheduled execution `287059` consumed
   all 29 roster clients, emitted 29 unique typed terminal receipts, completed 29 writes with
@@ -1609,7 +1609,7 @@ so it runs on every push) re-derives every list below from `index.html` and fail
 they drift — in either direction, including the counts. When it fails: update the owning surface's
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
-- **n8n webhooks (36):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `kasper-queue` · `linear-issues` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `send-urgent-kasper-slack` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-direct` · `tiktok-upload-status` · `tiktok-upload-url` · `tiktok-uploads-list` · `weekly-slack-top-reel`
+- **n8n webhooks (33):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `filming-plan-tabs` · `generate-caption` · `generate-content-summary` · `generate-tab-summary` · `kasper-queue` · `linear-issues` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `send-urgent-kasper-slack` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-direct` · `tiktok-upload-status` · `tiktok-upload-url` · `tiktok-uploads-list` · `weekly-slack-top-reel`
 - **Edge functions (31):** `ai-onboarding-list` · `brain` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `description-image-upload` · `filming-plans` · `hiring-applications` · `kasper-ad-performance-read` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-archive` · `production-comments` · `production-write` · `pto` · `quiz-leads-list` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-linear` · `workload-plan` · `write-diagnostics`
 - **Not counted above:** 26 of the 30 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. `description-image-upload` (2026-09-05) is app-called candidate source with a path-triggered deploy lane (`.github/workflows/deploy-description-image-upload.yml`) and is not live until that lane's first run on `main` plus the owner-applied `migrations/2026-09-05-description-images.sql`. Seven more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, `thumbnail-revision-scan`, `quiz-capture` (called from the separate `synchrosocial` repo's `/quiz` page, not from this app), and the private n8n bridge `hiring-automation`. `workload-plan` is app-called and live; `production-archive` is app-called and live since its 2026-07-24 exact-SHA deploy (`1738ad3`, run `30129490033`); `workload-linear` is app-called candidate source but is not live until its exact-SHA owner-gated deploy. `kasper-ad-performance-read` is app-called candidate source, deliberate-manual (no CI deploy path, matching `workload-plan`'s first-release precedent) and not yet live. `quiz-leads-list` is app-called candidate source, admin-gated, and not yet live — depends on `migrations/2026-08-24-quiz-responses.sql` being applied first. `hiring-applications` is app-called, admin-only, and deployed with its separate invitation flag false; the deployed `hiring-automation` bridge now captures the dedicated application, alerts Kasper, and records the dedicated interview booking without running sales nodes. Candidate email remains disabled until the flag is deliberately enabled and the inactive dispatcher is run. `write-diagnostics` (2026-09-22, OPEN_REPAIRS 101/240) is app-called candidate source: the Calendar/Samples write path posts a fire-and-forget refusal claim to it when a write is refused in the browser. It is deliberate-manual (no CI deploy path, matching `workload-plan`'s first-release precedent), was deployed 2026-09-23 from `344006c511dcd03d668ee8bafec11e6f7c9218d6` with `WRITE_DIAGNOSTICS_ENABLED=true`, and its SQL owner `supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql` is on the live project. Live.
 - **Supabase REST tables, literal (11):** `calendar_posts` · `caption_prompts` · `clients` · `deliverables` · `production_deliverables_browser_v1` · `rename_propagation_status_v1` · `rpc` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues` (rpc is the PostgREST function prefix, used only by the rename propagation poke and retry calls; see 4.2)

@@ -87,8 +87,6 @@ const fetchExtrasSource = extract('fetchExtras');
 const clientExtrasGateSource = extract('_syncviewRenderClientExtrasGate');
 const clientExtrasRetrySource = extract('_syncviewRetryClientExtras');
 const clientExtrasWatchSource = extract('_syncviewWatchClientExtras');
-const fetchBriefsSource = extract('fetchBriefs');
-const startBriefPollingSource = extract('startBriefPolling');
 const calAbortSource = extract('_calAbortActiveLoad');
 const calCurrentSource = extract('_calLoadRunCurrent');
 const calTeardownSource = extract('_calV2Teardown');
@@ -266,11 +264,10 @@ assert(
   'invalid-link/pagehide purge must abort Calendar before clearing client state',
 );
 assert(
-  purgeSource.indexOf("_syncviewCancelBriefWork === 'function'") < purgeSource.indexOf('briefPollingState = {}'),
+  purgeSource.indexOf("_syncviewCancelBriefWork === 'function'") < purgeSource.indexOf('tabSummaryCache = {}'),
   'invalid-link/pagehide purge must cancel Brief work before dropping timer/controller handles',
 );
 for (const token of [
-  'clearInterval(state.intervalId)',
   'tabSummaryStartTimers.forEach(timer=>clearTimeout(timer))',
   'tabSummaryControllers.forEach(controller=>controller.abort())',
 ]) {
@@ -295,18 +292,6 @@ for (const token of [
 assert(
   (tabSummarySource.match(/runCurrent\(\)/g) || []).length >= 5,
   'tab-summary work must recheck the client owner around every await/cache/render mutation',
-);
-assert(
-  fetchBriefsSource.includes('clientEntryRun ? {signal:clientEntryRun.signal} : undefined')
-    && (fetchBriefsSource.match(/runCurrent\(\)/g) || []).length >= 4
-    && fetchBriefsSource.indexOf('const nextBriefs=parseCSV(briefText)') < fetchBriefsSource.indexOf('briefs=nextBriefs'),
-  'Brief polling reads must parse locally and publish only for the current client-entry run',
-);
-assert(
-  startBriefPollingSource.includes('const clientEntryRun=_isClientLink?_syncviewClientEntryDataRun:null;')
-    && (startBriefPollingSource.match(/runCurrent\(\)/g) || []).length >= 3
-    && startBriefPollingSource.includes('await fetchBriefs(clientEntryRun);'),
-  'Brief polling closure must remain bound to the exact client-entry generation',
 );
 
 const normalizeClient = value => String(value || '')

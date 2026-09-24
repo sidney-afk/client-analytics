@@ -91,15 +91,13 @@
                 const slug = wlNormalizeClient(it.client);
                 it.smm = smmMap.get(slug) || null;
             }
-            // Stable sort: scheduled date first (nulls last), then client name.
-            items.sort((a, b) => {
-                const da = String(a.post.scheduled_date || '').slice(0,10);
-                const db = String(b.post.scheduled_date || '').slice(0,10);
-                if (da && db && da !== db) return da < db ? -1 : 1;
-                if (da && !db) return -1;
-                if (!da && db) return 1;
-                return String(a.client).localeCompare(String(b.client));
-            });
+            // Oldest hand-off first: when each card was sent to Kasper, read
+            // from calendar_post_events (see _kasperSentAtMs). A failed read
+            // falls back to the status stamps already on the post.
+            let sentEvents = [];
+            try { sentEvents = await _kasperFetchSentEvents(items); } catch (_) { sentEvents = []; }
+            if (myGen !== _kasperLoadGen) return;
+            _kasperSortBySentAt(items, sentEvents);
             // Preserve expanded / drafts / touched-comps across refreshes.
             // Also use last-write-wins for the post itself: if local stamped
             // updated_at after the sheet's, keep the local post — but only
@@ -676,6 +674,62 @@
         }
         return true;
     }
+    /* When a card was SENT TO KASPER. The stored record of that moment is
+       calendar_post_events: every write path logs a status_change row with
+       to_status 'Kasper Approval' per component (video, graphic, caption,
+       title). video_status_at / graphic_status_at only cover two of the four
+       parts, so they are the fallback, not the source. Per component we take
+       its LATEST entry (a return to Kasper is a fresh ask), and per card the
+       OLDEST of those among the parts still waiting on him -- the part that
+       has waited longest is how long the card has waited. */
+    const _KASPER_PARTS = ['video', 'graphic', 'caption', 'title'];
+    async function _kasperFetchSentEvents(items) {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY || !items.length) return [];
+        const ids = [...new Set(items.map(it => String(it.post.id)))];
+        return _kedRestIn('calendar_post_events',
+            'post_id,component,ts&action=eq.status_change&to_status=eq.' + encodeURIComponent('Kasper Approval'),
+            'post_id', ids);
+    }
+    function _kasperSentAtMs(post, eventsByPost) {
+        const waitingParts = _KASPER_PARTS.filter(c => String(post[c + '_status'] || '') === 'Kasper Approval');
+        const latest = new Map();
+        for (const e of (eventsByPost.get(String(post.id)) || [])) {
+            const t = Date.parse(e.ts || '');
+            if (!isFinite(t)) continue;
+            const c = e.component || '';
+            if (!latest.has(c) || latest.get(c) < t) latest.set(c, t);
+        }
+        let best = Infinity;
+        for (const c of waitingParts) {
+            let t = latest.get(c);
+            if (t == null && (c === 'video' || c === 'graphic')) t = Date.parse(post[c + '_status_at'] || '');
+            if (isFinite(t) && t < best) best = t;
+        }
+        // A card-level (component-less) entry only counts when no part had one.
+        if (best === Infinity && latest.has('')) best = latest.get('');
+        return best;
+    }
+    function _kasperSortBySentAt(items, events) {
+        const byPost = new Map();
+        for (const e of (events || [])) {
+            const k = String(e.post_id);
+            if (!byPost.has(k)) byPost.set(k, []);
+            byPost.get(k).push(e);
+        }
+        for (const it of items) it.sentAtMs = _kasperSentAtMs(it.post, byPost);
+        // Oldest first; unknown times last, then scheduled date, then client.
+        items.sort((a, b) => {
+            if (a.sentAtMs !== b.sentAtMs) return a.sentAtMs < b.sentAtMs ? -1 : 1;
+            const da = String(a.post.scheduled_date || '').slice(0,10);
+            const db = String(b.post.scheduled_date || '').slice(0,10);
+            if (da && db && da !== db) return da < db ? -1 : 1;
+            if (da && !db) return -1;
+            if (!da && db) return 1;
+            return String(a.client).localeCompare(String(b.client));
+        });
+        return items;
+    }
+
     function _kasperPartitionItems(items) {
         // Bucket on whether Kasper has FINISHED the card (handed it to the SMM),
         // sourced from the global kasper_finished_at stamp (local flag fallback),

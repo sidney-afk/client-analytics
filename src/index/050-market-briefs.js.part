@@ -1041,9 +1041,12 @@
                     const hist=clientHistory(sel);
                     setTimeout(()=>{renderChart(hist);renderViewsChart(hist);},0);
                 }else content.innerHTML=_svLoadingSkeletonHtml('analytics-client');
+                const wantTab=tab;
                 arrival.then(()=>{
                     const st=history.state;
                     if(!(currentNav==='home'&&st&&st.client&&wlCanonicalClient(st.client)===want))return;
+                    // Same client on another tab (e.g. its Calendar): leave it alone.
+                    if((clientViewTab[want]||'analytics')!==wantTab)return;
                     // Neither the saved nor the live extras applied: say so and
                     // offer a retry, never draw the page with empty videos/briefs.
                     if(!_analyticsExtrasApplied){showExtrasError();return;}

@@ -4,6 +4,10 @@
 
 All times are UTC unless noted.
 
+## 2026-09-24 — two imported Linear parent rows archived (owner-approved)
+
+`linear_raw.archived = true` on `b1_d_1e3acd42ec9940988c8ec801a804372a` and `b1_d_54f839e2875a4a369331e399ac9de1a1` (batch `b1_b_5924c395f710cb46e22a9a368541`). Nothing was deleted; the one-line undo is in OPEN_REPAIRS 245.
+
 ## 2026-09-19 — one shared capture-phase guard fixed the backdrop-dismiss-on-drag bug across all twenty-four dialog overlays (OPEN_REPAIRS 215)
 
 ## 2026-09-19 — the naming mint was applied on 2026-09-17 and nobody wrote it down

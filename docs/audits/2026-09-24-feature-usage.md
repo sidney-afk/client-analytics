@@ -24,25 +24,31 @@ Read-only inventory by the Pruner session. Nothing was changed. Counts only; no 
 | Kasper: Review Session | Kasper's queue of posts to review. | 320/330 (~5.5k) | 4 urgent-review Slack runs; reviews counted under Calendar/Samples | Live |
 | Kasper: Messages | Reply thread view for Kasper. | 320 | no dedicated endpoint (reads calendar comments) | Unmeasured |
 | Kasper: Editors | Editor labor-week report. | 330/340 (~1.3k) | reads native `deliverable_events` directly (old n8n `editors-week` path retired, 0 runs); reads not measurable from logs | Unmeasured |
-| Kasper: Sales Intake | Form that creates the agreement and payment email for a new sale. | 310 (shared with pilot) | 4 `sales_intakes` rows, but 0 n8n runs of the submit workflow in 30 d (conflict, worth a look) | Live, rare |
+| Kasper: Sales Intake | Form that creates the agreement and payment email for a new sale. | 310 (shared with pilot) | 4 `sales_intakes` rows, all status `email_sent` (set only after the email step succeeds). n8n keeps only ~5 days of run history, so 0 runs in that window is not evidence of disuse | Live, rare |
 | Kasper: Hiring Process | Job application pipeline. | 330 | 23 applications updated; `hiring-applications` 69 / 24 h | Live |
 | Kasper: Onboarding | Viewer of onboarding form submissions. | 100 (2.3k) | list endpoints ~47 calls / 24 h | Live |
 | Kasper: Client Credentials | Stores client login credentials. | 320 | 12 rows updated | Live |
 | Kasper: Ad Performance | Meta ad numbers for the agency. | 320 | 36 daily rows, 12 leads synced; 2 reads / 24 h | Live, rare views |
 | Kasper: Quiz Leads | List of quiz funnel leads. | 320 | 4 quiz responses; `quiz-leads-list` 0 / 24 h | Live, rare |
 | Onboarding form (`?onboarding=`, `/onboarding_form`) | Public client onboarding form. | 100 | 4 submissions, 5 fallback rows; `onboarding-full` 260 / 24 h | Live |
-| AI onboarding form (`?onboarding=ai`) | AI-avatar variant of the onboarding form. | 100 | `ai_client_onboarding` **0 rows** | **Likely dead** |
+| AI onboarding form (`?onboarding=ai`) | AI-avatar variant of the onboarding form. | 100 | `ai_client_onboarding` **0 rows** | Low use; **owner: keep** |
 | Onboarding viewer (`?onboarding_view=`) | Private link to view one submission. | 100 | covered by list calls above | Live |
-| Intake (`?intake=1`) | Public card-submission link for clients/videographers (opens the Submit form). | 200 (1.5k) | writes `intake_create` through `production-write` (inside the 8,034 / 24 h) | Live |
+| Intake (`?intake=1`) | Public card-submission link for clients/videographers (opens the Submit form). | 200 (1.5k) | saves through the `production-write` Edge Function (`intake_create`, surface `submission`), not n8n; 4 real submissions in 30 d | Live |
 | Client link (`?c=<token>`) | Client's private view of calendar/samples. | 005/260 | `client-token-verify` 259 / 24 h; `client-review-link` 94 | Live |
 | Write diagnostics | Background error reporter. | 120 | `write-diagnostics` 75 / 24 h | Live (infra) |
 
-## Likely dead, in order of confidence
+## Owner decisions (2026-09-24)
 
-1. **Old Samples route** (redirect only, table untouched in 30 d).
-2. **AI onboarding funnel** (0 submissions in 30 d).
-3. **Market/general brief generators** (their n8n webhooks no longer exist; confirm no native replacement before removing).
+| Item | Decision |
+|---|---|
+| Old Samples route (`#samples`) | **Delete**, keep a redirect to Sample reviews |
+| Market/general brief generator buttons | **Delete** |
+| AI onboarding form (`?onboarding=ai`) | Keep |
+| Kasper: Editors tab | Keep |
+| Submit tab (`#linear`) | Keep |
 
-Kasper's Editors tab and `?intake=1` were first listed here; both were corrected in review (they use native paths the first pass missed).
+## Corrections after review
 
-Also worth a look: Sales Intake wrote 4 rows while its n8n workflow shows 0 runs.
+- Kasper's Editors tab and `?intake=1` were first listed as likely dead; both use native paths the first pass missed.
+- Sales Intake was first flagged for a row/run mismatch; the mismatch is n8n's ~5-day run retention, not a fault (verified by the Lighthouse session).
+- A note on method: n8n run counts older than ~5 days are unreliable and should not be used as 30-day evidence.

@@ -12,12 +12,12 @@
 | 4 | `020-styles-surfaces.css.part` | 3988 | Templates view |
 | 5 | `030-body-shell.html.part` | 449 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 2595 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
-| 7 | `050-market-briefs.js.part` | 1596 | Market Research Brief Tab Renderers |
+| 7 | `050-market-briefs.js.part` | 1651 | Market Research Brief Tab Renderers |
 | 8 | `060-templates-filming.js.part` | 1829 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3545 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3361 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
 | 11 | `090-workload-popovers-navigation.js.part` | 2571 | Sub-issue popover |
-| 12 | `100-onboarding-staff-controls.js.part` | 2258 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
+| 12 | `100-onboarding-staff-controls.js.part` | 2266 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2024 | Kasper Time Off calendar |
 | 14 | `120-calendar-flags-write-repair.js.part` | 3015 | The members a flag value offers, or null when it offers no member list at |
 | 15 | `125-title-name-rule.js.part` | 334 | Title name rule (browser copy) |

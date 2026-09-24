@@ -70,13 +70,17 @@ function ledger({ stamp = '2026-08-22', rows = [], header = true } = {}) {
 }
 
 // --- 1. green on the ledger as it actually stands ----------------------------
-const today = parseDay('2026-08-23');
+// Read the real ledger's own State stamp rather than pinning a date, so a new
+// run that restates the ledger does not break this test; judge it a day later.
+const REAL_STAMP = REAL.match(/\|\s*State \((20\d\d-\d\d-\d\d)\)\s*\|/)[1];
+const TODAY_ISO = new Date(parseDay(REAL_STAMP).getTime() + 86400000).toISOString().slice(0, 10);
+const today = parseDay(TODAY_ISO);
 const live = stalenessReport(REAL, today);
 ok(live.ok === true,
   'the real ledger is green today — 15 of 19 rows are past their window and all 15 already say so'
     + (live.ok ? '' : ' — ' + live.reason + ': ' + gateLines(live).join(' / ')));
 ok(live.total_rows >= 15, 'and it parsed the real tier tables rather than finding nothing (' + live.total_rows + ' rows)');
-ok(live.stated_as_of === '2026-08-22', 'anchored to the State column stamp, not the header refresh stamp');
+ok(live.stated_as_of === REAL_STAMP, 'anchored to the State column stamp, not the header refresh stamp');
 
 // --- 2. the failure it exists to catch: a claim that has stopped being true ---
 // A Tier 0 row (7d) written FRESH when it was 2 days old, read 20 days later.
@@ -144,7 +148,7 @@ function runGate(markdown, asOf) {
     fs.rmSync(directory, { recursive: true, force: true });
   }
 }
-const greenRun = runGate(REAL, '2026-08-23');
+const greenRun = runGate(REAL, TODAY_ISO);
 ok(greenRun.status === 0, 'the CLI gate exits 0 on the real ledger today');
 const redRun = runGate(rotted, '2026-09-11');
 ok(redRun.status === 1, 'and exits 1 on a lapsed claim — the workflow reads this, not the text');

@@ -306,7 +306,12 @@ ok(/console\.log\(JSON\.stringify\(\{[\s\S]{0,180}fn: "workload-plan"[\s\S]{0,18
   && !/console\.(?:log|warn|error)\([^)]*(?:client|issueId|planDate|principal)/.test(EDGE),
 'operational logging stays aggregate-only and never echoes an invalid caller action');
 
-ok(/const WORKLOAD_PLAN_URL\s*=\s*CAL_SUPABASE_URL \+ '\/functions\/v1\/workload-plan'/.test(INDEX)
+// Region pin (Loom, 2026-09-24): default routing ran most Workload traffic in
+// sa-east-1, an ocean away from the us-east-2 database (full snapshot p50 4.5 s
+// vs 0.8-3.5 s in us-east-1). Keep the endpoint next to the database.
+ok(/const WORKLOAD_PLAN_URL\s*=\s*CAL_SUPABASE_URL \+ '\/functions\/v1\/workload-plan\?forceFunctionRegion=us-east-1'/.test(INDEX),
+  'workload-plan is pinned to us-east-1, the Edge region nearest the database');
+ok(/const WORKLOAD_PLAN_URL\s*=\s*CAL_SUPABASE_URL \+ '\/functions\/v1\/workload-plan(?:\?forceFunctionRegion=[a-z0-9-]+)?'/.test(INDEX)
   && INDEX.indexOf('const CAL_SUPABASE_URL') < INDEX.indexOf('const WORKLOAD_PLAN_URL')
   && /_syncviewRequireStaffIdentity\('workload-plan-read'\)/.test(clientRead)
   && /_syncviewEfHeaders\(\{ 'Content-Type': 'application\/json' \}, WORKLOAD_PLAN_URL\)/.test(clientRead)

@@ -481,6 +481,8 @@
     // behind it, so it shows the Generate button instead of a skeleton forever.
     const _contentSummaryStartedHere=new Set();
     async function generateContentSummary(clientName){
+        // Staff only (owner, 2026-09-23): a client link never starts a paid summary.
+        if(_isClientLink)return;
         _contentSummaryStartedHere.add(clientName);
         const clientEntryRun=_isClientLink?_syncviewClientEntryDataRun:null;
         if(_isClientLink&&!_syncviewClientEntryRunCurrent(clientEntryRun))return;
@@ -568,6 +570,9 @@
         // click: "Generate summary" below, or the existing Update / Regenerate.
         const hasData=!!state?.data;
         const hasError=!!state?.error;
+        // Client links see an existing summary and nothing else: no Generate,
+        // Update or Regenerate, and no empty/error/loading state to act on.
+        if(_isClientLink&&!hasData)return'';
         let inner='';
         if(hasError){
             // Attempt already ran and failed (e.g. transcripts unavailable). Stay subtle — no Retry button.
@@ -602,11 +607,11 @@
             if(latestScrape){
                 if(summaryDate&&summaryDate>=latestScrape){
                     statusBadge=`<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.65rem;font-weight:600;color:var(--sv-fg-10b981);opacity:0.85;"><svg width="10" height="10" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="var(--sv-fg-10b981)" stroke-width="1.3"/><path d="M3.5 6l2 2 3-3.5" stroke="var(--sv-fg-10b981)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg> Up to date</span>`;
-                }else{
+                }else if(!_isClientLink){
                     statusBadge=`<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.65rem;font-weight:600;color:var(--sv-fg-f59e0b);opacity:0.85;"><svg width="10" height="10" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="var(--sv-fg-f59e0b)" stroke-width="1.3"/><path d="M6 3.5v3M6 8.5v.01" stroke="var(--sv-fg-f59e0b)" stroke-width="1.3" stroke-linecap="round"/></svg> New data available · <a href="#" onclick="event.preventDefault();generateContentSummary(decodeURIComponent('${enc}'))" style="color:var(--sv-fg-f59e0b);text-decoration:underline;font-weight:600;">Update</a></span>`;
                 }
             }
-            inner=`<ul class="cs-bullets">${items}</ul><div style="display:flex;align-items:center;gap:10px;margin-top:6px;">${statusBadge}<button class="cs-regen-btn" onclick="generateContentSummary(decodeURIComponent('${enc}'))">↻ Regenerate</button></div>`;
+            inner=`<ul class="cs-bullets">${items}</ul><div style="display:flex;align-items:center;gap:10px;margin-top:6px;">${statusBadge}${_isClientLink?'':`<button class="cs-regen-btn" onclick="generateContentSummary(decodeURIComponent('${enc}'))">↻ Regenerate</button>`}</div>`;
         }
         return`<div class="content-summary-section" id="${id}"><div class="cs-header"><span class="cs-title">✦ What's Working This Month</span><span class="cs-subtitle">Based on top ${videos.length} video${videos.length!==1?'s':''} by views</span></div>${inner}</div>`;
     }
@@ -1305,24 +1310,74 @@
         }
     }
 
+    /* SAVED COPY + PARALLEL LOAD. The n8n base (templates-get) routinely takes
+       ~3 s and used to gate the Supabase read behind it. Both now start at once;
+       a Supabase-routed client paints the moment its row lands, and a staff
+       browser paints its last good copy first and refreshes behind. The copy is
+       ~12 KB, so localStorage; client links never read or write it. */
+    const TPL_SAVED_KEY = 'syncview_templatesCache_v1';
+    const TPL_SAVED_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+    let _tplSupaLoaded = false;
+    function _tplSavedAllowed() { return !(typeof _isClientLink !== 'undefined' && _isClientLink); }
+    function _tplSavedRead() {
+        try {
+            if (!_tplSavedAllowed()) return null;
+            const o = JSON.parse(localStorage.getItem(TPL_SAVED_KEY) || 'null');
+            if (!o || !o.templates || typeof o.templates !== 'object' || !(Date.now() - Number(o.at) < TPL_SAVED_MAX_AGE_MS)) return null;
+            return o.templates;
+        } catch (e) { return null; }
+    }
+    function _tplSavedWrite(templates) {
+        try {
+            if (!_tplSavedAllowed()) return;
+            const json = JSON.stringify({ at: Date.now(), templates });
+            if (json.length > 900 * 1024) { localStorage.removeItem(TPL_SAVED_KEY); return; }
+            localStorage.setItem(TPL_SAVED_KEY, json);
+        } catch (e) {}
+    }
+    // A refresh landing behind a saved copy must not overwrite a client whose
+    // edits are still queued or in flight.
+    function _tplKeepLocalEdits(next) {
+        Object.keys(templatesData || {}).forEach(name => {
+            const dirty = _tplDirty[name] && Object.keys(_tplDirty[name]).length;
+            if (dirty || _tplSaveInFlight[name]) next[name] = templatesData[name];
+        });
+        return next;
+    }
+    function _tplClientReady(name) {
+        return templatesLoaded || (_tplSupaLoaded && _settingsUseEf(name));
+    }
     async function loadTemplates() {
         if (!TEMPLATES_GET_URL) { templatesLoadError = 'not-configured'; _maybeRerenderTemplates(); return; }
-        try {
-            const baseTemplates = await _tplLoadFromN8n();
-            templatesData = baseTemplates;
+        const saved = templatesLoaded ? null : _tplSavedRead();
+        if (saved) { templatesData = saved; templatesLoaded = true; templatesLoadError = null; _maybeRerenderTemplates(); }
+        let baseTemplates = null, supaTemplates = null;
+        const merge = () => Object.assign({}, baseTemplates || {}, supaTemplates || {});
+        const baseP = _tplLoadFromN8n().then(t => { baseTemplates = t; return t; });
+        const supaP = (async () => {
             try {
                 await _settingsPrimeRoutingFlag();
-                if (_settingsEfClients.size) {
-                    const supaTemplates = await _tplLoadFromSupabase();
-                    templatesData = Object.assign({}, baseTemplates, supaTemplates);
-                    _tplSubscribeSupabase();
-                }
+                if (!_settingsEfClients.size) return;
+                supaTemplates = await _tplLoadFromSupabase();
+                _tplSupaLoaded = true;
+                _tplSubscribeSupabase();
+                // Paint Supabase-routed clients now; with a saved copy, overlay
+                // the live rows on it until the base lands.
+                templatesData = _tplKeepLocalEdits(Object.assign({}, baseTemplates || (saved || {}), supaTemplates));
+                _maybeRerenderTemplates();
             } catch (supaError) {
                 console.warn('[SyncView] Supabase templates overlay failed; using n8n base:', supaError);
             }
+        })();
+        try {
+            await baseP;
+            await supaP;
+            _tplSavedWrite(merge());
+            templatesData = _tplKeepLocalEdits(merge());
             templatesLoaded = true;
             templatesLoadError = null;
         } catch (e) {
+            await supaP;
             console.warn('[SyncView] loadTemplates failed:', e);
             templatesLoadError = e.message || String(e);
         }

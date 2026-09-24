@@ -356,6 +356,27 @@ if (ast && modules.size) {
     const headerEnd = parts.header.length;
     const footerStart = parts.header.length + parts.body.length;
     const exported = new Set();
+    // The build drops the header and footer from the served page, so they may
+    // hold nothing but the import and export lists and whitespace. Anything
+    // else there (a statement, even a comment) would silently vanish from the
+    // page while still looking like part of the fragment.
+    const allowedRanges = [];
+    for (const node of mast.body) {
+      if (node.start < headerEnd && node.type !== 'ImportDeclaration') fail(`${m}: the import header holds a ${node.type}; it may hold only import statements`);
+      if (node.end > footerStart && !(node.type === 'ExportNamedDeclaration' && !node.declaration && !node.source)) fail(`${m}: the export footer holds a ${node.type}; it may hold only export lists, or the build would drop it from the page`);
+      if (node.type === 'ImportDeclaration' || node.type === 'ExportNamedDeclaration') allowedRanges.push([node.start, node.end]);
+    }
+    const leftover = (from, to) => {
+      let text = full.slice(from, to);
+      for (const [a, b] of allowedRanges) {
+        if (b <= from || a >= to) continue;
+        const lo = Math.max(a, from) - from, hi = Math.min(b, to) - from;
+        text = text.slice(0, lo) + ' '.repeat(hi - lo) + text.slice(hi);
+      }
+      return text.trim();
+    };
+    if (leftover(0, headerEnd)) fail(`${m}: the import header holds text other than import statements (the build would drop it from the page)`);
+    if (leftover(footerStart, full.length)) fail(`${m}: the export footer holds text other than export lists (the build would drop it from the page)`);
     for (const node of mast.body) {
       if (node.type === 'ImportDeclaration') {
         if (node.end > headerEnd) fail(`${m}: an import sits outside the column-0 header at the top of the fragment`);

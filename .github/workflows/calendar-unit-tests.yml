@@ -163,6 +163,30 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/c3/node_modules
         run: node scripts/check-modules.js --against="origin/${{ github.base_ref }}"
 
+  entry-links-boot:
+    # Every signed-out special entry link (?intake=1, ?onboarding=1,
+    # ?onboarding=ai, #smm-weekly-report) must reach its own screen in a real
+    # browser. On 2026-09-24 ?intake=1 hung on its skeleton because boot read a
+    # later fragment's `let` before it initialised; moving fragments and making
+    # them modules (phase C) changes exactly that load order, so this runs on
+    # every pull request. Fully offline: every backend call is answered empty.
+    # package.json is content-pinned, so Playwright goes into a temp prefix.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright into a temp prefix (package.json untouched)
+        run: |
+          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Entry links reach their screens
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/entry-links-boot-browser.js
+
   f27-team-rollback-proof:
     if: contains(github.event.head_commit.message || '', 'F27') || github.event_name == 'pull_request'
     runs-on: ubuntu-latest

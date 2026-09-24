@@ -2307,7 +2307,7 @@
         _syncviewAppBooted = true;
         init();
         if(_isIntake){
-            try{ navTo('linear', false); }catch(e){}
+            try{ navTo('linear', false); }catch(e){ console.error('[intake] mount failed', e); }
             setTimeout(function(){
                 try{ _linearResumeSubmissionHold('startup').catch(function(){}); }catch(e){}
             }, 0);

@@ -16,7 +16,7 @@
 | 8 | `060-templates-filming.js.part` | 1949 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3569 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3369 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
-| 11 | `090-workload-popovers-navigation.js.part` | 2579 | Sub-issue popover |
+| 11 | `090-workload-popovers-navigation.js.part` | 2594 | Sub-issue popover |
 | 12 | `100-onboarding-staff-controls.js.part` | 2296 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2152 | Kasper Time Off calendar |
 | 14 | `120-calendar-flags-write-repair.js.part` | 3062 | The members a flag value offers, or null when it offers no member list at |

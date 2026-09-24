@@ -14753,14 +14753,35 @@
             issues = issues.filter(issue => issue && (issue.isSubIssue
                 ? wlIsActiveStatus(issue) : parents.has(issue.id)));
         } catch {}
+        // The editor roster (a few dozen short rows), only when it is complete,
+        // so a cached paint lists the same editors -- "Free" ones included --
+        // as the live board instead of adding them a moment later.
+        const roster = wlState.editorRosterStatus === 'ready' && Array.isArray(wlState.editorRoster)
+            ? wlState.editorRoster.map(m => ({ id: m.id, native_id: m.native_id, name: m.name, team: m.team }))
+            : undefined;
         try {
-            localStorage.setItem(LINEAR_ISSUES_CACHE_KEY, JSON.stringify({ ...payload, issues }));
+            localStorage.setItem(LINEAR_ISSUES_CACHE_KEY, JSON.stringify({ ...payload, issues, roster }));
         } catch (error) {
             // A write that fails must not leave the PREVIOUS board behind to be
             // painted as if it were the last good one.
             wlDropCache();
             console.warn('[Workload] could not store the warm-start board; it will not be shown', error && error.name);
         }
+    }
+    /* The roster saved with a cached board, checked with the same rules the
+       live snapshot applies (wlFetchNativeSnapshot); null if anything is off. */
+    function wlCachedRoster(cache) {
+        const roster = cache && cache.roster;
+        if (!Array.isArray(roster) || roster.length > 1000) return null;
+        const ids = new Set();
+        for (const m of roster) {
+            if (!m || typeof m.id !== 'string' || !m.id.trim() || ids.has(m.id)
+                || typeof m.native_id !== 'string' || !m.native_id.trim()
+                || typeof m.name !== 'string' || !m.name.trim()
+                || !['video', 'graphics'].includes(m.team)) return null;
+            ids.add(m.id);
+        }
+        return roster.map(m => ({ ...m }));
     }
     /* A cached board is painted only when it is recent enough to be useful. */
     function wlCachedBoardUsable(cache) {
@@ -16734,10 +16755,13 @@
             // fallback that used to make "v2 can never blank the board" true is
             // gone for good; this localStorage warm start is the only cold-path
             // net left, so it gets written.
-            wlAdoptLinearMetadata(value.metadata, value.issues, value.fetchedAt);
-            wlApplyData(value.issues, value.fetchedAt);
+            // Roster first: wlAdoptLinearMetadata writes the warm-start cache,
+            // which now carries this roster so the cached first paint has the
+            // Team workload panel's final rows (zero-work editors included).
             wlState.editorRoster = value.roster;
             wlState.editorRosterStatus = value.rosterComplete ? 'ready' : 'unavailable';
+            wlAdoptLinearMetadata(value.metadata, value.issues, value.fetchedAt);
+            wlApplyData(value.issues, value.fetchedAt);
             wlState.nativeLegacyTeams = value.legacyTeams;
             // Two non-destructive warnings over a board that painted fine, and
             // they are kept in SEPARATE state on purpose. Writing the
@@ -18266,6 +18290,14 @@
         if (cachedIssues && !wlState.issueSnapshot.length) {
             wlState.planLoading = true;
             wlState.cachedBoardAt = cache.fetchedAt;
+            // The roster saved with it, so the Team workload panel has its final
+            // rows (zero-work "Free" editors included) from the first frame. The
+            // live snapshot replaces it; a cache without one leaves it 'unknown'.
+            const cachedRoster = wlState.editorRosterStatus !== 'ready' ? wlCachedRoster(cache) : null;
+            if (cachedRoster) {
+                wlState.editorRoster = cachedRoster;
+                wlState.editorRosterStatus = 'ready';
+            }
             wlApplyData(cachedIssues, cache.fetchedAt);
             wlState.loading = false;
         }

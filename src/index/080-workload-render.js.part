@@ -76,6 +76,14 @@
         if (cachedIssues && !wlState.issueSnapshot.length) {
             wlState.planLoading = true;
             wlState.cachedBoardAt = cache.fetchedAt;
+            // The roster saved with it, so the Team workload panel has its final
+            // rows (zero-work "Free" editors included) from the first frame. The
+            // live snapshot replaces it; a cache without one leaves it 'unknown'.
+            const cachedRoster = wlState.editorRosterStatus !== 'ready' ? wlCachedRoster(cache) : null;
+            if (cachedRoster) {
+                wlState.editorRoster = cachedRoster;
+                wlState.editorRosterStatus = 'ready';
+            }
             wlApplyData(cachedIssues, cache.fetchedAt);
             wlState.loading = false;
         }

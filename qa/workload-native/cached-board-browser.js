@@ -23,7 +23,9 @@ function snapshot(withGhost){const rows=[{id:'bat_cache_fixture',source:'native'
  row('del_live_work',{title:'Synthetic live work',due:'2026-09-10'}),
  row('del_done_work',{title:'Synthetic finished work',due:'2026-08-01',status:'Done',statusType:'completed'})];
  if(withGhost)rows.push(row('del_stale_ghost',{title:'Synthetic ghost work',due:'2026-08-15',assignee:'Old Display Name'}));
- return {ok:true,contract:'workload-native-snapshot-v1',complete:true,count:rows.length,authority:{video:'syncview',graphics:'syncview'},legacy_teams:[],rows,plans:[]};}
+ return {ok:true,contract:'workload-native-snapshot-v1',complete:true,count:rows.length,authority:{video:'syncview',graphics:'syncview'},legacy_teams:[],rows,plans:[],
+  roster:[{id:'synthetic-editor',native_id:'synthetic-editor',name:'Synthetic Native Editor',team:'video'},
+   {id:'synthetic-free',native_id:'synthetic-free',name:'Zero Work Editor',team:'video'}]};}
 let checks=0;const ok=(v,m)=>{assert.ok(v,m);checks++;console.log('  ok  '+m);};
 
 async function visit(browser,server,{local={},holdLive=false,ghost=false,failV2Write=false}){
@@ -49,7 +51,8 @@ async function visit(browser,server,{local={},holdLive=false,ghost=false,failV2W
  const state=()=>run.page.evaluate(()=>({ghost:wlState.allActiveSubs.some(s=>s.id==='del_stale_ghost'),live:wlState.allActiveSubs.some(s=>s.id==='del_live_work'),
   names:wlState.allActiveSubs.map(s=>s.assigneeName),cachedBoardAt:wlState.cachedBoardAt,planStatus:wlState.planStatus,
   notice:(document.getElementById('wlPlanStatus')||{}).innerText||'',skeleton:!!document.querySelector('#wlBody .sv-skeleton, #wlBody [class*="skeleton"]'),
-  ghostInDom:!!document.querySelector('[data-wl-issue-id="del_stale_ghost"]')}));
+  ghostInDom:!!document.querySelector('[data-wl-issue-id="del_stale_ghost"]'),
+  panel:[...document.querySelectorAll('#wlOverviewRows .workload-overview-row:not(.is-skeleton)')].map(e=>(e.querySelector('.workload-overview-editor-copy')||e).innerText.split('\n')[0].trim()).filter(Boolean)}));
  const ready=()=>run.page.waitForFunction(()=>!wlState.loading&&wlState.planStatus==='ready',{},{timeout:12000});
  const storage=()=>run.page.evaluate(([v2,v1])=>({v2:localStorage.getItem(v2),v1:localStorage.getItem(v1)}),[V2,V1]);
  return {run,release,state,ready,storage,shot:async name=>{if(shots)await run.page.screenshot({path:path.join(shots,name),fullPage:false});}};
@@ -67,10 +70,24 @@ async function visit(browser,server,{local={},holdLive=false,ghost=false,failV2W
    ok(cs.ghost&&cs.names.includes('Old Display Name'),'BEFORE THE FIX: a 7-hour-old cached board with a stale card and old name is painted');
    await c.shot('before-fix-7h-painted.png');c.release();await c.run.context.close();
    console.log(JSON.stringify({classification:'ISOLATED_CHROMIUM',suite:'workload-cached-board',control:'before-fix',checks,result:'BUG_REPRODUCED'}));return;}
+  if(process.env.WL_CACHE_CONTROL==='roster-before-fix'){
+   // Negative control against a page built before the roster was cached: the
+   // zero-work editor is missing from the cached paint and pops in with live.
+   let c=await visit(browser,server,{ghost:true});await c.ready();
+   const cached=JSON.parse((await c.storage()).v2);await c.run.context.close();
+   c=await visit(browser,server,{local:{[V2]:JSON.stringify({...cached,fetchedAt:NOW-HOUR})},holdLive:true});
+   await c.run.page.waitForFunction(()=>wlState.cachedBoardAt!=null&&wlState.allActiveSubs.length>0,{},{timeout:12000});
+   const before=await c.state();c.release();await c.ready();const after=await c.state();
+   ok(!before.panel.includes('Zero Work Editor')&&after.panel.includes('Zero Work Editor'),
+    'BEFORE THE FIX: the zero-work editor is missing on the cached paint ('+before.panel.join(', ')+') and pops in with live ('+after.panel.join(', ')+')');
+   await c.run.context.close();
+   console.log(JSON.stringify({classification:'ISOLATED_CHROMIUM',suite:'workload-cached-board',control:'roster-before-fix',checks,result:'BUG_REPRODUCED'}));return;}
   // 1. A live load writes the cache (with the ghost) in the page's own shape.
   let v=await visit(browser,server,{ghost:true});await v.ready();
   let stored=JSON.parse((await v.storage()).v2);
   ok(stored&&stored.fetchedAt===NOW&&stored.issues.some(i=>i.id==='del_stale_ghost'),'a live load writes the v2 warm-start board');
+  ok(Array.isArray(stored.roster)&&stored.roster.length===2&&stored.roster.every(m=>Object.keys(m).sort().join()==='id,name,native_id,team'),
+   'the cache carries the roster: 2 editors, 4 short fields each');
   ok(!stored.issues.some(i=>i.id==='del_done_work')&&stored.issues.some(i=>i.id==='bat_cache_fixture'),
    'it keeps only what the board draws: finished work dropped, parents kept');
   await v.run.context.close();
@@ -82,9 +99,13 @@ async function visit(browser,server,{local={},holdLive=false,ghost=false,failV2W
   let s=await v.state();
   ok(s.ghost&&s.names.includes('Old Display Name'),'a 1-hour-old cached board is painted immediately (stale card and old name visible)');
   ok(/Showing the board from \d\d:\d\d while it updates/.test(s.notice),'and it says so: "'+s.notice.split('\n')[0]+'"');
+  ok(s.panel.includes('Zero Work Editor'),'the zero-work ("Free") editor is in the Team workload panel on the cached first paint: '+s.panel.join(', '));
+  const cachedPanel=s.panel;
   await v.shot('cached-1h-while-updating.png');
   v.release();await v.ready();s=await v.state();
   ok(!s.ghost&&s.live&&s.cachedBoardAt===null&&!/Showing the board from/.test(s.notice),'the live board replaces it and the notice goes');
+  ok(s.panel.includes('Zero Work Editor')&&s.panel.length===cachedPanel.length&&s.panel.every(n=>cachedPanel.includes(n)),
+   'the live board has the same editor rows, so nothing pops in: '+s.panel.join(', '));
   stored=JSON.parse((await v.storage()).v2);
   ok(stored.fetchedAt===NOW&&!stored.issues.some(i=>i.id==='del_stale_ghost'),'and the successful live load REPLACES the cached board');
   await v.shot('cached-1h-after-live.png');

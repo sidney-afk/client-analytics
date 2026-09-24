@@ -51,7 +51,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 | Path | What it is |
 |---|---|
-| `docs/plans/` | Execution plans. `2026-09-21-modularization-plan.md` specifies the byte-identical source split, ordered cuts and mechanical output gate; strategy only, no tooling implemented. |
+| `docs/plans/` | Execution plans. `2026-09-21-modularization-plan.md` specifies the byte-identical source split, ordered cuts and mechanical output gate; strategy only, no tooling implemented. `2026-09-21-post-modularization-roadmap.md` orders phases A to E. `2026-09-24-modularization-c3-plan.md` maps what each fragment shares through the global scope and orders the C3 conversion to ES modules; plan only. |
 | `docs/retrospectives/` | Dated project retrospectives. `2026-09-20-linear-exit-retrospective.md` records the Linear exit's evidence, costs and constraints for the behavior-preserving source split. |
 | `docs/CLIENT_LIFECYCLE_MAP.md` | **THE CANONICAL client lifecycle map** (traffic → booking → sales → onboarding → provisioning → samples → production). The former byte-identical mirror in the `synchrosocial` repo is retired (owner decision 2026-07-19, after proven silent drift — see docs/audits/2026-07-19-vault-audit.md): that repo now holds only a stub pointing here. Edit this copy only. |
 | `docs/FIND_ANYTHING.md` | The one-hop retrieval router: "I want to know X → open exactly Y" for both repos, plus the register index (F-/D-/OQ-/KQ-/VA-numbers) and the owner's no-session path. Draft pending owner ratification (vault audit 2026-07-19, proposal P4). |

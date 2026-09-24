@@ -11641,7 +11641,12 @@
         return deduped.sort((a,b)=>n(b.views)-n(a.views)).slice(0,topN);
     }
 
+    // Clients whose summary generation was started (by a click) on THIS page.
+    // A "loading" state restored from storage after a reload has no request
+    // behind it, so it shows the Generate button instead of a skeleton forever.
+    const _contentSummaryStartedHere=new Set();
     async function generateContentSummary(clientName){
+        _contentSummaryStartedHere.add(clientName);
         const clientEntryRun=_isClientLink?_syncviewClientEntryDataRun:null;
         if(_isClientLink&&!_syncviewClientEntryRunCurrent(clientEntryRun))return;
         const videos=getTopMonthlyVideos(clientName,5);
@@ -11699,10 +11704,9 @@
         refreshContentSummary(clientName);
     }
 
-    // Per-session guard: clients we've already auto-attempted this page load.
-    // The first time a client's profile is rendered we kick off generateContentSummary;
-    // the guard prevents the same render path from re-triggering after the response sets state.error.
-    // Cleared on page refresh, or when the user manually clicks Regenerate (which calls generateContentSummary directly).
+    // Formerly the per-session guard for automatic generation on profile open.
+    // Generation is click-only now, so nothing adds to it; it stays declared
+    // because the client-entry reset (260) still clears it.
     const _autoSummaryAttempted=new Set();
 
     // (Removed: autoRefreshStaleSummaries. Page-load batch generation was hammering the webhook
@@ -11722,26 +11726,22 @@
         const state=contentSummaryState[clientName];
         const videos=getTopMonthlyVideos(clientName,5);
         if(!videos.length)return'';
-        // Staleness check: summary date older than the latest scrape → cached data is no longer accurate.
-        const summaryDate=state?.data?.date||'';
-        const latestScrape=topVideos.filter(v=>v.client_name===clientName).reduce((max,v)=>{const d=v.scraped_date||'';return d>max?d:max;},'');
-        const isStale=!!(latestScrape&&summaryDate&&summaryDate<latestScrape);
-        // Auto-trigger generation the first time this client's profile is rendered in this session.
-        // Triggers when: no prior data, OR cached data is stale vs. the latest scrape.
+        // CLICK-ONLY (owner, 2026-09-23). Each generation is a paid model call, and
+        // opening a profile used to start one automatically -- for every client
+        // with no summary or a stale one, for any viewer or automated session
+        // that merely rendered the profile. Generation now starts only from a
+        // click: "Generate summary" below, or the existing Update / Regenerate.
         const hasData=!!state?.data;
         const hasError=!!state?.error;
-        const needsGen=(!hasData&&!hasError)||(hasData&&isStale);
-        if(needsGen&&!_autoSummaryAttempted.has(clientName)){
-            _autoSummaryAttempted.add(clientName);
-            setTimeout(()=>generateContentSummary(clientName),0);
-        }
         let inner='';
         if(hasError){
             // Attempt already ran and failed (e.g. transcripts unavailable). Stay subtle — no Retry button.
             // User can refresh the page to re-attempt.
             inner=`<div class="cs-error" style="opacity:0.7;font-size:0.78rem;">${state.error}</div>`;
+        }else if(!hasData&&!(state?.loading&&_contentSummaryStartedHere.has(clientName))){
+            inner=`<button class="cs-regen-btn" onclick="generateContentSummary(decodeURIComponent('${enc}'))">✦ Generate summary</button>`;
         }else if(!hasData){
-            // Either generation is in flight or about to be (auto-trigger above).
+            // Generation is in flight (it only ever starts from a click).
             inner=`<div class="cs-skeleton" role="status" aria-label="Loading">
                 ${_svSkel('sv-skeleton-line', 'width:92%;')}
                 ${_svSkel('sv-skeleton-line', 'width:84%;')}

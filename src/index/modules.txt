@@ -1,3 +1,4 @@
 # Fragments written as ES modules (phase C step C3). The build serves them
 # without their import header and export footer: see scripts/index-modules.js.
 300-tiktok-upload.js.part
+340-editors-date-picker.js.part

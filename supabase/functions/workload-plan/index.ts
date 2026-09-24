@@ -178,8 +178,10 @@ async function nativeSnapshot(db: SupabaseClient): Promise<JsonMap> {
  * sends the version it holds gets `unchanged` and no body when nothing moved.
  * Before that migration is applied the RPC does not exist; that answers 501 so
  * the browser falls back to `native_snapshot`, never a blank board. */
-async function nativeSnapshotCached(db: SupabaseClient, ifVersion: string): Promise<JsonMap> {
+async function nativeSnapshotCached(db: SupabaseClient, ifVersion: string, steps: Record<string, number> = {}): Promise<JsonMap> {
+  const rpcStarted=Date.now();
   const {data,error}=await db.rpc("workload_native_snapshot_cached_v1",{p_if_version:ifVersion||null});
+  steps.db_ms=Date.now()-rpcStarted;
   if (error) {
     if (error.code==="PGRST202") throw new WorkloadPlanError(501,"snapshot_cache_unavailable");
     throw new WorkloadPlanError(503,"workload_snapshot_unavailable");
@@ -191,8 +193,10 @@ async function nativeSnapshotCached(db: SupabaseClient, ifVersion: string): Prom
     return {ok:true,unchanged:true,version:data.version,contract:data.contract};
   }
   if (!data || data.contract!=="workload-native-snapshot-v2") throw new WorkloadPlanError(503,"workload_snapshot_incomplete");
+  const projectStarted=Date.now();
   try { return projectNativeSnapshot(data,normalizeBrowserWriteClient); }
   catch { throw new WorkloadPlanError(503,"workload_snapshot_incomplete"); }
+  finally { steps.project_ms=Date.now()-projectStarted; }
 }
 
 /* Background rebuild (migrations/2026-09-23-workload-native-snapshot-warm.sql).
@@ -297,6 +301,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let action = "invalid";
   let outcome = "error";
   let writeCount = 0;
+  // Per-step timing for the snapshot actions (aggregate numbers only).
+  const steps: Record<string, number> = {};
 
   try {
     const body = await requestBody(req);
@@ -317,9 +323,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       requireListStaff(req);
       const ifVersion = clean(body.if_version);
       if (ifVersion && !/^[0-9a-f]{32}$/.test(ifVersion)) throw new WorkloadPlanError(400, "invalid_version");
-      const snapshot = await nativeSnapshotCached(serviceClient(), ifVersion);
+      let mark = Date.now();
+      const snapshot = await nativeSnapshotCached(serviceClient(), ifVersion, steps);
+      steps.rpc_ms = Date.now() - mark;
       outcome = snapshot.unchanged === true ? "unchanged" : "ok";
-      return json(snapshot);
+      mark = Date.now();
+      const text = JSON.stringify(snapshot);
+      steps.serialize_ms = Date.now() - mark;
+      steps.bytes = text.length;
+      return new Response(text, { status: 200, headers: { ...CORS, "Content-Type": "application/json" } });
     }
 
     if (action === "native_snapshot") {
@@ -502,6 +514,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       outcome,
       updated: writeCount,
       ms: Date.now() - started,
+      region: Deno.env.get("SB_REGION") || "",
+      ...steps,
     }));
   }
 });

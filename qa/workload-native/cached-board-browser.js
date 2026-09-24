@@ -38,7 +38,7 @@ async function visit(browser,server,{local={},holdLive=false,ghost=false,failV2W
  await run.context.route('**/rest/v1/production_deliverables_browser_v1?*',route=>reply(route,[]));
  await run.context.route('**/rest/v1/workload_issues?*',route=>reply(route,[]));
  let release=null;const held=new Promise(r=>{release=r;});
- await run.context.route('**/functions/v1/workload-plan',async route=>{const body=route.request().postDataJSON();
+ await run.context.route('**/functions/v1/workload-plan*',async route=>{const body=route.request().postDataJSON();
   if(body.action==='native_snapshot_v2')return reply(route,{ok:false,error:'snapshot_cache_unavailable'},501);
   if(body.action==='warm_snapshot')return reply(route,{ok:false,error:'snapshot_cache_unavailable'},501);
   assert.equal(body.action,'native_snapshot');if(holdLive)await held;return reply(route,snapshot(ghost));});

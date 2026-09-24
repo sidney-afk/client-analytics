@@ -237,7 +237,11 @@ function matrixEqual(actual, expected, message) {
     && /staffOperationAllowed\(principal\.keyRole, "create", principal\.memberTeam, team\)/.test(createPrincipal)
     && /client\.active !== true/.test(createPrincipal)
     && createHandler.indexOf('productionCreatePrincipalScope(') < createHandler.indexOf('productionCreateReplay(')
-    && createHandler.indexOf('productionCreateReplay(') < createHandler.indexOf('productionCreateScope('),
+    // B2 Slice 8 removed the dead create body after the unconditional closure,
+    // so the replay must now precede that closure (and nothing follows it).
+    && createHandler.indexOf('productionCreateReplay(') >= 0
+    && createHandler.indexOf('productionCreateReplay(') < createHandler.indexOf('"production_create_closed"')
+    && !createHandler.includes('productionCreateScope('),
   'Production create and early replay require active roster authentication and Admin/SMM or service TEST authorization first');
   ok(!/req\.headers\.get\(["']x-syncview-role["']\)/i.test(edge),
     'caller role headers cannot elevate the gateway principal');

@@ -407,21 +407,23 @@ function extractFunction(name, bodyMarker = '{') {
     && /test_project_mapping_unavailable/.test(edge),
   'TEST intake uses one secret-selected allowlisted project per team and fails closed when absent');
 
-  ok(/\.eq\("key", "prod_authority"\)/.test(edge)
-    && /authority_unavailable/.test(edge)
-    && /surface === "production"[\s\S]{0,100}team_is_linear_authoritative/.test(edge),
-  'server authority is mandatory and Production stays blocked under Linear authority');
+  // B2 Slice 8: both teams are permanently SyncView-authoritative. Authority
+  // is a server constant (never a caller value, never a flag read) and an
+  // unknown team still fails closed.
+  ok(/async function authorityFor\(_supabase: SupabaseClient, team: string\): Promise<"syncview"> \{[\s\S]{0,160}team_authority_unknown[\s\S]{0,40}return "syncview";\s*\}/.test(edge)
+    && !/\.eq\("key", "prod_authority"\)/.test(edge),
+  'server authority is the constant syncview for every team, with no flag read and no Linear-authoritative lane');
   ok(/const SURFACES = new Set\(\["production", "workload", "calendar", "sxr", "submission"\]\)/.test(edge)
     && /surface === "workload"[\s\S]{0,120}operation !== "due"[\s\S]{0,80}invalid_surface_operation/.test(edge)
     && /surface === "workload" && operation === "due" && !clean\(body\.expected_updated_at\)/.test(edge),
   'Workload opens only the guarded native due operation and requires the independent deliverable CAS cursor');
   ok(/body\.legacy_parity === true/.test(edge)
-    && /legacyParityAllowed\(surface, operation\)/.test(edge)
     && /legacy_parity: legacyParity/.test(edge),
   'legacy parity is requested by the caller but derived and stamped by the server');
-  ok(/requestedParity[\s\S]{0,260}authority !== "linear"[\s\S]{0,100}legacy_parity_not_allowed/.test(edge)
-    && /linear_legacy_parity_enabled/.test(edge),
-  'stale parity requests are rejected after flip and the independent parity gate fails closed');
+  ok(/function authorityLane\([\s\S]{0,200}\): boolean \{\s*if \(requestedParity\) throw new GatewayError\(409, "legacy_parity_not_allowed"\);\s*return false;\s*\}/.test(edge)
+    && !/linear_legacy_parity_enabled|assertLegacyParityEnabled/.test(edge)
+    && /parityByTeam\[team\] = false;/.test(edge),
+  'every legacy parity request is refused; no parity lane or parity gate remains');
   ok(/\.rpc\("track_b_f27_write_authorization", \{[\s\S]{0,80}p_team: normalizedTeam/.test(edge)
     && /authorization\.ok !== true/.test(edge)
     && /Number\.isSafeInteger\(generation\)/.test(edge)
@@ -450,17 +452,19 @@ function extractFunction(name, bodyMarker = '{') {
     && /production_comment_write/.test(edge),
   'comment transport identity stays separate from the stable author snapshot');
 
-  ok(/target_dedup_key: dedup[\s\S]{0,120}legacy_parity: true[\s\S]{0,120}WRITE_UI_LEGACY_PARITY/.test(edge)
-    && /target_dedup_key: dedup[\s\S]{0,180}test_override:[\s\S]{0,140}B4_TEST_ONLY/.test(edge),
-  'parity and TEST writes invoke only the targeted service-authenticated drainer forms');
-  ok(/target_dedup_key: dedup[\s\S]{0,120}syncview_live: true[\s\S]{0,120}WRITE_UI_SYNCVIEW_LIVE/.test(edge)
-    && /authority === "syncview"[\s\S]{0,180}outboundLiveForDrain\(supabase\)/.test(edge)
-    && /waitUntil\(\(async \(\) =>/.test(edge),
-  'flipped live writes schedule the third exact-dedup drain shape in EdgeRuntime background work');
-  ok(/const mutationHasMirror = !nativeAssignment && !nativeLabels && !nativeOrdinary && \(operation !== "comment" \|\| commentMirrorApplicable\)/.test(edge)
-    && /const shouldDrain = mutationHasMirror && !suppressLabelDrain && \(legacyParity \|\| principal\.testOnly \|\| syncviewLiveDrain\)/.test(edge)
-    && /mirrorPending && awaitedDrain \? 202 : 200/.test(edge),
-  'native assignments and labels exclude mirrors while background drains preserve durable success responses');
+  // B2 Slice 8: production-write never invokes the linear-outbound function
+  // (it is being deleted) -- not for TEST, not for parity, not in background.
+  ok(!/functions\/v1\/linear-outbound/.test(edge)
+    && !/WRITE_UI_LEGACY_PARITY|WRITE_UI_SYNCVIEW_LIVE|B4_TEST_ONLY"/.test(edge)
+    && !/async function targetedDrain\(|targetedDrain\(/.test(edge),
+  'no write path invokes the linear-outbound drainer in any form');
+  ok(!/outboundLiveForDrain|scheduleSyncviewLiveDrains|linear_outbound_enabled/.test(edge)
+    && !/waitUntil\(\(async \(\) =>/.test(edge),
+  'no write schedules background drain work or reads the outbound flag');
+  ok(/const mirror = notApplicableMirror\(\);\s*const mirrorPending = false;/.test(edge)
+    && /\}, 200\);/.test(edge)
+    && !/mirrorPending && awaitedDrain/.test(edge),
+  'entity writes report the static not-applicable mirror with mirror_pending false and a plain 200');
   ok(/overdueStatusBumpDate\(existing\.due_date\)/.test(edge)
     && /overdueStatusBumpEnabled\(supabase\)/.test(edge)
     && !/overdue_bump_gate_unavailable/.test(edge)
@@ -480,28 +484,25 @@ function extractFunction(name, bodyMarker = '{') {
     && /clean\(objectAt\(issue\.state\)\.id\) === clean\(expected\.stateId\)/.test(inbound)
     && /hasOwnProperty\.call\(expected, "dueDate"\)/.test(inbound),
     'inbound echo proof requires both fields for a combined status and due bump');
-  ok(/const target = parseJson\(result\.target\)/.test(edge)
-    && /targetStatus === "written"/.test(edge)
-    && /already_applied/.test(edge)
-    && /acknowledged: response\.ok && result\.ok === true && terminal/.test(edge),
-  'targeted drain acknowledges only a proven terminal target');
+  ok(/function notApplicableMirror\(\): JsonMap \{\s*return \{ attempted: false, acknowledged: true, not_applicable: true \};\s*\}/.test(edge)
+    && (edge.match(/\.\.\.notApplicableMirror\(\)/g) || []).length >= 3
+    && !/targetedFailure/.test(edge),
+  'every mirror leg (single and per-plan arrays) is the static acknowledged not-applicable result');
   ok(/mirror_pending: mirrorPending/.test(edge) && /native_committed: true/.test(edge),
     'a committed native write reports mirror-pending state explicitly');
+  // B2 Slice 8: the label catalog is native-only; the Linear catalog and
+  // selected-label reads are gone, and a non-native catalog is held.
   ok(/lower\(body\.action\) === "labels_read"[\s\S]{0,100}handleLabelsRead/.test(edge)
-    && /issueLabels\(first: \$\{LABEL_PAGE_SIZE\}, after: \$after\)/.test(edge)
-    && /nodes \{ id name color description archivedAt isGroup team \{ id \} \}/.test(edge)
-    && /pageInfo\.hasNextPage === false/.test(edge)
-    && /pageInfo\.hasNextPage !== true[\s\S]{0,100}label_catalog_incomplete/.test(edge)
-    && /SyncViewProductionSelectedLabels\(\$id: String!, \$selectedAfter: String\)/.test(edge)
-    && /labels\(first: \$\{LABEL_PAGE_SIZE\}, after: \$selectedAfter, includeArchived: true\)/.test(edge)
-    && /collectCompleteSelectedLabels\(\{[\s\S]{0,220}maxPages: MAX_LABEL_PAGES/.test(edge)
-    && /complete: true/.test(edge),
-  'protected labels_read paginates catalog and selection independently and exposes data only after both prove completeness');
+    && !/issueLabels\(|SyncViewProductionSelectedLabels|collectCompleteSelectedLabels\(|linearLabelSnapshot|linearLabelCatalog/.test(edge)
+    && /readNativeLabelCatalog\(supabase, nativeVersion, team\)/.test(extractFunction('handleLabelsRead'))
+    && /complete: true/.test(extractFunction('handleLabelsRead')),
+  'protected labels_read serves only the verified native catalog, with no Linear catalog or selection read');
   ok(/principal\.kind === "client"[\s\S]{0,80}operation_forbidden/.test(extractFunction('handleLabelsRead'))
-    && /authority === "syncview"[\s\S]{0,100}nativeLabelSnapshot\(existing\) \|\| \(principal\.testOnly \? linearSelected : null\)/.test(extractFunction('handleLabelsRead'))
+    && /if \(config\.mode !== "native"\) throw new GatewayError\(503, "native_label_catalog_held"\);/.test(extractFunction('handleLabelsRead'))
     && /native_label_state_incomplete/.test(extractFunction('handleLabelsRead'))
-    && /mergeLabelCatalog\(snapshot\.catalog, selected\.labels\)/.test(extractFunction('handleLabelsRead')),
-  'label reads deny clients and require native selected state after authority flips, with only service TEST allowed to bootstrap from complete Linear selection');
+    && /mergeLabelCatalog\(read\.catalog as JsonMap\[\], native\.labels\)/.test(extractFunction('handleLabelsRead'))
+    && !/linearSelected|snapshot\./.test(extractFunction('handleLabelsRead')),
+  'label reads deny clients, refuse as held unless native, and require complete native selected state for every caller including TEST');
   const nativeLabelsStart = edge.indexOf('function nativeLabelSnapshot(');
   const nativeLabelsEnd = edge.indexOf('\nfunction mergeLabelCatalog(', nativeLabelsStart);
   const nativeLabels = edge.slice(nativeLabelsStart, nativeLabelsEnd);
@@ -513,18 +514,18 @@ function extractFunction(name, bodyMarker = '{') {
   'native label state is complete only for unique valid nodes and an exact canonical labelIds/node-ID relation');
   ok(/operation === "labels"[\s\S]{0,220}canonicalLabelIds\(body\.label_ids\)/.test(edge)
     && /label_ids: labelIds, _intent_fingerprint: fingerprint/.test(edge)
-    && /raw\.issue = \{[\s\S]{0,240}labelIds,[\s\S]{0,120}labels: \{[\s\S]{0,80}nodes: selectedLabels/.test(edge)
+    && /result = await rpc\(supabase, "production_labels_write", \{ p_row: existing, p_event: event \}\)/.test(edge)
     && /event\.expected_updated_at = clean\(body\.expected_updated_at\)/.test(edge)
     && /labelsReceipt = selectedLabelReceipt/.test(edge),
   'guarded labels write fingerprints one full set, commits canonical native nodes with CAS, and returns that selected set');
   const labelsWriteStart = edge.indexOf('} else if (operation === "labels") {');
   const labelsWriteEnd = edge.indexOf('\n  } else {', labelsWriteStart);
   const labelsWrite = edge.slice(labelsWriteStart, labelsWriteEnd);
-  ok(/const native = nativeLabelSnapshot\(existing\) \|\| \(principal\.testOnly \? \{[\s\S]{0,120}labels: snapshot\.selectedLabels,[\s\S]{0,80}ids: snapshot\.selectedLabelIds,[\s\S]{0,40}\} : null\)/.test(labelsWrite)
-    && /if \(!native\)[\s\S]{0,100}native_label_state_incomplete/.test(labelsWrite)
-    && /\[\.\.\.native\.labels, \.\.\.snapshot\.catalog\]/.test(labelsWrite)
+  ok(/if \(!nativeLabelSnapshot\(existing\)\) throw new GatewayError\(409, "native_label_state_incomplete"/.test(labelsWrite)
+    && /provider-mode catalog would need a Linear read[\s\S]{0,160}throw new GatewayError\(503, "native_label_catalog_held"\);/.test(labelsWrite)
+    && !/snapshot\.selectedLabels|snapshot\.catalog/.test(labelsWrite)
     && /browserCredentialTestOverride\(body\.test_override, key, token\)[\s\S]{0,100}invalid_test_override/.test(extractFunction('authenticate')),
-  'normal label replacement fails closed on incomplete native state while only service TEST may preserve arbitrary selected Linear labels during bootstrap');
+  'label replacement fails closed on incomplete native state and is held outside the native catalog; no caller (TEST included) bootstraps from Linear');
 
   const descriptionWriteStart = edge.lastIndexOf('} else if (operation === "description") {');
   const descriptionWriteEnd = edge.indexOf('\n    } else {', descriptionWriteStart);
@@ -561,7 +562,6 @@ function extractFunction(name, bodyMarker = '{') {
   const createScope = extractFunction('productionCreateScope');
   const createOptions = extractFunction('handleCreateOptions');
   const createAssignees = extractFunction('mappedCreateAssignees');
-  const createParentRoute = extractFunction('productionCreateParentRoute');
   const createHandler = extractFunction('handleProductionCreate');
   // The inline intent type has braces, and unrelated picker declarations may
   // follow replay. Bound the actual function body, not a later neighbor.
@@ -591,23 +591,24 @@ function extractFunction(name, bodyMarker = '{') {
     && /\.eq\("team", normalizedTeam\)/.test(createAssignees)
     && /eligibleAssigneeProjection\(rows, normalizedTeam, \{[\s\S]{0,200}providerMappingRequired[\s\S]{0,200}providerActiveFor/.test(createAssignees)
     && !/linear_user_id:/.test(createAssignees)
-    && /Promise\.all\(\[[\s\S]{0,100}linearLabelCatalog[\s\S]{0,100}mappedCreateAssignees\(scope\.team\)|Promise\.all\(\[[\s\S]{0,100}linearLabelCatalog[\s\S]{0,100}mappedCreateAssignees\(supabase, scope\.team\)/.test(createOptions)
+    // B2 Slice 8: the create catalog is the native catalog, never Linear's.
+    && /Promise\.all\(\[[\s\S]{0,100}nativeCatalogOrHeld\(supabase, scope\.team\)[\s\S]{0,100}mappedCreateAssignees\(supabase, scope\.team\)/.test(createOptions)
     && /catalog,[\s\S]{0,40}assignees/.test(createOptions),
   'create_options returns only the eligible-assignee projection: ids and names, no Linear identity mapping');
 
   const principalPosition = createHandler.indexOf('productionCreatePrincipalScope(');
   const replayPosition = createHandler.indexOf('productionCreateReplay(');
-  const readinessPosition = createHandler.indexOf('productionCreateScope(');
-  const foreignPosition = createHandler.indexOf('linearStateIdForCreate(');
-  const writePosition = createHandler.indexOf('rpc(supabase, "production_issue_create"');
+  // B2 Slice 8 removed the unreachable create body after the unconditional
+  // closure; the replay is now the last thing before that closure.
+  const closedPosition = createHandler.indexOf('throw new GatewayError(403, "production_create_closed");');
   ok(principalPosition >= 0
     && replayPosition > principalPosition
-    && readinessPosition > replayPosition
-    && foreignPosition > readinessPosition
-    && writePosition > foreignPosition
+    && closedPosition > replayPosition
+    && /throw new GatewayError\(403, "production_create_closed"\);\s*\}$/.test(createHandler)
+    && !/productionCreateScope\(|linearStateIdForCreate|production_issue_create"/.test(createHandler)
     && !/\b(linearRead|linearLabelsRequest|linearLabelCatalog|linearStateIdForCreate|authorityFor|authorityLane|f27WriteAuthorizationGeneration|targetedDrain|scheduleSyncviewLiveDrains|outboundLiveForDrain|fetch)\b/.test(createReplay)
     && !/\.(?:insert|update|upsert|delete)\(|\brpc\(/.test(createReplay),
-  'an authenticated exact create replay returns before foreign/readiness checks and performs native reads only, with no drain or write');
+  'an authenticated exact create replay returns before the create closure and performs native reads only, with no drain or write; nothing follows the closure');
 
   ok(/payload\.description !== intent\.description/.test(createReplay)
     && /JSON\.stringify\(payload\.label_ids\) !== JSON\.stringify\(intent\.labelIds\)/.test(createReplay)
@@ -642,35 +643,15 @@ function extractFunction(name, bodyMarker = '{') {
     && !/"(?:origin|card_id|calendar|sample|batch_id|kind)"/.test(createFields)
     && /canonicalDescription\(body\.description\)/.test(createHandler)
     && /canonicalLabelIds\(body\.label_ids\)/.test(createHandler)
-    && /validDateOrNull\(dueDate\)/.test(createHandler)
-    && /linearStateIdForCreate\(scope\.teamId, scope\.team, status\)/.test(createHandler)
-    && /linearLabelCatalog\(scope\.teamId, scope\.team\)/.test(createHandler)
-    && /validateCreateAssignee\(supabase, assigneeId, scope\.team\)/.test(createHandler),
-  'first-time create accepts only the ratified issue fields and validates the exact status, date, full labels, and mapped same-team assignee before commit');
+    && /validDateOrNull\(dueDate\)/.test(createHandler),
+  'create still accepts only the ratified issue fields and validates their shape before the replay and closure');
 
-  ok(/attribution:[\s\S]*state: "resolved"/.test(createHandler)
-    && /kind: "other"/.test(createHandler)
-    && /origin: "manual"/.test(createHandler)
-    && /card_id: null/.test(createHandler)
-    && /linear_parent_ids:[\s\S]{0,180}uuid: plannedLinearIssueId/.test(createHandler)
-    && /parent_deliverable_id: parentId \|\| null/.test(createHandler)
-    && /depends_on_id: parentRoute\.dependsOnId/.test(createHandler)
-    && /productionCreateParentRoute\(supabase, parentId, scope\)/.test(createHandler)
-    && /production_create_parent_nested/.test(createParentRoute)
-    && /batchParentIds\.length !== 1/.test(createParentRoute)
-    && (createParentRoute.match(/validateLinearBatchParent\(linearIssueId, scope\.team, scope\.projectId, true\)/g) || []).length === 2,
-  'parent create gets one structural batch, child create reuses one current Linear-validated root/dependency, and neither path can imply Calendar or Samples linkage');
-
-  ok(/payload: f27FencedPayload\(\{[\s\S]*team_id: scope\.teamId[\s\S]*project_id: scope\.projectId[\s\S]*title,[\s\S]*description,[\s\S]*status,[\s\S]*state_id: stateId[\s\S]*due_date: dueDate[\s\S]*linear_user_id:[\s\S]*parent_linear_issue_id:[\s\S]*label_ids: labelIds[\s\S]*planned_linear_issue_id: plannedLinearIssueId/.test(createHandler)
-    && /rpc\(supabase, "production_issue_create", \{[\s\S]{0,140}p_batch: batchRow \|\| \{\},[\s\S]{0,80}p_row: row,[\s\S]{0,80}p_event: event/.test(createHandler)
-    && /native_committed: true/.test(createHandler)
-    && /publicDescriptionRow\(currentRow\)/.test(createHandler)
-    && /selectedLabelReceipt\(currentRow\)/.test(createHandler),
-  'the guarded create RPC receives one complete canonical Linear intent and returns refreshed Markdown plus complete selected-label state');
-  ok(/terminalConflict = mirror\.some/.test(createHandler)
-    && /item\.terminal_conflict === true/.test(createHandler)
-    && /new GatewayError\(409, "idempotency_conflict"/.test(createHandler),
-  'a synchronous targeted create drain returns the same terminal conflict contract instead of a catching-up success');
+  // The first-time create body (Linear state/label reads, parent validation,
+  // create RPC, targeted drain) was unreachable behind the 403 closure and was
+  // removed in B2 Slice 8. Pin that it stays gone rather than asserting on it.
+  ok(!/async function productionCreateParentRoute\(|async function linearStateIdForCreate\(|async function validateCreateAssignee\(|validateLinearBatchParent/.test(edge)
+    && !/rpc\(supabase, "production_issue_create"/.test(edge),
+  'no first-time create body, Linear parent validation, or create RPC call remains behind the create closure');
 
   const migrationReplayStart = createMigration.indexOf('if v_replay then');
   const migrationReplayEnd = createMigration.indexOf(
@@ -741,8 +722,10 @@ function extractFunction(name, bodyMarker = '{') {
     && identityGuardPosition > entityHandler.indexOf('authenticate(supabase, req, body, targetClientSlug)')
     && identityGuardPosition < entityOperationBranchPosition
     && identityGuardPosition < entityHandler.indexOf('f27WriteAuthorizationGeneration(')
-    && /await assertDeliverableIdentityWritable\(supabase, parent\)/.test(createParentRoute),
-  'one authenticated fail-closed identity guard blocks every deliverable operation and child route before enqueue or foreign Linear work');
+    // The child-create route that also called this guard was removed with the
+    // unreachable create body in B2 Slice 8; no other child route exists.
+    && !/productionCreateParentRoute/.test(edge),
+  'one authenticated fail-closed identity guard blocks every deliverable operation before enqueue');
   ok(/sync_state: clean\(row\.sync_state\)/.test(extractFunction('publicRow'))
     && /identity_repair_state: clean\(repair\.state\)/.test(extractFunction('publicRow'))
     && /identity_repair_reason: clean\(repair\.reason\)/.test(extractFunction('publicRow')),
@@ -1045,10 +1028,13 @@ function extractFunction(name, bodyMarker = '{') {
 
   const validationPos = edge.indexOf('await projectForIntake(client, team, principal)');
   const firstWritePos = edge.indexOf('const batch = await ensureBatch(');
-  ok(/project\(id: \$id\) \{ id name teams \{ nodes \{ id key \} \} \}/.test(edge)
+  // B2 Slice 8: a tagged project is no longer read from Linear; a non-native
+  // route that would have needed that read is refused before any write.
+  ok(!/project\(id: \$id\)|readLinearProject/.test(edge)
     && /projectIdsForTeam\(client\.linear_project_ids, team\)/.test(edge)
+    && /if \(nativeEpoch\) return tagged\[0\];\s*throw new GatewayError\(409, "legacy_intake_native_epoch_required"\);/.test(extractFunction('projectForIntake'))
     && validationPos > 0 && firstWritePos > validationPos,
-  'team-tagged projects are read-only validated by Linear team before any native write');
+  'team-tagged projects resolve natively before any native write, and a non-native route is refused rather than read from Linear');
   ok(/tagged\.length > 1/.test(edge) && /project_mapping_ambiguous/.test(edge)
     && /throw new GatewayError\(409, "project_mapping_missing"\)/.test(edge)
     && !/matching = projects\.filter/.test(edge.slice(edge.indexOf('async function projectForIntake'), edge.indexOf('function teamIdFor'))),
@@ -1106,7 +1092,7 @@ function extractFunction(name, bodyMarker = '{') {
   ok(/team: teamList\.length === 1 \? teamList\[0\] : null/.test(edge)
     && /const parentTeam = teamList\.includes\("video"\) \? "video" : teamList\[0\];/.test(edge)
     && /for \(const team of \[parentTeam\]\) \{/.test(edge)
-    && /parityByTeam\[team\] = !principal\.testOnly && authorityByTeam\[team\] === "linear"/.test(edge)
+    && /parityByTeam\[team\] = false;/.test(edge)
     && /const sharedParentOutboxId = batch\.outboxId;/.test(edge)
     && /for \(const team of teamList\) parentOutboxByTeam\[team\] = sharedParentOutboxId;/.test(edge)
     && /_parent_teams: teamList,/.test(edge),
@@ -1183,10 +1169,13 @@ function extractFunction(name, bodyMarker = '{') {
     && /expected_updated_at/.test(migration)
     && /production-deliverable:/.test(migration),
   'Production scalars require CAS and the database serializes competing request ids');
-  ok(/linear_legacy_parity_enabled/.test(edge)
+  // B2 Slice 8: the Edge no longer has a parity lane to gate -- it refuses
+  // every parity request outright -- while the RPC keeps its own kill gate.
+  ok(!/linear_legacy_parity_enabled/.test(edge)
+    && /if \(requestedParity\) throw new GatewayError\(409, "legacy_parity_not_allowed"\);/.test(edge)
     && /linear_legacy_parity_enabled/.test(migration)
-    && /legacy_parity_gate_unavailable/.test(edge + migration),
-  'both Edge and transactional RPC enforce the independent parity kill gate');
+    && /legacy_parity_gate_unavailable/.test(migration),
+  'the Edge refuses every parity request and the transactional RPC still enforces the independent parity kill gate');
   ok(/linear_issue_url/.test(edge) && /linear_issue_uuid", "linear_identifier/.test(edge)
     && /legacy_link_ambiguous/.test(edge),
   'legacy queue issue links resolve to exactly one native deliverable only on parity surfaces');

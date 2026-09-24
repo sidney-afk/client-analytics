@@ -39,9 +39,11 @@ try {
   // Exact pre-install compatibility: native intake flag cannot admit reassignment.
   assignmentReset();let before=await state();
   const blocked=await post(await op(target,EDITOR_TWO));
-  ok('preinstall-provider-refusal-preserved',blocked.status===503&&blocked.json.error==='assignee_provider_unavailable'&&await state()===before,{status:blocked.status});
+  // B2 Slice 8 forced the native assignee lane: no provider (Linear) read can
+  // refuse a reassignment or the picker any more, whatever is installed.
+  ok('preinstall-reassignment-no-provider-dependency',blocked.status===200&&(await row(target)).assignee_id===EDITOR_TWO&&assignmentNoProvider(),{status:blocked.status,error:blocked.json.error});
   assignmentReset();const pickerOld=await post(options(target));
-  ok('preinstall-picker-provider-refusal-preserved',pickerOld.status===503&&pickerOld.json.error==='assignee_provider_unavailable');
+  ok('preinstall-picker-no-provider-dependency',pickerOld.status===200&&pickerOld.json.complete===true&&assignmentNoProvider(),{status:pickerOld.status,error:pickerOld.json.error});
   assignmentReset();const clearOld=await post(await op(target,null));
   ok('preinstall-clear-provider-read-free',clearOld.status===200&&(await row(target)).assignee_id===null&&assignmentNoProvider());
   // Missing RPC alone is never enough: a failed flag read must hold.
@@ -50,8 +52,8 @@ try {
   ok('preinstall-flag-read-failure-held',unavailable.status===503&&unavailable.json.error==='authority_unavailable'&&assignmentNoProvider());
   assignmentReset();
   await sql(fs.readFileSync(path.join(ROOT,'migrations/2026-09-06-native-existing-assignment.sql'),'utf8'));
-  before=await state();const installedProvider=await post(await op(target,EDITOR_ONE));
-  ok('installed-default-provider-contract',installedProvider.status===503&&installedProvider.json.error==='assignee_provider_unavailable'&&await state()===before);
+  assignmentReset();const installedProvider=await post(await op(target,EDITOR_TWO));
+  ok('installed-default-no-provider-dependency',installedProvider.status===200&&(await row(target)).assignee_id===EDITOR_TWO&&assignmentNoProvider(),{status:installedProvider.status,error:installedProvider.json.error});
   await eligibleFlag({provider_mapping_required:false});
   assignmentReset();const providerBody=await op(target,EDITOR_ONE);const providerAccepted=await post(providerBody);
   const providerReceipt=await receipt(providerBody);

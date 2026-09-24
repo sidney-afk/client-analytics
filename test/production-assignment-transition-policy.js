@@ -239,18 +239,22 @@ function extractConst(name) {
   // ---- F94: the gateway wires one projection into every lane -------------
   ok(/async function assertEligibleAssignee\(/.test(edge)
     && /async function validateAssignee\([\s\S]{0,220}assertEligibleAssignee\(supabase, assigneeId, team\)/.test(edge)
-    && /async function validateCreateAssignee\([\s\S]{0,260}assertEligibleAssignee\(supabase, assigneeId, team\)/.test(edge)
+    // (The create lane's validateCreateAssignee went with the unreachable
+    // create body in B2 Slice 8.)
+    && !/async function validateCreateAssignee\(/.test(edge)
     && /async function mappedCreateAssignees\([\s\S]{0,700}eligibleAssigneeProjection\(/.test(edge),
-  'the manual lane, the create lane, and the option projection all resolve through one enforcement point');
+  'the manual lane and the option projection resolve through one enforcement point');
   ok(/lower\(body\.action\) === "assignee_options"[\s\S]{0,120}handleAssigneeOptions/.test(edge)
     && /async function handleAssigneeOptions\([\s\S]{0,1800}staffOperationAllowed\(principal\.keyRole, "assignee"/.test(edge)
     && /assignee_scope_forbidden/.test(edge),
   'the picker read is a protected Production action gated by the same assignee authority as the write');
-  ok(/users\(first: \$first, includeArchived: true\)[\s\S]{0,80}nodes \{ id active \}[\s\S]{0,60}pageInfo \{ hasNextPage \}/.test(edge)
-    && /page\.hasNextPage !== false[\s\S]{0,120}assignee_provider_unavailable/.test(edge),
-  'the provider probe requests only id + active and fails closed on a truncated pool');
-  ok(/if \(error \|\| !data\) return \{ providerMappingRequired: true \}/.test(edge),
-    'an absent eligibility flag row means strictest, not unavailable');
+  // B2 Slice 8 retired the provider (Linear) probe: every assignee lane is the
+  // native lane, so no provider read and no eligibility-flag read remain.
+  ok(!/users\(first: \$first, includeArchived: true\)|assigneeProviderPool|api\.linear\.app/.test(edge),
+  'no provider (Linear) assignee probe remains');
+  ok(/return \{ providerMappingRequired: false, providerActiveFor: \(\) => null \};/.test(edge)
+    && !/ASSIGNEE_ELIGIBILITY_FLAG/.test(edge),
+    'the eligibility context is the forced native lane and reads no eligibility flag');
 
   // ---- F37: identity-bound personal queue ---------------------------------
   const queue = vm.createContext({

@@ -63,11 +63,15 @@ ok('projectLabel carries retiredAt through', lib.includes('retiredAt: node.retir
 
 /* ------------------------------------------------------------- the gateway  */
 
-ok('the provider catalog query asks for retiredAt', gateway.includes('nodes { id name color description archivedAt retiredAt isGroup team { id } }'));
-ok('a provider response without retiredAt is refused rather than guessed at',
-  gateway.includes('|| !Object.prototype.hasOwnProperty.call(node, "retiredAt")'));
-ok('the provider path skips retired alongside groups and archived',
-  gateway.includes('if (node.isGroup === true || clean(node.archivedAt) || clean(node.retiredAt)'));
+/* B2 Slice 8 removed the provider (Linear) label catalog from the gateway
+   entirely, so the retired-label defect can no longer re-enter through it: the
+   only catalog served is the native one, which the migration above filters. */
+ok('the gateway has no provider label catalog left to leak a retired label',
+  !gateway.includes('async function linearLabelCatalog(')
+    && !gateway.includes('issueLabels(')
+    && !gateway.includes('api.linear.app'));
+ok('label reads and writes refuse as held unless the native catalog is installed',
+  /if \(config\.mode !== "native"\) throw new GatewayError\(503, "native_label_catalog_held"\);/.test(gateway));
 
 /* The page needs no change, and this is why: lifecycle never reaches it. The
    gateway hands the browser only the four sanitized keys, so the picker cannot

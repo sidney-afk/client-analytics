@@ -97,21 +97,23 @@ try{
  if(source.includes('from "../_shared/write-refusal-diagnostics.mjs";'))once('from "../_shared/write-refusal-diagnostics.mjs";',`from "${pathToFileURL(path.join(ROOT,'supabase/functions/_shared/write-refusal-diagnostics.mjs')).href}";`);
   const shim='data:text/javascript,'+encodeURIComponent('export class SupabaseClient {} export function createClient(){return globalThis.__labelClient();}');
   once('import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";',`import { createClient, SupabaseClient } from "${shim}";`);
+  // B2 Slice 8 removed the Linear label reads from the gateway.
+  assert.ok(!source.includes('https://api.linear.app'));pass('gateway has no Linear label transport left');
   for(const relative of ['../_shared/staff-role-auth.ts','./selected-label-pages.mjs','../_shared/linear-create-id.mjs','./policy.mjs'])once(`from "${relative}";`,`from "${pathToFileURL(path.resolve(ROOT,'supabase/functions/production-write',relative)).href}";`);
   fs.writeFileSync(path.join(tmp,'handler.ts'),source);await import(pathToFileURL(path.join(tmp,'handler.ts')).href);assert.equal(typeof handler,'function');
   for(const action of ['read','write']){
     store=new Store();provider='denied';let start=providerCalls;let before=JSON.stringify(store.tables);
-    const refused=await call(handler,payload(action));assert.equal(refused.status,503);assert.equal(refused.body.error,'label_catalog_unavailable');assert.ok(providerCalls>start);assert.equal(JSON.stringify(store.tables),before);pass('provider-denied '+action+' remains a real native-authority blocker, with no mutation');
+    // B2 Slice 8: a provider-mode (non-native) catalog is refused as held, never read from Linear.
+    const refused=await call(handler,payload(action));assert.equal(refused.status,503);assert.equal(refused.body.error,'native_label_catalog_held');assert.equal(providerCalls,start);assert.equal(JSON.stringify(store.tables),before);pass('provider-mode '+action+' is refused as held with zero provider egress and no mutation');
     for(const client of [true]){start=providerCalls;const r=await call(handler,payload(action),client);assert.equal(r.status,403);assert.equal(providerCalls,start);pass('client '+action+' denied before provider or catalog exposure');}
-    store=new Store();store.flagError=true;start=providerCalls;const authority=await call(handler,payload(action));assert.equal(authority.status,503);assert.equal(authority.body.error,'authority_unavailable');assert.equal(providerCalls,start);pass('failed authority '+action+' has no guessed provider fallback');
+    // Authority is constant SyncView (B2 Slice 8); an unreadable catalog flag still fails closed with no provider fallback.
+    store=new Store();store.flagError=true;start=providerCalls;const authority=await call(handler,payload(action));assert.equal(authority.status,503);assert.equal(authority.body.error,'native_label_catalog_config_unavailable');assert.equal(providerCalls,start);pass('unreadable catalog flag '+action+' has no guessed provider fallback');
   }
   for(const mode of ['healthy','empty','incomplete','wrong-team']){
-    store=new Store();provider=mode;const r=await call(handler,payload());
-    if(mode==='healthy'){assert.equal(r.status,200);assert.deepEqual(r.body.catalog.map(x=>x.id),[uuid(1),uuid(2)]);}
-    if(mode==='empty'){assert.equal(r.status,200);assert.deepEqual(r.body.catalog,[]);assert.deepEqual(r.body.selected_label_ids,[]);}
-    if(mode==='incomplete'){assert.equal(r.status,502);assert.equal(r.body.error,'label_catalog_incomplete');assert.notEqual(r.body.complete,true);assert.ok(!r.body.catalog);}
-    if(mode==='wrong-team'){assert.equal(r.status,409);assert.equal(r.body.error,'linear_team_mapping_unavailable');}
-    pass('actual provider '+mode+' read keeps its existing outcome');
+    // Whatever the provider would answer, B2 Slice 8 never asks it.
+    store=new Store();provider=mode;const start=providerCalls;const r=await call(handler,payload());
+    assert.equal(r.status,503);assert.equal(r.body.error,'native_label_catalog_held');assert.ok(!r.body.catalog);assert.equal(providerCalls,start);
+    pass('provider '+mode+' read is refused as held with zero provider egress');
   }
   for(const mode of ['complete','empty']){
     store=new Store();store.tables.syncview_runtime_flags.push({key:'production_native_label_catalog',value:{mode:'native',schema_version:1,version_id:uuid(700)}});store.catalogMode=mode;provider='denied';const start=providerCalls;
@@ -128,15 +130,14 @@ try{
   }
   store=new Store();store.tables.syncview_runtime_flags.push({key:'production_native_label_catalog',value:{mode:'native',schema_version:1,version_id:uuid(700)}});provider='denied';const nativeStart=providerCalls;
   for(const [caseIndex,ids] of [[],[uuid(1)],[uuid(999)]].entries()){const before=JSON.stringify(store.tables);const r=await call(handler,{...payload('write'),request_id:uuid(800+caseIndex),expected_updated_at:store.tables.deliverables[0].updated_at,catalog_version:uuid(700),label_ids:ids});assert.equal(r.status,ids.includes(uuid(999))?400:200,JSON.stringify(r.body));if(ids.includes(uuid(999))){assert.equal(r.body.error,'label_not_applicable');assert.equal(JSON.stringify(store.tables),before);}else{assert.equal(r.body.mirror.not_applicable,true);assert.deepEqual(r.body.selected_label_ids,ids);}assert.equal(providerCalls,nativeStart);pass('native modeled commit covers '+(ids.length?ids[0]:'clear')+' without provider');}
-  store=new Store();provider='healthy';delete store.tables.deliverables[0].linear_raw.issue.labels.pageInfo.hasNextPage;
-  const partial=await call(handler,payload());assert.equal(partial.status,409);assert.equal(partial.body.error,'native_label_state_incomplete');pass('complete provider catalog never blesses incomplete native selection');
-  store=new Store();provider='healthy';const write=payload('write');const accepted=await call(handler,write);assert.equal(accepted.status,200);assert.deepEqual(accepted.body.selected_label_ids,[uuid(1),uuid(2)]);assert.equal(store.tables.mirror_outbox.length,1);assert.equal(store.tables.deliverable_events.length,1);pass('unchanged full-selected-set writer preserves event and applicable provider outbox');
-  const fingerprint=store.tables.mirror_outbox[0].payload._intent_fingerprint,before=JSON.stringify(store.tables);provider='denied';let start=providerCalls;
-  const replay=await call(handler,write);assert.equal(replay.status,200);assert.equal(providerCalls,start);assert.equal(JSON.stringify(store.tables),before);assert.equal(store.tables.mirror_outbox[0].payload._intent_fingerprint,fingerprint);pass('accepted request replay before provider/CAS preserves exact original fingerprint and outbox');
+  const nativeFlag={key:'production_native_label_catalog',value:{mode:'native',schema_version:1,version_id:uuid(700)}};
+  store=new Store();store.tables.syncview_runtime_flags.push(nativeFlag);provider='healthy';delete store.tables.deliverables[0].linear_raw.issue.labels.pageInfo.hasNextPage;
+  const partial=await call(handler,payload());assert.equal(partial.status,409);assert.equal(partial.body.error,'native_label_state_incomplete');pass('complete native catalog never blesses incomplete native selection');
+  store=new Store();store.tables.syncview_runtime_flags.push(nativeFlag);provider='denied';const write={...payload('write'),catalog_version:uuid(700)};let start=providerCalls;const accepted=await call(handler,write);assert.equal(accepted.status,200);assert.deepEqual(accepted.body.selected_label_ids,[uuid(1),uuid(2)]);assert.equal(accepted.body.mirror_pending,false);assert.equal(store.tables.mirror_outbox.length,1);assert.equal(store.tables.deliverable_events.length,1);assert.equal(providerCalls,start);pass('native full-selected-set writer keeps its event and outbox receipt with zero provider egress');
+  const fingerprint=store.tables.mirror_outbox[0].payload._intent_fingerprint,before=JSON.stringify(store.tables);
+  const replay=await call(handler,write);assert.equal(replay.status,200);assert.equal(providerCalls,start);assert.equal(JSON.stringify(store.tables),before);assert.equal(store.tables.mirror_outbox[0].payload._intent_fingerprint,fingerprint);pass('accepted request replay preserves exact original fingerprint and outbox');
   const conflict=await call(handler,{...write,label_ids:[uuid(1)]});assert.equal(conflict.status,409);assert.equal(conflict.body.error,'idempotency_conflict');assert.equal(providerCalls,start);assert.equal(JSON.stringify(store.tables),before);pass('same request changed full selection still conflicts without provider');
-  for(const id of [3,4,5,999]){store=new Store();provider='healthy';const r=await call(handler,{...write,label_ids:[uuid(id)]});assert.equal(r.status,400);assert.equal(r.body.error,'label_not_applicable');assert.equal(store.tables.mirror_outbox.length,0);pass('new inapplicable provider label '+id+' remains refused');}
-  store=new Store();provider='healthy';store.tables.deliverables[0].linear_raw.issue={id:uuid(500),labelIds:[uuid(5)],labels:{nodes:[publicLabel(label(5))],pageInfo:{hasNextPage:false,endCursor:null}}};
-  const historical=await call(handler,{...write,label_ids:[uuid(5)]});assert.equal(historical.status,200);assert.deepEqual(historical.body.selected_label_ids,[uuid(5)]);pass('selected archived historical identity remains retainable');
+  for(const id of [3,4,5,999]){store=new Store();provider='healthy';start=providerCalls;const r=await call(handler,{...payload('write'),label_ids:[uuid(id)]});assert.equal(r.status,503);assert.equal(r.body.error,'native_label_catalog_held');assert.equal(store.tables.mirror_outbox.length,0);assert.equal(providerCalls,start);pass('provider-mode write of label '+id+' is held with no outbox and no provider egress');}
   const html=fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
   const extract=(name,next)=>{const at=html.indexOf('function '+name+'('),end=html.indexOf('function '+next+'(',at);assert(at>0&&end>at);let text=html.slice(at,end);if(name==='_prodRunLabelsWrite')text='async '+text;return text.trim();};
   const browser=vm.createContext({Map,Set,console});

@@ -6,6 +6,13 @@ name: Deploy F27 Section 4 closures
 # provider-source/JWT captures remain the separate Section 1 pre-DDL step; both
 # operations below require that sealed bundle to be present and independently
 # verified before any function deployment starts.
+#
+# B2 Slice 8 (2026-09-24): the RELEASE set is three functions
+# (production-write, deliverable-write, batch-write). linear-outbound is no
+# longer deployed or verified here. The PRIOR set stays four: the sealed
+# bundle still captures linear-outbound while it is live, and the restore
+# operation still puts back all four exactly as captured. After linear-outbound
+# is deleted, the next change narrows the prior set to three as well.
 on:
   workflow_dispatch:
     inputs:
@@ -55,61 +62,8 @@ jobs:
       DEPLOY_COMMIT: ${{ inputs.commit_sha }}
       EXPECTED_CLI_VERSION: 2.109.0
       EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256: 9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042
-      LINEAR_OUTBOUND_ENTRYPOINT_SHA256: 606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684
-      LINEAR_OUTBOUND_FILE_COUNT: '5'
-      # Re-pinned 2026-08-19 (ninth release): THE MIRROR STOPS VETOING ITS OWN
-      # WRITES. The stale guard read the issue clock our OWN just-delivered
-      # comment had bumped as "a human edited Linear" and dropped the paired
-      # status row (81/81 audited drops carried a veto clock byte-identical to
-      # an own written row's acknowledged updated_at; Kasper's GRA-6808 tweak
-      # was stranded 20 hours). decideConflict now discounts an issue clock at
-      # or before our own latest acknowledged write to the same issue; field
-      # clocks and genuinely newer issue clocks veto exactly as before.
-      # Supersedes eff38b69 (eighth release, ONE PARENT PER CARD), which
-      # superseded ff0fc693, 5d8bf7dc (targeted-drain reclaim) and ef89adbf.
-      # File count is unchanged, so the closure membership did not move.
-      # Re-pinned 2026-09-15 (tenth release): LINEAR'S OWN ESCAPING STOPS
-      # ORPHANING OUR ISSUES. Post-create verification byte-compared the
-      # description we sent against the one Linear kept; Linear escapes
-      # markdown-significant punctuation on store, so the app's own
-      # "[SyncView] FILMING PLAN MISSING - ..." template came back with the
-      # brackets backslashed, read as a foreign edit, and terminalized the row
-      # as an idempotency conflict -- applyCreateLinkage never ran and the
-      # issue sat in Linear owned by nobody. This is the 2026-08-07 auto-link
-      # orphan (ff0fc693 lineage) one rewrite later, and it fires on the FIRST
-      # attempt, on every batch created without a filming plan. Measured on
-      # VID-13912 and VID-13919. canonicalLinearDescription composes the new
-      # unescape after the existing auto-link collapse and is applied to both
-      # sides. Supersedes 1489a4c2 (ninth release, the mirror stops vetoing its
-      # own writes). File count is unchanged at 5, so closure membership did
-      # not move, and production-write, batch-write and deliverable-write are
-      # byte-identical to their reviewed pins above.
-      #
-      # Re-pinned again 2026-09-15, same release, after Codex review: the
-      # unescape is DIRECTIONAL, not symmetric. Symmetric canonicalization made
-      # `\\# Heading` and `# Heading` compare equal, so a description-only human
-      # edit on an issue whose linkage was lost would have been adopted. Escapes
-      # are now stripped from the STORED side only; our intent is never
-      # rewritten. Still mapping.mjs only, file count still 5.
-      #
-      # Re-pinned a third time 2026-09-15, same release, Codex second pass: the
-      # escape set is narrowed to the characters Linear was OBSERVED to escape
-      # (`[` and `]`), not every CommonMark escape. Directionality closed only
-      # one collision direction; a stored `\\# H` against an intent of `# H` is
-      # indistinguishable from a human edit, so the set is evidence-gated now.
-      # Still mapping.mjs only, file count still 5.
-      #
-      # Re-pinned a fourth time 2026-09-15, same release, Codex third pass and the
-      # owner's call: the escape exception is scoped to the OBSERVED template
-      # form -- a leading `\\[SyncView\\] ` marker -- not to brackets in general.
-      # Brackets outside the template now orphan rather than adopt. Still
-      # mapping.mjs only, file count still 5.
-      #
-      # Re-pinned a fifth time 2026-09-15, Codex fourth pass (P1): the marker is
-      # matched at the start of any LINE, not the description. Two of the three
-      # generated intake shapes put it in the second paragraph and would have
-      # kept orphaning. Still mapping.mjs only, file count still 5.
-      LINEAR_OUTBOUND_SOURCE_SHA256: f59b6206e3ccabb7b2fe1972d8abddac5d2622f5948f759b66381dc71ec1cf9d
+      # linear-outbound pins removed in B2 Slice 8: it is no longer in the release
+      # set. Its re-pin history is in git history of this file.
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5
@@ -131,7 +85,7 @@ jobs:
       # to the previously reviewed pins and are deployed unchanged so the
       # four-function lane stays a single operation. Regenerate with:
       #   node scripts/ef-fingerprint.js <main-head-sha> \
-      #     --slugs=linear-outbound,production-write,deliverable-write,batch-write \
+      #     --slugs=production-write,deliverable-write,batch-write \
       #     --expected-only
       # ENTRYPOINT_SHA256 is sha256 of the entrypoint PATH string, not the file
       # bytes, so it does not move when the source changes.
@@ -773,11 +727,9 @@ jobs:
           const exactImport = 'npm:@supabase/supabase-js@2.49.8';
           const requiredImportSites = [
             'supabase/functions/_shared/b4-write.ts',
-            'supabase/functions/linear-outbound/index.ts',
             'supabase/functions/production-write/index.ts',
           ];
           const scanned = [
-            ...walk('supabase/functions/linear-outbound'),
             ...walk('supabase/functions/production-write'),
             'supabase/functions/_shared/b4-write.ts',
             'supabase/functions/_shared/linear-create-id.mjs',
@@ -797,7 +749,7 @@ jobs:
             }
           }
           if (JSON.stringify(found) !== JSON.stringify(requiredImportSites.map(file => [file, exactImport]))) {
-            throw new Error('the reviewed Section 4 closures do not have the exact three 2.49.8 import sites');
+            throw new Error('the reviewed Section 4 closures do not have the exact two 2.49.8 import sites');
           }
           for (const slug of ['deliverable-write', 'batch-write']) {
             const source = fs.readFileSync(`supabase/functions/${slug}/index.ts`, 'utf8');
@@ -806,7 +758,7 @@ jobs:
             }
           }
           const lockArtifacts = [];
-          for (const slug of ['linear-outbound', 'production-write', 'deliverable-write', 'batch-write']) {
+          for (const slug of ['production-write', 'deliverable-write', 'batch-write']) {
             for (const name of ['deno.json', 'deno.lock']) {
               const file = `supabase/functions/${slug}/${name}`;
               if (fs.existsSync(file)) lockArtifacts.push(file);
@@ -817,7 +769,7 @@ jobs:
           }
           NODE
           if ! node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" \
-            --slugs=linear-outbound,production-write,deliverable-write,batch-write \
+            --slugs=production-write,deliverable-write,batch-write \
             --expected-only --format=json \
             > "$F27_PRIVATE_DIR/candidate-fingerprint.json" \
             2> "$F27_PRIVATE_DIR/candidate-fingerprint.error"; then
@@ -832,7 +784,6 @@ jobs:
           const expected = [
             ['batch-write', process.env.BATCH_WRITE_SOURCE_SHA256, process.env.BATCH_WRITE_FILE_COUNT, process.env.BATCH_WRITE_ENTRYPOINT_SHA256],
             ['deliverable-write', process.env.DELIVERABLE_WRITE_SOURCE_SHA256, process.env.DELIVERABLE_WRITE_FILE_COUNT, process.env.DELIVERABLE_WRITE_ENTRYPOINT_SHA256],
-            ['linear-outbound', process.env.LINEAR_OUTBOUND_SOURCE_SHA256, process.env.LINEAR_OUTBOUND_FILE_COUNT, process.env.LINEAR_OUTBOUND_ENTRYPOINT_SHA256],
             ['production-write', process.env.PRODUCTION_WRITE_SOURCE_SHA256, process.env.PRODUCTION_WRITE_FILE_COUNT, process.env.PRODUCTION_WRITE_ENTRYPOINT_SHA256],
           ];
           const rows = Array.isArray(receipt.results) ? receipt.results : [];
@@ -856,14 +807,13 @@ jobs:
             }
           }
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
-            '- Exact `npm:@supabase/supabase-js@2.49.8` import surfaces: PASS (3)',
+            '- Exact `npm:@supabase/supabase-js@2.49.8` import surfaces: PASS (2)',
             '- Frozen-lock applicability: N/A (0 reviewed Section 4 configs/locks)',
             ...rows.map(row => `- Candidate \`${row.slug}\`: source \`${row.expected_fingerprint}\`, files \`${row.expected_files}\`, entrypoint equality: PASS`),
             '',
           ].join('\n'));
           NODE
           if ! git diff --exit-code -- \
-            supabase/functions/linear-outbound \
             supabase/functions/production-write \
             supabase/functions/deliverable-write \
             supabase/functions/batch-write \
@@ -911,106 +861,7 @@ jobs:
           node -e 'const r=JSON.parse(process.argv[1]);const x=r.results&&r.results[0];if(r.pinned_sha!==process.env.DEPLOY_COMMIT||r.results.length!==1||x.slug!=="notify"||x.result!=="PASS"||x.verify_jwt!==false)process.exit(1)' "$receipt"
           echo "- Compatible live notify source/JWT prerequisite: PASS" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Deploy and verify 1 of 4 - linear-outbound
-        if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-reviewed-release'
-        shell: bash
-        working-directory: release
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          set -euo pipefail
-          # The reason, in the run log.
-          #
-          # Every provider readback below already writes its stderr to a file
-          # under the private directory, and that directory is destroyed by the
-          # cleanup step. On 2026-08-07 the final four-function verification
-          # failed and the ONLY line published was "the capture failed" — the
-          # cause went into the file and died with it, which cost an entire
-          # diagnosis cycle against a production state that turned out correct.
-          #
-          # Both scripts prefix their own failures with a fixed formatter
-          # (f27-edge-source-rollback: CODE: message, ef-fingerprint: message)
-          # over an allowlisted vocabulary. Only those lines are echoed, capped
-          # in length and count, so nothing else in the file can reach the log.
-          public_failure() {
-            [ -f "$1" ] || return 0
-            grep -aoE '^(f27-edge-source-rollback|ef-fingerprint): .{0,200}' "$1" | head -3 || true
-          }
-          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
-            echo "::error::The protected production Supabase access token is not configured"
-            exit 1
-          fi
-          project_ref="$F27_PROJECT_REF"
-          if ! supabase functions deploy linear-outbound \
-            --project-ref "$project_ref" \
-            --no-verify-jwt --use-docker --yes \
-            > "$F27_PRIVATE_DIR/linear-outbound-deploy.log" 2>&1; then
-            echo "::error::The reviewed linear-outbound deployment failed or was ambiguous"
-            exit 1
-          fi
-          if grep -Eiq 'Docker is not running|server-side' "$F27_PRIVATE_DIR/linear-outbound-deploy.log"; then
-            echo "::error::The linear-outbound deploy receipt did not prove local Docker bundling"
-            exit 1
-          fi
-          export PROJECT_REF="$project_ref"
-          if ! node scripts/f27-edge-source-rollback.js capture \
-            --slugs=linear-outbound \
-            --bundle="$F27_PRIVATE_DIR/linear-outbound-live.sourcebundle" \
-            > "$F27_PRIVATE_DIR/linear-outbound-capture.json" \
-            2> "$F27_PRIVATE_DIR/linear-outbound-capture.error"; then
-            public_failure "$F27_PRIVATE_DIR/linear-outbound-capture.error"
-            echo "::error::The linear-outbound provider source readback failed"
-            exit 1
-          fi
-          if ! node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" \
-            --slugs=linear-outbound --format=json \
-            > "$F27_PRIVATE_DIR/linear-outbound-fingerprint.json" \
-            2> "$F27_PRIVATE_DIR/linear-outbound-fingerprint.error"; then
-            public_failure "$F27_PRIVATE_DIR/linear-outbound-fingerprint.error"
-            echo "::error::The linear-outbound candidate comparison failed"
-            exit 1
-          fi
-          node - "$F27_PRIVATE_DIR/candidate-fingerprint.json" \
-            "$F27_PRIVATE_DIR/linear-outbound-capture.json" \
-            "$F27_PRIVATE_DIR/linear-outbound-fingerprint.json" <<'NODE'
-          const fs = require('fs');
-          const [candidate, capture, live] = process.argv.slice(2).map(file => JSON.parse(fs.readFileSync(file, 'utf8')));
-          const candidateRow = candidate.results.find(row => row.slug === 'linear-outbound') || {};
-          const captureRow = (capture.functions || [])[0] || {};
-          const liveRow = (live.results || [])[0] || {};
-          if (capture.result !== 'PASS' || capture.operation !== 'capture' || capture.function_count !== 1
-            || captureRow.slug !== 'linear-outbound'
-            || captureRow.source_closure_sha256 !== process.env.LINEAR_OUTBOUND_SOURCE_SHA256
-            || captureRow.entrypoint_sha256 !== process.env.LINEAR_OUTBOUND_ENTRYPOINT_SHA256
-            || String(captureRow.file_count) !== process.env.LINEAR_OUTBOUND_FILE_COUNT
-            || captureRow.verify_jwt !== false
-            || live.mode !== 'live-read-only' || live.pinned_sha !== process.env.DEPLOY_COMMIT
-            || live.results.length !== 1 || liveRow.slug !== 'linear-outbound'
-            || liveRow.result !== 'PASS' || liveRow.status !== 'ACTIVE'
-            || String(liveRow.version) !== String(captureRow.captured_version)
-            || !/^[0-9]+$/.test(String(captureRow.captured_version))
-            || liveRow.verify_jwt !== false || liveRow.entrypoint_match !== true
-            || liveRow.expected_entrypoint !== 'functions/linear-outbound/index.ts'
-            || liveRow.live_entrypoint !== liveRow.expected_entrypoint
-            || candidateRow.expected_fingerprint !== process.env.LINEAR_OUTBOUND_SOURCE_SHA256
-            || liveRow.expected_fingerprint !== candidateRow.expected_fingerprint
-            || liveRow.live_fingerprint !== candidateRow.expected_fingerprint
-            || String(liveRow.expected_files) !== process.env.LINEAR_OUTBOUND_FILE_COUNT
-            || String(liveRow.live_files) !== process.env.LINEAR_OUTBOUND_FILE_COUNT
-            || !/^[0-9a-f]{64}$/.test(String(liveRow.bundle_fingerprint))) {
-            throw new Error('linear-outbound source/entrypoint/JWT readback mismatch');
-          }
-          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
-            '- `linear-outbound` deploy/readback: PASS',
-            `  - Active version: \`${captureRow.captured_version}\``,
-            `  - Source closure SHA-256: \`${captureRow.source_closure_sha256}\``,
-            `  - Entrypoint SHA-256: \`${captureRow.entrypoint_sha256}\``,
-            `  - Provider bundle SHA-256: \`${liveRow.bundle_fingerprint}\``,
-            '  - JWT posture: `verify_jwt=false`',
-          ].join('\n') + '\n');
-          NODE
-
-      - name: Deploy and verify 2 of 4 - production-write
+      - name: Deploy and verify 1 of 3 - production-write
         if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-reviewed-release'
         shell: bash
         working-directory: release
@@ -1109,7 +960,7 @@ jobs:
           ].join('\n') + '\n');
           NODE
 
-      - name: Deploy and verify 3 of 4 - deliverable-write
+      - name: Deploy and verify 2 of 3 - deliverable-write
         if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-reviewed-release'
         shell: bash
         working-directory: release
@@ -1208,7 +1059,7 @@ jobs:
           ].join('\n') + '\n');
           NODE
 
-      - name: Deploy and verify 4 of 4 - batch-write
+      - name: Deploy and verify 3 of 3 - batch-write
         if: github.event_name == 'workflow_dispatch' && inputs.operation == 'deploy-reviewed-release'
         shell: bash
         working-directory: release
@@ -1307,7 +1158,7 @@ jobs:
           ].join('\n') + '\n');
           NODE
 
-      - name: Verify the final exact four-function release
+      - name: Verify the final exact three-function release
         if: inputs.operation == 'deploy-reviewed-release'
         shell: bash
         working-directory: release
@@ -1339,45 +1190,44 @@ jobs:
           project_ref="$F27_PROJECT_REF"
           export PROJECT_REF="$project_ref"
           if ! node scripts/f27-edge-source-rollback.js capture \
-            --slugs=linear-outbound,production-write,deliverable-write,batch-write \
-            --bundle="$F27_PRIVATE_DIR/final-four-live.sourcebundle" \
-            > "$F27_PRIVATE_DIR/final-four-capture.json" \
-            2> "$F27_PRIVATE_DIR/final-four-capture.error"; then
-            public_failure "$F27_PRIVATE_DIR/final-four-capture.error"
-            echo "::error::The final exact four-function version-stable capture failed"
+            --slugs=production-write,deliverable-write,batch-write \
+            --bundle="$F27_PRIVATE_DIR/final-release-live.sourcebundle" \
+            > "$F27_PRIVATE_DIR/final-release-capture.json" \
+            2> "$F27_PRIVATE_DIR/final-release-capture.error"; then
+            public_failure "$F27_PRIVATE_DIR/final-release-capture.error"
+            echo "::error::The final exact three-function version-stable capture failed"
             exit 1
           fi
           if ! node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" \
-            --slugs=linear-outbound,production-write,deliverable-write,batch-write \
+            --slugs=production-write,deliverable-write,batch-write \
             --format=json \
-            > "$F27_PRIVATE_DIR/final-four-fingerprint.json" \
-            2> "$F27_PRIVATE_DIR/final-four-fingerprint.error"; then
-            public_failure "$F27_PRIVATE_DIR/final-four-fingerprint.error"
-            echo "::error::The final exact four-function provider comparison failed"
+            > "$F27_PRIVATE_DIR/final-release-fingerprint.json" \
+            2> "$F27_PRIVATE_DIR/final-release-fingerprint.error"; then
+            public_failure "$F27_PRIVATE_DIR/final-release-fingerprint.error"
+            echo "::error::The final exact three-function provider comparison failed"
             exit 1
           fi
-          node - "$F27_PRIVATE_DIR/final-four-capture.json" \
-            "$F27_PRIVATE_DIR/final-four-fingerprint.json" <<'NODE'
+          node - "$F27_PRIVATE_DIR/final-release-capture.json" \
+            "$F27_PRIVATE_DIR/final-release-fingerprint.json" <<'NODE'
           const fs = require('fs');
           const finalCapture = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
           const receipt = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
           const expected = new Map([
             ['batch-write', [process.env.BATCH_WRITE_SOURCE_SHA256, process.env.BATCH_WRITE_FILE_COUNT, process.env.BATCH_WRITE_ENTRYPOINT_SHA256]],
             ['deliverable-write', [process.env.DELIVERABLE_WRITE_SOURCE_SHA256, process.env.DELIVERABLE_WRITE_FILE_COUNT, process.env.DELIVERABLE_WRITE_ENTRYPOINT_SHA256]],
-            ['linear-outbound', [process.env.LINEAR_OUTBOUND_SOURCE_SHA256, process.env.LINEAR_OUTBOUND_FILE_COUNT, process.env.LINEAR_OUTBOUND_ENTRYPOINT_SHA256]],
             ['production-write', [process.env.PRODUCTION_WRITE_SOURCE_SHA256, process.env.PRODUCTION_WRITE_FILE_COUNT, process.env.PRODUCTION_WRITE_ENTRYPOINT_SHA256]],
           ]);
           const finalCaptureRows = new Map((finalCapture.functions || []).map(row => [row.slug, row]));
           const rows = Array.isArray(receipt.results) ? receipt.results : [];
           if (finalCapture.result !== 'PASS' || finalCapture.operation !== 'capture'
-            || finalCapture.function_count !== 4 || finalCaptureRows.size !== 4
+            || finalCapture.function_count !== 3 || finalCaptureRows.size !== 3
             || receipt.mode !== 'live-read-only'
             || receipt.pinned_sha !== process.env.DEPLOY_COMMIT
-            || rows.length !== 4
-            || receipt.summary.pass !== 4 || receipt.summary.fail !== 0 || receipt.summary.error !== 0
-            || receipt.summary.jwt_ok !== 4 || receipt.summary.jwt_flagged !== 0
-            || receipt.summary.entrypoint_ok !== 4 || receipt.summary.entrypoint_flagged !== 0) {
-            throw new Error('final four-function fingerprint envelope mismatch');
+            || rows.length !== 3
+            || receipt.summary.pass !== 3 || receipt.summary.fail !== 0 || receipt.summary.error !== 0
+            || receipt.summary.jwt_ok !== 3 || receipt.summary.jwt_flagged !== 0
+            || receipt.summary.entrypoint_ok !== 3 || receipt.summary.entrypoint_flagged !== 0) {
+            throw new Error('final three-function fingerprint envelope mismatch');
           }
           for (const row of rows) {
             const contract = expected.get(row.slug);
@@ -1440,9 +1290,9 @@ jobs:
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
             '',
             '- Forward deployment: PASS',
-            '- Deployed function count: `4`',
+            '- Deployed function count: `3`',
             '- Strict serial provider readbacks: PASS',
-            '- Final four-function source/entrypoint/JWT/version/provider comparison: PASS',
+            '- Final three-function source/entrypoint/JWT/version/provider comparison: PASS',
             '',
             '### Deployed versions — record these in `EXECUTION_LOG.md`',
             '',

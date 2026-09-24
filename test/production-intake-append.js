@@ -121,9 +121,11 @@ function throwsCode(fn, code) {
   'gateway requires an active same-client batch compatible with every requested team');
   ok(/projectByTeam\[team\] = await projectForIntake/.test(edge)
     && /project_id: projectId/.test(appendBranch)
-    && /validateLinearBatchParent/.test(edge)
-    && /issue\(id: \$id\).*team \{ key \} project \{ id \}/.test(edge),
-  'each child uses its exact team project and the existing Linear parent is read-only validated');
+    // B2 Slice 8: the existing Linear parent is no longer read from Linear;
+    // a route that would have needed that read now fails closed instead.
+    && !/validateLinearBatchParent|api\.linear\.app/.test(edge)
+    && /No Linear read is available to validate the parent[\s\S]{0,120}legacy_intake_native_epoch_required/.test(edge),
+  'each child uses its exact team project, and a parent needing a Linear read fails closed instead of reading Linear');
   ok(/parentIdsForTeam\(batch\.linear_parent_ids, team\)/.test(edge)
     && /batch_parent_mapping_ambiguous/.test(edge)
     && /dependency_dedup_key/.test(appendBranch)

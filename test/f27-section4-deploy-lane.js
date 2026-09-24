@@ -13,8 +13,15 @@ const manifestGenerator = fs.readFileSync(path.join(ROOT, 'scripts', 'ef-deploy-
 const manifest = fs.readFileSync(path.join(ROOT, 'docs', 'ops', 'EF_DEPLOY_MANIFEST.md'), 'utf8');
 const runbook = fs.readFileSync(path.join(ROOT, 'docs', 'ops', 'F27_INSTALL_RUNBOOK.md'), 'utf8');
 
-const EXACT_SLUGS = [
+// B2 Slice 8 (2026-09-24): the RELEASE set is three functions. The PRIOR set
+// (the sealed capture and the restore) stays four while linear-outbound is live.
+const PRIOR_SLUGS = [
   'linear-outbound',
+  'production-write',
+  'deliverable-write',
+  'batch-write',
+];
+const EXACT_SLUGS = [
   'production-write',
   'deliverable-write',
   'batch-write',
@@ -80,17 +87,6 @@ const CANDIDATES = new Map([
   // unchanged (it hashes the PATH, not the file). Re-pinned again the same
   // day after Codex review made the unescape directional rather than
   // symmetric -- same file, same closure, different bytes.
-  ['linear-outbound', {
-  // Re-pinned a third time the same day (Codex 2nd pass): escape set narrowed
-  // to the observed characters only. Same file, same closure, different bytes.
-  // Re-pinned a fourth time (Codex 3rd pass, owner's call): escape exception
-  // scoped to the observed `[SyncView]` template form. Same closure, new bytes.
-  // Re-pinned a fifth time (Codex 4th pass, P1): marker matched per LINE, so
-  // the two intake shapes that place it in paragraph two are covered.
-    source: 'f59b6206e3ccabb7b2fe1972d8abddac5d2622f5948f759b66381dc71ec1cf9d',
-    entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
-    files: 5,
-  }],
   // Re-pinned 2026-08-18 (eleventh release): a graphics creative may attach or
   // replace the canonical file on any GRAPHICS row -- `attachment` left the
   // assignee-bound set by owner ruling after the designer could not repair her
@@ -560,7 +556,7 @@ const releaseCheckoutAt = workflow.indexOf('- name: Check out exactly the review
 const dockerGateAt = workflow.indexOf('- name: Verify exact Supabase CLI and Docker bundler');
 const providerGateAt = workflow.indexOf('- name: Bind the sealed restore provider target and CLI');
 const importGateAt = workflow.indexOf('- name: Prove exact imports, lock applicability, and candidate closures');
-const firstDeployAt = workflow.indexOf('supabase functions deploy linear-outbound');
+const firstDeployAt = workflow.indexOf('supabase functions deploy production-write');
 const restoreAt = workflow.indexOf('node scripts/f27-edge-source-rollback.js restore');
 ok(validationAt >= 0
   && validationAt < firstSecretAt
@@ -612,7 +608,7 @@ ok(/^  deploy:\n(?:    [^\n]*\n)*    environment: production\n/m.test(workflow)
   && !/^    env:\n(?:      [^\n]*\n)*      (?:SUPABASE_ACCESS_TOKEN|F27_PRIVATE_SHARED_DRIVE_ROOT_ID|TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON):/m.test(workflow)
   && occurrences(workflow, /F27_PRIVATE_SHARED_DRIVE_ROOT_ID: \$\{\{ secrets\.F27_PRIVATE_SHARED_DRIVE_ROOT_ID \}\}/g).length === 1
   && occurrences(workflow, /TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: \$\{\{ secrets\.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON \}\}/g).length === 1
-  && occurrences(workflow, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 8
+  && occurrences(workflow, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g).length === 7
   && validationAt < firstSecretAt
   && sqlPreflightAt > validationAt && sqlPreflightAt < firstDeployAt
   && /if: github\.event_name == 'workflow_dispatch' && inputs\.operation == 'deploy-reviewed-release'/.test(sqlPreflightBlock)
@@ -631,17 +627,18 @@ ok(notifyPreflightAt > sqlPreflightAt && notifyPreflightAt < firstDeployAt
 ok(/uses: supabase\/setup-cli@v1\n\s*with:\n\s*version: 2\.109\.0/.test(workflow)
   && workflow.includes('if [ "$cli_version" != "$EXPECTED_CLI_VERSION" ]')
   && workflow.includes("docker info --format '{{.ServerVersion}}'")
-  && occurrences(workflow, /--use-docker --yes/g).length === 4
+  && occurrences(workflow, /--use-docker --yes/g).length === 3
   && !/--use-api/.test(workflow),
 'the lane pins Supabase CLI 2.109.0 and requires Docker for every forward deployment');
 
 const deployMatches = occurrences(workflow, /\bsupabase functions deploy ([a-z0-9-]+) \\\n/g);
 ok(deployMatches.map(match => match[1]).join(',') === EXACT_SLUGS.join(',')
-  && deployMatches.length === 4
+  && deployMatches.length === 3
+  && !workflow.includes('supabase functions deploy linear-outbound')
   && !/supabase functions deploy "\$/.test(workflow)
   && !/for\s+(?:fn|slug)\s+in\b/.test(workflow)
   && !/function_slug:|slugs?:\n\s*description:/i.test(trigger),
-'exactly four literal deploy commands exist in the mandated order, with no arbitrary slug input or deployment loop');
+'exactly three literal deploy commands exist in the mandated order (linear-outbound is not deployed), with no arbitrary slug input or deployment loop');
 
 let serialReadbacks = true;
 for (let index = 0; index < EXACT_SLUGS.length; index += 1) {
@@ -651,7 +648,7 @@ for (let index = 0; index < EXACT_SLUGS.length; index += 1) {
   const fingerprint = workflow.indexOf(`--slugs=${slug} --format=json`, capture);
   const nextDeploy = index + 1 < EXACT_SLUGS.length
     ? workflow.indexOf(`supabase functions deploy ${EXACT_SLUGS[index + 1]}`)
-    : workflow.indexOf('- name: Verify the final exact four-function release');
+    : workflow.indexOf('- name: Verify the final exact three-function release');
   serialReadbacks = serialReadbacks
     && deploy >= 0 && capture > deploy && fingerprint > capture && nextDeploy > fingerprint
     && workflow.slice(deploy, nextDeploy).includes(`row.slug === '${slug}'`)
@@ -663,10 +660,12 @@ for (let index = 0; index < EXACT_SLUGS.length; index += 1) {
 ok(serialReadbacks,
 'each literal deploy is followed by source/entrypoint/JWT/status/version readback before the next deploy can start');
 
-const finalForwardAt = workflow.indexOf('- name: Verify the final exact four-function release');
+const finalForwardAt = workflow.indexOf('- name: Verify the final exact three-function release');
 const finalRestoreCaptureAt = workflow.indexOf('final-restored-four-capture.json');
 ok(finalForwardAt > firstDeployAt
-  && workflow.indexOf('--bundle="$F27_PRIVATE_DIR/final-four-live.sourcebundle"', finalForwardAt) > finalForwardAt
+  && workflow.indexOf('--bundle="$F27_PRIVATE_DIR/final-release-live.sourcebundle"', finalForwardAt) > finalForwardAt
+  && workflow.slice(finalForwardAt, workflow.indexOf('- name: Restore the exact captured prior four')).includes('finalCapture.function_count !== 3')
+  && !workflow.slice(finalForwardAt, workflow.indexOf('- name: Restore the exact captured prior four')).includes('linear-outbound')
   && workflow.includes('String(finalCaptured.captured_version) !== String(row.version)')
   && workflow.includes('String(stepCaptured.captured_version) !== String(row.version)')
   && workflow.includes('stepLive.bundle_fingerprint !== row.bundle_fingerprint')
@@ -675,7 +674,7 @@ ok(finalForwardAt > firstDeployAt
   && workflow.includes('finalRow.source_closure_sha256 !== captured.source_closure_sha256')
   && workflow.includes('finalRow.entrypoint_sha256 !== captured.entrypoint_sha256')
   && workflow.includes('finalRow.verify_jwt !== captured.verify_jwt'),
-'final forward and restore receipts re-capture all four and bind versions, provider/source, entrypoint, and JWT to the serial receipts');
+'the final forward receipt re-captures the three released and the restore receipt all four, binding versions, provider/source, entrypoint, and JWT to the serial receipts');
 
 /*
  * F51: the forward receipt must say WHAT IS RUNNING, not merely that it passed.
@@ -722,7 +721,7 @@ const fingerprint = spawnSync(process.execPath, [
 let currentCandidatesMatch = head.status === 0 && fingerprint.status === 0;
 if (currentCandidatesMatch) {
   const receipt = JSON.parse(fingerprint.stdout);
-  currentCandidatesMatch = receipt.results.length === 4 && receipt.results.every(row => {
+  currentCandidatesMatch = receipt.results.length === 3 && receipt.results.every(row => {
     const expected = CANDIDATES.get(row.slug);
     return expected
       && row.expected_fingerprint === expected.source
@@ -738,7 +737,6 @@ ok(currentCandidatesMatch,
 const exactImport = 'npm:@supabase/supabase-js@2.49.8';
 const sourceFiles = [
   'supabase/functions/_shared/b4-write.ts',
-  'supabase/functions/linear-outbound/index.ts',
   'supabase/functions/production-write/index.ts',
 ];
 const actualImportSites = sourceFiles.flatMap(file => {
@@ -754,7 +752,7 @@ ok(JSON.stringify(actualImportSites) === JSON.stringify(sourceFiles.map(file => 
   && workflow.includes('a Section 4 Deno config/lock appeared and needs a separately reviewed frozen-lock gate'),
 'the exact 2.49.8 imports are proven and zero current lockfiles is an explicit fail-on-appearance contract');
 
-ok(workflow.includes('--slugs=linear-outbound,production-write,deliverable-write,batch-write')
+ok(workflow.includes(`--slugs=${PRIOR_SLUGS.join(',')}`)
   && workflow.includes('F27_EDGE_ROLLBACK_CONFIRM: RESTORE_CAPTURED_SOURCE_SET:batch-write,deliverable-write,linear-outbound,production-write')
   && workflow.includes('--expected-bundle-sha256="$ROLLBACK_BUNDLE_SHA256"')
   && workflow.includes('--apply')
@@ -784,12 +782,12 @@ ok(!workflow.includes('supabase functions deploy linear-inbound')
 const reviewedOwnerBlock = manifestGenerator.match(/const REVIEWED_MULTI_OWNER = Object\.freeze\(\{([\s\S]*?)\n\}\);/);
 ok(reviewedOwnerBlock
   && occurrences(reviewedOwnerBlock[1], /^\s*'[^']+':/gm).map(match => match[0].trim().slice(1, -2)).sort().join(',')
-    === 'linear-outbound,production-write'
+    === 'production-write'
   && manifestGenerator.includes('has an unreviewed multiple-workflow deploy owner set')
   && manifestGenerator.includes('is missing its exact reviewed multiple-workflow deploy owner set')
   && manifest.includes('| `batch-write` | [deploy-f27-section4]')
   && manifest.includes('| `deliverable-write` | [deploy-f27-section4]')
-  && manifest.includes('| `linear-outbound` | [deploy-f27-section4]')
+  && !manifest.includes('| `linear-outbound` | [deploy-f27-section4]')
   && manifest.includes('[deploy-onboarding]')
   && manifest.includes('| `production-write` | [deploy-f27-section4]'),
 'the generated ownership manifest permits only the two exact reviewed onboarding overlaps and rejects every other duplicate owner set');

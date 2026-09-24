@@ -84,12 +84,12 @@ ok(/method:\s*['"]GET['"]/.test(fingerprintSource)
 const attestBlock = workflow.slice(workflow.indexOf('- name: Attest pinned manual release'));
 ok(/- name: Attest pinned manual release\n\s*# [\s\S]*?\n\s*if: github\.event_name == 'workflow_dispatch'/.test(attestBlock)
   && !/if: always\(\)/.test(workflow)
-  && workflow.includes('Fingerprint scope: 13 functions deployed by this workflow')
+  && workflow.includes('Fingerprint scope: 12 functions deployed by this workflow')
   && workflow.includes('Drill outcome: \\`PENDING\\`')
   && workflow.includes('--format=markdown | tee -a "$GITHUB_STEP_SUMMARY"'),
 'the attestation is gated on success (never always()) and appends a scoped public-safe fingerprint + drill placeholder');
 
-const providerAt = workflow.indexOf('for fn in linear-outbound notify production-write production-comments production-archive');
+const providerAt = workflow.indexOf('for fn in notify production-write production-comments production-archive');
 const attestationAt = workflow.indexOf('- name: Attest pinned manual release');
 const attestorPreflightAt = workflow.indexOf('node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" --expected-only');
 ok(attestorPreflightAt >= 0 && attestorPreflightAt < providerAt
@@ -208,13 +208,14 @@ ok(/\| `notify` \| \[deploy-onboarding\]\([^)]*\)<br>\[deploy-single-function\]\
 'notify is owned only by pinned-SHA dispatch-only lanes (onboarding and the one-function lane), never a push or laptop deploy');
 ok(/\| `linear-inbound` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* RETIRED 2026-09-24 \(B2 Slice 7\)/.test(manifest),
 'linear-inbound is recorded as retired, with no deploy path (B2 Slice 7)');
-ok(/\| `linear-outbound` \| \[deploy-f27-section4\]\([^)]*\)<br>\[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
+ok(/\| `linear-outbound` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* RETIRING \(B2 Slice 8/.test(manifest)
   && /\| `production-write` \| \[deploy-f27-section4\]\([^)]*\)<br>\[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
   && /\| `deliverable-write` \| \[deploy-f27-section4\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
   && /\| `batch-write` \| \[deploy-f27-section4\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
-'the manifest records the exact reviewed Section 4 ownership, including only the two deliberate onboarding overlaps');
-ok(/for fn in linear-outbound notify production-write production-comments production-archive/.test(workflow),
-'the Track-B deploy set deploys the provider and notification sender before the write gateway, then its readers, from one pinned commit');
+'the manifest records the exact reviewed Section 4 ownership, with production-write as the one deliberate onboarding overlap and linear-outbound retiring (B2 Slice 8)');
+ok(/for fn in notify production-write production-comments production-archive/.test(workflow)
+  && !/for fn in[^\n]*linear-outbound/.test(workflow),
+'the Track-B deploy set deploys the notification sender before the write gateway, then its readers, from one pinned commit, and no longer deploys linear-outbound (B2 Slice 8)');
 ok(!/\| `workload-linear` \|/.test(manifest),
 'workload-linear is gone from the manifest (deleted in B2 Slice 7)');
 

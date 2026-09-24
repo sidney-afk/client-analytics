@@ -449,31 +449,21 @@ try {
   const s14again = await children(s14.body.request_id);
   ok('S14-recovers-once-authority-returns', s14again.outcome === 'recovered' && (await dels(s14.m.batch_id)).length === 2);
 
-  // S15. Provider-era manifest (flags off at acceptance): reported, never
-  // recreated here; the explicit gateway retry still owns it. Its card is then
-  // a normal stage 2 obligation.
+  // S15. Provider-era intake (flags off at acceptance). B2 Slice 8 retired the
+  // provider lane: production-write refuses a non-native route before any
+  // Linear read or native write, so no provider-era manifest or child can be
+  // left behind for this reconciler (or a gateway retry) to own.
   await flags();
   net.linear = 'ok'; reset();
   const s15body = rootBody('both', requestId(), { client_slug: BC });
-  let s15writes = 0;
-  hooks.beforeRpc = name => { if (name === 'production_deliverable_write' && ++s15writes === 2) throw new Error('synthetic provider-era interruption'); };
-  const s15resp = await post(s15body); reset(); net.linear = 'down';
-  const s15m = await manifest(s15body.request_id);
   const s15before = await inventory();
-  const s15r = await children(s15body.request_id);
-  ok('S15-provider-era-child-reported-not-recreated', s15resp.status >= 500 && s15r.outcome === 'unresolved'
-    && s15r.unresolved[0].reason === 'provider_epoch_child_missing' && s15r.unresolved[0].owner === 'gateway-retry'
-    && await unchanged(s15before) && (await state(s15body.request_id)).owed.children_provider === 1, s15r);
-  net.linear = 'ok'; reset();
-  const s15retry = await post(s15body); net.linear = 'down';
-  const s15c = await cards(s15body.request_id);
-  const s15resume = await browserResume(savedJob(s15body, s15retry));
-  await settle();
-  const s15card = await card(BC, s15m.expected_items[0].row.card_id);
-  ok('S15-gateway-retry-completes-provider-children-card-held-then-browser-creates-it', s15retry.status === 201
-    && s15c.outcome === 'unresolved' && s15c.unresolved[0].reason === 'card_creation_held' && s15c.created.length === 0
-    && s15resume.ok && !!s15card && !!s15card.video_deliverable_id && !!s15card.graphic_deliverable_id
-    && (await state(s15body.request_id)).complete === true, [s15retry.status, s15c.outcome, s15resume.error]);
+  const s15resp = await post(s15body);
+  ok('S15-provider-era-intake-refused-before-any-write', s15resp.status === 409
+    && s15resp.json?.error === 'legacy_intake_native_epoch_required'
+    && await unchanged(s15before) && !(await manifest(s15body.request_id)), { status: s15resp.status, error: s15resp.json?.error });
+  const s15retry = await post(s15body);
+  ok('S15-provider-era-retry-still-refused-nothing-to-reconcile', s15retry.status === 409
+    && await unchanged(s15before) && !(await manifest(s15body.request_id)), { status: s15retry.status });
   await flags('epoch-video-r3', 'epoch-graphics-r3');
 
   // S16. Archived batch and inactive client are not resurrected.

@@ -127,8 +127,12 @@ ok(compatible(null, 'both') === false && compatible({}, 'both') === false,
 // ---- the same rule, in the two server layers ------------------------------
 ok(!/throw new GatewayError\(409, "batch_team_mismatch"\)/.test(gateway),
   'the gateway no longer vetoes an append on the team column');
-ok(/ownsDistinctParent/.test(gateway) && /validateLinearBatchParent/.test(gateway),
-  'and still decides by resolving and validating a parent, which is what refuses the rest');
+// B2 Slice 8 removed the Linear parent read; a route that would have needed it
+// now fails closed, so resolving a parent is still what refuses the rest.
+ok(/ownsDistinctParent/.test(gateway) && /batch_parent_mapping_missing/.test(gateway)
+    && !/validateLinearBatchParent/.test(gateway)
+    && /No Linear read is available to validate the parent[\s\S]{0,120}legacy_intake_native_epoch_required/.test(gateway),
+  'and still decides by resolving a parent, failing closed where a Linear validation used to run');
 
 const clause = 'or (v_batch.team is not null and v_team is distinct from v_batch.team)';
 /* Compared over the EXECUTABLE half only: v7's header quotes the clause it

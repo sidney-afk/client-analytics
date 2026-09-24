@@ -65,7 +65,6 @@ const WORKFLOWS = Object.freeze([
 // Section 4 has a separately confirmed exact-four path. Every other duplicate
 // deploy owner remains a generator error.
 const REVIEWED_MULTI_OWNER = Object.freeze({
-  'linear-outbound': Object.freeze(['deploy-f27-section4', 'deploy-onboarding']),
   'production-write': Object.freeze(['deploy-f27-section4', 'deploy-onboarding']),
   // notify also has the one-function exact-SHA lane, so it can ship without
   // redeploying the Track-B write/read set.
@@ -74,6 +73,7 @@ const REVIEWED_MULTI_OWNER = Object.freeze({
 
 const DELIBERATE_MANUAL = Object.freeze({
   'client-token-verify': 'Strict client-entry v1 is deliberate-manual: deploy and read back the exact reviewed function source before serving its matching browser caller; no runtime-flag change is part of this release.',
+  'linear-outbound': 'RETIRING (B2 Slice 8, 2026-09-24): removed from the Section 4 release set and the onboarding lane, so nothing deploys it. It is deleted after the three-function Section 4 deploy is green. The source stays only as the frozen reference its contract tests read, until B2 Slice 10. Do not redeploy it except as the Section 4 captured-prior restore.',
   'linear-inbound': 'RETIRED 2026-09-24 (B2 Slice 7): deleted from production and its dispatch lane removed. The source stays only as the frozen reference its contract tests read, until B2 Slice 10. Do not redeploy it except as the rollback in ROLLBACK.md.',
   'workload-plan': 'Live v2 deployed by operator from `fd3e0eaa` on 2026-07-20; future redeploys require `--no-verify-jwt` and exact-SHA fingerprint readback.',
   'write-diagnostics': 'WR-101 refusal-receipt endpoint is deliberate-manual: the first deploy is an exact-SHA operator release with `--no-verify-jwt` (it accepts unauthenticated browser refusal claims by design; operator actions keep their own runner-key check) and a fingerprint readback. It stays dormant, answering 503, until `WRITE_DIAGNOSTICS_ENABLED=true`, and its SQL owner must be applied first.',

@@ -16,13 +16,13 @@ assert(index.includes('TEMPLATES_SAVE_EF_URL'), 'templates EF URL missing');
 assert(index.includes('CAPTION_PROMPTS_SAVE_EF_URL'), 'caption prompts EF URL missing');
 assert(index.includes('_tplLoadFromSupabase'), 'templates Supabase overlay helper missing');
 assert(index.includes('_calLoadCaptionPromptsFromSupabase'), 'caption prompts Supabase overlay helper missing');
-assert(index.includes('const baseP = _tplLoadFromN8n().then(t => { baseTemplates = t; return t; });'), 'templates must load n8n as the base store');
-assert(index.includes('const merge = () => Object.assign({}, baseTemplates || {}, supaTemplates || {});'), 'templates must overlay flagged Supabase rows on n8n base');
-assert(index.includes('if (!_settingsUseEf(row.client_slug || name)) return;'), 'templates Supabase rows must be gated by settings_ef_clients');
+assert(!index.includes('webhook/templates-get') && !index.includes('webhook/templates-save'), 'templates must not use the retired n8n sheet webhooks');
+assert(index.includes('const live = await _tplLoadFromSupabase();'), 'templates must load from Supabase only');
+assert(!index.includes('_tplLoadFromN8n'), 'templates must not keep an n8n loader');
 assert(index.includes('const basePrompts = await _calLoadCaptionPromptsFromN8n();'), 'caption prompts must load n8n as the base store');
 assert(index.includes('_calCaptionPrompts = Object.assign({}, basePrompts, supaPrompts);'), 'caption prompts must overlay flagged Supabase rows on n8n base');
 assert(index.includes('if (!slug || !_settingsUseEf(slug)) return;'), 'caption prompt Supabase rows must be gated by settings_ef_clients');
-assert(index.includes('_settingsWriteUrlForClient(name, TEMPLATES_SAVE_EF_URL, TEMPLATES_SAVE_URL)'), 'templates write must be flag-routed with n8n fallback');
+assert(index.includes('const writeUrl = TEMPLATES_SAVE_EF_URL;'), 'templates write must always use the Edge Function');
 assert(index.includes('_settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL)'), 'caption prompt write must be flag-routed with n8n fallback');
 assert(index.includes("const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';"), 'caption generation URL must remain n8n');
 

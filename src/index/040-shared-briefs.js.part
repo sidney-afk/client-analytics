@@ -348,27 +348,6 @@
     const TIKTOK_MAX_PHOTOS        = 35;               // TikTok photo/carousel post limit
     const TIKTOK_PHOTO_MAX_BYTES   = 20 * 1024 * 1024;  // per-image guard
 
-    // ---- TikTok Pilot (gated first-party Direct Post) — unlocked via ?ttpilot=1 ----
-    // A separate, audit-compliant module that talks to FIRST-PARTY ttp-* n8n
-    // webhooks (OAuth + creator_info + Direct Post on SynchroSocial's OWN TikTok
-    // app credentials), kept fully isolated from the production Post-For-Me flow
-    // above. Nothing here touches the _tk* module or its webhooks.
-    const TTP_AUTH_INIT_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-auth-init';
-    const TTP_ACCOUNTS_LIST_URL = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-accounts-list';
-    const TTP_CREATOR_INFO_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-creator-info';
-    const TTP_SUBMIT_URL        = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-submit';
-    const TTP_STATUS_URL        = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-status';
-    const TTP_LIST_URL          = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-list';
-    const TTP_FORM_KEY          = 'syncview_ttpilotForm_v1';
-    const TTP_PENDING_KEY       = 'syncview_pendingTtpilot_v1';
-    const TTP_HIDDEN_KEY        = 'syncview_hiddenTtpilot_v1';
-    const TTP_OPTIMISTIC_TTL_MS = 5 * 60 * 1000; // drop unconfirmed local rows after 5 min
-    const TTP_MAX_BYTES         = 64 * 1024 * 1024; // 64 MB — single-chunk FILE_UPLOAD cap for the pilot (multi-chunk is a later enhancement)
-    // Flip to true ONLY after TikTok approves the app audit. While false the app
-    // is unaudited: TikTok forces every post to SELF_ONLY (private) and caps
-    // active users — so the compose UI locks privacy to "Only me" and says so.
-    const TTP_APP_AUDITED       = false;
-
     function getTabSummaryKey(name, briefType, tabId) { return `${name}__${briefType}__${tabId}`; }
 
     function _scheduleTabSummary(name, briefType, tabId, tabData) {

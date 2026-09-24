@@ -1179,7 +1179,6 @@
                         navTo('kasper',false);return;
                     }
                 }
-                else if(hash==='tiktok-pilot'){ if(_ttpUnlocked){navTo('tiktok-pilot',false);return;} }
                 else if(hash==='sample-reviews'||hash.startsWith('sample-reviews/')){navTo('sample-reviews',false);return;}
                 else if(['linear','workload','calendar','samples','filming-plans','tiktok-upload','time-off'].includes(hash)
                         ||hashRoute==='smm-weekly-report'||hashRoute==='smm-weekly-reports'){

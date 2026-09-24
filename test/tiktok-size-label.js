@@ -1,7 +1,7 @@
 'use strict';
-// TikTok Upload showed its limit as "287.0 MB". Both byte formatters (Upload
-// and Pilot) now drop a bare ".0" and keep a real decimal. Executes the
-// shipped functions extracted from index.html.
+// TikTok Upload showed its limit as "287.0 MB". Its byte formatter drops a bare
+// ".0" and keeps a real decimal. (The TikTok Pilot's copy went with the pilot,
+// removed 2026-09-24.) Executes the shipped function extracted from index.html.
 const assert = require('assert/strict');
 const fs = require('fs');
 const path = require('path');
@@ -20,7 +20,7 @@ function extract(name) {
 }
 const limitExpr = (INDEX.match(/const TIKTOK_MAX_BYTES\s*=\s*([^;]+);/) || [])[1];
 const TIKTOK_MAX_BYTES = limitExpr ? vm.runInNewContext(limitExpr) : NaN;
-for (const name of ['_tkFormatBytes', '_ttpFormatBytes']) {
+for (const name of ['_tkFormatBytes']) {
   const ctx = {};
   vm.runInNewContext(extract(name) + `; this.fmt = ${name};`, ctx);
   const fmt = ctx.fmt;

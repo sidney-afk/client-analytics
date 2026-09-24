@@ -1715,7 +1715,4 @@ import { WL_CLIENT_NAMES } from './070-workload-source.js';
     window._tkRetryRow = _tkRetryRow;
     window._tkDismissRow = _tkDismissRow;
 
-export {
-  _tkMounted, _tkRenderForm, _tkTeardown, _ttpActiveXhr, _ttpMounted, _ttpPollTimer, _ttpSaveTimer,
-  _ttpVisHooked, mountTiktokUploadView, renderTiktokUploadView, ttpState
-};
+export { _tkMounted, _tkRenderForm, _tkTeardown, mountTiktokUploadView, renderTiktokUploadView };

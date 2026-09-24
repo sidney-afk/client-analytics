@@ -46,5 +46,5 @@
 | 38 | `310-tiktok-pilot-sales.js.part` | 1970 | TIKTOK PILOT MODULE (gated: ?ttpilot=1 → #tiktok-pilot) |
 | 39 | `320-kasper-dashboard-replies.js.part` | 2836 | RELOAD RACE (speed map §7). On a reload the stored staff |
 | 40 | `330-kasper-review-history.js.part` | 2614 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
-| 41 | `340-editors-date-picker.js.part` | 1288 | Editor work model |
+| 41 | `340-editors-date-picker.js.part` | 1302 | Editor work model |
 | 42 | `350-footer.html.part` | 398 | Transcript preview modal |

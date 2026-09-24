@@ -13,7 +13,7 @@
 | 5 | `030-body-shell.html.part` | 445 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 1891 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1622 | Market Research Brief Tab Renderers |
-| 8 | `060-templates-filming.js.part` | 2015 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 8 | `060-templates-filming.js.part` | 2021 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3569 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3369 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
 | 11 | `090-workload-popovers-navigation.js.part` | 1599 | Sub-issue popover |

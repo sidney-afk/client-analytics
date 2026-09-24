@@ -12985,28 +12985,33 @@
         </div>`;
     }
     function _tplBrainKey(name, id) { return name + '::' + (id || '_new'); }
-    function _tplBrainChangeBox(name, fact) {
+    function _tplBrainChangeBox(name, fact, fromBrief) {
         const key = _tplBrainKey(name, fact && fact.id);
+        // A change opened from a brief line shows its form on that line only.
+        if (fact && !fromBrief && _tplBriefFormRow) return `<button type="button" class="tpl-brain-change-btn" data-k="${_tplEscAttr(key)}" onclick="tplBrainOpen(this.dataset.k)">${fact.status === 'written' ? 'Send a change' : 'Write this'}</button>`;
         const st = _tplBrainSent[key];
-        if (st === 'sent') return `<div class="tpl-brain-sent">Change sent. It is being processed into the brain and will show here once it is in. <button type="button" class="tpl-brain-change-btn" onclick="tplBrainAnother('${_tplEscAttr(key)}')">Send another</button></div>`;
+        if (st === 'sent') return `<div class="tpl-brain-sent">Change sent. It is being processed into the brain and will show here once it is in. <button type="button" class="tpl-brain-change-btn" data-k="${_tplEscAttr(key)}" onclick="tplBrainAnother(this.dataset.k)">Send another</button></div>`;
         if (_tplBrainOpenForm !== key) {
             const label = !fact ? 'Add something the brain is missing' : (fact.status === 'written' ? 'Send a change' : 'Write this');
-            return `<button type="button" class="tpl-brain-change-btn" onclick="tplBrainOpen('${_tplEscAttr(key)}')">${label}</button>`;
+            return `<button type="button" class="tpl-brain-change-btn" data-k="${_tplEscAttr(key)}" onclick="tplBrainOpen(this.dataset.k)">${label}</button>`;
         }
         let sender = '';
         try { sender = localStorage.getItem(TPL_BRAIN_NAME_KEY) || ''; } catch (e) {}
         return `<div class="tpl-brain-form" data-brain-key="${_tplEscAttr(key)}">
-            <textarea class="tpl-brain-text" rows="4" oninput="_tplBrainDraft['${_tplEscAttr(key)}']=this.value" placeholder="${fact ? 'What is true now? Write it the way you would tell a teammate.' : 'What should the brain know about this client?'}">${_tplEsc(_tplBrainDraft[key] || '')}</textarea>
+            <textarea class="tpl-brain-text" rows="4" data-k="${_tplEscAttr(key)}" oninput="_tplBrainDraft[this.dataset.k]=this.value" placeholder="${fact ? 'What is true now? Write it the way you would tell a teammate.' : 'What should the brain know about this client?'}">${_tplEsc(_tplBrainDraft[key] || '')}</textarea>
             <div class="tpl-brain-form-row">
                 <input class="tpl-brain-from" type="text" placeholder="Your name" value="${_tplEscAttr(sender)}">
                 <button type="button" class="tpl-brain-cancel" onclick="tplBrainOpen('')">Cancel</button>
-                <button type="button" class="tpl-brain-send" onclick="tplBrainSend('${_tplEscAttr(key)}')">${st === 'sending' ? 'Sending…' : 'Send'}</button>
+                <button type="button" class="tpl-brain-send" data-k="${_tplEscAttr(key)}" onclick="tplBrainSend(this.dataset.k)">${st === 'sending' ? 'Sending…' : 'Send'}</button>
             </div>
             ${st === 'error' ? '<div class="tpl-brain-err">Couldn\'t send. Your text is still here; try again.</div>' : ''}
         </div>`;
     }
-    function tplBrainAnother(key) { delete _tplBrainSent[key]; tplBrainOpen(key); }
-    function tplBrainOpen(key) { _tplBrainOpenForm = key; _maybeRerenderTemplates(); const ta = document.querySelector('.tpl-brain-text'); if (ta) ta.focus(); }
+    function tplBrainAnother(key) { delete _tplBrainSent[key]; tplBrainOpen(key, _tplBriefFormRow); }
+    function tplBrainOpen(key, row) {
+        // Set only when opened from a brief line, so the form shows on that line alone.
+        _tplBriefFormRow = row || '';
+        _tplBrainOpenForm = key; _maybeRerenderTemplates(); const ta = document.querySelector('.tpl-brain-text'); if (ta) ta.focus(); }
     function tplBrainSend(key) {
         const name = _templatesSelected;
         const form = document.querySelector(`.tpl-brain-form[data-brain-key="${CSS.escape(key)}"]`);
@@ -13065,7 +13070,8 @@
     // Each line can show the fact(s) behind it and send a change to them.
     let _tplBriefSourceOpen = '';
     function tplBriefToggleSource(key) { _tplBriefSourceOpen = _tplBriefSourceOpen === key ? '' : key; _maybeRerenderTemplates(); }
-    function tplBriefChange(key) { _tplBriefSourceOpen = ''; tplBrainOpen(key); }
+    let _tplBriefFormRow = '';
+    function tplBriefChange(key, row) { _tplBriefSourceOpen = ''; tplBrainOpen(key, row); }
     function _tplBriefView(name, b) {
         const byId = {};
         b.facts.forEach(f => { byId[f.id] = f; });
@@ -13076,16 +13082,16 @@
                 const fact = byId[bl.facts[0]] || null;
                 const changeKey = _tplBrainKey(name, fact ? fact.id : '');
                 const open = _tplBriefSourceOpen === srcKey;
-                const formOpen = _tplBrainOpenForm === changeKey || _tplBrainSent[changeKey];
+                const formOpen = _tplBriefFormRow === srcKey && (_tplBrainOpenForm === changeKey || _tplBrainSent[changeKey]);
                 const sources = bl.facts.map(id => byId[id]).filter(Boolean);
                 return `<li class="tpl-brief-li">
                     <div class="tpl-brief-row"><span class="tpl-brief-text">${_tplBrainInline(bl.text)}</span>
                         <span class="tpl-brief-acts">
-                            ${sources.length ? `<button type="button" class="tpl-brief-act" onclick="tplBriefToggleSource('${_tplEscAttr(srcKey)}')">${open ? 'Hide source' : 'Source'}</button>` : ''}
-                            ${fact ? `<button type="button" class="tpl-brief-act" onclick="tplBriefChange('${_tplEscAttr(changeKey)}')">Change</button>` : ''}
+                            ${sources.length ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(srcKey)}" onclick="tplBriefToggleSource(this.dataset.k)">${open ? 'Hide source' : 'Source'}</button>` : ''}
+                            ${fact ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(changeKey)}" data-row="${_tplEscAttr(srcKey)}" onclick="tplBriefChange(this.dataset.k, this.dataset.row)">Change</button>` : ''}
                         </span></div>
                     ${open ? `<div class="tpl-brief-sources">${sources.map(f => `<div class="tpl-brief-source"><div class="tpl-brief-source-h">${_tplEsc(f.heading)}</div><div class="tpl-brain-body">${_tplBrainProse(f.body)}</div></div>`).join('')}</div>` : ''}
-                    ${formOpen && fact ? _tplBrainChangeBox(name, fact) : ''}
+                    ${formOpen && fact ? _tplBrainChangeBox(name, fact, true) : ''}
                 </li>`;
             }).join('')}</ul>
         </div>`).join('');

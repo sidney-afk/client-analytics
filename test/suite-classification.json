@@ -571,6 +571,7 @@
     "workload-tweak-exclusive-bucket.js",
     "workload-tweak-feedback-source.js",
     "write-failure-receipt.js",
+    "write-refusal-beacon-card-id.js",
     "write-ui-calendar-sxr-reroute.js",
     "write-ui-failure-messages.js",
     "write-ui-link-slot-seal.js",
@@ -1192,6 +1193,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
       "reproduce": "node test/tiktok-preview-empty-clearance-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
+      "file": "kasper-hiring-reload-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally (key-verify delayed ~1 s like live), no hosted credentials and no live data.",
+      "reproduce": "node test/kasper-hiring-reload-browser.js (after repository Playwright/Chromium setup)",
       "ci": "not_run_by_unit_ci"
     },
     {

@@ -4,6 +4,10 @@
 
 All times are UTC unless noted.
 
+## 2026-09-24 — two imported Linear parent rows archived (owner-approved)
+
+`linear_raw.archived = true` on `b1_d_1e3acd42ec9940988c8ec801a804372a` and `b1_d_54f839e2875a4a369331e399ac9de1a1` (batch `b1_b_5924c395f710cb46e22a9a368541`). Nothing was deleted; the one-line undo is in OPEN_REPAIRS 245.
+
 ## 2026-09-24 — the batch view stopped listing the batch itself as a deliverable (browser only)
 
 `_prodBatchRows` kept the synthetic batch parent (it carries the batch id) and,

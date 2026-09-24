@@ -129,6 +129,40 @@ jobs:
           fi
           exit 0
 
+  module-check:
+    # Phase C step C3 (docs/plans/2026-09-24-modularization-c3-plan.md). Proves
+    # the src/index/ script fragments can be converted to ES modules one at a
+    # time: each parses on its own, the assembled script parses as a module, no
+    # new duplicate top-level name, and no code running at load uses a name a
+    # later fragment declares. A separate job because it needs the acorn
+    # parser and the `unit` job is dependency-free. package.json is
+    # content-pinned (F27 closure, leave-evidence fingerprint), so acorn is
+    # installed into a temp prefix at an exact version and never declared.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # --against reads the base commit's index.html
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install the parser into a temp prefix (package.json untouched)
+        run: npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/c3" acorn@8.15.0
+      - name: Module readiness checks
+        env:
+          NODE_PATH: ${{ runner.temp }}/c3/node_modules
+        run: node scripts/check-modules.js --report
+      # An annotate-only step (imports/exports added, nothing moved) must leave
+      # the served page byte-identical to the base branch. check:index cannot
+      # prove that: it compares the build with the working tree and HEAD, and
+      # the PR commits the regenerated page. Opt in with the label.
+      - name: Served page is byte-identical to the base branch (label annotate-only)
+        if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'annotate-only')
+        env:
+          NODE_PATH: ${{ runner.temp }}/c3/node_modules
+        run: node scripts/check-modules.js --against="origin/${{ github.base_ref }}"
+
   f27-team-rollback-proof:
     if: contains(github.event.head_commit.message || '', 'F27') || github.event_name == 'pull_request'
     runs-on: ubuntu-latest

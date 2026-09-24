@@ -659,10 +659,7 @@
     }
 
     function renderTemplatesIndex() {
-        const banner = (TEMPLATES_GET_URL && TEMPLATES_SAVE_URL) ? '' : `
-            <div class="tpl-config-banner">
-                Templates backend isn't configured yet — set <code>TEMPLATES_GET_URL</code> and <code>TEMPLATES_SAVE_URL</code> in <code>index.html</code>. Until then, edits won't be saved.
-            </div>`;
+        const banner = '';
         const errBanner = (templatesLoadError && templatesLoadError !== 'not-configured') ? `
             <div class="tpl-config-banner">Couldn't load templates: ${_tplEsc(templatesLoadError)}. Try refreshing the page.</div>` : '';
         return `<div class="tpl-index-centered">

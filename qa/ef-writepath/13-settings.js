@@ -2,8 +2,10 @@
 // Drives the "Edit caption prompt" modal (_calOpenCaptionPromptModal → set textarea
 // → #calPromptSaveBtn → _calSaveCaptionPrompt) and asserts the save routes to the
 // caption-prompts-save EF (…/functions/v1/caption-prompts-save), NOT the n8n webhook.
-// The test client's original prompt is recorded and RESTORED. (templates-save routes
-// through the identical _settingsWriteUrlForClient router — unit-proven in Phase 3.)
+// The test client's original prompt is recorded and RESTORED.
+// Then drives a real Templates field edit (Templates tab, edit mode, typed into the
+// data-tpl-field input) and asserts it saves through the templates-save EF with no
+// n8n call, persists in the `templates` table, and restores the original value.
 'use strict';
 const fs = require('fs');
 const L = require('./lib.js');
@@ -11,6 +13,8 @@ const OUT = '/tmp/qa-efwp/results-settings.json';
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const SLUG = 'sidneylaruel';
 const PROMPT_RESTORE_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save';
+const TPL_FIELD = 'reels_preferences';
+const readTplField = () => { const r = L.supaGet('templates', `client_slug=eq.${SLUG}&select=data`); return (Array.isArray(r) && r[0] && r[0].data) ? (r[0].data[TPL_FIELD] == null ? '' : String(r[0].data[TPL_FIELD])) : null; };
 const readPrompt = () => { const r = L.supaGet('caption_prompts', `client_slug=eq.${SLUG}&select=prompt`); return (Array.isArray(r) && r[0]) ? r[0].prompt : null; };
 
 function restorePrompt(prompt) {
@@ -69,6 +73,38 @@ async function run() {
     const restored = readPrompt();
     results.restore = { kinds, backendLen: restored == null ? null : restored.length };
     s.ok((restored || '') === (orig || ''), 'original caption prompt RESTORED', 'len=' + (restored == null ? 'null' : restored.length));
+
+    // ── Templates: real field edit through the Templates UI ──
+    const tplOrig = readTplField();
+    results.tplOrigLen = tplOrig == null ? null : tplOrig.length;
+    async function saveTplField(text) {
+      const t0 = Date.now();
+      await page.evaluate((slug) => {
+        const name = (typeof wlCanonicalClient === 'function' && wlCanonicalClient(slug)) || slug;
+        _templatesSelected = name; _templatesEditMode = true; navTo('templates', false);
+      }, SLUG);
+      await page.waitForSelector(`[data-tpl-field="${TPL_FIELD}"]`, { timeout: 15000 }).catch(() => {});
+      await page.evaluate(({ field, v }) => {
+        const el = document.querySelector(`[data-tpl-field="${field}"]`); if (!el) return;
+        const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+        Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }, { field: TPL_FIELD, v: text });
+      await sleep(4000);
+      return rec.writesSince(t0).map(w => w.kind);
+    }
+    if (tplOrig == null) {
+      s.ok(false, 'test client has a templates row to edit', 'no row');
+    } else {
+      const tplDummy = 'efwp dummy template preference, test only';
+      let tk = await saveTplField(tplDummy);
+      s.ok(tk.includes('settings-ef'), 'Templates edit routed to templates-save EF', JSON.stringify(tk));
+      s.ok(!tk.includes('settings-n8n'), 'NO n8n templates-save', JSON.stringify(tk));
+      s.ok(readTplField() === tplDummy, 'Templates edit persisted in Supabase');
+      tk = await saveTplField(tplOrig);
+      s.ok(readTplField() === tplOrig, 'original Templates value RESTORED');
+    }
 
     const errs = L.appErrs(page);
     s.ok(errs.length === 0, 'zero app JS errors', errs.slice(0, 3).join(' | '));

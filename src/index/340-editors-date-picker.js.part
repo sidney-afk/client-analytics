@@ -1,3 +1,16 @@
+import { wlWorkloadTodayISO } from './070-workload-source.js';
+import { _svSyncDateControl } from './100-onboarding-staff-controls.js';
+import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import {
+  _kasperCloseLightbox, _kasperGotoTab, _kasperMarkRepliesRead, _kasperOpenLightbox,
+  _kasperRepliesDraftInput, _kasperRepliesReply, _kasperRepliesToggleAll, _kasperState
+} from './320-kasper-dashboard-replies.js';
+import {
+  _kasperAddCommentComp, _kasperApproveAfterTweaksComp, _kasperApproveComp, _kasperClose,
+  _kasperDismiss, _kasperHistoryThumbFallback, _kasperLoadEditors, _kasperLoadReview,
+  _kasperOnPanelDraftInput, _kasperRequestTweakComp, _kasperSetEditorsAvg, _kasperToggleCard,
+  _kasperToggleHistory, _kedToggleInfo
+} from './330-kasper-review-history.js';
     function _kedPaint() {
         const data = _kasperState.editorsData;
         const body = document.getElementById('kedBody');
@@ -1286,3 +1299,4 @@
             open(chip);
         }, true);
     })();
+export { _kedPaint };

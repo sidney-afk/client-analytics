@@ -100,7 +100,7 @@ ok(JSON.stringify(parentOrder) === JSON.stringify(EXPECTED),
 // The shared comparator itself is what both callers use.
 ok(/function _prodChildrenOf\(id\) \{\s*return _prodIssues\(\)\.filter\(d => d\.parent === id\)\.sort\(_prodChildOrder\);/.test(source),
   '_prodChildrenOf sorts with the shared _prodChildOrder comparator');
-ok(/function _prodBatchRows\(batchId\) \{\s*return _prodIssues\(\)\.filter\(d => batchId && d\.batchId === batchId\)\.sort\(_prodChildOrder\);/.test(source),
+ok(/function _prodBatchRows\(batchId\) \{[\s\S]*?\.sort\(_prodChildOrder\);\s*\}/.test(source),
   '_prodBatchRows sorts with the same shared _prodChildOrder comparator');
 
 // --- asset-source choice stays decoupled from display order ---------------

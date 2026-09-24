@@ -8368,3 +8368,34 @@ Nobody logged these two installs at the time they happened. This entry records w
 - **Migration** `migrations/2026-09-24-refusal-receipt-browser-codes.sql`, applied by the session named Lighthouse. `supabase_migrations.schema_migrations` records it as version `20260924171734`, name `refusal_receipt_browser_codes`. A read-only check afterwards counted 218 codes in the live `receipts_v1_code_check`, which is exactly the gateway + browser list in `_shared/write-refusal-codes.mjs`. No grant or revoke: only the check constraint changed.
 - **Edge Function** `write-diagnostics`, deployed by the owner from `3469b785622519d63a70b2e98e6d4d64a2515dc3`. Attestation PASS. The run id and version were not recorded in this session.
 - **Not deployed:** `production-write` shares the changed module and picks it up the next time it is released (its re-pinned source closure is in `deploy-f27-section4-closures.yml`); nothing in this entry deployed it.
+
+## 2026-09-24 — n8n: seven dead workflows archived (OPEN_REPAIRS 252, session Pruner)
+
+Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived, not deleted, via the n8n connector around 23:00Z. Each had no call in `main`'s `index.html` and no run in n8n's kept history (~5 days).
+
+| Workflow | ID | Was active |
+|---|---|---|
+| SyncView TikTok Pilot — Status Cron | `LR6R1mV4NaLNLlLG` | no |
+| SyncView TikTok Pilot — Submit | `u9VtMGDArppPniYC` | yes |
+| SyncView TikTok Pilot — Creator Info | `ORcudnHjQGUt17Rq` | yes |
+| SyncView TikTok Pilot — Auth Callback | `jhBWizKWtirUjfEe` | yes |
+| SyncView Samples — Upsert | `23jv00ihCX75TjaB` | yes |
+| SyncView Samples — Reorder | `3WDxAYW23RBJTuFW` | yes |
+| COMPETITOR RESEARCH | `0KMfHmYqVdlr5EhG` | yes |
+
+- **Rule deviation:** no pre-edit JSON export was taken (ROLLBACK.md rule 2 / 4(b)). The connector cannot read archived workflows, so one can no longer be taken from here.
+- **Rollback:** in n8n, Archived view, then Unarchive and re-activate the ones marked "yes". n8n keeps each workflow's version history through archive.
+- **Permanent deletion is blocked** until each is unarchived, exported privately to the SyncView Backups Drive folder, and given a public-safe stub in `n8n-backups/`.
+
+## 2026-09-24 — n8n: remaining five dead workflows archived (OPEN_REPAIRS 252, session Pruner, approved by owner via Lighthouse)
+
+| Workflow | ID | Was active |
+|---|---|---|
+| SyncView TikTok Pilot — Accounts List | `76Y1a5eN6wHCW7iN` | yes |
+| SyncView TikTok Pilot — List | `biL6G1HbSCtePeJs` | yes |
+| SyncView TikTok Pilot — Auth Init | `8dYHvU6RaoLts4GU` | yes |
+| SyncView TikTok Pilot — Token Refresh | `4quw8c3zwhJFwJWZ` | yes |
+| SyncView Samples — Get | `HyrucW0X8ckJogip` | yes |
+
+- Same deviation and rollback as the entry above: no pre-edit export; Unarchive restores; permanent deletion is blocked until exported.
+- **Database, by Lighthouse:** `content_samples` anon read policy dropped. Rights revoked from public, anon and authenticated. `service_role` keeps read. The three TikTok tables were verified already locked. No table was dropped.

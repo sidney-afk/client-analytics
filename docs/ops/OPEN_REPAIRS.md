@@ -28843,3 +28843,7 @@ Lighthouse applied `migrations/2026-09-24-refusal-receipt-browser-codes.sql` (li
 **Undo:** `migrations/2026-09-24-retirement-assert-repin.ROLLBACK.sql` (exact live definition, prosrc md5 `c28cb097…`). The migration also runs the new assert before `commit`, so any drift since the read rolls it back.
 
 **Apply:** owner applies; then `select public.production_retirement_contract_assert_v1();` must return without raising. Until then, the post-apply check in 248 raises for this reason.
+
+## 250. [2026-09-24, FIXED] Templates read a Google Sheet under Supabase, and the two copies drifted
+
+The Templates page loaded the n8n `templates-get` sheet as a base and laid Supabase rows over it, so the sheet and the `templates` table held different contents (the drift the brain's rule 2 names). Measured before retiring: every client was already on `settings_ef_clients`; 4 clients matched, 8 existed only in Supabase, 1 real client differed with Supabase holding the newer value, and one active client slug existed only in the sheet. That one row was copied into `templates` (insert only, nothing overwritten). The page now reads `templates` only and always saves through the `templates-save` Edge Function. The two n8n sheet workflows are archived once this is live.

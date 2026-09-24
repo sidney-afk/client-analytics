@@ -1245,15 +1245,11 @@
     function goHome(){navTo('home');}
 
     /* ── Templates View ──────────────────────────────────────────────────
-       Shared client-template store backed by two n8n webhooks:
-         GET  templates-get   → returns { ok: true, templates: { [clientName]: { ...fields } } }
-         POST templates-save  → body { clientName, patch }, upserts row in the
-                                Templates sheet, returns { ok: true, template: {...} }
-       The n8n workflows live in the Synchro Social n8n instance and read/write
-       a "Templates" tab in the existing SyncView Google Sheet.
+       Shared client-template store: the Supabase `templates` table, read over
+       REST and written through the templates-save Edge Function. The Google
+       Sheet and its two n8n webhooks were retired 2026-09-24 after every row
+       was confirmed present in Supabase; nothing here reads the sheet now.
     */
-    const TEMPLATES_GET_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/templates-get';
-    const TEMPLATES_SAVE_URL = 'https://synchrosocial.app.n8n.cloud/webhook/templates-save';
     const TEMPLATES_SAVE_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/templates-save';
 
     const TEMPLATE_FIELDS = [
@@ -1290,21 +1286,13 @@
             const data = row && row.data && typeof row.data === 'object' ? row.data : {};
             const name = String(data.client_name || row.client_slug || '').trim();
             if (!name) return;
-            if (!_settingsUseEf(row.client_slug || name)) return;
             out[name] = Object.assign({}, data, { updated_at: row.updated_at || data.updated_at || '' });
         });
         return out;
     }
-    async function _tplLoadFromN8n() {
-        const resp = await fetch(TEMPLATES_GET_URL + '?_t=' + Date.now(), { method: 'GET' });
-        const json = await resp.json();
-        if (!json.ok) throw new Error(json.error || 'Unknown error');
-        return json.templates || {};
-    }
 
     async function _tplSubscribeSupabase() {
         if (_tplRealtimeChannel) return;
-        if (!_settingsEfClients.size) return;
         const client = await _calRuntimeFlagClient();
         if (!client || _tplRealtimeChannel) return;
         try {
@@ -1315,7 +1303,6 @@
                     const data = row && row.data && typeof row.data === 'object' ? row.data : null;
                     const name = data ? String(data.client_name || row.client_slug || '').trim() : '';
                     if (!name) return;
-                    if (!_settingsUseEf(row.client_slug || name)) return;
                     templatesData[name] = Object.assign({}, templatesData[name] || {}, data, { updated_at: row.updated_at || data.updated_at || '' });
                     _maybeRerenderTemplates();
                 })
@@ -1326,14 +1313,11 @@
         }
     }
 
-    /* SAVED COPY + PARALLEL LOAD. The n8n base (templates-get) routinely takes
-       ~3 s and used to gate the Supabase read behind it. Both now start at once;
-       a Supabase-routed client paints the moment its row lands, and a staff
-       browser paints its last good copy first and refreshes behind. The copy is
+    /* SAVED COPY. A staff browser paints its last good copy first and
+       refreshes behind once the Supabase rows land. The copy is
        ~12 KB, so localStorage; client links never read or write it. */
     const TPL_SAVED_KEY = 'syncview_templatesCache_v1';
     const TPL_SAVED_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-    let _tplSupaLoaded = false;
     function _tplSavedAllowed() { return !(typeof _isClientLink !== 'undefined' && _isClientLink); }
     function _tplSavedRead() {
         try {
@@ -1361,39 +1345,19 @@
         return next;
     }
     function _tplClientReady(name) {
-        return templatesLoaded || (_tplSupaLoaded && _settingsUseEf(name));
+        return templatesLoaded;
     }
     async function loadTemplates() {
-        if (!TEMPLATES_GET_URL) { templatesLoadError = 'not-configured'; _maybeRerenderTemplates(); return; }
         const saved = templatesLoaded ? null : _tplSavedRead();
         if (saved) { templatesData = saved; templatesLoaded = true; templatesLoadError = null; _maybeRerenderTemplates(); }
-        let baseTemplates = null, supaTemplates = null;
-        const merge = () => Object.assign({}, baseTemplates || {}, supaTemplates || {});
-        const baseP = _tplLoadFromN8n().then(t => { baseTemplates = t; return t; });
-        const supaP = (async () => {
-            try {
-                await _settingsPrimeRoutingFlag();
-                if (!_settingsEfClients.size) return;
-                supaTemplates = await _tplLoadFromSupabase();
-                _tplSupaLoaded = true;
-                _tplSubscribeSupabase();
-                // Paint Supabase-routed clients now; with a saved copy, overlay
-                // the live rows on it until the base lands.
-                templatesData = _tplKeepLocalEdits(Object.assign({}, baseTemplates || (saved || {}), supaTemplates));
-                _maybeRerenderTemplates();
-            } catch (supaError) {
-                console.warn('[SyncView] Supabase templates overlay failed; using n8n base:', supaError);
-            }
-        })();
         try {
-            await baseP;
-            await supaP;
-            _tplSavedWrite(merge());
-            templatesData = _tplKeepLocalEdits(merge());
+            const live = await _tplLoadFromSupabase();
+            _tplSubscribeSupabase();
+            _tplSavedWrite(live);
+            templatesData = _tplKeepLocalEdits(live);
             templatesLoaded = true;
             templatesLoadError = null;
         } catch (e) {
-            await supaP;
             console.warn('[SyncView] loadTemplates failed:', e);
             templatesLoadError = e.message || String(e);
         }
@@ -1426,7 +1390,6 @@
     }
 
     async function _tplFlush(name) {
-        if (!TEMPLATES_SAVE_URL) { if (_tplDirty[name] && Object.keys(_tplDirty[name]).length) _setTplStatus('error','Endpoint not configured'); return; }
         // Serialize per client. A second flush firing while one is in flight
         // used to abort the first request, but the first had already cleared
         // _tplDirty — so its fields were dropped (the AbortError branch never
@@ -1441,7 +1404,7 @@
         _setTplStatus('saving');
         let ok = false;
         try {
-            const writeUrl = _settingsWriteUrlForClient(name, TEMPLATES_SAVE_EF_URL, TEMPLATES_SAVE_URL);
+            const writeUrl = TEMPLATES_SAVE_EF_URL;
             const resp = await fetch(writeUrl, {
                 method: 'POST',
                 headers: _settingsWriteHeaders('templates', writeUrl),

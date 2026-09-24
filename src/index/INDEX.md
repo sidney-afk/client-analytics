@@ -12,8 +12,8 @@
 | 4 | `020-styles-surfaces.css.part` | 3988 | Templates view |
 | 5 | `030-body-shell.html.part` | 445 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 2642 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
-| 7 | `050-market-briefs.js.part` | 1667 | Market Research Brief Tab Renderers |
-| 8 | `060-templates-filming.js.part` | 1846 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 7 | `050-market-briefs.js.part` | 1630 | Market Research Brief Tab Renderers |
+| 8 | `060-templates-filming.js.part` | 1843 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3569 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3369 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
 | 11 | `090-workload-popovers-navigation.js.part` | 2570 | Sub-issue popover |
@@ -46,5 +46,5 @@
 | 38 | `310-sales-intake-hiring.js.part` | 1151 | KASPER REVIEW TAB |
 | 39 | `320-kasper-dashboard-replies.js.part` | 2836 | RELOAD RACE (speed map §7). On a reload the stored staff |
 | 40 | `330-kasper-review-history.js.part` | 2614 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
-| 41 | `340-editors-date-picker.js.part` | 1288 | Editor work model |
+| 41 | `340-editors-date-picker.js.part` | 1302 | Editor work model |
 | 42 | `350-footer.html.part` | 398 | Transcript preview modal |

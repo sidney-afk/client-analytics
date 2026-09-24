@@ -1197,31 +1197,32 @@ n8n in the metric read path.*
 
 ### 4.11 Templates + Caption prompts
 
-*The v1 "caption-prompts read path" item. Answer for BOTH templates and prompts: n8n is the live
-mandatory base; the Supabase REST read is a flag-gated OVERLAY, not a fallback.*
+*The v1 "caption-prompts read path" item. Caption prompts: n8n is the live mandatory base; the
+Supabase REST read is a flag-gated OVERLAY, not a fallback. Templates: Supabase only since
+2026-09-24 (the n8n sheet lane is retired; `settings_ef_clients` no longer affects Templates).*
 
 - **Entry.** Staff-only tab `#templates[/<client>]`; the caption-prompts half is entered from the
   Calendar (prompts load on every calendar mount; the edit modal opens from the card kebab).
-- **Reads.** Templates: n8n `templates-get` (mandatory base, every load incl. client links) then, for
-  `settings_ef_clients`-flagged slugs only, a `templates` REST overlay merged on top + realtime
-  `syncview-templates`. Prompts: n8n `caption-prompts-get` base + flag-gated `caption_prompts` REST
+- **Reads.** Templates: `templates` REST only (every client, no flag gate) + realtime
+  `syncview-templates`. The n8n `templates-get` sheet base was retired 2026-09-24 once every row
+  was confirmed in Supabase. Prompts: n8n `caption-prompts-get` base + flag-gated `caption_prompts` REST
   overlay (no realtime channel for prompts). Runtime-flag read (settings key). Shared: filming-plans
   store, onboarding slug-index EFs (gate the profile's Onboarding button).
-- **Writes.** `templates-save` and `caption-prompts-save` — EF iff the slug is in
-  `settings_ef_clients`, else the n8n twin. Debounced autosave; **writes always claim role `smm`**
+- **Writes.** Templates: always the `templates-save` EF (n8n twin retired 2026-09-24).
+  `caption-prompts-save` — EF iff the slug is in `settings_ef_clients`, else the n8n twin. Debounced autosave; **writes always claim role `smm`**
   even in Kasper mode, and never attach a client token.
 - **State.** `syncview_tpl_pinned_clients`, `syncview_tpl_recent_searches`, in-memory
   `templatesData` + prompt cache + `_settingsEfClients`. History-state carries the client + Reels/
-  Thumbnails tab. Kill switch: `settings_ef_clients` (gates both writes, both overlays, and the
-  templates realtime).
+  Thumbnails tab. Kill switch: `settings_ef_clients` gates caption prompts only. Templates has
+  **no flag kill switch and no n8n fallback**; containment is reverting the Templates change.
 - **Roles.** Main-team-only by chrome (nav hidden for client/intake/onboarding); Kasper is the same
   staff session. Prompt *read* fires for all roles incl. client links; the edit modal is SMM-only.
-- **Failure/fallback.** n8n base fail → whole load fails, overlay never attempted, error banner, **no
-  retry until a full refresh** (no localStorage persistence, unlike calendar). Overlay/flag/realtime
-  failures → silent, keep n8n base. Save fail → persistent "Save failed" indicator, re-sends only on
+- **Failure/fallback.** Templates: `templates` REST fail → last saved browser copy if any, else error
+  banner; no n8n fallback. Prompts: n8n base fail → whole load fails, overlay never attempted, error
+  banner, no retry until a full refresh. Prompt overlay/flag failures → silent, keep n8n base. Save fail → persistent "Save failed" indicator, re-sends only on
   next edit. Prompt use sites fall back to the default prompt string.
-- **Notable / corrections.** Neither direction is "REST live, n8n fallback" — overlay-over-base both
-  ways. `settings_ef_clients` gates exactly templates + caption-prompts (not credentials). Multi-link
+- **Notable / corrections.** Prompts are overlay-over-base, not "REST live, n8n fallback".
+  `settings_ef_clients` gates exactly caption-prompts now (not templates, not credentials). Multi-link
   fields persist a JSON sibling column plus a mirrored legacy single column (2–3 patches per edit).
   The templates/settings realtime channels are deliberately never torn down.
 - **Track B.** Low. All active clients on the A4 EFs. Only Track-B touch: §6 role-key enforcement on
@@ -1578,7 +1579,7 @@ enforcement, a global return to permissive is a security incident—not routine 
 - **Workload feeder** → §4.8: `workload_issues` REST (default) with n8n `linear-issues` fallback; the
   realtime channel is dormant.
 - **caption-prompts read path** → §4.11: n8n `caption-prompts-get` base + flag-gated `caption_prompts`
-  REST **overlay** (not a fallback); same shape for templates.
+  REST **overlay** (not a fallback). Templates is Supabase-only since 2026-09-24.
 - **Per-surface state / logic depth** → §4 (every surface's localStorage keys, kill switches, caches,
   URL params, roles, failure paths).
 - **The mechanical sync test** → §7 + §8 (`test/system-map-sync.js`, wired into `npm test`).
@@ -1597,7 +1598,7 @@ so it runs on every push) re-derives every list below from `index.html` and fail
 they drift — in either direction, including the counts. When it fails: update the owning surface's
 section in §4 **and** the list here, in the same change that touched `index.html`.
 
-- **n8n webhooks (41):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `kasper-queue` · `linear-issues` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-kasper-slack` · `templates-get` · `templates-save` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-direct` · `tiktok-upload-status` · `tiktok-upload-url` · `tiktok-uploads-list` · `weekly-slack-top-reel`
+- **n8n webhooks (39):** `add-hook-to-library` · `ai-onboarding-submit` · `calendar-append-post` · `calendar-delete-post` · `calendar-get` · `calendar-reorder` · `calendar-reorder-batch` · `calendar-upsert-post` · `caption-job-status` · `caption-job-update` · `caption-prompts-get` · `caption-prompts-save` · `filming-plan-tabs` · `generate-brief` · `generate-caption` · `generate-content-summary` · `generate-general-brief` · `generate-market-brief` · `generate-tab-summary` · `kasper-queue` · `linear-issues` · `log-linear-submission` · `onboarding-fallback` · `onboarding-submit` · `sales-intake-submit` · `sample-review-get` · `sample-review-reorder` · `sample-review-upsert` · `samples-get` · `samples-reorder` · `samples-upsert` · `send-urgent-kasper-slack` · `tiktok-upload` · `tiktok-upload-cancel` · `tiktok-upload-direct` · `tiktok-upload-status` · `tiktok-upload-url` · `tiktok-uploads-list` · `weekly-slack-top-reel`
 - **Edge functions (30):** `ai-onboarding-list` · `calendar-reorder` · `calendar-upsert` · `caption-prompts-save` · `client-credentials` · `client-review-link` · `client-token-verify` · `description-image-upload` · `filming-plans` · `hiring-applications` · `kasper-ad-performance-read` · `key-verify` · `legacy-onboarding-list` · `onboarding-capture` · `onboarding-full` · `onboarding-list` · `production-archive` · `production-comments` · `production-write` · `pto` · `quiz-leads-list` · `sample-review-reorder` · `sample-review-upsert` · `smm-weekly-reports` · `templates-save` · `thumbnail-folder-resolve` · `thumbnail-revision-read` · `workload-linear` · `workload-plan` · `write-diagnostics`
 - **Not counted above:** 26 of the 30 are referenced literally as `functions/v1/<name>`; 4 are composed onto the onboarding edge base constant. `description-image-upload` (2026-09-05) is app-called candidate source with a path-triggered deploy lane (`.github/workflows/deploy-description-image-upload.yml`) and is not live until that lane's first run on `main` plus the owner-applied `migrations/2026-09-05-description-images.sql`. Seven more are represented in `supabase/functions/` but are never called by the current app: `linear-inbound`, `linear-outbound`, `deliverable-write`, `batch-write`, `thumbnail-revision-scan`, `quiz-capture` (called from the separate `synchrosocial` repo's `/quiz` page, not from this app), and the private n8n bridge `hiring-automation`. `workload-plan` is app-called and live; `production-archive` is app-called and live since its 2026-07-24 exact-SHA deploy (`1738ad3`, run `30129490033`); `workload-linear` is app-called candidate source but is not live until its exact-SHA owner-gated deploy. `kasper-ad-performance-read` is app-called candidate source, deliberate-manual (no CI deploy path, matching `workload-plan`'s first-release precedent) and not yet live. `quiz-leads-list` is app-called candidate source, admin-gated, and not yet live — depends on `migrations/2026-08-24-quiz-responses.sql` being applied first. `hiring-applications` is app-called, admin-only, and deployed with its separate invitation flag false; the deployed `hiring-automation` bridge now captures the dedicated application, alerts Kasper, and records the dedicated interview booking without running sales nodes. Candidate email remains disabled until the flag is deliberately enabled and the inactive dispatcher is run. `write-diagnostics` (2026-09-22, OPEN_REPAIRS 101/240) is app-called candidate source: the Calendar/Samples write path posts a fire-and-forget refusal claim to it when a write is refused in the browser. It is deliberate-manual (no CI deploy path, matching `workload-plan`'s first-release precedent), was deployed 2026-09-23 from `344006c511dcd03d668ee8bafec11e6f7c9218d6` with `WRITE_DIAGNOSTICS_ENABLED=true`, and its SQL owner `supabase/migrations/20260913044451_write_refusal_diagnostics_preparation.sql` is on the live project. Live.
 - **Supabase REST tables, literal (12):** `calendar_posts` · `caption_prompts` · `clients` · `content_samples` · `deliverables` · `production_deliverables_browser_v1` · `rename_propagation_status_v1` · `rpc` · `syncview_runtime_flags` · `team_members` · `templates` · `workload_issues` (rpc is the PostgREST function prefix, used only by the rename propagation poke and retry calls; see 4.2)

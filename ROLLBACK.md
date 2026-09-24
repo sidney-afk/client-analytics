@@ -1386,3 +1386,11 @@ contexts that name it; no database, flag, Edge Function, n8n workflow or live
 data action is involved. GitHub Pages redeploys the rebuilt page on merge.
 Reverting restores the 8 s budget and, with it, the empty-board outage on any
 connection where the 2 MB snapshot takes longer than that to arrive.
+
+## 2026-09-24 — inverse for hiding the batch itself from the batch view (browser only)
+
+Revert this change's commit, or restore `_prodBatchRows` to
+`_prodIssues().filter(d => batchId && d.batchId === batchId).sort(_prodChildOrder)`.
+The synthetic batch parent and any imported Linear parent filed beside its own
+children then list again as a first "deliverable" row. No database, flag, Edge
+Function or n8n state is involved; GitHub Pages redeploys on push.

@@ -28856,7 +28856,7 @@ The Templates page now shows each client's brain facts through one generic card 
 
 Follow-up to `docs/audits/2026-09-24-feature-usage.md` and the owner's decisions. Each piece was checked twice first: no call in `main`'s `index.html`, and no n8n run in the history n8n still keeps (about 5 days).
 
-**Archived in n8n (7).** The n8n connector has no delete action, so these are archived. Archived workflows stop running and can be deleted for good from the n8n Archived view.
+**Archived in n8n (7).** The n8n connector has no delete action, so these are archived. Archived workflows stop running. **Do not delete them for good yet.** ROLLBACK.md rule 2 requires a private JSON export before touching any workflow, and none was taken: the session archived first, and the connector cannot read an archived workflow. Recovery for now: n8n Archived view, then Unarchive, which restores the workflow with its version history. Before any permanent delete: unarchive, export the JSON to the private SyncView Backups Drive folder, archive again, then commit a public-safe stub to `n8n-backups/`. Receipt: `EXECUTION_LOG.md` 2026-09-24.
 - TikTok Pilot: Status Cron, Submit, Creator Info, Auth Callback (4)
 - Samples: Upsert, Reorder (2)
 - COMPETITOR RESEARCH (1, archive only, as asked). MARKET RESEARCH stays on.
@@ -28869,4 +28869,4 @@ Follow-up to `docs/audits/2026-09-24-feature-usage.md` and the owner's decisions
 
 **Not found in n8n (2).** No separate `ttp-status` or `ttp-status-cron` beyond "Status Cron" above. The pilot had 8 workflows, not 9.
 
-**Tables.** `migrations/2026-09-24-retire-tiktok-pilot-and-content-samples.sql` is NOT APPLIED. It copies the four tables into `retired_20260924` (revoked from public, anon, authenticated and service_role), checks row counts, then drops the originals. Its header lists four things to fix first: the retirement assert names these tables, `content_samples` is in the pinned Linear-exit recovery allowlist, Token Refresh still writes `tiktok_accounts`, and the Weekly Backup dumps `content_samples`. Lighthouse reviews and applies it.
+**Tables.** `migrations/2026-09-24-retire-tiktok-pilot-and-content-samples.sql` is NOT APPLIED. After review it MOVES the four tables into `retired_20260924` (revoked from public, anon, authenticated and service_role), keeping keys, defaults, checks, indexes and triggers. The `.ROLLBACK.sql` beside it is the exact inverse. It aborts unless the retirement assert no longer names the tables, and unless the applier affirms the external receipts. Those receipts cover: the retirement assert names these tables, `content_samples` is in the pinned Linear-exit recovery allowlist, Token Refresh still writes `tiktok_accounts`, and the Weekly Backup dumps `content_samples`. Lighthouse reviews and applies it.

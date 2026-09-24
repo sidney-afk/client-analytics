@@ -504,6 +504,7 @@
     "smm-review-stranded-media.js",
     "smm-weekly-auth.js",
     "smm-weekly-routing-source.js",
+    "smm-weekly-saved-copy-source.js",
     "source-text-encoding.js",
     "staff-sensitive-surface-auth.js",
     "status-palette-toggle.js",

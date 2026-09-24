@@ -2296,7 +2296,7 @@
        Keyed on the ROUTE, never on the visible label -- the label/route split
        is deliberate here ('SyncLinear' is route `production`; 'Submit' is route
        `linear`) and AGENTS.md forbids deriving routing from what a tab says.
-       A route with no owner-designed icon (kasper, tiktok-pilot, time-off, and
+       A route with no owner-designed icon (kasper, time-off, and
        every client-owned screen) falls back to the SyncView mark, so the tab
        icon is never left showing art from the previous section.
 
@@ -2397,8 +2397,6 @@
         if (navTk) navTk.classList.toggle('active', page === 'tiktok-upload');
         const navKp = document.getElementById('navKasper');
         if (navKp) navKp.classList.toggle('active', page === 'kasper');
-        const navTtp = document.getElementById('navTiktokPilot');
-        if (navTtp) navTtp.classList.toggle('active', page === 'tiktok-pilot');
         const navSxr = document.getElementById('navSxr'); if (navSxr) navSxr.classList.toggle('active', page === 'sample-reviews'); // SXR_LINE
         const navTimeOff = document.getElementById('navTimeOff'); if (navTimeOff) navTimeOff.classList.toggle('active', page === 'time-off'); // menu-only route; intentionally no visible nav button
         _syncviewApplyTabFavicon(page);
@@ -2422,8 +2420,6 @@
         // Tear down the TikTok-upload polling timer whenever we leave the page so
         // it doesn't keep hitting the queue webhook in the background.
         if (page !== 'tiktok-upload' && typeof _tkTeardown === 'function') _tkTeardown();
-        // Same teardown for the gated first-party TikTok Pilot tab's poller.
-        if (page !== 'tiktok-pilot' && typeof _ttpTeardown === 'function') _ttpTeardown();
         // Same for Kasper review's 30 s background poller + visibility listeners.
         if (page !== 'kasper' && typeof _kasperTeardown === 'function') _kasperTeardown();
         // Phase 2: drop the calendar's Supabase realtime subscription when
@@ -2545,11 +2541,6 @@
             pageTop.style.display = 'none';
             content.innerHTML = renderTiktokUploadView();
             mountTiktokUploadView();
-            window.scrollTo({ top: 0, behavior: 'instant' });
-        } else if (page === 'tiktok-pilot') {
-            pageTop.style.display = 'none';
-            content.innerHTML = renderTiktokPilotView();
-            mountTiktokPilotView();
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'smm-weekly-report') {
             pageTop.style.display = 'none';

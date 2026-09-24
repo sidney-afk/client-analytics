@@ -35,7 +35,7 @@
 280-samples-cards-notes.js.part
 290-samples-writes-review.js.part
 300-tiktok-upload.js.part
-310-tiktok-pilot-sales.js.part
+310-sales-intake-hiring.js.part
 320-kasper-dashboard-replies.js.part
 330-kasper-review-history.js.part
 340-editors-date-picker.js.part

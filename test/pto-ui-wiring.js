@@ -14,27 +14,15 @@ function ok(condition, message) {
   else { failures++; console.error('FAIL  ' + message); }
 }
 
+// Delegates to the shared lexer-aware extractor (test/helpers/extract-function.js).
+// The hand-rolled brace counter this replaced treated an apostrophe inside a
+// // comment as an open string: it over-read navTo by ~28k characters for as
+// long as navTo's comments held an even number of apostrophes, then cut it
+// short (before the Time Off branch) once the TikTok Pilot comment went on
+// 2026-09-24. Same assertions, now over the function they name.
+const { extractFunction } = require('./helpers/extract-function');
 function functionSource(name) {
-  const match = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`).exec(source);
-  if (!match) throw new Error(`missing function ${name}`);
-  const start = match.index;
-  const open = source.indexOf('{', start);
-  let depth = 0;
-  let quote = '';
-  let escaped = false;
-  for (let i = open; i < source.length; i++) {
-    const ch = source[i];
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (ch === '\\') escaped = true;
-      else if (ch === quote) quote = '';
-      continue;
-    }
-    if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
-    if (ch === '{') depth++;
-    else if (ch === '}' && --depth === 0) return source.slice(start, i + 1);
-  }
-  throw new Error(`unterminated function ${name}`);
+  return extractFunction(source, name);
 }
 
 const nav = functionSource('navTo');

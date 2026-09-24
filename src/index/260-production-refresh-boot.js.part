@@ -1480,16 +1480,9 @@
             const _kasperSessionUnlocked = (() => { try { return sessionStorage.getItem(KASPER_UNLOCK_KEY) === 'ok'; } catch (e) { return false; } })();
             const _kasperHashLanding = (hashRaw === 'kasper' || hashRaw.startsWith('kasper/'))
                 && (_kasperSessionUnlocked || qp.get('Kasper') === '1');
-            // Same fast-mount treatment for the gated TikTok Pilot tab — it has
-            // no analytics dependency (it talks to its own ttp-* webhooks), so a
-            // refresh straight onto #tiktok-pilot (when unlocked for this session)
-            // should mount immediately instead of flashing the analytics tab.
-            const _ttpSessionUnlocked = (() => { try { return sessionStorage.getItem(TTP_UNLOCK_KEY) === 'ok'; } catch (e) { return false; } })();
-            const _ttpHashLanding = (hashRaw === 'tiktok-pilot')
-                && (_ttpSessionUnlocked || qp.get('ttpilot') === '1');
             // ?c=<client> needs allData to validate the token + render — never
             // a fast-tab refresh. history.state.client also needs allData.
-            const skipAwait = !qp.get('c') && !stateClient && (hashIsFastTab || fallbackFast || _kasperHashLanding || _ttpHashLanding);
+            const skipAwait = !qp.get('c') && !stateClient && (hashIsFastTab || fallbackFast || _kasperHashLanding);
             // Client share link landing on the calendar tab: we only need
             // essentials (metrics for clientHistory, clients for roster resolution)
             // to mount; the analytics-heavy extras stream in afterwards so
@@ -1592,20 +1585,6 @@
                 }
             }catch(e){}
 
-            // TikTok Pilot unlock — same hidden-tab pattern as Kasper. The gated
-            // first-party Direct-Post flow lives behind ?ttpilot=1 so the
-            // production Post-For-Me Upload tab stays the only visible TikTok tab
-            // until the new app passes TikTok's audit. ?ttpilot=1 sets a per-tab
-            // sessionStorage flag and reveals the nav button on every init path.
-            try{
-                if(qp.get('ttpilot')==='1') sessionStorage.setItem(TTP_UNLOCK_KEY,'ok');
-                if(sessionStorage.getItem(TTP_UNLOCK_KEY)==='ok'){
-                    _ttpUnlocked=true;
-                    const navTtp=document.getElementById('navTiktokPilot');
-                    if(navTtp) navTtp.style.display='';
-                    _navPillSync(false);   // a revealed tab reflows the strip
-                }
-            }catch(e){}
             // Calendar can mount immediately on the fast path, before the
             // Clients Info roster has populated its saved client. Reconcile as
             // soon as essentials land; analytics extras must never hold the
@@ -1709,8 +1688,6 @@
                         if (KASPER_SUBTABS.some(t => t.key === sub)) _kasperState.tab = sub;
                     }
                     navTo('kasper', false);
-                } else if (hashRaw === 'tiktok-pilot' && _ttpUnlocked) {
-                    navTo('tiktok-pilot', false);
                 } else if (hashRaw === 'time-off') {
                     navTo('time-off', false);
                 } else if (hashIsFastTab) {
@@ -1823,7 +1800,6 @@
             if(hash==='filming-plans'){navTo(hash,false);return;}
             if(hash==='tiktok-upload'){navTo(hash,false);return;}
             if(hash==='time-off'){navTo('time-off',false);return;}
-            if(hash==='tiktok-pilot' && _ttpUnlocked){navTo('tiktok-pilot',false);return;}
             if(hashRoute==='smm-weekly-report'){navTo('smm-weekly-report',false);return;}
             if(hashRoute==='smm-weekly-reports'){navTo('smm-weekly-reports',false);return;}
             if(hash==='kasper' && _kasperUnlocked){navTo('kasper',false);return;}
@@ -1856,7 +1832,7 @@
             if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(wlIsAllowedClient(tn)){_templatesSelected=wlCanonicalClient(tn);navTo('templates',false);return;}}
             if(hash&&wlIsAllowedClient(hash)){render(wlCanonicalClient(hash),false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
-            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||savedNav==='time-off'||(savedNav==='kasper'&&_kasperUnlocked)||(savedNav==='tiktok-pilot'&&_ttpUnlocked))){navTo(savedNav,false);return;}
+            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||savedNav==='time-off'||(savedNav==='kasper'&&_kasperUnlocked))){navTo(savedNav,false);return;}
             navTo('home',false);
         }catch(err){
             if(_isClientLink){

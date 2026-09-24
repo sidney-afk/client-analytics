@@ -60,15 +60,18 @@ for (const [src, what] of ACCEPT) {
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const naive = INDEX.replace(/\/\*[\s\S]*?\*\//g, ' ');
 const guarded = stripBlockComments(INDEX, ' ');
-/* The swallowed regions are the two upload flows in full: 24 functions,
-   _tkWireFormEvents through _ttpRenderQueue. Name two, so a reader can see what
-   was invisible rather than take a character count on trust. */
-for (const fn of ['_tkSubmit', '_ttpPollStatus']) {
+/* The swallowed region was the two upload flows in full: 24 functions,
+   _tkWireFormEvents through _ttpRenderQueue. The TikTok pilot was removed on
+   2026-09-24 (the app was rejected), so it is now the TikTok upload flow alone:
+   22 functions, _tkWireFormEvents through _tkMergeUploads, measured at 49,038
+   characters. Name two, so a reader can see what was invisible rather than take
+   a character count on trust. */
+for (const fn of ['_tkSubmit', '_tkMergeUploads']) {
   ok(!naive.includes('function ' + fn), 'the old regex really did delete ' + fn
     + ' — this gate is measuring something, not asserting a tautology');
   ok(guarded.includes('function ' + fn), 'and the helper keeps ' + fn);
 }
-ok(guarded.length - naive.length > 50000,
+ok(guarded.length - naive.length > 45000,
   'the recovered region is the size the ledger records: ' + (guarded.length - naive.length) + ' characters');
 
 // ---- 4. Nobody reintroduces the raw regex ------------------------------

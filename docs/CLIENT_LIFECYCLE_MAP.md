@@ -527,7 +527,8 @@ The recurring engine once a client is live:
    accepts first-page-only children/comments as complete, can omit later work/links, writes the
    legacy client-facing Sheet, and acknowledges without completeness. Identify and retire its
    caller or rebuild it as a fully paged durable job. TikTok can auto-post via Post
-   For Me or the first-party TikTok pilot. **Content-ready notify** emails
+   For Me. (The first-party TikTok pilot was removed from SyncView on 2026-09-24 after TikTok
+   rejected the app.) **Content-ready notify** emails
    the client ("Your content is ready for review! 🎉").
 
 **Linear ⇄ SyncView sync** (until Track B lands): current real-time inbound is the
@@ -704,7 +705,8 @@ Reel + Top Videos in Niche (TEST) · ★Clients — Monthly Check-in ·
 **TikTok:** SyncView TikTok Upload — Submit / Result / List / Cancel /
 Status (Post For Me path) · SyncView TikTok Pilot — Auth Init / Auth
 Callback / Token Refresh / Status Cron / Submit / List / Creator Info /
-Accounts List (first-party Direct Post pilot) · (i) Register PFM Result
+Accounts List (first-party Direct Post pilot; **its SyncView tab was removed 2026-09-24**, the
+workflows remain until the owner decides) · (i) Register PFM Result
 Webhook (run once).
 
 **Ops & monitoring:** ★SyncView - Weekly Backup · SyncView Monitoring Pager

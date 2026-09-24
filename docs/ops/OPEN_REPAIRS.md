@@ -28819,3 +28819,7 @@ finished until its receipt is in the log and the row is updated, in the same PR.
 **Verified:** the browser view now returns the native stamp for all 6. Fed those values, the shipped browser resolver `_prodResolveAttributions` returns `resolved` for all 6. Exactly one active client maps that project, so there is no ownership conflict.
 
 **Sweep (read-only, nothing changed), on the resolver's own inputs:** 5,598 rows across 45 clients carry the old `direct_project` stamp. All 5,598 project a `raw_project_id` (0 lack direct project evidence, 0 rely on a parent). 4 point at a project that no active client maps: `b1_d_4654b2cbbe6a42b29847992b02d09752`, `b1_d_4a3f52a96d8a462f9d8cc191afc035ff`, `b1_d_227064f04b4449e480661ce16844f133`, `b1_d_ee5fe312920a477da57d9d2042fa73e7`. They belong to 2 clients that are not active, so "Needs attribution" is the correct answer there, not this defect. They are left unchanged. No other row needs this repair.
+
+## 247. [2026-09-24, APPLIED + DEPLOYED] Refusal receipts keep the browser's own reason code (#1570)
+
+Lighthouse applied `migrations/2026-09-24-refusal-receipt-browser-codes.sql` (live `receipts_v1_code_check` verified at 218 codes, no grant or revoke), then the owner deployed `write-diagnostics` from `3469b785622519d63a70b2e98e6d4d64a2515dc3` (attestation PASS); production-write picks up the shared module on its next Section 4 release, and #1563 already adds the hashed card id to every browser report.

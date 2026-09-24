@@ -148,6 +148,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | Path | What it is |
 |---|---|
 | `docs/audits/2026-09-21-base-audit/C1-boot-baseline.md` | Phase C1's pre-deletion boot baseline: committed page bytes and full SHA-256, the existing Production boot-budget command result, and five cold plus five warm anonymous Chromium measurements of the public landing page with raw values, medians, spreads and a rerunnable method. |
+| `docs/audits/2026-09-24-speed-map.md` | Warm re-measure of all fifteen tabs against the 2026-09-23 speed map: first content, switching from the calendar, and what each tab waits on, with raw reps, medians and the rig difference. |
 
 ## Meta
 

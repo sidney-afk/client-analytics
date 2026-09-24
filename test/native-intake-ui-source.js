@@ -440,7 +440,8 @@ const result = {
   ok(/webhook\/linear-projects/.test(source)
     && /rest\/v1\/clients\?select=slug,display_name,kind,active/.test(projectSource)
     && projectSource.indexOf('await _writeUiPrimeRerouteFlag()') < projectSource.indexOf('/rest/v1/clients')
-    && projectBuilder.includes('.filter(row => _writeUiRerouteUseGateway(row.slug))')
+    && projectBuilder.includes('.filter(row => failNative || _writeUiRerouteUseGateway(row.slug))')
+    && /_writeUiRerouteFlagFailed \|\| _writeUiRerouteRosterUnusable/.test(extract('_linearRosterFailsNative'))
     && projectBuilder.includes('linearLegacyProjects.map')
     && rerouteSetter.includes('_linearRefreshProjectsForRerouteChange(previousClients, nextClients)'),
   'Submit keeps legacy project names outside the reroute cohort and uses native names only inside it');

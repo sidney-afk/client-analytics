@@ -28804,7 +28804,27 @@ finished until its receipt is in the log and the row is updated, in the same PR.
 
 **Undo (one line, guarded):** `update public.deliverables set linear_raw = linear_raw - 'archived' where id in ('b1_d_1e3acd42ec9940988c8ec801a804372a','b1_d_54f839e2875a4a369331e399ac9de1a1') and linear_raw->'archived' = 'true'::jsonb and updated_at = '2026-09-24 16:32:03.921721+00';` It must report 2 rows. Fewer means a row changed after this repair: stop and look before undoing anything. The undo itself advances `updated_at` and writes one more event per row.
 
-## 246. [2026-09-24, BUILT not applied — migration] A 2026-08-24 backup table was fully open to the browser key
+## 246. [2026-09-24, APPLIED — owner-approved data change] Six native rows re-stamped with the native attribution so they stop showing "Needs attribution"
+
+**Cause:** 6 open rows in batches `bat_380ea26d-964d-458b-baba-72eb5d16b413` and `bat_90288092-9eb0-4aae-8f42-7a1dd3f74f32` (one active client, created 2026-09-15) carried the pre-18-Sept stamp `source: direct_project`. That stamp counts as attributed only when a Linear issue copy shows the project. These rows never had a Linear issue: their identifiers (VID-15010, VID-15012, VID-15013, VID-15024, GRA-8007, GRA-8008) return "not found" from Linear. So the browser correctly refused them. The client's mapping was fine.
+
+**Change:** on those 6 rows only, and only inside `linear_raw.attribution`, set the fields rows created since 18 Sept carry: `source` → `native_intake_legacy_project`, `reason` → `native_intake_legacy_project_mapped`, `native_epoch` → `native-video-20260917` / `native-graphics-20260917` by team. `project_id`, `client_slug`, `owner_kind`, `schema` and `state` were already correct and are unchanged. Row ids: `del_02d2f879-e31d-40b7-95f9-e96d4807b571`, `del_b73738bd-a008-4257-96fa-1c9b4d0e651a`, `del_9e375961-b690-4e82-8bd9-c6d63df1966c`, `del_25a29ddb-b428-4441-8b7c-8a11e3c4d441` (video); `del_7118d1dc-50a8-43b9-bd7d-920d2b3b9c5e`, `del_00daf6df-ae9a-498f-9286-184f80c26406` (graphics).
+
+**Before (all 6 identical):** `source: direct_project`, `reason: direct_project_mapped`, no `native_epoch` key.
+
+**Side effects:** the table triggers fired. `updated_at` moved to `2026-09-24 16:50:26.022898+00` on all 6 rows. `track_b_deliverable_ledger_guard` wrote one system `update` event per row to `deliverable_events` (`payload.reason = rpc_bypass_guard`); no bypass was set.
+
+**Undo (one line, guarded):** `update public.deliverables set linear_raw = jsonb_set(linear_raw, '{attribution}', (linear_raw->'attribution' - 'native_epoch') || '{"source":"direct_project","reason":"direct_project_mapped"}') where id in ('del_02d2f879-e31d-40b7-95f9-e96d4807b571','del_b73738bd-a008-4257-96fa-1c9b4d0e651a','del_9e375961-b690-4e82-8bd9-c6d63df1966c','del_25a29ddb-b428-4441-8b7c-8a11e3c4d441','del_7118d1dc-50a8-43b9-bd7d-920d2b3b9c5e','del_00daf6df-ae9a-498f-9286-184f80c26406') and linear_raw->'attribution'->>'source' = 'native_intake_legacy_project' and updated_at = '2026-09-24 16:50:26.022898+00';` It must report 6 rows. Fewer means a row changed after this repair: stop and look before undoing anything. The undo itself advances `updated_at` and writes one more event per row.
+
+**Verified:** the browser view now returns the native stamp for all 6. Fed those values, the shipped browser resolver `_prodResolveAttributions` returns `resolved` for all 6. Exactly one active client maps that project, so there is no ownership conflict.
+
+**Sweep (read-only, nothing changed), on the resolver's own inputs:** 5,598 rows across 45 clients carry the old `direct_project` stamp. All 5,598 project a `raw_project_id` (0 lack direct project evidence, 0 rely on a parent). 4 point at a project that no active client maps: `b1_d_4654b2cbbe6a42b29847992b02d09752`, `b1_d_4a3f52a96d8a462f9d8cc191afc035ff`, `b1_d_227064f04b4449e480661ce16844f133`, `b1_d_ee5fe312920a477da57d9d2042fa73e7`. They belong to 2 clients that are not active, so "Needs attribution" is the correct answer there, not this defect. They are left unchanged. No other row needs this repair.
+
+## 247. [2026-09-24, APPLIED + DEPLOYED] Refusal receipts keep the browser's own reason code (#1570)
+
+Lighthouse applied `migrations/2026-09-24-refusal-receipt-browser-codes.sql` (live `receipts_v1_code_check` verified at 218 codes, no grant or revoke), then the owner deployed `write-diagnostics` from `3469b785622519d63a70b2e98e6d4d64a2515dc3` (attestation PASS); production-write picks up the shared module on its next Section 4 release, and #1563 already adds the hashed card id to every browser report.
+
+## 248. [2026-09-24, BUILT not applied — migration] A 2026-08-24 backup table was fully open to the browser key
 
 **What:** `public.batches_parent_claim_backup_20260824` (1455 rows, 3 columns) had RLS off, no policies, and all eight table privileges granted to both `anon` and `authenticated` (read live, read-only, 2026-09-24). Anyone holding the public publishable key could read, rewrite, delete or truncate it. Nothing in the app reads it: no function, view, cron job or Edge Function names it; the only references are the two `aaa_application_dml_admission_*` triggers on it and `production_retirement_contract_assert_v1`, which pins those triggers' definition md5s only.
 

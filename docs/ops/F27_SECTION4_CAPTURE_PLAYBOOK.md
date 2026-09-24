@@ -17,7 +17,9 @@ mid-flow while three staff were blocked on the fix being deployed.
 
 ## 0. What the numbers are for
 
-The bundle seals the **currently live** four functions, so a failed forward
+The bundle seals the **currently live** three functions (`production-write`,
+`deliverable-write`, `batch-write`; `linear-outbound` is deleted live, B2 Slice 8,
+2026-09-24), so a failed forward
 deploy can be restored to exactly what was running before it. It is captured
 minutes before the dispatch, not reused from a previous one: a bundle sealing
 an older live set restores the wrong code. Every earlier bundle is stale the
@@ -35,14 +37,14 @@ PowerShell runs each fragment as its own broken command.
 # (BUNDLE_PATH_NOT_ABSOLUTE), and refuses a destination that already exists
 # (BUNDLE_DESTINATION_EXISTS) -- so the filename carries a timestamp.
 New-Item -ItemType Directory -Force -Path 'C:\F27-Bundles' | Out-Null
-$bundle = "C:\F27-Bundles\prior-four-$(Get-Date -Format 'yyyyMMdd-HHmmss').sourcebundle"
+$bundle = "C:\F27-Bundles\prior-three-$(Get-Date -Format 'yyyyMMdd-HHmmss').sourcebundle"
 
 $env:PROJECT_REF = 'uzltbbrjidmjwwfakwve'
 $env:SUPABASE_ACCESS_TOKEN = '<your token — never paste it into a chat, a file, or a commit>'
 
 # Run from the repo: the script path is repo-relative, the bundle path is not.
 Set-Location 'C:\Users\<you>\client-analytics'
-node scripts/f27-edge-source-rollback.js capture --slugs=linear-outbound,production-write,deliverable-write,batch-write --bundle=$bundle
+node scripts/f27-edge-source-rollback.js capture --slugs=production-write,deliverable-write,batch-write --bundle=$bundle
 
 Remove-Item Env:\SUPABASE_ACCESS_TOKEN
 ```
@@ -133,7 +135,7 @@ was touched, but it cost a cycle. The other four inputs are stable; only
 `commit_sha` decays.
 
 A failed or ambiguous forward is **never** retried forward. Use the same lane's
-`restore-captured-prior-four` with `RESTORE_CAPTURED_F27_SECTION4_CLOSURES` and
+`restore-captured-prior-three` with `RESTORE_CAPTURED_F27_SECTION4_CLOSURES` and
 the same two bundle values.
 
 ## 4. Secret handling

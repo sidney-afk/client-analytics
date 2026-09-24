@@ -2,17 +2,15 @@ name: Deploy F27 Section 4 closures
 
 # This is the reviewed F27 Section 4 forward/restore lane. It never runs on a
 # push or pull request and it never deploys linear-inbound, either frozen
-# client writer, or the production comment/archive readers. The prior four
+# client writer, or the production comment/archive readers. The prior three
 # provider-source/JWT captures remain the separate Section 1 pre-DDL step; both
 # operations below require that sealed bundle to be present and independently
 # verified before any function deployment starts.
 #
-# B2 Slice 8 (2026-09-24): the RELEASE set is three functions
-# (production-write, deliverable-write, batch-write). linear-outbound is no
-# longer deployed or verified here. The PRIOR set stays four: the sealed
-# bundle still captures linear-outbound while it is live, and the restore
-# operation still puts back all four exactly as captured. After linear-outbound
-# is deleted, the next change narrows the prior set to three as well.
+# B2 Slice 8 (2026-09-24): both the RELEASE set and the PRIOR set are three
+# functions (production-write, deliverable-write, batch-write). linear-outbound
+# is deleted live (B2 Slice 8, 2026-09-24): it is no longer deployed, verified,
+# captured or restored here.
 on:
   workflow_dispatch:
     inputs:
@@ -21,22 +19,22 @@ on:
         required: true
         type: string
       operation:
-        description: Deploy the reviewed closures or restore the sealed prior four
+        description: Deploy the reviewed closures or restore the sealed prior three
         required: true
         type: choice
         options:
           - deploy-reviewed-release
-          - restore-captured-prior-four
+          - restore-captured-prior-three
       confirm:
         description: Exact operation-specific confirmation from the F27 runbook
         required: true
         type: string
       rollback_bundle_sha256:
-        description: SHA-256 from the sealed pre-DDL four-function capture
+        description: SHA-256 from the sealed pre-DDL three-function capture
         required: true
         type: string
       rollback_bundle_byte_length:
-        description: Byte length from the sealed pre-DDL four-function capture
+        description: Byte length from the sealed pre-DDL three-function capture
         required: true
         type: string
 
@@ -421,7 +419,7 @@ jobs:
               fi
               expected_confirmation='DEPLOY_REVIEWED_F27_SECTION4_CLOSURES'
               ;;
-            restore-captured-prior-four)
+            restore-captured-prior-three)
               if ! git -C operator cat-file -e "$DEPLOY_COMMIT^{commit}" 2>/dev/null \
                 || ! git -C operator merge-base --is-ancestor "$DEPLOY_COMMIT" "$GITHUB_SHA"; then
                 echo "::error::Restore commit_sha must be the recorded reviewed release on current main"
@@ -436,7 +434,6 @@ jobs:
           esac
           for required in \
             supabase/config.toml \
-            supabase/functions/linear-outbound/index.ts \
             supabase/functions/production-write/index.ts \
             supabase/functions/deliverable-write/index.ts \
             supabase/functions/batch-write/index.ts \
@@ -486,7 +483,7 @@ jobs:
 
       # F27 artifacts live at the root of the "SyncView Backups" Shared Drive,
       # not in its "track-b-backups" weekly-snapshot child.
-      - name: Fetch and independently verify the sealed prior-four source
+      - name: Fetch and independently verify the sealed prior-three source
         shell: bash
         env:
           F27_PRIVATE_SHARED_DRIVE_ROOT_ID: ${{ secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID }}
@@ -502,15 +499,15 @@ jobs:
           private_dir="$(mktemp -d "$RUNNER_TEMP/f27-section4.XXXXXX")"
           chmod 700 "$private_dir"
           echo "F27_PRIVATE_DIR=$private_dir" >> "$GITHUB_ENV"
-          bundle="$private_dir/prior-four.sourcebundle"
-          echo "F27_PRIOR_FOUR_BUNDLE=$bundle" >> "$GITHUB_ENV"
+          bundle="$private_dir/prior-three.sourcebundle"
+          echo "F27_PRIOR_THREE_BUNDLE=$bundle" >> "$GITHUB_ENV"
           if ! node operator/scripts/f27-private-snapshot-fetch.js \
             --artifact-kind edge-source \
             --destination "$bundle" \
             --expected-sha256 "$ROLLBACK_BUNDLE_SHA256" \
             --expected-byte-length "$ROLLBACK_BUNDLE_BYTE_LENGTH" \
             > "$private_dir/fetch-receipt.json"; then
-            echo "::error::The sealed prior-four private fetch or independent round-trip failed"
+            echo "::error::The sealed prior-three private fetch or independent round-trip failed"
             exit 1
           fi
           node - "$private_dir/fetch-receipt.json" <<'NODE'
@@ -523,16 +520,16 @@ jobs:
             || receipt.folder_id_sha256 !== process.env.EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256
             || receipt.independent_private_readback !== 'PASS'
             || receipt.local_private_readback !== 'PASS') {
-            throw new Error('private prior-four source receipt mismatch');
+            throw new Error('private prior-three source receipt mismatch');
           }
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
-            '- Sealed prior-four private fetch: PASS',
+            '- Sealed prior-three private fetch: PASS',
             `- F27 Shared Drive root ID SHA-256: \`${receipt.folder_id_sha256}\``,
             '',
           ].join('\n'));
           NODE
 
-      - name: Inspect the exact sealed prior-four rollback set
+      - name: Inspect the exact sealed prior-three rollback set
         shell: bash
         working-directory: operator
         run: |
@@ -555,13 +552,13 @@ jobs:
             grep -aoE '^(f27-edge-source-rollback|ef-fingerprint): .{0,200}' "$1" | head -3 || true
           }
           if ! node scripts/f27-edge-source-rollback.js inspect \
-            --slugs=linear-outbound,production-write,deliverable-write,batch-write \
-            --bundle="$F27_PRIOR_FOUR_BUNDLE" \
+            --slugs=production-write,deliverable-write,batch-write \
+            --bundle="$F27_PRIOR_THREE_BUNDLE" \
             --expected-bundle-sha256="$ROLLBACK_BUNDLE_SHA256" \
             > "$F27_PRIVATE_DIR/prior-inspect.json" \
             2> "$F27_PRIVATE_DIR/prior-inspect.error"; then
             public_failure "$F27_PRIVATE_DIR/prior-inspect.error"
-            echo "::error::The sealed prior-four source set failed structural verification"
+            echo "::error::The sealed prior-three source set failed structural verification"
             exit 1
           fi
           node - "$F27_PRIVATE_DIR/prior-inspect.json" <<'NODE'
@@ -570,7 +567,6 @@ jobs:
           const expected = [
             'batch-write',
             'deliverable-write',
-            'linear-outbound',
             'production-write',
           ];
           const rows = Array.isArray(receipt.functions) ? receipt.functions : [];
@@ -578,11 +574,11 @@ jobs:
             || receipt.operation !== 'inspect'
             || receipt.rollback_standard !== 'source-exact-readback'
             || receipt.provider_source_exactness !== 'PASS'
-            || receipt.function_count !== 4
+            || receipt.function_count !== 3
             || receipt.sealed_bundle_sha256 !== process.env.ROLLBACK_BUNDLE_SHA256
             || String(receipt.sealed_bundle_byte_length) !== process.env.ROLLBACK_BUNDLE_BYTE_LENGTH
             || rows.length !== expected.length) {
-            throw new Error('prior-four inspection receipt mismatch');
+            throw new Error('prior-three inspection receipt mismatch');
           }
           for (let index = 0; index < expected.length; index += 1) {
             const row = rows[index] || {};
@@ -596,12 +592,12 @@ jobs:
               || !/^[0-9a-f]{64}$/.test(String(row.function_manifest_sha256))
               || !Number.isSafeInteger(row.file_count) || row.file_count < 1
               || row.provider_source_file_count !== row.file_count) {
-              throw new Error(`prior-four inspection mismatch for ${slug}`);
+              throw new Error(`prior-three inspection mismatch for ${slug}`);
             }
           }
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
-            '- Prior source set: PASS (exactly 4 functions)',
-            '- Prior JWT posture capture: PASS (4 exact boolean values)',
+            '- Prior source set: PASS (exactly 3 functions)',
+            '- Prior JWT posture capture: PASS (3 exact boolean values)',
             ...rows.map(row => `- Prior \`${row.slug}\`: version \`${row.captured_version}\`, source \`${row.source_closure_sha256}\`, entrypoint hash \`${row.entrypoint_sha256}\`, JWT \`verify_jwt=${row.verify_jwt}\``),
             '',
           ].join('\n'));
@@ -657,7 +653,7 @@ jobs:
         working-directory: operator
         run: |
           set -euo pipefail
-          node - "$F27_PRIOR_FOUR_BUNDLE" <<'NODE'
+          node - "$F27_PRIOR_THREE_BUNDLE" <<'NODE'
           const fs = require('fs');
           const {
             assertCaptureProviderContract,
@@ -670,11 +666,11 @@ jobs:
             projectRef: process.env.F27_PROJECT_REF,
             cliVersion: process.env.EXPECTED_CLI_VERSION,
           });
-          if (receipt.result !== 'PASS' || receipt.function_count !== 4) {
+          if (receipt.result !== 'PASS' || receipt.function_count !== 3) {
             throw new Error('sealed capture provider contract mismatch');
           }
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
-            '- Sealed restore target/adapter/CLI compatibility: PASS (4 functions)',
+            '- Sealed restore target/adapter/CLI compatibility: PASS (3 functions)',
             '',
           ].join('\n'));
           NODE
@@ -708,7 +704,6 @@ jobs:
           const expected = [
             'batch-write',
             'deliverable-write',
-            'linear-outbound',
             'production-write',
           ];
           const rows = Array.isArray(receipt.functions) ? receipt.functions : [];
@@ -717,7 +712,7 @@ jobs:
             throw new Error('the sealed prior JWT postures do not match the reviewed forward JWT arguments');
           }
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
-            '- Captured forward JWT arguments: PASS (4 at `--no-verify-jwt`)',
+            '- Captured forward JWT arguments: PASS (3 at `--no-verify-jwt`)',
             '',
           ].join('\n'));
           NODE
@@ -854,7 +849,7 @@ jobs:
             exit 1
           fi
           export PROJECT_REF="$F27_PROJECT_REF"
-          # F27 owns exactly four functions and cannot install notify. Refuse
+          # F27 owns exactly three functions and cannot install notify. Refuse
           # its forward gateway release until the onboarding owner has already
           # installed and attested the exact sender source/JWT posture.
           receipt="$(node scripts/ef-fingerprint.js "$DEPLOY_COMMIT" --slugs=notify --format=json)"
@@ -1315,13 +1310,13 @@ jobs:
           ].join('\n') + '\n');
           NODE
 
-      - name: Restore the exact captured prior four
-        if: inputs.operation == 'restore-captured-prior-four'
+      - name: Restore the exact captured prior three
+        if: inputs.operation == 'restore-captured-prior-three'
         shell: bash
         working-directory: operator
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          F27_EDGE_ROLLBACK_CONFIRM: RESTORE_CAPTURED_SOURCE_SET:batch-write,deliverable-write,linear-outbound,production-write
+          F27_EDGE_ROLLBACK_CONFIRM: RESTORE_CAPTURED_SOURCE_SET:batch-write,deliverable-write,production-write
         run: |
           set -euo pipefail
           # The reason, in the run log.
@@ -1348,8 +1343,8 @@ jobs:
           project_ref="$F27_PROJECT_REF"
           export PROJECT_REF="$project_ref"
           if ! node scripts/f27-edge-source-rollback.js restore \
-            --slugs=linear-outbound,production-write,deliverable-write,batch-write \
-            --bundle="$F27_PRIOR_FOUR_BUNDLE" \
+            --slugs=production-write,deliverable-write,batch-write \
+            --bundle="$F27_PRIOR_THREE_BUNDLE" \
             --expected-bundle-sha256="$ROLLBACK_BUNDLE_SHA256" \
             --apply \
             > "$F27_PRIVATE_DIR/restore-receipt.json" \
@@ -1358,17 +1353,17 @@ jobs:
             exit 1
           fi
           if ! node scripts/f27-edge-source-rollback.js capture \
-            --slugs=linear-outbound,production-write,deliverable-write,batch-write \
-            --bundle="$F27_PRIVATE_DIR/final-restored-four.sourcebundle" \
-            > "$F27_PRIVATE_DIR/final-restored-four-capture.json" \
-            2> "$F27_PRIVATE_DIR/final-restored-four-capture.error"; then
-            public_failure "$F27_PRIVATE_DIR/final-restored-four-capture.error"
-            echo "::error::The final restored four-function provider capture failed"
+            --slugs=production-write,deliverable-write,batch-write \
+            --bundle="$F27_PRIVATE_DIR/final-restored-three.sourcebundle" \
+            > "$F27_PRIVATE_DIR/final-restored-three-capture.json" \
+            2> "$F27_PRIVATE_DIR/final-restored-three-capture.error"; then
+            public_failure "$F27_PRIVATE_DIR/final-restored-three-capture.error"
+            echo "::error::The final restored three-function provider capture failed"
             exit 1
           fi
           node - "$F27_PRIVATE_DIR/prior-inspect.json" \
             "$F27_PRIVATE_DIR/restore-receipt.json" \
-            "$F27_PRIVATE_DIR/final-restored-four-capture.json" <<'NODE'
+            "$F27_PRIVATE_DIR/final-restored-three-capture.json" <<'NODE'
           const fs = require('fs');
           const prior = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
           const restored = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
@@ -1379,12 +1374,12 @@ jobs:
           if (restored.result !== 'PASS'
             || restored.operation !== 'restore'
             || restored.rollback_standard !== 'source-exact-readback'
-            || restored.function_count !== 4
+            || restored.function_count !== 3
             || restored.sealed_bundle_sha256 !== process.env.ROLLBACK_BUNDLE_SHA256
             || restored.deployed_source_readback !== 'PASS'
-            || rows.length !== 4
+            || rows.length !== 3
             || finalCapture.result !== 'PASS' || finalCapture.operation !== 'capture'
-            || finalCapture.function_count !== 4 || finalRows.size !== 4
+            || finalCapture.function_count !== 3 || finalRows.size !== 3
             || finalCapture.aggregate_source_sha256 !== prior.aggregate_source_sha256) {
             throw new Error('captured-prior restore receipt mismatch');
           }
@@ -1413,10 +1408,10 @@ jobs:
           }
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
             '- Captured-prior source-exact restore: PASS',
-            '- Restored function count: `4`',
+            '- Restored function count: `3`',
             ...rows.map(row => `- Restored \`${row.slug}\`: prior version \`${row.captured_version}\`, new active version \`${row.restored_active_version}\`, source \`${row.source_closure_sha256}\`, entrypoint hash \`${row.entrypoint_sha256}\`, JWT \`verify_jwt=${row.verify_jwt}\``),
             '- Serial provider source/entrypoint/JWT readback: PASS',
-            '- Final four-function restored-version/source/entrypoint/JWT capture: PASS',
+            '- Final three-function restored-version/source/entrypoint/JWT capture: PASS',
             '',
           ].join('\n'));
           NODE

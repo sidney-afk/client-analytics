@@ -28851,3 +28851,22 @@ The Templates page loaded the n8n `templates-get` sheet as a base and laid Supab
 ## 251. [2026-09-24, BUILT, needs one secret and one deploy] Templates page reads client facts from the Synchro Brain
 
 The Templates page now shows each client's brain facts through one generic card (heading, text, status, owner, source), pins facts carrying a `spec:` line as a Quick look strip, keeps only the working links editable in SyncView, and offers "Send a change" on every fact. The new `brain` Edge Function is the only thing that touches the private brain repo: staff key only, reads just the four client files, and writes a change word for word as a new file under the brain's syncview-changes inputs folder; it never edits a fact. Until the function is deployed with its `BRAIN_GITHUB_TOKEN` secret the page says it could not reach the brain and shows the last values saved in SyncView read-only, so nothing disappears for editors. Go-live: add the secret in Supabase, then deploy `brain` from the one-function lane.
+
+## 252. [2026-09-24, PARTLY DONE, migration NOT APPLIED] Dead backend cleanup after the feature-usage audit
+
+Follow-up to `docs/audits/2026-09-24-feature-usage.md` and the owner's decisions. Each piece was checked twice first: no call in `main`'s `index.html`, and no n8n run in the history n8n still keeps (about 5 days).
+
+**Archived in n8n (7).** The n8n connector has no delete action, so these are archived. Archived workflows stop running and can be deleted for good from the n8n Archived view.
+- TikTok Pilot: Status Cron, Submit, Creator Info, Auth Callback (4)
+- Samples: Upsert, Reorder (2)
+- COMPETITOR RESEARCH (1, archive only, as asked). MARKET RESEARCH stays on.
+
+**Left running because they still had runs (5). Needs an owner call.**
+- TikTok Pilot Auth Init: failed runs on 2026-09-21 and 2026-09-24.
+- TikTok Pilot Accounts List (31 runs) and List (26 runs): successful calls on 2026-09-24. `main` never calls them, so something outside the live page does (an old open tab, a probe, or another branch).
+- TikTok Pilot Token Refresh: timed job every 30 minutes (247 runs). It is not user traffic, but it still writes `tiktok_accounts`.
+- Samples Get: 7 failed calls, the latest on 2026-09-24.
+
+**Not found in n8n (2).** No separate `ttp-status` or `ttp-status-cron` beyond "Status Cron" above. The pilot had 8 workflows, not 9.
+
+**Tables.** `migrations/2026-09-24-retire-tiktok-pilot-and-content-samples.sql` is NOT APPLIED. It copies the four tables into `retired_20260924` (revoked from public, anon, authenticated and service_role), checks row counts, then drops the originals. Its header lists four things to fix first: the retirement assert names these tables, `content_samples` is in the pinned Linear-exit recovery allowlist, Token Refresh still writes `tiktok_accounts`, and the Weekly Backup dumps `content_samples`. Lighthouse reviews and applies it.

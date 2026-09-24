@@ -28806,7 +28806,9 @@ finished until its receipt is in the log and the row is updated, in the same PR.
 
 **Before (all 6 identical):** `source: direct_project`, `reason: direct_project_mapped`, no `native_epoch` key.
 
-**Undo (one line):** `update public.deliverables set linear_raw = jsonb_set(linear_raw, '{attribution}', (linear_raw->'attribution' - 'native_epoch') || '{"source":"direct_project","reason":"direct_project_mapped"}') where id in ('del_02d2f879-e31d-40b7-95f9-e96d4807b571','del_b73738bd-a008-4257-96fa-1c9b4d0e651a','del_9e375961-b690-4e82-8bd9-c6d63df1966c','del_25a29ddb-b428-4441-8b7c-8a11e3c4d441','del_7118d1dc-50a8-43b9-bd7d-920d2b3b9c5e','del_00daf6df-ae9a-498f-9286-184f80c26406');`
+**Side effects:** the table triggers fired. `updated_at` moved to `2026-09-24 16:50:26.022898+00` on all 6 rows. `track_b_deliverable_ledger_guard` wrote one system `update` event per row to `deliverable_events` (`payload.reason = rpc_bypass_guard`); no bypass was set.
+
+**Undo (one line, guarded):** `update public.deliverables set linear_raw = jsonb_set(linear_raw, '{attribution}', (linear_raw->'attribution' - 'native_epoch') || '{"source":"direct_project","reason":"direct_project_mapped"}') where id in ('del_02d2f879-e31d-40b7-95f9-e96d4807b571','del_b73738bd-a008-4257-96fa-1c9b4d0e651a','del_9e375961-b690-4e82-8bd9-c6d63df1966c','del_25a29ddb-b428-4441-8b7c-8a11e3c4d441','del_7118d1dc-50a8-43b9-bd7d-920d2b3b9c5e','del_00daf6df-ae9a-498f-9286-184f80c26406') and linear_raw->'attribution'->>'source' = 'native_intake_legacy_project' and updated_at = '2026-09-24 16:50:26.022898+00';` It must report 6 rows. Fewer means a row changed after this repair: stop and look before undoing anything. The undo itself advances `updated_at` and writes one more event per row.
 
 **Verified:** the browser view now returns the native stamp for all 6. Fed those values, the shipped browser resolver `_prodResolveAttributions` returns `resolved` for all 6. Exactly one active client maps that project, so there is no ownership conflict.
 

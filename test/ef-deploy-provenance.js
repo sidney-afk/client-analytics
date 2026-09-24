@@ -16,10 +16,8 @@ const {
 const ROOT = path.resolve(__dirname, '..');
 const fingerprintSource = fs.readFileSync(path.join(ROOT, 'scripts', 'ef-fingerprint.js'), 'utf8');
 const workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'deploy-onboarding-edge-functions.yml'), 'utf8');
-const f27Workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'deploy-f27-linear-inbound.yml'), 'utf8');
 const hiringWorkflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'deploy-hiring-applications.yml'), 'utf8');
 const hiringAutomationWorkflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'deploy-hiring-automation.yml'), 'utf8');
-const f27Runbook = fs.readFileSync(path.join(ROOT, 'docs', 'ops', 'F27_INSTALL_RUNBOOK.md'), 'utf8');
 const manifest = fs.readFileSync(path.join(ROOT, 'docs', 'ops', 'EF_DEPLOY_MANIFEST.md'), 'utf8');
 let failures = 0;
 
@@ -140,120 +138,10 @@ ok(fingerprintSource.includes('comparison.pass && entrypointMatch && active && j
   && /verify_jwt/.test(workflow) && workflow.includes('JWT posture:'),
 'source closure, entrypoint, and verify_jwt are all part of the live PASS verdict');
 
-const f27Trigger = f27Workflow.slice(
-  f27Workflow.indexOf('on:'),
-  f27Workflow.indexOf('permissions:'),
-);
-const f27ValidationAt = f27Workflow.indexOf('- name: Validate the reviewed release and operation');
-const f27PrivateFetchAt = f27Workflow.indexOf('- name: Fetch and independently verify the sealed v39 rollback source');
-const f27ReleaseCheckoutAt = f27Workflow.indexOf('- name: Check out exactly the reviewed release');
-const f27DeployAt = f27Workflow.indexOf('supabase functions deploy linear-inbound');
-const f27RestoreAt = f27Workflow.indexOf('node scripts/f27-edge-source-rollback.js restore');
-const f27CleanupAt = f27Workflow.indexOf('- name: Delete private source and raw receipts');
-const reviewedReleaseSha = '72fbc4a5be6c570c2d6638a49b320abd4e4b2c5c';
-const denoConfigBlob = spawnSync(
-  'git',
-  ['show', `${reviewedReleaseSha}:supabase/functions/linear-inbound/deno.json`],
-  { cwd: ROOT, encoding: null },
-);
-const denoLockBlob = spawnSync(
-  'git',
-  ['show', `${reviewedReleaseSha}:supabase/functions/linear-inbound/deno.lock`],
-  { cwd: ROOT, encoding: null },
-);
-const denoConfigBlobSha256 = denoConfigBlob.status === 0
-  ? crypto.createHash('sha256').update(denoConfigBlob.stdout).digest('hex')
-  : '';
-const denoLockBlobSha256 = denoLockBlob.status === 0
-  ? crypto.createHash('sha256').update(denoLockBlob.stdout).digest('hex')
-  : '';
-ok(/^on:\n  workflow_dispatch:\n/m.test(f27Trigger)
-  && !/^\s{2}(?:push|pull_request|schedule):/m.test(f27Trigger)
-  && /commit_sha:\n\s*description:[^\n]+\n\s*required: true\n\s*type: string/.test(f27Trigger)
-  && /operation:\n[\s\S]*?type: choice\n[\s\S]*?- deploy-reviewed-release\n\s*- restore-captured-v39/.test(f27Trigger)
-  && /confirm:\n\s*description:[^\n]+\n\s*required: true\n\s*type: string/.test(f27Trigger),
-'the F27 inbound lane is dispatch-only and requires the pinned SHA, bounded operation, and explicit confirmation');
-ok(f27Workflow.includes('REVIEWED_RELEASE_SHA: 72fbc4a5be6c570c2d6638a49b320abd4e4b2c5c')
-  && f27Workflow.includes('if [ "$DEPLOY_COMMIT" != "$REVIEWED_RELEASE_SHA" ]')
-  && f27Workflow.includes('git -C operator merge-base --is-ancestor')
-  && f27Workflow.includes('git -C operator cat-file -e "$DEPLOY_COMMIT:$required"')
-  && f27Workflow.includes('ref: ${{ github.sha }}')
-  && f27Workflow.includes('ref: ${{ inputs.commit_sha }}')
-  && f27ValidationAt >= 0
-  && f27ValidationAt < f27PrivateFetchAt
-  && f27PrivateFetchAt < f27ReleaseCheckoutAt
-  && f27ReleaseCheckoutAt < f27DeployAt,
-'trusted-main validation binds the exact reviewed release before private fetch, pinned checkout, or deployment');
-ok(/^  deploy:\n(?:    [^\n]*\n)*    environment: production\n/m.test(f27Workflow)
-  && !/^    env:\n(?:      [^\n]*\n)*      (?:SUPABASE_ACCESS_TOKEN|F27_PRIVATE_SHARED_DRIVE_ROOT_ID|TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON):/m.test(f27Workflow)
-  && (f27Workflow.match(/SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g) || []).length === 2
-  && (f27Workflow.match(/F27_PRIVATE_SHARED_DRIVE_ROOT_ID: \$\{\{ secrets\.F27_PRIVATE_SHARED_DRIVE_ROOT_ID \}\}/g) || []).length === 1
-  && !/TRACK_B_BACKUP_DRIVE_FOLDER_ID: \$\{\{ (?:secrets|vars)\.TRACK_B_BACKUP_DRIVE_FOLDER_ID \}\}/.test(f27Workflow)
-  && (f27Workflow.match(/TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: \$\{\{ secrets\.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON \}\}/g) || []).length === 1
-  && f27ValidationAt < f27Workflow.indexOf('secrets.F27_PRIVATE_SHARED_DRIVE_ROOT_ID')
-  && f27ValidationAt < f27Workflow.indexOf('secrets.SUPABASE_ACCESS_TOKEN')
-  && /if: github\.event_name == 'workflow_dispatch' && inputs\.operation == 'deploy-reviewed-release'[\s\S]*?SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/.test(f27Workflow)
-  && /if: inputs\.operation == 'restore-captured-v39'[\s\S]*?SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/.test(f27Workflow),
-'the protected production Environment scopes a distinct F27 Shared Drive root and Supabase material to the selected post-validation operation');
-ok(/uses: supabase\/setup-cli@v1\n\s*with:\n\s*version: 2\.109\.0/.test(f27Workflow)
-  && /- name: Install exact Deno\n\s*if: inputs\.operation == 'deploy-reviewed-release'\n\s*uses: denoland\/setup-deno@v2\n\s*with:\n\s*deno-version: v2\.2\.15/.test(f27Workflow)
-  && f27Workflow.includes('if [ "$cli_version" != "$EXPECTED_CLI_VERSION" ]')
-  && f27Workflow.includes('if [ "$deno_version" != "$EXPECTED_DENO_VERSION" ]')
-  && f27Workflow.includes("docker info --format '{{.ServerVersion}}'")
-  && f27Workflow.indexOf("docker info --format '{{.ServerVersion}}'") < f27DeployAt,
-'the lane always verifies Supabase CLI 2.109.0 and Docker while pinning Deno 2.2.15 only for forward deployment');
-ok(f27Workflow.includes("imports[0] !== 'npm:@supabase/supabase-js@2.49.8'")
-  && f27Workflow.includes("config.lock.frozen !== true")
-  && f27Workflow.includes("specifiers[0] !== 'npm:@supabase/supabase-js@2.49.8'")
-  && f27Workflow.includes('deno cache --frozen')
-  && f27Workflow.includes('git diff --exit-code --')
-  && denoConfigBlobSha256 === 'e13cf0336d14f38013762c11935bd6123978f809120f530738d5b69669281524'
-  && denoLockBlobSha256 === 'a42630fbcde6d3f93da9ca2f5a9a39fd92ad23614853338443a56e7d4ab525ed'
-  && f27Workflow.includes(`EXPECTED_DENO_CONFIG_SHA256: ${denoConfigBlobSha256}`)
-  && f27Workflow.includes(`EXPECTED_DENO_LOCK_SHA256: ${denoLockBlobSha256}`)
-  && f27Workflow.includes('CANDIDATE_SOURCE_SHA256: 019a463dee2b4b91ff0b19a0220479e7602e9a5880da6d19519f9113716bf0fc')
-  && f27Workflow.includes('CANDIDATE_FILE_COUNT: \'5\'')
-  && /- name: Prove the exact pinned import, frozen lock, and candidate closure\n\s*if: inputs\.operation == 'deploy-reviewed-release'/.test(f27Workflow),
-'the sole 2.49.8 import, exact release-blob config/lock bytes, no-diff frozen cache, and five-file candidate closure are pre-deploy gates');
-ok((f27Workflow.match(/\bsupabase functions deploy\b/g) || []).length === 1
-  && /supabase functions deploy linear-inbound \\\n\s*--project-ref "\$project_ref" \\\n\s*--no-verify-jwt --use-docker --yes/.test(f27Workflow)
-  && /^ {8}if: github\.event_name == 'workflow_dispatch' && inputs\.operation == 'deploy-reviewed-release'$/m.test(f27Workflow)
-  && !/\bsupabase functions deploy (?!linear-inbound\b)[a-z0-9-]+/.test(f27Workflow)
-  && !/supabase functions deploy "\$fn"/.test(f27Workflow),
-'the dispatch-only deploy step contains one literal Docker-only, JWT-off linear-inbound command and no other function');
-ok(f27Workflow.includes('V39_BUNDLE_SHA256: cd0b391962a18b5e912dacf0c0e63c2ae972818343d1c41f77058039dd570690')
-  && f27Workflow.includes("V39_BUNDLE_BYTE_LENGTH: '49968'")
-  && f27Workflow.includes('EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256: 9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042')
-  && f27Workflow.includes('CAPTURED_V39_SOURCE_SHA256: b6c830f3bca709de6f8b10af56ce189f625e66ce4da9e394f53f28bf4d46b348')
-  && f27Workflow.includes('node operator/scripts/f27-private-snapshot-fetch.js')
-  && f27Workflow.includes('receipt.folder_id_sha256 !== process.env.EXPECTED_F27_SHARED_DRIVE_ROOT_ID_SHA256')
-  && f27Workflow.includes('F27 Shared Drive root ID SHA-256')
-  && f27Workflow.includes('F27_EDGE_ROLLBACK_CONFIRM: RESTORE_CAPTURED_SOURCE_SET:linear-inbound')
-  && f27Workflow.includes('--expected-bundle-sha256="$V39_BUNDLE_SHA256"')
-  && f27Workflow.includes('row.source_closure_sha256 !== process.env.CAPTURED_V39_SOURCE_SHA256')
-  && f27PrivateFetchAt < f27DeployAt
-  && f27PrivateFetchAt < f27RestoreAt,
-'both operations prefetch the exact sealed v39 bundle and restore mode requires source/JWT provider readback against its captured closure');
-ok(/- name: Install exact Deno\n\s*if: inputs\.operation == 'deploy-reviewed-release'/.test(f27Workflow)
-  && /- name: Verify exact forward-deploy Deno\n\s*if: inputs\.operation == 'deploy-reviewed-release'/.test(f27Workflow)
-  && /- name: Prove the exact pinned import, frozen lock, and candidate closure\n\s*if: inputs\.operation == 'deploy-reviewed-release'/.test(f27Workflow)
-  && /- name: Restore the exact captured v39 source\n[\s\S]*?if: inputs\.operation == 'restore-captured-v39'/.test(f27Workflow),
-'captured-v39 restore does not depend on Deno, npm resolution, or the forward candidate closure');
-ok(!/upload-artifact/.test(f27Workflow)
-  && !/\$\{\{ vars\./.test(f27Workflow)
-  && !/\bproject_ref:\s*[a-z0-9]{20}\b/.test(f27Workflow)
-  && !/^\s+(?:file_id|folder_id|drive_id):/m.test(f27Workflow)
-  && (f27Workflow.match(/if: always\(\)/g) || []).length === 1
-  && f27CleanupAt > f27DeployAt
-  && f27CleanupAt > f27RestoreAt
-  && /case "\$F27_PRIVATE_DIR" in\n\s*"\$RUNNER_TEMP"\/f27-v39\.\*/.test(f27Workflow),
-'the workflow publishes no private identity/raw artifact and reserves always() solely for bounded temporary cleanup');
-ok(f27Runbook.includes('deploy-f27-linear-inbound.yml')
-  && f27Runbook.includes('deploy-reviewed-release')
-  && f27Runbook.includes('restore-captured-v39')
-  && f27Runbook.includes('same workflow')
-  && f27Runbook.includes('server-side bundling'),
-'the F27 runbook names the dispatch lane, its exact restore operation, and the no-server-bundling boundary');
+// B2 Slice 7 (2026-09-24): linear-inbound was deleted from production and its
+// dispatch lane retired. The lane must stay gone, so nothing can redeploy it.
+ok(!fs.existsSync(path.join(ROOT, '.github', 'workflows', 'deploy-f27-linear-inbound.yml')),
+'the retired linear-inbound deploy lane is absent');
 
 const manifestCheck = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'ef-deploy-manifest.js'), '--check'], {
   cwd: ROOT,
@@ -268,13 +156,13 @@ const slugRows = manifest.split(/\r?\n/).filter(line => /^\| `[a-z0-9-]+` \|/.te
 const writeDiagnosticsRow = slugRows.find(line => line.startsWith('| `write-diagnostics` |')) || '';
 // 2026-09-23: its manual release now runs through the one-function exact-SHA
 // lane, dispatch-only, and the deliberate-manual note stays on its row.
-ok(manifestCheck.status === 0 && slugRows.length === 38
+ok(manifestCheck.status === 0 && slugRows.length === 37
   && writeDiagnosticsRow.includes('[deploy-single-function]')
   && writeDiagnosticsRow.includes('| workflow_dispatch only (pinned SHA guard)<br>**Manual release note:**')
   && !writeDiagnosticsRow.includes('main push')
   && writeDiagnosticsRow.includes('--no-verify-jwt')
   && writeDiagnosticsRow.includes('WRITE_DIAGNOSTICS_ENABLED=true'),
-`generated deploy manifest is current and contains all 38 slugs including dormant write-diagnostics on the dispatch-only one-function lane (${(manifestCheck.stderr || '').trim()})`);
+`generated deploy manifest is current and contains all 37 slugs including dormant write-diagnostics on the dispatch-only one-function lane (${(manifestCheck.stderr || '').trim()})`);
 /*
  * 2026-08-08: client-review-link left the deliberate-manual set. The manual
  * lane is WHY the #1016 mint-on-demand fix sat merged-but-undeployed for five
@@ -318,8 +206,8 @@ ok(/\| `production-archive` \| \[deploy-onboarding\]\([^)]*\) \| workflow_dispat
 'production-comments and production-archive deploy via the pinned-SHA dispatch-only lane, not local credentials');
 ok(/\| `notify` \| \[deploy-onboarding\]\([^)]*\)<br>\[deploy-single-function\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
 'notify is owned only by pinned-SHA dispatch-only lanes (onboarding and the one-function lane), never a push or laptop deploy');
-ok(/\| `linear-inbound` \| \[deploy-f27-inbound\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest),
-'linear-inbound has one dispatch-only pinned-SHA owner and no push deploy path');
+ok(/\| `linear-inbound` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* RETIRED 2026-09-24 \(B2 Slice 7\)/.test(manifest),
+'linear-inbound is recorded as retired, with no deploy path (B2 Slice 7)');
 ok(/\| `linear-outbound` \| \[deploy-f27-section4\]\([^)]*\)<br>\[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
   && /\| `production-write` \| \[deploy-f27-section4\]\([^)]*\)<br>\[deploy-onboarding\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\)<br>workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
   && /\| `deliverable-write` \| \[deploy-f27-section4\]\([^)]*\) \| workflow_dispatch only \(pinned SHA guard\) \|/.test(manifest)
@@ -327,8 +215,8 @@ ok(/\| `linear-outbound` \| \[deploy-f27-section4\]\([^)]*\)<br>\[deploy-onboard
 'the manifest records the exact reviewed Section 4 ownership, including only the two deliberate onboarding overlaps');
 ok(/for fn in linear-outbound notify production-write production-comments production-archive/.test(workflow),
 'the Track-B deploy set deploys the provider and notification sender before the write gateway, then its readers, from one pinned commit');
-ok(/\| `workload-linear` \| NONE \| \*\*NO CI DEPLOY PATH - DELIBERATE-MANUAL\.\*\* Source-only Workload Linear metadata\/deadline gateway/.test(manifest),
-'workload-linear is explicitly recorded as a source-only deliberate-manual exception');
+ok(!/\| `workload-linear` \|/.test(manifest),
+'workload-linear is gone from the manifest (deleted in B2 Slice 7)');
 
 if (failures) {
   console.error(`\n${failures} Edge Function deploy provenance check(s) failed`);

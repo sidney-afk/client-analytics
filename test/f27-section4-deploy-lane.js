@@ -8,7 +8,6 @@ const ROOT = path.resolve(__dirname, '..');
 const workflowPath = path.join(ROOT, '.github', 'workflows', 'deploy-f27-section4-closures.yml');
 const inboundWorkflowPath = path.join(ROOT, '.github', 'workflows', 'deploy-f27-linear-inbound.yml');
 const workflow = fs.readFileSync(workflowPath, 'utf8');
-const inboundWorkflow = fs.readFileSync(inboundWorkflowPath, 'utf8');
 const rollbackLibrary = fs.readFileSync(path.join(ROOT, 'scripts', 'f27-edge-source-rollback-lib.js'), 'utf8');
 const manifestGenerator = fs.readFileSync(path.join(ROOT, 'scripts', 'ef-deploy-manifest.js'), 'utf8');
 const manifest = fs.readFileSync(path.join(ROOT, 'docs', 'ops', 'EF_DEPLOY_MANIFEST.md'), 'utf8');
@@ -779,9 +778,8 @@ ok(!workflow.includes('supabase functions deploy linear-inbound')
   && !workflow.includes('supabase functions deploy production-comments')
   && !workflow.includes('supabase functions deploy production-archive')
   && !/\bsupabase functions deploy (?:calendar-upsert|sample-review-upsert)\b/.test(workflow)
-  && occurrences(inboundWorkflow, /\bsupabase functions deploy\b/g).length === 1
-  && inboundWorkflow.includes('supabase functions deploy linear-inbound'),
-'the new lane cannot deploy inbound, frozen writers, or comment/archive readers, and the P.3 single-slug lane remains separate');
+  && !fs.existsSync(inboundWorkflowPath),
+'the new lane cannot deploy inbound, frozen writers, or comment/archive readers, and the retired inbound lane stays gone (B2 Slice 7)');
 
 const reviewedOwnerBlock = manifestGenerator.match(/const REVIEWED_MULTI_OWNER = Object\.freeze\(\{([\s\S]*?)\n\}\);/);
 ok(reviewedOwnerBlock

@@ -338,9 +338,6 @@ ok(fs.existsSync(path.join(ROOT, inbound.config)),
 const pwArgs = denoArgsFor('production-write');
 ok(pwArgs.config === null && pwArgs.args.indexOf('--no-lock') >= 0,
     'a target with no per-function config keeps --no-lock, so the checker leaves no root lock behind');
-ok(/--frozen[\s\S]{0,120}supabase\/functions\/linear-inbound\/deno\.json/.test(
-    fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'deploy-f27-linear-inbound.yml'), 'utf8')),
-    'and the deploy lane still proves that same config frozen — the reason this target is special');
 
 /* ---- 4. no npm alias, for the reason item 94 gives ---------------------- */
 

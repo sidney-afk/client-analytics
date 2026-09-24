@@ -546,8 +546,6 @@
     "workload-duplicate-not-active.js",
     "workload-excluded-reported.js",
     "workload-linear-browser.js",
-    "workload-linear-policy.js",
-    "workload-linear-source.js",
     "workload-loose-strip-grouping.js",
     "workload-native-adapter.js",
     "workload-native-capture.js",

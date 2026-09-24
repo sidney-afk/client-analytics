@@ -371,7 +371,7 @@ jobs:
       # --expected-only; entrypoint unchanged. The WR-101 receipt enum
       # (_shared/write-refusal-diagnostics.mjs) also learns `title`.
       # (Previous pin: 68cae746ad... -- production-write, files=8, #1527.)
-      PRODUCTION_WRITE_SOURCE_SHA256: eda3cf74353aaab14b7773db86f98773d85e3dae4d855dccfc847cbe9c750a79
+      PRODUCTION_WRITE_SOURCE_SHA256: 78cd3f60f269be34f923c8bb1bc58cbde3fdaa54d9e9ea84a450af7180d19879
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

@@ -28823,3 +28823,13 @@ finished until its receipt is in the log and the row is updated, in the same PR.
 ## 247. [2026-09-24, APPLIED + DEPLOYED] Refusal receipts keep the browser's own reason code (#1570)
 
 Lighthouse applied `migrations/2026-09-24-refusal-receipt-browser-codes.sql` (live `receipts_v1_code_check` verified at 218 codes, no grant or revoke), then the owner deployed `write-diagnostics` from `3469b785622519d63a70b2e98e6d4d64a2515dc3` (attestation PASS); production-write picks up the shared module on its next Section 4 release, and #1563 already adds the hashed card id to every browser report.
+
+## 248. [2026-09-24, BUILT not applied — migration] A 2026-08-24 backup table was fully open to the browser key
+
+**What:** `public.batches_parent_claim_backup_20260824` (1455 rows, 3 columns) had RLS off, no policies, and all eight table privileges granted to both `anon` and `authenticated` (read live, read-only, 2026-09-24). Anyone holding the public publishable key could read, rewrite, delete or truncate it. Nothing in the app reads it: no function, view, cron job or Edge Function names it; the only references are the two `aaa_application_dml_admission_*` triggers on it and `production_retirement_contract_assert_v1`, which pins those triggers' definition md5s only.
+
+**Fix:** `migrations/2026-09-24-secure-batches-parent-claim-backup.sql` enables RLS (no policies) and revokes all from `public, anon, authenticated`; `postgres` and `service_role` keep their rights, the triggers and rows are unchanged, so the retirement assert is unaffected. The dated Linear-exit baseline artifacts (`LINEAR_EXIT_BACKUP_TABLE_BASELINE_20260911.json`, `LINEAR_EXIT_SOURCE_BASELINE_CATALOG_V1.json`, `scripts/linear-exit-backup-observed-baseline.js`) record the 2026-09-11 observed state, are hash-pinned, and are left as history; a future re-baseline will observe the secured state.
+
+**Undo:** ROLLBACK.md, 2026-09-24 parent-claim backup entry.
+
+**Apply:** owner applies the migration; then run its VERIFY block and `select public.production_retirement_contract_assert_v1();`.

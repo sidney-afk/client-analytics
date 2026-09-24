@@ -4,6 +4,14 @@
 
 All times are UTC unless noted.
 
+## 2026-09-24 — the batch view stopped listing the batch itself as a deliverable (browser only)
+
+`_prodBatchRows` kept the synthetic batch parent (it carries the batch id) and,
+for B1 imports, a Linear parent row filed beside its own children, so both
+drew as an extra first "deliverable" titled with the batch name. They are now
+filtered out. Read-only investigation against live data; no data changed.
+Guard: `test/prod-batch-view-hides-batch-parent.js`.
+
 ## 2026-09-19 — one shared capture-phase guard fixed the backdrop-dismiss-on-drag bug across all twenty-four dialog overlays (OPEN_REPAIRS 215)
 
 ## 2026-09-19 — the naming mint was applied on 2026-09-17 and nobody wrote it down

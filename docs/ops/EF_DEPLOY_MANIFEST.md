@@ -10,9 +10,9 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 38 |
+| Deployable function slugs | 37 |
 | Main-push plus manual-dispatch paths | 12 |
-| Manual-dispatch-only paths | 10 |
+| Manual-dispatch-only paths | 9 |
 | No CI deploy path | 13 |
 | Deliberate-manual subset of no-CI paths | 4 |
 
@@ -36,7 +36,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `kasper-ad-performance-read` | NONE | **NO CI DEPLOY PATH.** | `_shared/staff-role-auth.ts` | - |
 | `key-verify` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `legacy-onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
-| `linear-inbound` | [deploy-f27-inbound](../../.github/workflows/deploy-f27-linear-inbound.yml) | workflow_dispatch only (pinned SHA guard) | - | `linear-inbound/comment-normalize.mjs`<br>`linear-inbound/f27-echo.mjs`<br>`linear-inbound/label-normalize.mjs`<br>`linear-inbound/restore-markers.mjs` |
+| `linear-inbound` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** RETIRED 2026-09-24 (B2 Slice 7): deleted from production and its dispatch lane removed. The source stays only as the frozen reference its contract tests read, until B2 Slice 10. Do not redeploy it except as the rollback in ROLLBACK.md. | - | `linear-inbound/comment-normalize.mjs`<br>`linear-inbound/f27-echo.mjs`<br>`linear-inbound/label-normalize.mjs`<br>`linear-inbound/restore-markers.mjs` |
 | `linear-outbound` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml)<br>[deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard)<br>workflow_dispatch only (pinned SHA guard) | `_shared/linear-create-id.mjs` | `linear-outbound/f27-replay.mjs`<br>`linear-outbound/mapping.mjs`<br>`linear-outbound/monitoring.mjs` |
 | `notify` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml)<br>[deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard)<br>workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `notify/format.ts`<br>`notify/slack-api.ts`<br>`notify/urgent-link.ts` |
 | `onboarding-capture` | NONE | **NO CI DEPLOY PATH.** | - | - |
@@ -55,7 +55,6 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `thumbnail-folder-resolve` | NONE | **NO CI DEPLOY PATH.** | - | - |
 | `thumbnail-revision-read` | [deploy-thumbnail](../../.github/workflows/deploy-thumbnail-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
 | `thumbnail-revision-scan` | [deploy-thumbnail](../../.github/workflows/deploy-thumbnail-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
-| `workload-linear` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** Source-only Workload Linear metadata/deadline gateway; first deploy requires an exact-SHA operator release, `--no-verify-jwt`, fingerprint readback, and a TEST-client drill. | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `workload-linear/policy.mjs` |
 | `workload-plan` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard)<br>**Manual release note:** Live v2 deployed by operator from `fd3e0eaa` on 2026-07-20; future redeploys require `--no-verify-jwt` and exact-SHA fingerprint readback. | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `workload-plan/native-snapshot.mjs` |
 | `write-diagnostics` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard)<br>**Manual release note:** WR-101 refusal-receipt endpoint is deliberate-manual: the first deploy is an exact-SHA operator release with `--no-verify-jwt` (it accepts unauthenticated browser refusal claims by design; operator actions keep their own runner-key check) and a fingerprint readback. It stays dormant, answering 503, until `WRITE_DIAGNOSTICS_ENABLED=true`, and its SQL owner must be applied first. | `_shared/staff-role-auth.ts`<br>`_shared/write-refusal-codes.mjs`<br>`_shared/write-refusal-diagnostics.mjs` | - |
 

@@ -37,7 +37,6 @@ const WORKFLOWS = path.join(ROOT, '.github', 'workflows');
 /* Every pin that is supposed to describe the source IN THIS TREE. Keyed by the
    env var so the coverage check below can prove the table is complete. */
 const PINS = [
-  { workflow: 'deploy-f27-linear-inbound.yml', slug: 'linear-inbound', digestKey: 'CANDIDATE_SOURCE_SHA256', countKey: 'CANDIDATE_FILE_COUNT' },
   { workflow: 'deploy-f27-section4-closures.yml', slug: 'batch-write', digestKey: 'BATCH_WRITE_SOURCE_SHA256', countKey: 'BATCH_WRITE_FILE_COUNT' },
   { workflow: 'deploy-f27-section4-closures.yml', slug: 'deliverable-write', digestKey: 'DELIVERABLE_WRITE_SOURCE_SHA256', countKey: 'DELIVERABLE_WRITE_FILE_COUNT' },
   { workflow: 'deploy-f27-section4-closures.yml', slug: 'linear-outbound', digestKey: 'LINEAR_OUTBOUND_SOURCE_SHA256', countKey: 'LINEAR_OUTBOUND_FILE_COUNT' },

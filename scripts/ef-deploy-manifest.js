@@ -23,10 +23,6 @@ const OUTPUT_FILE = path.join(ROOT, 'docs', 'ops', 'EF_DEPLOY_MANIFEST.md');
 
 const WORKFLOWS = Object.freeze([
   Object.freeze({
-    id: 'deploy-f27-inbound',
-    file: '.github/workflows/deploy-f27-linear-inbound.yml',
-  }),
-  Object.freeze({
     id: 'deploy-f27-section4',
     file: '.github/workflows/deploy-f27-section4-closures.yml',
   }),
@@ -78,7 +74,7 @@ const REVIEWED_MULTI_OWNER = Object.freeze({
 
 const DELIBERATE_MANUAL = Object.freeze({
   'client-token-verify': 'Strict client-entry v1 is deliberate-manual: deploy and read back the exact reviewed function source before serving its matching browser caller; no runtime-flag change is part of this release.',
-  'workload-linear': 'Source-only Workload Linear metadata/deadline gateway; first deploy requires an exact-SHA operator release, `--no-verify-jwt`, fingerprint readback, and a TEST-client drill.',
+  'linear-inbound': 'RETIRED 2026-09-24 (B2 Slice 7): deleted from production and its dispatch lane removed. The source stays only as the frozen reference its contract tests read, until B2 Slice 10. Do not redeploy it except as the rollback in ROLLBACK.md.',
   'workload-plan': 'Live v2 deployed by operator from `fd3e0eaa` on 2026-07-20; future redeploys require `--no-verify-jwt` and exact-SHA fingerprint readback.',
   'write-diagnostics': 'WR-101 refusal-receipt endpoint is deliberate-manual: the first deploy is an exact-SHA operator release with `--no-verify-jwt` (it accepts unauthenticated browser refusal claims by design; operator actions keep their own runner-key check) and a fingerprint readback. It stays dormant, answering 503, until `WRITE_DIAGNOSTICS_ENABLED=true`, and its SQL owner must be applied first.',
 });

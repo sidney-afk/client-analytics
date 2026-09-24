@@ -101,7 +101,15 @@ function allowedHeaders(slug) {
   return null;
 }
 
+// Functions deleted from production whose browser caller survives only behind a
+// guard that cannot fire today. workload-linear (B2 Slice 7, 2026-09-24) is only
+// called for a team whose prod_authority is `linear`; both are `syncview`.
+const RETIRED_SLUGS = new Set(['workload-linear']);
 for (const [slug, headers] of [...required.entries()].sort()) {
+  if (RETIRED_SLUGS.has(slug)) {
+    ok(!fs.existsSync(path.join(ROOT, 'supabase', 'functions', slug)), slug + ': retired, and its source is gone');
+    continue;
+  }
   const allowed = allowedHeaders(slug);
   ok(!!allowed, slug + ': allowlist found in EF source');
   if (!allowed) continue;

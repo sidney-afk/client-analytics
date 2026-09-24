@@ -374,3 +374,14 @@ Put each snapshot in the SyncView Backups drive, not the repo, because it contai
 - **Applied:** all 25 buckets, 445 deliverables and 1,248 links, each after a dry run that matched the independent counts. 0 failures. Readback found 0 Linear links and 0 unresolved references. One bucket first failed its read with a 503 and wrote nothing; the retry passed.
 - **Snapshots:** in the SyncView Backups Shared Drive, never the repo (they hold brief text). They are gzip-compressed: `b2-older-brief-link-rewrite-snapshot-2026-09-24-clientNNof25.json.gz`. Clients 22 to 25 were too large to upload whole, so each is split into numbered pieces ending `.part00`, `.part01` and so on. Every upload was byte-compared with the local file, and the pieces were checked to rejoin exactly. The local copies were deleted.
 - **To restore a client:** download its file (or all its pieces), join the pieces in order, then uncompress, and pass the `.json` to `--rollback`. The runbook is in `ROLLBACK.md`, row "B2 older-briefs link rewrite".
+
+### Slice 7 (plan Slice 7, split by owner decision): delete `workload-linear` and `linear-inbound`. Repo PR ready 2026-09-24; function deletion is the owner's
+
+- **Owner decision 2026-09-24:** `linear-outbound` moves to Slice 8. It is wired into the four-function Section 4 lane that Slice 8 deploys through, so deleting it first would break that lane's capture and its rollback. Slice 8 rewrites the lane to three functions, and `linear-outbound` is deleted only after that three-function deploy is green.
+- **Live evidence (read-only, 2026-09-24 ~03:40Z):**
+  - Edge logs over three back-to-back 24-hour windows (72 hours): 0 requests to `workload-linear`, 0 to `linear-inbound` and 0 to `linear-outbound`. The same query counts 12,484 `production-write` log lines in one of those windows, so it does see traffic.
+  - `cron.job`: 0 of 2 jobs call any of the three. Postgres functions: 1 mentions `linear-inbound`, only in a comment.
+  - Runtime flags: `prod_authority` is `syncview` for both teams (since 2026-08-28), so the browser never takes its `workload-linear` path. `linear_inbound_enabled` is off (since 2026-09-23).
+  - `mirror_outbox`: 0 rows waiting. 101 are `stale`, a finished state, and the newest is 150 hours old.
+- **Repo change:** removes `deploy-f27-linear-inbound.yml`, the `workload-linear` source and its two function tests, and both functions' deploy-manifest entries. `linear-inbound` is recorded as RETIRED with no deploy path. Its source stays only as the frozen reference about ten contract tests read, and goes in Slice 10. `B4_TEST_PROJECT_IDS` is untouched until Slice 8 is done.
+- **Rollback:** see `ROLLBACK.md`, row "B2 Slice 7".

@@ -165,19 +165,7 @@ function checkSideValidator(parse, label) {
     'browser Production preview _prodAuthorityValue',
   );
 
-  // --- workload-linear/policy.mjs (edge function policy, shared with tests) -
-  const workloadPolicy = await import(pathToFileURL(path.join(
-    ROOT, 'supabase', 'functions', 'workload-linear', 'policy.mjs',
-  )).href);
-  checkObjectValidator(workloadPolicy.productionAuthorityValue, 'edge fn workload-linear policy.mjs productionAuthorityValue');
-  {
-    const allowed = workloadPolicy.linearAuthorityDecision({ video: 'linear', graphics: 'linear' }, 'video');
-    const blocked = workloadPolicy.linearAuthorityDecision({ video: 'syncview', graphics: 'linear' }, 'video');
-    const aliasBlocked = workloadPolicy.linearAuthorityDecision({ video: 'supabase', graphics: 'linear' }, 'video');
-    ok(allowed.ok === true, 'edge fn workload-linear linearAuthorityDecision allows a linear-authoritative team');
-    ok(blocked.ok === false && blocked.status === 409, 'edge fn workload-linear linearAuthorityDecision blocks a syncview-authoritative team');
-    ok(aliasBlocked.ok === false, 'edge fn workload-linear linearAuthorityDecision rejects the legacy supabase alias');
-  }
+  // workload-linear/policy.mjs was deleted with the function (B2 Slice 7, 2026-09-24).
 
   // --- scripts/prod-authority-guard.js (shared reconciler guard) -----------
   const prodAuthorityGuard = require(path.join(ROOT, 'scripts', 'prod-authority-guard.js'));

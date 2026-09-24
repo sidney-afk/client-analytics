@@ -1,0 +1,12 @@
+    function _calEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    /* NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value).
+       It is NOT enough for a string argument inside an inline handler —
+       onclick="fn('${_calEscAttr(v)}')" still breaks on apostrophes. Use
+       _jsAttrArg below for handler arguments. */
+    function _calEscAttr(s) { return _calEsc(s).replace(/'/g,'&#39;'); }
+    /* String argument for an inline-handler attribute: onclick="fn(${_jsAttrArg(v)})".
+       Must be JSON-escaped FIRST (JS string literal) and entity-escaped SECOND
+       (attribute value) — the browser decodes entities before the JS engine
+       parses the handler, so wrapping a value in '…' + _calEscAttr alone still
+       breaks on apostrophes (&#39; decodes right back into a quote). */
+    function _jsAttrArg(v) { return _calEscAttr(JSON.stringify(String(v == null ? '' : v))); }

@@ -1,0 +1,363 @@
+    /* Modern animated loader — a single rotating ring with a subtle label.
+       The visible arc is drawn as a short stroke-dasharray segment so the
+       spinning motion stays smooth across browsers. */
+    function _svSkel(cls, style) {
+        return `<div class="sv-skeleton${cls ? ' ' + cls : ''}"${style ? ` style="${style}"` : ''}></div>`;
+    }
+    function _svTableSkeletonHtml(rows) {
+        rows = rows || 5;
+        return `<div class="table-skeleton" role="status" aria-label="Loading">${Array.from({ length: rows }, (_, i) => `
+            <div class="table-skeleton-row">
+                ${_svSkel('sv-skeleton-line', 'width:' + (i % 2 ? '72%' : '84%') + ';')}
+                ${_svSkel('sv-skeleton-line', 'width:62%;')}
+                ${_svSkel('sv-skeleton-line', 'width:78%;')}
+                ${_svSkel('sv-skeleton-pill', 'height:24px;width:70px;')}
+            </div>`).join('')}</div>`;
+    }
+    function _svCalendarOrganizerSkeletonHtml(label) {
+        return `<div class="cal-loader cal-skeleton-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="cal-skeleton-sheet">
+                <div class="cal-skeleton-toolbar">
+                    <div class="cal-skeleton-toolbar-left">
+                        ${_svSkel('sv-skeleton-pill', 'width:150px;height:34px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:152px;height:34px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:146px;height:34px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:34px;height:34px;')}
+                    </div>
+                    <div class="cal-skeleton-toolbar-mid">
+                        ${_svSkel('sv-skeleton-pill', 'width:108px;height:32px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:112px;height:32px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:308px;height:32px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:88px;height:32px;')}
+                    </div>
+                    <div class="cal-skeleton-toolbar-right">
+                        ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                    </div>
+                </div>
+                <div class="cal-skeleton-strip">
+                    ${[0, 1, 2, 3, 4, 5].map(i => `<div class="cal-skeleton-card">
+                        ${_svSkel('cal-skeleton-thumb')}
+                        <div class="cal-skeleton-card-body">
+                            ${_svSkel('sv-skeleton-line', 'width:' + (i % 3 === 1 ? '58%' : '72%') + ';height:18px;')}
+                            ${_svSkel('cal-skeleton-field', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-field', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-field', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-chip', 'width:92px;')}
+                            ${_svSkel('cal-skeleton-copy', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-field', 'width:100%;')}
+                            <div class="sv-skeleton-row">
+                                ${_svSkel('sv-skeleton-line', 'width:74px;height:12px;')}
+                                ${_svSkel('sv-skeleton-pill', 'width:' + (i % 2 ? '24px' : '18px') + ';height:18px;')}
+                            </div>
+                            ${_svSkel('cal-skeleton-field', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-status is-video', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-status ' + (i % 3 === 0 ? 'is-thumb' : 'is-caption'), 'width:100%;')}
+                            ${_svSkel('cal-skeleton-status is-caption', 'width:100%;')}
+                        </div>
+                    </div>`).join('')}
+                </div>
+            </div>
+        </div>`;
+    }
+    function _svCalendarMonthSkeletonHtml(label) {
+        const cells = Array.from({ length: 42 }, (_, i) => `<div class="cal-month-cell${i < 3 || i > 36 ? ' out' : ''}">
+            <div class="cal-month-cellhead">
+                ${_svSkel('sv-skeleton-line', 'width:28px;height:10px;')}
+                ${_svSkel('sv-skeleton-pill', 'width:24px;height:18px;')}
+            </div>
+            ${(i % 4 === 0) ? _svSkel('sv-skeleton-pill', 'width:82%;height:24px;margin-top:10px;') : ''}
+            ${(i % 9 === 0) ? _svSkel('sv-skeleton-pill', 'width:62%;height:24px;margin-top:6px;') : ''}
+        </div>`).join('');
+        return `<div class="cal-loader cal-skeleton-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="cal-month-wrap">
+                <div class="cal-month-header">
+                    ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                    ${_svSkel('sv-skeleton-line', 'width:156px;height:20px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:62px;height:32px;')}
+                </div>
+                <div class="cal-month-grid">
+                    ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(() => `<div class="cal-month-head">${_svSkel('sv-skeleton-line', 'width:34px;height:10px;')}</div>`).join('')}
+                    ${cells}
+                </div>
+            </div>
+        </div>`;
+    }
+    function _svCalendarWeekSkeletonHtml(label) {
+        return `<div class="cal-loader cal-skeleton-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="cal-week-wrap">
+                <div class="cal-month-header">
+                    ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                    ${_svSkel('sv-skeleton-line', 'width:190px;height:20px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:62px;height:32px;')}
+                </div>
+                <div class="cal-week-viewport">
+                    <div class="cal-week-grid">
+                        ${[0, 1, 2, 3, 4, 5, 6].map(i => `<div class="cal-week-day">
+                            <div class="cal-month-cellhead">
+                                ${_svSkel('sv-skeleton-line', 'width:34px;height:10px;')}
+                                ${_svSkel('sv-skeleton-pill', 'width:24px;height:18px;')}
+                            </div>
+                            ${_svSkel('sv-skeleton-pill', 'width:86%;height:28px;margin-top:14px;')}
+                            ${(i % 2 === 0) ? _svSkel('sv-skeleton-pill', 'width:66%;height:28px;margin-top:8px;') : ''}
+                        </div>`).join('')}
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }
+    function _svCalendarSkeletonHtml(label) {
+        const view = (typeof calState !== 'undefined' && calState && calState.view) ? calState.view : '';
+        if (view === 'month') return _svCalendarMonthSkeletonHtml(label);
+        if (view === 'week') return _svCalendarWeekSkeletonHtml(label);
+        if (view === 'review' || view === 'smmreview') return _svReviewSkeletonHtml(label);
+        return _svCalendarOrganizerSkeletonHtml(label);
+    }
+    function _svReviewSkeletonHtml(label) {
+        return `<div class="cal-loader cal-skeleton-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="cal-skeleton-review">
+                ${[0, 1, 2].map(i => `<div class="cal-skeleton-review-card">
+                    ${_svSkel('cal-skeleton-review-thumb')}
+                    <div class="sv-skeleton-stack">
+                        ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '56%' : '72%') + ';')}
+                        ${_svSkel('sv-skeleton-line', 'width:88%;')}
+                        ${_svSkel('sv-skeleton-line', 'width:' + (i === 2 ? '48%' : '64%') + ';')}
+                    </div>
+                    ${_svSkel('sv-skeleton-pill', 'width:96px;height:30px;')}
+                </div>`).join('')}
+            </div>
+        </div>`;
+    }
+    function _svSamplesSkeletonHtml(label) {
+        return `<div class="sm-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="sm-skeleton-strip">
+                ${[0, 1, 2].map(i => `<div class="sm-skeleton-card">
+                    ${_svSkel('sm-skeleton-thumb')}
+                    ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '62%' : '78%') + ';')}
+                    ${_svSkel('sv-skeleton-line', 'width:46%;')}
+                </div>`).join('')}
+            </div>
+        </div>`;
+    }
+    function _svKasperSkeletonHtml(label) {
+        return `<div class="kasper-skeleton-list" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            ${[0, 1, 2].map(i => `<div class="kasper-skeleton-card">
+                ${_svSkel('kasper-skeleton-thumb')}
+                <div class="sv-skeleton-stack">
+                    ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '64%' : '80%') + ';')}
+                    ${_svSkel('sv-skeleton-line', 'width:92%;')}
+                    ${_svSkel('sv-skeleton-line', 'width:58%;')}
+                </div>
+                ${_svSkel('sv-skeleton-pill', 'width:96px;height:30px;')}
+            </div>`).join('')}
+        </div>`;
+    }
+    function _svWorkloadSkeletonHtml() {
+        const mode = (typeof wlState !== 'undefined' && wlState && wlState.viewMode === 'week') ? 'week' : 'month';
+        const cells = mode === 'week' ? 5 : 28;
+        return `<div class="workload-skeleton-grid ${mode}" role="status" aria-label="Loading saved work days">${Array.from({ length: cells }, (_, i) => `
+            <div class="workload-skeleton-day">
+                ${_svSkel('sv-skeleton-pill', 'width:34px;height:14px;')}
+                ${(i % 3 === 0 || mode === 'week') ? `<div class="workload-skeleton-card">${_svSkel('sv-skeleton-line', 'width:72%;')}<div class="sv-skeleton-row">${_svSkel('sv-skeleton-pill', 'width:54%;height:16px;')}${_svSkel('sv-skeleton-pill', 'width:28%;height:16px;')}</div></div>` : ''}
+                ${(i % 5 === 0 || mode === 'week') ? `<div class="workload-skeleton-card">${_svSkel('sv-skeleton-line', 'width:58%;')}<div class="sv-skeleton-row">${_svSkel('sv-skeleton-pill', 'width:42%;height:16px;')}</div></div>` : ''}
+            </div>`).join('')}</div>`;
+    }
+    function _svAnalyticsOverviewSkeletonHtml() {
+        const cell = (cls, w) => `<td class="${cls}"><div class="sv-skeleton sv-skeleton-line" style="width:${w};"></div></td>`;
+        const chip = (cls, w) => `<td class="${cls}"><div class="sv-skeleton sv-skeleton-pill" style="width:${w};height:18px;"></div></td>`;
+        const rows = [118, 96, 132, 104, 124].map((nameW, i) => `<tr>
+            <td><div class="cell-inner"><span class="client-view-btn"></span>${_svSkel('sv-skeleton-line', 'width:' + nameW + 'px;')}</div></td>
+            <td>${_svSkel('sv-skeleton-line', 'width:52px;')}</td>
+            ${cell('col-ig main-metric', i % 2 ? '52px' : '60px')}${chip('col-ig', i % 2 ? '36px' : '44px')}${cell('col-ig', i % 2 ? '48px' : '58px')}${chip('col-ig', i % 3 ? '42px' : '36px')}
+            ${cell('col-tt main-metric', i % 2 ? '58px' : '52px')}${chip('col-tt', i % 2 ? '42px' : '38px')}${cell('col-tt', i % 3 ? '56px' : '62px')}${chip('col-tt', i % 2 ? '38px' : '44px')}
+            ${cell('col-yt main-metric', i % 2 ? '50px' : '62px')}${chip('col-yt', i % 2 ? '38px' : '42px')}${cell('col-yt', i % 3 ? '58px' : '52px')}${chip('col-yt', i % 2 ? '44px' : '40px')}
+        </tr>`).join('');
+        return `<div class="overview-wrap analytics-overview-skeleton" role="status" aria-label="Loading">
+            <div class="overview-controls">
+                <div class="controls-left">
+                    ${_svSkel('sv-skeleton-pill', 'width:96px;height:30px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:86px;height:30px;')}
+                </div>
+                ${_svSkel('sv-skeleton-pill', 'width:74px;height:31px;')}
+            </div>
+            <table class="overview-table analytics-overview-table" aria-hidden="true">
+                <colgroup><col class="col-name"><col class="col-date"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"></colgroup>
+                <thead><tr>
+                    <th rowspan="2" style="text-align:left;vertical-align:middle;">${_svSkel('sv-skeleton-line', 'width:72px;')}</th>
+                    <th rowspan="2" style="vertical-align:middle;">${_svSkel('sv-skeleton-line', 'width:44px;')}</th>
+                    <th colspan="4" class="group-ig">${_svSkel('sv-skeleton-line', 'width:86px;')}</th>
+                    <th colspan="4" class="group-tt">${_svSkel('sv-skeleton-line', 'width:62px;')}</th>
+                    <th colspan="4" class="group-yt">${_svSkel('sv-skeleton-line', 'width:74px;')}</th>
+                </tr><tr>
+                    ${['ig-h','ig-h','ig-h','ig-h','tt-h','tt-h','tt-h','tt-h','yt-h','yt-h','yt-h','yt-h'].map((cls, i) => `<th class="${cls}">${_svSkel('sv-skeleton-line', 'width:' + ([54,42,58,42][i % 4]) + 'px;')}</th>`).join('')}
+                </tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
+    }
+    function _svAnalyticsDetailSkeletonHtml(name) {
+        const heading = name ? _calEsc(name) : '';
+        const metric = (w1, w2) => `<div class="analytics-skel-metric">${_svSkel('sv-skeleton-line', 'width:' + w1 + ';height:10px;')}${_svSkel('sv-skeleton-line', 'width:' + w2 + ';height:24px;')}${_svSkel('sv-skeleton-pill', 'width:58px;height:18px;')}</div>`;
+        const platform = (cls, count, titleW) => `<div class="platform-section analytics-skel-platform ${cls}">
+            <div class="analytics-skel-platform-head">
+                <span class="platform-name"><span class="platform-pill"></span>${_svSkel('sv-skeleton-line', 'width:' + titleW + ';height:12px;')}</span>
+                ${_svSkel('sv-skeleton-pill', 'width:108px;height:22px;')}
+            </div>
+            <div class="metrics-row analytics-skel-metrics">${Array.from({ length: count }, (_, j) => metric(j % 2 ? '58%' : '72%', j % 2 ? '66%' : '48%')).join('')}</div>
+            <div class="analytics-skel-top-videos">
+                <div class="top-videos-head">
+                    ${_svSkel('sv-skeleton-line', 'width:110px;height:10px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:108px;height:24px;')}
+                </div>
+                <div class="analytics-skel-video-row">
+                    ${[0, 1, 2].map(i => `<div class="analytics-skel-video-card">
+                        ${_svSkel('sv-skeleton-pill', 'width:46px;height:18px;')}
+                        ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '84%' : '92%') + ';height:10px;')}
+                        ${_svSkel('sv-skeleton-line', 'width:' + (i === 2 ? '62%' : '76%') + ';height:10px;')}
+                        <div class="tt-stats">${[0, 1, 2, 3].map(() => _svSkel('sv-skeleton-line', 'width:46px;height:10px;')).join('')}</div>
+                    </div>`).join('')}
+                </div>
+            </div>
+        </div>`;
+        return `<div class="client-view analytics-detail-skeleton" role="status" aria-label="Loading">
+            <div class="detail-hero">
+                <div class="sv-skeleton-stack">
+                    ${heading ? `<div class="detail-name">${heading}</div>` : _svSkel('sv-skeleton-line', 'width:220px;height:28px;')}
+                    ${_svSkel('sv-skeleton-line', 'width:340px;')}
+                </div>
+                <div class="analytics-skel-actions">
+                    ${_svSkel('sv-skeleton-pill', 'width:114px;height:32px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:92px;height:32px;')}
+                </div>
+            </div>
+            <div class="gains-bar">
+                <div class="gains-bar-label">${_svSkel('sv-skeleton-line', 'width:88px;height:10px;')}</div>
+                ${['gp-ig','gp-tt','gp-yt'].map((cls, i) => `<div class="gains-platform-card ${cls}">
+                    <div class="gains-platform-header"><span class="gains-platform-dot"></span>${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '48px' : '74px') + ';height:10px;')}</div>
+                    <div class="gains-metrics-row">${_svSkel('sv-skeleton-line', 'width:64px;height:18px;')}${_svSkel('sv-skeleton-line', 'width:78px;height:18px;')}</div>
+                </div>`).join('')}
+            </div>
+            ${platform('ig', 4, '84px')}
+            ${platform('tt', 3, '56px')}
+            ${platform('yt', 2, '70px')}
+            <div class="chart-section analytics-skel-chart">
+                <div class="chart-top">
+                    ${_svSkel('sv-skeleton-line', 'width:190px;')}
+                    <div class="chart-plat-toggle">
+                        ${_svSkel('sv-skeleton-pill', 'width:92px;height:28px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:72px;height:28px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:86px;height:28px;')}
+                    </div>
+                </div>
+                <div class="analytics-skel-chart-bars">
+                    ${[42, 68, 52, 84, 58, 74, 46, 66, 56].map(h => _svSkel('', 'height:' + h + '%;')).join('')}
+                </div>
+            </div>
+            <div class="chart-section analytics-skel-chart">
+                <div class="chart-top">
+                    ${_svSkel('sv-skeleton-line', 'width:170px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:210px;height:28px;')}
+                </div>
+                <div class="analytics-skel-chart-bars">
+                    ${[58, 46, 76, 62, 84, 54, 72, 48, 66].map(h => _svSkel('', 'height:' + h + '%;')).join('')}
+                </div>
+            </div>
+        </div>`;
+    }
+    function _svAnalyticsSkeletonHtml(name, variant) {
+        if (variant === 'overview') return _svAnalyticsOverviewSkeletonHtml();
+        return _svAnalyticsDetailSkeletonHtml(name);
+    }
+    function _svClientVerifySkeletonHtml() {
+        return `<div class="client-link-verify-skeleton" role="status" aria-live="polite" aria-label="Verifying secure client link" data-client-entry-loading="verify">
+            <div class="client-link-verify-card">
+                <div class="client-link-verify-mark" aria-hidden="true">${_svSkel('sv-skeleton-dot')}</div>
+                ${_svSkel('sv-skeleton-line', 'width:210px;height:16px;')}
+                ${_svSkel('sv-skeleton-line', 'width:286px;max-width:86%;')}
+            </div>
+        </div>`;
+    }
+    function _svClientBriefSkeletonHtml(name) {
+        return `<div class="boot-page-skeleton client-profile-boot-skeleton" role="status" aria-live="polite" aria-label="Loading client brief" data-client-entry-loading="brief">
+            <div class="boot-tab-skeleton-row">
+                ${_svSkel('sv-skeleton-pill', 'width:92px;height:34px;')}
+                ${_svSkel('sv-skeleton-pill', 'width:146px;height:34px;')}
+                ${_svSkel('sv-skeleton-pill', 'width:76px;height:34px;')}
+            </div>
+            <div class="detail-hero sv-skeleton-card">
+                ${_svSkel('sv-skeleton-line', 'width:' + (name ? '220px' : '180px') + ';height:28px;')}
+                ${_svSkel('sv-skeleton-line', 'width:270px;max-width:68%;')}
+            </div>
+            <div class="client-brief-boot-grid">
+                <div class="sv-skeleton-card client-brief-boot-card">${_svSkel('sv-skeleton-line', 'width:38%;height:18px;')}${_svSkel('sv-skeleton-line', 'width:94%;')}${_svSkel('sv-skeleton-line', 'width:86%;')}${_svSkel('sv-skeleton-line', 'width:72%;')}</div>
+                <div class="sv-skeleton-card client-brief-boot-card">${_svSkel('sv-skeleton-line', 'width:52%;height:18px;')}${_svSkel('sv-skeleton-line', 'width:88%;')}${_svSkel('sv-skeleton-line', 'width:76%;')}${_svSkel('sv-skeleton-line', 'width:82%;')}</div>
+            </div>
+        </div>`;
+    }
+    function _svOnboardingSkeletonHtml() {
+        return `<div class="onboarding-skeleton" role="status" aria-label="Loading">
+            ${[0, 1, 2].map(i => `<div class="onboarding-skeleton-card">
+                <div class="sv-skeleton-row">
+                    ${_svSkel('sv-skeleton-dot')}
+                    ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '44%' : '58%') + ';')}
+                </div>
+                ${_svSkel('sv-skeleton-line', 'width:88%;')}
+                ${_svSkel('sv-skeleton-line', 'width:64%;')}
+            </div>`).join('')}
+        </div>`;
+    }
+    function _svLinearSearchSkeletonHtml() {
+        return `<div class="linear-search-skeleton" role="status" aria-label="Loading">
+            ${[0, 1, 2].map(i => `<div class="sv-skeleton-row">
+                ${_svSkel('sv-skeleton-dot', 'width:16px;height:16px;')}
+                ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '58%' : '76%') + ';')}
+            </div>`).join('')}
+        </div>`;
+    }
+    function _prodSkeletonHtml() {
+        const rows = Array.from({ length: 9 }, (_, i) => `<div class="prod-loading-row">
+            <span class="prod-skeleton" style="width:13px;height:13px;border-radius:50%;"></span>
+            <span class="prod-skeleton" style="height:13px;width:54px;"></span>
+            <span class="prod-skeleton" style="height:13px;width:${i % 2 ? '64%' : '82%'};"></span>
+            <span class="prod-skeleton" style="height:22px;width:118px;border-radius:999px;"></span>
+            <span class="prod-skeleton" style="height:22px;width:72px;border-radius:999px;"></span>
+        </div>`).join('');
+        return `<div class="prod-loading-skeleton" role="status" aria-label="Loading">
+            <div class="prod-loading-list">${rows}</div>
+            <aside class="prod-loading-detail">
+                <span class="prod-skeleton" style="height:24px;width:70%;"></span>
+                <span class="prod-skeleton" style="height:14px;width:86%;"></span>
+                <span class="prod-skeleton" style="height:14px;width:64%;"></span>
+                <span class="prod-skeleton" style="height:32px;width:100%;margin-top:12px;"></span>
+                <span class="prod-skeleton" style="height:32px;width:100%;"></span>
+                <span class="prod-skeleton" style="height:32px;width:82%;"></span>
+            </aside>
+        </div>`;
+    }
+    function _svLoadingSkeletonHtml(kind, opts) {
+        opts = opts || {};
+        if (kind === 'client-verify') return _svClientVerifySkeletonHtml();
+        if (kind === 'client-brief') return _svClientBriefSkeletonHtml(opts.name || '');
+        if (kind === 'analytics' || kind === 'analytics-overview') return _svAnalyticsSkeletonHtml(opts.name || '', 'overview');
+        if (kind === 'analytics-client') return _svAnalyticsSkeletonHtml(opts.name || '', 'client');
+        if (kind === 'workload') return _svWorkloadSkeletonHtml();
+        if (kind === 'samples') return _svSamplesSkeletonHtml(opts.label);
+        if (kind === 'review') return _svReviewSkeletonHtml(opts.label);
+        if (kind === 'table') return _svTableSkeletonHtml(opts.rows || 5);
+        if (kind === 'onboarding') return _svOnboardingSkeletonHtml();
+        if (kind === 'linear-search') return _svLinearSearchSkeletonHtml();
+        if (kind === 'kasper') return _svKasperSkeletonHtml(opts.label);
+        if (kind === 'production') return _prodSkeletonHtml();
+        return _svCalendarSkeletonHtml(opts.label);
+    }
+    function _calLoaderHtml(label) {
+        const raw = String(label || 'Loading your calendar');
+        const t = raw.toLowerCase();
+        if (t.includes('credential') || t.includes('history')) return _svLoadingSkeletonHtml('table', { label: raw });
+        if (t.includes('sample') || t.includes('review')) return _svLoadingSkeletonHtml('review', { label: raw });
+        if (t.includes('kasper') || t.includes('filming') || t.includes('linear') || t.includes('message')) return _svLoadingSkeletonHtml('kasper', { label: raw });
+        return _svLoadingSkeletonHtml('calendar', { label: raw });
+    }

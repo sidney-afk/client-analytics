@@ -14,6 +14,10 @@
 120-calendar-flags-write-repair.js.part
 125-title-name-rule.js.part
 130-calendar-model-cache.js.part
+131-core-html.js.part
+132-calendar-dates-ids.js.part
+133-core-loading-skeletons.js.part
+134-calendar-prefs-mount.js.part
 140-calendar-legacy-outbox.js.part
 150-calendar-hydration-import.js.part
 160-calendar-organize-ui.js.part

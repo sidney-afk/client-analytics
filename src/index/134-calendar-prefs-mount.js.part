@@ -1,0 +1,1010 @@
+
+    function _calLoadPrefs() { try { return JSON.parse(localStorage.getItem(CAL_PREFS_KEY) || '{}'); } catch { return {}; } }
+    function _calSavePrefs() {
+        try {
+            const prev = _calLoadPrefs();
+            const client = calState.embedded ? prev.client : calState.client;
+            // month/status filters deliberately NOT here — they're per-client
+            // (CAL_FILTERS_KEY), so switching tabs doesn't carry them over.
+            localStorage.setItem(CAL_PREFS_KEY, JSON.stringify({ view: calState.view, client, zoom: calState.zoom }));
+        } catch {}
+    }
+    function _calFiltersRead() {
+        try { const m = JSON.parse(localStorage.getItem(CAL_FILTERS_KEY) || '{}'); return (m && typeof m === 'object') ? m : {}; } catch { return {}; }
+    }
+    /* Hydrate calState.monthFilter/statusFilter from the named client's saved
+       entry (defaults: current month / all content when none saved yet). Call
+       on mount and on every client switch, BEFORE rendering the filter pills. */
+    function _calLoadClientFilters(name) {
+        const slug = calClientSlug(name || calState.client);
+        const row = (slug && _calFiltersRead()[slug]) || {};
+        calState.monthFilter  = _calNormMonthFilter(row.month);
+        calState.statusFilter = _calNormStatusFilter(row.status);
+        // Ordering mode rides along with the filters: per-client, per-device,
+        // and never sent to the backend. It changes only what THIS viewer sees,
+        // so one SMM auto-organizing their view can't reorder anyone else's.
+        calState.sortMode     = _calNormSortMode(row.sort);
+    }
+    function _calSaveClientFilters() {
+        const slug = calClientSlug(calState.client);
+        if (!slug) return;
+        try {
+            const m = _calFiltersRead();
+            m[slug] = { month: calState.monthFilter, status: calState.statusFilter, sort: calState.sortMode };
+            localStorage.setItem(CAL_FILTERS_KEY, JSON.stringify(m));
+        } catch {}
+    }
+    /* Per-client strip scroll, persisted across browser refreshes. */
+    function _calSaveScroll(slug, x) {
+        if (!slug) return;
+        try { localStorage.setItem('syncview_cal_scroll_' + slug, String(x)); } catch {}
+    }
+    function _calGetSavedScroll(slug) {
+        if (!slug) return null;
+        try {
+            const v = localStorage.getItem('syncview_cal_scroll_' + slug);
+            if (v == null) return null;
+            const n = Number(v);
+            return isFinite(n) ? n : null;
+        } catch { return null; }
+    }
+    /* Per-client archive ledger. Archive lives in the Sheet's `status`
+       column, which the Linear-status-sync webhook overwrites — so once
+       a sub-issue's status changes, the BE flips Archived back to In
+       Progress and the card resurrects (sometimes alongside a freshly
+       created duplicate row). This ledger remembers what the user
+       archived in localStorage and filters those rows out client-side,
+       keyed by BOTH the row id and (when present) the Linear sub-issue
+       URL so even a brand-new duplicate row with a different id stays
+       hidden as long as it points at the same Linear issue. */
+    function _calArchivedKey(slug) { return 'syncview_cal_archived_v1_' + slug; }
+    /* The archive ledger is the FE-side "I've asked the server to archive
+       these — don't show them, regardless of what a still-in-flight
+       background poll might say". Stored as { ref: addedAtMs } so the
+       self-heal pass can age old refs out without ripping a freshly
+       enqueued one. CAL_ARCHIVE_GRACE_MS is the propagation budget: a
+       ref younger than this is trusted unconditionally; older refs are
+       cleared when the server reports the matching row as live. */
+    const CAL_ARCHIVE_GRACE_MS = 60 * 1000;
+    function _calArchivedReadRaw(slug) {
+        if (!slug) return {};
+        try {
+            const raw = JSON.parse(localStorage.getItem(_calArchivedKey(slug)) || '{}');
+            // Back-compat: v1 stored a plain string array. Treat legacy
+            // entries as ancient (ts=0) so they still hide the row but
+            // are eligible for self-heal on the next live load.
+            if (Array.isArray(raw)) {
+                const m = {};
+                raw.forEach(r => { if (r) m[String(r)] = 0; });
+                return m;
+            }
+            return (raw && typeof raw === 'object') ? raw : {};
+        } catch { return {}; }
+    }
+    function _calArchivedWriteRaw(slug, obj) {
+        if (!slug) return;
+        try { localStorage.setItem(_calArchivedKey(slug), JSON.stringify(obj || {})); } catch {}
+    }
+    function _calArchivedRefs(slug) {
+        if (!slug) return new Set();
+        return new Set(Object.keys(_calArchivedReadRaw(slug)));
+    }
+    function _calArchivedAdd(slug, refs) {
+        if (!slug || !refs || !refs.length) return;
+        const m = _calArchivedReadRaw(slug);
+        const now = Date.now();
+        let changed = false;
+        refs.filter(Boolean).forEach(r => {
+            const k = String(r);
+            if (m[k] !== now) { m[k] = now; changed = true; }
+        });
+        if (changed) _calArchivedWriteRaw(slug, m);
+    }
+    /* Drop refs from the ledger — used when the user explicitly re-imports
+       a previously archived Linear sub-issue. Without this, the freshly
+       imported card would be hidden on load because its linear_issue_id
+       is still in the archive set from the original archive action. Also
+       used to roll back the optimistic ledger entry when an archive HTTP
+       call ends up failing. */
+    function _calArchivedRemove(slug, refs) {
+        if (!slug || !refs || !refs.length) return;
+        const m = _calArchivedReadRaw(slug);
+        let changed = false;
+        refs.filter(Boolean).forEach(r => {
+            const k = String(r);
+            if (Object.prototype.hasOwnProperty.call(m, k)) { delete m[k]; changed = true; }
+        });
+        if (changed) _calArchivedWriteRaw(slug, m);
+    }
+    /* Defensive cleanup: scan a freshly loaded posts list and strip any
+       refs (id or linear_issue_id) from the local archive ledger that
+       correspond to a post that's actually live (status != Archived).
+       The ledger only exists to hide cards while a freshly-fired archive
+       write propagates to the sheet; once the server says a row is
+       active, the ledger must not override that — otherwise a re-import
+       of a previously archived Linear sub-issue stays hidden forever
+       because the new row's id is fresh but the linear_issue_id matches
+       the old archive entry.
+
+       Refs newer than CAL_ARCHIVE_GRACE_MS are left alone: they may
+       belong to an archive HTTP that is still propagating to the sheet,
+       which would otherwise show as "live" in this very fetch and
+       trick us into removing a valid ledger entry too early. */
+    function _calCleanArchiveLedger(slug, posts) {
+        if (!slug || !posts || !posts.length) return;
+        const m = _calArchivedReadRaw(slug);
+        if (!Object.keys(m).length) return;
+        const cutoff = Date.now() - CAL_ARCHIVE_GRACE_MS;
+        let changed = false;
+        posts.forEach(p => {
+            if (!p) return;
+            if ((p.status || '').toLowerCase() === 'archived') return;
+            const refs = [p.id, p.linear_issue_id].filter(Boolean);
+            refs.forEach(r => {
+                const k = String(r);
+                const ts = m[k];
+                if (ts === undefined) return;
+                if (ts > cutoff) return;          // still inside the propagation grace window
+                delete m[k];
+                changed = true;
+            });
+        });
+        // Hard TTL: the ledger is a 60s propagation guard, but refs whose rows
+        // stay archived (or were deleted) never return "live" and used to pile
+        // up forever. A day after the archive the guard's job is long done —
+        // server-side status is authoritative — so age everything else out.
+        const ttlCutoff = Date.now() - 24 * 60 * 60 * 1000;
+        Object.keys(m).forEach(k => {
+            if ((m[k] || 0) < ttlCutoff) { delete m[k]; changed = true; }
+        });
+        if (changed) _calArchivedWriteRaw(slug, m);
+    }
+    function _calRefsForPost(p) {
+        if (!p) return [];
+        // Only the row id goes in the archive ledger. We used to also
+        // track linear_issue_id to defend against the BE re-creating a
+        // row with the same Linear URL but a fresh id — the Linear
+        // status-sync workflow now refuses to touch rows already in
+        // status=Archived and prefers non-archived rows on dedupe,
+        // so the URL tracking is no longer needed and was actively
+        // hurting: it hid every re-imported sub-issue whose URL had
+        // ever been archived in this browser.
+        return [p.id].filter(Boolean);
+    }
+    function _calIsArchivedRef(p, refs) {
+        if (!p || !refs || !refs.size) return false;
+        if (p.id && refs.has(String(p.id))) return true;
+        if (p.linear_issue_id && refs.has(String(p.linear_issue_id))) return true;
+        // A native-only row (no Linear URL) has no linear_issue_id to check
+        // against the ledger; fall back to its own deliverable ids so an
+        // archived native duplicate is recognised the same way a
+        // Linear-linked one is. Same fallback _calDupeKey uses below.
+        if (p.video_deliverable_id && refs.has(String(p.video_deliverable_id))) return true;
+        if (p.graphic_deliverable_id && refs.has(String(p.graphic_deliverable_id))) return true;
+        return false;
+    }
+    /* Collapse duplicate calendar rows that point at the same Linear
+       sub-issue. The Sheet can hold pre-fix duplicates from when the
+       upsert webhook fell back to append on a missed id match; the BE
+       Linear-status-sync workflow now dedupes on writes, but existing
+       rows would still both surface here. linear_issue_id is unique per
+       Linear sub-issue, so any two rows sharing it are necessarily a
+       duplicate — keep the most-recently-touched row, with order_index
+       as a tiebreaker. Using updated_at first means a row the user just
+       dragged / edited (and bumped updated_at on) wins over a stale
+       legacy duplicate at a higher order_index. Rows without a
+       linear_issue_id are passed through unchanged. */
+    /* Normalised comparison key for a Linear sub-issue link: trim + lowercase,
+       so two links pointing at the SAME issue that differ only in case or stray
+       whitespace are treated as one — matching the backend's case-insensitive
+       ILIKE match in the Linear status-sync workflow. Shared by the dedupe AND
+       the paste-time collision check (_calLinkConflict) so the warning predicts
+       exactly what the dedupe would otherwise collapse. */
+    function _calLinkKey(s) { return String(s == null ? '' : s).trim().toLowerCase(); }
+    /* Normalised duplicate-detection identity for one component
+       (video/graphic) of a post: the Linear sub-issue link AND the post's
+       own native deliverable id for that component, kept as two SEPARATE
+       keys rather than one field falling back to the other.
+       Codex review, PR for OPEN_REPAIRS 218 (P2): a single fallback key (URL
+       when present, else native id) missed the mixed state that happens
+       while provider linkage drains -- one card of a native-only duplicate
+       pair acquires a Linear URL before its twin does, so the URL-bearing
+       card gets a URL key and its still-native twin gets a native key, and
+       the two keys never collide even though both point at the same
+       underlying deliverable. `_calDupeMatch` below compares BOTH channels,
+       so that pair is still caught. A native id is never itself compared
+       against a Linear field (an unrelated string could coincidentally
+       match), only native-to-native and linear-to-linear. Shared by both
+       call sites in _calLinkDuplicatePeers (the post's own identity and its
+       peers'); _calIsArchivedRef's ledger check has its own, separate
+       native fallback (a Set-membership check, not a pairwise compare) but
+       reads the same two fields for the same reason. */
+    function _calDupeKey(post, comp) {
+        return {
+            linear: _calLinkKey(comp === 'graphic'
+                ? (post && post.graphic_linear_issue_id) : (post && post.linear_issue_id)),
+            native: _calLinkKey(comp === 'graphic'
+                ? (post && post.graphic_deliverable_id) : (post && post.video_deliverable_id)),
+        };
+    }
+    // Two identities (each { linear, native } from _calDupeKey) collide when
+    // EITHER channel matches and is non-empty. Empty-vs-empty never counts,
+    // so two cards that both lack a component entirely are never flagged.
+    function _calDupeMatch(a, b) {
+        return !!((a.linear && a.linear === b.linear) || (a.native && a.native === b.native));
+    }
+    // Two active cards that point at the same Linear sub-issue USED to be collapsed
+    // here — one was silently dropped from the calendar. That hidden-but-active card is
+    // exactly what blocked its twin's link and made it "revert"/vanish with no warning.
+    // We no longer collapse: both cards render, and each shows a duplicate warning (see
+    // _calLinkDuplicatePeers + the .cal-dupe-warn banner) so the user can resolve it
+    // (archive one / relink). Kept as an explicit pass-through so the call sites read
+    // clearly. (Linear PULL/import is disabled under v2, so there are no backend-created
+    // phantom rows that would need collapsing.)
+    function _calDedupeByLinearIssue(posts) {
+        return Array.isArray(posts) ? posts : (posts || []);
+    }
+    // The OTHER non-archived cards that share a Linear sub-issue with `post`, grouped by
+    // WHICH slot collides: returns [{ comp:'video'|'graphic', names:[...] }] (video first).
+    // Naming the component matters — "same Linear issue" alone left the SMM digging to
+    // find whether it was the reel or the thumbnail that clashed. Computed live from
+    // calState AT RENDER so it always reflects the final card list (no per-row flag to
+    // keep in sync through the load/merge). Mirrors _calLinkConflict's archived exclusion:
+    // archived cards neither raise nor receive a warning. A card's key matches a peer in
+    // EITHER of the peer's slots (the same issue can sit in a different slot on the twin).
+    function _calLinkDuplicatePeers(post) {
+        if (!post) return [];
+        let archived = null;
+        try { archived = _calArchivedRefs(calClientSlug(calState.client)); } catch (e) {}
+        const isArch = (p) => {
+            if (String((p && p.status) || '').toLowerCase() === 'archived') return true;
+            try { return !!(archived && _calIsArchivedRef(p, archived)); } catch (e) { return false; }
+        };
+        if (isArch(post)) return [];
+        const vKey = _calDupeKey(post, 'video');
+        const gKey = _calDupeKey(post, 'graphic');
+        const vHas = !!(vKey.linear || vKey.native), gHas = !!(gKey.linear || gKey.native);
+        if (!vHas && !gHas) return [];
+        const vPeers = new Set(), gPeers = new Set();
+        for (const p of (calState.posts || [])) {
+            if (!p || p.id === post.id || isArch(p)) continue;
+            const nm = String(p.name || '').trim() || 'Untitled post';
+            const pv = _calDupeKey(p, 'video'), pg = _calDupeKey(p, 'graphic');
+            if (vHas && (_calDupeMatch(vKey, pv) || _calDupeMatch(vKey, pg))) vPeers.add(nm);
+            if (gHas && (_calDupeMatch(gKey, pv) || _calDupeMatch(gKey, pg))) gPeers.add(nm);
+        }
+        const out = [];
+        if (vPeers.size) out.push({ comp: 'video', names: [...vPeers] });
+        if (gPeers.size) out.push({ comp: 'graphic', names: [...gPeers] });
+        return out;
+    }
+    // Human label for the dupe banner: the calendar calls the graphic slot "Thumbnail".
+    function _calDupeWarnText(groups) {
+        return groups.map(g => 'Same ' + (g.comp === 'graphic' ? 'thumbnail' : 'video')
+            + ' Linear issue as ' + g.names.join(', ')).join(' · ');
+    }
+    /* The open client tabs (calendar AND samples) live here in localStorage and
+       ARE the persistence for "which tabs are open". We deliberately do NOT
+       filter against WL_CLIENT_NAMES on read: that allowlist is sheet-driven
+       (wlMergeClientsFromSheet) and only fills in AFTER fetchEssentials()
+       resolves, so on a refresh straight onto the calendar (the skipAwait fast
+       path) it still holds only the hardcoded seed list. Filtering here dropped
+       any sheet-only client's tab — one added via the Clients Info sheet rather
+       than the seed list, e.g. Alayna Belquist — on every reopen, so the tab
+       looked "not persistent"; worse, any add/remove/toggle while the allowlist
+       was still incomplete re-saved the filtered list and lost that tab for
+       good. Tabs are only ever written for real clients (every add path is
+       gated on wlIsAllowedClient), so the stored list is already trustworthy —
+       we just guard it's an array of non-empty strings. */
+    function _calGetPins() { try { const a = JSON.parse(localStorage.getItem(CAL_PINS_KEY) || '[]'); return Array.isArray(a) ? a.filter(n => typeof n === 'string' && n.trim()) : []; } catch { return []; } }
+    function _calSavePins(arr) { try { localStorage.setItem(CAL_PINS_KEY, JSON.stringify(arr)); } catch {} }
+    function calToggleClientPin(name) {
+        const pins = _calGetPins();
+        const i = pins.indexOf(name);
+        if (i >= 0) pins.splice(i, 1); else pins.unshift(name);
+        _calSavePins(pins);
+        _calRenderTabs();
+        const input = document.getElementById('calClientSearchInput');
+        if (input && document.getElementById('calTabSearchPanel') && !document.getElementById('calTabSearchPanel').hidden) {
+            _calRenderClientSearchResults(input.value.trim());
+        }
+    }
+
+    /* Open a client as a calendar tab and switch to it. Mirrors the tab-search
+       pickAndPin: a deep link (#calendar/<slug>) handed over by another SMM
+       should land on that client AND pin it as a tab — not just set it as the
+       active body with no matching pill in the strip. No-op outside the
+       standalone calendar, or when it's already the active client. */
+    /* THE ONE PLACE THE ACTIVE CLIENT CHANGES.
+     *
+     * `calState.focusPid` is the transient per-card filter bypass: while it is
+     * set, that one card is forced past the month, status and client-ready
+     * filters so a deep link or a review-queue jump can actually show it.
+     * `onCalViewChange` drops it when you leave the Sheet — but a client switch
+     * is the other way it goes stale, and it is GLOBAL state, so the pin
+     * outlived the client it belonged to. Returning to that client later then
+     * still forced its card past filters the person had since set, long after
+     * the highlight was dismissed.
+     *
+     * The first fix cleared it inside `_calOpenClientTab` alone, which Codex
+     * caught on #1252: an ordinary tab click goes through `onCalTabClick` →
+     * `onCalClientChange`, and the search picker, the active-tab removal, the
+     * boot mount and the client-entry purge all assign the client too. Seven
+     * assignments, one of them remembering. So the assignment itself carries
+     * the rule now — a new switch path gets it by construction rather than by
+     * somebody remembering this comment exists. */
+    function _calSetClient(name) {
+        if (calState.client !== name) {
+            calState.focusPid = null;
+            /* Codex review, PR for item 176 (fifth pass): a pending card-link
+             * request (and its toast) belongs to whichever client it names.
+             * Switching to a DIFFERENT client abandons it, the exact same
+             * staleness shape as focusPid just above -- otherwise the toast
+             * keeps showing on the new client's calendar, and switching back
+             * to the original client later could apply a focus request from
+             * however long ago. But switching TO the client it was actually
+             * for must NOT cancel it: _calResolvePendingDeepLink calls
+             * _calSetFocusRequest(...) and then _calOpenClientTab (which
+             * lands here) for exactly that client, in that order, and
+             * clearing on every change would cancel the very request that
+             * sequence exists to fulfil.
+             *
+             * Sixth pass: `name === null` is a THIRD case, and it is not a
+             * client at all -- mountCalendar deliberately routes through
+             * _calSetClient(null) as a "still resolving, don't paint the
+             * wrong client" loader state while a sheet-only-client link's
+             * roster read is in flight (`else if (_calPendingDeepLink)
+             * initial = null;`). Clearing on that transition too meant a
+             * returning staff tab (calState.client already set from an
+             * earlier visit) that received a deferred link lost it the
+             * instant the loader mounted, before _calResolvePendingDeepLink
+             * ever ran -- silently, the exact shape this whole item exists
+             * to end. `null` must stay a permissive placeholder here, same
+             * as it does in mountCalendar's own reasoning; only an actual
+             * OTHER client name abandons the pending request. */
+            if (name !== null && _calFocusRequest && wlNormalizeClient(_calFocusRequest.client) !== wlNormalizeClient(name)) {
+                if (_calFocusRequest.cardId) _calHideOwnToast('Opening linked card');
+                _calSetFocusRequest(null);
+            }
+            if (name !== null && _calPendingDeepLink && _calPendingDeepLink.slug !== calClientSlug(name)) {
+                if (_calPendingDeepLink.cardId) _calHideOwnToast('Opening linked card');
+                _calSetPendingDeepLink(null);
+            }
+        }
+        calState.client = name;
+    }
+    function _calOpenClientTab(name) {
+        if (!name || calState.embedded || currentNav !== 'calendar') return;
+        const pins = _calGetPins();
+        if (!pins.includes(name)) { pins.unshift(name); _calSavePins(pins); }
+        if (calState.client === name) { _calRenderTabs(); return; }
+        const shellNeedsClientChrome = !calState.client;
+        // Persist debounced saves for the outgoing client before switching.
+        _calFlushAllPending();
+        _calV2Teardown();
+        _calSetClient(name);
+        _calResetSelection();
+        calState.posts = [];
+        _calLoadClientFilters();
+        _calSavePrefs();
+        // A cold sheet-roster deep link mounts the first shell before its client
+        // exists, so that shell intentionally has no More or bulk-action buttons.
+        // Repaint once at the no-client -> client boundary; normal tab switches
+        // keep their lighter partial render and preserve the current card strip.
+        if (shellNeedsClientChrome) _calRenderShell();
+        _calSyncUrlClient();
+        _calRenderTabs();
+        _calRefreshOrganize();
+        loadCalendarPosts();
+    }
+
+    /* Resolve a deferred #calendar/<slug> deep link once fetchAll has merged the
+       Clients Info sheet into the allowlist, then open that client as a tab. The
+       fast-path router runs before the sheet loads, so a sheet-only client (one
+       not in the hardcoded seed list) can't be matched there — this picks it up
+       the moment data lands. */
+    function _calResolvePendingDeepLink() {
+        const pending = _calPendingDeepLink;
+        if (!pending) return;
+        _calSetPendingDeepLink(null);
+        // Codex review, PR for item 176: the "Opening linked card…" toast
+        // _calSetPendingDeepLink fired belongs to THIS pin, not to whatever
+        // happens next — an unresolved slug's "Calendar link not opened"
+        // modal below would otherwise sit next to a toast still claiming the
+        // card is opening, and a reader who navigated away before the sheet
+        // merged would carry it to an unrelated page.
+        if (pending.cardId) _calHideOwnToast('Opening linked card');
+        // The user may have navigated away (or into a client profile) while data
+        // was loading — don't yank them back to the calendar.
+        if (currentNav !== 'calendar' || calState.embedded) return;
+        const match = WL_CLIENT_NAMES.find(n => wlNormalizeClient(n) === pending.slug);
+        if (!match) {
+            // Slug never resolved to a known client. Don't leave the strip stuck
+            // on its loader — fall back to the normal first-pinned client.
+            //
+            // But SAY SO. Silently opening somebody else's calendar is the exact
+            // shape of the 2026-09-03 owner report ("it just goes to the first
+            // thing"): the reader followed a link to one card and landed on a
+            // different client's board with no indication anything had failed,
+            // which reads as the link being broken rather than the client being
+            // unknown to this tab.
+            showNotify('Calendar link not opened',
+                'That link points at a client this tab does not know yet. Reload and try the link again.');
+            if (!calState.client) {
+                const pins = _calGetPins();
+                if (pins.length) _calOpenClientTab(pins[0]);
+                else _calRenderBody();
+            }
+            return;
+        }
+        if (pending.cardId) _calSetFocusRequest({ client: match, cardId: pending.cardId });
+        _calOpenClientTab(match);
+    }
+
+    /* If someone unlocks a fresh/private tab and clicks Calendar before the
+       Clients Info sheet has finished merging into WL_CLIENT_NAMES, the first
+       render can land with no active client, so the right-side More/kebab menu
+       is missing until a refresh. Once the data arrives, promote the saved or
+       pinned client into the live calendar and repaint the shell. */
+    function _calResolveClientAfterDataReady() {
+        if (currentNav !== 'calendar' || calState.embedded || calState.client || _calPendingDeepLink) return;
+        if (!document.getElementById('calView')) return;
+        const prefs = _calLoadPrefs();
+        const pins = _calGetPins();
+        let next = null;
+        if (prefs.client && (pins.includes(prefs.client) || wlIsAllowedClient(prefs.client))) next = wlCanonicalClient(prefs.client);
+        else if (pins.length) next = pins[0];
+        if (!next) return;
+        const savedPins = _calGetPins();
+        if (!savedPins.includes(next)) { savedPins.unshift(next); _calSavePins(savedPins); }
+        _calSetClient(next);
+        _calLoadClientFilters(next);
+        _calSavePrefs();
+        _calRenderShell();
+        _calSyncUrlClient();
+        loadCalendarPosts();
+    }
+
+    function renderCalendarView() {
+        return `<div class="cal-view" id="calView">${_calLoaderHtml()}</div>`;
+    }
+
+    function mountCalendar() {
+        _calV2Teardown(); // Phase 2: clear any stale realtime channel before (re)mount.
+        const prefs = _calLoadPrefs();
+        const pins  = _calGetPins();
+        let initial = null;
+        // A deep link (#calendar/<slug>) or a workload "Open in content calendar"
+        // jump focuses one specific client. Open it as a real tab (pin it) so it
+        // shows in the strip as the active tab — previously calState.client was
+        // set without pinning, so the body showed the client but no matching tab
+        // appeared, which read as "the link didn't open the client".
+        const focusClient = (_calFocusRequest && _calFocusRequest.client && wlIsAllowedClient(_calFocusRequest.client)) ? _calFocusRequest.client : null;
+        if (focusClient) initial = focusClient;
+        // A deep link whose client isn't in the allowlist yet (sheet-only, fast
+        // path before fetchAll merged the sheet): hold on the loader rather than
+        // open the wrong last-used client — _calResolvePendingDeepLink opens the
+        // real one once data lands.
+        else if (_calPendingDeepLink) initial = null;
+        // Re-open on the client whose tab was last showing. Validate against
+        // pins (the durable open-tabs list) — NOT WL_CLIENT_NAMES — because the
+        // allowlist is sheet-driven and hasn't loaded yet on the calendar fast
+        // path, so a sheet-only last client would otherwise be skipped here and
+        // a different tab (or none) would open on every refresh.
+        else if (prefs.client && pins.includes(prefs.client)) initial = prefs.client;
+        else if (pins.length > 0) initial = pins[0];
+        else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
+        if (focusClient && !pins.includes(focusClient)) { pins.unshift(focusClient); _calSavePins(pins); }
+        _calSetClient(initial);
+        calState.embedded = false;
+        calState.view = _calFocusRequest ? 'organizer' : _calResolveInitialView(prefs.view);
+        calState.zoom = _calNormZoom(prefs.zoom);
+        _calLoadClientFilters(initial);
+        const today = new Date();
+        calState.monthCursor = _calIsoFirstOfMonth(today);
+        calState.weekCursor  = _calIsoMondayOf(today);
+        calState.posts = [];
+        calState.error = null;
+        calState.previewId = null;
+        _calRenderShell();
+        // While a deep link is still resolving, leave the hash (#calendar/<slug>)
+        // untouched — _calSyncUrlClient would rewrite it to a bare #calendar and
+        // lose the slug. The resolver syncs the URL once it opens the client.
+        if (!_calPendingDeepLink || calState.client) _calSyncUrlClient();
+        if (calState.client) loadCalendarPosts();
+        // Pending deep link with nothing resolved yet: keep the shell's loader up
+        // (don't paint the empty-state body) until _calResolvePendingDeepLink runs.
+        else if (!_calPendingDeepLink) _calRenderBody();
+    }
+
+    /* Re-fetch the calendar whenever the browser tab/window regains focus, so
+       a calendar left open in the background picks up the latest Linear sync.
+       Listens to both visibilitychange and window focus because neither alone
+       fires reliably across every tab/window switch; the timestamp de-dupes
+       the case where both fire for the same switch. */
+    let _calLastReturnLoad = 0;
+    /* Throttle the auto-refresh-on-return. A calendar left open and flicked
+       in and out of used to fire a calendar-get on every single tab return;
+       that workflow is ~46% of all n8n executions. If we pulled fresh data
+       from the network within this window the strip is still current enough
+       — the Linear status-sync webhook keeps the sheet live in the
+       background regardless — so we skip the refetch. A manual refresh
+       (the ⟳ control) or any real edit still updates immediately; this only
+       suppresses the automatic focus/visibility refetch. */
+    const CAL_RETURN_REFRESH_MIN_MS = 90_000;
+    // v2 reads from Supabase (cheap, no n8n quota), so re-fetching when a tab
+    // regains focus is effectively free — refresh on almost every return
+    // instead of throttling to 90 s (a v1-only guard that existed to spare the
+    // n8n calendar-get webhook). This is still strictly EVENT-driven (focus /
+    // visibility return); it is NOT a background poll, so an idle open tab
+    // makes zero calls. The small floor just de-dupes the focus/visibility/
+    // pageshow listeners firing together on a single return.
+    const CAL_RETURN_REFRESH_MIN_MS_V2 = 4_000;
+    let _calLastNetworkLoadAt = 0;
+    let _calStaffPagehideSuspended = false;
+    function _calRefreshOnReturn() {
+        if (document.visibilityState === 'hidden') return;
+        // A persisted staff document owns no Calendar transport while frozen.
+        // Only its pageshow handler may start the single replacement load;
+        // visibility/focus events around the same restore must stay silent.
+        if (_calStaffPagehideSuspended) return;
+        if (!calState.client) return;
+        const calBody = document.getElementById('calBody');
+        if (!calBody) return;
+        const _returnMinMs = _calV2Ready() ? CAL_RETURN_REFRESH_MIN_MS_V2 : CAL_RETURN_REFRESH_MIN_MS;
+        if (Date.now() - _calLastNetworkLoadAt < _returnMinMs) return;
+        // Skip if a load is already in flight — otherwise rapid tab switches
+        // pile up overlapping fetches, each resetting the timeout and keeping
+        // the "Refreshing…" chip on indefinitely while the n8n backend is busy
+        // (typical after a bulk Linear-issue creation).
+        if (_calBgLoadInFlight || calState.loading) return;
+        // We still trigger the refresh while interacting — the re-render is
+        // deferred until the user blurs out (see _calMaybeRunPendingRender).
+        const now = Date.now();
+        if (now - _calLastReturnLoad < 500) return;
+        _calLastReturnLoad = now;
+        // The forced Linear-meta refresh belongs to this exact Calendar load.
+        // Its tail re-checks the load/surface lease around every await and
+        // mutation, so a return immediately followed by a client switch cannot
+        // let old metadata repaint or persist into the replacement client.
+        loadCalendarPosts({ background: true, forceMeta: true });
+    }
+    /* When a background refresh resolves while the user is mid-edit, the
+       render is deferred onto this flag and applied once nothing in the
+       calendar is focused and there are no unsaved field edits. */
+    let _calPendingBackgroundRender = false;
+    let _calPendingRenderInterval = null;
+    function _calIsCalBusy() {
+        const calBody = document.getElementById('calBody');
+        if (!calBody) return false;
+        const a = document.activeElement;
+        const isTextEntry = !!(a && (
+            (a.tagName === 'INPUT' && /^(text|url|email|search|number|tel|password|date)$/i.test(a.type || 'text')) ||
+            a.tagName === 'TEXTAREA' || a.isContentEditable
+        ));
+        if (isTextEntry && calBody.contains(a)) return true;
+        if (Object.keys(_calPendingEdits).length > 0) return true;
+        if (_calOpenStatusMenu) return true;
+        return false;
+    }
+    function _calSchedulePendingRender() {
+        if (_calPendingRenderInterval) return;
+        _calPendingRenderInterval = setInterval(() => {
+            if (!_calPendingBackgroundRender) {
+                clearInterval(_calPendingRenderInterval); _calPendingRenderInterval = null; return;
+            }
+            if (_calIsCalBusy()) return;
+            _calPendingBackgroundRender = false;
+            clearInterval(_calPendingRenderInterval); _calPendingRenderInterval = null;
+            _calRenderBody({ preserveScroll: true });
+        }, 1200);
+    }
+    function _calMaybeRunPendingRender() {
+        if (!_calPendingBackgroundRender) return;
+        if (_calIsCalBusy()) return;
+        _calPendingBackgroundRender = false;
+        if (_calPendingRenderInterval) { clearInterval(_calPendingRenderInterval); _calPendingRenderInterval = null; }
+        _calRenderBody({ preserveScroll: true });
+    }
+    document.addEventListener('focusout', () => { setTimeout(_calMaybeRunPendingRender, 60); });
+    /* Save in-flight tweaks/captions/etc. when the tab is being hidden so
+       a client typing a comment never loses it to a tab close or app switch. */
+    function _calFlushAllPending() {
+        const pids = Object.keys(_calPendingEdits);
+        for (const pid of pids) {
+            if (_calSaveTimers[pid]) { clearTimeout(_calSaveTimers[pid]); _calSaveTimers[pid] = null; }
+            _calFlushCardSave(pid);
+        }
+    }
+    function _calClearSuspendedLoadOwnership() {
+        _calBgLoadInFlight = false;
+        calState.loading = false;
+        _calSetRefreshing(false);
+        _calPendingBackgroundRender = false;
+        if (_calPendingRenderInterval) {
+            clearInterval(_calPendingRenderInterval);
+            _calPendingRenderInterval = null;
+        }
+        // A BFCache restore is a new freshness boundary. Reset both return
+        // clocks so the persisted pageshow can start one deliberate load; that
+        // load immediately re-stamps _calLastNetworkLoadAt and suppresses the
+        // visibility/focus events emitted around the same restore.
+        _calLastReturnLoad = 0;
+        _calLastNetworkLoadAt = 0;
+    }
+    function _calSuspendOnPagehide() {
+        // Writers retain their existing pagehide guarantee and are flushed
+        // before read/realtime ownership is revoked.
+        _calFlushAllPending();
+        if (_isClientLink) return;
+        const surface = document.getElementById('calView');
+        _calStaffPagehideSuspended = !!(calState.client && surface && surface.isConnected);
+        _calV2Teardown();
+        _calClearSuspendedLoadOwnership();
+    }
+    function _calResumeOnPageshow(event) {
+        if (_isClientLink) return;
+        if (!event || event.persisted !== true) {
+            _calRefreshOnReturn();
+            return;
+        }
+        const shouldResume = _calStaffPagehideSuspended;
+        _calStaffPagehideSuspended = false;
+        if (!shouldResume || !calState.client || !document.getElementById('calBody')) return;
+        _calLastReturnLoad = Date.now();
+        // Skip cache adoption on the persisted document: its existing cards can
+        // remain visible, but exactly one fresh owned read decides the resumed
+        // state and owns the forced Linear-meta tail.
+        loadCalendarPosts({ background: true, forceMeta: true, skipCache: true });
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') _calFlushAllPending();
+    });
+    window.addEventListener('pagehide', _calSuspendOnPagehide);
+    window.addEventListener('pageshow', _calResumeOnPageshow);
+    document.addEventListener('visibilitychange', _calRefreshOnReturn);
+    window.addEventListener('focus', _calRefreshOnReturn);
+
+    /* Removed periodic 30 s background poll. The calendar still refreshes
+       on tab return (visibilitychange) and window focus via
+       _calRefreshOnReturn above, and the SMM can force a refresh by
+       clicking the calendar refresh control. We don't poll while the
+       tab is sitting idle — saves n8n executions and stops surprise
+       reloads while the SMM is mid-think. */
+
+    /* Picks the initial view tab on mount. Clients land on their Review
+       (Client Approval) queue by default — it's their main job. The SMM lands
+       on the Sheet (organizer) by default but can pin their own Review (SMM
+       Approval) queue; a saved view belonging to the other audience is coerced
+       back to that side's default. */
+    function _calResolveInitialView(savedView) {
+        const allowed = ['review','smmreview','organizer','month','week'];
+        const saved = allowed.includes(savedView) ? savedView : null;
+        // Each audience only has its own review tab: coerce away a saved view
+        // that belongs to the other side (client ↔ smmreview, SMM ↔ review).
+        if (_isClientLink) return (saved && saved !== 'smmreview') ? saved : 'review';
+        if (saved && saved !== 'review') return saved;
+        return 'organizer';
+    }
+
+    /* Embedded calendar — rendered inside a client profile's "Content Calendar"
+       tab. Locked to one client (no client-tab picker). */
+    function mountCalendarEmbedded(name) {
+        _calV2Teardown();
+        const prefs = _calLoadPrefs();
+        _calSetClient(name);
+        calState.embedded = true;
+        calState.view = _calResolveInitialView(prefs.view);
+        calState.zoom = _calNormZoom(prefs.zoom);
+        _calLoadClientFilters(name);
+        const today = new Date();
+        calState.monthCursor = _calIsoFirstOfMonth(today);
+        calState.weekCursor  = _calIsoMondayOf(today);
+        calState.posts = [];
+        calState.error = null;
+        calState.previewId = null;
+        _calRenderShell();
+        loadCalendarPosts();
+    }
+
+    async function calCopyShareLink() {
+        if (!calState.client) return;
+        let url; try { url = await _syncviewIssueClientShareUrl(calState.client, 'calendar'); } catch(e) { showToast((e&&e.message)||'Could not issue a secure client link'); return; }
+        // The share action lives in the kebab (More options) menu, which closes
+        // on click — so confirm with a toast rather than swapping a button label
+        // that's no longer on screen.
+        navigator.clipboard.writeText(url).then(
+            () => showToast('Client link copied to clipboard'),
+            () => showToast("Couldn't copy the link")
+        );
+    }
+
+    /* Per-card deep link. Pattern: #calendar/<clientSlug>/<cardId>.
+       The slug is the same one we use as the sheet tab name, so we can
+       round-trip from URL → client → card by walking WL_CLIENT_NAMES. */
+    function _calCopyCardLink(e, pid) {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        if (!calState.client || !pid) return;
+        const slug = calClientSlug(calState.client);
+        const url = `${location.origin}${location.pathname}#calendar/${slug}/${encodeURIComponent(pid)}`;
+        const btn = document.querySelector(`.cal-card-link[data-card-link="${pid}"]`);
+        const checkSvg = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
+        const restore = (origHtml) => { if (btn) { btn.classList.remove('copied'); btn.innerHTML = origHtml; } };
+        const flash = () => {
+            if (!btn) return;
+            const orig = btn.dataset.orig || btn.innerHTML;
+            btn.dataset.orig = orig;
+            btn.classList.add('copied');
+            btn.innerHTML = checkSvg;
+            setTimeout(() => restore(orig), 1600);
+        };
+        const fallback = () => {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                flash();
+            } catch { showNotify('Could not copy', url); }
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(flash, fallback);
+        } else fallback();
+    }
+
+    /* Outside-click dismissal of the persistent focus highlight. */
+    function _calClearFocusHighlight() {
+        document.querySelectorAll('.cal-card-focused').forEach(el => el.classList.remove('cal-card-focused'));
+        document.removeEventListener('mousedown', _calFocusOutsideHandler, true);
+    }
+    function _calFocusOutsideHandler(e) {
+        const card = document.querySelector('.cal-card-focused');
+        if (!card) { document.removeEventListener('mousedown', _calFocusOutsideHandler, true); return; }
+        if (!card.contains(e.target)) _calClearFocusHighlight();
+    }
+
+    /* ── Excel (.xlsx) import ──────────────────────────────────────────
+       Pulls posts out of a Google Sheet that was exported as Microsoft
+       Excel. The user maps the spreadsheet columns onto the calendar
+       schema, then each row is upserted into the active client's tab. */
+    const CAL_IMPORT_FIELDS = [
+        { key: 'name',           label: 'Post name',         req: true,  aliases: ['name','post name','post','title','content','video','video name','post title','reel'] },
+        { key: 'scheduled_date', label: 'Date',              req: false, aliases: ['date','scheduled date','post date','publish date','due date','day','scheduled','go live'] },
+        { key: 'status',         label: 'Status',            req: false, aliases: ['status','stage','state','progress'] },
+        { key: 'thumbnail_url',  label: 'Thumbnail URL',     req: false, aliases: ['thumbnail','thumbnail url','thumb','thumbnail link','cover','cover image','image'] },
+        { key: 'asset_url',      label: 'Video URL',         req: false, aliases: ['url','post url','link','asset url','asset','video url','video link','frameio','frame io','drive link','file'] },
+        { key: 'caption',        label: 'Caption',           req: false, aliases: ['caption','description','copy','post caption','text','script','hook'] },
+        { key: 'cta',            label: 'CTA',               req: false, aliases: ['cta','call to action'] },
+        { key: 'tweaks',         label: 'Tweaks / notes',    req: false, aliases: ['tweaks','client tweaks','notes','feedback','revisions','changes','comments'] },
+    ];
+    let _calImportRows = null, _calImportHeaders = null, _calXlsxPromise = null, _calImportLayout = 'rows';
+    /* Raw rows-of-cells for the chosen sheet + any layout the user forced by
+       hand, so the "read one per row/column" toggle can re-parse without
+       re-reading the workbook. */
+    let _calImportAoa = null, _calImportForcedLayout = null;
+    /* Map step output → passed forward to the select step → finally to run.
+       Kept on the module so Back from select rebuilds the map step without
+       losing what the user picked. */
+    let _calImportMap = null;
+    let _calImportSelectedIdx = null;   // Set<number> of _calImportRows indices to import
+    /* Parsed workbook + chosen sheet name. Held on the module so the user
+       can flip between sheets via Back without re-uploading the file. */
+    let _calImportWorkbook = null;
+    let _calImportSheetName = null;
+
+    function _calLoadXLSX() {
+        if (window.XLSX) return Promise.resolve(window.XLSX);
+        if (_calXlsxPromise) return _calXlsxPromise;
+        _calXlsxPromise = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+            s.onload = () => window.XLSX ? resolve(window.XLSX) : reject(new Error('Spreadsheet reader failed to load'));
+            s.onerror = () => reject(new Error('Could not load the spreadsheet reader — check your connection'));
+            document.head.appendChild(s);
+        });
+        return _calXlsxPromise;
+    }
+
+    function _calCoerceDate(v) {
+        if (v == null || v === '') return '';
+        if (v instanceof Date && !isNaN(v)) return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+        const s = String(v).trim();
+        let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if (m) return `${m[1]}-${String(+m[2]).padStart(2,'0')}-${String(+m[3]).padStart(2,'0')}`;
+        // Google Sheets / Excel date serials (days since 1899-12-30).
+        if (/^\d+(\.\d+)?$/.test(s)) {
+            const serial = Number(s);
+            if (serial > 20000 && serial < 80000) {
+                const d = new Date(Date.UTC(1899, 11, 30) + Math.round(serial) * 86400000);
+                if (!isNaN(d)) return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+            }
+        }
+        m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+        if (m) {
+            let day = +m[1], mon = +m[2], y = m[3];
+            if (y.length === 2) y = '20' + y;
+            if (mon > 12 && day <= 12) { const t = day; day = mon; mon = t; } // day-first by default
+            if (mon > 12 || mon < 1 || day < 1 || day > 31) return '';
+            return `${y}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        }
+        const d = new Date(s);
+        if (!isNaN(d)) return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        return '';
+    }
+
+    function openCalImport() {
+        if (!calState.client) return;
+        _calImportRows = null; _calImportHeaders = null;
+        _calImportMap = null; _calImportSelectedIdx = null;
+        _calImportWorkbook = null; _calImportSheetName = null;
+        _calImportAoa = null; _calImportForcedLayout = null;
+        const ovl = document.getElementById('calImportOverlay');
+        if (!ovl) return;
+        ovl.classList.add('open');
+        document.body.classList.add('cal-modal-open');
+        _calRenderImportPick();
+    }
+    function closeCalImport() {
+        const ovl = document.getElementById('calImportOverlay');
+        if (ovl) ovl.classList.remove('open');
+        document.body.classList.remove('cal-modal-open');
+    }
+
+    function _calMapLinearStatus(name) {
+        const s = String(name || '').trim().toLowerCase();
+        if (s.includes('tweak')) return 'Tweaks Needed';
+        if (s.includes('scheduled')) return 'Scheduled';
+        if (s === 'posted') return 'Posted';
+        if (s === 'approved') return 'Approved';
+        if (s.includes('smm')) return 'For SMM Approval';
+        if (s.includes('kasper')) return 'Kasper Approval';
+        if (s.includes('client')) return 'Client Approval';
+        return 'In Progress';   // Backlog / Todo / In Progress / anything else
+    }
+    /* Strict variant — returns null for Linear states that have no calendar
+       equivalent (Canceled, Done…) so a freshly linked card is left
+       untouched instead of being forced to "In Progress". Mirrors the
+       Linear→Calendar mapping in the n8n status-sync workflow. */
+    function _calMapLinearStatusStrict(name) {
+        const s = String(name || '').trim().toLowerCase();
+        if (!s) return null;
+        if (s.includes('tweak')) return 'Tweaks Needed';
+        if (s.includes('scheduled')) return 'Scheduled';
+        if (s === 'posted') return 'Posted';
+        if (s === 'approved') return 'Approved';
+        if (s.includes('smm')) return 'For SMM Approval';
+        if (s.includes('kasper')) return 'Kasper Approval';
+        if (s.includes('client')) return 'Client Approval';
+        if (s === 'backlog' || s === 'todo' || s === 'to do'
+            || s.includes('in progress') || s.includes('in process')) return 'In Progress';
+        return null;
+    }
+    /* The same mapping for the NATIVE vocabulary — F50.
+     *
+     * `_calMapLinearStatusStrict` above was written against Linear's DISPLAY
+     * names ("In Progress", "For SMM approval"). After the graphics flip the
+     * status reaching this path is `deliverables.status`, which is snake_case,
+     * and the two differ in exactly the place that matters: fed `in_progress`
+     * the strict mapper returns null (its arm tests "in progress", with a
+     * space), so the card would keep its previous status forever with no error
+     * anywhere. That is F50's own failure mode, and `in_progress` is the state
+     * a designer enters every time they start work or answer a tweak request.
+     * Verified by running the shipped function over both vocabularies
+     * (2026-08-10).
+     *
+     * Owner ruling 2026-08-10, encoded here:
+     *   - `todo` and `backlog` show **In Progress**, matching what the calendar
+     *     shows today for the equivalent Linear states. 37 of the 304
+     *     card-linked graphics rows sit in `todo`; mapping them to null would
+     *     blank 37 cards on flip day for no gain.
+     *   - `triage`, `canceled` and `duplicate` return **null** — the card keeps
+     *     its previous status and the UI says the change is not reflected on
+     *     the calendar. They have no calendar equivalent, and the vocabulary is
+     *     deliberately small so the team is not confused by it.
+     * The rule the owner is applying is "add no new words to the calendar":
+     * todo/backlog need no new word, the other three would.
+     *
+     * NEVER pass through an unmapped value. `_writeUiDisplayStatus`
+     * (index.html, the gateway replay path) emits `Backlog`, `Todo`,
+     * `Canceled` and `Duplicate`, none of which are in CAL_STATUSES — the
+     * result is an unstyled pill, `CAL_PRIORITY[unknown]` undefined so
+     * `computeOverallStatus` silently skips the component, `_calIsClientReady`
+     * permanently unsatisfiable, and the card dropped from Kasper's queue.
+     * Returning null is what leaves the card untouched instead.
+     *
+     * `origin` clamps the samples surface the way `linear-inbound` already
+     * does: SXR_STATUSES has no Scheduled/Posted, so a samples row at those
+     * states records no card status rather than being coerced to Approved.
+     */
+    function _calMapNativeStatusStrict(status, origin) {
+        const s = String(status || '').trim().toLowerCase();
+        if (!s) return null;
+        const samples = String(origin || '').trim().toLowerCase() === 'samples';
+        switch (s) {
+            case 'in_progress':
+            case 'backlog':
+            case 'todo':
+                return 'In Progress';
+            case 'smm_approval': return 'For SMM Approval';
+            case 'kasper_approval': return 'Kasper Approval';
+            case 'client_approval': return 'Client Approval';
+            case 'tweak': return 'Tweaks Needed';
+            case 'approved': return 'Approved';
+            case 'scheduled': return samples ? null : 'Scheduled';
+            case 'posted': return samples ? null : 'Posted';
+            // triage / canceled / duplicate and anything unrecognised: no
+            // calendar equivalent, so the card is left exactly as it was.
+            default: return null;
+        }
+    }
+    /* ── Legacy Linear push outbox ───────────────────────────────────────
+       Historical direct-Linear retries remain only as migration debt. New
+       mutations await production-write before the Calendar/SXR source row is
+       saved. Existing status rows may drain while Linear is authoritative;
+       unverifiable historical comments are quarantined instead of replayed
+       under whichever person later opens the browser. */
+    const LINEAR_OUTBOX_KEY = 'syncview_linear_outbox_v1';
+    const WRITE_UI_LEGACY_QUARANTINE_KEY = 'syncview_write_ui_legacy_quarantine_v1';
+    const LINEAR_OUTBOX_MAX_ATTEMPTS = 6;
+    const LINEAR_OUTBOX_RETRY_MS = 60 * 1000;
+    let _linearOutboxFlushTimer = null;
+    let _linearOutboxFlushPromise = null;
+    let _linearOutboxFlushOwnerKey = '';
+    /* RETIRED LEGACY DEBT (OPEN_REPAIRS 239). A `legacy_n8n` row is a queued
+       POST to `linear-set-status` / `linear-add-comment`. Both webhooks are
+       revoked, nothing enqueues the transport any more, and no attempt could
+       ever succeed -- so the row is not debt, it is residue.
+
+       Dropped at the READ, not in the drain, because every consumer has to
+       agree at once: the drain, the deferred-tweak inspection that decides
+       whether a client retry is still `active`, the committed-tweak ledger
+       matcher, the resume loop's owned-debt test, the pagehide diagnostic and
+       `peekWriteUiLegacyQueueState`. Filtering in one of those and not the
+       rest is how a cleared queue still reports a count.
+
+       It FILTERS and does not itself write. Compacting here was the obvious
+       next step and is wrong: a read happens outside the outbox lock, so
+       writing the filtered array back would clobber a record another tab
+       staged between this read and that write -- losing a source gate, which
+       is a live record, to tidy away a dead one. The retired rows leave
+       storage on the first drain instead, whose finalize writes the retained
+       set under the lock and excludes them because they never entered its
+       snapshot. Until then they sit in localStorage where nothing can see,
+       count or send them.
+
+       Quiet on purpose: not quarantined (a quarantine row is for a write an
+       operator must still decide about, and this one has nothing left to
+       decide) and not surfaced (no reader of this queue renders anything --
+       measured 2026-09-22 against a page with both webhooks answering 500).
+       Source-gate records (`source_only`) never touched the network and are
+       untouched here. */
+    function _writeUiLegacyRetiredRow(item) {
+        return !!item && item.transport === 'legacy_n8n';
+    }
+    function _writeUiLegacyWithoutRetired(rows) {
+        const items = Array.isArray(rows) ? rows : [];
+        return items.filter(item => !_writeUiLegacyRetiredRow(item));
+    }
+    function _linearOutboxRead() {
+        try {
+            const raw = localStorage.getItem(LINEAR_OUTBOX_KEY);
+            const arr = raw ? JSON.parse(raw) : [];
+            return _writeUiLegacyWithoutRetired(Array.isArray(arr) ? arr : []);
+        } catch { return []; }
+    }
+    function _linearOutboxWrite(arr) {
+        try {
+            const items = Array.isArray(arr) ? arr : [];
+            if (items.length) localStorage.setItem(LINEAR_OUTBOX_KEY, JSON.stringify(items));
+            else localStorage.removeItem(LINEAR_OUTBOX_KEY);
+            return true;
+        } catch { return false; }
+    }
+    /* `_linearOutboxEnqueue` is retired (OPEN_REPAIRS 239). It existed only
+       inside the catch of the two legacy Calendar senders, so it went with
+       them: a retry against a route that no longer has a destination is debt
+       nothing can ever pay. Source-only gate records, which never touch the
+       network, still queue through `_writeUiLegacyAppendOutboxItem`. */
+    const WRITE_UI_LEGACY_SOURCE_GATE_PENDING_MS = 15 * 60 * 1000;
+    const WRITE_UI_LEGACY_COMMITTED_TWEAK_KEY = 'syncview_write_ui_legacy_committed_tweaks_v1';

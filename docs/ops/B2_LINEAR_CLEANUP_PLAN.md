@@ -407,3 +407,18 @@ Put each snapshot in the SyncView Backups drive, not the repo, because it contai
 - **Repo change:** the Section 4 lane's prior (sealed) set becomes the same three functions as its release set, and `restore-captured-prior-four` becomes `restore-captured-prior-three`. The rollback CLI allowlist, the rollback-row freshness check and final verification drop both Linear slugs. The manifest marks `linear-outbound` RETIRED. Its source stays frozen until Slice 10.
 - **Owner's capture script:** one line changes, only after this PR merges: `--slugs=production-write,deliverable-write,batch-write`.
 - **Rollback:** see `ROLLBACK.md`, row "B2 Slice 8".
+
+### Slice 9 (plan Slice 9): workload snapshot slimming. CLOSED 2026-09-24 as already delivered by `migrations/2026-09-23-workload-native-snapshot-cache.sql`; no new migration
+- **What was already live:** the `native_snapshot_v2` action of `workload-plan` serves the cached snapshot through `workload_native_snapshot_slim_v1(jsonb)`. Per row it drops `linear_parent_ids`, drops `url` from native rows, and drops `parent_identifier` wherever a parent has a single identifier (sending it once per parent in a `parents` map). The live `pg_get_functiondef` of `workload_native_snapshot_slim_v1` matches the repo migration line for line.
+- **Live evidence (read-only, 2026-09-24), cached snapshot body:**
+  - 6,770 rows, all native (0 legacy). Wire size 7,286,083 bytes.
+  - Rows carrying `url`: 0. Rows carrying `linear_parent_ids`: 0. Rows still carrying `parent_identifier`: 1,412 (parents with more than one identifier). `parents` map: 76,474 bytes.
+  - Simulated size with all three fields and the `parents` map removed: 7,171,472 bytes. The most a further cut could save is 114,611 bytes (about 1.6%).
+- **Why nothing more is cut:** the browser still reads two of the fields.
+  - `parent_identifier` feeds Workload search (`src/index/080-workload-render.js.part`) and the fallback parent label when the parent row is not loaded (`080` and `src/index/090-workload-popovers-navigation.js.part`); `src/index/070-workload-source.js.part` restores it from `parents`.
+  - `url` survives only on legacy rows (0 today) and drives the "Open in Linear" link; the owner kept the legacy arm.
+  - `linear_parent_ids` is already gone from the snapshot; its other browser uses read the `batches` table directly.
+- **Kept, per owner decision:** the frozen `workload_issues` table and the legacy arm of the view.
+- **Later tidy-ups (not this slice):** the legacy arm of the view, `workload-source-freshness.yml`, the boot early-fetch, and an optional follow-up that moves parent-name search and labels to batch names so `parent_identifier` and `parents` can leave the snapshot (about 115 KB, 1.6%).
+- **Receipts:** the cache migration apply and the `workload-plan` deploy had no ledger entry; `EXECUTION_LOG.md` now records them from live read-only evidence (2026-09-24), and `ROLLBACK.md` has a "B2 Slice 9" row.
+- **Rollback:** this slice changes no code, SQL or live state; to undo the already-live slim snapshot see `ROLLBACK.md`, row "B2 Slice 9".

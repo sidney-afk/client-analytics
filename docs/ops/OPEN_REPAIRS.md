@@ -28806,4 +28806,4 @@ finished until its receipt is in the log and the row is updated, in the same PR.
 
 ## 246. [2026-09-24, APPLIED + DEPLOYED] Refusal receipts keep the browser's own reason code (#1570)
 
-Lighthouse applied `migrations/2026-09-24-refusal-receipt-browser-codes.sql` (live `receipts_v1_code_check` verified at 218 codes, no grant or revoke), then the owner deployed `write-diagnostics` from `3469b785` (attestation PASS); production-write picks up the shared module on its next Section 4 release, and #1563 already adds the hashed card id to every browser report.
+Lighthouse applied `migrations/2026-09-24-refusal-receipt-browser-codes.sql` (live `receipts_v1_code_check` verified at 218 codes, no grant or revoke), then the owner deployed `write-diagnostics` from `3469b785622519d63a70b2e98e6d4d64a2515dc3` (attestation PASS); production-write picks up the shared module on its next Section 4 release, and #1563 already adds the hashed card id to every browser report.

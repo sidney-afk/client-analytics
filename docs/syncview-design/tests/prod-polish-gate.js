@@ -24,6 +24,7 @@ const suites = [
   ['interaction', 'Production interaction inventory', 'docs/syncview-design/tests/prod-interaction-inventory.js'],
   ['fast', 'Production accessibility/focus', 'docs/syncview-design/tests/prod-a11y-focus.js'],
   ['fast', 'Production layout polish', 'docs/syncview-design/tests/prod-layout-polish.js'],
+  ['fast', 'TikTok preview placeholder clearance', 'test/tiktok-preview-empty-clearance-browser.js'],
   ['heavy', 'Production wired behavior', 'docs/syncview-design/tests/behav-wired.js'],
   ['heavy', 'Production pixel parity', 'docs/syncview-design/tests/pixel-wired.js'],
 ].filter(([group]) => lane === 'all' || group === lane);

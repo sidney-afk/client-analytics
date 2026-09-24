@@ -173,7 +173,6 @@
             var RESTORABLE_FAST = FAST.filter(function (nav) { return nav !== 'smm-weekly-report' && nav !== 'smm-weekly-reports'; });
             var ses = function (k) { try { return sessionStorage.getItem(k) === 'ok'; } catch (e) { return false; } };
             var kasperOk = function () { return q.get('Kasper') === '1' || ses('syncview_kasper_unlocked'); };
-            var ttpOk = function () { return q.get('ttpilot') === '1' || ses('syncview_ttpilot_unlocked'); };
             var sxrOn = function () {
                 // Must mirror _sxrEnabled(): GA default-ON, ?sxr=0 / sticky
                 // opt-out off, storage failure = ON (F73).
@@ -197,7 +196,6 @@
             // an exact match, so a sub-path there gets no prediction.
             else if (seg === 'calendar' || seg === 'samples' || seg === 'templates') target = seg === 'samples' ? 'sample-reviews' : seg;
             else if (seg === 'kasper' && kasperOk()) target = 'kasper'; // kasper + kasper/<subtab>
-            else if (hash === 'tiktok-pilot' && ttpOk()) target = 'tiktok-pilot'; // exact only
             else if (seg === 'sample-reviews' && sxrOn()) target = 'sample-reviews';
             else if (!hash) {
                 var saved = null; try { saved = localStorage.getItem('syncview_nav'); } catch (e) {}
@@ -205,14 +203,14 @@
                 // Mirror of init(): the fast path restores (stateNav ||
                 // savedNav) for FAST tabs even in a NEW tab (fallbackFast —
                 // no history.state needed); the post-await router restores
-                // savedNav kasper/tiktok-pilot only on a real refresh
+                // savedNav kasper only on a real refresh
                 // (history.state present) and only while unlocked.
                 if (nav === 'smm-weekly-report' || nav === 'smm-weekly-reports') {
                     if (saved === 'smm-weekly-report' || saved === 'smm-weekly-reports') {
                         try { localStorage.removeItem('syncview_nav'); } catch (e) {}
                     }
                 } else if (RESTORABLE_FAST.indexOf(nav) >= 0) target = nav;
-                else if (st && st.nav && ((saved === 'kasper' && kasperOk()) || (saved === 'tiktok-pilot' && ttpOk()))) target = saved;
+                else if (st && st.nav && saved === 'kasper' && kasperOk()) target = saved;
             }
             if (target) {
                 de.setAttribute('data-boot-nav', target);
@@ -1960,7 +1958,6 @@
         html[data-boot-nav="templates"] .boot-skeleton-templates,
         html[data-boot-nav="filming-plans"] .boot-skeleton-filming,
         html[data-boot-nav="tiktok-upload"] .boot-skeleton-tiktok,
-        html[data-boot-nav="tiktok-pilot"] .boot-skeleton-tiktok,
         html[data-boot-nav="time-off"] .boot-skeleton-analytics,
         html[data-boot-nav="smm-weekly-report"] .boot-skeleton-sales-intake,
         html[data-boot-nav="smm-weekly-reports"] .boot-skeleton-kasper,
@@ -2132,10 +2129,10 @@
         html[data-boot-nav] #headerNav .header-nav-btn.active { background: var(--white); color: var(--text-secondary); border-color: var(--border); }
         html[data-boot-nav="linear"] #navLinear, html[data-boot-nav="production"] #navProd,
         html[data-boot-nav="workload"] #navWorkload,
-        html[data-boot-nav="calendar"] #navCalendar, html[data-boot-nav="samples"] #navSamples,
+        html[data-boot-nav="calendar"] #navCalendar,
         html[data-boot-nav="templates"] #navTemplates, html[data-boot-nav="filming-plans"] #navFilmingPlans,
         html[data-boot-nav="tiktok-upload"] #navTiktokUpload,
-        html[data-boot-nav="kasper"] #navKasper, html[data-boot-nav="tiktok-pilot"] #navTiktokPilot,
+        html[data-boot-nav="kasper"] #navKasper,
         html[data-boot-nav="sample-reviews"] #navSxr { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
         .view-tab-btn {
             display: inline-flex; align-items: center; gap: 7px;
@@ -7277,257 +7274,10 @@
         .kcard-saving-chip.is-error { color: var(--sv-fg-dc2626); }
         .kcard.is-removing { opacity: 0; transform: scale(0.97); transition: opacity 0.25s, transform 0.25s; pointer-events: none; }
 
-        /* ============================ CONTENT SAMPLES ============================
-           Native rebuild of the Samples tab, modelled on the Content Calendar:
-           one toolbar row, per-client tabs, a horizontal strip of sample cards,
-           threaded comments, an editor/client preview toggle and a tokenised
-           client share link. Self-contained (sm- prefix) so it can't collide
-           with the calendar's cal- styles. */
-        .samples-view { --sm-card-w: 296px; }
+        /* Shared loading spinner (boot skeleton, _svLoadingSkeletonHtml). The old Samples
+           page these sm- styles belonged to was removed 2026-09-24. */
         .sm-loader { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; min-height:50vh; color:var(--text-muted); }
         .sm-loader .spinner { width:26px; height:26px; }
-
-        .sm-toolbar { display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:14px 0 14px; border-bottom:1px solid var(--border-light); }
-        .sm-toolbar-left { display:flex; align-items:center; gap:10px; min-width:0; flex:1 1 auto; }
-        .sm-toolbar-right { display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
-        .sm-embed-title { display:flex; flex-direction:column; line-height:1.2; }
-        .sm-embed-title strong { font-size:1rem; font-weight:800; letter-spacing:-0.02em; }
-        .sm-embed-title span { font-size:0.72rem; color:var(--text-muted); font-weight:600; }
-
-        /* client tabs — mirrors the calendar's per-client pills. Single-row:
-           pills scroll horizontally inside .sm-tabs-scroll; the add/search button
-           stays outside so its dropdown isn't clipped. */
-        .sm-tabs { display:flex; align-items:center; gap:6px; flex-wrap:nowrap; min-width:0; }
-        .sm-tabs-scroll { display:flex; align-items:center; gap:6px; flex-wrap:nowrap; min-width:0; flex:0 1 auto;
-            overflow-x:auto; overflow-y:hidden; scrollbar-width:none; scroll-behavior:smooth; }
-        .sm-tabs-scroll::-webkit-scrollbar { display:none; }
-        .sm-tabs-scroll > .sm-tab { flex:0 0 auto; white-space:nowrap; }
-        .sm-tabs > .sm-tab-add-wrap { flex:0 0 auto; }
-        .sm-tabs-scroll.fade-left  { -webkit-mask-image: linear-gradient(to right, transparent, var(--sv-misc-000) 20px); mask-image: linear-gradient(to right, transparent, var(--sv-misc-000) 20px); }
-        .sm-tabs-scroll.fade-right { -webkit-mask-image: linear-gradient(to left, transparent, var(--sv-misc-000) 20px); mask-image: linear-gradient(to left, transparent, var(--sv-misc-000) 20px); }
-        .sm-tabs-scroll.fade-left.fade-right { -webkit-mask-image: linear-gradient(to right, transparent, var(--sv-misc-000) 20px, var(--sv-misc-000) calc(100% - 20px), transparent); mask-image: linear-gradient(to right, transparent, var(--sv-misc-000) 20px, var(--sv-misc-000) calc(100% - 20px), transparent); }
-        .sm-tab { position:relative; display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border-radius:9px; border:1.5px solid var(--border); background:var(--white); font-family:inherit; font-size:0.8rem; font-weight:700; color:var(--text-secondary); cursor:pointer; transition:all 0.14s; }
-        .sm-tab:hover { border-color:var(--sv-border-bbb); color:var(--text-primary); }
-        .sm-tab.active { color:var(--text-primary); border-color:transparent; background:hsl(var(--tab-h,250) 70% 96%); box-shadow:inset 0 0 0 1.5px hsl(var(--tab-h,250) 60% 78%); }
-        .sm-tab .sm-tab-dot { width:7px; height:7px; border-radius:50%; background:hsl(var(--tab-h,250) 65% 60%); flex-shrink:0; }
-        html[data-theme="dark"] .sm-tab.active { color:var(--text-inverse); background:hsl(var(--tab-h,250) 52% 28%); box-shadow:inset 0 0 0 1.5px hsl(var(--tab-h,250) 52% 38%); }
-        html[data-theme="dark"] .sm-tab .sm-tab-dot { background:hsl(var(--tab-h,250) 60% 58%); }
-        .sm-tab-x { display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; border-radius:50%; color:var(--text-muted); opacity:0; transition:all 0.13s; }
-        .sm-tab:hover .sm-tab-x { opacity:0.7; }
-        .sm-tab-x:hover { background:var(--dn); color:var(--sv-fg-fff); opacity:1; }
-        .sm-tab-x svg { width:8px; height:8px; }
-        .sm-tab-add-wrap { position:relative; }
-        .sm-tab-add { display:inline-flex; align-items:center; gap:5px; padding:7px 12px; border-radius:9px; border:1.5px dashed var(--border); background:transparent; font-family:inherit; font-size:0.78rem; font-weight:700; color:var(--text-muted); cursor:pointer; transition:all 0.14s; }
-        .sm-tab-add:hover { border-color:var(--sv-border-aaa); color:var(--text-secondary); background:var(--white); }
-        .sm-tab-add svg { width:13px; height:13px; }
-        .sm-tab-search { position:absolute; top:calc(100% + 7px); left:0; z-index:60; background:var(--white); border:1px solid var(--border); border-radius:12px; box-shadow:0 10px 34px var(--sv-shadow-rgba-0-0-0-0_14); padding:8px; width:248px; }
-        .sm-tab-search input { width:100%; font-family:inherit; font-size:0.82rem; padding:9px 11px; border:1px solid var(--border); border-radius:8px; background:var(--bg); color:var(--text-primary); }
-        .sm-tab-search input:focus { outline:none; border-color:var(--accent,var(--sv-border-6c5ce7)); background:var(--white); }
-        .sm-tab-results { margin-top:6px; max-height:240px; overflow-y:auto; display:flex; flex-direction:column; gap:2px; }
-        .sm-tab-result { padding:8px 10px; border-radius:7px; font-size:0.82rem; font-weight:600; color:var(--text-secondary); cursor:pointer; text-align:left; border:none; background:transparent; font-family:inherit; }
-        .sm-tab-result:hover, .sm-tab-result.active { background:var(--bg); color:var(--text-primary); }
-        .sm-tab-empty { padding:10px; font-size:0.78rem; color:var(--text-muted); text-align:center; }
-
-        /* segmented toggles (Reels/Thumbnails and Editor/Client) */
-        .sm-seg { display:inline-flex; gap:3px; background:var(--bg); padding:3px; border-radius:9px; border:1px solid var(--border-light); }
-        .sm-seg-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 13px; border-radius:7px; border:none; background:transparent; font-family:inherit; font-size:0.76rem; font-weight:700; color:var(--text-secondary); cursor:pointer; transition:all 0.14s; }
-        .sm-seg-btn:hover { color:var(--text-primary); }
-        .sm-seg-btn.active { background:var(--white); color:var(--text-primary); box-shadow:0 1px 3px var(--sv-shadow-rgba-0-0-0-0_1); }
-        .sm-seg-btn .sm-seg-badge { font-size:0.6rem; font-weight:800; background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:99px; letter-spacing:0.02em; }
-        .sm-seg-btn.active .sm-seg-badge { background:var(--sv-bg-111110); color:var(--sv-fg-fff); }
-        /* Client view: a larger, centered Reels/Thumbnails switch so it reads as the obvious thing to click. */
-        .sm-seg-lg { padding:4px; gap:4px; border-radius:11px; box-shadow:0 1px 3px var(--sv-shadow-rgba-0-0-0-0_05); }
-        .sm-seg-lg .sm-seg-btn { padding:11px 24px; font-size:0.95rem; border-radius:8px; }
-        .sm-seg-lg .sm-seg-btn .sm-seg-badge { font-size:0.62rem; }
-        .sm-toolbar-client { flex-direction:column; align-items:center; gap:14px; text-align:center; }
-        .sm-toolbar-client .sm-toolbar-left { flex:none; }
-        .sm-toolbar-client .sm-embed-title { align-items:center; }
-
-        .sm-share-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:8px; border:none; background:var(--sv-bg-111110); color:var(--sv-fg-fff); font-family:inherit; font-size:0.78rem; font-weight:700; cursor:pointer; transition:opacity 0.15s; }
-        .sm-share-btn:hover { opacity:0.9; }
-        .sm-share-btn.copied { background:var(--sv-bg-16a34a); }
-        .sm-share-btn svg { width:13px; height:13px; }
-
-        /* body / strip */
-        .sm-body { padding-top:18px; }
-        .sm-section-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:4px; flex-wrap:wrap; }
-        .sm-section-title { font-size:1.45rem; font-weight:800; letter-spacing:-0.025em; }
-        .sm-section-sub { font-size:0.8rem; color:var(--text-secondary); margin-top:2px; }
-        .sm-pill { font-size:0.64rem; font-weight:800; background:var(--sv-bg-efedfd); color:var(--sv-fg-6c5ce7); padding:5px 11px; border-radius:99px; letter-spacing:0.03em; }
-        .sm-client-intro { background:var(--white); border:1px solid var(--border); border-radius:12px; padding:16px 18px; margin-bottom:8px; font-size:0.85rem; color:var(--text-secondary); line-height:1.5; }
-        .sm-client-intro strong { color:var(--text-primary); font-weight:700; }
-
-        .sm-strip { display:flex; align-items:flex-start; gap:16px; overflow-x:auto; overflow-y:visible; padding:20px 4px 30px; scroll-snap-type:x proximity; scrollbar-width:thin; }
-        .sm-strip::-webkit-scrollbar { height:10px; }
-        .sm-strip::-webkit-scrollbar-thumb { background:var(--border); border-radius:99px; border:3px solid var(--bg); }
-        .sm-strip::after { content:''; flex:0 0 40vw; }
-
-        .sm-card { flex:0 0 var(--sm-card-w); width:var(--sm-card-w); background:var(--white); border:1px solid var(--border); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 1px 3px var(--sv-shadow-rgba-0-0-0-0_05); scroll-snap-align:start; position:relative; transition:box-shadow 0.16s, border-color 0.16s; }
-        .sm-card:hover { box-shadow:0 4px 18px var(--sv-shadow-rgba-0-0-0-0_1); }
-        .sm-card.is-flash { animation:smFlash 1.4s ease; }
-        @keyframes smFlash { 0%,100%{box-shadow:0 1px 3px var(--sv-shadow-rgba-0-0-0-0_05);} 25%{box-shadow:0 0 0 3px var(--sv-shadow-rgba-108-92-231-0_5);} }
-        .sm-card.sm-dragging { opacity:0.45; }
-        .sm-card.sm-drop-before { box-shadow:-3px 0 0 0 var(--accent,var(--sv-shadow-6c5ce7)); }
-        .sm-card-top { display:flex; align-items:center; gap:8px; padding:10px 12px 8px; }
-        .sm-card-label-wrap { display:flex; align-items:center; gap:7px; min-width:0; flex:1; }
-        .sm-card-dot { width:7px; height:7px; border-radius:50%; background:var(--border); flex-shrink:0; }
-        .sm-card-dot.has { background:var(--sv-bg-22c55e); }
-        .sm-card-label { font-size:0.66rem; font-weight:800; color:var(--text-muted); letter-spacing:0.08em; text-transform:uppercase; background:transparent; border:none; font-family:inherit; padding:2px 4px; border-radius:5px; min-width:40px; max-width:160px; }
-        .sm-card-label:not([readonly]):hover { background:var(--bg); }
-        .sm-card-label:focus { outline:none; background:var(--bg); color:var(--text-primary); }
-        .sm-card-grip { display:inline-flex; align-items:center; color:var(--text-muted); cursor:grab; opacity:0; transition:opacity 0.14s; }
-        .sm-card:hover .sm-card-grip { opacity:0.55; }
-        .sm-card-grip svg { width:14px; height:14px; }
-        .sm-card-tools { display:flex; align-items:center; gap:2px; }
-        .sm-card-tool { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:6px; border:none; background:transparent; color:var(--text-muted); cursor:pointer; opacity:0; transition:all 0.13s; }
-        .sm-card:hover .sm-card-tool { opacity:0.75; }
-        .sm-card-tool:hover { background:var(--bg); color:var(--text-primary); opacity:1; }
-        .sm-card-tool.del:hover { background:var(--sv-bg-rgba-192-57-43-0_1); color:var(--dn); }
-        .sm-card-tool.copied { color:var(--sv-fg-16a34a); opacity:1; }
-        .sm-card-tool svg { width:13px; height:13px; }
-
-        .sm-frame { width:100%; aspect-ratio:9/16; max-height:62vh; background:var(--sv-bg-0e0d0c); position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden; }
-        .sm-frame iframe, .sm-frame img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; border:none; display:block; }
-        .sm-frame video { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:var(--sv-bg-000); border:none; display:block; }
-        /* Click-to-open poster for links that can't be embedded (e.g. Frame.io). */
-        .sm-video-poster { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; text-decoration:none;
-            background:radial-gradient(120% 120% at 50% 34%, var(--sv-bg-262220) 0%, var(--sv-bg-0e0d0c) 72%); color:var(--sv-fg-fff); transition:background 0.18s; }
-        .sm-video-poster:hover { background:radial-gradient(120% 120% at 50% 34%, var(--sv-bg-322d2a) 0%, var(--sv-bg-100f0e) 72%); }
-        .sm-video-play { width:58px; height:58px; border-radius:50%; background:var(--sv-bg-rgba-255-255-255-0_12); border:1.5px solid var(--sv-border-rgba-255-255-255-0_55);
-            display:flex; align-items:center; justify-content:center; transition:transform 0.18s, background 0.18s; }
-        .sm-video-poster:hover .sm-video-play { transform:scale(1.07); background:var(--sv-bg-rgba-255-255-255-0_2); }
-        .sm-video-play svg { width:24px; height:24px; margin-left:3px; }
-        .sm-video-cta { font-size:0.85rem; font-weight:700; letter-spacing:-0.01em; }
-        .sm-video-host { font-size:0.6rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--sv-fg-rgba-255-255-255-0_42); }
-        /* Approval bar (Kasper → Client) */
-        .sm-appr { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:10px; padding-top:11px; border-top:1px solid var(--border-light); }
-        .sm-appr-pill { display:inline-flex; align-items:center; gap:5px; font-size:0.66rem; font-weight:800; letter-spacing:0.02em; text-transform:uppercase; padding:3px 9px; border-radius:99px; white-space:nowrap; }
-        .sm-appr-pill::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; flex:none; }
-        .sm-appr-pill.is-draft    { background:var(--sv-bg-f1f0ee); color:var(--sv-fg-8a8780); }
-        .sm-appr-pill.is-kasper   { background:var(--sv-bg-fef3c7); color:var(--sv-fg-92681e); }
-        .sm-appr-pill.is-client   { background:var(--sv-bg-dbeafe); color:var(--sv-fg-1d4ed8); }
-        .sm-appr-pill.is-approved { background:var(--sv-bg-dcfce7); color:var(--sv-fg-166534); }
-        .sm-appr-pill.is-changes  { background:var(--sv-bg-fee2e2); color:var(--sv-fg-b91c1c); }
-        html[data-theme="dark"] .sm-appr-pill.is-draft    { background:var(--cal-status-archived-bg); color:var(--cal-status-archived-fg); }
-        html[data-theme="dark"] .sm-appr-pill.is-kasper   { background:var(--cal-status-kasper-approval-bg); color:var(--cal-status-kasper-approval-fg); }
-        html[data-theme="dark"] .sm-appr-pill.is-client   { background:var(--cal-status-client-approval-bg); color:var(--cal-status-client-approval-fg); }
-        html[data-theme="dark"] .sm-appr-pill.is-approved { background:var(--cal-status-approved-bg); color:var(--cal-status-approved-fg); }
-        html[data-theme="dark"] .sm-appr-pill.is-changes  { background:var(--cal-status-tweaks-needed-bg); color:var(--cal-status-tweaks-needed-fg); }
-        .sm-appr-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
-        .sm-appr-note { font-size:0.72rem; color:var(--text-muted); }
-        .sm-appr-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 13px; border-radius:9px; border:1px solid var(--border); background:var(--white);
-            font-family:inherit; font-size:0.76rem; font-weight:700; color:var(--text-secondary); cursor:pointer; transition:all 0.15s; white-space:nowrap; }
-        .sm-appr-btn:hover { border-color:var(--sv-border-aaa); color:var(--text-primary); }
-        .sm-appr-btn.primary { background:var(--sv-bg-16a34a); border-color:var(--sv-border-16a34a); color:var(--sv-fg-fff); }
-        .sm-appr-btn.primary:hover { background:var(--sv-bg-15803d); border-color:var(--sv-border-15803d); }
-        .sm-appr-link { background:none; border:none; padding:4px 2px; font-family:inherit; font-size:0.72rem; font-weight:600; color:var(--text-muted); cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
-        .sm-appr-link:hover { color:var(--text-secondary); }
-        .sm-appr-summary { font-size:0.7rem; font-weight:700; color:var(--text-muted); white-space:nowrap; }
-        .sm-head-right { display:flex; align-items:center; gap:10px; }
-        .sm-frame .sm-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:var(--sv-fg-rgba-255-255-255-0_45); font-size:0.78rem; padding:14px; text-align:center; }
-        .sm-frame .sm-empty .sm-ratio { font-size:0.6rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--sv-fg-rgba-255-255-255-0_26); }
-        .sm-frame .sm-empty svg { width:26px; height:26px; opacity:0.5; }
-        .sm-open-btn { position:absolute; bottom:10px; right:10px; z-index:3; display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:8px; border:none; background:var(--sv-bg-rgba-17-17-16-0_82); color:var(--sv-fg-fff); font-family:inherit; font-size:0.7rem; font-weight:700; cursor:pointer; backdrop-filter:blur(4px); transition:background 0.14s; text-decoration:none; }
-        .sm-open-btn:hover { background:var(--sv-bg-111110); }
-        .sm-open-btn svg { width:11px; height:11px; }
-
-        .sm-card-body { padding:12px 13px 13px; display:flex; flex-direction:column; gap:11px; }
-        .sm-field { display:flex; flex-direction:column; gap:5px; }
-        .sm-field-label { font-size:0.62rem; font-weight:800; color:var(--text-muted); letter-spacing:0.08em; text-transform:uppercase; }
-        .sm-input, .sm-textarea { width:100%; font-family:inherit; font-size:0.82rem; line-height:1.5; color:var(--text-primary); background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:8px 10px; resize:none; transition:border-color 0.12s, background 0.12s; }
-        .sm-input:focus, .sm-textarea:focus { outline:none; border-color:var(--accent,var(--sv-border-6c5ce7)); background:var(--white); }
-        .sm-input::placeholder, .sm-textarea::placeholder { color:var(--text-muted); }
-        .sm-input[readonly], .sm-textarea[readonly] { cursor:default; background:var(--bg); }
-        html[data-theme="dark"] .sm-input, html[data-theme="dark"] .sm-textarea { background:var(--field-bg); }
-        html[data-theme="dark"] .sm-input:focus, html[data-theme="dark"] .sm-textarea:focus { border-color:var(--field-border-focus); background:var(--field-bg-focus); }
-        html[data-theme="dark"] .sm-input[readonly], html[data-theme="dark"] .sm-textarea[readonly] { background:var(--field-bg); }
-        .sm-media-row { display:flex; gap:6px; }
-        .sm-media-row .sm-input { flex:1; min-width:0; }
-        .sm-media-save { padding:0 12px; border-radius:8px; border:1px solid var(--border); background:var(--white); cursor:pointer; color:var(--text-secondary); font-family:inherit; font-size:0.74rem; font-weight:700; white-space:nowrap; }
-        .sm-media-save:hover { background:var(--bg); color:var(--text-primary); }
-        .sm-readonly-direction { font-size:0.84rem; line-height:1.55; color:var(--text-primary); white-space:pre-wrap; word-break:break-word; }
-        .sm-readonly-direction.is-empty { color:var(--text-muted); font-style:italic; }
-
-        /* Creative-direction client-visibility toggle (editor only) */
-        .sm-dir-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-        .sm-dir-toggle { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); border-radius:999px; padding:3px 9px; font-family:inherit; font-size:0.6rem; font-weight:700; letter-spacing:0.01em; text-transform:none; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
-        .sm-dir-toggle:hover { background:var(--bg); color:var(--text-primary); }
-        .sm-dir-toggle svg { width:12px; height:12px; flex:none; }
-        .sm-dir-toggle.is-hidden { background:var(--sv-bg-fef3c7); color:var(--sv-fg-92400e); border-color:transparent; }
-
-        .sm-card-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; padding-top:2px; }
-        .sm-comments-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:8px; border:1px solid var(--border); background:var(--white); cursor:pointer; color:var(--text-secondary); font-family:inherit; font-size:0.74rem; font-weight:700; transition:all 0.13s; position:relative; }
-        .sm-comments-btn:hover { border-color:var(--sv-border-bbb); color:var(--text-primary); }
-        .sm-comments-btn.has-open { border-color:var(--sv-border-f0b429); color:var(--sv-fg-9a6700); background:var(--sv-bg-fffbeb); }
-        .sm-comments-btn svg { width:13px; height:13px; }
-        .sm-comments-count { font-weight:800; }
-        .sm-comments-count:empty { display:none; }
-        .sm-comments-dot { position:absolute; top:-3px; right:-3px; width:8px; height:8px; border-radius:50%; background:var(--dn); border:1.5px solid var(--white); }
-        .sm-card-saving { font-size:0.7rem; color:var(--text-muted); display:inline-flex; align-items:center; gap:5px; }
-        .sm-card-saving[hidden] { display:none; }
-        .sm-card-saving.is-error { color:var(--dn); cursor:pointer; border:none; background:transparent; font-family:inherit; font-weight:700; }
-
-        /* add card */
-        .sm-card-add { flex:0 0 var(--sm-card-w); width:var(--sm-card-w); min-height:200px; align-self:stretch; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:transparent; border:2px dashed var(--border); border-radius:14px; color:var(--text-muted); font-family:inherit; font-size:0.84rem; font-weight:700; cursor:pointer; transition:all 0.15s; scroll-snap-align:start; }
-        .sm-card-add:hover { border-color:var(--sv-border-aaa); color:var(--text-secondary); background:var(--white); }
-        .sm-card-add svg { width:26px; height:26px; }
-        .sm-card-add.is-hero { flex-basis:var(--sm-card-w); min-height:62vh; }
-
-        .sm-empty-state { padding:64px 24px; text-align:center; color:var(--text-muted); font-size:0.9rem; background:var(--white); border:1px dashed var(--border); border-radius:14px; }
-        .sm-pick-client { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; min-height:46vh; text-align:center; color:var(--text-muted); }
-        .sm-pick-client .sm-pick-title { font-size:1.1rem; font-weight:800; color:var(--text-primary); }
-        .sm-error-state { padding:40px 24px; text-align:center; color:var(--dn); font-size:0.86rem; }
-
-        /* comments modal — mirrors the calendar's notes modal */
-        .sm-comments-overlay { position:fixed; inset:0; background:var(--sv-bg-rgba-15-15-14-0_42); backdrop-filter:blur(2px); z-index:300; display:none; align-items:center; justify-content:center; padding:24px; }
-        .sm-comments-overlay.open { display:flex; }
-        .sm-comments-modal { background:var(--white); border-radius:16px; width:100%; max-width:480px; max-height:84vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 70px var(--sv-shadow-rgba-0-0-0-0_3); }
-        .sm-cm-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:16px 18px; border-bottom:1px solid var(--border-light); }
-        .sm-cm-title { font-size:0.95rem; font-weight:800; letter-spacing:-0.01em; }
-        .sm-cm-title span { display:block; font-size:0.72rem; font-weight:600; color:var(--text-muted); margin-top:2px; }
-        .sm-cm-head-actions { display:flex; align-items:center; gap:6px; }
-        .sm-cm-hist { padding:5px 10px; border-radius:7px; border:1px solid var(--border); background:var(--white); font-family:inherit; font-size:0.7rem; font-weight:700; color:var(--text-secondary); cursor:pointer; }
-        .sm-cm-hist.active { background:var(--bg); color:var(--text-primary); }
-        .sm-cm-close { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:8px; border:none; background:transparent; color:var(--text-muted); cursor:pointer; }
-        .sm-cm-close:hover { background:var(--bg); color:var(--text-primary); }
-        .sm-cm-close svg { width:14px; height:14px; }
-        .sm-cm-feed { flex:1; overflow-y:auto; padding:16px 18px; display:flex; flex-direction:column; gap:14px; }
-        .sm-cm-empty { text-align:center; color:var(--text-muted); font-size:0.82rem; padding:30px 10px; }
-        .sm-cm-thread { display:flex; flex-direction:column; gap:8px; }
-        .sm-cm-thread.is-resolved { opacity:0.62; }
-        .sm-cm-row { display:flex; gap:10px; }
-        .sm-cm-row.is-reply { margin-left:30px; }
-        .sm-cm-avatar { flex-shrink:0; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.7rem; font-weight:800; color:var(--sv-fg-fff); background:var(--sv-bg-6c5ce7); }
-        .sm-cm-row.is-client .sm-cm-avatar { background:var(--sv-bg-0ea5e9); }
-        .sm-cm-bubble { flex:1; min-width:0; }
-        .sm-cm-meta { display:flex; align-items:center; gap:8px; margin-bottom:3px; }
-        .sm-cm-author { font-size:0.76rem; font-weight:800; color:var(--text-primary); }
-        .sm-cm-role { font-size:0.6rem; font-weight:800; text-transform:uppercase; letter-spacing:0.05em; padding:1px 6px; border-radius:99px; background:var(--sv-bg-efedfd); color:var(--sv-fg-6c5ce7); }
-        .sm-cm-row.is-client .sm-cm-role { background:var(--sv-bg-e0f2fe); color:var(--sv-fg-0369a1); }
-        .sm-cm-time { font-size:0.66rem; color:var(--text-muted); }
-        .sm-cm-done-tag { font-size:0.6rem; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; color:var(--sv-fg-16a34a); background:var(--sv-bg-f0fdf4); padding:1px 7px; border-radius:99px; }
-        .sm-cm-text { font-size:0.84rem; line-height:1.5; color:var(--text-primary); white-space:pre-wrap; word-break:break-word; }
-        .sm-cm-actions { display:flex; gap:10px; margin-top:5px; }
-        .sm-cm-action { font-size:0.7rem; font-weight:700; color:var(--text-secondary); background:none; border:none; cursor:pointer; padding:0; font-family:inherit; }
-        .sm-cm-action:hover { color:var(--text-primary); text-decoration:underline; }
-        .sm-cm-action.del:hover { color:var(--dn); }
-        .sm-cm-action.resolve { color:var(--sv-fg-16a34a); }
-        .sm-cm-composer { border-top:1px solid var(--border-light); padding:12px 18px 14px; }
-        .sm-cm-reply-ctx { display:flex; align-items:center; justify-content:space-between; font-size:0.72rem; color:var(--text-secondary); background:var(--bg); border-radius:7px; padding:6px 10px; margin-bottom:8px; }
-        .sm-cm-reply-ctx button { border:none; background:none; color:var(--text-muted); cursor:pointer; font-family:inherit; font-weight:700; }
-        .sm-cm-composer-row { display:flex; gap:8px; align-items:flex-end; }
-        .sm-cm-composer-row textarea { flex:1; font-family:inherit; font-size:0.84rem; line-height:1.5; border:1px solid var(--border); border-radius:9px; padding:9px 11px; background:var(--bg); resize:none; max-height:140px; }
-        .sm-cm-composer-row textarea:focus { outline:none; border-color:var(--accent,var(--sv-border-6c5ce7)); background:var(--white); }
-        .sm-cm-send { padding:9px 15px; border-radius:9px; border:none; background:var(--accent,var(--sv-bg-6c5ce7)); color:var(--sv-fg-fff); font-family:inherit; font-size:0.78rem; font-weight:800; cursor:pointer; white-space:nowrap; }
-        .sm-cm-send:disabled { opacity:0.45; cursor:default; }
-        .sm-cm-audience { display:flex; gap:6px; margin-bottom:8px; }
-        .sm-cm-aud-btn { padding:5px 11px; border-radius:7px; border:1px solid var(--border); background:var(--white); font-family:inherit; font-size:0.7rem; font-weight:700; color:var(--text-secondary); cursor:pointer; }
-        .sm-cm-aud-btn.active { background:var(--sv-bg-111110); color:var(--sv-fg-fff); border-color:var(--sv-border-111110); }
-        body.sm-modal-open { overflow:hidden; }
-
-        .sm-flash { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(8px); background:var(--sv-bg-111110); color:var(--sv-fg-fff); padding:10px 18px; border-radius:9px; font-size:0.8rem; font-weight:700; box-shadow:0 8px 28px var(--sv-shadow-rgba-0-0-0-0_22); opacity:0; pointer-events:none; transition:opacity 0.18s, transform 0.18s; z-index:400; }
-        .sm-flash.show { opacity:1; transform:translateX(-50%) translateY(0); }
-        .sm-flash.error { background:var(--dn); }
 
         /* ── PTO / Time Off ─────────────────────────────────────────────── */
         .pto-wrap, .pto-admin { --text-muted: var(--text-secondary); --pto-positive: var(--sv-fg-166534); --pto-negative: var(--sv-fg-991b1b); }
@@ -7906,11 +7656,6 @@
             .pto-table-scroll-cue { display: block; }
         }
 
-        @media (max-width:760px) {
-            .samples-view { --sm-card-w: 80vw; }
-            .sm-toolbar { gap:10px; }
-            .sm-toolbar-right { width:100%; justify-content:flex-start; }
-        }
         /* ── Mobile / touch polish ──────────────────────────────────────
            Clients review on phones: the chrome must fit a narrow screen and
            every hover-revealed control needs a touch equivalent. */
@@ -8315,10 +8060,6 @@
         <a class="header-nav-btn" id="navKasper" href="#kasper" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('kasper')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.5"/></svg>
             Kasper
-        </a>
-        <a class="header-nav-btn" id="navTiktokPilot" href="#tiktok-pilot" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-pilot')">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5 8.5L8 11.5L11 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="13" cy="3" r="2.2" fill="var(--sv-fg-22c55e)"/></svg>
-            TikTok Pilot
         </a>
     </div>
     <div class="header-actions">
@@ -9006,27 +8747,6 @@
     // single-video tiktok-upload workflow above.
     const TIKTOK_MAX_PHOTOS        = 35;               // TikTok photo/carousel post limit
     const TIKTOK_PHOTO_MAX_BYTES   = 20 * 1024 * 1024;  // per-image guard
-
-    // ---- TikTok Pilot (gated first-party Direct Post) — unlocked via ?ttpilot=1 ----
-    // A separate, audit-compliant module that talks to FIRST-PARTY ttp-* n8n
-    // webhooks (OAuth + creator_info + Direct Post on SynchroSocial's OWN TikTok
-    // app credentials), kept fully isolated from the production Post-For-Me flow
-    // above. Nothing here touches the _tk* module or its webhooks.
-    const TTP_AUTH_INIT_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-auth-init';
-    const TTP_ACCOUNTS_LIST_URL = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-accounts-list';
-    const TTP_CREATOR_INFO_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-creator-info';
-    const TTP_SUBMIT_URL        = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-submit';
-    const TTP_STATUS_URL        = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-status';
-    const TTP_LIST_URL          = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-list';
-    const TTP_FORM_KEY          = 'syncview_ttpilotForm_v1';
-    const TTP_PENDING_KEY       = 'syncview_pendingTtpilot_v1';
-    const TTP_HIDDEN_KEY        = 'syncview_hiddenTtpilot_v1';
-    const TTP_OPTIMISTIC_TTL_MS = 5 * 60 * 1000; // drop unconfirmed local rows after 5 min
-    const TTP_MAX_BYTES         = 64 * 1024 * 1024; // 64 MB — single-chunk FILE_UPLOAD cap for the pilot (multi-chunk is a later enhancement)
-    // Flip to true ONLY after TikTok approves the app audit. While false the app
-    // is unaudited: TikTok forces every post to SELF_ONLY (private) and caps
-    // active users — so the compose UI locks privacy to "Only me" and says so.
-    const TTP_APP_AUDITED       = false;
 
     function getTabSummaryKey(name, briefType, tabId) { return `${name}__${briefType}__${tabId}`; }
 
@@ -12491,15 +12211,7 @@
                     if(!match&&slug){try{_calResolvePendingDeepLink();}catch(e){console.warn('[Calendar] deep-link resolve failed',e);}}
                     return;
                 }
-                if(hash.startsWith('samples/')){
-                    const rest=hash.slice('samples/'.length);
-                    const sl=rest.indexOf('/');
-                    const slug=sl>=0?rest.slice(0,sl):rest;
-                    const cardId=sl>=0?rest.slice(sl+1):'';
-                    const match=WL_CLIENT_NAMES.find(n=>wlNormalizeClient(n)===slug);
-                    if(match)_smFocusRequest={client:match,cardId:cardId||null};
-                    navTo('samples',false);return;
-                }
+                if(hash.startsWith('samples/')){navTo('samples',false);return;} // retired Samples Old link -> Sample reviews
                 if(hash==='kasper'||hash.startsWith('kasper/')){
                     if(_kasperUnlocked){
                         if(hash.startsWith('kasper/')){
@@ -12509,7 +12221,6 @@
                         navTo('kasper',false);return;
                     }
                 }
-                else if(hash==='tiktok-pilot'){ if(_ttpUnlocked){navTo('tiktok-pilot',false);return;} }
                 else if(hash==='sample-reviews'||hash.startsWith('sample-reviews/')){navTo('sample-reviews',false);return;}
                 else if(['linear','workload','calendar','samples','filming-plans','tiktok-upload','time-off'].includes(hash)
                         ||hashRoute==='smm-weekly-report'||hashRoute==='smm-weekly-reports'){
@@ -23103,980 +22814,6 @@
         } catch { return {}; }
     }
 
-    /* ===================================================================
-     * CONTENT SAMPLES — native rebuild (replaces the samples.html iframe).
-     * Per-client sample boards modelled on the Content Calendar: one
-     * toolbar row, per-client tabs + search, a horizontal strip of
-     * Reel/Thumbnail cards, threaded comments, an editor/client preview
-     * toggle and a tokenised client share link. Persists through the
-     * samples-* n8n webhooks (one Samples_<slug> tab per client on the
-     * SyncView Calendar Sheet), mirroring the calendar's read/write
-     * contract, with a localStorage fallback so it keeps working if a
-     * webhook is briefly unreachable.
-     * =================================================================== */
-    const SAMPLES_GET_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/samples-get';
-    const SAMPLES_UPSERT_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/samples-upsert';
-    const SAMPLES_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/samples-reorder';
-    const SM_KINDS = ['reel', 'thumb'];
-    const SM_KIND_META = {
-        reel:  { label: 'Reels',      badge: '9:16', title: 'Instagram Reels',      sub: 'Video samples — 9:16 vertical · hosted on Frame.io', single: 'reel' },
-        thumb: { label: 'Thumbnails', badge: '9:16', title: 'Instagram Thumbnails', sub: 'Cover image samples — 9:16 vertical · hosted on Google Drive', single: 'thumbnail' }
-    };
-    const SM_CACHE_PREFIX = 'syncview_samplesCache_v1:';
-    const SM_PREFS_KEY = 'syncview_samples_prefs_v1';
-    const SM_SEEN_KEY = 'syncview_samplesSeen_v1';
-    /* Samples v2 (Supabase realtime) — own flag ?sv2=1, sticky (mirrors the
-       calendar's ?v2). Reuses the calendar's Supabase project + publishable key
-       + supabase-js loader (CAL_SUPABASE_URL/_ANON_KEY/_LIB_URL, defined in the
-       calendar module below). _smV2Ready() gates every Supabase touch, so with
-       the flag off the page is byte-identical to v1 (no Supabase calls, the lib
-       never loads). */
-    const SM_V2_LS_KEY         = 'syncview_samples_v2';
-    const SM_V2_KILL_KEY       = 'syncview_samples_v2_off';
-    const SM_V2_RT_DEBOUNCE_MS = 350;
-    const SM_RT_SELF_ECHO_MS   = 4000;  // a realtime event within this window of a local save = our own echo → defer
-
-    let smState = { client: null, kind: 'reel', mode: 'editor', samples: [], loading: false, error: null, embedded: false, focusCard: null };
-    let _smLinkClient = null;     // client locked in via a ?c=…&v=samples share link
-    let _smFocusRequest = null;   // {client, cardId} from a #samples/<slug>/<id> deep link
-    let _smOutsideWired = false;
-    const _smPendingTimers = {};
-
-    /* ---- tiny self-contained helpers ---- */
-    function _smEsc(s){ return String(s==null?'':s).replace(/[&<>]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch])); }
-    function _smEscAttr(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-    function smClientSlug(name){ return wlNormalizeClient(name); }
-    function _smMintId(p){ return p + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7); }
-    function _smStringify(arr){ try { return JSON.stringify(Array.isArray(arr) ? arr : []); } catch(e){ return '[]'; } }
-    function _smTruthy(v){ if(v === true) return true; if(v == null || v === false) return false; return /^(1|true|yes|y)$/i.test(String(v).trim()); }
-    function _smFind(id){ return smState.samples.find(x => x.id === id); }
-    function _smCssId(id){ return (window.CSS && CSS.escape) ? CSS.escape(id) : id; }
-    function _smClientSurface(){ return _isClientLink || smState.mode === 'client'; }
-    function _smCommentRole(){ return _isClientLink ? 'client' : 'smm'; }
-    function _smCurrentAuthor(){ return _isClientLink ? (smState.client || _smLinkClient || 'Client') : 'Synchro Social'; }
-    function _smFlash(msg, isErr){ const f = document.getElementById('smFlash'); if(!f) return; f.textContent = msg; f.classList.toggle('error', !!isErr); f.classList.add('show'); clearTimeout(_smFlash._t); _smFlash._t = setTimeout(() => f.classList.remove('show'), 2000); }
-
-    /* ---- Video embed (provider-aware) + Google Drive image helpers ----
-       Frame.io has no public iframe player: player.frame.io doesn't resolve and
-       f.io sends X-Frame-Options: SAMEORIGIN, so Frame.io links simply can't be
-       embedded — they fall through to a click-to-open poster (new tab). Providers
-       that DO allow embedding (YouTube, Vimeo, Loom, Google Drive, direct video
-       files) play inline. Returns { kind:'iframe'|'video', src } or null. */
-    function _smVideoEmbed(url){
-        if(!url) return null;
-        url = url.trim();
-        let m;
-        if((m = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{6,})/i)))
-            return { kind:'iframe', src:'https://www.youtube.com/embed/' + m[1] };
-        if((m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/i)))
-            return { kind:'iframe', src:'https://player.vimeo.com/video/' + m[1] };
-        if((m = url.match(/loom\.com\/(?:share|embed)\/([a-zA-Z0-9]+)/i)))
-            return { kind:'iframe', src:'https://www.loom.com/embed/' + m[1] };
-        if((m = url.match(/drive\.google\.com\/file\/d\/([-\w]{20,})/i)))
-            return { kind:'iframe', src:'https://drive.google.com/file/d/' + m[1] + '/preview' };
-        if(/\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url))
-            return { kind:'video', src:url };
-        return null;   // Frame.io & anything else → open in a new tab
-    }
-    function _smLinkHost(url){ try { return new URL(String(url).trim()).hostname.replace(/^www\./,''); } catch(e){ return ''; } }
-    function _smIsFrameIo(url){ return /(?:^|\.)(?:frame\.io|f\.io)$/i.test(_smLinkHost(url)); }
-
-    /* ---- Approval (Kasper → Client) ----------------------------------------
-       A tracked two-step gate stored per sample in the `approval` column:
-       draft → kasper → client → approved, plus a `changes` state when the
-       client asks for a change. The editor surface drives the draft/kasper
-       steps; the client share link only ever sees client/approved/changes
-       cards and drives the final approval. Stamps kasper_/client_approved_at|by. */
-    const SM_APPR_META = {
-        draft:    { label:'Draft',             cls:'is-draft'    },
-        kasper:   { label:'Kasper review',     cls:'is-kasper'   },
-        client:   { label:'Client review',     cls:'is-client'   },
-        approved: { label:'Approved',          cls:'is-approved' },
-        changes:  { label:'Changes requested', cls:'is-changes'  }
-    };
-    const SM_CLIENT_VISIBLE_APPR = new Set(['client','approved','changes']);
-    function _smApprNorm(v){
-        v = String(v == null ? '' : v).trim().toLowerCase().replace(/[\s-]+/g,'_');
-        if(v === 'kasper' || v === 'kasper_review') return 'kasper';
-        if(v === 'client' || v === 'client_review') return 'client';
-        if(v === 'approved') return 'approved';
-        if(v === 'changes' || v === 'change' || v === 'changes_requested') return 'changes';
-        return 'draft';
-    }
-    function _smApprFmt(t){ if(!t) return ''; try { return new Date(t).toLocaleDateString([], { month:'short', day:'numeric' }); } catch(e){ return ''; } }
-    function _smApprPill(s, surface){
-        const st = _smApprNorm(s.approval);
-        const meta = SM_APPR_META[st];
-        let label = meta.label;
-        if(surface){ if(st === 'client') label = 'Awaiting your approval'; else if(st === 'approved') label = 'Approved'; else if(st === 'changes') label = 'Change requested'; }
-        return `<span class="sm-appr-pill ${meta.cls}">${_smEsc(label)}</span>`;
-    }
-    function _smApprovalSummary(items, surface){
-        if(!items.length) return '';
-        if(surface){
-            const appr = items.filter(s => _smApprNorm(s.approval) === 'approved').length;
-            return `<span class="sm-appr-summary">${appr === items.length ? 'All approved' : ('Approved ' + appr + ' of ' + items.length)}</span>`;
-        }
-        const c = { draft:0, kasper:0, client:0, approved:0, changes:0 };
-        items.forEach(s => { c[_smApprNorm(s.approval)]++; });
-        const parts = [];
-        if(c.approved) parts.push(c.approved + ' approved');
-        if(c.changes)  parts.push(c.changes + ' to fix');
-        if(c.client)   parts.push(c.client + ' with client');
-        if(c.kasper)   parts.push(c.kasper + ' for Kasper');
-        if(c.draft)    parts.push(c.draft + ' draft');
-        return parts.length ? `<span class="sm-appr-summary">${parts.join(' · ')}</span>` : '';
-    }
-    function _smApprovalHtml(s, id, surface){
-        const st = _smApprNorm(s.approval);
-        let actions = '';
-        if(surface){
-            if(st === 'client') actions = `<button class="sm-appr-btn primary" type="button" onclick="_smApprApprove('${id}')">Approve</button><button class="sm-appr-btn" type="button" onclick="_smApprClientChanges('${id}')">Request a change</button>`;
-            else if(st === 'approved') actions = `<span class="sm-appr-note">You approved this${s.client_approved_at ? ' · ' + _smEsc(_smApprFmt(s.client_approved_at)) : ''}</span><button class="sm-appr-link" type="button" onclick="_smApprUnapprove('${id}')">Undo</button>`;
-            else if(st === 'changes') actions = `<span class="sm-appr-note">Change requested — we're on it.</span><button class="sm-appr-btn primary" type="button" onclick="_smApprApprove('${id}')">Approve anyway</button>`;
-        } else {
-            if(st === 'draft') actions = `<button class="sm-appr-btn primary" type="button" onclick="_smApprSend('${id}')">Send for Kasper review</button>`;
-            else if(st === 'kasper') actions = `<button class="sm-appr-btn primary" type="button" onclick="_smApprKasper('${id}')">Approve &amp; send to client</button><button class="sm-appr-link" type="button" onclick="_smApprReject('${id}')">Send back</button>`;
-            else if(st === 'client') actions = `<span class="sm-appr-note">Awaiting client${s.kasper_approved_at ? ' · Kasper OK ' + _smEsc(_smApprFmt(s.kasper_approved_at)) : ''}</span><button class="sm-appr-link" type="button" onclick="_smApprRevert('${id}')">Back to draft</button>`;
-            else if(st === 'approved') actions = `<span class="sm-appr-note">Approved by client${s.client_approved_at ? ' · ' + _smEsc(_smApprFmt(s.client_approved_at)) : ''}</span><button class="sm-appr-link" type="button" onclick="_smApprRevert('${id}')">Reopen</button>`;
-            else if(st === 'changes') actions = `<button class="sm-appr-btn primary" type="button" onclick="_smApprResend('${id}')">Re-send to client</button><button class="sm-appr-link" type="button" onclick="_smApprRevert('${id}')">Back to draft</button>`;
-        }
-        return `<div class="sm-appr">${_smApprPill(s, surface)}<div class="sm-appr-actions">${actions}</div></div>`;
-    }
-    function _smApprApply(id, next, stamp){
-        const s = _smFind(id); if(!s) return;
-        s.approval = next;
-        const now = new Date().toISOString();
-        if(stamp === 'kasper'){ s.kasper_approved_at = now; s.kasper_approved_by = _smCurrentAuthor(); }
-        if(stamp === 'client'){ s.client_approved_at = now; s.client_approved_by = _smCurrentAuthor(); }
-        _smRenderBody();
-        _smFlushCardSave(id);
-    }
-    function _smApprSend(id){ _smApprApply(id, 'kasper'); _smFlash('Sent for Kasper review'); }
-    function _smApprKasper(id){ _smApprApply(id, 'client', 'kasper'); _smFlash('Approved — sent to the client'); }
-    function _smApprReject(id){ _smApprApply(id, 'draft'); _smFlash('Sent back to draft'); }
-    function _smApprRevert(id){ _smApprApply(id, 'draft'); _smFlash('Moved back to draft'); }
-    function _smApprResend(id){ _smApprApply(id, 'client'); _smFlash('Re-sent to the client'); }
-    function _smApprApprove(id){ _smApprApply(id, 'approved', 'client'); _smFlash('Approved — thank you!'); }
-    function _smApprUnapprove(id){ _smApprApply(id, 'client'); _smFlash('Approval undone'); }
-    function _smApprClientChanges(id){ _smChangeReqPending = id; openSmComments(id); }
-    function _smDriveImg(input){
-        if(!input) return '';
-        input = input.trim();
-        // A direct (non-Drive) image URL is used as-is.
-        if(/^https?:/i.test(input) && !/drive\.google\.com|docs\.google\.com/i.test(input)) return input;
-        const m = input.match(/[-\w]{25,}/);
-        const fileId = m ? m[0] : input;
-        return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w800';
-    }
-    function _smImgError(img){
-        img.style.display = 'none';
-        const wrap = img.closest('.sm-frame');
-        if(wrap && !wrap.querySelector('.sm-empty')){
-            const d = document.createElement('div');
-            d.className = 'sm-empty';
-            d.innerHTML = '<div>Image not accessible</div><div class="sm-ratio">Check Drive sharing</div>';
-            wrap.appendChild(d);
-        }
-    }
-
-    /* ---- prefs + cache + seen ---- */
-    function _smLoadPrefs(){ try { return JSON.parse(localStorage.getItem(SM_PREFS_KEY) || '{}') || {}; } catch(e){ return {}; } }
-    function _smSavePrefs(){ try { localStorage.setItem(SM_PREFS_KEY, JSON.stringify({ client: smState.client, kind: smState.kind })); } catch(e){} }
-    function _smCacheKey(slug){ return SM_CACHE_PREFIX + slug; }
-    const SM_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // parity with CAL_CACHE_TTL_MS / SXR_CACHE_TTL_MS
-    function _smCacheRead(slug){ try { const r = localStorage.getItem(_smCacheKey(slug)); if(!r) return null; const o = JSON.parse(r); if(!o || !o.at || (Date.now() - Number(o.at)) > SM_CACHE_TTL_MS) return null; return Array.isArray(o.samples) ? o.samples.map(_smNormalize) : null; } catch(e){ return null; } }
-    function _smCacheWrite(slug, samples){
-        const payload = JSON.stringify({ samples, at: Date.now() });
-        try { localStorage.setItem(_smCacheKey(slug), payload); return; } catch(e){}
-        // Quota hit — evict the other clients' sample caches and retry once; if
-        // it still fails, drop this slug's cache so a stale snapshot can't
-        // outlive fresh data (a deleted card would flash on every refresh).
-        try {
-            for(let i = localStorage.length - 1; i >= 0; i--){
-                const k = localStorage.key(i);
-                if(k && k.indexOf(SM_CACHE_PREFIX) === 0 && k !== _smCacheKey(slug)) localStorage.removeItem(k);
-            }
-            localStorage.setItem(_smCacheKey(slug), payload);
-        } catch(e){
-            try { localStorage.removeItem(_smCacheKey(slug)); } catch(e2){}
-        }
-    }
-    function _smGetSeen(){ try { return JSON.parse(localStorage.getItem(SM_SEEN_KEY) || '{}') || {}; } catch(e){ return {}; } }
-    function _smMarkSeen(id){ const seen = _smGetSeen(); const s = _smFind(id); seen[id] = (s ? _smLastCommentAt(s) : '') || new Date().toISOString(); try { localStorage.setItem(SM_SEEN_KEY, JSON.stringify(seen)); } catch(e){} }
-
-    function _smNormalize(row){
-        row = row || {};
-        let comments = [];
-        if(Array.isArray(row.comments)) comments = row.comments;
-        else if(typeof row.comments === 'string' && row.comments.trim()){ try { const p = JSON.parse(row.comments); if(Array.isArray(p)) comments = p; } catch(e){} }
-        return {
-            id: String(row.id || ''),
-            kind: SM_KINDS.includes(row.kind) ? row.kind : 'reel',
-            order_index: Number(row.order_index || 0),
-            label: row.label || '',
-            media_url: row.media_url || '',
-            creative_direction: row.creative_direction || row.rationale || '',
-            hide_creative_direction: _smTruthy(row.hide_creative_direction),
-            comments: comments,
-            status: row.status || 'Active',
-            approval: _smApprNorm(row.approval),
-            kasper_approved_at: row.kasper_approved_at || '',
-            kasper_approved_by: row.kasper_approved_by || '',
-            client_approved_at: row.client_approved_at || '',
-            client_approved_by: row.client_approved_by || '',
-            created_at: row.created_at || '',
-            updated_at: row.updated_at || ''
-        };
-    }
-
-    /* ===================================================================
-     * CONTENT SAMPLES v2 — Supabase realtime (clone of the calendar's
-     * _calV2* runtime; see docs/archive/CALENDAR_REALTIME_MIGRATION.md). Hidden behind
-     * ?sv2=1 until the flip. Reads come from the content_samples table over
-     * REST with a realtime subscription; writes still flow through the
-     * samples-* n8n webhooks (which dual-write the Sheet + Supabase), so the
-     * Sheet stays a lossless mirror and rollback = ?sv2=0 / revert. Any
-     * Supabase failure falls back to samples-get, so v2 can never blank the
-     * board.
-     * =================================================================== */
-    let _smV2FlagCache = null;
-    function _smV2Enabled() {
-        if (_smV2FlagCache !== null) return _smV2FlagCache;
-        // Phase 3 (2026-06-15): v2 is now the DEFAULT. With no query param it is
-        // ON unless this browser opted out via ?sv2=0 (sticky kill-switch).
-        // ?sv2=1 force-enables and clears a prior opt-out. Rollback for everyone
-        // = flip this default back to false; rollback for one browser = ?sv2=0.
-        // Writes still dual-write to the Sheet, so a flip back is lossless.
-        let on = true;
-        try {
-            const q = new URLSearchParams(location.search).get('sv2');
-            if (q === '0' || q === 'false') { on = false; try { localStorage.setItem(SM_V2_KILL_KEY, '1'); localStorage.removeItem(SM_V2_LS_KEY); } catch {} }
-            else if (q === '1' || q === 'true') { on = true; try { localStorage.setItem(SM_V2_LS_KEY, '1'); localStorage.removeItem(SM_V2_KILL_KEY); } catch {} }
-            else { on = (localStorage.getItem(SM_V2_KILL_KEY) !== '1'); }
-        } catch { on = true; }
-        _smV2FlagCache = on;
-        return on;
-    }
-    function _smV2Ready() {
-        return _smV2Enabled() && !!CAL_SUPABASE_URL && !!CAL_SUPABASE_ANON_KEY;
-    }
-    /* Own supabase-js client (gated on _smV2Ready so it's fully decoupled from
-       the calendar's flag), reusing the calendar's generic UMD loader so the lib
-       is fetched at most once. Any failure resolves to null → callers fall back. */
-    let _smV2ClientObj = null;
-    let _smV2ClientPromise = null;
-    function _smV2Client() {
-        if (!_smV2Ready()) return Promise.resolve(null);
-        if (_smV2ClientObj) return Promise.resolve(_smV2ClientObj);
-        if (_smV2ClientPromise) return _smV2ClientPromise;
-        _smV2ClientPromise = _calV2LoadLib().then(lib => {
-            if (!lib || !lib.createClient) return null;
-            _smV2ClientObj = lib.createClient(CAL_SUPABASE_URL, CAL_SUPABASE_ANON_KEY, {
-                auth: { persistSession: false, autoRefreshToken: false },
-                realtime: { params: { eventsPerSecond: 5 } }
-            });
-            return _smV2ClientObj;
-        }).catch(e => { console.warn('[Samples v2] supabase-js init failed', e); _smV2ClientPromise = null; return null; });
-        return _smV2ClientPromise;
-    }
-    /* Read one client's samples from Supabase REST, shaped like samples-get
-       ({ ok, samples[] }). On ANY failure, fall back to the webhook. */
-    async function _smV2FetchSamples(slug, signal) {
-        // Archived rows are dropped right after this fetch (loadSamples filters
-        // them) — exclude them server-side too (NULL-safe or= form).
-        const url = CAL_SUPABASE_URL + '/rest/v1/content_samples?select=*&or=(status.is.null,status.neq.Archived)&client=eq.' + encodeURIComponent(slug) + '&limit=5000';
-        try {
-            const resp = await fetch(url, {
-                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' },
-                signal: signal || undefined
-            });
-            if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
-            const rows = await resp.json();
-            if (!Array.isArray(rows)) throw new Error('Supabase: unexpected payload');
-            return { ok: true, samples: rows };
-        } catch (e) {
-            if (e && e.name === 'AbortError') throw e;
-            console.warn('[Samples v2] Supabase read failed — falling back to samples-get', e);
-            const resp = await fetch(SAMPLES_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), signal ? { signal } : undefined);
-            return resp.json();
-        }
-    }
-    /* Realtime lifecycle: one channel per client; switching clients (or leaving
-       Samples) tears it down. A change coalesces into one debounced background
-       reload — suppressed while it's the echo of our own write, and deferred
-       while the user is actively editing (Notes modal open or a field focused)
-       so it can never clobber an in-progress edit or the caret. */
-    let _smV2Channel = null, _smV2SubSlug = null, _smV2RtTimer = null;
-    let _smV2RtPending = false, _smV2SubscribedOnce = false;
-    let _smLastLocalWriteAt = 0;       // when we last saved locally — used to ignore our own realtime echo
-    function _smEditingBusy() {
-        if (_smOpenCommentsId) return true;            // Notes modal open
-        const ae = document.activeElement;
-        return !!(ae && ae.closest && ae.closest('.sm-card') && /^(TEXTAREA|INPUT)$/.test(ae.tagName));
-    }
-    async function _smV2EnsureSubscribed(slug) {
-        if (!_smV2Ready() || !slug) return;
-        if (_smV2SubSlug === slug && _smV2Channel) return;
-        _smV2Teardown();
-        const client = await _smV2Client();
-        if (!client) return;
-        if (smClientSlug(smState.client) !== slug) return; // client switched during lib load
-        _smV2SubSlug = slug; _smV2SubscribedOnce = false;
-        try {
-            _smV2Channel = client
-                .channel('sm-' + slug)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'content_samples', filter: 'client=eq.' + slug }, () => _smV2OnRealtimeChange(slug))
-                .subscribe((status) => {
-                    if (status === 'SUBSCRIBED') {
-                        // A re-subscribe means the socket had dropped (a suspended
-                        // background tab that woke up); realtime doesn't replay the
-                        // missed events, so pull one catch-up snapshot. Skip the
-                        // FIRST subscribe — the load that opened the channel is current.
-                        if (_smV2SubscribedOnce) _smV2OnRealtimeChange(slug);
-                        _smV2SubscribedOnce = true;
-                    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-                        console.warn('[Samples v2] realtime status:', status);
-                    }
-                });
-        } catch (e) {
-            console.warn('[Samples v2] realtime subscribe failed', e);
-            _smV2Channel = null; _smV2SubSlug = null;
-        }
-    }
-    function _smV2OnRealtimeChange(slug) {
-        if (smClientSlug(smState.client) !== slug) return;
-        if (_smV2RtTimer) clearTimeout(_smV2RtTimer);
-        _smV2RtTimer = setTimeout(function tick() {
-            _smV2RtTimer = null;
-            if (smClientSlug(smState.client) !== slug) return;
-            // Suppress the echo of our OWN just-made write (a whole-row save
-            // round-trips back as a realtime event a second or two later;
-            // reloading then would only flicker the strip). Re-arm and re-check
-            // so the reload lands once WE'VE settled. A teammate's change while
-            // we're idle is never suppressed (we didn't just write).
-            const sinceLocal = Date.now() - _smLastLocalWriteAt;
-            if (sinceLocal < SM_RT_SELF_ECHO_MS) { _smV2RtTimer = setTimeout(tick, SM_RT_SELF_ECHO_MS - sinceLocal); return; }
-            // Never disrupt active editing: if the Notes modal is open or a sample
-            // field is focused, defer (serviced on close / blur / load-end).
-            if (_smEditingBusy() || smState.loading) { _smV2RtPending = true; return; }
-            _smV2RtPending = false;
-            loadSamples({ background: true, skipCache: true });
-        }, SM_V2_RT_DEBOUNCE_MS);
-    }
-    function _smV2ServicePending() { if (_smV2RtPending && _smV2SubSlug) _smV2OnRealtimeChange(_smV2SubSlug); }
-    function _smV2Teardown() {
-        if (_smV2RtTimer) { clearTimeout(_smV2RtTimer); _smV2RtTimer = null; }
-        if (_smV2Channel) {
-            try {
-                if (_smV2ClientObj && typeof _smV2ClientObj.removeChannel === 'function') _smV2ClientObj.removeChannel(_smV2Channel);
-                else if (typeof _smV2Channel.unsubscribe === 'function') _smV2Channel.unsubscribe();
-            } catch {}
-        }
-        _smV2Channel = null; _smV2SubSlug = null;
-    }
-    /* Console helper for verification: window.smV2Status(). */
-    window.smV2Status = function () { return { flag: _smV2Enabled(), ready: _smV2Ready(), keySet: !!CAL_SUPABASE_ANON_KEY, subscribed: !!_smV2Channel, slug: _smV2SubSlug }; };
-
-    /* ---- comment view helpers ---- */
-    function _smVisibleComments(s){
-        const all = Array.isArray(s.comments) ? s.comments : [];
-        const live = all.filter(c => !c.deleted);
-        if(!_smClientSurface()) return live;            // SMM sees everything
-        const hiddenRoots = new Set(live.filter(c => !c.parent_id && c.audience === 'internal').map(c => c.id));
-        return live.filter(c => c.parent_id ? !hiddenRoots.has(c.parent_id) : c.audience !== 'internal');
-    }
-    function _smRoots(list){ return list.filter(c => !c.parent_id).sort((a,b) => String(a.created_at).localeCompare(String(b.created_at))); }
-    function _smReplies(list, rootId){ return list.filter(c => c.parent_id === rootId).sort((a,b) => String(a.created_at).localeCompare(String(b.created_at))); }
-    function _smOpenCount(s){ return _smRoots(_smVisibleComments(s)).length; }
-    function _smLastCommentAt(s){ let m = ''; _smVisibleComments(s).forEach(c => { if((c.created_at || '') > m) m = c.created_at || ''; }); return m; }
-    function _smHasUnread(s){
-        const list = _smVisibleComments(s); if(!list.length) return false;
-        const seen = _smGetSeen()[s.id] || '';
-        const last = list.slice().sort((a,b) => String(a.created_at).localeCompare(String(b.created_at))).pop();
-        return !!last && String(last.created_at) > String(seen) && last.role !== _smCommentRole();
-    }
-
-    /* ---- entry points ---- */
-    function renderSamplesView(){ return `<div class="samples-view" id="smView">${_smLoaderHtml()}</div>`; }
-    function _smLoaderHtml(){ return _svLoadingSkeletonHtml('samples', { label: 'Loading samples' }); }
-
-    function mountSamplesView(){
-        document.body.classList.remove('sm-modal-open');
-        const prefs = _smLoadPrefs();
-        const pins = _calGetPins();
-        if(_isClientLink && _smLinkClient){
-            smState.client = _smLinkClient; smState.embedded = true; smState.mode = 'client';
-        } else if(_smFocusRequest && _smFocusRequest.client && WL_CLIENT_NAMES.includes(_smFocusRequest.client)){
-            smState.client = _smFocusRequest.client; smState.embedded = false; smState.mode = 'editor';
-            if(!pins.includes(smState.client)){ pins.push(smState.client); _calSavePins(pins); }
-        } else {
-            let initial = null;
-            // Same as the calendar: trust pins (the durable open-tabs list) over
-            // the sheet-driven WL_CLIENT_NAMES allowlist, which may not have
-            // loaded yet on the samples fast path — otherwise a sheet-only last
-            // client (e.g. one not in the hardcoded seed) is skipped on reopen.
-            if(prefs.client && pins.includes(prefs.client)) initial = prefs.client;
-            else if(pins.length > 0) initial = pins[0];
-            else if(prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
-            smState.client = initial; smState.embedded = false; smState.mode = 'editor';
-        }
-        smState.kind = SM_KINDS.includes(prefs.kind) ? prefs.kind : 'reel';
-        smState.focusCard = (_smFocusRequest && _smFocusRequest.cardId) ? _smFocusRequest.cardId : null;
-        _smFocusRequest = null;
-        smState.samples = []; smState.error = null; smState.loading = false;
-        _smSyncUrl();
-        _smRenderShell();
-        if(smState.client) loadSamples(); else _smRenderBody();
-    }
-
-    async function loadSamples(opts){
-        opts = opts || {};
-        const bg = !!opts.background;            // realtime-triggered reload: no loader, no focus jump
-        const client = smState.client;
-        if(!client){ smState.samples = []; _smRenderBody(); return; }
-        const slug = smClientSlug(client);
-        if(!opts.skipCache){
-            const cached = _smCacheRead(slug);
-            if(cached && cached.length){ smState.samples = cached.filter(s => String(s.status||'').toLowerCase() !== 'archived'); smState.loading = false; if(!bg) _smRenderBody(); }
-        }
-        if(!bg){ smState.loading = !smState.samples.length; if(smState.loading) _smRenderBody(); }
-        smState.error = null;
-        try {
-            const ctrl = new AbortController();
-            const timer = setTimeout(() => ctrl.abort(), 12000);
-            let data;
-            if(_smV2Ready()){
-                data = await _smV2FetchSamples(slug, ctrl.signal);   // Supabase REST (falls back to samples-get on any error)
-            } else {
-                const resp = await fetch(SAMPLES_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), { signal: ctrl.signal });
-                if(!resp.ok) throw new Error('HTTP ' + resp.status);
-                data = await resp.json();
-            }
-            clearTimeout(timer);
-            const rows = Array.isArray(data) ? data : (data.samples || data.posts || (data.json && (data.json.samples || data.json.posts)) || []);
-            if(smState.client !== client) return;   // user switched clients mid-flight
-            smState.samples = (rows || []).map(_smNormalize).filter(s => String(s.status||'').toLowerCase() !== 'archived');
-            smState.loading = false; smState.error = null;
-            _smCacheWrite(slug, smState.samples);
-            _smRenderBody();
-            if(!bg) setTimeout(_smApplyFocus, 120);
-            // Phase 2: open (or re-point) the realtime subscription for this client.
-            // Idempotent (keyed on slug); a change deferred mid-load is serviced now.
-            if(_smV2Ready()){
-                _smV2EnsureSubscribed(slug);
-                if(_smV2RtPending){ _smV2RtPending = false; _smV2OnRealtimeChange(slug); }
-            }
-        } catch(e){
-            if(smState.client !== client) return;
-            smState.loading = false;
-            if(!smState.samples.length){ smState.error = 'offline'; }   // nothing cached, nothing live
-            _smRenderBody();
-            if(!bg) setTimeout(_smApplyFocus, 120);
-        }
-    }
-
-    function _smApplyFocus(){
-        if(!smState.focusCard) return;
-        const id = smState.focusCard;
-        const s = _smFind(id);
-        if(s && s.kind !== smState.kind){ smState.kind = s.kind; _smSavePrefs(); _smRenderShell(); _smRenderBody(); }
-        const card = document.querySelector(`.sm-card[data-id="${_smCssId(id)}"]`);
-        if(card){ card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); card.classList.add('is-flash'); setTimeout(() => card.classList.remove('is-flash'), 1500); }
-        smState.focusCard = null;
-    }
-
-    /* ---- shell / toolbar ---- */
-    function _smRenderShell(){
-        const view = document.getElementById('smView');
-        if(!view) return;
-        const clientLink = _isClientLink;
-        const leftHtml = clientLink
-            ? `<div class="sm-embed-title"><strong>${_smEsc(smState.client || '')}</strong><span>Content samples</span></div>`
-            : `<div class="sm-tabs" id="smTabs"></div>`;
-        const kindToggle = `<div class="sm-seg${clientLink ? ' sm-seg-lg' : ''}" role="tablist">${SM_KINDS.map(k =>
-            `<button type="button" class="sm-seg-btn${smState.kind === k ? ' active' : ''}" onclick="setSmKind('${k}')">${SM_KIND_META[k].label}<span class="sm-seg-badge">${SM_KIND_META[k].badge}</span></button>`
-        ).join('')}</div>`;
-        const shareBtn = (!clientLink && smState.client) ? `<button class="sm-share-btn" id="smShareBtn" type="button" onclick="smCopyShareLink()" title="Copy a client-facing link to these samples"><svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Copy client link</button>` : '';
-        const toolbarRight = clientLink ? kindToggle : `<div class="sm-toolbar-right">${kindToggle}${shareBtn}</div>`;
-        view.innerHTML = `
-            <div class="sm-toolbar${clientLink ? ' sm-toolbar-client' : ''}">
-                <div class="sm-toolbar-left">${leftHtml}</div>
-                ${toolbarRight}
-            </div>
-            <div class="sm-body" id="smBody">${_smLoaderHtml()}</div>
-            <div class="sm-comments-overlay" id="smCommentsOverlay" data-backdrop-dismiss onclick="if(event.target===this&&this._backdropPressBegan)closeSmComments()">
-                <div class="sm-comments-modal" id="smCommentsModal" role="dialog" aria-modal="true"></div>
-            </div>
-            <div class="sm-flash" id="smFlash"></div>`;
-        if(!clientLink){ _smRenderTabs(); _smWireOutsideSearchClose(); }
-    }
-
-    function _smRenderTabs(){
-        const el = document.getElementById('smTabs');
-        if(!el) return;
-        const pins = _calGetPins();
-        const active = smState.client;
-        const tabHtml = pins.map(name => {
-            const isA = name === active;
-            return `<button type="button" class="sm-tab${isA ? ' active' : ''}" style="--tab-h:${_calClientHue(name)}" onclick="onSmTabClick(${_jsAttrArg(name)})"><span class="sm-tab-dot"></span><span>${_smEsc(name)}</span><span class="sm-tab-x" onclick="event.stopPropagation();onSmTabRemove(${_jsAttrArg(name)})" title="Remove tab"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></span></button>`;
-        }).join('');
-        const plus = `<svg viewBox="0 0 16 16" fill="none"><line x1="8" y1="2.5" x2="8" y2="13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><line x1="2.5" y1="8" x2="13.5" y2="8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
-        el.innerHTML = `<button type="button" class="cal-tab-scroll-btn left" tabindex="-1" aria-label="Scroll clients left" onclick="_calTabScrollBy('smTabsScroll',-1)">${_calChevron(-1)}</button>`
-            + `<div class="sm-tabs-scroll" id="smTabsScroll" onscroll="_calUpdateTabScroll('smTabsScroll')">${tabHtml}</div>`
-            + `<button type="button" class="cal-tab-scroll-btn right" tabindex="-1" aria-label="Scroll clients right" onclick="_calTabScrollBy('smTabsScroll',1)">${_calChevron(1)}</button>`
-            + `<div class="sm-tab-add-wrap" id="smTabAddWrap"><button type="button" class="sm-tab-add" onclick="onSmTabAddClick(event)" title="Add client">${plus}${pins.length ? '' : '<span>Add client</span>'}</button><div class="sm-tab-search" id="smTabSearch" hidden><input type="text" id="smClientSearch" placeholder="Search clients…" autocomplete="off" oninput="_smRenderClientSearch(this.value)" onkeydown="_smSearchKey(event)"><div class="sm-tab-results" id="smClientResults"></div></div></div>`;
-        _calScrollTabStripToActive('smTabsScroll');
-        _calUpdateTabScroll('smTabsScroll');
-    }
-
-    function onSmTabClick(name){ if(!name || name === smState.client) return; onSmClientChange(name); }
-    function onSmTabRemove(name){
-        const pins = _calGetPins().filter(n => n !== name);
-        _calSavePins(pins);
-        if(smState.client === name){
-            _smFlushAllPending();
-            const next = pins[0] || null;
-            smState.client = next; smState.samples = []; _smSavePrefs();
-            _smSyncUrl();
-            _smRenderShell();
-            if(next) loadSamples(); else _smRenderBody();
-        } else { _smRenderTabs(); }
-    }
-    function onSmTabAddClick(e){
-        e.stopPropagation();
-        const panel = document.getElementById('smTabSearch');
-        if(!panel) return;
-        const willShow = panel.hidden;
-        panel.hidden = !willShow;
-        if(willShow){ _smRenderClientSearch(''); const inp = document.getElementById('smClientSearch'); if(inp){ inp.value = ''; setTimeout(() => inp.focus(), 10); } }
-    }
-    function _smRenderClientSearch(q){
-        const box = document.getElementById('smClientResults');
-        if(!box) return;
-        q = (q || '').toLowerCase().trim();
-        const pins = _calGetPins();
-        let names = WL_CLIENT_NAMES.filter(n => !pins.includes(n));
-        if(q) names = names.filter(n => n.toLowerCase().includes(q));
-        names = names.sort().slice(0, 40);
-        box.innerHTML = names.length
-            ? names.map((n,i) => `<button type="button" class="sm-tab-result${i === 0 ? ' active' : ''}" onclick="onSmPickClient(${_jsAttrArg(n)})">${_smEsc(n)}</button>`).join('')
-            : `<div class="sm-tab-empty">No clients found</div>`;
-    }
-    function _smSearchKey(e){
-        if(e.key === 'Enter'){ const first = document.querySelector('#smClientResults .sm-tab-result'); if(first) first.click(); }
-        else if(e.key === 'Escape'){ const p = document.getElementById('smTabSearch'); if(p) p.hidden = true; }
-    }
-    function onSmPickClient(name){
-        if(!wlIsAllowedClient(name)) return;
-        const canon = wlCanonicalClient(name) || name;
-        const pins = _calGetPins();
-        if(!pins.includes(canon)){ pins.push(canon); _calSavePins(pins); }
-        const panel = document.getElementById('smTabSearch'); if(panel) panel.hidden = true;
-        onSmClientChange(canon);
-    }
-    function _smSyncUrl(){
-        if(_isClientLink) return;   // client share links own their URL (?c=…&t=…)
-        try {
-            const base = location.pathname + location.search.replace(/#.*$/, '');
-            const hash = smState.client ? ('#samples/' + smClientSlug(smState.client)) : '#samples';
-            // Keep client out of history.state: the #samples/<slug> hash already
-            // carries it for the boot router, and a non-null state.client forces
-            // the boot onto the slow (analytics-awaiting) path — the refresh flash.
-            history.replaceState({ nav: 'samples', client: null }, '', base + hash);
-        } catch(e){}
-    }
-    function onSmClientChange(name){
-        _smFlushAllPending();
-        smState.client = name; smState.samples = []; smState.error = null; smState.focusCard = null;
-        _smSavePrefs();
-        _smSyncUrl();
-        _smRenderShell();
-        loadSamples();
-    }
-    function _smWireOutsideSearchClose(){
-        if(_smOutsideWired) return;
-        _smOutsideWired = true;
-        document.addEventListener('mousedown', e => {
-            const wrap = document.getElementById('smTabAddWrap');
-            const panel = document.getElementById('smTabSearch');
-            if(panel && !panel.hidden && wrap && !wrap.contains(e.target)) panel.hidden = true;
-        });
-    }
-
-    /* ---- body / strip ---- */
-    function _smPickClientHtml(){
-        return `<div class="sm-pick-client"><div class="sm-pick-title">Pick a client to see their samples</div><div>Use the <strong>+ Add client</strong> button above to choose one — each client has their own set of samples.</div></div>`;
-    }
-    function _smRenderBody(){
-        const body = document.getElementById('smBody');
-        if(!body) return;
-        if(!smState.client){ body.innerHTML = _smPickClientHtml(); return; }
-        if(smState.loading && !smState.samples.length){ body.innerHTML = _smLoaderHtml(); return; }
-        const meta = SM_KIND_META[smState.kind];
-        const surface = _smClientSurface();
-        let items = smState.samples.filter(s => s.kind === smState.kind);
-        if(surface) items = items.filter(s => SM_CLIENT_VISIBLE_APPR.has(_smApprNorm(s.approval)));
-        items = items.sort((a,b) => a.order_index - b.order_index);
-        const plus = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
-        const addBtn = surface ? '' : (items.length
-            ? `<button class="sm-card-add" type="button" onclick="addSampleCard()" title="Add a ${meta.single}">${plus}</button>`
-            : `<button class="sm-card-add is-hero" type="button" onclick="addSampleCard()">${plus}<span>Add the first ${meta.single}</span></button>`);
-        const intro = '';
-        const offline = smState.error === 'offline'
-            ? `<div class="sm-client-intro" style="border-color:var(--sv-border-f4c2d5);color:var(--sv-fg-a81950);background:var(--sv-bg-fdf0f5);">Couldn't reach the server — anything you change is saved on this device and will sync once it's back.</div>`
-            : '';
-        let main;
-        if(surface && !items.length){
-            main = `<div class="sm-empty-state">No ${meta.label.toLowerCase()} to review yet — check back soon.</div>`;
-        } else {
-            main = `<div class="sm-strip" id="smStrip">${items.map(s => _smRenderCard(s)).join('')}${addBtn}</div>`;
-        }
-        body.innerHTML = `
-            <div class="sm-section-head">
-                <div class="sm-section-title">${_smEsc(meta.title)}</div>
-            </div>
-            ${intro}${offline}${main}`;
-        if(!surface) _smWireDrag();
-    }
-
-    function _smRenderCard(s){
-        const id = _smEscAttr(s.id);
-        const ro = _smClientSurface();
-        const isReel = s.kind === 'reel';
-        const hasMedia = !!String(s.media_url || '').trim();
-        const labelText = s.label || (isReel ? 'Reel' : 'Thumbnail');
-        const open = _smOpenCount(s);
-        const unread = _smHasUnread(s);
-        const dir = s.creative_direction || '';
-        const grip = ro ? '' : `<span class="sm-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>`;
-        const tools = ro ? '' : `<button class="sm-card-tool" type="button" onclick="_smCopyCardLink(event,'${id}')" title="Copy link to this sample"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button><button class="sm-card-tool del" type="button" onclick="_smDeleteCard('${id}')" title="Delete sample"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`;
-        const labelEl = ro
-            ? `<span class="sm-card-label">${_smEsc(labelText)}</span>`
-            : `<input class="sm-card-label" value="${_smEscAttr(labelText)}" data-id="${id}" onblur="_smOnLabelBlur(this)" onkeydown="if(event.key==='Enter')this.blur()" maxlength="40">`;
-        const mediaField = ro ? '' : `<div class="sm-field">
-                <div class="sm-field-label">${isReel ? 'Frame.io URL' : 'Google Drive image URL or ID'}</div>
-                <div class="sm-media-row">
-                    <input class="sm-input" type="text" value="${_smEscAttr(s.media_url)}" placeholder="${isReel ? 'https://f.io/… or app.frame.io/reviews/…' : 'Drive link, file ID, or image URL'}">
-                    <button class="sm-media-save" type="button" onclick="_smOnMediaSave(this)">Save</button>
-                </div>
-            </div>`;
-        const hideDir = !!s.hide_creative_direction;
-        const directionField = ro
-            ? (hideDir ? '' : `<div class="sm-field"><div class="sm-field-label">Creative direction</div><div class="sm-readonly-direction${dir ? '' : ' is-empty'}">${dir ? _smEsc(dir) : 'No notes yet'}</div></div>`)
-            : `<div class="sm-field"><div class="sm-field-label sm-dir-head"><span>Creative direction</span><button type="button" class="sm-dir-toggle${hideDir ? ' is-hidden' : ''}" data-id="${id}" onclick="_smToggleDir(this)" title="${hideDir ? 'Hidden from the client — click to show it' : 'Visible to the client — click to hide it'}">${_smEyeIcon(hideDir)}<span>${hideDir ? 'Hidden from client' : 'Visible to client'}</span></button></div><textarea class="sm-textarea" rows="3" data-id="${id}" placeholder="What's the style / approach for this ${isReel ? 'reel' : 'thumbnail'}?" oninput="_smOnDirInput(this)" onblur="_smOnDirBlur(this)">${_smEsc(dir)}</textarea></div>`;
-        return `<div class="sm-card" data-id="${id}"${ro ? '' : ' draggable="true"'}>
-            <div class="sm-card-top">
-                ${grip}
-                <div class="sm-card-label-wrap"><span class="sm-card-dot${hasMedia ? ' has' : ''}"></span>${labelEl}</div>
-                <div class="sm-card-tools">${tools}</div>
-            </div>
-            <div class="sm-frame">${_smMediaHtml(s, isReel, hasMedia)}</div>
-            <div class="sm-card-body">
-                ${mediaField}${directionField}
-                <div class="sm-card-foot">
-                    ${_smCommentsBtnHtml(s, id, open, unread)}
-                    ${_svSaveIndHtml(id)}
-                </div>
-                ${_smApprovalHtml(s, id, ro)}
-            </div>
-        </div>`;
-    }
-
-    function _smMediaHtml(s, isReel, hasMedia){
-        if(!hasMedia){
-            const ico = isReel
-                ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M10 9.5l5 2.5-5 2.5z" fill="currentColor"/></svg>`
-                : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M4 17l5-5 4 4 3-3 4 4"/></svg>`;
-            return `<div class="sm-empty">${ico}<div>${isReel ? 'No video yet' : 'No thumbnail yet'}</div><div class="sm-ratio">9 : 16</div></div>`;
-        }
-        if(isReel){
-            const embed = _smVideoEmbed(s.media_url);
-            const openLabel = _smIsFrameIo(s.media_url) ? 'Open in Frame.io' : 'Open video';
-            const linkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5H13.5V6.5"/><path d="M13.5 2.5L7.5 8.5"/></svg>`;
-            const open = `<a class="sm-open-btn" href="${_smEscAttr(s.media_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${linkIco}${openLabel}</a>`;
-            if(embed && embed.kind === 'iframe')
-                return `<iframe src="${_smEscAttr(embed.src)}" allow="autoplay; fullscreen; picture-in-picture; clipboard-write" referrerpolicy="no-referrer-when-downgrade" title="${_smEscAttr(s.label || 'Reel')}"></iframe>${open}`;
-            if(embed && embed.kind === 'video')
-                return `<video src="${_smEscAttr(embed.src)}" controls playsinline preload="metadata"></video>${open}`;
-            // No embeddable player (Frame.io & co.) → click-to-open poster, new tab.
-            const host = _smLinkHost(s.media_url);
-            return `<a class="sm-video-poster" href="${_smEscAttr(s.media_url)}" target="_blank" rel="noopener" title="${_smEscAttr(openLabel)}">
-                <span class="sm-video-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></span>
-                <span class="sm-video-cta">${_smEsc(openLabel)}</span>
-                ${host ? `<span class="sm-video-host">${_smEsc(host)} · opens in a new tab</span>` : ''}
-            </a>`;
-        }
-        const src = _smDriveImg(s.media_url);
-        const open = `<a class="sm-open-btn" href="${_smEscAttr(s.media_url)}" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5H13.5V6.5"/><path d="M13.5 2.5L7.5 8.5"/></svg>Open</a>`;
-        return `<img src="${_smEscAttr(src)}" alt="${_smEscAttr(s.label || 'Thumbnail')}" loading="lazy" onerror="_smImgError(this)">${open}`;
-    }
-
-    /* ---- field handlers ---- */
-    function _smOnLabelBlur(el){ const s = _smFind(el.dataset.id); if(!s) return; const v = el.value.trim(); if(v === s.label) return; s.label = v; _smFlushCardSave(s.id); }
-    function _smOnDirInput(el){ const s = _smFind(el.dataset.id); if(!s) return; s.creative_direction = el.value; _smScheduleSave(s.id, 900); }
-    function _smOnDirBlur(el){ const s = _smFind(el.dataset.id); if(!s) return; s.creative_direction = el.value; _smFlushCardSave(s.id); }
-    function _smEyeIcon(hidden){
-        return hidden
-            ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
-            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
-    }
-    // Toggle whether the client sees this sample's creative direction. Editor-only.
-    function _smToggleDir(btn){
-        const s = _smFind(btn.dataset.id); if(!s) return;
-        s.hide_creative_direction = !s.hide_creative_direction;
-        const hidden = s.hide_creative_direction;
-        btn.classList.toggle('is-hidden', hidden);
-        btn.title = hidden ? 'Hidden from the client — click to show it' : 'Visible to the client — click to hide it';
-        btn.innerHTML = _smEyeIcon(hidden) + '<span>' + (hidden ? 'Hidden from client' : 'Visible to client') + '</span>';
-        _smFlash(hidden ? 'Creative direction hidden from client' : 'Creative direction now visible to client');
-        _smFlushCardSave(s.id);
-    }
-    function _smOnMediaSave(btn){
-        const card = btn.closest('.sm-card'); if(!card) return;
-        const s = _smFind(card.dataset.id); if(!s) return;
-        const input = card.querySelector('.sm-media-row .sm-input');
-        const v = input ? input.value.trim() : '';
-        s.media_url = v;
-        const frame = card.querySelector('.sm-frame'); if(frame) frame.innerHTML = _smMediaHtml(s, s.kind === 'reel', !!v);
-        const dot = card.querySelector('.sm-card-dot'); if(dot) dot.classList.toggle('has', !!v);
-        _smFlushCardSave(s.id);
-    }
-
-    /* ---- add / delete / reorder ---- */
-    function addSampleCard(){
-        if(_smClientSurface() || !smState.client) return;
-        const kind = smState.kind;
-        const sameKind = smState.samples.filter(s => s.kind === kind).length;
-        const maxOrder = smState.samples.reduce((m,s) => Math.max(m, Number(s.order_index || 0)), 0);
-        const now = new Date().toISOString();
-        const blank = { id: _smMintId('s'), kind, order_index: maxOrder + 1, label: (kind === 'reel' ? 'Reel ' : 'Thumbnail ') + (sameKind + 1), media_url: '', creative_direction: '', hide_creative_direction: false, comments: [], status: 'Active', approval: 'draft', kasper_approved_at: '', kasper_approved_by: '', client_approved_at: '', client_approved_by: '', created_at: now, updated_at: now };
-        smState.samples.push(blank);
-        _smRenderBody();
-        setTimeout(() => {
-            const card = document.querySelector(`.sm-card[data-id="${_smCssId(blank.id)}"]`);
-            if(card){ card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); const inp = card.querySelector('.sm-input'); if(inp) inp.focus(); }
-        }, 60);
-        _smFlushCardSave(blank.id);
-    }
-    function _smDeleteCard(id){
-        const s = _smFind(id); if(!s) return;
-        showConfirm('Delete this sample?', 'It will be removed for the client too. This can\'t be undone.', () => {
-            smState.samples = smState.samples.filter(x => x.id !== id);
-            if(smState.client) _smCacheWrite(smClientSlug(smState.client), smState.samples);
-            _smRenderBody();
-            const client = smState.client;
-            _smLastLocalWriteAt = Date.now();
-            if(client) fetch(SAMPLES_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: smClientSlug(client), sample: { id, status: 'Archived', updated_at: new Date().toISOString() } }) }).catch(() => {});
-            _smFlash('Sample deleted');
-        }, 'Delete');
-    }
-    function _smWireDrag(){
-        const strip = document.getElementById('smStrip'); if(!strip) return;
-        let dragId = null;
-        strip.querySelectorAll('.sm-card[draggable="true"]').forEach(card => {
-            card.addEventListener('dragstart', e => { dragId = card.dataset.id; card.classList.add('sm-dragging'); if(e.dataTransfer) e.dataTransfer.effectAllowed = 'move'; });
-            card.addEventListener('dragend', () => { card.classList.remove('sm-dragging'); strip.querySelectorAll('.sm-drop-before').forEach(c => c.classList.remove('sm-drop-before')); dragId = null; });
-            card.addEventListener('dragover', e => { e.preventDefault(); if(card.dataset.id !== dragId) card.classList.add('sm-drop-before'); });
-            card.addEventListener('dragleave', () => card.classList.remove('sm-drop-before'));
-            card.addEventListener('drop', e => { e.preventDefault(); card.classList.remove('sm-drop-before'); if(dragId && card.dataset.id !== dragId) _smReorder(dragId, card.dataset.id); });
-        });
-    }
-    function _smReorder(dragId, beforeId){
-        const arr = smState.samples;
-        const from = arr.findIndex(s => s.id === dragId);
-        if(from < 0) return;
-        const [moved] = arr.splice(from, 1);
-        const to = arr.findIndex(s => s.id === beforeId);
-        arr.splice(to < 0 ? arr.length : to, 0, moved);
-        arr.forEach((s,i) => s.order_index = i + 1);
-        if(smState.client) _smCacheWrite(smClientSlug(smState.client), arr);
-        _smRenderBody();
-        _smPersistReorder();
-    }
-    async function _smPersistReorder(){
-        const client = smState.client; if(!client) return;
-        const items = smState.samples.map(s => ({ id: s.id, order_index: s.order_index }));
-        _smLastLocalWriteAt = Date.now();
-        try { await fetch(SAMPLES_REORDER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: smClientSlug(client), items }) }); } catch(e){}
-    }
-
-    /* ---- persistence ---- */
-    function _smScheduleSave(id, delay){ clearTimeout(_smPendingTimers[id]); _smPendingTimers[id] = setTimeout(() => _smFlushCardSave(id), delay == null ? 700 : delay); }
-    function _smFlushAllPending(){ Object.keys(_smPendingTimers).forEach(id => { if(_smPendingTimers[id]){ clearTimeout(_smPendingTimers[id]); _smPendingTimers[id] = null; _smFlushCardSave(id); } }); }
-    function _smSetSaving(id, status){
-        const card = document.querySelector(`.sm-card[data-id="${_smCssId(id)}"]`); if(!card) return;
-        const el = card.querySelector(`[data-sv-save-ind="${_smCssId(id)}"]`); if(!el) return;
-        // Drive the reusable modern indicator. Samples-Old has no server-error
-        // state (a failed save falls back to a local cache), so "local" shows the
-        // green check with a "Saved on device" tooltip rather than a red error.
-        if(status === 'saving') _svSaveIndApply(el, 'saving');
-        else if(status === 'ok') _svSaveIndApply(el, 'saved');
-        else if(status === 'local') _svSaveIndApply(el, 'saved', 'Saved on device — will sync when back online');
-        else _svSaveIndApply(el, 'idle');
-    }
-    async function _smFlushCardSave(id){
-        clearTimeout(_smPendingTimers[id]); _smPendingTimers[id] = null;
-        const client = smState.client;
-        const s = _smFind(id);
-        if(!s || !client) return;
-        s.updated_at = new Date().toISOString();
-        _smLastLocalWriteAt = Date.now();   // open the self-echo window before the realtime echo lands
-        _smCacheWrite(smClientSlug(client), smState.samples);
-        _smSetSaving(id, 'saving');
-        const wire = { id: s.id, kind: s.kind, order_index: s.order_index, label: s.label, media_url: s.media_url, creative_direction: s.creative_direction, hide_creative_direction: s.hide_creative_direction ? 'TRUE' : 'FALSE', comments: _smStringify(s.comments), status: s.status || 'Active', approval: _smApprNorm(s.approval), kasper_approved_at: s.kasper_approved_at || '', kasper_approved_by: s.kasper_approved_by || '', client_approved_at: s.client_approved_at || '', client_approved_by: s.client_approved_by || '', created_at: s.created_at, updated_at: s.updated_at };
-        try {
-            const resp = await fetch(SAMPLES_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: smClientSlug(client), sample: wire }) });
-            if(!resp.ok) throw new Error('HTTP ' + resp.status);
-            _smSetSaving(id, 'ok');
-            _smLastLocalWriteAt = Date.now();   // refresh: the realtime echo fires just after this success
-            _smV2ServicePending();
-        } catch(e){ _smSetSaving(id, 'local'); }
-    }
-
-    /* ---- comments ---- */
-    let _smOpenCommentsId = null, _smReplyTarget = null, _smComposeAudience = 'client', _smRootDraft = '', _smChangeReqPending = null;
-    const _smReplyDrafts = {};
-    function _smCommentsBtnHtml(s, id, open, unread){
-        const ico = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
-        return `<button type="button" class="sm-comments-btn${open > 0 ? ' has-open' : ''}" onclick="openSmComments('${id}')" title="Notes & feedback">${ico}<span>Notes</span><span class="sm-comments-count">${open || ''}</span>${unread ? '<span class="sm-comments-dot"></span>' : ''}</button>`;
-    }
-    function _smRefreshCommentsBtn(id){
-        const card = document.querySelector(`.sm-card[data-id="${_smCssId(id)}"]`); if(!card) return;
-        const old = card.querySelector('.sm-comments-btn'); const s = _smFind(id); if(!old || !s) return;
-        const tmp = document.createElement('div'); tmp.innerHTML = _smCommentsBtnHtml(s, _smEscAttr(id), _smOpenCount(s), _smHasUnread(s));
-        old.replaceWith(tmp.firstElementChild);
-    }
-    function openSmComments(id){
-        const s = _smFind(id); if(!s) return;
-        _smOpenCommentsId = id; _smReplyTarget = null; _smRootDraft = ''; for(const k in _smReplyDrafts) delete _smReplyDrafts[k];
-        _smComposeAudience = 'client';
-        _smMarkSeen(id);
-        const ovl = document.getElementById('smCommentsOverlay'); if(!ovl) return;
-        ovl.classList.add('open'); document.body.classList.add('sm-modal-open');
-        _smRenderCommentsModal();
-        setTimeout(() => { const f = document.getElementById('smCmFeed'); if(f) f.scrollTop = f.scrollHeight; const ta = document.getElementById('smCmComposer'); if(ta) ta.focus(); }, 30);
-    }
-    function closeSmComments(){
-        _smCaptureDraft();
-        const ovl = document.getElementById('smCommentsOverlay'); if(ovl) ovl.classList.remove('open');
-        document.body.classList.remove('sm-modal-open');
-        const id = _smOpenCommentsId; _smOpenCommentsId = null; _smReplyTarget = null; _smChangeReqPending = null;
-        if(id){ _smMarkSeen(id); _smRefreshCommentsBtn(id); }
-        _smV2ServicePending();   // a realtime change deferred while the modal was open can land now
-    }
-    function _smCaptureDraft(){ const ta = document.getElementById('smCmComposer'); if(!ta) return; if(_smReplyTarget) _smReplyDrafts[_smReplyTarget] = ta.value; else _smRootDraft = ta.value; }
-    function _smRenderCommentsModal(){
-        const modal = document.getElementById('smCommentsModal'); const id = _smOpenCommentsId;
-        if(!modal || !id) return;
-        const s = _smFind(id); if(!s){ closeSmComments(); return; }
-        const list = _smVisibleComments(s);
-        const roots = _smRoots(list);
-        const meRole = _smCommentRole();
-        const fmt = t => { if(!t) return ''; try { return new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch(e){ return ''; } };
-        const row = (c, isReply) => {
-            const author = c.author || (c.role === 'client' ? 'Client' : 'Synchro Social');
-            const internalTag = (!isReply && c.audience === 'internal' && !_smClientSurface()) ? `<span class="sm-cm-role" style="background:var(--sv-bg-fef3c7);color:var(--sv-fg-92400e);">Internal</span>` : '';
-            const canDelete = !_smClientSurface() || c.role === meRole;
-            const acts = [];
-            if(!isReply) acts.push(`<button class="sm-cm-action" onclick="_smBeginReply('${_smEscAttr(c.id)}')">Reply</button>`);
-            if(canDelete) acts.push(`<button class="sm-cm-action del" onclick="_smDeleteComment('${_smEscAttr(c.id)}')">Delete</button>`);
-            return `<div class="sm-cm-row ${c.role === 'client' ? 'is-client' : 'is-smm'}${isReply ? ' is-reply' : ''}">
-                <div class="sm-cm-avatar">${_smEsc((author.trim()[0] || '?').toUpperCase())}</div>
-                <div class="sm-cm-bubble">
-                    <div class="sm-cm-meta"><span class="sm-cm-author">${_smEsc(author)}</span><span class="sm-cm-role">${c.role === 'client' ? 'Client' : 'SMM'}</span>${internalTag}<span class="sm-cm-time">${_smEsc(fmt(c.created_at))}</span></div>
-                    <div class="sm-cm-text">${_smEsc(c.body)}</div>
-                    <div class="sm-cm-actions">${acts.join('')}</div>
-                </div>
-            </div>`;
-        };
-        const feed = roots.length
-            ? roots.map(r => `<div class="sm-cm-thread">${row(r, false)}${_smReplies(list, r.id).map(rep => row(rep, true)).join('')}</div>`).join('')
-            : `<div class="sm-cm-empty">${_smClientSurface() ? 'No notes yet — add the first one below.' : 'No notes yet. Leave a note for the client, or keep an internal one.'}</div>`;
-        const replyCtx = _smReplyTarget ? (() => { const r = list.find(c => c.id === _smReplyTarget); return `<div class="sm-cm-reply-ctx"><span>Replying to ${_smEsc((r && r.author) || 'comment')}</span><button onclick="_smBeginReply(null)">Cancel</button></div>`; })() : '';
-        const audience = (!_smClientSurface() && !_smReplyTarget) ? `<div class="sm-cm-audience"><button class="sm-cm-aud-btn${_smComposeAudience === 'client' ? ' active' : ''}" onclick="_smSetAudience('client')">Visible to client</button><button class="sm-cm-aud-btn${_smComposeAudience === 'internal' ? ' active' : ''}" onclick="_smSetAudience('internal')">Internal note</button></div>` : '';
-        const draft = _smReplyTarget ? (_smReplyDrafts[_smReplyTarget] || '') : (_smRootDraft || '');
-        modal.innerHTML = `
-            <div class="sm-cm-head">
-                <div class="sm-cm-title">Notes<span>${_smEsc(s.label || (s.kind === 'reel' ? 'Reel' : 'Thumbnail'))}</span></div>
-                <div class="sm-cm-head-actions"><button class="sm-cm-close" onclick="closeSmComments()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button></div>
-            </div>
-            <div class="sm-cm-feed" id="smCmFeed">${feed}</div>
-            <div class="sm-cm-composer">
-                ${replyCtx}${audience}
-                <div class="sm-cm-composer-row">
-                    <textarea id="smCmComposer" rows="1" placeholder="${_smChangeReqPending === id ? 'Describe the change, then hit Send…' : (_smClientSurface() ? 'Add a note or request a change…' : 'Write a note…')}" oninput="_smComposerInput(this)" onkeydown="_smComposerKey(event)">${_smEsc(draft)}</textarea>
-                    <button class="sm-cm-send" id="smCmSend" onclick="_smSubmitComposer()"${draft.trim() ? '' : ' disabled'}>Send</button>
-                </div>
-            </div>`;
-    }
-    function _smComposerInput(ta){ const b = document.getElementById('smCmSend'); if(b) b.disabled = !ta.value.trim(); ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 140) + 'px'; }
-    function _smComposerKey(e){ if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); _smSubmitComposer(); } else if(e.key === 'Escape' && _smReplyTarget){ e.preventDefault(); _smBeginReply(null); } }
-    function _smBeginReply(rootId){ _smCaptureDraft(); _smReplyTarget = rootId || null; const f = document.getElementById('smCmFeed'); const sc = f ? f.scrollTop : null; _smRenderCommentsModal(); const f2 = document.getElementById('smCmFeed'); if(f2 && sc != null) f2.scrollTop = sc; const ta = document.getElementById('smCmComposer'); if(ta) ta.focus(); }
-    function _smSetAudience(a){ _smComposeAudience = a; _smCaptureDraft(); _smRenderCommentsModal(); const ta = document.getElementById('smCmComposer'); if(ta) ta.focus(); }
-    function _smSubmitComposer(){
-        const id = _smOpenCommentsId; if(!id) return;
-        _smCaptureDraft();
-        const body = (_smReplyTarget ? (_smReplyDrafts[_smReplyTarget] || '') : (_smRootDraft || '')).trim();
-        if(!body) return;
-        const parentId = _smReplyTarget;
-        // A "Request a change" only takes effect once the client actually sends
-        // a note — flip the card to "changes" here, not when the button was first
-        // clicked. The flush inside _smAppendComment then persists both at once.
-        let flippedToChanges = false;
-        if(_smChangeReqPending === id && _smClientSurface()){
-            const s = _smFind(id);
-            if(s && _smApprNorm(s.approval) === 'client'){ s.approval = 'changes'; flippedToChanges = true; }
-            _smChangeReqPending = null;
-        }
-        _smAppendComment(id, parentId, body);
-        if(parentId) delete _smReplyDrafts[parentId]; else _smRootDraft = '';
-        _smReplyTarget = null;
-        _smRenderCommentsModal();
-        if(flippedToChanges) _smRenderBody();
-        setTimeout(() => { const f = document.getElementById('smCmFeed'); if(f) f.scrollTop = f.scrollHeight; }, 0);
-    }
-    function _smAppendComment(id, parentId, body){
-        const s = _smFind(id); if(!s) return;
-        const now = new Date().toISOString();
-        const role = _smCommentRole();
-        const msg = { id: _smMintId('c'), parent_id: parentId || null, author: _smCurrentAuthor(), role, body, created_at: now, updated_at: now };
-        if(!parentId) msg.audience = role === 'client' ? 'client' : _smComposeAudience;
-        s.comments = Array.isArray(s.comments) ? s.comments.slice() : [];
-        s.comments.push(msg);
-        _smFlushCardSave(id);
-        _smMarkSeen(id);
-        _smRefreshCommentsBtn(id);
-    }
-    function _smDeleteComment(cid){
-        const id = _smOpenCommentsId; const s = _smFind(id); if(!s) return;
-        showConfirm('Delete this note?', 'This can\'t be undone.', () => {
-            const now = new Date().toISOString();
-            (s.comments || []).forEach(c => { if(c.id === cid || c.parent_id === cid){ c.deleted = true; c.updated_at = now; } });
-            _smFlushCardSave(id); _smRenderCommentsModal(); _smRefreshCommentsBtn(id);
-        }, 'Delete');
-    }
-
-    /* ---- toggles + share ---- */
-    function setSmKind(k){ if(!SM_KINDS.includes(k) || smState.kind === k) return; smState.kind = k; _smSavePrefs(); _smRenderShell(); _smRenderBody(); }
-    function setSmMode(m){ if((m !== 'editor' && m !== 'client') || smState.mode === m) return; smState.mode = m; _smRenderShell(); _smRenderBody(); }
-    function _smCopyCardLink(e, id){
-        if(e){ e.preventDefault(); e.stopPropagation(); }
-        if(!smState.client) return;
-        const url = `${location.origin}${location.pathname}#samples/${smClientSlug(smState.client)}/${encodeURIComponent(id)}`;
-        const btn = e && e.currentTarget;
-        const done = () => { if(!btn) return; const o = btn.innerHTML; btn.classList.add('copied'); btn.innerHTML = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`; setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = o; }, 1500); };
-        if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => window.prompt('Copy link:', url));
-        else window.prompt('Copy link:', url);
-    }
-    async function smCopyShareLink(){
-        if(!smState.client) return;
-        let url; try { url = await _syncviewIssueClientShareUrl(smState.client, 'samples'); } catch(e) { showToast((e&&e.message)||'Could not issue a secure client link'); return; }
-        const done = () => { const b = document.getElementById('smShareBtn'); if(!b) return; const o = b.dataset.orig || b.innerHTML; b.dataset.orig = o; b.classList.add('copied'); b.innerHTML = `<svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg> Link copied`; setTimeout(() => { b.classList.remove('copied'); b.innerHTML = o; }, 2200); };
-        if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => window.prompt('Copy this link:', url));
-        else window.prompt('Copy this link:', url);
-    }
-
     /* True for ctrl/cmd/shift/alt-clicks (and non-primary buttons): the user
        wants the browser's own link behaviour — open in new tab/window — so
        inline nav handlers must NOT preventDefault. The hrefs are real hash
@@ -24138,7 +22875,7 @@
        Keyed on the ROUTE, never on the visible label -- the label/route split
        is deliberate here ('SyncLinear' is route `production`; 'Submit' is route
        `linear`) and AGENTS.md forbids deriving routing from what a tab says.
-       A route with no owner-designed icon (kasper, tiktok-pilot, time-off, and
+       A route with no owner-designed icon (kasper, time-off, and
        every client-owned screen) falls back to the SyncView mark, so the tab
        icon is never left showing art from the previous section.
 
@@ -24220,7 +22957,7 @@
         document.documentElement.removeAttribute('data-boot-nav');
         document.documentElement.removeAttribute('data-boot-subtab');
         if (page === 'time-off' && !_ptoEnabled()) page = 'home';
-        page = _resolveRetiredSamplesRoute(page); // Samples Old Phase 1: route to Samples New; keep legacy code dormant.
+        page = _resolveRetiredSamplesRoute(page); // Samples Old retired: the old page was removed 2026-09-24; its links land on Sample reviews. dormant.
         if (page === 'production' && !_prodAccessAllowed()) page = 'home';
         currentNav = page;
         // Guarded: on a FULL localStorage (a heavy user whose caches filled the
@@ -24248,14 +22985,10 @@
         if (navWl) navWl.classList.toggle('active', page === 'workload');
         const navCal = document.getElementById('navCalendar');
         if (navCal) navCal.classList.toggle('active', page === 'calendar');
-        const navSamp = document.getElementById('navSamples');
-        if (navSamp) navSamp.classList.toggle('active', page === 'samples');
         const navTk = document.getElementById('navTiktokUpload');
         if (navTk) navTk.classList.toggle('active', page === 'tiktok-upload');
         const navKp = document.getElementById('navKasper');
         if (navKp) navKp.classList.toggle('active', page === 'kasper');
-        const navTtp = document.getElementById('navTiktokPilot');
-        if (navTtp) navTtp.classList.toggle('active', page === 'tiktok-pilot');
         const navSxr = document.getElementById('navSxr'); if (navSxr) navSxr.classList.toggle('active', page === 'sample-reviews'); // SXR_LINE
         const navTimeOff = document.getElementById('navTimeOff'); if (navTimeOff) navTimeOff.classList.toggle('active', page === 'time-off'); // menu-only route; intentionally no visible nav button
         _syncviewApplyTabFavicon(page);
@@ -24279,8 +23012,6 @@
         // Tear down the TikTok-upload polling timer whenever we leave the page so
         // it doesn't keep hitting the queue webhook in the background.
         if (page !== 'tiktok-upload' && typeof _tkTeardown === 'function') _navTeardownSafe(_tkTeardown);
-        // Same teardown for the gated first-party TikTok Pilot tab's poller.
-        if (page !== 'tiktok-pilot' && typeof _ttpTeardown === 'function') _navTeardownSafe(_ttpTeardown);
         // Same for Kasper review's 30 s background poller + visibility listeners.
         if (page !== 'kasper' && typeof _kasperTeardown === 'function') _navTeardownSafe(_kasperTeardown);
         // Phase 2: drop the calendar's Supabase realtime subscription when
@@ -24309,11 +23040,6 @@
          * route that already shares the _calV2Teardown line beside it. */
         if (typeof _calAbandonLinkOnCalendarExit === 'function') _calAbandonLinkOnCalendarExit(page === 'calendar');
         if (page !== 'sample-reviews' && typeof _sxrV2Teardown === 'function') _navTeardownSafe(_sxrV2Teardown); // SXR_LINE
-        // Leaving Samples while its Notes modal is open would otherwise leave
-        // the body scroll-locked; clear the lock on every navigation away.
-        if (page !== 'samples') document.body.classList.remove('sm-modal-open');
-        // Phase 2: drop the Samples Supabase realtime subscription when leaving.
-        if (page !== 'samples' && typeof _smV2Teardown === 'function') _navTeardownSafe(_smV2Teardown);
         if (page !== 'workload' && typeof _wlV2Teardown === 'function') _navTeardownSafe(_wlV2Teardown);
 
         const state = {nav: page, client: null};
@@ -24393,20 +23119,10 @@
             mountSxrView();
             window.scrollTo({ top: 0, behavior: 'instant' });
         // <<< SXR_END
-        } else if (page === 'samples') {
-            pageTop.style.display = 'none';
-            content.innerHTML = renderSamplesView();
-            mountSamplesView();
-            window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'tiktok-upload') {
             pageTop.style.display = 'none';
             content.innerHTML = renderTiktokUploadView();
             mountTiktokUploadView();
-            window.scrollTo({ top: 0, behavior: 'instant' });
-        } else if (page === 'tiktok-pilot') {
-            pageTop.style.display = 'none';
-            content.innerHTML = renderTiktokPilotView();
-            mountTiktokPilotView();
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'smm-weekly-report') {
             pageTop.style.display = 'none';
@@ -52777,12 +51493,6 @@
         // failed and the nav button stayed hidden on every refresh).
         const KASPER_UNLOCK_KEY = 'syncview_kasper_unlocked';
         let _kasperUnlocked = false;
-        // TikTok Pilot unlock state — declared alongside Kasper's (and early)
-        // for the same TDZ reason: the unlock block near the top of init()
-        // assigns _ttpUnlocked, and navTo's teardown reads it, before the
-        // _ttp* module further down the file has run its own declarations.
-        const TTP_UNLOCK_KEY = 'syncview_ttpilot_unlocked';
-        let _ttpUnlocked = false;
         /* ============================================================
            PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI
            Hidden behind ?prod=1 / verified staff navigation. Reads the native
@@ -68164,16 +66874,9 @@
             const _kasperSessionUnlocked = (() => { try { return sessionStorage.getItem(KASPER_UNLOCK_KEY) === 'ok'; } catch (e) { return false; } })();
             const _kasperHashLanding = (hashRaw === 'kasper' || hashRaw.startsWith('kasper/'))
                 && (_kasperSessionUnlocked || qp.get('Kasper') === '1');
-            // Same fast-mount treatment for the gated TikTok Pilot tab — it has
-            // no analytics dependency (it talks to its own ttp-* webhooks), so a
-            // refresh straight onto #tiktok-pilot (when unlocked for this session)
-            // should mount immediately instead of flashing the analytics tab.
-            const _ttpSessionUnlocked = (() => { try { return sessionStorage.getItem(TTP_UNLOCK_KEY) === 'ok'; } catch (e) { return false; } })();
-            const _ttpHashLanding = (hashRaw === 'tiktok-pilot')
-                && (_ttpSessionUnlocked || qp.get('ttpilot') === '1');
             // ?c=<client> needs allData to validate the token + render — never
             // a fast-tab refresh. history.state.client also needs allData.
-            const skipAwait = !qp.get('c') && !stateClient && (hashIsFastTab || fallbackFast || _kasperHashLanding || _ttpHashLanding);
+            const skipAwait = !qp.get('c') && !stateClient && (hashIsFastTab || fallbackFast || _kasperHashLanding);
             // Client share link landing on the calendar tab: we only need
             // essentials (metrics for clientHistory, clients for roster resolution)
             // to mount; the analytics-heavy extras stream in afterwards so
@@ -68276,20 +66979,6 @@
                 }
             }catch(e){}
 
-            // TikTok Pilot unlock — same hidden-tab pattern as Kasper. The gated
-            // first-party Direct-Post flow lives behind ?ttpilot=1 so the
-            // production Post-For-Me Upload tab stays the only visible TikTok tab
-            // until the new app passes TikTok's audit. ?ttpilot=1 sets a per-tab
-            // sessionStorage flag and reveals the nav button on every init path.
-            try{
-                if(qp.get('ttpilot')==='1') sessionStorage.setItem(TTP_UNLOCK_KEY,'ok');
-                if(sessionStorage.getItem(TTP_UNLOCK_KEY)==='ok'){
-                    _ttpUnlocked=true;
-                    const navTtp=document.getElementById('navTiktokPilot');
-                    if(navTtp) navTtp.style.display='';
-                    _navPillSync(false);   // a revealed tab reflows the strip
-                }
-            }catch(e){}
             // Calendar can mount immediately on the fast path, before the
             // Clients Info roster has populated its saved client. Reconcile as
             // soon as essentials land; analytics extras must never hold the
@@ -68352,13 +67041,7 @@
                     }
                     navTo('calendar', false);
                 } else if (hashRaw.startsWith('samples/')) {
-                    const rest = hashRaw.slice('samples/'.length);
-                    const sl = rest.indexOf('/');
-                    const slug = sl >= 0 ? rest.slice(0, sl) : rest;
-                    const cardId = sl >= 0 ? decodeURIComponent(rest.slice(sl+1)) : '';
-                    const match = WL_CLIENT_NAMES.find(n => wlNormalizeClient(n) === slug);
-                    if (match) _smFocusRequest = { client: match, cardId: cardId || null };
-                    navTo('samples', false);
+                    navTo('samples', false); // retired Samples Old link: navTo sends it to Sample reviews
                 } else if (hashRaw.startsWith('templates/')) {
                     // Open straight to the deep-linked client so a refresh doesn't
                     // flash the templates index first, and restore the exact tab.
@@ -68393,8 +67076,6 @@
                         if (KASPER_SUBTABS.some(t => t.key === sub)) _kasperState.tab = sub;
                     }
                     navTo('kasper', false);
-                } else if (hashRaw === 'tiktok-pilot' && _ttpUnlocked) {
-                    navTo('tiktok-pilot', false);
                 } else if (hashRaw === 'time-off') {
                     navTo('time-off', false);
                 } else if (hashIsFastTab) {
@@ -68507,7 +67188,6 @@
             if(hash==='filming-plans'){navTo(hash,false);return;}
             if(hash==='tiktok-upload'){navTo(hash,false);return;}
             if(hash==='time-off'){navTo('time-off',false);return;}
-            if(hash==='tiktok-pilot' && _ttpUnlocked){navTo('tiktok-pilot',false);return;}
             if(hashRoute==='smm-weekly-report'){navTo('smm-weekly-report',false);return;}
             if(hashRoute==='smm-weekly-reports'){navTo('smm-weekly-reports',false);return;}
             if(hash==='kasper' && _kasperUnlocked){navTo('kasper',false);return;}
@@ -68528,19 +67208,11 @@
                 if(match){_calSetFocusRequest({client:match,cardId:cardId||null});navTo('calendar',false);return;}
                 navTo('calendar',false);return;
             }
-            if(hash.startsWith('samples/')){
-                const rest=hash.slice('samples/'.length);
-                const sl=rest.indexOf('/');
-                const slug=sl>=0?rest.slice(0,sl):rest;
-                const cardId=sl>=0?decodeURIComponent(rest.slice(sl+1)):'';
-                const match=WL_CLIENT_NAMES.find(n=>wlNormalizeClient(n)===slug);
-                if(match){_smFocusRequest={client:match,cardId:cardId||null};}
-                navTo('samples',false);return;
-            }
+            if(hash.startsWith('samples/')){navTo('samples',false);return;} // retired Samples Old link -> Sample reviews
             if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(wlIsAllowedClient(tn)){_templatesSelected=wlCanonicalClient(tn);navTo('templates',false);return;}}
             if(hash&&wlIsAllowedClient(hash)){render(wlCanonicalClient(hash),false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
-            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||savedNav==='time-off'||(savedNav==='kasper'&&_kasperUnlocked)||(savedNav==='tiktok-pilot'&&_ttpUnlocked))){navTo(savedNav,false);return;}
+            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||savedNav==='time-off'||(savedNav==='kasper'&&_kasperUnlocked))){navTo(savedNav,false);return;}
             navTo('home',false);
         }catch(err){
             if(_isClientLink){
@@ -68674,7 +67346,6 @@
         try { if (typeof _calV2Teardown === 'function') _calV2Teardown(); } catch (e) {}
         try { if (typeof _sxrAbortActiveLoad === 'function') _sxrAbortActiveLoad(); } catch (e) {}
         try { if (typeof _sxrV2Teardown === 'function') _sxrV2Teardown(); } catch (e) {}
-        try { if (typeof _smV2Teardown === 'function') _smV2Teardown(); } catch (e) {}
         try { if (growthChart) { growthChart.destroy(); growthChart = null; } } catch (e) {}
         try { if (viewsChart) { viewsChart.destroy(); viewsChart = null; } } catch (e) {}
         try {
@@ -68698,10 +67369,6 @@
             sxrState.client = null; sxrState.posts = []; sxrState.loading = false; sxrState.error = null;
             sxrState.embedded = false; sxrState.previewId = null; sxrState.focusCard = null;
         } catch (e) {}
-        try {
-            smState.client = null; smState.samples = []; smState.loading = false; smState.error = null;
-            smState.embedded = false; smState.focusCard = null; _smFocusRequest = null;
-        } catch (e) {}
         document.body.classList.remove('cal-page', 'sm-modal-open', 'cal-modal-open');
     }
     function _syncviewClientEntrySlugHint() {
@@ -68718,7 +67385,8 @@
         if (!slug) return;
         try { localStorage.removeItem(CAL_CACHE_KEY_PREFIX + slug); } catch (e) {}
         try { localStorage.removeItem(SXR_CACHE_PREFIX + slug); } catch (e) {}
-        try { localStorage.removeItem(SM_CACHE_PREFIX + slug); } catch (e) {}
+        // Retired Samples Old cache (the page was removed 2026-09-24); browsers may still hold one.
+        try { localStorage.removeItem('syncview_samplesCache_v1:' + slug); } catch (e) {}
     }
     function _syncviewFlushClientEntryPending() {
         try { if (typeof _calFlushAllPending === 'function') _calFlushAllPending(); } catch (e) {}
@@ -68991,8 +67659,14 @@
         _syncviewAppBooted = true;
         init();
         if(_isIntake){
-            try{ navTo('linear', false); }catch(e){ console.error('[intake] mount failed', e); }
+            // Defer to a macrotask, like the onboarding link above: navTo()
+            // reaches module-level bindings declared later in the page (e.g.
+            // TikTok upload's _tkMounted), so a synchronous call here threw a
+            // temporal-dead-zone ReferenceError that the catch swallowed. Since
+            // #1551 the boot router backs off once a nav has been attempted, so
+            // nothing drew the Submit form and ?intake=1 stayed on its skeleton.
             setTimeout(function(){
+                try{ navTo('linear', false); }catch(e){ console.error('[intake] mount failed', e); }
                 try{ _linearResumeSubmissionHold('startup').catch(function(){}); }catch(e){}
             }, 0);
         }
@@ -78036,825 +76710,6 @@
     window._tkCancelRow = _tkCancelRow;
     window._tkRetryRow = _tkRetryRow;
     window._tkDismissRow = _tkDismissRow;
-
-    /* ============================================================
-       TIKTOK PILOT MODULE  (gated: ?ttpilot=1 → #tiktok-pilot)
-       A FIRST-PARTY, audit-compliant "Connect + Direct Post" flow that
-       talks to our own ttp-* n8n webhooks (OAuth + creator_info + Direct
-       Post on SynchroSocial's OWN TikTok app), NOT Post For Me. Built as a
-       clean room next to the production _tk* module — shares no state, no
-       webhooks, no localStorage keys — so the live Upload tab is untouched.
-
-       Compliance (TikTok Direct Post UX rules), all driven by creator_info:
-         • privacy dropdown with NO default value (operator must pick)
-         • comment/duet/stitch OFF by default; greyed when the creator
-           disabled them account-wide
-         • commercial-disclosure off by default; branded content can't be
-           "Only me"
-         • neutral preview (no TikTok chrome/logos) + explicit "Post to TikTok"
-         • never shows "Posted" until TikTok status/fetch = PUBLISH_COMPLETE
-       While TTP_APP_AUDITED is false the app is unaudited, so privacy is
-       locked to SELF_ONLY (TikTok forces private until the audit passes).
-       ============================================================ */
-    const TTP_PRIVACY_LABELS = {
-        PUBLIC_TO_EVERYONE: 'Everyone',
-        MUTUAL_FOLLOW_FRIENDS: 'Friends',
-        FOLLOWER_OF_CREATOR: 'Followers',
-        SELF_ONLY: 'Only me',
-    };
-
-    function _ttpEscape(s) {
-        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-    }
-    function _ttpFormatBytes(n) {
-        if (!Number.isFinite(n) || n <= 0) return '0 B';
-        const u = ['B', 'KB', 'MB', 'GB'];
-        let i = 0; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
-        // One decimal, but never a bare ".0": a limit reads "287 MB", a file "12.4 MB".
-        return `${n.toFixed(i === 0 ? 0 : 1).replace(/\.0$/, '')} ${u[i]}`;
-    }
-    function _ttpFmtDuration(sec) {
-        if (!Number.isFinite(sec) || sec <= 0) return '';
-        const m = Math.floor(sec / 60), s = Math.round(sec % 60);
-        return `${m}:${String(s).padStart(2, '0')}`;
-    }
-
-    function _ttpInjectCSSOnce() {
-        if (document.getElementById('ttpStyles')) return;
-        const style = document.createElement('style');
-        style.id = 'ttpStyles';
-        // Base layout rules first, media queries AFTER (equal-specificity
-        // source-order rule — see the _tk drop-zone bug we learned from).
-        style.textContent = `
-        .ttp-page { max-width: 1240px; margin: 0 auto; padding: 24px 32px 80px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: auto auto 1fr; gap: 20px 24px; align-items: start; }
-        .ttp-header { grid-column: 1; grid-row: 1; }
-        .ttp-banner { grid-column: 1 / -1; grid-row: 2; }
-        .ttp-form-col { grid-column: 1; grid-row: 3; }
-        .ttp-right-col { grid-column: 2; grid-row: 1 / span 3; }
-        @media (max-width: 1024px) {
-            .ttp-page { grid-template-columns: 1fr; }
-            .ttp-header { grid-column: 1; grid-row: 1; }
-            .ttp-banner { grid-column: 1; grid-row: 2; }
-            .ttp-form-col { grid-column: 1; grid-row: 3; }
-            .ttp-right-col { grid-column: 1; grid-row: 4; }
-        }
-        .ttp-title { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
-        .ttp-pilot-tag { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--sv-fg-166534); background: var(--sv-bg-dcfce7); border: 1px solid var(--sv-border-bbf7d0); padding: 3px 8px; border-radius: 99px; }
-        .ttp-sub { font-size: 0.86rem; color: var(--text-secondary); margin-top: 4px; }
-        .ttp-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-        .ttp-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; }
-        .ttp-card h3 { margin: 0 0 14px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
-        .ttp-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-        .ttp-row:last-child { margin-bottom: 0; }
-        .ttp-row > label { font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); }
-        .ttp-help { font-size: 0.72rem; color: var(--text-muted); font-weight: 500; }
-        .ttp-select, .ttp-input { width: 100%; border: 1.5px solid transparent; background: var(--bg); border-radius: 8px; padding: 10px 12px; font-family: inherit; font-size: 0.88rem; color: var(--text-primary); outline: none; transition: border-color 0.13s, background 0.13s; }
-        .ttp-select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
-        .ttp-select:focus, .ttp-input:focus { border-color: var(--sv-border-111110); background-color: var(--white); }
-        .ttp-select:disabled { opacity: 0.6; cursor: not-allowed; }
-        .ttp-account { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
-        .ttp-account img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--sv-bg-ddd); flex-shrink: 0; }
-        .ttp-account-name { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); }
-        .ttp-account-sub { font-size: 0.74rem; color: var(--text-secondary); margin-top: 2px; }
-        .ttp-account-ok { margin-left: auto; font-size: 0.72rem; font-weight: 700; color: var(--sv-fg-166534); background: var(--sv-bg-dcfce7); padding: 3px 9px; border-radius: 99px; flex-shrink: 0; }
-        .ttp-connect-cta { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 16px; border: 1.5px dashed var(--border); border-radius: 12px; background: var(--bg); }
-        .ttp-connect-text { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.4; }
-        .ttp-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; background: var(--sv-bg-111110); color: var(--sv-fg-fff); border: none; border-radius: 9px; font-family: inherit; font-size: 0.86rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
-        .ttp-btn:hover { opacity: 0.88; }
-        .ttp-btn.ttp-btn-ghost { background: var(--white); color: var(--text-primary); border: 1px solid var(--border); }
-        .ttp-warn-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; background: var(--sv-bg-fef3c7); color: var(--sv-fg-92400e); border-radius: 99px; font-weight: 700; font-size: 0.72rem; }
-        .ttp-drop { position: relative; border: 1.8px dashed var(--border); border-radius: 12px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all 0.15s; background: var(--bg); }
-        .ttp-drop:hover, .ttp-drop.ttp-drag { border-color: var(--sv-border-111110); background: var(--white); }
-        .ttp-drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-        .ttp-drop-title { font-size: 0.92rem; font-weight: 700; color: var(--text-primary); }
-        .ttp-drop-sub { font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
-        .ttp-file-card { display: flex; flex-direction: column; gap: 14px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
-        .ttp-file-card video { width: 100%; max-width: 280px; aspect-ratio: 9/16; border-radius: 10px; background: var(--sv-bg-000); object-fit: contain; margin: 0 auto; }
-        .ttp-file-meta { display: flex; align-items: center; gap: 12px; }
-        .ttp-file-name { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .ttp-file-size { font-size: 0.76rem; color: var(--text-secondary); margin-top: 3px; }
-        .ttp-mini-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; background: var(--white); border: 1px solid var(--border); border-radius: 7px; font-family: inherit; font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
-        .ttp-mini-btn:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
-        .ttp-counter { font-size: 0.7rem; color: var(--text-muted); text-align: right; margin-top: 4px; }
-        .ttp-counter.over { color: var(--sv-fg-dc2626); font-weight: 700; }
-        .ttp-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; font-size: 0.84rem; color: var(--text-primary); font-weight: 600; padding: 4px 0; }
-        .ttp-toggle.ttp-disabled { opacity: 0.5; cursor: not-allowed; }
-        .ttp-toggle input { position: absolute; opacity: 0; pointer-events: none; }
-        .ttp-toggle-track { position: relative; width: 34px; height: 18px; border-radius: 9px; background: var(--border); transition: background 0.15s; flex-shrink: 0; }
-        .ttp-toggle-thumb { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--sv-bg-fff); transition: left 0.15s; box-shadow: 0 1px 2px var(--sv-shadow-rgba-0-0-0-0_2); }
-        .ttp-toggle input:checked ~ .ttp-toggle-track { background: var(--sv-bg-16a34a); }
-        .ttp-toggle input:checked ~ .ttp-toggle-track .ttp-toggle-thumb { left: 18px; }
-        .ttp-toggle-meta { display: flex; flex-direction: column; gap: 1px; }
-        .ttp-toggle-meta small { font-size: 0.7rem; color: var(--text-muted); font-weight: 500; }
-        .ttp-disclosure-box { margin-top: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); display: flex; flex-direction: column; gap: 8px; }
-        .ttp-note { font-size: 0.74rem; color: var(--text-secondary); line-height: 1.4; padding: 8px 10px; background: var(--bg); border-radius: 8px; border-left: 3px solid var(--sv-border-f59e0b); }
-        .ttp-note.ttp-note-info { border-left-color: var(--sv-border-3b82f6); }
-        .ttp-submit-bar { display: flex; align-items: center; gap: 14px; padding: 14px 22px; background: var(--white); border: 1px solid var(--border); border-radius: 14px; position: sticky; bottom: 16px; box-shadow: 0 6px 24px var(--sv-shadow-rgba-0-0-0-0_06); }
-        .ttp-submit-btn { flex-shrink: 0; padding: 12px 28px; background: var(--sv-bg-111110); color: var(--sv-fg-fff); border: none; border-radius: 10px; font-family: inherit; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
-        .ttp-submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-        .ttp-submit-btn:not(:disabled):hover { opacity: 0.88; }
-        .ttp-progress { flex: 1; height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
-        .ttp-progress-bar { height: 100%; background: var(--sv-bg-16a34a); width: 0%; transition: width 0.2s; }
-        .ttp-error { color: var(--sv-fg-dc2626); font-size: 0.82rem; font-weight: 600; }
-        .ttp-app-banner { padding: 12px 16px; border-radius: 12px; background: var(--sv-bg-fffbeb); border: 1px solid var(--sv-border-fde68a); color: var(--sv-fg-92400e); font-size: 0.82rem; font-weight: 600; display: flex; align-items: center; gap: 10px; }
-        /* Neutral preview — deliberately NOT the TikTok feed (no For-You chrome,
-           no TikTok logo, no heart/comment/share rail). Just an honest preview. */
-        .ttp-preview-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
-        .ttp-preview-card h3 { margin: 0 0 12px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
-        .ttp-preview-frame { position: relative; aspect-ratio: 9/16; background: var(--sv-bg-000); border-radius: 12px; overflow: hidden; max-width: 240px; margin: 0 auto; border: 1px solid var(--border); }
-        .ttp-preview-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-        .ttp-preview-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--sv-fg-888); font-size: 0.78rem; padding: 24px; text-align: center; }
-        .ttp-preview-caption { margin-top: 12px; font-size: 0.82rem; color: var(--text-primary); line-height: 1.4; white-space: pre-wrap; word-break: break-word; max-height: 96px; overflow: auto; }
-        .ttp-preview-caption.ttp-empty { color: var(--text-muted); font-style: italic; }
-        .ttp-preview-meta { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; font-size: 0.76rem; color: var(--text-secondary); }
-        .ttp-preview-meta div { display: flex; justify-content: space-between; gap: 10px; }
-        .ttp-preview-meta b { color: var(--text-primary); font-weight: 700; }
-        .ttp-queue-item { padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; background: var(--white); }
-        .ttp-queue-item:last-child { margin-bottom: 0; }
-        .ttp-queue-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-        .ttp-queue-client { font-size: 0.84rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .ttp-queue-title { font-size: 0.78rem; color: var(--text-secondary); margin-top: 6px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .ttp-queue-actions { display: flex; gap: 6px; margin-top: 10px; }
-        .ttp-queue-error { font-size: 0.72rem; color: var(--sv-fg-991b1b); margin-top: 6px; padding: 6px 8px; background: var(--sv-bg-fee2e2); border-radius: 6px; }
-        .ttp-queue-empty { padding: 24px 12px; text-align: center; color: var(--text-muted); font-size: 0.82rem; }
-        .ttp-pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 99px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0; }
-        .ttp-pill.uploading, .ttp-pill.processing { background: var(--sv-bg-dbeafe); color: var(--sv-fg-1e40af); }
-        .ttp-pill.posted { background: var(--sv-bg-d1fae5); color: var(--sv-fg-065f46); }
-        .ttp-pill.failed { background: var(--sv-bg-fee2e2); color: var(--sv-fg-991b1b); }
-        html[data-theme="dark"] .ttp-select,
-        html[data-theme="dark"] .ttp-input,
-        html[data-theme="dark"] .ttp-account,
-        html[data-theme="dark"] .ttp-connect-cta,
-        html[data-theme="dark"] .ttp-drop,
-        html[data-theme="dark"] .ttp-file-card,
-        html[data-theme="dark"] .ttp-disclosure-box,
-        html[data-theme="dark"] .ttp-note { background: var(--field-bg); }
-        html[data-theme="dark"] .ttp-drop:hover,
-        html[data-theme="dark"] .ttp-drop.ttp-drag { background: var(--field-bg-hover); }
-        html[data-theme="dark"] .ttp-select:focus,
-        html[data-theme="dark"] .ttp-input:focus { border-color: var(--field-border-focus); background-color: var(--field-bg-focus); }
-        html[data-theme="dark"] .ttp-progress { background: var(--upload-progress-track); }
-        html[data-theme="dark"] .ttp-progress-bar { background: var(--upload-progress-fill); box-shadow: 0 0 14px var(--upload-progress-glow); }
-        html[data-theme="dark"] .ttp-pill.uploading,
-        html[data-theme="dark"] .ttp-pill.processing { background: var(--cal-status-posted-bg); color: var(--cal-status-posted-fg); }
-        html[data-theme="dark"] .ttp-pill.posted { background: var(--cal-status-approved-bg); color: var(--cal-status-approved-fg); }
-        html[data-theme="dark"] .ttp-pill.failed { background: var(--cal-status-client-approval-bg); color: var(--cal-status-client-approval-fg); }
-        `;
-        document.head.appendChild(style);
-    }
-
-    // ---- Account resolution + persistence (mirrors _tk's defensive patterns) ----
-    function _ttpResolveAccount(client) {
-        if (!client) return null;
-        const a = ttpState.accounts[client];
-        return (a && !a.revoked_at && a.open_id) ? a : null;
-    }
-    function _ttpLoadDraft() {
-        try {
-            const d = JSON.parse(localStorage.getItem(TTP_FORM_KEY) || 'null');
-            if (!d) return;
-            if (d.client && WL_CLIENT_NAMES.includes(d.client)) ttpState.client = d.client;
-            if (typeof d.title === 'string') ttpState.title = d.title;
-            if (d.options && typeof d.options === 'object') Object.assign(ttpState.options, d.options);
-            if (d.fileMeta && typeof d.fileMeta === 'object') ttpState.fileMeta = d.fileMeta;
-        } catch (e) {}
-    }
-    function _ttpSaveDraft() {
-        try {
-            localStorage.setItem(TTP_FORM_KEY, JSON.stringify({
-                client: ttpState.client, title: ttpState.title, options: ttpState.options,
-                fileMeta: ttpState.file ? { name: ttpState.file.name, size: ttpState.file.size, type: ttpState.file.type } : ttpState.fileMeta,
-            }));
-        } catch (e) {}
-    }
-    function _ttpSaveDraftSoon() { clearTimeout(_ttpSaveTimer); _ttpSaveTimer = setTimeout(_ttpSaveDraft, 400); }
-    function _ttpClearDraft() { try { localStorage.removeItem(TTP_FORM_KEY); } catch {} ttpState.fileMeta = null; }
-    function _ttpLoadPending() { try { return JSON.parse(localStorage.getItem(TTP_PENDING_KEY) || '[]'); } catch { return []; } }
-    function _ttpSavePending(list) { try { localStorage.setItem(TTP_PENDING_KEY, JSON.stringify(list.slice(0, 50))); } catch {} }
-    function _ttpLoadHidden() { try { return new Set(JSON.parse(localStorage.getItem(TTP_HIDDEN_KEY) || '[]')); } catch { return new Set(); } }
-    function _ttpSaveHidden(set) { try { localStorage.setItem(TTP_HIDDEN_KEY, JSON.stringify([...set].slice(0, 200))); } catch {} }
-    function _ttpPrunePending(rows) {
-        const cutoff = Date.now() - TTP_OPTIMISTIC_TTL_MS;
-        return rows.filter(r => {
-            if (!r.optimistic) return true;
-            const t = Date.parse(r.created_at || '');
-            return !Number.isFinite(t) || t > cutoff;
-        });
-    }
-    // Map TikTok's publish lifecycle to a UI pill. ONLY publish_complete = posted
-    // (we never optimistically claim success — the lesson from the _tk module).
-    function _ttpEffectiveStatus(r) {
-        const s = String(r.status || '').toLowerCase();
-        if (s === 'publish_complete' || s === 'posted') return 'posted';
-        if (s === 'failed') return 'failed';
-        if (s === 'uploading') return 'uploading';
-        return 'processing';
-    }
-    function _ttpMergeUploads(existing, incoming) {
-        const map = new Map();
-        for (const r of existing) map.set(r.id, r);
-        for (const r of incoming) {
-            const prev = map.get(r.id);
-            map.set(r.id, prev ? { ...prev, ...r, optimistic: r.optimistic && prev.optimistic } : r);
-        }
-        return [...map.values()].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
-    }
-
-    // ---- Network: accounts / creator_info / connect / OAuth return ----
-    async function _ttpFetchAccounts() {
-        try {
-            const r = await fetch(TTP_ACCOUNTS_LIST_URL + '?_t=' + Date.now(), { method: 'GET', signal: (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined) });
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            const json = await r.json();
-            const rows = Array.isArray(json) ? json : (json.rows || json.accounts || []);
-            const map = {};
-            for (const a of rows) { if (a && a.client_name) map[a.client_name] = a; }
-            ttpState.accounts = map;
-            ttpState.accountsLoaded = true;
-            ttpState.accountsError = null;
-        } catch (e) {
-            ttpState.accountsError = e.message || 'Could not load connected accounts.';
-            ttpState.accountsLoaded = true;
-        }
-    }
-    function _ttpConnect(client) {
-        if (!client) { ttpState.error = 'Pick a client to connect first.'; _ttpRenderForm(); return; }
-        // Full-page redirect to our n8n auth-init webhook, which builds the
-        // TikTok authorize URL (holding client_key server-side) and 302s on.
-        // On return, ttp-auth-callback bounces back to ?connect=ok…#tiktok-pilot.
-        window.location.href = TTP_AUTH_INIT_URL + '?client=' + encodeURIComponent(client);
-    }
-    async function _ttpFetchCreatorInfo(client) {
-        if (!client || !_ttpResolveAccount(client)) { ttpState.creatorInfo = null; return; }
-        ttpState.creatorInfoLoading = true; ttpState.creatorInfoError = null;
-        _ttpRenderForm();
-        try {
-            const r = await fetch(TTP_CREATOR_INFO_URL, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client }),
-                signal: (AbortSignal.timeout ? AbortSignal.timeout(25000) : undefined),
-            });
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            const j = await r.json();
-            const ci = j && j.data ? j.data : j;
-            if (!ci || !Array.isArray(ci.privacy_level_options)) throw new Error('creator_info had no privacy options');
-            ttpState.creatorInfo = ci;
-            ttpState.creatorInfoError = null;
-            // Force interaction toggles off where the creator disabled them.
-            if (ci.comment_disabled) ttpState.options.allow_comment = false;
-            if (ci.duet_disabled) ttpState.options.allow_duet = false;
-            if (ci.stitch_disabled) ttpState.options.allow_stitch = false;
-        } catch (e) {
-            ttpState.creatorInfo = null;
-            ttpState.creatorInfoError = e.message || 'Could not load creator info from TikTok.';
-        } finally {
-            ttpState.creatorInfoLoading = false;
-            if (ttpState.client === client) _ttpRenderForm();
-        }
-    }
-    // Read the ?connect=ok|error&client=… params n8n bounced us back with,
-    // show a toast, refresh accounts, then strip the params from the URL.
-    function _ttpHandleConnectReturn() {
-        let qp; try { qp = new URLSearchParams(location.search); } catch { return; }
-        const connect = qp.get('connect');
-        if (!connect) return;
-        const client = qp.get('client') ? decodeURIComponent(qp.get('client')) : '';
-        if (connect === 'ok') {
-            if (client && WL_CLIENT_NAMES.includes(client)) ttpState.client = client;
-            if (typeof showNotify === 'function') showNotify('TikTok connected', client ? `${client}'s account is now linked.` : 'Account linked.');
-            _ttpFetchAccounts().then(() => { _ttpRenderForm(); if (ttpState.client) _ttpFetchCreatorInfo(ttpState.client); });
-        } else {
-            ttpState.error = 'TikTok connection failed or was cancelled. Please try again.';
-            if (typeof showNotify === 'function') showNotify('Connection failed', qp.get('error') || 'The TikTok connection did not complete.');
-        }
-        // Strip connect params but keep the #tiktok-pilot hash.
-        try {
-            qp.delete('connect'); qp.delete('client'); qp.delete('error');
-            const qs = qp.toString();
-            history.replaceState(history.state, '', location.pathname + (qs ? '?' + qs : '') + '#tiktok-pilot');
-        } catch (e) {}
-    }
-
-    // ---- Privacy option computation (compliance core) ----
-    // The dropdown options come from creator_info. While unaudited we lock to
-    // SELF_ONLY. Branded content can't be private, so it removes SELF_ONLY.
-    function _ttpPrivacyOptions() {
-        const ci = ttpState.creatorInfo;
-        let opts = (ci && Array.isArray(ci.privacy_level_options)) ? ci.privacy_level_options.slice() : [];
-        if (!TTP_APP_AUDITED) opts = opts.filter(o => o === 'SELF_ONLY');
-        if (!opts.length && !TTP_APP_AUDITED) opts = ['SELF_ONLY'];
-        if (ttpState.options.commercial && ttpState.options.branded_content) {
-            opts = opts.filter(o => o !== 'SELF_ONLY');
-        }
-        return opts;
-    }
-
-    function renderTiktokPilotView() {
-        _ttpInjectCSSOnce();
-        return `
-            <div class="ttp-page">
-                <div class="ttp-header">
-                    <div class="ttp-title">TikTok Pilot <span class="ttp-pilot-tag">First-party · gated</span></div>
-                    <div class="ttp-sub">Connect a client's TikTok account and Direct-Post to it — our own audited integration. Separate from the production Upload tab.</div>
-                </div>
-                ${TTP_APP_AUDITED ? '' : `<div class="ttp-banner"><div class="ttp-app-banner">⏳ App in review — TikTok keeps every post <b>Private (Only me)</b> and limits connected accounts until the audit is approved.</div></div>`}
-                <div class="ttp-col ttp-form-col" id="ttpFormCol"></div>
-                <div class="ttp-col ttp-right-col">
-                    <div id="ttpPreviewWrap"></div>
-                    <div id="ttpQueueCol"></div>
-                </div>
-            </div>
-        `;
-    }
-
-    function _ttpRenderForm() {
-        const col = document.getElementById('ttpFormCol');
-        if (!col) return;
-        if (ttpState.client) ttpState.account = _ttpResolveAccount(ttpState.client);
-
-        const clientNames = [...WL_CLIENT_NAMES].sort((a, b) => a.localeCompare(b));
-        const acct = ttpState.account;
-        const ci = ttpState.creatorInfo;
-        const opts = ttpState.options;
-        const titleCount = (ttpState.title || '').length;
-        const titleOver = titleCount > 2200;
-
-        // ---- Client + connection card ----
-        let connectionCard;
-        if (!ttpState.client) {
-            connectionCard = `<div class="ttp-help">Pick a client to connect or post.</div>`;
-        } else if (acct) {
-            connectionCard = `
-                <div class="ttp-account">
-                    <img src="${_ttpEscape(acct.avatar_url || '')}" alt="" onerror="this.style.visibility='hidden'">
-                    <div>
-                        <div class="ttp-account-name">${_ttpEscape(acct.display_name || ttpState.client)}</div>
-                        <div class="ttp-account-sub">Connected TikTok account</div>
-                    </div>
-                    <span class="ttp-account-ok">✓ Connected</span>
-                </div>
-                <div style="margin-top:8px"><button class="ttp-mini-btn" onclick="_ttpConnect(${JSON.stringify(ttpState.client).replace(/"/g,'&quot;')})">Reconnect</button></div>`;
-        } else {
-            connectionCard = `
-                <div class="ttp-connect-cta">
-                    <div class="ttp-connect-text"><strong>${_ttpEscape(ttpState.client)}</strong> has no connected TikTok account yet. Connect it through TikTok's consent screen to post on their behalf.</div>
-                    <button class="ttp-btn" onclick="_ttpConnect(${JSON.stringify(ttpState.client).replace(/"/g,'&quot;')})">
-                        <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        Connect TikTok account
-                    </button>
-                </div>`;
-        }
-
-        // ---- Media card ----
-        let mediaCard;
-        if (ttpState.file) {
-            mediaCard = `
-                <div class="ttp-file-card">
-                    <video src="${_ttpEscape(ttpState.objectUrl)}" playsinline controls preload="metadata"></video>
-                    <div class="ttp-file-meta">
-                        <div style="flex:1;min-width:0">
-                            <div class="ttp-file-name">${_ttpEscape(ttpState.file.name)}</div>
-                            <div class="ttp-file-size">${_ttpFormatBytes(ttpState.file.size)}${ttpState.durationSec ? ' · ' + _ttpFmtDuration(ttpState.durationSec) : ''}</div>
-                        </div>
-                        <button class="ttp-mini-btn" onclick="_ttpReplaceFile()">Replace</button>
-                        <button class="ttp-mini-btn" onclick="_ttpClearFile()">Remove</button>
-                    </div>
-                </div>`;
-        } else {
-            const reattach = ttpState.fileMeta
-                ? `<div class="ttp-drop-sub" style="color:var(--sv-fg-92400e)">Draft restored — re-attach <strong>${_ttpEscape(ttpState.fileMeta.name)}</strong> (${_ttpFormatBytes(ttpState.fileMeta.size)}).</div>`
-                : `<div class="ttp-drop-sub">MP4 or MOV · up to ${_ttpFormatBytes(TTP_MAX_BYTES)}</div>`;
-            mediaCard = `
-                <div class="ttp-drop" id="ttpDrop">
-                    <input type="file" id="ttpFile" accept="video/mp4,video/quicktime,video/*">
-                    <div class="ttp-drop-title">Drop a video here, or click to browse</div>
-                    ${reattach}
-                </div>`;
-        }
-
-        // ---- Compose (only meaningful once connected) ----
-        let composeCards = '';
-        if (acct) {
-            // Privacy
-            const privOpts = _ttpPrivacyOptions();
-            // While the app is unaudited, SELF_ONLY is the ONLY allowed option (TikTok
-            // forces private), so auto-select it — otherwise the locked dropdown stays
-            // on its empty placeholder and submit can never enable. When audited and
-            // multiple options exist, we keep "no default" (the compliance rule).
-            if (!TTP_APP_AUDITED && !opts.privacy_level && privOpts.length === 1 && privOpts[0] === 'SELF_ONLY') opts.privacy_level = 'SELF_ONLY';
-            const privacyChosen = opts.privacy_level && privOpts.includes(opts.privacy_level);
-            let privacyInner;
-            if (ttpState.creatorInfoLoading) {
-                privacyInner = `<div class="ttp-help" role="status" aria-label="Loading">${_svSkel('sv-skeleton-line', 'width:72%;height:12px;')}</div>`;
-            } else if (ttpState.creatorInfoError) {
-                privacyInner = `<div class="ttp-error">${_ttpEscape(ttpState.creatorInfoError)}</div><button class="ttp-mini-btn" style="margin-top:8px" onclick="_ttpFetchCreatorInfo(${JSON.stringify(ttpState.client).replace(/"/g,'&quot;')})">Retry</button>`;
-            } else if (!ci) {
-                privacyInner = `<div class="ttp-help">Select this client to load TikTok's settings.</div>`;
-            } else {
-                const lockedSelfOnly = !TTP_APP_AUDITED;
-                privacyInner = `
-                    <select class="ttp-select" id="ttpPrivacy" ${lockedSelfOnly ? 'disabled' : ''}>
-                        <option value="" ${privacyChosen ? '' : 'selected'} disabled>Select who can see this…</option>
-                        ${privOpts.map(o => `<option value="${o}" ${opts.privacy_level === o ? 'selected' : ''}>${_ttpEscape(TTP_PRIVACY_LABELS[o] || o)}</option>`).join('')}
-                    </select>
-                    ${lockedSelfOnly ? `<div class="ttp-help">Locked to “Only me” while the app is in review.</div>` : `<div class="ttp-help">No default — choose explicitly (TikTok requirement).</div>`}`;
-            }
-
-            // Interaction toggles (greyed when the creator disabled them)
-            const tog = (key, label, disabledFlag) => {
-                const off = !!(ci && disabledFlag);
-                const checked = !off && opts['allow_' + key];
-                return `
-                    <label class="ttp-toggle ${off ? 'ttp-disabled' : ''}">
-                        <input type="checkbox" id="ttpAllow_${key}" ${checked ? 'checked' : ''} ${off ? 'disabled' : ''}>
-                        <span class="ttp-toggle-track"><span class="ttp-toggle-thumb"></span></span>
-                        <span class="ttp-toggle-meta">Allow ${label}${off ? `<small>Turned off by the creator</small>` : ''}</span>
-                    </label>`;
-            };
-            const interactionCard = ci ? `
-                <div class="ttp-card">
-                    <h3>Interactions</h3>
-                    <div class="ttp-help" style="margin-bottom:10px">Off by default — turn on the ones this post should allow.</div>
-                    ${tog('comment', 'comments', ci.comment_disabled)}
-                    ${tog('duet', 'Duet', ci.duet_disabled)}
-                    ${tog('stitch', 'Stitch', ci.stitch_disabled)}
-                </div>` : '';
-
-            // Commercial disclosure
-            const brandedLockedUnaudited = !TTP_APP_AUDITED;
-            const discCard = ci ? `
-                <div class="ttp-card">
-                    <h3>Commercial disclosure</h3>
-                    <label class="ttp-toggle">
-                        <input type="checkbox" id="ttpCommercial" ${opts.commercial ? 'checked' : ''}>
-                        <span class="ttp-toggle-track"><span class="ttp-toggle-thumb"></span></span>
-                        <span class="ttp-toggle-meta">This content promotes a brand, product or service<small>Off by default</small></span>
-                    </label>
-                    ${opts.commercial ? `
-                        <div class="ttp-disclosure-box">
-                            <label class="ttp-toggle">
-                                <input type="checkbox" id="ttpYourBrand" ${opts.your_brand ? 'checked' : ''}>
-                                <span class="ttp-toggle-track"><span class="ttp-toggle-thumb"></span></span>
-                                <span class="ttp-toggle-meta">Your brand<small>Promoting your own business</small></span>
-                            </label>
-                            <label class="ttp-toggle ${brandedLockedUnaudited ? 'ttp-disabled' : ''}">
-                                <input type="checkbox" id="ttpBranded" ${opts.branded_content ? 'checked' : ''} ${brandedLockedUnaudited ? 'disabled' : ''}>
-                                <span class="ttp-toggle-track"><span class="ttp-toggle-thumb"></span></span>
-                                <span class="ttp-toggle-meta">Branded content<small>${brandedLockedUnaudited ? 'Unavailable while the app is in review (can’t be private)' : 'A paid partnership — can’t be “Only me”'}</small></span>
-                            </label>
-                            ${opts.commercial && !opts.your_brand && !opts.branded_content ? `<div class="ttp-note">Pick at least one disclosure type, or turn the toggle off.</div>` : ''}
-                            ${opts.branded_content ? `<div class="ttp-note ttp-note-info">Branded content can only be public or friends — “Only me” is removed from the privacy options.</div>` : ''}
-                        </div>` : ''}
-                </div>` : '';
-
-            composeCards = `
-                <div class="ttp-card">
-                    <h3>Caption</h3>
-                    <div class="ttp-row">
-                        <textarea class="ttp-input" id="ttpTitle" placeholder="What this post is about — include hashtags here." rows="4" style="resize:vertical">${_ttpEscape(ttpState.title)}</textarea>
-                        <div class="ttp-counter ${titleOver ? 'over' : ''}">${titleCount} / 2200</div>
-                    </div>
-                </div>
-                <div class="ttp-card">
-                    <h3>Privacy</h3>
-                    <div class="ttp-row">${privacyInner}</div>
-                </div>
-                ${interactionCard}
-                ${discCard}`;
-        }
-
-        const errorBlock = ttpState.error ? `<div class="ttp-error" style="margin-bottom:12px">${_ttpEscape(ttpState.error)}</div>` : '';
-        const canSubmit = _ttpCanSubmit();
-
-        col.innerHTML = `
-            <div class="ttp-card">
-                <h3>Client</h3>
-                <div class="ttp-row">
-                    <select class="ttp-select" id="ttpClient">
-                        <option value="">Select a client…</option>
-                        ${clientNames.map(n => `<option value="${_ttpEscape(n)}" ${n === ttpState.client ? 'selected' : ''}>${_ttpEscape(n)}${_ttpResolveAccount(n) ? ' ✓' : ''}</option>`).join('')}
-                    </select>
-                    ${connectionCard}
-                </div>
-            </div>
-            <div class="ttp-card">
-                <h3>Media</h3>
-                ${mediaCard}
-            </div>
-            ${composeCards}
-            ${errorBlock}
-            <div class="ttp-submit-bar">
-                <button class="ttp-submit-btn" id="ttpSubmit" ${canSubmit ? '' : 'disabled'}>${ttpState.submitting ? 'Posting…' : 'Post to TikTok'}</button>
-                <div class="ttp-progress"><div class="ttp-progress-bar" id="ttpProgress" style="width:${ttpState.progress}%"></div></div>
-            </div>
-        `;
-        _ttpWireFormEvents();
-        _ttpRenderPreview();
-    }
-
-    function _ttpWireFormEvents() {
-        const $ = (id) => document.getElementById(id);
-        $('ttpClient')?.addEventListener('change', (e) => {
-            ttpState.client = e.target.value || null;
-            ttpState.account = _ttpResolveAccount(ttpState.client);
-            ttpState.creatorInfo = null; ttpState.creatorInfoError = null;
-            ttpState.error = null;
-            _ttpSaveDraft();
-            _ttpRenderForm();
-            if (ttpState.client && ttpState.account) _ttpFetchCreatorInfo(ttpState.client);
-        });
-
-        const fileInput = $('ttpFile'), drop = $('ttpDrop');
-        if (fileInput) fileInput.addEventListener('change', (e) => _ttpHandleFile(e.target.files?.[0]));
-        if (drop) {
-            ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('ttp-drag'); }));
-            ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('ttp-drag'); }));
-            drop.addEventListener('drop', (e) => _ttpHandleFile(e.dataTransfer?.files?.[0]));
-        }
-
-        $('ttpTitle')?.addEventListener('input', (e) => {
-            ttpState.title = e.target.value;
-            const c = document.querySelector('#ttpFormCol .ttp-counter');
-            if (c) { c.textContent = `${ttpState.title.length} / 2200`; c.classList.toggle('over', ttpState.title.length > 2200); }
-            const cap = document.getElementById('ttpPreviewCaption');
-            if (cap) { const t = ttpState.title.trim(); cap.textContent = t || 'Caption will appear here…'; cap.classList.toggle('ttp-empty', !t); }
-            const btn = $('ttpSubmit'); if (btn) btn.disabled = !_ttpCanSubmit();
-            _ttpSaveDraftSoon();
-        });
-
-        $('ttpPrivacy')?.addEventListener('change', (e) => { ttpState.options.privacy_level = e.target.value; _ttpSaveDraft(); _ttpRenderForm(); });
-        ['comment', 'duet', 'stitch'].forEach(k => {
-            $('ttpAllow_' + k)?.addEventListener('change', (e) => { ttpState.options['allow_' + k] = e.target.checked; _ttpSaveDraft(); _ttpRenderPreview(); const b = $('ttpSubmit'); if (b) b.disabled = !_ttpCanSubmit(); });
-        });
-        $('ttpCommercial')?.addEventListener('change', (e) => { ttpState.options.commercial = e.target.checked; if (!e.target.checked) { ttpState.options.your_brand = false; ttpState.options.branded_content = false; } _ttpSaveDraft(); _ttpRenderForm(); });
-        $('ttpYourBrand')?.addEventListener('change', (e) => { ttpState.options.your_brand = e.target.checked; _ttpSaveDraft(); _ttpRenderForm(); });
-        $('ttpBranded')?.addEventListener('change', (e) => {
-            ttpState.options.branded_content = e.target.checked;
-            // Branded content can't be private — drop a SELF_ONLY selection.
-            if (e.target.checked && ttpState.options.privacy_level === 'SELF_ONLY') ttpState.options.privacy_level = '';
-            _ttpSaveDraft(); _ttpRenderForm();
-        });
-        $('ttpSubmit')?.addEventListener('click', _ttpSubmit);
-    }
-
-    function _ttpRenderPreview() {
-        const wrap = document.getElementById('ttpPreviewWrap');
-        if (!wrap) return;
-        const caption = (ttpState.title || '').trim();
-        const acct = ttpState.account;
-        const priv = ttpState.options.privacy_level;
-        const privLabel = priv ? (TTP_PRIVACY_LABELS[priv] || priv) : '—';
-        const allow = [];
-        if (ttpState.options.allow_comment) allow.push('Comments');
-        if (ttpState.options.allow_duet) allow.push('Duet');
-        if (ttpState.options.allow_stitch) allow.push('Stitch');
-        wrap.innerHTML = `
-            <div class="ttp-preview-card">
-                <h3>Preview</h3>
-                <div class="ttp-preview-frame">
-                    ${ttpState.objectUrl
-                        ? `<video class="ttp-preview-video" src="${_ttpEscape(ttpState.objectUrl)}" autoplay muted loop playsinline></video>`
-                        : `<div class="ttp-preview-empty">Attach a video to preview the post.</div>`}
-                </div>
-                <div class="ttp-preview-caption ${caption ? '' : 'ttp-empty'}" id="ttpPreviewCaption">${caption ? _ttpEscape(caption) : 'Caption will appear here…'}</div>
-                <div class="ttp-preview-meta">
-                    <div><span>Account</span><b>${_ttpEscape(acct ? (acct.display_name || ttpState.client) : '—')}</b></div>
-                    <div><span>Privacy</span><b>${_ttpEscape(privLabel)}</b></div>
-                    <div><span>Interactions</span><b>${allow.length ? _ttpEscape(allow.join(', ')) : 'None'}</b></div>
-                    <div><span>Type</span><b>Direct post${(ttpState.options.commercial) ? ' · Disclosed' : ''}</b></div>
-                </div>
-            </div>`;
-    }
-
-    function _ttpHandleFile(file) {
-        if (!file) return;
-        if (!/^video\//.test(file.type) && !/\.(mp4|mov|m4v|webm)$/i.test(file.name)) { ttpState.error = 'That file does not look like a video.'; _ttpRenderForm(); return; }
-        if (file.size > TTP_MAX_BYTES) { ttpState.error = `Video is ${_ttpFormatBytes(file.size)} — over the ${_ttpFormatBytes(TTP_MAX_BYTES)} cap.`; _ttpRenderForm(); return; }
-        if (ttpState.objectUrl) URL.revokeObjectURL(ttpState.objectUrl);
-        ttpState.file = file;
-        ttpState.objectUrl = URL.createObjectURL(file);
-        ttpState.fileMeta = { name: file.name, size: file.size, type: file.type };
-        ttpState.durationSec = null;
-        ttpState.error = null;
-        _ttpSaveDraft();
-        _ttpRenderForm();
-        // Probe duration (checked against max_video_post_duration_sec at submit).
-        try {
-            const v = document.createElement('video');
-            v.preload = 'metadata';
-            v.onloadedmetadata = () => { ttpState.durationSec = Number.isFinite(v.duration) ? v.duration : null; const b = document.getElementById('ttpSubmit'); if (b) b.disabled = !_ttpCanSubmit(); };
-            v.src = ttpState.objectUrl;
-        } catch (e) {}
-    }
-    function _ttpReplaceFile() {
-        const ex = document.getElementById('ttpFile');
-        if (ex) { ex.click(); return; }
-        const t = document.createElement('input'); t.type = 'file'; t.accept = 'video/mp4,video/quicktime,video/*';
-        t.addEventListener('change', () => _ttpHandleFile(t.files?.[0])); t.click();
-    }
-    function _ttpClearFile() {
-        if (ttpState.objectUrl) URL.revokeObjectURL(ttpState.objectUrl);
-        ttpState.file = null; ttpState.objectUrl = null; ttpState.fileMeta = null; ttpState.durationSec = null;
-        _ttpSaveDraft(); _ttpRenderForm();
-    }
-
-    function _ttpValidate() {
-        if (!ttpState.client) return 'Pick a client first.';
-        if (!_ttpResolveAccount(ttpState.client)) return 'Connect this client’s TikTok account before posting.';
-        if (!ttpState.file) return 'Attach a video.';
-        if (!ttpState.title.trim()) return 'Add a caption.';
-        if (ttpState.title.length > 2200) return 'Caption is over the 2200-character limit.';
-        const privOpts = _ttpPrivacyOptions();
-        if (!ttpState.options.privacy_level) return 'Choose who can see this post.';
-        if (!privOpts.includes(ttpState.options.privacy_level)) return 'That privacy option isn’t allowed for this post — pick another.';
-        if (ttpState.options.commercial && !ttpState.options.your_brand && !ttpState.options.branded_content) return 'Pick at least one commercial-disclosure type, or turn disclosure off.';
-        if (ttpState.options.branded_content && ttpState.options.privacy_level === 'SELF_ONLY') return 'Branded content can’t be private — choose a public option.';
-        const ci = ttpState.creatorInfo;
-        if (ci && Number.isFinite(ci.max_video_post_duration_sec) && Number.isFinite(ttpState.durationSec) && ttpState.durationSec > ci.max_video_post_duration_sec + 0.5) {
-            return `Video is ${_ttpFmtDuration(ttpState.durationSec)} — this account’s limit is ${_ttpFmtDuration(ci.max_video_post_duration_sec)}.`;
-        }
-        return null;
-    }
-    function _ttpCanSubmit() { return !ttpState.submitting && !_ttpValidate(); }
-
-    function _ttpSubmit() {
-        // Re-resolve the account from the freshest accounts map right before
-        // sending (cold-load race lesson from the _tk module).
-        ttpState.account = _ttpResolveAccount(ttpState.client);
-        const err = _ttpValidate();
-        if (err) { ttpState.error = err; _ttpRenderForm(); return; }
-
-        const ci = ttpState.creatorInfo || {};
-        const o = ttpState.options;
-        // Honor creator-level disables defensively (the server re-checks too).
-        const disable_comment = ci.comment_disabled ? true : !o.allow_comment;
-        const disable_duet = ci.duet_disabled ? true : !o.allow_duet;
-        const disable_stitch = ci.stitch_disabled ? true : !o.allow_stitch;
-        const idempotencyKey = (crypto.randomUUID && crypto.randomUUID()) || `ttp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-        const fd = new FormData();
-        fd.append('client', ttpState.client);
-        fd.append('idempotencyKey', idempotencyKey);
-        fd.append('caption', ttpState.title);
-        fd.append('privacy_level', o.privacy_level);
-        fd.append('disable_comment', String(disable_comment));
-        fd.append('disable_duet', String(disable_duet));
-        fd.append('disable_stitch', String(disable_stitch));
-        fd.append('is_commercial', String(!!o.commercial));
-        fd.append('disclose_your_brand', String(!!(o.commercial && o.your_brand)));
-        fd.append('disclose_branded_content', String(!!(o.commercial && o.branded_content)));
-        fd.append('video_cover_timestamp_ms', String(Math.max(0, Number(o.cover_timestamp_ms) || 0)));
-        fd.append('mediaSize', String(ttpState.file.size));        // exact byte count for TikTok video/init
-        fd.append('mediaType', ttpState.file.type || 'video/mp4');
-        fd.append('media', ttpState.file, ttpState.file.name);
-
-        ttpState.submitting = true; ttpState.error = null; ttpState.progress = 0;
-        _ttpRenderForm();
-
-        const xhr = new XMLHttpRequest();
-        _ttpActiveXhr = xhr;
-        xhr.open('POST', TTP_SUBMIT_URL);
-        xhr.upload.onprogress = (e) => { if (!e.lengthComputable) return; ttpState.progress = Math.min(99, Math.round((e.loaded / e.total) * 100)); const bar = document.getElementById('ttpProgress'); if (bar) bar.style.width = ttpState.progress + '%'; };
-        xhr.onload = () => {
-            _ttpActiveXhr = null; ttpState.submitting = false;
-            if (xhr.status >= 200 && xhr.status < 300) {
-                ttpState.progress = 100;
-                let resp = {}; try { resp = JSON.parse(xhr.responseText || '{}'); } catch {}
-                const row = {
-                    id: resp.id || idempotencyKey,
-                    client: ttpState.client,
-                    title: ttpState.title,
-                    privacy_level: o.privacy_level,
-                    publish_id: resp.publish_id || '',
-                    status: resp.status || 'processing',   // never 'posted' here — wait for status/fetch
-                    created_at: new Date().toISOString(),
-                    optimistic: true,
-                };
-                const pending = _ttpLoadPending().filter(r => r.id !== row.id);
-                pending.unshift(row); _ttpSavePending(pending);
-                ttpState.uploads = _ttpMergeUploads(ttpState.uploads, [row]);
-                if (ttpState.objectUrl) URL.revokeObjectURL(ttpState.objectUrl);
-                ttpState.file = null; ttpState.objectUrl = null; ttpState.fileMeta = null; ttpState.durationSec = null;
-                ttpState.title = ''; ttpState.progress = 0;
-                _ttpClearDraft();
-                _ttpRenderForm(); _ttpRenderQueue();
-                if (typeof showNotify === 'function') showNotify('Sent to TikTok', 'Processing — the post confirms once TikTok finishes publishing.');
-                Promise.resolve(_ttpPollStatus()).finally(_ttpScheduleNextPoll);
-            } else {
-                ttpState.progress = 0; ttpState.error = _ttpExplainError(xhr); _ttpRenderForm();
-            }
-        };
-        xhr.onerror = () => { _ttpActiveXhr = null; ttpState.submitting = false; ttpState.progress = 0; ttpState.error = 'Network error — could not reach n8n. Try again.'; _ttpRenderForm(); };
-        xhr.onabort = () => { _ttpActiveXhr = null; ttpState.submitting = false; ttpState.progress = 0; _ttpRenderForm(); };
-        xhr.send(fd);
-    }
-    function _ttpExplainError(xhr) {
-        try { const j = JSON.parse(xhr.responseText || '{}'); if (j.message) return 'Post failed: ' + j.message; if (j.error) return 'Post failed: ' + j.error; } catch {}
-        return `Post failed (HTTP ${xhr.status || 'no response'}). Check the ttp-submit workflow.`;
-    }
-
-    // ---- Queue + adaptive polling (visibility-aware; mirrors _tk) ----
-    async function _ttpFetchQueue() {
-        try {
-            const r = await fetch(TTP_LIST_URL + '?_t=' + Date.now(), { method: 'GET', signal: (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined) });
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            const json = await r.json();
-            const rows = Array.isArray(json) ? json : (json.rows || json.items || []);
-            const pruned = _ttpPrunePending(_ttpLoadPending());
-            ttpState.uploads = _ttpMergeUploads(pruned, rows);
-            const known = new Set(rows.map(r => r.id));
-            _ttpSavePending(pruned.filter(r => !known.has(r.id)));
-            _ttpRenderQueue();
-        } catch (e) {
-            const col = document.getElementById('ttpQueueCol');
-            if (col && !col.dataset.everLoaded) col.innerHTML = `<div class="ttp-card"><h3>Recent posts</h3><div class="ttp-queue-empty">Couldn’t reach the queue webhook.<br><small>${_ttpEscape(e.message)}</small></div></div>`;
-        }
-    }
-    // TikTok has no publish webhook, so post status is advanced server-side by
-    // the ttp-status-cron poller (creator's publish_id → status/fetch). The UI
-    // just re-reads the queue from ttp-list on each adaptive-poll tick.
-    async function _ttpPollStatus() {
-        return _ttpFetchQueue();
-    }
-    function _ttpRenderQueue() {
-        const col = document.getElementById('ttpQueueCol');
-        if (!col) return;
-        col.dataset.everLoaded = '1';
-        const hidden = _ttpLoadHidden();
-        const visible = (ttpState.uploads || []).filter(r => !hidden.has(r.id)).slice(0, 12);
-        const item = (r) => {
-            const status = _ttpEffectiveStatus(r);
-            const actions = [];
-            if (r.tiktok_url) actions.push(`<a class="ttp-mini-btn" href="${_ttpEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
-            actions.push(`<button class="ttp-mini-btn" onclick="_ttpDismissRow(${JSON.stringify(String(r.id)).replace(/"/g,'&quot;')})">Dismiss</button>`);
-            return `
-                <div class="ttp-queue-item">
-                    <div class="ttp-queue-top">
-                        <div class="ttp-queue-client">${_ttpEscape(r.client || '—')}</div>
-                        <span class="ttp-pill ${status}">${_ttpEscape(status)}</span>
-                    </div>
-                    ${r.title ? `<div class="ttp-queue-title">${_ttpEscape(r.title)}</div>` : ''}
-                    ${r.fail_reason || r.error ? `<div class="ttp-queue-error">${_ttpEscape(r.fail_reason || r.error)}</div>` : ''}
-                    ${actions.length ? `<div class="ttp-queue-actions">${actions.join('')}</div>` : ''}
-                </div>`;
-        };
-        col.innerHTML = `<div class="ttp-card"><h3>Recent posts</h3>${visible.length ? visible.map(item).join('') : `<div class="ttp-queue-empty">No posts yet.</div>`}</div>`;
-    }
-    function _ttpDismissRow(id) {
-        _ttpSavePending(_ttpLoadPending().filter(p => p.id !== id));
-        const h = _ttpLoadHidden(); h.add(id); _ttpSaveHidden(h);
-        ttpState.uploads = ttpState.uploads.filter(r => r.id !== id);
-        _ttpRenderQueue();
-    }
-    function _ttpActiveUploadCount() { return (ttpState.uploads || []).filter(r => { const s = _ttpEffectiveStatus(r); return s === 'uploading' || s === 'processing'; }).length; }
-    function _ttpNextPollDelay() { return _ttpActiveUploadCount() > 0 ? 5000 : 0; }
-    function _ttpStopPolling() { if (_ttpPollTimer) { clearTimeout(_ttpPollTimer); _ttpPollTimer = null; } }
-    function _ttpScheduleNextPoll() {
-        _ttpStopPolling();
-        if (!_ttpMounted) return;
-        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-        if (!document.getElementById('ttpQueueCol')) return;
-        const delay = _ttpNextPollDelay();
-        if (delay <= 0) return;
-        _ttpPollTimer = setTimeout(() => { _ttpPollTimer = null; Promise.resolve(_ttpPollStatus()).finally(_ttpScheduleNextPoll); }, delay);
-    }
-
-    function mountTiktokPilotView() {
-        _ttpLoadDraft();
-        ttpState.uploads = _ttpPrunePending(_ttpLoadPending());
-        _ttpMounted = true;
-        _ttpRenderForm();
-        _ttpRenderQueue();
-        _ttpHandleConnectReturn();
-        // Load connected accounts, then heal the form + fetch creator_info.
-        Promise.resolve(_ttpFetchAccounts()).then(() => {
-            if (!_ttpMounted) return;
-            _ttpRenderForm();
-            if (ttpState.client && _ttpResolveAccount(ttpState.client)) _ttpFetchCreatorInfo(ttpState.client);
-        });
-        Promise.resolve(_ttpFetchQueue()).finally(_ttpScheduleNextPoll);
-        if (!_ttpVisHooked) {
-            _ttpVisHooked = true;
-            document.addEventListener('visibilitychange', () => {
-                if (!_ttpMounted) return;
-                if (document.visibilityState === 'visible') Promise.resolve(_ttpPollStatus()).finally(_ttpScheduleNextPoll);
-                else _ttpStopPolling();
-            });
-        }
-    }
-    function _ttpTeardown() {
-        _ttpMounted = false;
-        _ttpStopPolling();
-        if (ttpState.objectUrl) { URL.revokeObjectURL(ttpState.objectUrl); ttpState.objectUrl = null; }
-        if (ttpState.file) { ttpState.objectUrl = URL.createObjectURL(ttpState.file); }
-    }
-
-    // Expose handlers used by inline onclick="" so they survive rerenders.
-    window._ttpConnect = _ttpConnect;
-    window._ttpFetchCreatorInfo = _ttpFetchCreatorInfo;
-    window._ttpReplaceFile = _ttpReplaceFile;
-    window._ttpClearFile = _ttpClearFile;
-    window._ttpDismissRow = _ttpDismissRow;
 
     /* ============================================================
        KASPER REVIEW TAB

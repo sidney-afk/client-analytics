@@ -1169,15 +1169,7 @@
                     if(!match&&slug){try{_calResolvePendingDeepLink();}catch(e){console.warn('[Calendar] deep-link resolve failed',e);}}
                     return;
                 }
-                if(hash.startsWith('samples/')){
-                    const rest=hash.slice('samples/'.length);
-                    const sl=rest.indexOf('/');
-                    const slug=sl>=0?rest.slice(0,sl):rest;
-                    const cardId=sl>=0?rest.slice(sl+1):'';
-                    const match=WL_CLIENT_NAMES.find(n=>wlNormalizeClient(n)===slug);
-                    if(match)_smFocusRequest={client:match,cardId:cardId||null};
-                    navTo('samples',false);return;
-                }
+                if(hash.startsWith('samples/')){navTo('samples',false);return;} // retired Samples Old link -> Sample reviews
                 if(hash==='kasper'||hash.startsWith('kasper/')){
                     if(_kasperUnlocked){
                         if(hash.startsWith('kasper/')){
@@ -1187,7 +1179,6 @@
                         navTo('kasper',false);return;
                     }
                 }
-                else if(hash==='tiktok-pilot'){ if(_ttpUnlocked){navTo('tiktok-pilot',false);return;} }
                 else if(hash==='sample-reviews'||hash.startsWith('sample-reviews/')){navTo('sample-reviews',false);return;}
                 else if(['linear','workload','calendar','samples','filming-plans','tiktok-upload','time-off'].includes(hash)
                         ||hashRoute==='smm-weekly-report'||hashRoute==='smm-weekly-reports'){

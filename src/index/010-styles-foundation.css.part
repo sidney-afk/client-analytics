@@ -1672,7 +1672,6 @@
         html[data-boot-nav="templates"] .boot-skeleton-templates,
         html[data-boot-nav="filming-plans"] .boot-skeleton-filming,
         html[data-boot-nav="tiktok-upload"] .boot-skeleton-tiktok,
-        html[data-boot-nav="tiktok-pilot"] .boot-skeleton-tiktok,
         html[data-boot-nav="time-off"] .boot-skeleton-analytics,
         html[data-boot-nav="smm-weekly-report"] .boot-skeleton-sales-intake,
         html[data-boot-nav="smm-weekly-reports"] .boot-skeleton-kasper,
@@ -1844,10 +1843,10 @@
         html[data-boot-nav] #headerNav .header-nav-btn.active { background: var(--white); color: var(--text-secondary); border-color: var(--border); }
         html[data-boot-nav="linear"] #navLinear, html[data-boot-nav="production"] #navProd,
         html[data-boot-nav="workload"] #navWorkload,
-        html[data-boot-nav="calendar"] #navCalendar, html[data-boot-nav="samples"] #navSamples,
+        html[data-boot-nav="calendar"] #navCalendar,
         html[data-boot-nav="templates"] #navTemplates, html[data-boot-nav="filming-plans"] #navFilmingPlans,
         html[data-boot-nav="tiktok-upload"] #navTiktokUpload,
-        html[data-boot-nav="kasper"] #navKasper, html[data-boot-nav="tiktok-pilot"] #navTiktokPilot,
+        html[data-boot-nav="kasper"] #navKasper,
         html[data-boot-nav="sample-reviews"] #navSxr { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
         .view-tab-btn {
             display: inline-flex; align-items: center; gap: 7px;

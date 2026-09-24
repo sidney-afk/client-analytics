@@ -35,8 +35,9 @@ Calendar:
 - `webhook/calendar-get`, `webhook/calendar-upsert-post`, `webhook/calendar-append-post`,
   `webhook/calendar-delete-post`, `webhook/calendar-reorder`, `webhook/calendar-reorder-batch`
 
-Samples (legacy) and sample reviews (SXR):
-- `webhook/samples-get`, `webhook/samples-upsert`, `webhook/samples-reorder`
+Sample reviews (SXR). **Corrected 2026-09-24:** the legacy Samples page was removed; its three
+`samples-*` webhooks (get, upsert, reorder) and its `content_samples` REST read are no longer called
+(old `#samples` links redirect to Sample reviews). The n8n workflows and the table still exist.
 - `webhook/sample-review-get`, `webhook/sample-review-upsert`, `webhook/sample-review-reorder`
 
 Linear bridge:
@@ -75,7 +76,7 @@ AI generation (briefs, captions, summaries):
 - `webhook/caption-job-status`, `webhook/caption-job-update`, `webhook/caption-prompts-get`,
   `webhook/caption-prompts-save`
 
-TikTok pilot (uploads + TTP auth):
+TikTok upload (Post For Me; the TikTok pilot and its TTP auth were removed 2026-09-24, see below):
 - `webhook/tiktok-upload`, `webhook/tiktok-upload-status`, `webhook/tiktok-upload-cancel`,
   `webhook/tiktok-uploads-list`
 - `webhook/tiktok-upload-url`, `webhook/tiktok-upload-direct` — direct-to-storage transport
@@ -100,8 +101,10 @@ TikTok pilot (uploads + TTP auth):
   Post For Me `media[]` array (photo post); `mediaUrl` alone is unchanged from the description
   above (video post). `n8n-backups/tiktok-upload-direct.2026-09-08.json` is the matching
   point-in-time backup.
-- `webhook/ttp-auth-init`, `webhook/ttp-accounts-list`, `webhook/ttp-creator-info`,
-  `webhook/ttp-list`, `webhook/ttp-status`, `webhook/ttp-submit`
+- **Removed 2026-09-24:** the TikTok Pilot's six `ttp-*` webhooks (auth-init, accounts-list,
+  creator-info, list, status, submit) are no longer called; the pilot was abandoned after TikTok
+  rejected the app and its browser code was deleted. The n8n workflows and pilot tables still
+  exist; what to do with them is the owner's call.
 
 Onboarding + intake forms:
 - `webhook/onboarding-submit`, `webhook/onboarding-fallback`, `webhook/ai-onboarding-submit`,
@@ -418,7 +421,7 @@ by hand; verify before relying on it.
 > rows and internal email/Slack/Linear/project mappings.
 
 - String-literal in `index.html`: `syncview_runtime_flags` (kill switches), `calendar_posts`,
-  `workload_issues` (read-only Linear mirror), `templates`, `content_samples`, `caption_prompts`.
+  `workload_issues` (read-only Linear mirror), `templates`, `caption_prompts`.
 - Via dynamic refs: `sample_reviews` (through `SXR_TABLE`), and the visible Linear mirror's
   internal `production` boot reads
   `clients`, `team_members`, `batches`, `deliverables` (plus `deliverable_events`) through a

@@ -62,7 +62,8 @@ assert(headerHelper.includes("out['X-Syncview-Key'] = identity.key"));
 assert(headerHelper.includes("out['X-Syncview-Actor'] = identity.member.name"));
 assert(headerHelper.includes("out['X-Syncview-Role'] = identity.role"));
 
-for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sxrCopyShareLink']) {
+// smCopyShareLink went with the Samples Old page (removed 2026-09-24).
+for (const name of ['copyShareLink', 'calCopyShareLink', '_sxrCopyShareLink']) {
   const body = extract(name);
   assert(/^async function/.test(body), name + ' must wait for authenticated issuance');
   assert(body.includes('await _syncviewIssueClientShareUrl'), name + ' must issue only at copy time');

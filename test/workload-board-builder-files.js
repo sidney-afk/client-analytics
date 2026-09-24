@@ -28,4 +28,5 @@ const fnBody = (s, n) => s.match(new RegExp('create or replace function public\\
 const warmOrig = fnBody(read('migrations/2026-09-23-workload-native-snapshot-warm.sql'), 'workload_native_snapshot_warm_v1');
 ok(fnBody(rollback, 'workload_native_snapshot_warm_v1') === warmOrig, 'rollback restores warm_v1 exactly as its migration wrote it');
 ok(/slim_v1\(public\.workload_native_snapshot_v1\(\)\)/.test(fnBody(rollback, 'workload_native_snapshot_cached_v1')) && /drop function if exists public\.workload_native_snapshot_board_v1\(\);/.test(rollback), 'rollback rebuilds from v1 and drops the builder');
+ok(/raise exception 'workload_board_verify_failed/.test(verify) && /v\.id_differences <> 0 or v\.row_content_differences <> 0 or v\.envelope_differences <> 0/.test(verify), 'VERIFY raises unless all three counts are zero');
 console.log('workload-board-builder-files: ' + checks + ' checks ok');

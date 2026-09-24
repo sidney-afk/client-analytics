@@ -334,6 +334,9 @@ const ok=(v,m)=>{assert.ok(v,m);checks++;};
   ok(vr.slice(0,3).join()==='0,0,0'&&Number(vr[3])===v1.rows.length&&Number(vr[4])===want.rows.length,
    'VERIFY: board builder rows equal boardSnapshot(v1) by id and content, envelope equal');
   ok(sql(`select count(*) from pg_proc where proname='workload_native_snapshot_board_v1';`)==='0','VERIFY rolls back and leaves nothing behind');
+  const drifted=verify.replace("lower(coalesce(status_type,'')) not in ('completed','canceled','duplicate','triage')","lower(coalesce(status_type,'')) not in ('completed','canceled','duplicate')");
+  ok(drifted!==verify&&/workload_board_verify_failed/.test(sql(drifted,db,true))&&sql(`select count(*) from pg_proc where proname='workload_native_snapshot_board_v1';`)==='0',
+   'VERIFY ABORTS with workload_board_verify_failed when the builder drifts from boardSnapshot, and still leaves nothing behind');
   sql(mig);sql(mig);
   const board=json('select workload_native_snapshot_board_v1();');const strip=r=>Object.fromEntries(Object.entries(r).filter(([k])=>!['native_assignee_id','native_sync_state','native_sort_key','native_kind'].includes(k)));
   ok(JSON.stringify(board.rows.map(strip))===JSON.stringify(want.rows)&&board.count===want.rows.length

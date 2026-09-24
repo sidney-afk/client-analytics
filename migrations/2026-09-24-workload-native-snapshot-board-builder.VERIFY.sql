@@ -132,9 +132,10 @@ end;
 $fn$;
 revoke all on function public.workload_native_snapshot_board_v1() from public, anon, authenticated, service_role;
 
--- 0 / 0 / 0 is the only passing answer. Row ids AND full row contents of the
+-- 0 / 0 / 0 is the only passing answer; the block below raises otherwise. Row ids AND full row contents of the
 -- new builder must equal boardSnapshot's keep-rule applied to v1's output,
 -- and everything outside rows/count must be equal.
+create temp table workload_board_verify on commit drop as
 with v as (select public.workload_native_snapshot_v1() j),
      b as (select public.workload_native_snapshot_board_v1() j),
      r as (select e from v, jsonb_array_elements(v.j->'rows') e),
@@ -153,5 +154,18 @@ select
   (select count(*) from v, b where (v.j - 'rows' - 'count') <> (b.j - 'rows' - 'count')
                                or (b.j->>'count')::int <> jsonb_array_length(b.j->'rows')) as envelope_differences,
   (select count(*) from r) as v1_rows, (select count(*) from got) as board_rows;
+select * from workload_board_verify;
+-- Fails loudly: a nonzero count aborts here, so no runner can read it as a pass.
+do $verify$
+declare v record;
+begin
+  select * into strict v from workload_board_verify;
+  if v.id_differences <> 0 or v.row_content_differences <> 0 or v.envelope_differences <> 0 then
+    raise exception 'workload_board_verify_failed: ids %, rows %, envelope %',
+      v.id_differences, v.row_content_differences, v.envelope_differences;
+  end if;
+  raise notice 'workload_board_verify_passed: % v1 rows, % board rows', v.v1_rows, v.board_rows;
+end;
+$verify$;
 
 rollback;

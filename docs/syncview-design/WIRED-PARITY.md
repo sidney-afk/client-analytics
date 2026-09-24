@@ -1347,3 +1347,20 @@ said so.
   post's own issue link opens. The three Workload deep links that
   deliberately point at the batch view on purpose (`wlParentUrl`, the
   client-groups `syncUrl`, the popover `parentSyncUrl`) are unchanged.
+
+## 2026-09-24 — the batch view stops listing the batch itself as a deliverable
+
+- **Observed:** some batch views (`?prod=1&batch=<id>`, e.g. batch
+  `bat_7eef3235-ceb4-469a-ac22-719f323ac359`, a mixed video + thumbnail batch)
+  opened the Deliverables list with an extra row titled with the batch's own
+  name. No such deliverable exists in the database: it was the synthetic
+  batch parent minted in memory, which carries the batch id, so the plain
+  `batchId` filter in `_prodBatchRows` kept it. Only batches that mint one
+  (a Linear parent in `linear_parent_ids` with children pointing at it)
+  showed it.
+- **Now:** `_prodBatchRows` drops the synthetic batch parent, and any row that
+  is the parent of other rows in the same batch (a B1-imported Linear parent
+  filed beside its own children). A row with no children in the batch stays.
+  The list also feeds batch multi-select, which no longer selects the parent.
+- **Parity note:** matches Linear, where a parent issue is never listed among
+  its own sub-issues.

@@ -8,6 +8,14 @@ All times are UTC unless noted.
 
 `linear_raw.archived = true` on `b1_d_1e3acd42ec9940988c8ec801a804372a` and `b1_d_54f839e2875a4a369331e399ac9de1a1` (batch `b1_b_5924c395f710cb46e22a9a368541`). Nothing was deleted; the one-line undo is in OPEN_REPAIRS 245.
 
+## 2026-09-24 — the batch view stopped listing the batch itself as a deliverable (browser only)
+
+`_prodBatchRows` kept the synthetic batch parent (it carries the batch id) and,
+for B1 imports, a Linear parent row filed beside its own children, so both
+drew as an extra first "deliverable" titled with the batch name. They are now
+filtered out. Read-only investigation against live data; no data changed.
+Guard: `test/prod-batch-view-hides-batch-parent.js`.
+
 ## 2026-09-19 — one shared capture-phase guard fixed the backdrop-dismiss-on-drag bug across all twenty-four dialog overlays (OPEN_REPAIRS 215)
 
 ## 2026-09-19 — the naming mint was applied on 2026-09-17 and nobody wrote it down
@@ -8268,3 +8276,78 @@ Findings from building it, value-free:
   Analytics first numbers ~1.2 s, both well under the speed map's cold medians
   (4.4 s / 5.9 s).
 
+
+## 2026-09-24 — F27 Section 4 deploy, run `36023623936`: production-write 82 → 88, deliverable-write 41 → 45, batch-write 41 → 45 (B2 Slice 8 narrow lane)
+
+Dispatched from `049d3e6882902ab13f75a4a2fc5e05879974ed42`, operation
+`deploy-reviewed-release`, confirmation `DEPLOY_REVIEWED_F27_SECTION4_CLOSURES`.
+Green; the forward path deployed three functions (`production-write`,
+`deliverable-write`, `batch-write`), the restore step was skipped. `linear-outbound`
+was not deployed by this run.
+
+The prior sealed bundle it was dispatched against:
+rollback_bundle_sha256 = `70129953cc18ba80883cb3d5ad86ade555a365e1e4dbe7f7a840205fd4b65aa3`,
+rollback_bundle_byte_length = `682023`. **That bundle is the FOUR-function prior set**
+(captured before this PR narrowed the lane; the run's steps are "Fetch and
+independently verify the sealed prior-four source" and "Inspect the exact sealed
+prior-four rollback set"). After PR #1562 merges the lane only restores three, so
+this bundle can no longer be restored by the lane; the next capture is three
+functions.
+
+File counts from the run's env: `production-write` 9, `deliverable-write` 2,
+`batch-write` 2. Supabase CLI 2.109.0.
+
+Sources: deploy commit, source closures, entrypoint hashes, file counts and the
+bundle values are read from the job log (job `107714440486`). The job-summary
+table itself was not readable through the API, so the active versions and the
+provider bundle hashes below were read back read-only from the Supabase function
+list on 2026-09-24 (`version` and `ezbr_sha256`; `updated_at` for all three falls
+inside the run's deploy steps, 15:55:28–15:55:55Z). Earlier entries' provider
+bundle hashes equal the Supabase `ezbr_sha256` for the same version.
+
+| function | active version | source closure SHA-256 | JWT |
+|---|---|---|---|
+| `batch-write` | 41 → 45 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | verify_jwt=false |
+| `deliverable-write` | 41 → 45 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | verify_jwt=false |
+| `production-write` | 82 → 88 | `eda3cf74353aaab14b7773db86f98773d85e3dae4d855dccfc847cbe9c750a79` | verify_jwt=false |
+
+```json
+{
+  "schema": "syncview_f27_section4_deployed_versions_v1",
+  "deploy_commit": "049d3e6882902ab13f75a4a2fc5e05879974ed42",
+  "github_run_id": "36023623936",
+  "functions": [
+    {
+      "slug": "batch-write",
+      "active_version": "45",
+      "source_closure_sha256": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a",
+      "entrypoint_sha256": "15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5",
+      "provider_bundle_sha256": "46dcbfd8adf52bb8df7dcbd3dcbeab0c0524e2c0ba751578503ce0d7472b0bd3",
+      "verify_jwt": false
+    },
+    {
+      "slug": "deliverable-write",
+      "active_version": "45",
+      "source_closure_sha256": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575",
+      "entrypoint_sha256": "74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68",
+      "provider_bundle_sha256": "2e869b9fa7df13953823b0bbfad4fa186b0a51c987ca22122c492c873a4ba3c6",
+      "verify_jwt": false
+    },
+    {
+      "slug": "production-write",
+      "active_version": "88",
+      "source_closure_sha256": "eda3cf74353aaab14b7773db86f98773d85e3dae4d855dccfc847cbe9c750a79",
+      "entrypoint_sha256": "7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5",
+      "provider_bundle_sha256": "54c516cdd70c8cd420b9bdffd70fac535c08b4e4a7a56393440f022f539ba8b3",
+      "verify_jwt": false
+    }
+  ]
+}
+```
+
+**After the run (owner, 2026-09-24):** `linear-outbound` was deleted and three
+Supabase secrets were removed. Supabase bumped every function's version by 3 with
+no code change, so the provider list now reads `production-write` v91,
+`deliverable-write` v48, `batch-write` v48, with `ezbr_sha256` and `updated_at`
+unchanged from this deploy (same source). The versions above (v88/v45/v45) are
+this run's own result. `linear-outbound` is confirmed absent live.

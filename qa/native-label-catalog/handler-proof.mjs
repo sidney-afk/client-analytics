@@ -106,8 +106,8 @@ try{
     // B2 Slice 8: a provider-mode (non-native) catalog is refused as held, never read from Linear.
     const refused=await call(handler,payload(action));assert.equal(refused.status,503);assert.equal(refused.body.error,'native_label_catalog_held');assert.equal(providerCalls,start);assert.equal(JSON.stringify(store.tables),before);pass('provider-mode '+action+' is refused as held with zero provider egress and no mutation');
     for(const client of [true]){start=providerCalls;const r=await call(handler,payload(action),client);assert.equal(r.status,403);assert.equal(providerCalls,start);pass('client '+action+' denied before provider or catalog exposure');}
-    // Authority is constant SyncView (B2 Slice 8); an unreadable catalog flag still fails closed with no provider fallback.
-    store=new Store();store.flagError=true;start=providerCalls;const authority=await call(handler,payload(action));assert.equal(authority.status,503);assert.equal(authority.body.error,'native_label_catalog_config_unavailable');assert.equal(providerCalls,start);pass('unreadable catalog flag '+action+' has no guessed provider fallback');
+    // An unreadable flag table fails closed at the authority read, with no provider fallback.
+    store=new Store();store.flagError=true;start=providerCalls;const authority=await call(handler,payload(action));assert.equal(authority.status,503);assert.equal(authority.body.error,'authority_unavailable');assert.equal(providerCalls,start);pass('unreadable catalog flag '+action+' has no guessed provider fallback');
   }
   for(const mode of ['healthy','empty','incomplete','wrong-team']){
     // Whatever the provider would answer, B2 Slice 8 never asks it.

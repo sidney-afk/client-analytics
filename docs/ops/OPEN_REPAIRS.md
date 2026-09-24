@@ -28803,3 +28803,13 @@ finished until its receipt is in the log and the row is updated, in the same PR.
 **What:** the B1 import filed two Linear parent issues (titled exactly like the batch) as the only deliverables of batch `b1_b_5924c395f710cb46e22a9a368541`, which shares its name with two native batches. Archived, not deleted: `"archived": true` added to `linear_raw` on `b1_d_1e3acd42ec9940988c8ec801a804372a` and `b1_d_54f839e2875a4a369331e399ac9de1a1`. The browser view now reads `raw_archived = true` for both, so they leave every list. No other stored field was written, but the table triggers also fired. `updated_at` moved to `2026-09-24 16:32:03.921721+00` on both rows. `track_b_deliverable_ledger_guard` wrote one system `update` event per row to `deliverable_events` (`payload.reason = rpc_bypass_guard`); no bypass was set.
 
 **Undo (one line, guarded):** `update public.deliverables set linear_raw = linear_raw - 'archived' where id in ('b1_d_1e3acd42ec9940988c8ec801a804372a','b1_d_54f839e2875a4a369331e399ac9de1a1') and linear_raw->'archived' = 'true'::jsonb and updated_at = '2026-09-24 16:32:03.921721+00';` It must report 2 rows. Fewer means a row changed after this repair: stop and look before undoing anything. The undo itself advances `updated_at` and writes one more event per row.
+
+## 246. [2026-09-24, BUILT not applied — migration] A 2026-08-24 backup table was fully open to the browser key
+
+**What:** `public.batches_parent_claim_backup_20260824` (1455 rows, 3 columns) had RLS off, no policies, and all eight table privileges granted to both `anon` and `authenticated` (read live, read-only, 2026-09-24). Anyone holding the public publishable key could read, rewrite, delete or truncate it. Nothing in the app reads it: no function, view, cron job or Edge Function names it; the only references are the two `aaa_application_dml_admission_*` triggers on it and `production_retirement_contract_assert_v1`, which pins those triggers' definition md5s only.
+
+**Fix:** `migrations/2026-09-24-secure-batches-parent-claim-backup.sql` enables RLS (no policies) and revokes all from `public, anon, authenticated`; `postgres` and `service_role` keep their rights, the triggers and rows are unchanged, so the retirement assert is unaffected. The dated Linear-exit baseline artifacts (`LINEAR_EXIT_BACKUP_TABLE_BASELINE_20260911.json`, `LINEAR_EXIT_SOURCE_BASELINE_CATALOG_V1.json`, `scripts/linear-exit-backup-observed-baseline.js`) record the 2026-09-11 observed state, are hash-pinned, and are left as history; a future re-baseline will observe the secured state.
+
+**Undo:** ROLLBACK.md, 2026-09-24 parent-claim backup entry.
+
+**Apply:** owner applies the migration; then run its VERIFY block and `select public.production_retirement_contract_assert_v1();`.

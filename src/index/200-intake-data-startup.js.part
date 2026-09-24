@@ -1451,9 +1451,3 @@
         // failed and the nav button stayed hidden on every refresh).
         const KASPER_UNLOCK_KEY = 'syncview_kasper_unlocked';
         let _kasperUnlocked = false;
-        // TikTok Pilot unlock state — declared alongside Kasper's (and early)
-        // for the same TDZ reason: the unlock block near the top of init()
-        // assigns _ttpUnlocked, and navTo's teardown reads it, before the
-        // _ttp* module further down the file has run its own declarations.
-        const TTP_UNLOCK_KEY = 'syncview_ttpilot_unlocked';
-        let _ttpUnlocked = false;

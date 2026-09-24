@@ -28833,3 +28833,13 @@ Lighthouse applied `migrations/2026-09-24-refusal-receipt-browser-codes.sql` (li
 **Undo:** ROLLBACK.md, 2026-09-24 parent-claim backup entry.
 
 **Apply:** owner applies the migration; then run its VERIFY block and `select public.production_retirement_contract_assert_v1();`.
+
+## 249. [2026-09-24, BUILT not applied — proposal] Retirement contract assert raises on seven reviewed changes it was never re-pinned for
+
+**What:** `production_retirement_contract_assert_v1()` raises `retirement_dependency_contract:production_assignment_epoch`. Measured read-only: that entry fails on ACL only (the 2026-09-17 service_role revoke, PR #1408), and six more pinned bodies differ, each equal to a reviewed 2026-09-18 migration (PRs #1412–#1415). Triggers, private-table ACLs and the provider fence all pass. Only the retirement activate/reopen functions call it; nothing schedules them; retirement mode is still `active`.
+
+**Fix (proposed):** `migrations/2026-09-24-retirement-assert-repin.sql` recreates the assert with the live body and only those seven expected values changed. Evidence and options: `docs/ops/RETIREMENT_ASSERT_DRIFT_2026-09-24.md`.
+
+**Undo:** `migrations/2026-09-24-retirement-assert-repin.ROLLBACK.sql` (exact live definition, prosrc md5 `c28cb097…`). The migration also runs the new assert before `commit`, so any drift since the read rolls it back.
+
+**Apply:** owner applies; then `select public.production_retirement_contract_assert_v1();` must return without raising. Until then, the post-apply check in 248 raises for this reason.

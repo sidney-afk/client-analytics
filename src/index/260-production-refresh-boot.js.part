@@ -1405,6 +1405,11 @@
         try{
             const _clientEntryStillCurrent=()=>!_isClientLink||_syncviewClientEntryRunCurrent(clientEntryRun);
             if(!_clientEntryStillCurrent())return;
+            /* Phase D: the boot router only routes while nobody has navigated
+               since it started. Every await below is a window in which a tab
+               click (or Back) can land first; the click wins. */
+            const _bootNavEpoch=_syncviewNavEpoch;
+            const _bootOwnsNav=()=>_syncviewNavEpoch===_bootNavEpoch;
             // The staff identity IS the door (2026-09-10), so this both
             // verifies and gates. Painting the cover is not enough: Codex
             // caught that in review. init() used to run on past this await, so
@@ -1448,7 +1453,7 @@
             if (!_isClientLink && (hashRaw === 'sample-reviews' || hashRaw.startsWith('sample-reviews/'))) {
                 let _sxrOn = true; // GA default-ON; a storage throw leaves it on, matching _sxrEnabled() (F73)
                 try { const _q = new URLSearchParams(location.search).get('sxr'); _sxrOn = (_q === '1' || _q === 'true') || (_q !== '0' && _q !== 'false' && localStorage.getItem('syncview_sxr_off') !== '1'); } catch (e) {}
-                if (_sxrOn) { try { window.__sxrDeepHash = hashRaw; } catch (e) {} setTimeout(function () { try { navTo('sample-reviews', false); } catch (e) {} }, 0); return; }
+                if (_sxrOn) { try { window.__sxrDeepHash = hashRaw; } catch (e) {} setTimeout(function () { try { if (_bootOwnsNav()) navTo('sample-reviews', false); } catch (e) {} }, 0); return; }
             }
             // <<< SXR_END
             let savedNav = localStorage.getItem(NAV_KEY);
@@ -1505,7 +1510,7 @@
             else if (_prodEnabled()) _setBootLoadingText('Loading Production preview...');
 
             if (!_isClientLink && _prodEnabled()) {
-                setTimeout(function () { try { navTo('production', false); } catch (e) { console.error('[Production] mount failed', e); } }, 0);
+                setTimeout(function () { try { if (_bootOwnsNav()) navTo('production', false); } catch (e) { console.error('[Production] mount failed', e); } }, 0);
                 _prodFirstLoadSettled.then(() => fetchEssentials().then(() => {
                     try { _resumePendingBriefPolling(); } catch (e) {}
                     _applyAllDataDependentChrome();
@@ -1621,7 +1626,7 @@
                     await Promise.resolve();
                     _resumePendingBriefPolling();
                     loadTemplates();
-                    navTo('kasper', false);
+                    if (_bootOwnsNav()) navTo('kasper', false);
                     dataPromise.catch(err => console.warn('[SyncView] background fetchAll failed', err));
                     return;
                 }
@@ -1634,6 +1639,11 @@
                 // Paint immediately; fetchAll fills the global chrome when it lands.
                 _resumePendingBriefPolling();
                 loadTemplates();
+                if (!_bootOwnsNav()) {
+                    // Someone clicked a tab while the landing was deciding.
+                    dataPromise.catch(err => console.warn('[SyncView] background fetchAll failed', err));
+                    return;
+                }
                 if (hashRaw.startsWith('calendar/')) {
                     const rest = hashRaw.slice('calendar/'.length);
                     const sl = rest.indexOf('/');
@@ -1675,7 +1685,10 @@
                     if (seed) _templatesSelected = seed;
                     if (st.templatesTab === 'reels' || st.templatesTab === 'thumbnails') _templatesActiveTab = st.templatesTab;
                     navTo('templates', false);
+                    const _tplEpoch = _syncviewNavEpoch;
                     dataPromise.then(() => {
+                        // Only re-route Templates if nobody has left it since.
+                        if (_syncviewNavEpoch !== _tplEpoch) return;
                         if (wlIsAllowedClient(_templatesSelected)) {
                             const canon = wlCanonicalClient(_templatesSelected);
                             if (canon && canon !== _templatesSelected) { _templatesSelected = canon; navTo('templates', false); }
@@ -1773,6 +1786,8 @@
             // hash is hashRaw from the top of init() — alias kept for the
             // existing routing branches below. The Kasper unlock setup now
             // lives above the skipAwait branch so it runs on every path.
+            // Phase D: a tab clicked while the landing was loading wins.
+            if(!_bootOwnsNav())return;
             const hash = hashRaw;
             if(_kasperArrivedFromUnlockParam && _kasperUnlocked && !hash){
                 // Bare /?Kasper=1 — drop straight into Kasper as a one-step

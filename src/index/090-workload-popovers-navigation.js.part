@@ -2351,6 +2351,7 @@
             _syncviewInvalidClientLinkScreen();
             return;
         }
+        _syncviewNavEpoch++; // Phase D: tell a still-loading boot router that someone has moved on.
         if (page === 'brief') page = 'home';
         // Client intake link locks the whole SPA to the Linear submission flow,
         // so every navigation (back button, restored hash, logo) lands on it.

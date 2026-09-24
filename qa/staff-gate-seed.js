@@ -57,6 +57,7 @@ function staffGateInit(payload) {
 // above; pass the member that suite's mock returns so the two agree.
 async function seedStaffIdentity(target, member, key) {
   const row = member || STAFF_GATE_MEMBER;
+  if (!key || key === STAFF_GATE_KEY) await refuseStubKeyProductionWrite(target);
   await target.addInitScript(payload => {
     try {
       localStorage.setItem('syncview_staff_identity_v1', payload);
@@ -114,9 +115,40 @@ async function dropVerificationAfterBoot(target) {
 // most recently registered route first, so call this BEFORE a specific
 // key-verify mock you want to win, and AFTER any catch-all `route('**/*')`
 // that would otherwise swallow it.
+// The stub key is not a real key, so every production-write call carrying it
+// is refused by the live function with invalid_staff_key, and every refusal is
+// a row in write_refusal_diagnostics.receipts_v1. The ?prod=1 preview reads
+// labels per card, so one headless boot left ~80 rows and CI left ~3,000 a day,
+// burying the refusals real people hit. Answer those calls here with the same
+// refusal the live function gives, so no suite sees a different outcome and the
+// log keeps only real traffic. Only the stub key is matched: any other request
+// falls through to the suite's own mock, or to the network as before.
+function isStubKeyProductionWrite(request) {
+  const headers = request.headers();
+  return request.method() === 'POST' && headers['x-syncview-key'] === STAFF_GATE_KEY;
+}
+
+async function refuseStubKeyProductionWrite(target) {
+  await target.route('**/functions/v1/production-write', route => {
+    const request = route.request();
+    if (!isStubKeyProductionWrite(request)) return route.fallback();
+    return route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      headers: {
+        'access-control-allow-origin': request.headers().origin || '*',
+        'access-control-expose-headers': 'x-write-diagnostic-status',
+        'x-write-diagnostic-status': 'headless-stub'
+      },
+      body: JSON.stringify({ ok: false, error: 'invalid_staff_key' })
+    });
+  });
+}
+
 async function seedStaffGate(target, options) {
   await target.addInitScript(staffGateInit, staffGateIdentityJson());
   if (options && options.dropVerificationAfterBoot) await dropVerificationAfterBoot(target);
+  await refuseStubKeyProductionWrite(target);
   await target.route('**/functions/v1/key-verify', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -124,4 +156,4 @@ async function seedStaffGate(target, options) {
   }));
 }
 
-module.exports = { seedStaffGate, seedStaffIdentity, dropVerificationAfterBoot, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };
+module.exports = { seedStaffGate, refuseStubKeyProductionWrite, isStubKeyProductionWrite, seedStaffIdentity, dropVerificationAfterBoot, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };

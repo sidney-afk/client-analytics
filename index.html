@@ -4265,6 +4265,11 @@
         .tpl-brain-count { opacity: 0.6; font-size: 0.75em; }
         .tpl-brain-empty-note { font-size: 0.84rem; color: var(--text-muted); margin-top: 8px; }
         .tpl-brain-add { margin-top: 12px; }
+        .tpl-folders { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 16px; }
+        @media (max-width: 700px) { .tpl-folders { grid-template-columns: 1fr; } }
+        .tpl-folder-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); text-decoration: none; color: inherit; font-size: 0.86rem; }
+        .tpl-folder-row:hover .tpl-folder-name { text-decoration: underline; }
+        .tpl-folder-meta { color: var(--text-muted); font-size: 0.74rem; white-space: nowrap; }
         .tpl-section-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 14px; }
 
         /* Filming-plans card (view mode top callout, but not yellow) */
@@ -12890,6 +12895,32 @@
             _tplBrain[name] = { state: 'error', facts: [], error: e && e.message || String(e) };
         }).then(() => { if (_templatesSelected === name) _maybeRerenderTemplates(); });
     }
+    // Recent Frame folder / Raw footage links from production batches, via the
+    // same staff-only helper (the page cannot read `batches` itself).
+    const _tplFolders = {};          // client -> { state, frame, raw }
+    function _tplFoldersEnsure(name) {
+        if (_tplFolders[name]) return;
+        _tplFolders[name] = { state: 'loading', frame: [], raw: [] };
+        _tplBrainPost({ action: 'folders', clientName: name }).then(j => {
+            _tplFolders[name] = { state: 'ready', frame: j.frame || [], raw: j.raw || [] };
+        }).catch(() => { _tplFolders[name] = { state: 'error', frame: [], raw: [] }; })
+          .then(() => { if (_templatesSelected === name) _maybeRerenderTemplates(); });
+    }
+    function _tplFolderHost(u) {
+        try { const h = new URL(u).hostname.replace(/^www\./, ''); return /dropbox/.test(h) ? 'Dropbox' : /frame\.io/.test(h) ? 'Frame.io' : /google/.test(h) ? 'Google Drive' : h; } catch (e) { return ''; }
+    }
+    function _tplFolderDate(at) {
+        const d = new Date(at); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    function _tplRecentFolders(name) {
+        _tplFoldersEnsure(name);
+        const f = _tplFolders[name];
+        if (!f || f.state !== 'ready' || (!f.frame.length && !f.raw.length)) return '';
+        const col = (label, items) => `<div class="tpl-folders-col"><div class="tpl-view-label">${label}</div>${items.length
+            ? items.map(i => `<a class="tpl-folder-row" href="${_tplEscAttr(i.url)}" target="_blank" rel="noopener"><span class="tpl-folder-name">${_tplEsc(i.name || 'Untitled batch')}</span><span class="tpl-folder-meta">${_tplEsc([_tplFolderHost(i.url), _tplFolderDate(i.at)].filter(Boolean).join(' · '))}</span></a>`).join('')
+            : '<div class="tpl-view-empty">None yet</div>'}</div>`;
+        return `<div class="tpl-folders">${col('Frame folders', f.frame)}${col('Raw footage', f.raw)}</div>`;
+    }
     function tplBrainRetry() { if (_templatesSelected) { _tplBrainEnsure(_templatesSelected, true); _maybeRerenderTemplates(); } }
     function tplBrainSetTab(tab) { _tplBrainTab = tab; _maybeRerenderTemplates(); }
 
@@ -13086,6 +13117,7 @@
                     ${_tplRenderLinksView(name, 'thumbnails_photos_link', 'Client photos', 'Open photos')}
                     ${_tplRenderLinksView(name, 'thumbnails_canva_link', 'Editable Canva', 'Open Canva')}
                 </div>
+                ${_tplRecentFolders(name)}
               </div>`;
 
         // Filming plans block (rendered at the BOTTOM, after the active tab's sections).

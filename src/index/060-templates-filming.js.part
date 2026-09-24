@@ -977,6 +977,32 @@
             _tplBrain[name] = { state: 'error', facts: [], error: e && e.message || String(e) };
         }).then(() => { if (_templatesSelected === name) _maybeRerenderTemplates(); });
     }
+    // Recent Frame folder / Raw footage links from production batches, via the
+    // same staff-only helper (the page cannot read `batches` itself).
+    const _tplFolders = {};          // client -> { state, frame, raw }
+    function _tplFoldersEnsure(name) {
+        if (_tplFolders[name]) return;
+        _tplFolders[name] = { state: 'loading', frame: [], raw: [] };
+        _tplBrainPost({ action: 'folders', clientName: name }).then(j => {
+            _tplFolders[name] = { state: 'ready', frame: j.frame || [], raw: j.raw || [] };
+        }).catch(() => { _tplFolders[name] = { state: 'error', frame: [], raw: [] }; })
+          .then(() => { if (_templatesSelected === name) _maybeRerenderTemplates(); });
+    }
+    function _tplFolderHost(u) {
+        try { const h = new URL(u).hostname.replace(/^www\./, ''); return /dropbox/.test(h) ? 'Dropbox' : /frame\.io/.test(h) ? 'Frame.io' : /google/.test(h) ? 'Google Drive' : h; } catch (e) { return ''; }
+    }
+    function _tplFolderDate(at) {
+        const d = new Date(at); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    function _tplRecentFolders(name) {
+        _tplFoldersEnsure(name);
+        const f = _tplFolders[name];
+        if (!f || f.state !== 'ready' || (!f.frame.length && !f.raw.length)) return '';
+        const col = (label, items) => `<div class="tpl-folders-col"><div class="tpl-view-label">${label}</div>${items.length
+            ? items.map(i => `<a class="tpl-folder-row" href="${_tplEscAttr(i.url)}" target="_blank" rel="noopener"><span class="tpl-folder-name">${_tplEsc(i.name || 'Untitled batch')}</span><span class="tpl-folder-meta">${_tplEsc([_tplFolderHost(i.url), _tplFolderDate(i.at)].filter(Boolean).join(' · '))}</span></a>`).join('')
+            : '<div class="tpl-view-empty">None yet</div>'}</div>`;
+        return `<div class="tpl-folders">${col('Frame folders', f.frame)}${col('Raw footage', f.raw)}</div>`;
+    }
     function tplBrainRetry() { if (_templatesSelected) { _tplBrainEnsure(_templatesSelected, true); _maybeRerenderTemplates(); } }
     function tplBrainSetTab(tab) { _tplBrainTab = tab; _maybeRerenderTemplates(); }
 
@@ -1173,6 +1199,7 @@
                     ${_tplRenderLinksView(name, 'thumbnails_photos_link', 'Client photos', 'Open photos')}
                     ${_tplRenderLinksView(name, 'thumbnails_canva_link', 'Editable Canva', 'Open Canva')}
                 </div>
+                ${_tplRecentFolders(name)}
               </div>`;
 
         // Filming plans block (rendered at the BOTTOM, after the active tab's sections).

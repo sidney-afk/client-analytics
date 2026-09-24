@@ -10,7 +10,11 @@
 // inputs/syncview-changes/ (brain rule 5); a brain-side workflow processes it
 // into facts. This function never edits a fact file.
 //
-// Both actions require a SyncView staff key (client review tokens are refused:
+// A third action, "folders", lists the client's recent Frame folder and Raw
+// footage links from production batches (the page cannot read `batches`
+// directly). It reads only those columns, newest first.
+//
+// All actions require a SyncView staff key (client review tokens are refused:
 // the brain is staff-only).
 //
 // Required env:
@@ -20,7 +24,7 @@
 //   BRAIN_REPO   default "sidney-afk/synchro-brain"
 //   BRAIN_BRANCH default "main"
 
-import { createClient } from "npm:@supabase/supabase-js@2.49.8";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import {
   authorizeBrowserWrite,
   browserWriteAuthResponse,
@@ -149,11 +153,32 @@ async function recordChange(slug: string, body: Record<string, unknown>, princip
   return json({ ok: true, received: now.toISOString(), path });
 }
 
+async function recentFolders(db: SupabaseClient, slug: string) {
+  const { data, error } = await db
+    .from("batches")
+    .select("name,created_at,footage_folder_url,delivery_folder_url")
+    .eq("client_slug", slug)
+    .order("created_at", { ascending: false })
+    .limit(60);
+  if (error) throw error;
+  const frame: Array<{ url: string; name: string; at: string }> = [];
+  const raw: Array<{ url: string; name: string; at: string }> = [];
+  const seen = new Set<string>();
+  for (const b of (data || []) as Array<Record<string, string | null>>) {
+    for (const [list, url] of [[frame, b.delivery_folder_url], [raw, b.footage_folder_url]] as const) {
+      const u = String(url || "").trim();
+      if (!/^https?:\/\//i.test(u) || seen.has(u) || list.length >= 8) continue;
+      seen.add(u);
+      list.push({ url: u, name: String(b.name || ""), at: String(b.created_at || "") });
+    }
+  }
+  return { ok: true, frame, raw };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
   try {
-    if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return json({ ok: false, error: "brain_not_configured" }, 503);
     const body = await req.json().catch(() => ({})) as Record<string, unknown>;
     const slug = normalizeBrowserWriteClient(body.clientName);
     if (!slug) return json({ ok: false, error: "clientName required" }, 400);
@@ -164,6 +189,8 @@ Deno.serve(async (req) => {
     });
     const principal = await authorizeBrowserWrite(db, req, slug, "brain");
 
+    if (body.action === "folders") return json(await recentFolders(db, slug));
+    if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return json({ ok: false, error: "brain_not_configured" }, 503);
     if (body.action === "read") return json(await readClient(slug));
     if (body.action === "change") return await recordChange(slug, body, principal);
     return json({ ok: false, error: "unknown_action" }, 400);

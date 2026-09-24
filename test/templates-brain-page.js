@@ -14,6 +14,7 @@ const checks = [
   ['a sent change can be followed by another', INDEX.includes('function tplBrainAnother(key)')],
   ['unreachable brain falls back to last SyncView values', INDEX.includes('${_tplBrainFallback(name)}')],
   ['working links list recent Frame folders and Raw footage from batches', INDEX.includes("action: 'folders'") && INDEX.includes('${_tplRecentFolders(name)}')],
+  ['a failed folders load says so and can be retried', INDEX.includes('function tplFoldersRetry()') && INDEX.includes("Couldn't load recent folders.")],
 ];
 let fail = 0;
 for (const [name, ok] of checks) { console.log((ok ? '  ok  ' : 'FAIL  ') + name); if (!ok) fail++; }

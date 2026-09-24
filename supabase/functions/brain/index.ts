@@ -154,23 +154,31 @@ async function recordChange(slug: string, body: Record<string, unknown>, princip
 }
 
 async function recentFolders(db: SupabaseClient, slug: string) {
-  const { data, error } = await db
-    .from("batches")
-    .select("name,created_at,footage_folder_url,delivery_folder_url")
-    .eq("client_slug", slug)
-    .order("created_at", { ascending: false })
-    .limit(60);
-  if (error) throw error;
+  // Walk the client's batches newest first, a page at a time, until both
+  // lists hold 8 unique links or history runs out. Each list de-duplicates
+  // on its own, so one folder used for both kinds shows in both.
   const frame: Array<{ url: string; name: string; at: string }> = [];
   const raw: Array<{ url: string; name: string; at: string }> = [];
-  const seen = new Set<string>();
-  for (const b of (data || []) as Array<Record<string, string | null>>) {
-    for (const [list, url] of [[frame, b.delivery_folder_url], [raw, b.footage_folder_url]] as const) {
-      const u = String(url || "").trim();
-      if (!/^https?:\/\//i.test(u) || seen.has(u) || list.length >= 8) continue;
-      seen.add(u);
-      list.push({ url: u, name: String(b.name || ""), at: String(b.created_at || "") });
+  const seen = { frame: new Set<string>(), raw: new Set<string>() };
+  const PAGE = 100;
+  for (let from = 0; from < 2000 && (frame.length < 8 || raw.length < 8); from += PAGE) {
+    const { data, error } = await db
+      .from("batches")
+      .select("name,created_at,footage_folder_url,delivery_folder_url")
+      .eq("client_slug", slug)
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    const rows = (data || []) as Array<Record<string, string | null>>;
+    for (const b of rows) {
+      for (const [kind, list, url] of [["frame", frame, b.delivery_folder_url], ["raw", raw, b.footage_folder_url]] as const) {
+        const u = String(url || "").trim();
+        if (!/^https?:\/\//i.test(u) || seen[kind].has(u) || list.length >= 8) continue;
+        seen[kind].add(u);
+        list.push({ url: u, name: String(b.name || ""), at: String(b.created_at || "") });
+      }
     }
+    if (rows.length < PAGE) break;
   }
   return { ok: true, frame, raw };
 }

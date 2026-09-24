@@ -44,6 +44,7 @@
 | How surface X behaves in `index.html` | `docs/truth/APP.md`, then `docs/independence/SYSTEM_MAP.md` §4 for the full surface catalog |
 | Feature X's contract/spec | `docs/features/<FEATURE>.md` (each carries a status header — believe it) |
 | Operational runbooks (new client, monitoring, flip, backups) | `docs/ops/` — new-client setup is `docs/ops/NEW_CLIENT_ONBOARDING.md` |
+| Should this repo go private, and what would it cost? | `docs/ops/REPO_PRIVATE_COST_STUDY_2026-09-24.md` (decision: stays public; private deferred to SyncView v2) |
 | "Share with client" fails / a client link is missing, invalid, or needs re-issuing | `docs/ops/NEW_CLIENT_ONBOARDING.md` §6k (how the review token is provisioned and how to verify it; rotation stays owner-gated behind full re-issue — `ROLLBACK.md` F35) |
 | How is the installed F27 safety net operated or source-exactly recovered? | Per-team incident: `docs/ops/FLIP_RUNBOOK.md` §R2. Executed install and defective-release recovery: `docs/ops/F27_INSTALL_RUNBOOK.md` + generated `docs/ops/F27_INSTALL_CHECKLIST.md`. F27 was installed and final-verified 2026-08-02; the 2026-08-01 failed attempt and Section 7 recovery remain in `EXECUTION_LOG.md`. |
 | The n8n→EF / Linear-replacement programs | `docs/independence/INDEPENDENCE_PLAN.md` (entry), specs beside it |

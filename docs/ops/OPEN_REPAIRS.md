@@ -28851,3 +28851,27 @@ The Templates page loaded the n8n `templates-get` sheet as a base and laid Supab
 ## 251. [2026-09-24, BUILT, needs one secret and one deploy] Templates page reads client facts from the Synchro Brain
 
 The Templates page now shows each client's brain facts through one generic card (heading, text, status, owner, source), pins facts carrying a `spec:` line as a Quick look strip, keeps only the working links editable in SyncView, and offers "Send a change" on every fact. The new `brain` Edge Function is the only thing that touches the private brain repo: staff key only, reads just the four client files, and writes a change word for word as a new file under the brain's syncview-changes inputs folder; it never edits a fact. Until the function is deployed with its `BRAIN_GITHUB_TOKEN` secret the page says it could not reach the brain and shows the last values saved in SyncView read-only, so nothing disappears for editors. Go-live: add the secret in Supabase, then deploy `brain` from the one-function lane.
+
+## 252. [2026-09-24, DONE] Dead backend cleanup after the feature-usage audit
+
+Follow-up to `docs/audits/2026-09-24-feature-usage.md` and the owner's decisions (sessions Pruner and Lighthouse). Before archiving, each workflow was checked: no call in `main`'s `index.html` or on the live site, and no real user traffic.
+
+**Archived in n8n: 12 workflows**, the 11 dead SyncView workflows plus COMPETITOR RESEARCH. The n8n connector has no delete action, so they are archived. Archived workflows stop running.
+- TikTok Pilot (8): Status Cron, Submit, Creator Info, Auth Callback, Accounts List, List, Auth Init, Token Refresh
+- Samples (3): Upsert, Reorder, Get
+- COMPETITOR RESEARCH (1, archive only, as asked). MARKET RESEARCH stays on, because it also feeds the Analytics content summary.
+
+**Why the last 5 were held, then archived.** They still showed runs. Their callers were traced from n8n's saved request details, and none was real use:
+- An automated GitHub link fetcher (generic user agent, cloud addresses), which read the workflow addresses from commit or PR text (Sept 21 and 24).
+- A headless test browser on the SyncView site (Sept 24).
+- One real Windows browser on the SyncView site (Sept 23), most likely the owner opening the old pilot tab before its removal went live.
+
+A browser check of the live TikTok Upload tab on the test client showed it calls only `tiktok-uploads-list`, never a pilot workflow. Token Refresh was a timer and only kept the pilot's token fresh.
+
+**Do not delete them for good yet.** ROLLBACK.md rule 2 requires a private JSON export before touching a workflow, and none was taken. The connector cannot read archived workflows. To restore one: open the n8n Archived view, then Unarchive, which keeps the version history. Before any permanent delete: unarchive, export privately to the SyncView Backups Drive folder, archive again, and commit a public-safe stub to `n8n-backups/`. Receipts are in `EXECUTION_LOG.md` (2026-09-24).
+
+**Tables: no migration needed.** The drop migration proposed in #1598 was withdrawn. Lighthouse verified instead:
+- `tiktok_accounts`, `tiktok_oauth_state` and `tiktok_pilot_posts` are locked: row security is on and no browser role has grants.
+- Lighthouse locked `content_samples` on 2026-09-24. It dropped the anon read policy and revoked public, anon and authenticated. `service_role` still reads it for the weekly backup and the Linear-exit recovery capture, both of which still list it.
+
+**Security note: TikTok tokens in n8n run history.** n8n saves each run's full node data. The saved runs of "TikTok Pilot — Accounts List" therefore hold the test account's real TikTok access and refresh tokens, from its "Fetch Accounts" step. The workflow strips them before replying, but they stay in the saved records. Archiving stops new copies. Still open: clear those saved runs, or revoke the app's access for that TikTok account. The refresh token is valid until 2027-06.

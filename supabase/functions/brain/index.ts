@@ -1,6 +1,6 @@
 // Supabase Edge Function: brain
 //
-// Reads one client's facts from the private Synchro Brain repository for the
+// Reads one client's editor brief and facts from the private Synchro Brain repository for the
 // SyncView Templates page, and records a "Send a change" submission there.
 //
 // The public site never sees the brain token. Reads return only the four
@@ -30,7 +30,7 @@ import {
   browserWriteAuthResponse,
   normalizeBrowserWriteClient,
 } from "../_shared/browser-write-auth.ts";
-import { findClientFolder, parseBrainFacts } from "./parse.mjs";
+import { findClientFolder, parseBrainFacts, parseBrief } from "./parse.mjs";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -93,9 +93,13 @@ async function readClient(slug: string) {
     cache.set(slug, { at: Date.now(), body });
     return body;
   }
-  const texts = await Promise.all(FILES.map((f) => readFile(folder, f)));
+  const [texts, briefText] = await Promise.all([
+    Promise.all(FILES.map((f) => readFile(folder, f))),
+    readFile(folder, "brief"),
+  ]);
   const facts = FILES.flatMap((f, i) => texts[i] == null ? [] : parseBrainFacts(texts[i] as string, f));
-  const body = { ok: true, found: true, folder, facts, read_at: new Date().toISOString() };
+  const brief = briefText == null ? [] : parseBrief(briefText);
+  const body = { ok: true, found: true, folder, facts, brief, read_at: new Date().toISOString() };
   cache.set(slug, { at: Date.now(), body });
   return body;
 }

@@ -1,3 +1,17 @@
+import {
+  renderWorkloadAll, wlApplyData, wlClearBackgroundRefreshFailure, wlDueWriteRoute, wlEscape,
+  wlMarkBackgroundRefreshFailure, wlRefetchSilent
+} from './080-workload-render.js';
+import { wlClosePopover } from './090-workload-popovers-navigation.js';
+import {
+  CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, WORKLOAD_LINEAR_URL, WORKLOAD_PLAN_URL,
+  _syncviewRequireStaffIdentity, _syncviewStaffCan, _syncviewStaffIdentityClear,
+  _syncviewStaffIdentityForHeaders
+} from './100-onboarding-staff-controls.js';
+import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
+import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
+import { _calV2LoadLib } from './150-calendar-hydration-import.js';
+import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } from './210-production-state-writes.js';
     /* ── Workload Calendar ── */
     const LINEAR_ISSUES_WEBHOOK        = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issues';
     /* The warm-start copy of the board. v1 stored every row (6,700+, ~4.9M
@@ -3567,3 +3581,28 @@
             <div id="wlPopover" class="workload-popover" role="dialog" aria-hidden="true"></div>
         </div>`;
     }
+export {
+  WL_CLIENT_CANONICAL, WL_CLIENT_NAMES, WL_DEADLINE_PREF_KEY, WL_LINEAR_WRITE_TIMEOUT_MS,
+  WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS, WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY,
+  WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA, WL_PLAN_READ_TIMEOUT_MS, WL_PLAN_WRITE_TIMEOUT_MS,
+  WL_VIEW_PREF_KEY, _wlBackgroundRefreshMode, _wlBackgroundRefreshPromise, _wlDueWriteInFlight,
+  _wlNativeDiffEnabled, _wlNativeDueReceiptGeneration, _wlNativeDueReceiptRetryAttempt,
+  _wlNativeDueReceiptRetryPromise, _wlNativeDueReceiptRetryTimer,
+  _wlPendingNativeDueReceiptByTarget, _wlPlanLastWriteGeneration, _wlPlanLoadGeneration,
+  _wlPlanSessionGeneration, _wlPlanWriteGeneration, _wlPlanWriteInFlight, _wlV2CheckWatermark,
+  _wlV2EnsureSubscribed, _wlV2EnsureWatermarkPoll, _wlV2FetchIssues, _wlV2FetchLatestWatermark,
+  _wlV2Ready, _wlV2Teardown, getClientRoster, renderWorkloadShell, wlAddDays, wlAddWorkingDays,
+  wlAdoptLinearMetadata, wlAdoptPlanRows, wlApplySettleAnimation, wlAutoPlacementTip,
+  wlBackgroundBusinessFingerprint, wlBucketByDisplayDate, wlCachedBoardUsable, wlCachedRoster,
+  wlCalendarDayDiff, wlCanonicalClient, wlCompareClientGroups, wlComputeAutoPlacements,
+  wlDayOverCapacity, wlDeadlineDotHtml, wlDeadlineMeta, wlDeadlineTagHtml, wlDisplayDate,
+  wlDisplayName, wlEditorCapacity, wlFetchLinearMetadata, wlFetchPlanRows, wlFormatShort,
+  wlGroupDeadlineHtml, wlGroupDeadlineSummary, wlGroupDragHandleHtml, wlGroupPlanOriginHtml,
+  wlGroupWorkloadHtml, wlISO, wlInitials, wlIsActiveStatus, wlIsAllowedClient, wlIsInProgress,
+  wlIsToDo, wlIsTweaksNeeded, wlIsWeekend, wlIssueClientAllowed, wlIssueDragHandleHtml,
+  wlIssueEditorAllowed, wlLinearEditingEnabled, wlLoadSnapshot, wlMarkLinearMetadataFailure,
+  wlMergeClientsFromSheet, wlMetadataTeamBucket, wlNativeDueDate, wlNormalizeClient, wlParseISO,
+  wlPlacementMode, wlPlanDate, wlPlanEditingEnabled, wlPlanOriginHtml, wlPurgePlanSensitiveState,
+  wlReadCache, wlSnapshotIdentity, wlState, wlTeamBucket, wlTodayISO, wlValidRfc3339Timestamp,
+  wlWeekMondayISO, wlWorkloadBadgeHtml, wlWorkloadTodayISO, wlWorkloadUnits, wlWorkloadWeight
+};

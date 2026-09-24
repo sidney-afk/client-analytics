@@ -1,3 +1,11 @@
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
+import { _writeUiQueueDiagnostic } from './120-calendar-flags-write-repair.js';
+import { calClientSlug, calState } from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { _calIsBlankId } from './160-calendar-organize-ui.js';
+import { _prodCanWrite, _prodIssue, _prodToast } from './220-production-attribution-views.js';
+import { _prodGatewayWrite, _prodWriteErrorText } from './230-production-create-comments.js';
+import { _isClientLink, _prodRender } from './260-production-refresh-boot.js';
     /* ── Title name rule (browser copy) ──────────────────────────────────
        The one rule for splitting and renaming sub-issue titles
        (`[Sample ]Video|Thumbnail N[ — name]`). The source is
@@ -332,3 +340,4 @@
         _prodTitlePaint(key);
     }
 
+export { _calNameSyncAfterSave, _calNameSyncScheduleRefresh, _calNameSyncSlotHtml, _prodDetailTitleHtml };

@@ -285,7 +285,8 @@ assert(!/localStorage|sessionStorage/.test(reviewLinkHelper));
 assert(reviewLinkHeaders.includes("out['X-Syncview-Key'] = identity.key"));
 assert(reviewLinkHeaders.includes("out['X-Syncview-Actor'] = identity.member.name"));
 assert(reviewLinkHeaders.includes("out['X-Syncview-Role'] = identity.role"));
-for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sxrCopyShareLink']) {
+// smCopyShareLink went with the Samples Old page (removed 2026-09-24).
+for (const name of ['copyShareLink', 'calCopyShareLink', '_sxrCopyShareLink']) {
   assert(extract(name).includes('await _syncviewIssueClientShareUrl'), name + ' must fetch the client review token at copy time');
 }
 

@@ -56,15 +56,8 @@ check('_sxrSetCardStatus no longer writes the transient Saving…/Saved TEXT',
 check('SXR keeps its Save-failed·Retry foot affordance', INDEX.includes('_sxrRetrySave') && INDEX.includes('Save failed · Retry'));
 
 // ── Samples Old (sm) ─────────────────────────────────────────────────────────
-check('sm card foot renders the indicator instead of the old text span',
-  INDEX.includes('${_svSaveIndHtml(id)}') && !INDEX.includes('<span class="sm-card-saving" data-saving="${id}" hidden></span>'));
-const smStatus = grabFunc('_smSetSaving');
-check('_smSetSaving drives the reusable indicator by data-sv-save-ind',
-  /_svSaveIndApply\(el, 'saving'\)/.test(smStatus) && /data-sv-save-ind=/.test(smStatus));
-check('_smSetSaving maps its local fallback to saved + a "Saved on device" tooltip',
-  /_svSaveIndApply\(el, 'saved', 'Saved on device/.test(smStatus));
-check('_smSetSaving no longer writes the Saving…/Saved TEXT',
-  !/textContent = 'Saving…'/.test(smStatus) && !/textContent = 'Saved'/.test(smStatus));
+// The Samples Old page and its _smSetSaving were removed 2026-09-24; its save
+// indicator went with it. Nothing left to check here.
 
 // ── Templates ────────────────────────────────────────────────────────────────
 check('templates client header renders the indicator', INDEX.includes("_svSaveIndHtml('templates')"));

@@ -35,8 +35,9 @@ Calendar:
 - `webhook/calendar-get`, `webhook/calendar-upsert-post`, `webhook/calendar-append-post`,
   `webhook/calendar-delete-post`, `webhook/calendar-reorder`, `webhook/calendar-reorder-batch`
 
-Samples (legacy) and sample reviews (SXR):
-- `webhook/samples-get`, `webhook/samples-upsert`, `webhook/samples-reorder`
+Sample reviews (SXR). **Corrected 2026-09-24:** the legacy Samples page was removed; its three
+`samples-*` webhooks (get, upsert, reorder) and its `content_samples` REST read are no longer called
+(old `#samples` links redirect to Sample reviews). The n8n workflows and the table still exist.
 - `webhook/sample-review-get`, `webhook/sample-review-upsert`, `webhook/sample-review-reorder`
 
 Linear bridge:
@@ -425,7 +426,7 @@ by hand; verify before relying on it.
 > rows and internal email/Slack/Linear/project mappings.
 
 - String-literal in `index.html`: `syncview_runtime_flags` (kill switches), `calendar_posts`,
-  `workload_issues` (read-only Linear mirror), `templates`, `content_samples`, `caption_prompts`.
+  `workload_issues` (read-only Linear mirror), `templates`, `caption_prompts`.
 - Via dynamic refs: `sample_reviews` (through `SXR_TABLE`), and the visible Linear mirror's
   internal `production` boot reads
   `clients`, `team_members`, `batches`, `deliverables` (plus `deliverable_events`) through a

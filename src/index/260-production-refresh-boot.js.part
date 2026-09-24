@@ -1644,13 +1644,7 @@
                     }
                     navTo('calendar', false);
                 } else if (hashRaw.startsWith('samples/')) {
-                    const rest = hashRaw.slice('samples/'.length);
-                    const sl = rest.indexOf('/');
-                    const slug = sl >= 0 ? rest.slice(0, sl) : rest;
-                    const cardId = sl >= 0 ? decodeURIComponent(rest.slice(sl+1)) : '';
-                    const match = WL_CLIENT_NAMES.find(n => wlNormalizeClient(n) === slug);
-                    if (match) _smFocusRequest = { client: match, cardId: cardId || null };
-                    navTo('samples', false);
+                    navTo('samples', false); // retired Samples Old link: navTo sends it to Sample reviews
                 } else if (hashRaw.startsWith('templates/')) {
                     // Open straight to the deep-linked client so a refresh doesn't
                     // flash the templates index first, and restore the exact tab.
@@ -1816,15 +1810,7 @@
                 if(match){_calSetFocusRequest({client:match,cardId:cardId||null});navTo('calendar',false);return;}
                 navTo('calendar',false);return;
             }
-            if(hash.startsWith('samples/')){
-                const rest=hash.slice('samples/'.length);
-                const sl=rest.indexOf('/');
-                const slug=sl>=0?rest.slice(0,sl):rest;
-                const cardId=sl>=0?decodeURIComponent(rest.slice(sl+1)):'';
-                const match=WL_CLIENT_NAMES.find(n=>wlNormalizeClient(n)===slug);
-                if(match){_smFocusRequest={client:match,cardId:cardId||null};}
-                navTo('samples',false);return;
-            }
+            if(hash.startsWith('samples/')){navTo('samples',false);return;} // retired Samples Old link -> Sample reviews
             if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(wlIsAllowedClient(tn)){_templatesSelected=wlCanonicalClient(tn);navTo('templates',false);return;}}
             if(hash&&wlIsAllowedClient(hash)){render(wlCanonicalClient(hash),false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
@@ -1962,7 +1948,6 @@
         try { if (typeof _calV2Teardown === 'function') _calV2Teardown(); } catch (e) {}
         try { if (typeof _sxrAbortActiveLoad === 'function') _sxrAbortActiveLoad(); } catch (e) {}
         try { if (typeof _sxrV2Teardown === 'function') _sxrV2Teardown(); } catch (e) {}
-        try { if (typeof _smV2Teardown === 'function') _smV2Teardown(); } catch (e) {}
         try { if (growthChart) { growthChart.destroy(); growthChart = null; } } catch (e) {}
         try { if (viewsChart) { viewsChart.destroy(); viewsChart = null; } } catch (e) {}
         try {
@@ -1985,10 +1970,6 @@
             sxrState.client = null; sxrState.posts = []; sxrState.loading = false; sxrState.error = null;
             sxrState.embedded = false; sxrState.previewId = null; sxrState.focusCard = null;
         } catch (e) {}
-        try {
-            smState.client = null; smState.samples = []; smState.loading = false; smState.error = null;
-            smState.embedded = false; smState.focusCard = null; _smFocusRequest = null;
-        } catch (e) {}
         document.body.classList.remove('cal-page', 'sm-modal-open', 'cal-modal-open');
     }
     function _syncviewClientEntrySlugHint() {
@@ -2005,7 +1986,8 @@
         if (!slug) return;
         try { localStorage.removeItem(CAL_CACHE_KEY_PREFIX + slug); } catch (e) {}
         try { localStorage.removeItem(SXR_CACHE_PREFIX + slug); } catch (e) {}
-        try { localStorage.removeItem(SM_CACHE_PREFIX + slug); } catch (e) {}
+        // Retired Samples Old cache (the page was removed 2026-09-24); browsers may still hold one.
+        try { localStorage.removeItem('syncview_samplesCache_v1:' + slug); } catch (e) {}
     }
     function _syncviewFlushClientEntryPending() {
         try { if (typeof _calFlushAllPending === 'function') _calFlushAllPending(); } catch (e) {}

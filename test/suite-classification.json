@@ -557,6 +557,7 @@
     "workload-native-membership.js",
     "workload-snapshot-warm.js",
     "workload-board-snapshot.js",
+    "workload-board-builder-files.js",
     "workload-native-provider-closure.js",
     "workload-native-realtime.js",
     "workload-native-roster.js",

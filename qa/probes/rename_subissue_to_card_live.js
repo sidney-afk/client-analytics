@@ -22,7 +22,9 @@ async function renameIn(browser, id, name) {
   const REAL = String(process.env.SYNCVIEW_ROLE_KEY || process.env.SYNCVIEW_STAFF_KEY || '').trim();
   await p.context().route(u => u.toString().startsWith(SUPA + '/functions/v1/'), r => {
     const h = r.request().headers();
-    return h['x-syncview-key'] && h['x-syncview-key'] !== REAL ? r.fallback({ headers: Object.assign({}, h, { 'x-syncview-key': REAL }) }) : r.fallback();
+    const ACTOR = String(process.env.SYNCVIEW_ACTOR || '').trim();
+    if (!h['x-syncview-key']) return r.fallback();
+    return r.fallback({ headers: Object.assign({}, h, { 'x-syncview-key': REAL }, ACTOR ? { 'x-syncview-actor': ACTOR } : {}) });
   });
   await p.goto(H.ORIGIN + '/index.html?prod=1#production', { waitUntil: 'domcontentloaded' });
   p.on('response', r => { if (/functions\/v1\//.test(r.url()) && r.request().method()==='POST') console.log('   fn', r.url().split('/v1/')[1].split('?')[0], r.status()); });

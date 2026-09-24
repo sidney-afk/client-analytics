@@ -142,6 +142,12 @@ still owner-gated, and it is the half that matters most.
 
 ## Run history
 
+### Run 2026-09-24 (Atlas, with role key) — sub-issue-to-card rename, Kasper Samples, Workload saves; TEST client only
+- **Sub-issue-to-card rename: PROVEN LIVE.** `qa/probes/rename_subissue_to_card_live.js` 5/5: the real SyncLinear title edit on a TEST video sub-issue saved ("Renamed. The card will follow."), the card name and the sibling graphic sub-issue both followed, and all three were restored to their exact originals. The earlier 401/403 was the harness, not the app: `production-write` needs the real key AND the real `x-syncview-actor`; the probe now sends both.
+- **Workload saves: not provable on the TEST client by design.** The board shows only rows whose client is active (`wlIssueClientAllowed` → `nativeClientActive`); with the live key the board held 289 rows and none for the TEST client. Proving set/clear would need a real client's row, which the mandate excludes. Owner one-liner: allow a TEST-only Workload fixture (make the TEST client board-visible), or accept the mocked `qa/workload-native` lanes as the proof.
+- **Kasper Samples half: not provable yet.** The TEST client has 3 Samples, all blank and none linked to a native deliverable, so no Kasper approve/request can land (`native_link_required`). Needs a native-linked TEST sample created through the normal intake path first.
+- **Confirmed findings: none.**
+
 ### Run 2026-09-24 (Atlas, follow-up) — mandate: sub-issue-to-card rename live, Kasper Samples half, Workload saves, market research; TEST client only
 - **Sub-issue-to-card rename: BLOCKED on credentials, not proven.** New probe `qa/probes/rename_subissue_to_card_live.js` drives the real SyncLinear title edit on a TEST card with two native sub-issues. `production-write` answers 401 to the harness stub key and 403 to the repo `SYNCVIEW_STAFF_KEY`; the page shows "This write is not allowed for the selected issue." (refusal visible, nothing changed, restore verified). Needs an editor/admin role key in the runner (`SYNCVIEW_ROLE_KEY`).
 - **Kasper Samples half: not proven.** `sxr_kasper_audit_holes` and `sxr_gating_flags` are red on the Kasper approve/request steps, and both are documented in-file as expected red until migrated to the native write lane (OPEN_REPAIRS 175). A live drill goes through the same role-gated writer as above.

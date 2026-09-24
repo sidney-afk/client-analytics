@@ -148,9 +148,12 @@ ok(drainSites.length === 0,
 ok((INDEX.match(/if \(it && it\.transport === 'legacy_n8n'\) continue;/g) || []).length === 2,
   'both drains drop the retired transport outright instead, calendar and samples');
 
-const rebuild = INDEX.split('\n').filter(l => /\.filter\(row => _writeUiRerouteUseGateway\(/.test(l));
+// The Submit dropdown keeps the FACTUAL predicate for a usable roster, and
+// only when the roster read failed or landed unusable does it list every
+// native client -- the same set the fail-closed router would send natively.
+const rebuild = INDEX.split('\n').filter(l => /\.filter\(row => failNative \|\| _writeUiRerouteUseGateway\(/.test(l));
 ok(rebuild.length === 1 && !/FailClosed/.test(rebuild[0]),
-  'the project-source enrollment filter also keeps the factual predicate — it describes enrollment, not routing');
+  'the project-source enrollment filter keeps the factual predicate, overridden only by the explicit failed-roster fallback');
 
 /* ---- 4. The stale comment is gone --------------------------------------- */
 

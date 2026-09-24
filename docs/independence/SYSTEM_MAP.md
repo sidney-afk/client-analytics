@@ -299,19 +299,20 @@ n8n in the metric read path.*
 - **State.** `syncview_analyticsCache_v1` (7-day stale-while-revalidate snapshot of all six CSVs +
   a djb2 fingerprint for skip-repaint), `syncview_viewMode`, `syncview_gainPeriod`,
   `syncview_savedHooks`, `syncview_tabSummaryCache_v2` / `syncview_tabSummaryBriefIds_v1`,
-  `syncview_generalBriefState_v5`, `syncview_pendingBriefs_v1` (in-flight generations, polling
-  resumes across reloads), `syncview_contentSummaryState_v1`, `syncview_submittedMRKeywords_v1`,
+  `syncview_contentSummaryState_v1`, `syncview_submittedMRKeywords_v1` (read-only since
+  2026-09-24: it only relabels the keywords of an existing Keywords brief),
   `syncview_recent_searches`, `syncview_pinned_clients`. `syncview_gainMode` is **dead state**
   (written, never read). No REST tables, no kill switches, no realtime.
-- **Roles.** Team: full overview + brief-generation panels + share/Slack buttons. Client link:
-  `clientOnly` render, generation UIs replaced with "Check back soon", Brief tab only if data already
-  exists. The public roster has no token column; real tokens are protected. The verifier path is
-  still permissive/cached under failure and revocation as scoped in F38, so sheet absence is not an
+- **Roles.** Team: full overview + share/Slack buttons. Client link:
+  `clientOnly` render, Brief tab only if data already exists. Since 2026-09-24 nobody can start a
+  brief from the app: with no brief on file, staff see "No … brief on file" and client links keep
+  "Check back soon". `syncview_generalBriefState_v5` and `syncview_pendingBriefs_v1` are no longer
+  written or read (the client-entry purge still removes the first as legacy cleanup).
+  The public roster has no token column; real tokens are protected. The verifier path is still permissive/cached under failure and revocation as scoped in F38, so sheet absence is not an
   authorization mechanism.
 - **Failure/fallback.** Awaited home path with no cache → full error card. After a cache paint,
   fetch failure is `console.warn` only (stale data stays). `ContentSummaries` fetch is
-  `.catch(()=>null)`. Brief POST errors keep polling (pending state persisted *before* the POST);
-  polling times out at 40 min (MR) / 15 min (competitor) → timeout card. `generate-tab-summary`
+  `.catch(()=>null)`. `generate-tab-summary`
   errors render **nothing** (silent). Chart.js CDN miss retries 40× then charts silently absent.
   F124 is now partial rather than wholly open. CLIENTS METRICS scheduled execution `287059` consumed
   all 29 roster clients, emitted 29 unique typed terminal receipts, completed 29 writes with

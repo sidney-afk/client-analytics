@@ -183,3 +183,48 @@ export const REFUSAL_CODES=Object.freeze([
   "write_conflict",
   "write_refused"
 ]);
+
+// Refusal codes the SyncView page raises itself, before or after a gateway
+// call, and reports through the browser_claim beacon. Kept separate from the
+// gateway list so a browser claim can never impersonate a code only the
+// gateway may record: makeRefusalReceipt admits these for browser_claim
+// origin only. test/write-refusal-browser-codes.js fails when the page gains
+// a code that is missing here.
+export const BROWSER_REFUSAL_CODES=Object.freeze([
+  "client_scope_unavailable",
+  "intent_conflict",
+  "legacy_committed_tweak_retire_failed",
+  "legacy_committed_tweak_retire_unverified",
+  "legacy_outbox_finalize_failed",
+  "legacy_outbox_finalize_unverified",
+  "legacy_outbox_lock_unavailable",
+  "legacy_resume_lease_revoked",
+  "legacy_tweak_confirmation_pending",
+  "legacy_tweak_delivery_unconfirmed",
+  "legacy_tweak_target_lock_unavailable",
+  "native_link_required",
+  "native_replay_clock_unavailable",
+  "native_replay_read_unavailable",
+  "native_replay_status_unavailable",
+  "reconcile_receipt_invalid",
+  "repair_checkpoint_missing",
+  "repair_comment_receipt_mismatch",
+  "repair_context_unavailable",
+  "repair_intent_unavailable",
+  "repair_lock_unavailable",
+  "repair_operation_unsupported",
+  "repair_payload_invalid",
+  "repair_payload_mismatch",
+  "repair_principal_conflict",
+  "repair_receipt_target_mismatch",
+  "repair_status_invalid",
+  "repair_status_not_applied",
+  "repair_storage_unavailable",
+  "repair_storage_unknown",
+  "source_repair_receipt_required",
+  "status_commit_required",
+  "status_reapply_required",
+  "write_failed",
+  "write_gate_closed",
+  "write_pending"
+]);

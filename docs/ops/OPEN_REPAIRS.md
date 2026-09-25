@@ -28977,7 +28977,7 @@ append to a batch, fill a missing component). New module
 database schema. Until `production-write` is deployed the old behaviour stands.
 Test: `test/production-write-card-link.js` (offline, in-memory table).
 
-- *Follow-up, 2026-09-25:* the owner deployed `production-write` at `53f57353`
+- *Follow-up, 2026-09-25:* the owner deployed `production-write` at `53f57353435f82b7a00f28f76f2b78def1515dfb`
   through the Section 4 lane (green). Checked live on the test client with the new
   on-demand probe `qa/probes/cal_fill_server_link.js`: pressing the fill button for
   a missing thumbnail, with the browser's own card write blocked, left the card

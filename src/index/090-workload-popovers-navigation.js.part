@@ -1142,6 +1142,9 @@ import { _kasperState, _kasperTeardown, mountKasperView, renderKasperView } from
     let _linearPlanMapState = 'idle';   // idle | loading | loaded | failed | server
     let _linearPlanMapError = '';
     let _linearResolvedPlanUrl = '';
+    // Setter for the Submit screen module (200), which restores a held draft's
+    // plan URL; ES module imports are read-only (phase C step C3).
+    function _linearSetResolvedPlanUrl(value) { _linearResolvedPlanUrl = value; }
 
     function _linearIntakeUsesServerPlanResolution() {
         return !!(document.body && document.body.classList.contains('intake-mode'));
@@ -1635,8 +1638,8 @@ import { _kasperState, _kasperTeardown, mountKasperView, renderKasperView } from
     }
 
 export {
-  _linearInvalidatePlanMap, _linearResolveClientRow, _linearResolvedPlanUrl, _navPillSync,
-  _syncviewApplyTabFavicon, buildLinearTitle, loadLinearForm, navTo, renderLinearSearchResults,
-  saveLinearForm, updateLinearFilmingPlan, updateLinearSearchGhost, updateLinearTitle,
-  wlClosePopover, wlOpenRollupPopover
+  _linearInvalidatePlanMap, _linearResolveClientRow, _linearResolvedPlanUrl,
+  _linearSetResolvedPlanUrl, _navPillSync, _syncviewApplyTabFavicon, buildLinearTitle,
+  loadLinearForm, navTo, renderLinearSearchResults, saveLinearForm, updateLinearFilmingPlan,
+  updateLinearSearchGhost, updateLinearTitle, wlClosePopover, wlOpenRollupPopover
 };

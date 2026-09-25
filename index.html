@@ -13903,6 +13903,13 @@
     let linearVideoCount = LINEAR_DEFAULT_VIDEO_COUNT;
     let linearJustCreated = false;
     let linearSubmitInFlight = null;
+    // Setters for the Submit screen module (200). ES module imports are
+    // read-only, so 200 changes these through the functions below instead of
+    // assigning them directly (phase C step C3).
+    function _linearSetVideoCount(value) { linearVideoCount = value; }
+    function _linearNextVideoCount() { return ++linearVideoCount; }
+    function _linearSetJustCreated(value) { linearJustCreated = value; }
+    function _linearSetSubmitInFlight(value) { linearSubmitInFlight = value; }
     let linearProjectsLoading = false;
     let linearProjectsLoaded = false;
     let linearProjectsLoadGeneration = 0;
@@ -22090,6 +22097,9 @@
     let _linearPlanMapState = 'idle';   // idle | loading | loaded | failed | server
     let _linearPlanMapError = '';
     let _linearResolvedPlanUrl = '';
+    // Setter for the Submit screen module (200), which restores a held draft's
+    // plan URL; ES module imports are read-only (phase C step C3).
+    function _linearSetResolvedPlanUrl(value) { _linearResolvedPlanUrl = value; }
 
     function _linearIntakeUsesServerPlanResolution() {
         return !!(document.body && document.body.classList.contains('intake-mode'));
@@ -49471,7 +49481,7 @@
 
         // Restore video count from saved data
         const savedVideoCount = saved.videos?.length || LINEAR_DEFAULT_VIDEO_COUNT;
-        linearVideoCount = Math.max(savedVideoCount, 1);
+        _linearSetVideoCount(Math.max(savedVideoCount, 1));
 
         let videoCards = '';
         for (let i = 1; i <= linearVideoCount; i++) {
@@ -49493,7 +49503,7 @@
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8L6 12L14 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             ${receivedBanner ? 'Production work received. Our team will complete an internal setup step; no action is needed from you.' : 'Production work created!'}
         </div>` : '';
-        linearJustCreated = false;
+        _linearSetJustCreated(false);
 
         return `<div class="linear-view">
             ${successBanner}
@@ -49598,7 +49608,7 @@
         if (!card) return;
         card.remove();
         renumberVideoCards();
-        linearVideoCount = document.querySelectorAll('[id^="videoCard_"]').length;
+        _linearSetVideoCount(document.querySelectorAll('[id^="videoCard_"]').length);
         saveLinearForm();
     }
 
@@ -49625,7 +49635,7 @@
     function addLinearVideo() {
         const container = document.getElementById('linearVideos');
         if (!container) return;
-        linearVideoCount++;
+        _linearNextVideoCount();
         const html = renderVideoCard(linearVideoCount, {});
         container.insertAdjacentHTML('beforeend', html);
         saveLinearForm();
@@ -49982,7 +49992,7 @@
             if (typeof heldDraftRaw === 'string' && heldDraftRaw) {
                 let heldPlan = '';
                 try { heldPlan = String(JSON.parse(heldDraftRaw).filmingPlans || ''); } catch (e) {}
-                _linearResolvedPlanUrl = heldPlan;
+                _linearSetResolvedPlanUrl(heldPlan);
             }
             const expected = saveLinearForm();
             const raw = localStorage.getItem(LINEAR_FORM_KEY);
@@ -50126,9 +50136,9 @@
         if (linearSubmitInFlight) return linearSubmitInFlight;
         const request = _submitLinearFormRoutedOnce(mode);
         const guarded = request.finally(() => {
-            if (linearSubmitInFlight === guarded) linearSubmitInFlight = null;
+            if (linearSubmitInFlight === guarded) _linearSetSubmitInFlight(null);
         });
-        linearSubmitInFlight = guarded;
+        _linearSetSubmitInFlight(guarded);
         return guarded;
     }
 
@@ -50327,7 +50337,7 @@
             nativeResult = result;
             localStorage.removeItem(LINEAR_FORM_KEY);
             localStorage.removeItem(LAST_LINK_KEY);
-            linearJustCreated = true;
+            _linearSetJustCreated(true);
             navTo('linear');
             if (result.mirror_pending === true) showNotify('Production created', 'Native work is saved; its Linear mirror is still draining.');
             if (result.filming_plan_missing === true) {
@@ -68217,6 +68227,17 @@
     /* ── Linear sub-issue pile (video + graphic), edit + commit with guards ── */
     function _sxrLinearSvg() { return `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>`; }
     function _sxrLinearSlotHtml(pid, url, comp) {
+        /* Linear is retired (owner, 2026-09-25), the Samples twin of the
+           Calendar change in PR 1605: no Linear sub-issue control on a sample --
+           not the remove X, not the pencil, not the link button. With no way
+           to edit a link, the "already linked to ... Move it here" conflict row
+           (_sxrShowLinkConflict, reached only through _sxrLinearCommit) is
+           unreachable too. Stored linear_issue_id / graphic_linear_issue_id
+           are not read here, cleared or rewritten; a Linear-only link already
+           counts as absent (_calCompLinked). The body below is kept,
+           unreachable, so this is a one-line revert. */
+        return '';
+        // eslint-disable-next-line no-unreachable
         if (_isClientLink) return '';
         const which = comp || 'video';
         const u = String(url || '').trim();
@@ -69581,7 +69602,8 @@
         const editableText = !_isClientLink || isBlank;
         const selectable = sxrState.selectMode && !ro && !isBlank;
         const draggable = (isBlank || selectable || ro) ? 'false' : 'true';   // client Sheet is read-only — no drag
-        const needsLinear = !ro && !isBlank && !_writeUiLinkSlotSealed('video') && !String(p.linear_issue_id || '').trim();
+        // Linear is retired: no sample asks to be linked to a Linear sub-issue.
+        const needsLinear = false;
         const dupePeers = (!_isClientLink && !isBlank) ? _sxrLinkDuplicatePeers(p) : [];
         const subStatusHtml = (ro || _isClientLink) ? '' : SXR_COMPONENTS.map(c => {
             const cs = _sxrNormStatus(p[c + '_status'] || 'In Progress');

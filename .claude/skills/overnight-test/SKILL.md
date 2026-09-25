@@ -79,7 +79,7 @@ Full contract: `docs/testing/HEADLESS-TESTING-GUIDE.md` §5. Operationally:
   loose probe files** — the library is what nightly CI replays; a probe hoard
   is what the 2026-07 cleanup deleted.
 - `qa/probes/sxr_*.js` — the consolidated samples probes (`sxr_cold_open`,
-  `sxr_bug_repros`, `sxr_linear_deep`, `sxr_concurrency`, `sxr_gating_flags`,
+  `sxr_bug_repros`, `sxr_concurrency`, `sxr_gating_flags`,
   `sxr_client_persist_guard`, `sxr_kasper_audit_holes`, `sxr_realtime_twin`).
   READ them to learn the patterns before writing more.
 - `test/*.js` + `node test/run-all.js` — the pure-logic unit gate

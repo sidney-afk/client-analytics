@@ -22,7 +22,6 @@ const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; cons
    slip through). Every qa/ script that seeds a Linear URL on a card must link
    that card through the fixture, except the files named here with a reason. */
 const EXEMPT = new Map([
-  ['qa/probes/sxr_linear_deep.js', 'tests the Linear link edit/clear/move controls removed in #1605; to be retired'],
   ['qa/probes/parity_logic.js', 'in-page logic objects only, never seeded to the database; they carry their own ids'],
   ['qa/scenarios.js', 'scenario data; qa/scenario_engine.js registers every seeded or patched card'],
 ]);

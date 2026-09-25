@@ -10,7 +10,21 @@ function ok(value, label) {
   if (value) console.log('  ok  ' + label);
   else { failures++; console.error('FAIL  ' + label); }
 }
+// 060 and 090 offer these setters so the Submit screen module (200) can
+// change their state without assigning an ES module import (phase C step
+// C3). A function that calls one gets it loaded beside it, so each vm
+// context keeps writing the same context variables as before.
+const LINEAR_200_SETTERS = [
+  '_linearSetVideoCount', '_linearNextVideoCount', '_linearSetJustCreated',
+  '_linearSetSubmitInFlight', '_linearSetResolvedPlanUrl',
+];
 function extract(name) {
+  const body = extractOne(name);
+  const setters = LINEAR_200_SETTERS.filter(setter => setter !== name && body.includes(setter + '('));
+  return [body, ...setters.map(extractOne)].join('\n');
+}
+
+function extractOne(name) {
   const marker = 'function ' + name + '(';
   let start = source.indexOf(marker);
   if (start < 0) throw new Error('missing ' + name);

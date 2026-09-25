@@ -147,16 +147,17 @@
        legacy Linear URL column or the native deliverable-id column. Keep every
        Kasper gate and staff pill lock on this one predicate so a native-only
        thumbnail remains visible and actionable after the Graphics flip. */
+    /* Linear is retired (owner + Lighthouse, 2026-09-24): a component is
+       linked only when it carries its own SyncView deliverable id. A stored
+       Linear URL with no deliverable id reads as ABSENT -- the pill shows the
+       honest locked N/A instead of an editable status the gateway refuses
+       with native_link_required, and the card offers SyncView's own "add the
+       missing video/thumbnail". The stored URL is not read here, not cleared
+       and not rewritten anywhere. */
     function _calCompLinked(post, comp) {
         if (!post) return false;
-        if (comp === 'graphic') {
-            return !!(String(post.graphic_linear_issue_id || '').trim()
-                || String(post.graphic_deliverable_id || '').trim());
-        }
-        if (comp === 'video') {
-            return !!(String(post.linear_issue_id || '').trim()
-                || String(post.video_deliverable_id || '').trim());
-        }
+        if (comp === 'graphic') return !!String(post.graphic_deliverable_id || '').trim();
+        if (comp === 'video') return !!String(post.video_deliverable_id || '').trim();
         return true;
     }
     /* WHAT A COMPONENT PILL SHOULD DISPLAY (owner ruling 2026-08-20).

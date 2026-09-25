@@ -78,7 +78,7 @@ async function _ctx(browser) {
   await c.route(u => REROUTE_FIXTURE.isRerouteFlagRequest(u.toString()), async (route) => {
     const CORS = REROUTE_FIXTURE.WRITE_UI_REROUTE_CORS;
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
-    return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: REROUTE_FIXTURE.productionRosterBody() });
+    return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: REROUTE_FIXTURE.productionRosterBody(route.request().url()) });
   });
   return c;
 }

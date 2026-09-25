@@ -1,3 +1,50 @@
+import { clientMap, showConfirm, showNotify } from './040-shared-briefs.js';
+import { _mrExternalLink, igUrl, ttUrl, ytUrl } from './050-market-briefs.js';
+import { WL_CLIENT_NAMES } from './070-workload-source.js';
+import {
+  CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, THUMBNAIL_FOLDER_RESOLVE_EF_URL,
+  THUMBNAIL_REVISION_READ_EF_URL, _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity,
+  _syncviewStaffCan, _syncviewStaffIdentityForHeaders
+} from './100-onboarding-staff-controls.js';
+import {
+  CAL_COMPONENTS, _calComponentsFor, _calIsTitleReviewOn, _calNormStatus, _calTitlePillShown,
+  _calUpsertFetch, _prodCrosswalkVerdict, _syncviewClientWriteToken, _syncviewEfHeaders,
+  _writeUiLinkSlotSealed, _writeUiLinkSlotSealedLive, _writeUiLinkSlotSealedNotice,
+  _writeUiNativeId, _writeUiReportFailure
+} from './120-calendar-flags-write-repair.js';
+import { _calNameSyncScheduleRefresh, _calNameSyncSlotHtml } from './125-title-name-rule.js';
+import {
+  CAL_PLATFORM_BY_KEY, _calBulkColorSwatchesHtml, _calCanDragCards, _calCompLinked,
+  _calCurrentMonthIso, _calIsAutoSortOn, _calIsCollabOn, _calMonthLabel, _calNormMonthFilter,
+  _calNormStatusFilter, _calOrganizerSort, _calPendingEdits, _calPostHasDate,
+  _calPostInMonthFilter, _calPostInStatusFilter, _calSyncUrlClient, _calThumbRev, calClientSlug,
+  calState
+} from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import { _calLoaderHtml } from './133-core-loading-skeletons.js';
+import {
+  _calArchivedRefs, _calArchivedRemove, _calFlushAllPending, _calGetPins, _calIsArchivedRef,
+  _calLinkKey, _calLoadClientFilters, _calSaveClientFilters, _calSavePins, _calSavePrefs,
+  _calSetClient, calToggleClientPin
+} from './134-calendar-prefs-mount.js';
+import { _calShowKasperUrgent, _calUrgentButtonHtml } from './140-calendar-legacy-outbox.js';
+import {
+  _calCacheWrite, _calIdentFromUrl, _calOrganizeHtml, _calOrganizeIsActive,
+  _calOrganizeTriggerLabel, _calSetOrganizeOpen, _calV2Teardown, loadCalendarPosts
+} from './150-calendar-hydration-import.js';
+import {
+  _calFlushCardSave, _calForceThumbRefresh, _calLivePreviewThumb, _calOnFieldBlur,
+  _calOnFieldInput, _calRefreshCardThumb, _calRefreshMediaWarning, _calRenderInlineCard,
+  _calStatusSlug, _calThumbSrcBase, _svSaveIndHtml
+} from './170-calendar-links-status.js';
+import {
+  COMP_LABELS, _calCapGenBtnRefresh, calMonthShift, calWeekShiftDays, renderCalMonth,
+  renderCalWeek, wireCalOrganizerDrag
+} from './180-calendar-native-post-media.js';
+import { _calApprovalBadgeCount, _calUpdateReviewBadge, _calWireReviewExpand, renderCalReview } from './190-calendar-approval-comments.js';
+import { PROD_WRITE_EF_URL } from './210-production-state-writes.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
+import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } from './270-samples-model.js';
     function _calRefreshOrganize() {
         const mid = document.querySelector('.cal-toolbar-mid');
         if (!mid) return;
@@ -2743,3 +2790,20 @@
         const row = document.querySelector(`[data-title-row="${pid}"]`);
         if (row) row.innerHTML = _calTitleRowHtml(pid, post || { id: pid }, _isClientLink);
     }
+export {
+  _CAL_CLIENT_READY_STATES, _CAL_WEEK_BUFFER, _calAdoptThumbnailFolderMeta, _calBlankPost,
+  _calChevron, _calClearThumbnailFolderMeta, _calClientCompPillsHtml, _calClientHue,
+  _calCompStatusLabel, _calDeriveThumb, _calDeriveThumbInfo, _calDriveWarnHtml,
+  _calFillLookupExisting, _calFmtDateShort, _calFolderOpenUrl, _calFrameOpenUrl, _calIsBlankId,
+  _calIsClientReady, _calIsFolderLink, _calIsFrameLink, _calLinearPileHtml, _calLinkFieldHtml,
+  _calMatchClients, _calMiniLinkBadgeHtml, _calMonthWarnChipHtml, _calNormZoom, _calOpenCardMeta,
+  _calPendingLinkMove, _calPostsEqualForRender, _calRefreshOrganize, _calRenderBody,
+  _calRenderClientSearchResults, _calRenderShell, _calRenderTabs, _calResetSelection,
+  _calResolveThumbnailFolder, _calReviewFrameHtml, _calScrollTabStripToActive, _calSetThumbMedia,
+  _calStatusFilterLabel, _calStatusLabel, _calStripThumbnailFolderFields, _calSyncClientLinks,
+  _calTabScrollBy, _calThumbContent, _calThumbFolderIconSvg, _calThumbFrameHtml, _calThumbIconHtml,
+  _calThumbIconSvg, _calThumbImgTag, _calThumbMediaHtml, _calThumbnailFolderUrl, _calTitleRowHtml,
+  _calUpdateTabScroll, _kcardHarvestThumbs, _kcardRestoreThumbs, _kcardReuseThumbInto,
+  _thumbAdoptPersistedRevision, _thumbCompareScheduleAvailability, _thumbCompareSlotHtml,
+  _thumbRefreshChangedCards, onCalMonthFilterChange, onCalViewChange
+};

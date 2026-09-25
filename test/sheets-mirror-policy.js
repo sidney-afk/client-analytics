@@ -7,6 +7,7 @@ const assert = require('assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const ROOT = path.resolve(__dirname, '..');
 const read = p => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -24,7 +25,7 @@ const ok = (cond, msg) => { assert.ok(cond, msg); checks++; console.log('  ok  '
   // ---- client slug: identical to the rule the link check already uses ----
   const verifyBody = VERIFY_SRC.match(/function normalizeClient\(s: unknown\): string \{([\s\S]*?)\n\}/)[1];
   const mirrorBody = read('supabase/functions/_shared/sheets-mirror.mjs').match(/export function clientSlug\(name\) \{([\s\S]*?)\n\}/)[1];
-  const steps = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/"/g, "'").match(/\.replace\([^;]+\)/g);
+  const steps = s => stripBlockComments(s).replace(/"/g, "'").match(/\.replace\([^;]+\)/g);
   ok(JSON.stringify(steps(verifyBody)) === JSON.stringify(steps(mirrorBody)),
     'clientSlug applies exactly the normalization client-token-verify applies');
   ok(m.clientSlug('  Dr. Ána  and Bo ') === 'ana&bo', 'clientSlug strips accents, a "Dr." prefix and joins "and"');

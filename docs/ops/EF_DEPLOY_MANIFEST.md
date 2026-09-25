@@ -10,10 +10,10 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 38 |
+| Deployable function slugs | 40 |
 | Main-push plus manual-dispatch paths | 12 |
 | Manual-dispatch-only paths | 9 |
-| No CI deploy path | 14 |
+| No CI deploy path | 16 |
 | Deliberate-manual subset of no-CI paths | 5 |
 
 ## Per-function ownership and dependencies
@@ -21,6 +21,8 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | Function slug | Owning deploy workflow(s) | Deploy path(s) | `_shared` dependencies | Slug-local dependencies |
 | --- | --- | --- | --- | --- |
 | `ai-onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
+| `analytics-read` | NONE | **NO CI DEPLOY PATH.** | `_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts` | - |
+| `analytics-write` | NONE | **NO CI DEPLOY PATH.** | `_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts` | - |
 | `batch-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/b4-write.ts` | - |
 | `brain` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `brain/parse.mjs` |
 | `calendar-reorder` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |

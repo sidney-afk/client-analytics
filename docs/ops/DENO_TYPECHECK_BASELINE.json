@@ -6,7 +6,7 @@
         "TS2352": 1
       },
       "total": 1,
-      "measured_on": "2026-09-24"
+      "measured_on": "2026-09-25"
     },
     "linear-outbound": {
       "counts": {
@@ -14,7 +14,7 @@
         "TS2339": 2
       },
       "total": 12,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "linear-inbound": {
       "counts": {
@@ -23,138 +23,138 @@
         "TS2551": 1
       },
       "total": 12,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "deliverable-write": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "batch-write": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "workload-plan": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "ai-onboarding-list": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "calendar-reorder": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "calendar-upsert": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "caption-prompts-save": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "client-credentials": {
       "counts": {
         "TS2339": 1
       },
       "total": 1,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "client-review-link": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "client-token-verify": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "filming-plans": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "hiring-applications": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "hiring-automation": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "kasper-ad-performance-read": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "key-verify": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "legacy-onboarding-list": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "onboarding-capture": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "onboarding-full": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "onboarding-list": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "production-archive": {
       "counts": {
         "TS2352": 4
       },
       "total": 4,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "production-comments": {
       "counts": {
         "TS2352": 1
       },
       "total": 1,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "quiz-capture": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "quiz-leads-list": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "sample-review-reorder": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "sample-review-upsert": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "smm-weekly-reports": {
       "counts": {
@@ -162,27 +162,27 @@
         "TS7006": 1
       },
       "total": 14,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "templates-save": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "thumbnail-folder-resolve": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "thumbnail-revision-read": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "thumbnail-revision-scan": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-03"
+      "measured_on": "2026-09-25"
     },
     "workload-linear": {
       "counts": {
@@ -194,23 +194,32 @@
     "description-image-upload": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-05"
+      "measured_on": "2026-09-25"
     },
     "notify": {
       "counts": {},
       "total": 0,
-      "measured_on": null,
-      "required_zero_unmeasured": true
+      "measured_on": "2026-09-25"
     },
     "write-diagnostics": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-13"
+      "measured_on": "2026-09-25"
     },
     "brain": {
       "counts": {},
       "total": 0,
-      "measured_on": "2026-09-24"
+      "measured_on": "2026-09-25"
+    },
+    "analytics-read": {
+      "counts": {},
+      "total": 0,
+      "measured_on": "2026-09-25"
+    },
+    "analytics-write": {
+      "counts": {},
+      "total": 0,
+      "measured_on": "2026-09-25"
     }
   }
 }

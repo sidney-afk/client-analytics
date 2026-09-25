@@ -4255,6 +4255,18 @@
         .tpl-folder-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); text-decoration: none; color: inherit; font-size: 0.86rem; }
         .tpl-folder-row:hover .tpl-folder-name { text-decoration: underline; }
         .tpl-folder-meta { color: var(--text-muted); font-size: 0.74rem; white-space: nowrap; }
+        .tpl-brain-spec-row { flex-wrap: wrap; }
+        .tpl-spec-empty { font-size: 0.82rem; color: var(--text-secondary); font-style: italic; }
+        .tpl-spec-btn { font-size: 0.76rem; font-weight: 600; border: 1px dashed var(--border); background: none; border-radius: 999px; padding: 3px 11px; cursor: pointer; color: var(--text-secondary); }
+        .tpl-spec-btn:hover, .tpl-spec-btn:focus-visible { border-style: solid; color: var(--text-primary); }
+        .tpl-spec-form { flex-basis: 100%; margin: 10px 0 4px; padding: 14px 16px; border-radius: 12px; background: var(--surface-subtle); border: 1px solid var(--border-light); display: grid; gap: 10px; }
+        .tpl-spec-field { display: grid; grid-template-columns: 130px 1fr; align-items: center; gap: 10px; font-size: 0.82rem; color: var(--text-secondary); }
+        @media (max-width: 560px) { .tpl-spec-field { grid-template-columns: 1fr; } }
+        .tpl-spec-field input[type=text] { font: inherit; font-size: 0.86rem; border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; background: var(--white); color: var(--text-primary); min-width: 0; }
+        .tpl-spec-colour { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .tpl-spec-colour input[type=color] { width: 34px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 8px; background: none; cursor: pointer; }
+        .tpl-spec-colour input[type=text] { width: 110px; }
+        .tpl-spec-none { display: inline-flex; align-items: center; gap: 5px; font-size: 0.8rem; }
         .tpl-brief { display: flex; flex-direction: column; gap: 16px; margin-top: 6px; }
         .tpl-brief-cols { columns: 2 340px; column-gap: 16px; }
         .tpl-brief-cols > .tpl-brief-sec { break-inside: avoid; margin-bottom: 16px; }
@@ -11467,7 +11479,8 @@
         // the multiple-link inputs (each keyed by its own data-attr).
         if (ae && ae.hasAttribute && (ae.hasAttribute('data-tpl-field') || ae.hasAttribute('data-tpl-set') || ae.hasAttribute('data-tpl-link-set'))) return;
         // Same for a "Send a change" box being typed into.
-        if (ae && ae.closest && ae.closest('.tpl-brain-form')) return;
+        // Only a field being typed into blocks it; a focused Save/Cancel button must not.
+        if (ae && ae.matches && ae.matches('input, textarea') && (ae.closest('.tpl-brain-form') || ae.closest('.tpl-spec-form'))) return;
         content.innerHTML = renderTemplatesView();
         mountTemplatesView();
     }
@@ -12698,7 +12711,9 @@
         // A background refresh keeps showing the current facts instead of a skeleton.
         _tplBrain[name] = cur && cur.state === 'ready' ? Object.assign({}, cur, { refreshing: true }) : { state: 'loading', facts: cur && cur.facts || [] };
         _tplBrainPost({ action: 'read', clientName: name }).then(j => {
-            _tplBrain[name] = { state: 'ready', at: Date.now(), facts: Array.isArray(j.facts) ? j.facts : [], brief: Array.isArray(j.brief) ? j.brief : [], found: !!j.found };
+            // Fresh facts replace any "Saved, updating" note for this client.
+            Object.keys(_tplSpecSent).forEach(k => { if (k.indexOf(name + '::') === 0 && _tplSpecSent[k] === 'sent') delete _tplSpecSent[k]; });
+            _tplBrain[name] = { state: 'ready', at: Date.now(), facts: Array.isArray(j.facts) ? j.facts : [], brief: Array.isArray(j.brief) ? j.brief : [], found: !!j.found, folder: j.folder || '' };
         }).catch(e => {
             _tplBrain[name] = { state: 'error', facts: [], error: e && e.message || String(e) };
         }).then(() => { if (_templatesSelected === name) _maybeRerenderTemplates(); });
@@ -12766,14 +12781,107 @@
         try { navigator.clipboard.writeText(text); } catch (e) {}
         if (el) { el.classList.add('copied'); setTimeout(() => el.classList.remove('copied'), 900); }
     }
+    // Quick look: the two core specs (subtitles, thumbnails) always show, with an
+    // Add / Edit form that sends structured values to the brain; any other fact
+    // carrying a spec: line is listed after them.
+    const TPL_SPEC_KINDS = [
+        { kind: 'subtitle', label: 'Subtitles', colour: 'Main colour', colourKey: 'main' },
+        { kind: 'thumbnail', label: 'Thumbnails', colour: 'Title colour', colourKey: 'title' },
+    ];
+    let _tplSpecForm = '';            // `${client}::${kind}` with its form open
+    const _tplSpecSent = {};          // `${client}::${kind}` -> 'sending' | 'sent' | 'error'
+    function _tplSpecValues(spec) {
+        const out = {};
+        String(spec || '').split(';').forEach(p => { const i = p.indexOf('='); if (i > 0) out[p.slice(0, i).trim().toLowerCase()] = p.slice(i + 1).trim(); });
+        return out;
+    }
+    function tplSpecOpen(key) {
+        const opening = _tplSpecForm !== key;
+        _tplSpecForm = opening ? key : ''; delete _tplSpecSent[key]; _maybeRerenderTemplates();
+        // Keep keyboard focus sensible: into the form on open, back to its button on close.
+        const sel = opening ? `.tpl-spec-form[data-k="${CSS.escape(key)}"] [data-f=font]` : `.tpl-spec-btn[data-k="${CSS.escape(key)}"]`;
+        const el = document.querySelector(sel); if (el) el.focus();
+    }
+    function tplSpecHexSync(el) {
+        const row = el.closest('.tpl-spec-colour'); if (!row) return;
+        const txt = row.querySelector('input[type=text]'), pick = row.querySelector('input[type=color]');
+        if (el === pick) txt.value = pick.value; else if (/^#[0-9a-fA-F]{6}$/.test(txt.value.trim())) pick.value = txt.value.trim();
+    }
+    function tplSpecSave(key) {
+        const name = _templatesSelected;
+        const form = document.querySelector(`.tpl-spec-form[data-k="${CSS.escape(key)}"]`);
+        if (!name || !form) return;
+        const k = TPL_SPEC_KINDS.find(x => key.endsWith('::' + x.kind));
+        const font = form.querySelector('[data-f=font]').value.trim();
+        const hex = v => { v = String(v || '').trim(); return /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v) ? (v[0] === '#' ? v : '#' + v).toLowerCase() : ''; };
+        // A colour typed in a shape we cannot read is flagged, never silently dropped.
+        const bad = ['colour', 'hl'].map(f => form.querySelector(`[data-f=${f}]`)).find(el => el.value.trim() && !hex(el.value) && !(el.dataset.f === 'hl' && form.querySelector('[data-f=nohl]').checked));
+        if (bad) { bad.setCustomValidity('Use a colour code, like the ones the picker gives'); bad.reportValidity(); bad.oninput = () => bad.setCustomValidity(''); return; }
+        const colour = hex(form.querySelector('[data-f=colour]').value);
+        const noHl = form.querySelector('[data-f=nohl]').checked;
+        const hl = noHl ? 'none' : hex(form.querySelector('[data-f=hl]').value);
+        const from = form.querySelector('[data-f=from]').value.trim();
+        const parts = [font && 'font=' + font, colour && k.colourKey + '=' + colour, hl && 'highlight=' + hl].filter(Boolean);
+        if (!parts.length) { form.querySelector('[data-f=font]').focus(); return; }
+        try { if (from) localStorage.setItem(TPL_BRAIN_NAME_KEY, from); } catch (e) {}
+        const b = _tplBrain[name] || {};
+        const factId = b.folder ? `client.${b.folder}.editing.${k.kind}-spec` : '';
+        _tplSpecSent[key] = 'sending'; _maybeRerenderTemplates();
+        _tplBrainPost({ action: 'change', clientName: name, factId, heading: (k.kind === 'subtitle' ? 'Subtitle' : 'Thumbnail') + ' spec', from,
+            text: `SPEC UPDATE, entered in the Quick look form. Write these exact values as this client's ${k.kind} spec:\nspec: ${parts.join('; ')}` })
+            .then(() => { _tplSpecSent[key] = 'sent'; _tplSpecForm = '';
+                [90, 240].forEach(sec => setTimeout(() => { if (_templatesSelected === name) _tplBrainEnsure(name, true); }, sec * 1000)); })
+            .catch(() => { _tplSpecSent[key] = 'error'; })
+            .then(() => _maybeRerenderTemplates());
+    }
+    function _tplSpecForm_(name, k, values, key) {
+        const v = values || {};
+        let sender = ''; try { sender = localStorage.getItem(TPL_BRAIN_NAME_KEY) || ''; } catch (e) {}
+        const col = (label, f, val, withNone) => {
+            const safe = /^#[0-9a-fA-F]{6}$/.test(val || '') ? val : '#ffffff';
+            return `<label class="tpl-spec-field"><span>${label}</span><span class="tpl-spec-colour">
+                <input type="color" value="${safe}" oninput="tplSpecHexSync(this)" aria-label="${label} picker">
+                <input type="text" data-f="${f}" value="${_tplEscAttr(val && val !== 'none' ? val : '')}" placeholder="Hex code" oninput="tplSpecHexSync(this)">
+                ${withNone ? `<label class="tpl-spec-none"><input type="checkbox" data-f="nohl"${v.highlight === 'none' ? ' checked' : ''}> No highlight</label>` : ''}
+            </span></label>`;
+        };
+        const st = _tplSpecSent[key];
+        return `<div class="tpl-spec-form" data-k="${_tplEscAttr(key)}">
+            <label class="tpl-spec-field"><span>Font</span><input type="text" data-f="font" value="${_tplEscAttr(v.font || '')}" placeholder="e.g. Montserrat Bold"></label>
+            ${col(k.colour, 'colour', v[k.colourKey] || '', false)}
+            ${col('Highlight colour', 'hl', v.highlight || '', true)}
+            <div class="tpl-brain-form-row">
+                <input class="tpl-brain-from" data-f="from" type="text" placeholder="Your name" value="${_tplEscAttr(sender)}">
+                <button type="button" class="tpl-brain-cancel" data-k="${_tplEscAttr(key)}" onclick="tplSpecOpen(this.dataset.k)">Cancel</button>
+                <button type="button" class="tpl-brain-send" data-k="${_tplEscAttr(key)}" onclick="tplSpecSave(this.dataset.k)"${st === 'sending' ? ' disabled' : ''}>${st === 'sending' ? 'Saving…' : 'Save'}</button>
+            </div>
+            ${st === 'error' ? '<div class="tpl-brain-err">Couldn\'t save. Your values are still here; try again.</div>' : ''}
+        </div>`;
+    }
     function _tplBrainSpecStrip(name) {
         const b = _tplBrain[name];
-        if (!b || b.state !== 'ready') return '';
-        const specs = b.facts.filter(f => f.spec && f.status === 'written');
-        if (!specs.length) return '';
+        if (!b || b.state !== 'ready' || !b.found) return '';
+        const facts = b.facts || [];
+        const core = TPL_SPEC_KINDS.map(k => {
+            const key = name + '::' + k.kind;
+            const fact = facts.find(f => /(^|\.)editing\.(subtitle|thumbnail)-spec$/.test(f.id) && f.id.endsWith('.' + k.kind + '-spec'));
+            const has = fact && fact.status === 'written' && fact.spec;
+            const sent = _tplSpecSent[key] === 'sent';
+            const open = _tplSpecForm === key || _tplSpecSent[key] === 'sending' || _tplSpecSent[key] === 'error';
+            return `<div class="tpl-brain-spec-row">
+                <span class="tpl-brain-spec-label">${k.label}</span>
+                <span class="tpl-brain-spec-chips">${has ? _tplBrainSpecChips(fact.spec) : '<span class="tpl-spec-empty">Not set</span>'}
+                    ${sent ? '<span class="tpl-spec-empty">Saved. Updating in a minute or two.</span>' : ''}
+                    <button type="button" class="tpl-spec-btn" data-k="${_tplEscAttr(key)}" onclick="tplSpecOpen(this.dataset.k)">${has ? 'Edit' : 'Add'}</button>
+                </span>
+                ${open ? _tplSpecForm_(name, k, has ? _tplSpecValues(fact.spec) : null, key) : ''}
+            </div>`;
+        }).join('');
+        const others = facts.filter(f => f.spec && f.status === 'written' && !/editing\.(subtitle|thumbnail)-spec$/.test(f.id));
         return `<div class="tpl-section tpl-brain-strip">
             <div class="tpl-section-title">Quick look</div>
-            ${specs.map(f => `<div class="tpl-brain-spec-row"><span class="tpl-brain-spec-label">${_tplEsc(f.heading.replace(/\s*spec$/i, ''))}</span><span class="tpl-brain-spec-chips">${_tplBrainSpecChips(f.spec)}</span></div>`).join('')}
+            ${core}
+            ${others.map(f => `<div class="tpl-brain-spec-row"><span class="tpl-brain-spec-label">${_tplEsc(f.heading.replace(/\s*spec$/i, ''))}</span><span class="tpl-brain-spec-chips">${_tplBrainSpecChips(f.spec)}</span></div>`).join('')}
         </div>`;
     }
     function _tplBrainKey(name, id) { return name + '::' + (id || '_new'); }

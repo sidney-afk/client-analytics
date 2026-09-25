@@ -64,6 +64,9 @@ const ok = (c, l) => { if (c) { pass++; console.log('  ok   ' + l); } else { fai
     calState.posts = posts.map((p, i) => Object.assign({
       asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '', comments: [],
       platforms: 'instagram', linear_issue_id: 'https://linear.app/x/issue/SYN-' + (300 + i),
+      // In-page only (never saved), so a synthetic id is safe; since Linear was
+      // retired a component is linked only by its deliverable id.
+      video_deliverable_id: 'probe_del_v_org_' + (300 + i),
     }, p));
     _calRenderShell(); _calRenderBody({ preserveScroll: false });
   }, POSTS);

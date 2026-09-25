@@ -10,7 +10,7 @@ const APP = 'sr_tka_' + t, REQ = 'sr_tkr_' + t, AAT = 'sr_tkt_' + t;
 const NAPP = 'OT-K approve ' + t, NREQ = 'OT-K request ' + t, NAAT = 'OT-K aat ' + t;
 const rows = [], fails = [];
 function ok(c, m, extra) { console.log((c ? 'PASS ' : 'FAIL ') + m + (extra ? '  ' + extra : '')); if (!c) fails.push(m); }
-function seed(id, nm) { up({ id, name: nm, order_index: 1, asset_url: 'https://frame.io/x/' + id, thumbnail_url: '', linear_issue_id: 'https://linear.app/syncsocial/issue/VID-' + id.slice(-4), video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval' }); }
+function seed(id, nm) { require('../native_work_item_fixture.js').registerProbeWorkItems([{ id: id, components: ['video'] }]); up({ id, name: nm, order_index: 1, asset_url: 'https://frame.io/x/' + id, thumbnail_url: '', linear_issue_id: 'https://linear.app/syncsocial/issue/VID-' + id.slice(-4), video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval' }); }
 const inQueue = (page, nm) => page.evaluate((n) => [...document.querySelectorAll('#kasperContent .kcard.cal-review-card')].some(c => (c.querySelector('.kcard-title') || {}).textContent === n), nm);
 
 async function expand(page, nm) {

@@ -40,6 +40,7 @@ async function firePush(page) {
   const ts = Date.now();
   const id = 'sr_probe_rttwin_' + ts;
   try {
+    require('../native_work_item_fixture.js').registerProbeWorkItems([{ id: id, components: ['video', 'graphic'] }]);
     up({ id, name: 'RT twin ' + ts, order_index: 1, video_status: 'In Progress', graphic_status: 'Approved', status: 'In Progress', linear_issue_id: 'https://linear.app/x/VID-RT' + ts, graphic_linear_issue_id: 'https://linear.app/x/GRA-RT' + ts });
     await sleep(1500);
 

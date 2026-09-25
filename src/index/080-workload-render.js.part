@@ -1,3 +1,42 @@
+import { showNotify } from './040-shared-briefs.js';
+import {
+  WL_CLIENT_NAMES, WL_DEADLINE_PREF_KEY, WL_LINEAR_WRITE_TIMEOUT_MS,
+  WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS, WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY,
+  WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA, WL_PLAN_WRITE_TIMEOUT_MS, WL_VIEW_PREF_KEY,
+  _wlBackgroundRefreshMode, _wlBackgroundRefreshPromise, _wlDueWriteInFlight, _wlNativeDiffEnabled,
+  _wlNativeDueReceiptGeneration, _wlNativeDueReceiptRetryAttempt, _wlNativeDueReceiptRetryPromise,
+  _wlNativeDueReceiptRetryTimer, _wlNextNativeDueReceiptGeneration, _wlNextPlanLoadGeneration,
+  _wlNextPlanWriteGeneration, _wlPendingNativeDueReceiptByTarget, _wlPlanLastWriteGeneration,
+  _wlPlanLoadGeneration, _wlPlanSessionGeneration, _wlPlanWriteInFlight,
+  _wlSetBackgroundRefreshMode, _wlSetBackgroundRefreshPromise, _wlSetNativeDueReceiptRetryAttempt,
+  _wlSetNativeDueReceiptRetryPromise, _wlSetNativeDueReceiptRetryTimer,
+  _wlTakeNativeDueReceiptRetryAttempt, _wlV2CheckWatermark, _wlV2EnsureSubscribed,
+  _wlV2EnsureWatermarkPoll, _wlV2FetchIssues, _wlV2FetchLatestWatermark, _wlV2Ready, wlAddDays,
+  wlAddWorkingDays, wlAdoptLinearMetadata, wlAdoptPlanRows, wlApplySettleAnimation,
+  wlAutoPlacementTip, wlBackgroundBusinessFingerprint, wlBucketByDisplayDate, wlCachedBoardUsable,
+  wlCachedRoster, wlCalendarDayDiff, wlCanonicalClient, wlCompareClientGroups,
+  wlComputeAutoPlacements, wlDayOverCapacity, wlDeadlineDotHtml, wlDeadlineMeta, wlDeadlineTagHtml,
+  wlDisplayDate, wlDisplayName, wlEditorCapacity, wlFetchLinearMetadata, wlFetchPlanRows,
+  wlFormatShort, wlGroupDeadlineHtml, wlGroupDeadlineSummary, wlGroupDragHandleHtml,
+  wlGroupPlanOriginHtml, wlGroupWorkloadHtml, wlISO, wlInitials, wlIsActiveStatus, wlIsInProgress,
+  wlIsToDo, wlIsTweaksNeeded, wlIsWeekend, wlIssueClientAllowed, wlIssueDragHandleHtml,
+  wlIssueEditorAllowed, wlLinearEditingEnabled, wlLoadSnapshot, wlMarkLinearMetadataFailure,
+  wlMetadataTeamBucket, wlNativeDueDate, wlNormalizeClient, wlParseISO, wlPlacementMode,
+  wlPlanDate, wlPlanEditingEnabled, wlPlanOriginHtml, wlPurgePlanSensitiveState, wlReadCache,
+  wlState, wlTeamBucket, wlValidRfc3339Timestamp, wlWeekMondayISO, wlWorkloadBadgeHtml,
+  wlWorkloadTodayISO, wlWorkloadUnits, wlWorkloadWeight
+} from './070-workload-source.js';
+import { navTo, wlClosePopover, wlOpenRollupPopover } from './090-workload-popovers-navigation.js';
+import {
+  CAL_SUPABASE_ANON_KEY, WORKLOAD_LINEAR_URL, WORKLOAD_PLAN_URL, _syncviewRequireStaffIdentity,
+  _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders
+} from './100-onboarding-staff-controls.js';
+import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
+import { _calSetFocusRequest } from './130-calendar-model-cache.js';
+import { _svLoadingSkeletonHtml, _svSkel } from './133-core-loading-skeletons.js';
+import { _calGetPins, _calSavePins } from './134-calendar-prefs-mount.js';
+import { PROD_WRITE_EF_URL } from './210-production-state-writes.js';
+import { _prodApplyGatewayRow } from './230-production-create-comments.js';
     async function initWorkloadView() {
         const todayISO = wlWorkloadTodayISO();
         const now = wlParseISO(todayISO);
@@ -184,11 +223,11 @@
             }
         };
         const pending = run();
-        _wlBackgroundRefreshPromise = pending;
+        _wlSetBackgroundRefreshPromise(pending);
         try { return await pending; }
         finally {
             if (_wlBackgroundRefreshPromise === pending) {
-                _wlBackgroundRefreshPromise = null;
+                _wlSetBackgroundRefreshPromise(null);
                 if (!_wlNativeDueReceiptRetryPromise) wlScheduleNativeDueReceiptRetry();
             }
         }
@@ -212,7 +251,7 @@
         }
 
         const run = async () => {
-            const loadGeneration = ++_wlPlanLoadGeneration;
+            const loadGeneration = _wlNextPlanLoadGeneration();
             const sessionGeneration = _wlPlanSessionGeneration;
             try {
                 const freshIssues = sensitiveOnly
@@ -283,13 +322,13 @@
         };
 
         const pending = run();
-        _wlBackgroundRefreshPromise = pending;
-        _wlBackgroundRefreshMode = sensitiveOnly ? 'sensitive' : 'full';
+        _wlSetBackgroundRefreshPromise(pending);
+        _wlSetBackgroundRefreshMode(sensitiveOnly ? 'sensitive' : 'full');
         try { return await pending; }
         finally {
             if (_wlBackgroundRefreshPromise === pending) {
-                _wlBackgroundRefreshPromise = null;
-                _wlBackgroundRefreshMode = null;
+                _wlSetBackgroundRefreshPromise(null);
+                _wlSetBackgroundRefreshMode(null);
                 if (!_wlNativeDueReceiptRetryPromise) wlScheduleNativeDueReceiptRetry();
             }
         }
@@ -883,11 +922,11 @@
             return true;
         };
         const pending = run();
-        _wlNativeDueReceiptRetryPromise = pending;
+        _wlSetNativeDueReceiptRetryPromise(pending);
         try { return await pending; }
         finally {
             if (_wlNativeDueReceiptRetryPromise === pending) {
-                _wlNativeDueReceiptRetryPromise = null;
+                _wlSetNativeDueReceiptRetryPromise(null);
                 if (_wlPendingNativeDueReceiptByTarget.size
                     && _wlNativeDueReceiptGeneration !== retryGeneration) {
                     wlScheduleNativeDueReceiptRetry();
@@ -902,8 +941,8 @@
 
     function wlCancelNativeDueReceiptRetryTimer(resetAttempt) {
         if (_wlNativeDueReceiptRetryTimer !== null) clearTimeout(_wlNativeDueReceiptRetryTimer);
-        _wlNativeDueReceiptRetryTimer = null;
-        if (resetAttempt) _wlNativeDueReceiptRetryAttempt = 0;
+        _wlSetNativeDueReceiptRetryTimer(null);
+        if (resetAttempt) _wlSetNativeDueReceiptRetryAttempt(0);
     }
 
     function wlScheduleNativeDueReceiptRetryLater() {
@@ -911,14 +950,14 @@
             || _wlNativeDueReceiptRetryAttempt >= WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS.length) return false;
         const sessionGeneration = _wlPlanSessionGeneration;
         const receiptGeneration = _wlNativeDueReceiptGeneration;
-        const delay = WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS[_wlNativeDueReceiptRetryAttempt++];
-        _wlNativeDueReceiptRetryTimer = setTimeout(() => {
-            _wlNativeDueReceiptRetryTimer = null;
+        const delay = WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS[_wlTakeNativeDueReceiptRetryAttempt()];
+        _wlSetNativeDueReceiptRetryTimer(setTimeout(() => {
+            _wlSetNativeDueReceiptRetryTimer(null);
             if (sessionGeneration !== _wlPlanSessionGeneration
                 || receiptGeneration !== _wlNativeDueReceiptGeneration
                 || !_wlPendingNativeDueReceiptByTarget.size) return;
             wlScheduleNativeDueReceiptRetry();
-        }, delay);
+        }, delay));
         return true;
     }
 
@@ -947,7 +986,7 @@
             if (!current && _wlPendingNativeDueReceiptByTarget.size >= 100) return false;
             if (!current || Date.parse(current.row.updated_at) < Date.parse(row.updated_at)) {
                 _wlPendingNativeDueReceiptByTarget.set(key, receipt);
-                _wlNativeDueReceiptGeneration++;
+                _wlNextNativeDueReceiptGeneration();
                 wlCancelNativeDueReceiptRetryTimer(true);
             } else {
                 wlCancelNativeDueReceiptRetryTimer(false);
@@ -1041,7 +1080,7 @@
         // Any snapshot already in flight predates this optimistic Linear write.
         // Invalidate it now so a fast successful save cannot be overwritten by
         // an older metadata response after the write token is removed.
-        _wlPlanLoadGeneration++;
+        _wlNextPlanLoadGeneration();
         _wlDueWriteInFlight.set(key, token);
         wlApplyDueLocal(key, dueDate);
         renderWorkloadAll();
@@ -1249,7 +1288,7 @@
             return true;
         }
 
-        const token = { generation: ++_wlPlanWriteGeneration };
+        const token = { generation: _wlNextPlanWriteGeneration() };
         const sessionGeneration = _wlPlanSessionGeneration;
         _wlPlanLastWriteGeneration.set(key, token.generation);
         _wlPlanWriteInFlight.set(key, token);
@@ -1258,7 +1297,7 @@
         wlFocusPlanItem(key);
         const saved = await _wlPersistPlanDate(issue, planDate, previousDate, sessionGeneration);
         if (sessionGeneration !== _wlPlanSessionGeneration) return false;
-        _wlPlanLastWriteGeneration.set(key, ++_wlPlanWriteGeneration);
+        _wlPlanLastWriteGeneration.set(key, _wlNextPlanWriteGeneration());
         if (_wlPlanWriteInFlight.get(key) === token) _wlPlanWriteInFlight.delete(key);
         wlScheduleNativeDueReceiptRetry();
         renderWorkloadAll();
@@ -1293,7 +1332,7 @@
         const sessionGeneration = _wlPlanSessionGeneration;
         const moves = issues.map(issue => {
             const key = String(issue.id || '');
-            const token = { generation: ++_wlPlanWriteGeneration };
+            const token = { generation: _wlNextPlanWriteGeneration() };
             _wlPlanLastWriteGeneration.set(key, token.generation);
             _wlPlanWriteInFlight.set(key, token);
             return { issue, key, token, previousDate: wlPlanDate(issue) || null };
@@ -1313,7 +1352,7 @@
             );
             if (sessionGeneration !== _wlPlanSessionGeneration) break;
             if (saved) moved++;
-            _wlPlanLastWriteGeneration.set(move.key, ++_wlPlanWriteGeneration);
+            _wlPlanLastWriteGeneration.set(move.key, _wlNextPlanWriteGeneration());
             if (_wlPlanWriteInFlight.get(move.key) === move.token) {
                 _wlPlanWriteInFlight.delete(move.key);
             }
@@ -3367,3 +3406,8 @@
             </div>`;
         }).join('');
     }
+export {
+  initWorkloadView, renderWorkloadAll, wlAdoptNativeDueGatewayRow, wlApplyData,
+  wlClearBackgroundRefreshFailure, wlDueWriteRoute, wlEscape, wlMarkBackgroundRefreshFailure,
+  wlPublishNativeDueReceipt, wlRefetchSilent, wlRefreshSensitiveStateSilent, wlSyncLinearUrl
+};

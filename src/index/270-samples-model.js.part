@@ -1197,12 +1197,8 @@
         const other = target === 'graphic' ? 'video' : 'graphic';
         const idOf = comp => String((comp === 'graphic'
             ? p.graphic_deliverable_id : p.video_deliverable_id) || '').trim();
-        const linkOf = comp => String((comp === 'graphic'
-            ? p.graphic_linear_issue_id : p.linear_issue_id) || '').trim();
-        // Empty BOTH ways. A card carrying a Linear url with no native id is a
-        // legacy half-link, not a missing component, and filling it would leave
-        // the card pointing at two different issues.
-        if (idOf(target) || linkOf(target)) return '';
+        // Linear is retired: a stored Linear URL alone counts as absent.
+        if (idOf(target)) return '';
         if (!_writeUiLinkSlotSealed(target)) return '';
         return idOf(other);
     }
@@ -2042,13 +2038,14 @@
         try { archived = _sxrArchivedRefs(sxrClientSlug(sxrState.client)); } catch (e) {}
         const isArch = (p) => (String((p && p.status) || '').toLowerCase() === 'archived') || (() => { try { return !!(archived && _sxrIsArchivedRef(p, archived)); } catch (e) { return false; } })();
         if (isArch(post)) return [];
-        const vKey = _sxrLinkKey(post.linear_issue_id), gKey = _sxrLinkKey(post.graphic_linear_issue_id);
+        // Linear is retired: only a shared SyncView deliverable is a conflict.
+        const vKey = _sxrLinkKey(post.video_deliverable_id), gKey = _sxrLinkKey(post.graphic_deliverable_id);
         if (!vKey && !gKey) return [];
         const vPeers = new Set(), gPeers = new Set();
         for (const p of (sxrState.posts || [])) {
             if (!p || p.id === post.id || isArch(p)) continue;
             const nm = String(p.name || '').trim() || 'Untitled sample';
-            const pv = _sxrLinkKey(p.linear_issue_id), pg = _sxrLinkKey(p.graphic_linear_issue_id);
+            const pv = _sxrLinkKey(p.video_deliverable_id), pg = _sxrLinkKey(p.graphic_deliverable_id);
             if (vKey && (pv === vKey || pg === vKey)) vPeers.add(nm);
             if (gKey && (pv === gKey || pg === gKey)) gPeers.add(nm);
         }
@@ -2058,7 +2055,7 @@
         return out;
     }
     function _sxrDupeWarnText(groups) {
-        return groups.map(g => 'Same ' + (g.comp === 'graphic' ? 'thumbnail' : 'video') + ' Linear issue as ' + g.names.join(', ')).join(' · ');
+        return groups.map(g => 'Same ' + (g.comp === 'graphic' ? 'thumbnail' : 'video') + ' work item as ' + g.names.join(', ')).join(' · ');
     }
 
     /* ── Status menu + Set-all (samples: 6 statuses, video+graphic, always settable) ── */
@@ -2533,7 +2530,7 @@
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveSxrCard('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
             <div class="cal-card-thumb" onclick="_sxrThumbClick(event,'${pid}')">${warnHtml}${_sxrThumbContent(p)}${(_isClientLink || ro) ? '' : _sxrLinearPileHtml(pid, p)}</div>
             <div class="cal-card-body">
-                ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_sxrEscAttr(_sxrDupeWarnText(dupePeers))}. Two cards can't own the same Linear sub-issue — archive one of them, or change one card's link.">⚠ ${_sxrEsc(_sxrDupeWarnText(dupePeers))} — archive one or change its link</div>` : ''}
+                ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_sxrEscAttr(_sxrDupeWarnText(dupePeers))}. Two cards can't own the same work item — archive one of them.">⚠ ${_sxrEsc(_sxrDupeWarnText(dupePeers))} — archive one of them</div>` : ''}
                 <div class="cal-title-row" data-title-row="${pid}">${_sxrTitleRowHtml(pid, p, ro, editableText)}</div>
                 ${_sxrLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, p)}
                 ${_sxrLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro, p)}

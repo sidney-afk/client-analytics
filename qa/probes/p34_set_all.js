@@ -13,7 +13,7 @@ const NOLINK = 'p_sa_nl_' + TS, LINK = 'p_sa_lk_' + TS, TERM = 'p_sa_tm_' + TS;
   const smm = await Q.smmPage(browser);
   try {
     await Q.up({ id: NOLINK, name: 'SA-NL ' + TS, platforms: 'youtube', scheduled_date: '2026-06-29', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress', status: 'In Progress' });
-    await Q.up({ id: LINK, name: 'SA-LK ' + TS, platforms: 'youtube', scheduled_date: '2026-06-29', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress', status: 'In Progress',
+    require('../native_work_item_fixture.js').registerProbeWorkItems([{ id: LINK, components: ['video', 'graphic'] }]); await Q.up({ id: LINK, name: 'SA-LK ' + TS, platforms: 'youtube', scheduled_date: '2026-06-29', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress', status: 'In Progress',
       linear_issue_id: 'https://linear.app/sidtest/issue/SAV-' + TS, graphic_linear_issue_id: 'https://linear.app/sidtest/issue/SAG-' + TS });
     await Q.up({ id: TERM, name: 'SA-TM ' + TS, platforms: 'youtube', scheduled_date: '2026-06-29', video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress', status: 'In Progress' });
     for (const id of [NOLINK, LINK, TERM]) await Q.pollRaw(id, r => r.id === id, 'id');

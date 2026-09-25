@@ -286,6 +286,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" async></script>
     <style>
         :root {
+            --brief-look: #7c5cff; --brief-look-bg: #f4f1ff; --brief-edit: #2f7de1; --brief-edit-bg: #eef5fe; --brief-music: #0e9f8e; --brief-music-bg: #eafaf7; --brief-avoid: #e0445a; --brief-avoid-bg: #fdf0f2; --brief-about: #d98a12; --brief-about-bg: #fdf6ea; --brief-asks: #d4509a; --brief-asks-bg: #fcf0f7; --brief-know: #5b6b82; --brief-know-bg: #f1f4f8;
+            --brief-look-ink: #5a36e0; --brief-edit-ink: #1c5fb3; --brief-music-ink: #0a6f63; --brief-avoid-ink: #b3243a; --brief-about-ink: #8a5300; --brief-asks-ink: #a82c73; --brief-know-ink: #45546b;
             color-scheme: light;
             --white:  #ffffff; --bg: #f4f4f2; --border: #e4e4e0; --border-light: #ededea;
             --surface-raised: #ffffff; --surface-hover: #f8f8f6; --surface-subtle: #f3f3f1;
@@ -319,6 +321,8 @@
             --upload-progress-track: var(--bg); --upload-progress-fill: var(--sv-bg-111110); --upload-progress-glow: rgba(0,0,0,0);
         }
         html[data-theme="dark"] {
+            --brief-look: #a996ff; --brief-look-bg: #221d38; --brief-edit: #6aa8f5; --brief-edit-bg: #172536; --brief-music: #43d1bf; --brief-music-bg: #13302d; --brief-avoid: #ff7b8c; --brief-avoid-bg: #37191f; --brief-about: #f0b454; --brief-about-bg: #332713; --brief-asks: #f08cc4; --brief-asks-bg: #361b2c; --brief-know: #9fb0c8; --brief-know-bg: #1d2330;
+            --brief-look-ink: #c3b5ff; --brief-edit-ink: #9cc6fa; --brief-music-ink: #7fe3d6; --brief-avoid-ink: #ffa3af; --brief-about-ink: #f6cc85; --brief-asks-ink: #f6b4d9; --brief-know-ink: #c2cedd;
             color-scheme: dark;
             --white: #181a1f; --bg: #101114; --border: #343842; --border-light: #282c34;
             --surface-raised: #20232a; --surface-hover: #242730; --surface-subtle: #15171c;
@@ -4270,18 +4274,40 @@
         .tpl-folder-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); text-decoration: none; color: inherit; font-size: 0.86rem; }
         .tpl-folder-row:hover .tpl-folder-name { text-decoration: underline; }
         .tpl-folder-meta { color: var(--text-muted); font-size: 0.74rem; white-space: nowrap; }
-        .tpl-brief-sec { margin-top: 14px; }
-        .tpl-brief-sec:first-of-type { margin-top: 4px; }
-        .tpl-brief-h { font-weight: 700; font-size: 0.95rem; margin-bottom: 6px; }
+        .tpl-brief { display: flex; flex-direction: column; gap: 16px; margin-top: 6px; }
+        .tpl-brief-cols { columns: 2 340px; column-gap: 16px; }
+        .tpl-brief-cols > .tpl-brief-sec { break-inside: avoid; margin-bottom: 16px; }
+        .tpl-brief-sec { --k: var(--brief-know); --kbg: var(--brief-know-bg); --kink: var(--brief-know-ink); background: var(--surface-raised); border: 1px solid var(--border-light); border-radius: 16px; overflow: hidden; }
+        .tpl-brief-look { --k: var(--brief-look); --kbg: var(--brief-look-bg); --kink: var(--brief-look-ink); }
+        .tpl-brief-edit { --k: var(--brief-edit); --kbg: var(--brief-edit-bg); --kink: var(--brief-edit-ink); }
+        .tpl-brief-music { --k: var(--brief-music); --kbg: var(--brief-music-bg); --kink: var(--brief-music-ink); }
+        .tpl-brief-avoid { --k: var(--brief-avoid); --kbg: var(--brief-avoid-bg); --kink: var(--brief-avoid-ink); }
+        .tpl-brief-about { --k: var(--brief-about); --kbg: var(--brief-about-bg); --kink: var(--brief-about-ink); }
+        .tpl-brief-asks { --k: var(--brief-asks); --kbg: var(--brief-asks-bg); --kink: var(--brief-asks-ink); }
+        .tpl-brief-h { display: flex; align-items: center; gap: 10px; margin: 0; padding: 14px 20px; background: var(--kbg); font-size: 0.98rem; font-weight: 700; color: var(--text-primary); }
+        .tpl-brief-ico { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 9px; background: var(--k); color: var(--surface-raised); }
+        .tpl-brief-body { padding: 12px 20px 16px; }
+        .tpl-brief-group { display: grid; grid-template-columns: 104px 1fr; gap: 0 16px; padding: 6px 0; }
+        .tpl-brief-group + .tpl-brief-group { border-top: 1px dashed var(--border-light); margin-top: 6px; padding-top: 12px; }
+        .tpl-brief-label { align-self: start; justify-self: start; margin-top: 4px; padding: 3px 10px; border-radius: 999px; background: var(--kbg); color: var(--kink); font-size: 0.76rem; font-weight: 700; }
+        @media (max-width: 560px) { .tpl-brief-group { grid-template-columns: 1fr; gap: 6px; } }
         .tpl-brief-list { list-style: none; margin: 0; padding: 0; }
-        .tpl-brief-li { padding: 6px 0; border-bottom: 1px solid var(--border); }
-        .tpl-brief-li:last-child { border-bottom: 0; }
-        .tpl-brief-row { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; }
-        .tpl-brief-text { font-size: 0.9rem; line-height: 1.5; }
-        .tpl-brief-acts { display: inline-flex; gap: 6px; opacity: 0; transition: opacity 0.12s; white-space: nowrap; }
+        .tpl-brief-li { position: relative; padding: 5px 0 5px 22px; }
+        .tpl-brief-li::before { content: ""; position: absolute; left: 5px; top: 15px; width: 7px; height: 7px; border-radius: 50%; background: var(--k); opacity: 0.85; }
+        .tpl-brief-avoid .tpl-brief-li::before { content: "\00d7"; width: auto; height: auto; background: none; opacity: 1; top: 4px; left: 3px; font-weight: 800; font-size: 1.05rem; line-height: 1.5; color: var(--k); }
+        .tpl-brief-asks .tpl-brief-li::before { content: "\21ba"; width: auto; height: auto; background: none; opacity: 1; top: 5px; left: 2px; font-weight: 700; font-size: 0.9rem; line-height: 1.6; color: var(--k); }
+        .tpl-brief-row { position: relative; }
+        .tpl-brief-text { font-size: 0.92rem; line-height: 1.65; color: var(--text-primary); }
+        .tpl-brief-note { display: table; margin-top: 6px; padding: 2px 9px; border-radius: 999px; background: var(--kbg); color: var(--text-secondary); font-size: 0.74rem; }
+        .tpl-brief-hex { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--surface-subtle); border-radius: 999px; padding: 1px 9px 1px 4px; font: inherit; font-size: 0.8rem; color: inherit; cursor: copy; vertical-align: 1px; }
+        .tpl-brief-hex span { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--border); }
+        .tpl-brief-hex.copied { font-weight: 700; }
+        .tpl-brief-acts { position: absolute; right: -6px; top: -2px; display: inline-flex; gap: 4px; padding: 2px 4px; border-radius: 8px; background: var(--surface-raised); box-shadow: 0 0 0 1px var(--border); opacity: 0; pointer-events: none; transition: opacity 0.12s; white-space: nowrap; }
+        .tpl-brief-li:hover .tpl-brief-acts, .tpl-brief-acts:focus-within { pointer-events: auto; }
         .tpl-brief-li:hover .tpl-brief-acts, .tpl-brief-acts:focus-within { opacity: 1; }
-        @media (hover: none) { .tpl-brief-acts { opacity: 1; } }
-        .tpl-brief-act { font-size: 0.72rem; border: 1px solid var(--border); background: none; border-radius: 6px; padding: 2px 7px; cursor: pointer; color: var(--text-muted); }
+        @media (hover: none) { .tpl-brief-acts { position: static; opacity: 1; pointer-events: auto; box-shadow: none; background: none; padding: 0; margin-top: 4px; } }
+        .tpl-brief-act { font-size: 0.72rem; border: 1px solid var(--border); background: var(--white); border-radius: 6px; padding: 2px 7px; cursor: pointer; color: var(--text-secondary); }
+        .tpl-brief-act:focus-visible, .tpl-brief-hex:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
         .tpl-brief-sources { margin: 8px 0 4px; padding: 8px 12px; border-left: 3px solid var(--border); }
         .tpl-brief-source-h { font-weight: 700; font-size: 0.8rem; margin-bottom: 4px; }
         .tpl-brain-allfacts { margin-top: 16px; }
@@ -13223,29 +13249,82 @@
     function tplBriefToggleSource(key) { _tplBriefSourceOpen = _tplBriefSourceOpen === key ? '' : key; _maybeRerenderTemplates(); }
     let _tplBriefFormRow = '';
     function tplBriefChange(key, row) { _tplBriefSourceOpen = ''; tplBrainOpen(key, row); }
+    // Brief line text: colour codes become swatches, and a trailing
+    // "(starting point: ...)" becomes its own quiet note under the line.
+    function _tplBriefText(text) {
+        let t = String(text || ''), note = '';
+        const m = /\s*\((starting point:[^)]*)\)\s*$/i.exec(t);
+        if (m) { note = m[1].charAt(0).toUpperCase() + m[1].slice(1); t = t.slice(0, m.index); }
+        // Colour codes become swatches only in plain text, never inside a link.
+        const swatch = hex => `<button type="button" class="tpl-brief-hex" title="Copy ${hex}" onclick="tplBrainCopy('${hex}', this)"><span style="background:${hex}"></span>${hex}</button>`;
+        const html = t.split(/(https?:\/\/[^\s<]+)/).map((part, i) => i % 2
+            ? _tplBrainInline(part)
+            : _tplBrainInline(part).replace(/(^|[^&\w])(#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b)/g, (m, pre, hex) => pre + swatch(hex))).join('');
+        return { html, note };
+    }
+    // Section kind decides the line marker, so the marker carries meaning.
+    function _tplBriefKind(heading) {
+        const h = String(heading || '').toLowerCase();
+        if (/^avoid/.test(h)) return 'avoid';
+        if (/ask to change/.test(h)) return 'asks';
+        if (/^look/.test(h)) return 'look';
+        if (/^editing/.test(h)) return 'edit';
+        if (/^music/.test(h)) return 'music';
+        if (/^about/.test(h)) return 'about';
+        return 'know';
+    }
+    // One small icon per section kind; unknown headings get the "good to know" look.
+    const TPL_BRIEF_ICONS = {
+        look: '<path d="M4 6h16M4 12h10M4 18h7" /><circle cx="18" cy="16" r="3" />',
+        edit: '<path d="M6 4v16M18 4v16M6 9h12M6 15h12" />',
+        music: '<path d="M9 18V6l10-2v12" /><circle cx="7" cy="18" r="2" /><circle cx="17" cy="16" r="2" />',
+        avoid: '<circle cx="12" cy="12" r="8" /><path d="M7 17 17 7" />',
+        about: '<circle cx="12" cy="8" r="3.5" /><path d="M5 20c1.2-3.6 4-5 7-5s5.8 1.4 7 5" />',
+        asks: '<path d="M4 12a8 8 0 1 0 2.4-5.7" /><path d="M4 4v4h4" />',
+        know: '<circle cx="12" cy="12" r="8" /><path d="M12 11v5M12 8h.01" />',
+    };
     function _tplBriefView(name, b) {
         const byId = {};
         b.facts.forEach(f => { byId[f.id] = f; });
-        return b.brief.map((sec, si) => `<div class="tpl-brief-sec">
-            <div class="tpl-brief-h">${_tplEsc(sec.heading)}</div>
-            <ul class="tpl-brief-list">${sec.bullets.map((bl, bi) => {
-                const srcKey = name + '::b' + si + '.' + bi;
-                const fact = byId[bl.facts[0]] || null;
-                const changeKey = _tplBrainKey(name, fact ? fact.id : '');
-                const open = _tplBriefSourceOpen === srcKey;
-                const formOpen = _tplBriefFormRow === srcKey && (_tplBrainOpenForm === changeKey || _tplBrainSent[changeKey]);
-                const sources = bl.facts.map(id => byId[id]).filter(Boolean);
-                return `<li class="tpl-brief-li">
-                    <div class="tpl-brief-row"><span class="tpl-brief-text">${_tplBrainInline(bl.text)}</span>
-                        <span class="tpl-brief-acts">
-                            ${sources.length ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(srcKey)}" onclick="tplBriefToggleSource(this.dataset.k)">${open ? 'Hide source' : 'Source'}</button>` : ''}
-                            ${fact ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(changeKey)}" data-row="${_tplEscAttr(srcKey)}" onclick="tplBriefChange(this.dataset.k, this.dataset.row)">Change</button>` : ''}
-                        </span></div>
-                    ${open ? `<div class="tpl-brief-sources">${sources.map(f => `<div class="tpl-brief-source"><div class="tpl-brief-source-h">${_tplEsc(f.heading)}</div><div class="tpl-brain-body">${_tplBrainProse(f.body)}</div></div>`).join('')}</div>` : ''}
-                    ${formOpen && fact ? _tplBrainChangeBox(name, fact, true) : ''}
-                </li>`;
-            }).join('')}</ul>
-        </div>`).join('');
+        const line = (bl, si, bi) => {
+            const srcKey = name + '::b' + si + '.' + bi;
+            const fact = byId[bl.facts[0]] || null;
+            const changeKey = _tplBrainKey(name, fact ? fact.id : '');
+            const open = _tplBriefSourceOpen === srcKey;
+            const formOpen = _tplBriefFormRow === srcKey && (_tplBrainOpenForm === changeKey || _tplBrainSent[changeKey]);
+            const sources = bl.facts.map(id => byId[id]).filter(Boolean);
+            const t = _tplBriefText(bl.body);
+            return `<li class="tpl-brief-li">
+                <div class="tpl-brief-row"><span class="tpl-brief-text">${t.html}${t.note ? `<span class="tpl-brief-note">${_tplEsc(t.note)}</span>` : ''}</span>
+                    <span class="tpl-brief-acts">
+                        ${sources.length ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(srcKey)}" onclick="tplBriefToggleSource(this.dataset.k)">${open ? 'Hide source' : 'Source'}</button>` : ''}
+                        ${fact ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(changeKey)}" data-row="${_tplEscAttr(srcKey)}" onclick="tplBriefChange(this.dataset.k, this.dataset.row)">Change</button>` : ''}
+                    </span></div>
+                ${open ? `<div class="tpl-brief-sources">${sources.map(f => `<div class="tpl-brief-source"><div class="tpl-brief-source-h">${_tplEsc(f.heading)}</div><div class="tpl-brain-body">${_tplBrainProse(f.body)}</div></div>`).join('')}</div>` : ''}
+                ${formOpen && fact ? _tplBrainChangeBox(name, fact, true) : ''}
+            </li>`;
+        };
+        const section = (sec, si) => {
+            const kind = _tplBriefKind(sec.heading);
+            // Split "**Label:** rest" so a label shared by consecutive lines shows once.
+            const rows = sec.bullets.map((bl, bi) => {
+                const m = /^\*\*([^*]+?):?\*\*:?\s*(.*)$/.exec(bl.text);
+                return { bl: Object.assign({}, bl, { body: m ? m[2] : bl.text }), label: m ? m[1].replace(/:$/, '') : '', bi };
+            });
+            const groups = [];
+            rows.forEach(r => {
+                const last = groups[groups.length - 1];
+                if (last && last.label === r.label) last.rows.push(r); else groups.push({ label: r.label, rows: [r] });
+            });
+            const body = groups.map(g => g.label
+                ? `<div class="tpl-brief-group"><div class="tpl-brief-label">${_tplEsc(g.label)}</div><ul class="tpl-brief-list">${g.rows.map(r => line(r.bl, si, r.bi)).join('')}</ul></div>`
+                : `<ul class="tpl-brief-list">${g.rows.map(r => line(r.bl, si, r.bi)).join('')}</ul>`).join('');
+            return `<section class="tpl-brief-sec tpl-brief-${kind}"><h3 class="tpl-brief-h"><span class="tpl-brief-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${TPL_BRIEF_ICONS[kind] || TPL_BRIEF_ICONS.know}</svg></span>${_tplEsc(sec.heading)}</h3><div class="tpl-brief-body">${body}</div></section>`;
+        };
+        const lookIdx = b.brief.findIndex(sec => _tplBriefKind(sec.heading) === 'look');
+        const look = lookIdx >= 0 ? section(b.brief[lookIdx], lookIdx) : '';
+        const rest = b.brief.map((sec, si) => si === lookIdx ? '' : section(sec, si)).join('');
+        return `<div class="tpl-brief">${look}<div class="tpl-brief-cols">${rest}</div></div>`;
     }
     function _tplBrainSection(name) {
         const b = _tplBrain[name];
@@ -15398,6 +15477,18 @@
     let _wlNativeDueReceiptGeneration = 0;
     let _wlNativeDueReceiptRetryTimer = null;
     let _wlNativeDueReceiptRetryAttempt = 0;
+    // Setters for the Workload render module (080). ES module imports are
+    // read-only, so 080 changes these through the functions below instead
+    // of assigning them directly (phase C step C3).
+    function _wlSetBackgroundRefreshPromise(value) { _wlBackgroundRefreshPromise = value; }
+    function _wlSetBackgroundRefreshMode(value) { _wlBackgroundRefreshMode = value; }
+    function _wlSetNativeDueReceiptRetryPromise(value) { _wlNativeDueReceiptRetryPromise = value; }
+    function _wlSetNativeDueReceiptRetryTimer(value) { _wlNativeDueReceiptRetryTimer = value; }
+    function _wlSetNativeDueReceiptRetryAttempt(value) { _wlNativeDueReceiptRetryAttempt = value; }
+    function _wlTakeNativeDueReceiptRetryAttempt() { return _wlNativeDueReceiptRetryAttempt++; }
+    function _wlNextNativeDueReceiptGeneration() { return ++_wlNativeDueReceiptGeneration; }
+    function _wlNextPlanLoadGeneration() { return ++_wlPlanLoadGeneration; }
+    function _wlNextPlanWriteGeneration() { return ++_wlPlanWriteGeneration; }
 
     function wlPlanEditingEnabled() {
         return wlState.planStatus === 'ready' && _syncviewStaffCan('workload-plan');
@@ -17859,11 +17950,11 @@
             }
         };
         const pending = run();
-        _wlBackgroundRefreshPromise = pending;
+        _wlSetBackgroundRefreshPromise(pending);
         try { return await pending; }
         finally {
             if (_wlBackgroundRefreshPromise === pending) {
-                _wlBackgroundRefreshPromise = null;
+                _wlSetBackgroundRefreshPromise(null);
                 if (!_wlNativeDueReceiptRetryPromise) wlScheduleNativeDueReceiptRetry();
             }
         }
@@ -17887,7 +17978,7 @@
         }
 
         const run = async () => {
-            const loadGeneration = ++_wlPlanLoadGeneration;
+            const loadGeneration = _wlNextPlanLoadGeneration();
             const sessionGeneration = _wlPlanSessionGeneration;
             try {
                 const freshIssues = sensitiveOnly
@@ -17958,13 +18049,13 @@
         };
 
         const pending = run();
-        _wlBackgroundRefreshPromise = pending;
-        _wlBackgroundRefreshMode = sensitiveOnly ? 'sensitive' : 'full';
+        _wlSetBackgroundRefreshPromise(pending);
+        _wlSetBackgroundRefreshMode(sensitiveOnly ? 'sensitive' : 'full');
         try { return await pending; }
         finally {
             if (_wlBackgroundRefreshPromise === pending) {
-                _wlBackgroundRefreshPromise = null;
-                _wlBackgroundRefreshMode = null;
+                _wlSetBackgroundRefreshPromise(null);
+                _wlSetBackgroundRefreshMode(null);
                 if (!_wlNativeDueReceiptRetryPromise) wlScheduleNativeDueReceiptRetry();
             }
         }
@@ -18558,11 +18649,11 @@
             return true;
         };
         const pending = run();
-        _wlNativeDueReceiptRetryPromise = pending;
+        _wlSetNativeDueReceiptRetryPromise(pending);
         try { return await pending; }
         finally {
             if (_wlNativeDueReceiptRetryPromise === pending) {
-                _wlNativeDueReceiptRetryPromise = null;
+                _wlSetNativeDueReceiptRetryPromise(null);
                 if (_wlPendingNativeDueReceiptByTarget.size
                     && _wlNativeDueReceiptGeneration !== retryGeneration) {
                     wlScheduleNativeDueReceiptRetry();
@@ -18577,8 +18668,8 @@
 
     function wlCancelNativeDueReceiptRetryTimer(resetAttempt) {
         if (_wlNativeDueReceiptRetryTimer !== null) clearTimeout(_wlNativeDueReceiptRetryTimer);
-        _wlNativeDueReceiptRetryTimer = null;
-        if (resetAttempt) _wlNativeDueReceiptRetryAttempt = 0;
+        _wlSetNativeDueReceiptRetryTimer(null);
+        if (resetAttempt) _wlSetNativeDueReceiptRetryAttempt(0);
     }
 
     function wlScheduleNativeDueReceiptRetryLater() {
@@ -18586,14 +18677,14 @@
             || _wlNativeDueReceiptRetryAttempt >= WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS.length) return false;
         const sessionGeneration = _wlPlanSessionGeneration;
         const receiptGeneration = _wlNativeDueReceiptGeneration;
-        const delay = WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS[_wlNativeDueReceiptRetryAttempt++];
-        _wlNativeDueReceiptRetryTimer = setTimeout(() => {
-            _wlNativeDueReceiptRetryTimer = null;
+        const delay = WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS[_wlTakeNativeDueReceiptRetryAttempt()];
+        _wlSetNativeDueReceiptRetryTimer(setTimeout(() => {
+            _wlSetNativeDueReceiptRetryTimer(null);
             if (sessionGeneration !== _wlPlanSessionGeneration
                 || receiptGeneration !== _wlNativeDueReceiptGeneration
                 || !_wlPendingNativeDueReceiptByTarget.size) return;
             wlScheduleNativeDueReceiptRetry();
-        }, delay);
+        }, delay));
         return true;
     }
 
@@ -18622,7 +18713,7 @@
             if (!current && _wlPendingNativeDueReceiptByTarget.size >= 100) return false;
             if (!current || Date.parse(current.row.updated_at) < Date.parse(row.updated_at)) {
                 _wlPendingNativeDueReceiptByTarget.set(key, receipt);
-                _wlNativeDueReceiptGeneration++;
+                _wlNextNativeDueReceiptGeneration();
                 wlCancelNativeDueReceiptRetryTimer(true);
             } else {
                 wlCancelNativeDueReceiptRetryTimer(false);
@@ -18716,7 +18807,7 @@
         // Any snapshot already in flight predates this optimistic Linear write.
         // Invalidate it now so a fast successful save cannot be overwritten by
         // an older metadata response after the write token is removed.
-        _wlPlanLoadGeneration++;
+        _wlNextPlanLoadGeneration();
         _wlDueWriteInFlight.set(key, token);
         wlApplyDueLocal(key, dueDate);
         renderWorkloadAll();
@@ -18924,7 +19015,7 @@
             return true;
         }
 
-        const token = { generation: ++_wlPlanWriteGeneration };
+        const token = { generation: _wlNextPlanWriteGeneration() };
         const sessionGeneration = _wlPlanSessionGeneration;
         _wlPlanLastWriteGeneration.set(key, token.generation);
         _wlPlanWriteInFlight.set(key, token);
@@ -18933,7 +19024,7 @@
         wlFocusPlanItem(key);
         const saved = await _wlPersistPlanDate(issue, planDate, previousDate, sessionGeneration);
         if (sessionGeneration !== _wlPlanSessionGeneration) return false;
-        _wlPlanLastWriteGeneration.set(key, ++_wlPlanWriteGeneration);
+        _wlPlanLastWriteGeneration.set(key, _wlNextPlanWriteGeneration());
         if (_wlPlanWriteInFlight.get(key) === token) _wlPlanWriteInFlight.delete(key);
         wlScheduleNativeDueReceiptRetry();
         renderWorkloadAll();
@@ -18968,7 +19059,7 @@
         const sessionGeneration = _wlPlanSessionGeneration;
         const moves = issues.map(issue => {
             const key = String(issue.id || '');
-            const token = { generation: ++_wlPlanWriteGeneration };
+            const token = { generation: _wlNextPlanWriteGeneration() };
             _wlPlanLastWriteGeneration.set(key, token.generation);
             _wlPlanWriteInFlight.set(key, token);
             return { issue, key, token, previousDate: wlPlanDate(issue) || null };
@@ -18988,7 +19079,7 @@
             );
             if (sessionGeneration !== _wlPlanSessionGeneration) break;
             if (saved) moved++;
-            _wlPlanLastWriteGeneration.set(move.key, ++_wlPlanWriteGeneration);
+            _wlPlanLastWriteGeneration.set(move.key, _wlNextPlanWriteGeneration());
             if (_wlPlanWriteInFlight.get(move.key) === move.token) {
                 _wlPlanWriteInFlight.delete(move.key);
             }
@@ -30634,16 +30725,17 @@
        legacy Linear URL column or the native deliverable-id column. Keep every
        Kasper gate and staff pill lock on this one predicate so a native-only
        thumbnail remains visible and actionable after the Graphics flip. */
+    /* Linear is retired (owner + Lighthouse, 2026-09-24): a component is
+       linked only when it carries its own SyncView deliverable id. A stored
+       Linear URL with no deliverable id reads as ABSENT -- the pill shows the
+       honest locked N/A instead of an editable status the gateway refuses
+       with native_link_required, and the card offers SyncView's own "add the
+       missing video/thumbnail". The stored URL is not read here, not cleared
+       and not rewritten anywhere. */
     function _calCompLinked(post, comp) {
         if (!post) return false;
-        if (comp === 'graphic') {
-            return !!(String(post.graphic_linear_issue_id || '').trim()
-                || String(post.graphic_deliverable_id || '').trim());
-        }
-        if (comp === 'video') {
-            return !!(String(post.linear_issue_id || '').trim()
-                || String(post.video_deliverable_id || '').trim());
-        }
+        if (comp === 'graphic') return !!String(post.graphic_deliverable_id || '').trim();
+        if (comp === 'video') return !!String(post.video_deliverable_id || '').trim();
         return true;
     }
     /* WHAT A COMPONENT PILL SHOULD DISPLAY (owner ruling 2026-08-20).
@@ -32431,9 +32523,10 @@
        native fallback (a Set-membership check, not a pairwise compare) but
        reads the same two fields for the same reason. */
     function _calDupeKey(post, comp) {
+        // Linear is retired: two cards sharing an old Linear URL are not a
+        // conflict any more; only a shared SyncView deliverable is.
         return {
-            linear: _calLinkKey(comp === 'graphic'
-                ? (post && post.graphic_linear_issue_id) : (post && post.linear_issue_id)),
+            linear: '',
             native: _calLinkKey(comp === 'graphic'
                 ? (post && post.graphic_deliverable_id) : (post && post.video_deliverable_id)),
         };
@@ -32492,7 +32585,7 @@
     // Human label for the dupe banner: the calendar calls the graphic slot "Thumbnail".
     function _calDupeWarnText(groups) {
         return groups.map(g => 'Same ' + (g.comp === 'graphic' ? 'thumbnail' : 'video')
-            + ' Linear issue as ' + g.names.join(', ')).join(' · ');
+            + ' work item as ' + g.names.join(', ')).join(' · ');
     }
     /* The open client tabs (calendar AND samples) live here in localStorage and
        ARE the persistence for "which tabs are open". We deliberately do NOT
@@ -40568,6 +40661,17 @@
         return `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>`;
     }
     function _calLinearSlotHtml(pid, url, ro, comp) {
+        /* Linear is retired (owner, 2026-09-24): the card shows no Linear
+           sub-issue control at all -- not the remove X on a sealed slot, not
+           the pencil, not the link button. Cards reach their work through
+           video_deliverable_id / graphic_deliverable_id (_writeUiNativeId),
+           never through this URL, and the stored linear_issue_id /
+           graphic_linear_issue_id values are left exactly as they are:
+           nothing here reads, clears or rewrites them. _calProdSlotHtml still
+           shows where the work lives. The body below is kept, unreachable, so
+           the retirement is a one-line revert. */
+        return '';
+        // eslint-disable-next-line no-unreachable
         if (ro || _isClientLink) return '';   // Linear linking is internal — never shown in the client view
         const which = comp || 'video';
         const u = String(url || '').trim();
@@ -40664,12 +40768,9 @@
         const other = target === 'graphic' ? 'video' : 'graphic';
         const idOf = comp => String((comp === 'graphic'
             ? p.graphic_deliverable_id : p.video_deliverable_id) || '').trim();
-        const linkOf = comp => String((comp === 'graphic'
-            ? p.graphic_linear_issue_id : p.linear_issue_id) || '').trim();
-        // The slot must be empty BOTH ways. A card carrying a Linear url with
-        // no native id is a legacy half-link, not a missing component, and
-        // filling it would leave the card pointing at two different issues.
-        if (idOf(target) || linkOf(target)) return '';
+        // Linear is retired: a stored Linear URL with no native id is treated
+        // as absent (see _calCompLinked), so only the deliverable id decides.
+        if (idOf(target)) return '';
         // Only where the target team is SyncView-authoritative. Under a
         // rollback the native create is refused at the database, so offering
         // the button would be offering a dead one.
@@ -41206,7 +41307,8 @@
         // Review tab — the Sheet tab is now read-only for them. Approval
         // lives in _calReviewCardBody / _calReviewPanelHtml exclusively.
         const canApprove = false;
-        const needsLinear = !ro && !isBlank && !_writeUiLinkSlotSealed('video') && !String(p.linear_issue_id || '').trim();
+        // Linear is retired: no card asks for, or warns about, a Linear link.
+        const needsLinear = false;
         // Other active cards that point at this card's Linear sub-issue(s) — drives the
         // duplicate warning banner. Computed here (render) from the live card list.
         const dupePeers = (!_isClientLink && !isBlank) ? _calLinkDuplicatePeers(p) : [];
@@ -41216,16 +41318,11 @@
            instruction to perform exactly the write the seal now refuses, so a
            sealed component drops out of this banner entirely. The video half is
            unaffected while video stays Linear-authoritative. */
-        const parentComp = (!ro && !isBlank && !needsLinear)
-            ? (_calIsParentLinked(p.linear_issue_id) && !_writeUiLinkSlotSealed('video') ? 'video'
-                : (_calIsParentLinked(p.graphic_linear_issue_id) && !_writeUiLinkSlotSealed('graphic') ? 'graphic' : ''))
-            : '';
+        const parentComp = '';
         // Linked to a real sub-issue, but the sub-issue itself is missing
         // project / due date / editor on Linear — same orange thumb banner,
         // clicks open the Linear issue so the SMM can fill the gap.
-        const linearMissing = (!ro && !isBlank && !needsLinear && !parentComp)
-            ? _calLinearMissingForCard(p)
-            : null;
+        const linearMissing = null;
         const subStatusHtml = (ro || _isClientLink) ? '' : CAL_COMPONENTS.map(c => {
             // Don't fall back to overall — overall is lower-priority-wins,
             // so seeding a blank sub from it would lie about state. Migrate
@@ -41297,7 +41394,7 @@
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
             <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : (parentComp ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}'${parentComp === 'graphic' ? ",'graphic'" : ''})" title="This card links the parent issue — statuses pushed there never reach the editor’s Workload. Paste the ${parentComp === 'graphic' ? 'GRA (graphic)' : 'VID (video)'} sub-issue link instead."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Parent issue linked — link the sub-issue</button>` : (linearMissing ? `<a class="cal-thumb-linear-warn" href="${_calEscAttr(/^https?:\/\//i.test(linearMissing.url) ? linearMissing.url : 'https://' + linearMissing.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="This Linear ${linearMissing.comp === 'graphic' ? 'graphic' : 'video'} sub-issue has no ${linearMissing.missing.join(', no ')} set. Open it on Linear to fix."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Sub-issue has no ${linearMissing.missing.join(', no ')}</a>` : ''))}${_calThumbContent(p)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}${_isClientLink ? '' : _calSmmWarnOverlayHtml(p)}${(_isClientLink || ro) ? '' : _calLinearPileHtml(pid, p)}</div>
             <div class="cal-card-body">
-                ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_calEscAttr(_calDupeWarnText(dupePeers))}. Two cards can't own the same Linear sub-issue — archive one of them, or change one card's link.">⚠ ${_calEsc(_calDupeWarnText(dupePeers))} — archive one or change its link</div>` : ''}
+                ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_calEscAttr(_calDupeWarnText(dupePeers))}. Two cards can't own the same work item — archive one of them.">⚠ ${_calEsc(_calDupeWarnText(dupePeers))} — archive one of them</div>` : ''}
                 <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro, editableText)}</div>
                 <div class="cal-meta-row">${dateHtml}</div>
                 ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, _isClientLink && !isBlank, p)}
@@ -68345,12 +68442,8 @@
         const other = target === 'graphic' ? 'video' : 'graphic';
         const idOf = comp => String((comp === 'graphic'
             ? p.graphic_deliverable_id : p.video_deliverable_id) || '').trim();
-        const linkOf = comp => String((comp === 'graphic'
-            ? p.graphic_linear_issue_id : p.linear_issue_id) || '').trim();
-        // Empty BOTH ways. A card carrying a Linear url with no native id is a
-        // legacy half-link, not a missing component, and filling it would leave
-        // the card pointing at two different issues.
-        if (idOf(target) || linkOf(target)) return '';
+        // Linear is retired: a stored Linear URL alone counts as absent.
+        if (idOf(target)) return '';
         if (!_writeUiLinkSlotSealed(target)) return '';
         return idOf(other);
     }
@@ -69190,13 +69283,14 @@
         try { archived = _sxrArchivedRefs(sxrClientSlug(sxrState.client)); } catch (e) {}
         const isArch = (p) => (String((p && p.status) || '').toLowerCase() === 'archived') || (() => { try { return !!(archived && _sxrIsArchivedRef(p, archived)); } catch (e) { return false; } })();
         if (isArch(post)) return [];
-        const vKey = _sxrLinkKey(post.linear_issue_id), gKey = _sxrLinkKey(post.graphic_linear_issue_id);
+        // Linear is retired: only a shared SyncView deliverable is a conflict.
+        const vKey = _sxrLinkKey(post.video_deliverable_id), gKey = _sxrLinkKey(post.graphic_deliverable_id);
         if (!vKey && !gKey) return [];
         const vPeers = new Set(), gPeers = new Set();
         for (const p of (sxrState.posts || [])) {
             if (!p || p.id === post.id || isArch(p)) continue;
             const nm = String(p.name || '').trim() || 'Untitled sample';
-            const pv = _sxrLinkKey(p.linear_issue_id), pg = _sxrLinkKey(p.graphic_linear_issue_id);
+            const pv = _sxrLinkKey(p.video_deliverable_id), pg = _sxrLinkKey(p.graphic_deliverable_id);
             if (vKey && (pv === vKey || pg === vKey)) vPeers.add(nm);
             if (gKey && (pv === gKey || pg === gKey)) gPeers.add(nm);
         }
@@ -69206,7 +69300,7 @@
         return out;
     }
     function _sxrDupeWarnText(groups) {
-        return groups.map(g => 'Same ' + (g.comp === 'graphic' ? 'thumbnail' : 'video') + ' Linear issue as ' + g.names.join(', ')).join(' · ');
+        return groups.map(g => 'Same ' + (g.comp === 'graphic' ? 'thumbnail' : 'video') + ' work item as ' + g.names.join(', ')).join(' · ');
     }
 
     /* ── Status menu + Set-all (samples: 6 statuses, video+graphic, always settable) ── */
@@ -69681,7 +69775,7 @@
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveSxrCard('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
             <div class="cal-card-thumb" onclick="_sxrThumbClick(event,'${pid}')">${warnHtml}${_sxrThumbContent(p)}${(_isClientLink || ro) ? '' : _sxrLinearPileHtml(pid, p)}</div>
             <div class="cal-card-body">
-                ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_sxrEscAttr(_sxrDupeWarnText(dupePeers))}. Two cards can't own the same Linear sub-issue — archive one of them, or change one card's link.">⚠ ${_sxrEsc(_sxrDupeWarnText(dupePeers))} — archive one or change its link</div>` : ''}
+                ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_sxrEscAttr(_sxrDupeWarnText(dupePeers))}. Two cards can't own the same work item — archive one of them.">⚠ ${_sxrEsc(_sxrDupeWarnText(dupePeers))} — archive one of them</div>` : ''}
                 <div class="cal-title-row" data-title-row="${pid}">${_sxrTitleRowHtml(pid, p, ro, editableText)}</div>
                 ${_sxrLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, p)}
                 ${_sxrLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro, p)}

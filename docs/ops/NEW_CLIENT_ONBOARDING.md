@@ -137,7 +137,7 @@
 
 **Synchro Brain**
 - [ ] Create the client's brain folder and first Editor brief from the onboarding answers. → [§6l](#6l-synchro-brain-folder-and-editor-brief)
-- [ ] *(optional, later)* **Templates** page → subtitle/thumbnail font & colour through its Quick look form (saved in the Supabase `templates` table and sent to the brain). → [§6b](#6b-templates--caption-prompts-optional)
+- [ ] *(optional, later)* **Templates** page → subtitle/thumbnail font & colour through its Quick look form (sent to the client's brain facts as a change; see §6b). → [§6b](#6b-templates--caption-prompts-optional)
 
 **Finish**
 - [ ] Verify on the live dashboard (calendar loads, samples strip, filming plan opens from the main tab/Templates/Kasper, both Slack targets, metrics next morning). → [§6i](#6i-verify)
@@ -393,7 +393,7 @@ Now that Supabase and the Edge Function are live, the old SYNCVIEW Google Sheet 
 The operational source-of-truth UI is the main **Filming Plans** tab. Kasper's **Filming Plans** sub-tab reads that same source and combines it with the client's `calendar_posts` runway.
 
 ### 6b. Templates / caption prompts (optional)
-- **Templates** — per‑client styling the editors/designers use (subtitle and thumbnail fonts and colours, reference links, preferences). **Since 2026-09-24 it lives only in the Supabase `templates` table**, read by the Templates page and saved through the `templates-save` Edge Function; the sheet's `Templates` tab and its n8n workflows are retired, so do not add a sheet row. Exact subtitle/thumbnail values typed in the Quick look form are also sent to the client's brain facts ([§6l](#6l-synchro-brain-folder-and-editor-brief)). Filled progressively — **not needed on day one**.
+- **Templates** — per‑client styling the editors/designers use (subtitle and thumbnail fonts and colours, reference links, preferences). **Since 2026-09-24 it lives only in the Supabase `templates` table**, read by the Templates page and saved through the `templates-save` Edge Function; the sheet's `Templates` tab and its n8n workflows are retired, so do not add a sheet row. Exception: the subtitle/thumbnail font and colour values typed in the **Quick look** form are **not** saved to the `templates` table. They go only to the client's brain facts, as a change the brain processes ([§6l](#6l-synchro-brain-folder-and-editor-brief)); the old `templates` style fields are just a read-only fallback shown when the brain is unreachable. So the proof that a Quick look save landed is the brain fact, not a Supabase row. Filled progressively — **not needed on day one**.
 - **`CaptionPrompts` tab** — a per‑client caption‑gen prompt (keyed by **slug**). Managed from the UI; optional.
 
 ### 6c. Two Slack channels — the client channel (manual) and the creative channel (automatic)
@@ -752,7 +752,7 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
   enrollment + Linear project mapping all agree with each other, rather than each looking correct
   in isolation.
 - Open the client's filming plan from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. All three should open the same master Doc from Supabase.
-- Open the client's **Templates** page: the **Editor brief** should show (it is empty until [§6l](#6l-synchro-brain-folder-and-editor-brief) is done).
+- Open the client's **Templates** page: the **Editor brief** should show (it is empty until [§6l](#6l-synchro-brain-folder-and-editor-brief) is done). If the page instead says it could not reach the brain, the problem is not this client: the `brain` Edge Function is not deployed or is missing its `BRAIN_GITHUB_TOKEN` secret (OPEN_REPAIRS 251). Fix that first; do not treat this line as failed onboarding.
 - Confirm the weekly Slack target resolves (`slack_channel_id` set).
 - Confirm the exact **public** `{client}-creative` Slack channel exists with all five required members — the SyncView Bot, owner/Sidney, Kasper, Rocío, and the assigned SMM; that its channel id is in `creative_channel_id`; and that the kickoff (with credentials inlined) visibly precedes the full onboarding brief.
 - Before any real-client #850 cohort enrollment, require a server-side onboarding receipt proving the exact team
@@ -846,7 +846,7 @@ with the `synchro-brain` repo and ask it to onboard the new client. It must:
    Fill only what the answers actually say; everything else stays `not-written`. Never copy another
    client's preferences in as defaults.
 4. Build the client's `brief.md` from those facts, per `POLICY/briefs.md`.
-5. Ship it as a PR on `synchro-brain` and merge it.
+5. Open it as a PR on `synchro-brain`, let the automatic review finish and resolve what it finds (ask for a re-review after any fix), and only then merge.
 
 After that, new client calls and SyncView's "Send a change" button keep the folder growing on their own.
 

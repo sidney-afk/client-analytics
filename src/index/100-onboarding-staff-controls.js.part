@@ -1,3 +1,34 @@
+import {
+  _syncviewApplyStatusPalette, _syncviewApplyTheme, _syncviewStoredStatusPalette,
+  _syncviewStoredTheme, _toastEl, showNotify, showToast
+} from './040-shared-briefs.js';
+import {
+  _fpPurgeSensitiveState, _obvMode, _obvSetError, _obvSetLoadedAt, _obvSetLoading, _obvSetMode,
+  _obvSetSelected, _obvSetSubs, _obvSetWarn, currentNav
+} from './060-templates-filming.js';
+import { wlNormalizeClient, wlPurgePlanSensitiveState } from './070-workload-source.js';
+import { wlRefreshSensitiveStateSilent } from './080-workload-render.js';
+import {
+  _ptoCalResetView, _ptoDate, _ptoEnabled, _ptoLoadAdmin, _ptoLoadOverview, _ptoPaint,
+  _ptoRenderAdmin, _srpPurgeSensitiveState
+} from './110-time-off-reports.js';
+import { _jsAttrArg } from './131-core-html.js';
+import { _thumbCompareScheduleAvailability } from './160-calendar-organize-ui.js';
+import { _linearIntakePurgeSensitiveState } from './200-intake-data-startup.js';
+import { PROD_CREATE_DRAFT_KEY, _prodCachePurge, _prodState } from './210-production-state-writes.js';
+import { _prodClearLayer } from './220-production-attribution-views.js';
+import { _prodComments } from './230-production-create-comments.js';
+import {
+  _isClientLink, _isIntake, _isOnboarding, _isOnboardingView, _isSmmWeeklyEntry,
+  _prodSmmPurgeSensitiveState, _syncviewAppBooted, _syncviewSetAppBooted, init
+} from './260-production-refresh-boot.js';
+import { _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
+import { _hpPurgeSensitiveState } from './310-sales-intake-hiring.js';
+import {
+  CC_ICON_EYE, _ccCloseModal, _ccCloseSelect, _ccExpanded, _ccOpenSelectId, _ccRevTeardown,
+  _ccRevealed, _ccSelectHtml, _ccState, _ccTogglePasswordField, _kasperFallbackToReview,
+  _kasperRenderTab, _kasperRestorePendingSubtab, _kasperState
+} from './320-kasper-dashboard-replies.js';
     /* ============================================================
        CLIENT ONBOARDING MODULE  (standalone, private-link page)
        Reachable ONLY via ?onboarding=<token>. Mirrors ?intake=1: bypasses the
@@ -1525,13 +1556,13 @@
         try { _ccExpanded.clear(); } catch (e) {}
         try {
             if (_obvMode === 'full') {
-                _obvSubs = null;
-                _obvSelected = null;
-                _obvError = '';
-                _obvWarn = '';
-                _obvLoadedAt = 0;
-                _obvLoading = false;
-                _obvMode = 'edge';
+                _obvSetSubs(null);
+                _obvSetSelected(null);
+                _obvSetError('');
+                _obvSetWarn('');
+                _obvSetLoadedAt(0);
+                _obvSetLoading(false);
+                _obvSetMode('edge');
             }
         } catch (e) {}
         try {
@@ -1874,7 +1905,7 @@
         document.documentElement.classList.remove('boot-gate');
         const overlay = document.getElementById('staffGateOverlay');
         if (overlay) overlay.style.display = 'none';
-        if (!_syncviewAppBooted) { _syncviewAppBooted = true; try { init(); } catch (e) { console.error('[SyncView] boot failed', e); } }
+        if (!_syncviewAppBooted) { _syncviewSetAppBooted(true); try { init(); } catch (e) { console.error('[SyncView] boot failed', e); } }
     }
     /* Drop the gate back over a running app. Sensitive state is purged by the
        identity clear/invalidate paths that call this, so what sits behind the
@@ -2301,3 +2332,27 @@
         input.dispatchEvent(new Event('change', { bubbles: true }));
         _svSyncStepper(id);
     }
+export {
+  CALENDAR_GET_URL, CALENDAR_REORDER_BATCH_URL, CALENDAR_REORDER_EF_URL, CALENDAR_REORDER_URL,
+  CALENDAR_UPSERT_EF_URL, CALENDAR_UPSERT_N8N_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL,
+  CAL_SUPABASE_URL, CAPTION_JOB_STATUS_URL, CAPTION_JOB_UPDATE_URL, CAPTION_PROMPTS_GET_URL,
+  CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL, CLIENT_REVIEW_LINK_URL,
+  CLIENT_TOKEN_VERIFY_URL, GENERATE_CAPTION_URL, KASPER_QUEUE_URL, OB_DRAFT_KEY, OB_SUBID_KEY,
+  OB_VARIANT, PTO_API_TIMEOUT_MS, PTO_EF_URL, PTO_FLAG_KEY, SMM_WEEKLY_REPORTS_URL,
+  SYNCVIEW_CLIENT_ENTRY_PROTOCOL, THUMBNAIL_FOLDER_RESOLVE_EF_URL, THUMBNAIL_REVISION_READ_EF_URL,
+  URGENT_KASPER_SLACK_URL, WORKLOAD_LINEAR_URL, WORKLOAD_PLAN_URL, _obEsc, _obPost, _obZoom,
+  _ptoAdminOverviewGeneration, _ptoAdminState, _ptoAttr, _ptoBlockWrites, _ptoEsc, _ptoFlagChannel,
+  _ptoFlagGeneration, _ptoFlagPromise, _ptoFlagValue, _ptoInvalidateOverviewCaches,
+  _ptoNextAdminOverviewGeneration, _ptoNextFlagGeneration, _ptoNextOverviewGeneration,
+  _ptoNextQuoteGeneration, _ptoOverviewGeneration, _ptoQuoteGeneration, _ptoRefreshAfterConflict,
+  _ptoSetFlagChannel, _ptoSetFlagPromise, _ptoShowToast, _ptoState, _ptoStateConflict,
+  _ptoStoreFlagValue, _ptoUnknownWrite, _svBootFlagRows, _svDateHtml, _svExplainLabel,
+  _svSelectHtml, _svStepperHtml, _svSyncDateControl, _svSyncStepper, _svTone,
+  _syncviewCloseStaffAccount, _syncviewOfferStaffSignIn, _syncviewOpenStaffGate,
+  _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity, _syncviewStaffCan,
+  _syncviewStaffEligible, _syncviewStaffGateRequired, _syncviewStaffIdentityBoot,
+  _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentityLoad,
+  _syncviewStaffIdentitySignature, _syncviewStaffIdentityValid, _syncviewStaffRoleLabel,
+  _syncviewStaffRoleValue, _syncviewStaffVerificationEpoch, mountOnboardingView,
+  renderOnboardingView
+};

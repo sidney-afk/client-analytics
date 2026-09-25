@@ -82,7 +82,113 @@ the place the results are stored changes.
 
 ### Phase 1: n8n writes to both Sheets and Supabase (dual-write)
 
-What gets built:
+**Status, 2026-09-25: database side built, not applied.** One PR adds
+`migrations/2026-09-25-sheets-mirror-phase1.sql` (source-only; Lighthouse
+applies it), the `analytics-read` and `analytics-write` Edge Functions (not
+deployed, not used by the page), `scripts/sheets-mirror-backfill.js`,
+`scripts/sheets-mirror-read-timing.js`, and two tests: an offline contract
+(`test/sheets-mirror-policy.js`) and a role test that measures public, anon,
+authenticated and service_role against every new table on a real PostgreSQL
+(`test/sheets-mirror-roles-postgres.js`, its own isolated PG17 CI lane). No
+n8n workflow was edited. What was built, and where it differs from the
+sketch below:
+
+- **Tables:** `client_profiles`, `analytics_metrics`, `analytics_top_videos`,
+  `analytics_market_research_briefs`, `analytics_content_summaries`, and
+  `analytics_ingest_receipts` (one row per write call, used for the
+  "empty but complete" rule in Phase 2). Social Media Managers is not in this
+  step: it already has its own daily copy.
+- **Row identity (changed from the sketch):** there is no natural key. The
+  Sheets hold exact duplicate rows and also several different rows for the
+  same client and day (measured 2026-09-25: Metrics 14 exact duplicates and
+  111 client-days with differing rows; TopVideos 3,994 and 490). A key like
+  (client, platform, period, rank, date) would silently drop real rows. Each
+  row is keyed instead by a fingerprint of its values plus how many identical
+  rows came before it, so every Sheet row survives, a retried write never
+  doubles, and the backfill can run after n8n starts writing without
+  double-counting.
+- **Access:** RLS on, no policies, every privilege revoked from all four roles,
+  then SELECT/INSERT/UPDATE to service_role only (no DELETE, no TRUNCATE, no
+  sequence rights). The role test shows public, anon and authenticated
+  denied everything on all six tables.
+- **Writer:** `analytics-write`, with its own secret
+  (`ANALYTICS_MIRROR_WRITE_KEY`) and a default-off flag
+  (`analytics_mirror_write_enabled`). n8n will call it; so does the backfill.
+- **Reader:** `analytics-read` (owner decision 6, below): a staff role key or
+  the client's own link token, one client's rows, TopVideos from the last 90
+  days only. Staff reads work while `analytics_mirror_read_enabled` is off, so
+  parity and timing can be checked first; client-link reads need the flag.
+  A client link gets only its name and public handles from the profile,
+  never email or Slack/Roam channel ids.
+
+**Secrets (set in Supabase, never in the repo).** Supabase dashboard, the
+SyncView project, Edge Functions, Secrets (Manage secrets). A secret is a
+private setting the function reads when it runs; nobody visiting the site
+can see it.
+
+| Function | Secret | Already set? |
+|---|---|---|
+| both | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Yes: Supabase provides these to every function automatically. |
+| `analytics-read` | `ROLE_KEY_ADMIN`, `ROLE_KEY_SMM`, `ROLE_KEY_CREATIVE` | Yes: the same staff role keys `key-verify` and the other staff functions already use. Nothing new. |
+| `analytics-write` | `ANALYTICS_MIRROR_WRITE_KEY` | **No, new.** At least 32 characters; the function refuses every call if it is shorter or missing. |
+
+To make a value for `ANALYTICS_MIRROR_WRITE_KEY`, generate a long random
+string on your own machine and paste it straight into the Supabase screen:
+PowerShell `[Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))`,
+or on Mac/Linux `openssl rand -hex 32` (64 characters either way). Keep a
+copy in the password manager: the backfill needs it, and later n8n does
+too (as a credential inside n8n, never in a workflow's visible fields).
+
+**How the backfill signs in.** `scripts/sheets-mirror-backfill.js --apply`
+reads `ANALYTICS_MIRROR_WRITE_KEY` from the environment of the machine that
+runs it and sends it in the `X-Analytics-Mirror-Key` header to
+`analytics-write`, the same door n8n will use. It never uses the
+service-role key and never needs a Supabase login. The key lives only in
+that terminal session (PowerShell: `$env:ANALYTICS_MIRROR_WRITE_KEY = "..."`
+for that window only). The write also needs the database switch
+`analytics_mirror_write_enabled` on, so even a correct key does nothing
+until that step. Without `--apply` the script is a dry run and needs no key.
+
+**Order to switch it on (Lighthouse):**
+
+1. Merge this PR, then apply `migrations/2026-09-25-sheets-mirror-phase1.sql`
+   in the SQL editor and run its VERIFY query.
+2. Set `ANALYTICS_MIRROR_WRITE_KEY` in Supabase (above).
+3. Deploy `analytics-read` from the "Deploy one allowlisted Edge Function"
+   Actions lane (function `analytics-read`, the merged main commit SHA). The
+   lane checks the SHA is on main, deploys with JWT off and attests that the
+   live source equals the committed source.
+4. Staff-read timing: `node scripts/sheets-mirror-read-timing.js --slug=<test client slug>`
+   with a staff role key in `SYNCVIEW_STAFF_KEY`. The tables are still empty
+   here, so this proves the function answers and gives its fixed cost
+   (network plus start-up); the full-payload number comes in step 8.
+5. Deploy `analytics-write` from the same lane.
+6. Turn on `analytics_mirror_write_enabled`
+   (`update public.syncview_runtime_flags set value = '{"enabled": true}' where key = 'analytics_mirror_write_enabled';`).
+7. Backfill: `node scripts/sheets-mirror-backfill.js` (dry run, check the
+   counts), then with the key set, `node scripts/sheets-mirror-backfill.js --apply`.
+   Safe to re-run.
+8. Run the timing again for the real one-client payload.
+
+The n8n dual-write nodes come after, one workflow at a time, each with the
+owner's go-ahead. `analytics_mirror_read_enabled` stays off until Phase 2.
+
+**Measured 2026-09-25 (before anything is deployed):**
+
+| | Today: all Sheets, all clients | Supabase read, one client |
+|---|---|---|
+| Bytes | 19,743,336 (5 tabs) | ~90 KB for the test client; ~0.9 MB for the largest client |
+| Time | median 3.7 s (3.5 to 4.1 s, 5 runs, tabs in parallel, cloud sandbox) | database work ~1 ms (test client), ~2 ms (largest client) |
+
+The Supabase side is the database query time on a local PostgreSQL loaded
+with the real Sheet rows, plus the response size. The live function adds a
+network round trip and the Edge Function start, which cannot be measured
+until it is deployed; `scripts/sheets-mirror-read-timing.js` measures both
+sides on the same machine once it is. The size difference is the part that
+does not depend on the network: one client's data is about 0.5% to 5% of
+today's download.
+
+The original sketch, kept for reference:
 
 1. One migration per dataset, creating these tables:
    `analytics_metrics`, `analytics_top_videos`,
@@ -171,7 +277,8 @@ the share-link check changes who can see what. Rollback: flip the flag back to
 
 ### Phase 3: parity period, then retire the Sheets
 
-1. Run each dataset on Supabase for at least two weeks. A daily comparison
+1. Run each dataset on Supabase for at least **3 days** (owner decision
+   2026-09-25; the sketch said two weeks). A daily comparison
    (script or scheduled check) counts rows per client per day in both
    sources and reports any difference.
 2. Move every OTHER reader of the tab first. The site is not the only
@@ -218,15 +325,51 @@ generators). The tab is not migrated. Separate from the phases above:
 1. Approve Phase 1 n8n edits, one workflow at a time.
 2. ~~Who writes Competitor Briefs?~~ Decided 2026-09-24: retired, not
    migrated (see Retiring now).
-3. Should Clients Info stay hand-edited in the Sheet for now (n8n copies it
-   to Supabase daily), or should editing move into SyncView itself?
-4. How much TopVideos history the site needs (for example the last 90 days),
-   so old rows can stay in the archive.
-5. How long the parity period is (two weeks proposed).
-6. How Analytics data is secured: an Edge Function that returns one client's
-   rows after checking the staff session or client token (recommended,
-   required for client share links), or a written list of columns that are
-   intentionally public to anyone with the site's public key.
+3. ~~Clients Info: Sheet or SyncView?~~ Decided 2026-09-25: it stays
+   hand-edited in the Sheet for now and is copied to Supabase once a day,
+   one way. The tables are built so SyncView can take over later (see
+   "Later: a Clients admin tab").
+4. ~~TopVideos history?~~ Decided 2026-09-25: the site gets the last 90 days
+   only. Older rows stay stored in Supabase but are never downloaded.
+5. ~~Parity period?~~ Decided 2026-09-25: 3 days, not two weeks.
+6. ~~Security?~~ Decided 2026-09-25: the Edge Function option. It checks the
+   staff session (role key) or the client's link token and returns only that
+   client's rows. The tables grant the browser nothing.
+
+## Later: a Clients admin tab (SyncView becomes the main copy)
+
+The owner may later want a Clients tab in this version of SyncView where
+client info is edited directly, with Supabase as the main copy. Phase 1 is
+built so that switch is a setting, not a rebuild:
+
+- `client_profiles` already has every Clients Info column as a real column
+  (unknown extra Sheet columns land in `extra`), plus `source` ('sheet' or
+  'syncview'), `updated_by`, `updated_at` and `archived_at`.
+- The daily Sheet copy never overwrites a row whose `source` is 'syncview',
+  and it stops entirely once the runtime flag `client_profiles_authority`
+  reads `{"source": "syncview"}`. A client missing from the Sheet is archived,
+  never deleted.
+
+What the admin tab itself would still need, as a later step:
+
+1. A staff-only write path: an Edge Function (or an action on
+   `analytics-write` guarded by an admin role key, not the n8n secret) that
+   edits one client's row, sets `source = 'syncview'`, `updated_by` to the
+   verified staff member, and uses the row's `updated_at` as a version check
+   so two people editing at once cannot overwrite each other silently.
+2. An edit history table (who changed which field, from what, to what), the
+   same way the other native writes in SyncView keep a ledger.
+3. The tab: a list of clients with search, an edit form per client, add
+   client, and archive client (never delete). Admin role only.
+4. The switch-over: copy the Sheet one last time, flip
+   `client_profiles_authority` to "syncview", make the Sheet tab read-only
+   (or retire it), and move every other reader of Clients Info to Supabase
+   first: the page (Phase 2), MARKET RESEARCH, TOP VIDEOS and CLIENTS METRICS
+   in n8n, and the Onboarding: Append Client Row workflow, which would then
+   write to Supabase instead of the Sheet.
+5. Decide which client fields a client may see about themselves (today: name
+   and public handles only), and keep review tokens out of this table
+   (they stay in `client_access`).
 
 ## 5. Checks before each step
 

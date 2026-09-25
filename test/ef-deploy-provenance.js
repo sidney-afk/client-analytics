@@ -156,13 +156,13 @@ const slugRows = manifest.split(/\r?\n/).filter(line => /^\| `[a-z0-9-]+` \|/.te
 const writeDiagnosticsRow = slugRows.find(line => line.startsWith('| `write-diagnostics` |')) || '';
 // 2026-09-23: its manual release now runs through the one-function exact-SHA
 // lane, dispatch-only, and the deliberate-manual note stays on its row.
-ok(manifestCheck.status === 0 && slugRows.length === 38
+ok(manifestCheck.status === 0 && slugRows.length === 40
   && writeDiagnosticsRow.includes('[deploy-single-function]')
   && writeDiagnosticsRow.includes('| workflow_dispatch only (pinned SHA guard)<br>**Manual release note:**')
   && !writeDiagnosticsRow.includes('main push')
   && writeDiagnosticsRow.includes('--no-verify-jwt')
   && writeDiagnosticsRow.includes('WRITE_DIAGNOSTICS_ENABLED=true'),
-`generated deploy manifest is current and contains all 38 slugs including dormant write-diagnostics on the dispatch-only one-function lane (${(manifestCheck.stderr || '').trim()})`);
+`generated deploy manifest is current and contains all 40 slugs including dormant write-diagnostics on the dispatch-only one-function lane (${(manifestCheck.stderr || '').trim()})`);
 /*
  * 2026-08-08: client-review-link left the deliberate-manual set. The manual
  * lane is WHY the #1016 mint-on-demand fix sat merged-but-undeployed for five

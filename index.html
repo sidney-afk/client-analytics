@@ -12108,6 +12108,13 @@
     let _tplTab = 'templates';            // onboarding is no longer a Templates sub-tab (moved to Kasper)
     let _obvSubs = null, _obvLoading = false, _obvError = '', _obvWarn = '', _obvSelected = null, _obvLoadedAt = 0, _obvQuery = '';
     let _obvMode = 'edge';                 // 'edge' = credential-stripped list fns; 'full' = Kasper (onboarding-full)
+    function _obvSetSubs(value) { _obvSubs = value; }
+    function _obvSetSelected(value) { _obvSelected = value; }
+    function _obvSetError(value) { _obvError = value; }
+    function _obvSetWarn(value) { _obvWarn = value; }
+    function _obvSetLoadedAt(value) { _obvLoadedAt = value; }
+    function _obvSetLoading(value) { _obvLoading = value; }
+    function _obvSetMode(value) { _obvMode = value; }
     let _obvSlugSet = null, _obvSlugLoading = false;  // slugs that have any onboarding record (client-profile button)
 
     const OBV_GENRE = { inspirational:'Inspirational', ambient:'Ambient / Cinematic', lofi:'Lofi / Chill', piano:'Emotional Piano', guitar:'Acoustic Guitar', synth:'Synth', spiritual:'Spiritual', classical:'Classical', trending:'Trending / TikTok' };
@@ -24209,13 +24216,13 @@
         try { _ccExpanded.clear(); } catch (e) {}
         try {
             if (_obvMode === 'full') {
-                _obvSubs = null;
-                _obvSelected = null;
-                _obvError = '';
-                _obvWarn = '';
-                _obvLoadedAt = 0;
-                _obvLoading = false;
-                _obvMode = 'edge';
+                _obvSetSubs(null);
+                _obvSetSelected(null);
+                _obvSetError('');
+                _obvSetWarn('');
+                _obvSetLoadedAt(0);
+                _obvSetLoading(false);
+                _obvSetMode('edge');
             }
         } catch (e) {}
         try {
@@ -24558,7 +24565,7 @@
         document.documentElement.classList.remove('boot-gate');
         const overlay = document.getElementById('staffGateOverlay');
         if (overlay) overlay.style.display = 'none';
-        if (!_syncviewAppBooted) { _syncviewAppBooted = true; try { init(); } catch (e) { console.error('[SyncView] boot failed', e); } }
+        if (!_syncviewAppBooted) { _syncviewSetAppBooted(true); try { init(); } catch (e) { console.error('[SyncView] boot failed', e); } }
     }
     /* Drop the gate back over a running app. Sensitive state is purged by the
        identity clear/invalidate paths that call this, so what sits behind the
@@ -66779,6 +66786,7 @@
     const _LEGACY_AUTH_KEY = 'syncview_auth_v1';
     try { localStorage.removeItem(_LEGACY_AUTH_KEY); } catch (e) {}
     let _syncviewAppBooted = false;
+    function _syncviewSetAppBooted(value) { _syncviewAppBooted = value; }
     const SYNCVIEW_CLIENT_ENTRY_VIEWS = Object.freeze(['analytics', 'calendar', 'brief', 'samples', 'sample-reviews']);
     const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr']);
     let _syncviewClientEntryCapability = null;

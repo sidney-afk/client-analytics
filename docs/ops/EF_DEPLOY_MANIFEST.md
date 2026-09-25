@@ -10,9 +10,9 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 38 |
+| Deployable function slugs | 40 |
 | Main-push plus manual-dispatch paths | 12 |
-| Manual-dispatch-only paths | 9 |
+| Manual-dispatch-only paths | 11 |
 | No CI deploy path | 14 |
 | Deliberate-manual subset of no-CI paths | 5 |
 
@@ -21,6 +21,8 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | Function slug | Owning deploy workflow(s) | Deploy path(s) | `_shared` dependencies | Slug-local dependencies |
 | --- | --- | --- | --- | --- |
 | `ai-onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
+| `analytics-read` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts` | - |
+| `analytics-write` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/sheets-mirror.mjs`<br>`_shared/staff-role-auth.ts` | - |
 | `batch-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/b4-write.ts` | - |
 | `brain` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | `brain/parse.mjs` |
 | `calendar-reorder` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
@@ -45,7 +47,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `production-archive` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | - |
 | `production-comments` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `production-comments/feedback.mjs`<br>`production-comments/policy.mjs` |
-| `production-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml)<br>[deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard)<br>workflow_dispatch only (pinned SHA guard) | `_shared/linear-create-id.mjs`<br>`_shared/native-brief-media.mjs`<br>`_shared/staff-role-auth.ts`<br>`_shared/title-name-rule.mjs`<br>`_shared/write-refusal-codes.mjs`<br>`_shared/write-refusal-diagnostics.mjs` | `production-write/policy.mjs`<br>`production-write/selected-label-pages.mjs` |
+| `production-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml)<br>[deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard)<br>workflow_dispatch only (pinned SHA guard) | `_shared/linear-create-id.mjs`<br>`_shared/native-brief-media.mjs`<br>`_shared/staff-role-auth.ts`<br>`_shared/title-name-rule.mjs`<br>`_shared/write-refusal-codes.mjs`<br>`_shared/write-refusal-diagnostics.mjs` | `production-write/card-link.mjs`<br>`production-write/policy.mjs`<br>`production-write/selected-label-pages.mjs` |
 | `pto` | [deploy-pto](../../.github/workflows/deploy-pto-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | `pto/policy.js` |
 | `quiz-capture` | NONE | **NO CI DEPLOY PATH.** | - | - |
 | `quiz-leads-list` | NONE | **NO CI DEPLOY PATH.** | `_shared/staff-role-auth.ts` | - |

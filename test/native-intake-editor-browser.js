@@ -269,6 +269,18 @@ assert.equal(intakeWithoutNaming.split(nativeLabelInitialization).length,2);
 intakeWithoutNaming=intakeWithoutNaming.replace(nativeLabelInitialization,nativeAttributionAfter);
 assert.equal(intakeWithoutNaming.split(nativeAttributionAfter).length,2);
 intakeWithoutNaming=intakeWithoutNaming.replace(nativeAttributionAfter,nativeAttributionBefore);
+// OPEN_REPAIRS 254: after each native commit the gateway links the EXISTING
+// card's empty deliverable slots itself (card-link.mjs). Account for exactly
+// those four lines, each present once, and keep the rest of the handler frozen.
+for(const line of [
+ '    const cardLink = await linkCardsToCreatedDeliverables(supabase, responseItems);\n',
+ '      card_link: cardLink,\n',
+ '  const cardLink = await linkCardsToCreatedDeliverables(supabase, currentResponseItems);\n',
+ '    card_link: cardLink,\n',
+]) {
+ assert.equal(intakeWithoutNaming.split(line).length,2,'card-link line must appear exactly once: '+line.trim());
+ intakeWithoutNaming=intakeWithoutNaming.replace(line,'');
+}
 assert.equal(intakeWithoutNaming.replace(materializationBlock,'').replace(materializationField,'')
  .replace(legacyParameter,'').replace(legacyGuard,''),extractFunction(oldGateway,'handleIntakeCreate'));
 pass('#1361 survives the lift as an accounted block, with the whole-handler equality check intact around it');

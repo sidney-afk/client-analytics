@@ -17,6 +17,7 @@ import { captureRefusalContext, captureVerifiedPrincipal, reportGatewayRefusal }
    ones. The guard earned itself on its first run. */
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { projectBriefMedia } from "../_shared/native-brief-media.mjs";
+import { linkCardsToCreatedDeliverables } from "./card-link.mjs";
 import { cleanName as titleCleanName, renameTitle } from "../_shared/title-name-rule.mjs";
 import {
   matchingRoleForKey,
@@ -3781,6 +3782,7 @@ const CARD_SURFACE_TABLES: Record<string, string> = Object.freeze({
   samples: "sample_reviews",
 });
 
+
 async function boundCardArtifact(
   supabase: SupabaseClient,
   deliverable: JsonMap,
@@ -6318,10 +6320,12 @@ async function handleComponentFill(
   if (batchAfter.error || itemAfter.error || !batchAfter.data || !itemAfter.data) {
     throw new GatewayError(500, "native_response_refresh_failed");
   }
+  const cardLink = await linkCardsToCreatedDeliverables(supabase, [publicRow(itemAfter.data)]);
 
   return json({
     ok: true,
     native_committed: true,
+    card_link: cardLink,
     authority: { [team]: authority },
     legacy_parity: { [team]: false },
     mirror_pending: false,
@@ -7086,9 +7090,11 @@ async function handleIntakeCreate(
         ...publicRow(row),
       };
     });
+    const cardLink = await linkCardsToCreatedDeliverables(supabase, responseItems);
     return json({
       ok: true,
       native_committed: true,
+      card_link: cardLink,
       authority: authorityByTeam,
       legacy_parity: parityByTeam,
       mirror_pending: mirrorPending,
@@ -7401,9 +7407,11 @@ async function handleIntakeCreate(
     && currentResponseItems.every(item => !!clean(nativeEpochByTeam[normalizeTeam(item.team)]))
     ? { version: 1, native_epochs: Object.fromEntries(teamList.map(team => [team, nativeEpochByTeam[team]])) }
     : null;
+  const cardLink = await linkCardsToCreatedDeliverables(supabase, currentResponseItems);
   return json({
     ok: true,
     native_committed: true,
+    card_link: cardLink,
     ...(cardMaterialization ? { card_materialization: cardMaterialization } : {}),
     authority: authorityByTeam,
     legacy_parity: parityByTeam,

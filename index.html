@@ -2156,25 +2156,6 @@
             background: var(--sv-bg-16a34a); display: inline-block; flex-shrink: 0;
         }
 
-        /* Brief category toggle (Market Research / Competitors) */
-        .brief-category-toggle {
-            display: inline-flex; align-items: center;
-            background: var(--bg); border: 1px solid var(--border);
-            border-radius: 11px; padding: 3px; gap: 2px; margin-bottom: 20px;
-        }
-        .brief-cat-btn {
-            display: inline-flex; align-items: center; gap: 7px;
-            padding: 7px 18px; border: none; border-radius: 8px;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 0.79rem; font-weight: 600;
-            cursor: pointer; color: var(--text-muted);
-            background: transparent; transition: all 0.15s;
-        }
-        .brief-cat-btn:hover { color: var(--text-secondary); }
-        .brief-cat-btn.active {
-            background: var(--white); color: var(--text-primary);
-            box-shadow: 0 1px 4px var(--sv-shadow-rgba-0-0-0-0_1);
-        }
         .brief-cat-dot {
             width: 6px; height: 6px; border-radius: 50%;
             background: var(--sv-bg-7c3aed); display: inline-block; flex-shrink: 0;
@@ -4274,6 +4255,18 @@
         .tpl-folder-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); text-decoration: none; color: inherit; font-size: 0.86rem; }
         .tpl-folder-row:hover .tpl-folder-name { text-decoration: underline; }
         .tpl-folder-meta { color: var(--text-muted); font-size: 0.74rem; white-space: nowrap; }
+        .tpl-brain-spec-row { flex-wrap: wrap; }
+        .tpl-spec-empty { font-size: 0.82rem; color: var(--text-secondary); font-style: italic; }
+        .tpl-spec-btn { font-size: 0.76rem; font-weight: 600; border: 1px dashed var(--border); background: none; border-radius: 999px; padding: 3px 11px; cursor: pointer; color: var(--text-secondary); }
+        .tpl-spec-btn:hover, .tpl-spec-btn:focus-visible { border-style: solid; color: var(--text-primary); }
+        .tpl-spec-form { flex-basis: 100%; margin: 10px 0 4px; padding: 14px 16px; border-radius: 12px; background: var(--surface-subtle); border: 1px solid var(--border-light); display: grid; gap: 10px; }
+        .tpl-spec-field { display: grid; grid-template-columns: 130px 1fr; align-items: center; gap: 10px; font-size: 0.82rem; color: var(--text-secondary); }
+        @media (max-width: 560px) { .tpl-spec-field { grid-template-columns: 1fr; } }
+        .tpl-spec-field input[type=text] { font: inherit; font-size: 0.86rem; border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; background: var(--white); color: var(--text-primary); min-width: 0; }
+        .tpl-spec-colour { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .tpl-spec-colour input[type=color] { width: 34px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 8px; background: none; cursor: pointer; }
+        .tpl-spec-colour input[type=text] { width: 110px; }
+        .tpl-spec-none { display: inline-flex; align-items: center; gap: 5px; font-size: 0.8rem; }
         .tpl-brief { display: flex; flex-direction: column; gap: 16px; margin-top: 6px; }
         .tpl-brief-cols { columns: 2 340px; column-gap: 16px; }
         .tpl-brief-cols > .tpl-brief-sec { break-inside: avoid; margin-bottom: 16px; }
@@ -8694,7 +8687,8 @@
     const METRICS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Metrics`;
     const CLIENTS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Clients%20Info`;
     const TOPVIDS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=TopVideos`;
-    const BRIEFS_URL  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Competitor%20Briefs`;
+    // Competitor Briefs: retired 2026-09-24 (#1590). The tab is no longer
+    // downloaded; `briefs` stays an empty list so older saved copies still load.
     const MR_BRIEFS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Market%20Research%20Briefs`;
     const CONTENT_SUMMARIES_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=ContentSummaries`;
     // Filming Plans source. The staff-gated Edge Function is authoritative;
@@ -9350,11 +9344,11 @@
         _applyEssentialTexts(c.metrics, publicClients);
         _analyticsCachedAt = Number(c.at) || Date.now();
         _analyticsSyncCachedNote();
-        if (!(c.topvids && c.briefs && c.mrbriefs)) { _analyticsIdbReadExtras(); return; }
-        _analyticsPendingExtras = [c.topvids, c.briefs, c.mrbriefs, c.summaries || null];
+        if (!(c.topvids && c.mrbriefs)) { _analyticsIdbReadExtras(); return; }
+        _analyticsPendingExtras = [c.topvids, '', c.mrbriefs, c.summaries || null];
         // Fingerprinted now, so the revalidation compare in init() sees what
         // this paint stands for even before the queued texts are parsed.
-        _analyticsAppliedFp.ext = _analyticsFp([c.topvids, c.briefs, c.mrbriefs, c.summaries || '']);
+        _analyticsAppliedFp.ext = _analyticsFp([c.topvids, '', c.mrbriefs, c.summaries || '']);
         const later = () => setTimeout(_analyticsFlushPendingExtras, 0);
         if (document.hidden || typeof requestAnimationFrame !== 'function') later();
         else requestAnimationFrame(later);
@@ -9509,8 +9503,8 @@
             .then(ext => {
                 _analyticsIdbExtRead = null;
                 if (!ext || _analyticsExtrasApplied || _analyticsPendingExtras) return;
-                if (!ext.topvids || !ext.briefs || !ext.mrbriefs) return;
-                _analyticsPendingExtras = [ext.topvids, ext.briefs, ext.mrbriefs, ext.summaries || null];
+                if (!ext.topvids || !ext.mrbriefs) return;
+                _analyticsPendingExtras = [ext.topvids, '', ext.mrbriefs, ext.summaries || null];
                 _analyticsFlushPendingExtras();
             }, () => { _analyticsIdbExtRead = null; });
     }
@@ -9654,18 +9648,17 @@
         _fetchExtrasState={status:'loading',run:clientEntryRun||null};
         const request=(async () => {
             const requestOpts=clientEntryRun?{signal:clientEntryRun.signal}:undefined;
-            const [tr,br,mrb,cs]=await Promise.all([
+            const [tr,mrb,cs]=await Promise.all([
                 fetch(TOPVIDS_URL,requestOpts),
-                fetch(BRIEFS_URL,requestOpts),
                 fetch(MR_BRIEFS_URL+'&_t='+Date.now(),requestOpts),
                 fetch(CONTENT_SUMMARIES_URL+'&_t='+Date.now(),requestOpts).catch(e=>{
                     if(clientEntryRun&&(!_syncviewClientEntryRunCurrent(clientEntryRun)||clientEntryRun.signal.aborted))throw e;
                     return null;
                 }),
             ]);
-            if(!tr.ok||!br.ok||!mrb.ok)throw new Error('analytics_extras_http');
+            if(!tr.ok||!mrb.ok)throw new Error('analytics_extras_http');
             const topvidsText=await tr.text();
-            const briefsText=await br.text();
+            const briefsText='';   // Competitor Briefs retired
             const mrbText=await mrb.text();
             const csText=cs&&cs.ok?await cs.text():null;
             if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
@@ -9846,23 +9839,6 @@
     function monthPrevPerClient(){ return _prevPerClientDaysAgo(30); }
 
     // ── Brief helpers ────────────────────────────────────────────────────────
-    function getClientBriefs(name){
-        return briefs
-            .filter(b=>b.client_name===name&&b.raw_json)
-            .sort((a,b)=>b.id.localeCompare(a.id));
-    }
-    function getActiveBrief(name){
-        const all=getClientBriefs(name);
-        if(!all.length)return null;
-        const id=activeBriefId[name];
-        if(id){const found=all.find(b=>b.id===id);if(found)return found;}
-        return all[0];
-    }
-    function parseBriefData(brief){
-        if(!brief)return null;
-        try{return JSON.parse(brief.raw_json);}catch(e){console.error('[SyncView] brief parse error',e);return null;}
-    }
-
     // ── Market Research Brief helpers ─────────────────────────────────────────
     function getClientMRBriefs(name){
         return mrBriefs
@@ -9909,12 +9885,6 @@
             history.replaceState(Object.assign({},s,{briefSection:activeBriefSection[name],briefTab:activeBriefTab[name],mrBriefTab:activeMRBriefTab[name]}),''  );
         }
     }
-    function setActiveBriefSection(encodedName,section){
-        const name=decodeURIComponent(encodedName);
-        activeBriefSection[name]=section;
-        _updateBriefHistoryState(name);
-        refreshBriefView(name);
-    }
     function setActiveMRBriefTab(encodedName,tab){
         const name=decodeURIComponent(encodedName);
         activeMRBriefTab[name]=tab;
@@ -9944,8 +9914,7 @@
     }
 
     function _clientBriefTabAvailable(name,clientOnly){
-        const hasData=getClientBriefs(name).length>0
-            ||getClientMRBriefs(name).length>0;
+        const hasData=getClientMRBriefs(name).length>0;
         if(!clientOnly||hasData)return true;
         const cap=_syncviewClientEntryCapability;
         // A verified client document may always open its supported Brief route.
@@ -10035,50 +10004,9 @@
         window.scrollTo({top:0,behavior:'instant'});
     }
 
-    function setActiveBriefTab(encodedName,tab){
-        const name=decodeURIComponent(encodedName);
-        activeBriefTab[name]=tab;
-        _updateBriefHistoryState(name);
-        refreshBriefView(name);
-    }
-
-    function selectBriefById(encodedName,id){
-        const name=decodeURIComponent(encodedName);
-        activeBriefId[name]=id;
-        refreshBriefView(name);
-    }
-
     function renderBriefContent(name){
-        const enc=encodeURIComponent(name);
-        const section=activeBriefSection[name]||'market';
-        const hasMR=getClientMRBriefs(name).length>0;
-        const hasComp=getClientBriefs(name).length>0;
-
-        const categoryToggle=`<div class="brief-category-toggle">
-            <button class="brief-cat-btn ${section==='market'?'active':''}" onclick="setActiveBriefSection('${enc}','market')">
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 2a6 6 0 0 1 0 12M8 2a6 6 0 0 0 0 12M2 8h12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-                Keywords
-            </button>
-            <button class="brief-cat-btn ${section==='competitors'?'active':''}" onclick="setActiveBriefSection('${enc}','competitors')">
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.5"/></svg>
-                Competitors
-            </button>
-        </div>`;
-
-        let bodyContent='';
-        if(section==='market'){
-            bodyContent=renderMRBriefContent(name);
-        } else {
-            if(!hasComp){bodyContent=renderBriefGeneratePrompt(name);}
-            else{
-                const activeBrief=getActiveBrief(name);
-                const data=parseBriefData(activeBrief);
-                if(!data){bodyContent=`<div class="error-state">Could not parse brief data. The brief may be malformed.</div>`;}
-                else{bodyContent=renderBriefFull(name,data,getClientBriefs(name),activeBrief.id);}
-            }
-        }
-
-        return `<div>${categoryToggle}${bodyContent}</div>`;
+        // Competitor Briefs retired 2026-09-24: the Keywords brief is the only one.
+        return `<div>${renderMRBriefContent(name)}</div>`;
     }
 
     function renderMRBriefContent(name){
@@ -10156,184 +10084,6 @@
             <div class="brief-info-panel">${infoChips}<span class="brief-meta-subtle">${data.clientName||name} · ${briefDate}</span></div>
             ${tabContent}
         </div>`;
-    }
-
-    function renderBriefGeneratePrompt(name){
-        return`<div class="brief-generate-prompt">
-            <div class="brief-prompt-icon">🔍</div>
-            <div class="brief-prompt-title">No competitors brief yet</div>
-            <div class="brief-prompt-sub">${_isClientLink?"Your competitors brief hasn't been generated yet. Check back soon!":'No competitors brief on file for this client.'}</div>
-        </div>`;
-    }
-
-    function renderBriefFull(name,data,allBriefs,activeId){
-        prefetchAllTabSummaries(name, 'comp', data, activeId);
-        const enc=encodeURIComponent(name);
-        const tab=activeBriefTab[name]||'exec';
-        const briefDate=data.date?fmtDate(data.date):(activeId?fmtIsoDate(activeId):'');
-        const accountList=data.methodology?.accounts||[];
-        const totalReels=data.methodology?.totalReels||'—';
-        const compStatChips=[
-            {label:'Reels Analysed',val:totalReels},
-            ...accountList.map(a=>({label:'Competitor',val:a}))
-        ].filter(c=>c.val&&c.val!=='—').map(c=>`<div class="brief-method-chip"><span class="brief-method-chip-label">${c.label}</span><span class="brief-method-chip-val">${c.val}</span></div>`).join('');
-        let dateSelector='';
-        if(allBriefs.length>1){
-            const opts=allBriefs.map(b=>`<option value="${b.id}" ${b.id===activeId?'selected':''}>${fmtIsoDate(b.id)}</option>`).join('');
-            dateSelector=`<select class="brief-date-select" onchange="selectBriefById('${enc}',this.value)">${opts}</select>`;
-        }
-        const tabs=[
-            {id:'exec',label:'Overview'},
-            {id:'resonating',label:'What\'s Resonating'},
-            {id:'comments',label:'Comment Intel'},
-            {id:'gap',label:'The Gap'},
-            {id:'hooks',label:'Hook Analysis'},
-            {id:'sources',label:'Sources'},
-        ];
-        const tabBar=`<div class="brief-section-tabs">${tabs.map(t=>`<button class="brief-section-tab ${tab===t.id?'active':''}" onclick="setActiveBriefTab('${enc}','${t.id}')">${t.label}</button>`).join('')}</div>`;
-        let tabContent='';
-        if(tab==='exec')tabContent=renderBriefTab_exec(data,name);
-        else if(tab==='resonating')tabContent=renderBriefTab_resonating(data,name);
-        else if(tab==='comments')tabContent=renderBriefTab_comments(data,name);
-        else if(tab==='gap')tabContent=renderBriefTab_gap(data,name);
-        else if(tab==='hooks')tabContent=renderBriefTab_hooks(data,name);
-        else if(tab==='sources')tabContent=renderBriefTab_sources(data);
-        const compInfoChips=compStatChips?`<div class="brief-methodology-bar" style="margin:0;">${compStatChips}</div>`:'';
-        return `<div class="brief-wrap">
-            <div class="brief-tab-header">
-                ${tabBar}
-                <div class="brief-tab-header-right">
-                    ${dateSelector}
-                    <button class="brief-info-btn" onclick="this.closest('.brief-wrap').toggleAttribute('data-show-info')" title="Brief info"><span>i</span></button>
-                </div>
-            </div>
-            <div class="brief-info-panel">${compInfoChips}<span class="brief-meta-subtle">${data.clientName||name} · ${briefDate}</span></div>
-            <div id="briefViewContainer" style="display:contents;">${tabContent}</div>
-        </div>`;
-    }
-
-    function renderBriefTab_exec(data,name){
-        const s=data.executiveSummary||{};
-        const ci=data.commentIntelligence||{};
-        const patterns=Array.isArray(ci.patterns)?ci.patterns:[];
-        const commentSummary=patterns.length?patterns.map(p=>`<div style="margin-bottom:6px;"><strong style="color:var(--text-primary);font-weight:700;font-size:0.78rem;">${p.label||''}</strong><span style="font-size:0.82rem;"> ${p.pattern||''}</span></div>`).join(''):'<span style="font-size:0.82rem;color:var(--text-muted)">No comment data</span>';
-        return `${renderTabSummary(name,'comp','exec',buildTabData('comp','exec',data))}<div class="brief-exec-grid">
-            <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">📈</span> What's Resonating</div><div class="brief-exec-card-body">${s.whatIsResonating||'No data'}</div></div>
-            <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">🎯</span> The Gap</div><div class="brief-exec-card-body">${s.theGap||'No data'}</div></div>
-            <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">🪝</span> Hook Patterns</div><div class="brief-exec-card-body">${s.hookPatterns||'No data'}</div></div>
-            <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">💬</span> Comment Intel</div><div class="brief-exec-card-body">${commentSummary}</div></div>
-        </div>`;
-    }
-
-    function renderBriefTab_resonating(data,name){
-        const items=Array.isArray(data.resonating)?data.resonating:[];
-        if(!items.length)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No data in this section.</div>`;
-        return`${renderTabSummary(name,'comp','resonating',buildTabData('comp','resonating',data))}<div class="brief-cards-grid">${items.map(item=>`<div class="brief-card"><span class="brief-card-badge">✦ Pattern</span><div class="brief-card-label">${item.label||'—'}</div><div class="brief-card-body">${item.whyItWorks||''}</div>${item.forClient?`<div class="brief-card-sub"><strong>For this client:</strong> ${item.forClient}</div>`:''}</div>`).join('')}</div>`;
-    }
-
-    function renderBriefTab_comments(data,name){
-        const ci=data.commentIntelligence||{};
-        const topComments=Array.isArray(ci.topComments)?ci.topComments:[];
-        const patterns=Array.isArray(ci.patterns)?ci.patterns:[];
-        let html='';
-        if(topComments.length){
-            html+=`<div class="brief-section-header">Top Comments</div><div class="brief-cards-grid">${topComments.map(c=>`<div class="comment-card"><div class="comment-text">${c.text||'—'}</div><div class="comment-insight"><span class="comment-insight-label">What it reveals</span><span class="comment-insight-body">${c.whatItReveals||'—'}</span></div>${c.opportunity?`<div class="comment-insight"><span class="comment-insight-label">Opportunity</span><span class="comment-insight-body">${c.opportunity}</span></div>`:''}</div>`).join('')}</div>`;
-        }
-        if(patterns.length){
-            html+=`<div class="brief-section-header" style="margin-top:24px;">Comment Patterns</div><div class="brief-cards-grid brief-patterns-grid">${patterns.map(p=>`<div class="brief-pattern-card"><div class="brief-pattern-label">${p.label||'—'}</div><div class="brief-pattern-body">${p.pattern||''}</div>${p.action?`<div class="brief-pattern-action">→ ${p.action}</div>`:''}</div>`).join('')}</div>`;
-        }
-        if(!html)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No comment intelligence data.</div>`;
-        return renderTabSummary(name,'comp','comments',buildTabData('comp','comments',data))+html;
-    }
-
-    function renderBriefTab_gap(data,name){
-        const items=Array.isArray(data.theGap)?data.theGap:[];
-        if(!items.length)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No data in this section.</div>`;
-        return`${renderTabSummary(name,'comp','gap',buildTabData('comp','gap',data))}<div class="brief-cards-grid">${items.map(item=>`<div class="brief-card"><span class="brief-card-badge">🕳 Gap</span><div class="brief-card-label">${item.label||'—'}</div><div class="brief-card-body">${item.gap||''}</div>${item.opportunity?`<div class="brief-card-sub"><strong>Opportunity:</strong> ${item.opportunity}</div>`:''}</div>`).join('')}</div>`;
-    }
-
-    function renderBriefTab_hooks(data,name){
-        const sources=Array.isArray(data.sources)?data.sources:[];
-        const items=(Array.isArray(data.hookAnalysis)?data.hookAnalysis:[]).filter(item=>isPhrase(item.hook)).sort((a,b)=>parseViewCount(b.views)-parseViewCount(a.views));
-        if(!items.length)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No hook analysis data.</div>`;
-        const eyeIcon=`<svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M1 10s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg>`;
-        const plusIcon=`<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
-        return`${renderTabSummary(name,'comp','hooks',buildTabData('comp','hooks',data))}<div class="brief-cards-grid">${items.map((item,idx)=>{
-            const stealTemplate=item.stealThis?formatHookTemplate(item.stealThis):'';
-            const cardId=`comp-hook-${name.replace(/\s+/g,'-')}-${idx}`;
-            const _compHookKey = _hookSaveKey(name, item.hook||'');
-            const _compHookSaved = savedHooks.has(_compHookKey);
-            if(_compHookSaved) console.log('[SyncView] comp hook already saved:', _compHookKey);
-            // Try to find URL from sources if not in hook data
-            const reelUrl=item.url||(item.reelNumber&&sources.find(s=>s.reelNumber===item.reelNumber)?.url)||'';
-            _storeHookCard(cardId, name, {hookType:item.hookType||item.formula||'',openingLine:item.hook||'',stealThis:item.stealThis||'',views:item.views||'',url:reelUrl,handle:item.name||''}, item.transcript||'');
-            return`<div class="hook-card" id="${cardId}">
-                <div class="hook-card-header">
-                    ${item.views?`<span class="hook-card-views"><svg width="13" height="13" viewBox="0 0 20 20" fill="none"><path d="M1 10s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg> ${item.views}</span>`:'<span></span>'}
-                    ${reelUrl?_mrLink(reelUrl,'View reel ↗'):''}
-                </div>
-                <div class="hook-card-body">
-                    <div class="hook-text">"${item.hook||'—'}"</div>
-                    <div class="hook-card-meta">
-                        ${item.hookType?`<span class="hook-type-label">${item.hookType}</span>`:''}
-                        <button class="hook-eye-btn-inline" title="View transcript" onclick="openTranscriptModal('${cardId}')">${eyeIcon}</button>
-                    </div>
-                </div>
-                ${stealTemplate?`<div class="hook-steal-wrap"><div class="hook-steal-label">Template</div><div class="hook-template-text">${stealTemplate}</div></div>`:''}
-                <div class="hook-card-actions">
-                    ${item.stealThis?`<button class="hook-add-btn${_compHookSaved?' saved':''}" ${_compHookSaved?'disabled':''} onclick="addHookToLibrary('${cardId}',this)">${_compHookSaved?`<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M1.5 7.5l4 4 7-8" stroke="var(--sv-fg-10b981)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Saved!`:`${plusIcon} Add to library`}</button>`:''}
-                </div>
-            </div>`;
-        }).join('')}</div>`;
-    }
-
-    function renderBriefTab_sources(data){
-        const m=data.methodology||{};
-        const sources=Array.isArray(data.sources)?data.sources:[];
-        const accountStats=Array.isArray(m.accountStats)?m.accountStats:[];
-        let html='';
-        if(m.totalReels||m.dateRange||m.accounts?.length){
-            html+=`<div class="brief-methodology-bar">${m.dateRange?`<div class="brief-method-chip"><span class="brief-method-chip-label">Date Range</span><span class="brief-method-chip-val">${m.dateRange}</span></div>`:''}${m.totalReels?`<div class="brief-method-chip"><span class="brief-method-chip-label">Reels Analysed</span><span class="brief-method-chip-val">${m.totalReels}</span></div>`:''}${m.accounts?.length?`<div class="brief-method-chip"><span class="brief-method-chip-label">Accounts</span><span class="brief-method-chip-val">${m.accounts.length}</span></div>`:''}</div>`;
-        }
-        if(accountStats.length){
-            html+=`<div class="brief-section-header">Account Stats</div><div class="brief-cards-grid">${accountStats.map(a=>{
-                const bestReelViews=a.bestReel?parseViewCount(a.bestReel):0;
-                const bestReelFmt=bestReelViews?fmt(bestReelViews):'';
-                return`<div class="source-card" style="gap:8px;">
-                    <div class="source-handle" style="font-size:0.85rem;font-weight:700;color:var(--text-primary);">${a.handle||'—'}</div>
-                    <div style="display:flex;gap:16px;align-items:baseline;">
-                        ${a.avgViews?`<div><div style="font-size:0.58rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Avg Views</div><div style="font-size:0.95rem;font-weight:700;color:var(--text-primary);">${a.avgViews}</div></div>`:''}
-                        ${a.postCount?`<div><div style="font-size:0.58rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Posts</div><div style="font-size:0.95rem;font-weight:700;color:var(--text-primary);">${a.postCount}</div></div>`:''}
-                        ${bestReelFmt?`<div><div style="font-size:0.58rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Best Reel</div><div style="font-size:0.95rem;font-weight:700;color:var(--sv-fg-15803d);">${bestReelFmt}</div></div>`:''}
-                    </div>
-                </div>`;
-            }).join('')}</div>`;
-        }
-        if(sources.length){
-            html+=`<div class="brief-section-header" style="margin-top:24px;">Top Performing Reels</div><div class="brief-cards-grid">${sources.map(s=>{
-                const outlierHtml=(()=>{
-                    if(!s.views||!s.accountAvg)return '';
-                    const rv=parseViewCount(s.views),av=parseViewCount(s.accountAvg);
-                    if(!av||!rv)return '';
-                    const ratio=rv/av;
-                    if(ratio<1.5)return '';
-                    const cls=ratio>=5?'mega':ratio>=3?'strong':'';
-                    return `<span class="source-outlier-pill ${cls}">${ratio.toFixed(1)}x avg</span>`;
-                })();
-                return `<div class="source-card">
-                    <div class="source-card-header">
-                        <div class="source-card-left">
-                            <span class="source-rank-badge">#${s.reelNumber||'?'}</span>
-                            <span class="source-handle">${s.handle||s.name||'—'}</span>
-                        </div>
-                        <span class="source-views-badge"><svg width="13" height="13" viewBox="0 0 20 20" fill="none"><path d="M1 10s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg> ${s.views||'—'}</span>
-                    </div>
-                    ${outlierHtml||s.accountAvg?`<div class="source-meta-row">${s.accountAvg?`<span style="font-size:0.7rem;color:var(--text-muted);">avg ${s.accountAvg}</span>`:''}${outlierHtml}</div>`:''}
-                    ${s.url&&s.url!=='#'?`<a class="source-link" href="${s.url}" target="_blank" rel="noopener"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3M9 2h5m0 0v5m0-5L7 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>View Reel</a>`:''}</div>`;
-            }).join('')}</div>`;
-        }
-        if(!html)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No source data.</div>`;
-        return html;
     }
 
     // ── Market Research Brief Tab Renderers ───────────────────────────────────
@@ -11729,7 +11479,8 @@
         // the multiple-link inputs (each keyed by its own data-attr).
         if (ae && ae.hasAttribute && (ae.hasAttribute('data-tpl-field') || ae.hasAttribute('data-tpl-set') || ae.hasAttribute('data-tpl-link-set'))) return;
         // Same for a "Send a change" box being typed into.
-        if (ae && ae.closest && ae.closest('.tpl-brain-form')) return;
+        // Only a field being typed into blocks it; a focused Save/Cancel button must not.
+        if (ae && ae.matches && ae.matches('input, textarea') && (ae.closest('.tpl-brain-form') || ae.closest('.tpl-spec-form'))) return;
         content.innerHTML = renderTemplatesView();
         mountTemplatesView();
     }
@@ -12960,7 +12711,9 @@
         // A background refresh keeps showing the current facts instead of a skeleton.
         _tplBrain[name] = cur && cur.state === 'ready' ? Object.assign({}, cur, { refreshing: true }) : { state: 'loading', facts: cur && cur.facts || [] };
         _tplBrainPost({ action: 'read', clientName: name }).then(j => {
-            _tplBrain[name] = { state: 'ready', at: Date.now(), facts: Array.isArray(j.facts) ? j.facts : [], brief: Array.isArray(j.brief) ? j.brief : [], found: !!j.found };
+            // Fresh facts replace any "Saved, updating" note for this client.
+            Object.keys(_tplSpecSent).forEach(k => { if (k.indexOf(name + '::') === 0 && _tplSpecSent[k] === 'sent') delete _tplSpecSent[k]; });
+            _tplBrain[name] = { state: 'ready', at: Date.now(), facts: Array.isArray(j.facts) ? j.facts : [], brief: Array.isArray(j.brief) ? j.brief : [], found: !!j.found, folder: j.folder || '' };
         }).catch(e => {
             _tplBrain[name] = { state: 'error', facts: [], error: e && e.message || String(e) };
         }).then(() => { if (_templatesSelected === name) _maybeRerenderTemplates(); });
@@ -13028,14 +12781,107 @@
         try { navigator.clipboard.writeText(text); } catch (e) {}
         if (el) { el.classList.add('copied'); setTimeout(() => el.classList.remove('copied'), 900); }
     }
+    // Quick look: the two core specs (subtitles, thumbnails) always show, with an
+    // Add / Edit form that sends structured values to the brain; any other fact
+    // carrying a spec: line is listed after them.
+    const TPL_SPEC_KINDS = [
+        { kind: 'subtitle', label: 'Subtitles', colour: 'Main colour', colourKey: 'main' },
+        { kind: 'thumbnail', label: 'Thumbnails', colour: 'Title colour', colourKey: 'title' },
+    ];
+    let _tplSpecForm = '';            // `${client}::${kind}` with its form open
+    const _tplSpecSent = {};          // `${client}::${kind}` -> 'sending' | 'sent' | 'error'
+    function _tplSpecValues(spec) {
+        const out = {};
+        String(spec || '').split(';').forEach(p => { const i = p.indexOf('='); if (i > 0) out[p.slice(0, i).trim().toLowerCase()] = p.slice(i + 1).trim(); });
+        return out;
+    }
+    function tplSpecOpen(key) {
+        const opening = _tplSpecForm !== key;
+        _tplSpecForm = opening ? key : ''; delete _tplSpecSent[key]; _maybeRerenderTemplates();
+        // Keep keyboard focus sensible: into the form on open, back to its button on close.
+        const sel = opening ? `.tpl-spec-form[data-k="${CSS.escape(key)}"] [data-f=font]` : `.tpl-spec-btn[data-k="${CSS.escape(key)}"]`;
+        const el = document.querySelector(sel); if (el) el.focus();
+    }
+    function tplSpecHexSync(el) {
+        const row = el.closest('.tpl-spec-colour'); if (!row) return;
+        const txt = row.querySelector('input[type=text]'), pick = row.querySelector('input[type=color]');
+        if (el === pick) txt.value = pick.value; else if (/^#[0-9a-fA-F]{6}$/.test(txt.value.trim())) pick.value = txt.value.trim();
+    }
+    function tplSpecSave(key) {
+        const name = _templatesSelected;
+        const form = document.querySelector(`.tpl-spec-form[data-k="${CSS.escape(key)}"]`);
+        if (!name || !form) return;
+        const k = TPL_SPEC_KINDS.find(x => key.endsWith('::' + x.kind));
+        const font = form.querySelector('[data-f=font]').value.trim();
+        const hex = v => { v = String(v || '').trim(); return /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v) ? (v[0] === '#' ? v : '#' + v).toLowerCase() : ''; };
+        // A colour typed in a shape we cannot read is flagged, never silently dropped.
+        const bad = ['colour', 'hl'].map(f => form.querySelector(`[data-f=${f}]`)).find(el => el.value.trim() && !hex(el.value) && !(el.dataset.f === 'hl' && form.querySelector('[data-f=nohl]').checked));
+        if (bad) { bad.setCustomValidity('Use a colour code, like the ones the picker gives'); bad.reportValidity(); bad.oninput = () => bad.setCustomValidity(''); return; }
+        const colour = hex(form.querySelector('[data-f=colour]').value);
+        const noHl = form.querySelector('[data-f=nohl]').checked;
+        const hl = noHl ? 'none' : hex(form.querySelector('[data-f=hl]').value);
+        const from = form.querySelector('[data-f=from]').value.trim();
+        const parts = [font && 'font=' + font, colour && k.colourKey + '=' + colour, hl && 'highlight=' + hl].filter(Boolean);
+        if (!parts.length) { form.querySelector('[data-f=font]').focus(); return; }
+        try { if (from) localStorage.setItem(TPL_BRAIN_NAME_KEY, from); } catch (e) {}
+        const b = _tplBrain[name] || {};
+        const factId = b.folder ? `client.${b.folder}.editing.${k.kind}-spec` : '';
+        _tplSpecSent[key] = 'sending'; _maybeRerenderTemplates();
+        _tplBrainPost({ action: 'change', clientName: name, factId, heading: (k.kind === 'subtitle' ? 'Subtitle' : 'Thumbnail') + ' spec', from,
+            text: `SPEC UPDATE, entered in the Quick look form. Write these exact values as this client's ${k.kind} spec:\nspec: ${parts.join('; ')}` })
+            .then(() => { _tplSpecSent[key] = 'sent'; _tplSpecForm = '';
+                [90, 240].forEach(sec => setTimeout(() => { if (_templatesSelected === name) _tplBrainEnsure(name, true); }, sec * 1000)); })
+            .catch(() => { _tplSpecSent[key] = 'error'; })
+            .then(() => _maybeRerenderTemplates());
+    }
+    function _tplSpecForm_(name, k, values, key) {
+        const v = values || {};
+        let sender = ''; try { sender = localStorage.getItem(TPL_BRAIN_NAME_KEY) || ''; } catch (e) {}
+        const col = (label, f, val, withNone) => {
+            const safe = /^#[0-9a-fA-F]{6}$/.test(val || '') ? val : '#ffffff';
+            return `<label class="tpl-spec-field"><span>${label}</span><span class="tpl-spec-colour">
+                <input type="color" value="${safe}" oninput="tplSpecHexSync(this)" aria-label="${label} picker">
+                <input type="text" data-f="${f}" value="${_tplEscAttr(val && val !== 'none' ? val : '')}" placeholder="Hex code" oninput="tplSpecHexSync(this)">
+                ${withNone ? `<label class="tpl-spec-none"><input type="checkbox" data-f="nohl"${v.highlight === 'none' ? ' checked' : ''}> No highlight</label>` : ''}
+            </span></label>`;
+        };
+        const st = _tplSpecSent[key];
+        return `<div class="tpl-spec-form" data-k="${_tplEscAttr(key)}">
+            <label class="tpl-spec-field"><span>Font</span><input type="text" data-f="font" value="${_tplEscAttr(v.font || '')}" placeholder="e.g. Montserrat Bold"></label>
+            ${col(k.colour, 'colour', v[k.colourKey] || '', false)}
+            ${col('Highlight colour', 'hl', v.highlight || '', true)}
+            <div class="tpl-brain-form-row">
+                <input class="tpl-brain-from" data-f="from" type="text" placeholder="Your name" value="${_tplEscAttr(sender)}">
+                <button type="button" class="tpl-brain-cancel" data-k="${_tplEscAttr(key)}" onclick="tplSpecOpen(this.dataset.k)">Cancel</button>
+                <button type="button" class="tpl-brain-send" data-k="${_tplEscAttr(key)}" onclick="tplSpecSave(this.dataset.k)"${st === 'sending' ? ' disabled' : ''}>${st === 'sending' ? 'Saving…' : 'Save'}</button>
+            </div>
+            ${st === 'error' ? '<div class="tpl-brain-err">Couldn\'t save. Your values are still here; try again.</div>' : ''}
+        </div>`;
+    }
     function _tplBrainSpecStrip(name) {
         const b = _tplBrain[name];
-        if (!b || b.state !== 'ready') return '';
-        const specs = b.facts.filter(f => f.spec && f.status === 'written');
-        if (!specs.length) return '';
+        if (!b || b.state !== 'ready' || !b.found) return '';
+        const facts = b.facts || [];
+        const core = TPL_SPEC_KINDS.map(k => {
+            const key = name + '::' + k.kind;
+            const fact = facts.find(f => /(^|\.)editing\.(subtitle|thumbnail)-spec$/.test(f.id) && f.id.endsWith('.' + k.kind + '-spec'));
+            const has = fact && fact.status === 'written' && fact.spec;
+            const sent = _tplSpecSent[key] === 'sent';
+            const open = _tplSpecForm === key || _tplSpecSent[key] === 'sending' || _tplSpecSent[key] === 'error';
+            return `<div class="tpl-brain-spec-row">
+                <span class="tpl-brain-spec-label">${k.label}</span>
+                <span class="tpl-brain-spec-chips">${has ? _tplBrainSpecChips(fact.spec) : '<span class="tpl-spec-empty">Not set</span>'}
+                    ${sent ? '<span class="tpl-spec-empty">Saved. Updating in a minute or two.</span>' : ''}
+                    <button type="button" class="tpl-spec-btn" data-k="${_tplEscAttr(key)}" onclick="tplSpecOpen(this.dataset.k)">${has ? 'Edit' : 'Add'}</button>
+                </span>
+                ${open ? _tplSpecForm_(name, k, has ? _tplSpecValues(fact.spec) : null, key) : ''}
+            </div>`;
+        }).join('');
+        const others = facts.filter(f => f.spec && f.status === 'written' && !/editing\.(subtitle|thumbnail)-spec$/.test(f.id));
         return `<div class="tpl-section tpl-brain-strip">
             <div class="tpl-section-title">Quick look</div>
-            ${specs.map(f => `<div class="tpl-brain-spec-row"><span class="tpl-brain-spec-label">${_tplEsc(f.heading.replace(/\s*spec$/i, ''))}</span><span class="tpl-brain-spec-chips">${_tplBrainSpecChips(f.spec)}</span></div>`).join('')}
+            ${core}
+            ${others.map(f => `<div class="tpl-brain-spec-row"><span class="tpl-brain-spec-label">${_tplEsc(f.heading.replace(/\s*spec$/i, ''))}</span><span class="tpl-brain-spec-chips">${_tplBrainSpecChips(f.spec)}</span></div>`).join('')}
         </div>`;
     }
     function _tplBrainKey(name, id) { return name + '::' + (id || '_new'); }

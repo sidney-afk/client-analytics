@@ -1968,7 +1968,7 @@
             _calSetFocusRequest(null); _calSetPendingDeepLink(null);
         } catch (e) {}
         try {
-            _sxrLoadSeq++;
+            _sxrNextLoadSeq();
             sxrState.client = null; sxrState.posts = []; sxrState.loading = false; sxrState.error = null;
             sxrState.embedded = false; sxrState.previewId = null; sxrState.focusCard = null;
         } catch (e) {}

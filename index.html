@@ -66938,7 +66938,7 @@
             _calSetFocusRequest(null); _calSetPendingDeepLink(null);
         } catch (e) {}
         try {
-            _sxrLoadSeq++;
+            _sxrNextLoadSeq();
             sxrState.client = null; sxrState.posts = []; sxrState.loading = false; sxrState.error = null;
             sxrState.embedded = false; sxrState.previewId = null; sxrState.focusCard = null;
         } catch (e) {}
@@ -67875,6 +67875,7 @@
     const SXR_LOAD_TIMEOUT_MS = 20000;
     const SXR_CACHE_PREFIX = 'syncview_sxr_cache_v2_';
     let _sxrLoadSeq = 0;
+    function _sxrNextLoadSeq() { return ++_sxrLoadSeq; }
     let _sxrLoadController = null;
     let _sxrBgLoadInFlight = false;
     let _sxrLastNetworkLoadAt = 0;

@@ -624,6 +624,7 @@
     const SXR_LOAD_TIMEOUT_MS = 20000;
     const SXR_CACHE_PREFIX = 'syncview_sxr_cache_v2_';
     let _sxrLoadSeq = 0;
+    function _sxrNextLoadSeq() { return ++_sxrLoadSeq; }
     let _sxrLoadController = null;
     let _sxrBgLoadInFlight = false;
     let _sxrLastNetworkLoadAt = 0;

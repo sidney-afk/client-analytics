@@ -280,6 +280,18 @@
     function _setLinearClientRows(value) { linearClientRows = value; }
     function _setSortCol(value) { sortCol = value; }
     function _setSortDir(value) { sortDir = value; }
+    function _setAllData(value) { allData = value; }
+    function _setClientMap(value) { clientMap = value; }
+    function _setTopVideos(value) { topVideos = value; }
+    function _setBriefs(value) { briefs = value; }
+    function _setMrBriefs(value) { mrBriefs = value; }
+    function _setClientViewTab(value) { clientViewTab = value; }
+    function _setContentSummaryState(value) { contentSummaryState = value; }
+    function _setTabSummaryCache(value) { tabSummaryCache = value; }
+    function _setFetchExtrasPromise(value) { _fetchExtrasPromise = value; }
+    function _nextFetchExtrasAttempt() { return ++_fetchExtrasAttempt; }
+    function _setFetchExtrasState(value) { _fetchExtrasState = value; }
+    function _setClientEssentialsLoad(value) { _clientEssentialsLoad = value; }
     let activePeriods = {};
     let clientViewTab = {};
     let activeBriefTab = {};

@@ -175,6 +175,9 @@ const PICKER_SOURCES = [
   extract('_calNativeSyncReceipt'),
   extract('_calRenderNativePostChoice'),
   extract('_calNativePrevBatchPick'),
+  // 180 is a module: it writes 170's dialog state through these setters.
+  extract('_calSetNativePostState'),
+  extract('_calSetNativeBatchOptionsHtml'),
 ].join('\n');
 
 // Parent identifiers deliberately present in the fixture data: the picker

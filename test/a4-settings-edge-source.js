@@ -20,7 +20,8 @@ assert(!index.includes('webhook/templates-get') && !index.includes('webhook/temp
 assert(index.includes('const live = await _tplLoadFromSupabase();'), 'templates must load from Supabase only');
 assert(!index.includes('_tplLoadFromN8n'), 'templates must not keep an n8n loader');
 assert(index.includes('const basePrompts = await _calLoadCaptionPromptsFromN8n();'), 'caption prompts must load n8n as the base store');
-assert(index.includes('_calCaptionPrompts = Object.assign({}, basePrompts, supaPrompts);'), 'caption prompts must overlay flagged Supabase rows on n8n base');
+assert(index.includes('_calSetCaptionPrompts(Object.assign({}, basePrompts, supaPrompts));')
+  && index.includes('function _calSetCaptionPrompts(value) { _calCaptionPrompts = value; }'), 'caption prompts must overlay flagged Supabase rows on n8n base');
 assert(index.includes('if (!slug || !_settingsUseEf(slug)) return;'), 'caption prompt Supabase rows must be gated by settings_ef_clients');
 assert(index.includes('const writeUrl = TEMPLATES_SAVE_EF_URL;'), 'templates write must always use the Edge Function');
 assert(index.includes('_settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL)'), 'caption prompt write must be flag-routed with n8n fallback');

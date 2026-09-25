@@ -2873,6 +2873,9 @@
     let _calCaptionPrompts = {};
     let _calCaptionPromptsLoaded = false;
     let _calCaptionPromptsInFlight = null;
+    function _calSetCaptionPrompts(value) { _calCaptionPrompts = value; }
+    function _calSetCaptionPromptsLoaded(value) { _calCaptionPromptsLoaded = value; }
+    function _calSetCaptionPromptsInFlight(value) { _calCaptionPromptsInFlight = value; }
     /* Caption-job engine state — the single source of truth for the Generate
        button, the floating progress chip and cancel. One job object per card
        (keyed by post id). Active jobs are mirrored to localStorage so an
@@ -2893,6 +2896,11 @@
     let _calCapJobTicker = null;
     let _calCapJobPollBusy = false;
     let _calCapJobsRestored = false;
+    function _calSetCapJobBatch(value) { _calCapJobBatch = value; }
+    function _calSetCapJobPollTimer(value) { _calCapJobPollTimer = value; }
+    function _calSetCapJobTicker(value) { _calCapJobTicker = value; }
+    function _calSetCapJobPollBusy(value) { _calCapJobPollBusy = value; }
+    function _calSetCapJobsRestored(value) { _calCapJobsRestored = value; }
 
     /* N/A leads the list because it is the "this lane does not apply" opt-out,
        and the picker reads top-down from "not applicable" into the real

@@ -135,9 +135,9 @@ console.log('\n============================================================');
 console.log('3) WIRING: shipped index.html still carries the fixes');
 console.log('============================================================');
 const persist = grabFunc('persistCalReorder');
-ok(/_calLastLocalWriteAt = Date\.now\(\)/.test(persist),
+ok(/_calSetLastLocalWriteAt\(Date\.now\(\)\)/.test(persist),
    'persistCalReorder marks a local write (self-echo suppression)');
-ok((persist.match(/_calLastLocalWriteAt = Date\.now\(\)/g) || []).length >= 2,
+ok((persist.match(/_calSetLastLocalWriteAt\(Date\.now\(\)\)/g) || []).length >= 2,
    'self-echo stamp is set on BOTH start and success');
 ok(!/_setCalStatus\(/.test(persist),
    'persistCalReorder no longer calls the toolbar-shifting header badge');

@@ -30019,6 +30019,9 @@
     let _calCaptionPrompts = {};
     let _calCaptionPromptsLoaded = false;
     let _calCaptionPromptsInFlight = null;
+    function _calSetCaptionPrompts(value) { _calCaptionPrompts = value; }
+    function _calSetCaptionPromptsLoaded(value) { _calCaptionPromptsLoaded = value; }
+    function _calSetCaptionPromptsInFlight(value) { _calCaptionPromptsInFlight = value; }
     /* Caption-job engine state — the single source of truth for the Generate
        button, the floating progress chip and cancel. One job object per card
        (keyed by post id). Active jobs are mirrored to localStorage so an
@@ -30039,6 +30042,11 @@
     let _calCapJobTicker = null;
     let _calCapJobPollBusy = false;
     let _calCapJobsRestored = false;
+    function _calSetCapJobBatch(value) { _calCapJobBatch = value; }
+    function _calSetCapJobPollTimer(value) { _calCapJobPollTimer = value; }
+    function _calSetCapJobTicker(value) { _calCapJobTicker = value; }
+    function _calSetCapJobPollBusy(value) { _calCapJobPollBusy = value; }
+    function _calSetCapJobsRestored(value) { _calCapJobsRestored = value; }
 
     /* N/A leads the list because it is the "this lane does not apply" opt-out,
        and the picker reads top-down from "not applicable" into the real
@@ -37387,6 +37395,7 @@
     let _calV2Epoch = 0;
     let _calV2Lease = null;
     let _calLastLocalWriteAt = 0;      // when we last saved locally — used to ignore the realtime ECHO of our own write
+    function _calSetLastLocalWriteAt(value) { _calLastLocalWriteAt = value; }
     let _calV2RtLastReloadAt = 0;      // when realtime last triggered a reload — the floor a foreign burst re-arms against
     const CAL_RT_SELF_ECHO_MS = 4000;  // a realtime event within this window of a local save is treated as our own echo and deferred
     function _calV2LeaseCurrent(lease) {
@@ -43118,6 +43127,7 @@
     }
 
     let _calNativePostState = null;
+    function _calSetNativePostState(value) { _calNativePostState = value; }
     function _calCloseNativePost(force) {
         const overlay = document.getElementById('calNativePostOverlay');
         if (!force && overlay && overlay.dataset.busy === '1') return;
@@ -43912,6 +43922,7 @@
     /* Assigned during render and reused by the filter, so the filtered list and
        the first paint can never drift into two different option formats. */
     let _calNativeBatchOptionsHtml = () => '';
+    function _calSetNativeBatchOptionsHtml(value) { _calNativeBatchOptionsHtml = value; }
     const CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS = 4000;
     /* Every uuid these batches record as a PARENT.
      *
@@ -44157,7 +44168,7 @@
         const prevBatchId = priorBatchShown
             ? priorChoice.batchId
             : String(shownBatches.length ? shownBatches[0].id || '' : '');
-        _calNativeBatchOptionsHtml = (shown, all, countsMap, selectedId) => {
+        _calSetNativeBatchOptionsHtml((shown, all, countsMap, selectedId) => {
             const tally = new Map();
             shown.forEach(batch => {
                 const key = _calNativeBatchDisplayName(batch).toLowerCase();
@@ -44183,7 +44194,7 @@
                 const selectedAttr = value === String(selectedId || '') ? ' selected' : '';
                 return `<option value="${_calEscAttr(value)}"${selectedAttr}>${_calEsc(_calNativeBatchDisplayName(batch))}${meta ? ' — ' + _calEsc(meta) : ''}</option>`;
             }).join('');
-        };
+        });
         const prevBatchOptions = _calNativeBatchOptionsHtml(shownBatches, compatible, counts, prevBatchId);
         /* Only the CHOSEN branch renders its controls. Both used to stay open
            at once, which spent about a third of the dialog on the option the
@@ -44436,11 +44447,11 @@
         overlay.innerHTML = '<div class="cal-import-modal" role="dialog" aria-modal="true" aria-labelledby="calNativePostTitle"><div class="cal-import-head"><h3 id="calNativePostTitle">Create Post</h3><p>Finding the current batch for ' + _calEsc(clientName) + '...</p></div><div class="cal-import-body"><div class="cal-import-progress">Loading batch options...</div></div></div>';
         document.body.appendChild(overlay);
         document.body.classList.add('cal-modal-open');
-        _calNativePostState = {
+        _calSetNativePostState({
             clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, batchMaxOrdinals: null, mode: 'both', batchChoice: null, batchFilter: '',
             batchName: '', postNames: [],
             videoEditors: [], videoEditorId: '', videoEditorSuggestedId: '', videoEditorStatus: 'loading',
-        };
+        });
         const editorState = _calNativePostState;
         /* Loaded alongside the batch options rather than before them: the
            picker must never hold the dialog open, and a roster or load read
@@ -45064,27 +45075,27 @@
     async function _calLoadCaptionPrompts() {
         if (_calCaptionPromptsLoaded) return _calCaptionPrompts;
         if (_calCaptionPromptsInFlight) return _calCaptionPromptsInFlight;
-        _calCaptionPromptsInFlight = (async () => {
+        _calSetCaptionPromptsInFlight((async () => {
             try {
                 const basePrompts = await _calLoadCaptionPromptsFromN8n();
-                _calCaptionPrompts = basePrompts;
+                _calSetCaptionPrompts(basePrompts);
                 try {
                     await _settingsPrimeRoutingFlag();
                     if (_settingsEfClients.size) {
                         const supaPrompts = await _calLoadCaptionPromptsFromSupabase();
-                        _calCaptionPrompts = Object.assign({}, basePrompts, supaPrompts);
+                        _calSetCaptionPrompts(Object.assign({}, basePrompts, supaPrompts));
                     }
                 } catch (supaError) {
                     console.warn('[Calendar] Supabase caption prompts overlay failed; using n8n base', supaError);
                 }
-                _calCaptionPromptsLoaded = true;
+                _calSetCaptionPromptsLoaded(true);
             } catch (e) {
                 console.warn('[Calendar] caption prompts load failed', e);
             } finally {
-                _calCaptionPromptsInFlight = null;
+                _calSetCaptionPromptsInFlight(null);
             }
             return _calCaptionPrompts;
-        })();
+        })());
         return _calCaptionPromptsInFlight;
     }
     function _calCaptionPromptFor(clientName) {
@@ -45191,7 +45202,7 @@
     }
     function _calCapJobBatchTrack() {
         if (!_calCapJobBatch || _calCapJobBatch.settledAll) {
-            _calCapJobBatch = { total: 0, done: 0, ok: 0, failed: 0, cancelled: 0, settledAll: false };
+            _calSetCapJobBatch({ total: 0, done: 0, ok: 0, failed: 0, cancelled: 0, settledAll: false });
         }
         _calCapJobBatch.total += 1;
     }
@@ -45213,7 +45224,7 @@
        the poller picks the truth up from the caption_jobs row. */
     function _calCapJobsRestore() {
         if (_calCapJobsRestored) return;
-        _calCapJobsRestored = true;
+        _calSetCapJobsRestored(true);
         let arr = null;
         try { arr = JSON.parse(localStorage.getItem(CAL_CAPJOB_LS_KEY) || 'null'); } catch {}
         if (!Array.isArray(arr) || !arr.length) return;
@@ -45437,13 +45448,13 @@
         }, 8000);
     }
     function _calCapJobsEnsurePolling() {
-        if (!_calCapJobPollTimer) _calCapJobPollTimer = setInterval(_calCapJobsPoll, CAL_CAPJOB_POLL_MS);
-        if (!_calCapJobTicker) _calCapJobTicker = setInterval(_calCapJobsTick, 1000);
+        if (!_calCapJobPollTimer) _calSetCapJobPollTimer(setInterval(_calCapJobsPoll, CAL_CAPJOB_POLL_MS));
+        if (!_calCapJobTicker) _calSetCapJobTicker(setInterval(_calCapJobsTick, 1000));
     }
     function _calCapJobsStopPollingIfIdle() {
         if (_calCapJobsActiveList().length) return;
-        if (_calCapJobPollTimer) { clearInterval(_calCapJobPollTimer); _calCapJobPollTimer = null; }
-        if (_calCapJobTicker) { clearInterval(_calCapJobTicker); _calCapJobTicker = null; }
+        if (_calCapJobPollTimer) { clearInterval(_calCapJobPollTimer); _calSetCapJobPollTimer(null); }
+        if (_calCapJobTicker) { clearInterval(_calCapJobTicker); _calSetCapJobTicker(null); }
     }
     function _calCapJobsTick() {
         for (const job of _calCapJobsActiveList()) {
@@ -45458,7 +45469,7 @@
     async function _calCapJobsPoll() {
         if (_calCapJobPollBusy) return;
         if (!_calCapJobsActiveList().length) { _calCapJobsStopPollingIfIdle(); return; }
-        _calCapJobPollBusy = true;
+        _calSetCapJobPollBusy(true);
         try {
             const clients = Array.from(new Set(_calCapJobsActiveList().filter(j => j.posted).map(j => j.client)));
             const rows = new Map();
@@ -45512,7 +45523,7 @@
             }
             _calCapJobsPersist();
         } finally {
-            _calCapJobPollBusy = false;
+            _calSetCapJobPollBusy(false);
             _calCapJobsStopPollingIfIdle();
         }
     }
@@ -45638,7 +45649,7 @@
                 bar.classList.remove('is-active');
                 // Release the batch only if a follow-up generation hasn't
                 // already replaced it.
-                if (_calCapJobBatch === watched) _calCapJobBatch = null;
+                if (_calCapJobBatch === watched) _calSetCapJobBatch(null);
                 _calBulkCapAutoHide = null;
             }, 2500);
         }
@@ -46034,7 +46045,7 @@
         // echo actually lands a beat after the write resolves. (No header badge
         // here any more — it shifted the toolbar; the toast below is the
         // feedback, and the per-card optimistic move is the live confirmation.)
-        _calLastLocalWriteAt = Date.now();
+        _calSetLastLocalWriteAt(Date.now());
         try {
             // Edge Function for flagged clients. Once a client is on the EF
             // route, fail closed: an auth denial/outage must never downgrade
@@ -46057,7 +46068,7 @@
             if (!json || !json.ok) throw new Error('reorder failed');
             // Refresh the self-echo window — the realtime echo of this write
             // lands a beat later and must not reload/flicker the strip.
-            _calLastLocalWriteAt = Date.now();
+            _calSetLastLocalWriteAt(Date.now());
             // Offer Undo only for the latest completed drag — a coalesced
             // follow-up drag queued behind this write shows its own toast.
             if (prevOrder && prevOrder.size && !_calReorderPending) {

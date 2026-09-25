@@ -1,5 +1,6 @@
 // cal_linear_deep.js — deep Linear-sync set on the CONTENT CALENDAR, twin of
-// qa/probes/sxr_linear_deep.js (Linear traffic is MOCKED + captured; nothing
+// qa/probes/sxr_linear_deep.js (retired 2026-09-25, OPEN_REPAIRS 253; read it
+// in git history) (Linear traffic is MOCKED + captured; nothing
 // reaches live). Courier-based: runs in-session AND on CI.
 //   1. Inbound-echo suppression: a _calNoLinearPush key suppresses exactly ONE
 //      outbound push, then is consumed.

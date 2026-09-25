@@ -28898,6 +28898,16 @@ defects.
 buttons removed in #1605. It did not touch those; the reason is Linear's
 retirement, not #1605.
 
+**The Samples Linear buttons went first, in the same PR.** Codex (on #1613)
+caught that #1605 had removed the Linear controls from the Calendar only: Samples
+still showed the remove-link X and the pencil, and this probe was their only
+nightly cover. Owner decision 2026-09-25: remove them the same way. So
+`_sxrLinearSlotHtml` now renders nothing, the "Link this sample to its Linear
+sub-issue" banner is gone, and the "already linked ... Move it here" row, which is
+only reachable by editing a link, goes with them. Stored Linear links are
+untouched, and a Linear-only link already counts as absent (`_calCompLinked`).
+Only after that is the probe retired, with nothing reachable left to cover.
+
 **Still open.** Its Calendar twin `qa/probes/cal_linear_deep.js` is still in the
 nightly list. Unlike this probe it does drive the Calendar Linear controls #1605
 removed, so it is the next candidate to retire or rewrite.

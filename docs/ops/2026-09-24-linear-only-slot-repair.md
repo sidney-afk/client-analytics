@@ -37,11 +37,15 @@ client has 5 Linear-only slots, all undated, so none is current.
 ## Proposal
 
 **Connect nothing today.** There is no existing deliverable to connect any
-current slot to. The script is the repair: when it finds an `exact` match it
-writes, to its `--out` file only, guarded SQL that sets the card's deliverable
-id and the deliverable's `card_id`, each re-checking at apply time that the
-slot is still empty and the deliverable still unconnected (or already this
-card's). `ambiguous`, `taken` and `mismatch` are never proposed.
+current slot to. The script is the repair. It proposes a slot only when exactly
+one deliverable for that Linear issue has the slot's client and team, origin
+`calendar`, and is unconnected or already this card's. Ambiguity is judged over
+all such candidates, free or taken, and a free one with another origin is
+`unbound` (it needs the full binding contract, not a card_id write). For each
+proposal it writes, to its `--out` file only, one locked `do` block per slot
+inside a single transaction. The block matches the card on its full key
+(client and id), re-checks both rows, and raises, rolling the whole plan back,
+unless both are still eligible, so a one-sided crosswalk cannot be produced.
 
 The 3 current `none` slots have no work item behind them. Their path is the
 card's "add the missing video/thumbnail" button, which now shows when the

@@ -19,10 +19,16 @@
  * first.
  *
  * A slot is classified as:
- *   exact      one deliverable for that Linear issue, same team as the slot,
- *              same client, and not connected to a different card. Proposed.
- *   ambiguous  more than one such deliverable. Not proposed; needs a person.
- *   taken      the only matches are already connected to another card.
+ *   exact      exactly one deliverable for that Linear issue with the slot's
+ *              team and client, origin 'calendar' (the Calendar crosswalk
+ *              _prodCrosswalkMismatchFields compares), and not connected to
+ *              a different card. Proposed.
+ *   ambiguous  more than one same-team, same-client deliverable, free or
+ *              taken. Not proposed; needs a person.
+ *   taken      the only match is already connected to another card.
+ *   unbound    the only match is free but its origin is not 'calendar', so
+ *              connecting card_id alone would leave the crosswalk invalid.
+ *              Not proposed; needs the binding contract, not this script.
  *   mismatch   a deliverable exists for the issue but is the other team or
  *              another client (for example a video slot holding its own
  *              thumbnail's Linear link). Not proposed.
@@ -66,7 +72,7 @@ function classify(posts, deliverables, opts) {
     push(byIdent, str(d.linear_identifier).toUpperCase(), d);
     push(byUrl, str(d.linear_issue_url).toLowerCase(), d);
   }
-  const result = { since, slots: 0, undated: 0, current: 0, exact: [], ambiguous: [], taken: [], mismatch: [], none: [] };
+  const result = { since, slots: 0, undated: 0, current: 0, exact: [], ambiguous: [], taken: [], unbound: [], mismatch: [], none: [] };
   for (const p of posts || []) {
     if (str(p.status).toLowerCase() === 'archived') continue;
     if (o.client && str(p.client) !== o.client) continue;
@@ -82,30 +88,48 @@ function classify(posts, deliverables, opts) {
       const ident = linearIdentifier(url);
       const cands = (ident && byIdent.get(ident)) || byUrl.get(url.toLowerCase()) || [];
       const fits = cands.filter(d => str(d.team) === slot.team && str(d.client_slug) === entry.client);
-      const free = fits.filter(d => !str(d.card_id) || str(d.card_id) === entry.card_id);
+      // Ambiguity is decided over ALL fitting candidates, free or taken: one
+      // Linear issue behind two deliverables must never back a card by luck.
       if (!cands.length) result.none.push(entry);
       else if (!fits.length) result.mismatch.push(entry);
-      else if (!free.length) result.taken.push(entry);
-      else if (free.length > 1) result.ambiguous.push(Object.assign(entry, { candidates: free.map(d => str(d.id)) }));
-      else result.exact.push(Object.assign(entry, { deliverable_id: str(free[0].id), deliverable_card_id: str(free[0].card_id) }));
+      else if (fits.length > 1) result.ambiguous.push(Object.assign(entry, { candidates: fits.map(d => str(d.id)) }));
+      else {
+        const d = fits[0];
+        if (str(d.card_id) && str(d.card_id) !== entry.card_id) result.taken.push(entry);
+        else if (str(d.origin) !== 'calendar') result.unbound.push(entry);
+        else result.exact.push(Object.assign(entry, { deliverable_id: str(d.id), deliverable_card_id: str(d.card_id) }));
+      }
     }
   }
   return result;
 }
 
-/* Guarded SQL for the reviewer. Each statement re-checks, at apply time, the
-   exact state this read saw: the slot is still empty, and the deliverable is
-   still unconnected or already connected to this same card. A row that moved
-   since the read simply updates nothing. */
+/* Guarded SQL for the reviewer. Each connection is ONE block that locks both
+   rows, re-checks at apply time exactly the state this read saw -- the card
+   (matched on its full key, client AND id, since bare ids repeat across
+   clients) still has the slot empty, and the deliverable is still the same
+   client and team, origin 'calendar', and unconnected or already this card's
+   -- and raises, rolling the whole plan back, unless BOTH sides are still
+   eligible. A one-sided crosswalk cannot be produced. */
 function proposedSql(exact) {
+  if (!exact.length) return '';
   const q = v => "'" + String(v).replace(/'/g, "''") + "'";
-  return exact.map(e => [
+  const team = e => e.comp === 'graphic' ? 'graphics' : 'video';
+  const blocks = exact.map(e => [
     '-- ' + e.comp + ' slot',
-    'update public.calendar_posts set ' + e.id_field + ' = ' + q(e.deliverable_id)
-      + ' where id = ' + q(e.card_id) + ' and coalesce(' + e.id_field + ", '') = '';",
-    'update public.deliverables set card_id = ' + q(e.card_id)
-      + ' where id = ' + q(e.deliverable_id) + ' and (card_id is null or card_id = ' + q(e.card_id) + ');',
-  ].join('\n')).join('\n\n');
+    'do $$ begin',
+    '  perform 1 from public.calendar_posts where client = ' + q(e.client) + ' and id = ' + q(e.card_id)
+      + ' and coalesce(' + e.id_field + ", '') = '' for update;",
+    "  if not found then raise exception 'card slot no longer empty'; end if;",
+    '  perform 1 from public.deliverables where id = ' + q(e.deliverable_id) + ' and client_slug = ' + q(e.client)
+      + ' and team = ' + q(team(e)) + " and origin = 'calendar' and (card_id is null or card_id = " + q(e.card_id) + ') for update;',
+    "  if not found then raise exception 'deliverable no longer eligible'; end if;",
+    '  update public.calendar_posts set ' + e.id_field + ' = ' + q(e.deliverable_id)
+      + ' where client = ' + q(e.client) + ' and id = ' + q(e.card_id) + ';',
+    '  update public.deliverables set card_id = ' + q(e.card_id) + ' where id = ' + q(e.deliverable_id) + ';',
+    'end $$;',
+  ].join('\n'));
+  return ['begin;'].concat(blocks, ['commit;']).join('\n\n');
 }
 
 function counts(list) {
@@ -138,12 +162,12 @@ async function main() {
   const posts = await readAll(key, 'calendar_posts',
     'id,client,status,scheduled_date,linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id');
   const dels = await readAll(key, 'production_deliverables_browser_v1',
-    'id,team,client_slug,card_id,linear_identifier,linear_issue_url');
+    'id,team,client_slug,card_id,origin,linear_identifier,linear_issue_url');
   const r = classify(posts, dels, { client: args.client ? String(args.client) : '', since: args.since ? String(args.since) : '' });
   console.log('linear-only-slot-repair (NOT APPLIED, read-only)' + (args.client ? ' for one client' : ''));
   console.log('  linear-only slots, not archived: ' + r.slots + '  (undated, never proposed: ' + r.undated + ')');
   console.log('  current (not posted, dated on/after ' + r.since + '): ' + r.current);
-  for (const k of ['exact', 'ambiguous', 'taken', 'mismatch', 'none']) {
+  for (const k of ['exact', 'ambiguous', 'taken', 'unbound', 'mismatch', 'none']) {
     const c = counts(r[k]);
     console.log('  ' + k.padEnd(9) + ' video ' + c.video + '  graphic ' + c.graphic);
   }

@@ -8101,6 +8101,72 @@
             html.boot-client #sxrView .cal-review-comment-body { overflow-wrap: anywhere; }
         }
         /* CLIENT-PHONE:END */
+        /* Calendar Month and Week views on a client link: same contract as
+           above. A 7-column grid cannot fit a phone, so both become a
+           day-by-day list. Month keeps only the days that carry a post (an
+           agenda of the month); Week shows its 7 visible days in order, empty
+           ones included, and drops the 7 buffer days kept on each side for the
+           desktop slide. CSS only: nothing new runs at desktop widths. */
+        /* CLIENT-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            /* Shared: header, unscheduled tray. */
+            html.boot-client .cal-tab-view .cal-month-header { gap: 8px; padding: 2px 0 14px; }
+            html.boot-client .cal-tab-view .cal-month-label { font-size: 1.08rem; font-weight: 800; letter-spacing: -0.01em; }
+            html.boot-client .cal-tab-view .cal-nav-btn { width: 44px; height: 44px; font-size: 1.25rem; flex-shrink: 0; }
+            html.boot-client .cal-tab-view .cal-today-btn { min-height: 44px; padding: 0 16px; font-size: 0.84rem; flex-shrink: 0; }
+            html.boot-client .cal-tab-view .cal-unscheduled { padding: 12px 0 12px 14px; border-radius: 14px; }
+            html.boot-client .cal-tab-view .cal-unscheduled-h { padding-right: 14px; }
+            html.boot-client .cal-tab-view .cal-unscheduled-list { flex-wrap: nowrap; overflow-x: auto; gap: 8px; padding: 2px 14px 4px 0; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+            html.boot-client .cal-tab-view .cal-unscheduled-list .cal-month-pill { flex: 0 0 104px; scroll-snap-align: start; }
+
+            /* Month: agenda. The weekday header row and every day without a
+               post fold away; each remaining day is a row with a date badge
+               on the left and its posts stacked on the right. */
+            html.boot-client .cal-tab-view .cal-month-grid { display: flex; flex-direction: column; gap: 0; background: var(--white); border-radius: 14px; }
+            html.boot-client .cal-tab-view .cal-month-head { display: none; }
+            html.boot-client .cal-tab-view .cal-month-cell { display: none; }
+            html.boot-client .cal-tab-view .cal-month-cell:not(.out):has(.cal-month-pill) { display: flex; flex-direction: column; gap: 8px; position: relative; min-height: 0; padding: 14px 14px 14px 78px; }
+            html.boot-client .cal-tab-view .cal-month-cell:not(.out):has(.cal-month-pill) ~ .cal-month-cell:not(.out):has(.cal-month-pill) { border-top: 1px solid var(--border); }
+            html.boot-client .cal-tab-view .cal-month-cell:hover { background: var(--white); }
+            html.boot-client .cal-tab-view .cal-month-cell.today:hover { background: var(--sv-bg-eff3ff); }
+            html.boot-client .cal-tab-view .cal-month-grid:not(:has(.cal-month-cell:not(.out) .cal-month-pill))::after { content: "Nothing scheduled this month."; display: block; padding: 28px 16px; text-align: center; font-size: 0.9rem; color: var(--text-muted); }
+
+            /* The date badge: weekday over a large day number. */
+            html.boot-client .cal-tab-view .cal-month-cellhead { position: absolute; left: 14px; top: 16px; width: 52px; flex-direction: column; align-items: center; gap: 2px; }
+            html.boot-client .cal-tab-view .cal-month-dow { font-size: 0.66rem; }
+            html.boot-client .cal-tab-view .cal-month-num { font-size: 1.35rem; font-weight: 800; line-height: 1; color: var(--text-primary); }
+            html.boot-client .cal-tab-view .cal-month-cell.today .cal-month-num { width: 36px; height: 36px; font-size: 1.05rem; }
+
+            /* A post: thumbnail beside its title and status, one tap target. */
+            html.boot-client .cal-tab-view .cal-month-cell .cal-month-pill,
+            html.boot-client .cal-tab-view .cal-week-card { width: 100%; flex-direction: row; align-items: center; min-height: 64px; border-radius: 12px; overflow: hidden; text-align: left; }
+            html.boot-client .cal-tab-view .cal-month-cell .cal-month-pill-thumb,
+            html.boot-client .cal-tab-view .cal-week-card-thumb { width: 64px; height: 64px; flex: 0 0 64px; aspect-ratio: auto; }
+            html.boot-client .cal-tab-view .cal-month-cell .cal-month-pill-meta,
+            html.boot-client .cal-tab-view .cal-week-card-body { flex: 1 1 auto; min-width: 0; padding: 8px 12px; gap: 5px; }
+            html.boot-client .cal-tab-view .cal-month-cell .cal-month-pill-name,
+            html.boot-client .cal-tab-view .cal-week-card-name { font-size: 0.9rem; line-height: 1.3; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+            html.boot-client .cal-tab-view .cal-month-cell .cal-month-pill-meta .cal-status { font-size: 0.62rem; }
+            html.boot-client .cal-tab-view .cal-month-pill .cal-move-grip,
+            html.boot-client .cal-tab-view .cal-week-card .cal-move-grip { display: none; }
+
+            /* Week: the 7 visible days as a vertical list. The desktop strip
+               is 21 columns slid by an inline transform; on a phone only the
+               middle 7 show, stacked, with no slide. */
+            html.boot-client .cal-tab-view .cal-week-viewport { overflow: visible; }
+            html.boot-client .cal-tab-view .cal-week-grid { flex-direction: column; gap: 10px; transform: none !important; will-change: auto; }
+            html.boot-client .cal-tab-view .cal-week-col:nth-child(-n+7),
+            html.boot-client .cal-tab-view .cal-week-col:nth-child(n+15) { display: none; }
+            html.boot-client .cal-tab-view .cal-week-col { flex: 0 0 auto; min-height: 0; display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; padding: 14px; border-radius: 14px; }
+            html.boot-client .cal-tab-view .cal-week-head { padding: 2px 0 0; border: 0; background: transparent; text-align: center; }
+            html.boot-client .cal-tab-view .cal-week-day { font-size: 0.66rem; }
+            html.boot-client .cal-tab-view .cal-week-num { font-size: 1.35rem; line-height: 1; }
+            html.boot-client .cal-tab-view .cal-week-col.today .cal-week-num { color: var(--sv-fg-4f46e5); }
+            html.boot-client .cal-tab-view .cal-week-stack { padding: 0; gap: 8px; min-width: 0; justify-content: center; }
+            html.boot-client .cal-tab-view .cal-week-stack:not(:has(*))::after { content: "Nothing scheduled"; font-size: 0.84rem; color: var(--text-muted); padding: 12px 0; }
+            html.boot-client .cal-tab-view .cal-week-card { width: 100%; }
+        }
+        /* CLIENT-PHONE:END */
     </style>
 </head>
 <body>

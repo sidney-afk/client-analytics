@@ -25,7 +25,7 @@ import {
 import { _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
 import { _hpPurgeSensitiveState } from './310-sales-intake-hiring.js';
 import {
-  CC_ICON_EYE, _ccCloseModal, _ccCloseSelect, _ccExpanded, _ccOpenSelectId, _ccRevTeardown,
+  CC_ICON_EYE, _caPurgeSensitiveState, _ccCloseModal, _ccCloseSelect, _ccExpanded, _ccOpenSelectId, _ccRevTeardown,
   _ccRevealed, _ccSelectHtml, _ccState, _ccTogglePasswordField, _kasperFallbackToReview,
   _kasperRenderTab, _kasperRestorePendingSubtab, _kasperState
 } from './320-kasper-dashboard-replies.js';

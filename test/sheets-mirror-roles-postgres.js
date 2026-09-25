@@ -1,7 +1,8 @@
 'use strict';
 /*
  * sheets-mirror-roles-postgres.js — migrations/2026-09-25-sheets-mirror-phase1.sql
- * on a disposable PostgreSQL, before anyone applies it live.
+ * and 2026-09-25-client-profile-edits.sql (the Clients tab edit history and
+ * its edit function) on a disposable PostgreSQL, before anyone applies them live.
  *
  * "We revoked it" is not the same claim as "that role cannot do it" (CLAUDE.md),
  * so this MEASURES: for every new table and each of the four roles (a plain
@@ -23,6 +24,8 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const MIGRATION = fs.readFileSync(path.join(ROOT, 'migrations/2026-09-25-sheets-mirror-phase1.sql'), 'utf8');
+const EDITS_MIGRATION = fs.readFileSync(path.join(ROOT, 'migrations/2026-09-25-client-profile-edits.sql'), 'utf8');
+const EDIT_FN = 'public.client_profile_admin_edit(text,jsonb,timestamptz,text,text,text,integer,text)';
 if (process.env.F63_REQUIRE_POSTGRES !== '1' && process.env.SHEETS_MIRROR_TEST_CONFIRM !== 'LOCAL_DISPOSABLE_ONLY') {
   throw Error('DISPOSABLE_REQUIRED: run in the isolated PG17 lane, or set SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY with PG* pointing at a throwaway server');
 }
@@ -45,6 +48,7 @@ const TABLES = {
     vals: "'probe' || :n, 'probe', 'Probe', repeat('c', 64), 'n8n', 'r'" },
   analytics_content_summaries: { upd: 'client_name = client_name', cols: "row_hash, row_occurrence, client_slug, client_name, source, run_id",
     vals: "encode(sha256(convert_to(:n, 'UTF8')), 'hex'), 1, 'probe', 'Probe', 'n8n', 'r'" },
+  client_profile_edits: { upd: 'field = field', cols: "slug, field, edited_by, edited_role", vals: "'probeseed', 'email', 'QA', 'admin'" },
   analytics_ingest_receipts: { upd: 'complete = complete', cols: "dataset, source, run_id, rows_received, rows_written, complete",
     vals: "'metrics', 'n8n', 'r' || :n, 1, 1, true" },
 };
@@ -57,6 +61,10 @@ const EXPECT = {
   authenticated: { select: false, insert: false, update: false, delete: false, truncate: false },
   service_role: { select: true, insert: true, update: true, delete: false, truncate: false },
 };
+// The edit history is append-only, even for service_role.
+const EXPECT_FOR = (role, table) => (table === 'client_profile_edits' && role === 'service_role')
+  ? { select: true, insert: true, update: false, delete: false, truncate: false }
+  : EXPECT[role];
 
 let failed = false;
 try {
@@ -78,6 +86,9 @@ try {
   // Apply twice: the file promises to be idempotent.
   psql(DB, MIGRATION);
   psql(DB, MIGRATION);
+  psql(DB, EDITS_MIGRATION);
+  psql(DB, EDITS_MIGRATION);
+  psql(DB, `insert into public.client_profiles (slug, display_name) values ('probeseed', 'Probe Seed') on conflict do nothing;`);
 
   const results = {};
   let n = 0;
@@ -108,7 +119,7 @@ try {
       const got = results[role][table];
       const line = Object.entries(got).map(([k, v]) => k + '=' + (v ? 'ALLOWED' : 'denied')).join(' ');
       console.log(`  ${role.padEnd(14)} ${table.padEnd(34)} ${line}`);
-      assert.deepEqual(got, EXPECT[role], `${role} on ${table} must be exactly ${JSON.stringify(EXPECT[role])}`);
+      assert.deepEqual(got, EXPECT_FOR(role, table), `${role} on ${table} must be exactly ${JSON.stringify(EXPECT_FOR(role, table))}`);
     }
   }
 
@@ -142,6 +153,37 @@ try {
     rollback;`).out;
   assert.equal(up.split('\n').pop(), '1:r2', 'a repeated row upserts instead of duplicating');
   console.log('  a repeated row upserts in place (no double-count)');
+  // The edit function: service_role only may run it.
+  for (const role of ROLES) {
+    const can = psql(DB, `select has_function_privilege('${role}', '${EDIT_FN}', 'EXECUTE');`).out;
+    assert.equal(can, role === 'service_role' ? 't' : 'f', role + ' EXECUTE on the edit function');
+  }
+  console.log('  client_profile_admin_edit: EXECUTE for service_role only');
+
+  // What it does, as service_role: version check, one history row per changed
+  // field, source='syncview', and refusals for unknown fields and archived rows.
+  psql(DB, `insert into public.client_profiles (slug, display_name, email, keywords, updated_at)
+    values ('probeedit', 'Probe Edit', 'old@example.invalid', 'k1', timestamptz '2026-09-25 10:00:00.123456+00');`);
+  const call = (changes, expected) => psql(DB, `begin; set local role service_role;
+    select public.client_profile_admin_edit('probeedit', '${JSON.stringify(changes)}'::jsonb, timestamptz '${expected}',
+      'QA Admin', 'admin', 'm1', 7, 'req1')::text; commit;`, true);
+  const stale = call({ email: 'new@example.invalid' }, '2026-09-25 10:00:00+00');
+  assert(!stale.ok && /client_profile_version_conflict/.test(stale.err), 'a stale version is refused');
+  const bad = call({ display_name: 'x' }, '2026-09-25 10:00:00.123456+00');
+  assert(!bad.ok && /field_not_editable/.test(bad.err), 'a non-editable field is refused');
+  const good = call({ email: 'new@example.invalid', keywords: 'k1' }, '2026-09-25 10:00:00.123456+00');
+  assert(good.ok, 'the edit applies: ' + good.err);
+  assert.equal(JSON.parse(good.out.split('\n').pop()).changed, 1, 'only the field that changed counts');
+  const after = psql(DB, `select email || '|' || source || '|' || updated_by from public.client_profiles where slug = 'probeedit';`).out;
+  assert.equal(after, 'new@example.invalid|syncview|QA Admin', 'row updated with source syncview and the editor');
+  const hist = psql(DB, `select string_agg(field || ':' || coalesce(old_value,'') || '>' || coalesce(new_value,'') || ':' || edited_by || ':' || sheet_row, ',')
+    from public.client_profile_edits where slug = 'probeedit';`).out;
+  assert.equal(hist, 'email:old@example.invalid>new@example.invalid:QA Admin:7', 'one history row for the one changed field');
+  psql(DB, `update public.client_profiles set archived_at = now() where slug = 'probeedit';`);
+  const arch = psql(DB, `begin; set local role service_role; select public.client_profile_admin_edit('probeedit', '{"email":"z"}'::jsonb,
+    (select updated_at from public.client_profiles where slug = 'probeedit'), 'QA Admin', 'admin', 'm1', 7, 'r'); commit;`, true);
+  assert(!arch.ok && /client_profile_archived/.test(arch.err), 'an archived client is refused');
+  console.log('  client_profile_admin_edit: version-checked, history per changed field, source syncview');
   console.log('SHEETS_MIRROR_ROLES_OK');
 } catch (e) {
   failed = true;

@@ -108,8 +108,9 @@ const ok = (cond, msg) => { assert.ok(cond, msg); checks++; console.log('  ok  '
   ok(!/Access-Control-Allow-Origin|OPTIONS/.test(WRITE_SRC), 'the writer exposes no browser CORS surface');
   ok(/"analytics_mirror_write_enabled"/.test(serve) && /mirror_write_disabled/.test(serve), 'the writer is off until its flag is on');
   ok(/"client_profiles_authority"/.test(serve) && /client_profiles_owned_by_syncview/.test(serve)
-    && /owned\.has\(r\.slug/.test(WRITE_SRC) && /archived_at: now/.test(WRITE_SRC) && !/\.delete\(/.test(WRITE_SRC),
-    'the Sheet copy of client profiles stops when SyncView owns them, skips rows edited in SyncView, and archives instead of deleting');
+    && /filter\(r => !unchangedEdit\(r\)\)/.test(WRITE_SRC) && /cur\.source !== "syncview"/.test(WRITE_SRC)
+    && /archived_at: now/.test(WRITE_SRC) && !/\.delete\(/.test(WRITE_SRC),
+    'the Sheet copy of client profiles stops when SyncView owns them, skips a SyncView-edited row only while the Sheet still matches it, and archives instead of deleting');
   ok(/analytics_ingest_receipts/.test(serve) && /MAX_ROWS_PER_CALL/.test(serve) && /MAX_BODY_BYTES/.test(serve),
     'every write leaves a receipt and is size-bounded');
 

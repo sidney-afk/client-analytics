@@ -163,3 +163,9 @@ verify_jwt = false
 # client; the function requires ANALYTICS_MIRROR_WRITE_KEY and a default-off flag.
 [functions.analytics-write]
 verify_jwt = false
+
+# Kasper > Clients edits (admin only). JWT off because SyncView is a static app;
+# the function requires the admin role key and an active admin team member,
+# writes the Clients Info Sheet first, then Supabase.
+[functions.client-profile-write]
+verify_jwt = false

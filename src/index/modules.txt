@@ -15,3 +15,4 @@
 050-market-briefs.js.part
 060-templates-filming.js.part
 160-calendar-organize-ui.js.part
+100-onboarding-staff-controls.js.part

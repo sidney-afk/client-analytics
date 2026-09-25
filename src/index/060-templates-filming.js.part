@@ -193,6 +193,13 @@ import {
     let _tplTab = 'templates';            // onboarding is no longer a Templates sub-tab (moved to Kasper)
     let _obvSubs = null, _obvLoading = false, _obvError = '', _obvWarn = '', _obvSelected = null, _obvLoadedAt = 0, _obvQuery = '';
     let _obvMode = 'edge';                 // 'edge' = credential-stripped list fns; 'full' = Kasper (onboarding-full)
+    function _obvSetSubs(value) { _obvSubs = value; }
+    function _obvSetSelected(value) { _obvSelected = value; }
+    function _obvSetError(value) { _obvError = value; }
+    function _obvSetWarn(value) { _obvWarn = value; }
+    function _obvSetLoadedAt(value) { _obvLoadedAt = value; }
+    function _obvSetLoading(value) { _obvLoading = value; }
+    function _obvSetMode(value) { _obvMode = value; }
     let _obvSlugSet = null, _obvSlugLoading = false;  // slugs that have any onboarding record (client-profile button)
 
     const OBV_GENRE = { inspirational:'Inspirational', ambient:'Ambient / Cinematic', lofi:'Lofi / Chill', piano:'Emotional Piano', guitar:'Acoustic Guitar', synth:'Synth', spiritual:'Spiritual', classical:'Classical', trending:'Trending / TikTok' };
@@ -2221,10 +2228,11 @@ export {
   NATIVE_INTAKE_PENDING_KEY, NAV_KEY, _fpEnsureLoaded, _fpPurgeSensitiveState, _isSmmWeeklyRoute,
   _linearIntakeItemsPerVideo, _linearIntakeTooLargeMessage, _linearNextVideoCount,
   _linearRefreshProjectsForRerouteChange, _linearSetJustCreated, _linearSetSubmitInFlight,
-  _linearSetVideoCount, _obvEnsureLoaded, _obvError, _obvFetchFull, _obvInjectStyles, _obvLoadedAt,
-  _obvLoading, _obvMode, _obvMountStandalone, _obvSelected, _obvSubs, _obvWarn, _syncviewNavEpoch,
-  _syncviewNextNavEpoch, _syncviewSetCurrentNav, currentNav, fetchLinearProjects, getLastLink,
-  linearJustCreated, linearProjectsLoading, linearSubmitInFlight, linearVideoCount,
-  mountFilmingPlansView, mountTemplatesView, renderClientTemplate, renderFilmingPlansView,
-  renderOnboardingInbox, renderTemplatesView, saveLastLink
+  _linearSetVideoCount, _obvEnsureLoaded, _obvFetchFull, _obvInjectStyles, _obvLoading, _obvMode,
+  _obvMountStandalone, _obvSetError, _obvSetLoadedAt, _obvSetLoading, _obvSetMode, _obvSetSelected,
+  _obvSetSubs, _obvSetWarn, _obvSubs, _syncviewNavEpoch, _syncviewNextNavEpoch,
+  _syncviewSetCurrentNav, currentNav, fetchLinearProjects, getLastLink, linearJustCreated,
+  linearProjectsLoading, linearSubmitInFlight, linearVideoCount, mountFilmingPlansView,
+  mountTemplatesView, renderClientTemplate, renderFilmingPlansView, renderOnboardingInbox,
+  renderTemplatesView, saveLastLink
 };

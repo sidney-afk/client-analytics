@@ -1839,6 +1839,7 @@
     const _LEGACY_AUTH_KEY = 'syncview_auth_v1';
     try { localStorage.removeItem(_LEGACY_AUTH_KEY); } catch (e) {}
     let _syncviewAppBooted = false;
+    function _syncviewSetAppBooted(value) { _syncviewAppBooted = value; }
     const SYNCVIEW_CLIENT_ENTRY_VIEWS = Object.freeze(['analytics', 'calendar', 'brief', 'samples', 'sample-reviews']);
     const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr']);
     let _syncviewClientEntryCapability = null;

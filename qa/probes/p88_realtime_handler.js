@@ -47,6 +47,7 @@ async function fireSmmEchoAndRead(page, id, wantSub, ms = 12000) {
   let smm, kas;
   try {
     // ── B1 + B2 : SMM sheet ────────────────────────────────────────────────
+    require('../native_work_item_fixture.js').registerProbeWorkItems([{ id: id, components: ['video', 'graphic'] }]);
     L.up({ id, name: 'P88 ' + id.slice(-6), order_index: 1, asset_url: 'https://frame.io/x/' + id,
       thumbnail_url: 'https://i.ytimg.com/vi/x/hqdefault.jpg',
       linear_issue_id: 'https://linear.app/x/VID-' + id.slice(-6), graphic_linear_issue_id: 'https://linear.app/x/GRA-' + id.slice(-6),
@@ -76,6 +77,7 @@ async function fireSmmEchoAndRead(page, id, wantSub, ms = 12000) {
     ok(sentinelSurvived, 'B2 no-op realtime echo did NOT rebuild the queue (dataChanged gate held — no flash)');
 
     // ── B3 : Kasper samples queue ──────────────────────────────────────────
+    require('../native_work_item_fixture.js').registerProbeWorkItems([{ id: kid, components: ['video', 'graphic'] }]);
     L.up({ id: kid, name: 'P88K ' + kid.slice(-6), order_index: 1, asset_url: 'https://frame.io/x/' + kid,
       thumbnail_url: 'https://i.ytimg.com/vi/x/hqdefault.jpg',
       linear_issue_id: 'https://linear.app/x/VID-' + kid.slice(-6), graphic_linear_issue_id: 'https://linear.app/x/GRA-' + kid.slice(-6),

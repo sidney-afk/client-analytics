@@ -13832,6 +13832,13 @@
        been evaluated on some boot paths, and a TDZ throw there would be worse
        than the bug. */
     var _syncviewNavEpoch = 0;
+    // Setters for the Workload popovers and navigation module (090). ES module
+    // imports are read-only, so navTo changes these through the functions
+    // below instead of assigning them directly (phase C step C3). Function
+    // declarations are hoisted, so they behave exactly like the direct writes
+    // on the early boot paths described above.
+    function _syncviewSetCurrentNav(value) { currentNav = value; }
+    function _syncviewNextNavEpoch() { return ++_syncviewNavEpoch; }
     const LINEAR_DEFAULT_VIDEO_COUNT = 12;
     let linearVideoCount = LINEAR_DEFAULT_VIDEO_COUNT;
     let linearJustCreated = false;
@@ -22311,7 +22318,7 @@
             _syncviewInvalidClientLinkScreen();
             return;
         }
-        _syncviewNavEpoch++; // Phase D: tell a still-loading boot router that someone has moved on.
+        _syncviewNextNavEpoch(); // Phase D: tell a still-loading boot router that someone has moved on.
         if (page === 'brief') page = 'home';
         // Client intake link locks the whole SPA to the Linear submission flow,
         // so every navigation (back button, restored hash, logo) lands on it.
@@ -22324,7 +22331,7 @@
         if (page === 'time-off' && !_ptoEnabled()) page = 'home';
         page = _resolveRetiredSamplesRoute(page); // Samples Old retired: the old page was removed 2026-09-24; its links land on Sample reviews. dormant.
         if (page === 'production' && !_prodAccessAllowed()) page = 'home';
-        currentNav = page;
+        _syncviewSetCurrentNav(page);
         // Guarded: on a FULL localStorage (a heavy user whose caches filled the
         // quota) this setItem throws QuotaExceededError, and unguarded it aborted
         // the REST of navTo — so every tab click silently did nothing until the

@@ -28950,13 +28950,24 @@ server, but only the browser wrote the card's `video_deliverable_id` /
 window (about 3 s) left work items whose `card_id` named a card that never
 learned their ids. Seen on one test-client card, since repaired.
 
+**Scope, stated plainly.** This closes the gap for a card that already exists
+when the work items are made (a component fill, a resumed or retried create).
+A brand-new Create Post card does not exist until the browser writes it, so for
+that case the page closing still leaves no card at all, which the reconcile
+backlog reports; linking it server-side would mean creating cards on the
+server, a design change for the owner to decide.
+
 **Fix.** `production-write` now links the card itself, straight after the
 deliverables commit and before it answers, on all three create paths (new batch,
 append to a batch, fill a missing component). New module
 `supabase/functions/production-write/card-link.mjs`:
-- a missing card is inserted with the same starting values the browser writes;
 - an existing card has a slot filled only where it is empty, and nothing else
   on it is touched;
+- a card that does not exist yet is NOT created (counted as `missing`). Card
+  creation stays with the browser job and its writer, which records the created
+  fact; a job that never returns is already held as visible debt by the intake
+  reconcile lane (`card_creation_held`). A first version inserted the card and
+  the reconcile proof caught it;
 - a slot already naming a different deliverable is never overwritten (counted as
   `occupied` in the response's new `card_link` field);
 - running it twice writes nothing the second time. The browser's own card write

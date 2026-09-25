@@ -57,7 +57,7 @@ check('Templates roster uses getClientRoster',
 check('analytics search and pin lists use getClientRoster',
   (INDEX.match(/const allNames=getClientRoster\(\);/g) || []).length >= 5, true);
 check('Templates deep links canonicalize through wlCanonicalClient',
-  (INDEX.match(/_templatesSelected=wlCanonicalClient\(tn\)/g) || []).length >= 2, true);
+  (INDEX.match(/_templatesSelected=wlCanonicalClient\(tn\)|_templatesSetSelected\(wlCanonicalClient\(tn\)\)/g) || []).length >= 2, true);
 check('allowed roster clients without metrics get a blank analytics row',
   INDEX.includes('if(!deduped.length && wlIsAllowedClient(name)) return [_blankAnalyticsRow(wlCanonicalClient(name))];'), true);
 check('data-less analytics clients render an empty state',

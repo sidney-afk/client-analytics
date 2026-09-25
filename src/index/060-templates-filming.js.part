@@ -150,28 +150,11 @@ import {
                 ${addBtn}
             </div></div>`;
     }
-    function _tplRenderLinksView(name, field, label, openLabel) {
+    function _tplRenderLinksView(name, field, label, icon) {
         const links = _tplGetLinks(name, field).filter(v => /^https?:\/\//i.test(v));
-        if (!links.length) {
-            return `<div class="tpl-view-field">
-                <div class="tpl-view-label">${label}</div>
-                <div class="tpl-view-value">${_NOT_SET}</div>
-            </div>`;
-        }
-        const items = links.map(v => {
-            let host = '';
-            try { host = new URL(v).hostname.replace(/^www\./, ''); } catch {}
-            return `<a class="tpl-view-link" href="${_tplEsc(v)}" target="_blank" rel="noopener">
-                ${openLabel || 'Open'}
-                ${host ? `<span class="tpl-view-link-host">${_tplEsc(host)}</span>` : ''}
-                <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M9.5 2.5h4v4M13.5 2.5L7 9M11 8.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </a>`;
-        }).join('');
-        return `<div class="tpl-view-field">
-            <div class="tpl-view-label">${label}</div>
-            <div class="tpl-view-value tpl-view-links">${items}</div>
-        </div>`;
+        return _tplLinkRow(label, icon, links);
     }
+
 
     /* ── View renderers ─────────────────────────────────────────────────── */
     /* ============================================================
@@ -1043,10 +1026,10 @@ import {
         const f = _tplFolders[name];
         if (f && f.state === 'error') return `<div class="tpl-brain-empty-note">Couldn't load recent folders. <button type="button" class="tpl-brain-change-btn" onclick="tplFoldersRetry()">Try again</button></div>`;
         if (!f || f.state !== 'ready' || (!f.frame.length && !f.raw.length)) return '';
-        const col = (label, items) => `<div class="tpl-view-field"><div class="tpl-view-label">${label}</div><div class="tpl-view-value tpl-view-links">${items.length
-            ? items.map(i => `<a class="tpl-view-link" href="${_tplEscAttr(i.url)}" target="_blank" rel="noopener">${_tplEsc(i.name || 'Untitled batch')}<span class="tpl-view-link-host">${_tplEsc([_tplFolderHost(i.url), _tplFolderDate(i.at)].filter(Boolean).join(' · '))}</span><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M9.5 2.5h4v4M13.5 2.5L7 9M11 8.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>`).join('')
-            : _NOT_SET}</div></div>`;
-        return `<div class="tpl-view-grid tpl-folders">${col('Frame folders', f.frame)}${col('Raw footage', f.raw)}</div>`;
+        const col = (label, items) => `<div><div class="tpl-brain-spec-label">${label}</div>${items.length
+            ? items.map(i => `<a class="tpl-batch-row" href="${_tplEscAttr(i.url)}" target="_blank" rel="noopener"><span>${_tplEsc(i.name || 'Untitled batch')}</span><span class="tpl-batch-meta">${_tplEsc([_tplFolderHost(i.url), _tplFolderDate(i.at)].filter(Boolean).join(', '))}</span></a>`).join('')
+            : _NOT_SET}</div>`;
+        return `<div class="tpl-folders">${col('Latest frame folders', f.frame)}${col('Latest raw footage', f.raw)}</div>`;
     }
     function tplBrainRetry() { if (_templatesSelected) { _tplBrainEnsure(_templatesSelected, true); _maybeRerenderTemplates(); } }
     function tplBrainSetTab(tab) { _tplBrainTab = tab; _maybeRerenderTemplates(); }
@@ -1172,6 +1155,54 @@ import {
         }).join('');
         return `<div class="tpl-spec-list">${rows}</div>`;
     }
+    // A live sample in the client's own font and colour. Google-hosted fonts load on demand;
+    // anything else falls back to a close generic family.
+    const _tplFontsRequested = {};
+    function _tplSpecFont(raw) {
+        const f = String(raw || '').replace(/\(.*?\)/g, '').split(',')[0];
+        const italic = /italic|oblique/i.test(f);
+        const weight = /black|heavy|extra ?bold/i.test(f) ? 800 : /semi ?bold/i.test(f) ? 600 : /bold/i.test(f) ? 700 : /medium/i.test(f) ? 500 : /light/i.test(f) ? 300 : 400;
+        const family = f.replace(/\b(regular|italic|oblique|bold|semi ?bold|extra ?bold|medium|light|black|heavy|thin|display trial|trial|\d+pt|\d+)\b/gi, '').replace(/\s+/g, ' ').trim();
+        if (family && !_tplFontsRequested[family]) {
+            _tplFontsRequested[family] = 1;
+            const enc = encodeURIComponent(family).replace(/%20/g, '+');
+            ['family=' + enc + ':ital,wght@0,400;0,700;1,400;1,700', 'family=' + enc].forEach(q => {
+                const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://fonts.googleapis.com/css2?' + q + '&display=swap'; document.head.appendChild(l);
+            });
+        }
+        return { family, italic, weight };
+    }
+    function _tplSpecPreview(kind, spec) {
+        const v = _tplSpecValues(spec);
+        const hexOf = x => { const m = /#[0-9a-fA-F]{3,6}\b/.exec(String(x || '')); return m ? m[0] : ''; };
+        const colour = hexOf(v.main || v.title) || '';
+        let lum = 1;
+        if (colour) { const h = colour.length === 4 ? colour.slice(1).split('').map(c => c + c).join('') : colour.slice(1); lum = (0.299 * parseInt(h.slice(0, 2), 16) + 0.587 * parseInt(h.slice(2, 4), 16) + 0.114 * parseInt(h.slice(4, 6), 16)) / 255; }
+        const shadow = v.shadow && !/^(none|no)\b/i.test(v.shadow);
+        const face = f => { const x = _tplSpecFont(f); return `font-family:'${x.family.replace(/'/g, '')}', Georgia, serif;font-style:${x.italic ? 'italic' : 'normal'};font-weight:${x.weight};`; };
+        const second = v['second font'];
+        const text = kind === 'subtitle' ? 'Your caption looks like this' : 'Your title looks like this';
+        return `<div class="tpl-prev ${lum < 0.45 ? 'on-light' : 'on-dark'}${shadow ? ' shadowed' : ''} ${kind}">
+            <div class="tpl-prev-text" style="${v.font ? face(v.font) : ''}${colour ? 'color:' + colour + ';' : ''}">${text}</div>
+            ${second ? `<div class="tpl-prev-second" style="${face(second)}${colour ? 'color:' + colour + ';' : ''}">${_tplEsc(_tplSpecFont(second).family || second)}</div>` : ''}
+        </div>`;
+    }
+    const TPL_LINK_ICONS = {
+        doc: '<path d="M14 3v4h4M6 3h8l4 4v14H6z"/>',
+        folder: '<path d="M3 7h6l2 2h10v10H3z"/>',
+        reel: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M10 9l5 3-5 3z"/>',
+        photo: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/>',
+        canva: '<path d="M4 20l4-1 11-11-3-3L5 16z"/>',
+    };
+    const _TPL_ROW_ARROW = '<svg class="tpl-link-arrow" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h10v10M19 5L6 18"/></svg>';
+    function _tplLinkHost(u) { try { const h = new URL(u).hostname.replace(/^www\./, ''); return /docs\.google/.test(h) ? 'Google Docs' : /drive\.google/.test(h) ? 'Google Drive' : /dropbox/.test(h) ? 'Dropbox' : /frame\.io|f\.io/.test(h) ? 'Frame.io' : /canva/.test(h) ? 'Canva' : h; } catch (e) { return ''; } }
+    // One row in the Links card. One link: the whole row opens it. Several: numbered buttons, one per link.
+    function _tplLinkRow(label, icon, links) {
+        const ico = `<span class="tpl-link-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${TPL_LINK_ICONS[icon] || ''}</svg></span>`;
+        if (!links.length) return `<div class="tpl-lrow empty">${ico}<span class="tpl-link-label">${label}</span><span class="tpl-link-right"><button type="button" class="tpl-link-add" onclick="setTemplatesEditMode(true)">Add link</button><span class="tpl-not-set" hidden>Not set</span></span></div>`;
+        if (links.length === 1) return `<a class="tpl-lrow" href="${_tplEscAttr(links[0])}" target="_blank" rel="noopener">${ico}<span class="tpl-link-label">${label}</span><span class="tpl-link-right">${_tplEsc(_tplLinkHost(links[0]))}${_TPL_ROW_ARROW}</span></a>`;
+        return `<div class="tpl-lrow">${ico}<span class="tpl-link-label">${label}</span><span class="tpl-link-right"><span class="tpl-link-nums">${links.map((v, i) => `<a class="tpl-view-link" href="${_tplEscAttr(v)}" target="_blank" rel="noopener" title="${_tplEscAttr(_tplLinkHost(v))}">${i + 1}</a>`).join('')}</span>${_tplEsc(_tplLinkHost(links[0]))}</span></div>`;
+    }
     function _tplBrainSpecStrip(name) {
         const b = _tplBrain[name];
         if (!b || b.state !== 'ready' || !b.found) return '';
@@ -1182,10 +1213,10 @@ import {
             const has = fact && fact.status === 'written' && fact.spec;
             const sent = _tplSpecSent[key] === 'sent';
             const open = _tplSpecForm === key || _tplSpecSent[key] === 'sending' || _tplSpecSent[key] === 'error';
-            return `<div class="tpl-spec-group">
+            return `<div class="tpl-spec-group tpl-spec-card">
                 <div class="tpl-spec-group-head"><span class="tpl-brain-spec-label">${k.label}</span>
                     <button type="button" class="tpl-spec-btn" data-k="${_tplEscAttr(key)}" onclick="tplSpecOpen(this.dataset.k)">${has ? 'Edit' : 'Add'}</button></div>
-                ${has ? _tplSpecList(fact.spec) : '<div class="tpl-spec-empty">Not set</div>'}
+                ${has ? _tplSpecPreview(k.kind, fact.spec) + _tplSpecList(fact.spec) : '<div class="tpl-spec-empty">Not set</div>'}
                 ${sent ? '<div class="tpl-spec-empty">Saved. Updating in a minute or two.</div>' : ''}
                 ${open ? _tplSpecForm_(name, k, has ? _tplSpecValues(fact.spec) : null, key) : ''}
             </div>`;
@@ -1193,7 +1224,7 @@ import {
         const others = facts.filter(f => f.spec && f.status === 'written' && !/editing\.(subtitle|thumbnail)-spec$/.test(f.id));
         return `<div class="tpl-section tpl-brain-strip">
             <div class="tpl-section-title">Quick look</div>
-            ${core}
+            <div class="tpl-spec-cards">${core}</div>
             ${others.map(f => `<div class="tpl-spec-group"><div class="tpl-spec-group-head"><span class="tpl-brain-spec-label">${_tplEsc(f.heading.replace(/\s*spec$/i, ''))}</span></div>${_tplSpecList(f.spec)}</div>`).join('')}
         </div>`;
     }
@@ -1437,55 +1468,20 @@ import {
                     ${_tplFieldLink(name, 'reels_editor_folder_link', 'Editor folder (Google Drive)', 'https://drive.google.com/…')}
                 </div>
               </div>`
-            : `<div class="tpl-section">
-                <div class="tpl-section-title">Working links</div>
-                <div class="tpl-view-grid">
-                    ${_tplRenderLinksView(name, 'reels_reference_link', 'Reference reel', 'Open reference')}
-                    ${_tplRenderLinksView(name, 'thumbnails_photos_link', 'Client photos', 'Open photos')}
-                    ${_tplRenderLinksView(name, 'thumbnails_canva_link', 'Editable Canva', 'Open Canva')}
+            : '';
+        const fpLink = _fpLinkForClient(name, _tplGet(name, 'filming_plans_link'));
+        const edLink = _tplGet(name, 'reels_editor_folder_link');
+        const linksRail = isEdit ? '' : `<div class="tpl-section tpl-links-card">
+                <div class="tpl-section-title">Links</div>
+                <div class="tpl-link-rail">
+                    ${_tplLinkRow('Filming plans', 'doc', /^https?:\/\//i.test(fpLink) ? [fpLink] : [])}
+                    ${_tplLinkRow('Editor folder', 'folder', /^https?:\/\//i.test(edLink) ? [edLink] : [])}
+                    ${_tplRenderLinksView(name, 'reels_reference_link', 'Reference reel', 'reel')}
+                    ${_tplRenderLinksView(name, 'thumbnails_photos_link', 'Client photos', 'photo')}
+                    ${_tplRenderLinksView(name, 'thumbnails_canva_link', 'Editable Canva', 'canva')}
                 </div>
-                ${_tplRecentFolders(name)}
               </div>`;
-
-        // Filming plans block (rendered at the BOTTOM, after the active tab's sections).
-        const filmingPlans = (() => {
-            const v = _fpLinkForClient(name, _tplGet(name, 'filming_plans_link'));
-            const isUrl = /^https?:\/\//i.test(v);
-            let host = ''; if (isUrl) { try { host = new URL(v).hostname.replace(/^www\./,''); } catch {} }
-            if (isUrl) {
-                return `<a class="tpl-filming-card" href="${_tplEscAttr(v)}" target="_blank" rel="noopener">
-                    <span class="tpl-filming-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M14 3v4a1 1 0 0 0 1 1h4M5 21V3a1 1 0 0 1 1-1h8l5 5v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-                    <span class="tpl-filming-text"><span class="tpl-filming-title">Filming plans</span><span class="tpl-filming-host">${_tplEsc(host || 'Open document')}</span></span>
-                    <svg class="tpl-filming-arrow" width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M9.5 2.5h4v4M13.5 2.5L7 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </a>`;
-            }
-            return `<div class="tpl-filming-card empty">
-                <span class="tpl-filming-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M14 3v4a1 1 0 0 0 1 1h4M5 21V3a1 1 0 0 1 1-1h8l5 5v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-                <span class="tpl-filming-text"><span class="tpl-filming-title">Filming plans</span><span class="tpl-filming-host">Not set</span></span>
-            </div>`;
-        })();
-
-        // Editor folder block (Reels only) — rendered at the BOTTOM, just after filming plans.
-        // Lets the team paste a Google Drive folder link for the editor.
-        let editorFolder = '';
-        if (!isEdit) {
-            editorFolder = (() => {
-                    const v = _tplGet(name, 'reels_editor_folder_link');
-                    const isUrl = /^https?:\/\//i.test(v);
-                    let host = ''; if (isUrl) { try { host = new URL(v).hostname.replace(/^www\./,''); } catch {} }
-                    if (isUrl) {
-                        return `<a class="tpl-filming-card" href="${_tplEsc(v)}" target="_blank" rel="noopener">
-                            <span class="tpl-filming-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 0 1 2-2h3.2a2 2 0 0 1 1.4.6L11 7h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-                            <span class="tpl-filming-text"><span class="tpl-filming-title">Editor folder</span><span class="tpl-filming-host">${_tplEsc(host || 'Open folder')}</span></span>
-                            <svg class="tpl-filming-arrow" width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M9.5 2.5h4v4M13.5 2.5L7 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        </a>`;
-                    }
-                    return `<div class="tpl-filming-card empty">
-                        <span class="tpl-filming-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 0 1 2-2h3.2a2 2 0 0 1 1.4.6L11 7h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-                        <span class="tpl-filming-text"><span class="tpl-filming-title">Editor folder</span><span class="tpl-filming-host">Not set</span></span>
-                    </div>`;
-                })();
-        }
+        const batches = isEdit ? '' : _tplRecentFolders(name);
 
         const editToggle = isEdit
             ? `<button class="tpl-edit-btn done" onclick="setTemplatesEditMode(false)">Done</button>`
@@ -1504,11 +1500,11 @@ import {
                 <div class="tpl-client-name-wrap"><div class="tpl-client-name">${_tplEsc(name)}</div>${obBtn}</div>
                 <div class="tpl-head-right">${_svSaveIndHtml('templates')}${editToggle}</div>
             </div>
-            <div class="tpl-top">
+            ${isEdit ? `${links}` : `<div class="tpl-top">
                 <div class="tpl-top-main">${_tplBrainSpecStrip(name)}</div>
-                <div class="tpl-top-side">${filmingPlans}${editorFolder}</div>
+                <div class="tpl-top-side">${linksRail}</div>
             </div>
-            ${links}
+            ${batches ? `<div class="tpl-section">${batches}</div>` : ''}`}
             ${_tplBrainSection(name)}
         </div>`;
     }

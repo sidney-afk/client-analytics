@@ -1,3 +1,27 @@
+import { showConfirm } from './040-shared-briefs.js';
+import { currentNav } from './060-templates-filming.js';
+import { WL_CLIENT_NAMES, getClientRoster, wlNormalizeClient } from './070-workload-source.js';
+import { navTo } from './090-workload-popovers-navigation.js';
+import {
+  CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, PTO_API_TIMEOUT_MS, PTO_EF_URL, PTO_FLAG_KEY,
+  SMM_WEEKLY_REPORTS_URL, _ptoAdminOverviewGeneration, _ptoAdminState, _ptoAttr, _ptoBlockWrites,
+  _ptoEsc, _ptoFlagChannel, _ptoFlagGeneration, _ptoFlagPromise, _ptoFlagValue,
+  _ptoInvalidateOverviewCaches, _ptoNextAdminOverviewGeneration, _ptoNextFlagGeneration,
+  _ptoNextOverviewGeneration, _ptoNextQuoteGeneration, _ptoOverviewGeneration, _ptoQuoteGeneration,
+  _ptoRefreshAfterConflict, _ptoSetFlagChannel, _ptoSetFlagPromise, _ptoShowToast, _ptoState,
+  _ptoStateConflict, _ptoStoreFlagValue, _ptoUnknownWrite, _svDateHtml, _svExplainLabel,
+  _svSelectHtml, _svStepperHtml, _svSyncDateControl, _svSyncStepper, _svTone,
+  _syncviewCloseStaffAccount, _syncviewOfferStaffSignIn, _syncviewOpenStaffIdentity,
+  _syncviewRequireStaffIdentity, _syncviewStaffCan, _syncviewStaffIdentityClear,
+  _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature, _syncviewStaffRoleLabel
+} from './100-onboarding-staff-controls.js';
+import { _calRuntimeFlagClient, _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
+import { _jsAttrArg } from './131-core-html.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
+import {
+  _kasperFallbackToReview, _kasperGotoTab, _kasperSetTabCount, _kasperState, mountKasperView,
+  renderKasperView
+} from './320-kasper-dashboard-replies.js';
     function _ptoClearValidation(errorId, controlIds) {
         const errorBox = document.getElementById(errorId);
         if (errorBox) errorBox.textContent = '';
@@ -28,10 +52,10 @@
     }
     function _ptoEnabled() { return String(_ptoFlagValue && _ptoFlagValue.mode || 'off').toLowerCase() === 'on'; }
     function _ptoSetFlagValue(value, generation) {
-        if (generation == null) generation = ++_ptoFlagGeneration;
+        if (generation == null) generation = _ptoNextFlagGeneration();
         if (generation !== _ptoFlagGeneration) return;
         const wasEnabled = _ptoEnabled();
-        _ptoFlagValue = value && typeof value === 'object' ? value : { mode: 'off' };
+        _ptoStoreFlagValue(value && typeof value === 'object' ? value : { mode: 'off' });
         const enabled = _ptoEnabled();
         const menuItem = document.getElementById('headerTimeOffMenuItem');
         if (menuItem) menuItem.hidden = !enabled;
@@ -58,7 +82,7 @@
         }
     }
     async function _ptoFetchFlagOnce() {
-        const generation = ++_ptoFlagGeneration;
+        const generation = _ptoNextFlagGeneration();
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _ptoSetFlagValue({ mode: 'off' }, generation); return; }
         const controller = typeof AbortController === 'function' ? new AbortController() : null;
         const timeout = controller ? setTimeout(() => controller.abort(), 5000) : null;
@@ -81,21 +105,21 @@
         const client = await _calRuntimeFlagClient();
         if (!client || _ptoFlagChannel) return;
         try {
-            _ptoFlagChannel = client
+            _ptoSetFlagChannel(client
                 .channel('syncview-pto-runtime-flag')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + PTO_FLAG_KEY }, payload => {
                     const row = payload && payload.new ? payload.new : null;
-                    const generation = ++_ptoFlagGeneration;
+                    const generation = _ptoNextFlagGeneration();
                     _ptoSetFlagValue(row && row.value ? row.value : { mode: 'off' }, generation);
                 })
-                .subscribe();
+                .subscribe());
         } catch (error) {
-            _ptoFlagChannel = null;
+            _ptoSetFlagChannel(null);
             console.warn('[PTO] runtime flag subscription failed', error);
         }
     }
     function _ptoPrimeFlag() {
-        if (!_ptoFlagPromise) _ptoFlagPromise = _ptoFetchFlagOnce().then(_ptoSubscribeFlag).catch(() => null);
+        if (!_ptoFlagPromise) _ptoSetFlagPromise(_ptoFetchFlagOnce().then(_ptoSubscribeFlag).catch(() => null));
         return _ptoFlagPromise;
     }
     function _ptoRefreshFlagOnResume() {
@@ -303,7 +327,7 @@
     async function _ptoLoadOverview(force) {
         if (!_ptoEnabled() || (_ptoState.loading && !force)) return;
         if (_ptoState.overview && !force) { _ptoPaint(); return; }
-        const generation = ++_ptoOverviewGeneration;
+        const generation = _ptoNextOverviewGeneration();
         _ptoState.loading = true;
         _ptoState.error = '';
         _ptoPaint();
@@ -474,7 +498,7 @@
         const holidayMin = String(_ptoState.overview && _ptoState.overview.holiday_date_min || ((asOfYear - 1) + '-01-01'));
         const holidayMax = String(_ptoState.overview && _ptoState.overview.holiday_date_max || ((asOfYear + 1) + '-12-31'));
         const needsServerQuote = !!(start.value && end.value && (start.value < holidayMin || end.value > holidayMax));
-        const generation = ++_ptoQuoteGeneration;
+        const generation = _ptoNextQuoteGeneration();
         if (needsServerQuote) {
             days.value = '';
             days.disabled = true;
@@ -620,7 +644,7 @@
     async function _ptoLoadAdmin(force) {
         if (!_ptoEnabled() || !_syncviewStaffCan('pto-admin') || (_ptoAdminState.loading && !force)) return;
         if (_ptoAdminState.overview && !force) { _ptoRenderAdmin(); return; }
-        const generation = ++_ptoAdminOverviewGeneration;
+        const generation = _ptoNextAdminOverviewGeneration();
         _ptoAdminState.loading = true;
         _ptoAdminState.error = '';
         _ptoRenderAdmin();
@@ -2150,3 +2174,16 @@
        slug in the first place; what it additionally buys is that
        `_writeUiRerouteRosterUsable` can now SEE the corruption instead of
        counting it. */
+export {
+  CALENDAR_UPSERT_FLAG_KEY, CAL_V2_KILL_KEY, CAL_V2_LS_KEY, CAL_V2_RT_DEBOUNCE_MS,
+  CAL_V2_RT_MIN_RELOAD_MS, CLIENT_COMMENT_GATEWAY_FLAG_KEY, SETTINGS_EF_FLAG_KEY,
+  WRITE_UI_REROUTE_FLAG_KEY, WRITE_UI_REROUTE_FLAG_TIMEOUT_MS, _calUpsertEfClients,
+  _calUpsertFlagChannel, _calUpsertFlagClient, _calUpsertFlagClientPromise, _calUpsertFlagPromise,
+  _clientCommentGatewayEnabled, _ptoAdminPending, _ptoCalResetView, _ptoDate, _ptoEnabled,
+  _ptoLoadAdmin, _ptoLoadOverview, _ptoPaint, _ptoPrimeFlag, _ptoRenderAdmin, _settingsEfClients,
+  _settingsFlagChannel, _settingsFlagPromise, _srpPurgeSensitiveState, _srpState,
+  _writeUiRerouteClients, _writeUiRerouteFlagFailed, _writeUiRerouteFlagGeneration,
+  _writeUiRerouteFlagPromise, _writeUiRerouteRosterUnusable, mountSmmWeeklyReportFormView,
+  mountSmmWeeklyReportsView, mountTimeOffView, renderSmmWeeklyReportFormView,
+  renderSmmWeeklyReportsView, renderTimeOffView
+};

@@ -24513,6 +24513,13 @@
     let _ptoOverviewGeneration = 0;
     let _ptoAdminOverviewGeneration = 0;
     let _ptoQuoteGeneration = 0;
+    function _ptoStoreFlagValue(value) { _ptoFlagValue = value; }
+    function _ptoSetFlagPromise(value) { _ptoFlagPromise = value; }
+    function _ptoSetFlagChannel(value) { _ptoFlagChannel = value; }
+    function _ptoNextFlagGeneration() { return ++_ptoFlagGeneration; }
+    function _ptoNextOverviewGeneration() { return ++_ptoOverviewGeneration; }
+    function _ptoNextAdminOverviewGeneration() { return ++_ptoAdminOverviewGeneration; }
+    function _ptoNextQuoteGeneration() { return ++_ptoQuoteGeneration; }
     const PTO_API_TIMEOUT_MS = 20000;
     const _ptoState = {
         overview: null,
@@ -24858,10 +24865,10 @@
     }
     function _ptoEnabled() { return String(_ptoFlagValue && _ptoFlagValue.mode || 'off').toLowerCase() === 'on'; }
     function _ptoSetFlagValue(value, generation) {
-        if (generation == null) generation = ++_ptoFlagGeneration;
+        if (generation == null) generation = _ptoNextFlagGeneration();
         if (generation !== _ptoFlagGeneration) return;
         const wasEnabled = _ptoEnabled();
-        _ptoFlagValue = value && typeof value === 'object' ? value : { mode: 'off' };
+        _ptoStoreFlagValue(value && typeof value === 'object' ? value : { mode: 'off' });
         const enabled = _ptoEnabled();
         const menuItem = document.getElementById('headerTimeOffMenuItem');
         if (menuItem) menuItem.hidden = !enabled;
@@ -24888,7 +24895,7 @@
         }
     }
     async function _ptoFetchFlagOnce() {
-        const generation = ++_ptoFlagGeneration;
+        const generation = _ptoNextFlagGeneration();
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _ptoSetFlagValue({ mode: 'off' }, generation); return; }
         const controller = typeof AbortController === 'function' ? new AbortController() : null;
         const timeout = controller ? setTimeout(() => controller.abort(), 5000) : null;
@@ -24911,21 +24918,21 @@
         const client = await _calRuntimeFlagClient();
         if (!client || _ptoFlagChannel) return;
         try {
-            _ptoFlagChannel = client
+            _ptoSetFlagChannel(client
                 .channel('syncview-pto-runtime-flag')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + PTO_FLAG_KEY }, payload => {
                     const row = payload && payload.new ? payload.new : null;
-                    const generation = ++_ptoFlagGeneration;
+                    const generation = _ptoNextFlagGeneration();
                     _ptoSetFlagValue(row && row.value ? row.value : { mode: 'off' }, generation);
                 })
-                .subscribe();
+                .subscribe());
         } catch (error) {
-            _ptoFlagChannel = null;
+            _ptoSetFlagChannel(null);
             console.warn('[PTO] runtime flag subscription failed', error);
         }
     }
     function _ptoPrimeFlag() {
-        if (!_ptoFlagPromise) _ptoFlagPromise = _ptoFetchFlagOnce().then(_ptoSubscribeFlag).catch(() => null);
+        if (!_ptoFlagPromise) _ptoSetFlagPromise(_ptoFetchFlagOnce().then(_ptoSubscribeFlag).catch(() => null));
         return _ptoFlagPromise;
     }
     function _ptoRefreshFlagOnResume() {
@@ -25133,7 +25140,7 @@
     async function _ptoLoadOverview(force) {
         if (!_ptoEnabled() || (_ptoState.loading && !force)) return;
         if (_ptoState.overview && !force) { _ptoPaint(); return; }
-        const generation = ++_ptoOverviewGeneration;
+        const generation = _ptoNextOverviewGeneration();
         _ptoState.loading = true;
         _ptoState.error = '';
         _ptoPaint();
@@ -25304,7 +25311,7 @@
         const holidayMin = String(_ptoState.overview && _ptoState.overview.holiday_date_min || ((asOfYear - 1) + '-01-01'));
         const holidayMax = String(_ptoState.overview && _ptoState.overview.holiday_date_max || ((asOfYear + 1) + '-12-31'));
         const needsServerQuote = !!(start.value && end.value && (start.value < holidayMin || end.value > holidayMax));
-        const generation = ++_ptoQuoteGeneration;
+        const generation = _ptoNextQuoteGeneration();
         if (needsServerQuote) {
             days.value = '';
             days.disabled = true;
@@ -25450,7 +25457,7 @@
     async function _ptoLoadAdmin(force) {
         if (!_ptoEnabled() || !_syncviewStaffCan('pto-admin') || (_ptoAdminState.loading && !force)) return;
         if (_ptoAdminState.overview && !force) { _ptoRenderAdmin(); return; }
-        const generation = ++_ptoAdminOverviewGeneration;
+        const generation = _ptoNextAdminOverviewGeneration();
         _ptoAdminState.loading = true;
         _ptoAdminState.error = '';
         _ptoRenderAdmin();

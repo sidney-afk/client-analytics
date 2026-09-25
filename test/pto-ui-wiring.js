@@ -121,8 +121,9 @@ ok(/t\.key === 'time-off' \? 'pto-admin'/.test(kasperView)
 ok(/await _ptoFlagReady/.test(source) && /hashRaw === 'kasper\/time-off'/.test(source), 'boot awaits the flag before restoring PTO routes');
 ok(/feature_disabled[\s\S]{0,140}_ptoSetFlagValue\(\{ mode: 'off' \}\)/.test(api), 'server feature_disabled response closes stale clients');
 ok(/AbortController/.test(fetchFlag) && /setTimeout\(\(\) => controller\.abort\(\), 5000\)/.test(fetchFlag), 'runtime flag boot read times out and fails closed');
-ok(/const generation = \+\+_ptoFlagGeneration/.test(fetchFlag) && /generation !== _ptoFlagGeneration/.test(setFlag)
-  && /const generation = \+\+_ptoFlagGeneration;[\s\S]{0,140}_ptoSetFlagValue/.test(source), 'runtime flag reads and realtime events cannot apply out of order');
+ok(/const generation = _ptoNextFlagGeneration\(\)/.test(fetchFlag) && /generation !== _ptoFlagGeneration/.test(setFlag)
+  && /const generation = _ptoNextFlagGeneration\(\);[\s\S]{0,140}_ptoSetFlagValue/.test(source)
+  && /function _ptoNextFlagGeneration\(\) \{ return \+\+_ptoFlagGeneration; \}/.test(source), 'runtime flag reads and realtime events cannot apply out of order');
 ok(/window\.addEventListener\('focus', _ptoRefreshFlagOnResume\)/.test(source)
   && /document\.addEventListener\('visibilitychange', _ptoRefreshFlagOnResume\)/.test(source), 'resume paths re-read the rollback flag after a disconnected tab');
 
@@ -160,8 +161,10 @@ ok(/_ptoInvalidateOverviewCaches\(\)/.test(purgeSensitive)
   && /if \(!valid\)[\s\S]*_ptoPaint\(\)[\s\S]*_ptoRenderAdmin\(\)/.test(refreshChrome), 'sign-out and identity changes immediately replace mounted PTO data');
 ok(/_ptoState\.overview = null/.test(invalidateCaches) && /_ptoAdminState\.overview = null/.test(invalidateCaches)
   && (source.match(/_ptoInvalidateOverviewCaches\(\);/g) || []).length >= 5, 'every PTO mutation invalidates both staff and admin overview caches');
-ok(/\+\+_ptoOverviewGeneration/.test(loadOverview) && /generation !== _ptoOverviewGeneration/.test(loadOverview)
-  && /\+\+_ptoAdminOverviewGeneration/.test(loadAdmin) && /generation !== _ptoAdminOverviewGeneration/.test(loadAdmin), 'stale overview responses cannot repopulate invalidated staff or admin caches');
+ok(/_ptoNextOverviewGeneration\(\)/.test(loadOverview) && /generation !== _ptoOverviewGeneration/.test(loadOverview)
+  && /_ptoNextAdminOverviewGeneration\(\)/.test(loadAdmin) && /generation !== _ptoAdminOverviewGeneration/.test(loadAdmin)
+  && /function _ptoNextOverviewGeneration\(\) \{ return \+\+_ptoOverviewGeneration; \}/.test(source)
+  && /function _ptoNextAdminOverviewGeneration\(\) \{ return \+\+_ptoAdminOverviewGeneration; \}/.test(source), 'stale overview responses cannot repopulate invalidated staff or admin caches');
 ok(!/localStorage\.(?:setItem|getItem)\([^\n]*(?:_ptoState|_ptoAdminState|PTO_EF_URL)/.test(source), 'PTO and HR payloads remain memory-only, never localStorage data');
 
 // Staff balance, request, history, team, and calendar surfaces.

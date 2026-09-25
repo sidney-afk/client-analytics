@@ -8277,6 +8277,7 @@
         .ca-msg { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font-size: 0.8rem; line-height: 1.45; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
         .ca-msg.is-error { color: var(--sv-fg-b91c1c); border-color: var(--sv-border-fecaca); background: var(--sv-bg-fff7f7); }
         .ca-editbar { position: sticky; bottom: 0; display: flex; align-items: center; gap: 8px; margin: 16px -4px 0; padding: 12px 4px; background: var(--white); border-top: 1px solid var(--border); }
+        .ca-msg .ca-sa { user-select: all; overflow-wrap: anywhere; font-size: 0.78rem; }
         .ca-editnote { margin-right: auto; font-size: 0.74rem; color: var(--text-muted); }
         .ca-empty { color: var(--text-muted); font-style: italic; }
         .ca-prov { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 0.72rem; color: var(--text-muted); }
@@ -80583,6 +80584,13 @@
             _caEditSay(`Saving is not switched on yet: the sheet has not been connected${json.service_account ? ` (share it with ${_calEsc(json.service_account)})` : ''}. Nothing was saved.`, 'error');
         } else if (err === 'sheet_not_shared' || err === 'sheet_not_editable') {
             _caEditSay('SyncView cannot edit the Clients Info sheet yet (it needs Editor access). Nothing was saved.', 'error');
+            // Ask the server which Google account to share with (admin-only
+            // status action) and add it to the message.
+            _caEditPost('status').then(({ resp: sr, json: st }) => {
+                if (generation !== _caGeneration || _caState.edit !== ed || !sr.ok || !st.ok || !st.service_account) return;
+                _caEditSay(`SyncView cannot edit the Clients Info sheet yet. Share the sheet as <b>Editor</b> with <code class="ca-sa">${_calEsc(st.service_account)}</code>, then save again. Nothing was saved.`, 'error');
+                _caPaint();
+            }).catch(() => {});
         } else if (err === 'saved_to_sheet_only') {
             _caEditSay('Saved to the sheet, but SyncView\'s copy did not update. The daily copy will bring it in; refresh the list later.', 'error');
         } else if (resp.status === 401 || resp.status === 403) {

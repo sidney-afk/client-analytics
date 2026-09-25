@@ -597,7 +597,8 @@
     "dawn-report-allowlist.js",
     "prod-batch-view-hides-batch-parent.js",
     "calendar-client-links-after-sheet.js",
-    "client-phone-css-scope.js"
+    "client-phone-css-scope.js",
+    "sheets-mirror-policy.js"
   ],
   "profiles": [
     {
@@ -1247,6 +1248,16 @@
       "required_inputs": "Local PostgreSQL 17 bin directory (initdb, pg_ctl, psql) in RENAME_PG_BIN; creates and deletes its own loopback cluster",
       "reproduce": "RENAME_PG_BIN=ABSOLUTE_PG_BIN node test/rename-propagation-postgres.js",
       "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
+      "file": "sheets-mirror-roles-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 17,
+      "portable_lane": "sheets-mirror-roles",
+      "required_inputs": "Fresh disposable loopback PostgreSQL with the CI PG* environment, or SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY",
+      "reproduce": "SHEETS_MIRROR_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/sheets-mirror-roles-postgres.js",
+      "ci": "representative",
       "required_for_release": true
     }
   ]

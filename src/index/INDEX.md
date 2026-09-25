@@ -9,7 +9,7 @@
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `005-head-boot.html.part` | 260 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 3 | `010-styles-foundation.css.part` | 3885 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 4 | `020-styles-surfaces.css.part` | 4108 | Templates view |
+| 4 | `020-styles-surfaces.css.part` | 4109 | Templates view |
 | 5 | `030-body-shell.html.part` | 445 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 1670 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1709 | Market Research Brief Tab Renderers |
@@ -44,7 +44,7 @@
 | 36 | `290-samples-writes-review.js.part` | 1798 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 37 | `300-tiktok-upload.js.part` | 1718 | TIKTOK UPLOAD MODULE |
 | 38 | `310-sales-intake-hiring.js.part` | 1151 | KASPER REVIEW TAB |
-| 39 | `320-kasper-dashboard-replies.js.part` | 3146 | RELOAD RACE (speed map §7). On a reload the stored staff |
+| 39 | `320-kasper-dashboard-replies.js.part` | 3153 | RELOAD RACE (speed map §7). On a reload the stored staff |
 | 40 | `330-kasper-review-history.js.part` | 2614 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 41 | `340-editors-date-picker.js.part` | 1302 | Editor work model |
 | 42 | `350-footer.html.part` | 398 | Transcript preview modal |

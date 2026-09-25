@@ -34,7 +34,7 @@ const row = (id, cols) => { const r = supa('id=eq.' + id + '&select=' + cols); r
     // asset_url is REQUIRED here since 2026-09-05: the review gate refuses to
     // approve a component with nothing to review, and this probe is about
     // approve/undo, not the gate. The gate has its own case at the bottom.
-    up({ id, name: 'AUDIT hole ' + ts, order_index: 1, video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval', asset_url: 'https://frame.io/probe/ah' + ts + '.mp4', linear_issue_id: 'https://linear.app/x/VID-AH' + ts, graphic_linear_issue_id: 'https://linear.app/x/GRA-AH' + ts });
+    up({ id, name: 'AUDIT hole ' + ts, order_index: 1, video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval', asset_url: 'https://frame.io/probe/ah' + ts + '.mp4', linear_issue_id: 'https://linear.app/x/VID-AH' + ts, video_deliverable_id: ('del_' + 'https://linear.app/x/VID-AH' + ts).replace(/[^A-Za-z0-9_-]/g, '_'), graphic_linear_issue_id: 'https://linear.app/x/GRA-AH' + ts , graphic_deliverable_id: ('del_' + 'https://linear.app/x/GRA-AH' + ts).replace(/[^A-Za-z0-9_-]/g, '_')});
     await sleep(1500);
     resetLinearCalls();
 
@@ -76,7 +76,7 @@ const row = (id, cols) => { const r = supa('id=eq.' + id + '&select=' + cols); r
     // the notice opens with the reason, the DB status does not move, and no
     // status push reaches Linear.
     const emptyId = 'sr_probe_audithole_empty_' + ts;
-    up({ id: emptyId, name: 'AUDIT hole empty ' + ts, order_index: 2, video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval', asset_url: '', thumbnail_url: '', linear_issue_id: 'https://linear.app/x/VID-AHE' + ts, graphic_linear_issue_id: 'https://linear.app/x/GRA-AHE' + ts });
+    up({ id: emptyId, name: 'AUDIT hole empty ' + ts, order_index: 2, video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval', asset_url: '', thumbnail_url: '', linear_issue_id: 'https://linear.app/x/VID-AHE' + ts, video_deliverable_id: ('del_' + 'https://linear.app/x/VID-AHE' + ts).replace(/[^A-Za-z0-9_-]/g, '_'), graphic_linear_issue_id: 'https://linear.app/x/GRA-AHE' + ts , graphic_deliverable_id: ('del_' + 'https://linear.app/x/GRA-AHE' + ts).replace(/[^A-Za-z0-9_-]/g, '_')});
     await sleep(1500);
     resetLinearCalls();
     await kp.evaluate(() => { if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });

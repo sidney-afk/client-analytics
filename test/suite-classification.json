@@ -386,6 +386,7 @@
     "post-asset-resolution.js",
     "private-postgres-proof-runner.js",
     "probes-assert-native-write-lane.js",
+    "probes-seed-deliverable-ids.js",
     "prod-asset-attach-gate.js",
     "prod-asset-badge-honesty.js",
     "prod-asset-refresh-holds.js",

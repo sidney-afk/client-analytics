@@ -135,7 +135,7 @@ function base() {
       ['expectCardOnce', 'UI Workflow Video'],
       ['smm.editFieldCard', 'UI Workflow Video', 'asset_url', 'https://frame.io/x/ui-workflow'],
       ['expectCardField', 'UI Workflow Video', 'asset_url', 'https://frame.io/x/ui-workflow'],
-      ['api.patchCardByName', 'UI Workflow Video', { linear_issue_id: 'https://linear.app/x/VID-UI-WORKFLOW', graphic_status: 'Approved' }],
+      ['api.patchCardByName', 'UI Workflow Video', { linear_issue_id: 'https://linear.app/x/VID-UI-WORKFLOW', video_deliverable_id: ('del_' + 'https://linear.app/x/VID-UI-WORKFLOW').replace(/[^A-Za-z0-9_-]/g, '_'), graphic_status: 'Approved' }],
       ['smm.bgReload'],
       ['smm.statusCard', 'UI Workflow Video', 'video', 'For SMM Approval'],
       ['expectCardField', 'UI Workflow Video', 'video_status', 'For SMM Approval'],
@@ -158,7 +158,7 @@ function base() {
     // BOTH components linked: an unlinked thumbnail is gated out of the Kasper
     // queue (the unlinked-thumbnail rule — same on calendar + samples), so a
     // "clean path" that takes the thumbnail through Kasper must link it.
-    seed: { ...FOR_SMM, linear_issue_id: 'https://linear.app/x/VID-CLEAN', graphic_linear_issue_id: 'https://linear.app/x/GRA-CLEAN' },
+    seed: { ...FOR_SMM, linear_issue_id: 'https://linear.app/x/VID-CLEAN', video_deliverable_id: ('del_' + 'https://linear.app/x/VID-CLEAN').replace(/[^A-Za-z0-9_-]/g, '_'), graphic_linear_issue_id: 'https://linear.app/x/GRA-CLEAN' , graphic_deliverable_id: ('del_' + 'https://linear.app/x/GRA-CLEAN').replace(/[^A-Za-z0-9_-]/g, '_')},
     steps: [
       ['smm.approve', 'video', 'primary'], ['expect', 'video_status', 'Kasper Approval'],
       ['smm.approve', 'graphic', 'primary'], ['expect', 'graphic_status', 'Kasper Approval'],

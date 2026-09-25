@@ -49,7 +49,7 @@ async function fireSmmEchoAndRead(page, id, wantSub, ms = 12000) {
     // ── B1 + B2 : SMM sheet ────────────────────────────────────────────────
     L.up({ id, name: 'P88 ' + id.slice(-6), order_index: 1, asset_url: 'https://frame.io/x/' + id,
       thumbnail_url: 'https://i.ytimg.com/vi/x/hqdefault.jpg',
-      linear_issue_id: 'https://linear.app/x/VID-' + id.slice(-6), graphic_linear_issue_id: 'https://linear.app/x/GRA-' + id.slice(-6),
+      linear_issue_id: 'https://linear.app/x/VID-' + id.slice(-6), video_deliverable_id: ('del_' + 'https://linear.app/x/VID-' + id.slice(-6)).replace(/[^A-Za-z0-9_-]/g, '_'), graphic_linear_issue_id: 'https://linear.app/x/GRA-' + id.slice(-6), graphic_deliverable_id: ('del_' + 'https://linear.app/x/GRA-' + id.slice(-6)).replace(/[^A-Za-z0-9_-]/g, '_'),
       video_status: 'For SMM Approval', graphic_status: 'Approved', status: 'For SMM Approval' });
     await L.poll(() => { const r = L.supa('id=eq.' + id + '&select=video_status'); return (r && r[0]) ? r[0] : null; }, 12000, 600);
 
@@ -78,7 +78,7 @@ async function fireSmmEchoAndRead(page, id, wantSub, ms = 12000) {
     // ── B3 : Kasper samples queue ──────────────────────────────────────────
     L.up({ id: kid, name: 'P88K ' + kid.slice(-6), order_index: 1, asset_url: 'https://frame.io/x/' + kid,
       thumbnail_url: 'https://i.ytimg.com/vi/x/hqdefault.jpg',
-      linear_issue_id: 'https://linear.app/x/VID-' + kid.slice(-6), graphic_linear_issue_id: 'https://linear.app/x/GRA-' + kid.slice(-6),
+      linear_issue_id: 'https://linear.app/x/VID-' + kid.slice(-6), video_deliverable_id: ('del_' + 'https://linear.app/x/VID-' + kid.slice(-6)).replace(/[^A-Za-z0-9_-]/g, '_'), graphic_linear_issue_id: 'https://linear.app/x/GRA-' + kid.slice(-6), graphic_deliverable_id: ('del_' + 'https://linear.app/x/GRA-' + kid.slice(-6)).replace(/[^A-Za-z0-9_-]/g, '_'),
       video_status: 'For SMM Approval', graphic_status: 'Approved', status: 'For SMM Approval' });   // NOT in the Kasper queue yet
     await L.poll(() => { const r = L.supa('id=eq.' + kid + '&select=id'); return (r && r[0]) ? r[0] : null; }, 12000, 600);
 

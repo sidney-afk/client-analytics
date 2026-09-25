@@ -788,7 +788,7 @@ async function runScenario(browser, scn, shotDir, doShots) {
   // A `noSeed: true` scenario skips seeding entirely — used by the create-via-UI
   // scenarios, whose whole point is that the row is born in the browser.
   if (!scn.noSeed) {
-    up(Object.assign({ id, name, order_index: 1, asset_url: 'https://frame.io/x/' + id, thumbnail_url: 'https://i.ytimg.com/vi/x/hqdefault.jpg', linear_issue_id: 'https://linear.app/x/VID-' + id.slice(-8), graphic_linear_issue_id: 'https://linear.app/x/GRA-' + id.slice(-8) }, scn.seed));
+    up(Object.assign({ id, name, order_index: 1, asset_url: 'https://frame.io/x/' + id, thumbnail_url: 'https://i.ytimg.com/vi/x/hqdefault.jpg', linear_issue_id: 'https://linear.app/x/VID-' + id.slice(-8), video_deliverable_id: ('del_' + 'https://linear.app/x/VID-' + id.slice(-8)).replace(/[^A-Za-z0-9_-]/g, '_'), graphic_linear_issue_id: 'https://linear.app/x/GRA-' + id.slice(-8) , graphic_deliverable_id: ('del_' + 'https://linear.app/x/GRA-' + id.slice(-8)).replace(/[^A-Za-z0-9_-]/g, '_')}, scn.seed));
     await poll(() => { const r = supa('id=eq.' + id + '&select=id'); return r[0] || null; }, 12000, 600);
   }
 

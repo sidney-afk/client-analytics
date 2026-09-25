@@ -17,7 +17,7 @@ async function expand(page, nm) { await page.evaluate((n) => { const c = [...doc
 (async () => {
   up({ id: APP, name: NAPP, order_index: 1, asset_url: 'https://frame.io/x/a', thumbnail_url: '', video_status: 'Client Approval', graphic_status: 'Approved', status: 'Client Approval' });
   up({ id: REQ, name: NREQ, order_index: 2, asset_url: 'https://frame.io/x/r', thumbnail_url: '', video_status: 'Client Approval', graphic_status: 'Approved', status: 'Client Approval' });
-  up({ id: CON, name: NCON, order_index: 3, asset_url: 'https://frame.io/x/c', thumbnail_url: '', linear_issue_id: 'https://linear.app/syncsocial/issue/GRA-CC', video_status: 'For SMM Approval', graphic_status: 'Kasper Approval', status: 'For SMM Approval' });
+  up({ id: CON, name: NCON, order_index: 3, asset_url: 'https://frame.io/x/c', thumbnail_url: '', linear_issue_id: 'https://linear.app/syncsocial/issue/GRA-CC', video_deliverable_id: ('del_' + 'https://linear.app/syncsocial/issue/GRA-CC').replace(/[^A-Za-z0-9_-]/g, '_'), video_status: 'For SMM Approval', graphic_status: 'Kasper Approval', status: 'For SMM Approval' });
   await poll(() => { const r = supa('id=in.(' + APP + ',' + REQ + ',' + CON + ')&select=id'); return (Array.isArray(r) && r.length >= 3) ? r : null; }, 12000, 800);
 
   const browser = await launch();

@@ -8193,6 +8193,7 @@
         .ca-body { min-height: 240px; }
         .ca-status { padding: 40px 16px; text-align: center; color: var(--text-muted); font-size: 0.86rem; }
         .ca-status.is-error { color: var(--sv-fg-b91c1c); }
+        .ca-stale { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; padding: 10px 14px; border: 1px solid var(--sv-border-fecaca); border-radius: 12px; background: var(--sv-bg-fff7f7); color: var(--sv-fg-b91c1c); font-size: 0.8rem; }
         .ca-split { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 16px; align-items: start; }
         .ca-list-pane { background: var(--white); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; position: sticky; top: 76px; }
         .ca-list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; font-size: 0.74rem; font-weight: 700; color: var(--text-muted); border-bottom: 1px solid var(--border); }
@@ -24162,6 +24163,7 @@
             const tab = typeof _kasperState !== 'undefined' && _kasperState ? _kasperState.tab : '';
             const blocked = (tab === 'client-credentials' && !_syncviewStaffCan('credentials'))
                 || (tab === 'onboarding' && !_syncviewStaffCan('onboarding'))
+                || (tab === 'clients' && !_syncviewStaffCan('clients-admin'))
                 || (tab === 'filming' && !valid);
             if (blocked) {
                 _kasperFallbackToReview();
@@ -24253,6 +24255,7 @@
         try { if (typeof _srpPurgeSensitiveState === 'function') _srpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _prodSmmPurgeSensitiveState === 'function') _prodSmmPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _hpPurgeSensitiveState === 'function') _hpPurgeSensitiveState(); } catch (e) {}
+        try { if (typeof _caPurgeSensitiveState === 'function') _caPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _ptoCalResetView === 'function') _ptoCalResetView(); } catch (e) {}
         try { if (typeof _ccCloseModal === 'function') _ccCloseModal(); } catch (e) {}
         try { if (typeof _ccRevTeardown === 'function') _ccRevTeardown(); } catch (e) {}
@@ -80348,6 +80351,15 @@
         { title: 'Publishing', fields: [['upload_post_profile', 'Upload-Post profile'], ['postforme_account_id', 'Post for Me account']] },
     ];
     const _caState = { rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false };
+    // Bumped by every purge, so a request started under one staff identity
+    // can never repopulate the list after a sign-out or role change.
+    let _caGeneration = 0;
+    function _caPurgeSensitiveState() {
+        _caGeneration++;
+        Object.assign(_caState, { rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false });
+        const body = document.getElementById('caBody');
+        if (body) body.innerHTML = '';
+    }
 
     function _caRender() {
         const el = document.getElementById('kasperContent');
@@ -80368,10 +80380,14 @@
 
     async function _caLoad(background) {
         if (_caState.loading) return;
+        const generation = _caGeneration;
         _caState.loading = true; _caState.error = null;
         if (!background) _caPaint();
+        let ident = null;
+        const stale = () => generation !== _caGeneration
+            || _syncviewStaffIdentitySignature(_syncviewStaffIdentityForHeaders()) !== _syncviewStaffIdentitySignature(ident);
         try {
-            const ident = await _ccEnsureIdentity();
+            ident = await _ccEnsureIdentity();
             const resp = await fetch(CA_READ_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
@@ -80379,16 +80395,16 @@
             });
             let json = null;
             try { json = await resp.json(); } catch (e) { json = null; }
+            if (stale()) return;
             if (resp.status === 401) throw new Error('This needs an Admin sign-in.');
             if (!resp.ok || !json || !json.ok) throw new Error('Could not load clients (' + ((json && json.error) || ('HTTP ' + resp.status)) + ').');
             _caState.rows = Array.isArray(json.clients) ? json.clients : [];
             _caState.authority = json.authority || null;
             _caState.loaded = true;
         } catch (e) {
-            _caState.error = e && e.message ? e.message : String(e);
+            if (!stale()) _caState.error = e && e.message ? e.message : String(e);
         } finally {
-            _caState.loading = false;
-            _caPaint();
+            if (generation === _caGeneration) { _caState.loading = false; _caPaint(); }
         }
     }
 
@@ -80466,7 +80482,8 @@
                 ${r.source === 'syncview' ? '<span class="ca-dot" title="Edited in SyncView"></span>' : ''}
             </button></li>`).join('') : `<li class="ca-none">No clients match “${_calEsc(_caState.search)}”.</li>`;
         const authority = _caState.authority && _caState.authority.source === 'syncview' ? 'SyncView is the main copy.' : 'The sheet is the main copy.';
-        body.innerHTML = `<div class="ca-split${selected ? ' has-selection' : ''}">
+        const staleNote = _caState.error ? `<div class="ca-stale" role="alert">Refresh failed: ${_calEsc(_caState.error)} Showing the last list loaded. <button class="cc-btn" type="button" onclick="_caLoad(false)">Try again</button></div>` : '';
+        body.innerHTML = staleNote + `<div class="ca-split${selected ? ' has-selection' : ''}">
                 <div class="ca-list-pane">
                     <div class="ca-list-head"><span>${rows.length} of ${all.length - (_caState.showArchived ? 0 : archivedCount)} clients</span>${archivedCount ? `<button type="button" class="ca-link" onclick="_caToggleArchived()">${_caState.showArchived ? 'Hide' : 'Show'} ${archivedCount} archived</button>` : ''}</div>
                     <ul class="ca-list">${list}</ul>

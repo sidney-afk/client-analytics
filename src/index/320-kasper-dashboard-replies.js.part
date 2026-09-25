@@ -2857,6 +2857,15 @@
         { title: 'Publishing', fields: [['upload_post_profile', 'Upload-Post profile'], ['postforme_account_id', 'Post for Me account']] },
     ];
     const _caState = { rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false };
+    // Bumped by every purge, so a request started under one staff identity
+    // can never repopulate the list after a sign-out or role change.
+    let _caGeneration = 0;
+    function _caPurgeSensitiveState() {
+        _caGeneration++;
+        Object.assign(_caState, { rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false });
+        const body = document.getElementById('caBody');
+        if (body) body.innerHTML = '';
+    }
 
     function _caRender() {
         const el = document.getElementById('kasperContent');
@@ -2877,10 +2886,14 @@
 
     async function _caLoad(background) {
         if (_caState.loading) return;
+        const generation = _caGeneration;
         _caState.loading = true; _caState.error = null;
         if (!background) _caPaint();
+        let ident = null;
+        const stale = () => generation !== _caGeneration
+            || _syncviewStaffIdentitySignature(_syncviewStaffIdentityForHeaders()) !== _syncviewStaffIdentitySignature(ident);
         try {
-            const ident = await _ccEnsureIdentity();
+            ident = await _ccEnsureIdentity();
             const resp = await fetch(CA_READ_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
@@ -2888,16 +2901,16 @@
             });
             let json = null;
             try { json = await resp.json(); } catch (e) { json = null; }
+            if (stale()) return;
             if (resp.status === 401) throw new Error('This needs an Admin sign-in.');
             if (!resp.ok || !json || !json.ok) throw new Error('Could not load clients (' + ((json && json.error) || ('HTTP ' + resp.status)) + ').');
             _caState.rows = Array.isArray(json.clients) ? json.clients : [];
             _caState.authority = json.authority || null;
             _caState.loaded = true;
         } catch (e) {
-            _caState.error = e && e.message ? e.message : String(e);
+            if (!stale()) _caState.error = e && e.message ? e.message : String(e);
         } finally {
-            _caState.loading = false;
-            _caPaint();
+            if (generation === _caGeneration) { _caState.loading = false; _caPaint(); }
         }
     }
 
@@ -2975,7 +2988,8 @@
                 ${r.source === 'syncview' ? '<span class="ca-dot" title="Edited in SyncView"></span>' : ''}
             </button></li>`).join('') : `<li class="ca-none">No clients match “${_calEsc(_caState.search)}”.</li>`;
         const authority = _caState.authority && _caState.authority.source === 'syncview' ? 'SyncView is the main copy.' : 'The sheet is the main copy.';
-        body.innerHTML = `<div class="ca-split${selected ? ' has-selection' : ''}">
+        const staleNote = _caState.error ? `<div class="ca-stale" role="alert">Refresh failed: ${_calEsc(_caState.error)} Showing the last list loaded. <button class="cc-btn" type="button" onclick="_caLoad(false)">Try again</button></div>` : '';
+        body.innerHTML = staleNote + `<div class="ca-split${selected ? ' has-selection' : ''}">
                 <div class="ca-list-pane">
                     <div class="ca-list-head"><span>${rows.length} of ${all.length - (_caState.showArchived ? 0 : archivedCount)} clients</span>${archivedCount ? `<button type="button" class="ca-link" onclick="_caToggleArchived()">${_caState.showArchived ? 'Hide' : 'Show'} ${archivedCount} archived</button>` : ''}</div>
                     <ul class="ca-list">${list}</ul>

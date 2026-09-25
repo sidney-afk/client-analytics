@@ -1446,6 +1446,7 @@ import {
             const tab = typeof _kasperState !== 'undefined' && _kasperState ? _kasperState.tab : '';
             const blocked = (tab === 'client-credentials' && !_syncviewStaffCan('credentials'))
                 || (tab === 'onboarding' && !_syncviewStaffCan('onboarding'))
+                || (tab === 'clients' && !_syncviewStaffCan('clients-admin'))
                 || (tab === 'filming' && !valid);
             if (blocked) {
                 _kasperFallbackToReview();
@@ -1537,6 +1538,7 @@ import {
         try { if (typeof _srpPurgeSensitiveState === 'function') _srpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _prodSmmPurgeSensitiveState === 'function') _prodSmmPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _hpPurgeSensitiveState === 'function') _hpPurgeSensitiveState(); } catch (e) {}
+        try { if (typeof _caPurgeSensitiveState === 'function') _caPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _ptoCalResetView === 'function') _ptoCalResetView(); } catch (e) {}
         try { if (typeof _ccCloseModal === 'function') _ccCloseModal(); } catch (e) {}
         try { if (typeof _ccRevTeardown === 'function') _ccRevTeardown(); } catch (e) {}

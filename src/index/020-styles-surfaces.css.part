@@ -4022,6 +4022,7 @@
         .ca-body { min-height: 240px; }
         .ca-status { padding: 40px 16px; text-align: center; color: var(--text-muted); font-size: 0.86rem; }
         .ca-status.is-error { color: var(--sv-fg-b91c1c); }
+        .ca-stale { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; padding: 10px 14px; border: 1px solid var(--sv-border-fecaca); border-radius: 12px; background: var(--sv-bg-fff7f7); color: var(--sv-fg-b91c1c); font-size: 0.8rem; }
         .ca-split { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 16px; align-items: start; }
         .ca-list-pane { background: var(--white); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; position: sticky; top: 76px; }
         .ca-list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; font-size: 0.74rem; font-weight: 700; color: var(--text-muted); border-bottom: 1px solid var(--border); }

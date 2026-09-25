@@ -48,10 +48,12 @@ async function open(browser, origin, role, viewport) {
   const ctx = await browser.newContext({ viewport, isMobile: viewport.width < 768, hasTouch: viewport.width < 768 });
   const calls = [];
   const writes = [];
+  const ctl = { fail: false };
   await ctx.route(u => !u.toString().startsWith(origin), route => {
     const r = route.request(); const u = new URL(r.url());
     if (r.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
     const json = b => route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(b) });
+    if (u.pathname === '/functions/v1/analytics-read' && ctl.fail) return route.fulfill({ status: 503, headers: CORS, contentType: 'application/json', body: '{"ok":false,"error":"read_failed"}' });
     if (u.pathname === '/functions/v1/analytics-read') { calls.push({ body: r.postData(), key: r.headers()['x-syncview-key'] }); return json({ ok: true, principal: 'staff', authority: { source: 'sheet' }, clients: ROWS }); }
     if (u.pathname === '/functions/v1/key-verify') return json({ ok: true, role, member: { id: 'qa_' + role, name: 'QA ' + role, role, team: null } });
     if (r.method() !== 'GET' && !/functions\/v1\/(key-verify|write-diagnostics)/.test(u.pathname)) writes.push(r.method() + ' ' + u.pathname);
@@ -69,7 +71,7 @@ async function open(browser, origin, role, viewport) {
   await page.waitForFunction(() => typeof _kasperGotoTab === 'function' && document.querySelector('[data-kasper-tab="clients"]'), null, { timeout: 20000 })
     .catch(() => failures.push(`${role}: Kasper never rendered its tabs`));
   await page.waitForTimeout(1500);
-  return { ctx, page, calls, writes, errors, failures };
+  return { ctx, page, calls, writes, errors, failures, ctl };
 }
 
 (async () => {
@@ -105,6 +107,19 @@ async function open(browser, origin, role, viewport) {
       if (vp.width < 768) for (const x of m.small) failures.push(`${label}: "${x.what}" is ${Math.round(x.h)}px tall, under 44px`);
       if (s.writes.length) failures.push(`${label}: the read-only tab sent writes: ${s.writes.join(', ')}`);
       if (s.errors.length) failures.push(`${label}: page errors: ${s.errors.join(' | ')}`);
+      if (vp.width === 1440) {
+        // A failed Refresh keeps the rows but says so.
+        s.ctl.fail = true;
+        await s.page.click('.ca-wrap .cc-btn');
+        await s.page.waitForSelector('.ca-stale', { timeout: 5000 }).catch(() => failures.push(`${label}: a failed Refresh was silent`));
+        if (!(await s.page.$('.ca-row'))) failures.push(`${label}: a failed Refresh threw away the rows already shown`);
+        s.ctl.fail = false;
+        // Signing out purges the admin-only list from memory and screen.
+        await s.page.evaluate(() => { _syncviewStaffIdentityClear(); _syncviewStaffPurgeSensitiveState(); });
+        await s.page.waitForTimeout(800);
+        const leftover = await s.page.evaluate(() => ({ rows: document.querySelectorAll('.ca-row').length, text: /Avery Fixture/.test(document.body.innerText), mem: (_caState.rows || []).length }));
+        if (leftover.rows || leftover.text || leftover.mem) failures.push(`${label}: client details survived a sign-out (${JSON.stringify(leftover)})`);
+      }
       console.log(`${failures.length ? '...' : 'ok  '} ${label}`);
       await s.ctx.close();
     }

@@ -3788,3 +3788,63 @@
         @media (max-width: 980px) { .srp-toolbar { grid-template-columns: repeat(2, minmax(0, 1fr)); } .srp-toolbar .srp-btn { justify-self: start; } }
         @media (max-width: 880px) { .srp-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); } .srp-detail-grid { grid-template-columns: 1fr; } .srp-answer.full { grid-column: auto; } }
         @media (max-width: 640px) { .srp-wrap { width: calc(100vw - 28px); margin-top: 22px; } .srp-head { align-items: flex-start; flex-direction: column; } .srp-grid, .srp-summary, .srp-skel-grid, .srp-toolbar { grid-template-columns: 1fr; } .srp-card { padding: 20px 16px 22px; } .srp-toolbar .srp-btn { width: 100%; justify-content: center; } }
+        /* CLIENT PHONE LAYOUT (client share links only, phones only).
+           Every rule between the CLIENT-PHONE markers must sit inside
+           @media (max-width: 767px) and every selector must start with
+           html.boot-client, so no staff screen and no desktop width can ever
+           match it. Enforced by test/client-phone-css-scope.js. */
+        /* CLIENT-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            /* Page shell: 16px gutters that also clear the notch in landscape. */
+            html.boot-client .main { padding: 14px max(16px, env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+            html.boot-client .view-tab-toggle { display: flex; width: 100%; box-sizing: border-box; }
+            html.boot-client .view-tab-btn { flex: 1 1 auto; justify-content: center; min-height: 44px; padding-left: 10px; padding-right: 10px; font-size: 0.84rem; white-space: nowrap; }
+
+            /* Confirmation and notice dialogs raised from a client link. */
+            html.boot-client .confirm-overlay .brief-action-btn { min-height: 44px; min-width: 88px; font-size: 0.95rem; border-radius: 12px; }
+
+            /* Calendar toolbar: title on its own line, a full-width view
+               switcher, and no card-size zoom (it means nothing on a phone). */
+            html.boot-client .cal-tab-view .cal-view.cal-embedded { padding: 0 0 24px; }
+            html.boot-client .cal-tab-view .cal-toolbar { padding: 14px; gap: 12px; margin: 4px 0 12px; }
+            html.boot-client .cal-tab-view .cal-toolbar-left,
+            html.boot-client .cal-tab-view .cal-toolbar-mid { width: 100%; }
+            html.boot-client .cal-tab-view .cal-zoom { display: none; }
+            html.boot-client .cal-tab-view .cal-view-toggle { display: flex; width: 100%; }
+            html.boot-client .cal-tab-view .cal-view-btn { flex: 1 1 0; justify-content: center; min-height: 44px; padding: 0 6px; font-size: 0.82rem; }
+
+            /* Review list: the card header becomes thumbnail + text, with the
+               two icon buttons as full-size thumb targets underneath. */
+            html.boot-client .cal-tab-view .cal-review-wrap { padding: 4px 0 24px; }
+            html.boot-client .cal-tab-view .cal-review-list { gap: 12px; }
+            html.boot-client .cal-tab-view .kcard-strip { grid-template-columns: 72px minmax(0, 1fr); gap: 12px; padding: 14px; align-items: start; }
+            html.boot-client .cal-tab-view .kcard-thumb { width: 72px; height: 72px; }
+            html.boot-client .cal-tab-view .kcard-actions { grid-column: 1 / -1; justify-content: flex-end; }
+            html.boot-client .cal-tab-view .kcard-open-sheet,
+            html.boot-client .cal-tab-view .kcard-expand-btn { width: 44px; height: 44px; border-radius: 12px; }
+            html.boot-client .cal-tab-view .cal-review-sub-row { gap: 4px; }
+            html.boot-client .cal-tab-view .cal-review-sub-pill { font-size: 0.62rem; letter-spacing: 0.01em; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
+
+            /* Opened card: one column, one piece at a time (video, then
+               thumbnail, then caption), separated by a hairline so the client
+               always knows which piece a button belongs to. The renderer writes
+               an inline three-column grid, which is desktop-only here. */
+            html.boot-client .cal-tab-view .cal-review-body { grid-template-columns: 1fr !important; gap: 0; padding: 0 14px 6px; }
+            html.boot-client .cal-tab-view .cal-review-panel { padding: 18px 0 20px; gap: 12px; }
+            html.boot-client .cal-tab-view .cal-review-panel + .cal-review-panel { border-top: 1px solid var(--border); }
+            html.boot-client .cal-tab-view .cal-review-panel[data-state="tweaks"] { padding: 16px 14px 18px; margin: 12px 0; border-top: 0; }
+            html.boot-client .cal-tab-view .cal-review-panel-title { font-size: 1.02rem; }
+            html.boot-client .cal-tab-view .cal-review-panel-preview { display: flex; justify-content: center; }
+            html.boot-client .cal-tab-view .cal-review-video-tile { max-width: min(100%, 300px); margin: 0 auto; }
+            html.boot-client .cal-tab-view .cal-review-preview-thumb-btn { max-width: 100%; margin: 0 auto; }
+            html.boot-client .cal-tab-view .cal-review-preview-thumb-btn img { max-width: 100%; max-height: 52vh; }
+            html.boot-client .cal-tab-view .cal-review-preview-caption { font-size: 0.95rem; line-height: 1.55; overflow-wrap: anywhere; }
+            html.boot-client .cal-tab-view .cal-review-approve-btn { width: 100%; min-height: 52px; font-size: 1rem; border-radius: 12px; }
+            html.boot-client .cal-tab-view .cal-review-approve-btn svg { width: 16px; height: 16px; }
+            html.boot-client .cal-tab-view .cal-review-textarea { font-size: 16px; min-height: 96px; padding: 12px 14px; border-radius: 12px; }
+            html.boot-client .cal-tab-view .cal-review-tweak-actions { align-self: stretch; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+            html.boot-client .cal-tab-view .cal-review-comment-btn,
+            html.boot-client .cal-tab-view .cal-review-tweak-btn { align-self: stretch; justify-content: center; min-height: 48px; padding: 0 10px; font-size: 0.9rem; white-space: nowrap; border-radius: 12px; }
+            html.boot-client .cal-tab-view .cal-review-comment-body { overflow-wrap: anywhere; }
+        }
+        /* CLIENT-PHONE:END */

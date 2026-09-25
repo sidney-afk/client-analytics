@@ -17,7 +17,7 @@
 | System | What it holds per client | Onboarding touch? |
 |---|---|---|
 | **Frontend** `index.html` | Derives the live client list from the **Clients Info** sheet at runtime (hardcoded list is just a fallback seed). | ❌ **Auto** — the Clients Info row does it |
-| **"SYNCVIEW" Google Sheet** (`10QQ…QqAU8`) | The real per-client config for **Clients Info**, **Social Media Managers**, Templates, CaptionPrompts (+ data tabs the robots fill). | ✅ **2-3 rows** |
+| **"SYNCVIEW" Google Sheet** (`10QQ…QqAU8`) | The real per-client config for **Clients Info**, **Social Media Managers**, CaptionPrompts (+ data tabs the robots fill). The `Templates` tab is **retired since 2026-09-24**; see the Supabase row below. | ✅ **2-3 rows** |
 | **"SyncView Calendar" Google Sheet** (`1Gsn…A9Yps`) | `Calendar_<slug>` / `Samples_<slug>` / `TikTokUploads` tabs. **Now a legacy mirror** of Supabase. | ⚪ Optional |
 | **Supabase** (`uzltbbrjidmjwwfakwve`) | `filming_plans` (master filming Doc links), `calendar_posts`, and `content_samples`. | ✅ Filming plan link via app; calendar/samples auto |
 | **Google Drive** | The actual master filming Docs, inside **Client Filming Plans / <client display name>** with one folder per client — never inside the general **Clients / <client>** folder. | ✅ Create/move Doc |
@@ -28,6 +28,7 @@
 | **Sandcastles** | Content-intelligence watchlist — channel recaps, top hooks/topics/formats, outlier alerts. | ✅ Add the client **+ their competitors** |
 | **Post For Me** (`postforme.dev`) | A connected **TikTok account** per client (TikTok auto‑upload). | ⚪ Not urgent |
 | **SyncView onboarding** | Standard/AI intake rows and the staff onboarding inbox. A captured row is not yet proof of provisioning (F110). | ▶️ Current entry point |
+| **Synchro Brain** (private repo `synchro-brain`) | What we know about the client: who they are, how they talk, how their content is edited, how the relationship is going, plus a short **Editor brief** built from those facts. The **Templates** page shows the brief and facts through the staff-only `brain` Edge Function. | ✅ **Create the client's folder** ([§6l](#6l-synchro-brain-folder-and-editor-brief)) |
 | **Notion** | Replaced historical intake; retained records only. Its legacy workflow is not an operational fallback (F111). | ❌ Do not wait on it |
 
 ---
@@ -45,7 +46,6 @@
 - [ ] **Clients Info** → add a row (name, handles, competitors, keywords, content_description, Slack channel ID, …). → [§4](#4-clients-info-row-the-big-one)
 - [ ] **Social Media Managers** → add a row (who's their SMM). → [§5](#5-social-media-managers-row)
 - [ ] *(owner/Kasper opt-in only)* **Monthly Checkup** → add a row only after approval. → [§6j](#6j-monthly-check-in-email)
-- [ ] *(optional, later)* **Templates** → reels/thumbnail font & color prefs. → [§6b](#6b-templates--caption-prompts-optional)
 
 **Filming plans source of truth**
 - [ ] Create/move the client's master filming Google Doc inside **Client Filming Plans / <client display name>** — **not** their general **Clients / <client>** folder — and **share it "Anyone with the link → Editor"**. SyncView stores the URL; it does not grant access. → [§6a](#6a-filming-plan)
@@ -134,6 +134,10 @@
   token into a Sheet. (Confirm current behavior in
   [§6f](#6f-supabase-calendar--samples-no-manual-row-but-routing-is-required).)
 - ~~**Linear (SMM):** create a Project for the client on the **Video + Graphics** teams, set the SMM as lead, link the Slack channel.~~ **RETIRED 2026-09-20: do not do this.** Since the cutoff a new client needs no Linear project; its cards are native and carry the client slug from the canonical `clients` row and routing enrollment in [§6f](#6f-supabase-calendar--samples-no-manual-row-but-routing-is-required). The verified native readback for a brand-new client ("first card attributes correctly, first status write succeeds") is not yet written as an operator step; that is OPEN_REPAIRS 227. Until it lands, ask the supervisor session to run the readback before the client's first real card. §6g below is kept as provenance only.
+
+**Synchro Brain**
+- [ ] Create the client's brain folder and first Editor brief from the onboarding answers. → [§6l](#6l-synchro-brain-folder-and-editor-brief)
+- [ ] *(optional, later)* **Templates** page → subtitle/thumbnail font & colour through its Quick look form (saved in the Supabase `templates` table and sent to the brain). → [§6b](#6b-templates--caption-prompts-optional)
 
 **Finish**
 - [ ] Verify on the live dashboard (calendar loads, samples strip, filming plan opens from the main tab/Templates/Kasper, both Slack targets, metrics next morning). → [§6i](#6i-verify)
@@ -389,7 +393,7 @@ Now that Supabase and the Edge Function are live, the old SYNCVIEW Google Sheet 
 The operational source-of-truth UI is the main **Filming Plans** tab. Kasper's **Filming Plans** sub-tab reads that same source and combines it with the client's `calendar_posts` runway.
 
 ### 6b. Templates / caption prompts (optional)
-- **`Templates` tab** — per‑client styling the editors/designers use: `reels_subtitle_font`, `reels_subtitle_main_color`, `reels_subtitle_highlight_color`, `reels_reference_link`, `reels_preferences`, `thumbnails_title_font`, `thumbnails_title_color`, `thumbnails_highlight_color`, `thumbnails_photos_link`, etc. Filled progressively from the dashboard's Templates editor — **not needed on day one**.
+- **Templates** — per‑client styling the editors/designers use (subtitle and thumbnail fonts and colours, reference links, preferences). **Since 2026-09-24 it lives only in the Supabase `templates` table**, read by the Templates page and saved through the `templates-save` Edge Function; the sheet's `Templates` tab and its n8n workflows are retired, so do not add a sheet row. Exact subtitle/thumbnail values typed in the Quick look form are also sent to the client's brain facts ([§6l](#6l-synchro-brain-folder-and-editor-brief)). Filled progressively — **not needed on day one**.
 - **`CaptionPrompts` tab** — a per‑client caption‑gen prompt (keyed by **slug**). Managed from the UI; optional.
 
 ### 6c. Two Slack channels — the client channel (manual) and the creative channel (automatic)
@@ -748,6 +752,7 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
   enrollment + Linear project mapping all agree with each other, rather than each looking correct
   in isolation.
 - Open the client's filming plan from the main **Filming Plans** tab, the client's **Templates** page, and **Kasper → Filming Plans**. All three should open the same master Doc from Supabase.
+- Open the client's **Templates** page: the **Editor brief** should show (it is empty until [§6l](#6l-synchro-brain-folder-and-editor-brief) is done).
 - Confirm the weekly Slack target resolves (`slack_channel_id` set).
 - Confirm the exact **public** `{client}-creative` Slack channel exists with all five required members — the SyncView Bot, owner/Sidney, Kasper, Rocío, and the assigned SMM; that its channel id is in `creative_channel_id`; and that the kickoff (with credentials inlined) visibly precedes the full onboarding brief.
 - Before any real-client #850 cohort enrollment, require a server-side onboarding receipt proving the exact team
@@ -825,6 +830,29 @@ exists but the token does not.
 
 ---
 
+### 6l. Synchro Brain folder and Editor brief
+**Why:** the Templates page shows each client's **Editor brief** (a short plain-English page for
+editors and SMMs) and their facts from the private Synchro Brain. The ideas pipeline and filming
+plans read the same facts. A client with no brain folder shows an empty Templates brief, and every
+AI tool that reads the brain treats them as unknown.
+
+**Today this is a manual step** (automatic creation on intake is planned). Open a Claude session
+with the `synchro-brain` repo and ask it to onboard the new client. It must:
+1. Read that repo's `README.md`, `POLICY/rules.md` and `POLICY/briefs.md` first, and follow them.
+2. Save the onboarding answers word for word as a new file under `inputs/` (credentials stripped;
+   they never go in that repo).
+3. Create the client's folder, named with the **same slug** as everywhere else (see the slug rule
+   above), holding the four fact files `identity.md`, `voice.md`, `editing.md`, `relationship.md`.
+   Fill only what the answers actually say; everything else stays `not-written`. Never copy another
+   client's preferences in as defaults.
+4. Build the client's `brief.md` from those facts, per `POLICY/briefs.md`.
+5. Ship it as a PR on `synchro-brain` and merge it.
+
+After that, new client calls and SyncView's "Send a change" button keep the folder growing on their own.
+
+**Never put brain content in this public repo** (client facts, prices, names): it lives only in
+`synchro-brain`.
+
 ## What's automatic—and what is not
 
 - **Roster visibility only** — the Clients Info row appears without a frontend deploy, but the
@@ -842,6 +870,7 @@ exists but the token does not.
   on-demand minting in `client-review-link`, and the operator backfill). It was automatic at
   **none** before that, which is why the first post-seed client could not be shared with at all.
   Verify it rather than assume it: [§6k](#6k-review-token-the-share-with-client-link).
+- **Not automatic yet: the Synchro Brain folder.** Create it by hand ([§6l](#6l-synchro-brain-folder-and-editor-brief)); once it exists, new client calls and "Send a change" feed it automatically.
 - **Per‑client caches / realtime channels / share‑link state** in the frontend — created at runtime from the slug.
 - **No** per‑client brand‑color config in `index.html` (brand colors only exist in the separate `thumbnails/` app, which is unrelated to dashboard onboarding).
 
@@ -861,9 +890,9 @@ exists but the token does not.
 ## 7. Reference appendix
 
 **Locations (identifiers stay in private operator config)**
-- Primary workspace Sheet: tabs `Clients Info`, `Social Media Managers`, `Templates`,
+- Primary workspace Sheet: tabs `Clients Info`, `Social Media Managers`,
   `CaptionPrompts`, `Video Editors`, `Monthly Checkup`, and analytics data tabs. The old
-  `FilmingPlans` tab is historical only (not a fallback); Supabase is current truth.
+  `FilmingPlans` and `Templates` tabs are historical only (not a fallback); Supabase is current truth.
 - Legacy Calendar Sheet: `Calendar_<slug>`, `Samples_<slug>`, `TikTokUploads`; optional mirror only.
 - Supabase: `filming_plans`, `calendar_posts`, `sample_reviews`, plus protected onboarding/client
   tables. Obtain the project reference privately.

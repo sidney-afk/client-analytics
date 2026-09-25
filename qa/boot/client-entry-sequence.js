@@ -98,11 +98,13 @@ const CLIENTS_CSV = [
 ].join('\n');
 
 const TOP_VIDEOS_CSV = 'client_name,platform,period,rank,video_url,caption,views,likes,comments,shares\n';
-const BRIEFS_CSV = [
-  'id,client_name,raw_json',
-  `synthetic-brief-1,${CLIENT_A},"{""synthetic"":true}"`,
+// Competitor Briefs retired 2026-09-24; the synthetic brief is a Keywords
+// (Market Research) brief now, filed under a client no scenario opens, so it
+// proves the sheet loaded without rendering a brief (which calls n8n).
+const MR_BRIEFS_CSV = [
+  'id,client_name,date,raw_json',
+  `synthetic-brief-1,Synthetic Unopened Client,2026-09-01,"{""synthetic"":true}"`,
 ].join('\n');
-const MR_BRIEFS_CSV = 'client_name,brief_name,brief_date,brief_content\n';
 const SUMMARIES_CSV = 'client_name,date,bullets\n';
 
 const SAMPLE_ROWS = [{
@@ -1083,7 +1085,8 @@ async function installSyntheticNetwork(context, origin, config = {}) {
     calendarReads: [],
     unmocked: [],
   };
-  const extraSheets = ['TopVideos', 'Competitor Briefs', 'Market Research Briefs', 'ContentSummaries'];
+  // Competitor Briefs retired 2026-09-24: no longer requested.
+  const extraSheets = ['TopVideos', 'Market Research Briefs', 'ContentSummaries'];
   state.waitForHeldExtras = async (attempt, count = extraSheets.length, timeoutMs = 10_000) => {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
@@ -1176,8 +1179,7 @@ async function installSyntheticNetwork(context, origin, config = {}) {
       const body = sheet === 'Metrics' ? (config.zeroAnalytics ? METRICS_CSV.split('\n')[0] + '\n' : METRICS_CSV)
         : sheet === 'Clients Info' ? CLIENTS_CSV
           : sheet === 'TopVideos' ? TOP_VIDEOS_CSV
-            : sheet === 'Competitor Briefs' ? BRIEFS_CSV
-              : sheet === 'Market Research Briefs' ? MR_BRIEFS_CSV
+            : sheet === 'Market Research Briefs' ? MR_BRIEFS_CSV
                 : sheet === 'ContentSummaries' ? SUMMARIES_CSV
                   : null;
       if (body !== null) {
@@ -1426,7 +1428,6 @@ async function openBfcacheCase(browser, options = {}) {
       Metrics: METRICS_CSV,
       'Clients Info': CLIENTS_CSV,
       TopVideos: TOP_VIDEOS_CSV,
-      'Competitor Briefs': BRIEFS_CSV,
       'Market Research Briefs': MR_BRIEFS_CSV,
       ContentSummaries: SUMMARIES_CSV,
     },
@@ -1678,7 +1679,7 @@ async function runClientTabScenario(browser, server, view) {
     network: {
       zeroAnalytics: true,
       extrasPlan: view === 'calendar'
-        ? [{}, { hold: true, statusSheet: 'Competitor Briefs', status: 500 }, { hold: true }]
+        ? [{}, { hold: true, statusSheet: 'Market Research Briefs', status: 500 }, { hold: true }]
         : null,
     },
     storage: {
@@ -1785,12 +1786,12 @@ async function runClientTabScenario(browser, server, view) {
         `${label}: Brief loader must visibly paint while extras are held`);
       assertTruthfulTrace(firstLoadingFrames, `${label} Calendar -> held Brief`, { clientOwned: true });
 
-      assert.equal(run.network.releaseExtras(1), 4, `${label}: failure releases the exact four held extras`);
+      assert.equal(run.network.releaseExtras(1), 3, `${label}: failure releases the exact three held extras`);
       await run.page.waitForSelector('[data-client-extras-state="error"]', { state: 'visible', timeout: 10_000 });
       await run.network.waitForExtraResponses(1);
       assert.ok(run.network.extraResponses.some(response => (
         response.attempt === 1
-        && response.sheet === 'Competitor Briefs'
+        && response.sheet === 'Market Research Briefs'
         && response.outcome === 'http-500'
       )), `${label}: one held extras response must exercise the HTTP 500 path`);
       const retry = run.page.getByRole('button', { name: 'Try again', exact: true });
@@ -1827,20 +1828,20 @@ async function runClientTabScenario(browser, server, view) {
       );
       assert.equal(retryPending.navigations, 1, `${label}: extras retry must not reload the document`);
       assert.equal(run.network.verifierCalls.length, 2, `${label}: extras retry must not repeat strict verification`);
-      assert.equal(run.network.extraRequests.filter(request => request.attempt === 2).length, 4,
-        `${label}: retry must start one fresh four-sheet extras attempt`);
+      assert.equal(run.network.extraRequests.filter(request => request.attempt === 2).length, 3,
+        `${label}: retry must start one fresh three-sheet extras attempt`);
       const essentialReads = run.network.sensitiveClientReads.filter(read => (
         read.kind === 'sheet:Metrics' || read.kind === 'sheet:Clients Info'
       ));
       assert.equal(essentialReads.length, 4, `${label}: extras retry must preserve essentials instead of refetching them`);
       await traceOf(run.page);
 
-      assert.equal(run.network.releaseExtras(2), 4, `${label}: success releases the exact four retry requests`);
+      assert.equal(run.network.releaseExtras(2), 3, `${label}: success releases the exact three retry requests`);
       await run.network.waitForExtraResponses(2);
       await waitForClientTab(run.page, 'Brief');
       const recovered = await run.page.evaluate(() => ({
         extrasStatus: _fetchExtrasState.status,
-        briefCount: briefs.length,
+        briefCount: mrBriefs.length,
         loading: Boolean(document.querySelector('[data-client-extras-state="loading"]')),
         error: Boolean(document.querySelector('[data-client-extras-state="error"]')),
         active: document.querySelector('.view-tab-btn.active')?.textContent.replace(/\s+/g, ' ').trim() || '',
@@ -1925,7 +1926,7 @@ async function runBriefWorkTeardownScenario(browser, server) {
       window.__syncviewBfcacheNetwork
       && window.__syncviewBfcacheNetwork.verifierResponses.length === 1
       && window.__syncviewBfcacheNetwork.verifierResponses[0].valid === true
-      && window.__syncviewBfcacheNetwork.analyticsResponsesCompleted === 6
+      && window.__syncviewBfcacheNetwork.analyticsResponsesCompleted === 5
     ), null, { timeout: 10_000 });
 
     await run.page.evaluate(clientName => {
@@ -1998,7 +1999,7 @@ async function runBriefWorkTeardownScenario(browser, server) {
       window.__syncviewBfcacheNetwork
       && window.__syncviewBfcacheNetwork.verifierResponses.length === 2
       && window.__syncviewBfcacheNetwork.verifierResponses[1].valid === true
-      && window.__syncviewBfcacheNetwork.analyticsResponsesCompleted === 12
+      && window.__syncviewBfcacheNetwork.analyticsResponsesCompleted === 10
     ), null, { timeout: 10_000 });
     await waitForClientTab(run.page, 'Brief');
     await run.page.waitForTimeout(180);
@@ -2459,11 +2460,11 @@ async function runPendingAnalyticsBfcacheScenario(browser, server) {
       return network
         && network.verifierResponses.length === 1
         && network.verifierResponses[0].valid === true
-        && network.heldAnalyticsRequests === 6;
+        && network.heldAnalyticsRequests === 5;
     }, null, { timeout: 10_000 });
     const initial = await run.page.evaluate(() => JSON.parse(JSON.stringify(window.__syncviewBfcacheNetwork)));
     assert.equal(initial.verifierCalls.length, 1, `${label}: first document verifies once`);
-    assert.equal(initial.sensitiveClientReads.length, 6, `${label}: both essentials and all extras must be pending`);
+    assert.equal(initial.sensitiveClientReads.length, 5, `${label}: both essentials and all extras must be pending`);
     assert.equal(initial.analyticsResponsesCompleted, 0, `${label}: no held analytics response may settle before pagehide`);
 
     await run.page.evaluate(() => {
@@ -2506,7 +2507,7 @@ async function runPendingAnalyticsBfcacheScenario(browser, server) {
     // They ignore AbortSignal at the transport boundary, so the generation /
     // href / slug lease must independently prevent apply, cache, or repaint.
     await run.page.evaluate(() => window.__syncviewReleaseBfcacheAnalytics());
-    await run.page.waitForFunction(() => window.__syncviewBfcacheNetwork.analyticsResponsesCompleted === 6, null, { timeout: 10_000 });
+    await run.page.waitForFunction(() => window.__syncviewBfcacheNetwork.analyticsResponsesCompleted === 5, null, { timeout: 10_000 });
     await run.page.waitForTimeout(250);
 
     const restored = await run.page.evaluate(() => ({
@@ -2555,7 +2556,7 @@ async function runPendingAnalyticsBfcacheScenario(browser, server) {
     );
     assert.equal(restored.network.verifierCalls.length, 2, `${label}: no retry or duplicate verifier call`);
     assert.equal(restored.network.verifierCalls[1].body.strict, true, `${label}: return verifier remains strict`);
-    assert.equal(restored.network.sensitiveClientReads.length, 6, `${label}: return/denial must start no new client read`);
+    assert.equal(restored.network.sensitiveClientReads.length, 5, `${label}: return/denial must start no new client read`);
     assert.ok(
       restored.network.sensitiveClientReads.every(read => read.signalAbortedAfterHold === true),
       `${label}: pagehide must abort every old analytics request before its late response\n${JSON.stringify(evidence, null, 2)}`,

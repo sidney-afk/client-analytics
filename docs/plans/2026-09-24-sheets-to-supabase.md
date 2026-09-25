@@ -47,7 +47,7 @@ absolute). All 21 downloads returned HTTP 200 on the first try.
 | `METRICS_URL` | Metrics | Analytics overview and per-client Analytics; `fetchEssentials()` | 2.68 MB | 0.64 s | Yes. The staff Analytics overview waits for it (a saved copy is shown first if one exists). Client share links always wait for it. | CLIENTS METRICS (daily; Apify for Instagram and TikTok, YouTube API; appends rows) |
 | `CLIENTS_URL` | Clients Info | Client roster for every screen: allowlist, client picker, share-link check, Calendar fast boot; `fetchEssentials()` | 74 KB | 0.32 s | Yes, same as Metrics. It is also the live client allowlist. | Mostly hand-edited. Onboarding: Append Client Row (live; runs on each client onboarding, owner confirmed 2026-09-24) upserts rows. Read by CLIENTS METRICS, TOP VIDEOS, MARKET RESEARCH. |
 | `TOPVIDS_URL` | TopVideos | Per-client Analytics top videos; `fetchExtras()` | 16.08 MB | 2.88 s | Not for the overview (it no longer waits for it). Yes for a per-client Analytics page, which waits for all extras. | TOP VIDEOS (daily 04:00; Apify for Instagram and TikTok, YouTube API; appends rows, never deletes) |
-| `BRIEFS_URL` | Competitor Briefs | **Retiring, not migrating.** The competitor brief generators were removed on 2026-09-24 (#1590); the site still downloads this tab in `fetchExtras()` | 243 KB | 0.44 s | Per-client pages only | None. Owner confirmed 2026-09-24 the tab is retired. |
+| `BRIEFS_URL` | Competitor Briefs | **Retiring, not migrating.** The competitor brief generators were removed on 2026-09-24 (#1590); the site stopped downloading it in #1615 | 243 KB | 0.44 s | Per-client pages only | None. Owner confirmed 2026-09-24 the tab is retired. |
 | `MR_BRIEFS_URL` | Market Research Briefs | Per-client Brief tab; `fetchExtras()` | 790 KB | 0.52 s | Per-client pages only | MARKET RESEARCH (scheduled; Apify Instagram and TikTok search; append-or-update) |
 | `CONTENT_SUMMARIES_URL` | ContentSummaries | Per-client content summary bullets; `fetchExtras()` (optional, failure tolerated) | 3.7 KB | 0.43 s | No (optional) | MARKET RESEARCH (daily 06:00 branch; reads TopVideos, append-or-update) |
 | `KASPER_SMM_URL` | Social Media Managers | Review queue: which manager owns each client; `_kasperLoadSMMMap()` | 1.8 KB | 0.43 s | Not the first card, but manager names fill in after it lands | Hand-edited. Onboarding: Append Client Row (live) also upserts. SMM Reports: Manager Sync (daily 06:00) already COPIES it into Supabase `social_media_managers`. |
@@ -208,9 +208,8 @@ BEFORE any Sheet write is switched off.
 The owner retired competitor briefs on 2026-09-24 (#1590 removed the
 generators). The tab is not migrated. Separate from the phases above:
 
-1. Remove the site's download of `BRIEFS_URL` from `fetchExtras()` and the
-   saved copy (243 KB and one request off every per-client page), and remove
-   whatever still renders it on the Brief tab. One small code PR.
+1. Done in #1615: the site no longer downloads `BRIEFS_URL` (243 KB and one
+   request off every per-client page) and the Brief tab no longer shows it.
 2. Leave the tab in the Sheet, frozen, as an archive. Nothing writes it.
 3. Delete it with the rest of the Sheet in Phase 3.
 

@@ -1870,25 +1870,6 @@
             background: var(--sv-bg-16a34a); display: inline-block; flex-shrink: 0;
         }
 
-        /* Brief category toggle (Market Research / Competitors) */
-        .brief-category-toggle {
-            display: inline-flex; align-items: center;
-            background: var(--bg); border: 1px solid var(--border);
-            border-radius: 11px; padding: 3px; gap: 2px; margin-bottom: 20px;
-        }
-        .brief-cat-btn {
-            display: inline-flex; align-items: center; gap: 7px;
-            padding: 7px 18px; border: none; border-radius: 8px;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 0.79rem; font-weight: 600;
-            cursor: pointer; color: var(--text-muted);
-            background: transparent; transition: all 0.15s;
-        }
-        .brief-cat-btn:hover { color: var(--text-secondary); }
-        .brief-cat-btn.active {
-            background: var(--white); color: var(--text-primary);
-            box-shadow: 0 1px 4px var(--sv-shadow-rgba-0-0-0-0_1);
-        }
         .brief-cat-dot {
             width: 6px; height: 6px; border-radius: 50%;
             background: var(--sv-bg-7c3aed); display: inline-block; flex-shrink: 0;

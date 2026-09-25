@@ -133,7 +133,6 @@ PROBES=(
   qa/probes/sxr_gating_flags.js
   qa/probes/sxr_cold_open.js
   qa/probes/sxr_kasper_audit_holes.js
-  qa/probes/sxr_linear_deep.js
   qa/probes/sxr_realtime_twin.js
   qa/probes/sxr_client_persist_guard.js
   qa/probes/p90_merge_midsave_keep.js

@@ -28875,3 +28875,29 @@ A browser check of the live TikTok Upload tab on the test client showed it calls
 - Lighthouse locked `content_samples` on 2026-09-24. It dropped the anon read policy and revoked public, anon and authenticated. `service_role` still reads it for the weekly backup and the Linear-exit recovery capture, both of which still list it.
 
 **Security note: TikTok tokens in n8n run history.** n8n saves each run's full node data. The saved runs of "TikTok Pilot — Accounts List" therefore hold the test account's real TikTok access and refresh tokens, from its "Fetch Accounts" step. The workflow strips them before replying, but they stay in the saved records. Archiving stops new copies. Still open: clear those saved runs, or revoke the app's access for that TikTok account. The refresh token is valid until 2027-06.
+
+
+## 253. [2026-09-25, DONE] Retired the `sxr_linear_deep` nightly probe
+
+**What.** `qa/probes/sxr_linear_deep.js` is deleted and no longer runs: removed
+from `SYNCVIEW_NIGHTLY_PROBES` in `.github/workflows/samples-e2e-nightly.yml`,
+from `qa/overnight_runner.sh`, from the probe table in
+`test/probes-assert-native-write-lane.js`, from the exemption list in
+`test/probes-register-native-work-items.js` and from the overnight-test skill's
+probe list. The file stays readable in git history.
+
+**Why.** It tested the Samples side of Linear syncing: one-shot suppression of
+an inbound echo, clearing a Linear link with no status push, the "link already
+on another sample, move it here" flow, and draining the Linear outbox. Linear is
+retired (owner, 2026-09-24), a component is now linked only by its SyncView
+deliverable id, and the webhooks those pushes went to are retired. There is
+nothing left for it to prove, and it would fail nightly for reasons that are not
+defects.
+
+**Correction.** An earlier note (#1609) said it tested the Calendar Linear
+buttons removed in #1605. It did not touch those; the reason is Linear's
+retirement, not #1605.
+
+**Still open.** Its Calendar twin `qa/probes/cal_linear_deep.js` is still in the
+nightly list. Unlike this probe it does drive the Calendar Linear controls #1605
+removed, so it is the next candidate to retire or rewrite.

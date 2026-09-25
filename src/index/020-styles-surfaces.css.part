@@ -84,6 +84,18 @@
         .tpl-folder-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); text-decoration: none; color: inherit; font-size: 0.86rem; }
         .tpl-folder-row:hover .tpl-folder-name { text-decoration: underline; }
         .tpl-folder-meta { color: var(--text-muted); font-size: 0.74rem; white-space: nowrap; }
+        .tpl-brain-spec-row { flex-wrap: wrap; }
+        .tpl-spec-empty { font-size: 0.82rem; color: var(--text-secondary); font-style: italic; }
+        .tpl-spec-btn { font-size: 0.76rem; font-weight: 600; border: 1px dashed var(--border); background: none; border-radius: 999px; padding: 3px 11px; cursor: pointer; color: var(--text-secondary); }
+        .tpl-spec-btn:hover, .tpl-spec-btn:focus-visible { border-style: solid; color: var(--text-primary); }
+        .tpl-spec-form { flex-basis: 100%; margin: 10px 0 4px; padding: 14px 16px; border-radius: 12px; background: var(--surface-subtle); border: 1px solid var(--border-light); display: grid; gap: 10px; }
+        .tpl-spec-field { display: grid; grid-template-columns: 130px 1fr; align-items: center; gap: 10px; font-size: 0.82rem; color: var(--text-secondary); }
+        @media (max-width: 560px) { .tpl-spec-field { grid-template-columns: 1fr; } }
+        .tpl-spec-field input[type=text] { font: inherit; font-size: 0.86rem; border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; background: var(--white); color: var(--text-primary); min-width: 0; }
+        .tpl-spec-colour { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .tpl-spec-colour input[type=color] { width: 34px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 8px; background: none; cursor: pointer; }
+        .tpl-spec-colour input[type=text] { width: 110px; }
+        .tpl-spec-none { display: inline-flex; align-items: center; gap: 5px; font-size: 0.8rem; }
         .tpl-brief { display: flex; flex-direction: column; gap: 16px; margin-top: 6px; }
         .tpl-brief-cols { columns: 2 340px; column-gap: 16px; }
         .tpl-brief-cols > .tpl-brief-sec { break-inside: avoid; margin-bottom: 16px; }

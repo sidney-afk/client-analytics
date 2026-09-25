@@ -8915,6 +8915,18 @@
     function _setLinearClientRows(value) { linearClientRows = value; }
     function _setSortCol(value) { sortCol = value; }
     function _setSortDir(value) { sortDir = value; }
+    function _setAllData(value) { allData = value; }
+    function _setClientMap(value) { clientMap = value; }
+    function _setTopVideos(value) { topVideos = value; }
+    function _setBriefs(value) { briefs = value; }
+    function _setMrBriefs(value) { mrBriefs = value; }
+    function _setClientViewTab(value) { clientViewTab = value; }
+    function _setContentSummaryState(value) { contentSummaryState = value; }
+    function _setTabSummaryCache(value) { tabSummaryCache = value; }
+    function _setFetchExtrasPromise(value) { _fetchExtrasPromise = value; }
+    function _nextFetchExtrasAttempt() { return ++_fetchExtrasAttempt; }
+    function _setFetchExtrasState(value) { _fetchExtrasState = value; }
+    function _setClientEssentialsLoad(value) { _clientEssentialsLoad = value; }
     let activePeriods = {};
     let clientViewTab = {};
     let activeBriefTab = {};
@@ -66897,16 +66909,16 @@
         try { if (typeof _calV2Teardown === 'function') _calV2Teardown(); } catch (e) {}
         try { if (typeof _sxrAbortActiveLoad === 'function') _sxrAbortActiveLoad(); } catch (e) {}
         try { if (typeof _sxrV2Teardown === 'function') _sxrV2Teardown(); } catch (e) {}
-        try { if (growthChart) { growthChart.destroy(); growthChart = null; } } catch (e) {}
-        try { if (viewsChart) { viewsChart.destroy(); viewsChart = null; } } catch (e) {}
+        try { if (growthChart) { growthChart.destroy(); _setGrowthChart(null); } } catch (e) {}
+        try { if (viewsChart) { viewsChart.destroy(); _setViewsChart(null); } } catch (e) {}
         try {
-            allData = []; clientMap = {}; topVideos = []; briefs = []; mrBriefs = [];
-            currentClientHistory = []; clientViewTab = {};
-            contentSummaryState = {}; tabSummaryCache = {};
-            _fetchExtrasPromise = null;
-            ++_fetchExtrasAttempt;
-            _fetchExtrasState = { status: 'idle', run: null };
-            _clientEssentialsLoad = { promise: null, status: 'idle', run: null };
+            _setAllData([]); _setClientMap({}); _setTopVideos([]); _setBriefs([]); _setMrBriefs([]);
+            _setCurrentClientHistory([]); _setClientViewTab({});
+            _setContentSummaryState({}); _setTabSummaryCache({});
+            _setFetchExtrasPromise(null);
+            _nextFetchExtrasAttempt();
+            _setFetchExtrasState({ status: 'idle', run: null });
+            _setClientEssentialsLoad({ promise: null, status: 'idle', run: null });
             _autoSummaryAttempted.clear();
         } catch (e) {}
         try {

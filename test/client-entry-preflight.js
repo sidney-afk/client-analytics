@@ -264,7 +264,8 @@ assert(
   'invalid-link/pagehide purge must abort Calendar before clearing client state',
 );
 assert(
-  purgeSource.indexOf("_syncviewCancelBriefWork === 'function'") < purgeSource.indexOf('tabSummaryCache = {}'),
+  purgeSource.indexOf("_syncviewCancelBriefWork === 'function'") < purgeSource.indexOf('_setTabSummaryCache({})')
+    && source.includes('function _setTabSummaryCache(value) { tabSummaryCache = value; }'),
   'invalid-link/pagehide purge must cancel Brief work before dropping timer/controller handles',
 );
 for (const token of [

@@ -1950,16 +1950,16 @@
         try { if (typeof _calV2Teardown === 'function') _calV2Teardown(); } catch (e) {}
         try { if (typeof _sxrAbortActiveLoad === 'function') _sxrAbortActiveLoad(); } catch (e) {}
         try { if (typeof _sxrV2Teardown === 'function') _sxrV2Teardown(); } catch (e) {}
-        try { if (growthChart) { growthChart.destroy(); growthChart = null; } } catch (e) {}
-        try { if (viewsChart) { viewsChart.destroy(); viewsChart = null; } } catch (e) {}
+        try { if (growthChart) { growthChart.destroy(); _setGrowthChart(null); } } catch (e) {}
+        try { if (viewsChart) { viewsChart.destroy(); _setViewsChart(null); } } catch (e) {}
         try {
-            allData = []; clientMap = {}; topVideos = []; briefs = []; mrBriefs = [];
-            currentClientHistory = []; clientViewTab = {};
-            contentSummaryState = {}; tabSummaryCache = {};
-            _fetchExtrasPromise = null;
-            ++_fetchExtrasAttempt;
-            _fetchExtrasState = { status: 'idle', run: null };
-            _clientEssentialsLoad = { promise: null, status: 'idle', run: null };
+            _setAllData([]); _setClientMap({}); _setTopVideos([]); _setBriefs([]); _setMrBriefs([]);
+            _setCurrentClientHistory([]); _setClientViewTab({});
+            _setContentSummaryState({}); _setTabSummaryCache({});
+            _setFetchExtrasPromise(null);
+            _nextFetchExtrasAttempt();
+            _setFetchExtrasState({ status: 'idle', run: null });
+            _setClientEssentialsLoad({ promise: null, status: 'idle', run: null });
             _autoSummaryAttempted.clear();
         } catch (e) {}
         try {

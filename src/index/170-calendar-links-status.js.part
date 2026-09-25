@@ -1939,6 +1939,7 @@
     }
 
     let _calNativePostState = null;
+    function _calSetNativePostState(value) { _calNativePostState = value; }
     function _calCloseNativePost(force) {
         const overlay = document.getElementById('calNativePostOverlay');
         if (!force && overlay && overlay.dataset.busy === '1') return;
@@ -2733,6 +2734,7 @@
     /* Assigned during render and reused by the filter, so the filtered list and
        the first paint can never drift into two different option formats. */
     let _calNativeBatchOptionsHtml = () => '';
+    function _calSetNativeBatchOptionsHtml(value) { _calNativeBatchOptionsHtml = value; }
     const CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS = 4000;
     /* Every uuid these batches record as a PARENT.
      *

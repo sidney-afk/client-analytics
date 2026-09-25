@@ -1122,6 +1122,17 @@
     /* ── Linear sub-issue pile (video + graphic), edit + commit with guards ── */
     function _sxrLinearSvg() { return `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>`; }
     function _sxrLinearSlotHtml(pid, url, comp) {
+        /* Linear is retired (owner, 2026-09-25), the Samples twin of the
+           Calendar change in #1605: no Linear sub-issue control on a sample --
+           not the remove X, not the pencil, not the link button. With no way
+           to edit a link, the "already linked to ... Move it here" conflict row
+           (_sxrShowLinkConflict, reached only through _sxrLinearCommit) is
+           unreachable too. Stored linear_issue_id / graphic_linear_issue_id
+           are not read here, cleared or rewritten; a Linear-only link already
+           counts as absent (_calCompLinked). The body below is kept,
+           unreachable, so this is a one-line revert. */
+        return '';
+        // eslint-disable-next-line no-unreachable
         if (_isClientLink) return '';
         const which = comp || 'video';
         const u = String(url || '').trim();
@@ -2486,7 +2497,8 @@
         const editableText = !_isClientLink || isBlank;
         const selectable = sxrState.selectMode && !ro && !isBlank;
         const draggable = (isBlank || selectable || ro) ? 'false' : 'true';   // client Sheet is read-only — no drag
-        const needsLinear = !ro && !isBlank && !_writeUiLinkSlotSealed('video') && !String(p.linear_issue_id || '').trim();
+        // Linear is retired: no sample asks to be linked to a Linear sub-issue.
+        const needsLinear = false;
         const dupePeers = (!_isClientLink && !isBlank) ? _sxrLinkDuplicatePeers(p) : [];
         const subStatusHtml = (ro || _isClientLink) ? '' : SXR_COMPONENTS.map(c => {
             const cs = _sxrNormStatus(p[c + '_status'] || 'In Progress');

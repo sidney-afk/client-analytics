@@ -17,7 +17,7 @@
 | 9 | `070-workload-source.js.part` | 3624 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3413 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
 | 11 | `090-workload-popovers-navigation.js.part` | 1645 | Sub-issue popover |
-| 12 | `100-onboarding-staff-controls.js.part` | 2361 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
+| 12 | `100-onboarding-staff-controls.js.part` | 2364 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2189 | Kasper Time Off calendar |
 | 14 | `120-calendar-flags-write-repair.js.part` | 3070 | The members a flag value offers, or null when it offers no member list at |
 | 15 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
@@ -25,7 +25,7 @@
 | 17 | `131-core-html.js.part` | 12 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 18 | `132-calendar-dates-ids.js.part` | 10 | — |
 | 19 | `133-core-loading-skeletons.js.part` | 363 | Modern animated loader — a single rotating ring with a subtle label. |
-| 20 | `134-calendar-prefs-mount.js.part` | 1022 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
+| 20 | `134-calendar-prefs-mount.js.part` | 1023 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
 | 21 | `140-calendar-legacy-outbox.js.part` | 3060 | Shed the retired legacy rows from storage, under the surface mutation |
 | 22 | `150-calendar-hydration-import.js.part` | 2139 | For a card linked to a real sub-issue (not a parent), return which of |
 | 23 | `160-calendar-organize-ui.js.part` | 2809 | Lighter path for the Order switch: update the chrome in place so the |

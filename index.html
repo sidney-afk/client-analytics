@@ -22802,6 +22802,9 @@
     let OB_VARIANT = 'normal';
     let OB_DRAFT_KEY = 'syncview_onboarding_draft_v1';
     let OB_SUBID_KEY = 'syncview_onboarding_subid_v1';
+    function _obSetVariant(value) { OB_VARIANT = value; }
+    function _obSetDraftKey(value) { OB_DRAFT_KEY = value; }
+    function _obSetSubIdKey(value) { OB_SUBID_KEY = value; }
     function _obEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function _obId(){ return 'o_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
     // Stable submission id: minted once per funnel per browser and reused across
@@ -33329,6 +33332,7 @@
     const LINEAR_OUTBOX_MAX_ATTEMPTS = 6;
     const LINEAR_OUTBOX_RETRY_MS = 60 * 1000;
     let _linearOutboxFlushTimer = null;
+    function _calSetLinearOutboxFlushTimer(value) { _linearOutboxFlushTimer = value; }
     let _linearOutboxFlushPromise = null;
     let _linearOutboxFlushOwnerKey = '';
     /* RETIRED LEGACY DEBT (OPEN_REPAIRS 239). A `legacy_n8n` row is a queued
@@ -66987,7 +66991,7 @@
         if (!_isClientLink) return;
         if (_linearOutboxFlushTimer) {
             clearTimeout(_linearOutboxFlushTimer);
-            _linearOutboxFlushTimer = null;
+            _calSetLinearOutboxFlushTimer(null);
         }
         if (_sxrLinearOutboxTimer) {
             clearTimeout(_sxrLinearOutboxTimer);
@@ -67261,9 +67265,9 @@
         // AI-avatar section and drops the sample-video section; the standard funnel
         // is the reverse. Each keeps its own autosave draft key so the two forms
         // never clobber each other's localStorage.
-        OB_VARIANT = _isAiOnboarding ? 'ai' : 'normal';
-        OB_DRAFT_KEY = _isAiOnboarding ? 'syncview_ai_onboarding_draft_v1' : 'syncview_onboarding_draft_v1';
-        OB_SUBID_KEY = _isAiOnboarding ? 'syncview_ai_onboarding_subid_v1' : 'syncview_onboarding_subid_v1';
+        _obSetVariant(_isAiOnboarding ? 'ai' : 'normal');
+        _obSetDraftKey(_isAiOnboarding ? 'syncview_ai_onboarding_draft_v1' : 'syncview_onboarding_draft_v1');
+        _obSetSubIdKey(_isAiOnboarding ? 'syncview_ai_onboarding_subid_v1' : 'syncview_onboarding_subid_v1');
         // Both onboarding forms carry SynchroSocial branding (tab title + favicon),
         // distinct from the SyncView dashboard chrome.
         try {

@@ -582,8 +582,8 @@ async function _ctx(browser, opts) {
       const CORS = REROUTE_FIXTURE.WRITE_UI_REROUTE_CORS;
       if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
       const body = writeUiRerouteLegacy
-        ? REROUTE_FIXTURE.legacyRosterBody()
-        : REROUTE_FIXTURE.productionRosterBody();
+        ? REROUTE_FIXTURE.legacyRosterBody(url)
+        : REROUTE_FIXTURE.productionRosterBody(url);
       return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body });
     }
     // Fully intercepted share-link tests can supply one fictional strict

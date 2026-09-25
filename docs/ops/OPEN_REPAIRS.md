@@ -28908,6 +28908,27 @@ only reachable by editing a link, goes with them. Stored Linear links are
 untouched, and a Linear-only link already counts as absent (`_calCompLinked`).
 Only after that is the probe retired, with nothing reachable left to cover.
 
-**Still open.** Its Calendar twin `qa/probes/cal_linear_deep.js` is still in the
-nightly list. Unlike this probe it does drive the Calendar Linear controls #1605
-removed, so it is the next candidate to retire or rewrite.
+**Follow-up, 2026-09-25: the Calendar twin and three more retired.** A sweep of
+every probe for the removed Calendar and Samples Linear controls (the link edit,
+paste, commit and "Move it here" functions and the buttons that reached them)
+found four nightly probes whose only subject was one of those flows. They called
+the functions directly, which still exist but have no way in from the screen, so
+they were proving behaviour no one can trigger. All deleted (kept in git
+history) and removed from what runs them:
+
+- `cal_linear_deep`: Calendar twin of the probe above (echo suppression, link
+  clear, link move, outbox drain). Was in `samples-e2e-nightly.yml` and
+  `qa/overnight_runner.sh`; also dropped from the probe table in
+  `test/probes-assert-native-write-lane.js`.
+- `p77_linear_link_validation`: pasting a Linear link (validation of the paste).
+- `p81_link_move_conflict`: the "Move it here" link move.
+- `p86_hidden_owner_warns`: the "already linked" warning on paste.
+  (The last three were in `qa/probes/nightly-manifest.txt`.)
+
+Not retired, from the same sweep:
+- `parity_logic` (run by `qa/master.js`) only matches the old "Link a Linear
+  sub-issue first" wording inside a lock check; it clicks nothing.
+- `ot4_t1_smm_calendar_writes` is in no nightly list. Its step 4b pastes a Linear
+  link to unlock the video pill, which no longer links anything; it needs the
+  native work-item fixture (`registerProbeWorkItems`) instead, a different kind of
+  change, left for its own PR.

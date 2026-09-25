@@ -140,7 +140,6 @@ PROBES=(
 )
 CAL_PROBES=(
   qa/probes/cal_realtime_twin.js
-  qa/probes/cal_linear_deep.js
   qa/probes/p88_realtime_handler.js
   qa/probes/p89_cal_create_via_ui.js
 )

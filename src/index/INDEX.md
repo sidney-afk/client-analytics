@@ -19,7 +19,7 @@
 | 11 | `090-workload-popovers-navigation.js.part` | 1645 | Sub-issue popover |
 | 12 | `100-onboarding-staff-controls.js.part` | 2364 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2189 | Kasper Time Off calendar |
-| 14 | `120-calendar-flags-write-repair.js.part` | 3070 | The members a flag value offers, or null when it offers no member list at |
+| 14 | `120-calendar-flags-write-repair.js.part` | 3075 | The members a flag value offers, or null when it offers no member list at |
 | 15 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
 | 16 | `130-calendar-model-cache.js.part` | 1341 | Returns the comments array for a given component. Falls back to the |
 | 17 | `131-core-html.js.part` | 12 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |

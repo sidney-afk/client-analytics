@@ -9,7 +9,7 @@
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `005-head-boot.html.part` | 260 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 3 | `010-styles-foundation.css.part` | 3885 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 4 | `020-styles-surfaces.css.part` | 4010 | Templates view |
+| 4 | `020-styles-surfaces.css.part` | 4019 | Templates view |
 | 5 | `030-body-shell.html.part` | 445 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 1648 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1651 | Market Research Brief Tab Renderers |
@@ -28,7 +28,7 @@
 | 20 | `134-calendar-prefs-mount.js.part` | 1011 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
 | 21 | `140-calendar-legacy-outbox.js.part` | 3059 | Shed the retired legacy rows from storage, under the surface mutation |
 | 22 | `150-calendar-hydration-import.js.part` | 2084 | For a card linked to a real sub-issue (not a parent), return which of |
-| 23 | `160-calendar-organize-ui.js.part` | 2741 | Lighter path for the Order switch: update the chrome in place so the |
+| 23 | `160-calendar-organize-ui.js.part` | 2745 | Lighter path for the Order switch: update the chrome in place so the |
 | 24 | `170-calendar-links-status.js.part` | 2756 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 25 | `180-calendar-native-post-media.js.part` | 2676 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 26 | `190-calendar-approval-comments.js.part` | 2984 | Count of posts actually awaiting this surface's sign-off — i.e. at least |

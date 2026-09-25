@@ -1096,6 +1096,10 @@
         const animate = () => { if (!_calWeekRaf) _calWeekRaf = requestAnimationFrame(tick); };
 
         grid.addEventListener('wheel', (e) => {
+            // The client phone layout stacks the week as a vertical list
+            // (flex-direction: column); there the wheel must scroll the page,
+            // not slide days that are no longer laid out side by side.
+            if (getComputedStyle(grid).flexDirection === 'column') return;
             const raw = e.deltaY || e.deltaX;
             if (!raw) return;
             e.preventDefault();

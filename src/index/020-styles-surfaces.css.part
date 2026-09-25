@@ -3966,11 +3966,20 @@
             html.boot-client .cal-tab-view .cal-month-grid { display: flex; flex-direction: column; gap: 0; background: var(--white); border-radius: 14px; }
             html.boot-client .cal-tab-view .cal-month-head { display: none; }
             html.boot-client .cal-tab-view .cal-month-cell { display: none; }
+            /* When the client may drag posts (Collaborative), every date of the
+               month stays visible as a drop target, empty ones as a slim row. */
+            html.boot-client .cal-tab-view .cal-month-wrap:has(.cal-month-pill[draggable="true"]) .cal-month-cell:not(.out),
             html.boot-client .cal-tab-view .cal-month-cell:not(.out):has(.cal-month-pill) { display: flex; flex-direction: column; gap: 8px; position: relative; min-height: 0; padding: 14px 14px 14px 78px; }
-            html.boot-client .cal-tab-view .cal-month-cell:not(.out):has(.cal-month-pill) ~ .cal-month-cell:not(.out):has(.cal-month-pill) { border-top: 1px solid var(--border); }
+            html.boot-client .cal-tab-view .cal-month-cell:not(.out):has(.cal-month-pill) ~ .cal-month-cell:not(.out):has(.cal-month-pill),
+            html.boot-client .cal-tab-view .cal-month-wrap:has(.cal-month-pill[draggable="true"]) .cal-month-cell:not(.out) ~ .cal-month-cell:not(.out) { border-top: 1px solid var(--border); }
+            html.boot-client .cal-tab-view .cal-month-wrap:has(.cal-month-pill[draggable="true"]) .cal-month-cell:not(.out) { min-height: 64px; }
             html.boot-client .cal-tab-view .cal-month-cell:hover { background: var(--white); }
             html.boot-client .cal-tab-view .cal-month-cell.today:hover { background: var(--sv-bg-eff3ff); }
-            html.boot-client .cal-tab-view .cal-month-grid:not(:has(.cal-month-cell:not(.out) .cal-month-pill))::after { content: "Nothing scheduled this month."; display: block; padding: 28px 16px; text-align: center; font-size: 0.9rem; color: var(--text-muted); }
+            html.boot-client .cal-tab-view :not(.cal-skeleton-loader) > .cal-month-wrap:not(:has(.cal-month-pill[draggable="true"])) .cal-month-grid:not(:has(.cal-month-cell:not(.out) .cal-month-pill))::after { content: "Nothing scheduled this month."; display: block; padding: 28px 16px; text-align: center; font-size: 0.9rem; color: var(--text-muted); }
+
+            /* The loading skeleton keeps a few shimmer rows so a slow read never
+               looks like an empty month. */
+            html.boot-client .cal-tab-view .cal-skeleton-loader .cal-month-cell:not(.out):nth-child(-n+12) { display: flex; min-height: 64px; padding: 14px 14px 14px 78px; position: relative; }
 
             /* The date badge: weekday over a large day number. */
             html.boot-client .cal-tab-view .cal-month-cellhead { position: absolute; left: 14px; top: 16px; width: 52px; flex-direction: column; align-items: center; gap: 2px; }

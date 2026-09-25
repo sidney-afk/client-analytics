@@ -517,7 +517,7 @@ const CANDIDATES = new Map([
     // Card link (2026-09-25, OPEN_REPAIRS 254): production-write links the card
     // itself after a native create and imports ./card-link.mjs (9 -> 10 files);
     // re-pinned with ef-fingerprint.
-    source: 'd96019b713653e9021392d44ee69b998de949ab3b700106d31bb6c1b9fa6d4e2',
+    source: '6de7c0b54542508c4396ef65919ef7254a7a4439659a22411ac9f924bc5571fa',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 10,
   }],

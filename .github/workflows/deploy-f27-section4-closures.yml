@@ -374,7 +374,7 @@ jobs:
       # bundle grows from 9 files to 10. Regenerated with scripts/ef-fingerprint.js
       # --slugs=production-write --expected-only; entrypoint unchanged.
       # (Previous pin: 78cd3f60f2... -- production-write, files=9, 2026-09-23.)
-      PRODUCTION_WRITE_SOURCE_SHA256: d96019b713653e9021392d44ee69b998de949ab3b700106d31bb6c1b9fa6d4e2
+      PRODUCTION_WRITE_SOURCE_SHA256: 6de7c0b54542508c4396ef65919ef7254a7a4439659a22411ac9f924bc5571fa
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

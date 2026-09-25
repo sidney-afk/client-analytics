@@ -624,7 +624,8 @@ function harness(options) {
     'and specifically not the cache-derived `background` — that flag also covers a returning user\'s cache-primed FIRST load');
   ok(/wlNormalizeClient\(calState\.client\) === wlNormalizeClient\(_calFocusRequest\.client\)/.test(catchBlock),
     'and only when the failed load was actually for the pinned link\'s client — a stale pin from a client the reader left must stay silent');
-  ok(/_calFocusRequestLoadFailed = true;/.test(catchBlock),
+  ok(/_calSetFocusRequestLoadFailed\(true\);/.test(catchBlock)
+    && /function _calSetFocusRequestLoadFailed\(value\) \{ _calFocusRequestLoadFailed = value; \}/.test(html),
     'and it marks itself told, so a string of background retries after the first foreground failure cannot re-notify for the same pin');
   ok(/showNotify\('Linked card not confirmed'/.test(catchBlock),
     'and it says so through the same blocking-dialog channel _calApplyFocusRequest\'s own failures use, not a toast that could expire unread');

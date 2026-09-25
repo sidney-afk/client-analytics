@@ -31750,6 +31750,7 @@
     // foreground load (kept alive on purpose, see below) would re-notify on
     // every later background retry that also fails.
     let _calFocusRequestLoadFailed = false;
+    function _calSetFocusRequestLoadFailed(value) { _calFocusRequestLoadFailed = value; }
     /* OPEN_REPAIRS item 176 (2026-09-08): a card link only ever announced
      * itself — outline, or the toast added for item 175 — from INSIDE
      * _calApplyFocusRequest, which loadCalendarPosts calls exactly once,
@@ -32802,6 +32803,7 @@
     // pageshow listeners firing together on a single return.
     const CAL_RETURN_REFRESH_MIN_MS_V2 = 4_000;
     let _calLastNetworkLoadAt = 0;
+    function _calSetLastNetworkLoadAt(value) { _calLastNetworkLoadAt = value; }
     let _calStaffPagehideSuspended = false;
     function _calRefreshOnReturn() {
         if (document.visibilityState === 'hidden') return;
@@ -32834,6 +32836,7 @@
        render is deferred onto this flag and applied once nothing in the
        calendar is focused and there are no unsaved field edits. */
     let _calPendingBackgroundRender = false;
+    function _calSetPendingBackgroundRender(value) { _calPendingBackgroundRender = value; }
     let _calPendingRenderInterval = null;
     function _calIsCalBusy() {
         const calBody = document.getElementById('calBody');
@@ -33053,6 +33056,15 @@
        can flip between sheets via Back without re-uploading the file. */
     let _calImportWorkbook = null;
     let _calImportSheetName = null;
+    function _calSetImportAoa(value) { _calImportAoa = value; }
+    function _calSetImportForcedLayout(value) { _calImportForcedLayout = value; }
+    function _calSetImportHeaders(value) { _calImportHeaders = value; }
+    function _calSetImportLayout(value) { _calImportLayout = value; }
+    function _calSetImportMap(value) { _calImportMap = value; }
+    function _calSetImportRows(value) { _calImportRows = value; }
+    function _calSetImportSelectedIdx(value) { _calImportSelectedIdx = value; }
+    function _calSetImportSheetName(value) { _calImportSheetName = value; }
+    function _calSetImportWorkbook(value) { _calImportWorkbook = value; }
 
     function _calLoadXLSX() {
         if (window.XLSX) return Promise.resolve(window.XLSX);
@@ -36321,6 +36333,7 @@
     const CAL_LINEAR_META_LS_KEY = 'syncview_calLinearMeta_v2';
     const CAL_LINEAR_META_TTL_MS = 7 * 24 * 60 * 60 * 1000;
     let _calLinearMetaHydrated = false;
+    function _calSetLinearMetaHydrated(value) { _calLinearMetaHydrated = value; }
     /* The force-fetch throttle (CAL_LINEAR_META_FORCE_MIN_MS), the ident-set
        signature (_calLinearStatusMetaSig / _calLinearStatusMetaAt) and the
        unsupported-backend latch (_calStatusMetaUnsupported) were removed with
@@ -36332,7 +36345,7 @@
         if (_calLinearMetaHydrated) return;
         const authority = _writeUiAuthoritySnapshot();
         if (!authority) return;
-        _calLinearMetaHydrated = true;
+        _calSetLinearMetaHydrated(true);
         try {
             const data = JSON.parse(localStorage.getItem(CAL_LINEAR_META_LS_KEY) || 'null');
             if (!data || typeof data !== 'object') return;
@@ -36517,7 +36530,7 @@
                until some later render happened to run. Set the flag when the cal
                is busy, and repaint straight away when it is not. */
             if (_calIsCalBusy()) {
-                _calPendingBackgroundRender = true;
+                _calSetPendingBackgroundRender(true);
                 _calSchedulePendingRender();
             } else {
                 _calRenderBody({ preserveScroll: true });
@@ -36698,7 +36711,7 @@
             const buf = await file.arrayBuffer();
             const wb = XLSX.read(new Uint8Array(buf), { type: 'array', cellDates: true });
             if (!wb.SheetNames.length) throw new Error('That workbook has no sheets.');
-            _calImportWorkbook = wb;
+            _calSetImportWorkbook(wb);
             if (wb.SheetNames.length > 1) {
                 _calRenderImportSheetPick();
             } else {
@@ -36722,13 +36735,13 @@
             if (!ws) throw new Error('That sheet is empty.');
             const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true, blankrows: false });
             if (!aoa.length) throw new Error('That sheet looks empty.');
-            _calImportForcedLayout = null;   // fresh sheet → trust auto-detect again
+            _calSetImportForcedLayout(null);   // fresh sheet → trust auto-detect again
             const parsed = _calDetectSheetLayout(aoa);
-            _calImportAoa = aoa;
-            _calImportSheetName = name;
-            _calImportRows = parsed.rows;
-            _calImportHeaders = parsed.headers;
-            _calImportLayout = parsed.transposed ? 'columns' : 'rows';
+            _calSetImportAoa(aoa);
+            _calSetImportSheetName(name);
+            _calSetImportRows(parsed.rows);
+            _calSetImportHeaders(parsed.headers);
+            _calSetImportLayout(parsed.transposed ? 'columns' : 'rows');
             _calRenderImportMap();
         } catch (e) {
             if (errBox) errBox.innerHTML = `<div class="cal-import-err">${_calEsc(e.message || 'Could not read that sheet')}</div>`;
@@ -36746,10 +36759,10 @@
         const errBox = document.getElementById('calImportErr');
         try {
             const parsed = _calDetectSheetLayout(_calImportAoa, next);
-            _calImportForcedLayout = next;
-            _calImportRows = parsed.rows;
-            _calImportHeaders = parsed.headers;
-            _calImportLayout = parsed.transposed ? 'columns' : 'rows';
+            _calSetImportForcedLayout(next);
+            _calSetImportRows(parsed.rows);
+            _calSetImportHeaders(parsed.headers);
+            _calSetImportLayout(parsed.transposed ? 'columns' : 'rows');
             _calRenderImportMap();
         } catch (e) {
             if (errBox) errBox.innerHTML = `<div class="cal-import-err">Reading one per ${next === 'columns' ? 'column' : 'row'} didn't work — ${_calEsc(e.message || 'no posts found that way')}.</div>`;
@@ -36966,7 +36979,7 @@
         });
         const errBox = document.getElementById('calImportErr');
         if (!map.name) { if (errBox) errBox.innerHTML = `<div class="cal-import-err">Pick which column holds the post name — it's required.</div>`; return; }
-        _calImportMap = map;
+        _calSetImportMap(map);
         // Default: every row with a non-empty mapped name is pre-selected.
         const named = [];
         _calImportRows.forEach((row, i) => {
@@ -36977,7 +36990,7 @@
             if (errBox) errBox.innerHTML = `<div class="cal-import-err">No rows had a value in the selected name column — adjust the mapping.</div>`;
             return;
         }
-        _calImportSelectedIdx = new Set(named);
+        _calSetImportSelectedIdx(new Set(named));
         _calRenderImportSelect();
     }
 
@@ -37663,7 +37676,7 @@
         // Stamp the moment we commit to a network fetch (any path: mount,
         // manual refresh, or return-refresh). _calRefreshOnReturn reads this
         // to throttle redundant refetches on rapid tab switches.
-        _calLastNetworkLoadAt = Date.now();
+        _calSetLastNetworkLoadAt(Date.now());
         /* The realtime floor measures "when did we last re-read this whole
            client", so EVERY full read stamps it -- not only the ones realtime
            started. Stamping in the realtime path alone left the clock stale
@@ -37953,7 +37966,7 @@
              * built to fix. */
             if (!opts.background && _calFocusRequest && _calFocusRequest.cardId && !_calFocusRequestLoadFailed
                 && wlNormalizeClient(calState.client) === wlNormalizeClient(_calFocusRequest.client)) {
-                _calFocusRequestLoadFailed = true;
+                _calSetFocusRequestLoadFailed(true);
                 // Codex review, PR for item 176: _calApplyFocusRequest is
                 // never reached on this failure path (ok never became true),
                 // so its own hideToast() never runs either — a fetch that
@@ -38019,7 +38032,7 @@
                         // queued edit in _calPendingEdits keeps _calIsCalBusy()
                         // true. A full page refresh "fixed" it only because it
                         // resets that in-memory map.
-                        _calPendingBackgroundRender = true;
+                        _calSetPendingBackgroundRender(true);
                         _calSchedulePendingRender();
                         // A teammate's (Kasper's / the client's) new note must
                         // surface LIVE — but the full repaint above is deferred

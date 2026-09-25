@@ -161,7 +161,7 @@ ok(FLOOR > DEBOUNCE,
        unconditional path, so pin it ADJACENT to `_calLastNetworkLoadAt`, the
        function's own already-unconditional "a network read is starting" marker.
        The two move together or this assertion fails. */
-    ok(/_calLastNetworkLoadAt = Date\.now\(\);[\s\S]{0,900}?_calV2RtLastReloadAt = Date\.now\(\);/.test(load),
+    ok(/_calSetLastNetworkLoadAt\(Date\.now\(\)\);[\s\S]{0,900}?_calV2RtLastReloadAt = Date\.now\(\);/.test(load),
         'every full read of a client stamps the floor, on the same unconditional path as '
         + '_calLastNetworkLoadAt — so a load started by a tab switch or a focus return throttles the '
         + 'next realtime event just as a realtime reload would');

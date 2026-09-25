@@ -1215,6 +1215,7 @@
     // foreground load (kept alive on purpose, see below) would re-notify on
     // every later background retry that also fails.
     let _calFocusRequestLoadFailed = false;
+    function _calSetFocusRequestLoadFailed(value) { _calFocusRequestLoadFailed = value; }
     /* OPEN_REPAIRS item 176 (2026-09-08): a card link only ever announced
      * itself — outline, or the toast added for item 175 — from INSIDE
      * _calApplyFocusRequest, which loadCalendarPosts calls exactly once,

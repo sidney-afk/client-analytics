@@ -97,7 +97,9 @@ function build(opts) {
     console: { warn: () => {} },
   };
   vm.createContext(scope);
-  vm.runInContext(extract('_calAdoptDeliverableLinks') + '\nthis.fn = _calAdoptDeliverableLinks;', scope);
+  /* 150 is a module: it writes 134's flag through this setter, which runs
+     in the same context so the flag still reads back from scope. */
+  vm.runInContext(extract('_calSetPendingBackgroundRender') + '\n' + extract('_calAdoptDeliverableLinks') + '\nthis.fn = _calAdoptDeliverableLinks;', scope);
   return { fn: scope.fn, calls, state, scope };
 }
 

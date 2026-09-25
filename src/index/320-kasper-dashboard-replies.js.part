@@ -2852,10 +2852,12 @@
     const CA_GROUPS = [
         { title: 'Contact', fields: [['email', 'Email']] },
         { title: 'Social accounts', fields: [['instagram_handle', 'Instagram'], ['tiktok_handle', 'TikTok'], ['youtube_channel_id', 'YouTube channel']] },
-        { title: 'Content research', fields: [['content_description', 'Content description'], ['keywords', 'Keywords'], ['specific_keywords', 'Specific keywords'], ['competitors', 'Competitors']] },
-        { title: 'Team channels', fields: [['slack_channel_id', 'Slack channel'], ['creative_channel_id', 'Creative channel'], ['roam_channel_id', 'Roam channel']] },
+        { title: 'Team channels', fields: [['slack_channel_id', 'Slack channel'], ['creative_channel_id', 'Creative channel']] },
         { title: 'Publishing', fields: [['upload_post_profile', 'Upload-Post profile'], ['postforme_account_id', 'Post for Me account']] },
     ];
+    // Shown last, folded until opened (owner, 2026-09-25): long text nobody
+    // needs at a glance.
+    const CA_RESEARCH = { title: 'Content research', fields: [['content_description', 'Content description'], ['keywords', 'Keywords'], ['specific_keywords', 'Specific keywords'], ['competitors', 'Competitors']] };
     const _caState = { rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false };
     // Bumped by every purge, so a request started under one staff identity
     // can never repopulate the list after a sign-out or role change.
@@ -2954,10 +2956,12 @@
 
     function _caDetailHtml(r) {
         if (!r) return `<div class="ca-detail-empty">Choose a client to see their details.</div>`;
+        const fieldsHtml = g => `<dl>${g.fields.map(([k, label]) => `<div class="ca-field"><dt>${_calEsc(label)}</dt><dd>${_caValue(r[k])}</dd></div>`).join('')}</dl>`;
         const groups = CA_GROUPS.map(g => `<section class="ca-group">
                 <h4>${_calEsc(g.title)}</h4>
-                <dl>${g.fields.map(([k, label]) => `<div class="ca-field"><dt>${_calEsc(label)}</dt><dd>${_caValue(r[k])}</dd></div>`).join('')}</dl>
+                ${fieldsHtml(g)}
             </section>`).join('');
+        const research = `<details class="ca-group ca-fold"><summary><h4>${_calEsc(CA_RESEARCH.title)}</h4></summary>${fieldsHtml(CA_RESEARCH)}</details>`;
         const extra = r.extra && typeof r.extra === 'object' ? Object.entries(r.extra).filter(([, v]) => String(v == null ? '' : v).trim()) : [];
         const extraHtml = extra.length ? `<section class="ca-group"><h4>Other sheet columns</h4><dl>${extra.map(([k, v]) => `<div class="ca-field"><dt>${_calEsc(k)}</dt><dd>${_caValue(v)}</dd></div>`).join('')}</dl></section>` : '';
         const source = r.source === 'syncview' ? 'Edited in SyncView' : 'From the Clients Info sheet';
@@ -2969,7 +2973,7 @@
                     <div class="ca-meta">${r.archived_at ? `<span class="ca-pill is-archived">Archived ${_calEsc(_caWhen(r.archived_at))}</span>` : ''}<span class="ca-pill">${_calEsc(source)}</span></div>
                 </div>
             </header>
-            ${groups}${extraHtml}
+            ${groups}${extraHtml}${research}
             <footer class="ca-prov">Last updated ${_calEsc(_caWhen(r.updated_at) || 'unknown')} by ${_calEsc(r.updated_by || 'unknown')}${r.sheet_synced_at ? ` · copied from the sheet ${_calEsc(_caWhen(r.sheet_synced_at))}` : ''}</footer>`;
     }
 

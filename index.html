@@ -8225,6 +8225,11 @@
         .ca-group { padding: 16px 0 4px; }
         .ca-group + .ca-group { border-top: 1px dashed var(--border); }
         .ca-group h4 { margin: 0 0 10px; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); }
+        .ca-fold summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; min-height: 32px; margin-bottom: 6px; }
+        .ca-fold summary::-webkit-details-marker { display: none; }
+        .ca-fold summary::before { content: '›'; font-weight: 800; color: var(--text-secondary); transition: transform .15s; }
+        .ca-fold[open] summary::before { transform: rotate(90deg); }
+        .ca-fold summary h4 { margin: 0; }
         .ca-group dl { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px 24px; }
         .ca-field dt { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); margin-bottom: 3px; }
         .ca-field dd { margin: 0; font-size: 0.86rem; line-height: 1.5; color: var(--text-primary); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -8242,6 +8247,7 @@
             .ca-split:not(.has-selection) .ca-detail { display: none; }
             .ca-detail { padding: 16px; scroll-margin-top: 150px; }
             .ca-back { display: inline-flex; align-items: center; min-height: 44px; margin: -6px 0 8px -6px; padding: 0 8px; border: 0; background: none; font: inherit; font-size: 0.9rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
+            .ca-fold summary { min-height: 44px; }
             .ca-link { min-height: 44px; }
             .ca-group dl { grid-template-columns: 1fr; }
         }
@@ -80358,10 +80364,12 @@
     const CA_GROUPS = [
         { title: 'Contact', fields: [['email', 'Email']] },
         { title: 'Social accounts', fields: [['instagram_handle', 'Instagram'], ['tiktok_handle', 'TikTok'], ['youtube_channel_id', 'YouTube channel']] },
-        { title: 'Content research', fields: [['content_description', 'Content description'], ['keywords', 'Keywords'], ['specific_keywords', 'Specific keywords'], ['competitors', 'Competitors']] },
-        { title: 'Team channels', fields: [['slack_channel_id', 'Slack channel'], ['creative_channel_id', 'Creative channel'], ['roam_channel_id', 'Roam channel']] },
+        { title: 'Team channels', fields: [['slack_channel_id', 'Slack channel'], ['creative_channel_id', 'Creative channel']] },
         { title: 'Publishing', fields: [['upload_post_profile', 'Upload-Post profile'], ['postforme_account_id', 'Post for Me account']] },
     ];
+    // Shown last, folded until opened (owner, 2026-09-25): long text nobody
+    // needs at a glance.
+    const CA_RESEARCH = { title: 'Content research', fields: [['content_description', 'Content description'], ['keywords', 'Keywords'], ['specific_keywords', 'Specific keywords'], ['competitors', 'Competitors']] };
     const _caState = { rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false };
     // Bumped by every purge, so a request started under one staff identity
     // can never repopulate the list after a sign-out or role change.
@@ -80460,10 +80468,12 @@
 
     function _caDetailHtml(r) {
         if (!r) return `<div class="ca-detail-empty">Choose a client to see their details.</div>`;
+        const fieldsHtml = g => `<dl>${g.fields.map(([k, label]) => `<div class="ca-field"><dt>${_calEsc(label)}</dt><dd>${_caValue(r[k])}</dd></div>`).join('')}</dl>`;
         const groups = CA_GROUPS.map(g => `<section class="ca-group">
                 <h4>${_calEsc(g.title)}</h4>
-                <dl>${g.fields.map(([k, label]) => `<div class="ca-field"><dt>${_calEsc(label)}</dt><dd>${_caValue(r[k])}</dd></div>`).join('')}</dl>
+                ${fieldsHtml(g)}
             </section>`).join('');
+        const research = `<details class="ca-group ca-fold"><summary><h4>${_calEsc(CA_RESEARCH.title)}</h4></summary>${fieldsHtml(CA_RESEARCH)}</details>`;
         const extra = r.extra && typeof r.extra === 'object' ? Object.entries(r.extra).filter(([, v]) => String(v == null ? '' : v).trim()) : [];
         const extraHtml = extra.length ? `<section class="ca-group"><h4>Other sheet columns</h4><dl>${extra.map(([k, v]) => `<div class="ca-field"><dt>${_calEsc(k)}</dt><dd>${_caValue(v)}</dd></div>`).join('')}</dl></section>` : '';
         const source = r.source === 'syncview' ? 'Edited in SyncView' : 'From the Clients Info sheet';
@@ -80475,7 +80485,7 @@
                     <div class="ca-meta">${r.archived_at ? `<span class="ca-pill is-archived">Archived ${_calEsc(_caWhen(r.archived_at))}</span>` : ''}<span class="ca-pill">${_calEsc(source)}</span></div>
                 </div>
             </header>
-            ${groups}${extraHtml}
+            ${groups}${extraHtml}${research}
             <footer class="ca-prov">Last updated ${_calEsc(_caWhen(r.updated_at) || 'unknown')} by ${_calEsc(r.updated_by || 'unknown')}${r.sheet_synced_at ? ` · copied from the sheet ${_calEsc(_caWhen(r.sheet_synced_at))}` : ''}</footer>`;
     }
 

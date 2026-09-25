@@ -97,6 +97,13 @@ async function open(browser, origin, role, viewport) {
       if (withArchived !== 3) failures.push(`${label}: "Show archived" did not reveal the archived client`);
       await s.page.click('.ca-row >> nth=0');
       await s.page.waitForSelector('.ca-detail-head', { timeout: 3000 }).catch(() => failures.push(`${label}: details never opened`));
+      const lay = await s.page.evaluate(() => {
+        const d = document.querySelector('.ca-detail'); const secs = [...d.querySelectorAll('.ca-group')];
+        const last = secs[secs.length - 1];
+        return { roam: /roam/i.test(d.innerText), lastIsResearch: !!last && last.matches('details.ca-fold') && /Content research/.test(last.innerText), open: !!last && last.open };
+      });
+      if (lay.roam) failures.push(`${label}: the Roam channel field is still shown`);
+      if (!lay.lastIsResearch || lay.open) failures.push(`${label}: Content research is not last and folded (${JSON.stringify(lay)})`);
       const m = await s.page.evaluate(() => {
         const W = document.documentElement.clientWidth;
         const small = [...document.querySelectorAll('.ca-wrap button, .ca-wrap input')].filter(e => e.getClientRects().length)

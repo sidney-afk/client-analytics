@@ -16,6 +16,12 @@
  * each pair is shot back to back so live data cannot drift between them.
  * Animations and transitions are frozen identically in both builds.
  *
+ * Rendering noise, measured: with the SAME build on both sides
+ * (PARITY_CONTROL=1), staff Analytics at 1920 renders its search-button icon
+ * in one of two anti-aliased states at random (21 pixels). So each pair gets
+ * up to four fresh attempts. A real CSS change moves the same pixels on every
+ * load, so it can never pass by retrying; the attempt count is reported.
+ *
  *   node qa/client-phone/desktop-parity.js [--before=<git ref>] [--out=<dir>] [--staff-only]
  */
 const fs = require('fs');
@@ -41,6 +47,7 @@ const builds = {
   before: execFileSync('git', ['show', `${BEFORE_REF}:index.html`], { cwd: ROOT, maxBuffer: 64 << 20 }),
   after: fs.readFileSync(path.join(ROOT, 'index.html')),
 };
+if (process.env.PARITY_CONTROL) builds.after = builds.before; // same build twice: measures harness noise
 const FREEZE = '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}';
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS' };
 const mime = { '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' };
@@ -146,7 +153,9 @@ async function staffTabs(browser) {
   for (const pg of pages) {
     for (const w of WIDTHS) {
       let a, b, same = false;
-      for (let attempt = 0; attempt < 2 && !same; attempt++) {
+      let attempts = 0;
+      for (let attempt = 0; attempt < 4 && !same; attempt++) {
+        attempts++;
         a = await shoot(browser, 'before', w, pg.url, pg.mode, pg.clickId);
         b = await shoot(browser, 'after', w, pg.url, pg.mode, pg.clickId);
         same = a.png.equals(b.png) && a.styleHash === b.styleHash;
@@ -155,10 +164,10 @@ async function staffTabs(browser) {
         fs.writeFileSync(path.join(OUT, `${pg.name}-${w}-before.png`), a.png);
         fs.writeFileSync(path.join(OUT, `${pg.name}-${w}-after.png`), b.png);
       }
-      const row = { page: pg.name, width: w, pixels: a.png.equals(b.png) ? 'identical' : 'DIFFERENT', styles: a.styleHash === b.styleHash ? 'identical' : 'DIFFERENT', sha: crypto.createHash('sha256').update(b.png).digest('hex').slice(0, 12) };
+      const row = { page: pg.name, width: w, pixels: a.png.equals(b.png) ? 'identical' : 'DIFFERENT', styles: a.styleHash === b.styleHash ? 'identical' : 'DIFFERENT', sha: crypto.createHash('sha256').update(b.png).digest('hex').slice(0, 12), attempts };
       if (!same) fail++;
       rows.push(row);
-      console.log(`${same ? 'ok  ' : 'FAIL'} ${pg.name} @${w}: pixels ${row.pixels}, computed styles ${row.styles} (${row.sha})`);
+      console.log(`${same ? 'ok  ' : 'FAIL'} ${pg.name} @${w}: pixels ${row.pixels}, computed styles ${row.styles} (${row.sha}${attempts > 1 ? ', attempts ' + attempts : ''})`);
     }
   }
   await browser.close();

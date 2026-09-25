@@ -9,17 +9,17 @@
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `005-head-boot.html.part` | 260 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 3 | `010-styles-foundation.css.part` | 3885 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 4 | `020-styles-surfaces.css.part` | 4132 | Templates view |
+| 4 | `020-styles-surfaces.css.part` | 4135 | Templates view |
 | 5 | `030-body-shell.html.part` | 445 | Confirmation modal |
-| 6 | `040-shared-briefs.js.part` | 1670 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
+| 6 | `040-shared-briefs.js.part` | 1785 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1709 | Market Research Brief Tab Renderers |
-| 8 | `060-templates-filming.js.part` | 2246 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 8 | `060-templates-filming.js.part` | 2277 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3624 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3413 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
 | 11 | `090-workload-popovers-navigation.js.part` | 1645 | Sub-issue popover |
 | 12 | `100-onboarding-staff-controls.js.part` | 2364 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2189 | Kasper Time Off calendar |
-| 14 | `120-calendar-flags-write-repair.js.part` | 3070 | The members a flag value offers, or null when it offers no member list at |
+| 14 | `120-calendar-flags-write-repair.js.part` | 3075 | The members a flag value offers, or null when it offers no member list at |
 | 15 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
 | 16 | `130-calendar-model-cache.js.part` | 1341 | Returns the comments array for a given component. Falls back to the |
 | 17 | `131-core-html.js.part` | 12 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
@@ -32,19 +32,19 @@
 | 24 | `170-calendar-links-status.js.part` | 2758 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 25 | `180-calendar-native-post-media.js.part` | 2748 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 26 | `190-calendar-approval-comments.js.part` | 2993 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
-| 27 | `200-intake-data-startup.js.part` | 1495 | Video-only and Thumbnail-only were already built, but sat |
+| 27 | `200-intake-data-startup.js.part` | 1496 | Video-only and Thumbnail-only were already built, but sat |
 | 28 | `210-production-state-writes.js.part` | 3200 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 29 | `220-production-attribution-views.js.part` | 2714 | An ABSENT persisted slug is missing evidence, not |
 | 30 | `230-production-create-comments.js.part` | 2639 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 31 | `240-production-description.js.part` | 2646 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 32 | `250-production-controls-data.js.part` | 2880 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 33 | `260-production-refresh-boot.js.part` | 2281 | AND TYPING COUNTS, which is the case this guard was missing. |
-| 34 | `270-samples-model.js.part` | 2706 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
-| 35 | `280-samples-cards-notes.js.part` | 2831 | SURFACE 3: the save engine |
+| 33 | `260-production-refresh-boot.js.part` | 2371 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 34 | `270-samples-model.js.part` | 2707 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
+| 35 | `280-samples-cards-notes.js.part` | 2832 | SURFACE 3: the save engine |
 | 36 | `290-samples-writes-review.js.part` | 1798 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 37 | `300-tiktok-upload.js.part` | 1718 | TIKTOK UPLOAD MODULE |
 | 38 | `310-sales-intake-hiring.js.part` | 1151 | KASPER REVIEW TAB |
-| 39 | `320-kasper-dashboard-replies.js.part` | 3146 | RELOAD RACE (speed map §7). On a reload the stored staff |
+| 39 | `320-kasper-dashboard-replies.js.part` | 3153 | RELOAD RACE (speed map §7). On a reload the stored staff |
 | 40 | `330-kasper-review-history.js.part` | 2614 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 41 | `340-editors-date-picker.js.part` | 1302 | Editor work model |
 | 42 | `350-footer.html.part` | 398 | Transcript preview modal |

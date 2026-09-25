@@ -231,6 +231,11 @@ async function captureRetiredWebhooks(ctx) {
  */
 async function seedVerifiedProbeStaff(page, options) {
   const opts = options || {};
+  // The key is invented, so a production-write call carrying it is answered
+  // locally with the live refusal instead of landing in the refusal log. A
+  // stubNativeGateway registered later still wins (Playwright tries the most
+  // recent route first).
+  await require('./staff-gate-seed.js').refuseStubKeyProductionWrite(page.context());
   return page.evaluate((identity) => {
     try {
       localStorage.setItem('syncview_staff_identity_v1', JSON.stringify(identity));

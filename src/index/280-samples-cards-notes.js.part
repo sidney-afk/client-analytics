@@ -2524,6 +2524,7 @@
     /* ── Legacy drain-only queue + native per-target serialized writes ── */
     const SXR_LINEAR_OUTBOX_MAX = 6, SXR_LINEAR_OUTBOX_RETRY_MS = 60 * 1000;
     let _sxrLinearOutboxTimer = null, _sxrLinearOutboxPromise = null, _sxrLinearOutboxOwnerKey = '';
+    function _sxrSetLinearOutboxTimer(value) { _sxrLinearOutboxTimer = value; }
     // Same retired-row drop as the Calendar twin; see
     // `_writeUiLegacyWithoutRetired` for why it filters here and writes nowhere.
     function _sxrLinearOutboxRead() { try { const a = JSON.parse(localStorage.getItem(SXR_LINEAR_OUTBOX_KEY) || '[]'); return _writeUiLegacyWithoutRetired(Array.isArray(a) ? a : []); } catch (e) { return []; } }

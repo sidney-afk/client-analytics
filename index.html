@@ -118,7 +118,7 @@
                         window.__svEarlyKeyVerify = { key: String(svId.key), memberId: String(svId.member.id), at: Date.now(), response: svVerify };
                     }
                 } catch (e) {}
-                var svFlagKeys = ['calendar_upsert_ef_clients', 'kasper_urgent_ping_enabled', 'write_ui_reroute_clients', 'client_comment_gateway_enabled', 'settings_ef_clients', 'sample_review_ef_clients'];
+                var svFlagKeys = ['calendar_upsert_ef_clients', 'kasper_urgent_ping_enabled', 'write_ui_reroute_clients', 'client_comment_gateway_enabled', 'settings_ef_clients', 'sample_review_ef_clients', 'analytics_mirror_read_enabled'];
                 var svFlags = fetch(svBase + '/rest/v1/syncview_runtime_flags?select=key,value&key=in.(' + encodeURIComponent(svFlagKeys.join(',')) + ')&limit=' + svFlagKeys.length, {
                     headers: { apikey: svKey, Authorization: 'Bearer ' + svKey, Accept: 'application/json' }
                 }).then(function (r) {
@@ -4252,10 +4252,12 @@
         .tpl-brain-add { margin-top: 12px; }
         .tpl-top { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 14px; margin-bottom: 14px; align-items: stretch; }
         .tpl-top .tpl-section { margin-bottom: 0; height: 100%; }
+        .tpl-top.solo { grid-template-columns: 1fr; }
         @media (max-width: 860px) { .tpl-top { grid-template-columns: 1fr; } }
         .tpl-spec-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         @media (max-width: 560px) { .tpl-spec-cards { grid-template-columns: 1fr; } }
         .tpl-spec-card.tpl-spec-group { background: var(--surface-subtle); border: 0; border-radius: 12px; padding: 14px; }
+        .tpl-prev.tpl-skeleton { background: linear-gradient(90deg, var(--sv-skel-base) 0%, var(--sv-skel-sheen) 48%, var(--sv-skel-base) 100%); background-size: 220% 100%; }
         .tpl-prev { margin: 4px 0 12px; min-height: 118px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 16px 12px; text-align: center; background: linear-gradient(160deg, var(--tpl-prev-dark2), var(--tpl-prev-dark)); }
         .tpl-prev.on-light { background: linear-gradient(160deg, var(--tpl-prev-light2), var(--tpl-prev-light)); }
         .tpl-prev-text { font-size: 1.3rem; line-height: 1.25; }
@@ -8279,6 +8281,7 @@
         .ca-msg { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font-size: 0.8rem; line-height: 1.45; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
         .ca-msg.is-error { color: var(--sv-fg-b91c1c); border-color: var(--sv-border-fecaca); background: var(--sv-bg-fff7f7); }
         .ca-editbar { position: sticky; bottom: 0; display: flex; align-items: center; gap: 8px; margin: 16px -4px 0; padding: 12px 4px; background: var(--white); border-top: 1px solid var(--border); }
+        .ca-msg .ca-sa { user-select: all; overflow-wrap: anywhere; font-size: 0.78rem; }
         .ca-editnote { margin-right: auto; font-size: 0.74rem; color: var(--text-muted); }
         .ca-empty { color: var(--text-muted); font-style: italic; }
         .ca-prov { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 0.72rem; color: var(--text-muted); }
@@ -9875,7 +9878,12 @@
     }
 
     function _applyEssentialTexts(metricsText, clientsText){
-        allData=parseCSV(metricsText);
+        const publicClientRows = _applyEssentialRows(parseCSV(metricsText), clientsText);
+        _analyticsAppliedFp.ess = _analyticsFp([metricsText, JSON.stringify(publicClientRows)]);
+        return publicClientRows;
+    }
+    function _applyEssentialRows(metricsRows, clientsText){
+        allData=metricsRows;
         // Rebuild (don't accumulate): a cached paint may be replaced by fresh
         // data in the same session, and a client deleted from the sheet must
         // not linger from the snapshot.
@@ -9912,23 +9920,24 @@
                 console.log('[SyncView] Added placeholder for new client:',name);
             }
         });
-        _analyticsAppliedFp.ess = _analyticsFp([metricsText, JSON.stringify(publicClientRows)]);
         return publicClientRows;
     }
     function _applyExtraTexts(topvidsText, briefsText, mrbText, csText){
-        const rawVideos=parseCSV(topvidsText);
+        _applyExtraRows(parseCSV(topvidsText), parseCSV(briefsText), parseCSV(mrbText), csText!=null?parseCSV(csText):null, mrbText.length);
+        _analyticsAppliedFp.ext = _analyticsFp([topvidsText, briefsText, mrbText, csText || '']);
+    }
+    function _applyExtraRows(rawVideos, briefRows, mrbRows, csRows, mrbChars){
         if(rawVideos.length>0)console.log('[SyncView] TopVideos cols:',Object.keys(rawVideos[0]));
         topVideos=rawVideos.map(normalizeVideoRow);
-        briefs=parseCSV(briefsText);
-        console.log('[SyncView] MR briefs CSV length:',mrbText.length,'chars');
-        mrBriefs=parseCSV(mrbText);
+        briefs=briefRows;
+        if(mrbChars!=null)console.log('[SyncView] MR briefs CSV length:',mrbChars,'chars');
+        mrBriefs=mrbRows;
         console.log('[SyncView] Loaded',briefs.length,'briefs,',mrBriefs.length,'MR briefs');
         if(mrBriefs.length>0){
             console.log('[SyncView] MR brief cols:',Object.keys(mrBriefs[0]));
         }
-        if(csText!=null){
+        if(csRows!=null){
             try{
-                const csRows=parseCSV(csText);
                 const latest={};
                 for(const r of csRows){
                     if(!r.client_name||!r.bullets)continue;
@@ -9942,11 +9951,113 @@
                 console.log('[SyncView] Loaded content summaries for',Object.keys(latest).length,'clients');
             }catch(e){console.warn('[SyncView] ContentSummaries load error:',e);}
         }
-        _analyticsAppliedFp.ext = _analyticsFp([topvidsText, briefsText, mrbText, csText || '']);
         _analyticsExtrasApplied = true;
     }
 
+    /* PHASE 2: A CLIENT LINK READS ITS OWN ROWS FROM THE DATABASE
+       (docs/plans/2026-09-24-sheets-to-supabase.md). Only a verified client
+       link, and only while analytics_mirror_read_enabled says so (on for all,
+       or {"enabled": false, "clients": [slug]} for named clients). One
+       analytics-read call answers both stages for that one client, instead of
+       downloading every client's Sheets. The staff overview still reads the
+       Sheets: it shows every client, and analytics-read answers one.
+
+       FALLBACK: the Sheets are read exactly as before when the flag is off,
+       the read fails or times out, or the database has no copy yet. An empty
+       dataset counts as a real "no rows" only when a complete receipt
+       covers this client; otherwise that stage uses the Sheets. */
+    const ANALYTICS_MIRROR_FLAG_KEY = 'analytics_mirror_read_enabled';
+    const ANALYTICS_MIRROR_TIMEOUT_MS = 8000;
+    let _analyticsMirrorLoad = null;   // { run, promise } for the current client entry
+    async function _analyticsMirrorFlagValue(){
+        let rows = (typeof _svBootFlagRows === 'function' ? await _svBootFlagRows(ANALYTICS_MIRROR_FLAG_KEY) : null);
+        if (!rows) {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(ANALYTICS_MIRROR_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            rows = await resp.json();
+        }
+        const row = Array.isArray(rows) ? rows[0] : null;
+        return row ? row.value : null;
+    }
+    function _analyticsMirrorOnFor(value, slug){
+        if (!value || typeof value !== 'object') return false;
+        if (value.enabled === true) return true;
+        return Array.isArray(value.clients) && value.clients.some(c => String(c).trim() === slug);
+    }
+    const _analyticsMirrorText = v => v == null ? '' : String(v);
+    function _analyticsMirrorRows(rows){
+        return (Array.isArray(rows) ? rows : []).map(r => {
+            const o = {};
+            Object.keys(r || {}).forEach(k => { o[k] = _analyticsMirrorText(r[k]); });
+            return o;
+        });
+    }
+    // null = use the Sheets for both stages; otherwise { ess, ext }, either
+    // of which may be null (that stage uses the Sheets).
+    function _analyticsMirrorRead(clientEntryRun){
+        if (!clientEntryRun || typeof _isClientLink === 'undefined' || !_isClientLink) return Promise.resolve(null);
+        const cap = typeof _syncviewClientEntryCapability !== 'undefined' ? _syncviewClientEntryCapability : null;
+        if (!cap || !cap.verified || !cap.slug) return Promise.resolve(null);
+        if (_analyticsMirrorLoad && _analyticsMirrorLoad.run === clientEntryRun) return _analyticsMirrorLoad.promise;
+        const started = performance.now();
+        const promise = (async () => {
+            if (!_analyticsMirrorOnFor(await _analyticsMirrorFlagValue().catch(() => null), cap.slug)) return null;
+            const token = _syncviewClientWriteToken();
+            if (!token) return null;
+            const controller = typeof AbortController === 'function' ? new AbortController() : null;
+            const timer = controller ? setTimeout(() => controller.abort(), ANALYTICS_MIRROR_TIMEOUT_MS) : null;
+            const onAbort = () => { if (controller) controller.abort(); };
+            if (clientEntryRun.signal) clientEntryRun.signal.addEventListener('abort', onAbort, { once: true });
+            try {
+                const resp = await fetch(CAL_SUPABASE_URL + '/functions/v1/analytics-read', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Syncview-Client-Token': token },
+                    cache: 'no-store',
+                    signal: controller ? controller.signal : undefined,
+                    body: JSON.stringify({ slug: cap.slug })
+                });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const json = await resp.json();
+                if (!json || json.ok !== true || json.slug !== cap.slug || !json.data || typeof json.data !== 'object') throw new Error('unexpected answer');
+                const d = json.data, rc = json.receipts || {};
+                const covered = (rows, receipt) => (Array.isArray(rows) && rows.length > 0) || !!rc[receipt];
+                const profile = d.client_profile;
+                const ess = (profile && profile.display_name && covered(d.metrics, 'metrics')) ? {
+                    metrics: _analyticsMirrorRows(d.metrics),
+                    clients: [{ client_name: String(profile.display_name), instagram_handle: _analyticsMirrorText(profile.instagram_handle),
+                        tiktok_handle: _analyticsMirrorText(profile.tiktok_handle), youtube_channel_id: _analyticsMirrorText(profile.youtube_channel_id),
+                        content_description: _analyticsMirrorText(profile.content_description) }]
+                } : null;
+                const ext = (covered(d.top_videos, 'top_videos') && covered(d.market_research_briefs, 'market_research_briefs')
+                    && covered(d.content_summaries, 'content_summaries')) ? {
+                    topvids: _analyticsMirrorRows(d.top_videos),
+                    mrbriefs: _analyticsMirrorRows(d.market_research_briefs),
+                    summaries: _analyticsMirrorRows(d.content_summaries)
+                } : null;
+                console.log('[SyncView] analytics database read in ' + Math.round(performance.now() - started) + ' ms'
+                    + (ess ? '' : '; no copy of the numbers yet, using the Sheets') + (ext ? '' : '; no copy of videos/briefs yet, using the Sheets'));
+                return { ess, ext };
+            } finally {
+                if (timer) clearTimeout(timer);
+                if (clientEntryRun.signal) clientEntryRun.signal.removeEventListener('abort', onAbort);
+            }
+        })().catch(e => {
+            console.warn('[SyncView] analytics database read failed, using the Sheets:', e && e.message);
+            return null;
+        });
+        _analyticsMirrorLoad = { run: clientEntryRun, promise };
+        return promise;
+    }
+
     async function fetchEssentials(clientEntryRun){
+        const mirror=await _analyticsMirrorRead(clientEntryRun);
+        if(mirror&&mirror.ess){
+            if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
+            _analyticsLiveEssentials = true;
+            _applyEssentialRows(mirror.ess.metrics, mirror.ess.clients);
+            return;   // a client link never saves a copy
+        }
         const requestOpts=clientEntryRun?{signal:clientEntryRun.signal}:undefined;
         const [mr,cr]=await Promise.all([fetch(METRICS_URL,requestOpts),fetch(CLIENTS_URL,requestOpts)]);
         const metricsText=await mr.text(), clientsText=await cr.text();
@@ -9977,6 +10088,13 @@
         const attempt=++_fetchExtrasAttempt;
         _fetchExtrasState={status:'loading',run:clientEntryRun||null};
         const request=(async () => {
+            const mirror=await _analyticsMirrorRead(clientEntryRun);
+            if(mirror&&mirror.ext){
+                if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
+                _analyticsPendingExtras = null;
+                _applyExtraRows(mirror.ext.topvids, [], mirror.ext.mrbriefs, mirror.ext.summaries, null);
+                return;   // a client link never saves a copy
+            }
             const requestOpts=clientEntryRun?{signal:clientEntryRun.signal}:undefined;
             const [tr,mrb,cs]=await Promise.all([
                 fetch(TOPVIDS_URL,requestOpts),
@@ -12800,6 +12918,8 @@
             pill.style.textDecoration = 'none';
             pill.style.color = 'inherit';
             if (!_tplPinsEditMode) pill.onclick = (e) => { e.preventDefault(); openClientTemplate(name); };
+            // Start loading the client's facts and folders on hover, so they are often ready by the click.
+            if (!_tplPinsEditMode) pill.addEventListener('pointerenter', () => { _tplBrainEnsure(name); _tplFoldersEnsure(name); }, { once: true });
             else pill.onclick = (e) => { e.preventDefault(); };
             const nameSpan = document.createElement('span');
             nameSpan.textContent = name;
@@ -13029,7 +13149,26 @@
             return j;
         });
     }
+    // Last-seen brain facts and folders per client, kept in this browser so a revisit
+    // paints at once while a fresh copy loads behind it.
+    const TPL_CACHE_KEY = 'sv.tplCache.v1';
+    function _tplCacheGet(kind, name) {
+        try { const all = JSON.parse(localStorage.getItem(TPL_CACHE_KEY) || '{}'); return all[kind + ':' + name] || null; } catch (e) { return null; }
+    }
+    function _tplCachePut(kind, name, val) {
+        try {
+            const all = JSON.parse(localStorage.getItem(TPL_CACHE_KEY) || '{}');
+            all[kind + ':' + name] = Object.assign({ savedAt: Date.now() }, val);
+            const keys = Object.keys(all).sort((a, b) => (all[b].savedAt || 0) - (all[a].savedAt || 0));
+            keys.slice(24).forEach(k => { delete all[k]; });
+            localStorage.setItem(TPL_CACHE_KEY, JSON.stringify(all));
+        } catch (e) {}
+    }
     function _tplBrainEnsure(name, force) {
+        if (!_tplBrain[name]) {
+            const c = _tplCacheGet('brain', name);
+            if (c) _tplBrain[name] = { state: 'ready', at: 0, facts: c.facts || [], brief: c.brief || [], found: !!c.found, folder: c.folder || '' };
+        }
         const cur = _tplBrain[name];
         // Errors retry only from the button; a ready copy refreshes once stale.
         if (cur && !force && (cur.state !== 'ready' || Date.now() - (cur.at || 0) < TPL_BRAIN_STALE_MS)) return;
@@ -13039,6 +13178,7 @@
             // Fresh facts replace any "Saved, updating" note for this client.
             Object.keys(_tplSpecSent).forEach(k => { if (k.indexOf(name + '::') === 0 && _tplSpecSent[k] === 'sent') delete _tplSpecSent[k]; });
             _tplBrain[name] = { state: 'ready', at: Date.now(), facts: Array.isArray(j.facts) ? j.facts : [], brief: Array.isArray(j.brief) ? j.brief : [], found: !!j.found, folder: j.folder || '' };
+            _tplCachePut('brain', name, { facts: _tplBrain[name].facts, brief: _tplBrain[name].brief, found: _tplBrain[name].found, folder: _tplBrain[name].folder });
         }).catch(e => {
             _tplBrain[name] = { state: 'error', facts: [], error: e && e.message || String(e) };
         }).then(() => { if (_templatesSelected === name) _maybeRerenderTemplates(); });
@@ -13048,10 +13188,13 @@
     const _tplFolders = {};          // client -> { state, frame, raw }
     function _tplFoldersEnsure(name, force) {
         if (_tplFolders[name] && !force) return;
-        _tplFolders[name] = { state: 'loading', frame: [], raw: [] };
+        // Show the last-seen folders straight away and swap in fresh ones when they arrive.
+        const c = !force && _tplCacheGet('folders', name);
+        _tplFolders[name] = c ? { state: 'ready', frame: c.frame || [], raw: c.raw || [] } : { state: 'loading', frame: [], raw: [] };
         _tplBrainPost({ action: 'folders', clientName: name }).then(j => {
             _tplFolders[name] = { state: 'ready', frame: j.frame || [], raw: j.raw || [] };
-        }).catch(() => { _tplFolders[name] = { state: 'error', frame: [], raw: [] }; })
+            _tplCachePut('folders', name, { frame: _tplFolders[name].frame, raw: _tplFolders[name].raw });
+        }).catch(() => { if (!c) _tplFolders[name] = { state: 'error', frame: [], raw: [] }; })
           .then(() => { if (_templatesSelected === name) _maybeRerenderTemplates(); });
     }
     function tplFoldersRetry() { if (_templatesSelected) { _tplFoldersEnsure(_templatesSelected, true); _maybeRerenderTemplates(); } }
@@ -13065,7 +13208,8 @@
         _tplFoldersEnsure(name);
         const f = _tplFolders[name];
         if (f && f.state === 'error') return `<div class="tpl-brain-empty-note">Couldn't load recent folders. <button type="button" class="tpl-brain-change-btn" onclick="tplFoldersRetry()">Try again</button></div>`;
-        if (!f || f.state !== 'ready' || (!f.frame.length && !f.raw.length)) return '';
+        if (!f || f.state === 'loading') return `<div class="tpl-folders" aria-busy="true">${[0, 1].map(() => '<div><div class="tpl-skeleton tpl-skeleton-line" style="width:40%;"></div><div class="tpl-skeleton tpl-skeleton-line" style="width:85%;margin-top:14px;"></div></div>').join('')}</div>`;
+        if (f.state !== 'ready' || (!f.frame.length && !f.raw.length)) return '';
         const col = (label, items) => `<div><div class="tpl-brain-spec-label">${label}</div>${items.length
             ? items.map(i => `<a class="tpl-batch-row" href="${_tplEscAttr(i.url)}" target="_blank" rel="noopener"><span>${_tplEsc(i.name || 'Untitled batch')}</span><span class="tpl-batch-meta">${_tplEsc([_tplFolderHost(i.url), _tplFolderDate(i.at)].filter(Boolean).join(', '))}</span></a>`).join('')
             : _NOT_SET}</div>`;
@@ -13245,7 +13389,11 @@
     }
     function _tplBrainSpecStrip(name) {
         const b = _tplBrain[name];
-        if (!b || b.state !== 'ready' || !b.found) return '';
+        if (!b || b.state === 'loading') return `<div class="tpl-section tpl-brain-strip" aria-busy="true">
+            <div class="tpl-section-title">Quick look</div>
+            <div class="tpl-spec-cards">${TPL_SPEC_KINDS.map(k => `<div class="tpl-spec-group tpl-spec-card"><div class="tpl-spec-group-head"><span class="tpl-brain-spec-label">${k.label}</span></div><div class="tpl-prev tpl-skeleton"></div><div class="tpl-skeleton tpl-skeleton-line" style="width:70%;"></div><div class="tpl-skeleton tpl-skeleton-line" style="width:50%;margin-top:8px;"></div></div>`).join('')}</div>
+        </div>`;
+        if (b.state !== 'ready' || !b.found) return '';
         const facts = b.facts || [];
         const core = TPL_SPEC_KINDS.map(k => {
             const key = name + '::' + k.kind;
@@ -13522,6 +13670,7 @@
                 </div>
               </div>`;
         const batches = isEdit ? '' : _tplRecentFolders(name);
+        const quickLook = isEdit ? '' : _tplBrainSpecStrip(name);
 
         const editToggle = isEdit
             ? `<button class="tpl-edit-btn done" onclick="setTemplatesEditMode(false)">Done</button>`
@@ -13540,8 +13689,8 @@
                 <div class="tpl-client-name-wrap"><div class="tpl-client-name">${_tplEsc(name)}</div>${obBtn}</div>
                 <div class="tpl-head-right">${_svSaveIndHtml('templates')}${editToggle}</div>
             </div>
-            ${isEdit ? `${links}` : `<div class="tpl-top">
-                <div class="tpl-top-main">${_tplBrainSpecStrip(name)}</div>
+            ${isEdit ? `${links}` : `<div class="tpl-top${quickLook ? '' : ' solo'}">
+                ${quickLook ? `<div class="tpl-top-main">${quickLook}</div>` : ''}
                 <div class="tpl-top-side">${linksRail}</div>
             </div>
             ${batches ? `<div class="tpl-section">${batches}</div>` : ''}`}
@@ -28769,7 +28918,12 @@
                 ? error.status : null;
             const claim = {
                 action: 'browser_claim', surface: String(surface || ''),
-                operation: item && item.kind, code: error && error.code, identifiers
+                operation: item && item.kind, code: error && error.code, identifiers,
+                // Which kind of page refused: a client link or a staff page.
+                // A claim like the rest of this beacon (the server stores it as
+                // unverified), but it lets the log tell a client's refusal from
+                // staff without joining request logs (triage 2026-09-25).
+                page: (typeof _isClientLink !== 'undefined' && _isClientLink) ? 'client_link' : 'staff_page'
             };
             if (status !== null) claim.status = status;
             const body = JSON.stringify(claim);
@@ -51207,6 +51361,7 @@
         // failed and the nav button stayed hidden on every refresh).
         const KASPER_UNLOCK_KEY = 'syncview_kasper_unlocked';
         let _kasperUnlocked = false;
+        function _setKasperUnlocked(value) { _kasperUnlocked = value; }
         /* ============================================================
            PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI
            Hidden behind ?prod=1 / verified staff navigation. Reads the native
@@ -66685,7 +66840,7 @@
                     _kasperArrivedFromUnlockParam = !_kasperAlreadyUnlocked;
                 }
                 if(sessionStorage.getItem(KASPER_UNLOCK_KEY)==='ok'){
-                    _kasperUnlocked=true;
+                    _setKasperUnlocked(true);
                     const navKp=document.getElementById('navKasper');
                     if(navKp) navKp.style.display='';
                     _navPillSync(false);   // a revealed tab reflows the strip
@@ -67049,7 +67204,7 @@
         }
         if (_sxrLinearOutboxTimer) {
             clearTimeout(_sxrLinearOutboxTimer);
-            _sxrLinearOutboxTimer = null;
+            _sxrSetLinearOutboxTimer(null);
         }
     }
     function _syncviewPurgeClientEntrySurface() {
@@ -67076,7 +67231,7 @@
             _calSetFocusRequest(null); _calSetPendingDeepLink(null);
         } catch (e) {}
         try {
-            _sxrLoadSeq++;
+            _sxrNextLoadSeq();
             sxrState.client = null; sxrState.posts = []; sxrState.loading = false; sxrState.error = null;
             sxrState.embedded = false; sxrState.previewId = null; sxrState.focusCard = null;
         } catch (e) {}
@@ -68013,6 +68168,7 @@
     const SXR_LOAD_TIMEOUT_MS = 20000;
     const SXR_CACHE_PREFIX = 'syncview_sxr_cache_v2_';
     let _sxrLoadSeq = 0;
+    function _sxrNextLoadSeq() { return ++_sxrLoadSeq; }
     let _sxrLoadController = null;
     let _sxrBgLoadInFlight = false;
     let _sxrLastNetworkLoadAt = 0;
@@ -72619,6 +72775,7 @@
     /* ── Legacy drain-only queue + native per-target serialized writes ── */
     const SXR_LINEAR_OUTBOX_MAX = 6, SXR_LINEAR_OUTBOX_RETRY_MS = 60 * 1000;
     let _sxrLinearOutboxTimer = null, _sxrLinearOutboxPromise = null, _sxrLinearOutboxOwnerKey = '';
+    function _sxrSetLinearOutboxTimer(value) { _sxrLinearOutboxTimer = value; }
     // Same retired-row drop as the Calendar twin; see
     // `_writeUiLegacyWithoutRetired` for why it filters here and writes nowhere.
     function _sxrLinearOutboxRead() { try { const a = JSON.parse(localStorage.getItem(SXR_LINEAR_OUTBOX_KEY) || '[]'); return _writeUiLegacyWithoutRetired(Array.isArray(a) ? a : []); } catch (e) { return []; } }
@@ -80594,6 +80751,13 @@
             _caEditSay(`Saving is not switched on yet: the sheet has not been connected${json.service_account ? ` (share it with ${_calEsc(json.service_account)})` : ''}. Nothing was saved.`, 'error');
         } else if (err === 'sheet_not_shared' || err === 'sheet_not_editable') {
             _caEditSay('SyncView cannot edit the Clients Info sheet yet (it needs Editor access). Nothing was saved.', 'error');
+            // Ask the server which Google account to share with (admin-only
+            // status action) and add it to the message.
+            _caEditPost('status').then(({ resp: sr, json: st }) => {
+                if (generation !== _caGeneration || _caState.edit !== ed || !sr.ok || !st.ok || !st.service_account) return;
+                _caEditSay(`SyncView cannot edit the Clients Info sheet yet. Share the sheet as <b>Editor</b> with <code class="ca-sa">${_calEsc(st.service_account)}</code>, then save again. Nothing was saved.`, 'error');
+                _caPaint();
+            }).catch(() => {});
         } else if (err === 'saved_to_sheet_only') {
             _caEditSay('Saved to the sheet, but SyncView\'s copy did not update. The daily copy will bring it in; refresh the list later.', 'error');
         } else if (resp.status === 401 || resp.status === 403) {

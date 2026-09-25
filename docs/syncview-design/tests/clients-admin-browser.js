@@ -63,6 +63,8 @@ async function open(browser, origin, role, viewport) {
     if (u.pathname === '/functions/v1/client-profile-write') {
       const b = JSON.parse(r.postData() || '{}');
       edits.push({ body: b, key: r.headers()['x-syncview-key'] });
+      if (b.action === 'status') return json({ ok: true, sheet_configured: true, service_account: 'robot@fixture.iam.example.invalid', sheet_id_secret: 'X' });
+      if (ctl.edit === 'unshared') return route.fulfill({ status: 502, headers: CORS, contentType: 'application/json', body: '{"ok":false,"error":"sheet_not_shared"}' });
       if (b.action === 'refresh_from_sheet') return json({ ok: true, row: Object.assign({}, ROWS[0], { instagram_handle: '@from-sheet', updated_at: '2026-09-25T09:00:00Z' }) });
       if (ctl.edit === 'conflict') return route.fulfill({ status: 409, headers: CORS, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'sheet_changed', fields: ['instagram_handle'] }) });
       const row = ROWS.find(x => x.slug === b.slug);
@@ -162,6 +164,12 @@ async function open(browser, origin, role, viewport) {
       const refreshed = await s.page.evaluate(() => ({ ig: document.querySelector('#caIn_instagram_handle').value, tt: document.querySelector('#caIn_tiktok_handle').value }));
       if (refreshed.ig !== '@from-sheet' || refreshed.tt !== '@new-tiktok') failures.push(`${label}: after loading the sheet: ${JSON.stringify(refreshed)}`);
       if (s.edits.length !== 3 || s.edits[2].body.action !== 'refresh_from_sheet') failures.push(`${label}: expected save, save, refresh; got ${s.edits.map(e => e.body.action).join(',')}`);
+      // The sheet is not shared yet: the page asks for the account to share with.
+      s.ctl.edit = 'unshared';
+      await s.page.click('.ca-save');
+      await s.page.waitForFunction(() => /robot@fixture\.iam\.example\.invalid/.test((document.querySelector('.ca-msg') || {}).innerText || ''), null, { timeout: 5000 })
+        .catch(() => failures.push(`${label}: an unshared sheet did not show the service account to share with`));
+      if (s.edits.length !== 5 || s.edits[4].body.action !== 'status' || s.edits[4].key !== 'qa-admin-key') failures.push(`${label}: expected a status call with the admin key after the refusal; got ${s.edits.map(e => e.body.action).join(',')}`);
       s.ctl.edit = 'ok';
       s.page.once('dialog', d => d.accept());
       await s.page.click('.ca-editbar .cc-btn:not(.primary)');

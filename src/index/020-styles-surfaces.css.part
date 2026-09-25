@@ -81,10 +81,12 @@
         .tpl-brain-add { margin-top: 12px; }
         .tpl-top { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 14px; margin-bottom: 14px; align-items: stretch; }
         .tpl-top .tpl-section { margin-bottom: 0; height: 100%; }
+        .tpl-top.solo { grid-template-columns: 1fr; }
         @media (max-width: 860px) { .tpl-top { grid-template-columns: 1fr; } }
         .tpl-spec-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         @media (max-width: 560px) { .tpl-spec-cards { grid-template-columns: 1fr; } }
         .tpl-spec-card.tpl-spec-group { background: var(--surface-subtle); border: 0; border-radius: 12px; padding: 14px; }
+        .tpl-prev.tpl-skeleton { background: linear-gradient(90deg, var(--sv-skel-base) 0%, var(--sv-skel-sheen) 48%, var(--sv-skel-base) 100%); background-size: 220% 100%; }
         .tpl-prev { margin: 4px 0 12px; min-height: 118px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 16px 12px; text-align: center; background: linear-gradient(160deg, var(--tpl-prev-dark2), var(--tpl-prev-dark)); }
         .tpl-prev.on-light { background: linear-gradient(160deg, var(--tpl-prev-light2), var(--tpl-prev-light)); }
         .tpl-prev-text { font-size: 1.3rem; line-height: 1.25; }
@@ -4108,6 +4110,7 @@
         .ca-msg { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font-size: 0.8rem; line-height: 1.45; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
         .ca-msg.is-error { color: var(--sv-fg-b91c1c); border-color: var(--sv-border-fecaca); background: var(--sv-bg-fff7f7); }
         .ca-editbar { position: sticky; bottom: 0; display: flex; align-items: center; gap: 8px; margin: 16px -4px 0; padding: 12px 4px; background: var(--white); border-top: 1px solid var(--border); }
+        .ca-msg .ca-sa { user-select: all; overflow-wrap: anywhere; font-size: 0.78rem; }
         .ca-editnote { margin-right: auto; font-size: 0.74rem; color: var(--text-muted); }
         .ca-empty { color: var(--text-muted); font-style: italic; }
         .ca-prov { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 0.72rem; color: var(--text-muted); }

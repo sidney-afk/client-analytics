@@ -106,7 +106,10 @@ const WRITE_UI_REROUTE_PRODUCTION_ROWS = [
   { key: 'calendar_upsert_ef_clients', value: { clients: [WRITE_UI_REROUTE_TEST_CLIENT] } },
   { key: 'sample_review_ef_clients', value: { clients: [WRITE_UI_REROUTE_TEST_CLIENT] } },
   { key: 'settings_ef_clients', value: { clients: [WRITE_UI_REROUTE_TEST_CLIENT] } },
-  { key: 'kasper_urgent_ping_enabled', value: { enabled: false } }
+  { key: 'kasper_urgent_ping_enabled', value: { enabled: false } },
+  // Analytics Phase 2 read flag: served off, as it is live, so harness
+  // client links keep reading the Sheets.
+  { key: 'analytics_mirror_read_enabled', value: { enabled: false } }
 ];
 
 /* THE EXPLICIT LEGACY ROSTER, for the lanes that are ABOUT the legacy write path.

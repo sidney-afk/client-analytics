@@ -92,7 +92,7 @@
                         window.__svEarlyKeyVerify = { key: String(svId.key), memberId: String(svId.member.id), at: Date.now(), response: svVerify };
                     }
                 } catch (e) {}
-                var svFlagKeys = ['calendar_upsert_ef_clients', 'kasper_urgent_ping_enabled', 'write_ui_reroute_clients', 'client_comment_gateway_enabled', 'settings_ef_clients', 'sample_review_ef_clients'];
+                var svFlagKeys = ['calendar_upsert_ef_clients', 'kasper_urgent_ping_enabled', 'write_ui_reroute_clients', 'client_comment_gateway_enabled', 'settings_ef_clients', 'sample_review_ef_clients', 'analytics_mirror_read_enabled'];
                 var svFlags = fetch(svBase + '/rest/v1/syncview_runtime_flags?select=key,value&key=in.(' + encodeURIComponent(svFlagKeys.join(',')) + ')&limit=' + svFlagKeys.length, {
                     headers: { apikey: svKey, Authorization: 'Bearer ' + svKey, Accept: 'application/json' }
                 }).then(function (r) {

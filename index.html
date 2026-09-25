@@ -11741,7 +11741,8 @@
         // the multiple-link inputs (each keyed by its own data-attr).
         if (ae && ae.hasAttribute && (ae.hasAttribute('data-tpl-field') || ae.hasAttribute('data-tpl-set') || ae.hasAttribute('data-tpl-link-set'))) return;
         // Same for a "Send a change" box being typed into.
-        if (ae && ae.closest && (ae.closest('.tpl-brain-form') || ae.closest('.tpl-spec-form'))) return;
+        // Only a field being typed into blocks it; a focused Save/Cancel button must not.
+        if (ae && ae.matches && ae.matches('input, textarea') && (ae.closest('.tpl-brain-form') || ae.closest('.tpl-spec-form'))) return;
         content.innerHTML = renderTemplatesView();
         mountTemplatesView();
     }
@@ -12972,6 +12973,8 @@
         // A background refresh keeps showing the current facts instead of a skeleton.
         _tplBrain[name] = cur && cur.state === 'ready' ? Object.assign({}, cur, { refreshing: true }) : { state: 'loading', facts: cur && cur.facts || [] };
         _tplBrainPost({ action: 'read', clientName: name }).then(j => {
+            // Fresh facts replace any "Saved, updating" note for this client.
+            Object.keys(_tplSpecSent).forEach(k => { if (k.indexOf(name + '::') === 0 && _tplSpecSent[k] === 'sent') delete _tplSpecSent[k]; });
             _tplBrain[name] = { state: 'ready', at: Date.now(), facts: Array.isArray(j.facts) ? j.facts : [], brief: Array.isArray(j.brief) ? j.brief : [], found: !!j.found, folder: j.folder || '' };
         }).catch(e => {
             _tplBrain[name] = { state: 'error', facts: [], error: e && e.message || String(e) };
@@ -13054,7 +13057,13 @@
         String(spec || '').split(';').forEach(p => { const i = p.indexOf('='); if (i > 0) out[p.slice(0, i).trim().toLowerCase()] = p.slice(i + 1).trim(); });
         return out;
     }
-    function tplSpecOpen(key) { _tplSpecForm = _tplSpecForm === key ? '' : key; delete _tplSpecSent[key]; _maybeRerenderTemplates(); }
+    function tplSpecOpen(key) {
+        const opening = _tplSpecForm !== key;
+        _tplSpecForm = opening ? key : ''; delete _tplSpecSent[key]; _maybeRerenderTemplates();
+        // Keep keyboard focus sensible: into the form on open, back to its button on close.
+        const sel = opening ? `.tpl-spec-form[data-k="${CSS.escape(key)}"] [data-f=font]` : `.tpl-spec-btn[data-k="${CSS.escape(key)}"]`;
+        const el = document.querySelector(sel); if (el) el.focus();
+    }
     function tplSpecHexSync(el) {
         const row = el.closest('.tpl-spec-colour'); if (!row) return;
         const txt = row.querySelector('input[type=text]'), pick = row.querySelector('input[type=color]');
@@ -13066,7 +13075,10 @@
         if (!name || !form) return;
         const k = TPL_SPEC_KINDS.find(x => key.endsWith('::' + x.kind));
         const font = form.querySelector('[data-f=font]').value.trim();
-        const hex = v => { v = String(v || '').trim(); return /^#?[0-9a-fA-F]{6}$/.test(v) ? (v[0] === '#' ? v : '#' + v).toLowerCase() : ''; };
+        const hex = v => { v = String(v || '').trim(); return /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v) ? (v[0] === '#' ? v : '#' + v).toLowerCase() : ''; };
+        // A colour typed in a shape we cannot read is flagged, never silently dropped.
+        const bad = ['colour', 'hl'].map(f => form.querySelector(`[data-f=${f}]`)).find(el => el.value.trim() && !hex(el.value) && !(el.dataset.f === 'hl' && form.querySelector('[data-f=nohl]').checked));
+        if (bad) { bad.setCustomValidity('Use a colour code, like the ones the picker gives'); bad.reportValidity(); bad.oninput = () => bad.setCustomValidity(''); return; }
         const colour = hex(form.querySelector('[data-f=colour]').value);
         const noHl = form.querySelector('[data-f=nohl]').checked;
         const hl = noHl ? 'none' : hex(form.querySelector('[data-f=hl]').value);
@@ -13121,7 +13133,8 @@
             return `<div class="tpl-brain-spec-row">
                 <span class="tpl-brain-spec-label">${k.label}</span>
                 <span class="tpl-brain-spec-chips">${has ? _tplBrainSpecChips(fact.spec) : '<span class="tpl-spec-empty">Not set</span>'}
-                    ${sent ? '<span class="tpl-spec-empty">Saved. Updating in a minute or two.</span>' : `<button type="button" class="tpl-spec-btn" data-k="${_tplEscAttr(key)}" onclick="tplSpecOpen(this.dataset.k)">${has ? 'Edit' : 'Add'}</button>`}
+                    ${sent ? '<span class="tpl-spec-empty">Saved. Updating in a minute or two.</span>' : ''}
+                    <button type="button" class="tpl-spec-btn" data-k="${_tplEscAttr(key)}" onclick="tplSpecOpen(this.dataset.k)">${has ? 'Edit' : 'Add'}</button>
                 </span>
                 ${open ? _tplSpecForm_(name, k, has ? _tplSpecValues(fact.spec) : null, key) : ''}
             </div>`;

@@ -5,7 +5,7 @@
  * the same data: downloading the Google Sheets tabs the page reads.
  * Read-only; writes nothing anywhere.
  *
- *   SYNCVIEW_STAFF_KEY=... node scripts/sheets-mirror-read-timing.js [--slug=sidneylaruel] [--runs=5]
+ *   SYNCVIEW_STAFF_KEY=... node scripts/sheets-mirror-read-timing.js --slug=<client slug> [--runs=5]
  *
  * Run it after the migration is applied, the functions are deployed and the
  * backfill has run (docs/plans/2026-09-24-sheets-to-supabase.md, Phase 1).
@@ -19,7 +19,7 @@ if (!SHEET_ID) throw new Error('SHEET_ID not found in src/index/040-shared-brief
 const BASE = process.env.SYNCVIEW_SUPABASE_URL || 'https://uzltbbrjidmjwwfakwve.supabase.co';
 const TABS = ['Metrics', 'Clients Info', 'TopVideos', 'Market Research Briefs', 'ContentSummaries'];
 const arg = (n, d) => { const a = process.argv.find(x => x.startsWith(n + '=')); return a ? a.slice(n.length + 1) : d; };
-const slug = arg('--slug', 'sidneylaruel');
+const slug = arg('--slug', '');
 const runs = Math.max(1, Number(arg('--runs', '5')) || 5);
 const median = xs => { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
 
@@ -32,6 +32,7 @@ async function timed(fn) {
 (async () => {
   const key = process.env.SYNCVIEW_STAFF_KEY || '';
   if (!key) throw new Error('set SYNCVIEW_STAFF_KEY (a staff role key) in the environment');
+  if (!slug) throw new Error('pass --slug=<client slug> (the test client, for example)');
   const fn = [];
   const sheets = [];
   for (let i = 0; i < runs; i++) {

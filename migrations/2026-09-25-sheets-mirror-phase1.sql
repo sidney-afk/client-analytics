@@ -23,6 +23,9 @@
 -- the first copy of those values in a batch, 2 for the second, ...). Writes
 -- are upserts on that key, so a retried batch, or a backfill run after n8n
 -- started writing, never double-counts. seq keeps arrival order.
+-- For n8n, occurrence continues ACROSS calls: the writer counts identical
+-- rows already stored by other (run_id, run_part) calls, so a real repeat in
+-- a later run is kept while a retry of the same call is not doubled.
 --
 -- CLIENT PROFILES AND A FUTURE ADMIN TAB. Today the Sheet is the source and
 -- the copy is one-way (Sheet -> Supabase, daily). Nothing here assumes that
@@ -105,6 +108,7 @@ create table if not exists public.analytics_metrics (
   extra                      jsonb not null default '{}'::jsonb check (jsonb_typeof(extra) = 'object'),
   source                     text not null check (source in ('sheet-backfill', 'n8n')),
   run_id                     text not null,
+  run_part                   integer not null default 0 check (run_part >= 0),
   ingested_at                timestamptz not null default now(),
   primary key (row_hash, row_occurrence)
 );
@@ -131,6 +135,7 @@ create table if not exists public.analytics_top_videos (
   extra           jsonb not null default '{}'::jsonb check (jsonb_typeof(extra) = 'object'),
   source          text not null check (source in ('sheet-backfill', 'n8n')),
   run_id          text not null,
+  run_part        integer not null default 0 check (run_part >= 0),
   ingested_at     timestamptz not null default now(),
   primary key (row_hash, row_occurrence)
 );
@@ -169,6 +174,7 @@ create table if not exists public.analytics_content_summaries (
   extra           jsonb not null default '{}'::jsonb check (jsonb_typeof(extra) = 'object'),
   source          text not null check (source in ('sheet-backfill', 'n8n')),
   run_id          text not null,
+  run_part        integer not null default 0 check (run_part >= 0),
   ingested_at     timestamptz not null default now(),
   primary key (row_hash, row_occurrence)
 );
@@ -185,7 +191,11 @@ create table if not exists public.analytics_ingest_receipts (
   rows_received integer not null check (rows_received >= 0),
   rows_written  integer not null check (rows_written >= 0),
   client_slugs  text[] not null default '{}',
+  run_part      integer not null default 0 check (run_part >= 0),
   complete      boolean not null,
+  -- true only on the call that ends a whole-dataset copy (the backfill, the
+  -- daily Clients Info copy): it covers every client, not just client_slugs.
+  full_snapshot boolean not null default false,
   created_at    timestamptz not null default now()
 );
 create index if not exists analytics_ingest_receipts_dataset_idx

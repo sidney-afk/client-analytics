@@ -62,18 +62,28 @@ async function readAll(
   }
 }
 
-async function latestReceipts(supabase: SupabaseClient): Promise<JsonMap> {
+// The newest COMPLETE receipt that proves this client was covered: either a
+// call that listed this client, or a whole-dataset copy (backfill, daily
+// Clients Info copy). A receipt for other clients never vouches for this one,
+// so Phase 2 can trust "empty + covered" as a real "no rows".
+async function coveringReceipts(supabase: SupabaseClient, slug: string): Promise<JsonMap> {
   const names = ["metrics", "top_videos", "market_research_briefs", "content_summaries", "client_profiles"];
-  const found = await Promise.all(names.map(async (dataset) => {
-    const { data, error } = await supabase
-      .from("analytics_ingest_receipts")
-      .select("source,run_id,rows_received,rows_written,complete,created_at")
-      .eq("dataset", dataset)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  const cols = "source,run_id,run_part,rows_received,rows_written,complete,full_snapshot,created_at";
+  const newest = async (dataset: string, narrow: (q: any) => any) => {
+    const { data, error } = await narrow(supabase.from("analytics_ingest_receipts").select(cols)
+      .eq("dataset", dataset).eq("complete", true))
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (error) throw error;
-    return [dataset, data || null] as const;
+    return data as JsonMap | null;
+  };
+  const found = await Promise.all(names.map(async (dataset) => {
+    const [forClient, snapshot] = await Promise.all([
+      newest(dataset, (q) => q.contains("client_slugs", [slug])),
+      newest(dataset, (q) => q.eq("full_snapshot", true)),
+    ]);
+    const pick = [forClient, snapshot].filter(Boolean)
+      .sort((x, y) => String(y!.created_at).localeCompare(String(x!.created_at)))[0] || null;
+    return [dataset, pick] as const;
   }));
   return Object.fromEntries(found);
 }
@@ -154,7 +164,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     };
     const [values, receipts] = await Promise.all([
       Promise.all(datasets.map((d) => readers[d]())),
-      latestReceipts(supabase),
+      coveringReceipts(supabase, slug),
     ]);
     datasets.forEach((d, i) => { out[d] = values[i]; });
 

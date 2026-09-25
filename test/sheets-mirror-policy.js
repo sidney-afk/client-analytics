@@ -57,6 +57,16 @@ const ok = (cond, msg) => { assert.ok(cond, msg); checks++; console.log('  ok  '
   const backfill = await m.prepareRows('metrics', [{ ...a, _occurrence: 7 }], { source: 'sheet-backfill', runId: 'r' });
   ok(backfill.records[0].row_occurrence === 7 && !('_occurrence' in backfill.records[0].extra),
     'the backfill keeps sheet-wide occurrences so exact duplicate rows survive being split across calls');
+  // n8n: occurrence continues across calls (Codex P1 on #1623).
+  const prior = new Map([[h1, 1]]);
+  const later = await m.prepareRows('metrics', [a, a], { source: 'n8n', runId: 'r2', runPart: 3, priorCounts: prior });
+  ok(later.records.map(r => r.row_occurrence).join(',') === '2,3' && later.records[0].run_part === 3,
+    'a real repeat in a later n8n call continues after the copies already stored, so it is kept, not dropped');
+  const WRITE = read('supabase/functions/analytics-write/index.ts');
+  ok(/if \(r\.run_id === runId && r\.run_part === runPart\) continue;/.test(WRITE),
+    'a retry of the same call does not count its own rows, so it lands on the same keys');
+  ok(/source !== "sheet-backfill"\s*\n?\s*\? await priorCounts\(/.test(WRITE),
+    'the writer counts earlier copies for every source except the backfill, which brings sheet-wide occurrences');
   const annotated = await m.annotateSheetOccurrences('metrics', [a, { ...a, ig_followers: '11' }, a]);
   ok(annotated.map(r => r._occurrence).join(',') === '1,1,2', 'sheet-wide occurrences count identical rows only');
 
@@ -111,6 +121,13 @@ const ok = (cond, msg) => { assert.ok(cond, msg); checks++; console.log('  ok  '
   ok((READ_SRC.match(/\.eq\("client_slug", slug\)/g) || []).length === 4 && /\.eq\("slug", slug\)/.test(READ_SRC),
     'every dataset is filtered to the one client asked for');
   ok(/\.gte\("scraped_date", cutoff\)/.test(READ_SRC), 'TopVideos is limited to the last 90 days');
+  ok(/contains\("client_slugs", \[slug\]\)/.test(READ_SRC) && /eq\("full_snapshot", true\)/.test(READ_SRC)
+    && /eq\("complete", true\)/.test(READ_SRC) && !/latestReceipts/.test(READ_SRC),
+    'a receipt vouches for a client only if it listed that client or was a whole-dataset copy (Codex P1 on #1623)');
+  ok(/full_snapshot_not_allowed/.test(WRITE_SRC) && /fullSnapshot && \(source === "n8n" \|\| !complete\)/.test(WRITE_SRC),
+    'n8n can never claim a whole-dataset receipt');
+  ok(!/sidneylaruel/.test(read('scripts/sheets-mirror-read-timing.js')) && /pass --slug=/.test(read('scripts/sheets-mirror-read-timing.js')),
+    'the timing script carries no client slug; the slug is passed in');
   ok(/range\(a, b\)/.test(READ_SRC) && /PAGE = 1000/.test(READ_SRC), 'reads page past the 1000-row server limit');
   ok(/principal === "staff" \? \(data \|\| null\) : profileForClientLink/.test(READ_SRC), 'a client link gets the reduced profile');
   ok(READ_SRC.indexOf('mirror_read_disabled') < READ_SRC.indexOf('clientTokenValid(supabase, slug, token))'),

@@ -108,8 +108,11 @@ async function send(key, body) {
         dataset,
         source: dataset === 'client_profiles' ? 'sheet-copy' : 'sheet-backfill',
         run_id: runId,
+        run_part: i,
         rows: parts[i],
         complete: i === parts.length - 1,
+        // The last call of a whole-Sheet copy vouches for every client.
+        full_snapshot: i === parts.length - 1,
       });
       written += out.rows_written;
     }

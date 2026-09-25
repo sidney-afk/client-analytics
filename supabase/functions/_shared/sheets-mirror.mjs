@@ -96,10 +96,18 @@ export function rowHash(dataset, row) {
 }
 
 // Turn caller rows into database records. Returns { records, rejected }.
-// row_occurrence counts identical rows WITHIN this call, unless the caller is
-// the backfill, which may pass its own sheet-wide `_occurrence` so a whole
-// Sheet sent in several calls keeps its exact duplicate rows.
-export async function prepareRows(dataset, rows, { source, runId }) {
+// row_occurrence = identical rows already stored by OTHER calls
+// (priorCounts: row_hash -> count, from rows whose (run_id, run_part) differs
+// from this call's) + the row's place among identical rows in this call. So a
+// real repeat arriving in a later n8n run is kept, and a retry of the same
+// call lands on the same keys. The backfill instead passes its own sheet-wide
+// `_occurrence`, which matches what n8n assigned for the same Sheet rows.
+/**
+ * @param {string} dataset
+ * @param {Array<Record<string, unknown>>} rows
+ * @param {{ source: string, runId: string, runPart?: number, priorCounts?: Map<string, number> | null }} opts
+ */
+export async function prepareRows(dataset, rows, { source, runId, runPart = 0, priorCounts = null }) {
   const spec = DATASETS[dataset];
   if (!spec) throw new Error('unknown_dataset');
   const records = [];
@@ -126,6 +134,7 @@ export async function prepareRows(dataset, rows, { source, runId }) {
       continue;
     }
     const rec = { client_slug: slug, client_name: name, extra, row_hash: hash, source, run_id: runId };
+    if (spec.key === 'hash') rec.run_part = runPart;
     for (const c of spec.columns) if (c !== 'client_name') rec[c] = clean(row[c]) || null;
     if (spec.key === 'id') {
       if (!clean(row.id)) { rejected.push({ index: i, reason: 'missing_id' }); continue; }
@@ -134,7 +143,8 @@ export async function prepareRows(dataset, rows, { source, runId }) {
       const n = (seen.get(hash) || 0) + 1;
       seen.set(hash, n);
       const given = Number(row._occurrence);
-      rec.row_occurrence = source === 'sheet-backfill' && Number.isInteger(given) && given >= 1 ? given : n;
+      const prior = priorCounts && priorCounts.get(hash) || 0;
+      rec.row_occurrence = source === 'sheet-backfill' && Number.isInteger(given) && given >= 1 ? given : prior + n;
     }
     records.push(rec);
   }
@@ -186,6 +196,14 @@ export async function annotateSheetOccurrences(dataset, rows) {
     outRows.push({ ...row, _occurrence: n });
   }
   return outRows;
+}
+
+// The hashes whose earlier copies the writer must count before calling
+// prepareRows (hash-keyed datasets only).
+export async function rowHashes(dataset, rows) {
+  const out = new Set();
+  for (const row of rows) out.add(await rowHash(dataset, row && typeof row === 'object' ? row : {}));
+  return [...out];
 }
 
 export function profileForClientLink(profile) {

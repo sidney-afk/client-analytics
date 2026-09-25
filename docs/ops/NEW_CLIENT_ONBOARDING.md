@@ -839,8 +839,13 @@ AI tool that reads the brain treats them as unknown.
 **Today this is a manual step** (automatic creation on intake is planned). Open a Claude session
 with the `synchro-brain` repo and ask it to onboard the new client. It must:
 1. Read that repo's `README.md`, `POLICY/rules.md` and `POLICY/briefs.md` first, and follow them.
-2. Save the onboarding answers word for word as a new file under `inputs/` (credentials stripped;
-   they never go in that repo).
+2. Save the onboarding answers word for word as a new file under `inputs/`, **with every
+   credential removed before the file is written**. The onboarding form collects account logins
+   and passwords, and anything committed to that repo stays in its history forever. So: drop
+   every login, password, backup code, token and account-access field (replace each with a note
+   such as `[CREDENTIAL REMOVED ON IMPORT]`, as earlier imports there do), then inspect the staged
+   diff for any remaining credential before committing. If one was committed by mistake, stop and
+   tell the owner; editing the file afterwards does not remove it from history.
 3. Create the client's folder, named with the **same slug** as everywhere else (see the slug rule
    above), holding the four fact files `identity.md`, `voice.md`, `editing.md`, `relationship.md`.
    Fill only what the answers actually say; everything else stays `not-written`. Never copy another

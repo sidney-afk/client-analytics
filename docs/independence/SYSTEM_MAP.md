@@ -281,11 +281,12 @@ n8n in the metric read path.*
 
 - **Entry.** Default tab (`navTo('home')`); client profile via `#<ClientName>` hash, search, pins,
   or table rows; also the landing view for a bare `?c=` client link.
-- **Reads.** Six `gviz` CSV tabs from one workbook: `Metrics` + `Clients Info` (essentials) and
-  `TopVideos`, `Competitor Briefs`, `Market Research Briefs`, `ContentSummaries` (extras). AI tab/
+- **Reads.** Five `gviz` CSV tabs from one workbook: `Metrics` + `Clients Info` (essentials) and
+  `TopVideos`, `Market Research Briefs`, `ContentSummaries` (extras). AI tab/
   summaries via n8n `generate-tab-summary` (compute-on-read, cached client-side). Existing
-  Keywords and Competitors briefs display read-only; generating new ones from the app was removed
-  2026-09-24. `client-token-verify` EF only on client links. Chart.js CDN asset.
+  Keywords briefs display read-only; generating new ones from the app was removed 2026-09-24.
+  `Competitor Briefs` is retired (2026-09-24): no longer downloaded or shown; the tab stays in the
+  workbook as a frozen archive. `client-token-verify` EF only on client links. Chart.js CDN asset.
   Scheduled CLIENTS METRICS/TOP VIDEOS jobs populate the first/third tabs. CLIENTS METRICS version
   `b92fb693-1dd4-4ce2-a60e-98a1701c369d` now emits typed terminal coverage receipts: scheduled
   execution `287059` proved 29/29 unique clients, 29 writes, zero write failures, last-good

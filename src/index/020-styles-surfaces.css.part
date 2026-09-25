@@ -81,10 +81,12 @@
         .tpl-brain-add { margin-top: 12px; }
         .tpl-top { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 14px; margin-bottom: 14px; align-items: stretch; }
         .tpl-top .tpl-section { margin-bottom: 0; height: 100%; }
+        .tpl-top.solo { grid-template-columns: 1fr; }
         @media (max-width: 860px) { .tpl-top { grid-template-columns: 1fr; } }
         .tpl-spec-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         @media (max-width: 560px) { .tpl-spec-cards { grid-template-columns: 1fr; } }
         .tpl-spec-card.tpl-spec-group { background: var(--surface-subtle); border: 0; border-radius: 12px; padding: 14px; }
+        .tpl-prev.tpl-skeleton { background: linear-gradient(90deg, var(--sv-skel-base) 0%, var(--sv-skel-sheen) 48%, var(--sv-skel-base) 100%); background-size: 220% 100%; }
         .tpl-prev { margin: 4px 0 12px; min-height: 118px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 16px 12px; text-align: center; background: linear-gradient(160deg, var(--tpl-prev-dark2), var(--tpl-prev-dark)); }
         .tpl-prev.on-light { background: linear-gradient(160deg, var(--tpl-prev-light2), var(--tpl-prev-light)); }
         .tpl-prev-text { font-size: 1.3rem; line-height: 1.25; }

@@ -760,6 +760,8 @@ import {
             pill.style.textDecoration = 'none';
             pill.style.color = 'inherit';
             if (!_tplPinsEditMode) pill.onclick = (e) => { e.preventDefault(); openClientTemplate(name); };
+            // Start loading the client's facts and folders on hover, so they are often ready by the click.
+            if (!_tplPinsEditMode) pill.addEventListener('pointerenter', () => { _tplBrainEnsure(name); _tplFoldersEnsure(name); }, { once: true });
             else pill.onclick = (e) => { e.preventDefault(); };
             const nameSpan = document.createElement('span');
             nameSpan.textContent = name;
@@ -989,7 +991,26 @@ import {
             return j;
         });
     }
+    // Last-seen brain facts and folders per client, kept in this browser so a revisit
+    // paints at once while a fresh copy loads behind it.
+    const TPL_CACHE_KEY = 'sv.tplCache.v1';
+    function _tplCacheGet(kind, name) {
+        try { const all = JSON.parse(localStorage.getItem(TPL_CACHE_KEY) || '{}'); return all[kind + ':' + name] || null; } catch (e) { return null; }
+    }
+    function _tplCachePut(kind, name, val) {
+        try {
+            const all = JSON.parse(localStorage.getItem(TPL_CACHE_KEY) || '{}');
+            all[kind + ':' + name] = Object.assign({ savedAt: Date.now() }, val);
+            const keys = Object.keys(all).sort((a, b) => (all[b].savedAt || 0) - (all[a].savedAt || 0));
+            keys.slice(24).forEach(k => { delete all[k]; });
+            localStorage.setItem(TPL_CACHE_KEY, JSON.stringify(all));
+        } catch (e) {}
+    }
     function _tplBrainEnsure(name, force) {
+        if (!_tplBrain[name]) {
+            const c = _tplCacheGet('brain', name);
+            if (c) _tplBrain[name] = { state: 'ready', at: 0, facts: c.facts || [], brief: c.brief || [], found: !!c.found, folder: c.folder || '' };
+        }
         const cur = _tplBrain[name];
         // Errors retry only from the button; a ready copy refreshes once stale.
         if (cur && !force && (cur.state !== 'ready' || Date.now() - (cur.at || 0) < TPL_BRAIN_STALE_MS)) return;
@@ -999,6 +1020,7 @@ import {
             // Fresh facts replace any "Saved, updating" note for this client.
             Object.keys(_tplSpecSent).forEach(k => { if (k.indexOf(name + '::') === 0 && _tplSpecSent[k] === 'sent') delete _tplSpecSent[k]; });
             _tplBrain[name] = { state: 'ready', at: Date.now(), facts: Array.isArray(j.facts) ? j.facts : [], brief: Array.isArray(j.brief) ? j.brief : [], found: !!j.found, folder: j.folder || '' };
+            _tplCachePut('brain', name, { facts: _tplBrain[name].facts, brief: _tplBrain[name].brief, found: _tplBrain[name].found, folder: _tplBrain[name].folder });
         }).catch(e => {
             _tplBrain[name] = { state: 'error', facts: [], error: e && e.message || String(e) };
         }).then(() => { if (_templatesSelected === name) _maybeRerenderTemplates(); });
@@ -1008,10 +1030,13 @@ import {
     const _tplFolders = {};          // client -> { state, frame, raw }
     function _tplFoldersEnsure(name, force) {
         if (_tplFolders[name] && !force) return;
-        _tplFolders[name] = { state: 'loading', frame: [], raw: [] };
+        // Show the last-seen folders straight away and swap in fresh ones when they arrive.
+        const c = !force && _tplCacheGet('folders', name);
+        _tplFolders[name] = c ? { state: 'ready', frame: c.frame || [], raw: c.raw || [] } : { state: 'loading', frame: [], raw: [] };
         _tplBrainPost({ action: 'folders', clientName: name }).then(j => {
             _tplFolders[name] = { state: 'ready', frame: j.frame || [], raw: j.raw || [] };
-        }).catch(() => { _tplFolders[name] = { state: 'error', frame: [], raw: [] }; })
+            _tplCachePut('folders', name, { frame: _tplFolders[name].frame, raw: _tplFolders[name].raw });
+        }).catch(() => { if (!c) _tplFolders[name] = { state: 'error', frame: [], raw: [] }; })
           .then(() => { if (_templatesSelected === name) _maybeRerenderTemplates(); });
     }
     function tplFoldersRetry() { if (_templatesSelected) { _tplFoldersEnsure(_templatesSelected, true); _maybeRerenderTemplates(); } }
@@ -1025,7 +1050,8 @@ import {
         _tplFoldersEnsure(name);
         const f = _tplFolders[name];
         if (f && f.state === 'error') return `<div class="tpl-brain-empty-note">Couldn't load recent folders. <button type="button" class="tpl-brain-change-btn" onclick="tplFoldersRetry()">Try again</button></div>`;
-        if (!f || f.state !== 'ready' || (!f.frame.length && !f.raw.length)) return '';
+        if (!f || f.state === 'loading') return `<div class="tpl-folders" aria-busy="true">${[0, 1].map(() => '<div><div class="tpl-skeleton tpl-skeleton-line" style="width:40%;"></div><div class="tpl-skeleton tpl-skeleton-line" style="width:85%;margin-top:14px;"></div></div>').join('')}</div>`;
+        if (f.state !== 'ready' || (!f.frame.length && !f.raw.length)) return '';
         const col = (label, items) => `<div><div class="tpl-brain-spec-label">${label}</div>${items.length
             ? items.map(i => `<a class="tpl-batch-row" href="${_tplEscAttr(i.url)}" target="_blank" rel="noopener"><span>${_tplEsc(i.name || 'Untitled batch')}</span><span class="tpl-batch-meta">${_tplEsc([_tplFolderHost(i.url), _tplFolderDate(i.at)].filter(Boolean).join(', '))}</span></a>`).join('')
             : _NOT_SET}</div>`;
@@ -1205,7 +1231,11 @@ import {
     }
     function _tplBrainSpecStrip(name) {
         const b = _tplBrain[name];
-        if (!b || b.state !== 'ready' || !b.found) return '';
+        if (!b || b.state === 'loading') return `<div class="tpl-section tpl-brain-strip" aria-busy="true">
+            <div class="tpl-section-title">Quick look</div>
+            <div class="tpl-spec-cards">${TPL_SPEC_KINDS.map(k => `<div class="tpl-spec-group tpl-spec-card"><div class="tpl-spec-group-head"><span class="tpl-brain-spec-label">${k.label}</span></div><div class="tpl-prev tpl-skeleton"></div><div class="tpl-skeleton tpl-skeleton-line" style="width:70%;"></div><div class="tpl-skeleton tpl-skeleton-line" style="width:50%;margin-top:8px;"></div></div>`).join('')}</div>
+        </div>`;
+        if (b.state !== 'ready' || !b.found) return '';
         const facts = b.facts || [];
         const core = TPL_SPEC_KINDS.map(k => {
             const key = name + '::' + k.kind;
@@ -1482,6 +1512,7 @@ import {
                 </div>
               </div>`;
         const batches = isEdit ? '' : _tplRecentFolders(name);
+        const quickLook = isEdit ? '' : _tplBrainSpecStrip(name);
 
         const editToggle = isEdit
             ? `<button class="tpl-edit-btn done" onclick="setTemplatesEditMode(false)">Done</button>`
@@ -1500,8 +1531,8 @@ import {
                 <div class="tpl-client-name-wrap"><div class="tpl-client-name">${_tplEsc(name)}</div>${obBtn}</div>
                 <div class="tpl-head-right">${_svSaveIndHtml('templates')}${editToggle}</div>
             </div>
-            ${isEdit ? `${links}` : `<div class="tpl-top">
-                <div class="tpl-top-main">${_tplBrainSpecStrip(name)}</div>
+            ${isEdit ? `${links}` : `<div class="tpl-top${quickLook ? '' : ' solo'}">
+                ${quickLook ? `<div class="tpl-top-main">${quickLook}</div>` : ''}
                 <div class="tpl-top-side">${linksRail}</div>
             </div>
             ${batches ? `<div class="tpl-section">${batches}</div>` : ''}`}

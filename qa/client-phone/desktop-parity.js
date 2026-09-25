@@ -89,7 +89,7 @@ async function liveRelay(route) {
   } catch (e) { await route.abort().catch(() => {}); }
 }
 
-async function shoot(browser, build, width, url, mode, clickId) {
+async function shoot(browser, build, width, url, mode, clickId, view, token) {
   const ctx = await browser.newContext({ viewport: { width, height: HEIGHT }, deviceScaleFactor: 1, reducedMotion: 'reduce' });
   await ctx.route(u => u.toString().startsWith(ORIGIN), r => serveLocal(r, build));
   if (mode === 'staff') {
@@ -101,7 +101,12 @@ async function shoot(browser, build, width, url, mode, clickId) {
   }
   await ctx.addInitScript(css => { document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style'); s.textContent = css; document.head.appendChild(s); }); }, FREEZE);
   const page = await ctx.newPage();
-  await page.goto(ORIGIN + url, { waitUntil: 'domcontentloaded' });
+  if (view) {
+    // Client pages go through the redacting helper: its errors never carry the token.
+    await require('../test-client-entry.js').gotoTestClientEntry(page, { view, origin: ORIGIN, token, gotoOptions: { waitUntil: 'domcontentloaded' } });
+  } else {
+    await page.goto(ORIGIN + url, { waitUntil: 'domcontentloaded' });
+  }
   await page.waitForTimeout(mode === 'staff' ? SETTLE_STAFF : SETTLE_CLIENT);
   if (clickId && clickId !== 'navHome') { await page.click('#' + clickId); await page.waitForTimeout(SETTLE_STAFF); }
   await page.evaluate(() => { try { document.activeElement && document.activeElement.blur(); } catch (e) {} });
@@ -149,7 +154,7 @@ async function staffTabs(browser) {
     const T = require('../test-client-entry.js');
     const token = await T.currentTestClientToken();
     for (const view of ['analytics', 'calendar', 'brief', 'sample-reviews']) {
-      pages.push({ name: 'client-' + view, url: T.testClientEntryPath(view, T.TEST_CLIENT.name, token), mode: 'client' });
+      pages.push({ name: 'client-' + view, view, token, mode: 'client' });
     }
   }
   if (process.env.PARITY_ONLY) pages = pages.filter(p => p.name === process.env.PARITY_ONLY);
@@ -161,8 +166,8 @@ async function staffTabs(browser) {
       let attempts = 0;
       for (let attempt = 0; attempt < 4 && !same; attempt++) {
         attempts++;
-        a = await shoot(browser, 'before', w, pg.url, pg.mode, pg.clickId);
-        b = await shoot(browser, 'after', w, pg.url, pg.mode, pg.clickId);
+        a = await shoot(browser, 'before', w, pg.url, pg.mode, pg.clickId, pg.view, pg.token);
+        b = await shoot(browser, 'after', w, pg.url, pg.mode, pg.clickId, pg.view, pg.token);
         same = a.png.equals(b.png) && a.styleHash === b.styleHash;
       }
       if (OUT) {

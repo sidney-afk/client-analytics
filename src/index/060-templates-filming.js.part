@@ -1138,29 +1138,82 @@
     function tplBriefToggleSource(key) { _tplBriefSourceOpen = _tplBriefSourceOpen === key ? '' : key; _maybeRerenderTemplates(); }
     let _tplBriefFormRow = '';
     function tplBriefChange(key, row) { _tplBriefSourceOpen = ''; tplBrainOpen(key, row); }
+    // Brief line text: colour codes become swatches, and a trailing
+    // "(starting point: ...)" becomes its own quiet note under the line.
+    function _tplBriefText(text) {
+        let t = String(text || ''), note = '';
+        const m = /\s*\((starting point:[^)]*)\)\s*$/i.exec(t);
+        if (m) { note = m[1].charAt(0).toUpperCase() + m[1].slice(1); t = t.slice(0, m.index); }
+        // Colour codes become swatches only in plain text, never inside a link.
+        const swatch = hex => `<button type="button" class="tpl-brief-hex" title="Copy ${hex}" onclick="tplBrainCopy('${hex}', this)"><span style="background:${hex}"></span>${hex}</button>`;
+        const html = t.split(/(https?:\/\/[^\s<]+)/).map((part, i) => i % 2
+            ? _tplBrainInline(part)
+            : _tplBrainInline(part).replace(/(^|[^&\w])(#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b)/g, (m, pre, hex) => pre + swatch(hex))).join('');
+        return { html, note };
+    }
+    // Section kind decides the line marker, so the marker carries meaning.
+    function _tplBriefKind(heading) {
+        const h = String(heading || '').toLowerCase();
+        if (/^avoid/.test(h)) return 'avoid';
+        if (/ask to change/.test(h)) return 'asks';
+        if (/^look/.test(h)) return 'look';
+        if (/^editing/.test(h)) return 'edit';
+        if (/^music/.test(h)) return 'music';
+        if (/^about/.test(h)) return 'about';
+        return 'know';
+    }
+    // One small icon per section kind; unknown headings get the "good to know" look.
+    const TPL_BRIEF_ICONS = {
+        look: '<path d="M4 6h16M4 12h10M4 18h7" /><circle cx="18" cy="16" r="3" />',
+        edit: '<path d="M6 4v16M18 4v16M6 9h12M6 15h12" />',
+        music: '<path d="M9 18V6l10-2v12" /><circle cx="7" cy="18" r="2" /><circle cx="17" cy="16" r="2" />',
+        avoid: '<circle cx="12" cy="12" r="8" /><path d="M7 17 17 7" />',
+        about: '<circle cx="12" cy="8" r="3.5" /><path d="M5 20c1.2-3.6 4-5 7-5s5.8 1.4 7 5" />',
+        asks: '<path d="M4 12a8 8 0 1 0 2.4-5.7" /><path d="M4 4v4h4" />',
+        know: '<circle cx="12" cy="12" r="8" /><path d="M12 11v5M12 8h.01" />',
+    };
     function _tplBriefView(name, b) {
         const byId = {};
         b.facts.forEach(f => { byId[f.id] = f; });
-        return b.brief.map((sec, si) => `<div class="tpl-brief-sec">
-            <div class="tpl-brief-h">${_tplEsc(sec.heading)}</div>
-            <ul class="tpl-brief-list">${sec.bullets.map((bl, bi) => {
-                const srcKey = name + '::b' + si + '.' + bi;
-                const fact = byId[bl.facts[0]] || null;
-                const changeKey = _tplBrainKey(name, fact ? fact.id : '');
-                const open = _tplBriefSourceOpen === srcKey;
-                const formOpen = _tplBriefFormRow === srcKey && (_tplBrainOpenForm === changeKey || _tplBrainSent[changeKey]);
-                const sources = bl.facts.map(id => byId[id]).filter(Boolean);
-                return `<li class="tpl-brief-li">
-                    <div class="tpl-brief-row"><span class="tpl-brief-text">${_tplBrainInline(bl.text)}</span>
-                        <span class="tpl-brief-acts">
-                            ${sources.length ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(srcKey)}" onclick="tplBriefToggleSource(this.dataset.k)">${open ? 'Hide source' : 'Source'}</button>` : ''}
-                            ${fact ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(changeKey)}" data-row="${_tplEscAttr(srcKey)}" onclick="tplBriefChange(this.dataset.k, this.dataset.row)">Change</button>` : ''}
-                        </span></div>
-                    ${open ? `<div class="tpl-brief-sources">${sources.map(f => `<div class="tpl-brief-source"><div class="tpl-brief-source-h">${_tplEsc(f.heading)}</div><div class="tpl-brain-body">${_tplBrainProse(f.body)}</div></div>`).join('')}</div>` : ''}
-                    ${formOpen && fact ? _tplBrainChangeBox(name, fact, true) : ''}
-                </li>`;
-            }).join('')}</ul>
-        </div>`).join('');
+        const line = (bl, si, bi) => {
+            const srcKey = name + '::b' + si + '.' + bi;
+            const fact = byId[bl.facts[0]] || null;
+            const changeKey = _tplBrainKey(name, fact ? fact.id : '');
+            const open = _tplBriefSourceOpen === srcKey;
+            const formOpen = _tplBriefFormRow === srcKey && (_tplBrainOpenForm === changeKey || _tplBrainSent[changeKey]);
+            const sources = bl.facts.map(id => byId[id]).filter(Boolean);
+            const t = _tplBriefText(bl.body);
+            return `<li class="tpl-brief-li">
+                <div class="tpl-brief-row"><span class="tpl-brief-text">${t.html}${t.note ? `<span class="tpl-brief-note">${_tplEsc(t.note)}</span>` : ''}</span>
+                    <span class="tpl-brief-acts">
+                        ${sources.length ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(srcKey)}" onclick="tplBriefToggleSource(this.dataset.k)">${open ? 'Hide source' : 'Source'}</button>` : ''}
+                        ${fact ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(changeKey)}" data-row="${_tplEscAttr(srcKey)}" onclick="tplBriefChange(this.dataset.k, this.dataset.row)">Change</button>` : ''}
+                    </span></div>
+                ${open ? `<div class="tpl-brief-sources">${sources.map(f => `<div class="tpl-brief-source"><div class="tpl-brief-source-h">${_tplEsc(f.heading)}</div><div class="tpl-brain-body">${_tplBrainProse(f.body)}</div></div>`).join('')}</div>` : ''}
+                ${formOpen && fact ? _tplBrainChangeBox(name, fact, true) : ''}
+            </li>`;
+        };
+        const section = (sec, si) => {
+            const kind = _tplBriefKind(sec.heading);
+            // Split "**Label:** rest" so a label shared by consecutive lines shows once.
+            const rows = sec.bullets.map((bl, bi) => {
+                const m = /^\*\*([^*]+?):?\*\*:?\s*(.*)$/.exec(bl.text);
+                return { bl: Object.assign({}, bl, { body: m ? m[2] : bl.text }), label: m ? m[1].replace(/:$/, '') : '', bi };
+            });
+            const groups = [];
+            rows.forEach(r => {
+                const last = groups[groups.length - 1];
+                if (last && last.label === r.label) last.rows.push(r); else groups.push({ label: r.label, rows: [r] });
+            });
+            const body = groups.map(g => g.label
+                ? `<div class="tpl-brief-group"><div class="tpl-brief-label">${_tplEsc(g.label)}</div><ul class="tpl-brief-list">${g.rows.map(r => line(r.bl, si, r.bi)).join('')}</ul></div>`
+                : `<ul class="tpl-brief-list">${g.rows.map(r => line(r.bl, si, r.bi)).join('')}</ul>`).join('');
+            return `<section class="tpl-brief-sec tpl-brief-${kind}"><h3 class="tpl-brief-h"><span class="tpl-brief-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${TPL_BRIEF_ICONS[kind] || TPL_BRIEF_ICONS.know}</svg></span>${_tplEsc(sec.heading)}</h3><div class="tpl-brief-body">${body}</div></section>`;
+        };
+        const lookIdx = b.brief.findIndex(sec => _tplBriefKind(sec.heading) === 'look');
+        const look = lookIdx >= 0 ? section(b.brief[lookIdx], lookIdx) : '';
+        const rest = b.brief.map((sec, si) => si === lookIdx ? '' : section(sec, si)).join('');
+        return `<div class="tpl-brief">${look}<div class="tpl-brief-cols">${rest}</div></div>`;
     }
     function _tplBrainSection(name) {
         const b = _tplBrain[name];

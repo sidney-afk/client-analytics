@@ -1438,7 +1438,9 @@ separate hidden first-party Direct-Post surface.*
   loaded, then calls `client_profile_admin_edit()` (one transaction: the row with `source='syncview'`
   plus one `client_profile_edits` history row per changed field). `refresh_from_sheet` reloads one
   row from the Sheet after a conflict. Needs the `CLIENTS_INFO_SHEET_ID` secret and Editor access
-  for the Google service account. Roam channel is not shown or editable.
+  for the Google service account. The service account's Google Cloud project (syncview-501919) must
+  have the Google Sheets API enabled, or every save fails even with Editor access. Roam channel is
+  not shown or editable.
 
 ### 4.16 Time Off / PTO (**LIVE**)
 

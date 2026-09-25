@@ -599,7 +599,8 @@
     "prod-batch-view-hides-batch-parent.js",
     "calendar-client-links-after-sheet.js",
     "client-phone-css-scope.js",
-    "sheets-mirror-policy.js"
+    "sheets-mirror-policy.js",
+    "client-profile-edit.js"
   ],
   "profiles": [
     {

@@ -961,6 +961,7 @@
     const LINEAR_OUTBOX_MAX_ATTEMPTS = 6;
     const LINEAR_OUTBOX_RETRY_MS = 60 * 1000;
     let _linearOutboxFlushTimer = null;
+    function _calSetLinearOutboxFlushTimer(value) { _linearOutboxFlushTimer = value; }
     let _linearOutboxFlushPromise = null;
     let _linearOutboxFlushOwnerKey = '';
     /* RETIRED LEGACY DEBT (OPEN_REPAIRS 239). A `legacy_n8n` row is a queued

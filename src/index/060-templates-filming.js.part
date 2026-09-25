@@ -2044,6 +2044,13 @@
     let linearVideoCount = LINEAR_DEFAULT_VIDEO_COUNT;
     let linearJustCreated = false;
     let linearSubmitInFlight = null;
+    // Setters for the Submit screen module (200). ES module imports are
+    // read-only, so 200 changes these through the functions below instead of
+    // assigning them directly (phase C step C3).
+    function _linearSetVideoCount(value) { linearVideoCount = value; }
+    function _linearNextVideoCount() { return ++linearVideoCount; }
+    function _linearSetJustCreated(value) { linearJustCreated = value; }
+    function _linearSetSubmitInFlight(value) { linearSubmitInFlight = value; }
     let linearProjectsLoading = false;
     let linearProjectsLoaded = false;
     let linearProjectsLoadGeneration = 0;

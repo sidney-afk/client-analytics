@@ -9,7 +9,21 @@ const root = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const migration = fs.readFileSync(path.join(root, 'migrations', '2026-07-13-write-ui-reroute-allowlist.sql'), 'utf8');
 
+// 060 and 090 offer these setters so the Submit screen module (200) can
+// change their state without assigning an ES module import (phase C step
+// C3). A function that calls one gets it loaded beside it, so each vm
+// context keeps writing the same context variables as before.
+const LINEAR_200_SETTERS = [
+  '_linearSetVideoCount', '_linearNextVideoCount', '_linearSetJustCreated',
+  '_linearSetSubmitInFlight', '_linearSetResolvedPlanUrl',
+];
 function extract(name) {
+  const body = extractOne(name);
+  const setters = LINEAR_200_SETTERS.filter(setter => setter !== name && body.includes(setter + '('));
+  return [body, ...setters.map(extractOne)].join('\n');
+}
+
+function extractOne(name) {
   const marker = 'function ' + name + '(';
   let start = source.indexOf(marker);
   assert(start >= 0, 'missing function ' + name);

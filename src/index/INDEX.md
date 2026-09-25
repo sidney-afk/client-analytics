@@ -13,10 +13,10 @@
 | 5 | `030-body-shell.html.part` | 445 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 1648 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1651 | Market Research Brief Tab Renderers |
-| 8 | `060-templates-filming.js.part` | 2176 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 8 | `060-templates-filming.js.part` | 2183 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3624 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3413 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
-| 11 | `090-workload-popovers-navigation.js.part` | 1642 | Sub-issue popover |
+| 11 | `090-workload-popovers-navigation.js.part` | 1645 | Sub-issue popover |
 | 12 | `100-onboarding-staff-controls.js.part` | 2296 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2152 | Kasper Time Off calendar |
 | 14 | `120-calendar-flags-write-repair.js.part` | 3062 | The members a flag value offers, or null when it offers no member list at |
@@ -32,7 +32,7 @@
 | 24 | `170-calendar-links-status.js.part` | 2756 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 25 | `180-calendar-native-post-media.js.part` | 2676 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 26 | `190-calendar-approval-comments.js.part` | 2984 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
-| 27 | `200-intake-data-startup.js.part` | 1453 | Video-only and Thumbnail-only were already built, but sat |
+| 27 | `200-intake-data-startup.js.part` | 1495 | Video-only and Thumbnail-only were already built, but sat |
 | 28 | `210-production-state-writes.js.part` | 3200 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 29 | `220-production-attribution-views.js.part` | 2714 | An ABSENT persisted slug is missing evidence, not |
 | 30 | `230-production-create-comments.js.part` | 2639 | `production_create_closed` is a DEFINITIVE no-replay verdict, |

@@ -121,13 +121,57 @@ sketch below:
   A client link gets only its name and public handles from the profile,
   never email or Slack/Roam channel ids.
 
-**Order to switch it on (Lighthouse):** apply the migration; set the
-`ANALYTICS_MIRROR_WRITE_KEY` secret (32+ characters) and deploy both
-functions; turn `analytics_mirror_write_enabled` on; run
-`node scripts/sheets-mirror-backfill.js` (dry run) then `--apply`; run
-`node scripts/sheets-mirror-read-timing.js` for the live timing. The n8n
-dual-write nodes come after, one workflow at a time, each with the owner's
-go-ahead.
+**Secrets (set in Supabase, never in the repo).** Supabase dashboard, the
+SyncView project, Edge Functions, Secrets (Manage secrets). A secret is a
+private setting the function reads when it runs; nobody visiting the site
+can see it.
+
+| Function | Secret | Already set? |
+|---|---|---|
+| both | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Yes: Supabase provides these to every function automatically. |
+| `analytics-read` | `ROLE_KEY_ADMIN`, `ROLE_KEY_SMM`, `ROLE_KEY_CREATIVE` | Yes: the same staff role keys `key-verify` and the other staff functions already use. Nothing new. |
+| `analytics-write` | `ANALYTICS_MIRROR_WRITE_KEY` | **No, new.** At least 32 characters; the function refuses every call if it is shorter or missing. |
+
+To make a value for `ANALYTICS_MIRROR_WRITE_KEY`, generate a long random
+string on your own machine and paste it straight into the Supabase screen:
+PowerShell `[Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))`,
+or on Mac/Linux `openssl rand -hex 32` (64 characters either way). Keep a
+copy in the password manager: the backfill needs it, and later n8n does
+too (as a credential inside n8n, never in a workflow's visible fields).
+
+**How the backfill signs in.** `scripts/sheets-mirror-backfill.js --apply`
+reads `ANALYTICS_MIRROR_WRITE_KEY` from the environment of the machine that
+runs it and sends it in the `X-Analytics-Mirror-Key` header to
+`analytics-write`, the same door n8n will use. It never uses the
+service-role key and never needs a Supabase login. The key lives only in
+that terminal session (PowerShell: `$env:ANALYTICS_MIRROR_WRITE_KEY = "..."`
+for that window only). The write also needs the database switch
+`analytics_mirror_write_enabled` on, so even a correct key does nothing
+until that step. Without `--apply` the script is a dry run and needs no key.
+
+**Order to switch it on (Lighthouse):**
+
+1. Merge this PR, then apply `migrations/2026-09-25-sheets-mirror-phase1.sql`
+   in the SQL editor and run its VERIFY query.
+2. Set `ANALYTICS_MIRROR_WRITE_KEY` in Supabase (above).
+3. Deploy `analytics-read` from the "Deploy one allowlisted Edge Function"
+   Actions lane (function `analytics-read`, the merged main commit SHA). The
+   lane checks the SHA is on main, deploys with JWT off and attests that the
+   live source equals the committed source.
+4. Staff-read timing: `node scripts/sheets-mirror-read-timing.js --slug=<test client slug>`
+   with a staff role key in `SYNCVIEW_STAFF_KEY`. The tables are still empty
+   here, so this proves the function answers and gives its fixed cost
+   (network plus start-up); the full-payload number comes in step 8.
+5. Deploy `analytics-write` from the same lane.
+6. Turn on `analytics_mirror_write_enabled`
+   (`update public.syncview_runtime_flags set value = '{"enabled": true}' where key = 'analytics_mirror_write_enabled';`).
+7. Backfill: `node scripts/sheets-mirror-backfill.js` (dry run, check the
+   counts), then with the key set, `node scripts/sheets-mirror-backfill.js --apply`.
+   Safe to re-run.
+8. Run the timing again for the real one-client payload.
+
+The n8n dual-write nodes come after, one workflow at a time, each with the
+owner's go-ahead. `analytics_mirror_read_enabled` stays off until Phase 2.
 
 **Measured 2026-09-25 (before anything is deployed):**
 

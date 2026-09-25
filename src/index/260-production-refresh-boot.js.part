@@ -1577,7 +1577,7 @@
                     _kasperArrivedFromUnlockParam = !_kasperAlreadyUnlocked;
                 }
                 if(sessionStorage.getItem(KASPER_UNLOCK_KEY)==='ok'){
-                    _kasperUnlocked=true;
+                    _setKasperUnlocked(true);
                     const navKp=document.getElementById('navKasper');
                     if(navKp) navKp.style.display='';
                     _navPillSync(false);   // a revealed tab reflows the strip

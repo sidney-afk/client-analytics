@@ -51069,6 +51069,7 @@
         // failed and the nav button stayed hidden on every refresh).
         const KASPER_UNLOCK_KEY = 'syncview_kasper_unlocked';
         let _kasperUnlocked = false;
+        function _setKasperUnlocked(value) { _kasperUnlocked = value; }
         /* ============================================================
            PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI
            Hidden behind ?prod=1 / verified staff navigation. Reads the native
@@ -66547,7 +66548,7 @@
                     _kasperArrivedFromUnlockParam = !_kasperAlreadyUnlocked;
                 }
                 if(sessionStorage.getItem(KASPER_UNLOCK_KEY)==='ok'){
-                    _kasperUnlocked=true;
+                    _setKasperUnlocked(true);
                     const navKp=document.getElementById('navKasper');
                     if(navKp) navKp.style.display='';
                     _navPillSync(false);   // a revealed tab reflows the strip

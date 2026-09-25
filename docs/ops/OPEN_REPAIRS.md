@@ -29039,7 +29039,7 @@ check passes. Expected saving: about the length of `key-verify`, 0.45-0.85 s, on
 every Workload open. Test: `test/workload-early-snapshot.js`. Before/after on the
 live site to be recorded here after merge.
 
-- *Measured live, 2026-09-26, after merge (commit
+- *Measured live, 2026-09-25, after merge (commit
   `966c3490e6c71476ca795aeffe1a76d9a00c843c`), same rig as above: Playwright
   Chromium through the sandbox proxy, staff key, 6 warm reloads of `#workload`.*
   The fresh-board read now starts 124-233 ms into the load, beside `key-verify`,

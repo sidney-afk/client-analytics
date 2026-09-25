@@ -13,7 +13,7 @@ const checks = [
   ['errors do not auto-retry on every render', INDEX.includes("(cur.state !== 'ready' ||")],
   ['a sent change can be followed by another', INDEX.includes('function tplBrainAnother(key)')],
   ['unreachable brain falls back to last SyncView values', INDEX.includes('${_tplBrainFallback(name)}')],
-  ['working links list recent Frame folders and Raw footage from batches', INDEX.includes("action: 'folders'") && INDEX.includes('${_tplRecentFolders(name)}')],
+  ['working links list recent Frame folders and Raw footage from batches', INDEX.includes("action: 'folders'") && INDEX.includes('_tplRecentFolders(name)')],
   ['the editor brief is shown first, facts folded under "All facts, with sources"', INDEX.includes('function _tplBriefView(name, b)') && INDEX.includes('All facts, with sources')],
   ['brain buttons pass keys through data attributes, not quoted JS (names with apostrophes)', !/onclick="tpl(Brain(Open|Send|Another)|Brief(Change|ToggleSource))\('\$\{/.test(INDEX) && INDEX.includes('onclick="tplBriefToggleSource(this.dataset.k)"')],
   ['Quick look always shows Subtitles and Thumbnails with an Add or Edit form that sends a SPEC UPDATE', INDEX.includes('function tplSpecSave(key)') && INDEX.includes('SPEC UPDATE, entered in the Quick look form') && INDEX.includes("has ? 'Edit' : 'Add'")],

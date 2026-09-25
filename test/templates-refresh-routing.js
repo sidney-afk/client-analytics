@@ -46,7 +46,8 @@ check('openClientTemplate seeds templatesTab in history.state',
 // and do NOT double-decode the already-decoded hash.
 check('boot handler prefers the preserved history.state client + restores the tab',
   /const st = history\.state \|\| \{\};\s*\n\s*if \(st\.templatesClient\) seed = st\.templatesClient;/.test(INDEX) &&
-  /if \(st\.templatesTab === 'reels' \|\| st\.templatesTab === 'thumbnails'\) _templatesActiveTab = st\.templatesTab;/.test(INDEX));
+  /if \(st\.templatesTab === 'reels' \|\| st\.templatesTab === 'thumbnails'\) _templatesSetActiveTab\(st\.templatesTab\);/.test(INDEX)
+  && INDEX.includes('function _templatesSetActiveTab(value) { _templatesActiveTab = value; }'));
 check('boot handler no longer double-decodes the (already-decoded) hash',
   !/let seed = tn; try \{ seed = decodeURIComponent\(tn\); \}/.test(INDEX));
 

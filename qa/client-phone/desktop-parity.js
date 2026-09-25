@@ -108,7 +108,7 @@ async function shoot(browser, build, width, url, mode, clickId, view, token) {
     await page.goto(ORIGIN + url, { waitUntil: 'domcontentloaded' });
   }
   await page.waitForTimeout(mode === 'staff' ? SETTLE_STAFF : SETTLE_CLIENT);
-  if (clickId && clickId !== 'navHome') { await page.click('#' + clickId); await page.waitForTimeout(SETTLE_STAFF); }
+  if (clickId && clickId !== 'navHome') { await page.click(clickId.startsWith('[') ? clickId : '#' + clickId); await page.waitForTimeout(SETTLE_STAFF); }
   await page.evaluate(() => { try { document.activeElement && document.activeElement.blur(); } catch (e) {} });
   // Settle: keep shooting until three consecutive frames agree (max ~25s),
   // so a late loader or a "Refreshing" pill is not mistaken for a change.
@@ -155,6 +155,8 @@ async function staffTabs(browser) {
     const token = await T.currentTestClientToken();
     for (const view of ['analytics', 'calendar', 'brief', 'sample-reviews']) {
       pages.push({ name: 'client-' + view, view, token, mode: 'client' });
+      // The Calendar's Month and Week views are reached by a click, not a URL.
+      if (view === 'calendar') for (const cv of ['month', 'week']) pages.push({ name: 'client-calendar-' + cv, view, token, mode: 'client', clickId: `[data-cal-view="${cv}"]` });
     }
   }
   if (process.env.PARITY_ONLY) pages = pages.filter(p => p.name === process.env.PARITY_ONLY);

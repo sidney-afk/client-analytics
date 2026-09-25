@@ -7,14 +7,14 @@
 | Order | Fragment | Lines | Banner |
 |---|---|---|---|
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
-| 2 | `005-head-boot.html.part` | 260 | NOT render-blocking, and the reason is measured rather than assumed. |
+| 2 | `005-head-boot.html.part` | 279 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 3 | `010-styles-foundation.css.part` | 3891 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 4 | `020-styles-surfaces.css.part` | 4133 | Templates view |
 | 5 | `030-body-shell.html.part` | 445 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 1785 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1709 | Market Research Brief Tab Renderers |
 | 8 | `060-templates-filming.js.part` | 2277 | Multiple links per link field (client photos, thumbnail, reference reel) |
-| 9 | `070-workload-source.js.part` | 3624 | Workload Calendar |
+| 9 | `070-workload-source.js.part` | 3650 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3413 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
 | 11 | `090-workload-popovers-navigation.js.part` | 1645 | Sub-issue popover |
 | 12 | `100-onboarding-staff-controls.js.part` | 2364 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
@@ -22,7 +22,7 @@
 | 14 | `120-calendar-flags-write-repair.js.part` | 3075 | The members a flag value offers, or null when it offers no member list at |
 | 15 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
 | 16 | `130-calendar-model-cache.js.part` | 1341 | Returns the comments array for a given component. Falls back to the |
-| 17 | `131-core-html.js.part` | 12 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
+| 17 | `131-core-html.js.part` | 13 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 18 | `132-calendar-dates-ids.js.part` | 10 | — |
 | 19 | `133-core-loading-skeletons.js.part` | 363 | Modern animated loader — a single rotating ring with a subtle label. |
 | 20 | `134-calendar-prefs-mount.js.part` | 1023 | Hydrate calState.monthFilter/statusFilter from the named client's saved |

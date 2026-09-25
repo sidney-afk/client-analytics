@@ -551,6 +551,7 @@
     "urgent-editor-website-only.js",
     "urgent-ping-persistence.js",
     "video-artifact-rollback-record.js",
+    "workload-early-snapshot.js",
     "workload-archived-hidden.js",
     "workload-capacity-placement.js",
     "workload-duplicate-not-active.js",

@@ -12,6 +12,7 @@
         { key: 'hiring-process', label: 'Hiring Process', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13.5V3.8A1.3 1.3 0 0 1 4.3 2.5h7.4A1.3 1.3 0 0 1 13 3.8v9.7"/><path d="M5.2 6.2h5.6M5.2 8.7h5.6M5.2 11.2h3"/><circle cx="12.5" cy="12.5" r="2.1"/><path d="m11.6 12.5.6.6 1.3-1.4"/></svg>' },
         { key: 'onboarding', label: 'Onboarding', showCount: true, hideZero: true, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h6l2.5 2.5v8.3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M9.5 2.5V5h2.5"/><path d="M6 8.2h4M6 10.6h4"/></svg>' },
         { key: 'client-credentials', label: 'Client Credentials', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="11" height="7" rx="1.4"/><path d="M5 7V5.2a3 3 0 0 1 6 0V7"/><path d="M8 10v1.5"/></svg>' },
+        { key: 'clients', label: 'Clients', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5.5" r="2.5"/><path d="M1.5 13.5c.6-2.4 2.4-3.8 4.5-3.8s3.9 1.4 4.5 3.8"/><path d="M10.5 3.2a2.4 2.4 0 0 1 0 4.6M12.2 9.9c1.2.5 2 1.7 2.3 3.6"/></svg>' },
         { key: 'ad-performance', label: 'Ad Performance', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13.5h12"/><rect x="3.3" y="8.5" width="2.3" height="5"/><rect x="6.85" y="5.5" width="2.3" height="8"/><rect x="10.4" y="3" width="2.3" height="10.5"/></svg>' },
         { key: 'quiz-leads', label: 'Quiz Leads', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8s2.2-4.5 6-4.5S14 8 14 8s-2.2 4.5-6 4.5S2 8 2 8z"/><path d="M6.3 6.6a1.7 1.7 0 1 1 2.2 1.6c-.5.2-.8.6-.8 1.1"/><circle cx="8" cy="10.6" r=".2" fill="currentColor"/></svg>' }
     ];
@@ -20,7 +21,7 @@
     const KASPER_PRIMARY_SHORT_LABELS = { review: 'Review', samples: 'Samples', replies: 'Messages', filming: 'Filming' };
     const KASPER_MORE_GROUPS = [
         { label: 'Team', keys: ['editors', 'time-off'] },
-        { label: 'Pipeline & Admin', keys: ['sales-intake', 'hiring-process', 'onboarding', 'quiz-leads', 'client-credentials'] },
+        { label: 'Pipeline & Admin', keys: ['sales-intake', 'hiring-process', 'onboarding', 'quiz-leads', 'client-credentials', 'clients'] },
         { label: 'Analytics', keys: ['ad-performance'] },
     ];
     const KASPER_MORE_NOTIFICATION_KEYS = ['time-off', 'onboarding'];
@@ -168,7 +169,7 @@
         const tabButtonHtml = (t, inMore) => {
             const capability = t.key === 'client-credentials' ? 'credentials' : (t.key === 'onboarding' ? 'onboarding' : (t.key === 'time-off' ? 'pto-admin' : ''));
             const gatedCapability = t.key === 'hiring-process' ? 'hiring'
-                : (t.key === 'quiz-leads' ? 'quiz-leads' : capability);
+                : (t.key === 'quiz-leads' ? 'quiz-leads' : (t.key === 'clients' ? 'clients-admin' : capability));
             const gated = gatedCapability ? ` data-staff-capability="${gatedCapability}"${_syncviewStaffCan(gatedCapability) ? '' : ' hidden'}` : '';
             const active = _kasperState.tab === t.key;
             const count = t.showCount === false ? '' : `<span class="kasper-tab-count" data-kasper-count="${t.key}"${t.hideZero ? ' data-kasper-hide-zero' : ''}>·</span>`;
@@ -662,6 +663,7 @@
         if (tab === 'onboarding' && !_syncviewStaffCan('onboarding')) { _syncviewOfferStaffSignIn('onboarding'); return; }
         if (tab === 'hiring-process' && !_syncviewStaffCan('hiring')) { _syncviewOfferStaffSignIn('hiring'); return; }
         if (tab === 'quiz-leads' && !_syncviewStaffCan('quiz-leads')) { _syncviewOfferStaffSignIn('quiz-leads'); return; }
+        if (tab === 'clients' && !_syncviewStaffCan('clients-admin')) { _syncviewOfferStaffSignIn('clients-admin'); return; }
         if (tab === 'time-off') {
             _ptoInvalidateOverviewCaches();
         }
@@ -693,6 +695,9 @@
         if (_kasperState.tab === 'quiz-leads' && !_syncviewStaffCan('quiz-leads')) {
             _kasperDenySubtab('quiz-leads');
         }
+        if (_kasperState.tab === 'clients' && !_syncviewStaffCan('clients-admin')) {
+            _kasperDenySubtab('clients-admin');
+        }
         _kasperSyncTabNav();
         // Only the review queue holds the analytics extras back (see _analyticsHoldExtras).
         if (_kasperState.tab !== 'review' && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
@@ -708,6 +713,7 @@
         if (_kasperState.tab === 'client-credentials') return _ccKasperRender();
         if (_kasperState.tab === 'ad-performance') return _kasperRenderAdPerformance();
         if (_kasperState.tab === 'quiz-leads') return _kasperRenderQuizLeads();
+        if (_kasperState.tab === 'clients') return _caRender();
     }
 
     // Kasper Ad Performance: read-only summary of Meta spend + iClosed
@@ -2834,3 +2840,147 @@
     }
 
     /* ── Review Session ─────────────────────────────────────────── */
+
+    // ── Clients (Kasper › More › Pipeline & Admin) ──────────────────────────
+    // Read-only list of every client's profile row, step 1 of the plan's
+    // "Later: a Clients admin tab" (docs/plans/2026-09-24-sheets-to-supabase.md).
+    // client_profiles grants the browser nothing; the rows come from
+    // analytics-read's admin-only `list_client_profiles` action, which checks
+    // the ADMIN role key. Editing (with an edit history, source='syncview')
+    // is a separate, later step; nothing here writes.
+    const CA_READ_URL = CAL_SUPABASE_URL + '/functions/v1/analytics-read';
+    const CA_GROUPS = [
+        { title: 'Contact', fields: [['email', 'Email']] },
+        { title: 'Social accounts', fields: [['instagram_handle', 'Instagram'], ['tiktok_handle', 'TikTok'], ['youtube_channel_id', 'YouTube channel']] },
+        { title: 'Content research', fields: [['content_description', 'Content description'], ['keywords', 'Keywords'], ['specific_keywords', 'Specific keywords'], ['competitors', 'Competitors']] },
+        { title: 'Team channels', fields: [['slack_channel_id', 'Slack channel'], ['creative_channel_id', 'Creative channel'], ['roam_channel_id', 'Roam channel']] },
+        { title: 'Publishing', fields: [['upload_post_profile', 'Upload-Post profile'], ['postforme_account_id', 'Post for Me account']] },
+    ];
+    const _caState = { rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false };
+
+    function _caRender() {
+        const el = document.getElementById('kasperContent');
+        if (!el) return;
+        el.innerHTML = `<div class="cc-wrap ca-wrap">
+            <div class="cc-topbar">
+                <div><h2 class="cc-title">Clients</h2><p class="cc-sub">Every client's details in one place. Read-only for now: the Clients Info sheet is still the main copy and is copied here daily.</p></div>
+                <div class="cc-actions">
+                    <input class="cc-search" id="caSearch" type="search" placeholder="Search name, handle, email…" value="${_calEscAttr(_caState.search)}" oninput="_caSetSearch(this.value)" aria-label="Search clients">
+                    <button class="cc-btn" type="button" onclick="_caLoad(false)">Refresh</button>
+                </div>
+            </div>
+            <div class="ca-body" id="caBody"></div>
+        </div>`;
+        _caPaint();
+        if (!_caState.loaded && !_caState.loading) _caLoad(false);
+    }
+
+    async function _caLoad(background) {
+        if (_caState.loading) return;
+        _caState.loading = true; _caState.error = null;
+        if (!background) _caPaint();
+        try {
+            const ident = await _ccEnsureIdentity();
+            const resp = await fetch(CA_READ_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
+                body: JSON.stringify({ action: 'list_client_profiles' }),
+            });
+            let json = null;
+            try { json = await resp.json(); } catch (e) { json = null; }
+            if (resp.status === 401) throw new Error('This needs an Admin sign-in.');
+            if (!resp.ok || !json || !json.ok) throw new Error('Could not load clients (' + ((json && json.error) || ('HTTP ' + resp.status)) + ').');
+            _caState.rows = Array.isArray(json.clients) ? json.clients : [];
+            _caState.authority = json.authority || null;
+            _caState.loaded = true;
+        } catch (e) {
+            _caState.error = e && e.message ? e.message : String(e);
+        } finally {
+            _caState.loading = false;
+            _caPaint();
+        }
+    }
+
+    function _caSetSearch(v) { _caState.search = v || ''; _caPaint(); }
+    function _caToggleArchived() { _caState.showArchived = !_caState.showArchived; _caPaint(); }
+    function _caSelect(slug) {
+        _caState.selected = slug || '';
+        _caPaint();
+        const d = document.getElementById('caDetail');
+        if (d && window.matchMedia && window.matchMedia('(max-width: 767px)').matches) { try { d.scrollIntoView({ block: 'start' }); } catch (e) {} }
+    }
+
+    function _caFiltered() {
+        const q = String(_caState.search || '').trim().toLowerCase();
+        return (_caState.rows || []).filter(r => {
+            if (r.archived_at && !_caState.showArchived) return false;
+            if (!q) return true;
+            return [r.display_name, r.slug, r.email, r.instagram_handle, r.tiktok_handle, r.youtube_channel_id]
+                .some(v => String(v || '').toLowerCase().includes(q));
+        });
+    }
+
+    function _caWhen(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        if (isNaN(d)) return '';
+        return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    function _caInitials(name) {
+        const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+        return ((parts[0] || '?')[0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+    }
+
+    function _caValue(v) {
+        const s = String(v == null ? '' : v).trim();
+        if (!s) return '<span class="ca-empty">Not set</span>';
+        if (/^https?:\/\//i.test(s)) return `<a href="${_calEscAttr(s)}" target="_blank" rel="noopener">${_calEsc(s)}</a>`;
+        return _calEsc(s);
+    }
+
+    function _caDetailHtml(r) {
+        if (!r) return `<div class="ca-detail-empty">Choose a client to see their details.</div>`;
+        const groups = CA_GROUPS.map(g => `<section class="ca-group">
+                <h4>${_calEsc(g.title)}</h4>
+                <dl>${g.fields.map(([k, label]) => `<div class="ca-field"><dt>${_calEsc(label)}</dt><dd>${_caValue(r[k])}</dd></div>`).join('')}</dl>
+            </section>`).join('');
+        const extra = r.extra && typeof r.extra === 'object' ? Object.entries(r.extra).filter(([, v]) => String(v == null ? '' : v).trim()) : [];
+        const extraHtml = extra.length ? `<section class="ca-group"><h4>Other sheet columns</h4><dl>${extra.map(([k, v]) => `<div class="ca-field"><dt>${_calEsc(k)}</dt><dd>${_caValue(v)}</dd></div>`).join('')}</dl></section>` : '';
+        const source = r.source === 'syncview' ? 'Edited in SyncView' : 'From the Clients Info sheet';
+        return `<button type="button" class="ca-back" onclick="_caSelect('')">‹ All clients</button>
+            <header class="ca-detail-head">
+                <span class="ca-avatar" aria-hidden="true">${_calEsc(_caInitials(r.display_name))}</span>
+                <div>
+                    <h3>${_calEsc(r.display_name || r.slug)}</h3>
+                    <div class="ca-meta">${r.archived_at ? `<span class="ca-pill is-archived">Archived ${_calEsc(_caWhen(r.archived_at))}</span>` : ''}<span class="ca-pill">${_calEsc(source)}</span></div>
+                </div>
+            </header>
+            ${groups}${extraHtml}
+            <footer class="ca-prov">Last updated ${_calEsc(_caWhen(r.updated_at) || 'unknown')} by ${_calEsc(r.updated_by || 'unknown')}${r.sheet_synced_at ? ` · copied from the sheet ${_calEsc(_caWhen(r.sheet_synced_at))}` : ''}</footer>`;
+    }
+
+    function _caPaint() {
+        const body = document.getElementById('caBody');
+        if (!body) return;
+        if (_caState.loading && !_caState.loaded) { body.innerHTML = `<div class="ca-status">Loading clients…</div>`; return; }
+        if (_caState.error && !_caState.loaded) { body.innerHTML = `<div class="ca-status is-error">${_calEsc(_caState.error)} <button class="cc-btn" type="button" onclick="_caLoad(false)">Try again</button></div>`; return; }
+        const rows = _caFiltered();
+        const all = _caState.rows || [];
+        const archivedCount = all.filter(r => r.archived_at).length;
+        const selected = all.find(r => r.slug === _caState.selected) || null;
+        const list = rows.length ? rows.map(r => `<li><button type="button" class="ca-row${selected && selected.slug === r.slug ? ' is-active' : ''}${r.archived_at ? ' is-archived' : ''}" onclick="_caSelect('${_calEscAttr(r.slug)}')">
+                <span class="ca-avatar" aria-hidden="true">${_calEsc(_caInitials(r.display_name))}</span>
+                <span class="ca-row-text"><span class="ca-row-name">${_calEsc(r.display_name || r.slug)}</span><span class="ca-row-sub">${_calEsc([r.instagram_handle, r.email].filter(Boolean).join(' · ') || 'No handle or email yet')}</span></span>
+                ${r.source === 'syncview' ? '<span class="ca-dot" title="Edited in SyncView"></span>' : ''}
+            </button></li>`).join('') : `<li class="ca-none">No clients match “${_calEsc(_caState.search)}”.</li>`;
+        const authority = _caState.authority && _caState.authority.source === 'syncview' ? 'SyncView is the main copy.' : 'The sheet is the main copy.';
+        body.innerHTML = `<div class="ca-split${selected ? ' has-selection' : ''}">
+                <div class="ca-list-pane">
+                    <div class="ca-list-head"><span>${rows.length} of ${all.length - (_caState.showArchived ? 0 : archivedCount)} clients</span>${archivedCount ? `<button type="button" class="ca-link" onclick="_caToggleArchived()">${_caState.showArchived ? 'Hide' : 'Show'} ${archivedCount} archived</button>` : ''}</div>
+                    <ul class="ca-list">${list}</ul>
+                    <div class="ca-authority">${_calEsc(authority)}</div>
+                </div>
+                <div class="ca-detail" id="caDetail">${_caDetailHtml(selected)}</div>
+            </div>`;
+    }

@@ -1330,6 +1330,7 @@ import {
         if (capability === 'hiring') return role === 'admin';
         if (capability === 'pto-admin') return role === 'admin';
         if (capability === 'quiz-leads') return role === 'admin';
+        if (capability === 'clients-admin') return role === 'admin';
         if (capability === 'workload-plan-read') return role === 'admin' || role === 'smm' || role === 'creative';
         if (capability === 'workload-plan') return role === 'admin' || role === 'smm';
         if (capability === 'workload-linear-read') return role === 'admin' || role === 'smm' || role === 'creative';

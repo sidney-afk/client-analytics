@@ -78,7 +78,7 @@ prose in §4 must be updated in the same PR whenever a surface gains or loses a 
   and grants were read back and the exact-source function is deployed; the release drill ended with
   zero sidecar-row residue. F147 tracks the exact revoke-correction artifact provenance.
 - **Edge Functions.** 36 are represented under `supabase/functions/`; **the app calls 29**
-  (**"27 literal + 4 composed" Edge Functions**, see §7; `description-image-upload` is the
+  (**"28 literal + 4 composed" Edge Functions**, see §7; `description-image-upload` is the
   2026-09-05 addition and is source-only until its first path-triggered deploy). Seven are backend-only: the Linear
   webhook target (`linear-inbound`), B4 outbox drainer (`linear-outbound`), service-only write
   wrappers (`deliverable-write`, `batch-write`), the scheduled thumbnail Drive scanner

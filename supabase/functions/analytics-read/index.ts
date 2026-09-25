@@ -33,6 +33,9 @@ const PAGE = 1000; // PostgREST returns at most this many rows per request
 const READ_DATASETS = ["metrics", "top_videos", "market_research_briefs", "content_summaries", "client_profile"] as const;
 type ReadDataset = typeof READ_DATASETS[number];
 type JsonMap = Record<string, unknown>;
+// What the admin list returns: every profile field, the provenance columns,
+// and nothing internal (row_hash is a copy-job detail).
+const CLIENT_PROFILE_ADMIN_COLUMNS = "slug,display_name,email,competitors,keywords,specific_keywords,content_description,instagram_handle,tiktok_handle,youtube_channel_id,slack_channel_id,creative_channel_id,upload_post_profile,postforme_account_id,extra,source,sheet_synced_at,archived_at,created_at,updated_at,updated_by";
 
 function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), { status, headers: { ...CORS, "Content-Type": "application/json" } });
@@ -113,6 +116,28 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (!url || !serviceKey) return json({ ok: false, error: "server_not_configured" }, 500);
 
     const body = await req.json().catch(() => ({})) as JsonMap;
+
+    // Clients admin tab (read-only, step 1 of the plan's "Later: a Clients
+    // admin tab"): every client's profile row, active and archived, for ADMIN
+    // staff only. Never reachable by a client link token, and never by the
+    // smm or creative role keys.
+    if (clean(body.action) === "list_client_profiles") {
+      const staffKey = clean(req.headers.get("x-syncview-key"));
+      if (!staffKey || !authorizeStaffKey(staffKey, ["admin"]).ok) return json({ ok: false, error: "unauthorized" }, 401);
+      const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
+      const rows = await readAll((a, b) => supabase.from("client_profiles").select(CLIENT_PROFILE_ADMIN_COLUMNS)
+        .order("display_name").order("slug").range(a, b));
+      const { data: authority } = await supabase.from("syncview_runtime_flags").select("value")
+        .eq("key", "client_profiles_authority").maybeSingle();
+      return json({
+        ok: true,
+        principal: "staff",
+        authority: authority && typeof authority.value === "object" ? authority.value : null,
+        clients: rows,
+        elapsed_ms: Math.round(performance.now() - started),
+      });
+    }
+
     const slug = clientSlug(body.slug || body.client_slug || body.client);
     if (!slug) return json({ ok: false, error: "missing_client" }, 400);
     const asked = Array.isArray(body.datasets) ? body.datasets.map(clean) : [...READ_DATASETS];

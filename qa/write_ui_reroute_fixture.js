@@ -78,9 +78,35 @@ const WRITE_UI_REROUTE_TEST_CLIENT = 'sidneylaruel';
  *
  * Shaped exactly like the PostgREST rows the read consumes:
  * `select=key,value` over `syncview_runtime_flags`. */
+/* THE BOOT READ FETCHES SIX KEYS, SO THE ANSWER CARRIES ALL SIX (OPEN_REPAIRS 255).
+ *
+ * `index.html` reads its routing flags in ONE request at boot (`svFlagKeys` in
+ * src/index/005-head-boot.html.part) and hands each key its row, or "absent".
+ * This matcher catches that request because it names `write_ui_reroute_clients`,
+ * and until 2026-09-25 it answered with the two rows above ONLY. The other
+ * four therefore read as ABSENT in every harness run, and absent means OFF:
+ * `calendar_upsert_ef_clients` empty sent every card save to the legacy n8n
+ * `calendar-upsert-post` webhook, which drops `video_deliverable_id` /
+ * `graphic_deliverable_id`. Measured live on the test client: a Create Post
+ * card saved through the harness lost its work-item link; the same flow with
+ * the real rows kept it. Same defect as the `[]` roster, four flags over.
+ *
+ * Read live 2026-09-25 with the browser publishable key: the three routing
+ * rosters enrol every active client, the test client included, and both
+ * enabled flags are on. The rosters are pinned to the TEST client (the lane is
+ * what matters, not the other 42 slugs, which must not be committed).
+ *
+ * ONE DELIBERATE DIFFERENCE: `kasper_urgent_ping_enabled` is served OFF. It is
+ * not a routing flag; it decides whether an urgent Kasper ping reaches Slack.
+ * Probes were run with it absent (off) until now, and turning it on in a test
+ * harness would send real Slack messages. */
 const WRITE_UI_REROUTE_PRODUCTION_ROWS = [
   { key: 'write_ui_reroute_clients', value: { clients: [WRITE_UI_REROUTE_TEST_CLIENT] } },
-  { key: 'client_comment_gateway_enabled', value: { enabled: true } }
+  { key: 'client_comment_gateway_enabled', value: { enabled: true } },
+  { key: 'calendar_upsert_ef_clients', value: { clients: [WRITE_UI_REROUTE_TEST_CLIENT] } },
+  { key: 'sample_review_ef_clients', value: { clients: [WRITE_UI_REROUTE_TEST_CLIENT] } },
+  { key: 'settings_ef_clients', value: { clients: [WRITE_UI_REROUTE_TEST_CLIENT] } },
+  { key: 'kasper_urgent_ping_enabled', value: { enabled: false } }
 ];
 
 /* THE EXPLICIT LEGACY ROSTER, for the lanes that are ABOUT the legacy write path.
@@ -106,14 +132,29 @@ const WRITE_UI_REROUTE_PRODUCTION_ROWS = [
  *
  * The comment-gateway row is served identically: the front door is a separate flag and is ON
  * in production either way. */
-const WRITE_UI_REROUTE_LEGACY_ROWS = [
-  { key: 'write_ui_reroute_clients', value: { clients: ['probelegacyroster'] } },
-  { key: 'client_comment_gateway_enabled', value: { enabled: true } }
-];
+const WRITE_UI_REROUTE_LEGACY_ROWS = WRITE_UI_REROUTE_PRODUCTION_ROWS.map(row =>
+  row.key === 'write_ui_reroute_clients' ? { key: row.key, value: { clients: ['probelegacyroster'] } } : row);
+
+/* The keys a PostgREST flag URL asks for: `key=eq.x` or `key=in.(a,b)`.
+   null when the URL names none, which means "every row". */
+function requestedFlagKeys(url) {
+  let s = String(url || '');
+  try { s = decodeURIComponent(s); } catch (e) {}
+  const eq = s.match(/[?&]key=eq\.([^&]+)/);
+  if (eq) return [eq[1]];
+  const inList = s.match(/[?&]key=in\.\(([^)]*)\)/);
+  if (inList) return inList[1].split(',').map(k => k.trim()).filter(Boolean);
+  return null;
+}
+/* Only the rows the request asked for, as PostgREST would answer. */
+function rowsFor(rows, url) {
+  const keys = requestedFlagKeys(url);
+  return keys ? rows.filter(row => keys.includes(row.key)) : rows;
+}
 
 /* The body a lane serves when it is deliberately exercising the legacy path. */
-function legacyRosterBody() {
-  return JSON.stringify(WRITE_UI_REROUTE_LEGACY_ROWS);
+function legacyRosterBody(url) {
+  return JSON.stringify(rowsFor(WRITE_UI_REROUTE_LEGACY_ROWS, url));
 }
 
 const WRITE_UI_REROUTE_CORS = {
@@ -124,8 +165,8 @@ const WRITE_UI_REROUTE_CORS = {
 };
 
 /* The response body every harness serves for the flag read. */
-function productionRosterBody() {
-  return JSON.stringify(WRITE_UI_REROUTE_PRODUCTION_ROWS);
+function productionRosterBody(url) {
+  return JSON.stringify(rowsFor(WRITE_UI_REROUTE_PRODUCTION_ROWS, url));
 }
 
 /* Does this URL look like the reroute flag read? Kept beside the body so a
@@ -142,5 +183,6 @@ module.exports = {
   WRITE_UI_REROUTE_CORS,
   productionRosterBody,
   legacyRosterBody,
-  isRerouteFlagRequest
+  isRerouteFlagRequest,
+  requestedFlagKeys
 };

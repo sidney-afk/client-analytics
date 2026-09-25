@@ -121,10 +121,13 @@ async function adminMember(supabase: SupabaseClient, memberId: string): Promise<
   return { id: clean(m.id), name: clean(m.name) };
 }
 
+// Fails closed: a missing, malformed or unreadable flag is never read as
+// "sheet", so an edit can never reach the Sheet after authority has moved.
 async function authority(supabase: SupabaseClient): Promise<string> {
-  const { data } = await supabase.from("syncview_runtime_flags").select("value").eq("key", "client_profiles_authority").maybeSingle();
-  const v = data && typeof data.value === "object" ? data.value as JsonMap : {};
-  return clean(v.source) || "sheet";
+  const { data, error } = await supabase.from("syncview_runtime_flags").select("value").eq("key", "client_profiles_authority").maybeSingle();
+  if (error) throw error;
+  const v = data && data.value && typeof data.value === "object" ? data.value as JsonMap : null;
+  return v ? clean(v.source) : "";
 }
 
 const blankToNull = (v: unknown) => (clean(v) === "" ? null : clean(v));

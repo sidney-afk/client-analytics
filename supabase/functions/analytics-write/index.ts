@@ -78,6 +78,8 @@ async function priorCounts(
   return counts;
 }
 
+const PROFILE_BOOKKEEPING = new Set(["slug", "extra", "row_hash", "source", "run_id", "sheet_synced_at", "updated_at", "updated_by", "created_at", "archived_at"]);
+
 async function writeProfiles(supabase: SupabaseClient, records: JsonMap[], complete: boolean): Promise<number> {
   const { data: existing, error } = await supabase.from("client_profiles").select("*");
   if (error) throw error;
@@ -90,7 +92,9 @@ async function writeProfiles(supabase: SupabaseClient, records: JsonMap[], compl
   const unchangedEdit = (r: JsonMap) => {
     const cur = byslug.get(r.slug as string);
     if (!cur || cur.source !== "syncview" || cur.archived_at) return false;
-    return Object.keys(r).filter(k => k !== "slug" && k !== "extra").every(k => same(r[k], cur[k]));
+    // Content fields only: row_hash and the other bookkeeping columns are
+    // recomputed by the copy and never match an edited row's stored values.
+    return Object.keys(r).filter(k => !PROFILE_BOOKKEEPING.has(k)).every(k => same(r[k], cur[k]));
   };
   const now = new Date().toISOString();
   const rows = records

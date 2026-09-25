@@ -54,6 +54,7 @@ function ok(cond, msg) { if (!cond) { console.error('FAIL ' + msg); process.exit
   ok(!/client_access|x-syncview-client-token|ANALYTICS_MIRROR_WRITE_KEY/.test(fn), 'no client token or n8n key can reach it');
   ok(/adminMember\(/.test(serve) && /clean\(m\.role\) !== "admin"/.test(fn), 'the editor must be an active admin team member');
   ok(/await authority\(supabase\) !== "sheet"/.test(serve), 'it refuses to run unless the Sheet is still the main copy');
+  ok(/if \(error\) throw error;\s*const v = data && data\.value/.test(fn) && !/clean\(v\.source\) \|\| "sheet"/.test(fn), 'an unreadable or missing authority flag fails closed');
   const w = serve.indexOf('await writeCells('), r = serve.indexOf('supabase.rpc("client_profile_admin_edit"');
   ok(w > 0 && r > w && serve.indexOf('planSheetEdit(values, slug, current, changes') < w, 'order: check the Sheet row, write the Sheet, then Supabase');
   ok(/valueInputOption: "RAW"/.test(fn), 'cells are written as plain text, never as formulas');

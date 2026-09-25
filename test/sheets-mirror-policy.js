@@ -79,8 +79,10 @@ const ok = (cond, msg) => { assert.ok(cond, msg); checks++; console.log('  ok  '
   ok(prof.records[0].slug === 'probeclient' && prof.records[0].display_name === 'Probe Client' && !('source' in prof.records[0]),
     'a profile row maps client_name to slug + display_name, and the writer (not the caller) sets its source');
   ok(JSON.stringify(Object.keys(m.profileForClientLink({ slug: 's', display_name: 'd', email: 'e', slack_channel_id: 'c' })).sort())
-    === JSON.stringify(['display_name', 'instagram_handle', 'slug', 'tiktok_handle', 'youtube_channel_id']),
-    'a client link sees only its name and public handles, never email or channel ids');
+    === JSON.stringify(['content_description', 'display_name', 'instagram_handle', 'slug', 'tiktok_handle', 'youtube_channel_id']),
+    'a client link sees only its name, public handles and its own About text, never email or channel ids');
+  ok(/v\.enabled === true\) return true;\s*return Array\.isArray\(v\.clients\) && v\.clients\.map\(clean\)\.includes\(slug\)/.test(READ_SRC),
+    'the read flag is on for everyone only with enabled:true; a clients list turns it on for named clients only');
 
   // ---- CSV ----
   const csv = m.parseCsv('"a","b",""\r\n"1","say ""hi""\nthere",""\n\n2,3,\n');

@@ -51,8 +51,10 @@ export const DATASETS = Object.freeze({
 });
 
 // Profile fields a client's own link may see. Staff see every column.
+// content_description is the "About this client" text the client's own page
+// already shows them from the Sheet.
 export const CLIENT_LINK_PROFILE_FIELDS = Object.freeze(['slug', 'display_name', 'instagram_handle',
-  'tiktok_handle', 'youtube_channel_id']);
+  'tiktok_handle', 'youtube_channel_id', 'content_description']);
 
 export const WRITE_SOURCES = Object.freeze(['n8n', 'sheet-copy', 'sheet-backfill']);
 

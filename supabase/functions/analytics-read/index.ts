@@ -45,10 +45,14 @@ function clean(v: unknown): string {
   return String(v == null ? "" : v).trim();
 }
 
-async function flagOn(supabase: SupabaseClient, key: string): Promise<boolean> {
+// On for everyone with {"enabled": true}; on for named clients only with
+// {"enabled": false, "clients": ["<slug>"]}, so one test client can use the
+// mirror while the flag stays off for the rest.
+async function flagOn(supabase: SupabaseClient, key: string, slug: string): Promise<boolean> {
   const { data } = await supabase.from("syncview_runtime_flags").select("value").eq("key", key).maybeSingle();
   const v = data && typeof data.value === "object" ? data.value as JsonMap : {};
-  return v.enabled === true;
+  if (v.enabled === true) return true;
+  return Array.isArray(v.clients) && v.clients.map(clean).includes(slug);
 }
 
 // Pages through a query until a short page comes back.
@@ -155,7 +159,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       principal = "staff";
     } else {
       const token = clean(req.headers.get("x-syncview-client-token") || body.token);
-      if (!(await flagOn(supabase, "analytics_mirror_read_enabled"))) {
+      if (!(await flagOn(supabase, "analytics_mirror_read_enabled", slug))) {
         return json({ ok: false, error: "mirror_read_disabled" }, 503);
       }
       if (!(await clientTokenValid(supabase, slug, token))) {

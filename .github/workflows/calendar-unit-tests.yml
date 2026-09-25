@@ -190,6 +190,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/client-phone-review-browser.js
+      - name: Client link Analytics reads the database behind its flag, Sheets as fallback
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/analytics-mirror-read-browser.js
       - name: Kasper Clients tab is admin-only and read-only
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

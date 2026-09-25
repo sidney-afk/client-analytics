@@ -151,3 +151,15 @@ verify_jwt = false
 # endpoint requires NOTIFY_RUNNER_KEY and has no schedule or browser caller.
 [functions.notify]
 verify_jwt = false
+
+# Sheets -> Supabase mirror, Phase 1 (docs/plans/2026-09-24-sheets-to-supabase.md).
+# Browser reader: JWT off because SyncView is a static app; the function itself
+# requires a staff role key or the client's own link token and returns one
+# client's rows. Not used by the page until Phase 2.
+[functions.analytics-read]
+verify_jwt = false
+
+# Private n8n / backfill writer: JWT off because n8n is not a Supabase browser
+# client; the function requires ANALYTICS_MIRROR_WRITE_KEY and a default-off flag.
+[functions.analytics-write]
+verify_jwt = false

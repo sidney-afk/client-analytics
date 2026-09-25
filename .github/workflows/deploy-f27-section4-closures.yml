@@ -374,7 +374,13 @@ jobs:
       # bundle grows from 9 files to 10. Regenerated with scripts/ef-fingerprint.js
       # --slugs=production-write --expected-only; entrypoint unchanged.
       # (Previous pin: 78cd3f60f2... -- production-write, files=9, 2026-09-23.)
-      PRODUCTION_WRITE_SOURCE_SHA256: 6de7c0b54542508c4396ef65919ef7254a7a4439659a22411ac9f924bc5571fa
+      # Re-pinned 2026-09-25 (OPEN_REPAIRS 256): the shared refusal recorder
+      # (_shared/write-refusal-diagnostics.mjs) stamps each gateway receipt with
+      # traffic = person | automation from the user agent. Regenerated with
+      # scripts/ef-fingerprint.js --slugs=production-write --expected-only;
+      # entrypoint and file count (10) unchanged.
+      # (Previous pin: 6de7c0b545... -- production-write, files=10, #1624.)
+      PRODUCTION_WRITE_SOURCE_SHA256: 192c9aa1b33b72245e020a51345b1f5606544d57c8e3ee257aa15b9faa86b962
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

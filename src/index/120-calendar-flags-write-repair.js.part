@@ -1484,7 +1484,12 @@
                 ? error.status : null;
             const claim = {
                 action: 'browser_claim', surface: String(surface || ''),
-                operation: item && item.kind, code: error && error.code, identifiers
+                operation: item && item.kind, code: error && error.code, identifiers,
+                // Which kind of page refused: a client link or a staff page.
+                // A claim like the rest of this beacon (the server stores it as
+                // unverified), but it lets the log tell a client's refusal from
+                // staff without joining request logs (triage 2026-09-25).
+                page: (typeof _isClientLink !== 'undefined' && _isClientLink) ? 'client_link' : 'staff_page'
             };
             if (status !== null) claim.status = status;
             const body = JSON.stringify(claim);

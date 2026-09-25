@@ -460,6 +460,7 @@
     "production-schema-compat-audit.js",
     "production-shadow-audit.js",
     "production-write-auth-matrix.js",
+    "production-write-card-link.js",
     "production-write-client-comment-front-door.js",
     "production-write-drill-coverage.js",
     "production-write-drill.js",

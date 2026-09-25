@@ -8,6 +8,7 @@
 'use strict';
 const H = require('./ot4_lib.js');
 const { launch, smmCal, archiveCalSafe, appErrs } = H;
+const NW = require('../native_work_item_fixture.js');
 
 const C = H.counter(); const t = C.t;
 const TS = Date.now();
@@ -24,7 +25,7 @@ const rowByName = (cols) => {
   const browser = await launch();
   let id = null;
   try {
-    const p = await smmCal(browser);
+    let p = await smmCal(browser);
     await p.waitForFunction(() => !!document.querySelector('#calStrip .cal-card-add'), { timeout: 20000 });
 
     // 1) CREATE via the real "+" and typed name.
@@ -96,22 +97,23 @@ const rowByName = (cols) => {
     t(!!r4 && (r4.caption || '').includes('OT4 caption draft'), 'DB: caption landed');
 
     // 5) VIDEO SUB-STATUS via the real pill → menu → item.
-    // 4b) The video/graphic pills are LOCKED until a Linear sub-issue is
-    // linked ("Link a Linear sub-issue first" — design gate). Do what a real
-    // SMM does: paste the VID sub-issue link (adoption webhook is MOCKED by
-    // the harness), which unlocks the pill.
-    const LIN = 'https://linear.app/synchro-social/issue/VID-7' + (TS % 9000 + 1000) + '/ot4';
-    const linked = await p.evaluate((args) => {
-      const [pid, url] = args;
-      try { _calLinearEdit(pid, 'video'); } catch (e) { return 'edit-err: ' + e.message; }
-      const inp = document.querySelector(`[data-title-row="${pid}"] input.cal-linear-input`);
-      if (!inp) return 'no-linear-input';
-      inp.value = url; inp.blur();
-      return 'ok';
-    }, [id, LIN]);
-    t(linked === 'ok', 'SMM pastes the VID Linear sub-issue link (blur commits)', linked);
-    const r4b = await H.pollRow(() => H.rowCal(id, 'linear_issue_id'), r => (r.linear_issue_id || '').includes('VID-7'), POLL);
-    t(!!r4b && (r4b.linear_issue_id || '').includes('VID-7'), 'DB: linear_issue_id landed');
+    // 4b) The video/graphic pills are LOCKED until the card has a SyncView
+    // work item for that component. Linear is retired (OPEN_REPAIRS 253): a
+    // pasted Linear link no longer links anything, and the Linear control is
+    // gone. The card gets a native work item from the shared fixture instead
+    // (stamped into this card's reads, never persisted: the id column has a
+    // foreign key), and the page is reopened so the stamped read is the one it
+    // renders from.
+    NW.registerProbeWorkItems([{ id, components: ['video'] }]);
+    t(appErrs(p).length === 0, '0 app JS errors before the reopen', (appErrs(p)[0] || ''));
+    await p.context().close();
+    p = await smmCal(browser);
+    await p.waitForFunction((pid) => !!document.querySelector(`#calStrip .cal-card[data-pid="${pid}"]`), id, { timeout: 25000 }).catch(() => {});
+    const stamped = await p.evaluate((pid) => {
+      const post = (calState.posts || []).find(x => x && x.id === pid);
+      return String(post && post.video_deliverable_id || '');
+    }, id);
+    t(stamped === NW.nativeDeliverableId(id, 'video'), 'the card carries its SyncView video work item', stamped);
     await p.waitForFunction((pid) => {
       const b = document.querySelector(`.cal-fld-substatus-wrap[data-substatus-pid="${pid}"][data-substatus-comp="video"] .cal-fld-substatus-trigger`);
       return !!(b && !b.disabled);

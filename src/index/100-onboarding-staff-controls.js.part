@@ -1979,6 +1979,13 @@
     let _ptoOverviewGeneration = 0;
     let _ptoAdminOverviewGeneration = 0;
     let _ptoQuoteGeneration = 0;
+    function _ptoStoreFlagValue(value) { _ptoFlagValue = value; }
+    function _ptoSetFlagPromise(value) { _ptoFlagPromise = value; }
+    function _ptoSetFlagChannel(value) { _ptoFlagChannel = value; }
+    function _ptoNextFlagGeneration() { return ++_ptoFlagGeneration; }
+    function _ptoNextOverviewGeneration() { return ++_ptoOverviewGeneration; }
+    function _ptoNextAdminOverviewGeneration() { return ++_ptoAdminOverviewGeneration; }
+    function _ptoNextQuoteGeneration() { return ++_ptoQuoteGeneration; }
     const PTO_API_TIMEOUT_MS = 20000;
     const _ptoState = {
         overview: null,

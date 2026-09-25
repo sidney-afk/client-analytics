@@ -10,15 +10,8 @@ const path = require('path');
 const vm = require('vm');
 
 const INDEX = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-// The function is full of nested template literals, so cut it at the next
-// top-level declaration rather than brace-matching.
-function extract(name) {
-  const start = INDEX.indexOf('function ' + name + '(');
-  assert(start >= 0, 'missing ' + name);
-  const end = INDEX.slice(start).search(/\n    (?:function |\/\*|const |let )/);
-  assert(end > 0, 'no end for ' + name);
-  return INDEX.slice(start, start + end);
-}
+const { extractFunction } = require('./helpers/extract-function.js');
+const extract = name => extractFunction(INDEX, name);
 const ctx = {
   _jsAttrArg: v => JSON.stringify(String(v)),
   _calCommentRole: () => 'smm',

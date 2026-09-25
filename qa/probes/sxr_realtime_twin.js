@@ -40,7 +40,8 @@ async function firePush(page) {
   const ts = Date.now();
   const id = 'sr_probe_rttwin_' + ts;
   try {
-    up({ id, name: 'RT twin ' + ts, order_index: 1, video_status: 'In Progress', graphic_status: 'Approved', status: 'In Progress', linear_issue_id: 'https://linear.app/x/VID-RT' + ts, video_deliverable_id: ('del_' + 'https://linear.app/x/VID-RT' + ts).replace(/[^A-Za-z0-9_-]/g, '_'), graphic_linear_issue_id: 'https://linear.app/x/GRA-RT' + ts , graphic_deliverable_id: ('del_' + 'https://linear.app/x/GRA-RT' + ts).replace(/[^A-Za-z0-9_-]/g, '_')});
+    require('../native_work_item_fixture.js').registerProbeWorkItems([{ id: id, components: ['video', 'graphic'] }]);
+    up({ id, name: 'RT twin ' + ts, order_index: 1, video_status: 'In Progress', graphic_status: 'Approved', status: 'In Progress', linear_issue_id: 'https://linear.app/x/VID-RT' + ts, graphic_linear_issue_id: 'https://linear.app/x/GRA-RT' + ts });
     await sleep(1500);
 
     // Tab A: the SMM's screen, loaded and idle.

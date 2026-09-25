@@ -22,6 +22,10 @@ const now = () => new Date().toISOString();
   const ok = (cond, msg) => { if (cond) { pass++; console.log('  ✓', msg); } else { fail++; console.log('  ✗', msg); } };
   const browser = await lib.launch();
   try {
+    // Since Linear was retired (2026-09-24) only a SyncView deliverable id
+    // links a component; the fixture stamps one into this card's reads (the
+    // column's foreign key means a probe cannot persist a synthetic id).
+    require('../native_work_item_fixture.js').registerProbeWorkItems([{ id: PID, components: ['video', 'graphic'] }]);
     lib.up({
       id: PID, name: 'P92 pill in-place ' + TS,
       video_status: 'Tweaks Needed', graphic_status: 'Approved', status: 'Tweaks Needed',

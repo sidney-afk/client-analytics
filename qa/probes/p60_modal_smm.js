@@ -70,7 +70,7 @@ const rootIdByBody = async (pid, comp, needle) => { const r = await Q.rawRow(pid
     await Q.up({ id: PID, name: 'M60 ' + TS, platforms: 'instagram', scheduled_date: '2026-06-29',
       video_status: 'For SMM Approval', graphic_status: 'Approved', caption_status: 'Client Approval', status: 'For SMM Approval',
       thumbnail_url: 'https://via.placeholder.com/320x180.png', asset_url: 'https://example.com/g.mp4',
-      linear_issue_id: 'https://linear.app/syn/issue/TEST-60/video', video_deliverable_id: ('del_' + 'https://linear.app/syn/issue/TEST-60/video').replace(/[^A-Za-z0-9_-]/g, '_'), video_tweaks: '[]', caption_tweaks: '[]' });
+      linear_issue_id: 'https://linear.app/syn/issue/TEST-60/video', video_tweaks: '[]', caption_tweaks: '[]' });
     await Q.pollRaw(PID, r => r.caption_status === 'Client Approval', 'caption_status');
     await Q.waitForPost(smm, PID);
 

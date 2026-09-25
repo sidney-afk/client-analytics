@@ -40,9 +40,10 @@ const appKeys = {
   CLIENT_COMMENT_GATEWAY_FLAG_KEY: grab(APP, /const CLIENT_COMMENT_GATEWAY_FLAG_KEY = '([^']+)'/),
   SETTINGS_EF_FLAG_KEY: grab(APP, /const SETTINGS_EF_FLAG_KEY = '([^']+)'/),
   SXR_SAMPLE_REVIEW_FLAG_KEY: grab(APP, /const SXR_SAMPLE_REVIEW_FLAG_KEY = '([^']+)'/),
+  ANALYTICS_MIRROR_FLAG_KEY: grab(APP, /const ANALYTICS_MIRROR_FLAG_KEY = '([^']+)'/),
 };
-check('head batch covers exactly the six boot flag keys',
-  headKeys.length === 6 && Object.values(appKeys).every(k => k && headKeys.includes(k)));
+check('head batch covers exactly the seven boot flag keys',
+  headKeys.length === 7 && Object.values(appKeys).every(k => k && headKeys.includes(k)));
 check('prod_authority stays a live read (not batched)', !headKeys.includes('prod_authority'));
 // The leave (Time Off) flag is deliberately NOT batched: its source is pinned
 // by the leave evidence fingerprint (test/leave-evidence-fingerprint-coupling.js).

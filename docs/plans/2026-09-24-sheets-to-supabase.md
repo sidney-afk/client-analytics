@@ -275,6 +275,23 @@ the "No new posts" placeholder rows); a slow Supabase read makes paint worse;
 the share-link check changes who can see what. Rollback: flip the flag back to
 `sheets`. No deploy needed, and the Sheets are still being written.
 
+**Built 2026-09-25 (client links first; flag still off).** A verified client
+link asks `analytics-read` for its own rows once, and that one answer feeds
+the whole Analytics and Brief page, instead of downloading every client's
+Sheets. The staff overview still reads the Sheets, because it shows every
+client and `analytics-read` answers one. The Sheets are read exactly as
+before when the flag is off, the read fails or takes over 8 s, or a stage has
+no rows and no complete receipt for this client. `analytics_mirror_read_enabled`
+can now be switched on for named clients only, with
+`{"enabled": false, "clients": ["<slug>"]}`, so the test client can go first.
+The client link also receives `content_description` (the "About this client"
+text its page already shows). Browser test:
+`docs/syncview-design/tests/analytics-mirror-read-browser.js`.
+
+Measured 2026-09-25: a client link today downloads 19.6 MB of Sheets
+(essentials 2.8 MB in 0.4 to 0.6 s, extras 16.8 MB in 2.5 to 2.9 s, 5 runs);
+`analytics-read` for the test client answered in 342 ms with 89 KB.
+
 ### Phase 3: parity period, then retire the Sheets
 
 1. Run each dataset on Supabase for at least **3 days** (owner decision

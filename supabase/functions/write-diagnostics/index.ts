@@ -1,8 +1,8 @@
 // Separate dormant WR101 release. Browser claims never become verified principals.
 import {createClient} from 'npm:@supabase/supabase-js@2.49.8';
 import {timingSafeEqual} from '../_shared/staff-role-auth.ts';
-import {makeRefusalReceipt} from '../_shared/write-refusal-diagnostics.mjs';
-const headers={'content-type':'application/json','cache-control':'no-store','access-control-allow-origin':'*','access-control-allow-headers':'content-type,x-diagnostics-runner-key','access-control-allow-methods':'POST,OPTIONS'};
+import {makeRefusalReceipt,requestTraffic} from '../_shared/write-refusal-diagnostics.mjs';
+const headers={'content-type':'application/json','cache-control':'no-store','access-control-allow-origin':'*','access-control-allow-headers':'content-type,x-diagnostics-runner-key,x-syncview-traffic','access-control-allow-methods':'POST,OPTIONS'};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers});
 Deno.serve(async(req:Request)=>{
  if(req.method==='OPTIONS')return new Response(null,{status:204,headers});if(req.method!=='POST')return json({ok:false},405);
@@ -11,7 +11,7 @@ Deno.serve(async(req:Request)=>{
  const url=Deno.env.get('SUPABASE_URL'),key=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');if(!url||!key)return json({ok:false},503);
  const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
  if(body.action==='browser_claim'){
-  const receipt=await makeRefusalReceipt({surface:body.surface,operation:body.operation,identifiers:body.identifiers},body.code,body.status,'browser_claim');
+  const receipt=await makeRefusalReceipt({surface:body.surface,operation:body.operation,identifiers:body.identifiers},body.code,body.status,'browser_claim',{traffic:requestTraffic(req),claimed_page:body.page});
   const result=await db.rpc('production_write_refusal_record_v1',{p_receipt:receipt});return json({ok:!result.error&&result.data?.recorded===true},result.error?503:202);
  }
  const runner=Deno.env.get('WRITE_DIAGNOSTICS_RUNNER_KEY');if(!runner||!timingSafeEqual(req.headers.get('x-diagnostics-runner-key')||'',runner))return json({ok:false},401);

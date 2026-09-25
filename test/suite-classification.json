@@ -605,6 +605,15 @@
   ],
   "profiles": [
     {
+      "file": "write-refusal-page-traffic-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 16,
+      "required_inputs": "A throwaway PostgreSQL 16 server named by WRITE_REFUSAL_TEST_PG (psql connection args); the suite creates and drops its own database.",
+      "reproduce": "WRITE_REFUSAL_TEST_PG='-h 127.0.0.1 -p PORT -U postgres' node test/write-refusal-page-traffic-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
       "file": "linear-exit-admission-preflight-postgres.js",
       "route": "isolated_postgres",
       "postgres_major": 17,

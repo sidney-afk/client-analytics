@@ -29010,7 +29010,19 @@ effectively off in tests before, and on would send real Slack pings.
 and fails if the fixture leaves any of them out, and runs the shipped calendar
 router on the answer.
 
-## 256. [2026-09-25, BUILT] Workload's fresh board waited for the sign-in check before it started
+## 256. [2026-09-25, BUILT, needs the migration then two function deploys] The refusal log can now tell people from automation, and client links from staff pages
+
+**Why:** the 2026-09-25 triage of `write_refusal_diagnostics.receipts_v1` (about 4,500 rows over three days) could only separate our own tests from people by joining the request logs minute by minute on user agent and network. About 4,450 rows were automation (CI and executor sessions); fewer than 100 involved a real person. Browser claims are always stored `unverified`, so a client's refusal and a staff member's looked identical.
+
+**Change:** two optional receipt fields.
+- `traffic` (`person` | `automation`), set server-side from the request's user agent (HeadlessChrome, Playwright, curl, HTTP libraries, or no agent) or an explicit `x-syncview-traffic: automation` header. A header can never mark a request as a person.
+- `claimed_page` (`client_link` | `staff_page`), sent by the page's refusal beacon and stored for browser claims only. It is a claim, like the rest of the beacon.
+
+Both are optional in `production_write_refusal_record_v1`, so functions deployed before the migration keep recording with the original nine keys. Grants restate all four roles: revoke from public, anon, authenticated, service_role; execute granted back to service_role only.
+
+**Order:** apply `supabase/migrations/20260925180000_write_refusal_page_and_traffic.sql` FIRST (the old function refuses the new keys with `refusal_shape`, and a refused receipt is simply lost), then deploy `write-diagnostics` and `production-write`. Guard: `test/write-refusal-page-traffic-postgres.js`.
+
+## 257. [2026-09-25, BUILT] Workload's fresh board waited for the sign-in check before it started
 
 **Measured on the live site, 2026-09-25, warm reloads signed in as staff.** Workload
 painted its saved copy at ~0.8 s but became live and editable only at 2.2-2.9 s. The

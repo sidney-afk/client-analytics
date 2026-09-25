@@ -11,7 +11,7 @@
 | 3 | `010-styles-foundation.css.part` | 3885 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 4 | `020-styles-surfaces.css.part` | 4133 | Templates view |
 | 5 | `030-body-shell.html.part` | 445 | Confirmation modal |
-| 6 | `040-shared-briefs.js.part` | 1670 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
+| 6 | `040-shared-briefs.js.part` | 1785 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1709 | Market Research Brief Tab Renderers |
 | 8 | `060-templates-filming.js.part` | 2277 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3650 | Workload Calendar |
@@ -19,7 +19,7 @@
 | 11 | `090-workload-popovers-navigation.js.part` | 1645 | Sub-issue popover |
 | 12 | `100-onboarding-staff-controls.js.part` | 2364 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2189 | Kasper Time Off calendar |
-| 14 | `120-calendar-flags-write-repair.js.part` | 3070 | The members a flag value offers, or null when it offers no member list at |
+| 14 | `120-calendar-flags-write-repair.js.part` | 3075 | The members a flag value offers, or null when it offers no member list at |
 | 15 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
 | 16 | `130-calendar-model-cache.js.part` | 1341 | Returns the comments array for a given component. Falls back to the |
 | 17 | `131-core-html.js.part` | 12 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
@@ -38,7 +38,7 @@
 | 30 | `230-production-create-comments.js.part` | 2639 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 31 | `240-production-description.js.part` | 2646 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 32 | `250-production-controls-data.js.part` | 2880 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 33 | `260-production-refresh-boot.js.part` | 2281 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 33 | `260-production-refresh-boot.js.part` | 2371 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 34 | `270-samples-model.js.part` | 2707 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 35 | `280-samples-cards-notes.js.part` | 2832 | SURFACE 3: the save engine |
 | 36 | `290-samples-writes-review.js.part` | 1798 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |

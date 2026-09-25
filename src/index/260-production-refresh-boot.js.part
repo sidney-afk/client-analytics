@@ -1,3 +1,83 @@
+import {
+  ANALYTICS_CACHE_KEY, _analyticsAppliedFp, _analyticsHoldExtras, _analyticsHydrateFromCache,
+  _analyticsHydrateFromIdb, _analyticsIdbDelete, _analyticsLiveApplied,
+  _analyticsRefreshCurrentView, _analyticsSyncCachedNote, _nextFetchExtrasAttempt, _setAllData,
+  _setBriefs, _setClientEssentialsLoad, _setClientMap, _setClientViewTab, _setContentSummaryState,
+  _setCurrentClientHistory, _setFetchExtrasPromise, _setFetchExtrasState, _setGrowthChart,
+  _setMrBriefs, _setTabSummaryCache, _setTopVideos, _setViewsChart, _syncviewCancelBriefWork,
+  _syncviewClientAnalyticsData, _syncviewWatchClientExtras, activeBriefSection, activeBriefTab,
+  activeMRBriefTab, clientViewTab, fetchAll, fetchEssentials, growthChart, viewsChart
+} from './040-shared-briefs.js';
+import {
+  _autoSummaryAttempted, _templatesSelected, _templatesSetActiveTab, _templatesSetSelected,
+  loadTemplates, render
+} from './050-market-briefs.js';
+import {
+  NAV_KEY, _isSmmWeeklyRoute, _obvMountStandalone, _syncviewNavEpoch, currentNav
+} from './060-templates-filming.js';
+import {
+  WL_CLIENT_NAMES, getClientRoster, wlCanonicalClient, wlIsAllowedClient, wlNormalizeClient
+} from './070-workload-source.js';
+import { _navPillSync, navTo } from './090-workload-popovers-navigation.js';
+import {
+  CAL_SUPABASE_ANON_KEY, CLIENT_TOKEN_VERIFY_URL, SMM_WEEKLY_REPORTS_URL,
+  SYNCVIEW_CLIENT_ENTRY_PROTOCOL, _obSetDraftKey, _obSetSubIdKey, _obSetVariant,
+  _syncviewOpenStaffGate, _syncviewStaffCan, _syncviewStaffGateRequired,
+  _syncviewStaffIdentityBoot, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentityLoad
+} from './100-onboarding-staff-controls.js';
+import { _ptoPrimeFlag, _srpState } from './110-time-off-reports.js';
+import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
+import { _prodDetailTitleHtml } from './125-title-name-rule.js';
+import { _calSetFocusRequest, _calSetPendingDeepLink, calState } from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
+import {
+  _calFlushAllPending, _calResolvePendingDeepLink, _calSetClient, _calSetLinearOutboxFlushTimer,
+  _linearOutboxFlushTimer
+} from './134-calendar-prefs-mount.js';
+import { CAL_CACHE_KEY_PREFIX, _calNextLoadSeq, _calV2Teardown } from './150-calendar-hydration-import.js';
+import {
+  FAST_TABS, KASPER_UNLOCK_KEY, RESTORABLE_FAST_TABS, _applyAllDataDependentChrome,
+  _kasperUnlocked, _linearResumeSubmissionHold, _resumePendingCalCardJobs, _setKasperUnlocked
+} from './200-intake-data-startup.js';
+import {
+  PROD_ATTRIBUTION_CONFLICT, PROD_ATTRIBUTION_NEEDS, PROD_BOARD_ORDER, PROD_DELETE_UNSUPPORTED,
+  PROD_DELIVERABLE_SELECT, PROD_GROUP_SELECT_UNSUPPORTED, PROD_PROJECT_MOVE_UNSUPPORTED,
+  _prodAssetState, _prodBatchFileFor, _prodBoardStatus, _prodBrowserProjectionRows,
+  _prodCacheWrite, _prodEnabled, _prodEnsureAssets, _prodEnsureBatchFiles, _prodEnsureLabels,
+  _prodHasOwn, _prodModeText, _prodPostRows, _prodPreviewText, _prodState
+} from './210-production-state-writes.js';
+import {
+  PROD_FILE_LINK_ICON, _prodAdapter, _prodAssetEligibleRow, _prodAttributionResolved,
+  _prodAttributionSyncClientLabel, _prodAttributionSyncPending, _prodAvatar, _prodBatch,
+  _prodBatchAssetSource, _prodBatchRows, _prodBoardLabel, _prodChildrenOf, _prodClearLayer,
+  _prodClient, _prodClientFilterLabel, _prodCopyIssueIds, _prodCreateTopbarButton,
+  _prodDisplayClient, _prodEnsureOverlays, _prodFmtDate, _prodFmtDateFull, _prodHideTip, _prodIcon,
+  _prodIssue, _prodIssueDisplayLabel, _prodIssueIdHTML, _prodIssueLabel, _prodIssues, _prodMember,
+  _prodOpenRowId, _prodPickerEmptyState, _prodPillsHTML, _prodProjectGlyph, _prodReadonlyGuard,
+  _prodRowOverdue, _prodRowOverdueText, _prodStatusAge, _prodStatusBreakdown, _prodStatusIcon,
+  _prodStatusLabel, _prodStatusSVG, _prodSubProgress, _prodTeamLabel, _prodToast,
+  _prodWriteGateAttrs
+} from './220-production-attribution-views.js';
+import { _prodComments, _prodComposerHTML, _prodDescriptionHTML, _prodLabelsButtonHTML } from './230-production-create-comments.js';
+import {
+  _prodAssetsPanelHTML, _prodCaptureDescriptionFocus, _prodCaptureFocus, _prodDescriptionPanelHTML,
+  _prodEnsureBatchDescription, _prodEnsureDescription, _prodFileLinkLabel, _prodPlacePop,
+  _prodRestoreDescriptionFocus, _prodRestoreFocus
+} from './240-production-description.js';
+import {
+  PROD_DELTA_REFRESH_MS, PROD_FULL_RECONCILE_MS, PROD_REFRESH_MAX_BACKOFF_MS, _prodBoardCardCounts,
+  _prodBoardCardsForStatus, _prodCloseSub, _prodDeepLinkNoticeHTML, _prodDeliverableWatermark,
+  _prodFirstLoadSettled, _prodFreshnessHTML, _prodGroupsFor, _prodInvalidateScopedReadsFor,
+  _prodIssueRows, _prodLayerPop, _prodLoadData, _prodLoadEventsFor, _prodLoadLinearRawFor,
+  _prodMergeDeliverableRows, _prodMyQueueUnavailableText, _prodOpenSub, _prodProjectAllRows,
+  _prodProjectRows, _prodProjectScopeTeam, _prodRefreshAgeLabel, _prodRefreshDegraded,
+  _prodTargetIds, _prodTitleAttrs
+} from './250-production-controls-data.js';
+import { SXR_CACHE_PREFIX, _sxrAbortActiveLoad, _sxrNextLoadSeq, sxrState } from './270-samples-model.js';
+import { _sxrFlushAllPending, _sxrLinearOutboxTimer, _sxrSetLinearOutboxTimer, mountSxrClientView } from './280-samples-cards-notes.js';
+import { _sxrV2Teardown, _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
+import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js';
         function _prodManualRefresh() {
             // The press must be visibly acknowledged: the refresh itself is a
             // silent background delta, and a button that does nothing on
@@ -2279,3 +2359,13 @@
         _syncviewOpenStaffGate();
     }
 
+export {
+  _isClientLink, _isIntake, _isOnboarding, _isOnboardingView, _isSmmWeeklyEntry,
+  _prodCaptureListScroll, _prodDeltaRefresh, _prodProjectStatusIcon, _prodRender,
+  _prodRowSetComplete, _prodScrollDetailToTop, _prodSmmPurgeSensitiveState,
+  _prodStartOperationalRefresh, _syncviewAppBooted, _syncviewClientEntryCapability,
+  _syncviewClientEntryDataRun, _syncviewClientEntryEnvelope, _syncviewClientEntryLoader,
+  _syncviewClientEntryRunCurrent, _syncviewClientEntrySlug, _syncviewClientExtrasErrorScreen,
+  _syncviewInvalidClientLinkScreen, _syncviewSetAppBooted, _syncviewSetClientEntryCapability,
+  _syncviewStaleClientEntryError, _syncviewSyncClientEntryRunHref, init
+};

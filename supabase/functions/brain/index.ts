@@ -1,6 +1,6 @@
 // Supabase Edge Function: brain
 //
-// Reads one client's facts from the private Synchro Brain repository for the
+// Reads one client's editor brief and facts from the private Synchro Brain repository for the
 // SyncView Templates page, and records a "Send a change" submission there.
 //
 // The public site never sees the brain token. Reads return only the four
@@ -10,7 +10,11 @@
 // inputs/syncview-changes/ (brain rule 5); a brain-side workflow processes it
 // into facts. This function never edits a fact file.
 //
-// Both actions require a SyncView staff key (client review tokens are refused:
+// A third action, "folders", lists the client's recent Frame folder and Raw
+// footage links from production batches (the page cannot read `batches`
+// directly). It reads only those columns, newest first.
+//
+// All actions require a SyncView staff key (client review tokens are refused:
 // the brain is staff-only).
 //
 // Required env:
@@ -20,13 +24,13 @@
 //   BRAIN_REPO   default "sidney-afk/synchro-brain"
 //   BRAIN_BRANCH default "main"
 
-import { createClient } from "npm:@supabase/supabase-js@2.49.8";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import {
   authorizeBrowserWrite,
   browserWriteAuthResponse,
   normalizeBrowserWriteClient,
 } from "../_shared/browser-write-auth.ts";
-import { findClientFolder, parseBrainFacts } from "./parse.mjs";
+import { findClientFolder, parseBrainFacts, parseBrief } from "./parse.mjs";
 
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -89,9 +93,13 @@ async function readClient(slug: string) {
     cache.set(slug, { at: Date.now(), body });
     return body;
   }
-  const texts = await Promise.all(FILES.map((f) => readFile(folder, f)));
+  const [texts, briefText] = await Promise.all([
+    Promise.all(FILES.map((f) => readFile(folder, f))),
+    readFile(folder, "brief"),
+  ]);
   const facts = FILES.flatMap((f, i) => texts[i] == null ? [] : parseBrainFacts(texts[i] as string, f));
-  const body = { ok: true, found: true, folder, facts, read_at: new Date().toISOString() };
+  const brief = briefText == null ? [] : parseBrief(briefText);
+  const body = { ok: true, found: true, folder, facts, brief, read_at: new Date().toISOString() };
   cache.set(slug, { at: Date.now(), body });
   return body;
 }
@@ -149,11 +157,40 @@ async function recordChange(slug: string, body: Record<string, unknown>, princip
   return json({ ok: true, received: now.toISOString(), path });
 }
 
+async function recentFolders(db: SupabaseClient, slug: string) {
+  // Walk the client's batches newest first, a page at a time, until both
+  // lists hold 8 unique links or history runs out. Each list de-duplicates
+  // on its own, so one folder used for both kinds shows in both.
+  const frame: Array<{ url: string; name: string; at: string }> = [];
+  const raw: Array<{ url: string; name: string; at: string }> = [];
+  const seen = { frame: new Set<string>(), raw: new Set<string>() };
+  const PAGE = 100;
+  for (let from = 0; from < 2000 && (frame.length < 8 || raw.length < 8); from += PAGE) {
+    const { data, error } = await db
+      .from("batches")
+      .select("name,created_at,footage_folder_url,delivery_folder_url")
+      .eq("client_slug", slug)
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    const rows = (data || []) as Array<Record<string, string | null>>;
+    for (const b of rows) {
+      for (const [kind, list, url] of [["frame", frame, b.delivery_folder_url], ["raw", raw, b.footage_folder_url]] as const) {
+        const u = String(url || "").trim();
+        if (!/^https?:\/\//i.test(u) || seen[kind].has(u) || list.length >= 8) continue;
+        seen[kind].add(u);
+        list.push({ url: u, name: String(b.name || ""), at: String(b.created_at || "") });
+      }
+    }
+    if (rows.length < PAGE) break;
+  }
+  return { ok: true, frame, raw };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method not allowed" }, 405);
   try {
-    if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return json({ ok: false, error: "brain_not_configured" }, 503);
     const body = await req.json().catch(() => ({})) as Record<string, unknown>;
     const slug = normalizeBrowserWriteClient(body.clientName);
     if (!slug) return json({ ok: false, error: "clientName required" }, 400);
@@ -164,6 +201,8 @@ Deno.serve(async (req) => {
     });
     const principal = await authorizeBrowserWrite(db, req, slug, "brain");
 
+    if (body.action === "folders") return json(await recentFolders(db, slug));
+    if (!Deno.env.get("BRAIN_GITHUB_TOKEN")) return json({ ok: false, error: "brain_not_configured" }, 503);
     if (body.action === "read") return json(await readClient(slug));
     if (body.action === "change") return await recordChange(slug, body, principal);
     return json({ ok: false, error: "unknown_action" }, 400);

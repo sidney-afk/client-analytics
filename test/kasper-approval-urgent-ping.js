@@ -125,6 +125,7 @@ function card(extra) {
     graphic_status: 'In Progress', caption_status: 'In Progress', title_status: 'In Progress',
     linear_issue_id: 'https://linear.app/synchro-social/issue/VID-1/v',
     graphic_linear_issue_id: 'https://linear.app/synchro-social/issue/GRA-1/g',
+    video_deliverable_id: 'del_v1', graphic_deliverable_id: 'del_g1',
   }, extra || {});
 }
 
@@ -139,7 +140,7 @@ check('caption at Kasper Approval offers it (the editor ping never could)',
 check('title at Kasper Approval offers it',
   P._calShowKasperUrgent(card({ title_status: 'Kasper Approval' }), 'title') === true);
 check('an UNLINKED thumbnail does not — he could not act on it anyway',
-  P._calShowKasperUrgent(card({ graphic_status: 'Kasper Approval', graphic_linear_issue_id: '' }), 'graphic') === false);
+  P._calShowKasperUrgent(card({ graphic_status: 'Kasper Approval', graphic_linear_issue_id: '', graphic_deliverable_id: '' }), 'graphic') === false);
 check('a linked thumbnail does',
   P._calShowKasperUrgent(card({ graphic_status: 'Kasper Approval' }), 'graphic') === true);
 check('the marker records the first waiting component, so one card = one ping',

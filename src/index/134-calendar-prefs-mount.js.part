@@ -220,9 +220,10 @@
        native fallback (a Set-membership check, not a pairwise compare) but
        reads the same two fields for the same reason. */
     function _calDupeKey(post, comp) {
+        // Linear is retired: two cards sharing an old Linear URL are not a
+        // conflict any more; only a shared SyncView deliverable is.
         return {
-            linear: _calLinkKey(comp === 'graphic'
-                ? (post && post.graphic_linear_issue_id) : (post && post.linear_issue_id)),
+            linear: '',
             native: _calLinkKey(comp === 'graphic'
                 ? (post && post.graphic_deliverable_id) : (post && post.video_deliverable_id)),
         };
@@ -281,7 +282,7 @@
     // Human label for the dupe banner: the calendar calls the graphic slot "Thumbnail".
     function _calDupeWarnText(groups) {
         return groups.map(g => 'Same ' + (g.comp === 'graphic' ? 'thumbnail' : 'video')
-            + ' Linear issue as ' + g.names.join(', ')).join(' · ');
+            + ' work item as ' + g.names.join(', ')).join(' · ');
     }
     /* The open client tabs (calendar AND samples) live here in localStorage and
        ARE the persistence for "which tabs are open". We deliberately do NOT

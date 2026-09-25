@@ -13,6 +13,11 @@ const checks = [
   ['errors do not auto-retry on every render', INDEX.includes("(cur.state !== 'ready' ||")],
   ['a sent change can be followed by another', INDEX.includes('function tplBrainAnother(key)')],
   ['unreachable brain falls back to last SyncView values', INDEX.includes('${_tplBrainFallback(name)}')],
+  ['working links list recent Frame folders and Raw footage from batches', INDEX.includes("action: 'folders'") && INDEX.includes('${_tplRecentFolders(name)}')],
+  ['the editor brief is shown first, facts folded under "All facts, with sources"', INDEX.includes('function _tplBriefView(name, b)') && INDEX.includes('All facts, with sources')],
+  ['brain buttons pass keys through data attributes, not quoted JS (names with apostrophes)', !/onclick="tpl(Brain(Open|Send|Another)|Brief(Change|ToggleSource))\('\$\{/.test(INDEX) && INDEX.includes('onclick="tplBriefToggleSource(this.dataset.k)"')],
+  ['only the clicked brief row opens a change form, never a second copy in All facts', INDEX.includes('_tplBriefFormRow === srcKey') && INDEX.includes('if (fact && !fromBrief && _tplBriefFormRow)')],
+  ['a failed folders load says so and can be retried', INDEX.includes('function tplFoldersRetry()') && INDEX.includes("Couldn't load recent folders.")],
 ];
 let fail = 0;
 for (const [name, ok] of checks) { console.log((ok ? '  ok  ' : 'FAIL  ') + name); if (!ok) fail++; }

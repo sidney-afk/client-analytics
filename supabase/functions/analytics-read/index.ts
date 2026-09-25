@@ -35,7 +35,7 @@ type ReadDataset = typeof READ_DATASETS[number];
 type JsonMap = Record<string, unknown>;
 // What the admin list returns: every profile field, the provenance columns,
 // and nothing internal (row_hash is a copy-job detail).
-const CLIENT_PROFILE_ADMIN_COLUMNS = "slug,display_name,email,competitors,keywords,specific_keywords,content_description,instagram_handle,tiktok_handle,youtube_channel_id,slack_channel_id,creative_channel_id,roam_channel_id,upload_post_profile,postforme_account_id,extra,source,sheet_synced_at,archived_at,created_at,updated_at,updated_by";
+const CLIENT_PROFILE_ADMIN_COLUMNS = "slug,display_name,email,competitors,keywords,specific_keywords,content_description,instagram_handle,tiktok_handle,youtube_channel_id,slack_channel_id,creative_channel_id,upload_post_profile,postforme_account_id,extra,source,sheet_synced_at,archived_at,created_at,updated_at,updated_by";
 
 function json(obj: unknown, status = 200): Response {
   return new Response(JSON.stringify(obj), { status, headers: { ...CORS, "Content-Type": "application/json" } });

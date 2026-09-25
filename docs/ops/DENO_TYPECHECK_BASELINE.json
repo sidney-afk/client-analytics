@@ -1,31 +1,17 @@
 {
   "schema": "syncview_deno_typecheck_baseline_v1",
   "targets": {
-    "production-write": {
-      "counts": {
-        "TS2352": 1
-      },
-      "total": 1,
+    "ai-onboarding-list": {
+      "counts": {},
+      "total": 0,
       "measured_on": "2026-09-25"
     },
-    "linear-outbound": {
-      "counts": {
-        "TS2345": 10,
-        "TS2339": 2
-      },
-      "total": 12,
+    "analytics-read": {
+      "counts": {},
+      "total": 0,
       "measured_on": "2026-09-25"
     },
-    "linear-inbound": {
-      "counts": {
-        "TS2339": 9,
-        "TS7053": 2,
-        "TS2551": 1
-      },
-      "total": 12,
-      "measured_on": "2026-09-25"
-    },
-    "deliverable-write": {
+    "analytics-write": {
       "counts": {},
       "total": 0,
       "measured_on": "2026-09-25"
@@ -35,12 +21,7 @@
       "total": 0,
       "measured_on": "2026-09-25"
     },
-    "workload-plan": {
-      "counts": {},
-      "total": 0,
-      "measured_on": "2026-09-25"
-    },
-    "ai-onboarding-list": {
+    "brain": {
       "counts": {},
       "total": 0,
       "measured_on": "2026-09-25"
@@ -67,12 +48,27 @@
       "total": 1,
       "measured_on": "2026-09-25"
     },
+    "client-profile-write": {
+      "counts": {},
+      "total": 0,
+      "measured_on": "2026-09-25"
+    },
     "client-review-link": {
       "counts": {},
       "total": 0,
       "measured_on": "2026-09-25"
     },
     "client-token-verify": {
+      "counts": {},
+      "total": 0,
+      "measured_on": "2026-09-25"
+    },
+    "deliverable-write": {
+      "counts": {},
+      "total": 0,
+      "measured_on": "2026-09-25"
+    },
+    "description-image-upload": {
       "counts": {},
       "total": 0,
       "measured_on": "2026-09-25"
@@ -107,6 +103,29 @@
       "total": 0,
       "measured_on": "2026-09-25"
     },
+    "linear-inbound": {
+      "counts": {
+        "TS2339": 9,
+        "TS7053": 2,
+        "TS2551": 1
+      },
+      "total": 12,
+      "measured_on": "2026-09-25"
+    },
+    "linear-outbound": {
+      "counts": {
+        "TS2345": 10,
+        "TS2339": 2
+      },
+      "total": 12,
+      "measured_on": "2026-09-25"
+    },
+    "notify": {
+      "counts": {},
+      "total": 0,
+      "measured_on": null,
+      "required_zero_unmeasured": true
+    },
     "onboarding-capture": {
       "counts": {},
       "total": 0,
@@ -130,6 +149,13 @@
       "measured_on": "2026-09-25"
     },
     "production-comments": {
+      "counts": {
+        "TS2352": 1
+      },
+      "total": 1,
+      "measured_on": "2026-09-25"
+    },
+    "production-write": {
       "counts": {
         "TS2352": 1
       },
@@ -191,33 +217,12 @@
       "total": 4,
       "measured_on": "2026-09-03"
     },
-    "description-image-upload": {
+    "workload-plan": {
       "counts": {},
       "total": 0,
       "measured_on": "2026-09-25"
-    },
-    "notify": {
-      "counts": {},
-      "total": 0,
-      "measured_on": null,
-      "required_zero_unmeasured": true
     },
     "write-diagnostics": {
-      "counts": {},
-      "total": 0,
-      "measured_on": "2026-09-25"
-    },
-    "brain": {
-      "counts": {},
-      "total": 0,
-      "measured_on": "2026-09-25"
-    },
-    "analytics-read": {
-      "counts": {},
-      "total": 0,
-      "measured_on": "2026-09-25"
-    },
-    "analytics-write": {
       "counts": {},
       "total": 0,
       "measured_on": "2026-09-25"

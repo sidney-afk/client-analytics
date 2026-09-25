@@ -8225,10 +8225,25 @@
         .ca-group { padding: 16px 0 4px; }
         .ca-group + .ca-group { border-top: 1px dashed var(--border); }
         .ca-group h4 { margin: 0 0 10px; font-size: 0.76rem; font-weight: 800; color: var(--text-secondary); }
+        .ca-fold summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; min-height: 32px; margin-bottom: 6px; }
+        .ca-fold summary::-webkit-details-marker { display: none; }
+        .ca-fold summary::before { content: '›'; font-weight: 800; color: var(--text-secondary); transition: transform .15s; }
+        .ca-fold[open] summary::before { transform: rotate(90deg); }
+        .ca-fold summary h4 { margin: 0; }
         .ca-group dl { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px 24px; }
         .ca-field dt { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); margin-bottom: 3px; }
         .ca-field dd { margin: 0; font-size: 0.86rem; line-height: 1.5; color: var(--text-primary); white-space: pre-wrap; overflow-wrap: anywhere; }
         .ca-field dd a { color: inherit; }
+        .ca-detail-head .ca-edit-btn { margin-left: auto; align-self: flex-start; }
+        .ca-field.is-wide { grid-column: 1 / -1; }
+        .ca-input { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; background: var(--white); color: var(--text-primary); font: inherit; font-size: 0.86rem; line-height: 1.45; }
+        .ca-input:focus { outline: 0; border-color: var(--text-primary); box-shadow: 0 0 0 3px var(--sv-bg-fafaf8); }
+        textarea.ca-input { resize: vertical; min-height: 72px; }
+        .ca-input.is-conflict { border-color: var(--sv-fg-b91c1c); background: var(--sv-bg-fff7f7); }
+        .ca-msg { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font-size: 0.8rem; line-height: 1.45; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .ca-msg.is-error { color: var(--sv-fg-b91c1c); border-color: var(--sv-border-fecaca); background: var(--sv-bg-fff7f7); }
+        .ca-editbar { position: sticky; bottom: 0; display: flex; align-items: center; gap: 8px; margin: 16px -4px 0; padding: 12px 4px; background: var(--white); border-top: 1px solid var(--border); }
+        .ca-editnote { margin-right: auto; font-size: 0.74rem; color: var(--text-muted); }
         .ca-empty { color: var(--text-muted); font-style: italic; }
         .ca-prov { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 0.72rem; color: var(--text-muted); }
         @media (max-width: 767px) {
@@ -8242,6 +8257,11 @@
             .ca-split:not(.has-selection) .ca-detail { display: none; }
             .ca-detail { padding: 16px; scroll-margin-top: 150px; }
             .ca-back { display: inline-flex; align-items: center; min-height: 44px; margin: -6px 0 8px -6px; padding: 0 8px; border: 0; background: none; font: inherit; font-size: 0.9rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
+            .ca-fold summary { min-height: 44px; }
+            .ca-input { font-size: 16px; min-height: 44px; }
+            .ca-editbar { flex-wrap: wrap; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+            .ca-editnote { flex-basis: 100%; }
+            .ca-editbar .cc-btn { flex: 1; }
             .ca-link { min-height: 44px; }
             .ca-group dl { grid-template-columns: 1fr; }
         }
@@ -80357,22 +80377,27 @@
     // client_profiles grants the browser nothing; the rows come from
     // analytics-read's admin-only `list_client_profiles` action, which checks
     // the ADMIN role key. Editing (with an edit history, source='syncview')
-    // is a separate, later step; nothing here writes.
+    // goes through client-profile-write (admin only, Sheet first).
     const CA_READ_URL = CAL_SUPABASE_URL + '/functions/v1/analytics-read';
     const CA_GROUPS = [
         { title: 'Contact', fields: [['email', 'Email']] },
         { title: 'Social accounts', fields: [['instagram_handle', 'Instagram'], ['tiktok_handle', 'TikTok'], ['youtube_channel_id', 'YouTube channel']] },
-        { title: 'Content research', fields: [['content_description', 'Content description'], ['keywords', 'Keywords'], ['specific_keywords', 'Specific keywords'], ['competitors', 'Competitors']] },
-        { title: 'Team channels', fields: [['slack_channel_id', 'Slack channel'], ['creative_channel_id', 'Creative channel'], ['roam_channel_id', 'Roam channel']] },
+        { title: 'Team channels', fields: [['slack_channel_id', 'Slack channel'], ['creative_channel_id', 'Creative channel']] },
         { title: 'Publishing', fields: [['upload_post_profile', 'Upload-Post profile'], ['postforme_account_id', 'Post for Me account']] },
     ];
-    const _caState = { rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false };
+    // Shown last, folded until opened (owner, 2026-09-25): long text nobody
+    // needs at a glance.
+    const CA_RESEARCH = { title: 'Content research', fields: [['content_description', 'Content description'], ['keywords', 'Keywords'], ['specific_keywords', 'Specific keywords'], ['competitors', 'Competitors']] };
+    const CA_WRITE_URL = CAL_SUPABASE_URL + '/functions/v1/client-profile-write';
+    // Long free text gets a textarea; everything else is one line.
+    const CA_LONG_FIELDS = ['content_description', 'keywords', 'specific_keywords', 'competitors'];
+    const _caState = { rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false, edit: null };
     // Bumped by every purge, so a request started under one staff identity
     // can never repopulate the list after a sign-out or role change.
     let _caGeneration = 0;
     function _caPurgeSensitiveState() {
         _caGeneration++;
-        Object.assign(_caState, { rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false });
+        Object.assign(_caState, { rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false, edit: null });
         const body = document.getElementById('caBody');
         if (body) body.innerHTML = '';
     }
@@ -80382,7 +80407,7 @@
         if (!el) return;
         el.innerHTML = `<div class="cc-wrap ca-wrap">
             <div class="cc-topbar">
-                <div><h2 class="cc-title">Clients</h2><p class="cc-sub">Every client's details in one place. Read-only for now: the Clients Info sheet is still the main copy and is copied here daily.</p></div>
+                <div><h2 class="cc-title">Clients</h2><p class="cc-sub">Every client's details in one place. The Clients Info sheet is still the main copy: edits here are written to the sheet first, and the sheet is copied here daily.</p></div>
                 <div class="cc-actions">
                     <input class="cc-search" id="caSearch" type="search" placeholder="Search name, handle, email…" value="${_calEscAttr(_caState.search)}" oninput="_caSetSearch(this.value)" aria-label="Search clients">
                     <button class="cc-btn" type="button" onclick="_caLoad(false)">Refresh</button>
@@ -80425,8 +80450,129 @@
     }
 
     function _caSetSearch(v) { _caState.search = v || ''; _caPaint(); }
+
+    // ---- Editing (admin only; the server re-checks the admin key and member) ----
+    function _caEditRow() {
+        const ed = _caState.edit;
+        return ed ? (_caState.rows || []).find(r => r.slug === ed.slug) || null : null;
+    }
+    function _caEditChanges() {
+        const ed = _caState.edit, r = _caEditRow();
+        if (!ed || !r) return {};
+        const out = {};
+        for (const [k, v] of Object.entries(ed.draft)) {
+            if (String(v).trim() !== String(r[k] == null ? '' : r[k]).trim()) out[k] = String(v);
+        }
+        return out;
+    }
+    function _caEditDirty() { return Object.keys(_caEditChanges()).length > 0; }
+    function _caEditStart(slug) {
+        if (!_syncviewStaffCan('clients-admin')) return;
+        _caState.edit = { slug, draft: {}, saving: false, message: '', messageKind: '', conflictFields: null };
+        _caPaint();
+        const first = document.querySelector('#caDetail .ca-input');
+        if (first && !(window.matchMedia && window.matchMedia('(max-width: 767px)').matches)) { try { first.focus(); } catch (e) {} }
+    }
+    function _caEditInput(el) {
+        const ed = _caState.edit;
+        if (!ed || !el) return;
+        ed.draft[el.getAttribute('data-ca-field')] = el.value;
+    }
+    function _caEditCancel() {
+        if (_caEditDirty() && !confirm('Discard your unsaved changes?')) return;
+        _caState.edit = null;
+        _caPaint();
+    }
+    function _caEditSay(message, kind) {
+        if (!_caState.edit) return;
+        _caState.edit.message = message;
+        _caState.edit.messageKind = kind || '';
+    }
+    function _caReplaceRow(row) {
+        if (!row || !row.slug) return;
+        const i = (_caState.rows || []).findIndex(r => r.slug === row.slug);
+        if (i >= 0) _caState.rows[i] = Object.assign({}, _caState.rows[i], row);
+    }
+    const CA_FIELD_LABELS = Object.fromEntries(CA_GROUPS.concat([CA_RESEARCH]).flatMap(g => g.fields));
+    async function _caEditPost(action, extra) {
+        const ident = await _ccEnsureIdentity();
+        const resp = await fetch(CA_WRITE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
+            body: JSON.stringify(Object.assign({ action, member_id: ident.member && ident.member.id }, extra || {})),
+        });
+        let json = null;
+        try { json = await resp.json(); } catch (e) { json = null; }
+        return { resp, json: json || {}, ident };
+    }
+    async function _caEditSave() {
+        const ed = _caState.edit, r = _caEditRow();
+        if (!ed || !r || ed.saving) return;
+        const changes = _caEditChanges();
+        if (!Object.keys(changes).length) { _caEditSay('Nothing changed yet.', ''); _caPaint(); return; }
+        const generation = _caGeneration;
+        ed.saving = true; ed.conflictFields = null; _caEditSay('', ''); _caPaint();
+        let out = null;
+        try {
+            out = await _caEditPost('update_client_profile', { slug: r.slug, expected_updated_at: r.updated_at, changes });
+        } catch (e) {
+            out = { resp: { status: 0 }, json: { error: e && e.message ? e.message : 'network_error' } };
+        }
+        if (generation !== _caGeneration || _caState.edit !== ed) return;
+        ed.saving = false;
+        const { resp, json } = out;
+        const names = list => (list || []).map(k => CA_FIELD_LABELS[k] || k).join(', ');
+        if (resp.status === 200 && json.ok) {
+            _caReplaceRow(json.row);
+            _caState.edit = null;
+            _caPaint();
+            if (typeof showToast === 'function') showToast('Saved to the sheet and SyncView');
+            return;
+        }
+        const err = json.error || ('HTTP ' + resp.status);
+        if (err === 'sheet_changed') {
+            ed.conflictFields = json.fields || [];
+            _caEditSay(`Someone changed this client in the sheet since you opened it (${_calEsc(names(json.fields))}). Nothing was saved. <button type="button" class="cc-btn" onclick="_caEditRefresh()">Load the sheet's values</button>`, 'error');
+        } else if (err === 'client_profile_version_conflict') {
+            _caReplaceRow(json.row);
+            _caEditSay('Someone else saved this client a moment ago. Your changes are still here; check them and save again.', 'error');
+        } else if (err === 'sheet_not_configured') {
+            _caEditSay(`Saving is not switched on yet: the sheet has not been connected${json.service_account ? ` (share it with ${_calEsc(json.service_account)})` : ''}. Nothing was saved.`, 'error');
+        } else if (err === 'sheet_not_shared' || err === 'sheet_not_editable') {
+            _caEditSay('SyncView cannot edit the Clients Info sheet yet (it needs Editor access). Nothing was saved.', 'error');
+        } else if (err === 'saved_to_sheet_only') {
+            _caEditSay('Saved to the sheet, but SyncView\'s copy did not update. The daily copy will bring it in; refresh the list later.', 'error');
+        } else if (resp.status === 401 || resp.status === 403) {
+            _caEditSay('Saving needs an Admin sign-in.', 'error');
+        } else {
+            _caEditSay('Could not save (' + _calEsc(err) + '). Nothing was changed.', 'error');
+        }
+        _caPaint();
+    }
+    async function _caEditRefresh() {
+        const ed = _caState.edit, r = _caEditRow();
+        if (!ed || !r || ed.saving) return;
+        const generation = _caGeneration;
+        ed.saving = true; _caPaint();
+        let out = null;
+        try { out = await _caEditPost('refresh_from_sheet', { slug: r.slug }); } catch (e) { out = { resp: { status: 0 }, json: {} }; }
+        if (generation !== _caGeneration || _caState.edit !== ed) return;
+        ed.saving = false;
+        if (out.resp.status === 200 && out.json.ok) {
+            _caReplaceRow(out.json.row);
+            // Keep what the editor typed, except in the fields the sheet changed.
+            for (const k of ed.conflictFields || []) delete ed.draft[k];
+            ed.conflictFields = null;
+            _caEditSay('Loaded the latest values from the sheet. Your other changes are kept; save when ready.', '');
+        } else {
+            _caEditSay('Could not load the sheet (' + _calEsc(out.json.error || ('HTTP ' + out.resp.status)) + ').', 'error');
+        }
+        _caPaint();
+    }
     function _caToggleArchived() { _caState.showArchived = !_caState.showArchived; _caPaint(); }
     function _caSelect(slug) {
+        if (_caState.edit && _caState.edit.slug !== slug && _caEditDirty() && !confirm('Discard your unsaved changes to this client?')) return;
+        if (_caState.edit && _caState.edit.slug !== slug) _caState.edit = null;
         _caState.selected = slug || '';
         _caPaint();
         const d = document.getElementById('caDetail');
@@ -80464,10 +80610,23 @@
 
     function _caDetailHtml(r) {
         if (!r) return `<div class="ca-detail-empty">Choose a client to see their details.</div>`;
+        const ed = _caState.edit && _caState.edit.slug === r.slug ? _caState.edit : null;
+        const input = (k, label) => {
+            const v = k in ed.draft ? ed.draft[k] : (r[k] == null ? '' : String(r[k]));
+            const flag = ed.conflictFields && ed.conflictFields.includes(k) ? ' is-conflict' : '';
+            const attrs = `id="caIn_${k}" data-ca-field="${k}" oninput="_caEditInput(this)" ${ed.saving ? 'disabled' : ''} aria-label="${_calEscAttr(label)}"`;
+            return CA_LONG_FIELDS.includes(k)
+                ? `<textarea class="ca-input${flag}" rows="3" ${attrs}>${_calEsc(v)}</textarea>`
+                : `<input class="ca-input${flag}" type="text" autocomplete="off" spellcheck="false" value="${_calEscAttr(v)}" ${attrs}>`;
+        };
+        const fieldsHtml = g => `<dl>${g.fields.map(([k, label]) => ed
+            ? `<div class="ca-field${CA_LONG_FIELDS.includes(k) ? ' is-wide' : ''}"><dt><label for="caIn_${k}">${_calEsc(label)}</label></dt><dd>${input(k, label)}</dd></div>`
+            : `<div class="ca-field"><dt>${_calEsc(label)}</dt><dd>${_caValue(r[k])}</dd></div>`).join('')}</dl>`;
         const groups = CA_GROUPS.map(g => `<section class="ca-group">
                 <h4>${_calEsc(g.title)}</h4>
-                <dl>${g.fields.map(([k, label]) => `<div class="ca-field"><dt>${_calEsc(label)}</dt><dd>${_caValue(r[k])}</dd></div>`).join('')}</dl>
+                ${fieldsHtml(g)}
             </section>`).join('');
+        const research = `<details class="ca-group ca-fold"${ed ? ' open' : ''}><summary><h4>${_calEsc(CA_RESEARCH.title)}</h4></summary>${fieldsHtml(CA_RESEARCH)}</details>`;
         const extra = r.extra && typeof r.extra === 'object' ? Object.entries(r.extra).filter(([, v]) => String(v == null ? '' : v).trim()) : [];
         const extraHtml = extra.length ? `<section class="ca-group"><h4>Other sheet columns</h4><dl>${extra.map(([k, v]) => `<div class="ca-field"><dt>${_calEsc(k)}</dt><dd>${_caValue(v)}</dd></div>`).join('')}</dl></section>` : '';
         const source = r.source === 'syncview' ? 'Edited in SyncView' : 'From the Clients Info sheet';
@@ -80478,8 +80637,15 @@
                     <h3>${_calEsc(r.display_name || r.slug)}</h3>
                     <div class="ca-meta">${r.archived_at ? `<span class="ca-pill is-archived">Archived ${_calEsc(_caWhen(r.archived_at))}</span>` : ''}<span class="ca-pill">${_calEsc(source)}</span></div>
                 </div>
+                ${!ed && !r.archived_at && _syncviewStaffCan('clients-admin') ? `<button type="button" class="cc-btn ca-edit-btn" onclick="_caEditStart('${_calEscAttr(r.slug)}')">Edit</button>` : ''}
             </header>
-            ${groups}${extraHtml}
+            ${ed && ed.message ? `<div class="ca-msg${ed.messageKind ? ' is-' + ed.messageKind : ''}" role="${ed.messageKind === 'error' ? 'alert' : 'status'}">${ed.message}</div>` : ''}
+            ${groups}${ed ? '' : extraHtml}${research}
+            ${ed ? `<div class="ca-editbar">
+                <span class="ca-editnote">Saves to the Clients Info sheet first, then SyncView.</span>
+                <button type="button" class="cc-btn" onclick="_caEditCancel()" ${ed.saving ? 'disabled' : ''}>Cancel</button>
+                <button type="button" class="cc-btn primary ca-save" onclick="_caEditSave()" ${ed.saving ? 'disabled' : ''}>${ed.saving ? 'Saving…' : 'Save'}</button>
+            </div>` : ''}
             <footer class="ca-prov">Last updated ${_calEsc(_caWhen(r.updated_at) || 'unknown')} by ${_calEsc(r.updated_by || 'unknown')}${r.sheet_synced_at ? ` · copied from the sheet ${_calEsc(_caWhen(r.sheet_synced_at))}` : ''}</footer>`;
     }
 

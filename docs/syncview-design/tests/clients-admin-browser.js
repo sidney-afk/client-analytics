@@ -9,7 +9,11 @@
  *   - an SMM or CREATIVE session never sees the item and never sends the call;
  *   - on a phone (390 and 375 wide) the list, then a client's details, fit the
  *     screen with no sideways scroll and every control at least 44px tall;
- *   - nothing writes: no non-read request leaves the page.
+ *   - an admin can edit: Save sends ONLY the changed fields, with the admin
+ *     key, the admin's member id and the row version, to client-profile-write;
+ *     "the sheet changed" is shown with the fields and a way to load them;
+ *     on phones the edit form fits, inputs are 44px tall with 16px text;
+ *   - nothing else writes: no other non-read request leaves the page.
  */
 const fs = require('fs');
 const http = require('http');
@@ -48,15 +52,24 @@ async function open(browser, origin, role, viewport) {
   const ctx = await browser.newContext({ viewport, isMobile: viewport.width < 768, hasTouch: viewport.width < 768 });
   const calls = [];
   const writes = [];
-  const ctl = { fail: false };
+  const ctl = { fail: false, edit: 'ok' };
+  const edits = [];
   await ctx.route(u => !u.toString().startsWith(origin), route => {
     const r = route.request(); const u = new URL(r.url());
     if (r.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
     const json = b => route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(b) });
     if (u.pathname === '/functions/v1/analytics-read' && ctl.fail) return route.fulfill({ status: 503, headers: CORS, contentType: 'application/json', body: '{"ok":false,"error":"read_failed"}' });
     if (u.pathname === '/functions/v1/analytics-read') { calls.push({ body: r.postData(), key: r.headers()['x-syncview-key'] }); return json({ ok: true, principal: 'staff', authority: { source: 'sheet' }, clients: ROWS }); }
+    if (u.pathname === '/functions/v1/client-profile-write') {
+      const b = JSON.parse(r.postData() || '{}');
+      edits.push({ body: b, key: r.headers()['x-syncview-key'] });
+      if (b.action === 'refresh_from_sheet') return json({ ok: true, row: Object.assign({}, ROWS[0], { instagram_handle: '@from-sheet', updated_at: '2026-09-25T09:00:00Z' }) });
+      if (ctl.edit === 'conflict') return route.fulfill({ status: 409, headers: CORS, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'sheet_changed', fields: ['instagram_handle'] }) });
+      const row = ROWS.find(x => x.slug === b.slug);
+      return json({ ok: true, fields: Object.keys(b.changes || {}), row: Object.assign({}, row, b.changes, { source: 'syncview', updated_by: 'QA admin', updated_at: '2026-09-25T10:00:00Z' }) });
+    }
     if (u.pathname === '/functions/v1/key-verify') return json({ ok: true, role, member: { id: 'qa_' + role, name: 'QA ' + role, role, team: null } });
-    if (r.method() !== 'GET' && !/functions\/v1\/(key-verify|write-diagnostics)/.test(u.pathname)) writes.push(r.method() + ' ' + u.pathname);
+    if (r.method() !== 'GET' && !/functions\/v1\/(key-verify|write-diagnostics|client-profile-write|analytics-read)/.test(u.pathname)) writes.push(r.method() + ' ' + u.pathname);
     if (/rest\/v1/.test(u.pathname)) return json([]);
     if (/functions|webhook/.test(u.pathname)) return json({});
     return route.abort();
@@ -71,7 +84,7 @@ async function open(browser, origin, role, viewport) {
   await page.waitForFunction(() => typeof _kasperGotoTab === 'function' && document.querySelector('[data-kasper-tab="clients"]'), null, { timeout: 20000 })
     .catch(() => failures.push(`${role}: Kasper never rendered its tabs`));
   await page.waitForTimeout(1500);
-  return { ctx, page, calls, writes, errors, failures, ctl };
+  return { ctx, page, calls, writes, errors, failures, ctl, edits };
 }
 
 (async () => {
@@ -97,6 +110,13 @@ async function open(browser, origin, role, viewport) {
       if (withArchived !== 3) failures.push(`${label}: "Show archived" did not reveal the archived client`);
       await s.page.click('.ca-row >> nth=0');
       await s.page.waitForSelector('.ca-detail-head', { timeout: 3000 }).catch(() => failures.push(`${label}: details never opened`));
+      const lay = await s.page.evaluate(() => {
+        const d = document.querySelector('.ca-detail'); const secs = [...d.querySelectorAll('.ca-group')];
+        const last = secs[secs.length - 1];
+        return { roam: /roam/i.test(d.innerText), lastIsResearch: !!last && last.matches('details.ca-fold') && /Content research/.test(last.innerText), open: !!last && last.open };
+      });
+      if (lay.roam) failures.push(`${label}: the Roam channel field is still shown`);
+      if (!lay.lastIsResearch || lay.open) failures.push(`${label}: Content research is not last and folded (${JSON.stringify(lay)})`);
       const m = await s.page.evaluate(() => {
         const W = document.documentElement.clientWidth;
         const small = [...document.querySelectorAll('.ca-wrap button, .ca-wrap input')].filter(e => e.getClientRects().length)
@@ -107,6 +127,44 @@ async function open(browser, origin, role, viewport) {
       if (vp.width < 768) for (const x of m.small) failures.push(`${label}: "${x.what}" is ${Math.round(x.h)}px tall, under 44px`);
       if (s.writes.length) failures.push(`${label}: the read-only tab sent writes: ${s.writes.join(', ')}`);
       if (s.errors.length) failures.push(`${label}: page errors: ${s.errors.join(' | ')}`);
+      // Edit: change one field, save, and only that field is sent.
+      await s.page.click('.ca-edit-btn');
+      await s.page.waitForSelector('#caIn_email', { timeout: 3000 }).catch(() => failures.push(`${label}: Edit never opened the form`));
+      const em = await s.page.evaluate(() => {
+        const W = document.documentElement.clientWidth;
+        const ins = [...document.querySelectorAll('.ca-detail .ca-input')].filter(e => e.getClientRects().length);
+        return { W, sw: document.documentElement.scrollWidth, n: ins.length, roam: !!document.querySelector('[data-ca-field="roam_channel_id"]'),
+          small: ins.filter(e => e.getBoundingClientRect().height < 44).length, font: Math.min(...ins.map(e => parseFloat(getComputedStyle(e).fontSize))),
+          buttons: [...document.querySelectorAll('.ca-editbar button')].filter(b => b.getBoundingClientRect().height < 44).length };
+      });
+      if (process.env.CA_SHOTS) await s.page.screenshot({ path: path.join(process.env.CA_SHOTS, `edit-${vp.width}.png`), fullPage: vp.width < 768 });
+      if (em.n !== 12 || em.roam) failures.push(`${label}: expected 12 editable fields and no Roam field (${JSON.stringify(em)})`);
+      if (em.sw > em.W) failures.push(`${label}: the edit form scrolls sideways`);
+      if (vp.width < 768 && (em.small || em.font < 16 || em.buttons)) failures.push(`${label}: phone edit form: ${JSON.stringify(em)}`);
+      await s.page.fill('#caIn_email', 'changed@example.invalid');
+      await s.page.click('.ca-save');
+      await s.page.waitForFunction(() => !document.querySelector('#caIn_email'), null, { timeout: 5000 }).catch(() => failures.push(`${label}: a successful save did not close the form`));
+      const sent = s.edits[0];
+      const want = { action: 'update_client_profile', slug: 'fixture1', member_id: 'qa_admin', expected_updated_at: '2026-09-25T06:00:00Z', changes: { email: 'changed@example.invalid' } };
+      if (!sent || sent.key !== 'qa-admin-key' || JSON.stringify(sent.body, Object.keys(want).concat(['email']).sort()) !== JSON.stringify(want, Object.keys(want).concat(['email']).sort())) failures.push(`${label}: the save request was ${JSON.stringify(sent)}`);
+      const shown = await s.page.evaluate(() => ({ email: /changed@example\.invalid/.test(document.querySelector('.ca-detail').innerText), pill: /Edited in SyncView/.test(document.querySelector('.ca-detail').innerText) }));
+      if (!shown.email || !shown.pill) failures.push(`${label}: the saved values are not shown (${JSON.stringify(shown)})`);
+      // The sheet changed underneath: nothing saved, fields named, a way to load them.
+      s.ctl.edit = 'conflict';
+      await s.page.click('.ca-edit-btn');
+      await s.page.fill('#caIn_tiktok_handle', '@new-tiktok');
+      await s.page.click('.ca-save');
+      await s.page.waitForSelector('.ca-msg.is-error', { timeout: 5000 }).catch(() => failures.push(`${label}: a sheet conflict was silent`));
+      const conflict = await s.page.evaluate(() => ({ msg: (document.querySelector('.ca-msg') || {}).innerText || '', flagged: !!document.querySelector('#caIn_instagram_handle.is-conflict'), kept: (document.querySelector('#caIn_tiktok_handle') || {}).value }));
+      if (!/Instagram/.test(conflict.msg) || !conflict.flagged || conflict.kept !== '@new-tiktok') failures.push(`${label}: conflict handling: ${JSON.stringify(conflict)}`);
+      await s.page.click('.ca-msg .cc-btn');
+      await s.page.waitForFunction(() => /Loaded the latest values/.test((document.querySelector('.ca-msg') || {}).innerText || ''), null, { timeout: 5000 }).catch(() => failures.push(`${label}: loading the sheet's values failed`));
+      const refreshed = await s.page.evaluate(() => ({ ig: document.querySelector('#caIn_instagram_handle').value, tt: document.querySelector('#caIn_tiktok_handle').value }));
+      if (refreshed.ig !== '@from-sheet' || refreshed.tt !== '@new-tiktok') failures.push(`${label}: after loading the sheet: ${JSON.stringify(refreshed)}`);
+      if (s.edits.length !== 3 || s.edits[2].body.action !== 'refresh_from_sheet') failures.push(`${label}: expected save, save, refresh; got ${s.edits.map(e => e.body.action).join(',')}`);
+      s.ctl.edit = 'ok';
+      s.page.once('dialog', d => d.accept());
+      await s.page.click('.ca-editbar .cc-btn:not(.primary)');
       if (vp.width === 1440) {
         // A failed Refresh keeps the rows but says so.
         s.ctl.fail = true;
@@ -130,11 +188,12 @@ async function open(browser, origin, role, viewport) {
       await s.page.evaluate(() => _kasperGotoTab('clients')).catch(() => {});
       await s.page.waitForTimeout(800);
       if (s.calls.length) failures.push(`${role}: a non-admin session called list_client_profiles`);
+      if (s.edits.length) failures.push(`${role}: a non-admin session called client-profile-write`);
       if (await s.page.$('.ca-row')) failures.push(`${role}: a non-admin session rendered the client list`);
       console.log(`ok   ${role} is kept out`);
       await s.ctx.close();
     }
   } finally { await browser.close(); server.close(); }
   if (failures.length) { console.error('\n' + failures.join('\n')); process.exit(1); }
-  console.log('\nclients-admin-browser: OK (admin desktop + two phones, smm and creative kept out, read-only)');
+  console.log('\nclients-admin-browser: OK (admin desktop + two phones, edit + sheet conflict, smm and creative kept out)');
 })().catch(e => { console.error(e); process.exit(2); });

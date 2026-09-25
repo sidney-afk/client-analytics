@@ -15,9 +15,10 @@
 // receipt row.
 //
 // client_profiles: the Sheet copy is one-way for now. It is refused outright
-// when client_profiles_authority says "syncview", it never overwrites a row
-// whose source is 'syncview', and with complete=true a client missing from
-// the Sheet is archived, never deleted.
+// when client_profiles_authority says "syncview". While the Sheet is the main
+// copy, a row edited in SyncView (already written to the Sheet) is skipped only
+// while the Sheet still matches it, and with complete=true a client missing
+// from the Sheet is archived, never deleted.
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { timingSafeEqual } from "../_shared/staff-role-auth.ts";
 import {
@@ -77,13 +78,27 @@ async function priorCounts(
   return counts;
 }
 
+const PROFILE_BOOKKEEPING = new Set(["slug", "extra", "row_hash", "source", "run_id", "sheet_synced_at", "updated_at", "updated_by", "created_at", "archived_at"]);
+
 async function writeProfiles(supabase: SupabaseClient, records: JsonMap[], complete: boolean): Promise<number> {
-  const { data: existing, error } = await supabase.from("client_profiles").select("slug,source");
+  const { data: existing, error } = await supabase.from("client_profiles").select("*");
   if (error) throw error;
-  const owned = new Set((existing || []).filter(r => r.source === "syncview").map(r => r.slug as string));
+  // A row edited in SyncView was written to the Sheet first (client-profile-
+  // write), so while the Sheet is the main copy it keeps following the Sheet:
+  // it is left alone only while the Sheet still says the same thing, which
+  // keeps its "edited in SyncView" marker; a later Sheet edit wins.
+  const byslug = new Map((existing || []).map(r => [r.slug as string, r as JsonMap]));
+  const same = (a: unknown, b: unknown) => String(a == null ? "" : a).trim() === String(b == null ? "" : b).trim();
+  const unchangedEdit = (r: JsonMap) => {
+    const cur = byslug.get(r.slug as string);
+    if (!cur || cur.source !== "syncview" || cur.archived_at) return false;
+    // Content fields only: row_hash and the other bookkeeping columns are
+    // recomputed by the copy and never match an edited row's stored values.
+    return Object.keys(r).filter(k => !PROFILE_BOOKKEEPING.has(k)).every(k => same(r[k], cur[k]));
+  };
   const now = new Date().toISOString();
   const rows = records
-    .filter(r => !owned.has(r.slug as string))
+    .filter(r => !unchangedEdit(r))
     .map(r => ({ ...r, source: "sheet", sheet_synced_at: now, updated_at: now, updated_by: "sheet-copy", archived_at: null }));
   for (let i = 0; i < rows.length; i += CHUNK) {
     const { error: e } = await supabase.from("client_profiles").upsert(rows.slice(i, i + CHUNK), { onConflict: "slug" });
@@ -92,7 +107,7 @@ async function writeProfiles(supabase: SupabaseClient, records: JsonMap[], compl
   if (complete) {
     const present = new Set(records.map(r => r.slug as string));
     const gone = (existing || [])
-      .filter(r => r.source === "sheet" && !present.has(r.slug as string))
+      .filter(r => !present.has(r.slug as string))
       .map(r => r.slug as string);
     if (gone.length) {
       const { error: e } = await supabase.from("client_profiles")

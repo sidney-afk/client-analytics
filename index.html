@@ -4250,12 +4250,23 @@
         .tpl-brain-count { opacity: 0.6; font-size: 0.75em; }
         .tpl-brain-empty-note { font-size: 0.84rem; color: var(--text-muted); margin-top: 8px; }
         .tpl-brain-add { margin-top: 12px; }
-        .tpl-folders { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 16px; }
-        @media (max-width: 700px) { .tpl-folders { grid-template-columns: 1fr; } }
-        .tpl-folder-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); text-decoration: none; color: inherit; font-size: 0.86rem; }
-        .tpl-folder-row:hover .tpl-folder-name { text-decoration: underline; }
-        .tpl-folder-meta { color: var(--text-muted); font-size: 0.74rem; white-space: nowrap; }
+        .tpl-folders { margin-top: 24px; }
         .tpl-brain-spec-row { flex-wrap: wrap; }
+        .tpl-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-bottom: 14px; align-items: start; }
+        .tpl-top .tpl-section { margin-bottom: 0; }
+        .tpl-top-side { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .tpl-top-side .tpl-filming-card { margin-bottom: 0; flex-direction: column; align-items: flex-start; justify-content: space-between; aspect-ratio: 1 / 1; position: relative; padding: 18px; }
+        .tpl-top-side .tpl-filming-arrow { position: absolute; top: 18px; right: 18px; }
+        .tpl-top-side .tpl-filming-text { min-width: 0; max-width: 100%; }
+        .tpl-top-side .tpl-filming-host { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+        @media (max-width: 820px) { .tpl-top { grid-template-columns: 1fr; } .tpl-top-side .tpl-filming-card { aspect-ratio: auto; } }
+        .tpl-spec-group { padding: 10px 0; border-top: 1px solid var(--border-light); }
+        .tpl-spec-group:first-of-type { border-top: 0; padding-top: 2px; }
+        .tpl-spec-group-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
+        .tpl-spec-list { display: grid; gap: 4px; }
+        .tpl-spec-item { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; font-size: 0.86rem; align-items: baseline; }
+        .tpl-spec-k { color: var(--text-muted); font-size: 0.76rem; }
+        .tpl-spec-v { color: var(--text-primary); overflow-wrap: anywhere; }
         .tpl-spec-empty { font-size: 0.82rem; color: var(--text-secondary); font-style: italic; }
         .tpl-spec-btn { font-size: 0.76rem; font-weight: 600; border: 1px dashed var(--border); background: none; border-radius: 999px; padding: 3px 11px; cursor: pointer; color: var(--text-secondary); }
         .tpl-spec-btn:hover, .tpl-spec-btn:focus-visible { border-style: solid; color: var(--text-primary); }
@@ -4289,16 +4300,17 @@
         .tpl-brief-li::before { content: ""; position: absolute; left: 5px; top: 15px; width: 7px; height: 7px; border-radius: 50%; background: var(--k); opacity: 0.85; }
         .tpl-brief-avoid .tpl-brief-li::before { content: "\00d7"; width: auto; height: auto; background: none; opacity: 1; top: 4px; left: 3px; font-weight: 800; font-size: 1.05rem; line-height: 1.5; color: var(--k); }
         .tpl-brief-asks .tpl-brief-li::before { content: "\21ba"; width: auto; height: auto; background: none; opacity: 1; top: 5px; left: 2px; font-weight: 700; font-size: 0.9rem; line-height: 1.6; color: var(--k); }
-        .tpl-brief-row { position: relative; }
+        .tpl-brief-row { display: flex; align-items: flex-start; gap: 10px; }
+        .tpl-brief-text { flex: 1; min-width: 0; }
         .tpl-brief-text { font-size: 0.92rem; line-height: 1.65; color: var(--text-primary); }
         .tpl-brief-note { display: table; margin-top: 6px; padding: 2px 9px; border-radius: 999px; background: var(--kbg); color: var(--text-secondary); font-size: 0.74rem; }
         .tpl-brief-hex { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--surface-subtle); border-radius: 999px; padding: 1px 9px 1px 4px; font: inherit; font-size: 0.8rem; color: inherit; cursor: copy; vertical-align: 1px; }
         .tpl-brief-hex span { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--border); }
         .tpl-brief-hex.copied { font-weight: 700; }
-        .tpl-brief-acts { position: absolute; right: -6px; top: -2px; display: inline-flex; gap: 4px; padding: 2px 4px; border-radius: 8px; background: var(--surface-raised); box-shadow: 0 0 0 1px var(--border); opacity: 0; pointer-events: none; transition: opacity 0.12s; white-space: nowrap; }
+        .tpl-brief-acts { flex-shrink: 0; display: inline-flex; gap: 4px; margin-top: 2px; opacity: 0; pointer-events: none; transition: opacity 0.12s; white-space: nowrap; }
         .tpl-brief-li:hover .tpl-brief-acts, .tpl-brief-acts:focus-within { pointer-events: auto; }
         .tpl-brief-li:hover .tpl-brief-acts, .tpl-brief-acts:focus-within { opacity: 1; }
-        @media (hover: none) { .tpl-brief-acts { position: static; opacity: 1; pointer-events: auto; box-shadow: none; background: none; padding: 0; margin-top: 4px; } }
+        @media (hover: none) { .tpl-brief-row { flex-wrap: wrap; } .tpl-brief-acts { opacity: 1; pointer-events: auto; } }
         .tpl-brief-act { font-size: 0.72rem; border: 1px solid var(--border); background: var(--white); border-radius: 6px; padding: 2px 7px; cursor: pointer; color: var(--text-secondary); }
         .tpl-brief-act:focus-visible, .tpl-brief-hex:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
         .tpl-brief-sources { margin: 8px 0 4px; padding: 8px 12px; border-left: 3px solid var(--border); }
@@ -13027,10 +13039,10 @@
         const f = _tplFolders[name];
         if (f && f.state === 'error') return `<div class="tpl-brain-empty-note">Couldn't load recent folders. <button type="button" class="tpl-brain-change-btn" onclick="tplFoldersRetry()">Try again</button></div>`;
         if (!f || f.state !== 'ready' || (!f.frame.length && !f.raw.length)) return '';
-        const col = (label, items) => `<div class="tpl-folders-col"><div class="tpl-view-label">${label}</div>${items.length
-            ? items.map(i => `<a class="tpl-folder-row" href="${_tplEscAttr(i.url)}" target="_blank" rel="noopener"><span class="tpl-folder-name">${_tplEsc(i.name || 'Untitled batch')}</span><span class="tpl-folder-meta">${_tplEsc([_tplFolderHost(i.url), _tplFolderDate(i.at)].filter(Boolean).join(' · '))}</span></a>`).join('')
-            : '<div class="tpl-view-empty">None yet</div>'}</div>`;
-        return `<div class="tpl-folders">${col('Frame folders', f.frame)}${col('Raw footage', f.raw)}</div>`;
+        const col = (label, items) => `<div class="tpl-view-field"><div class="tpl-view-label">${label}</div><div class="tpl-view-value tpl-view-links">${items.length
+            ? items.map(i => `<a class="tpl-view-link" href="${_tplEscAttr(i.url)}" target="_blank" rel="noopener">${_tplEsc(i.name || 'Untitled batch')}<span class="tpl-view-link-host">${_tplEsc([_tplFolderHost(i.url), _tplFolderDate(i.at)].filter(Boolean).join(' · '))}</span><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M9.5 2.5h4v4M13.5 2.5L7 9M11 8.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>`).join('')
+            : _NOT_SET}</div></div>`;
+        return `<div class="tpl-view-grid tpl-folders">${col('Frame folders', f.frame)}${col('Raw footage', f.raw)}</div>`;
     }
     function tplBrainRetry() { if (_templatesSelected) { _tplBrainEnsure(_templatesSelected, true); _maybeRerenderTemplates(); } }
     function tplBrainSetTab(tab) { _tplBrainTab = tab; _maybeRerenderTemplates(); }
@@ -13144,6 +13156,18 @@
             ${st === 'error' ? '<div class="tpl-brain-err">Couldn\'t save. Your values are still here; try again.</div>' : ''}
         </div>`;
     }
+    // One "key=value" per line: the key as a small label, the value with any colour as a copyable swatch.
+    function _tplSpecList(spec) {
+        const rows = String(spec || '').split(';').map(x => x.trim()).filter(Boolean).map(part => {
+            const i = part.indexOf('=');
+            const k = i > 0 ? part.slice(0, i).trim() : '';
+            const v = i > 0 ? part.slice(i + 1).trim() : part;
+            const val = _tplEsc(v).replace(/#[0-9a-fA-F]{3,8}\b/g, hex =>
+                `<button type="button" class="tpl-brain-swatch" title="Copy ${hex}" onclick="tplBrainCopy('${hex}', this)"><span style="background:${hex}"></span>${hex}</button>`);
+            return `<div class="tpl-spec-item"><span class="tpl-spec-k">${_tplEsc(k ? k.charAt(0).toUpperCase() + k.slice(1) : '')}</span><span class="tpl-spec-v">${val}</span></div>`;
+        }).join('');
+        return `<div class="tpl-spec-list">${rows}</div>`;
+    }
     function _tplBrainSpecStrip(name) {
         const b = _tplBrain[name];
         if (!b || b.state !== 'ready' || !b.found) return '';
@@ -13154,12 +13178,11 @@
             const has = fact && fact.status === 'written' && fact.spec;
             const sent = _tplSpecSent[key] === 'sent';
             const open = _tplSpecForm === key || _tplSpecSent[key] === 'sending' || _tplSpecSent[key] === 'error';
-            return `<div class="tpl-brain-spec-row">
-                <span class="tpl-brain-spec-label">${k.label}</span>
-                <span class="tpl-brain-spec-chips">${has ? _tplBrainSpecChips(fact.spec) : '<span class="tpl-spec-empty">Not set</span>'}
-                    ${sent ? '<span class="tpl-spec-empty">Saved. Updating in a minute or two.</span>' : ''}
-                    <button type="button" class="tpl-spec-btn" data-k="${_tplEscAttr(key)}" onclick="tplSpecOpen(this.dataset.k)">${has ? 'Edit' : 'Add'}</button>
-                </span>
+            return `<div class="tpl-spec-group">
+                <div class="tpl-spec-group-head"><span class="tpl-brain-spec-label">${k.label}</span>
+                    <button type="button" class="tpl-spec-btn" data-k="${_tplEscAttr(key)}" onclick="tplSpecOpen(this.dataset.k)">${has ? 'Edit' : 'Add'}</button></div>
+                ${has ? _tplSpecList(fact.spec) : '<div class="tpl-spec-empty">Not set</div>'}
+                ${sent ? '<div class="tpl-spec-empty">Saved. Updating in a minute or two.</div>' : ''}
                 ${open ? _tplSpecForm_(name, k, has ? _tplSpecValues(fact.spec) : null, key) : ''}
             </div>`;
         }).join('');
@@ -13167,7 +13190,7 @@
         return `<div class="tpl-section tpl-brain-strip">
             <div class="tpl-section-title">Quick look</div>
             ${core}
-            ${others.map(f => `<div class="tpl-brain-spec-row"><span class="tpl-brain-spec-label">${_tplEsc(f.heading.replace(/\s*spec$/i, ''))}</span><span class="tpl-brain-spec-chips">${_tplBrainSpecChips(f.spec)}</span></div>`).join('')}
+            ${others.map(f => `<div class="tpl-spec-group"><div class="tpl-spec-group-head"><span class="tpl-brain-spec-label">${_tplEsc(f.heading.replace(/\s*spec$/i, ''))}</span></div>${_tplSpecList(f.spec)}</div>`).join('')}
         </div>`;
     }
     function _tplBrainKey(name, id) { return name + '::' + (id || '_new'); }
@@ -13477,9 +13500,10 @@
                 <div class="tpl-client-name-wrap"><div class="tpl-client-name">${_tplEsc(name)}</div>${obBtn}</div>
                 <div class="tpl-head-right">${_svSaveIndHtml('templates')}${editToggle}</div>
             </div>
-            ${_tplBrainSpecStrip(name)}
-            <div class="tpl-filming-wrap">${filmingPlans}</div>
-            ${editorFolder ? `<div class="tpl-filming-wrap">${editorFolder}</div>` : ''}
+            <div class="tpl-top">
+                <div class="tpl-top-main">${_tplBrainSpecStrip(name)}</div>
+                <div class="tpl-top-side">${filmingPlans}${editorFolder}</div>
+            </div>
             ${links}
             ${_tplBrainSection(name)}
         </div>`;

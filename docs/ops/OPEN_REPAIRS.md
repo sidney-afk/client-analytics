@@ -29009,3 +29009,20 @@ effectively off in tests before, and on would send real Slack pings.
 `test/qa-harness-routes-like-production.js` now lifts the shipped `svFlagKeys`
 and fails if the fixture leaves any of them out, and runs the shipped calendar
 router on the answer.
+
+## 256. [2026-09-25, BUILT] Workload's fresh board waited for the sign-in check before it started
+
+**Measured on the live site, 2026-09-25, warm reloads signed in as staff.** Workload
+painted its saved copy at ~0.8 s but became live and editable only at 2.2-2.9 s. The
+fresh-board read (`workload-plan` `native_snapshot_v2`, ~2 MB, 0.9-1.3 s) started
+only after `key-verify` (0.45-0.85 s) had answered, so the two ran back to back.
+
+**Fix.** The `<head>` boot script, which already starts `key-verify` early, now also
+starts that read at the same moment when the page opens on `#workload`.
+`wlFetchNativeSnapshot` takes it through `_wlTakeEarlySnapshot` only after
+`_syncviewRequireStaffIdentity` has passed, only for the exact key, member, actor
+name and role it was sent for, once, within a minute, and only if it succeeded;
+anything else is discarded and the normal read runs. Nothing is shown before the
+check passes. Expected saving: about the length of `key-verify`, 0.45-0.85 s, on
+every Workload open. Test: `test/workload-early-snapshot.js`. Before/after on the
+live site to be recorded here after merge.

@@ -37551,6 +37551,7 @@
     };
 
     let _calLoadSeq = 0;
+    function _calNextLoadSeq() { return ++_calLoadSeq; }
     let _calActiveLoad = null;
     let _calBgLoadInFlight = false;
     function _calAbortActiveLoad() {
@@ -66933,7 +66934,7 @@
             _autoSummaryAttempted.clear();
         } catch (e) {}
         try {
-            _calLoadSeq++;
+            _calNextLoadSeq();
             _calSetClient(null); calState.posts = []; calState.loading = false; calState.error = null;
             _calSetFocusRequest(null); _calSetPendingDeepLink(null);
         } catch (e) {}

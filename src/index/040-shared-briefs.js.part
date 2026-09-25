@@ -1127,7 +1127,12 @@
     }
 
     function _applyEssentialTexts(metricsText, clientsText){
-        allData=parseCSV(metricsText);
+        const publicClientRows = _applyEssentialRows(parseCSV(metricsText), clientsText);
+        _analyticsAppliedFp.ess = _analyticsFp([metricsText, JSON.stringify(publicClientRows)]);
+        return publicClientRows;
+    }
+    function _applyEssentialRows(metricsRows, clientsText){
+        allData=metricsRows;
         // Rebuild (don't accumulate): a cached paint may be replaced by fresh
         // data in the same session, and a client deleted from the sheet must
         // not linger from the snapshot.
@@ -1164,23 +1169,24 @@
                 console.log('[SyncView] Added placeholder for new client:',name);
             }
         });
-        _analyticsAppliedFp.ess = _analyticsFp([metricsText, JSON.stringify(publicClientRows)]);
         return publicClientRows;
     }
     function _applyExtraTexts(topvidsText, briefsText, mrbText, csText){
-        const rawVideos=parseCSV(topvidsText);
+        _applyExtraRows(parseCSV(topvidsText), parseCSV(briefsText), parseCSV(mrbText), csText!=null?parseCSV(csText):null, mrbText.length);
+        _analyticsAppliedFp.ext = _analyticsFp([topvidsText, briefsText, mrbText, csText || '']);
+    }
+    function _applyExtraRows(rawVideos, briefRows, mrbRows, csRows, mrbChars){
         if(rawVideos.length>0)console.log('[SyncView] TopVideos cols:',Object.keys(rawVideos[0]));
         topVideos=rawVideos.map(normalizeVideoRow);
-        briefs=parseCSV(briefsText);
-        console.log('[SyncView] MR briefs CSV length:',mrbText.length,'chars');
-        mrBriefs=parseCSV(mrbText);
+        briefs=briefRows;
+        if(mrbChars!=null)console.log('[SyncView] MR briefs CSV length:',mrbChars,'chars');
+        mrBriefs=mrbRows;
         console.log('[SyncView] Loaded',briefs.length,'briefs,',mrBriefs.length,'MR briefs');
         if(mrBriefs.length>0){
             console.log('[SyncView] MR brief cols:',Object.keys(mrBriefs[0]));
         }
-        if(csText!=null){
+        if(csRows!=null){
             try{
-                const csRows=parseCSV(csText);
                 const latest={};
                 for(const r of csRows){
                     if(!r.client_name||!r.bullets)continue;
@@ -1194,11 +1200,113 @@
                 console.log('[SyncView] Loaded content summaries for',Object.keys(latest).length,'clients');
             }catch(e){console.warn('[SyncView] ContentSummaries load error:',e);}
         }
-        _analyticsAppliedFp.ext = _analyticsFp([topvidsText, briefsText, mrbText, csText || '']);
         _analyticsExtrasApplied = true;
     }
 
+    /* PHASE 2: A CLIENT LINK READS ITS OWN ROWS FROM THE DATABASE
+       (docs/plans/2026-09-24-sheets-to-supabase.md). Only a verified client
+       link, and only while analytics_mirror_read_enabled says so (on for all,
+       or {"enabled": false, "clients": [slug]} for named clients). One
+       analytics-read call answers both stages for that one client, instead of
+       downloading every client's Sheets. The staff overview still reads the
+       Sheets: it shows every client, and analytics-read answers one.
+
+       FALLBACK: the Sheets are read exactly as before when the flag is off,
+       the read fails or times out, or the database has no copy yet. An empty
+       dataset counts as a real "no rows" only when a complete receipt
+       covers this client; otherwise that stage uses the Sheets. */
+    const ANALYTICS_MIRROR_FLAG_KEY = 'analytics_mirror_read_enabled';
+    const ANALYTICS_MIRROR_TIMEOUT_MS = 8000;
+    let _analyticsMirrorLoad = null;   // { run, promise } for the current client entry
+    async function _analyticsMirrorFlagValue(){
+        let rows = (typeof _svBootFlagRows === 'function' ? await _svBootFlagRows(ANALYTICS_MIRROR_FLAG_KEY) : null);
+        if (!rows) {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(ANALYTICS_MIRROR_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            rows = await resp.json();
+        }
+        const row = Array.isArray(rows) ? rows[0] : null;
+        return row ? row.value : null;
+    }
+    function _analyticsMirrorOnFor(value, slug){
+        if (!value || typeof value !== 'object') return false;
+        if (value.enabled === true) return true;
+        return Array.isArray(value.clients) && value.clients.some(c => String(c).trim() === slug);
+    }
+    const _analyticsMirrorText = v => v == null ? '' : String(v);
+    function _analyticsMirrorRows(rows){
+        return (Array.isArray(rows) ? rows : []).map(r => {
+            const o = {};
+            Object.keys(r || {}).forEach(k => { o[k] = _analyticsMirrorText(r[k]); });
+            return o;
+        });
+    }
+    // null = use the Sheets for both stages; otherwise { ess, ext }, either
+    // of which may be null (that stage uses the Sheets).
+    function _analyticsMirrorRead(clientEntryRun){
+        if (!clientEntryRun || typeof _isClientLink === 'undefined' || !_isClientLink) return Promise.resolve(null);
+        const cap = typeof _syncviewClientEntryCapability !== 'undefined' ? _syncviewClientEntryCapability : null;
+        if (!cap || !cap.verified || !cap.slug) return Promise.resolve(null);
+        if (_analyticsMirrorLoad && _analyticsMirrorLoad.run === clientEntryRun) return _analyticsMirrorLoad.promise;
+        const started = performance.now();
+        const promise = (async () => {
+            if (!_analyticsMirrorOnFor(await _analyticsMirrorFlagValue().catch(() => null), cap.slug)) return null;
+            const token = _syncviewClientWriteToken();
+            if (!token) return null;
+            const controller = typeof AbortController === 'function' ? new AbortController() : null;
+            const timer = controller ? setTimeout(() => controller.abort(), ANALYTICS_MIRROR_TIMEOUT_MS) : null;
+            const onAbort = () => { if (controller) controller.abort(); };
+            if (clientEntryRun.signal) clientEntryRun.signal.addEventListener('abort', onAbort, { once: true });
+            try {
+                const resp = await fetch(CAL_SUPABASE_URL + '/functions/v1/analytics-read', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Syncview-Client-Token': token },
+                    cache: 'no-store',
+                    signal: controller ? controller.signal : undefined,
+                    body: JSON.stringify({ slug: cap.slug })
+                });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const json = await resp.json();
+                if (!json || json.ok !== true || json.slug !== cap.slug || !json.data || typeof json.data !== 'object') throw new Error('unexpected answer');
+                const d = json.data, rc = json.receipts || {};
+                const covered = (rows, receipt) => (Array.isArray(rows) && rows.length > 0) || !!rc[receipt];
+                const profile = d.client_profile;
+                const ess = (profile && profile.display_name && covered(d.metrics, 'metrics')) ? {
+                    metrics: _analyticsMirrorRows(d.metrics),
+                    clients: [{ client_name: String(profile.display_name), instagram_handle: _analyticsMirrorText(profile.instagram_handle),
+                        tiktok_handle: _analyticsMirrorText(profile.tiktok_handle), youtube_channel_id: _analyticsMirrorText(profile.youtube_channel_id),
+                        content_description: _analyticsMirrorText(profile.content_description) }]
+                } : null;
+                const ext = (covered(d.top_videos, 'top_videos') && covered(d.market_research_briefs, 'market_research_briefs')
+                    && covered(d.content_summaries, 'content_summaries')) ? {
+                    topvids: _analyticsMirrorRows(d.top_videos),
+                    mrbriefs: _analyticsMirrorRows(d.market_research_briefs),
+                    summaries: _analyticsMirrorRows(d.content_summaries)
+                } : null;
+                console.log('[SyncView] analytics database read in ' + Math.round(performance.now() - started) + ' ms'
+                    + (ess ? '' : '; no copy of the numbers yet, using the Sheets') + (ext ? '' : '; no copy of videos/briefs yet, using the Sheets'));
+                return { ess, ext };
+            } finally {
+                if (timer) clearTimeout(timer);
+                if (clientEntryRun.signal) clientEntryRun.signal.removeEventListener('abort', onAbort);
+            }
+        })().catch(e => {
+            console.warn('[SyncView] analytics database read failed, using the Sheets:', e && e.message);
+            return null;
+        });
+        _analyticsMirrorLoad = { run: clientEntryRun, promise };
+        return promise;
+    }
+
     async function fetchEssentials(clientEntryRun){
+        const mirror=await _analyticsMirrorRead(clientEntryRun);
+        if(mirror&&mirror.ess){
+            if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
+            _analyticsLiveEssentials = true;
+            _applyEssentialRows(mirror.ess.metrics, mirror.ess.clients);
+            return;   // a client link never saves a copy
+        }
         const requestOpts=clientEntryRun?{signal:clientEntryRun.signal}:undefined;
         const [mr,cr]=await Promise.all([fetch(METRICS_URL,requestOpts),fetch(CLIENTS_URL,requestOpts)]);
         const metricsText=await mr.text(), clientsText=await cr.text();
@@ -1229,6 +1337,13 @@
         const attempt=++_fetchExtrasAttempt;
         _fetchExtrasState={status:'loading',run:clientEntryRun||null};
         const request=(async () => {
+            const mirror=await _analyticsMirrorRead(clientEntryRun);
+            if(mirror&&mirror.ext){
+                if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
+                _analyticsPendingExtras = null;
+                _applyExtraRows(mirror.ext.topvids, [], mirror.ext.mrbriefs, mirror.ext.summaries, null);
+                return;   // a client link never saves a copy
+            }
             const requestOpts=clientEntryRun?{signal:clientEntryRun.signal}:undefined;
             const [tr,mrb,cs]=await Promise.all([
                 fetch(TOPVIDS_URL,requestOpts),

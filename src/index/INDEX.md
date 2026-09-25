@@ -13,10 +13,10 @@
 | 5 | `030-body-shell.html.part` | 445 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 1648 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1651 | Market Research Brief Tab Renderers |
-| 8 | `060-templates-filming.js.part` | 2169 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 8 | `060-templates-filming.js.part` | 2176 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3624 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3413 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
-| 11 | `090-workload-popovers-navigation.js.part` | 1599 | Sub-issue popover |
+| 11 | `090-workload-popovers-navigation.js.part` | 1642 | Sub-issue popover |
 | 12 | `100-onboarding-staff-controls.js.part` | 2296 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 13 | `110-time-off-reports.js.part` | 2152 | Kasper Time Off calendar |
 | 14 | `120-calendar-flags-write-repair.js.part` | 3062 | The members a flag value offers, or null when it offers no member list at |

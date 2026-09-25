@@ -1226,6 +1226,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
     };
 
     let _calLoadSeq = 0;
+    function _calNextLoadSeq() { return ++_calLoadSeq; }
     let _calActiveLoad = null;
     let _calBgLoadInFlight = false;
     function _calAbortActiveLoad() {
@@ -2131,7 +2132,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
 export {
   CAL_CACHE_KEY_PREFIX, CAL_LOAD_TIMEOUT_MS, _calBgLoadInFlight, _calCacheRead, _calCacheWrite,
   _calFetchDeliverableLinkRows, _calHydrateLinearMeta, _calIdentFromUrl, _calLastLocalWriteAt,
-  _calLoadSeq, _calLocalStatusAt, _calMarkLocalStatus, _calOrganizeHtml, _calOrganizeIsActive,
+  _calLocalStatusAt, _calMarkLocalStatus, _calNextLoadSeq, _calOrganizeHtml, _calOrganizeIsActive,
   _calOrganizeTriggerLabel, _calPruneLinearMetaForAuthority, _calRenderImportPick,
   _calSetLastLocalWriteAt, _calSetOrganizeOpen, _calSetRefreshing, _calSupabaseFetchAllRows,
   _calV2Client, _calV2ClientObj, _calV2Enabled, _calV2FetchPosts, _calV2LoadLib, _calV2Log,

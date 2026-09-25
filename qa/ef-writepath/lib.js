@@ -312,8 +312,8 @@ async function makeCtx(browser, opts = {}) {
     if (REROUTE_FIXTURE.isRerouteFlagRequest(url)) {
       entry.status = 200;
       const body = process.env.EF_WRITEPATH_LEGACY_ROSTER === '1'
-        ? REROUTE_FIXTURE.legacyRosterBody()
-        : REROUTE_FIXTURE.productionRosterBody();
+        ? REROUTE_FIXTURE.legacyRosterBody(url)
+        : REROUTE_FIXTURE.productionRosterBody(url);
       return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body });
     }
     // Speed/robustness: STUB the heavy analytics Google-Sheets (Metrics/TopVideos/

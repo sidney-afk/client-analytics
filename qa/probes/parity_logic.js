@@ -214,7 +214,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
 
     // ── N. Linear issue URL routing (video → linear_issue_id, graphic → graphic_…) ──
     {
-      const post = { linear_issue_id: 'https://linear.app/x/VID-1', graphic_linear_issue_id: 'https://linear.app/x/GRA-1' };
+      const post = { linear_issue_id: 'https://linear.app/x/VID-1', video_deliverable_id: ('del_' + 'https://linear.app/x/VID-1').replace(/[^A-Za-z0-9_-]/g, '_'), graphic_linear_issue_id: 'https://linear.app/x/GRA-1' , graphic_deliverable_id: ('del_' + 'https://linear.app/x/GRA-1').replace(/[^A-Za-z0-9_-]/g, '_')};
       rec('linearUrlFor', 'video', _calLinearUrlFor(post, 'video'), _sxrLinearUrlFor(post, 'video'), false);
       rec('linearUrlFor', 'graphic', _calLinearUrlFor(post, 'graphic'), _sxrLinearUrlFor(post, 'graphic'), false);
       const empty = {};
@@ -257,8 +257,8 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
           _calPostKasperVisible({ video_status: 'Kasper Approval', graphic_status: 'In Progress' }),
           sxrKasperVisible({ video_status: 'Kasper Approval', graphic_status: 'In Progress' }), false);
       rec('kasperQueueVisible', 'graphic@Kasper + linked',
-          _calPostKasperVisible({ video_status: 'In Progress', graphic_status: 'Kasper Approval', graphic_linear_issue_id: 'https://linear.app/x/GRA-1' }),
-          sxrKasperVisible({ video_status: 'In Progress', graphic_status: 'Kasper Approval', graphic_linear_issue_id: 'https://linear.app/x/GRA-1' }), false);
+          _calPostKasperVisible({ video_status: 'In Progress', graphic_status: 'Kasper Approval', graphic_linear_issue_id: 'https://linear.app/x/GRA-1' , graphic_deliverable_id: ('del_' + 'https://linear.app/x/GRA-1').replace(/[^A-Za-z0-9_-]/g, '_')}),
+          sxrKasperVisible({ video_status: 'In Progress', graphic_status: 'Kasper Approval', graphic_linear_issue_id: 'https://linear.app/x/GRA-1' , graphic_deliverable_id: ('del_' + 'https://linear.app/x/GRA-1').replace(/[^A-Za-z0-9_-]/g, '_')}), false);
       rec('kasperQueueVisible', 'graphic@Kasper + UNLINKED',
           _calPostKasperVisible({ video_status: 'In Progress', graphic_status: 'Kasper Approval', graphic_linear_issue_id: '' }),
           sxrKasperVisible({ video_status: 'In Progress', graphic_status: 'Kasper Approval', graphic_linear_issue_id: '' }), false,
@@ -289,15 +289,15 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
     {
       const refs = new Set(['post-1', 'https://linear.app/x/VID-9']);
       rec('isArchivedRef', 'by id', _calIsArchivedRef({ id: 'post-1' }, refs), _sxrIsArchivedRef({ id: 'post-1' }, refs), false);
-      rec('isArchivedRef', 'by video link', _calIsArchivedRef({ id: 'p2', linear_issue_id: 'https://linear.app/x/VID-9' }, refs), _sxrIsArchivedRef({ id: 'p2', linear_issue_id: 'https://linear.app/x/VID-9' }, refs), false);
+      rec('isArchivedRef', 'by video link', _calIsArchivedRef({ id: 'p2', linear_issue_id: 'https://linear.app/x/VID-9'}, refs), _sxrIsArchivedRef({ id: 'p2', linear_issue_id: 'https://linear.app/x/VID-9'}, refs), false);
       rec('isArchivedRef', 'not archived', _calIsArchivedRef({ id: 'p4' }, refs), _sxrIsArchivedRef({ id: 'p4' }, refs), false);
-      rec('isArchivedRef', 'by GRAPHIC link', _calIsArchivedRef({ id: 'p3', graphic_linear_issue_id: 'https://linear.app/x/VID-9' }, refs), _sxrIsArchivedRef({ id: 'p3', graphic_linear_issue_id: 'https://linear.app/x/VID-9' }, refs),
+      rec('isArchivedRef', 'by GRAPHIC link', _calIsArchivedRef({ id: 'p3', graphic_linear_issue_id: 'https://linear.app/x/VID-9'}, refs), _sxrIsArchivedRef({ id: 'p3', graphic_linear_issue_id: 'https://linear.app/x/VID-9'}, refs),
           true, 'samples also archives by graphic link (stricter); cal checks id + video link only');
     }
 
     // ── T. URGENT ping affordance (Video @ Tweaks Needed with a Linear link) ──
     {
-      const p = { video_status: 'Tweaks Needed', linear_issue_id: 'https://linear.app/x/VID-1' };
+      const p = { video_status: 'Tweaks Needed', linear_issue_id: 'https://linear.app/x/VID-1' , video_deliverable_id: ('del_' + 'https://linear.app/x/VID-1').replace(/[^A-Za-z0-9_-]/g, '_')};
       const calHas = (typeof _calShowUrgent === 'function') && !!_calShowUrgent(p, 'video');
       const sxrHas = (typeof _sxrShowUrgent === 'function') && !!_sxrShowUrgent(p, 'video');
       rec('urgentPing affordance', 'video@TweaksNeeded+link', calHas, sxrHas, false,
@@ -308,7 +308,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
     try {
       const p = { id: uid(), name: 'Lock test', client: 'acme', order_index: 1, asset_url: 'https://frame.io/x', thumbnail_url: '',
         video_status: 'For SMM Approval', graphic_status: 'Kasper Approval',
-        linear_issue_id: 'https://linear.app/x/VID-1', graphic_linear_issue_id: '', video_comments: [], graphic_comments: [] };
+        linear_issue_id: 'https://linear.app/x/VID-1', video_deliverable_id: ('del_' + 'https://linear.app/x/VID-1').replace(/[^A-Za-z0-9_-]/g, '_'), graphic_linear_issue_id: '', video_comments: [], graphic_comments: [] };
       calState.posts = [p]; sxrState.posts = [p];
       const calHtml = String(_calRenderInlineCard(p, false, false) || '');
       const sxrHtml = String(_sxrRenderInlineCard(p, false, false) || '');

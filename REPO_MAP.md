@@ -51,7 +51,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 | Path | What it is |
 |---|---|
-| `docs/plans/` | Execution plans. `2026-09-21-modularization-plan.md` specifies the byte-identical source split, ordered cuts and mechanical output gate; strategy only, no tooling implemented. `2026-09-21-post-modularization-roadmap.md` orders phases A to E. `2026-09-24-modularization-c3-plan.md` maps what each fragment shares through the global scope and orders the C3 conversion to ES modules; plan only. `2026-09-24-owner-backlog.md` records two owner requests to plan later (private repo without Actions cost; SyncView v2 in parallel). |
+| `docs/plans/` | Execution plans. `2026-09-21-modularization-plan.md` specifies the byte-identical source split, ordered cuts and mechanical output gate; strategy only, no tooling implemented. `2026-09-21-post-modularization-roadmap.md` orders phases A to E. `2026-09-24-modularization-c3-plan.md` maps what each fragment shares through the global scope and orders the C3 conversion to ES modules; plan only. `2026-09-24-owner-backlog.md` records two owner requests to plan later (private repo without Actions cost; SyncView v2 in parallel). `2026-09-24-sheets-to-supabase.md` inventories the Google Sheet tabs the site reads and phases their move to Supabase (dual-write, flagged read, parity then retire); plan only. |
 | `docs/retrospectives/` | Dated project retrospectives. `2026-09-20-linear-exit-retrospective.md` records the Linear exit's evidence, costs and constraints for the behavior-preserving source split. |
 | `docs/CLIENT_LIFECYCLE_MAP.md` | **THE CANONICAL client lifecycle map** (traffic → booking → sales → onboarding → provisioning → samples → production). The former byte-identical mirror in the `synchrosocial` repo is retired (owner decision 2026-07-19, after proven silent drift — see docs/audits/2026-07-19-vault-audit.md): that repo now holds only a stub pointing here. Edit this copy only. |
 | `docs/FIND_ANYTHING.md` | The one-hop retrieval router: "I want to know X → open exactly Y" for both repos, plus the register index (F-/D-/OQ-/KQ-/VA-numbers) and the owner's no-session path. Draft pending owner ratification (vault audit 2026-07-19, proposal P4). |
@@ -152,6 +152,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 |---|---|
 | `docs/audits/2026-09-21-base-audit/C1-boot-baseline.md` | Phase C1's pre-deletion boot baseline: committed page bytes and full SHA-256, the existing Production boot-budget command result, and five cold plus five warm anonymous Chromium measurements of the public landing page with raw values, medians, spreads and a rerunnable method. |
 | `docs/audits/2026-09-24-speed-map.md` | Warm re-measure of all fifteen tabs against the 2026-09-23 speed map: first content, switching from the calendar, and what each tab waits on, with raw reps, medians and the rig difference. |
+| `scripts/linear-only-slot-repair.js`, `test/linear-only-slot-repair.js`, `docs/ops/2026-09-24-linear-only-slot-repair.md` | Read-only finder for Calendar slots that hold only a retired Linear URL: classifies each against existing SyncView deliverables and writes a guarded, NOT APPLIED connection plan (ids and SQL) to a file outside the repo. Prints counts only. |
 
 ## Meta
 

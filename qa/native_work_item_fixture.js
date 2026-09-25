@@ -119,7 +119,10 @@ async function stubNativeWorkItems(ctx, cards, options) {
   //    Done at the RESPONSE rather than in the database because the column
   //    carries a foreign key this harness cannot satisfy (see the header). It
   //    also survives a realtime reload, which re-runs this same REST read.
-  await ctx.route(url => url.pathname === '/rest/v1/calendar_posts', async (route) => {
+  //    Samples cards (sample_reviews) take the same stamp: since Linear was
+  //    retired (2026-09-24) a component is linked only by its deliverable id,
+  //    on both surfaces.
+  await ctx.route(url => url.pathname === '/rest/v1/calendar_posts' || url.pathname === '/rest/v1/sample_reviews', async (route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     let response;
     try { response = await route.fetch(); } catch (e) { return route.fallback(); }
@@ -270,7 +273,71 @@ function commentCalls(calls, deliverableId) {
   return (calls || []).filter(c => c && c.operation === 'comment' && c.id === deliverableId);
 }
 
+/*
+ * A PROBE-WIDE REGISTRY, for probes that open their pages through the shared
+ * helpers (qa/sxr_courier_lib.js, qa/probes/lib.js) and never hold the context.
+ * A probe names its own test-client cards once, before it opens a page:
+ *
+ *   NW.registerProbeWorkItems([{ id: PID, components: ['video', 'graphic'] }]);
+ *
+ * and every context those helpers create afterwards stamps them. This is what
+ * replaced "seed a Linear URL to make the component linked": since Linear was
+ * retired (2026-09-24) only a deliverable id links a component, and the
+ * column's foreign key means a probe cannot persist a synthetic one.
+ */
+const _registered = [];
+function registerProbeWorkItems(cards, options) {
+  for (const card of cards || []) if (card && card.id) _registered.push({ card, options: options || {} });
+}
+async function applyProbeWorkItems(ctx) {
+  // Looked up per request, not snapshotted, so a card a probe registers after
+  // its pages are open (a second seed mid-run) is still stamped.
+  const slotsFor = (cardId) => {
+    for (let i = _registered.length - 1; i >= 0; i--) {
+      const { card } = _registered[i];
+      if (String(card.id) !== String(cardId)) continue;
+      const comps = (card.components && card.components.length) ? card.components : ['video', 'graphic'];
+      return Object.fromEntries(comps.map(c => [c, nativeDeliverableId(card.id, c)]));
+    }
+    return null;
+  };
+  const crosswalkFor = (deliverableId) => {
+    for (const { card, options } of _registered) {
+      for (const c of ['video', 'graphic']) {
+        if (nativeDeliverableId(card.id, c) === deliverableId) return crosswalkRowFor(card.id, c, options.slug || 'sidneylaruel');
+      }
+    }
+    return null;
+  };
+  await ctx.route(url => url.pathname === '/rest/v1/calendar_posts' || url.pathname === '/rest/v1/sample_reviews', async (route) => {
+    if (!_registered.length || route.request().method() !== 'GET') return route.fallback();
+    let response;
+    try { response = await route.fetch(); } catch (e) { return route.fallback(); }
+    const body = await response.text();
+    let rows;
+    try { rows = JSON.parse(body); } catch (e) { rows = null; }
+    if (!Array.isArray(rows)) return route.fulfill({ response, body });
+    for (const row of rows) {
+      const slots = row && slotsFor(row.id);
+      if (!slots) continue;
+      if (slots.video) row.video_deliverable_id = slots.video;
+      if (slots.graphic) row.graphic_deliverable_id = slots.graphic;
+    }
+    return route.fulfill({ response, body: JSON.stringify(rows) });
+  });
+  await ctx.route(url => url.pathname === '/rest/v1/deliverables', async (route) => {
+    const raw = decodeURIComponent(route.request().url());
+    const ids = (raw.match(/probe_del_[vg]_[A-Za-z0-9_-]+/g) || []);
+    const rows = [...new Set(ids)].map(crosswalkFor).filter(Boolean);
+    if (!rows.length) return route.fallback();
+    return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(rows) });
+  });
+  return true;
+}
+
 module.exports = {
+  registerProbeWorkItems,
+  applyProbeWorkItems,
   RETIRED_SET_STATUS_URL,
   RETIRED_ADD_COMMENT_URL,
   NATIVE_GATEWAY_PATH,

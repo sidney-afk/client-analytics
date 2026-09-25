@@ -75,6 +75,7 @@ async function _ctx(browser, opts = {}) {
   const c = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true, ...opts });
   await seedStaffGate(c);
   await stubRerouteFlagProduction(c);
+  await require('../native_work_item_fixture.js').applyProbeWorkItems(c);
   return c;
 }
 async function _open(browser, url, opts) { const c = await _ctx(browser, opts); const p = await c.newPage(); capture(p);

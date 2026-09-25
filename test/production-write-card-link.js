@@ -56,7 +56,7 @@ function fakeDb(seed) {
   return { client: { from: query }, tables, writes };
 }
 
-const item = (team, id, cardId, extra) => ({ id, team, card_id: cardId, client_slug: 'sidneylaruel',
+const item = (team, id, cardId, extra) => ({ id, team, card_id: cardId, client_slug: 'fixture-client',
   origin: 'calendar', title: 'Video 3', video_number: 3, linear_issue_url: null, ...(extra || {}) });
 
 (async () => {
@@ -65,14 +65,14 @@ const item = (team, id, cardId, extra) => ({ id, team, card_id: cardId, client_s
 
   // 1. A card that does not exist yet is NOT created: card creation stays with
   // the browser job and its writer (the reconcile lane holds it as debt).
-  let db = fakeDb({ calendar_posts: [{ client: 'sidneylaruel', id: 'old', order_index: '40' }] });
+  let db = fakeDb({ calendar_posts: [{ client: 'fixture-client', id: 'old', order_index: '40' }] });
   let r = await linkCardsToCreatedDeliverables(db.client, [item('video', 'del_v', 'c1'), item('graphics', 'del_g', 'c1')]);
   assert.strictEqual(db.tables.calendar_posts.length, 1, 'no card is created');
   assert.strictEqual(db.writes.length, 0, 'nothing is written');
   assert.deepStrictEqual([r.cards, r.missing, r.failed], [1, 1, 0]);
 
   // 2. An existing card with both slots empty gets both; twice is the same as once.
-  db = fakeDb({ calendar_posts: [{ client: 'sidneylaruel', id: 'c1', video_deliverable_id: null, graphic_deliverable_id: '' }] });
+  db = fakeDb({ calendar_posts: [{ client: 'fixture-client', id: 'c1', video_deliverable_id: null, graphic_deliverable_id: '' }] });
   r = await linkCardsToCreatedDeliverables(db.client, [item('video', 'del_v', 'c1'), item('graphics', 'del_g', 'c1')]);
   let card = db.tables.calendar_posts[0];
   assert.strictEqual(card.video_deliverable_id, 'del_v');
@@ -86,13 +86,13 @@ const item = (team, id, cardId, extra) => ({ id, team, card_id: cardId, client_s
   assert.strictEqual(r.already_linked, 2);
 
   // 3. A one-component create touches only its own slot.
-  db = fakeDb({ calendar_posts: [{ client: 'sidneylaruel', id: 'c2', video_deliverable_id: '', graphic_deliverable_id: null }] });
+  db = fakeDb({ calendar_posts: [{ client: 'fixture-client', id: 'c2', video_deliverable_id: '', graphic_deliverable_id: null }] });
   await linkCardsToCreatedDeliverables(db.client, [item('video', 'del_v2', 'c2')]);
   assert.strictEqual(db.tables.calendar_posts[0].video_deliverable_id, 'del_v2');
   assert.strictEqual(db.tables.calendar_posts[0].graphic_deliverable_id, null);
 
   // 4. An existing card: only the empty slot is filled, nothing else touched.
-  db = fakeDb({ calendar_posts: [{ client: 'sidneylaruel', id: 'c3', name: 'Kept', caption: 'Kept caption',
+  db = fakeDb({ calendar_posts: [{ client: 'fixture-client', id: 'c3', name: 'Kept', caption: 'Kept caption',
     video_deliverable_id: 'del_v3', graphic_deliverable_id: '' }] });
   r = await linkCardsToCreatedDeliverables(db.client, [item('graphics', 'del_g3', 'c3')]);
   card = db.tables.calendar_posts[0];
@@ -103,17 +103,17 @@ const item = (team, id, cardId, extra) => ({ id, team, card_id: cardId, client_s
   assert.strictEqual(r.linked, 1);
 
   // 5. A slot already naming a DIFFERENT deliverable is never overwritten.
-  db = fakeDb({ calendar_posts: [{ client: 'sidneylaruel', id: 'c4', video_deliverable_id: 'someone_else' }] });
+  db = fakeDb({ calendar_posts: [{ client: 'fixture-client', id: 'c4', video_deliverable_id: 'someone_else' }] });
   r = await linkCardsToCreatedDeliverables(db.client, [item('video', 'del_v4', 'c4')]);
   assert.strictEqual(db.tables.calendar_posts[0].video_deliverable_id, 'someone_else');
   assert.strictEqual(r.occupied, 1);
 
   // 6. Samples land in sample_reviews; another client's card is not touched.
   db = fakeDb({ sample_reviews: [{ client: 'other', id: 's1', video_deliverable_id: '' },
-    { client: 'sidneylaruel', id: 's1', video_deliverable_id: '' }] });
+    { client: 'fixture-client', id: 's1', video_deliverable_id: '' }] });
   await linkCardsToCreatedDeliverables(db.client, [item('video', 'del_s', 's1', { origin: 'samples' })]);
   assert.strictEqual(db.tables.sample_reviews.find(x => x.client === 'other').video_deliverable_id, '');
-  assert.strictEqual(db.tables.sample_reviews.find(x => x.client === 'sidneylaruel').video_deliverable_id, 'del_s');
+  assert.strictEqual(db.tables.sample_reviews.find(x => x.client === 'fixture-client').video_deliverable_id, 'del_s');
 
   // 7. index.ts calls it on the append, new-batch and component-fill paths.
   const src = fs.readFileSync(path.join(__dirname, '..', 'supabase/functions/production-write/index.ts'), 'utf8');

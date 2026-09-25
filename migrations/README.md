@@ -19,6 +19,15 @@ executes these files (see `README.md` › Repository layout).
   database role remains independently trusted and is not prevented from setting
   custom session configuration before a direct ledger insert.
 
+- **`2026-09-25-sheets-mirror-phase1.sql`** is source-only until Lighthouse
+  applies it. Phase 1 of `docs/plans/2026-09-24-sheets-to-supabase.md`: six
+  mirror tables for the analytics Sheets (Clients Info, Metrics, TopVideos,
+  Market Research Briefs, ContentSummaries, plus write receipts), RLS on with
+  no policies, every privilege revoked from public, anon, authenticated and
+  service_role, then SELECT/INSERT/UPDATE for service_role only, and three
+  default-off flags. Idempotent; rollback block at the bottom.
+  `test/sheets-mirror-roles-postgres.js` measures all four roles on it.
+
 - **`live-schema-baseline-2026-07-03.sql`** is the authoritative reconstruction
   point: a schema-only snapshot of the live database captured 2026-07-03. To
   rebuild from scratch, start here.

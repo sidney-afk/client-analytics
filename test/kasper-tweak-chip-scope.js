@@ -120,7 +120,7 @@ const T = { a: '2026-06-04T10:00:00.000Z', b: '2026-06-18T01:00:00.000Z' };
 // video, plus a CLIENT-ONLY tweak on a linked thumbnail at Tweaks Needed.
 const lionsMane = post({
   video_status: 'Tweaks Needed',
-  graphic_status: 'Tweaks Needed', graphic_linear_issue_id: GRA,
+  graphic_status: 'Tweaks Needed', graphic_linear_issue_id: GRA, graphic_deliverable_id: 'del_g',
   caption_status: 'In Progress',
   video_comments:   [kTweak('v-k', T.a), cTweak('v-c', T.b)],
   graphic_comments: [cTweak('g-c', T.b)],
@@ -134,7 +134,7 @@ console.log('\n— Once the thumbnail is genuinely his to act on, it DOES count 
 check('his tweak on the linked thumbnail makes it count → 4',
   _kasperOpenTweakCount(post({
     video_status: 'Tweaks Needed',
-    graphic_status: 'Tweaks Needed', graphic_linear_issue_id: GRA,
+    graphic_status: 'Tweaks Needed', graphic_linear_issue_id: GRA, graphic_deliverable_id: 'del_g',
     video_comments:   [kTweak('v-k', T.a), cTweak('v-c', T.b)],
     graphic_comments: [cTweak('g-c', T.b), kTweak('g-k', T.b)],
   })), 4);
@@ -145,7 +145,7 @@ check('his tweak on the linked thumbnail makes it count → 4',
 check('thumbnail at Kasper Approval counts its (client) tweak → 3',
   _kasperOpenTweakCount(post({
     video_status: 'Tweaks Needed',
-    graphic_status: 'Kasper Approval', graphic_linear_issue_id: GRA,
+    graphic_status: 'Kasper Approval', graphic_linear_issue_id: GRA, graphic_deliverable_id: 'del_g',
     thumbnail_url: 'https://example.invalid/thumb.png',
     video_comments:   [kTweak('v-k', T.a), cTweak('v-c', T.b)],
     graphic_comments: [cTweak('g-c', T.b)],
@@ -159,7 +159,7 @@ check('thumbnail at Kasper Approval counts its (client) tweak → 3',
 check('the same thumbnail with no image → its tweak is not counted (2)',
   _kasperOpenTweakCount(post({
     video_status: 'Tweaks Needed',
-    graphic_status: 'Kasper Approval', graphic_linear_issue_id: GRA,
+    graphic_status: 'Kasper Approval', graphic_linear_issue_id: GRA, graphic_deliverable_id: 'del_g',
     thumbnail_url: '',
     video_comments:   [kTweak('v-k', T.a), cTweak('v-c', T.b)],
     graphic_comments: [cTweak('g-c', T.b)],

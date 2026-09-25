@@ -77,9 +77,9 @@ console.log('============================================================');
 // colliding slot: [{ comp:'video'|'graphic', names:[...] }]. names for one component:
 const peerComp = (p, comp) => { const g = (_calLinkDuplicatePeers(p) || []).find(d => d.comp === comp); return g ? g.names.slice().sort() : []; };
 {
-  const a = { id: 'a', name: 'Card A', linear_issue_id: VID1, status: 'In Progress' };
-  const b = { id: 'b', name: 'Card B', linear_issue_id: VID1, status: 'Approved' };
-  const c = { id: 'c', name: 'Card C', linear_issue_id: VID2, status: 'In Progress' };
+  const a = { id: 'a', name: 'Card A', video_deliverable_id: VID1, status: 'In Progress' };
+  const b = { id: 'b', name: 'Card B', video_deliverable_id: VID1, status: 'Approved' };
+  const c = { id: 'c', name: 'Card C', video_deliverable_id: VID2, status: 'In Progress' };
   globalThis.calState = { client: 'x', posts: [a, b, c] };
   ok(JSON.stringify(peerComp(a, 'video')) === JSON.stringify(['Card B']), 'two cards on one VIDEO link see each other as duplicates (comp=video)');
   ok(JSON.stringify(peerComp(b, 'video')) === JSON.stringify(['Card A']), 'the warning is symmetric');
@@ -87,35 +87,46 @@ const peerComp = (p, comp) => { const g = (_calLinkDuplicatePeers(p) || []).find
 }
 // A shared GRAPHIC link is reported as comp=graphic (NOT video) — case/space-insensitive.
 {
-  const a = { id: 'a', name: 'A', graphic_linear_issue_id: GRA9, status: 'In Progress' };
-  const b = { id: 'b', name: 'B', graphic_linear_issue_id: '  ' + GRA9.toUpperCase() + ' ', status: 'In Progress' };
+  const a = { id: 'a', name: 'A', graphic_deliverable_id: GRA9, status: 'In Progress' };
+  const b = { id: 'b', name: 'B', graphic_deliverable_id: '  ' + GRA9.toUpperCase() + ' ', status: 'In Progress' };
   globalThis.calState = { client: 'x', posts: [a, b] };
   ok(peerComp(a, 'graphic').includes('B') && peerComp(a, 'video').length === 0, 'a shared GRAPHIC link is flagged as comp=graphic, not video');
   // cross-slot: a card's VIDEO issue sitting in another card's GRAPHIC slot.
-  const v = { id: 'v', name: 'V', linear_issue_id: VID1, status: 'In Progress' };
-  const g = { id: 'g', name: 'G', graphic_linear_issue_id: VID1, status: 'In Progress' };
+  const v = { id: 'v', name: 'V', video_deliverable_id: VID1, status: 'In Progress' };
+  const g = { id: 'g', name: 'G', graphic_deliverable_id: VID1, status: 'In Progress' };
   globalThis.calState = { client: 'x', posts: [v, g] };
   ok(peerComp(v, 'video').includes('G'), 'same issue across different slots is flagged (from the video owner, comp=video)');
 }
 // The banner TEXT names the component — the whole point of this change.
 {
-  const a = { id: 'a', name: 'A', graphic_linear_issue_id: GRA9, status: 'In Progress' };
-  const b = { id: 'b', name: 'B', graphic_linear_issue_id: GRA9, status: 'In Progress' };
+  const a = { id: 'a', name: 'A', graphic_deliverable_id: GRA9, status: 'In Progress' };
+  const b = { id: 'b', name: 'B', graphic_deliverable_id: GRA9, status: 'In Progress' };
   globalThis.calState = { client: 'x', posts: [a, b] };
   const _calDupeWarnText = def('_calDupeWarnText');
   const txt = _calDupeWarnText(_calLinkDuplicatePeers(a));
-  ok(/thumbnail/.test(txt) && /\bB\b/.test(txt) && !/video/.test(txt), 'banner reads "Same thumbnail Linear issue as B" for a graphic collision');
-  globalThis.calState = { client: 'x', posts: [{ id: 'a', name: 'A', linear_issue_id: VID1, status: 'In Progress' }, { id: 'b', name: 'B', linear_issue_id: VID1, status: 'In Progress' }] };
+  ok(/thumbnail/.test(txt) && /\bB\b/.test(txt) && !/video/.test(txt), 'banner reads "Same thumbnail work item as B" for a graphic collision');
+  globalThis.calState = { client: 'x', posts: [{ id: 'a', name: 'A', video_deliverable_id: VID1, status: 'In Progress' }, { id: 'b', name: 'B', video_deliverable_id: VID1, status: 'In Progress' }] };
   ok(/video/.test(_calDupeWarnText(_calLinkDuplicatePeers(globalThis.calState.posts[0]))), 'banner reads "video" for a video collision');
 }
 // A card colliding on BOTH slots reports both groups, video first.
 {
-  const a = { id: 'a', name: 'A', linear_issue_id: VID1, graphic_linear_issue_id: GRA9, status: 'In Progress' };
-  const bv = { id: 'bv', name: 'BV', linear_issue_id: VID1, status: 'In Progress' };
-  const bg = { id: 'bg', name: 'BG', graphic_linear_issue_id: GRA9, status: 'In Progress' };
+  const a = { id: 'a', name: 'A', video_deliverable_id: VID1, graphic_deliverable_id: GRA9, status: 'In Progress' };
+  const bv = { id: 'bv', name: 'BV', video_deliverable_id: VID1, status: 'In Progress' };
+  const bg = { id: 'bg', name: 'BG', graphic_deliverable_id: GRA9, status: 'In Progress' };
   globalThis.calState = { client: 'x', posts: [a, bv, bg] };
   const out = _calLinkDuplicatePeers(a);
   ok(out.length === 2 && out[0].comp === 'video' && out[0].names.includes('BV') && out[1].comp === 'graphic' && out[1].names.includes('BG'), 'collisions on BOTH slots are reported, video first');
+}
+// Linear is retired (2026-09-24): two cards sharing only an old Linear URL are
+// NOT a conflict any more, so they raise no banner. The same shapes above are
+// asserted on the SyncView deliverable ids that do still identify the work.
+{
+  const a = { id: 'a', name: 'A', linear_issue_id: VID1, graphic_linear_issue_id: GRA9, status: 'In Progress' };
+  const b = { id: 'b', name: 'B', linear_issue_id: VID1, graphic_linear_issue_id: GRA9, status: 'In Progress' };
+  globalThis.calState = { client: 'x', posts: [a, b] };
+  ok(_calLinkDuplicatePeers(a).length === 0, 'two cards sharing only a Linear URL raise no duplicate warning');
+  const _calDupeWarnText2 = def('_calDupeWarnText');
+  ok(!/Linear/.test(_calDupeWarnText2([{ comp: 'graphic', names: ['B'] }])), 'the duplicate banner no longer names Linear');
 }
 // archived cards neither raise nor receive a duplicate warning.
 {
@@ -575,9 +586,9 @@ ok(/_calDupeMatch\(vKey, pv\)/.test(peersSrc) && /_calDupeMatch\(vKey, pg\)/.tes
    && /_calDupeMatch\(gKey, pv\)/.test(peersSrc) && /_calDupeMatch\(gKey, pg\)/.test(peersSrc),
    '_calLinkDuplicatePeers compares identities through _calDupeMatch, both channels, both cross-slot directions');
 const dupeKeySrc = grabFunc('_calDupeKey');
-ok(/linear_issue_id/.test(dupeKeySrc) && /graphic_linear_issue_id/.test(dupeKeySrc)
+ok(!/linear_issue_id/.test(dupeKeySrc)
    && /video_deliverable_id/.test(dupeKeySrc) && /graphic_deliverable_id/.test(dupeKeySrc),
-   '_calDupeKey reads both the Linear field and the matching native deliverable id');
+   '_calDupeKey keys on the native deliverable ids only (Linear retired 2026-09-24)');
 const dupeMatchSrc = grabFunc('_calDupeMatch');
 ok(/a\.linear && a\.linear === b\.linear/.test(dupeMatchSrc) && /a\.native && a\.native === b\.native/.test(dupeMatchSrc),
    '_calDupeMatch ORs the linear and native channels rather than falling back from one to the other');
@@ -589,7 +600,7 @@ const isArchivedRefSrc = grabFunc('_calIsArchivedRef');
 ok(/video_deliverable_id/.test(isArchivedRefSrc) && /graphic_deliverable_id/.test(isArchivedRefSrc),
    '_calIsArchivedRef (the archive-ledger link key) also falls back to the native deliverable ids, consistent with _calDupeKey');
 const warnSrc = grabFunc('_calDupeWarnText');
-ok(/thumbnail/.test(warnSrc) && /Linear issue as/.test(warnSrc),
+ok(/thumbnail/.test(warnSrc) && /work item as/.test(warnSrc) && !/Linear/.test(warnSrc),
    '_calDupeWarnText names the component (thumbnail vs video) in the banner copy');
 const showSrc = grabFunc('_calShowLinkConflict');
 ok(/Move it here/.test(showSrc) && /Cancel/.test(showSrc) && /already linked to/.test(showSrc),

@@ -51,3 +51,29 @@ deliberate security gate (see the comment in `init()`), not Analytics' own data.
 
 With Google Sheets blocked entirely, the overview and the test client's page both
 fill from the saved copy.
+
+## 4. Follow-up: a client's own Analytics page (same day)
+
+After section 2, a client page still waited about 0.85 s after `key-verify` on a
+warm load, with no Google Sheet on the path. The profile of that wait, read in
+the page: reading the saved TopVideos copy from IndexedDB about 65 ms, parsing
+its 16 MB of CSV about 380 ms, normalizing rows about 60 ms. The page's
+numbers and charts come from Metrics, which was already applied.
+
+Fix: the Analytics tab of a client page draws at once from Metrics, with a
+placeholder where the top videos go, and redraws when TopVideos lands. The
+content summary stays hidden and the weekly Slack button says "Still loading"
+until then. The Brief tab and client links still wait, as before.
+
+Test client only, reload while on its page, 6 warm loads each, ms after
+`key-verify` until the page was complete:
+
+| | loads | median | all |
+|---|---|---|---|
+| before | 6 | ~890 | 806 · 835 · 852 · 941 · 2,091 · 6,305 |
+| after | 6 | ~129 | 112 · 125 · 127 · 133 · 135 · 558 |
+
+No Google Sheet finished before first content in either set. The test client
+has no top videos, so its page was waiting on data it never shows; for a
+client that has them, the placeholder path was checked in the page with an
+in-memory row (nothing written anywhere).

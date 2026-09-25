@@ -80,9 +80,14 @@ const graphicLink = seedValue('graphic_linear_issue_id');
 ok(videoLink !== null && graphicLink !== null, 'both link fields are present in the probe seed');
 ok(videoLink !== '' && graphicLink !== '',
   'the probe seeds a LINKED row on both components (video=' + JSON.stringify(videoLink) + ')');
+/* Linear retired 2026-09-24: linked now means a SyncView deliverable id, so the
+   seed must carry one on each component or the pill reads N/A again. */
+const videoDel = seedValue('video_deliverable_id');
+const graphicDel = seedValue('graphic_deliverable_id');
+ok(!!videoDel && !!graphicDel, 'the probe seeds a deliverable id on both components');
 
 /* Model the row the probe ends up asserting on: routed to Kasper Approval. */
-const routed = { linear_issue_id: 'https://linear.app/x/VID-p92', graphic_linear_issue_id: 'https://linear.app/x/GRA-p92', video_status: 'Kasper Approval' };
+const routed = { linear_issue_id: 'https://linear.app/x/VID-p92', graphic_linear_issue_id: 'https://linear.app/x/GRA-p92', video_deliverable_id: 'del_p92v', graphic_deliverable_id: 'del_p92g', video_status: 'Kasper Approval' };
 ok(linked(routed, 'video') === true, 'a seeded link makes the video component linked');
 ok(shown(routed, 'video', 'Kasper Approval') === 'Kasper Approval',
   'so the pill displays the routed status, which is what the probe asserts');

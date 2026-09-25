@@ -53,6 +53,9 @@ import {
     let OB_VARIANT = 'normal';
     let OB_DRAFT_KEY = 'syncview_onboarding_draft_v1';
     let OB_SUBID_KEY = 'syncview_onboarding_subid_v1';
+    function _obSetVariant(value) { OB_VARIANT = value; }
+    function _obSetDraftKey(value) { OB_DRAFT_KEY = value; }
+    function _obSetSubIdKey(value) { OB_SUBID_KEY = value; }
     function _obEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function _obId(){ return 'o_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
     // Stable submission id: minted once per funnel per browser and reused across
@@ -2337,17 +2340,17 @@ export {
   CALENDAR_UPSERT_EF_URL, CALENDAR_UPSERT_N8N_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL,
   CAL_SUPABASE_URL, CAPTION_JOB_STATUS_URL, CAPTION_JOB_UPDATE_URL, CAPTION_PROMPTS_GET_URL,
   CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL, CLIENT_REVIEW_LINK_URL,
-  CLIENT_TOKEN_VERIFY_URL, GENERATE_CAPTION_URL, KASPER_QUEUE_URL, OB_DRAFT_KEY, OB_SUBID_KEY,
-  OB_VARIANT, PTO_API_TIMEOUT_MS, PTO_EF_URL, PTO_FLAG_KEY, SMM_WEEKLY_REPORTS_URL,
-  SYNCVIEW_CLIENT_ENTRY_PROTOCOL, THUMBNAIL_FOLDER_RESOLVE_EF_URL, THUMBNAIL_REVISION_READ_EF_URL,
-  URGENT_KASPER_SLACK_URL, WORKLOAD_LINEAR_URL, WORKLOAD_PLAN_URL, _obEsc, _obPost, _obZoom,
-  _ptoAdminOverviewGeneration, _ptoAdminState, _ptoAttr, _ptoBlockWrites, _ptoEsc, _ptoFlagChannel,
-  _ptoFlagGeneration, _ptoFlagPromise, _ptoFlagValue, _ptoInvalidateOverviewCaches,
-  _ptoNextAdminOverviewGeneration, _ptoNextFlagGeneration, _ptoNextOverviewGeneration,
-  _ptoNextQuoteGeneration, _ptoOverviewGeneration, _ptoQuoteGeneration, _ptoRefreshAfterConflict,
-  _ptoSetFlagChannel, _ptoSetFlagPromise, _ptoShowToast, _ptoState, _ptoStateConflict,
-  _ptoStoreFlagValue, _ptoUnknownWrite, _svBootFlagRows, _svDateHtml, _svExplainLabel,
-  _svSelectHtml, _svStepperHtml, _svSyncDateControl, _svSyncStepper, _svTone,
+  CLIENT_TOKEN_VERIFY_URL, GENERATE_CAPTION_URL, KASPER_QUEUE_URL, OB_VARIANT, PTO_API_TIMEOUT_MS,
+  PTO_EF_URL, PTO_FLAG_KEY, SMM_WEEKLY_REPORTS_URL, SYNCVIEW_CLIENT_ENTRY_PROTOCOL,
+  THUMBNAIL_FOLDER_RESOLVE_EF_URL, THUMBNAIL_REVISION_READ_EF_URL, URGENT_KASPER_SLACK_URL,
+  WORKLOAD_LINEAR_URL, WORKLOAD_PLAN_URL, _obEsc, _obPost, _obSetDraftKey, _obSetSubIdKey,
+  _obSetVariant, _obZoom, _ptoAdminOverviewGeneration, _ptoAdminState, _ptoAttr, _ptoBlockWrites,
+  _ptoEsc, _ptoFlagChannel, _ptoFlagGeneration, _ptoFlagPromise, _ptoFlagValue,
+  _ptoInvalidateOverviewCaches, _ptoNextAdminOverviewGeneration, _ptoNextFlagGeneration,
+  _ptoNextOverviewGeneration, _ptoNextQuoteGeneration, _ptoOverviewGeneration, _ptoQuoteGeneration,
+  _ptoRefreshAfterConflict, _ptoSetFlagChannel, _ptoSetFlagPromise, _ptoShowToast, _ptoState,
+  _ptoStateConflict, _ptoStoreFlagValue, _ptoUnknownWrite, _svBootFlagRows, _svDateHtml,
+  _svExplainLabel, _svSelectHtml, _svStepperHtml, _svSyncDateControl, _svSyncStepper, _svTone,
   _syncviewCloseStaffAccount, _syncviewOfferStaffSignIn, _syncviewOpenStaffGate,
   _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity, _syncviewStaffCan,
   _syncviewStaffEligible, _syncviewStaffGateRequired, _syncviewStaffIdentityBoot,

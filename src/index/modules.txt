@@ -14,3 +14,4 @@
 110-time-off-reports.js.part
 050-market-briefs.js.part
 060-templates-filming.js.part
+100-onboarding-staff-controls.js.part

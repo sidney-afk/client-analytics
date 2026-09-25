@@ -6,7 +6,7 @@ const assert = require('assert');
 const INDEX = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const checks = [
   ['brain URL resolves lazily (CAL_SUPABASE_URL is declared in a later fragment)', /function _tplBrainUrl\(\) \{ return CAL_SUPABASE_URL \+ '\/functions\/v1\/brain'; \}/.test(INDEX) && !/const BRAIN_EF_URL\s*=\s*CAL_SUPABASE_URL/.test(INDEX)],
-  ['a background rerender never wipes a change being typed', INDEX.includes("if (ae && ae.closest && ae.closest('.tpl-brain-form')) return;")],
+  ['a background rerender never wipes a change being typed', INDEX.includes("ae.closest('.tpl-brain-form') || ae.closest('.tpl-spec-form')")],
   ['unsent change text is kept per fact and restored on render', INDEX.includes("_tplBrainDraft[key] || ''") && INDEX.includes("oninput=\"_tplBrainDraft[")],
   ['after sending, facts are re-read without a reload', /\[90, 240\]\.forEach\(sec => setTimeout\(\(\) => \{ if \(_templatesSelected === name\) _tplBrainEnsure\(name, true\);/.test(INDEX)],
   ['a stale ready copy refreshes on revisit', INDEX.includes('Date.now() - (cur.at || 0) < TPL_BRAIN_STALE_MS')],

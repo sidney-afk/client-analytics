@@ -1,3 +1,37 @@
+import { linearClientRows, showNotify } from './040-shared-briefs.js';
+import { renderPins } from './050-market-briefs.js';
+import {
+  LAST_LINK_KEY, LINEAR_DEFAULT_VIDEO_COUNT, LINEAR_FORM_KEY, LINEAR_INTAKE_HOLD_KEY,
+  LINEAR_INTAKE_LOAD_ID, LINEAR_INTAKE_MAX_ITEMS, LINEAR_RECEIPTS_KEY, LOG_SUBMISSION_WEBHOOK,
+  NATIVE_INTAKE_PENDING_KEY, _isSmmWeeklyRoute, _linearIntakeItemsPerVideo,
+  _linearIntakeTooLargeMessage, _linearNextVideoCount, _linearSetJustCreated,
+  _linearSetSubmitInFlight, _linearSetVideoCount, currentNav, fetchLinearProjects, getLastLink,
+  linearJustCreated, linearSubmitInFlight, linearVideoCount, saveLastLink
+} from './060-templates-filming.js';
+import { wlAddWorkingDays, wlNormalizeClient, wlTodayISO } from './070-workload-source.js';
+import {
+  _linearResolveClientRow, _linearResolvedPlanUrl, _linearSetResolvedPlanUrl, buildLinearTitle,
+  loadLinearForm, navTo, saveLinearForm
+} from './090-workload-popovers-navigation.js';
+import { CAL_SUPABASE_ANON_KEY, _syncviewRequireStaffIdentity, _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue } from './100-onboarding-staff-controls.js';
+import {
+  _calUpsertFetch, _syncviewEfHeaders, _writeUiQueueDiagnostic, _writeUiRefreshAuthority,
+  _writeUiRerouteUseGatewayWhenReady
+} from './120-calendar-flags-write-repair.js';
+import { calClientSlug, calState } from './130-calendar-model-cache.js';
+import { _calEsc } from './131-core-html.js';
+import { _calResolveClientAfterDataReady } from './134-calendar-prefs-mount.js';
+import { _calCacheRead, _calCacheWrite } from './150-calendar-hydration-import.js';
+import { _calRenderBody } from './160-calendar-organize-ui.js';
+import { CAL_NATIVE_TITLE_SEPARATOR } from './170-calendar-links-status.js';
+import { PROD_CREATED_STATUS, PROD_WRITE_EF_URL } from './210-production-state-writes.js';
+import { _isClientLink, _isIntake } from './260-production-refresh-boot.js';
+import {
+  _sxrAdoptLinksAfterCreate, _sxrCacheRead, _sxrCacheWrite, _sxrUpsertFetch, sxrClientSlug,
+  sxrState
+} from './270-samples-model.js';
+import { _sxrRenderBody } from './280-samples-cards-notes.js';
+import { _kasperCalCachePrune } from './330-kasper-review-history.js';
     function renderLinearView() {
         const saved = loadLinearForm();
         const heldSubmission = _linearSubmissionHoldRead();
@@ -7,7 +41,7 @@
 
         // Restore video count from saved data
         const savedVideoCount = saved.videos?.length || LINEAR_DEFAULT_VIDEO_COUNT;
-        linearVideoCount = Math.max(savedVideoCount, 1);
+        _linearSetVideoCount(Math.max(savedVideoCount, 1));
 
         let videoCards = '';
         for (let i = 1; i <= linearVideoCount; i++) {
@@ -29,7 +63,7 @@
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8L6 12L14 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             ${receivedBanner ? 'Production work received. Our team will complete an internal setup step; no action is needed from you.' : 'Production work created!'}
         </div>` : '';
-        linearJustCreated = false;
+        _linearSetJustCreated(false);
 
         return `<div class="linear-view">
             ${successBanner}
@@ -134,7 +168,7 @@
         if (!card) return;
         card.remove();
         renumberVideoCards();
-        linearVideoCount = document.querySelectorAll('[id^="videoCard_"]').length;
+        _linearSetVideoCount(document.querySelectorAll('[id^="videoCard_"]').length);
         saveLinearForm();
     }
 
@@ -161,7 +195,7 @@
     function addLinearVideo() {
         const container = document.getElementById('linearVideos');
         if (!container) return;
-        linearVideoCount++;
+        _linearNextVideoCount();
         const html = renderVideoCard(linearVideoCount, {});
         container.insertAdjacentHTML('beforeend', html);
         saveLinearForm();
@@ -518,7 +552,7 @@
             if (typeof heldDraftRaw === 'string' && heldDraftRaw) {
                 let heldPlan = '';
                 try { heldPlan = String(JSON.parse(heldDraftRaw).filmingPlans || ''); } catch (e) {}
-                _linearResolvedPlanUrl = heldPlan;
+                _linearSetResolvedPlanUrl(heldPlan);
             }
             const expected = saveLinearForm();
             const raw = localStorage.getItem(LINEAR_FORM_KEY);
@@ -662,9 +696,9 @@
         if (linearSubmitInFlight) return linearSubmitInFlight;
         const request = _submitLinearFormRoutedOnce(mode);
         const guarded = request.finally(() => {
-            if (linearSubmitInFlight === guarded) linearSubmitInFlight = null;
+            if (linearSubmitInFlight === guarded) _linearSetSubmitInFlight(null);
         });
-        linearSubmitInFlight = guarded;
+        _linearSetSubmitInFlight(guarded);
         return guarded;
     }
 
@@ -863,7 +897,7 @@
             nativeResult = result;
             localStorage.removeItem(LINEAR_FORM_KEY);
             localStorage.removeItem(LAST_LINK_KEY);
-            linearJustCreated = true;
+            _linearSetJustCreated(true);
             navTo('linear');
             if (result.mirror_pending === true) showNotify('Production created', 'Native work is saved; its Linear mirror is still draining.');
             if (result.filming_plan_missing === true) {
@@ -1451,3 +1485,11 @@
         // failed and the nav button stayed hidden on every refresh).
         const KASPER_UNLOCK_KEY = 'syncview_kasper_unlocked';
         let _kasperUnlocked = false;
+export {
+  CAL_CARD_JOBS_KEY, FAST_TABS, KASPER_UNLOCK_KEY, RESTORABLE_FAST_TABS,
+  _applyAllDataDependentChrome, _calCardJobsRead, _kasperUnlocked, _linearIntakeActorContext,
+  _linearIntakeBatchTitle, _linearIntakeItems, _linearIntakeJobId, _linearIntakePending,
+  _linearIntakePurgeSensitiveState, _linearIntakeRead, _linearIntakeRemoveIfCurrent,
+  _linearIntakeWithLock, _linearResumeSubmissionHold, _linearSubmissionHoldRead,
+  _resumeNativeIntakeJob, _resumePendingCalCardJobs, renderLinearView
+};

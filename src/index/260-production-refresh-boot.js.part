@@ -1937,7 +1937,7 @@
         if (!_isClientLink) return;
         if (_linearOutboxFlushTimer) {
             clearTimeout(_linearOutboxFlushTimer);
-            _linearOutboxFlushTimer = null;
+            _calSetLinearOutboxFlushTimer(null);
         }
         if (_sxrLinearOutboxTimer) {
             clearTimeout(_sxrLinearOutboxTimer);

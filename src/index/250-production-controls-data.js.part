@@ -1,3 +1,39 @@
+import { wlWorkloadTodayISO } from './070-workload-source.js';
+import { _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
+import { _calMapNativeStatusStrict } from './134-calendar-prefs-mount.js';
+import {
+  PROD_ATTRIBUTION_CONFLICT, PROD_ATTRIBUTION_NEEDS, PROD_BATCH_SELECT, PROD_BOARD_ORDER,
+  PROD_DELETE_UNSUPPORTED, PROD_GROUP_KEYS, PROD_GROUP_SELECT_UNSUPPORTED, PROD_LIVE_FILTER,
+  PROD_MOVE_UNSUPPORTED, PROD_ORDER_KEYS, PROD_PROJECT_MOVE_UNSUPPORTED, PROD_STATUS_FROM_ARTIFACT,
+  PROD_STATUS_ORDER, PROD_STATUS_TO_ARTIFACT, PROD_TERMINAL_FILTER, _prodApplyDisplayPrefs,
+  _prodArtifactStatus, _prodAssigneeOptionsState, _prodBoardStatus, _prodCacheIsTerminal,
+  _prodCachePurge, _prodCacheWrite, _prodCarryBatchDescriptions, _prodClientRows,
+  _prodDeliverableLive, _prodEnabled, _prodEnsureAssets, _prodEnsureAssigneeOptions,
+  _prodFetchAuthority, _prodFetchNativeEpochTeams, _prodHydrateFromCache, _prodIdbCacheRead,
+  _prodInitials, _prodLoadDeliverableProjection, _prodLoadDisplayPrefs,
+  _prodPreserveProjectedFields, _prodPreviewText, _prodRefreshAuthority, _prodRestRows,
+  _prodScopeSignatures, _prodSmmArtifactGate, _prodStartAuthorityRefresh, _prodState
+} from './210-production-state-writes.js';
+import {
+  PROD_REFRESH_ICON, _prodAdapter, _prodApplySubIssueVisibility, _prodAvatar, _prodBatch,
+  _prodBatchParentIssue, _prodBatchRows, _prodBoardLabel, _prodCanWrite, _prodChildrenOf,
+  _prodClearLayer, _prodClient, _prodClients, _prodCopyLink, _prodCreativeNextStatuses,
+  _prodCurIssuesUnfiltered, _prodDisplayClient, _prodEditors, _prodEnsureOverlays, _prodIcon,
+  _prodIssue, _prodIssueOrderCompare, _prodIssues, _prodMatchFilters, _prodOpenRowId,
+  _prodPickerEmptyState, _prodProjectGlyph, _prodProjects, _prodReadonlyGuard, _prodStatusLabel,
+  _prodStatusSVG, _prodToast, _prodUniqueRows, _prodWriteGateText
+} from './220-production-attribution-views.js';
+import {
+  _prodComments, _prodDueIso, _prodInvalidateScopedReads, _prodMarkDescriptionsStale,
+  _prodRunPickerWrite
+} from './230-production-create-comments.js';
+import { _prodInvalidateBatchDescriptionReads, _prodPlacePop } from './240-production-description.js';
+import {
+  _prodCaptureListScroll, _prodDeltaRefresh, _prodProjectStatusIcon, _prodRender,
+  _prodRowSetComplete, _prodScrollDetailToTop, _prodStartOperationalRefresh
+} from './260-production-refresh-boot.js';
         function _prodLayerPop(html, x, y) {
             _prodEnsureOverlays();
             const layer = document.getElementById('prodLayer');
@@ -2824,3 +2860,21 @@
                 + '" data-prod-tip="' + _calEscAttr(label + '|' + detail) + '" onclick="return _prodManualRefresh()">'
                 + PROD_REFRESH_ICON + '</button></div>';
         }
+export {
+  PROD_DELTA_REFRESH_MS, PROD_FULL_RECONCILE_MS, PROD_MON, PROD_REFRESH_MAX_BACKOFF_MS,
+  _prodApplyDeepLinkFallback, _prodAutoRefreshOnReturn, _prodBoardCardCounts,
+  _prodBoardCardsForStatus, _prodBoardFlat, _prodCardClick, _prodCardFocusValid, _prodCloseSub,
+  _prodCurVal, _prodDeepLinkNoticeHTML, _prodDeliverableWatermark, _prodFirstLoadSettled,
+  _prodFlatOrder, _prodFreshnessHTML, _prodGroupsFor, _prodInvalidateScopedReadsFor,
+  _prodIsoDayNumber, _prodIsoFromDate, _prodIsoParts, _prodIssueRows, _prodLayerPop,
+  _prodLoadBriefs, _prodLoadData, _prodLoadEventsFor, _prodLoadLinearRawFor,
+  _prodMergeDeliverableRows, _prodMoveCardFocus, _prodMoveFocus, _prodMyMemberId,
+  _prodMyQueueUnavailableText, _prodOpenDeliverable, _prodOpenPicker, _prodOpenProject,
+  _prodOpenProjectLeadPicker, _prodOpenProjectStatusPicker, _prodOpenProjectTargetPicker,
+  _prodOpenSub, _prodOpenTeamView, _prodParseDue, _prodPickerHTML, _prodPolicyTodayISO,
+  _prodProjectAllRows, _prodProjectRows, _prodProjectScopeTeam, _prodReconcileSelection,
+  _prodRefreshAgeLabel, _prodRefreshDegraded, _prodSetQuery, _prodSetView, _prodSubPop,
+  _prodTabAllows, _prodTargetIds, _prodTitleAttrs, _prodToggleCardSelection,
+  _prodToggleRowSelection, _prodWirePicker, _prodWirePlainMenu, mountProductionView,
+  renderProductionView
+};

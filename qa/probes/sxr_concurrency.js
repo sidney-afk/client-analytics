@@ -34,6 +34,7 @@ async function sendNote(page, text) {
   const id1 = 'sr_probe_race_dbl_' + ts, id2 = 'sr_probe_race_cm_' + ts, id3 = 'sr_probe_race_xc_' + ts;
   try {
     // ---------- 1. same-tick double Kasper approve ----------
+    require('../native_work_item_fixture.js').registerProbeWorkItems([{ id: id1, components: ['video', 'graphic'] }]);
     up({ id: id1, name: 'RACE dbl ' + ts, order_index: 1, video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval', linear_issue_id: 'https://linear.app/x/VID-R1' + ts, graphic_linear_issue_id: 'https://linear.app/x/GRA-R1' + ts });
     await sleep(1500);
     const kp = await kasper(browser);
@@ -79,6 +80,7 @@ async function sendNote(page, text) {
     t(cell.includes('B_TOKEN'), 'merge race: tab B comment present');
 
     // ---------- 3. cross-component concurrent writes ----------
+    require('../native_work_item_fixture.js').registerProbeWorkItems([{ id: id3, components: ['video', 'graphic'] }]);
     up({ id: id3, name: 'RACE xc ' + ts, order_index: 3, video_status: 'Kasper Approval', graphic_status: 'Tweaks Needed', status: 'Kasper Approval', linear_issue_id: 'https://linear.app/x/VID-R3' + ts, graphic_linear_issue_id: 'https://linear.app/x/GRA-R3' + ts });
     await sleep(1500);
     const kp3 = await kasper(browser);

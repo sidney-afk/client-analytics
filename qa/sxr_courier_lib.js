@@ -729,6 +729,9 @@ async function _ctx(browser, opts) {
   // After the catch-all: Playwright tries the most recent route first, so a
   // catch-all registered later would swallow the key-verify stub this needs.
   await seedStaffGate(ctx);
+  // Probe-registered native work items (qa/native_work_item_fixture.js), also
+  // after the catch-all so their calendar/samples reads are answered first.
+  await require('./native_work_item_fixture.js').applyProbeWorkItems(ctx);
   return ctx;
 }
 async function open(browser, urlPath, opts) {

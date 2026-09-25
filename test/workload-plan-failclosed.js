@@ -11,7 +11,23 @@ const vm = require('vm');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
+// 070 offers these setters so the Workload render module (080) can change
+// 070's state without assigning an ES module import (phase C step C3). A
+// function that calls one gets it loaded beside it, so each vm context keeps
+// writing the same context variables as before.
+const WL_070_SETTERS = [
+  '_wlSetBackgroundRefreshPromise', '_wlSetBackgroundRefreshMode',
+  '_wlSetNativeDueReceiptRetryPromise', '_wlSetNativeDueReceiptRetryTimer',
+  '_wlSetNativeDueReceiptRetryAttempt', '_wlTakeNativeDueReceiptRetryAttempt',
+  '_wlNextNativeDueReceiptGeneration', '_wlNextPlanLoadGeneration', '_wlNextPlanWriteGeneration',
+];
 function extract(name) {
+  const body = extractOne(name);
+  const setters = WL_070_SETTERS.filter(setter => setter !== name && body.includes(setter + '('));
+  return [body, ...setters.map(extractOne)].join('\n');
+}
+
+function extractOne(name) {
   const marker = 'function ' + name + '(';
   let start = source.indexOf(marker);
   assert(start >= 0, 'missing ' + name);
@@ -670,7 +686,7 @@ function ok(condition, message) {
   // then be overwritten when the old read finally returns.
   {
     const dueWriteSource = extract('wlSetDueDate');
-    const invalidateAt = dueWriteSource.indexOf('_wlPlanLoadGeneration++');
+    const invalidateAt = dueWriteSource.indexOf('_wlNextPlanLoadGeneration()');
     const applyAt = dueWriteSource.indexOf('wlApplyDueLocal(key, dueDate)');
     const requestAt = dueWriteSource.indexOf('await _wlDueWriteRequest(issue, dueDate, route)');
     ok(invalidateAt >= 0 && invalidateAt < applyAt && applyAt < requestAt,

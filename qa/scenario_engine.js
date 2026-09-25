@@ -788,6 +788,13 @@ async function runScenario(browser, scn, shotDir, doShots) {
   // A `noSeed: true` scenario skips seeding entirely — used by the create-via-UI
   // scenarios, whose whole point is that the row is born in the browser.
   if (!scn.noSeed) {
+    // Linear is retired: a component is linked only by a deliverable id, which
+    // the fixture stamps into the reads. A scenario that overrides a link with
+    // '' still gets the unlinked case.
+    { const sd = scn.seed || {}; const comps = [];
+      if (sd.linear_issue_id !== '') comps.push('video');
+      if (sd.graphic_linear_issue_id !== '') comps.push('graphic');
+      if (comps.length) require('./native_work_item_fixture.js').registerProbeWorkItems([{ id, components: comps }]); }
     up(Object.assign({ id, name, order_index: 1, asset_url: 'https://frame.io/x/' + id, thumbnail_url: 'https://i.ytimg.com/vi/x/hqdefault.jpg', linear_issue_id: 'https://linear.app/x/VID-' + id.slice(-8), graphic_linear_issue_id: 'https://linear.app/x/GRA-' + id.slice(-8) }, scn.seed));
     await poll(() => { const r = supa('id=eq.' + id + '&select=id'); return r[0] || null; }, 12000, 600);
   }
@@ -830,7 +837,15 @@ async function runScenario(browser, scn, shotDir, doShots) {
         try {
           const rows = liveRowsByName(wantName, 'id,name');
           if (rows.length !== 1) res = 'rows=' + rows.length;
-          else { up(Object.assign({ id: rows[0].id }, patch)); res = 'ok'; }
+          else {
+            // A patch that links a component registers the card's native work
+            // item too: since Linear was retired a URL alone links nothing.
+            const comps = [];
+            if (String(patch.linear_issue_id || '').trim()) comps.push('video');
+            if (String(patch.graphic_linear_issue_id || '').trim()) comps.push('graphic');
+            if (comps.length) require('./native_work_item_fixture.js').registerProbeWorkItems([{ id: rows[0].id, components: comps }]);
+            up(Object.assign({ id: rows[0].id }, patch)); res = 'ok';
+          }
         } catch (e) { res = 'patch-failed: ' + (e.message || e); }
       }
       else if (verb === 'wait') { const p = await actors.smm(); await sleep(p, Number(args[0]) || 1000); }

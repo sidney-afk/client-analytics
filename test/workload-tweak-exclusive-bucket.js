@@ -1414,7 +1414,7 @@ check(/event\.key !== WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY/.test(nativeDueStorageSou
     && /_wlPlanWriteInFlight\.size \|\| _wlDueWriteInFlight\.size \|\| _wlBackgroundRefreshPromise/.test(nativeDueRetrySource)
     && /wlRefetchSilent\(\{\s*sensitiveOnly:\s*true\s*\}\)/.test(nativeDueRetrySource)
     && /disposition === 'consumed' \|\| disposition === 'discard'/.test(nativeDueRetrySource)
-    && /_wlBackgroundRefreshPromise = null;[\s\S]*wlScheduleNativeDueReceiptRetry\(\)/.test(workloadBackgroundSource)
+    && /_wlSetBackgroundRefreshPromise\(null\);[\s\S]*wlScheduleNativeDueReceiptRetry\(\)/.test(workloadBackgroundSource)
     && /_wlDueWriteInFlight\.delete\(key\);[\s\S]*wlScheduleNativeDueReceiptRetry\(\)/.test(dueWriteSource)
     && /_wlPlanWriteInFlight\.delete\(key\);[\s\S]*wlScheduleNativeDueReceiptRetry\(\)/.test(planWriteSource)
     && /_wlPlanWriteInFlight\.delete\(move\.key\);[\s\S]*wlScheduleNativeDueReceiptRetry\(\)/.test(planGroupWriteSource)

@@ -23,7 +23,8 @@ const assert = require('assert');
 
 const MAX = 767;
 
-function stripComments(css) { return css.replace(/\/\*[\s\S]*?\*\//g, ''); }
+const { stripBlockComments } = require('./helpers/strip-comments');
+const stripComments = css => stripBlockComments(css);
 
 // Split a CSS string into top-level items: { prelude, body } for blocks.
 function items(css) {

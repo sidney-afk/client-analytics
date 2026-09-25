@@ -1,3 +1,49 @@
+import { wlAdoptNativeDueGatewayRow, wlPublishNativeDueReceipt } from './080-workload-render.js';
+import {
+  CAL_SUPABASE_ANON_KEY, _syncviewOpenStaffIdentity, _syncviewStaffIdentityForHeaders,
+  _syncviewStaffIdentitySignature, _syncviewStaffVerificationEpoch
+} from './100-onboarding-staff-controls.js';
+import {
+  _calComponentsFor, _clientCommentGatewayOn, _prodCanonicalCoversLegacy, _prodCardBindingToken,
+  _prodCrosswalkVerdict, _prodLegacyReadIncomplete, _prodLegacyUnrepresentableState,
+  _prodResolveCardCrosswalk, _syncviewClientWriteToken, _syncviewEfHeaders, _writeUiFailureText,
+  _writeUiNativeId, _writeUiPrimeRerouteFlag
+} from './120-calendar-flags-write-repair.js';
+import { _calCommentsFor, _calSetCommentsFor, calClientSlug, calState } from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import { _calOpenCommentsPid, _calRenderCommentsModal } from './190-calendar-approval-comments.js';
+import {
+  PROD_COMMENTS_EF_URL, PROD_COMMENTS_PAGE_SIZE, PROD_COMMENTS_READ_TIMEOUT_MS,
+  PROD_CREATE_CLOSED_TEXT, PROD_STATUS_FROM_ARTIFACT, PROD_WRITE_EF_URL, _prodAdoptLabelPayload,
+  _prodAssetDefaultEvidence, _prodBoardStatus, _prodEnabled, _prodEnsureAssets, _prodEnsureLabels,
+  _prodHashText, _prodIssueScopeSignature, _prodLabelState, _prodNextLabelRequestToken,
+  _prodNormalizeLabelList, _prodRefreshAuthority, _prodRefreshLabelSurfaces, _prodSmmArtifactGate,
+  _prodState
+} from './210-production-state-writes.js';
+import {
+  _prodAttributionResolved, _prodAvatar, _prodBatch, _prodCanWrite, _prodClearLayer, _prodClient,
+  _prodCreateGateText, _prodCreateRecoveryGateText, _prodCreateValidDate,
+  _prodIdentityRepairGateText, _prodIssue, _prodNormalizeCreateAssignees, _prodPersistCreateDraft,
+  _prodPickerEmptyState, _prodReadonlyGuard, _prodRenderCreateAssignees, _prodRenderCreateCatalog,
+  _prodRenderCreateModal, _prodRenewCreateIntent, _prodTeamLabel, _prodToast, _prodWriteGateText,
+  _prodWriteRequestId, _prodWriteTeam
+} from './220-production-attribution-views.js';
+import {
+  _prodAssetStateLabel, _prodFileLinkLabel, _prodInvalidateBatchDescriptionReads,
+  _prodNextBatchDescriptionToken, _prodPlacePop
+} from './240-production-description.js';
+import {
+  _prodIsoFromDate, _prodLayerPop, _prodLoadData, _prodOpenDeliverable, _prodParseDue
+} from './250-production-controls-data.js';
+import {
+  _isClientLink, _prodRender, _syncviewClientEntryCapability, _syncviewClientEntryDataRun,
+  _syncviewClientEntryRunCurrent
+} from './260-production-refresh-boot.js';
+import { SXR_COMPONENTS, sxrClientSlug, sxrState } from './270-samples-model.js';
+import {
+  _sxrClientVisibleLegacyRows, _sxrCommentsFor, _sxrOpenCommentsPid, _sxrRenderCommentsModal,
+  _sxrSetCanonicalCommentsFor, _sxrSetCommentsFor
+} from './280-samples-cards-notes.js';
         function _prodCreateParentChange(value) {
             const draft = _prodState.createDraft;
             const parent = _prodIssue(value);
@@ -2580,3 +2626,14 @@
             _prodNextBatchDescriptionToken(batchId);
             _prodState.adapter = null;
         }
+export {
+  _prodApplyGatewayRow, _prodBoardDragOver, _prodBoardDragStart, _prodBoardDrop,
+  _prodCanonicalCommentGate, _prodClearBoardDropFx, _prodClientCommentGatewayContext,
+  _prodComments, _prodComposerHTML, _prodDescriptionHTML, _prodDescriptionState,
+  _prodDescriptionText, _prodDueIso, _prodGatewayWrite, _prodInvalidateScopedReads,
+  _prodLabelColorStyle, _prodLabelsButtonHTML, _prodLabelsPopHTML, _prodLinkify,
+  _prodLoadCreateOptions, _prodMarkDescriptionsStale, _prodNextDescriptionRequestToken,
+  _prodProjectCanonicalCardComments, _prodRunPickerWrite, _prodSyncBatchDescriptionRow,
+  _prodVerifiedClientCommentMutationContext, _prodWireLabelsPop, _prodWriteErrorText,
+  _prodWritePending
+};

@@ -59,8 +59,11 @@ const BFCACHE_INDEX_HTML = BFCACHE_STRIPS.reduce((html, [pattern, what, required
   );
   return stripped;
 }, INDEX_HTML);
+// Only a tag the browser would fetch while parsing counts. The Templates page
+// builds a Google Fonts URL in script for its font previews, which is requested
+// only after a client's page is opened, never during boot.
 assert.equal(
-  /fonts\.googleapis\.com|cdn\.jsdelivr\.net\/npm\/chart\.js/.test(BFCACHE_INDEX_HTML),
+  /(?:href|src)="https:\/\/(?:fonts\.googleapis\.com|cdn\.jsdelivr\.net\/npm\/chart\.js)/.test(BFCACHE_INDEX_HTML),
   false,
   'BFCache stream still references a third-party CDN after stripping',
 );

@@ -38,7 +38,7 @@
 | 30 | `230-production-create-comments.js.part` | 2639 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 31 | `240-production-description.js.part` | 2646 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 32 | `250-production-controls-data.js.part` | 2880 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 33 | `260-production-refresh-boot.js.part` | 2281 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 33 | `260-production-refresh-boot.js.part` | 2371 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 34 | `270-samples-model.js.part` | 2707 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 35 | `280-samples-cards-notes.js.part` | 2832 | SURFACE 3: the save engine |
 | 36 | `290-samples-writes-review.js.part` | 1798 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |

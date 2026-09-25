@@ -8905,6 +8905,16 @@
     let linearProjects = [];
     let linearClientRows = [];
     let sortCol = 'ig_followers', sortDir = 'desc';
+    function _setGrowthChart(value) { growthChart = value; }
+    function _setViewsChart(value) { viewsChart = value; }
+    function _setFollowersPlat(value) { followersPlat = value; }
+    function _setFollowersMode(value) { followersMode = value; }
+    function _setViewsPlat(value) { viewsPlat = value; }
+    function _setCurrentClientHistory(value) { currentClientHistory = value; }
+    function _setLinearProjects(value) { linearProjects = value; }
+    function _setLinearClientRows(value) { linearClientRows = value; }
+    function _setSortCol(value) { sortCol = value; }
+    function _setSortDir(value) { sortDir = value; }
     let activePeriods = {};
     let clientViewTab = {};
     let activeBriefTab = {};
@@ -10599,8 +10609,8 @@
     let gainPeriod=localStorage.getItem('syncview_gainPeriod')||'day';
     function setGainPeriod(p){ gainPeriod=p; localStorage.setItem('syncview_gainPeriod',p); render('all'); }
     function setSort(col){
-        if(sortCol===col){sortDir=sortDir==='desc'?'asc':'desc';}
-        else{sortCol=col;sortDir=col==='client_name'?'asc':'desc';}
+        if(sortCol===col){_setSortDir(sortDir==='desc'?'asc':'desc');}
+        else{_setSortCol(col);_setSortDir(col==='client_name'?'asc':'desc');}
         const _m=document.getElementById('sortDropMenu'),_t=document.getElementById('sortDropTrigger');
         if(_m){_m.classList.remove('open');}if(_t){_t.classList.remove('open');}
         render('all');
@@ -10977,8 +10987,8 @@
         const hasAnyAnalytics=!!(hasIG||hasTT||hasYT);
         const compareNote=prev?`comparing vs ${fmtDate(prev.date)}`:(hasAnyAnalytics?`<em>daily changes show after 2+ days</em>`:`<em>no analytics yet</em>`);
         const availPlats=[hasIG&&'ig',hasTT&&'tt',hasYT&&'yt'].filter(Boolean);
-        if(!availPlats.includes(followersPlat))followersPlat=availPlats[0]||'ig';
-        if(viewsPlat!=='all'&&!availPlats.includes(viewsPlat))viewsPlat='all';
+        if(!availPlats.includes(followersPlat))_setFollowersPlat(availPlats[0]||'ig');
+        if(viewsPlat!=='all'&&!availPlats.includes(viewsPlat))_setViewsPlat('all');
         const mkViewsBtn=(plat,color,label)=>`<button class="chart-plat-btn${viewsPlat===plat?' active':''}" onclick="switchViewsPlat('${plat}',this)">${color?`<span class="cpb-dot" style="background:${color}"></span>`:''}${label}</button>`;
         const viewsPlatToggle=[mkViewsBtn('all','','All'),hasIG?mkViewsBtn('ig','var(--sv-misc-e1306c)','Instagram'):'',hasTT?mkViewsBtn('tt','var(--sv-misc-2ec4b6)','TikTok'):'',hasYT?mkViewsBtn('yt','var(--sv-misc-ff4444)','YouTube'):''].filter(Boolean).join('');
         const mkPlatBtn=(plat,color,label)=>`<button class="chart-plat-btn${followersPlat===plat?' active':''}" onclick="switchFollowersPlat('${plat}',this)"><span class="cpb-dot" style="background:${color}"></span>${label}</button>`;
@@ -11172,9 +11182,9 @@
     }
     function renderChart(history){
         if(!_chartReady(()=>renderChart(history)))return;
-        currentClientHistory=history;
+        _setCurrentClientHistory(history);
         const ctx=document.getElementById('growthChart');if(!ctx)return;
-        if(growthChart){growthChart.destroy();growthChart=null;}
+        if(growthChart){growthChart.destroy();_setGrowthChart(null);}
         const pc=_platCfg[followersPlat]||_platCfg.ig;
         const receiptPlatform=followersPlat==='ig'?'instagram':followersPlat==='tt'?'tiktok':'youtube';
         const c2d=ctx.getContext('2d'),h=240,labels=history.map(r=>fmtDate(r.date));
@@ -11199,16 +11209,16 @@
         }
         const hasTypedZero=history.some(r=>{const state=_analyticsPlatformReceipt(r,receiptPlatform)?.state;return(state==='success'||state==='genuinely_empty')&&r[pc.key]!==''&&r[pc.key]!==null&&r[pc.key]!==undefined&&Number.isFinite(Number(r[pc.key]));});
         if(!hasTypedZero&&!data.some(v=>v!=null&&v!==0)){ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">No ${pc.label} follower data available.</div>`;return;}
-        growthChart=new Chart(ctx,{type:chartType,data:{labels,datasets:[dataset]},options:{..._baseOpts(v=>(v>0?'+':'')+v.toLocaleString()),scales:{x:_xAxis(),y:_mkYAxis(true)}}});
+        _setGrowthChart(new Chart(ctx,{type:chartType,data:{labels,datasets:[dataset]},options:{..._baseOpts(v=>(v>0?'+':'')+v.toLocaleString()),scales:{x:_xAxis(),y:_mkYAxis(true)}}}));
     }
     function switchFollowersMode(mode,btn){
-        followersMode=mode;
+        _setFollowersMode(mode);
         btn.closest('.chart-mode-toggle').querySelectorAll('.chart-mode-btn').forEach(b=>b.classList.remove('active'));
         btn.classList.add('active');
         renderChart(currentClientHistory);
     }
     function switchFollowersPlat(plat,btn){
-        followersPlat=plat;
+        _setFollowersPlat(plat);
         btn.closest('.chart-plat-toggle').querySelectorAll('.chart-plat-btn').forEach(b=>b.classList.remove('active'));
         btn.classList.add('active');
         renderChart(currentClientHistory);
@@ -11216,7 +11226,7 @@
     function renderViewsChart(history){
         if(!_chartReady(()=>renderViewsChart(history)))return;
         const ctx=document.getElementById('viewsChart');if(!ctx)return;
-        if(viewsChart){viewsChart.destroy();viewsChart=null;}
+        if(viewsChart){viewsChart.destroy();_setViewsChart(null);}
         const c2d=ctx.getContext('2d'),h=240;
         const allSeries=[
             {plat:'ig',label:'Instagram',key:'ig_views_gained_today',css:'--ig'},
@@ -11237,10 +11247,10 @@
             sc[yId]=_mkYAxis(yi===0);yi++;
         });
         if(!ds.length){ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">Daily views will appear after a few days of data.</div>`;return;}
-        viewsChart=new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:{..._baseOpts(v=>v.toLocaleString()),scales:sc}});
+        _setViewsChart(new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:{..._baseOpts(v=>v.toLocaleString()),scales:sc}}));
     }
     function switchViewsPlat(plat,btn){
-        viewsPlat=plat;
+        _setViewsPlat(plat);
         btn.closest('.chart-plat-toggle').querySelectorAll('.chart-plat-btn').forEach(b=>b.classList.remove('active'));
         btn.classList.add('active');
         renderViewsChart(currentClientHistory);
@@ -11255,7 +11265,7 @@
             }
             sel=cap.client;
         }
-        _syncviewNavEpoch++; // Phase D: a client profile is a route too.
+        _syncviewNextNavEpoch(); // Phase D: a client profile is a route too.
         // Boot-gate belt-and-braces: today's render()-first boot paths
         // (client links, history.state.client, client-name hashes) never set
         // data-boot-nav, but lift it here anyway so a future render()-first
@@ -11377,7 +11387,7 @@
                 _syncviewInvalidClientLinkScreen();
                 return;
             }
-            _syncviewClientEntryCapability=Object.freeze({client:cap.client,slug:cap.slug,view:tab,verified:true});
+            _syncviewSetClientEntryCapability(Object.freeze({client:cap.client,slug:cap.slug,view:tab,verified:true}));
             _syncviewSyncClientEntryRunHref();
             if(tab==='sample-reviews'){
                 mountSxrClientView(cap.client);
@@ -11393,7 +11403,7 @@
         }
         if(state&&state.client){
             const nav=state.nav||'home';
-            currentNav=nav;
+            _syncviewSetCurrentNav(nav);
             try{if(!_isSmmWeeklyRoute(nav))localStorage.setItem(NAV_KEY,nav);}catch(e){}   // full quota must not break Back/Forward nav
             document.body.classList.remove('prod-page'); // Back/Forward out of Production must restore body scroll
             document.getElementById('navHome').classList.toggle('active',nav==='home');
@@ -11574,6 +11584,11 @@
     const TPL_MAX_PINS   = 5;
     let _tplPinsEditMode = false;
     let _tplPinSelectorOpen = false;
+    function _templatesSetSelected(value) { _templatesSelected = value; }
+    function _templatesSetActiveTab(value) { _templatesActiveTab = value; }
+    function _templatesSetEditMode(value) { _templatesEditMode = value; }
+    function _tplSetPinsEditMode(value) { _tplPinsEditMode = value; }
+    function _tplSetPinSelectorOpen(value) { _tplPinSelectorOpen = value; }
     let _tplRealtimeChannel = null;
 
     async function _tplLoadFromSupabase() {
@@ -12636,15 +12651,15 @@
     function _tplRemovePin(name) {
         const pins = _tplGetPins().filter(p => p !== name);
         _tplSavePins(pins);
-        if (pins.length === 0) _tplPinsEditMode = false;
-        _tplPinSelectorOpen = false;
+        if (pins.length === 0) _tplSetPinsEditMode(false);
+        _tplSetPinSelectorOpen(false);
         _tplRenderPins();
     }
-    function _tplTogglePinsEdit() { _tplPinsEditMode = !_tplPinsEditMode; _tplPinSelectorOpen = false; _tplRenderPins(); }
-    function _tplClosePinSelector() { _tplPinSelectorOpen = false; const dd = document.getElementById('tplPinSelectorDropdown'); if (dd) dd.classList.remove('open'); }
+    function _tplTogglePinsEdit() { _tplSetPinsEditMode(!_tplPinsEditMode); _tplSetPinSelectorOpen(false); _tplRenderPins(); }
+    function _tplClosePinSelector() { _tplSetPinSelectorOpen(false); const dd = document.getElementById('tplPinSelectorDropdown'); if (dd) dd.classList.remove('open'); }
     function _tplTogglePinSelector() {
         if (_tplPinSelectorOpen) { _tplClosePinSelector(); return; }
-        _tplPinSelectorOpen = true;
+        _tplSetPinSelectorOpen(true);
         const dd = document.getElementById('tplPinSelectorDropdown');
         if (dd) { dd.classList.add('open'); _tplRenderPinSelectorList(); }
         const close = (e) => {
@@ -12719,7 +12734,7 @@
             if (closeBtn) closeBtn.onclick = (e) => { e.stopPropagation(); _tplClosePinSelector(); };
             if (_tplPinSelectorOpen) _tplRenderPinSelectorList();
         } else if (!showAddBtn && _tplPinSelectorOpen) {
-            _tplPinSelectorOpen = false;
+            _tplSetPinSelectorOpen(false);
         }
         if (area) area.style.display = '';
     }
@@ -12846,9 +12861,9 @@
     }
 
     function openClientTemplate(name) {
-        _templatesSelected = name;
-        _templatesActiveTab = 'reels';
-        _templatesEditMode = false;
+        _templatesSetSelected(name);
+        _templatesSetActiveTab('reels');
+        _templatesSetEditMode(false);
         history.pushState({ nav: 'templates', templatesClient: name, templatesTab: 'reels' }, '', '#templates/' + encodeURIComponent(name));
         const content = document.getElementById('content');
         if (content) {
@@ -12858,8 +12873,8 @@
         }
     }
     function backToTemplatesIndex() {
-        _templatesSelected = null;
-        _templatesEditMode = false;
+        _templatesSetSelected(null);
+        _templatesSetEditMode(false);
         history.pushState({ nav: 'templates' }, '', '#templates');
         const content = document.getElementById('content');
         if (content) {
@@ -13395,7 +13410,7 @@
     }
 
     function switchTemplatesTab(tab) {
-        _templatesActiveTab = tab;
+        _templatesSetActiveTab(tab);
         if (!_templatesSelected) return;
         // Persist the active tab in history.state so a refresh restores it (the
         // URL stays #templates/<client>; the tab rides in state, which survives a
@@ -13409,7 +13424,7 @@
         const name = _templatesSelected;
         // Flush any pending autosaves before leaving edit mode so view mode reflects the latest.
         if (!on && name && _tplDirty[name] && Object.keys(_tplDirty[name]).length) _tplFlush(name);
-        _templatesEditMode = !!on;
+        _templatesSetEditMode(!!on);
         const content = document.getElementById('content');
         if (!content || !name) return;
         content.innerHTML = renderClientTemplate(name);
@@ -14032,7 +14047,7 @@
         enrolledBySlug.forEach((row, slug) => {
             if (!includedNativeSlugs.has(slug)) mixedProjects.push(String(row.display_name).trim());
         });
-        linearProjects = [...new Set(mixedProjects.filter(Boolean))];
+        _setLinearProjects([...new Set(mixedProjects.filter(Boolean))]);
     }
 
     function _linearRenderProjectSource() {
@@ -14102,7 +14117,7 @@
         } finally {
             if (generation === linearProjectsLoadGeneration) {
                 linearLegacyProjects = legacyProjects;
-                linearClientRows = nativeRows;
+                _setLinearClientRows(nativeRows);
                 _linearRebuildProjectSource();
                 linearProjectsLoaded = true;
                 linearProjectsLoading = false;
@@ -66754,6 +66769,7 @@
     const SYNCVIEW_CLIENT_ENTRY_VIEWS = Object.freeze(['analytics', 'calendar', 'brief', 'samples', 'sample-reviews']);
     const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr']);
     let _syncviewClientEntryCapability = null;
+    function _syncviewSetClientEntryCapability(value) { _syncviewClientEntryCapability = value; }
     let _syncviewClientEntryGeneration = 0;
     let _syncviewClientEntryDataController = null;
     let _syncviewClientEntryDataRun = null;

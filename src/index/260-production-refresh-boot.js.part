@@ -1842,6 +1842,7 @@
     const SYNCVIEW_CLIENT_ENTRY_VIEWS = Object.freeze(['analytics', 'calendar', 'brief', 'samples', 'sample-reviews']);
     const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr']);
     let _syncviewClientEntryCapability = null;
+    function _syncviewSetClientEntryCapability(value) { _syncviewClientEntryCapability = value; }
     let _syncviewClientEntryGeneration = 0;
     let _syncviewClientEntryDataController = null;
     let _syncviewClientEntryDataRun = null;

@@ -270,6 +270,16 @@
     let linearProjects = [];
     let linearClientRows = [];
     let sortCol = 'ig_followers', sortDir = 'desc';
+    function _setGrowthChart(value) { growthChart = value; }
+    function _setViewsChart(value) { viewsChart = value; }
+    function _setFollowersPlat(value) { followersPlat = value; }
+    function _setFollowersMode(value) { followersMode = value; }
+    function _setViewsPlat(value) { viewsPlat = value; }
+    function _setCurrentClientHistory(value) { currentClientHistory = value; }
+    function _setLinearProjects(value) { linearProjects = value; }
+    function _setLinearClientRows(value) { linearClientRows = value; }
+    function _setSortCol(value) { sortCol = value; }
+    function _setSortDir(value) { sortDir = value; }
     let activePeriods = {};
     let clientViewTab = {};
     let activeBriefTab = {};

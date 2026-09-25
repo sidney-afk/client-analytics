@@ -38,7 +38,7 @@ if (resolverSource) {
 const navToSource = (INDEX.match(/function navTo\(page, push = true\) \{[\s\S]*?\n    \}/) || [])[0] || '';
 check('navTo applies the retirement resolver before selecting currentNav',
   navToSource.indexOf('page = _resolveRetiredSamplesRoute(page);') >= 0
-  && navToSource.indexOf('page = _resolveRetiredSamplesRoute(page);') < navToSource.indexOf('currentNav = page;'));
+  && navToSource.indexOf('page = _resolveRetiredSamplesRoute(page);') < navToSource.indexOf('_syncviewSetCurrentNav(page);'));
 check('boot predictor sends old hashes to Samples New',
   (INDEX.match(/target = [^;]*samples[^;]*sample-reviews[^;]*;/g) || []).length >= 2);
 

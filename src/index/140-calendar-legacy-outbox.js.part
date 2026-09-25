@@ -3050,6 +3050,7 @@
     const CAL_LINEAR_META_LS_KEY = 'syncview_calLinearMeta_v2';
     const CAL_LINEAR_META_TTL_MS = 7 * 24 * 60 * 60 * 1000;
     let _calLinearMetaHydrated = false;
+    function _calSetLinearMetaHydrated(value) { _calLinearMetaHydrated = value; }
     /* The force-fetch throttle (CAL_LINEAR_META_FORCE_MIN_MS), the ident-set
        signature (_calLinearStatusMetaSig / _calLinearStatusMetaAt) and the
        unsupported-backend latch (_calStatusMetaUnsupported) were removed with

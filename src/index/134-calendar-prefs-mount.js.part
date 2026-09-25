@@ -542,6 +542,7 @@
     // pageshow listeners firing together on a single return.
     const CAL_RETURN_REFRESH_MIN_MS_V2 = 4_000;
     let _calLastNetworkLoadAt = 0;
+    function _calSetLastNetworkLoadAt(value) { _calLastNetworkLoadAt = value; }
     let _calStaffPagehideSuspended = false;
     function _calRefreshOnReturn() {
         if (document.visibilityState === 'hidden') return;
@@ -574,6 +575,7 @@
        render is deferred onto this flag and applied once nothing in the
        calendar is focused and there are no unsaved field edits. */
     let _calPendingBackgroundRender = false;
+    function _calSetPendingBackgroundRender(value) { _calPendingBackgroundRender = value; }
     let _calPendingRenderInterval = null;
     function _calIsCalBusy() {
         const calBody = document.getElementById('calBody');
@@ -793,6 +795,15 @@
        can flip between sheets via Back without re-uploading the file. */
     let _calImportWorkbook = null;
     let _calImportSheetName = null;
+    function _calSetImportAoa(value) { _calImportAoa = value; }
+    function _calSetImportForcedLayout(value) { _calImportForcedLayout = value; }
+    function _calSetImportHeaders(value) { _calImportHeaders = value; }
+    function _calSetImportLayout(value) { _calImportLayout = value; }
+    function _calSetImportMap(value) { _calImportMap = value; }
+    function _calSetImportRows(value) { _calImportRows = value; }
+    function _calSetImportSelectedIdx(value) { _calImportSelectedIdx = value; }
+    function _calSetImportSheetName(value) { _calImportSheetName = value; }
+    function _calSetImportWorkbook(value) { _calImportWorkbook = value; }
 
     function _calLoadXLSX() {
         if (window.XLSX) return Promise.resolve(window.XLSX);

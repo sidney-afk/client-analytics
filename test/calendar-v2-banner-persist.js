@@ -58,6 +58,7 @@ const localStorage = {
 ${grabConst('CAL_LINEAR_META_LS_KEY')}
 ${grabConst('CAL_LINEAR_META_TTL_MS')}
 ${grabFunc('_writeUiIdentifierAllowed')}
+${grabFunc('_calSetLinearMetaHydrated')}
 ${grabFunc('_calHydrateLinearMeta')}
 ${grabFunc('_calPersistLinearMeta')}
 ${grabFunc('_calIdentFromUrl')}

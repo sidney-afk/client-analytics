@@ -28976,3 +28976,36 @@ append to a batch, fill a missing component). New module
 **Not changed.** `calendar-upsert`, `sample-review-upsert`, the browser, and the
 database schema. Until `production-write` is deployed the old behaviour stands.
 Test: `test/production-write-card-link.js` (offline, in-memory table).
+
+- *Follow-up, 2026-09-25:* the owner deployed `production-write` at `53f57353435f82b7a00f28f76f2b78def1515dfb`
+  through the Section 4 lane (green). Checked live on the test client with the new
+  on-demand probe `qa/probes/cal_fill_server_link.js`: pressing the fill button for
+  a missing thumbnail, with the browser's own card write blocked, left the card
+  carrying the new thumbnail id (`card_link.linked = 1`), and the only fields that
+  changed were `graphic_deliverable_id` and `updated_at`. Everything it made was
+  cancelled or archived. Owner decision the same day: the server does NOT create
+  brand-new cards; the reconcile backlog covers that case.
+
+## 255. [2026-09-25, FIXED] Browser test harness switched off four of the six boot routing flags
+
+**What broke.** `index.html` reads six runtime flags in one request at boot
+(`svFlagKeys`). The shared harness fixture (`qa/write_ui_reroute_fixture.js`,
+used by `qa/sxr_courier_lib.js`, `qa/probes/lib.js`, `qa/golden_lib.js` and
+`qa/ef-writepath/lib.js`) catches that request because it names
+`write_ui_reroute_clients`, and answered it with only its own two rows. The other
+four read as ABSENT, which means OFF. So in every harness run:
+- `calendar_upsert_ef_clients` was empty, and calendar card saves went to the
+  legacy n8n `calendar-upsert-post` webhook instead of the `calendar-upsert`
+  Edge Function production uses. That webhook drops `video_deliverable_id` /
+  `graphic_deliverable_id` (measured: a Create Post card saved through the
+  harness lost its work-item link);
+- `sample_review_ef_clients` and `settings_ef_clients` were empty the same way.
+
+**Fix.** The fixture now serves all six keys, answering only the keys a request
+names (as PostgREST does). The three routing rosters enrol the test client, as
+live does for every active client, and `client_comment_gateway_enabled` stays on.
+`kasper_urgent_ping_enabled` is served OFF on purpose: it is not routing, it was
+effectively off in tests before, and on would send real Slack pings.
+`test/qa-harness-routes-like-production.js` now lifts the shipped `svFlagKeys`
+and fails if the fixture leaves any of them out, and runs the shipped calendar
+router on the answer.

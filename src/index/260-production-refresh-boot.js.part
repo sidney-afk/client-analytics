@@ -1577,7 +1577,7 @@
                     _kasperArrivedFromUnlockParam = !_kasperAlreadyUnlocked;
                 }
                 if(sessionStorage.getItem(KASPER_UNLOCK_KEY)==='ok'){
-                    _kasperUnlocked=true;
+                    _setKasperUnlocked(true);
                     const navKp=document.getElementById('navKasper');
                     if(navKp) navKp.style.display='';
                     _navPillSync(false);   // a revealed tab reflows the strip
@@ -1937,7 +1937,7 @@
         if (!_isClientLink) return;
         if (_linearOutboxFlushTimer) {
             clearTimeout(_linearOutboxFlushTimer);
-            _linearOutboxFlushTimer = null;
+            _calSetLinearOutboxFlushTimer(null);
         }
         if (_sxrLinearOutboxTimer) {
             clearTimeout(_sxrLinearOutboxTimer);
@@ -1963,7 +1963,7 @@
             _autoSummaryAttempted.clear();
         } catch (e) {}
         try {
-            _calLoadSeq++;
+            _calNextLoadSeq();
             _calSetClient(null); calState.posts = []; calState.loading = false; calState.error = null;
             _calSetFocusRequest(null); _calSetPendingDeepLink(null);
         } catch (e) {}
@@ -2211,9 +2211,9 @@
         // AI-avatar section and drops the sample-video section; the standard funnel
         // is the reverse. Each keeps its own autosave draft key so the two forms
         // never clobber each other's localStorage.
-        OB_VARIANT = _isAiOnboarding ? 'ai' : 'normal';
-        OB_DRAFT_KEY = _isAiOnboarding ? 'syncview_ai_onboarding_draft_v1' : 'syncview_onboarding_draft_v1';
-        OB_SUBID_KEY = _isAiOnboarding ? 'syncview_ai_onboarding_subid_v1' : 'syncview_onboarding_subid_v1';
+        _obSetVariant(_isAiOnboarding ? 'ai' : 'normal');
+        _obSetDraftKey(_isAiOnboarding ? 'syncview_ai_onboarding_draft_v1' : 'syncview_onboarding_draft_v1');
+        _obSetSubIdKey(_isAiOnboarding ? 'syncview_ai_onboarding_subid_v1' : 'syncview_onboarding_subid_v1');
         // Both onboarding forms carry SynchroSocial branding (tab title + favicon),
         // distinct from the SyncView dashboard chrome.
         try {

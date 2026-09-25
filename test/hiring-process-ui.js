@@ -44,7 +44,7 @@ ok(HIRING.length > 3000, 'the Hiring Process module is present as its own bounde
 ok(/const HIRING_APPLICATIONS_EF_URL = CAL_SUPABASE_URL \+ '\/functions\/v1\/hiring-applications';/.test(HIRING),
   'the browser calls the dedicated hiring Edge Function, not a public webhook');
 ok(/key: 'hiring-process', label: 'Hiring Process'/.test(SOURCE)
-  && /Pipeline & Admin', keys: \['sales-intake', 'hiring-process', 'onboarding', 'quiz-leads', 'client-credentials'\]/.test(SOURCE),
+  && /Pipeline & Admin', keys: \['sales-intake', 'hiring-process', 'onboarding', 'quiz-leads', 'client-credentials', 'clients'\]/.test(SOURCE),
   'Hiring Process appears under Kasper > More > Pipeline & Admin after Sales Intake');
 ok(/if \(capability === 'hiring'\) return role === 'admin';/.test(SOURCE)
   && /_syncviewRequireStaffIdentity\('hiring'\)/.test(HIRING)

@@ -1,6 +1,6 @@
     <style>
         :root {
-            --brief-look: #7c5cff; --brief-look-bg: #f4f1ff; --brief-edit: #2f7de1; --brief-edit-bg: #eef5fe; --brief-music: #0e9f8e; --brief-music-bg: #eafaf7; --brief-avoid: #e0445a; --brief-avoid-bg: #fdf0f2; --brief-about: #d98a12; --brief-about-bg: #fdf6ea; --brief-asks: #d4509a; --brief-asks-bg: #fcf0f7; --brief-know: #5b6b82; --brief-know-bg: #f1f4f8;
+            --tpl-prev-dark: #1f2229; --tpl-prev-dark2: #3a3f4a; --tpl-prev-light: #eef0f3; --tpl-prev-light2: #ffffff; --tpl-prev-shadow: rgba(0,0,0,0.65); --brief-look: #7c5cff; --brief-look-bg: #f4f1ff; --brief-edit: #2f7de1; --brief-edit-bg: #eef5fe; --brief-music: #0e9f8e; --brief-music-bg: #eafaf7; --brief-avoid: #e0445a; --brief-avoid-bg: #fdf0f2; --brief-about: #d98a12; --brief-about-bg: #fdf6ea; --brief-asks: #d4509a; --brief-asks-bg: #fcf0f7; --brief-know: #5b6b82; --brief-know-bg: #f1f4f8;
             --brief-look-ink: #5a36e0; --brief-edit-ink: #1c5fb3; --brief-music-ink: #0a6f63; --brief-avoid-ink: #b3243a; --brief-about-ink: #8a5300; --brief-asks-ink: #a82c73; --brief-know-ink: #45546b;
             color-scheme: light;
             --white:  #ffffff; --bg: #f4f4f2; --border: #e4e4e0; --border-light: #ededea;
@@ -35,7 +35,7 @@
             --upload-progress-track: var(--bg); --upload-progress-fill: var(--sv-bg-111110); --upload-progress-glow: rgba(0,0,0,0);
         }
         html[data-theme="dark"] {
-            --brief-look: #a996ff; --brief-look-bg: #221d38; --brief-edit: #6aa8f5; --brief-edit-bg: #172536; --brief-music: #43d1bf; --brief-music-bg: #13302d; --brief-avoid: #ff7b8c; --brief-avoid-bg: #37191f; --brief-about: #f0b454; --brief-about-bg: #332713; --brief-asks: #f08cc4; --brief-asks-bg: #361b2c; --brief-know: #9fb0c8; --brief-know-bg: #1d2330;
+            --tpl-prev-dark: #15161a; --tpl-prev-dark2: #3a3f4a; --tpl-prev-light: #d9dce2; --tpl-prev-light2: #f4f5f7; --tpl-prev-shadow: rgba(0,0,0,0.65); --brief-look: #a996ff; --brief-look-bg: #221d38; --brief-edit: #6aa8f5; --brief-edit-bg: #172536; --brief-music: #43d1bf; --brief-music-bg: #13302d; --brief-avoid: #ff7b8c; --brief-avoid-bg: #37191f; --brief-about: #f0b454; --brief-about-bg: #332713; --brief-asks: #f08cc4; --brief-asks-bg: #361b2c; --brief-know: #9fb0c8; --brief-know-bg: #1d2330;
             --brief-look-ink: #c3b5ff; --brief-edit-ink: #9cc6fa; --brief-music-ink: #7fe3d6; --brief-avoid-ink: #ffa3af; --brief-about-ink: #f6cc85; --brief-asks-ink: #f6b4d9; --brief-know-ink: #c2cedd;
             color-scheme: dark;
             --white: #181a1f; --bg: #101114; --border: #343842; --border-light: #282c34;

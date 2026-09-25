@@ -1485,11 +1485,12 @@ import { _kasperCalCachePrune } from './330-kasper-review-history.js';
         // failed and the nav button stayed hidden on every refresh).
         const KASPER_UNLOCK_KEY = 'syncview_kasper_unlocked';
         let _kasperUnlocked = false;
+        function _setKasperUnlocked(value) { _kasperUnlocked = value; }
 export {
   CAL_CARD_JOBS_KEY, FAST_TABS, KASPER_UNLOCK_KEY, RESTORABLE_FAST_TABS,
   _applyAllDataDependentChrome, _calCardJobsRead, _kasperUnlocked, _linearIntakeActorContext,
   _linearIntakeBatchTitle, _linearIntakeItems, _linearIntakeJobId, _linearIntakePending,
   _linearIntakePurgeSensitiveState, _linearIntakeRead, _linearIntakeRemoveIfCurrent,
   _linearIntakeWithLock, _linearResumeSubmissionHold, _linearSubmissionHoldRead,
-  _resumeNativeIntakeJob, _resumePendingCalCardJobs, renderLinearView
+  _resumeNativeIntakeJob, _resumePendingCalCardJobs, _setKasperUnlocked, renderLinearView
 };

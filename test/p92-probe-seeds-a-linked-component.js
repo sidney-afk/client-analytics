@@ -80,9 +80,14 @@ const graphicLink = seedValue('graphic_linear_issue_id');
 ok(videoLink !== null && graphicLink !== null, 'both link fields are present in the probe seed');
 ok(videoLink !== '' && graphicLink !== '',
   'the probe seeds a LINKED row on both components (video=' + JSON.stringify(videoLink) + ')');
+/* Linear retired 2026-09-24: linked now means a SyncView deliverable id. The
+   probe cannot persist a synthetic one (foreign key), so it registers its card
+   with qa/native_work_item_fixture.js, which stamps the id into the reads. */
+ok(/registerProbeWorkItems\(\[\{ id: PID, components: \['video', 'graphic'\] \}\]\)/.test(probeSrc),
+  'the probe registers its card for a native work item on both components');
 
 /* Model the row the probe ends up asserting on: routed to Kasper Approval. */
-const routed = { linear_issue_id: 'https://linear.app/x/VID-p92', graphic_linear_issue_id: 'https://linear.app/x/GRA-p92', video_status: 'Kasper Approval' };
+const routed = { linear_issue_id: 'https://linear.app/x/VID-p92', graphic_linear_issue_id: 'https://linear.app/x/GRA-p92', video_deliverable_id: 'del_p92v', graphic_deliverable_id: 'del_p92g', video_status: 'Kasper Approval' };
 ok(linked(routed, 'video') === true, 'a seeded link makes the video component linked');
 ok(shown(routed, 'video', 'Kasper Approval') === 'Kasper Approval',
   'so the pill displays the routed status, which is what the probe asserts');

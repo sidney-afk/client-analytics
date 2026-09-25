@@ -21,6 +21,7 @@ const row = (id, cols) => { try { const r = supa('id=eq.' + id + '&select=' + co
   const id = 'sr_probe_clientguard_' + ts;
   const NAME = 'ClientGuard ' + ts;
   try {
+    require('../native_work_item_fixture.js').registerProbeWorkItems([{ id: id, components: ['video', 'graphic'] }]);
     up({ id, name: NAME, order_index: 1, video_status: 'Client Approval', graphic_status: 'Approved', status: 'Client Approval', asset_url: 'https://frame.io/x/original', linear_issue_id: 'https://linear.app/x/VID-CG' + ts, graphic_linear_issue_id: 'https://linear.app/x/GRA-CG' + ts });
     await sleep(1500);
 

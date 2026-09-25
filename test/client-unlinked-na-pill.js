@@ -86,6 +86,8 @@ ok(typeof render === 'function', 'the real client pill renderer extracts and exe
 const linkedCard = {
   linear_issue_id: 'https://linear.app/x/issue/VID-1/a',
   graphic_linear_issue_id: 'https://linear.app/x/issue/GRA-1/b',
+  // Linked means a SyncView deliverable id since Linear was retired (2026-09-24).
+  video_deliverable_id: 'del_v1', graphic_deliverable_id: 'del_g1',
   video_status: 'In Progress', graphic_status: 'In Progress', caption_status: 'In Progress',
 };
 const unlinkedCard = {

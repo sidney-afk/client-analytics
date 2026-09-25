@@ -81,10 +81,10 @@ ok(fill({ id: 'p_2', graphic_deliverable_id: 'del_g' }, 'video') === 'del_g',
 ok(fill({ id: 'p_3' }, 'video') === '' && fill({ id: 'p_3' }, 'graphic') === '',
   'a card with NEITHER component offers nothing — there is nothing to inherit from, and Create Post is the path for that');
 
-/* A card already carrying a Linear url for the slot is a legacy half-link, not
-   a missing component. Filling it would leave the card naming two issues. */
-ok(fill({ id: 'p_4', video_deliverable_id: 'del_v', graphic_linear_issue_id: 'https://linear.app/x' }, 'graphic') === '',
-  'a slot holding a Linear url is left alone — that is a half-link to repair, not a gap to fill');
+/* Linear is retired (owner + Lighthouse, 2026-09-24): a slot holding only an old
+   Linear url has no work item, so it reads as a gap and offers the fill. */
+ok(fill({ id: 'p_4', video_deliverable_id: 'del_v', graphic_linear_issue_id: 'https://linear.app/x' }, 'graphic') !== '',
+  'a slot holding only a Linear url counts as empty and offers the fill');
 
 ok(fill({ id: 'blank_1', video_deliverable_id: 'del_v' }, 'graphic') === '',
   'a blank placeholder row offers nothing');

@@ -906,10 +906,13 @@ table are all slated to become automated/Supabase-native.
     metadata. The Telegram case (§2) proves metadata search is not evidence
     of absence.
 24. **`Onboarding — Append Client Row`** (`RFi70kokkNFHoRC0`, created
-    2026-08-20, **inactive**) upserts a client into the `Clients Info` +
+    2026-08-20, **active**) upserts a client into the `Clients Info` +
     `Social Media Managers` tabs — exactly the manual toil in §7 row 7 and
-    the "Off Google Sheets" migration in §14. Origin unconfirmed; it is
-    switched off. Decide whether to adopt or delete it.
+    the "Off Google Sheets" migration in §14. **Corrected 2026-09-24:** an
+    earlier version of this entry said it was inactive and asked whether to
+    adopt or delete it. The owner confirmed it is live and used during client
+    onboarding; keep it. Its Supabase dual-write is planned in
+    `docs/plans/2026-09-24-sheets-to-supabase.md`.
 
 17. **The pipeline reuses HubSpot's reserved stage ids under different labels**
     (corrected 2026-08-21). ⚠️ An earlier version of this entry asserted

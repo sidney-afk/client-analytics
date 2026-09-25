@@ -38,6 +38,7 @@ async function kasperCardState(page, cid) {
     t(stU === 'absent', 'unlinked graphic at Kasper Approval is gated OUT of the queue', 'state=' + stU);
 
     // ---------- 2. finished-card resurface-on-reply (BUG-7 pin) ----------
+    require('../native_work_item_fixture.js').registerProbeWorkItems([{ id: idR, components: ['video', 'graphic'] }]);
     up({ id: idR, name: 'GATE resurface ' + ts, order_index: 2, video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval', linear_issue_id: 'https://linear.app/x/VID-RS' + ts, graphic_linear_issue_id: 'https://linear.app/x/GRA-RS' + ts });
     await sleep(1500);
     await kp.evaluate(() => { if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });

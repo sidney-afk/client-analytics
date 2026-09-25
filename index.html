@@ -287,6 +287,7 @@
     <style>
         :root {
             --brief-look: #7c5cff; --brief-look-bg: #f4f1ff; --brief-edit: #2f7de1; --brief-edit-bg: #eef5fe; --brief-music: #0e9f8e; --brief-music-bg: #eafaf7; --brief-avoid: #e0445a; --brief-avoid-bg: #fdf0f2; --brief-about: #d98a12; --brief-about-bg: #fdf6ea; --brief-asks: #d4509a; --brief-asks-bg: #fcf0f7; --brief-know: #5b6b82; --brief-know-bg: #f1f4f8;
+            --brief-look-ink: #5a36e0; --brief-edit-ink: #1c5fb3; --brief-music-ink: #0a6f63; --brief-avoid-ink: #b3243a; --brief-about-ink: #8a5300; --brief-asks-ink: #a82c73; --brief-know-ink: #45546b;
             color-scheme: light;
             --white:  #ffffff; --bg: #f4f4f2; --border: #e4e4e0; --border-light: #ededea;
             --surface-raised: #ffffff; --surface-hover: #f8f8f6; --surface-subtle: #f3f3f1;
@@ -321,6 +322,7 @@
         }
         html[data-theme="dark"] {
             --brief-look: #a996ff; --brief-look-bg: #221d38; --brief-edit: #6aa8f5; --brief-edit-bg: #172536; --brief-music: #43d1bf; --brief-music-bg: #13302d; --brief-avoid: #ff7b8c; --brief-avoid-bg: #37191f; --brief-about: #f0b454; --brief-about-bg: #332713; --brief-asks: #f08cc4; --brief-asks-bg: #361b2c; --brief-know: #9fb0c8; --brief-know-bg: #1d2330;
+            --brief-look-ink: #c3b5ff; --brief-edit-ink: #9cc6fa; --brief-music-ink: #7fe3d6; --brief-avoid-ink: #ffa3af; --brief-about-ink: #f6cc85; --brief-asks-ink: #f6b4d9; --brief-know-ink: #c2cedd;
             color-scheme: dark;
             --white: #181a1f; --bg: #101114; --border: #343842; --border-light: #282c34;
             --surface-raised: #20232a; --surface-hover: #242730; --surface-subtle: #15171c;
@@ -4275,19 +4277,19 @@
         .tpl-brief { display: flex; flex-direction: column; gap: 16px; margin-top: 6px; }
         .tpl-brief-cols { columns: 2 340px; column-gap: 16px; }
         .tpl-brief-cols > .tpl-brief-sec { break-inside: avoid; margin-bottom: 16px; }
-        .tpl-brief-sec { --k: var(--brief-know); --kbg: var(--brief-know-bg); background: var(--surface-raised); border: 1px solid var(--border-light); border-radius: 16px; overflow: hidden; }
-        .tpl-brief-look { --k: var(--brief-look); --kbg: var(--brief-look-bg); }
-        .tpl-brief-edit { --k: var(--brief-edit); --kbg: var(--brief-edit-bg); }
-        .tpl-brief-music { --k: var(--brief-music); --kbg: var(--brief-music-bg); }
-        .tpl-brief-avoid { --k: var(--brief-avoid); --kbg: var(--brief-avoid-bg); }
-        .tpl-brief-about { --k: var(--brief-about); --kbg: var(--brief-about-bg); }
-        .tpl-brief-asks { --k: var(--brief-asks); --kbg: var(--brief-asks-bg); }
+        .tpl-brief-sec { --k: var(--brief-know); --kbg: var(--brief-know-bg); --kink: var(--brief-know-ink); background: var(--surface-raised); border: 1px solid var(--border-light); border-radius: 16px; overflow: hidden; }
+        .tpl-brief-look { --k: var(--brief-look); --kbg: var(--brief-look-bg); --kink: var(--brief-look-ink); }
+        .tpl-brief-edit { --k: var(--brief-edit); --kbg: var(--brief-edit-bg); --kink: var(--brief-edit-ink); }
+        .tpl-brief-music { --k: var(--brief-music); --kbg: var(--brief-music-bg); --kink: var(--brief-music-ink); }
+        .tpl-brief-avoid { --k: var(--brief-avoid); --kbg: var(--brief-avoid-bg); --kink: var(--brief-avoid-ink); }
+        .tpl-brief-about { --k: var(--brief-about); --kbg: var(--brief-about-bg); --kink: var(--brief-about-ink); }
+        .tpl-brief-asks { --k: var(--brief-asks); --kbg: var(--brief-asks-bg); --kink: var(--brief-asks-ink); }
         .tpl-brief-h { display: flex; align-items: center; gap: 10px; margin: 0; padding: 14px 20px; background: var(--kbg); font-size: 0.98rem; font-weight: 700; color: var(--text-primary); }
         .tpl-brief-ico { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 9px; background: var(--k); color: var(--surface-raised); }
         .tpl-brief-body { padding: 12px 20px 16px; }
         .tpl-brief-group { display: grid; grid-template-columns: 104px 1fr; gap: 0 16px; padding: 6px 0; }
         .tpl-brief-group + .tpl-brief-group { border-top: 1px dashed var(--border-light); margin-top: 6px; padding-top: 12px; }
-        .tpl-brief-label { align-self: start; justify-self: start; margin-top: 4px; padding: 3px 10px; border-radius: 999px; background: var(--kbg); color: var(--k); font-size: 0.76rem; font-weight: 700; }
+        .tpl-brief-label { align-self: start; justify-self: start; margin-top: 4px; padding: 3px 10px; border-radius: 999px; background: var(--kbg); color: var(--kink); font-size: 0.76rem; font-weight: 700; }
         @media (max-width: 560px) { .tpl-brief-group { grid-template-columns: 1fr; gap: 6px; } }
         .tpl-brief-list { list-style: none; margin: 0; padding: 0; }
         .tpl-brief-li { position: relative; padding: 5px 0 5px 22px; }
@@ -13130,8 +13132,11 @@
         let t = String(text || ''), note = '';
         const m = /\s*\((starting point:[^)]*)\)\s*$/i.exec(t);
         if (m) { note = m[1].charAt(0).toUpperCase() + m[1].slice(1); t = t.slice(0, m.index); }
-        const html = _tplBrainInline(t).replace(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g, hex =>
-            `<button type="button" class="tpl-brief-hex" title="Copy ${hex}" onclick="tplBrainCopy('${hex}', this)"><span style="background:${hex}"></span>${hex}</button>`);
+        // Colour codes become swatches only in plain text, never inside a link.
+        const swatch = hex => `<button type="button" class="tpl-brief-hex" title="Copy ${hex}" onclick="tplBrainCopy('${hex}', this)"><span style="background:${hex}"></span>${hex}</button>`;
+        const html = t.split(/(https?:\/\/[^\s<]+)/).map((part, i) => i % 2
+            ? _tplBrainInline(part)
+            : _tplBrainInline(part).replace(/(^|[^&\w])(#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b)/g, (m, pre, hex) => pre + swatch(hex))).join('');
         return { html, note };
     }
     // Section kind decides the line marker, so the marker carries meaning.

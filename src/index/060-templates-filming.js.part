@@ -1144,8 +1144,11 @@
         let t = String(text || ''), note = '';
         const m = /\s*\((starting point:[^)]*)\)\s*$/i.exec(t);
         if (m) { note = m[1].charAt(0).toUpperCase() + m[1].slice(1); t = t.slice(0, m.index); }
-        const html = _tplBrainInline(t).replace(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g, hex =>
-            `<button type="button" class="tpl-brief-hex" title="Copy ${hex}" onclick="tplBrainCopy('${hex}', this)"><span style="background:${hex}"></span>${hex}</button>`);
+        // Colour codes become swatches only in plain text, never inside a link.
+        const swatch = hex => `<button type="button" class="tpl-brief-hex" title="Copy ${hex}" onclick="tplBrainCopy('${hex}', this)"><span style="background:${hex}"></span>${hex}</button>`;
+        const html = t.split(/(https?:\/\/[^\s<]+)/).map((part, i) => i % 2
+            ? _tplBrainInline(part)
+            : _tplBrainInline(part).replace(/(^|[^&\w])(#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b)/g, (m, pre, hex) => pre + swatch(hex))).join('');
         return { html, note };
     }
     // Section kind decides the line marker, so the marker carries meaning.

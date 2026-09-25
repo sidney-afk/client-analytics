@@ -102,11 +102,20 @@ That list becomes the parity test (section 8).
   (publishable) key the browser uses today, and calls the **same Edge
   Functions** with the same headers (`X-Syncview-Client-Token` for clients,
   the staff identity for staff).
-- **v2 adds no new write path for existing data.** Every write goes through
-  the Edge Function v1 uses (`production-write`, `calendar-upsert`,
-  `sample-review-upsert`, and so on). That is what makes running both side by
-  side safe: the server rules, conflict checks and history tables are shared,
-  so the two versions cannot disagree about what a write means.
+- **v2 adds no new write path for existing data.** Each write goes through
+  the same backend door v1 uses. For the core screens that is an Edge
+  Function (`production-write`, `calendar-upsert`, `sample-review-upsert`,
+  and so on), so server rules, conflict checks and history tables are shared
+  and the two versions cannot disagree about what a write means.
+- **Not every v1 write is an Edge Function.** Some screens still write
+  through n8n webhooks (automation endpoints): Caption prompts can,
+  TikTok Upload only does, and Onboarding and Sales intake use n8n as primary
+  and fallback (SYSTEM_MAP 4.11 to 4.13). Before each of those screens is
+  rebuilt, its step starts by listing every write and its transport from
+  SYSTEM_MAP section 7, then either (a) calls the same n8n endpoint from v2,
+  unchanged, or (b) moves it to an Edge Function as a separate PR in this
+  repo, switched on for v1 first. Option (b) needs the owner's approval for
+  any n8n change. The parity test covers whichever transport is used.
 - Direct table reads from the browser stay limited to what v1 already reads.
   v2 should not add new open reads; if it needs new data, it gets a narrow
   Edge Function (the same rule as the Sheets plan, option (a)).
@@ -142,10 +151,16 @@ role key; boot re-checks it on the server. v2 options:
 checks it with the existing `client-token-verify` function and sends it on
 every write. Staff keep minting links with `client-review-link`. The link
 format should be the same so a client's existing link keeps working when the
-route switch moves them to v2. v2 should fail **closed** (show "link not
-valid") when the check errors, not fall through as v1's permissive mode does
-(F38); this needs the owner's go-ahead because it can block a client whose
-link is broken today.
+route switch moves them to v2.
+
+**v2 keeps today's permissive behaviour at launch.** `calendar-upsert` and
+`sample-review-upsert` are deliberately un-gated by owner directive
+(`AGENTS.md`, "FROZEN client write gate"), because re-gating them has broken
+client approvals twice. v2 must not tighten this on its own. Failing closed
+(showing "link not valid" when the check errors, instead of v1's permissive
+fall-through, F38) is allowed only after BOTH (a) the owner says yes
+explicitly, AND (b) every active client has been re-issued a fresh link and
+confirmed on it. Until then v2 behaves exactly like v1 here.
 
 ## 6. Clients admin tab
 
@@ -274,9 +289,10 @@ re-checked before signing up.
 
 1. **Staff sign-in:** move staff to proper logins (Google or emailed link)
    in v2, or keep today's name plus personal key? Recommended: proper logins.
-2. **Client links:** in v2, should a link that cannot be checked show "link
-   not valid" (safer) instead of letting the client in (today's behaviour)?
-   Recommended: yes.
+2. **Client links:** v2 launches letting clients in as today. Later, once
+   every client has a fresh link and has confirmed it works, do you want
+   links that cannot be checked refused (safer)? Nothing changes until you
+   say yes.
 3. **Clients admin tab:** build it in v1 first (sooner, right after client
    data reaches Supabase) or wait for v2? Recommended: v1 first, since it
    unblocks retiring the Clients Info Sheet months earlier.

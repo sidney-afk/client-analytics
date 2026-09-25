@@ -1941,7 +1941,7 @@
         }
         if (_sxrLinearOutboxTimer) {
             clearTimeout(_sxrLinearOutboxTimer);
-            _sxrLinearOutboxTimer = null;
+            _sxrSetLinearOutboxTimer(null);
         }
     }
     function _syncviewPurgeClientEntrySurface() {

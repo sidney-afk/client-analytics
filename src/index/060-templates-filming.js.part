@@ -1,3 +1,37 @@
+import {
+  FILMING_PLANS_EF_URL, _setLinearClientRows, _setLinearProjects, linearClientRows, showToast
+} from './040-shared-briefs.js';
+import {
+  CHECK_SVG, PEN_ICON_SVG, PIN_ICON_SVG, TPL_MAX_PINS, TPL_PINS_KEY, TPL_RECENT_KEY, _NOT_SET,
+  _maybeRerenderTemplates, _setTplStatus, _templatesEditMode, _templatesSelected,
+  _templatesSetActiveTab, _templatesSetEditMode, _templatesSetSelected, _tplClientReady, _tplDirty,
+  _tplEsc, _tplEscAttr, _tplFieldLink, _tplFlush, _tplGet, _tplGetColorSets, _tplPinSelectorOpen,
+  _tplPinsEditMode, _tplQueueSave, _tplSaveColorSets, _tplSaveErrorMsg, _tplSetPinSelectorOpen,
+  _tplSetPinsEditMode, _tplViewColor, _tplViewProse, _tplViewText, templatesLoadError
+} from './050-market-briefs.js';
+import { getClientRoster, wlNormalizeClient } from './070-workload-source.js';
+import {
+  _linearInvalidatePlanMap, renderLinearSearchResults, saveLinearForm, updateLinearFilmingPlan,
+  updateLinearSearchGhost, updateLinearTitle
+} from './090-workload-popovers-navigation.js';
+import {
+  CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _obZoom, _syncviewOfferStaffSignIn,
+  _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity, _syncviewStaffCan,
+  _syncviewStaffIdentityBoot, _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders,
+  _syncviewStaffIdentitySignature
+} from './100-onboarding-staff-controls.js';
+import { _writeUiRerouteClients, _writeUiRerouteFlagFailed, _writeUiRerouteRosterUnusable } from './110-time-off-reports.js';
+import { _syncviewEfHeaders, _writeUiPrimeRerouteFlag, _writeUiRerouteUseGateway } from './120-calendar-flags-write-repair.js';
+import { calClientSlug } from './130-calendar-model-cache.js';
+import { _jsAttrArg } from './131-core-html.js';
+import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
+import { _svSaveIndHtml } from './170-calendar-links-status.js';
+import { _linearIntakeRead } from './200-intake-data-startup.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
+import {
+  KASPER_FILMING_CACHE_KEY, _kasperLoadFilming, _kasperRefreshTabCounts, _kasperRenderOnboarding,
+  _kasperState
+} from './320-kasper-dashboard-replies.js';
     function _tplRenderColorSetsView(name, hlOff) {
         const sets = _tplGetColorSets(name).filter(s => s.title || s.highlight);
         if (!sets.length) {
@@ -702,15 +736,15 @@
     function _tplRemovePin(name) {
         const pins = _tplGetPins().filter(p => p !== name);
         _tplSavePins(pins);
-        if (pins.length === 0) _tplPinsEditMode = false;
-        _tplPinSelectorOpen = false;
+        if (pins.length === 0) _tplSetPinsEditMode(false);
+        _tplSetPinSelectorOpen(false);
         _tplRenderPins();
     }
-    function _tplTogglePinsEdit() { _tplPinsEditMode = !_tplPinsEditMode; _tplPinSelectorOpen = false; _tplRenderPins(); }
-    function _tplClosePinSelector() { _tplPinSelectorOpen = false; const dd = document.getElementById('tplPinSelectorDropdown'); if (dd) dd.classList.remove('open'); }
+    function _tplTogglePinsEdit() { _tplSetPinsEditMode(!_tplPinsEditMode); _tplSetPinSelectorOpen(false); _tplRenderPins(); }
+    function _tplClosePinSelector() { _tplSetPinSelectorOpen(false); const dd = document.getElementById('tplPinSelectorDropdown'); if (dd) dd.classList.remove('open'); }
     function _tplTogglePinSelector() {
         if (_tplPinSelectorOpen) { _tplClosePinSelector(); return; }
-        _tplPinSelectorOpen = true;
+        _tplSetPinSelectorOpen(true);
         const dd = document.getElementById('tplPinSelectorDropdown');
         if (dd) { dd.classList.add('open'); _tplRenderPinSelectorList(); }
         const close = (e) => {
@@ -785,7 +819,7 @@
             if (closeBtn) closeBtn.onclick = (e) => { e.stopPropagation(); _tplClosePinSelector(); };
             if (_tplPinSelectorOpen) _tplRenderPinSelectorList();
         } else if (!showAddBtn && _tplPinSelectorOpen) {
-            _tplPinSelectorOpen = false;
+            _tplSetPinSelectorOpen(false);
         }
         if (area) area.style.display = '';
     }
@@ -912,9 +946,9 @@
     }
 
     function openClientTemplate(name) {
-        _templatesSelected = name;
-        _templatesActiveTab = 'reels';
-        _templatesEditMode = false;
+        _templatesSetSelected(name);
+        _templatesSetActiveTab('reels');
+        _templatesSetEditMode(false);
         history.pushState({ nav: 'templates', templatesClient: name, templatesTab: 'reels' }, '', '#templates/' + encodeURIComponent(name));
         const content = document.getElementById('content');
         if (content) {
@@ -924,8 +958,8 @@
         }
     }
     function backToTemplatesIndex() {
-        _templatesSelected = null;
-        _templatesEditMode = false;
+        _templatesSetSelected(null);
+        _templatesSetEditMode(false);
         history.pushState({ nav: 'templates' }, '', '#templates');
         const content = document.getElementById('content');
         if (content) {
@@ -1461,7 +1495,7 @@
     }
 
     function switchTemplatesTab(tab) {
-        _templatesActiveTab = tab;
+        _templatesSetActiveTab(tab);
         if (!_templatesSelected) return;
         // Persist the active tab in history.state so a refresh restores it (the
         // URL stays #templates/<client>; the tab rides in state, which survives a
@@ -1475,7 +1509,7 @@
         const name = _templatesSelected;
         // Flush any pending autosaves before leaving edit mode so view mode reflects the latest.
         if (!on && name && _tplDirty[name] && Object.keys(_tplDirty[name]).length) _tplFlush(name);
-        _templatesEditMode = !!on;
+        _templatesSetEditMode(!!on);
         const content = document.getElementById('content');
         if (!content || !name) return;
         content.innerHTML = renderClientTemplate(name);
@@ -2098,7 +2132,7 @@
         enrolledBySlug.forEach((row, slug) => {
             if (!includedNativeSlugs.has(slug)) mixedProjects.push(String(row.display_name).trim());
         });
-        linearProjects = [...new Set(mixedProjects.filter(Boolean))];
+        _setLinearProjects([...new Set(mixedProjects.filter(Boolean))]);
     }
 
     function _linearRenderProjectSource() {
@@ -2168,7 +2202,7 @@
         } finally {
             if (generation === linearProjectsLoadGeneration) {
                 linearLegacyProjects = legacyProjects;
-                linearClientRows = nativeRows;
+                _setLinearClientRows(nativeRows);
                 _linearRebuildProjectSource();
                 linearProjectsLoaded = true;
                 linearProjectsLoading = false;
@@ -2181,3 +2215,16 @@
             }
         }
     }
+export {
+  LAST_LINK_KEY, LINEAR_DEFAULT_VIDEO_COUNT, LINEAR_FORM_KEY, LINEAR_INTAKE_HOLD_KEY,
+  LINEAR_INTAKE_LOAD_ID, LINEAR_INTAKE_MAX_ITEMS, LINEAR_RECEIPTS_KEY, LOG_SUBMISSION_WEBHOOK,
+  NATIVE_INTAKE_PENDING_KEY, NAV_KEY, _fpEnsureLoaded, _fpPurgeSensitiveState, _isSmmWeeklyRoute,
+  _linearIntakeItemsPerVideo, _linearIntakeTooLargeMessage, _linearNextVideoCount,
+  _linearRefreshProjectsForRerouteChange, _linearSetJustCreated, _linearSetSubmitInFlight,
+  _linearSetVideoCount, _obvEnsureLoaded, _obvError, _obvFetchFull, _obvInjectStyles, _obvLoadedAt,
+  _obvLoading, _obvMode, _obvMountStandalone, _obvSelected, _obvSubs, _obvWarn, _syncviewNavEpoch,
+  _syncviewNextNavEpoch, _syncviewSetCurrentNav, currentNav, fetchLinearProjects, getLastLink,
+  linearJustCreated, linearProjectsLoading, linearSubmitInFlight, linearVideoCount,
+  mountFilmingPlansView, mountTemplatesView, renderClientTemplate, renderFilmingPlansView,
+  renderOnboardingInbox, renderTemplatesView, saveLastLink
+};

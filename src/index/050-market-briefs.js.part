@@ -1,3 +1,44 @@
+import {
+  CONTENT_SUMMARY_WEBHOOK, ICON, WEEKLY_SLACK_WEBHOOK, _analyticsExtrasApplied,
+  _analyticsExtrasArrival, _analyticsFlushPendingExtras, _analyticsHasTrustedMetrics,
+  _analyticsMetricFmt, _analyticsMetricNumber, _analyticsPlatformReceipt,
+  _analyticsPlatformVisible, _analyticsProviderFailed, _analyticsStateBadge,
+  _analyticsTrustedReference, _clientBriefTabAvailable, _hookSaveKey, _safeWeekViewDelta,
+  _setCurrentClientHistory, _setFollowersMode, _setFollowersPlat, _setGrowthChart, _setSortCol,
+  _setSortDir, _setViewsChart, _setViewsPlat, _storeHookCard, _syncviewRenderClientExtrasGate,
+  activeBriefSection, activeBriefTab, activeMRBriefTab, activePeriods, buildTabData, clientHistory,
+  clientMap, clientViewTab, contentSummaryState, currentClientHistory, fetchExtras, fmt,
+  fmtCompact, fmtDate, followersMode, followersPlat, formatHookTemplate, getActivePeriod,
+  getMonthRow, getPeriodKey, getWeekRow, growthChart, isPhrase, latestPerClient,
+  monthPrevPerClient, n, parseViewCount, prevPerClient, renderBriefContent, renderTabSummary,
+  savedHooks, showNotify, showToast, sortCol, sortDir, topVideos, viewsChart, viewsPlat,
+  weekPrevPerClient
+} from './040-shared-briefs.js';
+import {
+  NAV_KEY, _isSmmWeeklyRoute, _syncviewNextNavEpoch, _syncviewSetCurrentNav, currentNav,
+  mountTemplatesView, renderClientTemplate, renderTemplatesView
+} from './060-templates-filming.js';
+import {
+  WL_CLIENT_NAMES, getClientRoster, wlCanonicalClient, wlIsAllowedClient, wlNormalizeClient
+} from './070-workload-source.js';
+import { _syncviewApplyTabFavicon, navTo } from './090-workload-popovers-navigation.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
+import { _calRuntimeFlagClient, _settingsWriteHeaders, _syncviewIssueClientShareUrl } from './120-calendar-flags-write-repair.js';
+import { _calAbandonLinkOnCalendarExit, _calSetFocusRequest, _calSetPendingDeepLink } from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import { _calLoaderHtml, _svLoadingSkeletonHtml, _svSkel } from './133-core-loading-skeletons.js';
+import { _calResolvePendingDeepLink, mountCalendarEmbedded } from './134-calendar-prefs-mount.js';
+import { _calV2Teardown } from './150-calendar-hydration-import.js';
+import { _svSaveIndApply } from './170-calendar-links-status.js';
+import { _kasperUnlocked } from './200-intake-data-startup.js';
+import {
+  _isClientLink, _syncviewClientEntryCapability, _syncviewClientEntryDataRun,
+  _syncviewClientEntryEnvelope, _syncviewClientEntryRunCurrent, _syncviewClientEntrySlug,
+  _syncviewInvalidClientLinkScreen, _syncviewSetClientEntryCapability,
+  _syncviewSyncClientEntryRunHref
+} from './260-production-refresh-boot.js';
+import { mountSxrClientView } from './280-samples-cards-notes.js';
+import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js';
     // ── Market Research Brief Tab Renderers ───────────────────────────────────
     const _mrExternalLink=`<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3M9 2h5m0 0v5m0-5L7 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     const _mrEmpty=(msg)=>`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:24px 0;">${msg||'No data in this section.'}</div>`;
@@ -316,8 +357,8 @@
     let gainPeriod=localStorage.getItem('syncview_gainPeriod')||'day';
     function setGainPeriod(p){ gainPeriod=p; localStorage.setItem('syncview_gainPeriod',p); render('all'); }
     function setSort(col){
-        if(sortCol===col){sortDir=sortDir==='desc'?'asc':'desc';}
-        else{sortCol=col;sortDir=col==='client_name'?'asc':'desc';}
+        if(sortCol===col){_setSortDir(sortDir==='desc'?'asc':'desc');}
+        else{_setSortCol(col);_setSortDir(col==='client_name'?'asc':'desc');}
         const _m=document.getElementById('sortDropMenu'),_t=document.getElementById('sortDropTrigger');
         if(_m){_m.classList.remove('open');}if(_t){_t.classList.remove('open');}
         render('all');
@@ -694,8 +735,8 @@
         const hasAnyAnalytics=!!(hasIG||hasTT||hasYT);
         const compareNote=prev?`comparing vs ${fmtDate(prev.date)}`:(hasAnyAnalytics?`<em>daily changes show after 2+ days</em>`:`<em>no analytics yet</em>`);
         const availPlats=[hasIG&&'ig',hasTT&&'tt',hasYT&&'yt'].filter(Boolean);
-        if(!availPlats.includes(followersPlat))followersPlat=availPlats[0]||'ig';
-        if(viewsPlat!=='all'&&!availPlats.includes(viewsPlat))viewsPlat='all';
+        if(!availPlats.includes(followersPlat))_setFollowersPlat(availPlats[0]||'ig');
+        if(viewsPlat!=='all'&&!availPlats.includes(viewsPlat))_setViewsPlat('all');
         const mkViewsBtn=(plat,color,label)=>`<button class="chart-plat-btn${viewsPlat===plat?' active':''}" onclick="switchViewsPlat('${plat}',this)">${color?`<span class="cpb-dot" style="background:${color}"></span>`:''}${label}</button>`;
         const viewsPlatToggle=[mkViewsBtn('all','','All'),hasIG?mkViewsBtn('ig','var(--sv-misc-e1306c)','Instagram'):'',hasTT?mkViewsBtn('tt','var(--sv-misc-2ec4b6)','TikTok'):'',hasYT?mkViewsBtn('yt','var(--sv-misc-ff4444)','YouTube'):''].filter(Boolean).join('');
         const mkPlatBtn=(plat,color,label)=>`<button class="chart-plat-btn${followersPlat===plat?' active':''}" onclick="switchFollowersPlat('${plat}',this)"><span class="cpb-dot" style="background:${color}"></span>${label}</button>`;
@@ -889,9 +930,9 @@
     }
     function renderChart(history){
         if(!_chartReady(()=>renderChart(history)))return;
-        currentClientHistory=history;
+        _setCurrentClientHistory(history);
         const ctx=document.getElementById('growthChart');if(!ctx)return;
-        if(growthChart){growthChart.destroy();growthChart=null;}
+        if(growthChart){growthChart.destroy();_setGrowthChart(null);}
         const pc=_platCfg[followersPlat]||_platCfg.ig;
         const receiptPlatform=followersPlat==='ig'?'instagram':followersPlat==='tt'?'tiktok':'youtube';
         const c2d=ctx.getContext('2d'),h=240,labels=history.map(r=>fmtDate(r.date));
@@ -916,16 +957,16 @@
         }
         const hasTypedZero=history.some(r=>{const state=_analyticsPlatformReceipt(r,receiptPlatform)?.state;return(state==='success'||state==='genuinely_empty')&&r[pc.key]!==''&&r[pc.key]!==null&&r[pc.key]!==undefined&&Number.isFinite(Number(r[pc.key]));});
         if(!hasTypedZero&&!data.some(v=>v!=null&&v!==0)){ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">No ${pc.label} follower data available.</div>`;return;}
-        growthChart=new Chart(ctx,{type:chartType,data:{labels,datasets:[dataset]},options:{..._baseOpts(v=>(v>0?'+':'')+v.toLocaleString()),scales:{x:_xAxis(),y:_mkYAxis(true)}}});
+        _setGrowthChart(new Chart(ctx,{type:chartType,data:{labels,datasets:[dataset]},options:{..._baseOpts(v=>(v>0?'+':'')+v.toLocaleString()),scales:{x:_xAxis(),y:_mkYAxis(true)}}}));
     }
     function switchFollowersMode(mode,btn){
-        followersMode=mode;
+        _setFollowersMode(mode);
         btn.closest('.chart-mode-toggle').querySelectorAll('.chart-mode-btn').forEach(b=>b.classList.remove('active'));
         btn.classList.add('active');
         renderChart(currentClientHistory);
     }
     function switchFollowersPlat(plat,btn){
-        followersPlat=plat;
+        _setFollowersPlat(plat);
         btn.closest('.chart-plat-toggle').querySelectorAll('.chart-plat-btn').forEach(b=>b.classList.remove('active'));
         btn.classList.add('active');
         renderChart(currentClientHistory);
@@ -933,7 +974,7 @@
     function renderViewsChart(history){
         if(!_chartReady(()=>renderViewsChart(history)))return;
         const ctx=document.getElementById('viewsChart');if(!ctx)return;
-        if(viewsChart){viewsChart.destroy();viewsChart=null;}
+        if(viewsChart){viewsChart.destroy();_setViewsChart(null);}
         const c2d=ctx.getContext('2d'),h=240;
         const allSeries=[
             {plat:'ig',label:'Instagram',key:'ig_views_gained_today',css:'--ig'},
@@ -954,10 +995,10 @@
             sc[yId]=_mkYAxis(yi===0);yi++;
         });
         if(!ds.length){ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">Daily views will appear after a few days of data.</div>`;return;}
-        viewsChart=new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:{..._baseOpts(v=>v.toLocaleString()),scales:sc}});
+        _setViewsChart(new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:{..._baseOpts(v=>v.toLocaleString()),scales:sc}}));
     }
     function switchViewsPlat(plat,btn){
-        viewsPlat=plat;
+        _setViewsPlat(plat);
         btn.closest('.chart-plat-toggle').querySelectorAll('.chart-plat-btn').forEach(b=>b.classList.remove('active'));
         btn.classList.add('active');
         renderViewsChart(currentClientHistory);
@@ -972,7 +1013,7 @@
             }
             sel=cap.client;
         }
-        _syncviewNavEpoch++; // Phase D: a client profile is a route too.
+        _syncviewNextNavEpoch(); // Phase D: a client profile is a route too.
         // Boot-gate belt-and-braces: today's render()-first boot paths
         // (client links, history.state.client, client-name hashes) never set
         // data-boot-nav, but lift it here anyway so a future render()-first
@@ -1094,7 +1135,7 @@
                 _syncviewInvalidClientLinkScreen();
                 return;
             }
-            _syncviewClientEntryCapability=Object.freeze({client:cap.client,slug:cap.slug,view:tab,verified:true});
+            _syncviewSetClientEntryCapability(Object.freeze({client:cap.client,slug:cap.slug,view:tab,verified:true}));
             _syncviewSyncClientEntryRunHref();
             if(tab==='sample-reviews'){
                 mountSxrClientView(cap.client);
@@ -1110,7 +1151,7 @@
         }
         if(state&&state.client){
             const nav=state.nav||'home';
-            currentNav=nav;
+            _syncviewSetCurrentNav(nav);
             try{if(!_isSmmWeeklyRoute(nav))localStorage.setItem(NAV_KEY,nav);}catch(e){}   // full quota must not break Back/Forward nav
             document.body.classList.remove('prod-page'); // Back/Forward out of Production must restore body scroll
             document.getElementById('navHome').classList.toggle('active',nav==='home');
@@ -1291,6 +1332,11 @@
     const TPL_MAX_PINS   = 5;
     let _tplPinsEditMode = false;
     let _tplPinSelectorOpen = false;
+    function _templatesSetSelected(value) { _templatesSelected = value; }
+    function _templatesSetActiveTab(value) { _templatesActiveTab = value; }
+    function _templatesSetEditMode(value) { _templatesEditMode = value; }
+    function _tplSetPinsEditMode(value) { _tplPinsEditMode = value; }
+    function _tplSetPinSelectorOpen(value) { _tplPinSelectorOpen = value; }
     let _tplRealtimeChannel = null;
 
     async function _tplLoadFromSupabase() {
@@ -1649,3 +1695,15 @@
         </div>`;
     }
 
+export {
+  CHECK_SVG, PEN_ICON_SVG, PIN_ICON_SVG, TPL_MAX_PINS, TPL_PINS_KEY, TPL_RECENT_KEY, _NOT_SET,
+  _autoSummaryAttempted, _maybeRerenderTemplates, _mrExternalLink, _setTplStatus, _svCss, _svRgb,
+  _templatesActiveTab, _templatesEditMode, _templatesSelected, _templatesSetActiveTab,
+  _templatesSetEditMode, _templatesSetSelected, _tplClientReady, _tplDirty, _tplEsc, _tplEscAttr,
+  _tplFieldLink, _tplFlush, _tplGet, _tplGetColorSets, _tplPinSelectorOpen, _tplPinsEditMode,
+  _tplQueueSave, _tplSaveColorSets, _tplSaveErrorMsg, _tplSetPinSelectorOpen, _tplSetPinsEditMode,
+  _tplViewColor, _tplViewProse, _tplViewText, highlightMatch, igUrl, loadTemplates, render,
+  renderChart, renderMRTab_angles, renderMRTab_gap, renderMRTab_hooks, renderMRTab_niche,
+  renderMRTab_overview, renderMRTab_sources, renderPins, renderViewsChart, templatesLoadError,
+  ttUrl, ytUrl
+};

@@ -102,6 +102,9 @@ async function runCase({ reroute = [], legacy, native = [], nativeError = null, 
     extract('_linearRefreshProjectsForRerouteChange'),
     extract('fetchLinearProjects'),
     extract('_writeUiSetRerouteFlagValue'),
+    // 060 is a module: it writes 040's project lists through these setters.
+    extract('_setLinearProjects'),
+    extract('_setLinearClientRows'),
   ].join('\n'), context);
   await context.fetchLinearProjects();
   return { context, events };

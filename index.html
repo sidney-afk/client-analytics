@@ -15354,6 +15354,18 @@
     let _wlNativeDueReceiptGeneration = 0;
     let _wlNativeDueReceiptRetryTimer = null;
     let _wlNativeDueReceiptRetryAttempt = 0;
+    // Setters for the Workload render module (080). ES module imports are
+    // read-only, so 080 changes these through the functions below instead
+    // of assigning them directly (phase C step C3).
+    function _wlSetBackgroundRefreshPromise(value) { _wlBackgroundRefreshPromise = value; }
+    function _wlSetBackgroundRefreshMode(value) { _wlBackgroundRefreshMode = value; }
+    function _wlSetNativeDueReceiptRetryPromise(value) { _wlNativeDueReceiptRetryPromise = value; }
+    function _wlSetNativeDueReceiptRetryTimer(value) { _wlNativeDueReceiptRetryTimer = value; }
+    function _wlSetNativeDueReceiptRetryAttempt(value) { _wlNativeDueReceiptRetryAttempt = value; }
+    function _wlTakeNativeDueReceiptRetryAttempt() { return _wlNativeDueReceiptRetryAttempt++; }
+    function _wlNextNativeDueReceiptGeneration() { return ++_wlNativeDueReceiptGeneration; }
+    function _wlNextPlanLoadGeneration() { return ++_wlPlanLoadGeneration; }
+    function _wlNextPlanWriteGeneration() { return ++_wlPlanWriteGeneration; }
 
     function wlPlanEditingEnabled() {
         return wlState.planStatus === 'ready' && _syncviewStaffCan('workload-plan');
@@ -17815,11 +17827,11 @@
             }
         };
         const pending = run();
-        _wlBackgroundRefreshPromise = pending;
+        _wlSetBackgroundRefreshPromise(pending);
         try { return await pending; }
         finally {
             if (_wlBackgroundRefreshPromise === pending) {
-                _wlBackgroundRefreshPromise = null;
+                _wlSetBackgroundRefreshPromise(null);
                 if (!_wlNativeDueReceiptRetryPromise) wlScheduleNativeDueReceiptRetry();
             }
         }
@@ -17843,7 +17855,7 @@
         }
 
         const run = async () => {
-            const loadGeneration = ++_wlPlanLoadGeneration;
+            const loadGeneration = _wlNextPlanLoadGeneration();
             const sessionGeneration = _wlPlanSessionGeneration;
             try {
                 const freshIssues = sensitiveOnly
@@ -17914,13 +17926,13 @@
         };
 
         const pending = run();
-        _wlBackgroundRefreshPromise = pending;
-        _wlBackgroundRefreshMode = sensitiveOnly ? 'sensitive' : 'full';
+        _wlSetBackgroundRefreshPromise(pending);
+        _wlSetBackgroundRefreshMode(sensitiveOnly ? 'sensitive' : 'full');
         try { return await pending; }
         finally {
             if (_wlBackgroundRefreshPromise === pending) {
-                _wlBackgroundRefreshPromise = null;
-                _wlBackgroundRefreshMode = null;
+                _wlSetBackgroundRefreshPromise(null);
+                _wlSetBackgroundRefreshMode(null);
                 if (!_wlNativeDueReceiptRetryPromise) wlScheduleNativeDueReceiptRetry();
             }
         }
@@ -18514,11 +18526,11 @@
             return true;
         };
         const pending = run();
-        _wlNativeDueReceiptRetryPromise = pending;
+        _wlSetNativeDueReceiptRetryPromise(pending);
         try { return await pending; }
         finally {
             if (_wlNativeDueReceiptRetryPromise === pending) {
-                _wlNativeDueReceiptRetryPromise = null;
+                _wlSetNativeDueReceiptRetryPromise(null);
                 if (_wlPendingNativeDueReceiptByTarget.size
                     && _wlNativeDueReceiptGeneration !== retryGeneration) {
                     wlScheduleNativeDueReceiptRetry();
@@ -18533,8 +18545,8 @@
 
     function wlCancelNativeDueReceiptRetryTimer(resetAttempt) {
         if (_wlNativeDueReceiptRetryTimer !== null) clearTimeout(_wlNativeDueReceiptRetryTimer);
-        _wlNativeDueReceiptRetryTimer = null;
-        if (resetAttempt) _wlNativeDueReceiptRetryAttempt = 0;
+        _wlSetNativeDueReceiptRetryTimer(null);
+        if (resetAttempt) _wlSetNativeDueReceiptRetryAttempt(0);
     }
 
     function wlScheduleNativeDueReceiptRetryLater() {
@@ -18542,14 +18554,14 @@
             || _wlNativeDueReceiptRetryAttempt >= WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS.length) return false;
         const sessionGeneration = _wlPlanSessionGeneration;
         const receiptGeneration = _wlNativeDueReceiptGeneration;
-        const delay = WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS[_wlNativeDueReceiptRetryAttempt++];
-        _wlNativeDueReceiptRetryTimer = setTimeout(() => {
-            _wlNativeDueReceiptRetryTimer = null;
+        const delay = WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS[_wlTakeNativeDueReceiptRetryAttempt()];
+        _wlSetNativeDueReceiptRetryTimer(setTimeout(() => {
+            _wlSetNativeDueReceiptRetryTimer(null);
             if (sessionGeneration !== _wlPlanSessionGeneration
                 || receiptGeneration !== _wlNativeDueReceiptGeneration
                 || !_wlPendingNativeDueReceiptByTarget.size) return;
             wlScheduleNativeDueReceiptRetry();
-        }, delay);
+        }, delay));
         return true;
     }
 
@@ -18578,7 +18590,7 @@
             if (!current && _wlPendingNativeDueReceiptByTarget.size >= 100) return false;
             if (!current || Date.parse(current.row.updated_at) < Date.parse(row.updated_at)) {
                 _wlPendingNativeDueReceiptByTarget.set(key, receipt);
-                _wlNativeDueReceiptGeneration++;
+                _wlNextNativeDueReceiptGeneration();
                 wlCancelNativeDueReceiptRetryTimer(true);
             } else {
                 wlCancelNativeDueReceiptRetryTimer(false);
@@ -18672,7 +18684,7 @@
         // Any snapshot already in flight predates this optimistic Linear write.
         // Invalidate it now so a fast successful save cannot be overwritten by
         // an older metadata response after the write token is removed.
-        _wlPlanLoadGeneration++;
+        _wlNextPlanLoadGeneration();
         _wlDueWriteInFlight.set(key, token);
         wlApplyDueLocal(key, dueDate);
         renderWorkloadAll();
@@ -18880,7 +18892,7 @@
             return true;
         }
 
-        const token = { generation: ++_wlPlanWriteGeneration };
+        const token = { generation: _wlNextPlanWriteGeneration() };
         const sessionGeneration = _wlPlanSessionGeneration;
         _wlPlanLastWriteGeneration.set(key, token.generation);
         _wlPlanWriteInFlight.set(key, token);
@@ -18889,7 +18901,7 @@
         wlFocusPlanItem(key);
         const saved = await _wlPersistPlanDate(issue, planDate, previousDate, sessionGeneration);
         if (sessionGeneration !== _wlPlanSessionGeneration) return false;
-        _wlPlanLastWriteGeneration.set(key, ++_wlPlanWriteGeneration);
+        _wlPlanLastWriteGeneration.set(key, _wlNextPlanWriteGeneration());
         if (_wlPlanWriteInFlight.get(key) === token) _wlPlanWriteInFlight.delete(key);
         wlScheduleNativeDueReceiptRetry();
         renderWorkloadAll();
@@ -18924,7 +18936,7 @@
         const sessionGeneration = _wlPlanSessionGeneration;
         const moves = issues.map(issue => {
             const key = String(issue.id || '');
-            const token = { generation: ++_wlPlanWriteGeneration };
+            const token = { generation: _wlNextPlanWriteGeneration() };
             _wlPlanLastWriteGeneration.set(key, token.generation);
             _wlPlanWriteInFlight.set(key, token);
             return { issue, key, token, previousDate: wlPlanDate(issue) || null };
@@ -18944,7 +18956,7 @@
             );
             if (sessionGeneration !== _wlPlanSessionGeneration) break;
             if (saved) moved++;
-            _wlPlanLastWriteGeneration.set(move.key, ++_wlPlanWriteGeneration);
+            _wlPlanLastWriteGeneration.set(move.key, _wlNextPlanWriteGeneration());
             if (_wlPlanWriteInFlight.get(move.key) === move.token) {
                 _wlPlanWriteInFlight.delete(move.key);
             }

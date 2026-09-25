@@ -23,6 +23,21 @@ const PARKED_SRC = source.slice(PARKED_AT, source.indexOf(']);', PARKED_AT) + 3)
    it was in all three Workload harnesses. */
 let realIsActiveStatus;
 
+// 070 offers these setters so the Workload render module (080) can change
+// 070's state without assigning an ES module import (phase C step C3).
+// Any context that runs 080 code needs them beside the state they write.
+const WL_070_SETTERS = [
+  '_wlSetBackgroundRefreshPromise',
+  '_wlSetBackgroundRefreshMode',
+  '_wlSetNativeDueReceiptRetryPromise',
+  '_wlSetNativeDueReceiptRetryTimer',
+  '_wlSetNativeDueReceiptRetryAttempt',
+  '_wlTakeNativeDueReceiptRetryAttempt',
+  '_wlNextNativeDueReceiptGeneration',
+  '_wlNextPlanLoadGeneration',
+  '_wlNextPlanWriteGeneration',
+];
+
 function extract(name) {
   const prefix = ['wlFetchLinearMetadata', 'wlRenderableIssueProjection', 'wlApplyData'].includes(name) ? extract('wlIssueClientAllowed') + '\n' + extract('wlIssueEditorAllowed') + '\n' : '';
   const marker = 'function ' + name + '(';
@@ -180,6 +195,7 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
     '_wlDueWriteRequest',
     'wlQueueSensitiveAuthorityRefresh',
     'wlSetDueDate',
+    ...WL_070_SETTERS,
   ]) vm.runInContext(extract(name), context);
   return {
     context,
@@ -442,6 +458,7 @@ function backgroundHarness(options = {}) {
     '_syncviewStaffIdentityLoad',
     '_syncviewStaffIdentitySave',
     'initWorkloadView',
+    ...WL_070_SETTERS,
   ]) vm.runInContext(extract(name), context);
   return { context, counters, renderStates };
 }

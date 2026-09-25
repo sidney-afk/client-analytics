@@ -8,3 +8,4 @@
 210-production-state-writes.js.part
 250-production-controls-data.js.part
 230-production-create-comments.js.part
+080-workload-render.js.part

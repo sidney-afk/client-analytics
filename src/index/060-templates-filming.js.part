@@ -1043,10 +1043,10 @@ import {
         const f = _tplFolders[name];
         if (f && f.state === 'error') return `<div class="tpl-brain-empty-note">Couldn't load recent folders. <button type="button" class="tpl-brain-change-btn" onclick="tplFoldersRetry()">Try again</button></div>`;
         if (!f || f.state !== 'ready' || (!f.frame.length && !f.raw.length)) return '';
-        const col = (label, items) => `<div class="tpl-folders-col"><div class="tpl-view-label">${label}</div>${items.length
-            ? items.map(i => `<a class="tpl-folder-row" href="${_tplEscAttr(i.url)}" target="_blank" rel="noopener"><span class="tpl-folder-name">${_tplEsc(i.name || 'Untitled batch')}</span><span class="tpl-folder-meta">${_tplEsc([_tplFolderHost(i.url), _tplFolderDate(i.at)].filter(Boolean).join(' · '))}</span></a>`).join('')
-            : '<div class="tpl-view-empty">None yet</div>'}</div>`;
-        return `<div class="tpl-folders">${col('Frame folders', f.frame)}${col('Raw footage', f.raw)}</div>`;
+        const col = (label, items) => `<div class="tpl-view-field"><div class="tpl-view-label">${label}</div><div class="tpl-view-value tpl-view-links">${items.length
+            ? items.map(i => `<a class="tpl-view-link" href="${_tplEscAttr(i.url)}" target="_blank" rel="noopener">${_tplEsc(i.name || 'Untitled batch')}<span class="tpl-view-link-host">${_tplEsc([_tplFolderHost(i.url), _tplFolderDate(i.at)].filter(Boolean).join(' · '))}</span><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M9.5 2.5h4v4M13.5 2.5L7 9M11 8.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>`).join('')
+            : _NOT_SET}</div></div>`;
+        return `<div class="tpl-view-grid tpl-folders">${col('Frame folders', f.frame)}${col('Raw footage', f.raw)}</div>`;
     }
     function tplBrainRetry() { if (_templatesSelected) { _tplBrainEnsure(_templatesSelected, true); _maybeRerenderTemplates(); } }
     function tplBrainSetTab(tab) { _tplBrainTab = tab; _maybeRerenderTemplates(); }
@@ -1160,6 +1160,18 @@ import {
             ${st === 'error' ? '<div class="tpl-brain-err">Couldn\'t save. Your values are still here; try again.</div>' : ''}
         </div>`;
     }
+    // One "key=value" per line: the key as a small label, the value with any colour as a copyable swatch.
+    function _tplSpecList(spec) {
+        const rows = String(spec || '').split(';').map(x => x.trim()).filter(Boolean).map(part => {
+            const i = part.indexOf('=');
+            const k = i > 0 ? part.slice(0, i).trim() : '';
+            const v = i > 0 ? part.slice(i + 1).trim() : part;
+            const val = _tplEsc(v).replace(/#[0-9a-fA-F]{3,8}\b/g, hex =>
+                `<button type="button" class="tpl-brain-swatch" title="Copy ${hex}" onclick="tplBrainCopy('${hex}', this)"><span style="background:${hex}"></span>${hex}</button>`);
+            return `<div class="tpl-spec-item"><span class="tpl-spec-k">${_tplEsc(k ? k.charAt(0).toUpperCase() + k.slice(1) : '')}</span><span class="tpl-spec-v">${val}</span></div>`;
+        }).join('');
+        return `<div class="tpl-spec-list">${rows}</div>`;
+    }
     function _tplBrainSpecStrip(name) {
         const b = _tplBrain[name];
         if (!b || b.state !== 'ready' || !b.found) return '';
@@ -1170,12 +1182,11 @@ import {
             const has = fact && fact.status === 'written' && fact.spec;
             const sent = _tplSpecSent[key] === 'sent';
             const open = _tplSpecForm === key || _tplSpecSent[key] === 'sending' || _tplSpecSent[key] === 'error';
-            return `<div class="tpl-brain-spec-row">
-                <span class="tpl-brain-spec-label">${k.label}</span>
-                <span class="tpl-brain-spec-chips">${has ? _tplBrainSpecChips(fact.spec) : '<span class="tpl-spec-empty">Not set</span>'}
-                    ${sent ? '<span class="tpl-spec-empty">Saved. Updating in a minute or two.</span>' : ''}
-                    <button type="button" class="tpl-spec-btn" data-k="${_tplEscAttr(key)}" onclick="tplSpecOpen(this.dataset.k)">${has ? 'Edit' : 'Add'}</button>
-                </span>
+            return `<div class="tpl-spec-group">
+                <div class="tpl-spec-group-head"><span class="tpl-brain-spec-label">${k.label}</span>
+                    <button type="button" class="tpl-spec-btn" data-k="${_tplEscAttr(key)}" onclick="tplSpecOpen(this.dataset.k)">${has ? 'Edit' : 'Add'}</button></div>
+                ${has ? _tplSpecList(fact.spec) : '<div class="tpl-spec-empty">Not set</div>'}
+                ${sent ? '<div class="tpl-spec-empty">Saved. Updating in a minute or two.</div>' : ''}
                 ${open ? _tplSpecForm_(name, k, has ? _tplSpecValues(fact.spec) : null, key) : ''}
             </div>`;
         }).join('');
@@ -1183,7 +1194,7 @@ import {
         return `<div class="tpl-section tpl-brain-strip">
             <div class="tpl-section-title">Quick look</div>
             ${core}
-            ${others.map(f => `<div class="tpl-brain-spec-row"><span class="tpl-brain-spec-label">${_tplEsc(f.heading.replace(/\s*spec$/i, ''))}</span><span class="tpl-brain-spec-chips">${_tplBrainSpecChips(f.spec)}</span></div>`).join('')}
+            ${others.map(f => `<div class="tpl-spec-group"><div class="tpl-spec-group-head"><span class="tpl-brain-spec-label">${_tplEsc(f.heading.replace(/\s*spec$/i, ''))}</span></div>${_tplSpecList(f.spec)}</div>`).join('')}
         </div>`;
     }
     function _tplBrainKey(name, id) { return name + '::' + (id || '_new'); }
@@ -1493,9 +1504,10 @@ import {
                 <div class="tpl-client-name-wrap"><div class="tpl-client-name">${_tplEsc(name)}</div>${obBtn}</div>
                 <div class="tpl-head-right">${_svSaveIndHtml('templates')}${editToggle}</div>
             </div>
-            ${_tplBrainSpecStrip(name)}
-            <div class="tpl-filming-wrap">${filmingPlans}</div>
-            ${editorFolder ? `<div class="tpl-filming-wrap">${editorFolder}</div>` : ''}
+            <div class="tpl-top">
+                <div class="tpl-top-main">${_tplBrainSpecStrip(name)}</div>
+                <div class="tpl-top-side">${filmingPlans}${editorFolder}</div>
+            </div>
             ${links}
             ${_tplBrainSection(name)}
         </div>`;

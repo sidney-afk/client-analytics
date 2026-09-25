@@ -9,7 +9,7 @@
  *
  *   Staff tabs: fully offline, stub staff identity, every backend answer
  *   empty. Every visible header tab is shot.
- *   Client pages: the TEST client (sidneylaruel) only, live READ-ONLY boot of
+ *   Client pages: the canonical TEST client only, live READ-ONLY boot of
  *   analytics, calendar, brief and sample-reviews. Nothing is clicked.
  *
  * Both builds are served from the same origin by request interception, and
@@ -70,10 +70,15 @@ function offlineAnswer(route) {
 }
 
 // Live relay through Node (the sandbox proxy's CA is trusted by Node, not by
-// the bundled browser). Read-only: any non-GET outside the token verify is refused.
+// the bundled browser). Read-only: GET/HEAD/OPTIONS pass; a POST passes ONLY
+// to an exact, verified read-only Edge Function. Every other write, every
+// PostgREST RPC included, is refused locally and never reaches the backend.
+const LIVE_POST_READS = new Set(['/functions/v1/client-token-verify', '/functions/v1/thumbnail-revision-read']);
 async function liveRelay(route) {
   const q = route.request();
-  const readOnly = q.method() === 'GET' || q.method() === 'HEAD' || q.method() === 'OPTIONS' || /client-token-verify|\/rpc\/|\/functions\/v1\/[a-z-]*read/.test(q.url());
+  const u = new URL(q.url());
+  const readOnly = q.method() === 'GET' || q.method() === 'HEAD' || q.method() === 'OPTIONS'
+    || (q.method() === 'POST' && u.hostname.endsWith('.supabase.co') && LIVE_POST_READS.has(u.pathname));
   if (!readOnly) return route.fulfill({ status: 403, headers: CORS, body: '{"error":"parity harness is read-only"}' });
   try {
     const h = { ...q.headers() }; delete h.host;
@@ -140,7 +145,6 @@ async function staffTabs(browser) {
 (async () => {
   const browser = await chromium.launch({ headless: true });
   let pages = await staffTabs(browser);
-  if (process.env.PARITY_ONLY) pages = pages.filter(p => p.name === process.env.PARITY_ONLY);
   if (!STAFF_ONLY) {
     const T = require('../test-client-entry.js');
     const token = await T.currentTestClientToken();
@@ -148,6 +152,7 @@ async function staffTabs(browser) {
       pages.push({ name: 'client-' + view, url: T.testClientEntryPath(view, T.TEST_CLIENT.name, token), mode: 'client' });
     }
   }
+  if (process.env.PARITY_ONLY) pages = pages.filter(p => p.name === process.env.PARITY_ONLY);
   if (OUT) fs.mkdirSync(OUT, { recursive: true });
   const rows = []; let fail = 0;
   for (const pg of pages) {

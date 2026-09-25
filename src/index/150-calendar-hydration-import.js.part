@@ -1082,6 +1082,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
     let _calV2Epoch = 0;
     let _calV2Lease = null;
     let _calLastLocalWriteAt = 0;      // when we last saved locally — used to ignore the realtime ECHO of our own write
+    function _calSetLastLocalWriteAt(value) { _calLastLocalWriteAt = value; }
     let _calV2RtLastReloadAt = 0;      // when realtime last triggered a reload — the floor a foreign burst re-arms against
     const CAL_RT_SELF_ECHO_MS = 4000;  // a realtime event within this window of a local save is treated as our own echo and deferred
     function _calV2LeaseCurrent(lease) {
@@ -2132,7 +2133,7 @@ export {
   _calFetchDeliverableLinkRows, _calHydrateLinearMeta, _calIdentFromUrl, _calLastLocalWriteAt,
   _calLoadSeq, _calLocalStatusAt, _calMarkLocalStatus, _calOrganizeHtml, _calOrganizeIsActive,
   _calOrganizeTriggerLabel, _calPruneLinearMetaForAuthority, _calRenderImportPick,
-  _calSetOrganizeOpen, _calSetRefreshing, _calSupabaseFetchAllRows, _calV2Client, _calV2ClientObj,
-  _calV2Enabled, _calV2FetchPosts, _calV2LoadLib, _calV2Log, _calV2Ready, _calV2Teardown,
-  loadCalendarPosts
+  _calSetLastLocalWriteAt, _calSetOrganizeOpen, _calSetRefreshing, _calSupabaseFetchAllRows,
+  _calV2Client, _calV2ClientObj, _calV2Enabled, _calV2FetchPosts, _calV2LoadLib, _calV2Log,
+  _calV2Ready, _calV2Teardown, loadCalendarPosts
 };

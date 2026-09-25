@@ -1,3 +1,62 @@
+import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
+import { wlAddWorkingDays, wlTodayISO } from './070-workload-source.js';
+import {
+  CALENDAR_REORDER_BATCH_URL, CALENDAR_REORDER_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL,
+  CAPTION_JOB_STATUS_URL, CAPTION_JOB_UPDATE_URL, CAPTION_PROMPTS_GET_URL,
+  CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL, GENERATE_CAPTION_URL, _svSelectHtml,
+  _svStepperHtml, _svSyncStepper, _syncviewRequireStaffIdentity, _syncviewStaffEligible
+} from './100-onboarding-staff-controls.js';
+import { _settingsEfClients } from './110-time-off-reports.js';
+import {
+  CAL_CAPJOB_CANCEL_GRACE_MS, CAL_CAPJOB_CONCURRENCY, CAL_CAPJOB_CONFIRM_MS,
+  CAL_CAPJOB_FETCH_TIMEOUT_MS, CAL_CAPJOB_LS_KEY, CAL_CAPJOB_POLL_MS, CAL_CAPJOB_STALE_MS,
+  DEFAULT_CAPTION_PROMPT, _calCapJobBatch, _calCapJobPollBusy, _calCapJobPollTimer,
+  _calCapJobTicker, _calCapJobsRestored, _calCaptionJobs, _calCaptionPrompts,
+  _calCaptionPromptsInFlight, _calCaptionPromptsLoaded, _calComponentsFor, _calNormStatus,
+  _calReorderUrlForClient, _calSetCapJobBatch, _calSetCapJobPollBusy, _calSetCapJobPollTimer,
+  _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
+  _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calUpsertFetch, _calUpsertHeaders,
+  _calUpsertUseEf, _settingsPrimeRoutingFlag, _settingsUseEf, _settingsWriteHeaders,
+  _settingsWriteUrlForClient, _writeUiNativeId, _writeUiRerouteUseGatewayWhenReady,
+  computeOverallStatus
+} from './120-calendar-flags-write-repair.js';
+import {
+  _calCanDragCards, _calCommentsFor, _calCommentsForView, _calFailedNewCards, _calIsCollabOn,
+  _calLocalRecentSaves, _calMsgAudience, _calPendingEdits, _calPostColor, _calSaveInFlight,
+  calClientSlug, calState
+} from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
+import {
+  _calAddDaysISO, _calAddMonthsISO, _calIsoFirstOfMonth, _calIsoMondayOf, _calIsoOf, _calParseIso
+} from './132-calendar-dates-ids.js';
+import {
+  _calArchivedAdd, _calArchivedRemove, _calGetSavedScroll, _calRefsForPost, _calSaveScroll
+} from './134-calendar-prefs-mount.js';
+import { _calPushStatusToLinear } from './140-calendar-legacy-outbox.js';
+import { _calCacheWrite, _calSetLastLocalWriteAt, loadCalendarPosts } from './150-calendar-hydration-import.js';
+import {
+  _CAL_WEEK_BUFFER, _calDeriveThumbInfo, _calIsBlankId, _calIsClientReady, _calMiniLinkBadgeHtml,
+  _calRenderBody, _calThumbIconSvg, _calThumbImgTag
+} from './160-calendar-organize-ui.js';
+import {
+  CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS, CAL_NATIVE_BATCH_FILTER_MIN,
+  CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS, CAL_NATIVE_NAME_MAX, CAL_NATIVE_TITLE_SEPARATOR,
+  _calAutosizeTextareas, _calCloseNativePost, _calFlushCardSave, _calInsertLocalBlankCard,
+  _calNativeBatchCompatible, _calNativeBatchDisplayName, _calNativeBatchLists,
+  _calNativeBatchMatches, _calNativeBatchNameFor, _calNativeBatchOptionsHtml,
+  _calNativeBatchStartMeta, _calNativeParentUuids, _calNativePostCount, _calNativePostCountMax,
+  _calNativePostNamesFor, _calNativePostNamesHtml, _calNativePostState, _calNativeReceiptHtml,
+  _calNativeTitleOrdinal, _calNativeVideoEditorPool, _calSetNativeBatchOptionsHtml,
+  _calSetNativePostState
+} from './170-calendar-links-status.js';
+import { _calCommentRole, _calSmmMissingMedia, _calSmmWarnDotHtml } from './190-calendar-approval-comments.js';
+import {
+  _linearIntakeActorContext, _linearIntakeBatchTitle, _linearIntakeItems, _linearIntakePending,
+  _linearIntakeRead, _linearIntakeRemoveIfCurrent, _linearIntakeWithLock, _resumeNativeIntakeJob
+} from './200-intake-data-startup.js';
+import { _prodRestRows } from './210-production-state-writes.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
+import { sxrClientSlug, sxrState } from './270-samples-model.js';
     async function _calFetchNativeBatchPostCounts(batches) {
         const rowsIn = Array.isArray(batches) ? batches : [];
         const wanted = [...new Set(rowsIn.map(batch => String(batch && batch.id || '').trim()).filter(Boolean))];
@@ -222,7 +281,7 @@
         const prevBatchId = priorBatchShown
             ? priorChoice.batchId
             : String(shownBatches.length ? shownBatches[0].id || '' : '');
-        _calNativeBatchOptionsHtml = (shown, all, countsMap, selectedId) => {
+        _calSetNativeBatchOptionsHtml((shown, all, countsMap, selectedId) => {
             const tally = new Map();
             shown.forEach(batch => {
                 const key = _calNativeBatchDisplayName(batch).toLowerCase();
@@ -248,7 +307,7 @@
                 const selectedAttr = value === String(selectedId || '') ? ' selected' : '';
                 return `<option value="${_calEscAttr(value)}"${selectedAttr}>${_calEsc(_calNativeBatchDisplayName(batch))}${meta ? ' — ' + _calEsc(meta) : ''}</option>`;
             }).join('');
-        };
+        });
         const prevBatchOptions = _calNativeBatchOptionsHtml(shownBatches, compatible, counts, prevBatchId);
         /* Only the CHOSEN branch renders its controls. Both used to stay open
            at once, which spent about a third of the dialog on the option the
@@ -501,11 +560,11 @@
         overlay.innerHTML = '<div class="cal-import-modal" role="dialog" aria-modal="true" aria-labelledby="calNativePostTitle"><div class="cal-import-head"><h3 id="calNativePostTitle">Create Post</h3><p>Finding the current batch for ' + _calEsc(clientName) + '...</p></div><div class="cal-import-body"><div class="cal-import-progress">Loading batch options...</div></div></div>';
         document.body.appendChild(overlay);
         document.body.classList.add('cal-modal-open');
-        _calNativePostState = {
+        _calSetNativePostState({
             clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, batchMaxOrdinals: null, mode: 'both', batchChoice: null, batchFilter: '',
             batchName: '', postNames: [],
             videoEditors: [], videoEditorId: '', videoEditorSuggestedId: '', videoEditorStatus: 'loading',
-        };
+        });
         const editorState = _calNativePostState;
         /* Loaded alongside the batch options rather than before them: the
            picker must never hold the dialog open, and a roster or load read
@@ -1129,27 +1188,27 @@
     async function _calLoadCaptionPrompts() {
         if (_calCaptionPromptsLoaded) return _calCaptionPrompts;
         if (_calCaptionPromptsInFlight) return _calCaptionPromptsInFlight;
-        _calCaptionPromptsInFlight = (async () => {
+        _calSetCaptionPromptsInFlight((async () => {
             try {
                 const basePrompts = await _calLoadCaptionPromptsFromN8n();
-                _calCaptionPrompts = basePrompts;
+                _calSetCaptionPrompts(basePrompts);
                 try {
                     await _settingsPrimeRoutingFlag();
                     if (_settingsEfClients.size) {
                         const supaPrompts = await _calLoadCaptionPromptsFromSupabase();
-                        _calCaptionPrompts = Object.assign({}, basePrompts, supaPrompts);
+                        _calSetCaptionPrompts(Object.assign({}, basePrompts, supaPrompts));
                     }
                 } catch (supaError) {
                     console.warn('[Calendar] Supabase caption prompts overlay failed; using n8n base', supaError);
                 }
-                _calCaptionPromptsLoaded = true;
+                _calSetCaptionPromptsLoaded(true);
             } catch (e) {
                 console.warn('[Calendar] caption prompts load failed', e);
             } finally {
-                _calCaptionPromptsInFlight = null;
+                _calSetCaptionPromptsInFlight(null);
             }
             return _calCaptionPrompts;
-        })();
+        })());
         return _calCaptionPromptsInFlight;
     }
     function _calCaptionPromptFor(clientName) {
@@ -1256,7 +1315,7 @@
     }
     function _calCapJobBatchTrack() {
         if (!_calCapJobBatch || _calCapJobBatch.settledAll) {
-            _calCapJobBatch = { total: 0, done: 0, ok: 0, failed: 0, cancelled: 0, settledAll: false };
+            _calSetCapJobBatch({ total: 0, done: 0, ok: 0, failed: 0, cancelled: 0, settledAll: false });
         }
         _calCapJobBatch.total += 1;
     }
@@ -1278,7 +1337,7 @@
        the poller picks the truth up from the caption_jobs row. */
     function _calCapJobsRestore() {
         if (_calCapJobsRestored) return;
-        _calCapJobsRestored = true;
+        _calSetCapJobsRestored(true);
         let arr = null;
         try { arr = JSON.parse(localStorage.getItem(CAL_CAPJOB_LS_KEY) || 'null'); } catch {}
         if (!Array.isArray(arr) || !arr.length) return;
@@ -1502,13 +1561,13 @@
         }, 8000);
     }
     function _calCapJobsEnsurePolling() {
-        if (!_calCapJobPollTimer) _calCapJobPollTimer = setInterval(_calCapJobsPoll, CAL_CAPJOB_POLL_MS);
-        if (!_calCapJobTicker) _calCapJobTicker = setInterval(_calCapJobsTick, 1000);
+        if (!_calCapJobPollTimer) _calSetCapJobPollTimer(setInterval(_calCapJobsPoll, CAL_CAPJOB_POLL_MS));
+        if (!_calCapJobTicker) _calSetCapJobTicker(setInterval(_calCapJobsTick, 1000));
     }
     function _calCapJobsStopPollingIfIdle() {
         if (_calCapJobsActiveList().length) return;
-        if (_calCapJobPollTimer) { clearInterval(_calCapJobPollTimer); _calCapJobPollTimer = null; }
-        if (_calCapJobTicker) { clearInterval(_calCapJobTicker); _calCapJobTicker = null; }
+        if (_calCapJobPollTimer) { clearInterval(_calCapJobPollTimer); _calSetCapJobPollTimer(null); }
+        if (_calCapJobTicker) { clearInterval(_calCapJobTicker); _calSetCapJobTicker(null); }
     }
     function _calCapJobsTick() {
         for (const job of _calCapJobsActiveList()) {
@@ -1523,7 +1582,7 @@
     async function _calCapJobsPoll() {
         if (_calCapJobPollBusy) return;
         if (!_calCapJobsActiveList().length) { _calCapJobsStopPollingIfIdle(); return; }
-        _calCapJobPollBusy = true;
+        _calSetCapJobPollBusy(true);
         try {
             const clients = Array.from(new Set(_calCapJobsActiveList().filter(j => j.posted).map(j => j.client)));
             const rows = new Map();
@@ -1577,7 +1636,7 @@
             }
             _calCapJobsPersist();
         } finally {
-            _calCapJobPollBusy = false;
+            _calSetCapJobPollBusy(false);
             _calCapJobsStopPollingIfIdle();
         }
     }
@@ -1703,7 +1762,7 @@
                 bar.classList.remove('is-active');
                 // Release the batch only if a follow-up generation hasn't
                 // already replaced it.
-                if (_calCapJobBatch === watched) _calCapJobBatch = null;
+                if (_calCapJobBatch === watched) _calSetCapJobBatch(null);
                 _calBulkCapAutoHide = null;
             }, 2500);
         }
@@ -2099,7 +2158,7 @@
         // echo actually lands a beat after the write resolves. (No header badge
         // here any more — it shifted the toolbar; the toast below is the
         // feedback, and the per-card optimistic move is the live confirmation.)
-        _calLastLocalWriteAt = Date.now();
+        _calSetLastLocalWriteAt(Date.now());
         try {
             // Edge Function for flagged clients. Once a client is on the EF
             // route, fail closed: an auth denial/outage must never downgrade
@@ -2122,7 +2181,7 @@
             if (!json || !json.ok) throw new Error('reorder failed');
             // Refresh the self-echo window — the realtime echo of this write
             // lands a beat later and must not reload/flicker the strip.
-            _calLastLocalWriteAt = Date.now();
+            _calSetLastLocalWriteAt(Date.now());
             // Offer Undo only for the latest completed drag — a coalesced
             // follow-up drag queued behind this write shows its own toast.
             if (prevOrder && prevOrder.size && !_calReorderPending) {
@@ -2674,3 +2733,16 @@
     // "Has media" = at least one of the video / thumbnail URL is linked. A
     // post with neither isn't ready for SMM sign-off, so the SMM Review tab
     // hides it and the calendar card flags it (see _calSmmMissingMedia).
+export {
+  CAL_BULK_ARCHIVE_CONCURRENCY, CAL_REORDER_GUARD_MS, COMP_LABELS, COMP_PILL_COLORS,
+  _CAL_REVIEW_CFG, _calCapGenBtnHtml, _calCapGenBtnRefresh, _calCapJobsRestore,
+  _calClearApprovedAfterTweaks, _calHasBeenToKasper, _calHasUnreadNotes, _calLoadCaptionPrompts,
+  _calMarkKasperSeen, _calOpenNativePost, _calRecordApprovedAfterTweaks,
+  _calRecordKasperSeenOnPost, _calRenderNativePostChoice, _calReorderOptimistic,
+  _calReviewComponentActive, _calReviewMode, _calReviewState, _calRunPooled,
+  _calShowApprovedAfterTweaks, _calWireDragEdgeScroll, _calWireDragOnCard, _calWireShiftScroll,
+  _kasperGetSeenAt, _kasperHasUnreadReply, _kasperLatestInternalComp, _kasperMarkSeenAt,
+  _kasperOwnedThreadRoots, _kasperRepliesSeenBasis, _nativePostViewSlug, _notesGetSeen,
+  _notesMarkSeen, archiveCalPost, calMonthShift, calWeekShiftDays, renderCalMonth, renderCalWeek,
+  wireCalOrganizerDrag
+};

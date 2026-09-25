@@ -70,6 +70,8 @@ source = rewriteOnce(source, 'from "../_shared/staff-role-auth.ts";',
 source = rewriteOnce(source, 'from "./policy.mjs";', `from "${pathToFileURL(path.join(FN_DIR, 'policy.mjs')).href}";`);
 source = rewriteOnce(source, 'from "./selected-label-pages.mjs";',
   `from "${pathToFileURL(path.join(FN_DIR, 'selected-label-pages.mjs')).href}";`);
+if (source.includes('from \"./card-link.mjs\";')) source = rewriteOnce(source, 'from \"./card-link.mjs\";',
+  `from "${pathToFileURL(path.join(FN_DIR, 'card-link.mjs')).href}";`);
 source = rewriteOnce(source, 'from "../_shared/linear-create-id.mjs";',
   `from "${pathToFileURL(path.join(ROOT, 'supabase', 'functions', '_shared', 'linear-create-id.mjs')).href}";`);
 if (source.includes('from "../_shared/native-brief-media.mjs";')) source = rewriteOnce(source,

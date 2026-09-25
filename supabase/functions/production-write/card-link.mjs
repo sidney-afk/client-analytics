@@ -18,8 +18,8 @@ const lower = (v) => clean(v).toLowerCase();
  * deliverables commit, and the browser's later write repeats the same values.
  *
  * Safe to run twice, and never destructive:
- *   - a missing card is inserted with the same starting values the browser
- *     writes; a concurrent insert (unique violation) falls through to the fill;
+ *   - a card that does not exist yet is left alone and counted as `missing`:
+ *     creating cards stays with the browser job and its writer (see below);
  *   - an existing card has a slot filled ONLY where it is empty. A slot that
  *     already names a different deliverable is left alone and reported;
  *   - nothing else on an existing card is touched.
@@ -40,53 +40,24 @@ export async function linkCardsToCreatedDeliverables(supabase, items) {
     const id = clean(item.id);
     if (!table || !client || !cardId || !id || (team !== "video" && team !== "graphics")) continue;
     const key = `${table}\u0000${client}\u0000${cardId}`;
-    const card = cards.get(key) || { table, client, cardId, number: Number(item.video_number) || 0,
-      title: "", slots: {} };
-    if (!card.title) card.title = clean(item.title);
-    card.slots[team] = { id, url: clean(item.linear_issue_url) };
+    const card = cards.get(key) || { table, client, cardId, slots: {} };
+    card.slots[team] = { id };
     cards.set(key, card);
   }
-  let linked = 0, already = 0;
+  let linked = 0, already = 0, missing = 0;
   const failed = [], occupied = [];
-  const baseOrder = new Map();
   for (const card of cards.values()) {
     try {
       const { data: existing, error: readError } = await supabase.from(card.table)
         .select("id,video_deliverable_id,graphic_deliverable_id")
         .eq("client", card.client).eq("id", card.cardId).maybeSingle();
       if (readError) throw new Error("card_read_failed");
-      let inserted = false;
-      if (!existing) {
-        const orderKey = `${card.table}\u0000${card.client}`;
-        if (!baseOrder.has(orderKey)) {
-          const { data: orders } = await supabase.from(card.table)
-            .select("order_index").eq("client", card.client);
-          const max = (orders || [])
-            .reduce((m, row) => Math.max(m, Number(row.order_index) || 0), 0);
-          baseOrder.set(orderKey, max || Math.floor(Date.now() / 1000));
-        }
-        const video = card.slots.video, graphic = card.slots.graphics;
-        const row = {
-          client: card.client, id: card.cardId,
-          order_index: String((baseOrder.get(orderKey) || 0) + card.number),
-          name: card.title || `Video ${card.number}`,
-          status: "In Progress", video_status: "In Progress", graphic_status: "In Progress",
-          asset_url: "", thumbnail_url: "",
-          // null, never "": both id columns carry a foreign key to deliverables.
-          linear_issue_id: video ? video.url : "", video_deliverable_id: video ? video.id : null,
-          graphic_linear_issue_id: graphic ? graphic.url : "",
-          graphic_deliverable_id: graphic ? graphic.id : null,
-          updated_at: new Date().toISOString(),
-          ...(card.table === "calendar_posts"
-            ? { scheduled_date: "", caption_status: "In Progress", caption: "", cta: "", tweaks: "",
-              video_tweaks: "", graphic_tweaks: "", caption_tweaks: "" }
-            : { creative_direction: "", hide_creative_direction: "" }),
-        };
-        const { error: insertError } = await supabase.from(card.table).insert(row);
-        if (!insertError) { inserted = true; linked++; }
-        else if (insertError.code !== "23505") throw new Error("card_insert_failed");
-      }
-      if (inserted) continue;
+      // A card that does not exist yet is NOT created here. Its creation
+      // belongs to the browser job, through calendar-upsert /
+      // sample-review-upsert, whose trigger records the created fact; a job
+      // that never returns leaves it as visible reconcile debt
+      // (production_intake_reconcile_cards, "card_creation_held").
+      if (!existing) { missing++; continue; }
       for (const [team, slot] of Object.entries(card.slots)) {
         const column = cardSlotColumn(team);
         const { data: filled, error: fillError } = await supabase.from(card.table)
@@ -109,5 +80,5 @@ export async function linkCardsToCreatedDeliverables(supabase, items) {
     console.warn("card link incomplete", failed.length, occupied.length);
   }
   return { version: 1, cards: cards.size, linked, already_linked: already,
-    occupied: occupied.length, failed: failed.length };
+    occupied: occupied.length, missing, failed: failed.length };
 }

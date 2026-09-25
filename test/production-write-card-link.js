@@ -7,8 +7,8 @@
  * graphic_deliverable_id, after the gateway answered; a page closed inside
  * that window left the card unlinked. This drives
  * supabase/functions/production-write/card-link.mjs against an in-memory
- * table and proves: a missing card is created already linked, an existing card
- * has only its EMPTY slots filled, a slot naming another deliverable is never
+ * table and proves: a card that does not exist yet is never created, an
+ * existing card has only its EMPTY slots filled, a slot naming another deliverable is never
  * overwritten, running it twice changes nothing, and index.ts calls it on all
  * three create paths.
  */
@@ -63,18 +63,21 @@ const item = (team, id, cardId, extra) => ({ id, team, card_id: cardId, client_s
   const { linkCardsToCreatedDeliverables } = await import(
     path.join(__dirname, '..', 'supabase/functions/production-write/card-link.mjs'));
 
-  // 1. The card does not exist yet: created already carrying both ids.
+  // 1. A card that does not exist yet is NOT created: card creation stays with
+  // the browser job and its writer (the reconcile lane holds it as debt).
   let db = fakeDb({ calendar_posts: [{ client: 'sidneylaruel', id: 'old', order_index: '40' }] });
   let r = await linkCardsToCreatedDeliverables(db.client, [item('video', 'del_v', 'c1'), item('graphics', 'del_g', 'c1')]);
-  let card = db.tables.calendar_posts.find(x => x.id === 'c1');
-  assert.ok(card, 'missing card is created');
+  assert.strictEqual(db.tables.calendar_posts.length, 1, 'no card is created');
+  assert.strictEqual(db.writes.length, 0, 'nothing is written');
+  assert.deepStrictEqual([r.cards, r.missing, r.failed], [1, 1, 0]);
+
+  // 2. An existing card with both slots empty gets both; twice is the same as once.
+  db = fakeDb({ calendar_posts: [{ client: 'sidneylaruel', id: 'c1', video_deliverable_id: null, graphic_deliverable_id: '' }] });
+  r = await linkCardsToCreatedDeliverables(db.client, [item('video', 'del_v', 'c1'), item('graphics', 'del_g', 'c1')]);
+  let card = db.tables.calendar_posts[0];
   assert.strictEqual(card.video_deliverable_id, 'del_v');
   assert.strictEqual(card.graphic_deliverable_id, 'del_g');
-  assert.strictEqual(card.order_index, '43', 'placed after the last card, like the browser does');
-  assert.strictEqual(card.name, 'Video 3');
-  assert.deepStrictEqual([r.cards, r.failed, r.occupied], [1, 0, 0]);
-
-  // 2. Twice is the same as once.
+  assert.strictEqual(r.linked, 2);
   const before = JSON.stringify(db.tables);
   const writes = db.writes.length;
   r = await linkCardsToCreatedDeliverables(db.client, [item('video', 'del_v', 'c1'), item('graphics', 'del_g', 'c1')]);
@@ -82,9 +85,10 @@ const item = (team, id, cardId, extra) => ({ id, team, card_id: cardId, client_s
   assert.strictEqual(db.writes.length, writes, 'a second run writes nothing');
   assert.strictEqual(r.already_linked, 2);
 
-  // 3. A video-only create leaves the graphic id null, never "" (foreign key).
-  db = fakeDb();
+  // 3. A one-component create touches only its own slot.
+  db = fakeDb({ calendar_posts: [{ client: 'sidneylaruel', id: 'c2', video_deliverable_id: '', graphic_deliverable_id: null }] });
   await linkCardsToCreatedDeliverables(db.client, [item('video', 'del_v2', 'c2')]);
+  assert.strictEqual(db.tables.calendar_posts[0].video_deliverable_id, 'del_v2');
   assert.strictEqual(db.tables.calendar_posts[0].graphic_deliverable_id, null);
 
   // 4. An existing card: only the empty slot is filled, nothing else touched.
@@ -105,11 +109,11 @@ const item = (team, id, cardId, extra) => ({ id, team, card_id: cardId, client_s
   assert.strictEqual(r.occupied, 1);
 
   // 6. Samples land in sample_reviews; another client's card is not touched.
-  db = fakeDb({ sample_reviews: [{ client: 'other', id: 's1', video_deliverable_id: '' }] });
+  db = fakeDb({ sample_reviews: [{ client: 'other', id: 's1', video_deliverable_id: '' },
+    { client: 'sidneylaruel', id: 's1', video_deliverable_id: '' }] });
   await linkCardsToCreatedDeliverables(db.client, [item('video', 'del_s', 's1', { origin: 'samples' })]);
   assert.strictEqual(db.tables.sample_reviews.find(x => x.client === 'other').video_deliverable_id, '');
-  const mine = db.tables.sample_reviews.find(x => x.client === 'sidneylaruel');
-  assert.ok(mine && mine.video_deliverable_id === 'del_s' && mine.creative_direction === '');
+  assert.strictEqual(db.tables.sample_reviews.find(x => x.client === 'sidneylaruel').video_deliverable_id, 'del_s');
 
   // 7. index.ts calls it on the append, new-batch and component-fill paths.
   const src = fs.readFileSync(path.join(__dirname, '..', 'supabase/functions/production-write/index.ts'), 'utf8');

@@ -116,6 +116,12 @@ const ok = (cond, msg) => { assert.ok(cond, msg); checks++; console.log('  ok  '
   ok(/analytics_ingest_receipts/.test(serve) && /MAX_ROWS_PER_CALL/.test(serve) && /MAX_BODY_BYTES/.test(serve),
     'every write leaves a receipt and is size-bounded');
 
+  {
+    const BF = read('scripts/sheets-mirror-backfill.js');
+    ok(/const named = parsed\.filter\(r => String\(r\.client_name == null \? '' : r\.client_name\)\.trim\(\)\)/.test(BF)
+      && /annotateSheetOccurrences\(dataset, named\)/.test(BF),
+      'the backfill leaves out rows with no client name, so one blank Sheet row cannot cost a dataset its complete receipt');
+  }
   // ---- analytics-read safety ----
   ok(/\[functions\.analytics-read\]\s*verify_jwt = false/.test(CONFIG), 'analytics-read has an explicit transport posture in config.toml');
   ok(/authorizeStaffKey\(staffKey, \["admin", "smm", "creative"\]\)/.test(READ_SRC), 'staff are proven by their role key');

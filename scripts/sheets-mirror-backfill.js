@@ -90,11 +90,19 @@ async function send(key, body) {
     const spec = m.DATASETS[dataset];
     const t0 = Date.now();
     const text = await download(spec.sheet);
-    const rows = await m.annotateSheetOccurrences(dataset, m.parseCsv(text));
+    // A Sheet row with no client name belongs to no client: the page skips it
+    // too. Sent, it would be rejected and cost the copy its complete receipt
+    // (ContentSummaries had one such row on 2026-09-25), so it is left out
+    // and counted here instead. Its fingerprint includes the empty name, so
+    // leaving it out cannot shift another row's occurrence.
+    const parsed = m.parseCsv(text);
+    const named = parsed.filter(r => String(r.client_name == null ? '' : r.client_name).trim());
+    const rows = await m.annotateSheetOccurrences(dataset, named);
     const { records, rejected } = await m.prepareRows(dataset, rows, { source: 'sheet-backfill', runId });
     const clients = new Set(records.map(r => r.client_slug || r.slug)).size;
     console.log(`  ${dataset.padEnd(24)} ${String(Buffer.byteLength(text)).padStart(9)} bytes  ${String(rows.length).padStart(6)} rows  `
       + `${String(rejected.length).padStart(3)} rejected  ${String(clients).padStart(3)} clients  (${Date.now() - t0} ms)`);
+    if (parsed.length !== named.length) console.log(`    skipped ${parsed.length - named.length} row(s) with no client name (the page ignores these too)`);
     if (rejected.length) {
       const why = {};
       for (const r of rejected) why[r.reason] = (why[r.reason] || 0) + 1;

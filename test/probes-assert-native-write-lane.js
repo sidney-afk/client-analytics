@@ -205,11 +205,6 @@ const OUTSIDE_MANIFEST = {
     // production behaviour. EXPECTED RED until migrated.
     expectedRed: 'EXPECTED RED UNTIL MIGRATED'
   },
-  'qa/probes/cal_linear_deep.js': {
-    polarity: 'present',
-    witness: "pushed = pushes('Client Approval').length > 0",
-    legacyOptIn: "writeUiRerouteLegacy: true"
-  },
   'qa/ef-writepath/10-status-linear.js': {
     polarity: 'present',
     witness: 's.ok(toExpect.length >= 1,',

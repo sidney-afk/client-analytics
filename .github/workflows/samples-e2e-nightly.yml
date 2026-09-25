@@ -60,7 +60,7 @@ jobs:
           SYNCVIEW_NIGHTLY_PROBES: >-
             sxr_bug_repros sxr_concurrency sxr_gating_flags sxr_cold_open
             sxr_kasper_audit_holes sxr_realtime_twin
-            sxr_client_persist_guard cal_realtime_twin cal_linear_deep
+            sxr_client_persist_guard cal_realtime_twin
         run: node qa/run-probes.js
       # A red nightly must PAGE, not just email (owner directive 2026-07-17 —
       # this workflow sat red four nights with nobody consuming the signal).

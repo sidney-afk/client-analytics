@@ -226,8 +226,8 @@ async function captureRetiredWebhooks(ctx) {
  * than production: a real SMM signs in.
  *
  * The key is synthetic and goes nowhere — the gateway is mocked, so nothing
- * ever presents it to a server. Same shape `qa/probes/cal_linear_deep.js` has
- * used since the item-63 drain work. Call it AFTER the page has loaded.
+ * ever presents it to a server. Same shape the retired `cal_linear_deep` probe
+ * used since the item-63 drain work (OPEN_REPAIRS 253). Call it AFTER the page has loaded.
  */
 async function seedVerifiedProbeStaff(page, options) {
   const opts = options || {};

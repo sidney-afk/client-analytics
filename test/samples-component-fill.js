@@ -90,8 +90,8 @@ ok(fill({ id: 'sr_x' }, 'video') === '' && fill({ id: 'sr_x' }, 'graphic') === '
 /* A slot holding a Linear url with no native id is a legacy half-link, not a
    missing component. Filling it would leave the card naming two issues. Zero
    of the 24 live halves are in that state, and this is what keeps it so. */
-ok(fill({ id: 'sr_y', graphic_deliverable_id: 'b1_d_1', linear_issue_id: 'https://linear.app/x' }, 'video') === '',
-  'a slot holding a Linear url is left alone: that is a half-link to repair, not a gap to fill');
+ok(fill({ id: 'sr_y', graphic_deliverable_id: 'b1_d_1', linear_issue_id: 'https://linear.app/x' }, 'video') !== '',
+  'a slot holding only a Linear url counts as empty and offers the fill (Linear retired 2026-09-24)');
 
 ok(fill({ id: '__sxrblank__3', graphic_deliverable_id: 'b1_d_1' }, 'video') === '',
   'a blank placeholder row offers nothing');

@@ -118,7 +118,12 @@ function browser(response=fixture()) {
  'wlProductionAuthorityFingerprint','wlMetadataTeamBucket','wlNativeWorkloadLabel','wlNativeDueDate','wlValidRfc3339Timestamp','wlNativeMetadataRow',
  '_wlFetchArchiveMarkerRows','_wlArchivedNativeIds',
  'wlFetchNativeSnapshot','loadLinearIssues','wlAdoptPlanRows','wlLoadSnapshot','wlRefetchSilent','wlIsFresh',
- 'wlExcludedSummaryText','wlVisibleSubCount','wlDroppedPlanWarningText','renderWorkloadPlanStatus','wlManualRefresh']
+ 'wlExcludedSummaryText','wlVisibleSubCount','wlDroppedPlanWarningText','renderWorkloadPlanStatus','wlManualRefresh',
+ // 070's setters for the Workload render module (080): ES module imports are
+ // read-only, so 080 writes 070's state through these (phase C step C3).
+ '_wlSetBackgroundRefreshPromise','_wlSetBackgroundRefreshMode','_wlSetNativeDueReceiptRetryPromise',
+ '_wlSetNativeDueReceiptRetryTimer','_wlSetNativeDueReceiptRetryAttempt','_wlTakeNativeDueReceiptRetryAttempt',
+ '_wlNextNativeDueReceiptGeneration','_wlNextPlanLoadGeneration','_wlNextPlanWriteGeneration']
  .forEach(name=>vm.runInContext(extract(html,name),context));
  return {context,state,calls};
 }

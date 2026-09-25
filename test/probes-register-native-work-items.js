@@ -18,12 +18,22 @@ const ROOT = path.resolve(__dirname, '..');
 let failures = 0;
 const ok = (c, m) => { if (c) console.log('  ok  ' + m); else { failures++; console.error('FAIL  ' + m); } };
 
-const PROBES = [
-  'qa/probes/ot_temporal_client_combo.js', 'qa/probes/ot_temporal_kasper.js', 'qa/probes/p34_set_all.js',
-  'qa/probes/p88_realtime_handler.js', 'qa/probes/sxr_client_persist_guard.js', 'qa/probes/sxr_concurrency.js',
-  'qa/probes/sxr_gating_flags.js', 'qa/probes/sxr_kasper_audit_holes.js', 'qa/probes/sxr_realtime_twin.js',
-  'qa/probes/p92_sxr_resolve_pill_inplace.js', 'qa/scenario_engine.js',
-];
+/* Scope is DERIVED, not listed (Codex on #1609: a hand-written list let p92
+   slip through). Every qa/ script that seeds a Linear URL on a card must link
+   that card through the fixture, except the files named here with a reason. */
+const EXEMPT = new Map([
+  ['qa/probes/sxr_linear_deep.js', 'tests the Linear link edit/clear/move controls removed in #1605; to be retired'],
+  ['qa/probes/parity_logic.js', 'in-page logic objects only, never seeded to the database; they carry their own ids'],
+  ['qa/scenarios.js', 'scenario data; qa/scenario_engine.js registers every seeded or patched card'],
+]);
+const walk = dir => fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true }).flatMap(e =>
+  e.isDirectory() ? (e.name === 'node_modules' || e.name === 'out' ? [] : walk(dir + '/' + e.name)) : (e.name.endsWith('.js') ? [dir + '/' + e.name] : []));
+const PROBES = walk('qa').filter(rel => {
+  if (EXEMPT.has(rel) || rel === 'qa/native_work_item_fixture.js') return false;
+  return /(?<![A-Za-z_.])(graphic_)?linear_issue_id:\s*['"`]https?:\/\//.test(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
+});
+ok(PROBES.length >= 10, 'the derived scope finds the Linear-seeding probes (' + PROBES.length + ')');
+for (const [rel] of EXEMPT) ok(fs.existsSync(path.join(ROOT, rel)), 'exempt file still exists: ' + rel);
 for (const rel of PROBES) {
   const lines = fs.readFileSync(path.join(ROOT, rel), 'utf8').split('\n');
   let seeds = 0, missing = 0;
@@ -31,7 +41,12 @@ for (const rel of PROBES) {
     if (!/(?<![A-Za-z_.])(graphic_)?linear_issue_id:\s*['"`]https?:\/\//.test(line)) return;
     seeds++;
     const before = lines.slice(Math.max(0, i - 25), i + 1).join('\n');
-    if (!/registerProbeWorkItems\(/.test(before)) { missing++; console.error('      ' + rel + ':' + (i + 1) + ' seeds a Linear URL with no registerProbeWorkItems before it'); }
+    // An in-page card object (set straight into calState, never saved) may
+    // carry its own synthetic id beside the URL instead: no foreign key there.
+    const near = lines.slice(Math.max(0, i - 3), i + 4).join('\n');
+    const idKey = /graphic_linear_issue_id/.test(line) ? 'graphic_deliverable_id' : 'video_deliverable_id';
+    const inPageId = /calState\.posts|page\.evaluate/.test(lines.slice(Math.max(0, i - 12), i).join('\n')) && new RegExp('\\b' + idKey + '\\s*:').test(near);
+    if (!inPageId && !/registerProbeWorkItems\(|stubNativeWorkItems\(/.test(before)) { missing++; console.error('      ' + rel + ':' + (i + 1) + ' seeds a Linear URL with no registerProbeWorkItems before it'); }
   });
   ok(seeds > 0 && missing === 0, rel + ' registers every card it links (' + seeds + ' linked seed line' + (seeds === 1 ? '' : 's') + ')');
 }

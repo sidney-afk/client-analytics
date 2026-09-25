@@ -25,7 +25,7 @@ import {
 import { _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
 import { _hpPurgeSensitiveState } from './310-sales-intake-hiring.js';
 import {
-  CC_ICON_EYE, _ccCloseModal, _ccCloseSelect, _ccExpanded, _ccOpenSelectId, _ccRevTeardown,
+  CC_ICON_EYE, _caPurgeSensitiveState, _ccCloseModal, _ccCloseSelect, _ccExpanded, _ccOpenSelectId, _ccRevTeardown,
   _ccRevealed, _ccSelectHtml, _ccState, _ccTogglePasswordField, _kasperFallbackToReview,
   _kasperRenderTab, _kasperRestorePendingSubtab, _kasperState
 } from './320-kasper-dashboard-replies.js';
@@ -53,6 +53,9 @@ import {
     let OB_VARIANT = 'normal';
     let OB_DRAFT_KEY = 'syncview_onboarding_draft_v1';
     let OB_SUBID_KEY = 'syncview_onboarding_subid_v1';
+    function _obSetVariant(value) { OB_VARIANT = value; }
+    function _obSetDraftKey(value) { OB_DRAFT_KEY = value; }
+    function _obSetSubIdKey(value) { OB_SUBID_KEY = value; }
     function _obEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function _obId(){ return 'o_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
     // Stable submission id: minted once per funnel per browser and reused across
@@ -1330,6 +1333,7 @@ import {
         if (capability === 'hiring') return role === 'admin';
         if (capability === 'pto-admin') return role === 'admin';
         if (capability === 'quiz-leads') return role === 'admin';
+        if (capability === 'clients-admin') return role === 'admin';
         if (capability === 'workload-plan-read') return role === 'admin' || role === 'smm' || role === 'creative';
         if (capability === 'workload-plan') return role === 'admin' || role === 'smm';
         if (capability === 'workload-linear-read') return role === 'admin' || role === 'smm' || role === 'creative';
@@ -1445,6 +1449,7 @@ import {
             const tab = typeof _kasperState !== 'undefined' && _kasperState ? _kasperState.tab : '';
             const blocked = (tab === 'client-credentials' && !_syncviewStaffCan('credentials'))
                 || (tab === 'onboarding' && !_syncviewStaffCan('onboarding'))
+                || (tab === 'clients' && !_syncviewStaffCan('clients-admin'))
                 || (tab === 'filming' && !valid);
             if (blocked) {
                 _kasperFallbackToReview();
@@ -1536,6 +1541,7 @@ import {
         try { if (typeof _srpPurgeSensitiveState === 'function') _srpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _prodSmmPurgeSensitiveState === 'function') _prodSmmPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _hpPurgeSensitiveState === 'function') _hpPurgeSensitiveState(); } catch (e) {}
+        try { if (typeof _caPurgeSensitiveState === 'function') _caPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _ptoCalResetView === 'function') _ptoCalResetView(); } catch (e) {}
         try { if (typeof _ccCloseModal === 'function') _ccCloseModal(); } catch (e) {}
         try { if (typeof _ccRevTeardown === 'function') _ccRevTeardown(); } catch (e) {}
@@ -2337,17 +2343,17 @@ export {
   CALENDAR_UPSERT_EF_URL, CALENDAR_UPSERT_N8N_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL,
   CAL_SUPABASE_URL, CAPTION_JOB_STATUS_URL, CAPTION_JOB_UPDATE_URL, CAPTION_PROMPTS_GET_URL,
   CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL, CLIENT_REVIEW_LINK_URL,
-  CLIENT_TOKEN_VERIFY_URL, GENERATE_CAPTION_URL, KASPER_QUEUE_URL, OB_DRAFT_KEY, OB_SUBID_KEY,
-  OB_VARIANT, PTO_API_TIMEOUT_MS, PTO_EF_URL, PTO_FLAG_KEY, SMM_WEEKLY_REPORTS_URL,
-  SYNCVIEW_CLIENT_ENTRY_PROTOCOL, THUMBNAIL_FOLDER_RESOLVE_EF_URL, THUMBNAIL_REVISION_READ_EF_URL,
-  URGENT_KASPER_SLACK_URL, WORKLOAD_LINEAR_URL, WORKLOAD_PLAN_URL, _obEsc, _obPost, _obZoom,
-  _ptoAdminOverviewGeneration, _ptoAdminState, _ptoAttr, _ptoBlockWrites, _ptoEsc, _ptoFlagChannel,
-  _ptoFlagGeneration, _ptoFlagPromise, _ptoFlagValue, _ptoInvalidateOverviewCaches,
-  _ptoNextAdminOverviewGeneration, _ptoNextFlagGeneration, _ptoNextOverviewGeneration,
-  _ptoNextQuoteGeneration, _ptoOverviewGeneration, _ptoQuoteGeneration, _ptoRefreshAfterConflict,
-  _ptoSetFlagChannel, _ptoSetFlagPromise, _ptoShowToast, _ptoState, _ptoStateConflict,
-  _ptoStoreFlagValue, _ptoUnknownWrite, _svBootFlagRows, _svDateHtml, _svExplainLabel,
-  _svSelectHtml, _svStepperHtml, _svSyncDateControl, _svSyncStepper, _svTone,
+  CLIENT_TOKEN_VERIFY_URL, GENERATE_CAPTION_URL, KASPER_QUEUE_URL, OB_VARIANT, PTO_API_TIMEOUT_MS,
+  PTO_EF_URL, PTO_FLAG_KEY, SMM_WEEKLY_REPORTS_URL, SYNCVIEW_CLIENT_ENTRY_PROTOCOL,
+  THUMBNAIL_FOLDER_RESOLVE_EF_URL, THUMBNAIL_REVISION_READ_EF_URL, URGENT_KASPER_SLACK_URL,
+  WORKLOAD_LINEAR_URL, WORKLOAD_PLAN_URL, _obEsc, _obPost, _obSetDraftKey, _obSetSubIdKey,
+  _obSetVariant, _obZoom, _ptoAdminOverviewGeneration, _ptoAdminState, _ptoAttr, _ptoBlockWrites,
+  _ptoEsc, _ptoFlagChannel, _ptoFlagGeneration, _ptoFlagPromise, _ptoFlagValue,
+  _ptoInvalidateOverviewCaches, _ptoNextAdminOverviewGeneration, _ptoNextFlagGeneration,
+  _ptoNextOverviewGeneration, _ptoNextQuoteGeneration, _ptoOverviewGeneration, _ptoQuoteGeneration,
+  _ptoRefreshAfterConflict, _ptoSetFlagChannel, _ptoSetFlagPromise, _ptoShowToast, _ptoState,
+  _ptoStateConflict, _ptoStoreFlagValue, _ptoUnknownWrite, _svBootFlagRows, _svDateHtml,
+  _svExplainLabel, _svSelectHtml, _svStepperHtml, _svSyncDateControl, _svSyncStepper, _svTone,
   _syncviewCloseStaffAccount, _syncviewOfferStaffSignIn, _syncviewOpenStaffGate,
   _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity, _syncviewStaffCan,
   _syncviewStaffEligible, _syncviewStaffGateRequired, _syncviewStaffIdentityBoot,

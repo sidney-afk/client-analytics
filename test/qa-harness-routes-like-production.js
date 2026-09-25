@@ -89,7 +89,7 @@ for (const rel of HARNESSES) {
 for (const [rel, src] of sources) {
   ok(/write_ui_reroute_fixture/.test(src),
     rel + ' answers the reroute flag read from the shared fixture, not a body of its own');
-  ok(/productionRosterBody\(\)/.test(src),
+  ok(/productionRosterBody\(/.test(src),
     rel + ' serves productionRosterBody() — one place decides which lane the nightly runs');
 }
 
@@ -253,6 +253,39 @@ ok(legacyReroute && Array.isArray(legacyReroute.value.clients) && legacyReroute.
   && !legacyReroute.value.clients.includes(FIXTURE.WRITE_UI_REROUTE_TEST_CLIENT),
   '  · and the roster is NON-EMPTY and excludes the TEST client — not `[]`, which now means '
   + 'native and is exactly the confusion this replaces');
+
+/* THE WHOLE BOOT BATCH (OPEN_REPAIRS 255). The matcher catches the boot read of
+   EVERY routing flag, because that request also names write_ui_reroute_clients.
+   A key the fixture leaves out reads as ABSENT, and absent means OFF: before
+   this, calendar_upsert_ef_clients was absent, every harness card save went to
+   the legacy n8n webhook, and that webhook drops the work-item links. So the
+   fixture has to answer every key the shipped boot read asks for. */
+const bootKeysMatch = INDEX.match(/var svFlagKeys = \[([^\]]*)\]/);
+ok(!!bootKeysMatch, 'the shipped boot flag batch is found in index.html');
+const bootKeys = bootKeysMatch ? bootKeysMatch[1].split(',').map(k => k.trim().replace(/^'|'$/g, '')).filter(Boolean) : [];
+const bootUrl = 'https://x/rest/v1/syncview_runtime_flags?select=key,value&key=in.(' + encodeURIComponent(bootKeys.join(',')) + ')&limit=' + bootKeys.length;
+ok(FIXTURE.isRerouteFlagRequest(bootUrl), 'the harness matcher catches the boot batch read');
+const bootRows = JSON.parse(FIXTURE.productionRosterBody(bootUrl));
+for (const key of bootKeys) {
+  ok(bootRows.some(r => r && r.key === key), 'the boot batch answer carries ' + key + ' (absent would switch it off)');
+}
+ok(JSON.parse(FIXTURE.legacyRosterBody(bootUrl)).length === bootKeys.length,
+  '  · and so does the explicit legacy body, which differs only in the reroute roster');
+const calendarRows = bootRows.filter(r => r.key === 'calendar_upsert_ef_clients');
+const calClients = (() => {
+  const ctx = { calClientSlug: v => String(v).toLowerCase().replace(/[^a-z0-9&]+/g, '') };
+  vm.createContext(ctx);
+  vm.runInContext([grabFunc('_calRuntimeFlagSlug'), grabFunc('_calRuntimeFlagRawMembers'), grabFunc('_calRuntimeFlagClients')].join('\n'), ctx);
+  return calendarRows.length ? ctx._calRuntimeFlagClients(calendarRows[0].value) : [];
+})();
+ok(calClients.includes(FIXTURE.WRITE_UI_REROUTE_TEST_CLIENT),
+  'the shipped calendar router, fed the harness answer, sends the TEST client\'s card saves to the calendar-upsert Edge Function as production does');
+const kasper = bootRows.find(r => r.key === 'kasper_urgent_ping_enabled');
+ok(!!kasper && kasper.value && kasper.value.enabled === false,
+  'kasper_urgent_ping_enabled is served OFF on purpose: it is not routing, and ON would send real Slack pings from a test');
+const single = JSON.parse(FIXTURE.productionRosterBody('https://x/rest/v1/syncview_runtime_flags?select=value&key=eq.write_ui_reroute_clients&limit=1'));
+ok(single.length === 1 && single[0].key === 'write_ui_reroute_clients',
+  'a single-key read gets only its own row, as PostgREST answers it');
 
 /* THE COUNTEREXAMPLE. The exact body these harnesses used to serve. It must not
    route like production — if this ever passes, the check above has stopped

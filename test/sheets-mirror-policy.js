@@ -133,6 +133,16 @@ const ok = (cond, msg) => { assert.ok(cond, msg); checks++; console.log('  ok  '
   ok(READ_SRC.indexOf('mirror_read_disabled') < READ_SRC.indexOf('clientTokenValid(supabase, slug, token))'),
     'client-link reads are refused while the read flag is off');
 
+  // ---- Clients admin tab (read-only list) ----
+  {
+    const i = READ_SRC.indexOf('"list_client_profiles"');
+    const branch = READ_SRC.slice(i, READ_SRC.indexOf('const slug = clientSlug', i));
+    ok(i > 0 && /authorizeStaffKey\(staffKey, \["admin"\]\)/.test(branch) && !/client_access|clientTokenValid|x-syncview-client-token/.test(branch),
+      'the client list is admin-role only and never reachable by a client link token');
+    ok(!/row_hash/.test(READ_SRC.match(/CLIENT_PROFILE_ADMIN_COLUMNS = "([^"]+)"/)[1]), 'the admin list does not expose copy-job internals');
+    ok(!/\.(insert|update|upsert|delete)\(/.test(READ_SRC), 'analytics-read stays read-only');
+  }
+
   // ---- migration posture ----
   ok(/revoke all on table public\.%I from public, anon, authenticated, service_role/.test(MIGRATION)
     && /revoke all on sequence %s from public, anon, authenticated, service_role/.test(MIGRATION),

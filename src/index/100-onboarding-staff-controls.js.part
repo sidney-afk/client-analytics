@@ -25,7 +25,7 @@ import {
 import { _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
 import { _hpPurgeSensitiveState } from './310-sales-intake-hiring.js';
 import {
-  CC_ICON_EYE, _ccCloseModal, _ccCloseSelect, _ccExpanded, _ccOpenSelectId, _ccRevTeardown,
+  CC_ICON_EYE, _caPurgeSensitiveState, _ccCloseModal, _ccCloseSelect, _ccExpanded, _ccOpenSelectId, _ccRevTeardown,
   _ccRevealed, _ccSelectHtml, _ccState, _ccTogglePasswordField, _kasperFallbackToReview,
   _kasperRenderTab, _kasperRestorePendingSubtab, _kasperState
 } from './320-kasper-dashboard-replies.js';
@@ -1333,6 +1333,7 @@ import {
         if (capability === 'hiring') return role === 'admin';
         if (capability === 'pto-admin') return role === 'admin';
         if (capability === 'quiz-leads') return role === 'admin';
+        if (capability === 'clients-admin') return role === 'admin';
         if (capability === 'workload-plan-read') return role === 'admin' || role === 'smm' || role === 'creative';
         if (capability === 'workload-plan') return role === 'admin' || role === 'smm';
         if (capability === 'workload-linear-read') return role === 'admin' || role === 'smm' || role === 'creative';
@@ -1448,6 +1449,7 @@ import {
             const tab = typeof _kasperState !== 'undefined' && _kasperState ? _kasperState.tab : '';
             const blocked = (tab === 'client-credentials' && !_syncviewStaffCan('credentials'))
                 || (tab === 'onboarding' && !_syncviewStaffCan('onboarding'))
+                || (tab === 'clients' && !_syncviewStaffCan('clients-admin'))
                 || (tab === 'filming' && !valid);
             if (blocked) {
                 _kasperFallbackToReview();
@@ -1539,6 +1541,7 @@ import {
         try { if (typeof _srpPurgeSensitiveState === 'function') _srpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _prodSmmPurgeSensitiveState === 'function') _prodSmmPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _hpPurgeSensitiveState === 'function') _hpPurgeSensitiveState(); } catch (e) {}
+        try { if (typeof _caPurgeSensitiveState === 'function') _caPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _ptoCalResetView === 'function') _ptoCalResetView(); } catch (e) {}
         try { if (typeof _ccCloseModal === 'function') _ccCloseModal(); } catch (e) {}
         try { if (typeof _ccRevTeardown === 'function') _ccRevTeardown(); } catch (e) {}

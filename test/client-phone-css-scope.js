@@ -113,6 +113,7 @@ assert(found.length >= 1, 'no CLIENT-PHONE block found in index.html');
 const begins = (html.match(/CLIENT-PHONE:BEGIN/g) || []).length;
 const ends = (html.match(/CLIENT-PHONE:END/g) || []).length;
 assert.strictEqual(begins, ends, 'unmatched CLIENT-PHONE markers');
+assert.strictEqual(found.length, begins, 'a CLIENT-PHONE:BEGIN marker is not in the exact form /* CLIENT-PHONE:BEGIN */, so its block would go unchecked');
 let rules = 0;
 for (const b of found) {
   const problems = checkBlock(b);

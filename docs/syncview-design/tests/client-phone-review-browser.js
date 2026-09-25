@@ -2,6 +2,8 @@
 /* client-phone-review-browser.js -- the client's Calendar review link, on a
  * phone, end to end, fully offline.
  *
+ * Covers both client review links: the Calendar and Sample reviews.
+ *
  * Why: approving and requesting a change from the client share link is what
  * clients do most, and most of them do it on a phone. This drives the real
  * index.html in a real browser at phone sizes (iPhone SE, iPhone 13/14,
@@ -40,10 +42,13 @@ function serve() {
 const CLIENT = 'Phone Fixture Client';
 const SLUG = 'phonefixtureclient';
 const TOKEN = 'synthetic-phone-token';
-const CARD = 'p_phone_fixture_1';
+const SURFACES = {
+  calendar: { panels: 3, tweakComp: 'caption', card: 'p_phone_fixture_1', query: { v: 'calendar' }, table: 'calendar_posts' },
+  samples: { panels: 2, tweakComp: 'graphic', card: 'sr_phone_fixture_1', query: { v: 'sample-reviews', sxr: '1' }, table: 'sample_reviews' },
+};
 const CAPTION = 'A synthetic caption long enough to wrap across several lines on a narrow phone screen, so the caption panel is exercised the way a real one is. #fixture #phone';
-const ROW = {
-  id: CARD, client: SLUG, name: 'Phone fixture post', status: 'In Progress',
+const BASE_ROW = {
+  id: '', client: SLUG, name: 'Phone fixture post', status: 'In Progress',
   scheduled_date: null, order_index: 1, updated_at: '2026-09-20T12:00:00.000Z',
   asset_url: 'https://example.invalid/video.mp4', thumbnail_url: 'http://127.0.0.1/__fixture_thumb.svg',
   video_status: 'Client Approval', graphic_status: 'Client Approval', caption_status: 'Client Approval',
@@ -57,7 +62,10 @@ const VIEWPORTS = [
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS' };
 const CAP_MS = 20000;
 
-async function run(browser, origin, [label, width, height]) {
+async function run(browser, origin, [vpLabel, width, height], surfaceName) {
+  const { card: CARD, query, table, panels, tweakComp } = SURFACES[surfaceName];
+  const ROW = Object.assign({}, BASE_ROW, { id: CARD });
+  const label = `${surfaceName} / ${vpLabel}`;
   const failures = [];
   const writes = [];
   const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
@@ -77,7 +85,8 @@ async function run(browser, origin, [label, width, height]) {
       if (/\/rest\/v1\//.test(u.pathname)) return json([Object.assign({}, ROW)]);
       return json({ ok: true });
     }
-    if (u.pathname === '/rest/v1/calendar_posts') return json([ROW]);
+    if (u.pathname === '/rest/v1/' + table) return json([ROW]);
+    if (u.pathname === '/rest/v1/calendar_posts' || u.pathname === '/rest/v1/sample_reviews') return json([]);
     if (u.pathname === '/rest/v1/clients') return json([{ slug: SLUG, kind: 'client', active: true }]);
     // Team authority must be readable or every status write pauses safely.
     if (u.pathname === '/rest/v1/syncview_runtime_flags' && /prod_authority/.test(u.search)) return json([{ value: { video: 'linear', graphics: 'linear' } }]);
@@ -89,7 +98,7 @@ async function run(browser, origin, [label, width, height]) {
   const page = await ctx.newPage();
   const pageErrors = [];
   page.on('pageerror', e => pageErrors.push(String(e.message || e).slice(0, 160)));
-  const q = new URLSearchParams({ c: CLIENT, t: TOKEN, v: 'calendar' });
+  const q = new URLSearchParams(Object.assign({ c: CLIENT, t: TOKEN }, query));
   await page.goto(`${origin}/index.html?${q}`, { waitUntil: 'domcontentloaded' });
   const card = `.kcard[data-cal-review-pid="${CARD}"]`;
   const drew = await page.waitForSelector(card, { timeout: CAP_MS }).then(() => true, () => false);
@@ -111,7 +120,7 @@ async function run(browser, origin, [label, width, height]) {
     return { W, scrollW: document.documentElement.scrollWidth, panels: panels.map(r => [Math.round(r.left), Math.round(r.width)]), controls, media, textareas };
   }, card);
   if (m.scrollW > m.W) failures.push(`${label}: page scrolls sideways (${m.scrollW}px content in a ${m.W}px screen)`);
-  if (m.panels.length !== 3) failures.push(`${label}: expected 3 review panels, found ${m.panels.length}`);
+  if (m.panels.length !== panels) failures.push(`${label}: expected ${panels} review panels, found ${m.panels.length}`);
   if (new Set(m.panels.map(p => p[0])).size !== 1) failures.push(`${label}: panels are not stacked in one column (${JSON.stringify(m.panels)})`);
   for (const c of m.controls) if (c.w < 44 || c.h < 44) failures.push(`${label}: "${c.what}" is ${Math.round(c.w)}x${Math.round(c.h)}px, under 44px`);
   for (const t of m.textareas) if (t < 16) failures.push(`${label}: note box text is ${t}px, under 16px (iOS will zoom)`);
@@ -143,8 +152,8 @@ async function run(browser, origin, [label, width, height]) {
   if (!approveWrites.length) failures.push(`${label}: tapping Approve video sent no write`);
   else if (!approveWrites.some(w => w.body.includes('"video_status":"Approved"') && w.body.includes(CARD))) failures.push(`${label}: Approve sent writes that do not approve: ${approveWrites.map(w => w.method + ' ' + w.path).join(', ')}`);
 
-  // Request a change on the caption: type a note, tap Request change.
-  const panel = `${card} .cal-review-panel[data-comp="caption"]`;
+  // Request a change (caption on the Calendar, thumbnail on Samples): type a note, tap Request change.
+  const panel = `${card} .cal-review-panel[data-comp="${tweakComp}"]`;
   const note = 'Phone fixture: please shorten the first line.';
   await page.locator(`${panel} .cal-review-textarea`).scrollIntoViewIfNeeded();
   await page.tap(`${panel} .cal-review-textarea`);
@@ -161,7 +170,7 @@ async function run(browser, origin, [label, width, height]) {
   if (pageErrors.length) failures.push(`${label}: page errors: ${pageErrors.slice(0, 2).join(' | ')}`);
   if (process.env.CLIENT_PHONE_SHOTS) {
     fs.mkdirSync(process.env.CLIENT_PHONE_SHOTS, { recursive: true });
-    await page.screenshot({ path: path.join(process.env.CLIENT_PHONE_SHOTS, `review-${width}x${height}.png`), fullPage: true });
+    await page.screenshot({ path: path.join(process.env.CLIENT_PHONE_SHOTS, `${surfaceName}-${width}x${height}.png`), fullPage: true });
   }
   if (process.env.CLIENT_PHONE_DEBUG) console.log(label, JSON.stringify({ approveWrites, tweakWrites }).slice(0, 2000));
   await ctx.close();
@@ -174,12 +183,12 @@ async function run(browser, origin, [label, width, height]) {
   const browser = await chromium.launch({ headless: true });
   const failures = [];
   try {
-    for (const vp of VIEWPORTS) {
-      const f = await run(browser, origin, vp);
-      console.log(`${f.length ? 'FAIL' : 'ok  '} ${vp[0]} ${vp[1]}x${vp[2]}`);
+    for (const surface of Object.keys(SURFACES)) for (const vp of VIEWPORTS) {
+      const f = await run(browser, origin, vp, surface);
+      console.log(`${f.length ? 'FAIL' : 'ok  '} ${surface} ${vp[0]} ${vp[1]}x${vp[2]}`);
       failures.push(...f);
     }
   } finally { await browser.close(); server.close(); }
   if (failures.length) { console.error('\n' + failures.join('\n')); process.exit(1); }
-  console.log(`\nclient-phone-review: OK (${VIEWPORTS.length} phone sizes, approve + request change)`);
+  console.log(`\nclient-phone-review: OK (${Object.keys(SURFACES).join(' + ')}, ${VIEWPORTS.length} phone sizes each, approve + request change)`);
 })().catch(e => { console.error(e); process.exit(2); });

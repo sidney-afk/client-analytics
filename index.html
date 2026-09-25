@@ -8053,6 +8053,54 @@
             html.boot-client .cal-tab-view .cal-review-comment-body { overflow-wrap: anywhere; }
         }
         /* CLIENT-PHONE:END */
+        /* Sample reviews link: same contract as the Calendar block above. */
+        /* CLIENT-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            /* Sample reviews toolbar (same shape as the Calendar one): title on its own line, a full-width view
+               switcher, and no card-size zoom (it means nothing on a phone). */
+            html.boot-client #sxrView.cal-view { padding: 0 0 24px; }
+            html.boot-client #sxrView .cal-toolbar { padding: 14px; gap: 12px; margin: 4px 0 12px; }
+            html.boot-client #sxrView .cal-toolbar-left,
+            html.boot-client #sxrView .cal-toolbar-mid { width: 100%; }
+            html.boot-client #sxrView .cal-zoom { display: none; }
+            html.boot-client #sxrView .cal-view-toggle { display: flex; width: 100%; }
+            html.boot-client #sxrView .cal-view-btn { flex: 1 1 0; justify-content: center; min-height: 44px; padding: 0 6px; font-size: 0.82rem; }
+
+            /* Review list: the card header becomes thumbnail + text, with the
+               two icon buttons as full-size thumb targets underneath. */
+            html.boot-client #sxrView .cal-review-wrap { padding: 4px 0 24px; }
+            html.boot-client #sxrView .cal-review-list { gap: 12px; }
+            html.boot-client #sxrView .kcard-strip { grid-template-columns: 72px minmax(0, 1fr); gap: 12px; padding: 14px; align-items: start; }
+            html.boot-client #sxrView .kcard-thumb { width: 72px; height: 72px; }
+            html.boot-client #sxrView .kcard-actions { grid-column: 1 / -1; justify-content: flex-end; }
+            html.boot-client #sxrView .kcard-open-sheet,
+            html.boot-client #sxrView .kcard-expand-btn { width: 44px; height: 44px; border-radius: 12px; }
+            html.boot-client #sxrView .cal-review-sub-row { gap: 4px; }
+            html.boot-client #sxrView .cal-review-sub-pill { font-size: 0.62rem; letter-spacing: 0.01em; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
+
+            /* Opened card: one column, one piece at a time (video, then
+               thumbnail, then caption), separated by a hairline so the client
+               always knows which piece a button belongs to. The renderer writes
+               an inline three-column grid, which is desktop-only here. */
+            html.boot-client #sxrView .cal-review-body { grid-template-columns: 1fr !important; gap: 0; padding: 0 14px 6px; }
+            html.boot-client #sxrView .cal-review-panel { padding: 18px 0 20px; gap: 12px; }
+            html.boot-client #sxrView .cal-review-panel + .cal-review-panel { border-radius: 0; border-top: 1px solid var(--border); }
+            html.boot-client #sxrView .cal-review-panel[data-state="tweaks"] { padding: 16px 14px 18px; margin: 12px 0; border-top: 0; }
+            html.boot-client #sxrView .cal-review-panel-title { font-size: 1.02rem; }
+            html.boot-client #sxrView .cal-review-panel-preview { display: flex; justify-content: center; }
+            html.boot-client #sxrView .cal-review-video-tile { max-width: min(100%, 300px); margin: 0 auto; }
+            html.boot-client #sxrView .cal-review-preview-thumb-btn { max-width: 100%; margin: 0 auto; }
+            html.boot-client #sxrView .cal-review-preview-thumb-btn img { max-width: 100%; max-height: 52vh; }
+            html.boot-client #sxrView .cal-review-preview-caption { font-size: 0.95rem; line-height: 1.55; overflow-wrap: anywhere; }
+            html.boot-client #sxrView .cal-review-approve-btn { width: 100%; min-height: 52px; font-size: 1rem; border-radius: 12px; }
+            html.boot-client #sxrView .cal-review-approve-btn svg { width: 16px; height: 16px; }
+            html.boot-client #sxrView .cal-review-textarea { font-size: 16px; min-height: 96px; padding: 12px 14px; border-radius: 12px; }
+            html.boot-client #sxrView .cal-review-tweak-actions { align-self: stretch; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+            html.boot-client #sxrView .cal-review-comment-btn,
+            html.boot-client #sxrView .cal-review-tweak-btn { align-self: stretch; justify-content: center; min-height: 48px; padding: 0 10px; font-size: 0.9rem; white-space: nowrap; border-radius: 12px; }
+            html.boot-client #sxrView .cal-review-comment-body { overflow-wrap: anywhere; }
+        }
+        /* CLIENT-PHONE:END */
     </style>
 </head>
 <body>

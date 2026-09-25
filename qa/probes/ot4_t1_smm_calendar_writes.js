@@ -1,6 +1,6 @@
 // ot4_t1_smm_calendar_writes.js — TIER 1: the SMM's DAILY CALENDAR PLANNING
 // journey, cold-open, all through the real Sheet UI on #calendar/sidneylaruel:
-//   click "+" → type the name (blur commits) → row born in the DB → add a
+//   seed a post → add a
 //   scheduled date → paste a thumbnail URL (commit-on-blur) → type a caption →
 //   flip the video sub-status pill For SMM Approval → every write polled into
 //   calendar_posts → hard reload renders every value from server truth →
@@ -28,28 +28,17 @@ const rowByName = (cols) => {
     let p = await smmCal(browser);
     await p.waitForFunction(() => !!document.querySelector('#calStrip .cal-card-add'), { timeout: 20000 });
 
-    // 1) CREATE via the real "+" and typed name.
-    const plussed = await p.evaluate(() => {
-      const add = document.querySelector('#calStrip .cal-card-add');
-      if (!add) return 'no-add-btn';
-      add.click(); return 'ok';
-    });
-    t(plussed === 'ok', 'SMM clicks the calendar "+"', plussed);
-    await H.sleep(600);
-    const created = await p.evaluate((nm) => {
-      const blanks = [...document.querySelectorAll('#calStrip .cal-card[data-pid^="__blank__"]')];
-      const card = blanks[blanks.length - 1];
-      if (!card) return 'no-blank-card';
-      const inp = card.querySelector('.cal-fld-name');
-      if (!inp) return 'no-name-field';
-      inp.focus(); inp.value = nm;
-      inp.dispatchEvent(new Event('input', { bubbles: true }));
-      inp.blur();
-      return 'ok';
-    }, NAME);
-    t(created === 'ok', 'SMM creates a post via the real "+" + typed name', created);
+    // 1) CREATE. The staff "+" now opens Create Post, which mints SyncView
+    // work items through production-write and is not a lane this probe may
+    // write through; so the card is seeded through calendar-upsert, the same
+    // write a blank card's first save made, and the page is reopened on it.
+    // It carries a video URL: "For SMM Approval" is refused without one.
+    H.upCal({ id: 'p_ot4plan_' + TS, name: NAME, asset_url: 'https://frame.io/x/p_ot4plan_' + TS, video_status: 'In Progress', graphic_status: 'In Progress',
+      caption_status: 'In Progress', status: 'In Progress' });
     const born = await H.pollRow(() => rowByName('id,name,status'), r => !!r.id, POLL);
-    t(!!born, 'DB: the typed post is born as a real row', JSON.stringify(born));
+    t(!!born, 'DB: the post is born as a real row', JSON.stringify(born));
+    await p.context().close();
+    p = await smmCal(browser);
     id = born && born.id;
     if (!id) throw new Error('no row id — cannot continue');
 
@@ -108,6 +97,11 @@ const rowByName = (cols) => {
     t(appErrs(p).length === 0, '0 app JS errors before the reopen', (appErrs(p)[0] || ''));
     await p.context().close();
     p = await smmCal(browser);
+    // The work item is synthetic, so the real gateway would refuse its status
+    // write; answer it with the fixture's committing stub and count the two
+    // retired Linear webhooks, which must see nothing.
+    const gateway = await NW.stubNativeGateway(p.context());
+    const retired = await NW.captureRetiredWebhooks(p.context());
     await p.waitForFunction((pid) => !!document.querySelector(`#calStrip .cal-card[data-pid="${pid}"]`), id, { timeout: 25000 }).catch(() => {});
     const stamped = await p.evaluate((pid) => {
       const post = (calState.posts || []).find(x => x && x.id === pid);
@@ -122,15 +116,29 @@ const rowByName = (cols) => {
     // A synthetic .click() bubbles to the document-level menu closer in the
     // same tick — use a REAL mouse click on the pill, then pick from the
     // body-appended .cal-fld-status-menu in a second step.
-    await p.click(`.cal-fld-substatus-wrap[data-substatus-pid="${id}"][data-substatus-comp="video"] .cal-fld-substatus-trigger`);
-    await H.sleep(500);
-    const flipped = await p.evaluate(() => {
-      const items = [...document.querySelectorAll('.cal-fld-status-menu .cal-fld-status-item')];
-      const item = items.find(i => (i.getAttribute('onclick') || '').includes("'For SMM Approval'"));
-      if (!item) return 'no-menu-item(' + items.length + ')';
-      item.click(); return 'ok';
-    });
+    // The reopened page may still re-render once its background refresh lands,
+    // which closes an open menu; so open and pick up to three times.
+    const pill = `.cal-fld-substatus-wrap[data-substatus-pid="${id}"][data-substatus-comp="video"] .cal-fld-substatus-trigger`;
+    let flipped = 'not-tried';
+    for (let attempt = 0; attempt < 3 && !/^(ok|item-disabled)/.test(flipped); attempt++) {
+      await H.sleep(1500);
+      await p.click(pill);
+      await H.sleep(500);
+      flipped = await p.evaluate(() => {
+        const items = [...document.querySelectorAll('.cal-fld-status-menu .cal-fld-status-item')];
+        const item = items.find(i => (i.getAttribute('onclick') || '').includes("'For SMM Approval'"));
+        if (!item) return 'no-menu-item(' + items.length + ')';
+        if (item.disabled) return 'item-disabled: ' + item.title;
+        item.click(); return 'ok';
+      });
+    }
     t(flipped === 'ok', 'SMM flips video sub-status via the real pill menu', flipped);
+    const vid = NW.nativeDeliverableId(id, 'video');
+    const t0 = Date.now();
+    while (!NW.statusCalls(gateway, vid).length && Date.now() - t0 < 15000) await H.sleep(300);
+    const vcall = NW.statusCalls(gateway, vid)[0];
+    t(!!vcall && vcall.surface === 'calendar', 'the status change went to the SyncView gateway for the video work item', vcall && vcall.status);
+    t(NW.retiredCallCount(retired) === 0, 'the retired Linear webhooks received nothing');
     const r5 = await H.pollRow(() => H.rowCal(id, 'video_status,status'), r => r.video_status === 'For SMM Approval', POLL);
     t(!!r5 && r5.video_status === 'For SMM Approval', 'DB: video_status = For SMM Approval');
 

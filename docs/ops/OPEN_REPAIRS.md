@@ -28935,7 +28935,12 @@ Not retired, from the same sweep:
 
 - *Follow-up, 2026-09-25:* `ot4_t1_smm_calendar_writes` step 4b now registers a
   native work item for its card through `registerProbeWorkItems` and reopens the
-  page, instead of pasting a Linear link (OPEN_REPAIRS 254's PR).
+  page, instead of pasting a Linear link (OPEN_REPAIRS 254's PR). Two older
+  breaks surfaced once it could run: the staff "+" now opens Create Post, so the
+  card is seeded through calendar-upsert instead; and "For SMM Approval" needs a
+  video URL, so the seed carries one. The status write goes to the fixture's
+  gateway stub (the work item is synthetic), and the probe asserts the retired
+  Linear webhooks see nothing. Live on the test client: 22 of 22.
 
 ## 254. [2026-09-25, BUILT, needs a production-write deploy] Create Post links the card on the server
 

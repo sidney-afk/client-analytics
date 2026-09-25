@@ -66625,8 +66625,8 @@
                     let seed = hashRaw.slice('templates/'.length);
                     const st = history.state || {};
                     if (st.templatesClient) seed = st.templatesClient;
-                    if (seed) _templatesSelected = seed;
-                    if (st.templatesTab === 'reels' || st.templatesTab === 'thumbnails') _templatesActiveTab = st.templatesTab;
+                    if (seed) _templatesSetSelected(seed);
+                    if (st.templatesTab === 'reels' || st.templatesTab === 'thumbnails') _templatesSetActiveTab(st.templatesTab);
                     navTo('templates', false);
                     const _tplEpoch = _syncviewNavEpoch;
                     dataPromise.then(() => {
@@ -66634,10 +66634,10 @@
                         if (_syncviewNavEpoch !== _tplEpoch) return;
                         if (wlIsAllowedClient(_templatesSelected)) {
                             const canon = wlCanonicalClient(_templatesSelected);
-                            if (canon && canon !== _templatesSelected) { _templatesSelected = canon; navTo('templates', false); }
+                            if (canon && canon !== _templatesSelected) { _templatesSetSelected(canon); navTo('templates', false); }
                         } else if (_templatesSelected) {
                             // Deep-link no longer resolves to a real client → index.
-                            _templatesSelected = null; navTo('templates', false);
+                            _templatesSetSelected(null); navTo('templates', false);
                         }
                     });
                 } else if (hashRoute === 'smm-weekly-report' || hashRoute === 'smm-weekly-reports') {
@@ -66781,7 +66781,7 @@
                 navTo('calendar',false);return;
             }
             if(hash.startsWith('samples/')){navTo('samples',false);return;} // retired Samples Old link -> Sample reviews
-            if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(wlIsAllowedClient(tn)){_templatesSelected=wlCanonicalClient(tn);navTo('templates',false);return;}}
+            if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(wlIsAllowedClient(tn)){_templatesSetSelected(wlCanonicalClient(tn));navTo('templates',false);return;}}
             if(hash&&wlIsAllowedClient(hash)){render(wlCanonicalClient(hash),false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
             if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||savedNav==='time-off'||(savedNav==='kasper'&&_kasperUnlocked))){navTo(savedNav,false);return;}

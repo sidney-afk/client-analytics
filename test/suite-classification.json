@@ -72,6 +72,7 @@
     "boot-gate-parity.js",
     "browser-writer-auth.js",
     "bulk-refusals-honest.js",
+    "cal-comment-actions-wait-for-thread.js",
     "cal-comp-dot-matches-slot-colors.js",
     "cal-linear-missing-banner-seal.js",
     "cal-linear-status-meta-sealed-fetch.js",

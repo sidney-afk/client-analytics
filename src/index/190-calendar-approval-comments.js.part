@@ -2016,7 +2016,7 @@
                     </div>
                     <div class="cal-cm-row-body">${c.deleted ? 'Comment deleted.' : _calEsc(c.body || '')}${editedTag}${attachments}</div>
                 </div>
-                ${_calCommentActionsHtml(c, isReply)}
+                ${_calCommentActionsHtml(c, isReply, !c.canonical || _prodCanonicalCommentGate(post, comp || c.component).ready)}
             </div>`;
         };
 
@@ -2078,8 +2078,17 @@
         // Only the SMM resolves threads — the client never marks anything done.
         return _calCommentRole() === 'smm';
     }
-    function _calCommentActionsHtml(c, isReply) {
+    /* `threadReady` is false while this card's comment thread (the canonical
+       store) is still loading. The write path refuses every lifecycle action in
+       that window (canonical_comment_read_required): the refusal log showed
+       real people clicking Edit, Reply or Mark done before the thread landed
+       and getting a "reload" message for a click the page had offered them.
+       So the buttons are drawn disabled until the read lands; the modal
+       re-renders when it does. Legacy (non-canonical) comments are unaffected. */
+    function _calCommentActionsHtml(c, isReply, threadReady = true) {
         if (c.deleted) return '';
+        const wait = threadReady ? '' : ' disabled aria-disabled="true"';
+        const waitTitle = title => threadReady ? title : 'Comments are still loading';
         const replyIco  = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"/></svg>`;
         const checkIco  = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
         const undoIco   = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3.5L2 7l3.5 3.5M2 7h7a3.5 3.5 0 0 1 0 7"/></svg>`;
@@ -2087,21 +2096,21 @@
         // Replies share the parent thread's "done" state — only the root gets
         // the resolve toggle, and only the SMM ever sees that toggle.
         const rootId = isReply ? c.parent_id : c.id;
-        const replyBtn = c.done ? '' : `<button class="cal-cm-action" type="button" onclick="_calBeginReply(${_jsAttrArg(rootId)})" title="Reply">${replyIco}<span>Reply</span></button>`;
+        const replyBtn = c.done ? '' : `<button class="cal-cm-action" type="button"${wait} onclick="_calBeginReply(${_jsAttrArg(rootId)})" title="${waitTitle('Reply')}">${replyIco}<span>Reply</span></button>`;
         const editBtn = c.canonical && c.can_edit
-            ? `<button class="cal-cm-action" type="button" onclick="_calBeginCommentEdit(${_jsAttrArg(c.id)})" title="Edit"><span>Edit</span></button>`
+            ? `<button class="cal-cm-action" type="button"${wait} onclick="_calBeginCommentEdit(${_jsAttrArg(c.id)})" title="${waitTitle('Edit')}"><span>Edit</span></button>`
             : '';
         // Resolve toggle is only meaningful on a change-request (tweak). A plain
         // comment is a conversation, not a task, so it gets no "Mark done".
         const canResolve = c.canonical ? c.can_resolve : (_calCanResolveComment() && _calMsgIsTweak(c));
         const doneBtn  = (!isReply && canResolve)
             ? (c.done
-                ? `<button class="cal-cm-action is-done-on" type="button" onclick="_calToggleCommentDone(${_jsAttrArg(c.id)})" title="Reopen">${undoIco}<span>Reopen</span></button>`
-                : `<button class="cal-cm-action" type="button" onclick="_calToggleCommentDone(${_jsAttrArg(c.id)})" title="Mark thread done">${checkIco}<span>Mark done</span></button>`)
+                ? `<button class="cal-cm-action is-done-on" type="button"${wait} onclick="_calToggleCommentDone(${_jsAttrArg(c.id)})" title="${waitTitle('Reopen')}">${undoIco}<span>Reopen</span></button>`
+                : `<button class="cal-cm-action" type="button"${wait} onclick="_calToggleCommentDone(${_jsAttrArg(c.id)})" title="${waitTitle('Mark thread done')}">${checkIco}<span>Mark done</span></button>`)
             : '';
         const canDelete = c.canonical ? c.can_delete : _calCanDeleteComment(c);
         const delBtn = canDelete
-            ? `<button class="cal-cm-action is-danger" type="button" onclick="_calDeleteComment(${_jsAttrArg(c.id)})" title="Delete">${trashIco}<span>Delete</span></button>`
+            ? `<button class="cal-cm-action is-danger" type="button"${wait} onclick="_calDeleteComment(${_jsAttrArg(c.id)})" title="${waitTitle('Delete')}">${trashIco}<span>Delete</span></button>`
             : '';
         if (!replyBtn && !editBtn && !doneBtn && !delBtn) return '';
         return `<div class="cal-cm-actions">${replyBtn}${editBtn}${doneBtn}${delBtn}</div>`;

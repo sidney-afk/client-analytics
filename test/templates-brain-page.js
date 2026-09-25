@@ -16,6 +16,7 @@ const checks = [
   ['working links list recent Frame folders and Raw footage from batches', INDEX.includes("action: 'folders'") && INDEX.includes('${_tplRecentFolders(name)}')],
   ['the editor brief is shown first, facts folded under "All facts, with sources"', INDEX.includes('function _tplBriefView(name, b)') && INDEX.includes('All facts, with sources')],
   ['brain buttons pass keys through data attributes, not quoted JS (names with apostrophes)', !/onclick="tpl(Brain(Open|Send|Another)|Brief(Change|ToggleSource))\('\$\{/.test(INDEX) && INDEX.includes('onclick="tplBriefToggleSource(this.dataset.k)"')],
+  ['Quick look always shows Subtitles and Thumbnails with an Add or Edit form that sends a SPEC UPDATE', INDEX.includes('function tplSpecSave(key)') && INDEX.includes('SPEC UPDATE, entered in the Quick look form') && INDEX.includes("has ? 'Edit' : 'Add'")],
   ['brief labels use the darker ink tokens and swatches skip links', INDEX.includes('color: var(--kink)') && INDEX.includes('--brief-about-ink:') && INDEX.includes('never inside a link')],
   ['brief sections are colour-coded panels with shared labels shown once', INDEX.includes('function _tplBriefKind(heading)') && INDEX.includes('tpl-brief-label') && INDEX.includes('--brief-look:')],
   ['only the clicked brief row opens a change form, never a second copy in All facts', INDEX.includes('_tplBriefFormRow === srcKey') && INDEX.includes('if (fact && !fromBrief && _tplBriefFormRow)')],

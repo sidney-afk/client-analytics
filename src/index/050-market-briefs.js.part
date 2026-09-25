@@ -1391,7 +1391,7 @@
         // the multiple-link inputs (each keyed by its own data-attr).
         if (ae && ae.hasAttribute && (ae.hasAttribute('data-tpl-field') || ae.hasAttribute('data-tpl-set') || ae.hasAttribute('data-tpl-link-set'))) return;
         // Same for a "Send a change" box being typed into.
-        if (ae && ae.closest && ae.closest('.tpl-brain-form')) return;
+        if (ae && ae.closest && (ae.closest('.tpl-brain-form') || ae.closest('.tpl-spec-form'))) return;
         content.innerHTML = renderTemplatesView();
         mountTemplatesView();
     }

@@ -36,12 +36,12 @@ and `REPO_MAP.md`.
    versions are proven to write the same result.
 3. Screens move one at a time, behind a per-screen switch that can send
    people back to v1 in one change with no deploy.
-4. Client pages work on phones from day one; staff screens are built for
-   desktop first and made usable on phones where it matters (Calendar,
-   approvals, Workload glance).
+4. **Every screen works well on phones**, staff screens and Kasper review
+   included, not only client pages. v2 is designed phone-first: each screen
+   is laid out for a phone screen first, then widened for desktop.
 5. A **Clients** admin tab lets the owner edit client info in SyncView and
-   retire the Clients Info Sheet. If it lands in v1 first, v2 reuses its
-   tables and rules unchanged.
+   retire the Clients Info Sheet. It is built in v1 first (decided), and v2
+   reuses its tables and rules unchanged.
 6. Expected new monthly cost: about **$20 for Vercel Pro** (one seat), plus
    whatever GitHub charges once repos are private (likely $0 to $4). Details
    in section 10.
@@ -54,7 +54,7 @@ From `docs/independence/SYSTEM_MAP.md` section 4. "Who" is who uses it.
 
 | # | Screen | Who | Notes for v2 |
 |---|---|---|---|
-| A | Client links: approve, request changes, comment (Calendar and Sample Reviews portals) | Clients, via share link | Owner's top priority. Phones matter most here. |
+| A | Client links: approve, request changes, comment (Calendar and Sample Reviews portals) | Clients, via share link | Owner's top priority. |
 | B | Analytics (home) and per-client Analytics, incl. client analytics share link | Staff, clients | Reads Google Sheets today; waits for the Sheets move. |
 | C | Content Calendar (staff view, Create Post) | Staff | Biggest staff screen. |
 | D | Samples New (Sample Reviews) | Staff, clients | Staff side of screen A. |
@@ -65,7 +65,7 @@ From `docs/independence/SYSTEM_MAP.md` section 4. "Who" is who uses it.
 | I | Submit tab (native intake) | Staff | Shares Create Post code with C. |
 | J | Filming Plans | Staff | |
 | K | Templates and Caption prompts | Staff | |
-| L | TikTok Upload (and hidden TikTok Pilot) | Staff | Ask owner if still used before rebuilding. |
+| L | TikTok Upload (and hidden TikTok Pilot) | Staff | Used and important (owner, 2026-09-25). Rebuilt, not dropped. |
 | M | Onboarding and Sales intake lists | Staff | |
 | N | SMM Weekly Reports | Staff | |
 | O | Client Credentials | Admin | Sensitive. |
@@ -75,20 +75,22 @@ From `docs/independence/SYSTEM_MAP.md` section 4. "Who" is who uses it.
 ## 3. Rebuild order
 
 Each step is one or more PRs in the v2 repo, then its own switch-over
-(section 7). A step is "done" only when it has run live on v2 for real users
-for the agreed period with v1 still available.
+(section 7). A step is "done" when the owner has tried it on v2 and chooses
+to switch that screen over. There is no fixed waiting period; v1's copy
+stays available as the way back.
 
 | Step | Screen(s) | Why here |
 |---|---|---|
 | 0 | Skeleton: sign-in, client-link check, shared layout, error reporting, Vercel and test setup. No real screen. | Everything else needs it. |
-| 1 | **A. Client approve / request changes / comment**, Calendar portal then Sample Reviews portal. Mobile-first. | Owner's top priority. Small surface, all writes already go through Edge Functions, easy to compare. |
+| 1 | **A. Client approve / request changes / comment**, Calendar portal then Sample Reviews portal. | Owner's top priority. Small surface, all writes already go through Edge Functions, easy to compare. |
 | 2 | D. Samples New staff side, G. Kasper mode | Staff half of the same flow; same functions. |
-| 3 | Q. Clients admin (skip if v1 already built it; then only port its screen) | Needed to retire the Clients Info Sheet, and v2's roster reads depend on it. |
+| 3 | Q. Clients admin: port the screen of the v1 tab (built in v1 first, section 6) | v2's roster reads depend on it. Tables and rules are reused, not redesigned. |
 | 4 | C. Content Calendar, I. Submit | Largest staff screen; built on step 1's card code. |
 | 5 | F. SyncLinear production hub, H. Workload | Heaviest and most tangled in v1 (C3 converts it late for a reason). |
 | 6 | P. PTO, J. Filming Plans, K. Templates, N. SMM reports, M. Onboarding lists | Small, each behind one function already. Can run in parallel with 4 and 5. |
 | 7 | B. Analytics | Only after the Sheets move (Phase 2 of the Sheets plan) puts the data in Supabase. Rebuilding it against Google Sheets would be wasted work. |
-| 8 | O. Client Credentials, L. TikTok | Last, sensitive or possibly unused. |
+| 8 | L. TikTok Upload | Used and important, but its writes go through n8n only (section 4), so it needs its write inventory done first. Can move earlier if the owner wants it sooner. |
+| 8b | O. Client Credentials | Last because it is sensitive. |
 | 9 | Retire v1 | Section 7, "the end". |
 
 Rule for every step: port the behaviour, not the code. Read the matching v1
@@ -134,18 +136,33 @@ That list becomes the parity test (section 8).
 
 ## 5. Staff sign-in and client share links
 
-**Staff.** Today staff pick their name from the roster and enter a personal
-role key; boot re-checks it on the server. v2 options:
+**Staff: sign in with Google (decided 2026-09-25).** Today staff pick
+their name from a list and type a personal key. In v2 they press "Sign in
+with Google" instead.
 
-1. **Recommended: Supabase Auth** (Supabase's built-in login system) with
-   Google sign-in or an emailed one-time link, tied to the existing
-   `team_members` row that already holds each person's role. Edge Functions
-   then check a real signed login instead of a shared-style key, which also
-   fixes the open attribution issue (F31: v1 cannot prove which person made a
-   write). Functions must accept **both** the v1 role key and the new login
-   during side-by-side running.
-2. Keep the v1 role key in v2 unchanged. Quicker, but carries v1's weakness
-   forward.
+How it works, in plain English:
+
+- SyncView already has a staff list (the `team_members` table), one row per
+  person, holding their name and role (admin, manager, editor, and so on).
+- We add one thing to each row: **that person's Google email address.**
+- When someone signs in, Google tells SyncView "this is really
+  name@example.com". Google does the password checking, so SyncView never
+  stores a password.
+- SyncView then looks for that email in the staff list. **If it is there,**
+  the person gets in with the role on their row. **If it is not there, they
+  are refused**, even though Google recognised them. Having a Google account
+  is not enough; being on the list is what grants access.
+- To add a new staff member: add their Google email to their row. To remove
+  someone: remove the email (or mark the row inactive), and their next page
+  load is refused.
+
+Technically this uses Supabase Auth (Supabase's built-in login system) with
+Google as the sign-in provider, plus a check in the Edge Functions that
+matches the signed-in email to an active `team_members` row. Because each
+write now carries a real, signed login, it also fixes the open attribution
+issue (F31: v1 cannot prove which person made a write). While v1 and v2 run
+side by side, the Edge Functions accept **both** the v1 personal key and the
+new Google login.
 
 **Clients.** No login, as today. The share link carries a client token; v2
 checks it with the existing `client-token-verify` function and sends it on
@@ -153,14 +170,14 @@ every write. Staff keep minting links with `client-review-link`. The link
 format should be the same so a client's existing link keeps working when the
 route switch moves them to v2.
 
-**v2 keeps today's permissive behaviour at launch.** `calendar-upsert` and
-`sample-review-upsert` are deliberately un-gated by owner directive
-(`AGENTS.md`, "FROZEN client write gate"), because re-gating them has broken
-client approvals twice. v2 must not tighten this on its own. Failing closed
-(showing "link not valid" when the check errors, instead of v1's permissive
-fall-through, F38) is allowed only after BOTH (a) the owner says yes
-explicitly, AND (b) every active client has been re-issued a fresh link and
-confirmed on it. Until then v2 behaves exactly like v1 here.
+**Client links work exactly as today; nothing is refused (decided
+2026-09-25).** `calendar-upsert` and `sample-review-upsert` stay
+deliberately un-gated by owner directive (`AGENTS.md`, "FROZEN client write
+gate"), because re-gating them has broken client approvals twice. v2 copies
+v1's behaviour, including letting a client through when the link check
+errors. Any future tightening is a new owner decision and still needs both
+conditions in `AGENTS.md`: the owner's explicit yes, and every active client
+re-issued and confirmed on a fresh link.
 
 ## 6. Clients admin tab
 
@@ -171,9 +188,10 @@ is retired.
 - **Data.** Use the `clients` table plus the companion table the Sheets plan
   proposes (`client_profiles`, and `client_managers` for per-client manager
   fields). Do not design a second schema in v2.
-- **If built in v1 first** (allowed once client data is in Supabase per the
-  Sheets plan, Phase 1): v2 reuses those tables, the same Edge Function for
-  saving, and the same rules for who may edit. v2 only rebuilds the screen.
+- **Built in v1 first (decided 2026-09-25)**, right after Prism's Sheets to
+  Supabase Phase 1 puts client data in Supabase. v2 reuses those tables, the
+  same Edge Function for saving, and the same rules for who may edit. v2
+  only rebuilds the screen.
 - **Writes** go through one admin-only Edge Function that records who changed
   what and when (a history table), so a wrong edit can be seen and undone.
   No direct browser writes.
@@ -188,8 +206,10 @@ is retired.
 ## 7. Running v1 and v2 side by side
 
 **Addresses.** v1 stays at `syncview.synchrosocial.com` on GitHub Pages.
-v2 starts at a separate address, for example `app.syncview.synchrosocial.com`
-(or a Vercel preview address during building).
+v2 starts at its own "v2" address, for example
+`v2.syncview.synchrosocial.com` (decided 2026-09-25). Moving v2 to the normal
+address later is a setting change (a DNS record, the internet's address
+book, plus Vercel's domain setting), not a rebuild.
 
 **Switching one screen at a time.** A runtime flag, for example
 `v2_routes`, lists which screens (and optionally which clients or staff) go
@@ -197,17 +217,17 @@ to v2. v1 reads it on load: if the current screen is listed, it redirects to
 the same screen on v2, keeping the link's parameters. v2 does the reverse:
 if its screen is not listed, it sends the visitor back to v1.
 
-- Start each screen with the test client and the owner only, then staff,
-  then a few real clients, then everyone.
+- Start each screen with the test client and the owner only. **The owner
+  tries it and decides when to switch it** for staff, then clients. There is
+  no fixed side-by-side period (decided 2026-09-25).
 - **The way back** is removing the screen from the flag. No deploy, takes
   effect on the next page load. Because both versions write through the same
   functions to the same tables, nothing needs copying back.
-- Keep v1's copy of a screen working and tested until that screen has run on
-  v2 for everyone for the agreed period (proposed four weeks for client
-  approve, two weeks for others).
+- Keep v1's copy of a screen working and tested until the owner says it
+  can be retired.
 
 **The end.** When every screen is on v2: point `syncview.synchrosocial.com`
-at Vercel, keep v1 reachable at a backup address for one more month, then
+at Vercel (the setting change above), keep v1 reachable at a backup address for one more month, then
 archive it. Old share links keep working because the address and format do
 not change.
 
@@ -219,8 +239,10 @@ not change.
    changes with a note, comment, save a card) on the test client in v1 and in
    v2, then compare the resulting database rows and history events. Must
    match exactly, apart from time and id fields.
-2. **Browser tests** (Playwright, which drives a real browser) for each
-   screen, on a phone-size screen and a desktop screen for client pages.
+2. **Browser tests** (Playwright, which drives a real browser) for every
+   screen, staff and client alike, on a phone-size screen first and a
+   desktop screen second. A screen that fails on the phone size is not
+   ready.
 3. **The existing morning check** (`dawn-check`) gets a v2 variant for each
    switched screen, so both versions are checked each weekday while both run.
 4. Unit tests and type checks on every PR in the v2 repo.
@@ -278,30 +300,35 @@ re-checked before signing up.
   through shared Edge Functions; function changes must be backward
   compatible; parity script per screen.
 - **Double work during side-by-side running:** a v1 bug fix may also need a
-  v2 fix. Mitigation: keep the side-by-side window per screen short once it
-  is proven.
-- **Staff sign-in change** could lock someone out. Mitigation: functions
-  accept both methods until every staff member has signed in once on v2.
-- **Client link behaviour** (fail closed) could block a client whose link is
-  broken today. Mitigation: switch clients in small groups, test client first.
+  v2 fix. Mitigation: the owner switches each screen as soon as they are
+  happy with it, so windows stay short.
+- **Staff sign-in change** could lock someone out (for example a missing or
+  misspelled email on the list). Mitigation: fill in every staff email
+  before step 0 ends, and functions accept both methods until every staff
+  member has signed in once on v2.
+- **Phone-first staff screens** are harder for dense screens (SyncLinear,
+  Workload, Calendar). Mitigation: design each one's phone layout before
+  building it, and have the owner try it on a phone before switching.
 
 ## 12. Decisions for the owner
 
-1. **Staff sign-in:** move staff to proper logins (Google or emailed link)
-   in v2, or keep today's name plus personal key? Recommended: proper logins.
-2. **Client links:** v2 launches letting clients in as today. Later, once
-   every client has a fresh link and has confirmed it works, do you want
-   links that cannot be checked refused (safer)? Nothing changes until you
-   say yes.
-3. **Clients admin tab:** build it in v1 first (sooner, right after client
-   data reaches Supabase) or wait for v2? Recommended: v1 first, since it
-   unblocks retiring the Clients Info Sheet months earlier.
-4. **Side-by-side period:** four weeks for client approve and request
-   changes, two weeks for other screens?
-5. **Screens to drop:** is TikTok Upload / TikTok Pilot still used? Samples
-   Old is not rebuilt; old client links are redirected. OK?
-6. **Staff on phones:** which staff screens must work well on a phone
-   (suggested: Calendar, Sample Reviews, Workload glance)?
-7. **Cost:** approve Vercel Pro at about $20 a month.
-8. **Repo name and address** for v2 (for example `syncview-v2` and
-   `app.syncview.synchrosocial.com`).
+All decided by the owner on 2026-09-25.
+
+1. **Staff sign-in: decided.** Google sign-in. Each staff member's Google
+   email is added to the existing staff list; an email not on the list is
+   refused (section 5).
+2. **Client links: decided.** They work exactly as today; nothing is
+   refused (section 5).
+3. **Clients admin tab: decided.** Built in the current SyncView first,
+   after Prism's Sheets to Supabase Phase 1; v2 reuses it (section 6).
+4. **Side-by-side period: decided.** No fixed period. The owner tries each
+   v2 screen and decides when to switch it (section 7).
+5. **TikTok Upload: decided.** Used and important; it stays and is rebuilt
+   (section 3). Samples Old is still not rebuilt; its old client links are
+   redirected.
+6. **Phones: decided.** Every screen must work well on phones, staff
+   screens and Kasper review included. v2 is designed phone-first.
+7. **Cost: decided.** Vercel at about $20 a month is approved.
+8. **Address: decided.** v2 starts at a "v2" web address; moving it to the
+   normal address later is a setting change (section 7). The repo name
+   (for example `syncview-v2`) is chosen when it is created.

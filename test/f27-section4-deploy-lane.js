@@ -514,9 +514,12 @@ const CANDIDATES = new Map([
     // B2 (2026-09-23): _shared/native-brief-media.mjs learned syncview-media: refs; re-pinned with ef-fingerprint.
     // Rename release 2 (2026-09-23): production-write gains `title` and imports
     // _shared/title-name-rule.mjs (8 -> 9 files); re-pinned with ef-fingerprint.
-    source: '78cd3f60f269be34f923c8bb1bc58cbde3fdaa54d9e9ea84a450af7180d19879',
+    // Card link (2026-09-25, OPEN_REPAIRS 254): production-write links the card
+    // itself after a native create and imports ./card-link.mjs (9 -> 10 files);
+    // re-pinned with ef-fingerprint.
+    source: 'd96019b713653e9021392d44ee69b998de949ab3b700106d31bb6c1b9fa6d4e2',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
-    files: 9,
+    files: 10,
   }],
 ]);
 

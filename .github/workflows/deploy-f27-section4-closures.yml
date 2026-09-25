@@ -65,7 +65,7 @@ jobs:
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5
-      PRODUCTION_WRITE_FILE_COUNT: '9'
+      PRODUCTION_WRITE_FILE_COUNT: '10'
       # Re-pinned 2026-08-14 (fifth release): production-write gains the client
       # comment FRONT DOOR — clientCommentFrontDoorTargetAllowed admits
       # calendar-surface and unlinked-samples client comments under the
@@ -369,7 +369,12 @@ jobs:
       # --expected-only; entrypoint unchanged. The WR-101 receipt enum
       # (_shared/write-refusal-diagnostics.mjs) also learns `title`.
       # (Previous pin: 68cae746ad... -- production-write, files=8, #1527.)
-      PRODUCTION_WRITE_SOURCE_SHA256: 78cd3f60f269be34f923c8bb1bc58cbde3fdaa54d9e9ea84a450af7180d19879
+      # Re-pinned 2026-09-25 (OPEN_REPAIRS 254): production-write links the card's
+      # deliverable ids itself after a native create, via ./card-link.mjs, so the
+      # bundle grows from 9 files to 10. Regenerated with scripts/ef-fingerprint.js
+      # --slugs=production-write --expected-only; entrypoint unchanged.
+      # (Previous pin: 78cd3f60f2... -- production-write, files=9, 2026-09-23.)
+      PRODUCTION_WRITE_SOURCE_SHA256: d96019b713653e9021392d44ee69b998de949ab3b700106d31bb6c1b9fa6d4e2
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

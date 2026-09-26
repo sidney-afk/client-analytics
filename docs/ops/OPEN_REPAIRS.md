@@ -29224,7 +29224,36 @@ open client link in 9.3 s without a refresh (before: never). Live realtime
 timing needs a machine where WebSockets work: run the same script there.
 Guard: `test/calendar-realtime-fallback.js`.
 
-## 265. [2026-09-26, OPEN] The database's temporary disk ran out on a read-only query
+## 265. [2026-09-26, BUILT] Workload plan-day changes reach other open boards in about a second
+
+(262 and 263 are claimed by concurrent branches; another may still collide.)
+A drag to a work day reached other open Workload pages only through the
+5-minute safety poll. `workload_plan` stays private (not in the realtime
+publication, no anon/authenticated grants; no DB change here). After a
+CONFIRMED save, `_wlPersistPlanDate` now calls `wlAnnouncePlanSaved()`, which
+sends a Supabase Realtime BROADCAST on channel `workload-plan` carrying only
+`{kind:'plan', at, from}` (`from` is a random per-page id; no issue id,
+client, title or date), coalesced 250 ms so a group drag sends one. Every open
+board subscribes; a hint that is not its own echo triggers the existing
+authorized re-read (`_wlV2CheckWatermark` -> `wlRefetchSilent`), debounced
+600 ms. Same-browser tabs also get a `localStorage`/`storage` hint. Channel
+status (CONNECTING / SUBSCRIBED / CHANNEL_ERROR / TIMED_OUT / CLOSED, send
+failures, catch-ups) is in `wlV2Status().planLive` and `wlPlanLiveStatus()`;
+a re-subscribe after a drop does one catch-up re-read. The 5-minute poll
+remains. Guard: `test/workload-plan-live.js` (mocked channel, 29 checks).
+UNVERIFIED live: the build sandbox blocks WebSockets, so end-to-end latency
+and that anon broadcast is permitted on this project (no private-channel
+authorization required) were not observed. Check with `wlV2Status().planLive`
+in two browsers.
+Review follow-up (PR #1684): broadcast hints are shape-validated and
+rate-limited to one re-read per 10 s per page (a hint inside the window
+schedules one re-read at its end); a hint arriving while the page is busy is
+kept and retried every 2 s (bounded); leaving Workload inside the 250 ms
+coalesce window flushes the confirmed announcement instead of dropping it.
+Sender authentication would need private channels plus `realtime.messages`
+RLS (a DB/auth change) and is left for later.
+
+## 266. [2026-09-26, OPEN] The database's temporary disk ran out on a read-only query
 
 While measuring the card change journal for the Track-B backup failure, one
 read-only aggregate over `card_change_journal` (grouping about 116,000 rows by
@@ -29235,11 +29264,11 @@ scratch space for sorts and hashes is small next to that table. The same
 measurements were then taken on a 5% `tablesample`, which ran fine.
 
 Not fixed. Worth knowing before any large read, backfill, index build or
-`pg_dump` against the journal; 266 is the growth that makes it likely. If it
+`pg_dump` against the journal; 267 is the growth that makes it likely. If it
 recurs on a normal query, check the project's disk usage in the Supabase
 dashboard before anything else.
 
-## 266. [2026-09-26, PROPOSED] The card change journal records timestamp-only saves and repeats its column layout
+## 267. [2026-09-26, PROPOSED] The card change journal records timestamp-only saves and repeats its column layout
 
 Found tracing the Track-B history-v11 backup failure ("dump is not valid
 UTF-8"), which was really the dump passing the backup script's ~512 MB string
@@ -29277,4 +29306,3 @@ or, in the Supabase SQL Editor, as three separate runs in this order: (1) the
 first `do $pre$ ... $pre$;` block alone (read-only checks); (2) the
 `create index concurrently ...` statement alone; (3) everything from `begin;`
 to `commit;`. Stop at the first error.
-

@@ -24,5 +24,6 @@
 133-core-loading-skeletons.js.part
 040-shared-briefs.js.part
 310-sales-intake-hiring.js.part
+220-production-attribution-views.js.part
 130-calendar-model-cache.js.part
 134-calendar-prefs-mount.js.part

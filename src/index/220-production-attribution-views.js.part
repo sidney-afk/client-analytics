@@ -1,3 +1,31 @@
+import { wlWorkloadTodayISO } from './070-workload-source.js';
+import {
+  _svDateHtml, _svSelectHtml, _syncviewStaffIdentityForHeaders
+} from './100-onboarding-staff-controls.js';
+import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import {
+  PROD_ATTRIBUTION_CONFLICT, PROD_ATTRIBUTION_NEEDS, PROD_BOARD_STATUS, PROD_CREATED_STATUS,
+  PROD_CREATE_CLOSED_TEXT, PROD_CREATE_DRAFT_KEY, PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS,
+  PROD_CREATIVE_STATUS_TRANSITIONS, PROD_DELETE_UNSUPPORTED, PROD_EDITOR_COLORS, PROD_ORDER_KEYS,
+  PROD_STATUS, PROD_STATUS_FROM_ARTIFACT, PROD_STATUS_META, PROD_STATUS_ORDER, _prodArtifactStatus,
+  _prodBoardStatus, _prodDeliverableLive, _prodEnabled, _prodHasOwn, _prodHashText, _prodInitials,
+  _prodLinearRaw, _prodNativeEpochOn, _prodPreviewText, _prodResolveBatchParentNodes,
+  _prodResolveParentLinks, _prodSaveDisplayPrefs, _prodState
+} from './210-production-state-writes.js';
+import {
+  _prodBoardDragOver, _prodBoardDragStart, _prodBoardDrop, _prodClearBoardDropFx,
+  _prodLabelColorStyle, _prodLoadCreateOptions
+} from './230-production-create-comments.js';
+import {
+  PROD_MON, _prodAutoRefreshOnReturn, _prodBoardFlat, _prodCardClick, _prodCardFocusValid,
+  _prodCloseSub, _prodFlatOrder, _prodIsoDayNumber, _prodIsoParts, _prodIssueRows, _prodLayerPop,
+  _prodLoadBriefs, _prodMoveCardFocus, _prodMoveFocus, _prodMyMemberId, _prodOpenDeliverable,
+  _prodOpenPicker, _prodOpenProject, _prodOpenProjectLeadPicker, _prodOpenProjectStatusPicker,
+  _prodOpenProjectTargetPicker, _prodOpenTeamView, _prodPolicyTodayISO, _prodProjectAllRows,
+  _prodReconcileSelection, _prodSetQuery, _prodSetSubPop, _prodSetView, _prodTabAllows,
+  _prodTitleAttrs, _prodToggleCardSelection, _prodToggleRowSelection, _prodWirePlainMenu
+} from './250-production-controls-data.js';
+import { _prodRender } from './260-production-refresh-boot.js';
         function _prodConfiguredProjectIds(value) {
             if (typeof value === 'string') {
                 const text = value.trim();
@@ -1528,7 +1556,7 @@
             p.style.left = x + 'px';
             p.style.top = y + 'px';
             p.style.visibility = 'visible';
-            _prodSubPop = p;
+            _prodSetSubPop(p);
         }
         // PORT-DELTA: openFilterMenu uses live adapter values; filter changes are pure local reads.
         function _prodOpenFilterMenu(ev) {
@@ -1959,7 +1987,7 @@
             document.querySelectorAll('.prod-cmd-bd').forEach(el => el.remove());
             _prodState.paletteOpen = false;
             document.querySelectorAll('#prodFilterBtn.menu-open, #prodGroupBtn.menu-open').forEach(el => el.classList.remove('menu-open'));
-            _prodSubPop = null;
+            _prodSetSubPop(null);
             _prodHideTip();
         }
         function _prodShowTip(el) {
@@ -2712,3 +2740,22 @@
             _prodRenewCreateIntent();
             _prodRenderCreateModal();
         }
+export {
+  PROD_FILE_LINK_ICON, PROD_REFRESH_ICON, _prodAdapter, _prodApplySubIssueVisibility,
+  _prodAssetEligibleRow, _prodAttributionResolved, _prodAttributionSyncClientLabel,
+  _prodAttributionSyncPending, _prodAvatar, _prodBatch, _prodBatchAssetSource,
+  _prodBatchParentIssue, _prodBatchRows, _prodBoardLabel, _prodCanWrite, _prodChildrenOf,
+  _prodClearLayer, _prodClient, _prodClientFilterLabel, _prodClients, _prodCopyIssueIds,
+  _prodCopyLink, _prodCreateGateText, _prodCreateRecoveryGateText, _prodCreateTopbarButton,
+  _prodCreateValidDate, _prodCreativeNextStatuses, _prodCurIssuesUnfiltered,
+  _prodDescriptionOperation, _prodDisplayClient, _prodEditors, _prodEnsureOverlays, _prodFmtDate,
+  _prodFmtDateFull, _prodHideTip, _prodIcon, _prodIdentityRepairGateText, _prodIssue,
+  _prodIssueDisplayLabel, _prodIssueIdHTML, _prodIssueLabel, _prodIssueOrderCompare, _prodIssues,
+  _prodMatchFilters, _prodMember, _prodNormalizeCreateAssignees, _prodOpenRowId,
+  _prodPersistCreateDraft, _prodPickerEmptyState, _prodPillsHTML, _prodProjectGlyph, _prodProjects,
+  _prodReadonlyGuard, _prodRenderCreateAssignees, _prodRenderCreateCatalog, _prodRenderCreateModal,
+  _prodRenewCreateIntent, _prodRowOverdue, _prodRowOverdueText, _prodStatusAge,
+  _prodStatusBreakdown, _prodStatusIcon, _prodStatusLabel, _prodStatusSVG, _prodSubProgress,
+  _prodTeamLabel, _prodToast, _prodUniqueRows, _prodWriteGateAttrs, _prodWriteGateText,
+  _prodWriteRequestId, _prodWriteTeam
+};

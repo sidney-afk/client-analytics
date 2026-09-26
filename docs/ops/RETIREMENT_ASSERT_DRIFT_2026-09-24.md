@@ -1,3 +1,5 @@
+> **Superseded 2026-09-26:** applied as migration `retirement_assert_repin` (20260924190009, live). See [STATE_OF_THINGS](../STATE_OF_THINGS.md).
+
 # Retirement contract assert drift — 2026-09-24
 
 Proposal only. Nothing was applied; every database read below was a read-only SELECT against production.

@@ -1,3 +1,5 @@
+> **Superseded 2026-09-26:** by the native brief media copy into `syncview-native-brief-media` (1,338 files verified live, flag `required` since 2026-09-21). See [STATE_OF_THINGS](../STATE_OF_THINGS.md).
+
 # Linear media rescue (LX-E)
 
 Re-hosting `uploads.linear.app` images into the already-live

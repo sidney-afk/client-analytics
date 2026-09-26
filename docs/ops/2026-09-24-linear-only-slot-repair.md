@@ -1,3 +1,5 @@
+> **Superseded 2026-09-26:** the dry run found 0 slots to connect, so there is nothing to apply; kept as the script's record. See [STATE_OF_THINGS](../STATE_OF_THINGS.md).
+
 # Linear-only Calendar slots: repair proposal (NOT APPLIED)
 
 **Date:** 2026-09-24 · **Session:** Keel · **Status: NOT APPLIED.** Lighthouse

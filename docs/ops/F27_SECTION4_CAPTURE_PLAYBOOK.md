@@ -1,3 +1,5 @@
+> **Superseded 2026-09-26:** the Section 4 lane now captures and releases three functions (production-write, deliverable-write, batch-write); linear-outbound was deleted 2026-09-24. See [STATE_OF_THINGS](../STATE_OF_THINGS.md).
+
 # F27 Section 4 — capturing the sealed rollback bundle (owner, Windows)
 
 The deploy lane (`.github/workflows/deploy-f27-section4-closures.yml`) will not

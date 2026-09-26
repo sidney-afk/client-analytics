@@ -1,3 +1,5 @@
+> **Superseded 2026-09-26:** releases 1 and 2 are applied live (migrations 20260923181346 and 20260923220213; `rename_propagation` flag on since 2026-09-23). See [STATE_OF_THINGS](../STATE_OF_THINGS.md).
+
 # Card ⇄ sub-issue rename: plan (phase 1 of 3)
 
 Status: **plan only.** No code, no migration, no deploy. Written 2026-09-23 against

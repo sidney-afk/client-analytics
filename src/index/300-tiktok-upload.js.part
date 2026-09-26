@@ -210,6 +210,7 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
         .tk-progress-bar { height: 100%; background: var(--text-primary); width: 0%; transition: width 0.2s; }
         .tk-error { color: var(--sv-fg-dc2626); font-size: 0.82rem; font-weight: 600; }
         .tk-client-search .search-bar-pill { width: 100%; box-sizing: border-box; }
+        .tk-client-search .search-suggestion.active { background: var(--bg); color: var(--text-primary); }
         .tk-q-tabs { display: flex; gap: 4px; padding: 3px; background: var(--bg); border-radius: 10px; margin-bottom: 6px; }
         .tk-q-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 0 6px; border: 0; border-radius: 8px; background: transparent; font-family: inherit; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
         .tk-q-tab:hover { color: var(--text-primary); }
@@ -672,7 +673,7 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
                 <div class="tk-row">
                     <div class="tk-client-search search-bar-wrap" id="tkClientWrap">
                         <div class="search-bar-pill">
-                            <input class="search-bar-input" id="tkClientInput" type="text" placeholder="Search clients…" value="${_tkEscape(tkState.client || '')}" autocomplete="off" aria-label="Client" ${tkState.submitting ? 'disabled' : ''}>
+                            <input class="search-bar-input" id="tkClientInput" type="text" placeholder="Search clients…" value="${_tkEscape(tkState.client || '')}" autocomplete="off" aria-label="Client" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="tkClientResults" ${tkState.submitting ? 'disabled' : ''}>
                             <div class="search-ghost-overlay" id="tkClientGhost"></div>
                             <button type="button" class="search-bar-icon" id="tkClientIcon" title="Search" aria-label="Search clients" ${tkState.submitting ? 'disabled' : ''}>
                                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -844,14 +845,28 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
         const icon = document.getElementById('tkClientIcon');
         if (!wrap || !input || !box || !results) return;
         const names = _tkClientNames();
-        const pickAttr = (name) => `data-tk-client-pick="${_tkEscape(name)}"`;
+        let optSeq = 0;
+        const pickAttr = (name) => `data-tk-client-pick="${_tkEscape(name)}" role="option" id="tkClientOpt${optSeq++}" aria-selected="false"`;
+        let active = -1;
+        const options = () => [...results.querySelectorAll('[data-tk-client-pick]')];
+        const setActive = (i) => {
+            const opts = options();
+            active = opts.length ? (i + opts.length) % opts.length : -1;
+            opts.forEach((o, k) => { o.classList.toggle('active', k === active); o.setAttribute('aria-selected', String(k === active)); });
+            if (active >= 0) { input.setAttribute('aria-activedescendant', opts[active].id); opts[active].scrollIntoView({ block: 'nearest' }); }
+            else input.removeAttribute('aria-activedescendant');
+        };
         const render = () => {
             const q = input.value === (tkState.client || '') ? '' : input.value;
+            optSeq = 0;
             results.innerHTML = clientSearchResultsHtml(q, names, getRecent().filter(n => names.includes(n)), pickAttr);
+            setActive(-1);
             if (ghost) ghost.innerHTML = clientSearchGhostHtml(q, names);
         };
         const close = () => {
             box.classList.remove('open');
+            input.setAttribute('aria-expanded', 'false');
+            setActive(-1);
             if (ghost) ghost.innerHTML = '';
             input.value = tkState.client || '';
             document.removeEventListener('click', onOutside);
@@ -860,6 +875,7 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
         const openBox = () => {
             if (box.classList.contains('open')) return;
             box.classList.add('open');
+            input.setAttribute('aria-expanded', 'true');
             setTimeout(() => document.addEventListener('click', onOutside), 0);
         };
         const pickFirst = () => {
@@ -871,7 +887,18 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
         input.addEventListener('input', () => { render(); openBox(); });
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') { close(); input.blur(); return; }
-            if (e.key === 'Enter') { e.preventDefault(); pickFirst(); }
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!box.classList.contains('open')) { render(); openBox(); }
+                setActive(active + (e.key === 'ArrowDown' ? 1 : -1));
+                return;
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const opt = options()[active];
+                if (opt) { close(); _tkPickClient(opt.getAttribute('data-tk-client-pick')); return; }
+                pickFirst();
+            }
         });
         icon?.addEventListener('click', () => { if (!pickFirst()) { input.focus(); openBox(); } });
         results.addEventListener('click', (e) => {
@@ -1654,10 +1681,16 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
         tkState.queueTab = tab;
         tkState.queueLimit = TK_QUEUE_PAGE;
         _tkRenderQueue();
+        // The render replaces the tab strip; keep keyboard focus on the chosen tab.
+        document.querySelector('#tkQueueCol .tk-q-tab.on')?.focus();
     }
     function _tkQueueShowMore() {
+        const firstNew = tkState.queueLimit;
         tkState.queueLimit += TK_QUEUE_PAGE;
         _tkRenderQueue();
+        // Focus the first row the button revealed, so Tab carries on from there.
+        const row = document.querySelectorAll('#tkQueueCol .tk-queue-item')[firstNew];
+        (row?.querySelector('button, a') || document.querySelector('#tkQueueCol .tk-q-more') || document.querySelector('#tkQueueCol .tk-q-tab.on'))?.focus();
     }
 
     function _tkRenderQueue() {

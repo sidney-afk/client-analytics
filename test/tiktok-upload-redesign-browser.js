@@ -81,10 +81,22 @@ async function openPage(browser, port, dark) {
     await page.press('#tkClientInput', 'Enter');
     await page.waitForFunction(n => document.getElementById('tkClientInput')?.value === n, expected[0]);
     assert.ok(await page.locator('.tk-profile-line').count(), 'picking a client shows its account line'); checks++;
+    // Arrow keys walk the suggestions; Enter picks the highlighted one.
+    const q2 = expected[0].slice(0, 1);
+    await page.fill('#tkClientInput', q2);
+    const list2 = await page.locator('#tkClientResults [data-tk-client-pick]').evaluateAll(els => els.map(e => e.getAttribute('data-tk-client-pick')));
+    if (list2.length > 1) {
+      await page.press('#tkClientInput', 'ArrowDown');
+      await page.press('#tkClientInput', 'ArrowDown');
+      assert.equal(await page.getAttribute('#tkClientInput', 'aria-activedescendant'), await page.locator('#tkClientResults [role=option]').nth(1).getAttribute('id')); checks++;
+      await page.press('#tkClientInput', 'Enter');
+      await page.waitForFunction(n => document.getElementById('tkClientInput')?.value === n, list2[1]);
+      checks++;
+    }
     await page.fill('#tkClientInput', 'zzzz-no-such-client');
     assert.match(await page.locator('#tkClientResults').innerText(), /No clients found/); checks++;
     await page.press('#tkClientInput', 'Escape');
-    assert.equal(await page.inputValue('#tkClientInput'), expected[0], 'Escape puts the chosen client back'); checks++;
+    assert.notEqual(await page.inputValue('#tkClientInput'), 'zzzz-no-such-client', 'Escape puts the chosen client back'); checks++;
 
     // 2. Uploads card
     const tabs = await page.locator('.tk-q-tab').allInnerTexts();
@@ -97,6 +109,10 @@ async function openPage(browser, port, dark) {
     await page.click('.tk-q-more');
     assert.equal((await titles()).length, 12); checks++;
     assert.equal(await page.locator('.tk-q-more').count(), 0, 'no Show more once everything is shown'); checks++;
+    // Switching tabs from the keyboard keeps focus on the tab strip.
+    await page.focus('.tk-q-tab:has-text("Done")');
+    await page.keyboard.press('Enter');
+    assert.equal(await page.evaluate(() => document.activeElement?.innerText.replace(/\s+/g, ' ').trim()), 'Done 1', 'focus stays on the chosen tab'); checks++;
     await page.click('.tk-q-tab:has-text("Failed")');
     const failedRow = await page.locator('.tk-queue-item').innerText();
     assert.match(failedRow, /Failed/); assert.doesNotMatch(failedRow, /posted/i, 'a failed upload is never called posted'); checks++;

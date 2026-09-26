@@ -1365,7 +1365,7 @@ said so.
 - **Parity note:** matches Linear, where a parent issue is never listed among
   its own sub-issues.
 
-## 2026-09-26 — Production follows changes live (OPEN_REPAIRS 263)
+## 2026-09-26 — Production follows changes live (OPEN_REPAIRS 266)
 
 Linear updates an open board as soon as someone else changes an issue. SyncLinear
 now does the same through a realtime channel on `deliverables`, `batches` and

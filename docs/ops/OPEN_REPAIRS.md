@@ -29156,19 +29156,6 @@ including the two-device case, six seeds archived. Side effect to know: the
 review Approve failure path (staff SMM review too) now redraws the whole
 calendar view instead of repainting one card.
 
-<<<<<<< HEAD
-## 263. [2026-09-26, BUILT] Production follows changes live instead of waiting for the 30-second poll
-
-**What.** The Production tab (`?prod=1`) learned about other people's edits only from the 30 s delta tick, paused on a hidden tab. It now opens one supabase-js realtime channel (`production_live`: postgres_changes on `deliverables`, `batches`, `deliverable_events`, the anon read path Workload already uses) and feeds every event into the existing `_prodDeltaRefresh`. Nothing about what is read, merged or painted changed.
-
-**How.** `_prodRtCreate` in `src/index/260-production-refresh-boot.js.part`: 300 ms debounce, bursts coalesced into one read; a batch change, a delete, a deliverable_events insert or a row whose `updated_at` did not move (a propagated rename) upgrades that read to a full reload (the watermark delta cannot see any of them); echoes of this tab's own gateway writes (same `updated_at` and same visible fields as the held row) are ignored; a declined refresh (write in flight, open menu, typing) is retried, and a hidden tab holds the read until shown. The poll remains the fallback: 90 s only while the channel reports SUBSCRIBED (a 30 s margin under the 120 s stale threshold, so the freshness control does not flicker), 30 s on anything else, and a SUBSCRIBED after a drop runs one full catch-up. Leaving Production removes the channel within one 5 s tick. `window.prodRtStatus()` shows status, counters and the current poll cadence.
-
-**Kill switch.** Runtime flag `prod_realtime` = `{"enabled": false}` (or localStorage `syncview.prodRealtime` = `off` in one browser) closes the channel and restores the 30 s poll; a missing row means on. Procedure in `ROLLBACK.md`.
-
-**Proof.** `test/prod-realtime-controller.js` (unit) drives the controller with a mocked channel and fake clock. No database change.
-
-**Not verified.** The sandbox proxy blocks WebSockets, so live event delivery and timings were not observed; the first real check is `prodRtStatus()` in a browser on the live site (expect `status: "SUBSCRIBED"`, `pollMs: 90000`).
-=======
 ## 262. [2026-09-26, BUILT] The separate Samples tab on Kasper's page is gone
 
 **Problem.** After 259 listed samples in the Review queue, the Samples tab was
@@ -29208,4 +29195,15 @@ the label changed; the queue rules, Urgent button and save paths are untouched.
 
 **Proof.** `qa/probes/kasper_samples_in_review.js` checks the label after the
 approve plus change request, at 1440, 390 and 375 on the test client: 93 of 93.
->>>>>>> origin/main
+
+## 266. [2026-09-26, BUILT] Production follows changes live instead of waiting for the 30-second poll
+
+**What.** The Production tab (`?prod=1`) learned about other people's edits only from the 30 s delta tick, paused on a hidden tab. It now opens one supabase-js realtime channel (`production_live`: postgres_changes on `deliverables`, `batches`, `deliverable_events`, the anon read path Workload already uses) and feeds every event into the existing `_prodDeltaRefresh`. Nothing about what is read, merged or painted changed.
+
+**How.** `_prodRtCreate` in `src/index/260-production-refresh-boot.js.part`: 300 ms debounce, bursts coalesced into one read; a batch change, a delete, a deliverable_events insert or a row whose `updated_at` did not move (a propagated rename) upgrades that read to a full reload (the watermark delta cannot see any of them); echoes of this tab's own gateway writes (same `updated_at` and same visible fields as the held row) are ignored; a declined refresh (write in flight, open menu, typing) is retried, and a hidden tab holds the read until shown. The poll remains the fallback: 90 s only while the channel reports SUBSCRIBED (a 30 s margin under the 120 s stale threshold, so the freshness control does not flicker), 30 s on anything else, and a SUBSCRIBED after a drop runs one full catch-up. Leaving Production removes the channel within one 5 s tick. `window.prodRtStatus()` shows status, counters and the current poll cadence.
+
+**Kill switch.** Runtime flag `prod_realtime` = `{"enabled": false}` (or localStorage `syncview.prodRealtime` = `off` in one browser) closes the channel and restores the 30 s poll; a missing row means on. Procedure in `ROLLBACK.md`.
+
+**Proof.** `test/prod-realtime-controller.js` (unit) drives the controller with a mocked channel and fake clock. No database change.
+
+**Not verified.** The sandbox proxy blocks WebSockets, so live event delivery and timings were not observed; the first real check is `prodRtStatus()` in a browser on the live site (expect `status: "SUBSCRIBED"`, `pollMs: 90000`).

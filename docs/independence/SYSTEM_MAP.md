@@ -629,7 +629,7 @@ n8n in the metric read path.*
   downscales to 1600px on the long edge first and never holds a storage key.
   Also fires the shared Sheets essentials in the background for app chrome. The tab reads the
   single `prod_authority` runtime-flag row to gate controls.
-  Live updates (OPEN_REPAIRS 263): one realtime channel on `deliverables`, `batches` and
+  Live updates (OPEN_REPAIRS 266): one realtime channel on `deliverables`, `batches` and
   `deliverable_events` triggers the existing delta/full refresh; the poll is 90 s while
   SUBSCRIBED and 30 s otherwise. The `prod_realtime` runtime flag (`{"enabled": false}`;
   missing/unreadable = on) or localStorage `syncview.prodRealtime=off` turns the live path off.

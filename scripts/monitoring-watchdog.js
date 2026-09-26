@@ -257,7 +257,8 @@ const LANES = Object.freeze([
    * cadence-plus-drift shape as the other sub-hourly lanes here.
    */
   { key: 'workload_source_freshness', label: 'workload source freshness', cadence: 'schedule 30m', max_age_minutes: 90,
-    hosts: ['workload-source-freshness.yml'], retired: null },
+    hosts: ['workload-source-freshness.yml'],
+    retired: { at: '2026-09-26', reason: 'workload-reads-native-snapshot' } },
   { key: 'outbox_debt_census', label: 'mirror outbox debt census', cadence: 'schedule 30m', max_age_minutes: 90,
     hosts: ['outbox-debt-census.yml'], retired: null },
   // Prepared native intake repair is dormant until the protected repository

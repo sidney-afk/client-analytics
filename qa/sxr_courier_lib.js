@@ -410,6 +410,21 @@ function archiveSafe(id, tries) {
   }
   return !sawRow;
 }
+// Archive TEST rows a crashed earlier run left behind. Only rows untouched for
+// minAgeMs are taken, so a concurrent run's live fixture is left alone, and
+// archiveSafe re-reads each row scoped to the TEST client before writing, so a
+// same-named row anywhere else is never touched. Returns { archived, failed }.
+function archiveStaleTestRows(nameRe, minAgeMs, log) {
+  const cutoff = new Date(Date.now() - (minAgeMs || 2 * 3600 * 1000)).toISOString();
+  const out = { archived: 0, failed: 0 };
+  const rows = supa('updated_at=lt.' + encodeURIComponent(cutoff) + '&or=(status.neq.Archived,status.is.null)&select=id,name&limit=1000') || [];
+  for (const r of rows) {
+    if (!nameRe.test(String(r.name || ''))) continue;
+    try { if (archiveSafe(r.id)) out.archived++; else out.failed++; }
+    catch (e) { out.failed++; if (log) log('stale archive of ' + r.id + ' failed: ' + (e.message || e)); }
+  }
+  return out;
+}
 function reorder(items) { return nodePost(SXR_REORDER, { client: 'sidneylaruel', items }); }
 // Read TEST rows back from Supabase REST using the same fileless transport as
 // the browser courier. The protected URL and headers stay in stdin config, and
@@ -866,7 +881,7 @@ async function kasperCal(browser, opts) {
 // Kasper review surface for the SAMPLES sub-tab (M5a). Opens ?Kasper=1&sxr=1,
 // seeds the Kasper unlock (sessionStorage syncview_kasper_unlocked='ok',
 // KASPER_UNLOCK_KEY ~25553) + the auth flag, waits for the Kasper page, then
-// switches to the samples sub-tab via _kasperGotoTab('samples'). Returns the page.
+// opens the Review tab, where samples are listed with calendar cards. Returns the page.
 async function kasper(browser, opts) {
   const ctx = await _ctx(browser, opts);
   // Seed BOTH the auth flag (localStorage) and the Kasper unlock (sessionStorage)
@@ -879,13 +894,13 @@ async function kasper(browser, opts) {
   await page.goto(ORIGIN + '/index.html?Kasper=1&sxr=1&v2debug=1#kasper', { waitUntil: 'domcontentloaded', timeout: 45000 });
   // Wait for the Kasper view + the samples sub-tab handler to be wired.
   await page.waitForFunction(() => typeof window._kasperGotoTab === 'function' && typeof window._kasperRenderSamples === 'function', { timeout: 20000 }).catch(() => {});
-  // Switch to the samples sub-tab.
-  await page.evaluate(() => { try { window._kasperGotoTab('samples'); } catch (e) {} });
+  // Samples are listed in the Review tab (the Samples subtab was removed).
+  await page.evaluate(() => { try { window._kasperGotoTab('review'); } catch (e) {} });
   await page.waitForTimeout(800);
   return page;
 }
 
-module.exports = {
+module.exports = { archiveStaleTestRows,
   PW, launch, open, smm, client, kasper, smmCal, clientCal, kasperCal,
   up, archiveSafe, upCal, archiveCalSafe, reorder, supa, supaCal, supaEvents,
   poll, appErrs, ORIGIN, SUPA, KEY, COURIER, filelessHttpRequest: _curlRequestSync,

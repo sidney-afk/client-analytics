@@ -117,6 +117,10 @@ const ADMIN_CASES = [
   ['/#calendar', '/calendar', 'calendar'],
   ['/#calendar/fixture-client/p_fixture_1', '/calendar/fixture-client/p_fixture_1', 'calendar'],
   ['/#templates', '/templates', 'templates'],
+  ['/#templates/fixture-client', '/templates/fixture-client', 'templates'],
+  ['/?prod=1', '/synclinear', 'production'],
+  ['/#time-off', '/time-off', null],
+  ['/#smm-weekly-report', '/smm-weekly-report', 'smm-weekly-report'],
   ['/#filming-plans', '/filming-plans', 'filming-plans'],
   ['/#tiktok-upload', '/tiktok-upload', 'tiktok-upload'],
   ['/#sample-reviews', '/sample-reviews', 'sample-reviews'],
@@ -170,6 +174,8 @@ const ADMIN_CASES = [
     // The client and card reach the app intact.
     const deepCal = await land(ctx, base, `/calendar/${slug}/p_fixture_1`);
     check(deepCal.bootLegacy === `#calendar/${slug}/p_fixture_1|`, 'calendar deep link carries client and card');
+    const deepTpl = await land(ctx, base, `/templates/${slug}`);
+    check(deepTpl.bootLegacy === `#templates/${slug}|`, 'templates deep link carries the client');
     const deepProd = await land(ctx, base, '/synclinear/del_fixture_1');
     check(/[?&]d=del_fixture_1/.test(deepProd.bootLegacy), 'SyncLinear deep link carries the card');
     check(errors.length === 0, 'page errors: ' + errors.slice(0, 3).join(' | '));

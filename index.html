@@ -8614,7 +8614,7 @@
 </div>
 
 <header class="header" style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;">
-    <a class="logo" href="./" onclick="if(_modClick(event))return;event.preventDefault();goHome();" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
+    <a class="logo" href="/" onclick="if(_modClick(event))return;event.preventDefault();goHome();" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
         <img src="/syncview-favicon.png" alt="SyncView">
         <span class="logo-text">SyncView</span>
     </a>
@@ -12702,7 +12702,7 @@
         // too rather than losing the match.
         return _obvSlugSet.has(slug + slug);
     }
-    function _obvOpenStandalone(slug){ try { window.open('?onboarding_view=' + encodeURIComponent(slug), '_blank', 'noopener'); } catch(e){} }
+    function _obvOpenStandalone(slug){ try { window.open('/onboarding/' + encodeURIComponent(slug), '_blank', 'noopener'); } catch(e){} }
 
     // Standalone per-client onboarding viewer (its own browser tab, ?onboarding_view=<slug>).
     // Read-only, credential-free, no contact info. The isolated tab still

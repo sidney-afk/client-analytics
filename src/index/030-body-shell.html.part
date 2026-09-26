@@ -56,7 +56,7 @@
 </div>
 
 <header class="header" style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;">
-    <a class="logo" href="./" onclick="if(_modClick(event))return;event.preventDefault();goHome();" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
+    <a class="logo" href="/" onclick="if(_modClick(event))return;event.preventDefault();goHome();" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
         <img src="/syncview-favicon.png" alt="SyncView">
         <span class="logo-text">SyncView</span>
     </a>

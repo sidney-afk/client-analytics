@@ -889,7 +889,7 @@
         // Only once the queue has actually loaded -- the SMM sheet can land
         // first and repaint an empty body, which is not content.
         if (_kasperState.lastLoaded && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
-        body.innerHTML = _kasperRenderQueueErrorNotice() + _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + _kasperRenderSampleNotice() + _kasperRenderUrgentSection(urgent) + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection() + _kasperRenderSampleHistory();
+        body.innerHTML = _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + _kasperRenderQueueErrorNotice() + _kasperRenderSampleNotice() + _kasperRenderUrgentSection(urgent) + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection() + _kasperRenderSampleHistory();
         _kcardRestoreThumbs(body, _thumbs, 'data-kasper-pid');
     }
 

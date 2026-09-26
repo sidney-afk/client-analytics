@@ -24,9 +24,12 @@ const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir()
  const base={intent_id:id,attempt:2,destination_channel_id:'C1234567890',text:'<@U123> URGENT: Synthetic needs tweaks.',client_msg_id:id,allow_mentions:true};
  const stored={id,kind:'urgent',state:'sending',attempt_count:2,destination_channel_id:base.destination_channel_id,deliverable_id:'synthetic a/b',message:{text:base.text,allow_mentions:true}};
  async function run(c=base,i=stored,err=false){claim=c;intent=i;lookupError=err;posts=[];receipts=[];const r=await handler(new Request('http://127.0.0.1/notify',{method:'POST',headers:{'content-type':'application/json','x-notify-runner-key':'synthetic-private-key'},body:'{}'}));return r.json();}
- const url='https://syncview.synchrosocial.com/?prod=1&d=synthetic+a%2Fb#production';
+ const url='https://syncview.synchrosocial.com/synclinear/synthetic%20a%2Fb';
+ const legacyUrl='https://syncview.synchrosocial.com/?prod=1&d=synthetic+a%2Fb#production';
  assert.equal((await run()).sent,1);assert.equal(posts.length,1);assert.equal(posts[0][1],base.destination_channel_id);assert.equal(posts[0][2],base.text+'\nOpen in SyncView: '+url);assert.equal(posts[0][3],id);assert.equal(receipts[0].p_attempt,2);
  const linked={...base,text:base.text+'\n'+url};await run(linked,{...stored,message:{...stored.message,text:linked.text}});assert.equal(posts[0][2],linked.text);
+ // A message that already carries the old-form link keeps it and gets no second link.
+ const oldLinked={...base,text:base.text+'\n'+legacyUrl};await run(oldLinked,{...stored,message:{...stored.message,text:oldLinked.text}});assert.equal(posts[0][2],oldLinked.text);
  await run({...base,allow_mentions:false},null);assert.equal(posts[0][2],base.text);
  let refused=0;
  for(const bad of [null,{...stored,id:'wrong'},{...stored,kind:'comment'},{...stored,state:'sent'},{...stored,attempt_count:3},{...stored,destination_channel_id:'C9999999999'},{...stored,message:{text:'changed',allow_mentions:true}},{...stored,deliverable_id:''},{...stored,deliverable_id:'bad\nvalue'}]){assert.equal((await run(base,bad)).retryable,1);assert.equal(posts.length,0);assert.equal(receipts[0].p_failure_code,'urgent_link_context_unavailable');refused++;}

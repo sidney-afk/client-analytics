@@ -152,7 +152,7 @@
         try { localStorage.setItem(KASPER_SUBTAB_KEY, 'review'); } catch (e) {}
         try {
             if (typeof currentNav !== 'undefined' && currentNav === 'kasper') {
-                history.replaceState({ nav: 'kasper' }, '', location.pathname + location.search + '#kasper');
+                history.replaceState({ nav: 'kasper' }, '', '/' + svRoute.search() + '#kasper');
             }
         } catch (e) {}
         if (typeof _kasperSyncTabNav === 'function') _kasperSyncTabNav();
@@ -172,10 +172,14 @@
                 : (t.key === 'quiz-leads' ? 'quiz-leads' : (t.key === 'clients' ? 'clients-admin' : capability));
             const gated = gatedCapability ? ` data-staff-capability="${gatedCapability}"${_syncviewStaffCan(gatedCapability) ? '' : ' hidden'}` : '';
             const active = _kasperState.tab === t.key;
+            // Samples are listed in the Review queue now; the tab stays
+            // registered (links to #kasper/samples still open it) but is hidden
+            // from the bar unless it is the one showing.
+            const mergedHidden = t.key === 'samples' ? ' data-kasper-merged-into="review"' + (active ? '' : ' hidden') : '';
             const count = t.showCount === false ? '' : `<span class="kasper-tab-count" data-kasper-count="${t.key}"${t.hideZero ? ' data-kasper-hide-zero' : ''}>·</span>`;
             const shortLabel = KASPER_PRIMARY_SHORT_LABELS[t.key] || t.label;
             return `
-            <button type="button" class="kasper-subtab ${inMore ? 'kasper-more-item' : 'kasper-primary-tab'}${active ? ' active' : ''}" data-kasper-tab="${t.key}"${gated}${inMore ? ' role="menuitem" tabindex="-1"' : ''}${active ? ' aria-current="page"' : ''} title="${_calEsc(t.label)}" onclick="_kasperGotoTab('${t.key}')">
+            <button type="button" class="kasper-subtab ${inMore ? 'kasper-more-item' : 'kasper-primary-tab'}${active ? ' active' : ''}" data-kasper-tab="${t.key}"${gated}${mergedHidden}${inMore ? ' role="menuitem" tabindex="-1"' : ''}${active ? ' aria-current="page"' : ''} title="${_calEsc(t.label)}" onclick="_kasperGotoTab('${t.key}')">
                 ${t.icon}<span class="kasper-tab-label-full">${_calEsc(t.label)}</span><span class="kasper-tab-label-short">${_calEsc(shortLabel)}</span>${count}
             </button>`;
         };
@@ -324,6 +328,8 @@
             button.classList.toggle('active', active);
             if (active) button.setAttribute('aria-current', 'page');
             else button.removeAttribute('aria-current');
+            // The merged Samples tab shows only while it is the open one.
+            if (button.hasAttribute('data-kasper-merged-into')) button.hidden = !active;
         });
         const activeMoreTab = KASPER_SUBTABS.find(tab => tab.key === activeKey && !KASPER_PRIMARY_SUBTAB_KEYS.includes(tab.key));
         const trigger = document.querySelector('[data-kasper-more-trigger]');
@@ -342,9 +348,14 @@
     }
 
     function _kasperOpenLightbox(pid) {
-        const it = _kasperState.items.find(x => x.post.id === pid);
+        let it = _kasperState.items.find(x => x.post.id === pid), info = null;
+        if (it) info = _calDeriveThumbInfo(it.post);
+        // Sample cards listed in the Review queue open here too.
+        else if (typeof _sxrKasperState === 'object' && _sxrKasperState) {
+            it = (_sxrKasperState.items || []).find(x => x && x.post && x.post.id === pid);
+            if (it) info = _sxrDeriveThumbInfo(it.post);
+        }
         if (!it) return;
-        const info = _calDeriveThumbInfo(it.post);
         if (!info || !info.url) return;
         const ovl = document.getElementById('kasperLightbox');
         if (!ovl) return;
@@ -447,6 +458,12 @@
         // realtime socket can suspend in a backgrounded tab and miss events),
         // so cards the SMM routed to Kasper while he was away never appeared
         // until a manual reload.
+        if (_kasperState.tab === 'review' && typeof _sxrKasperState !== 'undefined' && _sxrKasperState
+            && !_sxrKasperState.loading && KASPER_SUBTABS.some(t => t.key === 'samples')
+            && typeof _sxrKasperLoadQueue === 'function') {
+            const ta = document.activeElement;
+            if (!(ta && ta.tagName === 'TEXTAREA' && ta.closest && ta.closest('#kasperContent'))) _sxrKasperLoadQueue();
+        }
         if (_kasperState.tab === 'samples') {
             if (typeof _sxrKasperState === 'undefined' || !_sxrKasperState || _sxrKasperState.loading) return;
             const ta = document.activeElement;
@@ -671,7 +688,7 @@
         _kasperSetMoreOpen(false, false, false);
         _kasperState.tab = tab;
         try { localStorage.setItem(KASPER_SUBTAB_KEY, tab); } catch (e) {}
-        try { history.replaceState({ nav: 'kasper' }, '', location.pathname + location.search + '#kasper' + (tab === 'review' ? '' : '/' + tab)); } catch {}
+        try { history.replaceState({ nav: 'kasper' }, '', '/' + svRoute.search() + '#kasper' + (tab === 'review' ? '' : '/' + tab)); } catch {}
         _kasperSyncTabNav();
         _kasperRenderTab();
         if (returnFocusToMore) {
@@ -1368,6 +1385,35 @@
         if (resp.status === 403) throw new Error('Client credentials need an Admin or SMM account. Sign out first to use another authorized account.');
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || 'Credentials request failed');
         return json;
+    }
+
+    /* ── Standalone staff pages (/onboarding, /client-credentials) ──
+       Onboarding and Client Credentials are used by SMMs (and Onboarding by
+       creatives), not only admins, so they live at their own paths and in the
+       staff menu, outside the admin-only Kasper tab. They reuse the Kasper
+       renderers, which draw into #kasperContent, and keep each page's own
+       capability check. */
+    const SV_STAFF_PAGES = {
+        'staff-onboarding': { capability: 'onboarding', title: 'Onboarding', render: () => _kasperRenderOnboarding() },
+        'client-credentials': { capability: 'credentials', title: 'Client Credentials', render: () => _ccKasperRender() },
+    };
+    function _svStaffPageShell(page) {
+        const def = SV_STAFF_PAGES[page];
+        const head = page === 'client-credentials' ? '' : `<div class="kasper-head"><div class="kasper-title">${_calEsc(def.title)}</div></div>`;
+        return `<div class="kasper-wrap sv-staff-page" data-sv-staff-page="${page}">${head}<div id="kasperContent"></div></div>`;
+    }
+    function _svStaffPageRender(page) {
+        const def = SV_STAFF_PAGES[page];
+        const el = document.getElementById('kasperContent');
+        if (!def || !el) return;
+        if (_syncviewStaffCan(def.capability)) { def.render(); return; }
+        const pending = typeof _kasperStaffCheckPending === 'function' && _kasperStaffCheckPending();
+        el.innerHTML = `<div class="kasper-empty">${pending ? 'Checking your sign-in…' : 'This page needs an SMM or Admin sign-in.'}</div>`;
+        if (!pending) _syncviewOfferStaffSignIn(def.capability);
+    }
+    function _svOpenStaffPage(page) {
+        _syncviewCloseStaffAccount();
+        navTo(page);
     }
 
     function _ccKasperRender() {
@@ -2504,7 +2550,7 @@
             const open = r.docUrl
                 ? `<a class="kfilm-open" href="${_calEscAttr(r.docUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Open Doc ↗</a>`
                 : `<span class="kfilm-nodoc">No Doc linked</span>`;
-            const calUrl = `${location.pathname}#calendar/${encodeURIComponent(r.slug)}`;
+            const calUrl = svRoute.clean(`/#calendar/${encodeURIComponent(r.slug)}`);
             const calBtn = `<a class="kfilm-open kfilm-cal" href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Calendar ↗</a>`;
             const contentTxt = r.contentTotal == null
                 ? `<span class="kfilm-muted">Content total unavailable</span>`
@@ -2612,7 +2658,9 @@
             // back -- otherwise pinging a card silently decrements the count of
             // work he still owes.
             const _parts = _kasperPartitionItems(_kasperState.items);
-            _kasperSetTabCount('review', _parts.urgent.length + _parts.waiting.length);
+            // Samples waiting on him are listed in the Review queue too.
+            const _sxrOpen = typeof _kasperSampleOpenCount === 'function' ? _kasperSampleOpenCount() : 0;
+            _kasperSetTabCount('review', _parts.urgent.length + _parts.waiting.length + _sxrOpen);
         }
         // replies = unread message threads — owned by _kasperUpdateReplyCount, which
         // every load already calls. Deliberately NOT painted here: it isn't part of
@@ -2756,7 +2804,7 @@
         ).join('');
         const draft = item._replyDraft || '';
         const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
-        const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
+        const calUrl = svRoute.clean(`/#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`);
         return `<div class="kasper-replies-card" data-kasper-replies-pid="${_calEscAttr(pid)}">
             <div class="kasper-replies-head">
                 ${thumb ? `<img class="kasper-replies-thumb" src="${_calEscAttr(thumb)}" alt="" onerror="this.style.display='none'">` : ''}
@@ -2870,6 +2918,8 @@
         Object.assign(_caState, { rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false, edit: null });
         const body = document.getElementById('caBody');
         if (body) body.innerHTML = '';
+        // The recently opened clients are this staff member's; drop them on sign-out.
+        try { localStorage.removeItem('syncview_kasper_clients_recent_v1'); } catch (e) {}
     }
 
     function _caRender() {
@@ -3051,18 +3101,41 @@
         if (_caState.edit && _caState.edit.slug !== slug && _caEditDirty() && !confirm('Discard your unsaved changes to this client?')) return;
         if (_caState.edit && _caState.edit.slug !== slug) _caState.edit = null;
         _caState.selected = slug || '';
+        if (slug) _caRememberOpened(slug);
         _caPaint();
         const d = document.getElementById('caDetail');
         if (d && window.matchMedia && window.matchMedia('(max-width: 767px)').matches) { try { d.scrollIntoView({ block: 'start' }); } catch (e) {} }
     }
 
+    /* When Kasper searches, the clients he opened most recently come first;
+       clients he never opened follow in alphabetical order. Kept in this
+       browser only (a convenience, not shared state). */
+    const CA_RECENT_KEY = 'syncview_kasper_clients_recent_v1';
+    function _caRecentMap() {
+        try { const m = JSON.parse(localStorage.getItem(CA_RECENT_KEY) || '{}'); return m && typeof m === 'object' ? m : {}; } catch (e) { return {}; }
+    }
+    function _caRememberOpened(slug) {
+        const m = _caRecentMap();
+        m[slug] = Date.now();
+        const keep = Object.keys(m).sort((a, b) => m[b] - m[a]).slice(0, 100);
+        const out = {}; for (const k of keep) out[k] = m[k];
+        try { localStorage.setItem(CA_RECENT_KEY, JSON.stringify(out)); } catch (e) {}
+    }
     function _caFiltered() {
         const q = String(_caState.search || '').trim().toLowerCase();
-        return (_caState.rows || []).filter(r => {
+        const rows = (_caState.rows || []).filter(r => {
             if (r.archived_at && !_caState.showArchived) return false;
             if (!q) return true;
             return [r.display_name, r.slug, r.email, r.instagram_handle, r.tiktok_handle, r.youtube_channel_id]
                 .some(v => String(v || '').toLowerCase().includes(q));
+        });
+        if (!q) return rows;
+        const recent = _caRecentMap();
+        const name = r => String(r.display_name || r.slug || '');
+        return rows.slice().sort((a, b) => {
+            const ta = Number(recent[a.slug]) || 0, tb = Number(recent[b.slug]) || 0;
+            if (ta !== tb) return tb - ta;
+            return name(a).localeCompare(name(b), undefined, { sensitivity: 'base' });
         });
     }
 

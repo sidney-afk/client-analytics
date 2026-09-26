@@ -2719,7 +2719,7 @@
     function _calUrgentActorName() {
         try {
             if (_isClientLink) return 'Client';
-            if (location.hash === '#kasper' || new URLSearchParams(location.search).get('Kasper') === '1') return 'Kasper';
+            if (svRoute.hash() === '#kasper' || new URLSearchParams(svRoute.search()).get('Kasper') === '1') return 'Kasper';
         } catch (e) {}
         return 'SyncView';
     }

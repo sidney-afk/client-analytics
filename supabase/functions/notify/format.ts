@@ -47,13 +47,13 @@ function cap(value: string, max: number): string {
 function boldSafe(value: string): string { return value.replace(/\*/g, "∗"); }
 
 export function productionUrl(deliverableId: string): string {
-  return SITE + "?" + new URLSearchParams({ prod: "1", d: deliverableId }).toString() + "#production";
+  return SITE + "synclinear/" + encodeURIComponent(deliverableId);
 }
-// The staff calendar's card deep link: #calendar/<slug>/<cardId>, the same
-// shape the review-history and dashboard "open card" links build.
+// The staff calendar's card deep link: /calendar/<slug>/<cardId>, the same
+// clean path the review-history and dashboard "open card" links build.
 export function calendarUrl(clientSlug?: string | null, cardId?: string | null): string | null {
   if (!clientSlug || !cardId) return null;
-  return SITE + "#calendar/" + encodeURIComponent(clientSlug) + "/" + encodeURIComponent(cardId);
+  return SITE + "calendar/" + encodeURIComponent(clientSlug) + "/" + encodeURIComponent(cardId);
 }
 
 // Card colours, owner-picked: the left bar says what happened at a glance. A

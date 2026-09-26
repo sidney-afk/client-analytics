@@ -12,7 +12,7 @@ const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 const http = require('http');
 const path = require('path');
 const { chromium } = require('playwright');
-const { installReadConsoleAudit } = require('./prod-test-utils');
+const { installReadConsoleAudit, legacyPageUrl, pagesFallback } = require('./prod-test-utils');
 
 const root = path.resolve(__dirname, '..', '..', '..');
 const mime = {
@@ -30,13 +30,18 @@ function serve() {
     let p = decodeURIComponent(u.pathname === '/' ? '/index.html' : u.pathname);
     p = path.normalize(p).replace(/^([.][\\/])+/, '');
     const full = path.join(root, p);
+    let serveFile = full, status = 200;
     if (!full.startsWith(root) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) {
-      res.writeHead(404);
-      res.end('not found');
-      return;
+      const hit = full.startsWith(root) ? pagesFallback(root, full, p) : null;
+      if (!hit) {
+        res.writeHead(404);
+        res.end('not found');
+        return;
+      }
+      [serveFile, status] = hit;
     }
-    res.writeHead(200, { 'Content-Type': mime[path.extname(full).toLowerCase()] || 'application/octet-stream' });
-    fs.createReadStream(full).pipe(res);
+    res.writeHead(status, { 'Content-Type': mime[path.extname(serveFile).toLowerCase()] || 'application/octet-stream' });
+    fs.createReadStream(serveFile).pipe(res);
   });
   return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
@@ -735,7 +740,7 @@ async function assertNoWriteRequests(requests) {
     await page.evaluate(() => { _prodState.selected.clear(); _prodRender(); });
     await row.locator('.prod-status').click();
     await expectExactCount(page, '.prod-pop [data-prod-pick]', 0, 'Linear-authoritative row status stays locked');
-    const statusPickerUrl = new URL(page.url());
+    const statusPickerUrl = (await legacyPageUrl(page));
     if (statusPickerUrl.searchParams.get('d')) throw new Error('Clicking row status icon navigated the row instead of opening the picker');
     await expectToastContains(page, lockedWriteState.statusGate, 'Linear-authoritative row status lock');
     await page.keyboard.press('Escape');
@@ -793,7 +798,8 @@ async function assertNoWriteRequests(requests) {
     await page.locator('.prod-pop [data-prod-ctx="copy"]').click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
     const copiedIssueLink = await page.evaluate(() => window.__prodCopied || window.__prodLastCopied || '');
-    if (!copiedIssueLink.includes('?prod=1') || !copiedIssueLink.includes('d=')) throw new Error('Row Copy link did not create a ?prod=1&d= deep link');
+    // Copy links are clean addresses: /synclinear/<id> (the old ?prod=1&d=<id> form forwards to it).
+    if (!/\/synclinear\/[^/?#]+/.test(copiedIssueLink)) throw new Error('Row Copy link did not create a /synclinear/<id> deep link');
     await expectExactCount(page, '.prod-pop', 0, 'context menu closed after Copy link');
 
     for (const tab of ['Active', 'Backlog', 'All issues']) {
@@ -831,7 +837,7 @@ async function assertNoWriteRequests(requests) {
     await expectCount(page, '[data-prod-crumb-client]', 1, 'clickable client crumb');
     await page.locator('[data-prod-crumb-client]').first().click();
     await page.waitForSelector('[data-prod-project-detail]', { timeout: 10000 });
-    const clientUrl = new URL(page.url());
+    const clientUrl = (await legacyPageUrl(page));
     if (clientUrl.searchParams.get('prod') !== '1' || !clientUrl.searchParams.get('client')) {
       throw new Error('Client breadcrumb did not navigate to ?prod=1 project view');
     }
@@ -848,7 +854,7 @@ async function assertNoWriteRequests(requests) {
     if (await page.locator('[data-prod-crumb-batch]').count()) {
       await page.locator('[data-prod-crumb-batch]').first().click();
       await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
-      const parentUrl = new URL(page.url());
+      const parentUrl = (await legacyPageUrl(page));
       if (parentUrl.searchParams.get('prod') !== '1' || !parentUrl.searchParams.get('d')) {
         throw new Error('Parent breadcrumb did not navigate to a ?prod=1 parent issue detail');
       }
@@ -1058,11 +1064,11 @@ async function assertNoWriteRequests(requests) {
     await page.locator('.prod-pop [data-prod-ctx="copy"]').click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
     const copiedProjectLink = await page.evaluate(() => window.__prodCopied || window.__prodLastCopied || '');
-    if (!copiedProjectLink.includes('?prod=1') || !copiedProjectLink.includes('client=')) throw new Error('Project Copy link did not create a ?prod=1 client deep link');
+    if (!/\/synclinear(\?|$)/.test(copiedProjectLink) || !copiedProjectLink.includes('client=')) throw new Error('Project Copy link did not create a /synclinear?client= deep link');
 
     await page.locator('.prod-nav').filter({ hasText: 'Video' }).locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
     await page.waitForSelector('.prod-board', { timeout: 10000 });
-    const teamUrl = new URL(page.url());
+    const teamUrl = (await legacyPageUrl(page));
     if (teamUrl.searchParams.get('prod') !== '1' || teamUrl.searchParams.get('team') !== 'video' || teamUrl.searchParams.get('view') !== 'board') {
       throw new Error('Team-scoped Projects board did not preserve ?prod=1&team=video&view=board');
     }

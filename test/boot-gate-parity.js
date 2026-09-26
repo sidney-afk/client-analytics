@@ -19,10 +19,13 @@ const path = require('path');
 const INDEX = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
 
 // ── extract the gate script (the IIFE between the favicon <link> and the
-//    style block; it is the only <script> before </head>).
+//    style block; the only <script> before </head> after the address router).
 const headEnd = INDEX.indexOf('</head>');
 const HEAD = INDEX.slice(0, headEnd);
-const gateAt = HEAD.indexOf('<script>');
+// The clean-address router (src/index/003-sv-route.html.part) runs first; the
+// boot gate is the <script> after it.
+const routerAt = HEAD.indexOf('Clean addresses');
+const gateAt = HEAD.indexOf('<script>', routerAt >= 0 ? HEAD.indexOf('</script>', routerAt) : 0);
 const gateEnd = HEAD.indexOf('</script>', gateAt);
 if (gateAt < 0 || gateEnd < 0) { console.log('FAIL  head boot-gate <script> not found'); process.exit(1); }
 const GATE = HEAD.slice(gateAt, gateEnd);
@@ -95,9 +98,9 @@ check("the gate's admission is only a paint hint: the app still gates every "
 check("nav key: gate reads 'syncview_nav', app defines NAV_KEY",
   GATE.includes("localStorage.getItem('syncview_nav')")
   && APP.includes("const NAV_KEY = 'syncview_nav'"));
-check("kasper session key mirrored",
-  GATE.includes("'syncview_kasper_unlocked'")
-  && APP.includes("KASPER_UNLOCK_KEY = 'syncview_kasper_unlocked'"));
+check("kasper admin key mirrored (Kasper is admin-only)",
+  GATE.includes("localStorage.getItem('syncview_kasper_admin_seen')")
+  && APP.includes("KASPER_ADMIN_SEEN_KEY = 'syncview_kasper_admin_seen'"));
 check("kasper subtab key mirrored",
   GATE.includes("localStorage.getItem('syncview_kasper_subtab_v1')")
   && APP.includes("KASPER_SUBTAB_KEY = 'syncview_kasper_subtab_v1'"));

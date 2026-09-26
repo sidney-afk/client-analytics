@@ -145,17 +145,17 @@ vm.runInContext(
 );
 const { favFor, apply, DEFAULT } = favBox;
 ok(typeof favFor === 'function', 'the favicon resolver extracts and executes');
-ok(favFor('production') === 'nav-icons/synclinear-favicon.png',
+ok(favFor('production') === '/nav-icons/synclinear-favicon.png',
   'route `production` (the tab labelled SyncLinear) resolves to the synclinear mark');
-ok(favFor('linear') === 'nav-icons/submit-favicon.png',
+ok(favFor('linear') === '/nav-icons/submit-favicon.png',
   'route `linear` (the tab labelled Submit) resolves to the submit mark — the split is not crossed');
-ok(favFor('home') === 'nav-icons/analytics-favicon.png', 'route `home` resolves to the Analytics mark');
-ok(favFor('sample-reviews') === 'nav-icons/samples-favicon.png', 'the samples route resolves to its own mark');
-ok(favFor('onboarding') === 'synchro-social-favicon.png',
+ok(favFor('home') === '/nav-icons/analytics-favicon.png', 'route `home` resolves to the Analytics mark');
+ok(favFor('sample-reviews') === '/nav-icons/samples-favicon.png', 'the samples route resolves to its own mark');
+ok(favFor('onboarding') === '/synchro-social-favicon.png',
   'onboarding keeps SynchroSocial branding instead of being overwritten by the SyncView default');
 ok(favFor('kasper') === DEFAULT && favFor('time-off') === DEFAULT && favFor('') === DEFAULT,
   'a route with no designed icon falls back to the SyncView mark rather than keeping the previous tab');
-ok(DEFAULT === 'syncview-favicon.png', 'the fallback is the existing root mark, which is unchanged');
+ok(DEFAULT === '/syncview-favicon.png', 'the fallback is the existing root mark, which is unchanged');
 
 // _syncviewApplyTabFavicon against a minimal DOM: it must create the link when
 // absent, update it, and NOT rewrite an identical href (that re-fetch is what
@@ -180,17 +180,17 @@ favBox.document = dom.document;
 vm.runInContext('_syncviewApplyTabFavicon("calendar")', favBox);
 ok(dom.head.appended === dom.link && dom.link.rel === 'icon',
   'a document with no icon link gets one created rather than throwing');
-ok(dom.link.getAttribute('href') === 'nav-icons/calendar-favicon.png', 'the created link points at the route mark');
+ok(dom.link.getAttribute('href') === '/nav-icons/calendar-favicon.png', 'the created link points at the route mark');
 
 dom = fakeDom();
 dom.document._link = dom.link;
-dom.link.setAttribute('href', 'nav-icons/calendar-favicon.png');
+dom.link.setAttribute('href', '/nav-icons/calendar-favicon.png');
 const writesBefore = dom.link.writes;
 favBox.document = dom.document;
 vm.runInContext('_syncviewApplyTabFavicon("calendar")', favBox);
 ok(dom.link.writes === writesBefore, 'an identical href is NOT rewritten, so the tab icon does not blink');
 vm.runInContext('_syncviewApplyTabFavicon("workload")', favBox);
-ok(dom.link.getAttribute('href') === 'nav-icons/workload-favicon.png' && dom.link.writes === writesBefore + 1,
+ok(dom.link.getAttribute('href') === '/nav-icons/workload-favicon.png' && dom.link.writes === writesBefore + 1,
   'a real route change writes exactly once');
 favBox.document = { querySelector() { throw new Error('hostile DOM'); } };
 let threw = false;
@@ -215,7 +215,7 @@ ok(/\.header-nav-btn \.header-nav-ico \{[^}]*background-color: currentColor;/.te
 ok(/\.header-nav-btn \.header-nav-ico \{[^}]*mask-size: contain;/.test(source),
   'the artwork is used as a mask rather than drawn, which is what makes the fill possible');
 for (const cls of iconClasses) {
-  const rule = new RegExp('\\.' + cls + " \\{ -webkit-mask-image: url\\('nav-icons/([a-z-]+)\\.png'\\); mask-image: url\\('nav-icons/([a-z-]+)\\.png'\\); \\}");
+  const rule = new RegExp('\\.' + cls + " \\{ -webkit-mask-image: url\\('/nav-icons/([a-z-]+)\\.png'\\); mask-image: url\\('/nav-icons/([a-z-]+)\\.png'\\); \\}");
   const m = source.match(rule);
   ok(!!m, cls + ' has a mask rule declaring both the prefixed and standard property');
   if (m) {
@@ -227,8 +227,8 @@ for (const cls of iconClasses) {
 ok(!/<img[^>]*header-nav-ico/.test(navBlock),
   'the icons are masked spans, not <img> — an <img> paints its own pixels and cannot take the theme colour');
 ok(/id="navProd"[\s\S]{0,400}?>\s*SyncLinear\s*<\/a>/.test(navBlock), 'the mirror tab reads SyncLinear');
-ok(/id="navProd"[\s\S]{0,400}?href="#production"/.test(navBlock) || /href="#production"[\s\S]{0,400}?id="navProd"/.test(navBlock),
-  'the mirror tab kept its #production hash — the rename was label-only');
+ok(/id="navProd"[\s\S]{0,400}?href="\/synclinear"/.test(navBlock) || /href="\/synclinear"[\s\S]{0,400}?id="navProd"/.test(navBlock),
+  'the mirror tab opens /synclinear (the clean path for the #production route)');
 ok(/id="navLinear"[\s\S]{0,400}?>\s*Submit\s*<\/a>/.test(navBlock), 'the Submit tab is untouched');
 ok(!/>\s*Linear\s*<\/a>/.test(navBlock), 'no tab is still labelled the bare word Linear');
 

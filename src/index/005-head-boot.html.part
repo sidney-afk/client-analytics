@@ -2,7 +2,7 @@
     (function () {
         try {
             var de = document.documentElement;
-            var q = new URLSearchParams(location.search);
+            var q = new URLSearchParams(svRoute.search());
             if (q.has('c')) {
                 // A client query owns the document from its first frame, even
                 // when c is empty/malformed. The strict entry preflight later
@@ -26,7 +26,7 @@
                 de.classList.add('boot-onboarding');
                 document.title = 'SynchroSocial';
                 var fav = document.querySelector('link[rel="icon"]');
-                if (fav) fav.href = 'synchro-social-favicon.png';
+                if (fav) fav.href = '/synchro-social-favicon.png';
                 return;
             }
             if (q.get('onboarding_view')) { de.classList.add('boot-onboarding-view'); return; }
@@ -45,7 +45,7 @@
                     de.removeAttribute('data-status-palette');
                 }
             } catch (e) {}
-            var smmHash = location.hash.replace('#', '');
+            var smmHash = svRoute.hash().replace('#', '');
             try { smmHash = decodeURIComponent(smmHash); } catch (e) {}
             var smmSeg = smmHash.split('/')[0].split('?')[0];
             if (smmSeg === 'smm-weekly-report' || smmSeg === 'smm-weekly-reports') {
@@ -99,7 +99,7 @@
                         // (_wlTakeEarlySnapshot); otherwise it is discarded and
                         // the normal read runs. Same URL, headers and body as
                         // wlFetchNativeSnapshot's first read.
-                        var svHash0 = String(location.hash || '').replace('#', '').split('/')[0];
+                        var svHash0 = String(svRoute.hash() || '').replace('#', '').split('/')[0];
                         if (svHash0 === 'workload' && svId.member.name && svId.role) {
                             var svSnap = fetch(svBase + '/functions/v1/workload-plan?forceFunctionRegion=us-east-1', {
                                 method: 'POST', cache: 'no-store',
@@ -154,7 +154,7 @@
                 de.setAttribute('data-boot-subtab', profileTab);
                 return;
             }
-            var hash = location.hash.replace('#', '');
+            var hash = svRoute.hash().replace('#', '');
             try { hash = decodeURIComponent(hash); } catch (e) {}
             var hashParts = hash.split('/');
             var seg = hashParts[0].split('?')[0];
@@ -164,8 +164,9 @@
             }
             var FAST = ['linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'smm-weekly-report', 'smm-weekly-reports'];
             var RESTORABLE_FAST = FAST.filter(function (nav) { return nav !== 'smm-weekly-report' && nav !== 'smm-weekly-reports'; });
-            var ses = function (k) { try { return sessionStorage.getItem(k) === 'ok'; } catch (e) { return false; } };
-            var kasperOk = function () { return q.get('Kasper') === '1' || ses('syncview_kasper_unlocked'); };
+            // Kasper is admin-only: mirror _kasperAdminAllowed()'s remembered
+            // admin (a paint hint only; the tab itself waits for the check).
+            var kasperOk = function () { try { return localStorage.getItem('syncview_kasper_admin_seen') === '1'; } catch (e) { return false; } };
             var sxrOn = function () {
                 // Must mirror _sxrEnabled(): GA default-ON, ?sxr=0 / sticky
                 // opt-out off, storage failure = ON (F73).
@@ -175,14 +176,7 @@
                 } catch (e) { return true; }
             };
             var target = '';
-            if (!hash && q.get('Kasper') === '1' && !ses('syncview_kasper_unlocked')) {
-                // Bare ?Kasper=1 jumps straight to Kasper only on FIRST
-                // arrival (init()'s _kasperArrivedFromUnlockParam is false
-                // once the session flag is set); mid-session refreshes of a
-                // hashless ?Kasper=1 URL route to savedNav/home instead.
-                target = 'kasper';
-            }
-            else if (q.get('prod') === '1') target = 'production';
+            if (q.get('prod') === '1') target = 'production';
             else if (FAST.indexOf(hash) >= 0) target = hash === 'samples' ? 'sample-reviews' : hash; // retired Samples Old links move to SXR
             // Only calendar/samples/templates route sub-path hashes
             // (init()'s hashIsFastTab); linear/workload/tiktok-upload need

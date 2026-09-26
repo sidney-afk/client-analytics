@@ -78,8 +78,8 @@ check('Production preview block exists before init()', !!prodBlock);
 check('promoted Linear mirror nav is always mounted', !!navProd && !/display\s*:\s*none/.test(navProd) && !/navProd\.style\.display/.test(index));
 check('staff-identity and Production mount code no longer hide the promoted nav', !/getElementById\('navProd'\)[\s\S]{0,140}\.style\.display/.test(index));
 check('visible order is Analytics then Linear mirror then Submit', index.indexOf('id="navHome"') < index.indexOf('id="navProd"') && index.indexOf('id="navProd"') < index.indexOf('id="navLinear"'));
-check('Linear mirror keeps production id, hash, and nav key', /href="#production"/.test(navProd) && /navTo\('production'\)/.test(navProd) && />\s*SyncLinear\s*<\/a>$/.test(navProd));
-check('Submit keeps linear id, hash, and nav key', /href="#linear"/.test(navLinear) && /navTo\('linear'\)/.test(navLinear) && />\s*Submit\s*<\/a>$/.test(navLinear));
+check('Linear mirror keeps production id, clean path, and nav key', /href="\/synclinear"/.test(navProd) && /navTo\('production'\)/.test(navProd) && />\s*SyncLinear\s*<\/a>$/.test(navProd));
+check('Submit keeps linear id, clean path, and nav key', /href="\/submit"/.test(navLinear) && /navTo\('linear'\)/.test(navLinear) && />\s*Submit\s*<\/a>$/.test(navLinear));
 check('the mirror tab carries its own icon and not the Submit one', navProd.includes(synclinearIcon) && !navProd.includes(submitIcon));
 check('Submit carries its own icon and not the mirror one', navLinear.includes(submitIcon) && !navLinear.includes(synclinearIcon));
 check('Production pre-paint route lights the promoted mirror tab', index.includes('html[data-boot-nav="production"] #navProd'));
@@ -92,7 +92,7 @@ check('Production issue rows skip off-screen rendering with a fixed 44px fallbac
   /content-visibility:\s*auto\s*;/.test(prodRowRule)
   && /contain-intrinsic-size:\s*0(?:px)?\s+44px\s*;/.test(prodRowRule)
   && /contain:\s*content\s*;/.test(prodRowRule));
-check('_prodEnabled is query-flagged on ?prod=1', /function _prodEnabled\(\) \{\s*try \{ return new URLSearchParams\(location\.search\)\.get\('prod'\) === '1'; \}/.test(index));
+check('_prodEnabled is query-flagged on ?prod=1 (as /synclinear presents it)', /function _prodEnabled\(\) \{\s*try \{ return new URLSearchParams\(svRoute\.search\(\)\)\.get\('prod'\) === '1'; \}/.test(index));
 check('navTo hard-falls back without direct preview or verified staff access', /if \(page === 'production' && !_prodAccessAllowed\(\)\) page = 'home';/.test(index));
 check('Production staff access is direct preview OR verified identity', /function _prodAccessAllowed\(\) \{\s*return _prodEnabled\(\) \|\| _syncviewStaffIdentityValid\(\);\s*\}/.test(index));
 check('submission-only linear key wiring remains unchanged', /if \(currentNav === 'linear'\) updateLinearFilmingPlan\(\);/.test(index));

@@ -459,7 +459,7 @@ import { _kasperPaintReview } from './330-kasper-review-history.js';
         return _calUpsertUseEf(clientOrSlug) ? CALENDAR_REORDER_EF_URL : CALENDAR_REORDER_BATCH_URL;
     }
     function _syncviewClientWriteToken() {
-        try { return String(new URLSearchParams(location.search).get('t') || '').trim(); } catch (e) { return ''; }
+        try { return String(new URLSearchParams(svRoute.search()).get('t') || '').trim(); } catch (e) { return ''; }
     }
     async function _syncviewIssueClientShareUrl(clientName, view) {
         const identity = _syncviewStaffIdentityForHeaders();
@@ -476,7 +476,7 @@ import { _kasperPaintReview } from './330-kasper-review-history.js';
         q.set('c', clientName);
         if (view && view !== 'analytics') q.set('v', view);
         q.set('t', json.token);
-        return location.origin + location.pathname + '?' + q.toString();
+        return location.origin + '/' + '?' + q.toString();
     }
     /* The issuer fails closed with a machine code, and every share button used
        to toast that code verbatim — a brand-new client produced a bare
@@ -528,7 +528,7 @@ import { _kasperPaintReview } from './330-kasper-review-history.js';
     }
     function _calUpsertHeaders(source, url) {
         let role = 'smm';
-        try { if (_isClientLink) role = 'client'; else if (location.hash === '#kasper' || new URLSearchParams(location.search).get('Kasper') === '1') role = 'kasper'; } catch (e) {}
+        try { if (_isClientLink) role = 'client'; else if (svRoute.hash() === '#kasper' || new URLSearchParams(svRoute.search()).get('Kasper') === '1') role = 'kasper'; } catch (e) {}
         const actor = role === 'client' ? 'Client' : (role === 'kasper' ? 'Kasper' : 'SyncView');
         return _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': actor, 'X-Syncview-Role': role, 'X-Syncview-Source': source || 'ui' }, url);
     }

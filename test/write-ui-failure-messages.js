@@ -320,7 +320,14 @@ assert(!rebased.includes('(code:'), rebased);
 const resolveFail = bannerCtx._writeUiCommentActionFailureHtml(
   { action: 'resolve', rebased: false, message: 'write_conflict' }, 'retry()',
 );
-assert(resolveFail.includes('(code: write_conflict)'), resolveFail);
+// A stale-thread refusal (#1642) gets plain words and a Retry, not a code.
+assert(resolveFail.includes('This note changed while you were looking at it.'), resolveFail);
+assert(!resolveFail.includes('(code:'), resolveFail);
+assert(resolveFail.includes('onclick="retry()"'), resolveFail);
+const otherFail = bannerCtx._writeUiCommentActionFailureHtml(
+  { action: 'resolve', rebased: false, message: 'legacy_parity_disabled' }, 'retry()',
+);
+assert(otherFail.includes('(code: legacy_parity_disabled)'), otherFail);
 assert.strictEqual(bannerCtx._writeUiCommentActionFailureHtml(null, 'retry()'), '');
 
 // Both surfaces render through the one helper, so they cannot drift apart.

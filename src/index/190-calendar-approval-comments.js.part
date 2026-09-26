@@ -856,12 +856,9 @@
         let deferredLegacyAttempt = false;
         let deferredLegacySourceOnly = false;
         let deferredLegacyOutboxIds = [];
-        // The action id is minted and stored BEFORE the first send, so a
-        // replay after a crash or reload reuses it and cannot post twice.
-        if (_isClientLink) {
-            if (!_calReviewState.draftActionIds[key]) _calReviewState.draftActionIds[key] = _calMintCommentId();
-            _calCrqBegin('request', pid, comp, { body: rawDraft, actionId: _calReviewState.draftActionIds[key] });
-        }
+        // The queue stores this request's action id before the first send
+        // (185), so a replay after a crash or reload reuses it.
+        if (_isClientLink) _calCrqBegin('request', pid, comp, { body: rawDraft });
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
         delete _calReviewState.errorActionIds[key];

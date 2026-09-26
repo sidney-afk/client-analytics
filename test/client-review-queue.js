@@ -25,7 +25,7 @@ t(/_calCrqBegin\('approve', pid, 'all'/.test(c170), 'the legacy "Approve post" b
 t(/localStorage\.setItem\(CLIENT_REVIEW_QUEUE_KEY/.test(q), 'the queue is kept in browser storage, so it survives a reload');
 t(/addEventListener\('online'/.test(q), 're-sends when the connection comes back');
 
-t(/_calCrqBegin\('request', pid, comp, \{ body: rawDraft, actionId:/.test(c190), 'a change request stores its action id before the first send, so a replay cannot post twice');
+t(/_calCrqBegin\('request', pid, comp, \{ body: rawDraft \}\)/.test(c190) && /data\.actionId = String\(data\.actionId \|\| _calReviewState\.draftActionIds\[key\] \|\| _calMintCommentId\(\)\)/.test(q), 'a change request stores its action id before the first send, so a replay cannot post twice');
 t(/CLIENT_REVIEW_QUEUE_MAX_AGE_MS/.test(q) && !/failingSince/.test(q), 'the give-up rule is a per-entry maximum age from the click (behaviour: client-review-queue-behavior.js)');
 t((c190.match(/_calCrqDone\(/g) || []).length >= 6, 'the superseded-but-saved paths confirm the queue entry too');
 

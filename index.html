@@ -47210,6 +47210,15 @@
             _crqMine().filter(e => e.pid === pid && e.kind === 'approve'
                 && (e.comp === 'all' || e.comp === comp)).forEach(e => _crqDrop(e.pid, e.comp));
         }
+        if (kind === 'request') {
+            // The request's action id exists BEFORE the first send and is kept
+            // with the entry, exactly as a retry of a failed request already
+            // carries one into the handler: the handler adopts it under its
+            // target lock, and a replay after a crash reuses it.
+            data = Object.assign({}, data || {});
+            data.actionId = String(data.actionId || _calReviewState.draftActionIds[key] || _calMintCommentId());
+            _calReviewState.draftActionIds[key] = data.actionId;
+        }
         _crqPut(Object.assign({ kind, pid, comp,
             at: replay && prior && prior.at || Date.now() }, data || {}));
         _crqRun.inflight.add(key);
@@ -48273,12 +48282,9 @@
         let deferredLegacyAttempt = false;
         let deferredLegacySourceOnly = false;
         let deferredLegacyOutboxIds = [];
-        // The action id is minted and stored BEFORE the first send, so a
-        // replay after a crash or reload reuses it and cannot post twice.
-        if (_isClientLink) {
-            if (!_calReviewState.draftActionIds[key]) _calReviewState.draftActionIds[key] = _calMintCommentId();
-            _calCrqBegin('request', pid, comp, { body: rawDraft, actionId: _calReviewState.draftActionIds[key] });
-        }
+        // The queue stores this request's action id before the first send
+        // (185), so a replay after a crash or reload reuses it.
+        if (_isClientLink) _calCrqBegin('request', pid, comp, { body: rawDraft });
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
         delete _calReviewState.errorActionIds[key];

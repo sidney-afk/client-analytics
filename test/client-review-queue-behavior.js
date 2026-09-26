@@ -20,7 +20,7 @@ function memStorage() {
 }
 function sandbox(opts) {
     const o = Object.assign({ storage: memStorage(), serverRow: null, fetchFails: false, flushError: '' }, opts || {});
-    const log = { toasts: [], hides: 0, notes: [], flushes: 0, fetches: 0, tweaks: 0 };
+    const log = { mints: 0, toasts: [], hides: 0, notes: [], flushes: 0, fetches: 0, tweaks: 0 };
     const post = Object.assign({ id: 'p1', caption_status: 'Client Approval', video_status: 'Approved',
         graphic_status: 'Approved', status: 'Client Approval' }, o.post || {});
     const env = {
@@ -44,6 +44,7 @@ function sandbox(opts) {
             if (o.fetchFails) throw new TypeError('Failed to fetch');
             return { ok: true, json: async () => (o.serverRow ? [o.serverRow] : []) };
         },
+        _calMintCommentId: () => 'm' + (++log.mints),
         setTimeout: () => 0, clearTimeout: () => {},
     };
     const names = Object.keys(env);
@@ -162,6 +163,10 @@ const approveData = { edits: { caption_status: 'Approved', status: 'Approved', c
         s.api._calCrqFailed('p1', 'caption', 'Failed to fetch');
         s.env._calReviewRequestTweak = null;
         t(s.api._crqMine()[0].actionId === 'a1', 'a held change request keeps its action id');
+        const s3 = sandbox();
+        s3.api._calCrqBegin('request', 'p1', 'caption', { body: 'y' });
+        const minted = s3.api._crqMine()[0].actionId;
+        t(!!minted && s3.env._calReviewState.draftActionIds['p1|caption'] === minted, 'a new change request gets its action id stored before the first send');
         t(at0 > 0, 'a held change request keeps its click time');
     }
     // 4. Storage unavailable: the toast still comes down after a successful save.

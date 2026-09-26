@@ -121,6 +121,15 @@
             _crqMine().filter(e => e.pid === pid && e.kind === 'approve'
                 && (e.comp === 'all' || e.comp === comp)).forEach(e => _crqDrop(e.pid, e.comp));
         }
+        if (kind === 'request') {
+            // The request's action id exists BEFORE the first send and is kept
+            // with the entry, exactly as a retry of a failed request already
+            // carries one into the handler: the handler adopts it under its
+            // target lock, and a replay after a crash reuses it.
+            data = Object.assign({}, data || {});
+            data.actionId = String(data.actionId || _calReviewState.draftActionIds[key] || _calMintCommentId());
+            _calReviewState.draftActionIds[key] = data.actionId;
+        }
         _crqPut(Object.assign({ kind, pid, comp,
             at: replay && prior && prior.at || Date.now() }, data || {}));
         _crqRun.inflight.add(key);

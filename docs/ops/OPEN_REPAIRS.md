@@ -29220,3 +29220,10 @@ request when it arrives. No check was removed or loosened.
 
 **Proof.** 20 runs in a row pass locally, plus passing runs with every write
 slowed by 600 ms and by 1.5 s, where the old test fails.
+
+**Evidence fingerprint re-pinned by owner decision (2026-09-26).** The Time Off
+evidence packet fingerprints every `qa/pto-lifecycle/*.js` file, so this fix moved
+it. Only test timing changed, no app code and no screenshot content, so
+`source_tree_sha256` in `docs/audits/2026-07-17-pto-lifecycle-simulation/manifest.json`
+was re-pinned from `dd7bc753...` to `923dd9be...`, the value
+`test/leave-evidence-fingerprint-coupling.js` computes, as in #1619.

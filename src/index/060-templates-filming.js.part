@@ -1223,11 +1223,18 @@ import {
     const _TPL_ROW_ARROW = '<svg class="tpl-link-arrow" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h10v10M19 5L6 18"/></svg>';
     function _tplLinkHost(u) { try { const h = new URL(u).hostname.replace(/^www\./, ''); return /docs\.google/.test(h) ? 'Google Docs' : /drive\.google/.test(h) ? 'Google Drive' : /dropbox/.test(h) ? 'Dropbox' : /frame\.io|f\.io/.test(h) ? 'Frame.io' : /canva/.test(h) ? 'Canva' : h; } catch (e) { return ''; } }
     // One row in the Links card. One link: the whole row opens it. Several: numbered buttons, one per link.
+    const TPL_LINKS_INLINE = 4;
+    let _tplLinkRowOpen = '';
+    function tplLinkRowToggle(k) { _tplLinkRowOpen = _tplLinkRowOpen === k ? '' : k; _maybeRerenderTemplates(); }
     function _tplLinkRow(label, icon, links) {
         const ico = `<span class="tpl-link-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${TPL_LINK_ICONS[icon] || ''}</svg></span>`;
         if (!links.length) return `<div class="tpl-lrow empty">${ico}<span class="tpl-link-label">${label}</span><span class="tpl-link-right"><button type="button" class="tpl-link-add" onclick="setTemplatesEditMode(true)">Add link</button><span class="tpl-not-set" hidden>Not set</span></span></div>`;
         if (links.length === 1) return `<a class="tpl-lrow" href="${_tplEscAttr(links[0])}" target="_blank" rel="noopener">${ico}<span class="tpl-link-label">${label}</span><span class="tpl-link-right">${_tplEsc(_tplLinkHost(links[0]))}${_TPL_ROW_ARROW}</span></a>`;
-        return `<div class="tpl-lrow">${ico}<span class="tpl-link-label">${label}</span><span class="tpl-link-right"><span class="tpl-link-nums">${links.map((v, i) => `<a class="tpl-view-link" href="${_tplEscAttr(v)}" target="_blank" rel="noopener" title="${_tplEscAttr(_tplLinkHost(v))}">${i + 1}</a>`).join('')}</span>${_tplEsc(_tplLinkHost(links[0]))}</span></div>`;
+        const nums = `<span class="tpl-link-nums">${links.map((v, i) => `<a class="tpl-view-link" href="${_tplEscAttr(v)}" target="_blank" rel="noopener" title="${_tplEscAttr(_tplLinkHost(v))}">${i + 1}</a>`).join('')}</span>`;
+        if (links.length <= TPL_LINKS_INLINE) return `<div class="tpl-lrow">${ico}<span class="tpl-link-label">${label}</span><span class="tpl-link-right">${nums}${_tplEsc(_tplLinkHost(links[0]))}</span></div>`;
+        // Too many to sit on one line: a count that opens a wrapped grid under the row.
+        const open = _tplLinkRowOpen === label;
+        return `<div class="tpl-lrow-wrap"><div class="tpl-lrow">${ico}<span class="tpl-link-label">${label}</span><span class="tpl-link-right"><button type="button" class="tpl-link-count" data-k="${_tplEscAttr(label)}" onclick="tplLinkRowToggle(this.dataset.k)" aria-expanded="${open}">${links.length} links <span class="tpl-link-caret${open ? ' open' : ''}">&#x25BE;</span></button></span></div>${open ? `<div class="tpl-link-grid">${nums}</div>` : ''}</div>`;
     }
     function _tplBrainSpecStrip(name) {
         const b = _tplBrain[name];
@@ -1343,6 +1350,8 @@ import {
     // The editor brief: a short plain-English page Claude writes from the facts.
     // Each line can show the fact(s) behind it and send a change to them.
     let _tplBriefSourceOpen = '';
+    let _tplBriefMenuRow = '';          // brief line whose Source / Change buttons are showing
+    function tplBriefMenu(key) { _tplBriefMenuRow = _tplBriefMenuRow === key ? '' : key; _maybeRerenderTemplates(); }
     function tplBriefToggleSource(key) { _tplBriefSourceOpen = _tplBriefSourceOpen === key ? '' : key; _maybeRerenderTemplates(); }
     let _tplBriefFormRow = '';
     function tplBriefChange(key, row) { _tplBriefSourceOpen = ''; tplBrainOpen(key, row); }
@@ -1388,15 +1397,17 @@ import {
             const fact = byId[bl.facts[0]] || null;
             const changeKey = _tplBrainKey(name, fact ? fact.id : '');
             const open = _tplBriefSourceOpen === srcKey;
+            const menuOpen = _tplBriefMenuRow === srcKey || open || (_tplBriefFormRow === srcKey && !!(_tplBrainOpenForm === changeKey || _tplBrainSent[changeKey]));
             const formOpen = _tplBriefFormRow === srcKey && (_tplBrainOpenForm === changeKey || _tplBrainSent[changeKey]);
             const sources = bl.facts.map(id => byId[id]).filter(Boolean);
             const t = _tplBriefText(bl.body);
             return `<li class="tpl-brief-li">
                 <div class="tpl-brief-row"><span class="tpl-brief-text">${t.html}${t.note ? `<span class="tpl-brief-note">${_tplEsc(t.note)}</span>` : ''}</span>
-                    <span class="tpl-brief-acts">
+                    ${sources.length || fact ? `<button type="button" class="tpl-brief-more" data-k="${_tplEscAttr(srcKey)}" onclick="tplBriefMenu(this.dataset.k)" aria-label="Source or change this line" aria-expanded="${menuOpen}">&middot;&middot;&middot;</button>` : ''}</div>
+                ${menuOpen ? `<div class="tpl-brief-acts">
                         ${sources.length ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(srcKey)}" onclick="tplBriefToggleSource(this.dataset.k)">${open ? 'Hide source' : 'Source'}</button>` : ''}
                         ${fact ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(changeKey)}" data-row="${_tplEscAttr(srcKey)}" onclick="tplBriefChange(this.dataset.k, this.dataset.row)">Change</button>` : ''}
-                    </span></div>
+                    </div>` : ''}
                 ${open ? `<div class="tpl-brief-sources">${sources.map(f => `<div class="tpl-brief-source"><div class="tpl-brief-source-h">${_tplEsc(f.heading)}</div><div class="tpl-brain-body">${_tplBrainProse(f.body)}</div></div>`).join('')}</div>` : ''}
                 ${formOpen && fact ? _tplBrainChangeBox(name, fact, true) : ''}
             </li>`;

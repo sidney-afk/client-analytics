@@ -102,6 +102,13 @@
         .tpl-link-label { font-weight: 700; font-size: 0.92rem; }
         .tpl-link-right { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 0.8rem; white-space: nowrap; }
         .tpl-link-nums { display: inline-flex; gap: 6px; }
+        .tpl-lrow-wrap { background: var(--surface-subtle); border-radius: 12px; }
+        .tpl-lrow-wrap .tpl-lrow { background: none; }
+        .tpl-link-count { font: inherit; font-size: 0.8rem; font-weight: 600; color: var(--text-primary); background: var(--white); border: 1px solid var(--border); border-radius: 99px; padding: 4px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+        .tpl-link-caret { display: inline-block; transition: transform 0.15s; font-size: 0.7rem; }
+        .tpl-link-caret.open { transform: rotate(180deg); }
+        .tpl-link-grid { padding: 0 12px 12px 56px; }
+        .tpl-link-grid .tpl-link-nums { flex-wrap: wrap; }
         .tpl-link-nums .tpl-view-link { width: 28px; height: 28px; padding: 0; justify-content: center; border-radius: 50%; border: 1px solid var(--border); background: var(--white); font-size: 0.78rem; line-height: 1; }
         .tpl-link-add { font: inherit; font-size: 0.8rem; font-weight: 600; background: none; border: 0; color: var(--text-secondary); cursor: pointer; padding: 4px 2px; }
         .tpl-link-add:hover, .tpl-link-add:focus-visible { color: var(--text-primary); text-decoration: underline; }
@@ -153,17 +160,16 @@
         .tpl-brief-li::before { content: ""; position: absolute; left: 5px; top: 15px; width: 7px; height: 7px; border-radius: 50%; background: var(--k); opacity: 0.85; }
         .tpl-brief-avoid .tpl-brief-li::before { content: "\00d7"; width: auto; height: auto; background: none; opacity: 1; top: 4px; left: 3px; font-weight: 800; font-size: 1.05rem; line-height: 1.5; color: var(--k); }
         .tpl-brief-asks .tpl-brief-li::before { content: "\21ba"; width: auto; height: auto; background: none; opacity: 1; top: 5px; left: 2px; font-weight: 700; font-size: 0.9rem; line-height: 1.6; color: var(--k); }
-        .tpl-brief-row { display: flex; align-items: flex-start; gap: 10px; }
-        .tpl-brief-text { flex: 1; min-width: 0; }
+        .tpl-brief-row { position: relative; padding-right: 28px; }
         .tpl-brief-text { font-size: 0.92rem; line-height: 1.65; color: var(--text-primary); }
         .tpl-brief-note { display: table; margin-top: 6px; padding: 2px 9px; border-radius: 999px; background: var(--kbg); color: var(--text-secondary); font-size: 0.74rem; }
         .tpl-brief-hex { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--surface-subtle); border-radius: 999px; padding: 1px 9px 1px 4px; font: inherit; font-size: 0.8rem; color: inherit; cursor: copy; vertical-align: 1px; }
         .tpl-brief-hex span { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--border); }
         .tpl-brief-hex.copied { font-weight: 700; }
-        .tpl-brief-acts { flex-shrink: 0; display: inline-flex; gap: 4px; margin-top: 2px; opacity: 0; pointer-events: none; transition: opacity 0.12s; white-space: nowrap; }
-        .tpl-brief-li:hover .tpl-brief-acts, .tpl-brief-acts:focus-within { pointer-events: auto; }
-        .tpl-brief-li:hover .tpl-brief-acts, .tpl-brief-acts:focus-within { opacity: 1; }
-        @media (hover: none) { .tpl-brief-row { flex-wrap: wrap; } .tpl-brief-acts { opacity: 1; pointer-events: auto; } }
+        .tpl-brief-more { position: absolute; right: 0; top: 2px; width: 24px; height: 22px; border: 1px solid var(--border); border-radius: 6px; background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.8rem; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 0.12s; }
+        .tpl-brief-li:hover .tpl-brief-more, .tpl-brief-more:focus-visible, .tpl-brief-more[aria-expanded="true"] { opacity: 1; }
+        @media (hover: none) { .tpl-brief-more { opacity: 0.7; } }
+        .tpl-brief-acts { display: flex; gap: 6px; margin: 6px 0 2px; }
         .tpl-brief-act { font-size: 0.72rem; border: 1px solid var(--border); background: var(--white); border-radius: 6px; padding: 2px 7px; cursor: pointer; color: var(--text-secondary); }
         .tpl-brief-act:focus-visible, .tpl-brief-hex:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
         .tpl-brief-sources { margin: 8px 0 4px; padding: 8px 12px; border-left: 3px solid var(--border); }

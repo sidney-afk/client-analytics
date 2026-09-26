@@ -38031,7 +38031,8 @@
     let _calV2SubSlug = null;
     /* The live-update connection's REAL state, from the subscribe callback:
        'idle' (no channel), 'connecting', 'SUBSCRIBED', 'CHANNEL_ERROR',
-       'TIMED_OUT' or 'CLOSED'. A channel object existing is not a connection:
+       'TIMED_OUT', 'CLOSED', or 'unavailable' (no realtime client could be
+       created at all). A channel object existing is not a connection:
        measured 2026-09-26, a page whose WebSocket handshake failed every time
        still reported subscribed:true. While the connection is not up, a
        fallback pull every CAL_V2_FALLBACK_POLL_MS keeps an open page (the
@@ -38098,10 +38099,20 @@
             if (epoch === _calV2Epoch && _calLoadRunCurrent(loadRun)) {
                 console.warn('[Calendar v2] realtime client failed', e);
             }
+            client = null;
+        }
+        if (epoch !== _calV2Epoch || !_calLoadRunCurrent(loadRun)) return;
+        if (!client) {
+            // No realtime library or client (blocked CDN, failed load): the
+            // REST read still works, so arm the fallback pull on its own lease
+            // rather than leaving the open page with no updates at all.
+            const bare = { epoch, slug, surface: loadRun.surface, clientEntryRun: loadRun.clientEntryRun };
+            _calV2SubSlug = slug;
+            _calV2Lease = bare;
+            _calV2SetRtState('unavailable');
+            _calV2StartFallback(slug, bare);
             return;
         }
-        if (!client) return;
-        if (epoch !== _calV2Epoch || !_calLoadRunCurrent(loadRun)) return;
         const lease = {
             epoch,
             slug,

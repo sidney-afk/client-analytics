@@ -18,5 +18,6 @@ const tick = s.slice(s.indexOf('function fallbackTick'), s.indexOf('function fal
 t(/_calV2RtState !== 'SUBSCRIBED'/.test(tick) && /_calV2OnRealtimeChange\(slug, lease\)/.test(tick), 'while not connected the fallback pulls through the normal realtime path (debounce, self-echo, floor)');
 t(/visibilityState !== 'hidden'/.test(tick), 'the fallback does not pull on a hidden tab');
 t(/CAL_V2_FALLBACK_POLL_MS = 30000/.test(s) && /CAL_V2_CONNECT_GRACE_MS = 15000/.test(s), 'fallback every 30 s, after a 15 s grace to connect');
+t(/_calV2SetRtState\('unavailable'\);\s*_calV2StartFallback\(slug, bare\);/.test(s), 'with no realtime client at all the fallback is still armed');
 if (failed) { console.error('calendar-realtime-fallback: ' + failed + ' failed'); process.exit(1); }
 console.log('calendar-realtime-fallback: all checks passed');

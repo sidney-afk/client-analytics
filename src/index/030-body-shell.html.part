@@ -410,7 +410,7 @@
                 </div></div>
             </div>
         </div>
-        <!-- Neutral skeleton: a page whose own shape is not pre-painted (Time Off,
+        <!-- Neutral skeleton: a page whose own shape is not pre-painted (leave,
              Onboarding, Client Credentials, Intake, or a route the early boot
              cannot fully predict). Never another tab's shape. -->
         <div class="boot-skeleton-variant boot-skeleton-neutral">

@@ -57,7 +57,7 @@ function staffGateInit(payload) {
 // above; pass the member that suite's mock returns so the two agree.
 async function seedStaffIdentity(target, member, key) {
   const row = member || STAFF_GATE_MEMBER;
-  if (!key || key === STAFF_GATE_KEY) await refuseStubKeyProductionWrite(target);
+  if (!key || isFakeStaffKey(key)) await refuseStubKeyProductionWrite(target);
   await target.addInitScript(payload => {
     try {
       localStorage.setItem('syncview_staff_identity_v1', payload);
@@ -132,9 +132,17 @@ async function dropVerificationAfterBoot(target) {
 // refusal the live function gives, so no suite sees a different outcome and the
 // log keeps only real traffic. Only the stub key is matched: any other request
 // falls through to the suite's own mock, or to the network as before.
+// 2026-09-25 triage: a few rows a day still carried OTHER invented keys
+// (suites and probes that seed their own identity). A public repo cannot hold
+// a real role key, so every key a harness invents is fake; match the shapes
+// they use rather than one literal. A real key never looks like these.
+const FAKE_STAFF_KEY = /^(?:qa|probe|synthetic|dummy|gate|invalid|fixture|test|browser-staff|smm|staff|new)(?:[-_].*)?-key$|^qa-staff-gate-key$/;
+function isFakeStaffKey(key) {
+  return key === STAFF_GATE_KEY || FAKE_STAFF_KEY.test(String(key || ''));
+}
 function isStubKeyProductionWrite(request) {
   const headers = request.headers();
-  return request.method() === 'POST' && headers['x-syncview-key'] === STAFF_GATE_KEY;
+  return request.method() === 'POST' && isFakeStaffKey(headers['x-syncview-key']);
 }
 
 async function refuseStubKeyProductionWrite(target) {
@@ -165,4 +173,4 @@ async function seedStaffGate(target, options) {
   }));
 }
 
-module.exports = { seedStaffGate, refuseStubKeyProductionWrite, isStubKeyProductionWrite, seedStaffIdentity, dropVerificationAfterBoot, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };
+module.exports = { seedStaffGate, refuseStubKeyProductionWrite, isStubKeyProductionWrite, isFakeStaffKey, seedStaffIdentity, dropVerificationAfterBoot, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };

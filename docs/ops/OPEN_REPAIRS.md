@@ -29009,3 +29009,32 @@ effectively off in tests before, and on would send real Slack pings.
 `test/qa-harness-routes-like-production.js` now lifts the shipped `svFlagKeys`
 and fails if the fixture leaves any of them out, and runs the shipped calendar
 router on the answer.
+
+## 256. [2026-09-25, BUILT, needs the migration then two function deploys] The refusal log can now tell people from automation, and client links from staff pages
+
+**Why:** the 2026-09-25 triage of `write_refusal_diagnostics.receipts_v1` (about 4,500 rows over three days) could only separate our own tests from people by joining the request logs minute by minute on user agent and network. About 4,450 rows were automation (CI and executor sessions); fewer than 100 involved a real person. Browser claims are always stored `unverified`, so a client's refusal and a staff member's looked identical.
+
+**Change:** two optional receipt fields.
+- `traffic` (`person` | `automation`), set server-side from the request's user agent (HeadlessChrome, Playwright, curl, HTTP libraries, or no agent) or an explicit `x-syncview-traffic: automation` header. A header can never mark a request as a person.
+- `claimed_page` (`client_link` | `staff_page`), sent by the page's refusal beacon and stored for browser claims only. It is a claim, like the rest of the beacon.
+
+Both are optional in `production_write_refusal_record_v1`, so functions deployed before the migration keep recording with the original nine keys. Grants restate all four roles: revoke from public, anon, authenticated, service_role; execute granted back to service_role only.
+
+**Order:** apply `supabase/migrations/20260925180000_write_refusal_page_and_traffic.sql` FIRST (the old function refuses the new keys with `refusal_shape`, and a refused receipt is simply lost), then deploy `write-diagnostics` and `production-write`. Guard: `test/write-refusal-page-traffic-postgres.js`.
+
+## 257. [2026-09-25, BUILT] Workload's fresh board waited for the sign-in check before it started
+
+**Measured on the live site, 2026-09-25, warm reloads signed in as staff.** Workload
+painted its saved copy at ~0.8 s but became live and editable only at 2.2-2.9 s. The
+fresh-board read (`workload-plan` `native_snapshot_v2`, ~2 MB, 0.9-1.3 s) started
+only after `key-verify` (0.45-0.85 s) had answered, so the two ran back to back.
+
+**Fix.** The `<head>` boot script, which already starts `key-verify` early, now also
+starts that read at the same moment when the page opens on `#workload`.
+`wlFetchNativeSnapshot` takes it through `_wlTakeEarlySnapshot` only after
+`_syncviewRequireStaffIdentity` has passed, only for the exact key, member, actor
+name and role it was sent for, once, within a minute, and only if it succeeded;
+anything else is discarded and the normal read runs. Nothing is shown before the
+check passes. Expected saving: about the length of `key-verify`, 0.45-0.85 s, on
+every Workload open. Test: `test/workload-early-snapshot.js`. Before/after on the
+live site to be recorded here after merge.

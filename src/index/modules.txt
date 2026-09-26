@@ -19,4 +19,5 @@
 150-calendar-hydration-import.js.part
 180-calendar-native-post-media.js.part
 260-production-refresh-boot.js.part
+131-core-html.js.part
 132-calendar-dates-ids.js.part

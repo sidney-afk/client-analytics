@@ -116,6 +116,25 @@
                         });
                         svVerify.catch(function () {});
                         window.__svEarlyKeyVerify = { key: String(svId.key), memberId: String(svId.member.id), at: Date.now(), response: svVerify };
+                        // Workload only: start its fresh board read in PARALLEL
+                        // with key-verify instead of after it (2026-09-25
+                        // measurement: it waited 0.45-0.85 s for the check).
+                        // Grants nothing: the server checks the key itself, and
+                        // the app uses this answer only after key-verify passes
+                        // for this exact key + member, once, within a minute
+                        // (_wlTakeEarlySnapshot); otherwise it is discarded and
+                        // the normal read runs. Same URL, headers and body as
+                        // wlFetchNativeSnapshot's first read.
+                        var svHash0 = String(location.hash || '').replace('#', '').split('/')[0];
+                        if (svHash0 === 'workload' && svId.member.name && svId.role) {
+                            var svSnap = fetch(svBase + '/functions/v1/workload-plan?forceFunctionRegion=us-east-1', {
+                                method: 'POST', cache: 'no-store',
+                                headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': String(svId.key), 'X-Syncview-Actor': String(svId.member.name), 'X-Syncview-Role': String(svId.role) },
+                                body: JSON.stringify({ action: 'native_snapshot_v2', if_version: '' })
+                            });
+                            svSnap.catch(function () {});
+                            window.__svEarlyWlSnapshot = { key: String(svId.key), memberId: String(svId.member.id), actor: String(svId.member.name), role: String(svId.role), at: Date.now(), response: svSnap };
+                        }
                     }
                 } catch (e) {}
                 var svFlagKeys = ['calendar_upsert_ef_clients', 'kasper_urgent_ping_enabled', 'write_ui_reroute_clients', 'client_comment_gateway_enabled', 'settings_ef_clients', 'sample_review_ef_clients', 'analytics_mirror_read_enabled'];
@@ -15275,6 +15294,31 @@
             return new Set();
         }
     }
+    /* The fresh-board read the <head> boot script starts IN PARALLEL with
+       key-verify when the page opens on #workload (2026-09-25: it used to wait
+       0.45-0.85 s for the check to answer before it even started). Called only
+       after _syncviewRequireStaffIdentity has passed, and taken at most once.
+       It is used only when it was sent for the exact key, member, actor name
+       and role this page is now verified as, within the last minute; anything
+       else -- including a failed or rejected request -- returns null, and the
+       caller makes its normal read. Nothing from it is shown before the check
+       passes, because nothing reads it before then. */
+    async function _wlTakeEarlySnapshot() {
+        let early = null;
+        try { early = window.__svEarlyWlSnapshot; window.__svEarlyWlSnapshot = null; } catch (e) {}
+        if (!early || !early.response) return null;
+        const identity = typeof _syncviewStaffIdentityForHeaders === 'function' ? _syncviewStaffIdentityForHeaders() : null;
+        if (!identity || !identity.member) return null;
+        if (early.key !== String(identity.key || '') || early.memberId !== String(identity.member.id || '')
+            || early.actor !== String(identity.member.name || '') || early.role !== String(identity.role || '')) return null;
+        if (!(Date.now() - early.at < 60000)) return null;
+        try {
+            const response = await early.response;
+            // Only a genuine answer is reused; a refusal or a server error is
+            // re-asked through the normal read, with its normal handling.
+            return response && response.ok ? response : null;
+        } catch (e) { return null; }
+    }
     async function wlFetchNativeSnapshot() {
         await _syncviewRequireStaffIdentity('workload-plan-read');
         const owner = wlSnapshotIdentity(), session = _wlPlanSessionGeneration;
@@ -15298,7 +15342,8 @@
                 body: JSON.stringify(body)
             });
             let response = null;
-            if (!wlState.snapshotV2Unavailable) {
+            if (!wlState.snapshotV2Unavailable && !memo) response = await _wlTakeEarlySnapshot();
+            if (!response && !wlState.snapshotV2Unavailable) {
                 response = await post({ action: 'native_snapshot_v2', if_version: memo ? memo.version : '' });
                 if (response.status === 400 || response.status === 501) {
                     wlState.snapshotV2Unavailable = true;
@@ -28916,7 +28961,12 @@
                 ? error.status : null;
             const claim = {
                 action: 'browser_claim', surface: String(surface || ''),
-                operation: item && item.kind, code: error && error.code, identifiers
+                operation: item && item.kind, code: error && error.code, identifiers,
+                // Which kind of page refused: a client link or a staff page.
+                // A claim like the rest of this beacon (the server stores it as
+                // unverified), but it lets the log tell a client's refusal from
+                // staff without joining request logs (triage 2026-09-25).
+                page: (typeof _isClientLink !== 'undefined' && _isClientLink) ? 'client_link' : 'staff_page'
             };
             if (status !== null) claim.status = status;
             const body = JSON.stringify(claim);

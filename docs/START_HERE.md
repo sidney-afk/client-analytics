@@ -35,6 +35,13 @@ For a specific question, use [Find anything](FIND_ANYTHING.md).
 | [UI design standards](features/UI_DESIGN_STANDARDS.md) | Requirements for controls, explanations, keyboard use, touch, and mobile layouts. |
 | [Production design kit](syncview-design/README.md) | The current screen contract and the separate frozen prototype evidence. |
 
+## Owner vision and documentation design
+
+| Document | What it helps you find |
+|---|---|
+| [The step back](vision/STEP_BACK_2026-07-18.md) | The owner's rationale for shared company-and-software documentation and small, connected research slices. |
+| [Repository-map improvement pass](vision/IMPROVEMENT_PASS_2026-07-20.md) | A proposal to make the repository map easier to scan while keeping current-state ownership clear. |
+
 ## Testing and assurance
 
 | Document | What it helps you find |
@@ -54,6 +61,17 @@ For a specific question, use [Find anything](FIND_ANYTHING.md).
 | [Design test map](syncview-design/tests/README.md) | Runnable design checks and the boundary between live reads and mocked writes. |
 | [Frozen design tokens](syncview-design/linear-design-tokens.md) | Dated visual measurements used by the prototype; not a current runtime rule. |
 | [Frozen prototype](syncview-design/SyncView.html) | The preserved visual reference that must be judged against current app behavior. |
+
+### Quarantined prototype pointers
+
+These files retain old names to redirect readers; none is a current runbook.
+
+| Document | What it helps you find |
+|---|---|
+| [Prototype continuation](syncview-design/CONTINUATION.md) | A safe redirect from an obsolete prototype-session continuation to current design references. |
+| [Design-session handoff](syncview-design/HANDOFF.md) | A safe redirect from an old design handoff to the current design and test guides. |
+| [Prototype parity loop](syncview-design/PARITY-LOOP.md) | A safe redirect from the old parity loop to the living parity ledger and tests. |
+| [Prototype parity checklist](syncview-design/PARITY.md) | A frozen checklist that points to current parity and adapter references. |
 
 ## Feature contracts
 

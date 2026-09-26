@@ -67,6 +67,10 @@ async function readCardState(page, id, name) {
   const base = 'P91 UI RT ' + Date.now();
   const renamed = base + ' remote';
   let creator, observer, id = '';
+  // A run that died before its finally left a live card; archive those first
+  // (rows idle for two hours only, so an overlapping run is left alone).
+  try { L.archiveStaleTestRows(/^P91 UI RT /, 2 * 3600 * 1000, m => console.error('p91: ' + m)); }
+  catch (e) { console.error('p91: stale lookup failed: ' + (e && e.message || e)); }
   try {
     observer = await L.smm(browser);
     await observer.evaluate(() => { const b = document.querySelector('#sxrView .cal-view-btn[data-cal-view="organizer"]'); if (b) b.click(); if (typeof loadSxrCards === 'function') loadSxrCards({ skipCache: true }); });
@@ -108,7 +112,7 @@ async function readCardState(page, id, name) {
     ok(false, 'probe threw', e && e.stack || String(e));
   } finally {
     try { await browser.close(); } catch {}
-    if (id) { try { L.archiveSafe(id); } catch {} }
+    if (id) { try { L.archiveSafe(id); } catch (e) { console.error('p91: archive of ' + id + ' failed: ' + (e && e.message || e)); } }
   }
   const fail = results.filter(r => !r.pass).length;
   console.log(`pass=${results.length - fail} fail=${fail}`);

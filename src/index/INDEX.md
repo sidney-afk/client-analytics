@@ -45,7 +45,7 @@
 | 37 | `290-samples-writes-review.js.part` | 1804 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 38 | `300-tiktok-upload.js.part` | 1886 | TIKTOK UPLOAD MODULE |
 | 39 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
-| 40 | `320-kasper-dashboard-replies.js.part` | 3201 | RELOAD RACE (speed map §7). On a reload the stored staff |
+| 40 | `320-kasper-dashboard-replies.js.part` | 3226 | RELOAD RACE (speed map §7). On a reload the stored staff |
 | 41 | `330-kasper-review-history.js.part` | 2695 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 42 | `340-editors-date-picker.js.part` | 1302 | Editor work model |
 | 43 | `350-footer.html.part` | 398 | Transcript preview modal |

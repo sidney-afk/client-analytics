@@ -3,7 +3,7 @@
 // 2026-09-26). Seeds one calendar card and one sample on the TEST client, then
 // at desktop width (mouse) and at 390 and 375 (touch only) checks that the
 // sample shows in "Waiting for your review" with its Sample label, the
-// Samples tab is hidden, and every action on the sample card still runs the
+// Samples tab is gone, and every action on the sample card still runs the
 // SAMPLES handler and saves through the samples saver: open, switch, video,
 // thumbnail, comment, request change, approve. Saves are recorded and
 // answered (the work items are synthetic), the retired Linear webhooks must
@@ -88,7 +88,7 @@ async function runAt(browser, width) {
   ok(await p.waitForSelector(cSel, { timeout: 120000 }).then(() => true, () => false), `${width}: the calendar card is in the same list`);
   ok(await p.evaluate(q => { const c = document.querySelector(q + ' .kcard-sample-chip'); return !!c && c.textContent.trim() === 'Sample' && c.getBoundingClientRect().width > 0; }, sSel), `${width}: the sample card carries a visible Sample label`);
   ok(!(await p.evaluate(q => !!document.querySelector(q + ' .kcard-sample-chip'), cSel)), `${width}: the calendar card has no Sample label`);
-  ok(await p.evaluate(() => { const t = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'); return !t || getComputedStyle(t).display === 'none'; }), `${width}: the Samples tab is hidden`);
+  ok(await p.evaluate(() => !document.querySelector('.kasper-subtab[data-kasper-tab="samples"]')), `${width}: there is no Samples tab`);
   const counts = await p.evaluate(() => ({ head: Number((document.querySelector('#kasperWaitingWrap .kasper-history-count') || {}).textContent), cards: document.querySelectorAll('#kasperWaitingWrap .kcard').length }));
   ok(counts.head === counts.cards, `${width}: the waiting count includes samples`, JSON.stringify(counts));
   const tabCount = await p.evaluate(() => { const u = document.querySelectorAll('#kasperReviewBody .kasper-urgent-wrap .kcard').length; return { pill: Number((document.querySelector('[data-kasper-count="review"]') || {}).textContent), list: u + document.querySelectorAll('#kasperWaitingWrap .kcard').length }; });
@@ -136,10 +136,14 @@ async function runAt(browser, width) {
   if (hasG) {
     await p.waitForSelector(gPanel + ' .cal-review-approve-btn', { timeout: 10000 }).catch(() => {});
     await bigEnough(gPanel + ' .cal-review-approve-btn', 'Approve');
+    // A save repaints the list, deferred while a note box has focus; let that
+    // repaint land first so the Approve tap is not swallowed by it.
+    await p.evaluate(() => { const a = document.activeElement; if (a && a.blur) a.blur(); });
+    await sleep(1800);
     await waitFor(() => p.evaluate(q => { const b = document.querySelector(q); return !!b && !b.disabled; }, gPanel + ' .cal-review-approve-btn'), 20000);
     await tapSel(gPanel + ' .cal-review-approve-btn');
     const got = await waitFor(() => saves.some(x => x.graphic_status === 'Client Approval'), 30000);
-    if (!got) console.log('DEBUG', await p.evaluate(q => { const b = document.querySelector(q); const n = document.querySelector('.notify, #notify, .sv-notify, [class*="toast"]'); return JSON.stringify({ btn: b && { dis: b.disabled, txt: b.textContent.trim().slice(0, 40), title: b.title }, note: n && n.textContent.trim().slice(0, 200) }); }, gPanel + ' .cal-review-approve-btn'));
+    if (!got) console.log('DEBUG', await p.evaluate(q => { const b = document.querySelector(q); const n = document.querySelector('.notify, #notify, .sv-notify, [class*="toast"]'); const it = _sxrKasperState.items.find(x => x.post.id === q.split('"')[1]); return JSON.stringify({ btn: b && { dis: b.disabled, txt: b.textContent.trim().slice(0, 40), onclick: (b.getAttribute('onclick') || '').slice(0, 90) }, block: it ? _sxrReviewBlockReason(it.post, 'graphic', 'Client Approval') : 'noitem', gstat: it && it.post.graphic_status, saving: JSON.stringify(_sxrKasperState.saving) }); }, gPanel + ' .cal-review-approve-btn'));
     ok(got, `${width}: Approve sends the sample thumbnail to the client through the samples saver`, JSON.stringify(saves.map(x => x.graphic_status)));
   }
   ok(await waitFor(() => p.evaluate(q => !!document.querySelector(q), sSel.replace(' .kasper-waiting-wrap', '')), 3000), `${width}: the sample card is still in the Review list after the decisions`);
@@ -148,12 +152,19 @@ async function runAt(browser, width) {
   ok(gateway.length >= 1, `${width}: the native gateway received the sample's decisions`, gateway.length);
   // A samples repaint keeps a calendar load failure on screen.
   ok(await p.evaluate(() => { _kasperState.error = 'probe failure'; _sxrKasperRenderQueue(); const kept = !!document.querySelector('#kasperReviewBody [data-kasper-queue-error]'); _kasperState.error = null; _kasperPaintReview(); return kept && !document.querySelector('#kasperReviewBody [data-kasper-queue-error]'); }), `${width}: a samples repaint keeps the calendar load failure notice`);
-  // Opening #kasper/samples shows its tab; going back to Review hides it again.
+  // An old #kasper/samples link (e.g. an urgent ping sent before the tab was
+  // removed) lands on Review, and no Samples tab exists.
   await p.evaluate(() => _kasperGotoTab('samples'));
-  const shown = await p.evaluate(() => { const t = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'); return !!t && getComputedStyle(t).display !== 'none'; });
-  await p.evaluate(() => _kasperGotoTab('review'));
-  const hiddenAgain = await p.evaluate(() => { const t = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'); return !t || getComputedStyle(t).display === 'none'; });
-  ok(shown && hiddenAgain, `${width}: the Samples tab shows only while it is open`, JSON.stringify({ shown, hiddenAgain }));
+  const landed = await p.evaluate(() => ({ tab: _kasperState.tab, tabBtn: !!document.querySelector('.kasper-subtab[data-kasper-tab="samples"]') }));
+  ok(landed.tab === 'review' && !landed.tabBtn, `${width}: an old Samples link opens Review, and there is no Samples tab`, JSON.stringify(landed));
+  // The same link opened fresh, as a click from the message would.
+  await p.goto(ORIGIN + '/index.html?Kasper=1#kasper/samples', { waitUntil: 'domcontentloaded', timeout: 90000 });
+  ok(await p.waitForFunction(() => !!document.getElementById('kasperReviewBody') && _kasperState.tab === 'review', null, { timeout: 60000 }).then(() => true, () => false),
+    `${width}: opening #kasper/samples fresh lands on the Review tab`);
+  // And the clean address, the way the page stub hands /kasper/samples over.
+  await p.goto(ORIGIN + '/index.html?sv_path=' + encodeURIComponent('/kasper/samples'), { waitUntil: 'domcontentloaded', timeout: 90000 });
+  ok(await p.waitForFunction(() => !!document.getElementById('kasperReviewBody') && _kasperState.tab === 'review', null, { timeout: 60000 }).then(() => true, () => false),
+    `${width}: opening /kasper/samples lands on the Review tab`);
   ok(errs.length === 0, `${width}: no app errors`, errs[0]);
   await ctx.close();
 }

@@ -29114,3 +29114,26 @@ in the approve and request-change logic.
    `_sxrKasperPersist` always sends an empty `comments_base_at` and never retries
    on a conflict, where the calendar sends its base time and merges comments on a
    conflict. A concurrent edit to the same sample can be overwritten.
+
+## 261. [2026-09-26, BUILT] The separate Samples tab on Kasper's page is gone
+
+**Problem.** After 259 listed samples in the Review queue, the Samples tab was
+only hidden: its own list, sections and counts still lived in the page, and links
+(including urgent pings already sent) still pointed at `#kasper/samples`.
+
+**Fix.** The Samples subtab is no longer registered. `_kasperResolveSubtab` maps
+the old key to Review, and every route that picks a Kasper subtab uses it: the
+three hash readers, the remembered last tab, and `_kasperGotoTab`. So an old
+`#kasper/samples` link, a message that carries one, or a browser that last had
+Samples open all land on Review. New urgent pings for a sample now link to
+`#kasper`. The samples list code keeps only what Review uses (the cards, their
+handlers and saver, and the approved-samples history); its own page renderer,
+Urgent / Waiting / Tweaks sections and their toggles are removed. The "samples
+switched on" checks now read the samples feature switch directly. No n8n
+workflow was changed.
+
+**Proof.** `qa/probes/kasper_samples_in_review.js` (on demand, test client only):
+96 of 96 at 1440, 390 and 375, including that there is no Samples tab, that
+`_kasperGotoTab('samples')`, a fresh load of `#kasper/samples` and the clean
+address `/kasper/samples` all land on Review, and that every sample action still saves through the samples saver. The
+nav, urgent-ping and focus tests were updated to the single queue.

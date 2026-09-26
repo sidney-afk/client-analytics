@@ -10,7 +10,7 @@
 | 2 | `003-sv-route.html.part` | 177 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 273 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3891 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 4191 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 4190 | Templates view |
 | 6 | `030-body-shell.html.part` | 454 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 1833 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 8 | `050-market-briefs.js.part` | 1716 | Market Research Brief Tab Renderers |
@@ -27,7 +27,7 @@
 | 19 | `132-calendar-dates-ids.js.part` | 14 | — |
 | 20 | `133-core-loading-skeletons.js.part` | 367 | Modern animated loader — a single rotating ring with a subtle label. |
 | 21 | `134-calendar-prefs-mount.js.part` | 1065 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
-| 22 | `140-calendar-legacy-outbox.js.part` | 3071 | Shed the retired legacy rows from storage, under the surface mutation |
+| 22 | `140-calendar-legacy-outbox.js.part` | 3070 | Shed the retired legacy rows from storage, under the surface mutation |
 | 23 | `150-calendar-hydration-import.js.part` | 2141 | For a card linked to a real sub-issue (not a parent), return which of |
 | 24 | `160-calendar-organize-ui.js.part` | 2809 | Lighter path for the Order switch: update the chrome in place so the |
 | 25 | `170-calendar-links-status.js.part` | 2759 | Move a Linear sub-issue link from the old card onto the new one. The |
@@ -39,13 +39,13 @@
 | 31 | `230-production-create-comments.js.part` | 2639 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 32 | `240-production-description.js.part` | 2646 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 33 | `250-production-controls-data.js.part` | 2881 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 34 | `260-production-refresh-boot.js.part` | 2368 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 34 | `260-production-refresh-boot.js.part` | 2369 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 35 | `270-samples-model.js.part` | 2708 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 36 | `280-samples-cards-notes.js.part` | 2832 | SURFACE 3: the save engine |
-| 37 | `290-samples-writes-review.js.part` | 1804 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
+| 37 | `290-samples-writes-review.js.part` | 1736 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 38 | `300-tiktok-upload.js.part` | 1886 | TIKTOK UPLOAD MODULE |
 | 39 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
-| 40 | `320-kasper-dashboard-replies.js.part` | 3226 | RELOAD RACE (speed map §7). On a reload the stored staff |
+| 40 | `320-kasper-dashboard-replies.js.part` | 3212 | The Samples subtab was folded into Review (samples are listed in the |
 | 41 | `330-kasper-review-history.js.part` | 2695 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 42 | `340-editors-date-picker.js.part` | 1302 | Editor work model |
 | 43 | `350-footer.html.part` | 398 | Transcript preview modal |

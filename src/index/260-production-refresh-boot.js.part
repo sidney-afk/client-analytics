@@ -77,7 +77,7 @@ import {
 import { SXR_CACHE_PREFIX, _sxrAbortActiveLoad, _sxrNextLoadSeq, sxrState } from './270-samples-model.js';
 import { _sxrFlushAllPending, _sxrLinearOutboxTimer, _sxrSetLinearOutboxTimer, mountSxrClientView } from './280-samples-cards-notes.js';
 import { _sxrV2Teardown, _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
-import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js';
+import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-replies.js';
         function _prodManualRefresh() {
             // The press must be visibly acknowledged: the refresh itself is a
             // silent background delta, and a button that does nothing on
@@ -1751,7 +1751,8 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
                     // Admin access already confirmed (gated by _kasperHashLanding).
                     if (hashRaw.startsWith('kasper/')) {
                         const sub = hashRaw.slice('kasper/'.length);
-                        if (KASPER_SUBTABS.some(t => t.key === sub)) _kasperState.tab = sub;
+                        const key = _kasperResolveSubtab(sub);
+                        if (key) _kasperState.tab = key;
                     }
                     navTo('kasper', false);
                 } else if (hashRaw === 'time-off') {
@@ -1871,7 +1872,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
             if(hash==='kasper' && _kasperUnlocked){navTo('kasper',false);return;}
             if(hash.startsWith('kasper/') && _kasperUnlocked){
                 const sub=hash.slice('kasper/'.length);
-                if(KASPER_SUBTABS.some(t=>t.key===sub)) _kasperState.tab=sub;
+                const key=_kasperResolveSubtab(sub); if(key) _kasperState.tab=key;
                 navTo('kasper',false);return;
             }
             if(hash.startsWith('calendar/')){

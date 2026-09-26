@@ -38,7 +38,7 @@ import {
   _syncviewSyncClientEntryRunHref
 } from './260-production-refresh-boot.js';
 import { mountSxrClientView } from './280-samples-cards-notes.js';
-import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js';
+import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-replies.js';
     // ── Market Research Brief Tab Renderers ───────────────────────────────────
     const _mrExternalLink=`<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3M9 2h5m0 0v5m0-5L7 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     const _mrEmpty=(msg)=>`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:24px 0;">${msg||'No data in this section.'}</div>`;
@@ -1241,7 +1241,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
                     if(_kasperUnlocked){
                         if(hash.startsWith('kasper/')){
                             const sub=hash.slice('kasper/'.length);
-                            if(KASPER_SUBTABS.some(t=>t.key===sub))_kasperState.tab=sub;
+                            const key=_kasperResolveSubtab(sub);if(key)_kasperState.tab=key;
                         }
                         navTo('kasper',false);return;
                     }

@@ -866,7 +866,7 @@ async function kasperCal(browser, opts) {
 // Kasper review surface for the SAMPLES sub-tab (M5a). Opens ?Kasper=1&sxr=1,
 // seeds the Kasper unlock (sessionStorage syncview_kasper_unlocked='ok',
 // KASPER_UNLOCK_KEY ~25553) + the auth flag, waits for the Kasper page, then
-// switches to the samples sub-tab via _kasperGotoTab('samples'). Returns the page.
+// opens the Review tab, where samples are listed with calendar cards. Returns the page.
 async function kasper(browser, opts) {
   const ctx = await _ctx(browser, opts);
   // Seed BOTH the auth flag (localStorage) and the Kasper unlock (sessionStorage)
@@ -879,8 +879,8 @@ async function kasper(browser, opts) {
   await page.goto(ORIGIN + '/index.html?Kasper=1&sxr=1&v2debug=1#kasper', { waitUntil: 'domcontentloaded', timeout: 45000 });
   // Wait for the Kasper view + the samples sub-tab handler to be wired.
   await page.waitForFunction(() => typeof window._kasperGotoTab === 'function' && typeof window._kasperRenderSamples === 'function', { timeout: 20000 }).catch(() => {});
-  // Switch to the samples sub-tab.
-  await page.evaluate(() => { try { window._kasperGotoTab('samples'); } catch (e) {} });
+  // Samples are listed in the Review tab (the Samples subtab was removed).
+  await page.evaluate(() => { try { window._kasperGotoTab('review'); } catch (e) {} });
   await page.waitForTimeout(800);
   return page;
 }

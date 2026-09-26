@@ -7,7 +7,10 @@
 -- (role "authenticated") instead of the bare anon key. Applying this first
 -- empties the Calendar, Samples, Kasper, Production and Workload for everyone.
 --
--- WHAT. Replaces the `using (true)` read policies with scoped ones:
+-- WHAT. Replaces the `using (true)` read policies on the five card tables and
+-- the two card event ledgers (calendar_post_events, sample_review_events) with
+-- scoped ones, and gives the three anon-readable owner-rights views scoped
+-- `_session` twins (originals closed to anon and authenticated):
 --   * a staff session (claim svc_scope = 'staff') reads every row, as today;
 --   * a client session (svc_scope = 'client') reads only rows whose client /
 --     client_slug equals its svc_client claim;
@@ -60,6 +63,47 @@ create policy "session read batches" on public.batches for select to authenticat
 create policy "session read deliverable_events" on public.deliverable_events for select to authenticated
   using (public.syncview_session_scope() = 'staff'
     or (public.syncview_session_scope() = 'client' and client_slug = public.syncview_session_client()));
+
+-- The two card event ledgers carry card ids, actors and status history.
+drop policy if exists "anon read calendar_post_events" on public.calendar_post_events;
+drop policy if exists "anon read sample_review_events" on public.sample_review_events;
+create policy "session read calendar_post_events" on public.calendar_post_events for select to authenticated
+  using (public.syncview_session_scope() = 'staff'
+    or (public.syncview_session_scope() = 'client' and client = public.syncview_session_client()));
+create policy "session read sample_review_events" on public.sample_review_events for select to authenticated
+  using (public.syncview_session_scope() = 'staff'
+    or (public.syncview_session_scope() = 'client' and client = public.syncview_session_client()));
+revoke select on public.calendar_post_events, public.sample_review_events from anon;
+
+-- Three anon-readable views run with their owner's (postgres) rights, so base
+-- table policies never reach them. They cannot switch to security_invoker:
+-- two read deliverables.linear_raw, which authenticated must not read, and one
+-- reads rename_propagation_outbox, which it cannot read at all. They also
+-- cannot be renamed: seven server-side functions (the Workload snapshot, plan
+-- and intake loaders; none executable by anon or authenticated) name them and
+-- would then read an empty, claim-scoped view. So the originals stay exactly
+-- as they are for those functions, lose their anon and authenticated grants,
+-- and a new `<name>_session` view (owner rights, security_barrier) returns only
+-- the rows a session may see. Phase 1 points the browser at the _session names.
+do $views$
+declare v record;
+begin
+  for v in select * from (values
+      ('production_deliverables_browser_v1', 'client_slug'),
+      ('workload_issues_native_v1', 'client_slug'),
+      ('rename_propagation_status_v1', 'client')) as t(name, client_col) loop
+    if to_regclass('public.' || v.name) is null or to_regclass('public.' || v.name || '_session') is not null then
+      raise exception 'scoped_read_view_state_unexpected: %', v.name;
+    end if;
+    execute format('create view public.%I with (security_barrier = true) as select * from public.%I u
+      where public.syncview_session_scope() = %L or (public.syncview_session_scope() = %L and u.%I = public.syncview_session_client())',
+      v.name || '_session', v.name, 'staff', 'client', v.client_col);
+    execute format('revoke all on public.%I from public, anon, authenticated, service_role', v.name || '_session');
+    execute format('grant select on public.%I to authenticated', v.name || '_session');
+    execute format('revoke select on public.%I from public, anon, authenticated', v.name);
+  end loop;
+end;
+$views$;
 
 -- anon keeps no read path to these five tables.
 revoke select on public.calendar_posts, public.sample_reviews, public.deliverable_events from anon;

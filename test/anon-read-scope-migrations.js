@@ -26,4 +26,12 @@ ok(!/to anon|to public/i.test(code(p2).replace(/from anon/g, '')), 'phase 2 gran
 ok(/syncview_session_scope\(\) = 'staff'/.test(p2) && /syncview_session_scope\(\) = 'client' and client/.test(p2), 'staff read all; a client only its own slug');
 ok(/revoke all on function public\.syncview_session_scope\(\) from public, anon, authenticated, service_role;/.test(p2), 'claim helpers: all four roles revoked first');
 ok(/revoke select \(%I\) on public\.%I from anon/.test(p2), 'phase 2 removes the per-column anon grants too');
+for (const t of ['calendar_post_events', 'sample_review_events']) {
+  ok(new RegExp(`drop policy if exists "anon read ${t}"`).test(p2) && new RegExp(`create policy "session read ${t}"`).test(p2), `phase 2 scopes the ${t} ledger`);
+}
+ok(/revoke select on public\.calendar_post_events, public\.sample_review_events from anon;/.test(p2), 'phase 2 revokes anon on both ledgers');
+for (const v of ['production_deliverables_browser_v1', 'workload_issues_native_v1', 'rename_propagation_status_v1']) ok(p2.includes(`'${v}'`), `phase 2 covers the ${v} view`);
+ok(/v\.name \|\| '_session'/.test(p2) && !/alter view[^;]*rename/i.test(code(p2)), 'views get _session twins; originals are never renamed (server functions name them)');
+ok(/revoke select on public\.%I from public, anon, authenticated', v\.name\)/.test(p2), 'the original views are closed to anon and authenticated');
+ok(!/security_invoker/.test(code(p2)), 'views are not switched to security_invoker (it would expose hidden columns or break them)');
 console.log(`anon-read-scope-migrations: ${passed} checks passed`);

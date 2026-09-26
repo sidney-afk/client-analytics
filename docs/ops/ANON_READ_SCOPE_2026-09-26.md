@@ -15,6 +15,8 @@ Measured live with `has_table_privilege` / `has_column_privilege` and `pg_policy
 | `deliverables` | all rows (`using (true)`, anon and authenticated) | 24 of 28 (not `brief`, `file_url`, `comments`, `linear_raw`) | yes |
 | `batches` | all rows (`using (true)`, anon and authenticated) | 13 of 17 (not the three folder links, `comments`) | yes |
 | `production_comments` | none (RLS on, no policy, no grant) | none | not published |
+| `calendar_post_events`, `sample_review_events` | **all rows, every client** (`using (true)`) | all | — |
+| views `production_deliverables_browser_v1`, `workload_issues_native_v1`, `rename_propagation_status_v1` | **all rows** — they run with their owner's rights, so table policies never reach them | their own columns | — |
 
 Scale at the time of measurement: calendar rows for 34 clients, sample rows
 for 9, and about 125,000 production events. Anyone holding the publishable key
@@ -76,7 +78,18 @@ moved to asymmetric signing keys, the session has to come from Supabase Auth
 instead (for example anonymous sign-in plus a custom-access-token hook that adds
 the two claims). This choice decides phase 1's shape.
 
-**Phase 2 — after phase 1 is measured.**
+**Phase 2 — after phase 1 is measured.** It also covers the two card event
+ledgers and the three owner-rights views (found in review). The views cannot
+simply switch to `security_invoker`: two of them read `deliverables.linear_raw`,
+which the session role must not read, and one reads a table the session role
+cannot read at all. They cannot be renamed either, because seven server-side
+functions name them (the Workload snapshot, plan and intake loaders, none of
+them callable by anon or authenticated). So the originals stay exactly as they
+are for those functions and are closed to anon and authenticated. New
+`<name>_session` views return only the rows a session may see, and phase 1
+points the browser's three view reads at the `_session` names.
+
+
 `migrations/2026-09-26-scoped-read-policies.sql` drops the five `using (true)`
 policies and adds `authenticated` policies. A staff session reads every row, and
 a client session reads only rows whose `client` or `client_slug` equals its
@@ -96,7 +109,7 @@ and the restrictive event-body policies are unchanged.
 ## Proof
 
 `scripts/anon-read-scope-rehearsal.js` (disposable local PostgreSQL 16, fixture
-built with the live policies and grants): 11 checks. They cover anon reading
+built with the live policies and grants): 16 checks, including the event ledgers, the views and an unaffected server-side function. They cover anon reading
 everything and TRUNCATE succeeding before any change; phase 0 removing every
 write privilege while reads stay the same; phase 0 refusing when a write policy
 exists; and, under phase 2, anon reading nothing, staff reading everything, a

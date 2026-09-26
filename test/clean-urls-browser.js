@@ -53,6 +53,12 @@ async function newContext(browser, member, opts = {}) {
   await context.route(/^https?:\/\/(?!127\.0\.0\.1)/, route => {
     const req = route.request(); const url = req.url();
     if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    // An invented client that only the Clients Info sheet knows (not the
+    // built-in seed list), so a fresh browser has to wait for the roster.
+    if (opts.cards && /docs\.google\.com/.test(url)) {
+      const csv = /Clients%20Info|Clients\+Info|Clients Info/.test(url) ? 'client_name\n' + opts.cards.name + '\n' : 'client_name,date\n';
+      return route.fulfill({ status: 200, contentType: 'text/csv', headers: cors, body: csv });
+    }
     if (opts.sheetsDown && /docs\.google\.com/.test(url)) return route.fulfill({ status: 500, headers: cors, body: 'down' });
     if (/\/functions\/v1\/key-verify/.test(url)) {
       if (opts.verifierDown) return route.fulfill({ status: 503, contentType: 'application/json', headers: cors, body: '{"ok":false}' });
@@ -295,13 +301,16 @@ const ADMIN_CASES = [
 
     // 7. Card deep links open the card, keep it in the address while it is
     // open (a reload opens it again), and drop it only when it is closed.
-    // Test client only; a fresh browser each time (no saved tabs).
-    const TEST = 'sidneylaruel';
+    // An invented client that is not in the built-in seed list, so a fresh
+    // browser (no saved tabs) must wait for the client roster: this is the
+    // path that used to open an empty "No clients added yet" board.
+    const NAME = 'Link Fixture Client';
+    const TEST = 'linkfixtureclient';
     const today = new Date().toISOString().slice(0, 10);
     const cardRows = () => ['p_link_a', 'p_link_b', 'p_link_c'].map((id, i) => ({
       id, client: TEST, name: 'Link test ' + i, status: 'Draft', scheduled_date: today, sort_order: i,
     }));
-    const cards = { slug: TEST, rows: cardRows };
+    const cards = { slug: TEST, name: NAME, rows: cardRows };
     const focusedPid = pg => pg.evaluate(() => { const el = document.querySelector('.cal-card-focused'); return el ? el.getAttribute('data-pid') : null; });
     const waitFocus = pg => pg.waitForFunction(() => !!document.querySelector('.cal-card-focused'), null, { timeout: 15000 }).catch(() => {});
     for (const [label, addr, clean, screen] of [

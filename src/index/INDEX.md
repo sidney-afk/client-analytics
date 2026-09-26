@@ -12,7 +12,7 @@
 | 4 | `010-styles-foundation.css.part` | 3891 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 5 | `020-styles-surfaces.css.part` | 4191 | Templates view |
 | 6 | `030-body-shell.html.part` | 454 | Confirmation modal |
-| 7 | `040-shared-briefs.js.part` | 1834 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
+| 7 | `040-shared-briefs.js.part` | 1833 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 8 | `050-market-briefs.js.part` | 1716 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2290 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `070-workload-source.js.part` | 3650 | Workload Calendar |

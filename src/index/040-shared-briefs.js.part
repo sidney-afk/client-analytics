@@ -57,7 +57,7 @@ import { _tkMounted, _tkRenderForm } from './300-tiktok-upload.js';
     }, true);
     function _syncviewThemeAllowed() {
         try {
-            const q = new URLSearchParams(location.search);
+            const q = new URLSearchParams(svRoute.search());
             return !q.get('c');
         } catch (e) { return false; }
     }
@@ -1015,7 +1015,7 @@ import { _tkMounted, _tkRenderForm } from './300-tiktok-upload.js';
     let _analyticsIdbExtRead = null;        // the saved `ext` read, while one is out
     function _analyticsIsClientSession(){
         try { return (typeof _isClientLink !== 'undefined' && !!_isClientLink)
-            || !!new URLSearchParams(location.search).get('c'); } catch (e) { return true; }
+            || !!new URLSearchParams(svRoute.search()).get('c'); } catch (e) { return true; }
     }
     function _analyticsIdbOpen(){
         if (_analyticsIdbPromise) return _analyticsIdbPromise;
@@ -1703,10 +1703,10 @@ import { _tkMounted, _tkRenderForm } from './300-tiktok-upload.js';
         // not which tab they're on within a client profile.
         const state={nav:_isClientLink?null:currentNav,client:name,clientSlug:_isClientLink?_syncviewClientEntryCapability.slug:undefined,clientTab:tab,briefSection:activeBriefSection[name],briefTab:activeBriefTab[name],mrBriefTab:activeMRBriefTab[name]};
         if(_isClientLink){
-            const q=new URLSearchParams(location.search);
+            const q=new URLSearchParams(svRoute.search());
             if(tab==='analytics')q.delete('v');else q.set('v',tab);
             q.delete('sxr');
-            history.pushState(state,'',location.pathname+'?'+q.toString());
+            history.pushState(state,'','/'+'?'+q.toString());
             _syncviewSyncClientEntryRunHref();
         }else{
             history.pushState(state,'','#'+encodeURIComponent(name));

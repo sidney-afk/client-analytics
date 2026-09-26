@@ -46,7 +46,7 @@
      _syncviewOpenStaffIdentity({ entry: true }) once the roster loads. -->
 <div id="staffGateOverlay">
     <div class="staff-gate-inner">
-        <img src="syncview-favicon.png" alt="SyncView">
+        <img src="/syncview-favicon.png" alt="SyncView">
         <div>
             <div class="staff-gate-title">Welcome to SyncView</div>
             <div class="staff-gate-note" id="staffGateNote">Preparing secure sign-in…</div>
@@ -56,53 +56,53 @@
 </div>
 
 <header class="header" style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;">
-    <a class="logo" href="./" onclick="if(_modClick(event))return;event.preventDefault();goHome();" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
-        <img src="syncview-favicon.png" alt="SyncView">
+    <a class="logo" href="/" onclick="if(_modClick(event))return;event.preventDefault();goHome();" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
+        <img src="/syncview-favicon.png" alt="SyncView">
         <span class="logo-text">SyncView</span>
     </a>
     <div class="header-nav" id="headerNav">
         <span class="header-nav-pill" aria-hidden="true"></span>
-        <a class="header-nav-btn active" id="navHome" href="#" onclick="if(_modClick(event))return;event.preventDefault();navTo('home')">
+        <a class="header-nav-btn active" id="navHome" href="/" onclick="if(_modClick(event))return;event.preventDefault();navTo('home')">
             <span class="header-nav-ico ico-analytics" aria-hidden="true"></span>
             Analytics
         </a>
-        <a class="header-nav-btn" id="navProd" href="#production" onclick="if(_modClick(event))return;event.preventDefault();navTo('production')">
+        <a class="header-nav-btn" id="navProd" href="/synclinear" onclick="if(_modClick(event))return;event.preventDefault();navTo('production')">
             <span class="header-nav-ico ico-synclinear" aria-hidden="true"></span>
             SyncLinear
         </a>
-        <a class="header-nav-btn" id="navLinear" href="#linear" onclick="if(_modClick(event))return;event.preventDefault();navTo('linear')">
+        <a class="header-nav-btn" id="navLinear" href="/submit" onclick="if(_modClick(event))return;event.preventDefault();navTo('linear')">
             <span class="header-nav-ico ico-submit" aria-hidden="true"></span>
             Submit
         </a>
-        <a class="header-nav-btn" id="navTemplates" href="#templates" onclick="if(_modClick(event))return;event.preventDefault();navTo('templates')">
+        <a class="header-nav-btn" id="navTemplates" href="/templates" onclick="if(_modClick(event))return;event.preventDefault();navTo('templates')">
             <span class="header-nav-ico ico-templates" aria-hidden="true"></span>
             Templates
         </a>
-        <a class="header-nav-btn" id="navFilmingPlans" href="#filming-plans" onclick="if(_modClick(event))return;event.preventDefault();navTo('filming-plans')">
+        <a class="header-nav-btn" id="navFilmingPlans" href="/filming-plans" onclick="if(_modClick(event))return;event.preventDefault();navTo('filming-plans')">
             <span class="header-nav-ico ico-filmingplans" aria-hidden="true"></span>
             Filming Plans
         </a>
-        <a class="header-nav-btn" id="navWorkload" href="#workload" onclick="if(_modClick(event))return;event.preventDefault();navTo('workload')">
+        <a class="header-nav-btn" id="navWorkload" href="/workload" onclick="if(_modClick(event))return;event.preventDefault();navTo('workload')">
             <span class="header-nav-ico ico-workload" aria-hidden="true"></span>
             Workload
         </a>
-        <a class="header-nav-btn" id="navCalendar" href="#calendar" onclick="if(_modClick(event))return;event.preventDefault();navTo('calendar')">
+        <a class="header-nav-btn" id="navCalendar" href="/calendar" onclick="if(_modClick(event))return;event.preventDefault();navTo('calendar')">
             <span class="header-nav-ico ico-calendar" aria-hidden="true"></span>
             Calendar
         </a>
         <!-- >>> SXR_BEGIN (nav) -->
-        <a class="header-nav-btn" id="navSxr" href="#sample-reviews" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('sample-reviews')">
+        <a class="header-nav-btn" id="navSxr" href="/sample-reviews" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('sample-reviews')">
             <span class="header-nav-ico ico-samples" aria-hidden="true"></span>
             Samples
         </a>
         <!-- <<< SXR_END -->
 
 
-        <a class="header-nav-btn" id="navTiktokUpload" href="#tiktok-upload" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-upload')">
+        <a class="header-nav-btn" id="navTiktokUpload" href="/tiktok-upload" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-upload')">
             <span class="header-nav-ico ico-tiktok" aria-hidden="true"></span>
             TikTok Upload
         </a>
-        <a class="header-nav-btn" id="navKasper" href="#kasper" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('kasper')">
+        <a class="header-nav-btn" id="navKasper" href="/kasper" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('kasper')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.5"/></svg>
             Kasper
         </a>
@@ -122,6 +122,14 @@
                 <button class="staff-account-action" id="headerTimeOffMenuItem" type="button" role="menuitem" onclick="_ptoOpenFromMenu()" hidden>
                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.25" y="3.25" width="11.5" height="10.5" rx="1.6"/><path d="M2.5 6.5h11M5 1.8v3M11 1.8v3"/><path d="m5.2 9 1.4 1.4 3.4-3.2"/></svg>
                     <span>Time Off</span>
+                </button>
+                <button class="staff-account-action" id="headerOnboardingMenuItem" type="button" role="menuitem" data-staff-capability="onboarding" onclick="_svOpenStaffPage('staff-onboarding')" hidden>
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2.5h6l2.5 2.5v8.3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M9.5 2.5V5h2.5"/><path d="M6 8.2h4M6 10.6h4"/></svg>
+                    <span>Onboarding</span>
+                </button>
+                <button class="staff-account-action" id="headerCredentialsMenuItem" type="button" role="menuitem" data-staff-capability="credentials" onclick="_svOpenStaffPage('client-credentials')" hidden>
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="7" width="11" height="7" rx="1.4"/><path d="M5 7V5.2a3 3 0 0 1 6 0V7"/><path d="M8 10v1.5"/></svg>
+                    <span>Client Credentials</span>
                 </button>
                 <button class="staff-account-action" id="themeToggle" type="button" role="menuitemcheckbox" onclick="toggleSyncViewTheme()" title="Switch to dark mode" aria-label="Switch to dark mode" aria-pressed="false">
                     <svg class="theme-icon-moon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.2 10.4A5.8 5.8 0 0 1 5.6 2.8 5.8 5.8 0 1 0 13.2 10.4Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>

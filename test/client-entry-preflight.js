@@ -310,6 +310,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
 function envelope(search, hash = '', state = null) {
   const context = {
     URLSearchParams,
+    svRoute: { search() { return context.location.search || ''; }, hash() { return context.location.hash || ''; } },
     location: { search, hash },
     history: { state },
     wlNormalizeClient: normalizeClient,
@@ -351,6 +352,7 @@ function canonicalize(entry) {
   let replacement = null;
   const context = {
     URLSearchParams,
+    svRoute: { search() { return context.location.search || ''; }, hash() { return context.location.hash || ''; } },
     location: {
       search: '?c=Client+One&t=current-token&v=samples',
       pathname: '/',

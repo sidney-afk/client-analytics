@@ -80,15 +80,16 @@ if (takeSrc) {
 
 // Behaviour of the head batch: run the head IIFE against a fake browser.
 async function headBatch(fetchImpl) {
-  const script = HEAD.slice(HEAD.indexOf('<script>') + 8, HEAD.indexOf('</script>'));
+  // Every <head> script in order: the clean-address router first, then boot.
+  const scripts = [...HEAD.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
   const store = { syncview_staff_identity_v1: JSON.stringify({ key: 'k1', role: 'admin', member: { id: 'm1' } }) };
   const calls = [];
-  const win = {};
+  const win = { addEventListener() {} };
   const ctx = {
     window: win, performance: { now: () => 1000 },
-    location: { search: '', hash: '#templates', pathname: '/' },
-    URLSearchParams, JSON, Promise, Date, encodeURIComponent, decodeURIComponent, String, Array,
-    history: { state: null },
+    location: { search: '', hash: '#templates', pathname: '/', origin: 'https://example.invalid' },
+    URL, URLSearchParams, JSON, Promise, Date, encodeURIComponent, decodeURIComponent, String, Array,
+    history: { state: null, pushState() {}, replaceState() {} },
     localStorage: { getItem: k => (k in store ? store[k] : null), setItem() {}, removeItem() {} },
     sessionStorage: { getItem: () => null },
     document: { documentElement: { classList: { add() {} }, setAttribute() {}, removeAttribute() {} }, querySelector: () => null },
@@ -96,7 +97,7 @@ async function headBatch(fetchImpl) {
   };
   win.fetch = ctx.fetch;
   vm.createContext(ctx);
-  vm.runInContext(script, ctx);
+  for (const script of scripts) { vm.runInContext(script, ctx); if (win.svRoute) ctx.svRoute = win.svRoute; }
   return { win, calls };
 }
 (async () => {

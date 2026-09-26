@@ -68,6 +68,7 @@ const dom = makeDom();
 const sandbox = {
   document: dom.document,
   location: { pathname: '/index.html' },
+  svRoute: require('./helpers/sv-route.js').svRoute,
   console,
   wlState: { team: 'all', editor: 'all', client: 'all', parentById: new Map() },
   wlEscape: null,
@@ -147,9 +148,9 @@ ok(JSON.stringify(all(/wl-loose-parent-count">(\d+)</g)) === JSON.stringify(['1'
 // ---- the button the owner asked for ----------------------------------------
 const openHrefs = all(/class="wl-loose-open" href="([^"]*)"/g);
 ok(JSON.stringify(openHrefs) === JSON.stringify([
-  '/index.html?prod=1&amp;d=GRA-410',
-  '/index.html?prod=1&amp;d=VID-900',
-  '/index.html?prod=1&amp;d=VID-812',
+  '/synclinear/GRA-410',
+  '/synclinear/VID-900',
+  '/synclinear/VID-812',
 ]), 'each parent group carries ONE Open-in-SyncLinear button, at ?prod=1&d=<parent identifier>');
 ok((unassigned.match(/>Open in SyncLinear</g) || []).length === 3,
   'the button says where it goes');
@@ -158,14 +159,14 @@ ok(sandbox.syncUrl('') === '' && sandbox.syncUrl('  ') === '',
 
 // A parent absent from parentById still deep-links, because the sub-issue
 // carries parentIdentifier of its own.
-ok(openHrefs.includes('/index.html?prod=1&amp;d=VID-812'),
+ok(openHrefs.includes('/synclinear/VID-812'),
   'a parent missing from this snapshot is still openable via the sub-issue own parentIdentifier');
 ok(!/wl-loose-open-linear/.test(unassigned),
   'no parent group renders the retired external Linear control');
 
 // ---- chips point at SyncLinear, not Linear ---------------------------------
 const chipHrefs = all(/class="workload-chip" href="([^"]*)"/g);
-ok(chipHrefs.length === 6 && chipHrefs.every(h => h.startsWith('/index.html?prod=1&amp;d=VID-')),
+ok(chipHrefs.length === 6 && chipHrefs.every(h => h.startsWith('/synclinear/VID-')),
   'every chip opens its own SyncLinear row');
 ok(!chipHrefs.some(h => h.includes('linear.app')),
   'no chip opens linear.app as its main click -- the whole point of the request');
@@ -219,9 +220,9 @@ sandbox.render('wlUnassigned', 'wlUnassignedChips', [
     parentId:'native-batch-1', parentIdentifier:'Repeated name', identifier:'Repeated name', url:''}),
 ], false);
 const nativeMarkup = dom.nodes.wlUnassignedChips.innerHTML;
-ok(nativeMarkup.includes('/index.html?prod=1&amp;batch=native-batch-1'),
+ok(nativeMarkup.includes('/synclinear/batch/native-batch-1'),
   'native loose-group parent uses the batch identity and batch route, not its display name');
-ok(nativeMarkup.includes('/index.html?prod=1&amp;d=native-video-1'),
+ok(nativeMarkup.includes('/synclinear/native-video-1'),
   'native loose-strip chip uses its exact deliverable identity');
 
 if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }

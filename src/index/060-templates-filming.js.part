@@ -191,17 +191,17 @@ import {
     const OBV_FRAMING = { closeup:'Close-up', mid:'Mid-shot', wide:'Wide', mixed:'Mixed' };
     const OBV_CLOTHING = { formal:'Formal / suit', smart_casual:'Smart casual', casual:'Casual', streetwear:'Streetwear', athletic:'Activewear', branded:'Branded merch', elegant:'Elegant' };
     const OBV_PODCAST = { studio:'Studio desk with mics', lounge:'Casual lounge', office:'Office / bookshelf', minimal:'Plain backdrop' };
-    // Thumbnail picker → the live render the client landed on (thumbnail-styles/<font>-<style>[-hl].jpg).
+    // Thumbnail picker → the live render the client landed on (/thumbnail-styles/<font>-<style>[-hl].jpg).
     // Mirrors _obThumbImg / OB_THUMB_FONTS / OB_THUMB_TSTYLES in the onboarding form module.
-    const OBV_TF = 'thumbnail-styles/';
+    const OBV_TF = '/thumbnail-styles/';
     const OBV_THUMB_FONT = { bold:'Bold', native:'Native', elegant:'Elegant' };
     const OBV_THUMB_TSTYLE = { plain:'Plain', shadow:'Shadow', stroke:'Stroke', banner:'Banner' };
     // Only current subtitle choices have an approved video preview. Older submissions can
     // still use the text label below without being assigned a misleading sample.
     const OBV_SUB_PREVIEW = {
-      elegant: ['onboarding-video/sub-elegant.mp4', 'onboarding-video/sub-elegant-hl.mp4'],
-      native: ['onboarding-video/sub-native.mp4', 'onboarding-video/sub-native-hl.mp4'],
-      bold: ['onboarding-video/sub-bold.mp4', 'onboarding-video/sub-bold-hl.mp4'],
+      elegant: ['/onboarding-video/sub-elegant.mp4', '/onboarding-video/sub-elegant-hl.mp4'],
+      native: ['/onboarding-video/sub-native.mp4', '/onboarding-video/sub-native-hl.mp4'],
+      bold: ['/onboarding-video/sub-bold.mp4', '/onboarding-video/sub-bold-hl.mp4'],
     };
 
     function _obvEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -278,7 +278,7 @@ import {
         // too rather than losing the match.
         return _obvSlugSet.has(slug + slug);
     }
-    function _obvOpenStandalone(slug){ try { window.open('?onboarding_view=' + encodeURIComponent(slug), '_blank', 'noopener'); } catch(e){} }
+    function _obvOpenStandalone(slug){ try { window.open('/onboarding/' + encodeURIComponent(slug), '_blank', 'noopener'); } catch(e){} }
 
     // Standalone per-client onboarding viewer (its own browser tab, ?onboarding_view=<slug>).
     // Read-only, credential-free, no contact info. The isolated tab still
@@ -1559,7 +1559,7 @@ import {
         // Persist the active tab in history.state so a refresh restores it (the
         // URL stays #templates/<client>; the tab rides in state, which survives a
         // reload). Guarded for file:// test contexts.
-        try { history.replaceState({ nav: 'templates', client: null, templatesClient: _templatesSelected, templatesTab: tab }, '', location.pathname + location.search.replace(/#.*$/, '') + '#templates/' + encodeURIComponent(_templatesSelected)); } catch (e) {}
+        try { history.replaceState({ nav: 'templates', client: null, templatesClient: _templatesSelected, templatesTab: tab }, '', '/' + svRoute.search().replace(/#.*$/, '') + '#templates/' + encodeURIComponent(_templatesSelected)); } catch (e) {}
         const content = document.getElementById('content');
         if (content) { content.innerHTML = renderClientTemplate(_templatesSelected); mountTemplatesView(); }
     }

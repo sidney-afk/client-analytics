@@ -5,12 +5,11 @@ The native assignee slice adds `node test/native-assignee-eligibility.js`
 explicit/automatic assignment journeys on both lanes with the provider transport
 denied, a `fault-shim.mjs` wrapper so one flag read can fail at the handler, and
 a second fresh-database run against the exact PR1302 head as a negative control.
-See `docs/audits/2026-09-05-native-assignee-eligibility.md`.
+The tracked entry point is `test/native-assignee-eligibility.js`.
 
-The dependent disabled-native slice adds `node test/native-only-intake.js` using
-the same loopback configuration and exact handler/SQL transport. It runs the
-repository F27 enqueue/hold write-fence subset too; the full installer and live
-serving state remain unproven. See `docs/audits/2026-09-05-native-only-intake.md`.
+The earlier disabled-native slice described `node test/native-only-intake.js`,
+but that test file is absent from this checkout. `native-only-lane.mjs` has no
+tracked launcher here; do not treat the old command as available proof.
 
 Run `node test/native-intake-manifest.js` with
 `INTAKE_MANIFEST_REQUIRE_POSTGRES=1` and an explicitly disposable PostgreSQL 16
@@ -33,4 +32,5 @@ No schemas or business rules are cloned in assertions. SQL role tests explicitly
 cover the translator's privileged-session limitation. Logs contain labels/counts
 only. No production credentials, URLs, payloads or installed-state claims.
 
-See `docs/audits/2026-09-05-native-intake-manifest.md` for contract and proof limits.
+See `test/native-intake-manifest.js` for the current test entry and
+`docs/audits/2026-09-26-native-intake-manifest-callers.md` for its caller map.

@@ -2,6 +2,8 @@
 
 **Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The earlier Linear mirror, provider actions and pre-cutoff procedures below are retained for recovery/history, not the current staff workflow. Do not use them to create new Linear work, require mirror convergence or re-enable retired workers. Consult the cutoff record for an intentional recovery; native operations and unrelated monitoring remain distinct. See [cutoff record](LINEAR_CUTOFF_RUNBOOK.md).
 
+**Current capture (2026-09-24 onward):** the Section 4 lane seals and deploys exactly three functions (`production-write`, `deliverable-write`, `batch-write`); `linear-outbound` is deleted. The four-function commands below are the 2026-08-02 install record; for a capture today use `F27_SECTION4_CAPTURE_PLAYBOOK.md` (`--slugs=production-write,deliverable-write,batch-write`).
+
 **Status: INSTALLED AND PRODUCTION-VERIFIED 2026-08-02.** Attempt 2 ran from
 exact release `968a895108beb2a2c41e86bb8b788115e35b14a0`: the exact migration
 applied once with transaction/self-probe PASS, Section 4 run `30763278795`

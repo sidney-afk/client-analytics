@@ -40866,6 +40866,10 @@
                     'Authorization': 'Bearer ' + CAL_SUPABASE_ANON_KEY,
                     'X-Syncview-Source': 'thumbnail-compare-availability'
                 }, THUMBNAIL_REVISION_READ_EF_URL);
+                // The function answers 401 without a staff key or a current client
+                // token. A client link before its entry run settles has neither, so
+                // skip the request instead of logging a guaranteed refusal.
+                if (!headers['X-Syncview-Key'] && !headers['X-Syncview-Client-Token']) return;
                 const response = await fetch(THUMBNAIL_REVISION_READ_EF_URL, {
                     method: 'POST', headers, cache: 'no-store',
                     body: JSON.stringify({ surface, client, mode: 'availability', source_ids: sourceIds })
@@ -42883,6 +42887,8 @@
             return;
         }
     }
+    // Status columns a whole-card save may only send when this save edited them.
+    const CAL_WHOLE_CARD_STATUS_FIELDS = ['status', 'video_status', 'graphic_status', 'caption_status', 'title_status'];
     async function _calFlushCardSave(pid) {
         let edits = _calPendingEdits[pid];
         if (!edits) return;
@@ -43189,6 +43195,19 @@
                 delete wirePost._writeUiRepairRefs;
                 _calStripThumbnailFolderFields(wirePost);
                 _calApplyClearSentinels(wirePost, edits);
+                // A whole-card send for an EXISTING card (the v1 save mode, a
+                // sticky per-browser opt-out) must not carry statuses this save
+                // never edited: the tab's copy can be older than a status the
+                // Production board projected since, and re-sending it put an
+                // approved video back to In Progress (drift check 2026-09-26).
+                // Deliberate status changes always arrive in `edits`, and a Retry
+                // restores them from `_writeUiRetryEdits`. An empty `edits` (a
+                // retry with no snapshot) edited no status, so it sends none.
+                if (!wasNewRow) {
+                    for (const k of CAL_WHOLE_CARD_STATUS_FIELDS) {
+                        if (!(k in edits)) delete wirePost[k];
+                    }
+                }
             }
             // comments_base_at = the sheet's updated_at this browser last saw.
             // The upsert workflow 3-way-merges each *_tweaks cell against this

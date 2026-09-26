@@ -817,6 +817,18 @@ async function runScenario(browser, scn, shotDir, doShots) {
       else if (verb === 'smm.dragToFront') { const p = await actors.smm(); res = await smmDragToFront(p, uniqueUiName(args[0])); await shot(p, 'smm-drag'); }
       else if (verb === 'smm.reload') { const p = await actors.smm(); res = await smmReloadPage(p); await shot(p, 'smm-reload'); }
       else if (verb === 'smm.bgReload') { const p = await actors.smm(); res = await smmBgReload(p); await shot(p, 'smm-bgreload'); }
+      else if (verb === 'api.archiveStaleTestRows') {
+        // Archive test rows a crashed earlier run left behind (same name rule
+        // as overnight_runner.sh cleanup_seeds), so an order check sees only
+        // this run's cards. Rows touched in the last two hours are skipped so
+        // an overlapping run keeps its fixtures.
+        const stale = /^(SCN |UI Create|UI Rapid|UI Reorder|UI Remote|UI Reload|UI Batch|UI Workflow|UI Drag|P91 UI RT|MID MERGE|DBG STATUS|OVN |P9\d |SXR )/;
+        try {
+          const r = L.archiveStaleTestRows(stale, 2 * 3600 * 1000, m => console.error('archiveStaleTestRows: ' + m));
+          res = r.failed ? 'archive-failed=' + r.failed : 'ok';
+          if (r.archived) console.log('archiveStaleTestRows: archived ' + r.archived);
+        } catch (e) { res = 'list-failed: ' + (e.message || e); }
+      }
       else if (verb === 'api.seedRow') {
         // Seed an EXTRA row via the API mid-scenario — "another session created
         // a row while I was working". A following smm.bgReload merges it in

@@ -12,7 +12,9 @@ const CLIENT = 'Review Fixture';
 const SLUG = 'reviewfixture';
 const TOKEN = 'fixture-review-token';
 const CARD = 'p_review_fixture_1';
+const VIDEO = 'del_review_fixture_video';
 const NOTE = 'Please shorten the opening line in this fixture.';
+const SOURCE_PATH = '/functions/v1/calendar-upsert';
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*',
   'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS' };
 
@@ -38,6 +40,7 @@ function fixture() {
   return { id: CARD, client: SLUG, name: 'Fictional review post', status: 'Client Approval',
     order_index: 1, updated_at: '2026-09-20T12:00:00.000Z',
     asset_url: 'https://example.invalid/video.mp4', thumbnail_url: '',
+    video_deliverable_id: VIDEO,
     video_status: 'Client Approval', graphic_status: 'Client Approval', caption_status: 'Client Approval',
     caption: 'A fictional caption for a browser test.', comments: [], graphic_comments: [], caption_comments: [] };
 }
@@ -61,9 +64,11 @@ async function run(browser, origin, action, mode) {
   const errors = [];
   const unknownWrites = [];
   const diagnostics = [];
+  const gatewayWrites = [];
   const saves = [];
   const initial = fixture();
   let stored = { ...initial };
+  let nativeStatus = 'client_approval';
   let releaseSave;
   const held = new Promise(resolve => { releaseSave = resolve; });
   const label = action + '/' + mode;
@@ -92,16 +97,41 @@ async function run(browser, origin, action, mode) {
         return json(route, { ok: true, post: { ...stored, updated_at: new Date().toISOString() } });
       }
       if (url.pathname === '/rest/v1/calendar_posts' && method === 'GET') return json(route, [stored]);
+      if ((url.pathname === '/rest/v1/deliverables'
+        || url.pathname === '/rest/v1/production_deliverables_browser_v1') && method === 'GET') {
+        return json(route, [{ id: VIDEO, card_id: CARD, client_slug: SLUG, team: 'video',
+          origin: 'calendar', status: nativeStatus, updated_at: initial.updated_at }]);
+      }
       if (url.pathname === '/rest/v1/clients' && method === 'GET') {
         return json(route, [{ slug: SLUG, display_name: CLIENT, kind: 'client', active: true }]);
       }
       if (url.pathname === '/rest/v1/syncview_runtime_flags' && method === 'GET') {
-        return json(route, [{ value: { video: 'linear', graphics: 'linear' } }]);
+        const raw = url.searchParams.get('key') || '';
+        const keys = raw.startsWith('in.(') ? raw.slice(4, -1).split(',') : [raw.replace(/^eq\./, '')];
+        const values = {
+          calendar_upsert_ef_clients: { clients: [SLUG] },
+          write_ui_reroute_clients: { clients: [SLUG] },
+          client_comment_gateway_enabled: { enabled: true },
+          prod_authority: { video: 'syncview', graphics: 'syncview' },
+        };
+        return json(route, keys.filter(key => Object.hasOwn(values, key))
+          .map(key => ({ key, value: values[key] })));
       }
       if (url.pathname === '/functions/v1/write-diagnostics' && method === 'POST') {
         const body = JSON.parse(request.postData() || '{}');
         diagnostics.push({ fields: Object.keys(body), code: body.code || '', stage: body.stage || '' });
         return json(route, { ok: true });
+      }
+      if (url.pathname === '/functions/v1/production-write' && method === 'POST') {
+        const body = JSON.parse(request.postData() || '{}');
+        if (body.reconcile_only === true) return json(route, { ok: true,
+          outcome: gatewayWrites.length ? 'committed_exact' : 'absent',
+          row: { id: VIDEO, card_id: CARD, client_slug: SLUG, team: 'video', status: nativeStatus } });
+        gatewayWrites.push({ operation: body.operation, status: body.status });
+        nativeStatus = body.status;
+        return json(route, { ok: true, native_committed: true, authority: 'syncview', complete: true,
+          row: { id: VIDEO, card_id: CARD, client_slug: SLUG, team: 'video',
+            status: body.status, updated_at: new Date().toISOString() } });
       }
       if (url.pathname.startsWith('/rest/v1/') && method === 'GET') return json(route, []);
       if (url.host === 'docs.google.com') return route.fulfill({ status: 200, headers: CORS, contentType: 'text/csv', body: '' });
@@ -162,8 +192,19 @@ async function run(browser, origin, action, mode) {
         await until(async () => (await page.locator(card + ' .cal-review-panel[data-comp="caption"] .cal-review-textarea').inputValue()) === NOTE,
           label + ' preserved draft');
       } else {
-        assert.equal(await page.locator(card + ' .cal-review-panel[data-comp="video"] .cal-review-approve-btn').isDisabled(), false,
-          label + ': client must be able to retry approval');
+        // The native approval committed before the source writer refused. The
+        // client page must retain the source-repair state rather than re-send it.
+        const visible = await page.evaluate(id => {
+          const post = calState.posts.find(item => item.id === id) || {};
+          const card = document.querySelector(`.kcard[data-cal-review-pid="${id}"]`);
+          return { status: post.video_status, retry: !!post._writeUiRetrySourceAt,
+            error: !!post._saveError, card: !!card, text: (card && card.innerText || '').replace(/\s+/g, ' ').slice(0, 200) };
+        }, CARD);
+        assert.equal(visible.status, 'Approved', label + ': native status was not retained');
+        assert.equal(visible.retry, true, label + ': source repair was not armed');
+        assert.equal(visible.error, true, label + ': refused source save was hidden');
+        assert.equal(visible.card, true, label + ': retry surface disappeared');
+        assert.match(visible.text, /VIDEO: APPROVED/i, label + ': native approval not visible');
       }
     } else {
       await until(() => stored[statusField] === expected, label + ' stored status');
@@ -178,6 +219,11 @@ async function run(browser, origin, action, mode) {
       }
     }
     assert.deepEqual(unknownWrites, [], label + ': unexpected write route');
+    assert.equal(gatewayWrites.length, action === 'approve' ? 1 : 0,
+      label + ': wrong native gateway write count');
+    if (action === 'approve') assert.equal(gatewayWrites[0].status, 'approved', label + ': wrong native status');
+    assert.deepEqual(saves.map(save => save.path), [SOURCE_PATH],
+      label + ': source save must use the enrolled Track A function');
     if (mode !== 'refused' && action === 'approve') {
       assert.deepEqual(diagnostics, [], label + ': unexpected write diagnostic');
     }
@@ -187,7 +233,7 @@ async function run(browser, origin, action, mode) {
         label + ': unexpected write diagnostic');
     }
     assert.deepEqual(errors, [], label + ': browser errors');
-    console.log('ok ' + label);
+    console.log('ok ' + label + ' via ' + SOURCE_PATH);
   } finally {
     releaseSave();
     await context.close();

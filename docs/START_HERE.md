@@ -206,6 +206,38 @@ For a specific question, use [Find anything](FIND_ANYTHING.md).
 | [Comment gateway rollout](ops/COMMENT_GATEWAY_ROLLOUT.md) | A dated rollout runsheet for an earlier comment entry route; check State of things before use. |
 | [Retirement assertion drift](ops/RETIREMENT_ASSERT_DRIFT_2026-09-24.md) | The 2026-09-24 diagnosis and proposal later superseded by an applied repair. |
 
+## Flip and test history
+
+| Document | What it covers |
+| --- | --- |
+| [Flip staging checklist](ops/F2_STAGING_CHECKLIST.md) | The pre-cutoff staging sequence for flip test access and gates; its instructions are dated. |
+| [Flip bug ledger](ops/FLIP_BUG_LEDGER.md) | August 2026 lessons from the graphics flip and checks proposed for the video flip. |
+| [Flip-day test log](ops/FLIP_DAY_TEST_LOG_2026-08-30.md) | What the 2026-08-30 hands-on test observed, as dated evidence rather than current proof. |
+| [Flip-day test playbook](ops/FLIP_DAY_TEST_PLAYBOOK.md) | The 2026-08-30 browser test steps for the video flip, retained as history. |
+| [Flip test round two](ops/FLIP_TEST_ROUND2.md) | Follow-up journey checks after the first round found defects; a historical test plan. |
+| [Flip test round three](ops/FLIP_TEST_ROUND3.md) | The 2026-08-31 asset-handling checks planned after round two. |
+| [Round-three tester prompt](ops/FLIP_TEST_ROUND3_PROMPT.md) | Companion tester handoff text for the August round-three checklist. |
+| [Graphics drill artifact](ops/GRAPHICS_DRILL_ARTIFACT_SETUP.md) | Dated setup for the parked test graphic used by a self-test. |
+| [Graphics flip pointer](ops/GRAPHICS_FLIP_STATUS.md) | A pointer to the maintained independence status, plus an old resolved blocker. |
+| [Parity-arm record](ops/PARITY_ARM_WINDOW.md) | The July 2026 switch-arming record; State of things records its later shutoff. |
+| [Pre-flip health check](ops/PRE_FLIP_HEALTH_CHECK.md) | The read-only watch specification used while the graphics flip was pending. |
+| [Test project mapping](ops/TEST_CLIENT_GRAPHICS_PROJECT_MAPPING.md) | A historical setup note for the test Graphics project mapping. |
+
+## Other release and repair records
+
+| Document | What it covers |
+| --- | --- |
+| [Old slot-repair proposal](ops/2026-09-24-linear-only-slot-repair.md) | A 2026-09-24 proposal retained after a dry run found zero slots to repair. |
+| [Attribution guard window](ops/ATTRIBUTION_SLUG_GUARD_WINDOW.md) | Record of the 2026-08-23 guard application and its readbacks. |
+| [Section 4 deploy request](ops/DEPLOY_REQUEST_2026-08-05_SECTION4.md) | A dated request for the older four-function release lane; the document itself dispatched nothing. |
+| [Description image upload](ops/DESCRIPTION_IMAGE_UPLOAD.md) | The 2026-09-05 design and code record for pasted description images, with rollout steps to recheck. |
+| [Frozen-writer urgent marker](ops/FROZEN_WRITER_URGENT_MARKER_DEPLOY_2026-09-10.md) | The 2026-09-10 deployment record for urgent markers in frozen writers; feature visibility was separate. |
+| [Git-history privacy purge](ops/GIT_HISTORY_PII_PURGE_2026-07-14.md) | A 2026-07-14 incident-only history rewrite plan for private snapshots, not routine cleanup. |
+| [Moving a card](ops/MOVE_CARD_BETWEEN_CLIENTS.md) | A 2026-08-21 manual card-move procedure whose old provider steps are historical. |
+| [Quarantined cleanup draft](ops/PHASE4_CLEANUP_CHECKLIST.md) | A withdrawn Calendar cleanup recipe whose assumptions proved false; do not execute it. |
+| [Slice 5 apply window](ops/SLICE5_APPLY_WINDOW.md) | The 2026-07-26 apply and deploy record, with test drills still owed when written. |
+| [Write-refusal diagnostics](ops/WRITE_REFUSAL_DIAGNOSTICS_PREPARATION_20260912.md) | The 2026-09-12 diagnostic preparation, partly superseded by later source integration. |
+
 ## Plans
 
 | Document | What it helps you find |

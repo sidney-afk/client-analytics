@@ -125,6 +125,31 @@ For a specific question, use [Find anything](FIND_ANYTHING.md).
 | [Workload source scope](ops/WORKLOAD_NATIVE_SOURCE.md) | The early native Workload rationale, with old loading and fallback details superseded. |
 | [Rename plan](ops/RENAME_PLAN.md) | The original rename-propagation proposal; its plan-only status was superseded by applied releases. |
 
+## Native capability contracts and holds
+
+| Document | What it covers |
+| --- | --- |
+| [Native client setup](ops/NATIVE_CLIENT_PROVISIONING.md) | A dormant server-side setup path for new clients, with no active onboarding caller. |
+| [Existing-card assignment](ops/NATIVE_EXISTING_ASSIGNMENT.md) | The original assignment draft; its unapplied banner predates native activation. |
+| [Native work IDs](ops/NATIVE_IDENTIFIER_MINT.md) | How in-app work IDs are issued and the recorded correction that this change was applied. |
+| [Intake completion](ops/NATIVE_INTAKE_COMPLETION.md) | Prepared recovery workflows for incomplete native intake that remain switched off. |
+| [Named intake append](ops/NATIVE_INTAKE_NAMED_APPEND.md) | An uninstalled proposal for keeping post names when appending native intake work. |
+| [Label catalog capture](ops/NATIVE_LABEL_CATALOG_CAPTURE.md) | The completed catalog capture record, with old recapture steps retained as history. |
+| [Label catalog foundation](ops/NATIVE_LABEL_CATALOG_FOUNDATION.md) | An early source-only label-write design whose disabled status predates native activation. |
+| [Native notifications](ops/NATIVE_NOTIFICATIONS.md) | The prepared notification outbox and sender design; activation remains a separate decision. |
+| [Notification handover](ops/NATIVE_NOTIFICATION_HANDOVER_PREPARATION_20260912.md) | Proposed installation checks for notifications, not permission to switch them on. |
+| [Ordinary receipt owners](ops/NATIVE_ORDINARY_RECEIPTS_OWNER_MATRIX.md) | Which write path owns each native receipt; its provider-default statement is historical. |
+| [Ordinary receipt repair](ops/NATIVE_ORDINARY_RECEIPTS_REPAIR_SPEC.md) | The safe-receipt design and remaining retirement gate; activation is still blocked. |
+| [Urgent handoff](ops/NATIVE_URGENT_HANDOFF.md) | Inactive source design for urgent video handoff and its access checks. |
+| [Urgent workflow draft](ops/NATIVE_URGENT_N8N_DRAFT.md) | A superseded receiver draft kept as evidence; its new workflow must not be installed. |
+| [Native Workload rollout](ops/LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md) | Dated plan for replacing Workload's old data source; check State of things for present status. |
+| [Native label rollout](ops/LINEAR_EXIT_STEP26_NATIVE_LABELS.md) | Dated acceptance record for moving labels to native storage after its original blockers were resolved. |
+| [Native intake rollout](ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md) | Pre-cutoff design for closing the older intake fallback; its source snapshot is historical. |
+| [Native identifier rollout](ops/LINEAR_EXIT_STEP26_NATIVE_IDENTIFIER_MINT.md) | Dated plan and evidence for native work IDs; State of things records the current capability. |
+| [Native sign-off](ops/LINEAR_EXIT_NATIVE_SIGNOFF_CONTRACT.md) | Offline-tested reconciliation compatibility contract whose installation remains held. |
+| [Sequence safety](ops/LINEAR_EXIT_SEQUENCE_ALLOCATION_CONTRACT.md) | A proposed rule to prevent ID collisions during recovery, not yet fully implemented. |
+| [Writer package binding](ops/LINEAR_EXIT_ATOMIC_WRITER_INSTALLATION_BINDING.md) | How a prepared writer package binds to a reviewed database catalog without installing it. |
+
 ## Plans
 
 | Document | What it helps you find |

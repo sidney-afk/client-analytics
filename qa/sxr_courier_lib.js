@@ -410,6 +410,21 @@ function archiveSafe(id, tries) {
   }
   return !sawRow;
 }
+// Archive TEST rows a crashed earlier run left behind. Only rows untouched for
+// minAgeMs are taken, so a concurrent run's live fixture is left alone, and
+// archiveSafe re-reads each row scoped to the TEST client before writing, so a
+// same-named row anywhere else is never touched. Returns { archived, failed }.
+function archiveStaleTestRows(nameRe, minAgeMs, log) {
+  const cutoff = new Date(Date.now() - (minAgeMs || 2 * 3600 * 1000)).toISOString();
+  const out = { archived: 0, failed: 0 };
+  const rows = supa('updated_at=lt.' + encodeURIComponent(cutoff) + '&or=(status.neq.Archived,status.is.null)&select=id,name&limit=1000') || [];
+  for (const r of rows) {
+    if (!nameRe.test(String(r.name || ''))) continue;
+    try { if (archiveSafe(r.id)) out.archived++; else out.failed++; }
+    catch (e) { out.failed++; if (log) log('stale archive of ' + r.id + ' failed: ' + (e.message || e)); }
+  }
+  return out;
+}
 function reorder(items) { return nodePost(SXR_REORDER, { client: 'sidneylaruel', items }); }
 // Read TEST rows back from Supabase REST using the same fileless transport as
 // the browser courier. The protected URL and headers stay in stdin config, and
@@ -885,7 +900,7 @@ async function kasper(browser, opts) {
   return page;
 }
 
-module.exports = {
+module.exports = { archiveStaleTestRows,
   PW, launch, open, smm, client, kasper, smmCal, clientCal, kasperCal,
   up, archiveSafe, upCal, archiveCalSafe, reorder, supa, supaCal, supaEvents,
   poll, appErrs, ORIGIN, SUPA, KEY, COURIER, filelessHttpRequest: _curlRequestSync,

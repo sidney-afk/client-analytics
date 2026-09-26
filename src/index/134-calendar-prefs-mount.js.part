@@ -1,3 +1,25 @@
+import { showNotify, showToast } from './040-shared-briefs.js';
+import { currentNav } from './060-templates-filming.js';
+import { WL_CLIENT_NAMES, wlCanonicalClient, wlIsAllowedClient, wlNormalizeClient } from './070-workload-source.js';
+import { _syncviewIssueClientShareUrl } from './120-calendar-flags-write-repair.js';
+import {
+  CAL_FILTERS_KEY, CAL_PINS_KEY, CAL_PREFS_KEY, _calFocusRequest, _calHideOwnToast,
+  _calNormMonthFilter, _calNormSortMode, _calNormStatusFilter, _calPendingDeepLink,
+  _calPendingEdits, _calSaveTimers, _calSetFocusRequest, _calSetPendingDeepLink, _calSyncUrlClient,
+  calClientSlug, calState
+} from './130-calendar-model-cache.js';
+import { _calIsoFirstOfMonth, _calIsoMondayOf } from './132-calendar-dates-ids.js';
+import { _calLoaderHtml } from './133-core-loading-skeletons.js';
+import {
+  _calBgLoadInFlight, _calRenderImportPick, _calSetBgLoadInFlight, _calSetRefreshing, _calV2Ready,
+  _calV2Teardown, loadCalendarPosts
+} from './150-calendar-hydration-import.js';
+import {
+  _calNormZoom, _calRefreshOrganize, _calRenderBody, _calRenderClientSearchResults,
+  _calRenderShell, _calRenderTabs, _calResetSelection
+} from './160-calendar-organize-ui.js';
+import { _calFlushCardSave, _calOpenStatusMenu } from './170-calendar-links-status.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
 
     function _calLoadPrefs() { try { return JSON.parse(localStorage.getItem(CAL_PREFS_KEY) || '{}'); } catch { return {}; } }
     function _calSavePrefs() {
@@ -620,7 +642,7 @@
         }
     }
     function _calClearSuspendedLoadOwnership() {
-        _calBgLoadInFlight = false;
+        _calSetBgLoadInFlight(false);
         calState.loading = false;
         _calSetRefreshing(false);
         _calPendingBackgroundRender = false;
@@ -1021,3 +1043,23 @@
        network, still queue through `_writeUiLegacyAppendOutboxItem`. */
     const WRITE_UI_LEGACY_SOURCE_GATE_PENDING_MS = 15 * 60 * 1000;
     const WRITE_UI_LEGACY_COMMITTED_TWEAK_KEY = 'syncview_write_ui_legacy_committed_tweaks_v1';
+export {
+  CAL_IMPORT_FIELDS, LINEAR_OUTBOX_KEY, LINEAR_OUTBOX_MAX_ATTEMPTS, LINEAR_OUTBOX_RETRY_MS,
+  WRITE_UI_LEGACY_COMMITTED_TWEAK_KEY, WRITE_UI_LEGACY_QUARANTINE_KEY,
+  WRITE_UI_LEGACY_SOURCE_GATE_PENDING_MS, _calArchivedAdd, _calArchivedRefs, _calArchivedRemove,
+  _calCleanArchiveLedger, _calClearFocusHighlight, _calCoerceDate, _calDedupeByLinearIssue,
+  _calDupeWarnText, _calFlushAllPending, _calFocusOutsideHandler, _calGetPins, _calGetSavedScroll,
+  _calImportAoa, _calImportHeaders, _calImportLayout, _calImportMap, _calImportRows,
+  _calImportSelectedIdx, _calImportSheetName, _calImportWorkbook, _calIsArchivedRef, _calIsCalBusy,
+  _calLinkDuplicatePeers, _calLinkKey, _calLoadClientFilters, _calLoadXLSX,
+  _calMapLinearStatusStrict, _calMapNativeStatusStrict, _calPendingBackgroundRender,
+  _calRefsForPost, _calResolveClientAfterDataReady, _calResolvePendingDeepLink,
+  _calSaveClientFilters, _calSavePins, _calSavePrefs, _calSaveScroll, _calSchedulePendingRender,
+  _calSetClient, _calSetImportAoa, _calSetImportForcedLayout, _calSetImportHeaders,
+  _calSetImportLayout, _calSetImportMap, _calSetImportRows, _calSetImportSelectedIdx,
+  _calSetImportSheetName, _calSetImportWorkbook, _calSetLastNetworkLoadAt,
+  _calSetLinearOutboxFlushTimer, _calSetPendingBackgroundRender, _linearOutboxFlushOwnerKey,
+  _linearOutboxFlushPromise, _linearOutboxFlushTimer, _linearOutboxRead, _linearOutboxWrite,
+  _writeUiLegacyRetiredRow, _writeUiLegacyWithoutRetired, calToggleClientPin, closeCalImport,
+  mountCalendar, mountCalendarEmbedded, renderCalendarView
+};

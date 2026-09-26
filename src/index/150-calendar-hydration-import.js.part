@@ -1229,6 +1229,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
     function _calNextLoadSeq() { return ++_calLoadSeq; }
     let _calActiveLoad = null;
     let _calBgLoadInFlight = false;
+    function _calSetBgLoadInFlight(value) { _calBgLoadInFlight = value; }
     function _calAbortActiveLoad() {
         const run = _calActiveLoad;
         _calActiveLoad = null;
@@ -2134,7 +2135,7 @@ export {
   _calFetchDeliverableLinkRows, _calHydrateLinearMeta, _calIdentFromUrl, _calLastLocalWriteAt,
   _calLocalStatusAt, _calMarkLocalStatus, _calNextLoadSeq, _calOrganizeHtml, _calOrganizeIsActive,
   _calOrganizeTriggerLabel, _calPruneLinearMetaForAuthority, _calRenderImportPick,
-  _calSetLastLocalWriteAt, _calSetOrganizeOpen, _calSetRefreshing, _calSupabaseFetchAllRows,
-  _calV2Client, _calV2ClientObj, _calV2Enabled, _calV2FetchPosts, _calV2LoadLib, _calV2Log,
-  _calV2Ready, _calV2Teardown, loadCalendarPosts
+  _calSetBgLoadInFlight, _calSetLastLocalWriteAt, _calSetOrganizeOpen, _calSetRefreshing,
+  _calSupabaseFetchAllRows, _calV2Client, _calV2ClientObj, _calV2Enabled, _calV2FetchPosts,
+  _calV2LoadLib, _calV2Log, _calV2Ready, _calV2Teardown, loadCalendarPosts
 };

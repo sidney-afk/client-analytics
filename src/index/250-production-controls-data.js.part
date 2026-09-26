@@ -71,6 +71,7 @@ import {
             return pop;
         }
         let _prodSubPop = null;
+        function _prodSetSubPop(value) { _prodSubPop = value; }
         function _prodCloseSub() {
             if (_prodSubPop) {
                 _prodSubPop.remove();
@@ -2873,7 +2874,7 @@ export {
   _prodOpenProjectLeadPicker, _prodOpenProjectStatusPicker, _prodOpenProjectTargetPicker,
   _prodOpenSub, _prodOpenTeamView, _prodParseDue, _prodPickerHTML, _prodPolicyTodayISO,
   _prodProjectAllRows, _prodProjectRows, _prodProjectScopeTeam, _prodReconcileSelection,
-  _prodRefreshAgeLabel, _prodRefreshDegraded, _prodSetQuery, _prodSetView, _prodSubPop,
+  _prodRefreshAgeLabel, _prodRefreshDegraded, _prodSetQuery, _prodSetSubPop, _prodSetView,
   _prodTabAllows, _prodTargetIds, _prodTitleAttrs, _prodToggleCardSelection,
   _prodToggleRowSelection, _prodWirePicker, _prodWirePlainMenu, mountProductionView,
   renderProductionView

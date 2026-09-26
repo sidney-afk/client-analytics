@@ -1,3 +1,6 @@
+import { wlState } from './070-workload-source.js';
+import { calState } from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
     /* Modern animated loader — a single rotating ring with a subtle label.
        The visible arc is drawn as a short stroke-dasharray segment so the
        spinning motion stays smooth across browsers. */
@@ -361,3 +364,4 @@
         if (t.includes('kasper') || t.includes('filming') || t.includes('linear') || t.includes('message')) return _svLoadingSkeletonHtml('kasper', { label: raw });
         return _svLoadingSkeletonHtml('calendar', { label: raw });
     }
+export { _calLoaderHtml, _svLoadingSkeletonHtml, _svSkel };

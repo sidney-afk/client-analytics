@@ -104,8 +104,12 @@ function grabConst(name) {
     'the beacon carries the deliverable id, card and component');
   const body = JSON.stringify(claim);
   ok(!/client_slug|secret prose|VID-1/.test(body), 'no slug, issue key or comment text is sent');
-  ok(Object.keys(claim).sort().join(',') === 'action,code,identifiers,operation,status,surface',
-    'the beacon shape is unchanged, so write-diagnostics accepts it as-is');
+  // `page` (client_link | staff_page) joined 2026-09-25 (refusal-log triage).
+  // write-diagnostics reads named fields only, so a function deployed before
+  // it ignores `page` and still accepts the claim.
+  ok(Object.keys(claim).sort().join(',') === 'action,code,identifiers,operation,page,status,surface'
+    && (claim.page === 'client_link' || claim.page === 'staff_page'),
+    'the beacon shape is the known set plus the page claim, which older write-diagnostics ignores');
 
   if (failures) { console.error(`\n${failures} check(s) failed`); process.exit(1); }
   console.log('\nwrite refusal beacon card-id checks passed');

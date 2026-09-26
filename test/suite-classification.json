@@ -72,6 +72,7 @@
     "boot-gate-parity.js",
     "browser-writer-auth.js",
     "bulk-refusals-honest.js",
+    "cal-comment-actions-wait-for-thread.js",
     "cal-comp-dot-matches-slot-colors.js",
     "cal-linear-missing-banner-seal.js",
     "cal-linear-status-meta-sealed-fetch.js",
@@ -551,6 +552,7 @@
     "urgent-editor-website-only.js",
     "urgent-ping-persistence.js",
     "video-artifact-rollback-record.js",
+    "workload-early-snapshot.js",
     "workload-archived-hidden.js",
     "workload-capacity-placement.js",
     "workload-duplicate-not-active.js",
@@ -600,9 +602,19 @@
     "calendar-client-links-after-sheet.js",
     "client-phone-css-scope.js",
     "sheets-mirror-policy.js",
-    "client-profile-edit.js"
+    "client-profile-edit.js",
+    "onboarding-boot-skeleton.js"
   ],
   "profiles": [
+    {
+      "file": "write-refusal-page-traffic-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 16,
+      "required_inputs": "A throwaway PostgreSQL 16 server named by WRITE_REFUSAL_TEST_PG (psql connection args); the suite creates and drops its own database.",
+      "reproduce": "WRITE_REFUSAL_TEST_PG='-h 127.0.0.1 -p PORT -U postgres' node test/write-refusal-page-traffic-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
     {
       "file": "linear-exit-admission-preflight-postgres.js",
       "route": "isolated_postgres",

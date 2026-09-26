@@ -2521,8 +2521,19 @@
             ? (rebased
                 ? 'A newer version was loaded. Your draft was preserved; Retry applies it to the current comment.'
                 : 'The edit was not saved. Your draft was kept and the canonical thread was refreshed.')
-            : 'The canonical comment action was not saved.';
+            : 'That change to the note was not saved.';
         const code = String(failure.message || '').trim();
+        /* A stale-thread refusal is not a fault the person can report or fix:
+           the note changed under them (or was still loading), the thread has
+           already been re-read, and trying again is the whole remedy. Say that
+           in plain words and drop the code (owner repro 2026-09-25). */
+        const stale = !rebased && failure.action !== 'edit'
+            && ['canonical_comment_read_required', 'comment_cas_required', 'write_conflict'].includes(code);
+        if (stale) {
+            return '<div class="prod-comment-state is-error" role="alert">This note changed while you were looking at it. It\'s been refreshed; try again if needed.'
+                + ' <button type="button" class="prod-comment-state-action" onclick="' + retryOnclick
+                + '">Retry</button></div>';
+        }
         const tail = rebased || !code ? '' : ' (code: ' + _calEsc(code.slice(0, 80)) + ')';
         return '<div class="prod-comment-state is-error" role="alert">' + lead + tail
             + ' <button type="button" class="prod-comment-state-action" onclick="' + retryOnclick

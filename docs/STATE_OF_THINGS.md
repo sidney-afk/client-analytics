@@ -62,12 +62,12 @@ line is older than a week, re-check it before relying on it.
   (OPEN_REPAIRS 210).
 - **A press that starts in a dialog and ends outside closes it**, 13 sites
   (OPEN_REPAIRS 215).
-- **Calendar rename does not reach the deliverable title in Production**
-  (journal 2026-09-22). Rename propagation is on for samples and card to
-  sub-issue; this path is still a gap.
 - **Mixed-batch orphans:** a browser fix should re-attach 22 cards; nobody has
   confirmed it on a live read (journal 2026-09-22).
 - **Copy scripts die on a bare network error** (OPEN_REPAIRS 223).
+- **F34 archive rescue is still open:** archived descriptions, comment bodies
+  and attachments were never copied; the rescue config table has 0 rows. The
+  brief-media half is done (see below).
 - **Onboarding runbooks have no native steps** for their retired Linear parts
   (OPEN_REPAIRS 227).
 - **Sheets to Supabase, next steps:** the mirror write is on and backfilled

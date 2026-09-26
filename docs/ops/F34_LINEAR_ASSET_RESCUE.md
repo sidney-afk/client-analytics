@@ -1,4 +1,4 @@
-> **Superseded 2026-09-26:** by the native brief media copy: 1,338 of 1,338 files verified live, `native_brief_media` = required since 2026-09-21. See [STATE_OF_THINGS](../STATE_OF_THINGS.md).
+> **Partly superseded 2026-09-26:** the operational brief-media part is done by the native brief media copy (1,338 of 1,338 files verified live, `native_brief_media` = required since 2026-09-21). The archive parts (archived descriptions, comment bodies and attachments, rescue-config seed, TEST attachment drill) stay open; `linear_archive_asset_rescue_config` has 0 rows. See [STATE_OF_THINGS](../STATE_OF_THINGS.md).
 
 # F34 Linear archive asset rescue
 

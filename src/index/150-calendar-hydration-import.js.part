@@ -16,7 +16,7 @@ import {
   _calPendingEdits, _calRecentSaveFields, _calRecentSaveReconcile, _calReconcileSettings,
   _calSaveInFlight, _calSaveLocalSettings, _calSaveSettings, _calSetFocusRequest,
   _calSetFocusRequestLoadFailed, _calShiftMonthIso, _calSplitSettings, _calSyncCollabSwitch,
-  _calSyncTitleReviewSwitch, calClientSlug, calState
+  _calSyncTitleReviewSwitch, _calSyncUrlCard, calClientSlug, calState
 } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _calMintId } from './132-calendar-dates-ids.js';
@@ -1962,6 +1962,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
             if (persistent) {
                 _calClearFocusHighlight();
                 card.classList.add('cal-card-focused');
+                _calSyncUrlCard(post.id);
                 setTimeout(() => document.addEventListener('mousedown', _calFocusOutsideHandler, true), 0);
                 // The outline alone wasn't enough — both prior reports said "I can't
                 // tell which card this is," even after the outline shipped. Say it

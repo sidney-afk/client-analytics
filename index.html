@@ -23187,6 +23187,13 @@
         } else {
             let hash = (page !== 'home' ? '#' + page : '');
             if (page === 'templates' && _templatesSelected) hash = '#templates/' + encodeURIComponent(_templatesSelected);
+            // A card deep link (#calendar/<slug>/<card>, #sample-reviews/<slug>/<card>)
+            // stays in the address while that card is open, so a reload opens it
+            // again. The screen drops the card itself when the card is closed.
+            if (page === 'calendar' || page === 'sample-reviews') {
+                const cur = svRoute.hash();
+                if (cur.indexOf('#' + page + '/') === 0) hash = cur;
+            }
             // Same for Kasper's subtab: writing a bare #kasper here is what made
             // every reload of a Kasper subtab land on review (speed map
             // 2026-09-23 §7) -- the first load rendered the subtab, then this
@@ -32517,6 +32524,14 @@
         if (rawHash.startsWith('calendar/' + slug + '/')) return; // keep the card deep link
         history.replaceState({ nav: 'calendar', client: null }, '', base + '#calendar/' + slug);
     }
+    /* The open card rides in the address (#calendar/<slug>/<card>) so a reload
+       opens it again; closing the card drops it back to #calendar/<slug>. */
+    function _calSyncUrlCard(pid) {
+        if (calState.embedded || currentNav !== 'calendar' || !calState.client) return;
+        const base = '/' + svRoute.search().replace(/#.*$/, '');
+        const slug = calClientSlug(calState.client);
+        history.replaceState({ nav: 'calendar', client: null }, '', base + '#calendar/' + slug + (pid ? '/' + encodeURIComponent(pid) : ''));
+    }
     function _calEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     /* NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value).
        It is NOT enough for a string argument inside an inline handler —
@@ -33668,7 +33683,7 @@
     function _calFocusOutsideHandler(e) {
         const card = document.querySelector('.cal-card-focused');
         if (!card) { document.removeEventListener('mousedown', _calFocusOutsideHandler, true); return; }
-        if (!card.contains(e.target)) _calClearFocusHighlight();
+        if (!card.contains(e.target)) { _calClearFocusHighlight(); _calSyncUrlCard(null); }
     }
 
     /* ── Excel (.xlsx) import ──────────────────────────────────────────
@@ -38915,6 +38930,7 @@
             if (persistent) {
                 _calClearFocusHighlight();
                 card.classList.add('cal-card-focused');
+                _calSyncUrlCard(post.id);
                 setTimeout(() => document.addEventListener('mousedown', _calFocusOutsideHandler, true), 0);
                 // The outline alone wasn't enough — both prior reports said "I can't
                 // tell which card this is," even after the outline shipped. Say it
@@ -68285,9 +68301,14 @@
                 const parts = dh.slice('sample-reviews/'.length).split('/');
                 const slug = parts[0]; const cardId = parts[1] || null;
                 const match = (typeof WL_CLIENT_NAMES !== 'undefined' ? WL_CLIENT_NAMES : []).find(n => _sxrNormalizeClient(n) === slug) || null;
-                _sxrFocusRequest = (match || cardId) ? { client: match, cardId } : null;
+                _sxrFocusRequest = match ? { client: match, cardId: cardId ? decodeURIComponent(cardId) : null } : null;
+                // A fresh browser only knows the seed roster until the Clients
+                // Info sheet loads; hold the link and resolve it then, instead of
+                // opening an empty "No clients added yet" board.
+                if (!match && slug) _sxrPendingDeepLink = { slug, cardId: cardId ? decodeURIComponent(cardId) : null };
             }
         } catch (e) {}
+        if (_sxrFocusRequest && _sxrFocusRequest.client) _sxrPinClient(_sxrFocusRequest.client);
         const prefs = _sxrLoadPrefs();
         const pins  = _sxrGetPins();
         let initial = null;
@@ -68302,9 +68323,81 @@
         sxrState.posts = [];
         sxrState.error = null;
         sxrState.previewId = null;
+        if (_sxrPendingDeepLink) {
+            sxrState.client = null;
+            _sxrRenderShell();   // the body keeps its loader until the roster lands
+            if (typeof fetchEssentials === 'function') fetchEssentials().then(_sxrResolvePendingDeepLink, _sxrResolvePendingDeepLink);
+            else _sxrResolvePendingDeepLink();
+            return;
+        }
         _sxrRenderShell();
         if (sxrState.client) loadSxrCards();
         else _sxrRenderBody();
+    }
+
+    /* Card deep links (#sample-reviews/<slug>/<card>): open that client as a
+       tab, then outline and centre the card once its row has painted. The card
+       stays in the address while it is open; closing it (a click elsewhere)
+       drops it back to #sample-reviews/<slug>. */
+    let _sxrPendingDeepLink = null;
+    function _sxrPinClient(name) {
+        const pins = _sxrGetPins();
+        if (name && !pins.includes(name)) _sxrSavePins(pins.concat([name]));
+    }
+    function _sxrResolvePendingDeepLink() {
+        const pending = _sxrPendingDeepLink;
+        _sxrPendingDeepLink = null;
+        if (!pending || currentNav !== 'sample-reviews' || sxrState.embedded) return;
+        const match = WL_CLIENT_NAMES.find(n => _sxrNormalizeClient(n) === pending.slug) || null;
+        if (!match) {
+            showNotify('Sample link not opened', 'That link points at a client this tab does not know yet. Reload and try the link again.');
+            const pins = _sxrGetPins();
+            if (pins.length) onSxrClientChange(pins[0]); else _sxrRenderBody();
+            return;
+        }
+        _sxrFocusRequest = { client: match, cardId: pending.cardId };
+        _sxrPinClient(match);
+        sxrState.view = 'organizer';
+        _sxrRenderShell();
+        onSxrClientChange(match);
+    }
+    function _sxrSyncUrlCard(pid) {
+        if (sxrState.embedded || currentNav !== 'sample-reviews' || !sxrState.client) return;
+        const base = '/' + svRoute.search().replace(/#.*$/, '');
+        history.replaceState({ nav: 'sample-reviews', client: null }, '', base + '#sample-reviews/' + encodeURIComponent(sxrClientSlug(sxrState.client)) + (pid ? '/' + encodeURIComponent(pid) : ''));
+    }
+    function _sxrFocusOutsideHandler(e) {
+        const card = document.querySelector('#sxrView .cal-card-focused');
+        if (!card) { document.removeEventListener('mousedown', _sxrFocusOutsideHandler, true); return; }
+        if (card.contains(e.target)) return;
+        card.classList.remove('cal-card-focused');
+        document.removeEventListener('mousedown', _sxrFocusOutsideHandler, true);
+        _sxrSyncUrlCard(null);
+    }
+    // Called after each Samples render that has the client's cards.
+    function _sxrApplyFocusRequest() {
+        const req = _sxrFocusRequest;
+        if (!req || !req.cardId || !sxrState.client || sxrState.loading) return;
+        if (_sxrNormalizeClient(req.client) !== _sxrNormalizeClient(sxrState.client)) return;
+        _sxrFocusRequest = null;
+        const post = sxrState.posts.find(p => String(p.id) === String(req.cardId));
+        if (!post) { showNotify('Card not found', "That linked sample isn't on this client's board. It may have been archived."); return; }
+        sxrState.focusPid = post.id;
+        if (sxrState.view !== 'organizer') { sxrState.view = 'organizer'; _sxrRenderShell(); }
+        _sxrRenderBody();
+        let frames = 0;
+        const focusWhenPainted = () => {
+            const safe = (window.CSS && CSS.escape) ? CSS.escape(post.id) : post.id;
+            const card = document.querySelector('#sxrView .cal-card[data-pid="' + safe + '"]');
+            if (!card) { if (++frames < 40) requestAnimationFrame(focusWhenPainted); return; }
+            document.querySelectorAll('#sxrView .cal-card-focused').forEach(el => el.classList.remove('cal-card-focused'));
+            card.classList.add('cal-card-focused');
+            card.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
+            _sxrSyncUrlCard(post.id);
+            setTimeout(() => document.addEventListener('mousedown', _sxrFocusOutsideHandler, true), 0);
+            showToast('Linked to “' + String(post.name || 'Untitled sample').trim() + '”');
+        };
+        requestAnimationFrame(focusWhenPainted);
     }
 
     function _sxrRenderShell() {
@@ -68799,6 +68892,7 @@
                 if (typeof _sxrRepaintLiveStatus === 'function') _sxrRepaintLiveStatus();
             }
             else _sxrRenderBody();
+            _sxrApplyFocusRequest();
             if (typeof _sxrV2EnsureSubscribed === 'function') _sxrV2EnsureSubscribed(slug);   // open/refresh realtime
             if (typeof _sxrV2DrainPending === 'function') _sxrV2DrainPending(slug);            // service a change that arrived mid-load
             /* Native cards materialize BEFORE the Linear mirror drains, so a

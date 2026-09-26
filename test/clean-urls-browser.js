@@ -13,7 +13,9 @@
 //      loads (nothing 404s), the same set as at the root;
 //   5. Kasper is admin-only: an SMM gets no tab and /kasper sends them home;
 //      a remembered admin keeps the tab while the sign-in check is failing;
-//   6. Onboarding and Client Credentials open at their own paths for an SMM.
+//   6. Onboarding and Client Credentials open at their own paths for an SMM;
+//   7. calendar and sample card links (clean, old and copied) focus the card,
+//      keep it in the address while open and drop it when it is closed.
 // Uses fixture ids only: no client names, slugs or tokens.
 const assert = require('assert/strict');
 const fs = require('fs');
@@ -55,6 +57,12 @@ async function newContext(browser, member, opts = {}) {
     if (/\/functions\/v1\/key-verify/.test(url)) {
       if (opts.verifierDown) return route.fulfill({ status: 503, contentType: 'application/json', headers: cors, body: '{"ok":false}' });
       return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify({ ok: true, role: member.role, member }) });
+    }
+    if (opts.cards) {
+      const m = /\/rest\/v1\/(calendar_posts|sample_reviews)\?.*client=eq\.([^&]+)/.exec(url);
+      if (m && decodeURIComponent(m[2]) === opts.cards.slug) {
+        return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify(opts.cards.rows(m[1])) });
+      }
     }
     return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: /\/rest\/v1\//.test(url) ? '[]' : '{}' });
   });
@@ -284,6 +292,60 @@ const ADMIN_CASES = [
     const none = await land(fp, base, '/calendar');
     check(!none.kasperTab, 'no remembered admin: no Kasper tab while the check fails');
     await fresh.close();
+
+    // 7. Card deep links open the card, keep it in the address while it is
+    // open (a reload opens it again), and drop it only when it is closed.
+    // Test client only; a fresh browser each time (no saved tabs).
+    const TEST = 'sidneylaruel';
+    const today = new Date().toISOString().slice(0, 10);
+    const cardRows = () => ['p_link_a', 'p_link_b', 'p_link_c'].map((id, i) => ({
+      id, client: TEST, name: 'Link test ' + i, status: 'Draft', scheduled_date: today, sort_order: i,
+    }));
+    const cards = { slug: TEST, rows: cardRows };
+    const focusedPid = pg => pg.evaluate(() => { const el = document.querySelector('.cal-card-focused'); return el ? el.getAttribute('data-pid') : null; });
+    const waitFocus = pg => pg.waitForFunction(() => !!document.querySelector('.cal-card-focused'), null, { timeout: 15000 }).catch(() => {});
+    for (const [label, addr, clean, screen] of [
+      ['calendar card link', `/calendar/${TEST}/p_link_b`, `/calendar/${TEST}/p_link_b`, 'calendar'],
+      ['old calendar card link', `/#calendar/${TEST}/p_link_b`, `/calendar/${TEST}/p_link_b`, 'calendar'],
+      ['sample card link', `/sample-reviews/${TEST}/p_link_b`, `/sample-reviews/${TEST}/p_link_b`, 'sample-reviews'],
+      ['old #samples card link', `/#samples/${TEST}/p_link_b`, `/sample-reviews/${TEST}/p_link_b`, 'sample-reviews'],
+      ['Samples copy-link', `/sample-reviews/${TEST}/p_link_b?sxr=1`, `/sample-reviews/${TEST}/p_link_b?sxr=1`, 'sample-reviews'],
+    ]) {
+      const cx = await newContext(browser, ADMIN, { cards });
+      const pg = await cx.newPage();
+      await pg.goto(base + addr, { waitUntil: 'domcontentloaded' });
+      await waitFocus(pg);
+      await pg.waitForTimeout(600);
+      const at = () => pg.evaluate(() => location.pathname + location.search);
+      check(await focusedPid(pg) === 'p_link_b', `${label}: the linked card is focused (got ${await focusedPid(pg)})`);
+      check(await pg.evaluate(() => currentNav) === screen, `${label}: opens ${screen}`);
+      check(await at() === clean, `${label}: card stays in the address while open (${await at()})`);
+      check(!(await pg.evaluate(() => /No clients added yet/.test(document.body.innerText))), `${label}: no empty "No clients added yet" board`);
+      await pg.reload({ waitUntil: 'domcontentloaded' });
+      await waitFocus(pg);
+      check(await focusedPid(pg) === 'p_link_b', `${label}: a reload opens the same card`);
+      await pg.mouse.click(5, 880);
+      await pg.waitForTimeout(300);
+      const closed = await at();
+      check(closed === clean.replace('/p_link_b', ''), `${label}: closing the card drops it from the address (${closed})`);
+      await cx.close();
+    }
+    // The copy-link button writes the clean card address.
+    {
+      const cx = await newContext(browser, ADMIN, { cards });
+      await cx.grantPermissions(['clipboard-read', 'clipboard-write']);
+      const pg = await cx.newPage();
+      await pg.goto(base + `/sample-reviews/${TEST}/p_link_b`, { waitUntil: 'domcontentloaded' });
+      await waitFocus(pg);
+      await pg.evaluate(() => _sxrCopyCardLink(null, 'p_link_c'));
+      const copied = await pg.evaluate(() => navigator.clipboard.readText()).catch(() => '');
+      check(copied === base + `/sample-reviews/${TEST}/p_link_c?sxr=1`, `Samples copy-link writes the clean card address (${copied.replace(base, '')})`);
+      const p2 = await cx.newPage();
+      await p2.goto(copied, { waitUntil: 'domcontentloaded' });
+      await waitFocus(p2);
+      check(await focusedPid(p2) === 'p_link_c', 'the copied Samples link opens that card');
+      await cx.close();
+    }
   } finally {
     await browser.close();
     server.close();

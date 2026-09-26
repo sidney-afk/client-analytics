@@ -74,6 +74,7 @@ function base() {
   // confusing failure three steps later.
   S.push({ key: 'create_drag_reorder_persist', title: 'Create via UI, drag to front mid-save — order survives a reload', shots: true, noSeed: true,
     steps: [
+      ['api.archiveStaleTestRows'],              // a leftover test card would take the front slot
       ['api.seedRow', 'XSESSION Drag Anchor'],
       ['smm.bgReload'],                          // a seeded row only reaches the strip through a merge
       ['expectCardOnce', 'XSESSION Drag Anchor'],

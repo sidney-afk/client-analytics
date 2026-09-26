@@ -646,6 +646,9 @@
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const doApprove = () => {
+            const prev = {};
+            ['status', 'video_status', 'graphic_status', 'caption_status', 'client_video_approved_at',
+                'client_graphic_approved_at', 'client_caption_approved_at'].forEach(k => { prev[k] = post[k]; });
             const stamp = new Date().toISOString();
             post.video_status   = 'Approved';
             post.graphic_status = 'Approved';
@@ -664,7 +667,22 @@
                 client_graphic_approved_at: stamp,
                 client_caption_approved_at: stamp,
             });
-            _calFlushCardSave(pid);
+            // Held in this browser until the server confirms (185).
+            _calCrqBegin('approve', pid, 'all', {
+                edits: { status: 'Approved', video_status: 'Approved', graphic_status: 'Approved',
+                    caption_status: 'Approved', client_video_approved_at: stamp,
+                    client_graphic_approved_at: stamp, client_caption_approved_at: stamp },
+                prev,
+                serverStatus: { video: prev.video_status, graphic: prev.graphic_status, caption: prev.caption_status }
+            });
+            Promise.resolve(_calFlushCardSave(pid)).catch(e => {
+                post._saveError = _writeUiFailureSentence(e);
+            }).then(() => {
+                const current = calState.posts.find(p => p.id === pid) || post;
+                if (!current._saveError) { _calCrqDone(pid, 'all'); return; }
+                if (_calCrqFailed(pid, 'all', current._saveError)) return;
+                _calRenderBody({ preserveScroll: true });
+            });
             _calRenderBody({ preserveScroll: true });
         };
         let skip = false;
@@ -1053,6 +1071,8 @@
             return;
         }
     }
+    // Status columns a whole-card save may only send when this save edited them.
+    const CAL_WHOLE_CARD_STATUS_FIELDS = ['status', 'video_status', 'graphic_status', 'caption_status', 'title_status'];
     async function _calFlushCardSave(pid) {
         let edits = _calPendingEdits[pid];
         if (!edits) return;
@@ -1359,6 +1379,19 @@
                 delete wirePost._writeUiRepairRefs;
                 _calStripThumbnailFolderFields(wirePost);
                 _calApplyClearSentinels(wirePost, edits);
+                // A whole-card send for an EXISTING card (the v1 save mode, a
+                // sticky per-browser opt-out) must not carry statuses this save
+                // never edited: the tab's copy can be older than a status the
+                // Production board projected since, and re-sending it put an
+                // approved video back to In Progress (drift check 2026-09-26).
+                // Deliberate status changes always arrive in `edits`, and a Retry
+                // restores them from `_writeUiRetryEdits`. An empty `edits` (a
+                // retry with no snapshot) edited no status, so it sends none.
+                if (!wasNewRow) {
+                    for (const k of CAL_WHOLE_CARD_STATUS_FIELDS) {
+                        if (!(k in edits)) delete wirePost[k];
+                    }
+                }
             }
             // comments_base_at = the sheet's updated_at this browser last saw.
             // The upsert workflow 3-way-merges each *_tweaks cell against this

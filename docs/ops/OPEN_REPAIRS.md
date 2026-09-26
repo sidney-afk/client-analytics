@@ -29115,7 +29115,88 @@ in the approve and request-change logic.
    on a conflict, where the calendar sends its base time and merges comments on a
    conflict. A concurrent edit to the same sample can be overwritten.
 
-## 263. [2026-09-26, BUILT] The Time Off lifecycle browser test failed at random on CI ("cancelled future leave is removed from upcoming")
+## 261. [2026-09-26, BUILT] A client's Approve or Request changes is never lost
+
+**What was wrong.** Measured on the test client on 2026-09-26: a client link
+that lost its connection during Approve showed the card leaving the queue, no
+message at all, and the approval never reached the server, not even after the
+connection came back. The client believed they had approved. Cause: the save
+failed and rolled the status back, but the page repainted only a card that the
+failed save's own render had already dropped from the list.
+
+**What changed.** `src/index/185-client-review-queue.js.part` (new) keeps each
+client-link Approve / Request changes in browser storage until the server
+confirms it. The client sees "Sending..." then "Approved" / "Changes sent". A
+connection failure is held and re-sent (back online, tab shown again, backoff
+timer, and after a reload); a server refusal is not retried, the change is put
+back and a clear message says it was not saved; after 30 minutes of failed
+re-sends the page says so plainly. Small hand-off lines in `170` (legacy
+"Approve post") and `190` (review Approve / Request changes). The approve
+failure path now does a full render, so a refused approve reappears.
+
+**Proof.** `qa/client-review-queue/offline.js`, live, test client only, five
+seeds archived after: online approve (DB in 0.9 s, "Sending..." then
+"Approved"); offline approve (held, landed 1.1 s after reconnect); offline
+request changes (landed 3.7 s after reconnect, exactly one copy of the
+comment); upsert down then page closed and reopened (landed 2.5 s after
+reopen, queue empty); server refusal (message shown, card back, nothing
+queued). Guard: `test/client-review-queue.js`.
+
+**261 addendum (2026-09-26, review fixes).** A held Approve now records the
+server status at click time and, before any re-send, reads the row back from
+the server; it is re-sent only if that status is unchanged, so a change request
+made meanwhile (on this device or another) always wins. A later change request
+on a part removes a held whole-post approve for it. Every entry has a hard
+30-minute maximum age from the click that survives reloads; on expiry it is
+dropped and the client is told plainly it was not saved. Superseded and
+early-return paths clear the entry. Entries carry only status and approval
+fields. Guards: `test/client-review-queue-behavior.js` (sandboxed, includes the
+two-device case). Live: `qa/client-review-queue/offline.js`, 24 of 24 checks,
+including the two-device case, six seeds archived. Side effect to know: the
+review Approve failure path (staff SMM review too) now redraws the whole
+calendar view instead of repainting one card.
+
+## 262. [2026-09-26, BUILT] The separate Samples tab on Kasper's page is gone
+
+**Problem.** After 259 listed samples in the Review queue, the Samples tab was
+only hidden: its own list, sections and counts still lived in the page, and links
+(including urgent pings already sent) still pointed at `#kasper/samples`.
+
+**Fix.** The Samples subtab is no longer registered. `_kasperResolveSubtab` maps
+the old key to Review, and every route that picks a Kasper subtab uses it: the
+three hash readers, the remembered last tab, and `_kasperGotoTab`. So an old
+`#kasper/samples` link, a message that carries one, or a browser that last had
+Samples open all land on Review. New urgent pings for a sample now link to
+`#kasper`. The samples list code keeps only what Review uses (the cards, their
+handlers and saver, and the approved-samples history); its own page renderer,
+Urgent / Waiting / Tweaks sections and their toggles are removed. The "samples
+switched on" checks now read the samples feature switch directly. No n8n
+workflow was changed.
+
+**Proof.** `qa/probes/kasper_samples_in_review.js` (on demand, test client only):
+96 of 96 at 1440, 390 and 375, including that there is no Samples tab, that
+`_kasperGotoTab('samples')`, a fresh load of `#kasper/samples` and the clean
+address `/kasper/samples` all land on Review, and that every sample action still saves through the samples saver. The
+nav, urgent-ping and focus tests were updated to the single queue.
+
+## 263. [2026-09-26, BUILT] A sample said "Video awaiting your review" after Kasper had already sent the video back
+
+**Problem.** Found in Vigil's test of 259. When Kasper approves a sample's
+thumbnail and requests changes on its video, the card correctly stays in "Waiting
+for your review" until he taps Finish reviewing, the same as a calendar card. But
+its label read "Video awaiting your review", though the video was already back
+with the editor (Tweaks Needed). The label counted every part still shown on the
+card, including parts he had already decided. Calendar cards show no such label,
+so they were not misleading.
+
+**Fix.** The sample label now counts only undecided parts. Once every part is
+decided it reads "All decided · tap Finish reviewing to hand it to the SMM". Only
+the label changed; the queue rules, Urgent button and save paths are untouched.
+
+**Proof.** `qa/probes/kasper_samples_in_review.js` checks the label after the
+approve plus change request, at 1440, 390 and 375 on the test client: 93 of 93.
+
+## 264. [2026-09-26, BUILT] The Time Off lifecycle browser test failed at random on CI ("cancelled future leave is removed from upcoming")
 
 **Problem.** `synthetic-browser` failed now and then in `qa/pto-lifecycle` (run
 36227249829 and PR 1673) while passing locally. It was not the app.

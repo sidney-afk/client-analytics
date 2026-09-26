@@ -1,3 +1,62 @@
+import {
+  _svCaptureFocus, _svRestoreFocus, showConfirm, showNotify, showToast
+} from './040-shared-briefs.js';
+import {
+  _prodCommentAddRoutesLegacy, _prodRootAudienceClientRows, _writeUiAdoptRepairAck,
+  _writeUiAdoptReplayStatus, _writeUiAppendRepairRef, _writeUiBindRepairAck,
+  _writeUiCompleteSourceRepairRefs, _writeUiFailureSentence, _writeUiGatewayError,
+  _writeUiGatewayPost, _writeUiIntentId, _writeUiLegacyItemOwnedBy, _writeUiLegacyResumeOwner,
+  _writeUiLegacyResumeOwnerCurrent, _writeUiLegacyResumeOwnerKey, _writeUiLegacyRetainFrom,
+  _writeUiMergeCommittedBatch, _writeUiNativeId, _writeUiNativeStatus, _writeUiPrimeRerouteFlag,
+  _writeUiPrincipalKey, _writeUiQueueDiagnostic, _writeUiRefreshAuthority,
+  _writeUiRemoveCompletedRepairRefs, _writeUiReportFailure, _writeUiSnapshotRepairRefs,
+  _writeUiSourceClientSlug, _writeUiSourceEditsOnly
+} from './120-calendar-flags-write-repair.js';
+import { _calShouldBumpThumbRevForGraphicStatus } from './130-calendar-model-cache.js';
+import { _writeUiLegacyWithoutRetired } from './134-calendar-prefs-mount.js';
+import {
+  _writeUiApplyOverallStatus, _writeUiApplySupersededTeamDelivery,
+  _writeUiCommentActionFailureHtml, _writeUiCommitCardCommentLifecycle,
+  _writeUiFlushDeferredLegacyTweak, _writeUiLegacyCommittedTweak, _writeUiLegacyDrainWithLock,
+  _writeUiLegacyFinalizeFlush, _writeUiLegacyGateSignature, _writeUiLegacyInspectTargetTweak,
+  _writeUiLegacyPinnedSourceTransport, _writeUiLegacyQuarantine,
+  _writeUiLegacyReconcileCommittedTweak, _writeUiLegacyRecordedTeamDeliveryReceiptItem,
+  _writeUiLegacyRefreshActiveTweak, _writeUiLegacyRememberCommittedTweak,
+  _writeUiLegacySourceGateState, _writeUiLegacyStoredTeamTerminalItem,
+  _writeUiLegacySupersededSourceItem, _writeUiLegacySupersededTeamItem,
+  _writeUiLegacyTargetWithLock, _writeUiPersistCanonicalCommentProjection,
+  _writeUiQueueDeferredLegacyTweak, _writeUiRequestTweakMarkLocalStatus,
+  _writeUiRollbackRequestTweak, _writeUiScheduleDeferredLegacyTweak
+} from './140-calendar-legacy-outbox.js';
+import { _calV2Teardown } from './150-calendar-hydration-import.js';
+import {
+  _calClearThumbnailFolderMeta, _calDeriveThumb, _calIsFolderLink, _calIsFrameLink,
+  _calMiniLinkBadgeHtml, _calResolveThumbnailFolder, _calReviewFrameHtml,
+  _calStripThumbnailFolderFields, _calThumbIconSvg, _calThumbImgTag, _kcardReuseThumbInto,
+  _thumbAdoptPersistedRevision, _thumbCompareScheduleAvailability, _thumbCompareSlotHtml
+} from './160-calendar-organize-ui.js';
+import { _svSaveIndApply } from './170-calendar-links-status.js';
+import {
+  COMP_LABELS, _calWireDragEdgeScroll, _calWireShiftScroll, _notesGetSeen, _notesMarkSeen
+} from './180-calendar-native-post-media.js';
+import { CAL_REPLY_DRAFT_MAX, REVIEW_APPROVE_DRAFT_TITLE } from './190-calendar-approval-comments.js';
+import { _prodCanonicalCommentGate, _prodComments, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
+import { _isClientLink, _syncviewClientEntryCapability, _syncviewClientEntrySlug, _syncviewInvalidClientLinkScreen } from './260-production-refresh-boot.js';
+import {
+  SXR_COMPONENTS, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS, _sxrApplyClearSentinels,
+  _sxrApplyZoom, _sxrBgLoadInFlight, _sxrBlankSample, _sxrCacheWrite, _sxrClearStaleApprovals,
+  _sxrClientCompPillsHtml, _sxrDeriveThumbInfo, _sxrEnabled, _sxrEsc, _sxrEscAttr,
+  _sxrForceThumbRefresh, _sxrIsBlankId, _sxrJsArg, _sxrLastNetworkLoadAt, _sxrLoadPrefs,
+  _sxrLoaderHtml, _sxrMigrateShape, _sxrNormStatus, _sxrNormZoom, _sxrOpenStatusMenu,
+  _sxrPendingEdits, _sxrRenderShell, _sxrReorderFetch, _sxrReviewBlockReason, _sxrSampleUseEf,
+  _sxrSaveInFlight, _sxrSavePrefs, _sxrSaveTimers, _sxrUpdateCardStatusDisplay,
+  _sxrUpsertFetchPinned, archiveSxrCard, computeSampleOverallStatus, loadSxrCards,
+  renderSxrOrganizer, renderSxrView, sxrClientSlug, sxrState
+} from './270-samples-model.js';
+import {
+  _sxrEnsureFreshnessWiring, _sxrPostLinearComment, _sxrPushStatusToLinear, _sxrV2Teardown,
+  _writeUiJournalCoversRepairRefs, _writeUiReconcileReplayStatus
+} from './290-samples-writes-review.js';
     function _sxrRenderBody(opts) {
         const body = document.getElementById('sxrBody');
         if (!body) return;
@@ -2832,3 +2891,21 @@
     window.clearSxrLinearOutbox = function () { const n = _sxrLinearOutboxRead().length; _sxrLinearOutboxWrite([]); return 'cleared ' + n; };
     window.peekSxrLinearOutbox = function () { return _sxrLinearOutboxRead(); };
     const _sxrLinearPushChain = Object.create(null);
+export {
+  _sxrApplyAutoStatus, _sxrApprovalBadgeCount, _sxrAutoResolveDestStatus, _sxrAwaitCardSave,
+  _sxrCanonicalCommentsFor, _sxrClientVisibleLegacyRows, _sxrCommentRole, _sxrCommentsBtnHtml,
+  _sxrCommentsFor, _sxrCommentsForView, _sxrCurrentAuthor, _sxrDeleteComment, _sxrFlushAllPending,
+  _sxrFlushCardSave, _sxrFmtCommentTime, _sxrIsBusy, _sxrIsClientReady, _sxrLastLocalWriteAt,
+  _sxrLinearOutboxFlush, _sxrLinearOutboxRead, _sxrLinearOutboxScheduleRetry,
+  _sxrLinearOutboxTimer, _sxrLinearOutboxWrite, _sxrLinearPushChain, _sxrLinearUrlFor,
+  _sxrLocalStatusAt, _sxrMarkKasperSeen, _sxrMarkLocalStatus, _sxrMaybeRunPendingRender,
+  _sxrMergeCommentLists, _sxrMergeServerRows, _sxrMiniLinkBadgeHtml, _sxrMintCommentId,
+  _sxrMsgAudience, _sxrMsgIsTweak, _sxrNextTweakRound, _sxrOnFieldBlur, _sxrOnFieldInput,
+  _sxrOpenCommentsPid, _sxrPendingBackgroundRender, _sxrPostsEqualForRender,
+  _sxrRefreshCommentsBtn, _sxrRefreshOnReturn, _sxrRenderBody, _sxrRenderCommentsModal,
+  _sxrRetryCommentEdit, _sxrReviewComponentPreview, _sxrReviewState, _sxrSchedulePendingRender,
+  _sxrSetCanonicalCommentsFor, _sxrSetCommentsFor, _sxrSetLastLocalWriteAt,
+  _sxrSetLinearOutboxTimer, _sxrSetPendingBackgroundRender, _sxrStringifyComments,
+  _sxrThumbIconSvg, _sxrToggleCommentDone, _sxrUpdateReviewBadge, _sxrWatchNoteSave,
+  mountSxrClientView
+};

@@ -75442,6 +75442,27 @@
         .tk-sub { font-size: 0.86rem; color: var(--text-secondary); margin-top: 2px; }
         .tk-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
         .tk-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; }
+        /* Form column: numbered steps on a thin rail instead of boxed cards. */
+        #tkFormCol { counter-reset: tkstep; }
+        #tkFormCol > .tk-card { background: none; border: 0; border-radius: 0; padding: 0 0 26px 40px; position: relative; counter-increment: tkstep; }
+        #tkFormCol > .tk-card::before { content: counter(tkstep); position: absolute; left: 0; top: -3px; width: 24px; height: 24px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--border); display: grid; place-items: center; font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); background: var(--bg); }
+        #tkFormCol > .tk-card::after { content: ""; position: absolute; left: 11px; top: 26px; bottom: 6px; width: 1.5px; background: var(--border); }
+        #tkFormCol > .tk-opts-card::after { display: none; }
+        .tk-step-note { display: block; font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; }
+        .tk-radio-row.tk-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; background: var(--field-bg); border-radius: 12px; padding: 4px; }
+        .tk-seg .tk-radio { justify-content: center; border: 0; border-radius: 9px; padding: 10px; background: none; }
+        .tk-seg .tk-radio:hover { color: var(--text-primary); }
+        .tk-seg .tk-radio.active { background: var(--text-primary); color: var(--white); }
+        .tk-sched-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        #tkFormCol .tk-sched-head h3 { margin: 0; }
+        #tkScheduleFields { margin-top: 14px; }
+        .tk-opts-head { all: unset; box-sizing: border-box; width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; }
+        .tk-opts-head:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 4px; border-radius: 6px; }
+        #tkFormCol .tk-opts-head h3 { margin: 0; }
+        .tk-opts-more { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 700; color: var(--text-primary); white-space: nowrap; }
+        .tk-opts-more svg { transition: transform 0.15s; }
+        .tk-opts-head[aria-expanded="true"] .tk-opts-more svg { transform: rotate(180deg); }
+        .tk-opts-body { margin-top: 16px; }
         .tk-card h3 { margin: 0 0 14px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
         .tk-card h3 .tk-card-hint { float: right; text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--text-secondary); font-size: 0.74rem; }
         .tk-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
@@ -75529,6 +75550,18 @@
         .tk-q-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-secondary); font-family: inherit; font-size: 0.74rem; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; }
         .tk-q-btn:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
         .tk-q-danger { color: var(--sv-fg-dc2626); }
+        /* Row actions: plain text, no box, shown on hover (always on touch screens). */
+        .tk-queue-item { position: relative; }
+        .tk-queue-actions { position: absolute; right: 0; top: 50%; transform: translateY(-50%); margin: 0; gap: 14px; opacity: 0; transition: opacity 0.15s; }
+        .tk-queue-item:hover .tk-queue-actions, .tk-queue-item:focus-within .tk-queue-actions { opacity: 1; }
+        .tk-queue-actions .tk-q-btn { border: 0; background: none; min-height: 0; padding: 4px; width: auto; color: var(--text-secondary); font-weight: 500; }
+        .tk-queue-actions .tk-q-btn:hover { color: var(--text-primary); text-decoration: underline; border: 0; }
+        .tk-queue-actions .tk-q-primary { color: var(--text-primary); font-weight: 600; }
+        @media (hover: none), (max-width: 640px) {
+            .tk-queue-actions { opacity: 1; position: static; transform: none; grid-column: 2; margin-top: 4px; }
+            .tk-queue-actions .tk-q-btn { min-height: 40px; padding: 0 6px; }
+        }
+        .tk-submit-bar .tk-mini-btn { border: 0; background: none; padding: 4px; }
         .tk-q-primary { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
         .tk-q-primary:hover { color: var(--white); opacity: 0.88; }
         .tk-q-x { width: 32px; padding: 0; font-size: 1rem; color: var(--text-muted); }
@@ -75875,6 +75908,22 @@
         `;
     }
 
+    // One line under the collapsed TikTok options, naming what will be sent.
+    function _tkOptionsSummary(opts) {
+        const bits = [
+            (TK_PRIVACY_LEVELS.find(p => p.v === opts.privacy_level) || TK_PRIVACY_LEVELS[0]).label,
+            (TK_POST_MODES.find(p => p.v === opts.post_mode) || TK_POST_MODES[0]).label,
+        ];
+        if (tkState.mediaType === 'video') bits.push(`Cover at ${Math.round((Number(opts.cover_timestamp_ms) || 0) / 100) / 10} s`);
+        else bits.push(opts.auto_add_music !== false ? 'Auto music on' : 'Auto music off');
+        const off = [opts.disable_comment && 'comments', opts.disable_duet && 'duet', opts.disable_stitch && 'stitch'].filter(Boolean);
+        bits.push(off.length === 0 ? 'Comments, duet, stitch on' : off.length === 3 ? 'Comments, duet, stitch off' : `${off.join(', ')} off`);
+        if (opts.brand_content_toggle) bits.push('Branded content');
+        if (opts.brand_organic_toggle) bits.push('Your brand');
+        if (opts.is_aigc) bits.push('AI-generated');
+        return bits.join(' · ');
+    }
+
     function _tkRenderForm() {
         const col = document.getElementById('tkFormCol');
         if (!col) return;
@@ -75995,14 +76044,14 @@
             <div class="tk-card">
                 <h3>Media</h3>
                 <div class="tk-row">
-                    <div class="tk-radio-row">
+                    <div class="tk-radio-row tk-seg" role="radiogroup" aria-label="Media type">
                         <label class="tk-radio ${tkState.mediaType === 'video' ? 'active' : ''}">
                             <input type="radio" name="tkMediaType" value="video" ${tkState.mediaType === 'video' ? 'checked' : ''} ${tkState.submitting ? 'disabled' : ''}>
-                            Video
+                            <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.8v8.4L10 6z" fill="currentColor"/></svg>Video
                         </label>
                         <label class="tk-radio ${tkState.mediaType === 'photo' ? 'active' : ''}">
                             <input type="radio" name="tkMediaType" value="photo" ${tkState.mediaType === 'photo' ? 'checked' : ''} ${tkState.submitting ? 'disabled' : ''}>
-                            Photo carousel
+                            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="1" y="1" width="10" height="10" rx="1.5" fill="currentColor"/></svg>Photo carousel
                         </label>
                     </div>
                 </div>
@@ -76019,7 +76068,54 @@
             </div>
 
             <div class="tk-card">
-                <h3>TikTok options</h3>
+                <div class="tk-sched-head">
+                    <h3>Scheduling</h3>
+                    <label class="tk-toggle">
+                        <input type="checkbox" id="tkPostNow" ${tkState.schedule.postNow ? 'checked' : ''}>
+                        <span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>
+                        Post immediately
+                    </label>
+                </div>
+                ${tkState.schedule.postNow ? '<div class="tk-step-note">Posts as soon as you press Post now. Switch off to pick a date and time.</div>' : ''}
+                <div id="tkScheduleFields" ${tkState.schedule.postNow ? 'hidden' : ''}>
+                    <div class="tk-grid-2">
+                        <div class="tk-row">
+                            <label for="tkScheduleDate">Date</label>
+                            <input class="tpl-input" id="tkScheduleDate" type="date" value="${_tkEscape(schedParts.date)}" min="${_tkEscape(schedTodayISO)}">
+                        </div>
+                        <div class="tk-row">
+                            <label>Time</label>
+                            <div class="tk-time-row">
+                                <select class="tk-select tk-time-select" id="tkScheduleHour">
+                                    ${schedHours.map(h => `<option value="${h}" ${String(h) === schedParts.hour12 ? 'selected' : ''}>${h}</option>`).join('')}
+                                </select>
+                                <span class="tk-time-sep">:</span>
+                                <select class="tk-select tk-time-select" id="tkScheduleMin">
+                                    ${schedMinutes.map(mm => `<option value="${mm}" ${mm === schedParts.minute ? 'selected' : ''}>${mm}</option>`).join('')}
+                                </select>
+                                <div class="tk-ampm" id="tkAmpm">
+                                    <button type="button" class="tk-ampm-btn ${schedParts.ampm === 'AM' ? 'active' : ''}" data-ampm="AM">AM</button>
+                                    <button type="button" class="tk-ampm-btn ${schedParts.ampm === 'PM' ? 'active' : ''}" data-ampm="PM">PM</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tk-row" style="margin-top:6px">
+                        <label for="tkScheduleTz">Timezone</label>
+                        <select class="tk-select" id="tkScheduleTz">
+                            ${TK_TIMEZONES.map(tz => `<option value="${tz}" ${tz === tkState.schedule.tz ? 'selected' : ''}>${tz}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="tk-schedule-preview" id="tkSchedulePreview" style="${schedPreview ? '' : 'display:none'}">${_tkEscape(schedPreview)}</div>
+                </div>
+            </div>
+
+            <div class="tk-card tk-opts-card">
+                <button type="button" class="tk-opts-head" id="tkOptsToggle" aria-expanded="${tkState.optsOpen ? 'true' : 'false'}" aria-controls="tkOptsBody">
+                    <span class="tk-opts-text"><h3>TikTok options</h3><span class="tk-step-note">${_tkEscape(_tkOptionsSummary(opts))}</span></span>
+                    <span class="tk-opts-more"><span id="tkOptsLabel">${tkState.optsOpen ? 'Hide options' : 'Show options'}</span><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span>
+                </button>
+                <div class="tk-opts-body" id="tkOptsBody" ${tkState.optsOpen ? '' : 'hidden'}>
                 <div class="tk-grid-2">
                     <div class="tk-row">
                         <label>Privacy level</label>
@@ -76069,47 +76165,6 @@
                         <label class="tk-toggle"><input type="checkbox" id="tkAigc"          ${opts.is_aigc ? 'checked' : ''}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>AI-generated</label>
                     </div>
                 </div>
-            </div>
-
-            <div class="tk-card">
-                <h3>Scheduling</h3>
-                <div class="tk-row">
-                    <label class="tk-toggle" style="align-self:flex-start">
-                        <input type="checkbox" id="tkPostNow" ${tkState.schedule.postNow ? 'checked' : ''}>
-                        <span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>
-                        Post immediately
-                    </label>
-                </div>
-                <div id="tkScheduleFields" style="${tkState.schedule.postNow ? 'opacity:0.45;pointer-events:none' : ''}">
-                    <div class="tk-grid-2">
-                        <div class="tk-row">
-                            <label for="tkScheduleDate">Date</label>
-                            <input class="tpl-input" id="tkScheduleDate" type="date" value="${_tkEscape(schedParts.date)}" min="${_tkEscape(schedTodayISO)}">
-                        </div>
-                        <div class="tk-row">
-                            <label>Time</label>
-                            <div class="tk-time-row">
-                                <select class="tk-select tk-time-select" id="tkScheduleHour">
-                                    ${schedHours.map(h => `<option value="${h}" ${String(h) === schedParts.hour12 ? 'selected' : ''}>${h}</option>`).join('')}
-                                </select>
-                                <span class="tk-time-sep">:</span>
-                                <select class="tk-select tk-time-select" id="tkScheduleMin">
-                                    ${schedMinutes.map(mm => `<option value="${mm}" ${mm === schedParts.minute ? 'selected' : ''}>${mm}</option>`).join('')}
-                                </select>
-                                <div class="tk-ampm" id="tkAmpm">
-                                    <button type="button" class="tk-ampm-btn ${schedParts.ampm === 'AM' ? 'active' : ''}" data-ampm="AM">AM</button>
-                                    <button type="button" class="tk-ampm-btn ${schedParts.ampm === 'PM' ? 'active' : ''}" data-ampm="PM">PM</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="tk-row" style="margin-top:6px">
-                        <label for="tkScheduleTz">Timezone</label>
-                        <select class="tk-select" id="tkScheduleTz">
-                            ${TK_TIMEZONES.map(tz => `<option value="${tz}" ${tz === tkState.schedule.tz ? 'selected' : ''}>${tz}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="tk-schedule-preview" id="tkSchedulePreview" style="${schedPreview ? '' : 'display:none'}">${_tkEscape(schedPreview)}</div>
                 </div>
             </div>
 
@@ -76284,6 +76339,13 @@
         tog('tkAigc', 'is_aigc');
         tog('tkAutoMusic', 'auto_add_music');
 
+        $('tkOptsToggle')?.addEventListener('click', () => {
+            tkState.optsOpen = !tkState.optsOpen;
+            const body = $('tkOptsBody');
+            if (body) body.hidden = !tkState.optsOpen;
+            $('tkOptsToggle').setAttribute('aria-expanded', tkState.optsOpen ? 'true' : 'false');
+            $('tkOptsLabel').textContent = tkState.optsOpen ? 'Hide options' : 'Show options';
+        });
         $('tkPostNow')?.addEventListener('change', (e) => {
             tkState.schedule.postNow = e.target.checked;
             _tkSaveDraft(); _tkRenderForm();

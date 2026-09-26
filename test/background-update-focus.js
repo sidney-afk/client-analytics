@@ -181,8 +181,12 @@ check('_sxrKasperRepaint captures the focused field before the swap',
 check('_sxrKasperRepaint restores focus after the swap',
   /_svRestoreFocus\s*\(/.test(repaintSrc), true);
 const queueSrc = grabFunc('_sxrKasperRenderQueue');
-check('_sxrKasperRenderQueue wraps the innerHTML rebuild in _svPreserveFocus',
-  /_svPreserveFocus\s*\(/.test(queueSrc), true);
+// Samples are listed in the Review queue, so the samples re-render hands off
+// to the Review painter, which never rebuilds while a note box has focus.
+check('_sxrKasperRenderQueue repaints through the Review painter, not its own innerHTML',
+  /_kasperPaintReview\s*\(/.test(queueSrc) && !/innerHTML/.test(queueSrc), true);
+check('the Review painter defers while Kasper is typing in a note box',
+  /_ae\.tagName === 'TEXTAREA'[\s\S]{0,400}_kasperPaintRetry = setTimeout\(_kasperPaintReview/.test(grabFunc('_kasperPaintReview')), true);
 
 console.log('\n— Source-form: showToast never grabs focus —');
 const toastSrc = grabFunc('showToast');

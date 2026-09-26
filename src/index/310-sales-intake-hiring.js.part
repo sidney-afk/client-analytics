@@ -1,3 +1,9 @@
+import {
+  CAL_SUPABASE_URL, _obEsc, _obPost, _syncviewRequireStaffIdentity
+} from './100-onboarding-staff-controls.js';
+import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
+import { _calEsc } from './131-core-html.js';
+import { _kasperRenderSalesIntake } from './320-kasper-dashboard-replies.js';
     /* ============================================================
        KASPER REVIEW TAB
        Hidden top-level nav unlocked by visiting ?Kasper=1.
@@ -1149,3 +1155,7 @@
         window.scrollTo({ top: 0, behavior: 'instant' });
     }
 
+export {
+  _hpLoadList, _hpPaint, _hpPurgeSensitiveState, mountSalesIntakeView, renderHiringProcessView,
+  renderSalesIntakeView
+};

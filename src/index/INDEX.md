@@ -25,9 +25,9 @@
 | 17 | `131-core-html.js.part` | 13 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 18 | `132-calendar-dates-ids.js.part` | 14 | — |
 | 19 | `133-core-loading-skeletons.js.part` | 367 | Modern animated loader — a single rotating ring with a subtle label. |
-| 20 | `134-calendar-prefs-mount.js.part` | 1023 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
+| 20 | `134-calendar-prefs-mount.js.part` | 1065 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
 | 21 | `140-calendar-legacy-outbox.js.part` | 3071 | Shed the retired legacy rows from storage, under the surface mutation |
-| 22 | `150-calendar-hydration-import.js.part` | 2140 | For a card linked to a real sub-issue (not a parent), return which of |
+| 22 | `150-calendar-hydration-import.js.part` | 2141 | For a card linked to a real sub-issue (not a parent), return which of |
 | 23 | `160-calendar-organize-ui.js.part` | 2809 | Lighter path for the Order switch: update the chrome in place so the |
 | 24 | `170-calendar-links-status.js.part` | 2759 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 25 | `180-calendar-native-post-media.js.part` | 2748 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
@@ -43,7 +43,7 @@
 | 35 | `280-samples-cards-notes.js.part` | 2832 | SURFACE 3: the save engine |
 | 36 | `290-samples-writes-review.js.part` | 1798 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 37 | `300-tiktok-upload.js.part` | 1718 | TIKTOK UPLOAD MODULE |
-| 38 | `310-sales-intake-hiring.js.part` | 1151 | KASPER REVIEW TAB |
+| 38 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
 | 39 | `320-kasper-dashboard-replies.js.part` | 3153 | RELOAD RACE (speed map §7). On a reload the stored staff |
 | 40 | `330-kasper-review-history.js.part` | 2614 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 41 | `340-editors-date-picker.js.part` | 1302 | Editor work model |

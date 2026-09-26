@@ -29196,6 +29196,34 @@ the label changed; the queue rules, Urgent button and save paths are untouched.
 **Proof.** `qa/probes/kasper_samples_in_review.js` checks the label after the
 approve plus change request, at 1440, 390 and 375 on the test client: 93 of 93.
 
+## 264. [2026-09-26, BUILT] The client link's live updates: proven server-side, honest status, safety net
+
+**Checked live (read-only SQL, 2026-09-26).** `calendar_posts` is in the
+realtime publication, RLS is on with an anon SELECT policy that lets change
+events reach the client link's anonymous login, and the realtime server held
+live anon subscriptions on `calendar_posts` at the time of the check. So the
+server side of the client link's live updates is sound.
+
+**What was wrong in the page.** `calV2Status().subscribed` meant only "a
+channel object exists": measured the same day, a page whose realtime handshake
+failed every time still said `subscribed: true`, and with no poll behind it the
+open page never saw another page's change until the tab regained focus.
+
+**What changed** (`src/index/150-calendar-hydration-import.js.part` only): the
+page records the real connection state from the subscribe callback, and
+`calV2Status()` now also returns `connected`, `rtState`, `fallbackPolling` and
+`fallbackPulls` (`subscribed` keeps its old meaning for existing probes). While
+the connection is not up (an error, or still connecting after 15 s), a pull
+every 30 s through the normal realtime path keeps staff Calendar and the client
+link current; it stops once connected and skips hidden tabs.
+
+**Proof.** `qa/realtime-fallback/client-link-fallback.js`, test client only, one
+seed archived: with realtime unreachable, `calV2Status()` reported
+`connected: false, rtState: CHANNEL_ERROR`, and a staff change appeared on the
+open client link in 9.3 s without a refresh (before: never). Live realtime
+timing needs a machine where WebSockets work: run the same script there.
+Guard: `test/calendar-realtime-fallback.js`.
+
 ## 266. [2026-09-26, BUILT] Production follows changes live instead of waiting for the 30-second poll
 
 **What.** The Production tab (`?prod=1`) learned about other people's edits only from the 30 s delta tick, paused on a hidden tab. It now opens one supabase-js realtime channel (`production_live`: postgres_changes on `deliverables`, `batches`, `deliverable_events`, the anon read path Workload already uses) and feeds every event into the existing `_prodDeltaRefresh`. Nothing about what is read, merged or painted changed.

@@ -83,11 +83,27 @@ async function run() {
     assert.ok(beforeRows.every(r => Object.keys(r.row_schema).length > 0));
 
     const staleCopy = fs.readFileSync(MIGRATION, 'utf8').replaceAll('01e84755d199ee82f060af0f338e55ff', '00000000000000000000000000000000');
-    check('the staleness guard refuses to replace a function that changed since review', () => {
-      const r = db.raw(staleCopy.slice(staleCopy.indexOf('\nbegin;')));
+    const indexExists = () => db.query("select count(*) from pg_class where relname='card_change_journal_full_schema_idx'");
+    check('the staleness guard refuses before building the index or replacing anything', () => {
+      const r = db.raw(staleCopy.slice(0, staleCopy.indexOf('\nbegin;')));
       assert.notEqual(r.status, 0);
       assert.match(r.stderr, /card_journal_slim_stale/);
+      assert.equal(indexExists(), '0');
+      const inner = db.raw(staleCopy.slice(staleCopy.indexOf('\nbegin;')));
+      assert.notEqual(inner.status, 0);
+      assert.match(inner.stderr, /card_journal_slim_stale/);
     });
+
+    const migSql = fs.readFileSync(MIGRATION, 'utf8');
+    db.query(migSql.slice(0, migSql.indexOf('\nbegin;')));
+    db.query("update pg_index set indisvalid = false where indexrelid = 'public.card_change_journal_full_schema_idx'::regclass;");
+    check('an invalid leftover index is refused, and nothing is replaced', () => {
+      const r = db.raw(migSql.slice(migSql.indexOf('\nbegin;')));
+      assert.notEqual(r.status, 0);
+      assert.match(r.stderr, /card_journal_slim_index_invalid/);
+      assert.equal(db.query("select md5(prosrc) from pg_proc where oid='public.card_change_journal_capture()'::regprocedure"), 'e14642bea1950178cce0067f3ba78fda');
+    });
+    db.query('drop index concurrently public.card_change_journal_full_schema_idx;');
 
     applyFile(db, MIGRATION);
     check('migration applies; no existing journal row is changed or removed', () => {
@@ -171,6 +187,14 @@ async function run() {
       assert.equal(db.query(`select count(*) from (select distinct relation_name, row_schema_md5 from public.card_change_journal) d
         where public.card_change_journal_row_schema(d.relation_name, d.row_schema_md5) is null`), '0');
       assert.equal(db.query("select md5(prosrc) from pg_proc where oid='public.card_change_journal_capture()'::regprocedure"), 'e14642bea1950178cce0067f3ba78fda');
+    });
+
+    applyFile(db, MIGRATION);
+    check('apply, rollback, then reapply works: the guard accepts the rollback-restored merge', () => {
+      assert.equal(db.query("select md5(prosrc) from pg_proc where oid='public.card_change_journal_capture()'::regprocedure") === 'e14642bea1950178cce0067f3ba78fda', false);
+      const c = count();
+      db.query(merge('before', JSON.stringify([{ id: 'n2', text: 'Another', created_at: '2026-09-26T00:00:01Z' }])));
+      assert.equal(count(), c, 'reapplied merge skips an unchanged comment again');
     });
 
     const result = { status: 'PASS', checks, passed: checks.length, server_version: db.query('show server_version'),

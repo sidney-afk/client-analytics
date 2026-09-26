@@ -36,12 +36,29 @@
 -- this is applied must resolve it through card_change_journal_row_schema().
 --
 -- PRE-APPLY (read only): md5(prosrc) of both functions must still equal
---   calendar_merge_comments       01e84755d199ee82f060af0f338e55ff
+--   calendar_merge_comments       01e84755d199ee82f060af0f338e55ff (live) or
+--                                 79c45d178c518da454538a433e96fd80 (after this ROLLBACK)
 --   card_change_journal_capture   e14642bea1950178cce0067f3ba78fda
 -- or this file is stale. The index below is built CONCURRENTLY, outside the
 -- transaction, so card saves are never blocked while it builds.
 -- ROLLBACK: migrations/2026-09-26-card-journal-slim.ROLLBACK.sql
 -- ============================================================
+
+-- Refuse before building anything if the reviewed functions drifted; the same
+-- check runs again inside the transaction to close the race.
+do $pre$
+begin
+  -- The comment merge may be the live body (CRLF, 01e84755...) or the body
+  -- this file's ROLLBACK restores (LF, 79c45d17...); both are the reviewed
+  -- pre-migration behaviour, so apply -> rollback -> reapply works.
+  if md5((select prosrc from pg_proc where oid = 'public.calendar_merge_comments(text,text,text,text,text,text,text)'::regprocedure))
+       not in ('01e84755d199ee82f060af0f338e55ff', '79c45d178c518da454538a433e96fd80')
+     or md5((select prosrc from pg_proc where oid = 'public.card_change_journal_capture()'::regprocedure))
+       <> 'e14642bea1950178cce0067f3ba78fda' then
+    raise exception 'card_journal_slim_stale: a replaced function changed since this file was written';
+  end if;
+end;
+$pre$;
 
 create index concurrently if not exists card_change_journal_full_schema_idx
   on public.card_change_journal (relation_name, row_schema_md5)
@@ -53,14 +70,30 @@ set local statement_timeout = '60s';
 
 do $pre$
 begin
+  -- The comment merge may be the live body (CRLF, 01e84755...) or the body
+  -- this file's ROLLBACK restores (LF, 79c45d17...); both are the reviewed
+  -- pre-migration behaviour, so apply -> rollback -> reapply works.
   if md5((select prosrc from pg_proc where oid = 'public.calendar_merge_comments(text,text,text,text,text,text,text)'::regprocedure))
-       <> '01e84755d199ee82f060af0f338e55ff'
+       not in ('01e84755d199ee82f060af0f338e55ff', '79c45d178c518da454538a433e96fd80')
      or md5((select prosrc from pg_proc where oid = 'public.card_change_journal_capture()'::regprocedure))
        <> 'e14642bea1950178cce0067f3ba78fda' then
     raise exception 'card_journal_slim_stale: a replaced function changed since this file was written';
   end if;
 end;
 $pre$;
+
+-- A cancelled or failed CONCURRENTLY build leaves an INVALID index that
+-- IF NOT EXISTS would silently accept. Refuse unless it is valid and ready.
+do $idx$
+begin
+  if not exists(select 1 from pg_index i
+      where i.indexrelid = to_regclass('public.card_change_journal_full_schema_idx')
+        and i.indrelid = 'public.card_change_journal'::regclass
+        and i.indisvalid and i.indisready) then
+    raise exception 'card_journal_slim_index_invalid: drop index concurrently public.card_change_journal_full_schema_idx, then rerun this file';
+  end if;
+end;
+$idx$;
 
 -- 1. Comment merge writes only on a real change.
 create or replace function public.calendar_merge_comments(

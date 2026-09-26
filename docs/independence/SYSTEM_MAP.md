@@ -1283,9 +1283,11 @@ separate hidden first-party Direct-Post surface.*
 - **Roles.** Both team-only behind the password; Pilot needs the extra `?ttpilot=1` unlock; no per-
   user roles beyond that. Clients/intake never reach either.
 - **Failure/fallback.** Submits show inline errors, keep the draft/file, **no auto-retry / fallback /
-  queue**. Queue list: 20 s timeout, first fail shows a card then silent retries; adaptive poll (30 s
-  in-flight / 120 s scheduled / stop when idle) replaced a fixed loop that cost ~2.5k empty
-  executions/week. Draft file can't persist across reload (only fileMeta → "re-attach" hint).
+  queue**. Queue list: 20 s timeout. A [2026-09-26 source-only review](../audits/2026-09-26-tiktok-upload-false-empty-source-review.md)
+  found that the first fetch failure's error card is suppressed after the queue paints, and an empty
+  queue schedules no retry; a tab return or remount does refetch. The adaptive poll (30 s in-flight /
+  120 s scheduled / stop when idle) replaced a fixed loop that cost ~2.5k empty executions/week.
+  Draft file can't persist across reload (only fileMeta → "re-attach" hint).
 - **Notable / corrections.** `ttp-status` is a **dead constant** (never fetched — matches the live-
   n8n "not-found"); `tiktok-upload-status` is a retry trigger, not a poller. Pilot is a deliberate
   clean room sharing no webhooks/state with production. Idempotency key doubles as the optimistic row

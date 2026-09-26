@@ -67,6 +67,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | `docs/mockups/` | Design mockups awaiting or recording an owner pick. `docs/mockups/tiktok-upload/` holds screenshots of the real TikTok Upload page (offline, fixture data) with the proposed redesign applied, desktop and phone, light and dark. Pictures only; the page code is the truth. |
 | `docs/archive/` | Completed/superseded docs: finished migration plans, spent prompts, incident notes, old QA reports (`docs/archive/qa/`). Nothing here is current truth. |
 | `docs/syncview-design/` | The **locked design kit** for the visible **Linear** mirror (internally the `production` surface): `docs/syncview-design/SyncView.html` (behavior source of truth), `docs/syncview-design/linear-design-tokens.md` (visual build spec), `docs/syncview-design/WIRED-PARITY.md` (parity contract), wired test gates in `docs/syncview-design/tests/`, raw probe measurements in `docs/syncview-design/probe-data/`, prototype-era suites in `docs/syncview-design/tests/design-machine-originals/`. |
+| `docs/audits/2026-09-26-tiktok-upload-false-empty-source-review.md` | Source-only evidence that a failed first TikTok Upload queue read can appear empty, plus a proposed offline check. |
 
 ## Test & automation entry points
 

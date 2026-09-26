@@ -763,8 +763,13 @@
         }, mode === 'client' ? { [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`] } : {},
         _kasperSeenCsv != null ? { kasper_seen: _kasperSeenCsv } : {});
         // Client link: held in this browser until the server confirms (185).
+        // Only the status and approval fields ride in the entry, with the
+        // server status the client saw, so a re-send can check nothing moved.
         if (mode === 'client') _calCrqBegin('approve', pid, comp, {
-            edits: Object.assign({}, _calPendingEdits[pid]), prev: Object.assign({}, prev)
+            edits: { [subKey]: post[subKey], status: post.status,
+                [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`] },
+            prev: Object.assign({}, prev),
+            serverStatus: { [comp]: prev[subKey] }
         });
         Promise.resolve(_calFlushCardSave(pid)).catch(e => {
             const current = calState.posts.find(p => p.id === pid) || post;
@@ -1125,6 +1130,7 @@
                         'calendar', current, comp, outcome.action || action, key, rawDraft,
                         outcome.comment_id || attemptId
                     );
+                    if (_isClientLink) _calCrqResolve(pid, comp);
                     return;
                 }
                 const sourceOnlySuperseded =
@@ -1201,6 +1207,7 @@
                     'calendar', current, comp, action, key, rawDraft,
                     action && action.comment_id || attemptId
                 );
+                if (_isClientLink) _calCrqResolve(pid, comp);
                 return;
             }
             if (deliveryOutcome && deliveryOutcome.state === 'source_only_superseded') {

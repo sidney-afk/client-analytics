@@ -29141,3 +29141,17 @@ request changes (landed 3.7 s after reconnect, exactly one copy of the
 comment); upsert down then page closed and reopened (landed 2.5 s after
 reopen, queue empty); server refusal (message shown, card back, nothing
 queued). Guard: `test/client-review-queue.js`.
+
+**261 addendum (2026-09-26, review fixes).** A held Approve now records the
+server status at click time and, before any re-send, reads the row back from
+the server; it is re-sent only if that status is unchanged, so a change request
+made meanwhile (on this device or another) always wins. A later change request
+on a part removes a held whole-post approve for it. Every entry has a hard
+30-minute maximum age from the click that survives reloads; on expiry it is
+dropped and the client is told plainly it was not saved. Superseded and
+early-return paths clear the entry. Entries carry only status and approval
+fields. Guards: `test/client-review-queue-behavior.js` (sandboxed, includes the
+two-device case). Live: `qa/client-review-queue/offline.js`, 24 of 24 checks,
+including the two-device case, six seeds archived. Side effect to know: the
+review Approve failure path (staff SMM review too) now redraws the whole
+calendar view instead of repainting one card.

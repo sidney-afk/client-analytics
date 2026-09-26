@@ -668,7 +668,13 @@
                 client_caption_approved_at: stamp,
             });
             // Held in this browser until the server confirms (185).
-            _calCrqBegin('approve', pid, 'all', { edits: Object.assign({}, _calPendingEdits[pid]), prev });
+            _calCrqBegin('approve', pid, 'all', {
+                edits: { status: 'Approved', video_status: 'Approved', graphic_status: 'Approved',
+                    caption_status: 'Approved', client_video_approved_at: stamp,
+                    client_graphic_approved_at: stamp, client_caption_approved_at: stamp },
+                prev,
+                serverStatus: { video: prev.video_status, graphic: prev.graphic_status, caption: prev.caption_status }
+            });
             Promise.resolve(_calFlushCardSave(pid)).catch(e => {
                 post._saveError = _writeUiFailureSentence(e);
             }).then(() => {

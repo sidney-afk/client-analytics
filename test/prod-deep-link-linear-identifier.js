@@ -221,18 +221,18 @@ const popover = INDEX.slice(INDEX.indexOf('function wlOpenRollupPopover('),
  * went. */
 
 const helperSrc = grabFunc('function wlSyncLinearUrl(');
-const helperCtx = {};
+const helperCtx = { svRoute: require('./helpers/sv-route.js').svRoute };
 vm.createContext(helperCtx);
 vm.runInContext("const location = { pathname: '/' };\n" + helperSrc + '\nthis.build = wlSyncLinearUrl;', helperCtx);
-ok(helperCtx.build('GRA-7197') === '/?prod=1&d=GRA-7197',
+ok(helperCtx.build('GRA-7197') === '/synclinear/GRA-7197',
   'the shared link helper turns a Linear identifier into the deep link this resolver answers');
 ok(helperCtx.build('') === '' && helperCtx.build(null) === '',
   'and builds nothing from nothing, rather than a link to the list');
 
 const CALLER_SUITE = 'workload-syncview-links.js';
 const callerSuite = fs.readFileSync(path.resolve(__dirname, CALLER_SUITE), 'utf8');
-ok(/parentSyncUrl === '\/\?prod=1&d=/.test(callerSuite),
-  CALLER_SUITE + ' still EXECUTES the popover resolution and asserts the produced ?prod=1&d= URL — the property this resolver depends on, proved by running it rather than by reading it');
+ok(/parentSyncUrl === '\/synclinear\//.test(callerSuite),
+  CALLER_SUITE + ' still EXECUTES the popover resolution and asserts the produced /synclinear/<id> URL — the property this resolver depends on, proved by running it rather than by reading it');
 ok(/identifier: 'VID-900/.test(callerSuite),
   'and does it with rows whose identifier is the thing under test, so the URL it asserts can only come from an identifier');
 

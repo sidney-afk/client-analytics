@@ -377,7 +377,7 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
             briefsLoading: false
         };
         function _prodEnabled() {
-            try { return new URLSearchParams(location.search).get('prod') === '1'; }
+            try { return new URLSearchParams(svRoute.search()).get('prod') === '1'; }
             catch (e) { return false; }
         }
         function _prodAccessAllowed() {
@@ -637,7 +637,7 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
             if (_prodCacheFlagCache !== null) return _prodCacheFlagCache;
             let on = true;
             try {
-                const q = new URLSearchParams(location.search).get('prodcache');
+                const q = new URLSearchParams(svRoute.search()).get('prodcache');
                 if (q === '1' || q === 'true') { on = true; localStorage.removeItem(PROD_CACHE_KILL_KEY); }
                 else if (q === '0' || q === 'false') { on = false; localStorage.setItem(PROD_CACHE_KILL_KEY, '1'); }
                 else { on = (localStorage.getItem(PROD_CACHE_KILL_KEY) !== '1'); }

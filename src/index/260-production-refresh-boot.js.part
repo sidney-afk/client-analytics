@@ -18,7 +18,7 @@ import {
 import {
   WL_CLIENT_NAMES, getClientRoster, wlCanonicalClient, wlIsAllowedClient, wlNormalizeClient
 } from './070-workload-source.js';
-import { _navPillSync, navTo } from './090-workload-popovers-navigation.js';
+import { navTo } from './090-workload-popovers-navigation.js';
 import {
   CAL_SUPABASE_ANON_KEY, CLIENT_TOKEN_VERIFY_URL, SMM_WEEKLY_REPORTS_URL,
   SYNCVIEW_CLIENT_ENTRY_PROTOCOL, _obSetDraftKey, _obSetSubIdKey, _obSetVariant,
@@ -38,7 +38,7 @@ import {
 import { CAL_CACHE_KEY_PREFIX, _calNextLoadSeq, _calV2Teardown } from './150-calendar-hydration-import.js';
 import {
   FAST_TABS, KASPER_UNLOCK_KEY, RESTORABLE_FAST_TABS, _applyAllDataDependentChrome,
-  _kasperUnlocked, _linearResumeSubmissionHold, _resumePendingCalCardJobs, _setKasperUnlocked
+  _kasperApplyAccess, _kasperUnlocked, _linearResumeSubmissionHold, _resumePendingCalCardJobs
 } from './200-intake-data-startup.js';
 import {
   PROD_ATTRIBUTION_CONFLICT, PROD_ATTRIBUTION_NEEDS, PROD_BOARD_ORDER, PROD_DELETE_UNSUPPORTED,
@@ -1519,8 +1519,8 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
                 try { _resumePendingCalCardJobs(); }
                 catch (e) { console.warn('[SyncView] calendar card job resume failed:', e); }
             }, 8000);
-            const qp = new URLSearchParams(location.search);
-            const hashRaw = decodeURIComponent(location.hash.replace('#',''));
+            const qp = new URLSearchParams(svRoute.search());
+            const hashRaw = decodeURIComponent(svRoute.hash().replace('#',''));
             const hashRoute = hashRaw.split('?')[0];
             // >>> SXR_BEGIN
             // Samples (Review) refresh/deep-link landing. Its own backend (no
@@ -1532,7 +1532,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
             // it runs before the SXR module block evaluates.
             if (!_isClientLink && (hashRaw === 'sample-reviews' || hashRaw.startsWith('sample-reviews/'))) {
                 let _sxrOn = true; // GA default-ON; a storage throw leaves it on, matching _sxrEnabled() (F73)
-                try { const _q = new URLSearchParams(location.search).get('sxr'); _sxrOn = (_q === '1' || _q === 'true') || (_q !== '0' && _q !== 'false' && localStorage.getItem('syncview_sxr_off') !== '1'); } catch (e) {}
+                try { const _q = new URLSearchParams(svRoute.search()).get('sxr'); _sxrOn = (_q === '1' || _q === 'true') || (_q !== '0' && _q !== 'false' && localStorage.getItem('syncview_sxr_off') !== '1'); } catch (e) {}
                 if (_sxrOn) { try { window.__sxrDeepHash = hashRaw; } catch (e) {} setTimeout(function () { try { if (_bootOwnsNav()) navTo('sample-reviews', false); } catch (e) {} }, 0); return; }
             }
             // <<< SXR_END
@@ -1651,17 +1651,10 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
                 // arrived-flag false: the user is mid-session and the redirect
                 // to Kasper below shouldn't yank them out of whatever tab
                 // they're currently looking at.
-                const _kasperAlreadyUnlocked = sessionStorage.getItem(KASPER_UNLOCK_KEY) === 'ok';
-                if(qp.get('Kasper')==='1'){
-                    sessionStorage.setItem(KASPER_UNLOCK_KEY,'ok');
-                    _kasperArrivedFromUnlockParam = !_kasperAlreadyUnlocked;
-                }
-                if(sessionStorage.getItem(KASPER_UNLOCK_KEY)==='ok'){
-                    _setKasperUnlocked(true);
-                    const navKp=document.getElementById('navKasper');
-                    if(navKp) navKp.style.display='';
-                    _navPillSync(false);   // a revealed tab reflows the strip
-                }
+                // Kasper is admin-only now: ?Kasper=1 no longer unlocks it (the
+                // address forwards to /kasper), and the old per-tab unlock is dropped.
+                sessionStorage.removeItem(KASPER_UNLOCK_KEY);
+                _kasperApplyAccess();
             }catch(e){}
 
             // Calendar can mount immediately on the fast path, before the
@@ -1870,6 +1863,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
             if(hash==='filming-plans'){navTo(hash,false);return;}
             if(hash==='tiktok-upload'){navTo(hash,false);return;}
             if(hash==='time-off'){navTo('time-off',false);return;}
+            if(hash==='staff-onboarding'||hash==='client-credentials'){navTo(hash,false);return;}
             if(hashRoute==='smm-weekly-report'){navTo('smm-weekly-report',false);return;}
             if(hashRoute==='smm-weekly-reports'){navTo('smm-weekly-reports',false);return;}
             if(hash==='kasper' && _kasperUnlocked){navTo('kasper',false);return;}
@@ -1976,7 +1970,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
     }
     function _syncviewClientEntryEnvelope() {
         let q;
-        try { q = new URLSearchParams(location.search); } catch (e) { return { ok: false, reason: 'malformed_query' }; }
+        try { q = new URLSearchParams(svRoute.search()); } catch (e) { return { ok: false, reason: 'malformed_query' }; }
         const keys = Array.from(q.keys());
         if (keys.some(key => !SYNCVIEW_CLIENT_ENTRY_KEYS.includes(key))) return { ok: false, reason: 'mixed_entry' };
         for (const key of SYNCVIEW_CLIENT_ENTRY_KEYS) {
@@ -1998,7 +1992,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
             return { ok: false, reason: 'mixed_samples_entry' };
         }
         let hash = '';
-        try { hash = decodeURIComponent(location.hash.replace(/^#/, '')); } catch (e) { return { ok: false, reason: 'malformed_hash' }; }
+        try { hash = decodeURIComponent(svRoute.hash().replace(/^#/, '')); } catch (e) { return { ok: false, reason: 'malformed_hash' }; }
         // Current-main client tabs wrote a same-client hash. It has no routing
         // authority and is accepted only as a migration input; strict token
         // verification succeeds first, then the hash is removed in-place.
@@ -2057,7 +2051,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
     function _syncviewClientEntrySlugHint() {
         const cap = _syncviewClientEntryCapability;
         if (cap && cap.slug) return cap.slug;
-        try { return _syncviewClientEntrySlug(new URLSearchParams(location.search).get('c')); }
+        try { return _syncviewClientEntrySlug(new URLSearchParams(svRoute.search()).get('c')); }
         catch (e) { return ''; }
     }
     function _syncviewClearClientEntryCaches(slug) {
@@ -2133,7 +2127,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
         </div>`;
     }
     function _syncviewCanonicalizeClientEntry(entry) {
-        const q = new URLSearchParams(location.search);
+        const q = new URLSearchParams(svRoute.search());
         let view = entry.view;
         if (view === 'samples') view = 'sample-reviews';
         if (view === 'analytics') q.delete('v'); else q.set('v', view);
@@ -2147,7 +2141,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
             clientTab: tab,
             clientEntryView: view
         });
-        const url = location.pathname + '?' + q.toString();
+        const url = '/' + '?' + q.toString();
         history.replaceState(state, '', url);
         return Object.freeze({ client: entry.client, slug: entry.slug, view, verified: true });
     }
@@ -2239,19 +2233,19 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
         _syncviewInvalidClientLinkScreen();
         return false;
     }
-    const _clientEntryParams = new URLSearchParams(location.search);
+    const _clientEntryParams = new URLSearchParams(svRoute.search());
     const _isClientLink = _clientEntryParams.has('c');
-    const _isIntake=(new URLSearchParams(location.search).get('intake')==='1');
-    const _entryHash=(()=>{try{return decodeURIComponent(location.hash.replace('#','')).split('/')[0].split('?')[0];}catch(e){return location.hash.replace('#','').split('/')[0].split('?')[0];}})();
+    const _isIntake=(new URLSearchParams(svRoute.search()).get('intake')==='1');
+    const _entryHash=(()=>{try{return decodeURIComponent(svRoute.hash().replace('#','')).split('/')[0].split('?')[0];}catch(e){return svRoute.hash().replace('#','').split('/')[0].split('?')[0];}})();
     const _isSmmWeeklyEntry=_isSmmWeeklyRoute(_entryHash);
-    const _obParam=new URLSearchParams(location.search).get('onboarding');
+    const _obParam=new URLSearchParams(svRoute.search()).get('onboarding');
     // AI funnel lives at /ai_onboarding_form (or ?onboarding=ai); the standard
     // funnel at /onboarding_form (or ?onboarding=<anything-else>). The /ai_ path
     // can't match the standard regex (no '/' before 'onboarding_form'), so order
     // doesn't matter, but we detect AI explicitly to set the variant.
     const _isAiOnboarding=(_obParam==='ai') || /\/ai_onboarding_form\/?$/i.test(location.pathname);
     const _isOnboarding=_isAiOnboarding || (_obParam!==null) || /\/onboarding_form\/?$/i.test(location.pathname);
-    const _isOnboardingView=!!new URLSearchParams(location.search).get('onboarding_view');
+    const _isOnboardingView=!!new URLSearchParams(svRoute.search()).get('onboarding_view');
     if(_isIntake&&!_isClientLink){document.body.classList.add('intake-mode');}
     if(_isOnboarding&&!_isClientLink){document.body.classList.add('onboarding-mode');}
     if(_isSmmWeeklyEntry&&!_isClientLink){document.body.classList.add('smm-weekly-mode');}
@@ -2301,7 +2295,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
             let _fav = document.querySelector('link[rel="icon"]');
             if (!_fav) { _fav = document.createElement('link'); _fav.rel = 'icon'; document.head.appendChild(_fav); }
             _fav.type = 'image/png';
-            _fav.href = 'synchro-social-favicon.png';
+            _fav.href = '/synchro-social-favicon.png';
         } catch (e) {}
         const _h=document.querySelector('header.header'); if(_h) _h.style.display='none';
         const _pt=document.getElementById('pageTop'); if(_pt) _pt.style.display='none';
@@ -2318,7 +2312,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
         try { document.title = 'Onboarding — SynchroSocial'; } catch(e){}
         const _hV=document.querySelector('header.header'); if(_hV) _hV.style.display='none';
         const _ptV=document.getElementById('pageTop'); if(_ptV) _ptV.style.display='none';
-        setTimeout(function(){ try{ _obvMountStandalone(new URLSearchParams(location.search).get('onboarding_view')); }catch(e){ console.error('[onboarding_view] mount failed', e); } }, 0);
+        setTimeout(function(){ try{ _obvMountStandalone(new URLSearchParams(svRoute.search()).get('onboarding_view')); }catch(e){ console.error('[onboarding_view] mount failed', e); } }, 0);
     } else if(_isSmmWeeklyEntry||_isIntake||!!_syncviewStaffIdentityLoad()){
         // A saved identity boots the app optimistically so signed-in staff
         // never see the gate flash. It grants nothing: _syncviewStaffIdentityBoot()
@@ -2337,7 +2331,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
             const _h=document.querySelector('header.header'); if(_h) _h.style.display='none';
             const _pt=document.getElementById('pageTop'); if(_pt) _pt.style.display='none';
             try{localStorage.setItem(NAV_KEY,'linear');}catch(e){}
-            history.replaceState({nav:'linear',client:null},'',location.pathname+location.search+'#linear');
+            history.replaceState({nav:'linear',client:null},'','/'+svRoute.search()+'#linear');
         }
         _syncviewAppBooted = true;
         init();

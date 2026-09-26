@@ -74,7 +74,8 @@ function world(opts) {
     const _kasperState = { tab: w.tab || 'hiring-process' };
     const KASPER_SUBTAB_KEY = 'k';
     const localStorage = { setItem: (k, v) => { w.saved = v; } };
-    const location = { pathname: '/', search: '?Kasper=1' };
+    const location = { pathname: '/', search: '' };
+    const svRoute = { search: () => location.search, hash: () => '' };
     const history = { replaceState: (s, t, u) => { w.hash = u.slice(u.indexOf('#')); } };
     const _syncviewStaffIdentityValid = () => w.valid;
     const _syncviewStaffIdentityLoad = () => w.stored ? { key: 'k', member: { id: 'm' } } : null;

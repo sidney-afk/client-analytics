@@ -1772,7 +1772,7 @@ import {
         await _srpLoadReports();
     }
     function _srpHashParams() {
-        const raw = String(location.hash || '').replace(/^#/, '');
+        const raw = String(svRoute.hash() || '').replace(/^#/, '');
         const i = raw.indexOf('?');
         return new URLSearchParams(i >= 0 ? raw.slice(i + 1) : '');
     }

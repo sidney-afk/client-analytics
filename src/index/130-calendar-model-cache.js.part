@@ -1349,13 +1349,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
        card deep link is left intact when it already points at this client. */
     function _calSyncUrlClient() {
         if (calState.embedded || currentNav !== 'calendar') return;
-        const base = location.pathname + location.search.replace(/#.*$/, '');
+        const base = '/' + svRoute.search().replace(/#.*$/, '');
         if (!calState.client) {
             history.replaceState({ nav: 'calendar', client: null }, '', base + '#calendar');
             return;
         }
         const slug = calClientSlug(calState.client);
-        const rawHash = location.hash.replace(/^#/, '');
+        const rawHash = svRoute.hash().replace(/^#/, '');
         if (rawHash.startsWith('calendar/' + slug + '/')) return; // keep the card deep link
         history.replaceState({ nav: 'calendar', client: null }, '', base + '#calendar/' + slug);
     }

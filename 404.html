@@ -10,7 +10,9 @@
     paths (GitHub Pages can't do server rewrites): the standard funnel at
     /onboarding_form -> ?onboarding=1, and the AI funnel at /ai_onboarding_form ->
     ?onboarding=ai. index.html then rewrites the address bar back to the clean path.
-    Any other unknown path just goes home.
+    Any other path is handed to the app as /?sv_path=<path>; the app shows its
+    clean page or, for a path it does not know, the home screen. Top-level pages
+    have their own stub files (scripts/build-route-stubs.js) and never land here.
   -->
   <script>
     (function () {
@@ -19,6 +21,11 @@
         location.replace('/?onboarding=ai' + location.search.replace(/^\?/, '&') + location.hash);
       } else if (p === '/onboarding_form' || p === '/onboarding-form') {
         location.replace('/?onboarding=1' + location.search.replace(/^\?/, '&') + location.hash);
+      } else if (p) {
+        // Deep links (/calendar/<client>/<card>, /synclinear/<id>, ...) hand off
+        // to the app, which shows the clean path again or goes home if the
+        // path is not one of its pages (src/index/003-sv-route.html.part).
+        location.replace('/?sv_path=' + encodeURIComponent(location.pathname) + location.search.replace(/^\?/, '&') + location.hash);
       } else {
         location.replace('/');
       }

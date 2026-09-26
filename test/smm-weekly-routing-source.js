@@ -27,7 +27,9 @@ function grabFunc(name) {
   throw new Error('unbalanced function: ' + name);
 }
 
-const gateStart = INDEX.indexOf('<script>');
+// The boot gate is the <script> after the clean-address router.
+const routerAt = INDEX.indexOf('Clean addresses');
+const gateStart = INDEX.indexOf('<script>', routerAt >= 0 ? INDEX.indexOf('</script>', routerAt) : 0);
 const gateEnd = INDEX.indexOf('</script>', gateStart);
 const GATE = INDEX.slice(gateStart, gateEnd);
 const navTo = grabFunc('navTo');

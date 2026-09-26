@@ -1156,7 +1156,7 @@ import {
                 const statePrefs = history.state && history.state.prod ? history.state.prod : null;
                 if (statePrefs) _prodApplyDisplayPrefs(statePrefs);
                 else _prodLoadDisplayPrefs();
-                const q = new URLSearchParams(location.search);
+                const q = new URLSearchParams(svRoute.search());
                 const group = q.get('group');
                 if (PROD_GROUP_KEYS.has(group)) _prodState.groupBy = group;
                 const order = q.get('order');
@@ -1452,7 +1452,7 @@ import {
             _prodState.deepLinkMissingKind = '';
             _prodState.deepLink = null;
             try {
-                const q = new URLSearchParams(location.search);
+                const q = new URLSearchParams(svRoute.search());
                 q.set('prod', '1');
                 q.delete('d');
                 q.delete('batch');
@@ -1477,7 +1477,7 @@ import {
                 if ((_prodState.orderBy || 'due') !== 'due') q.set('order', _prodState.orderBy);
                 if (_prodState.showSubIssues === false) q.set('subs', '0');
                 Object.entries(extra || {}).forEach(([k, v]) => { if (v) q.set(k, v); });
-                const url = location.pathname + '?' + q.toString() + '#production';
+                const url = '/' + '?' + q.toString() + '#production';
                 const state = { nav: 'production', client: null, prod: { groupBy: _prodState.groupBy || 'status', orderBy: _prodState.orderBy || 'due', showSubIssues: _prodState.showSubIssues !== false } };
                 if (push) history.pushState(state, '', url);
                 else history.replaceState(state, '', url);

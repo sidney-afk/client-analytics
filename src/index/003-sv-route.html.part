@@ -1,0 +1,171 @@
+    <script>
+    /* Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally
+       on the old "legacy" address form: a hash (#calendar/<slug>/<card>) plus
+       query flags (?prod=1&d=<id>, ?intake=1). Visitors see clean paths
+       (/calendar/<slug>/<card>, /synclinear/<id>, /intake). This script runs
+       before everything else and is the one translator between the two:
+         - svRoute.hash() / svRoute.search() give the legacy form of the
+           current address, so app code never reads location.hash/.search;
+         - history.pushState/replaceState are wrapped so any legacy address the
+           app writes is shown as its clean path;
+         - an old address that is opened directly is forwarded to its clean path.
+       Client share links (?c=&v=&t=) and the onboarding forms are never
+       touched. Must never throw and never log. */
+    (function () {
+        // clean first path segment -> legacy hash route
+        var SIMPLE = {
+            'submit': 'linear', 'workload': 'workload', 'calendar': 'calendar',
+            'templates': 'templates', 'filming-plans': 'filming-plans',
+            'tiktok-upload': 'tiktok-upload', 'time-off': 'time-off',
+            'sample-reviews': 'sample-reviews', 'smm-weekly-report': 'smm-weekly-report',
+            'smm-weekly-reports': 'smm-weekly-reports', 'kasper': 'kasper',
+            'client-credentials': 'client-credentials'
+        };
+        var LEGACY = {};
+        for (var k in SIMPLE) LEGACY[SIMPLE[k]] = k;
+        // Top-level pages that get a real stub file (answers 200, not 404).
+        var TOP = ['synclinear', 'intake', 'onboarding'].concat(Object.keys(SIMPLE));
+        var enc = encodeURIComponent;
+        function dec(s) { try { return decodeURIComponent(s); } catch (e) { return s; } }
+        function qs(q) { var s = q.toString(); return s ? '?' + s : ''; }
+        function untouchable(q) { return q.has('c') || q.has('t') || q.has('onboarding'); }
+
+        // Legacy (search, hash) -> clean path+query, or null when the address
+        // has no clean form (share link, onboarding form, #<ClientName>, unknown).
+        function toClean(search, hash) {
+            var q = new URLSearchParams(search || '');
+            if (untouchable(q)) return null;
+            if (q.get('intake') === '1') { q.delete('intake'); return '/intake' + qs(q); }
+            if (q.get('onboarding_view')) {
+                var ov = q.get('onboarding_view'); q.delete('onboarding_view');
+                return '/onboarding/' + enc(ov) + qs(q);
+            }
+            var h = String(hash || '').replace(/^#/, '');
+            var hq = '';
+            var at = h.indexOf('?');
+            if (at !== -1) { hq = h.slice(at + 1); h = h.slice(0, at); }
+            var seg = h.split('/');
+            var head = seg[0];
+            q.delete('Kasper');
+            if (head === 'production' || q.get('prod') === '1') {
+                var path = '/synclinear';
+                var d = q.get('d'), b = q.get('batch');
+                if (d) path += '/' + enc(d); else if (b) path += '/batch/' + enc(b);
+                q.delete('prod'); q.delete('d'); q.delete('batch');
+                return path + qs(q);
+            }
+            if (head === '' ) {
+                if (new URLSearchParams(search || '').get('Kasper') === '1') return '/kasper' + qs(q);
+                return '/' + qs(q);
+            }
+            if (head === 'samples') return '/sample-reviews' + qs(q);
+            if (head === 'staff-onboarding') return '/onboarding' + qs(q);
+            if (!Object.prototype.hasOwnProperty.call(LEGACY, head)) return null;
+            if (hq) new URLSearchParams(hq).forEach(function (v, key) { q.set(key, v); });
+            return '/' + [LEGACY[head]].concat(seg.slice(1)).join('/') + qs(q);
+        }
+
+        // Clean pathname (+search) -> legacy { search, hash }, or null when the
+        // path is not one of ours (the root, the onboarding forms, anything else).
+        function toLegacy(pathname, search) {
+            var p = String(pathname || '').replace(/\/+$/, '');
+            if (!p) return null;
+            var seg = p.slice(1).split('/');
+            var head = seg[0];
+            var q = new URLSearchParams(search || '');
+            if (head === 'synclinear') {
+                var q2 = new URLSearchParams();
+                q2.set('prod', '1');
+                if (seg[1] === 'batch' && seg[2]) q2.set('batch', dec(seg[2]));
+                else if (seg[1]) q2.set('d', dec(seg[1]));
+                q.forEach(function (v, key) { if (!q2.has(key)) q2.set(key, v); });
+                return { search: qs(q2), hash: '#production' };
+            }
+            if (head === 'intake' && seg.length === 1) {
+                var qi = new URLSearchParams(); qi.set('intake', '1');
+                q.forEach(function (v, key) { qi.set(key, v); });
+                return { search: qs(qi), hash: '' };
+            }
+            if (head === 'onboarding') {
+                if (seg[1]) {
+                    var qo = new URLSearchParams(); qo.set('onboarding_view', dec(seg[1]));
+                    q.forEach(function (v, key) { qo.set(key, v); });
+                    return { search: qs(qo), hash: '' };
+                }
+                return { search: qs(q), hash: '#staff-onboarding' };
+            }
+            if (!Object.prototype.hasOwnProperty.call(SIMPLE, head)) return null;
+            var hash = '#' + [SIMPLE[head]].concat(seg.slice(1)).join('/');
+            if (head === 'smm-weekly-reports' || head === 'smm-weekly-report') {
+                var s = q.toString();
+                return { search: '', hash: hash + (s ? '?' + s : '') };
+            }
+            return { search: qs(q), hash: hash };
+        }
+
+        function legacyHead(hash) {
+            var h = String(hash || '').replace(/^#/, '').split('?')[0].split('/')[0];
+            return h && (Object.prototype.hasOwnProperty.call(LEGACY, h) || h === 'production' || h === 'samples' || h === 'staff-onboarding');
+        }
+        function current() {
+            // An in-page "#route" link followed while on a clean path: the
+            // hash is where the visitor asked to go.
+            if (location.pathname !== '/' && legacyHead(location.hash)) return { search: '', hash: location.hash };
+            var l = toLegacy(location.pathname, location.search);
+            return l || { search: location.search, hash: location.hash };
+        }
+        // Any URL the app writes, resolved against the legacy form of the
+        // current address, rewritten to its clean path when it has one.
+        function clean(url) {
+            var cur = current();
+            var u = new URL(String(url), location.origin + '/' + cur.search + cur.hash);
+            if (u.origin !== location.origin) return String(url);
+            if (u.pathname !== '/' && u.pathname !== '/index.html') return u.pathname + u.search + u.hash;
+            var c = toClean(u.search, u.hash);
+            return c == null ? '/' + u.search + u.hash : c;
+        }
+
+        var origPush = history.pushState, origReplace = history.replaceState;
+        window.svRoute = {
+            TOP: TOP,
+            toClean: toClean,
+            toLegacy: toLegacy,
+            clean: clean,
+            cleanAbs: function (url) { return location.origin + clean(url); },
+            hash: function () { return current().hash; },
+            search: function () { return current().search; }
+        };
+        try {
+            // A stub or 404.html hop arrives as /?sv_path=<clean path>&<query>#<hash>.
+            var q0 = new URLSearchParams(location.search);
+            if (q0.has('sv_path')) {
+                var p0 = q0.get('sv_path'); q0.delete('sv_path');
+                if (!/^\/(?!\/)[A-Za-z0-9._~%\/-]*$/.test(p0) || !toLegacy(p0, '')) p0 = '/';
+                origReplace.call(history, history.state, '', p0 + qs(q0) + location.hash);
+            } else if (location.pathname === '/' || location.pathname === '/index.html') {
+                // An old address opened directly: show it at its clean path.
+                var c0 = toClean(location.search, location.hash);
+                if (c0 != null && c0 !== location.pathname + location.search + location.hash) {
+                    origReplace.call(history, history.state, '', c0);
+                }
+            }
+        } catch (e) {}
+        try {
+            history.pushState = function (state, title, url) {
+                if (url != null) { try { url = clean(url); } catch (e) {} }
+                return origPush.call(history, state, title, url);
+            };
+            window.addEventListener('hashchange', function () {
+                try {
+                    if (location.pathname !== '/' && legacyHead(location.hash)) {
+                        origReplace.call(history, history.state, '', toClean('', location.hash) || '/');
+                    }
+                } catch (e) {}
+            });
+            history.replaceState = function (state, title, url) {
+                if (url != null) { try { url = clean(url); } catch (e) {} }
+                return origReplace.call(history, state, title, url);
+            };
+        } catch (e) {}
+    })();
+    </script>

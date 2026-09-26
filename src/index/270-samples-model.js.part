@@ -76,7 +76,7 @@
         // (the rollback documented in docs/features/SAMPLES_GO_LIVE.md); `?sxr=1` clears it.
         let on = true;
         try {
-            const q = new URLSearchParams(location.search).get('sxr');
+            const q = new URLSearchParams(svRoute.search()).get('sxr');
             if (q === '1' || q === 'true') { on = true; try { localStorage.setItem(SXR_ON_KEY,'1'); localStorage.removeItem(SXR_OFF_KEY); } catch {} }
             else if (q === '0' || q === 'false') { on = false; try { localStorage.setItem(SXR_OFF_KEY,'1'); localStorage.removeItem(SXR_ON_KEY); } catch {} }
             else { on = (localStorage.getItem(SXR_OFF_KEY) !== '1'); }
@@ -167,7 +167,7 @@
     }
     function _sxrWriteHeaders(source, url) {
         let role = 'smm';
-        try { if (_isClientLink) role = 'client'; else if (location.hash === '#kasper' || new URLSearchParams(location.search).get('Kasper') === '1') role = 'kasper'; } catch (e) {}
+        try { if (_isClientLink) role = 'client'; else if (svRoute.hash() === '#kasper' || new URLSearchParams(svRoute.search()).get('Kasper') === '1') role = 'kasper'; } catch (e) {}
         const actor = role === 'client' ? 'Client' : (role === 'kasper' ? 'Kasper' : 'SyncView');
         return _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': actor, 'X-Syncview-Role': role, 'X-Syncview-Source': source || 'ui' }, url);
     }
@@ -1166,7 +1166,7 @@
         const id = String((which === 'graphic' ? p.graphic_deliverable_id : p.video_deliverable_id) || '').trim();
         if (!id) return '';
         const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
-        const href = location.pathname + '?prod=1&d=' + encodeURIComponent(id);
+        const href = svRoute.clean('/?prod=1&d=' + encodeURIComponent(id));
         const mark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6 10.2 10.2 6M7.2 6h3v3"/></svg>`;
         return `<a class="cal-linear-btn cal-prod-btn cal-linear-btn-${which}" href="${_sxrEscAttr(href)}" target="_blank" rel="noopener" title="Open the SyncView Production ${label} in a new tab">${mark}</a>`;
     }
@@ -2698,7 +2698,7 @@
     function _sxrCopyCardLink(e, pid) {
         if (e) e.stopPropagation();
         const slug = sxrClientSlug(sxrState.client);
-        const url = location.origin + location.pathname + '?sxr=1#sample-reviews/' + encodeURIComponent(slug) + '/' + encodeURIComponent(pid);
+        const url = svRoute.cleanAbs('/?sxr=1#sample-reviews/' + encodeURIComponent(slug) + '/' + encodeURIComponent(pid));
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(() => {}, () => window.prompt('Copy this link:', url));
         else window.prompt('Copy this link:', url);
     }

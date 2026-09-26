@@ -17,8 +17,8 @@ try{
  // Links: SyncLinear sub-issue and the calendar card deep link.
  for(const v of fmt.NOTIFY_VARIANTS){
   const m=fmt.formatNotification({...base,status:'status_tweak'},v);
-  assert(all(m).includes('https://syncview.synchrosocial.com/?prod=1&d=del_synthetic-1#production'),v+' production link');
-  assert(all(m).includes('https://syncview.synchrosocial.com/#calendar/synthetic-slug/p_synthetic_1'),v+' calendar link');
+  assert(all(m).includes('https://syncview.synchrosocial.com/synclinear/del_synthetic-1'),v+' production link');
+  assert(all(m).includes('https://syncview.synchrosocial.com/calendar/synthetic-slug/p_synthetic_1'),v+' calendar link');
   assert(all(m).includes('Needs tweaks'),v+' status label');
   assert(!/<@|<!|<#/.test(all(m)),v+' no mention syntax');
   for(const t of texts(m))assert.equal(t.verbatim,true,v+' every mrkdwn object is verbatim');
@@ -26,8 +26,8 @@ try{
  }
  // No card id (non-calendar origin): no calendar link, still one production link.
  const noCal=fmt.formatNotification({...base,cardId:null,status:'status_smm_approval'},'compact');
- assert(!all(noCal).includes('#calendar'));assert(all(noCal).includes('Ready for SMM approval'));
- assert.equal(fmt.calendarUrl('a b','p/1'),'https://syncview.synchrosocial.com/#calendar/a%20b/p%2F1');
+ assert(!all(noCal).includes('/calendar/'));assert(all(noCal).includes('Ready for SMM approval'));
+ assert.equal(fmt.calendarUrl('a b','p/1'),'https://syncview.synchrosocial.com/calendar/a%20b/p%2F1');
 
  // Special characters: markup, mentions and links cannot be injected.
  const evil={...base,title:'*Bold* <@U12345678> & <!channel> <https://evil.example|x> _v2_ "quote" émoji 🎬',status:'status_tweak',

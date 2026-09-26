@@ -762,15 +762,32 @@
             status: post.status,
         }, mode === 'client' ? { [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`] } : {},
         _kasperSeenCsv != null ? { kasper_seen: _kasperSeenCsv } : {});
-        Promise.resolve(_calFlushCardSave(pid)).then(() => {
+        // Client link: held in this browser until the server confirms (185).
+        // Only the status and approval fields ride in the entry, with the
+        // server status the client saw, so a re-send can check nothing moved.
+        if (mode === 'client') _calCrqBegin('approve', pid, comp, {
+            edits: { [subKey]: post[subKey], status: post.status,
+                [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`] },
+            prev: Object.assign({}, prev),
+            serverStatus: { [comp]: prev[subKey] }
+        });
+        Promise.resolve(_calFlushCardSave(pid)).catch(e => {
+            const current = calState.posts.find(p => p.id === pid) || post;
+            current._saveError = _writeUiFailureSentence(e);
+        }).then(() => {
             _calReviewState.saving[key] = false;
             const current = calState.posts.find(p => p.id === pid) || post;
             if (current._saveError) {
+                if (mode === 'client' && _calCrqFailed(pid, comp, current._saveError)) return;
                 if (!current._writeUiRetrySourceAt) Object.assign(current, prev);
                 _calReviewState.errors[key] = current._saveError || 'Save failed';
-                _calReviewRepaintCard(pid);
+                // A full render, not a repaint: the failed save's own render
+                // can have dropped this card from the list already, and a
+                // repaint only replaces a card that is still on screen.
+                _calRenderBody({ preserveScroll: true });
                 return;
             }
+            if (mode === 'client') _calCrqDone(pid, comp);
             if (clearsCard) _calReviewRemoveCard(pid);
             else _calReviewRepaintCard(pid);
         });
@@ -839,6 +856,9 @@
         let deferredLegacyAttempt = false;
         let deferredLegacySourceOnly = false;
         let deferredLegacyOutboxIds = [];
+        // The queue stores this request's action id before the first send
+        // (185), so a replay after a crash or reload reuses it.
+        if (_isClientLink) _calCrqBegin('request', pid, comp, { body: rawDraft });
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
         delete _calReviewState.errorActionIds[key];
@@ -1076,6 +1096,7 @@
                     || attemptId);
                 _calReviewState.draftActionIds[key] = failedActionId;
                 _calReviewState.errorActionIds[key] = failedActionId;
+                if (_isClientLink) _calCrqFailed(pid, comp, _calReviewState.errors[key]);
                 _calRenderBody({ preserveScroll: true });
                 return;
             }
@@ -1106,6 +1127,7 @@
                         'calendar', current, comp, outcome.action || action, key, rawDraft,
                         outcome.comment_id || attemptId
                     );
+                    if (_isClientLink) _calCrqResolve(pid, comp);
                     return;
                 }
                 const sourceOnlySuperseded =
@@ -1118,6 +1140,7 @@
                 delete _calReviewState.errorActionIds[key];
                 if (outcome.item) _writeUiLegacyReconcileCommittedTweak('calendar', outcome.item);
                 _calRenderBody({ preserveScroll: true });
+                if (_isClientLink && _calCrqDone(pid, comp)) return;
                 showToast(sourceOnlySuperseded
                     ? 'Change request saved — a newer status was applied'
                     : (outcome.source_only
@@ -1144,6 +1167,7 @@
                     delete _calReviewState.errorActionIds[key];
                     _writeUiLegacyReconcileCommittedTweak('calendar', confirmed.item);
                     _calRenderBody({ preserveScroll: true });
+                    if (_isClientLink) _calCrqDone(pid, comp);
                     return;
                 }
                 if (deferredLegacyAttempt) _writeUiScheduleDeferredLegacyTweak('calendar');
@@ -1155,6 +1179,7 @@
                 _calReviewState.errors[key] = current._saveError || 'Save failed';
                 _calReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
                 _calReviewState.errorActionIds[key] = String(action && action.comment_id || attemptId);
+                if (_isClientLink) _calCrqFailed(pid, comp, current._saveError);
                 _calRenderBody({ preserveScroll: true });
                 return;
             }
@@ -1179,6 +1204,7 @@
                     'calendar', current, comp, action, key, rawDraft,
                     action && action.comment_id || attemptId
                 );
+                if (_isClientLink) _calCrqResolve(pid, comp);
                 return;
             }
             if (deliveryOutcome && deliveryOutcome.state === 'source_only_superseded') {
@@ -1192,11 +1218,13 @@
                 delete _calReviewState.errorActionIds[key];
                 _writeUiLegacyReconcileCommittedTweak('calendar', deliveryOutcome.item);
                 _calRenderBody({ preserveScroll: true });
+                if (_isClientLink) _calCrqDone(pid, comp);
                 showToast('Change request saved — a newer status was applied');
                 return;
             }
             if (action && action.clearsCard) _calReviewRemoveCard(pid);
             else _calReviewRepaintCard(pid);
+            if (_isClientLink && !current._saveError && _calCrqDone(pid, comp)) return;
             if (_calCommentRole() === 'client' && !current._saveError) {
                 showToast(deferredLegacySourceOnly
                     ? (deliveryPending
@@ -1233,6 +1261,7 @@
                 delete _calReviewState.errorActionIds[key];
                 _writeUiLegacyReconcileCommittedTweak('calendar', confirmed.item);
                 _calRenderBody({ preserveScroll: true });
+                if (_isClientLink) _calCrqDone(pid, comp);
                 return;
             }
             if (action && !action.rollbackApplied && !current._writeUiRetrySourceAt) {
@@ -1244,6 +1273,7 @@
             _calReviewState.errors[key] = _writeUiFailureSentence(error);
             _calReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
             _calReviewState.errorActionIds[key] = String(action && action.comment_id || attemptId);
+            if (_isClientLink) _calCrqFailed(pid, comp, _calReviewState.errors[key]);
             _calRenderBody({ preserveScroll: true });
         });
     }

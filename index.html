@@ -56136,7 +56136,7 @@
             p.style.left = x + 'px';
             p.style.top = y + 'px';
             p.style.visibility = 'visible';
-            _prodSubPop = p;
+            _prodSetSubPop(p);
         }
         // PORT-DELTA: openFilterMenu uses live adapter values; filter changes are pure local reads.
         function _prodOpenFilterMenu(ev) {
@@ -56567,7 +56567,7 @@
             document.querySelectorAll('.prod-cmd-bd').forEach(el => el.remove());
             _prodState.paletteOpen = false;
             document.querySelectorAll('#prodFilterBtn.menu-open, #prodGroupBtn.menu-open').forEach(el => el.classList.remove('menu-open'));
-            _prodSubPop = null;
+            _prodSetSubPop(null);
             _prodHideTip();
         }
         function _prodShowTip(el) {
@@ -62561,6 +62561,7 @@
             return pop;
         }
         let _prodSubPop = null;
+        function _prodSetSubPop(value) { _prodSubPop = value; }
         function _prodCloseSub() {
             if (_prodSubPop) {
                 _prodSubPop.remove();

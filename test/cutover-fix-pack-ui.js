@@ -349,6 +349,11 @@ for (const name of ['copyShareLink', 'calCopyShareLink', '_sxrCopyShareLink']) {
     // initialiser -- before any read there is nothing to trust -- and the real
     // _writeUiFetchRerouteFlagOnce extracted below is what settles it.
     'let _writeUiRerouteRosterUnusable = true;',
+    // The fetch and the prime write this state through its owner's setters.
+    extract('_writeUiSetRerouteFlagGeneration'),
+    extract('_writeUiSetRerouteFlagFailed'),
+    extract('_writeUiSetRerouteRosterUnusable'),
+    extract('_writeUiSetRerouteFlagPromise'),
     // _writeUiRerouteRosterUsable normalises through this. Extracted rather
     // than stubbed so the usability rule is judged by the real slug rules; its
     // own try/catch covers calClientSlug being absent from this harness.

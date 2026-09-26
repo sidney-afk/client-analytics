@@ -1835,7 +1835,9 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
     const TK_LOOKUP_EVERY_MS = 10 * 60000;
     async function _tkLookupOverdue() {
         tkState.pfm = tkState.pfm || {};
-        const due = _tkUnresolvedOverdue().filter(r => r.upload_post_id && !(Date.now() - ((tkState.pfm[r.id] || {}).at || 0) < TK_LOOKUP_EVERY_MS)).slice(0, 5);
+        const due = _tkUnresolvedOverdue().filter(r => r.upload_post_id && !(Date.now() - ((tkState.pfm[r.id] || {}).at || 0) < TK_LOOKUP_EVERY_MS))
+            .sort((x, y) => ((tkState.pfm[x.id] || {}).at || 0) - ((tkState.pfm[y.id] || {}).at || 0))   // longest-unasked first, so no row starves
+            .slice(0, 5);
         let changed = false;
         for (const r of due) {
             try {

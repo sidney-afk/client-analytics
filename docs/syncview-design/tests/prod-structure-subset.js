@@ -798,7 +798,8 @@ async function assertNoWriteRequests(requests) {
     await page.locator('.prod-pop [data-prod-ctx="copy"]').click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
     const copiedIssueLink = await page.evaluate(() => window.__prodCopied || window.__prodLastCopied || '');
-    if (!copiedIssueLink.includes('?prod=1') || !copiedIssueLink.includes('d=')) throw new Error('Row Copy link did not create a ?prod=1&d= deep link');
+    // Copy links are clean addresses: /synclinear/<id> (the old ?prod=1&d=<id> form forwards to it).
+    if (!/\/synclinear\/[^/?#]+/.test(copiedIssueLink)) throw new Error('Row Copy link did not create a /synclinear/<id> deep link');
     await expectExactCount(page, '.prod-pop', 0, 'context menu closed after Copy link');
 
     for (const tab of ['Active', 'Backlog', 'All issues']) {
@@ -1063,7 +1064,7 @@ async function assertNoWriteRequests(requests) {
     await page.locator('.prod-pop [data-prod-ctx="copy"]').click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
     const copiedProjectLink = await page.evaluate(() => window.__prodCopied || window.__prodLastCopied || '');
-    if (!copiedProjectLink.includes('?prod=1') || !copiedProjectLink.includes('client=')) throw new Error('Project Copy link did not create a ?prod=1 client deep link');
+    if (!/\/synclinear(\?|$)/.test(copiedProjectLink) || !copiedProjectLink.includes('client=')) throw new Error('Project Copy link did not create a /synclinear?client= deep link');
 
     await page.locator('.prod-nav').filter({ hasText: 'Video' }).locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
     await page.waitForSelector('.prod-board', { timeout: 10000 });

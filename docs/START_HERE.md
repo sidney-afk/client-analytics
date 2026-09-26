@@ -130,9 +130,11 @@ For a specific question, use [Find anything](FIND_ANYTHING.md).
 | Document | What it helps you find |
 |---|---|
 | [Version 2 plan](plans/2026-09-25-syncview-v2-plan.md) | The proposed screen-by-screen rebuild, shared data, and safe switch to a new app; plan only. |
+| [Owner backlog](plans/2026-09-24-owner-backlog.md) | A September 24 capture of two requests for future plans: repository privacy and a parallel version 2 app. |
 | [Sheets migration plan](plans/2026-09-24-sheets-to-supabase.md) | The phased move from spreadsheet reads to database reads; check State of things for what has shipped. |
 | [Post-split roadmap](plans/2026-09-21-post-modularization-roadmap.md) | The ordered work phases after the source split and the gates for each phase. |
 | [Module conversion plan](plans/2026-09-24-modularization-c3-plan.md) | The proposed order and checks for turning source fragments into modules; plan only. |
+| [Original source-split plan](plans/2026-09-21-modularization-plan.md) | The strategy for a byte-preserving split of the page, written before its build tooling existed. |
 
 ## Independence program and history
 
@@ -142,6 +144,12 @@ For a specific question, use [Find anything](FIND_ANYTHING.md).
 | [Independence plan](independence/INDEPENDENCE_PLAN.md) | The original automation-removal and in-app replacement strategy, retained as pre-cutoff history. |
 | [Webhook replacement plan](independence/N8N_REPLACEMENT_PLAN.md) | The historical inventory of webhooks that read the former tracker and their proposed replacements. |
 | [Exit sequence](independence/LINEAR_EXIT_MASTER_SEQUENCE.md) | The cross-lane exit order retained as history; use State of things for current status. |
+
+## Historical retrospective
+
+| Document | What it helps you find |
+|---|---|
+| [September 20 exit retrospective](retrospectives/2026-09-20-linear-exit-retrospective.md) | A dated account of the native transition, evidence practices, and lessons for the source split; not current operating guidance. |
 
 ## Dated audit evidence (August–September 2026)
 

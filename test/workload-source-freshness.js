@@ -135,8 +135,13 @@ const assess = (over = {}) => assessSource({
 {
   const workflow = fs.readFileSync(
     path.join(__dirname, '..', '.github', 'workflows', 'workload-source-freshness.yml'), 'utf8');
-  ok(/schedule:/.test(workflow) && /- cron:/.test(workflow),
-    'the watcher must be scheduled, not dispatch-only');
+  // Only uncommented lines count as triggers: a commented-out cron is no schedule.
+  const active = workflow.split('\n').filter(line => !/^\s*#/.test(line)).join('\n');
+  const scheduled = /^\s*schedule:/m.test(active) && /^\s*- cron:/m.test(active);
+  const { LANES: wiringLanes } = require('../scripts/monitoring-watchdog');
+  const wiringLane = wiringLanes.find(entry => entry.key === 'workload_source_freshness');
+  ok(wiringLane && (wiringLane.retired ? !scheduled : scheduled),
+    'the watcher is scheduled while its lane is watched, and unscheduled once the lane is retired');
   ok(/node scripts\/workload-source-freshness\.js/.test(workflow),
     'the workflow must actually run the watcher');
   ok(/--heartbeat=workload_source_freshness/.test(workflow),

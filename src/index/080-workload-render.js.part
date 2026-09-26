@@ -11,7 +11,7 @@ import {
   _wlSetBackgroundRefreshMode, _wlSetBackgroundRefreshPromise, _wlSetNativeDueReceiptRetryAttempt,
   _wlSetNativeDueReceiptRetryPromise, _wlSetNativeDueReceiptRetryTimer,
   _wlTakeNativeDueReceiptRetryAttempt, _wlV2CheckWatermark, _wlV2EnsureSubscribed,
-  _wlV2EnsureWatermarkPoll, _wlV2FetchIssues, _wlV2FetchLatestWatermark, _wlV2Ready, wlAddDays,
+  _wlV2EnsureWatermarkPoll, _wlV2FetchIssues, wlAnnouncePlanSaved, _wlV2FetchLatestWatermark, _wlV2Ready, wlAddDays,
   wlAddWorkingDays, wlAdoptLinearMetadata, wlAdoptPlanRows, wlApplySettleAnimation,
   wlAutoPlacementTip, wlBackgroundBusinessFingerprint, wlBucketByDisplayDate, wlCachedBoardUsable,
   wlCachedRoster, wlCalendarDayDiff, wlCanonicalClient, wlCompareClientGroups,
@@ -1249,6 +1249,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
                 || (saved.plan_date == null ? null : String(saved.plan_date).slice(0, 10)) !== planDate) {
                 throw new Error((json && json.error) || ('HTTP ' + resp.status));
             }
+            if (typeof wlAnnouncePlanSaved === 'function') wlAnnouncePlanSaved();   // opaque hint to other open boards; confirmed saves only
             return true;
         } catch (error) {
             if (sessionGeneration != null && sessionGeneration !== _wlPlanSessionGeneration) return false;

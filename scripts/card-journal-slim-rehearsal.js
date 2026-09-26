@@ -60,6 +60,12 @@ async function run() {
       p_title text default null, p_base text default '') returns setof public.calendar_posts
       language plpgsql set search_path = public as $live$${LIVE_MERGE_BODY}$live$;
       grant execute on function public.calendar_merge_comments(text,text,text,text,text,text,text) to anon, authenticated, service_role;`);
+    // The guard also requires production_card_atomic_write_v1 to be owned by
+    // postgres; the fixture may not define it, so a stand-in is created if so.
+    db.query(`do $s$ begin
+      if to_regprocedure('public.production_card_atomic_write_v1(uuid,jsonb)') is null then
+        create function public.production_card_atomic_write_v1(uuid, jsonb) returns jsonb language sql as 'select null::jsonb';
+      end if; end $s$;`);
     check('fixture reproduces the live function bodies the migration pins', () => {
       assert.equal(db.query("select md5(prosrc) from pg_proc where oid='public.calendar_merge_comments(text,text,text,text,text,text,text)'::regprocedure"), '01e84755d199ee82f060af0f338e55ff');
       assert.equal(db.query("select md5(prosrc) from pg_proc where oid='public.card_change_journal_capture()'::regprocedure"), 'e14642bea1950178cce0067f3ba78fda');
@@ -92,6 +98,19 @@ async function run() {
       const inner = db.raw(staleCopy.slice(staleCopy.indexOf('\nbegin;')));
       assert.notEqual(inner.status, 0);
       assert.match(inner.stderr, /card_journal_slim_stale/);
+    });
+
+    check('the guard refuses when either writer is not owned by postgres', () => {
+      db.query("do $r$ begin if not exists(select 1 from pg_roles where rolname='slim_other_owner') then create role slim_other_owner; end if; end $r$;");
+      for (const fn of ['public.calendar_merge_comments(text,text,text,text,text,text,text)', 'public.production_card_atomic_write_v1(uuid,jsonb)']) {
+        db.query(`alter function ${fn} owner to slim_other_owner;`);
+        const sql = fs.readFileSync(MIGRATION, 'utf8');
+        const r = db.raw(sql.slice(0, sql.indexOf('\nbegin;')));
+        db.query(`alter function ${fn} owner to postgres;`);
+        assert.notEqual(r.status, 0, fn);
+        assert.match(r.stderr, /card_journal_slim_owner/);
+        assert.equal(indexExists(), '0');
+      }
     });
 
     const migSql = fs.readFileSync(MIGRATION, 'utf8');

@@ -35,7 +35,18 @@
 -- so its full-layout reads stay valid; anything that reads row_schema after
 -- this is applied must resolve it through card_change_journal_row_schema().
 --
--- PRE-APPLY (read only): md5(prosrc) of both functions must still equal
+-- HOW TO APPLY (after owner go-ahead only). Not as one pasted batch:
+-- CREATE INDEX CONCURRENTLY refuses to run inside a transaction block. Either
+--   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/2026-09-26-card-journal-slim.sql
+-- (psql sends each statement on its own), or three separate Supabase SQL
+-- Editor runs, in order, stopping at the first error:
+--   1. the first `do $pre$ ... $pre$;` block alone (read-only checks);
+--   2. the `create index concurrently ...` statement alone;
+--   3. everything from `begin;` to `commit;`.
+--
+-- PRE-APPLY (read only): calendar_merge_comments and
+-- production_card_atomic_write_v1(uuid,jsonb) must both be owned by postgres
+-- (the guard refuses otherwise), and md5(prosrc) of both replaced functions must still equal
 --   calendar_merge_comments       01e84755d199ee82f060af0f338e55ff (live) or
 --                                 79c45d178c518da454538a433e96fd80 (after this ROLLBACK)
 --   card_change_journal_capture   e14642bea1950178cce0067f3ba78fda
@@ -56,6 +67,14 @@ begin
      or md5((select prosrc from pg_proc where oid = 'public.card_change_journal_capture()'::regprocedure))
        <> 'e14642bea1950178cce0067f3ba78fda' then
     raise exception 'card_journal_slim_stale: a replaced function changed since this file was written';
+  end if;
+  -- Read-only ownership check: both writers of calendar_posts' comment cells
+  -- must still be owned by postgres, as measured 2026-09-26.
+  if (select r.rolname from pg_proc p join pg_roles r on r.oid = p.proowner
+        where p.oid = to_regprocedure('public.calendar_merge_comments(text,text,text,text,text,text,text)')) is distinct from 'postgres'
+     or (select r.rolname from pg_proc p join pg_roles r on r.oid = p.proowner
+        where p.oid = to_regprocedure('public.production_card_atomic_write_v1(uuid,jsonb)')) is distinct from 'postgres' then
+    raise exception 'card_journal_slim_owner: calendar_merge_comments and production_card_atomic_write_v1 must be owned by postgres';
   end if;
 end;
 $pre$;
@@ -78,6 +97,14 @@ begin
      or md5((select prosrc from pg_proc where oid = 'public.card_change_journal_capture()'::regprocedure))
        <> 'e14642bea1950178cce0067f3ba78fda' then
     raise exception 'card_journal_slim_stale: a replaced function changed since this file was written';
+  end if;
+  -- Read-only ownership check: both writers of calendar_posts' comment cells
+  -- must still be owned by postgres, as measured 2026-09-26.
+  if (select r.rolname from pg_proc p join pg_roles r on r.oid = p.proowner
+        where p.oid = to_regprocedure('public.calendar_merge_comments(text,text,text,text,text,text,text)')) is distinct from 'postgres'
+     or (select r.rolname from pg_proc p join pg_roles r on r.oid = p.proowner
+        where p.oid = to_regprocedure('public.production_card_atomic_write_v1(uuid,jsonb)')) is distinct from 'postgres' then
+    raise exception 'card_journal_slim_owner: calendar_merge_comments and production_card_atomic_write_v1 must be owned by postgres';
   end if;
 end;
 $pre$;

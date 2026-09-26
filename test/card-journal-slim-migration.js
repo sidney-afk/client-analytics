@@ -36,4 +36,8 @@ ok(!/grant[^;]*to[^;]*\b(anon|authenticated|public)\b/i.test(code(mig)), 'nothin
 const cap = s => s.slice(s.indexOf('function public.card_change_journal_capture()'), s.indexOf('revoke all on function public.card_change_journal_capture()'));
 ok(cap(rb) === cap(base), 'the rollback restores the capture function byte for byte as the 2026-09-05 migration defines it');
 ok(/updated_at     = now\(\)/.test(rb) && !/is distinct from cur/.test(rb), 'the rollback restores the live comment merge');
+ok((mig.match(/card_journal_slim_owner/g) || []).length >= 2 && /production_card_atomic_write_v1\(uuid,jsonb\)/.test(code(mig)),
+  'both guards refuse unless calendar_merge_comments and production_card_atomic_write_v1 are owned by postgres');
+ok(/HOW TO APPLY/.test(mig) && /-v ON_ERROR_STOP=1 -f migrations\/2026-09-26-card-journal-slim\.sql/.test(mig) && /three separate Supabase SQL/.test(mig),
+  'the header gives the psql -f and three-run SQL Editor apply steps');
 console.log(`card-journal-slim-migration: ${passed} checks passed`);

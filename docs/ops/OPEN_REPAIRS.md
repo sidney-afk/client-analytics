@@ -29196,7 +29196,35 @@ the label changed; the queue rules, Urgent button and save paths are untouched.
 **Proof.** `qa/probes/kasper_samples_in_review.js` checks the label after the
 approve plus change request, at 1440, 390 and 375 on the test client: 93 of 93.
 
-## 264. [2026-09-26, OPEN] The database's temporary disk ran out on a read-only query
+## 264. [2026-09-26, BUILT] The client link's live updates: proven server-side, honest status, safety net
+
+**Checked live (read-only SQL, 2026-09-26).** `calendar_posts` is in the
+realtime publication, RLS is on with an anon SELECT policy that lets change
+events reach the client link's anonymous login, and the realtime server held
+live anon subscriptions on `calendar_posts` at the time of the check. So the
+server side of the client link's live updates is sound.
+
+**What was wrong in the page.** `calV2Status().subscribed` meant only "a
+channel object exists": measured the same day, a page whose realtime handshake
+failed every time still said `subscribed: true`, and with no poll behind it the
+open page never saw another page's change until the tab regained focus.
+
+**What changed** (`src/index/150-calendar-hydration-import.js.part` only): the
+page records the real connection state from the subscribe callback, and
+`calV2Status()` now also returns `connected`, `rtState`, `fallbackPolling` and
+`fallbackPulls` (`subscribed` keeps its old meaning for existing probes). While
+the connection is not up (an error, or still connecting after 15 s), a pull
+every 30 s through the normal realtime path keeps staff Calendar and the client
+link current; it stops once connected and skips hidden tabs.
+
+**Proof.** `qa/realtime-fallback/client-link-fallback.js`, test client only, one
+seed archived: with realtime unreachable, `calV2Status()` reported
+`connected: false, rtState: CHANNEL_ERROR`, and a staff change appeared on the
+open client link in 9.3 s without a refresh (before: never). Live realtime
+timing needs a machine where WebSockets work: run the same script there.
+Guard: `test/calendar-realtime-fallback.js`.
+
+## 265. [2026-09-26, OPEN] The database's temporary disk ran out on a read-only query
 
 While measuring the card change journal for the Track-B backup failure, one
 read-only aggregate over `card_change_journal` (grouping about 116,000 rows by
@@ -29207,11 +29235,11 @@ scratch space for sorts and hashes is small next to that table. The same
 measurements were then taken on a 5% `tablesample`, which ran fine.
 
 Not fixed. Worth knowing before any large read, backfill, index build or
-`pg_dump` against the journal; 265 is the growth that makes it likely. If it
+`pg_dump` against the journal; 266 is the growth that makes it likely. If it
 recurs on a normal query, check the project's disk usage in the Supabase
 dashboard before anything else.
 
-## 265. [2026-09-26, PROPOSED] The card change journal records timestamp-only saves and repeats its column layout
+## 266. [2026-09-26, PROPOSED] The card change journal records timestamp-only saves and repeats its column layout
 
 Found tracing the Track-B history-v11 backup failure ("dump is not valid
 UTF-8"), which was really the dump passing the backup script's ~512 MB string
@@ -29238,3 +29266,15 @@ Rehearsed on a disposable local PostgreSQL 16 with the live function bodies:
 `scripts/card-journal-slim-rehearsal.js`, 18 checks including its rollback.
 The backup script fix that tolerates the current size is separate
 (`scripts/track-b-backup.js`, line-by-line dump check).
+
+**How to apply (after owner go-ahead only).** The file cannot run as one pasted
+batch: `CREATE INDEX CONCURRENTLY` refuses to run inside a transaction block.
+Either run the whole file with psql, which sends each statement on its own:
+
+    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/2026-09-26-card-journal-slim.sql
+
+or, in the Supabase SQL Editor, as three separate runs in this order: (1) the
+first `do $pre$ ... $pre$;` block alone (read-only checks); (2) the
+`create index concurrently ...` statement alone; (3) everything from `begin;`
+to `commit;`. Stop at the first error.
+

@@ -20,7 +20,7 @@ const _prodRtCreate = new Function(src.slice(a, b) + '\nreturn _prodRtCreate;')(
 assert.ok(/getClient: \(\) => _wlV2Client\(\)/.test(src), 'reuses the shared supabase-js client');
 assert.ok(/refresh: \(o\) => _prodDeltaRefresh\(\{ full: !!\(o && o\.full\) \}\)/.test(src), 'events feed the existing delta refresh');
 assert.ok(/window\.prodRtStatus = \(\) => _prodRt\.status\(\)/.test(src), 'console helper exposed');
-assert.ok(/if \(!_prodRtActive\(\)\) \{ _prodRt\.stop\(\); return; \}/.test(src), 'leaving Production tears the channel down');
+assert.ok(/if \(!_prodRtActive\(\)\) _prodRt\.stop\(\);/.test(src), 'leaving Production tears the channel down');
 assert.ok(/if \(!failures\) return _prodRt\.pollInterval\(\);/.test(src), 'poll cadence follows realtime status');
 
 function harness(opts) {

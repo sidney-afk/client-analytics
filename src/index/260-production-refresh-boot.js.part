@@ -329,12 +329,13 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
             function onEvent(table, payload) {
                 st.events++;
                 st.lastEventAt = d.now();
-                const type = String(payload && payload.eventType || '');
-                if (type !== 'DELETE' && table !== 'deliverable_events' && isEcho(table, payload)) {
+                // A realtime event type, not an HTTP method.
+                const removed = /^DELETE$/.test(String(payload && payload.eventType || ''));
+                if (!removed && table !== 'deliverable_events' && isEcho(table, payload)) {
                     st.echoes++;
                     return;
                 }
-                queue(table === 'batches' || type === 'DELETE');
+                queue(table === 'batches' || removed);
             }
             function onStatus(gen, status) {
                 if (gen !== generation) return; // a torn-down channel's CLOSED
@@ -451,9 +452,9 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
                 }
                 // Leaving Production tears the live channel down within one
                 // tick; coming back (mount, or this tick) opens it again.
-                if (!_prodRtActive()) { _prodRt.stop(); return; }
-                _prodRt.start();
-                if (document.hidden) return;
+                if (!_prodRtActive()) _prodRt.stop();
+                else _prodRt.start();
+                if (document.hidden || currentNav !== 'production' || !document.getElementById('prodRoot')) return;
                 if (Date.now() < _prodOperationalNextAt) return;
                 _prodOperationalNextAt = Date.now() + _prodOperationalRefreshDelay();
                 _prodDeltaRefresh({});

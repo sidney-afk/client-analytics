@@ -29,3 +29,4 @@
 134-calendar-prefs-mount.js.part
 120-calendar-flags-write-repair.js.part
 270-samples-model.js.part
+280-samples-cards-notes.js.part

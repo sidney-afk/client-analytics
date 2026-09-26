@@ -156,6 +156,44 @@ For a specific question, use [Find anything](FIND_ANYTHING.md).
 | [Provider recovery](independence/LINEAR_EXIT_PROVIDER_RECOVERY_20260912.md) | Prepared paths for reconciling acknowledged provider effects without assuming a retry is safe. |
 | [Observed target calibration](independence/LINEAR_EXIT_OBSERVED_FULL_CALIBRATION_20260912.md) | Disposable-database comparison of the captured schema with the proposed installation target. |
 
+### Earlier audits and migration designs
+
+| Document | What it helps you find |
+|---|---|
+| [Cutover findings](independence/CUTOVER_AUDIT_2026-07-13.md) | The dated findings register behind the former cutover gates and decisions. |
+| [Edge migration design](independence/EDGE_FUNCTIONS_MIGRATION.md) | A superseded workflow-to-Edge design for two older handlers; its steps are not current instructions. |
+| [Comment backfill record](independence/LINEAR_COMMENT_BACKFILL_PLAYBOOK.md) | The completed comment-history import and withdrawn rollback, preserved as history rather than a rerun guide. |
+| [Phase 0 audit](independence/PHASE0_AUDIT_2026-07-28.md) | The July classification of unchecked early launch gates against evidence available then. |
+| [Phase 2 merge review](independence/PHASE2_MERGE_READINESS_2026-07-16.md) | The dated whole-system review of an earlier dark merge and its required fixes. |
+| [Slack-to-Roam audit](independence/SLACK_ROAM_MIGRATION_AUDIT.md) | The June inventory of Slack dependencies and a proposed move to Roam; audit only. |
+
+### Exit handoffs and lane briefs
+
+The six lane briefs preserve clipped historical instructions. Their links help
+locate evidence; they are not safe instructions to execute.
+
+| Document | What it helps you find |
+|---|---|
+| [Original agent prompt](independence/CODEX_PROMPT.md) | The preserved two-track migration kickoff prompt, not a current work order. |
+| [Workload lane brief](independence/LINEAR_EXIT_BRIEF_A.md) | The historical Workload-native lane assignment and its restoration notes. |
+| [Write-path lane brief](independence/LINEAR_EXIT_BRIEF_B.md) | The historical write-path lane assignment and its restoration notes. |
+| [Endpoints lane brief](independence/LINEAR_EXIT_BRIEF_C.md) | The historical endpoints-and-Submit lane assignment and its restoration notes. |
+| [Feedback lane brief](independence/LINEAR_EXIT_BRIEF_D.md) | The historical comments-and-feedback lane assignment and its restoration notes. |
+| [Media lane brief](independence/LINEAR_EXIT_BRIEF_E.md) | The historical media-rescue lane assignment and its restoration notes. |
+| [Cutoff lane brief](independence/LINEAR_EXIT_BRIEF_F.md) | The historical cutoff-and-watchers lane assignment and its restoration notes. |
+| [September 11 handoff](independence/LINEAR_EXIT_CLAUDE_HANDOFF_20260911.md) | The then-current preparation source and open questions at the first continuation handoff. |
+| [September 12 handoff](independence/LINEAR_EXIT_CLAUDE_HANDOFF_20260912.md) | The dated reviewer handoff for the preparation build and its separate acceptance gates. |
+| [September 14 resume](independence/LINEAR_EXIT_CLAUDE_RESUME_20260914.md) | The later preparation entrypoint and then-open owner decisions; historical. |
+| [Fast-finish plan](independence/LINEAR_EXIT_FAST_FINISH_PLAN_20260912.md) | The dated plan linking preparation owners, isolated proofs, and the installation hold. |
+
+### Retained preparation checkpoints
+
+| Document | What it helps you find |
+|---|---|
+| [Composition checkpoint](independence/LINEAR_EXIT_COMPOSITION_CHECKPOINT_20260912.md) | The source inventory and isolated composition checks recorded on September 12. |
+| [Observed schema and journal](independence/LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md) | The captured starting schema and isolated installation-journal rehearsal. |
+| [September 10 recovery checkpoint](independence/LINEAR_EXIT_RECOVERY_CHECKPOINT_20260910.md) | An earlier restore and preparation snapshot, superseded by later handoffs. |
+
 ## Archived migrations and incidents
 
 These records explain earlier decisions and failures. Their dated status claims are not current operating instructions.

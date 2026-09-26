@@ -7028,7 +7028,6 @@
         /* "New reply" chip on a review-queue card. */
         .kcard-newreply-chip { display: inline-flex; align-items: center; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 7px; border-radius: 99px; background: var(--sv-bg-rgba-234-88-12-0_12); color: var(--sv-fg-c2410c); }
         .kcard-sample-chip { display: inline-flex; align-items: center; flex-shrink: 0; margin-right: 6px; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 7px; border-radius: 99px; background: var(--sv-bg-rgba-124-58-237-0_12); color: var(--sv-fg-6d28d9); }
-        .kasper-subtab[data-kasper-merged-into][hidden] { display: none; }
         .kasper-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
         .kasper-count-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-secondary); font-weight: 600; }
         .kasper-count-chip .kasper-count-num { background: var(--text-primary); color: var(--white); font-weight: 700; font-size: 0.72rem; padding: 2px 9px; border-radius: 99px; font-variant-numeric: tabular-nums; }
@@ -12019,7 +12018,7 @@
                     if(_kasperUnlocked){
                         if(hash.startsWith('kasper/')){
                             const sub=hash.slice('kasper/'.length);
-                            if(KASPER_SUBTABS.some(t=>t.key===sub))_kasperState.tab=sub;
+                            const key=_kasperResolveSubtab(sub);if(key)_kasperState.tab=key;
                         }
                         navTo('kasper',false);return;
                     }
@@ -23210,6 +23209,13 @@
         } else {
             let hash = (page !== 'home' ? '#' + page : '');
             if (page === 'templates' && _templatesSelected) hash = '#templates/' + encodeURIComponent(_templatesSelected);
+            // A card deep link (#calendar/<slug>/<card>, #sample-reviews/<slug>/<card>)
+            // stays in the address while that card is open, so a reload opens it
+            // again. The screen drops the card itself when the card is closed.
+            if (page === 'calendar' || page === 'sample-reviews') {
+                const cur = svRoute.hash();
+                if (cur.indexOf('#' + page + '/') === 0) hash = cur;
+            }
             // Same for Kasper's subtab: writing a bare #kasper here is what made
             // every reload of a Kasper subtab land on review (speed map
             // 2026-09-23 §7) -- the first load rendered the subtab, then this
@@ -32540,6 +32546,14 @@
         if (rawHash.startsWith('calendar/' + slug + '/')) return; // keep the card deep link
         history.replaceState({ nav: 'calendar', client: null }, '', base + '#calendar/' + slug);
     }
+    /* The open card rides in the address (#calendar/<slug>/<card>) so a reload
+       opens it again; closing the card drops it back to #calendar/<slug>. */
+    function _calSyncUrlCard(pid) {
+        if (calState.embedded || currentNav !== 'calendar' || !calState.client) return;
+        const base = '/' + svRoute.search().replace(/#.*$/, '');
+        const slug = calClientSlug(calState.client);
+        history.replaceState({ nav: 'calendar', client: null }, '', base + '#calendar/' + slug + (pid ? '/' + encodeURIComponent(pid) : ''));
+    }
     function _calEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     /* NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value).
        It is NOT enough for a string argument inside an inline handler —
@@ -33691,7 +33705,7 @@
     function _calFocusOutsideHandler(e) {
         const card = document.querySelector('.cal-card-focused');
         if (!card) { document.removeEventListener('mousedown', _calFocusOutsideHandler, true); return; }
-        if (!card.contains(e.target)) _calClearFocusHighlight();
+        if (!card.contains(e.target)) { _calClearFocusHighlight(); _calSyncUrlCard(null); }
     }
 
     /* ── Excel (.xlsx) import ──────────────────────────────────────────
@@ -36704,12 +36718,11 @@
         try { _calUpdateCardStatusDisplay(post.id); } catch (e) {}
         return echo;
     }
-    /* Where the DM points. Kasper's review tab is one hash away on the live
-       app, and the two surfaces have different subtabs — a sample must land on
-       Samples, not on the calendar queue where it is nowhere to be found. */
+    /* Where the DM points: Kasper's Review tab, which lists calendar cards and
+       samples together. Older messages that still say #kasper/samples open
+       Review too (see _kasperResolveSubtab). */
     function _calKasperReviewUrl(surface) {
-        const base = 'https://syncview.synchrosocial.com/';
-        return base + '#kasper' + (surface === 'samples' ? '/samples' : '');
+        return 'https://syncview.synchrosocial.com/#kasper';
     }
     /* Ping Kasper about a card parked at Kasper Approval. Reuses the SAME
        confirm → POST → latch dispatch as the editor ping; only the flavour
@@ -38052,6 +38065,41 @@
        appears without a refresh jump. */
     let _calV2Channel = null;
     let _calV2SubSlug = null;
+    /* The live-update connection's REAL state, from the subscribe callback:
+       'idle' (no channel), 'connecting', 'SUBSCRIBED', 'CHANNEL_ERROR',
+       'TIMED_OUT', 'CLOSED', or 'unavailable' (no realtime client could be
+       created at all). A channel object existing is not a connection:
+       measured 2026-09-26, a page whose WebSocket handshake failed every time
+       still reported subscribed:true. While the connection is not up, a
+       fallback pull every CAL_V2_FALLBACK_POLL_MS keeps an open page (the
+       client link included) from going stale; it stops once connected. */
+    let _calV2RtState = 'idle';
+    let _calV2RtStateAt = 0;
+    let _calV2FallbackTimer = null;
+    let _calV2FallbackPulls = 0;
+    const CAL_V2_FALLBACK_POLL_MS = 30000;
+    const CAL_V2_CONNECT_GRACE_MS = 15000;
+    function _calV2SetRtState(state) { _calV2RtState = state; _calV2RtStateAt = Date.now(); }
+    function _calV2StopFallback() {
+        if (_calV2FallbackTimer) { clearTimeout(_calV2FallbackTimer); _calV2FallbackTimer = null; }
+    }
+    function _calV2StartFallback(slug, lease) {
+        _calV2StopFallback();
+        _calV2FallbackTimer = setTimeout(function fallbackTick() {
+            _calV2FallbackTimer = null;
+            if (!_calV2LeaseCurrent(lease)) return;
+            const waitingTooLong = _calV2RtState === 'connecting'
+                && Date.now() - _calV2RtStateAt >= CAL_V2_CONNECT_GRACE_MS;
+            const down = _calV2RtState !== 'SUBSCRIBED' && _calV2RtState !== 'connecting';
+            const visible = typeof document === 'undefined' || document.visibilityState !== 'hidden';
+            if ((down || waitingTooLong) && visible) {
+                _calV2FallbackPulls++;
+                _calV2Log('realtime not connected (', _calV2RtState, '); fallback pull');
+                _calV2OnRealtimeChange(slug, lease);
+            }
+            _calV2FallbackTimer = setTimeout(fallbackTick, CAL_V2_FALLBACK_POLL_MS);
+        }, CAL_V2_FALLBACK_POLL_MS);
+    }
     let _calV2RtTimer = null;
     let _calV2RtPending = false;       // a realtime change arrived mid-load → service it after, don't drop it
     let _calV2SubscribedOnce = false;  // tell the FIRST subscribe apart from a reconnect (catch-up)
@@ -38087,10 +38135,20 @@
             if (epoch === _calV2Epoch && _calLoadRunCurrent(loadRun)) {
                 console.warn('[Calendar v2] realtime client failed', e);
             }
+            client = null;
+        }
+        if (epoch !== _calV2Epoch || !_calLoadRunCurrent(loadRun)) return;
+        if (!client) {
+            // No realtime library or client (blocked CDN, failed load): the
+            // REST read still works, so arm the fallback pull on its own lease
+            // rather than leaving the open page with no updates at all.
+            const bare = { epoch, slug, surface: loadRun.surface, clientEntryRun: loadRun.clientEntryRun };
+            _calV2SubSlug = slug;
+            _calV2Lease = bare;
+            _calV2SetRtState('unavailable');
+            _calV2StartFallback(slug, bare);
             return;
         }
-        if (!client) return;
-        if (epoch !== _calV2Epoch || !_calLoadRunCurrent(loadRun)) return;
         const lease = {
             epoch,
             slug,
@@ -38105,8 +38163,11 @@
                 .channel('cal-' + slug)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_posts', filter: 'client=eq.' + slug }, () => _calV2OnRealtimeChange(slug, lease));
             _calV2Channel = channel;
+            _calV2SetRtState('connecting');
+            _calV2StartFallback(slug, lease);
             channel.subscribe((status) => {
                 if (_calV2Channel !== channel || !_calV2LeaseCurrent(lease)) return;
+                _calV2SetRtState(String(status || ''));
                 _calV2Log('subscribe status:', status, '| slug:', slug, '| is re-subscribe:', _calV2SubscribedOnce);
                 if (status === 'SUBSCRIBED') {
                     // A *re*-subscribe means the socket had dropped (a
@@ -38180,6 +38241,8 @@
         _calV2Channel = null; _calV2SubSlug = null;
         _calV2Lease = null;
         _calV2SubscribedOnce = false;
+        _calV2StopFallback();
+        _calV2SetRtState('idle');
     }
     function _calV2Teardown() {
         // Calendar ownership includes the read transport as well as realtime.
@@ -38198,7 +38261,12 @@
     }
     /* Console helper for the Phase 2 test week: window.calV2Status(). */
     window.calV2Status = function () {
-        return { flag: _calV2Enabled(), ready: _calV2Ready(), keySet: !!CAL_SUPABASE_ANON_KEY, subscribed: !!_calV2Channel, slug: _calV2SubSlug };
+        // `subscribed` keeps its old meaning (a channel exists) for existing
+        // probes; `connected` is the honest "live updates are arriving" answer.
+        return { flag: _calV2Enabled(), ready: _calV2Ready(), keySet: !!CAL_SUPABASE_ANON_KEY, subscribed: !!_calV2Channel,
+            connected: _calV2RtState === 'SUBSCRIBED', rtState: _calV2RtState, rtStateAt: _calV2RtStateAt,
+            fallbackPolling: !!_calV2FallbackTimer && _calV2RtState !== 'SUBSCRIBED', fallbackPulls: _calV2FallbackPulls,
+            slug: _calV2SubSlug };
     };
 
     let _calLoadSeq = 0;
@@ -38938,6 +39006,7 @@
             if (persistent) {
                 _calClearFocusHighlight();
                 card.classList.add('cal-card-focused');
+                _calSyncUrlCard(post.id);
                 setTimeout(() => document.addEventListener('mousedown', _calFocusOutsideHandler, true), 0);
                 // The outline alone wasn't enough — both prior reports said "I can't
                 // tell which card this is," even after the outline shipped. Say it
@@ -40889,6 +40958,10 @@
                     'Authorization': 'Bearer ' + CAL_SUPABASE_ANON_KEY,
                     'X-Syncview-Source': 'thumbnail-compare-availability'
                 }, THUMBNAIL_REVISION_READ_EF_URL);
+                // The function answers 401 without a staff key or a current client
+                // token. A client link before its entry run settles has neither, so
+                // skip the request instead of logging a guaranteed refusal.
+                if (!headers['X-Syncview-Key'] && !headers['X-Syncview-Client-Token']) return;
                 const response = await fetch(THUMBNAIL_REVISION_READ_EF_URL, {
                     method: 'POST', headers, cache: 'no-store',
                     body: JSON.stringify({ surface, client, mode: 'availability', source_ids: sourceIds })
@@ -42924,6 +42997,8 @@
             return;
         }
     }
+    // Status columns a whole-card save may only send when this save edited them.
+    const CAL_WHOLE_CARD_STATUS_FIELDS = ['status', 'video_status', 'graphic_status', 'caption_status', 'title_status'];
     async function _calFlushCardSave(pid) {
         let edits = _calPendingEdits[pid];
         if (!edits) return;
@@ -43230,6 +43305,19 @@
                 delete wirePost._writeUiRepairRefs;
                 _calStripThumbnailFolderFields(wirePost);
                 _calApplyClearSentinels(wirePost, edits);
+                // A whole-card send for an EXISTING card (the v1 save mode, a
+                // sticky per-browser opt-out) must not carry statuses this save
+                // never edited: the tab's copy can be older than a status the
+                // Production board projected since, and re-sending it put an
+                // approved video back to In Progress (drift check 2026-09-26).
+                // Deliberate status changes always arrive in `edits`, and a Retry
+                // restores them from `_writeUiRetryEdits`. An empty `edits` (a
+                // retry with no snapshot) edited no status, so it sends none.
+                if (!wasNewRow) {
+                    for (const k of CAL_WHOLE_CARD_STATUS_FIELDS) {
+                        if (!(k in edits)) delete wirePost[k];
+                    }
+                }
             }
             // comments_base_at = the sheet's updated_at this browser last saw.
             // The upsert workflow 3-way-merges each *_tweaks cell against this
@@ -67752,7 +67840,8 @@
                     // Admin access already confirmed (gated by _kasperHashLanding).
                     if (hashRaw.startsWith('kasper/')) {
                         const sub = hashRaw.slice('kasper/'.length);
-                        if (KASPER_SUBTABS.some(t => t.key === sub)) _kasperState.tab = sub;
+                        const key = _kasperResolveSubtab(sub);
+                        if (key) _kasperState.tab = key;
                     }
                     navTo('kasper', false);
                 } else if (hashRaw === 'time-off') {
@@ -67872,7 +67961,7 @@
             if(hash==='kasper' && _kasperUnlocked){navTo('kasper',false);return;}
             if(hash.startsWith('kasper/') && _kasperUnlocked){
                 const sub=hash.slice('kasper/'.length);
-                if(KASPER_SUBTABS.some(t=>t.key===sub)) _kasperState.tab=sub;
+                const key=_kasperResolveSubtab(sub); if(key) _kasperState.tab=key;
                 navTo('kasper',false);return;
             }
             if(hash.startsWith('calendar/')){
@@ -68693,9 +68782,14 @@
                 const parts = dh.slice('sample-reviews/'.length).split('/');
                 const slug = parts[0]; const cardId = parts[1] || null;
                 const match = (typeof WL_CLIENT_NAMES !== 'undefined' ? WL_CLIENT_NAMES : []).find(n => _sxrNormalizeClient(n) === slug) || null;
-                _sxrFocusRequest = (match || cardId) ? { client: match, cardId } : null;
+                _sxrFocusRequest = match ? { client: match, cardId: cardId ? decodeURIComponent(cardId) : null } : null;
+                // A fresh browser only knows the seed roster until the Clients
+                // Info sheet loads; hold the link and resolve it then, instead of
+                // opening an empty "No clients added yet" board.
+                if (!match && slug) _sxrPendingDeepLink = { slug, cardId: cardId ? decodeURIComponent(cardId) : null };
             }
         } catch (e) {}
+        if (_sxrFocusRequest && _sxrFocusRequest.client) _sxrPinClient(_sxrFocusRequest.client);
         const prefs = _sxrLoadPrefs();
         const pins  = _sxrGetPins();
         let initial = null;
@@ -68710,9 +68804,82 @@
         sxrState.posts = [];
         sxrState.error = null;
         sxrState.previewId = null;
+        if (_sxrPendingDeepLink) {
+            sxrState.client = null;
+            _sxrRenderShell();   // the body keeps its loader until the roster lands
+            if (typeof fetchEssentials === 'function') fetchEssentials().then(_sxrResolvePendingDeepLink, _sxrResolvePendingDeepLink);
+            else _sxrResolvePendingDeepLink();
+            return;
+        }
         _sxrRenderShell();
         if (sxrState.client) loadSxrCards();
         else _sxrRenderBody();
+    }
+
+    /* Card deep links (#sample-reviews/<slug>/<card>): open that client as a
+       tab, then outline and centre the card once its row has painted. The card
+       stays in the address while it is open; closing it (a click elsewhere)
+       drops it back to #sample-reviews/<slug>. */
+    let _sxrPendingDeepLink = null;
+    function _sxrPinClient(name) {
+        const pins = _sxrGetPins();
+        if (name && !pins.includes(name)) _sxrSavePins(pins.concat([name]));
+    }
+    function _sxrResolvePendingDeepLink() {
+        const pending = _sxrPendingDeepLink;
+        _sxrPendingDeepLink = null;
+        if (!pending || currentNav !== 'sample-reviews' || sxrState.embedded) return;
+        const match = WL_CLIENT_NAMES.find(n => _sxrNormalizeClient(n) === pending.slug) || null;
+        if (!match) {
+            showNotify('Sample link not opened', 'That link points at a client this tab does not know yet. Reload and try the link again.');
+            const pins = _sxrGetPins();
+            if (pins.length) onSxrClientChange(pins[0]); else _sxrRenderBody();
+            return;
+        }
+        _sxrFocusRequest = { client: match, cardId: pending.cardId };
+        _sxrPinClient(match);
+        sxrState.view = 'organizer';
+        _sxrRenderShell();
+        onSxrClientChange(match);
+    }
+    function _sxrSyncUrlCard(pid) {
+        if (sxrState.embedded || currentNav !== 'sample-reviews') return;
+        const base = '/' + svRoute.search().replace(/#.*$/, '');
+        if (!sxrState.client) { history.replaceState({ nav: 'sample-reviews', client: null }, '', base + '#sample-reviews'); return; }
+        history.replaceState({ nav: 'sample-reviews', client: null }, '', base + '#sample-reviews/' + encodeURIComponent(sxrClientSlug(sxrState.client)) + (pid ? '/' + encodeURIComponent(pid) : ''));
+    }
+    function _sxrFocusOutsideHandler(e) {
+        const card = document.querySelector('#sxrView .cal-card-focused');
+        if (!card) { document.removeEventListener('mousedown', _sxrFocusOutsideHandler, true); return; }
+        if (card.contains(e.target)) return;
+        card.classList.remove('cal-card-focused');
+        document.removeEventListener('mousedown', _sxrFocusOutsideHandler, true);
+        _sxrSyncUrlCard(null);
+    }
+    // Called after each Samples render that has the client's cards.
+    function _sxrApplyFocusRequest() {
+        const req = _sxrFocusRequest;
+        if (!req || !req.cardId || !sxrState.client || sxrState.loading) return;
+        if (_sxrNormalizeClient(req.client) !== _sxrNormalizeClient(sxrState.client)) return;
+        _sxrFocusRequest = null;
+        const post = sxrState.posts.find(p => String(p.id) === String(req.cardId));
+        if (!post) { showNotify('Card not found', "That linked sample isn't on this client's board. It may have been archived."); return; }
+        sxrState.focusPid = post.id;
+        if (sxrState.view !== 'organizer') { sxrState.view = 'organizer'; _sxrRenderShell(); }
+        _sxrRenderBody();
+        let frames = 0;
+        const focusWhenPainted = () => {
+            const safe = (window.CSS && CSS.escape) ? CSS.escape(post.id) : post.id;
+            const card = document.querySelector('#sxrView .cal-card[data-pid="' + safe + '"]');
+            if (!card) { if (++frames < 40) requestAnimationFrame(focusWhenPainted); return; }
+            document.querySelectorAll('#sxrView .cal-card-focused').forEach(el => el.classList.remove('cal-card-focused'));
+            card.classList.add('cal-card-focused');
+            card.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
+            _sxrSyncUrlCard(post.id);
+            setTimeout(() => document.addEventListener('mousedown', _sxrFocusOutsideHandler, true), 0);
+            showToast('Linked to “' + String(post.name || 'Untitled sample').trim() + '”');
+        };
+        requestAnimationFrame(focusWhenPainted);
     }
 
     function _sxrRenderShell() {
@@ -68868,6 +69035,7 @@
         sxrState.posts = [];
         _sxrSavePrefs();
         _sxrRenderTabs();
+        _sxrSyncUrlCard(null);   // the address follows the client now showing
         loadSxrCards();
     }
     function onSxrTabRemove(name) {
@@ -68881,6 +69049,7 @@
             sxrState.posts = [];
             _sxrSavePrefs();
             _sxrRenderTabs();
+            _sxrSyncUrlCard(null);
             if (next) loadSxrCards();
             else _sxrRenderBody();
         } else {
@@ -69207,6 +69376,7 @@
                 if (typeof _sxrRepaintLiveStatus === 'function') _sxrRepaintLiveStatus();
             }
             else _sxrRenderBody();
+            _sxrApplyFocusRequest();
             if (typeof _sxrV2EnsureSubscribed === 'function') _sxrV2EnsureSubscribed(slug);   // open/refresh realtime
             if (typeof _sxrV2DrainPending === 'function') _sxrV2DrainPending(slug);            // service a change that arrived mid-load
             /* Native cards materialize BEFORE the Linear mirror drains, so a
@@ -74978,7 +75148,7 @@
        Tweaks Needed + a kasper-role tweak comment. Pushes status/comments to Linear.
        v1 omits URGENT + the Replies/Messages union (per SAMPLES_PARITY_LOG M5a).
        ============================================================ */
-    const _sxrKasperState = { items: [], history: [], loading: false, loaded: false, error: false, expanded: Object.create(null), drafts: Object.create(null), saving: Object.create(null), touched: Object.create(null), dismissed: Object.create(null), closed: Object.create(null), urgentCollapsed: false, waitingCollapsed: false, tweaksCollapsed: false, historyCollapsed: false };
+    const _sxrKasperState = { items: [], history: [], loading: false, loaded: false, error: false, expanded: Object.create(null), drafts: Object.create(null), saving: Object.create(null), touched: Object.create(null), dismissed: Object.create(null), closed: Object.create(null), historyCollapsed: false };
     // Per-component Kasper-queue visibility (mirror of _calCompKasperVisible):
     //  · an UNLINKED thumbnail is not reviewable — gated out so a junk
     //    'Kasper Approval' graphic_status can't surface a panel nobody can act on;
@@ -75115,70 +75285,12 @@
         finally { _sxrKasperState.loading = false; _sxrKasperRenderQueue(); }
     }
     function _sxrKasperRenderQueue() {
-        // Keep the Samples subtab pill live even when this fires from a background
-        // load while another Kasper tab is showing.
+        // Samples are listed in Kasper's Review queue (the separate Samples
+        // subtab was removed), so a samples load or decision repaints Review.
         if (typeof _kasperRefreshTabCounts === 'function') _kasperRefreshTabCounts();
-        const host = document.getElementById('kasperContent');
-        if (!host) return;
-        // #kasperContent is shared by every Kasper tab; a background samples load
-        // landing while another tab is open must not overwrite that tab's content.
-        // Samples are also listed in the Review queue: repaint that instead.
-        if (typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'review'
-            && typeof _kasperSamplesMerged === 'function' && _kasperSamplesMerged()) {
-            if (typeof _kasperPaintReview === 'function') _kasperPaintReview();
-            return;
-        }
-        if (typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab !== 'samples') return;
-        if (!_sxrKasperState.loaded && !_sxrKasperState.loading) { _sxrKasperLoadQueue(); }
-        const st = _sxrKasperState;
-        const head = `<div class="kasper-samples-head" style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 12px;gap:12px;"><div class="kasper-sub" style="margin:0;">Samples waiting on your review — all clients.</div><button class="cal-link" type="button" onclick="_sxrKasperLoadQueue(true)">Refresh</button></div>`;
-        if (st.loading && !st.items.length) { host.innerHTML = head + _svLoadingSkeletonHtml('review', { label: 'Loading samples for review' }); return; }
-        if (st.error && !st.items.length) { host.innerHTML = head + `<div class="cal-empty cal-error">Couldn't load samples — <button class="cal-link" onclick="_sxrKasperLoadQueue(true)">try again</button>.</div>`; return; }
-        const { urgent, waiting, tweaks } = _sxrKasperPartitionItems(st.items);
-        // Waiting bucket (collapsible head matches Tweaks-pending / history so the
-        // three feel like siblings). Defaults open — it's where Kasper works.
-        const waitingBody = waiting.length
-            ? `<div class="kasper-list">${waiting.map(it => _sxrKasperRenderCard(it)).join('')}</div>`
-            : `<div class="kasper-empty"><div class="kasper-empty-title">You're all caught up</div><div class="kasper-empty-sub">Nothing is waiting for your review right now.</div></div>`;
-        const waitingHtml = `<div class="kasper-history-wrap kasper-waiting-wrap${st.waitingCollapsed ? ' collapsed' : ''}" id="sxrKasperWaitingWrap">
-            <div class="kasper-history-head" onclick="_sxrKasperToggleWaiting()">
-                <span class="kasper-history-title">Waiting for your review</span>
-                <span class="kasper-history-count">${waiting.length}</span>
-                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
-            </div>
-            <div class="kasper-history-body">${waitingBody}</div>
-        </div>`;
-        // A full-queue rebuild (e.g. an approve that clears a card, or a
-        // background realtime reload) must not yank the caret out of a draft
-        // Kasper is typing in ANOTHER card. Preserve focus across the innerHTML
-        // swap, gated to #kasperContent so we never steal focus from elsewhere.
-        _svPreserveFocus(() => {
-            host.innerHTML = head + _sxrKasperRenderUrgentSection(urgent) + waitingHtml + _sxrKasperRenderTweaksSection(tweaks) + _sxrKasperRenderHistorySection();
-        }, host);
-    }
-    /* Samples twin of _kasperRenderUrgentSection — above "Waiting for your
-       review", hidden when empty, same cards and same chrome. */
-    function _sxrKasperRenderUrgentSection(urgent) {
-        if (!urgent.length) return '';
-        return `<div class="kasper-history-wrap kasper-urgent-wrap${_sxrKasperState.urgentCollapsed ? ' collapsed' : ''}" id="sxrKasperUrgentWrap">
-            <div class="kasper-history-head" onclick="_sxrKasperToggleUrgent()"${_svSectionHeadA11y(!_sxrKasperState.urgentCollapsed)}>
-                <span class="kasper-history-title">Urgent</span>
-                <span class="kasper-history-count">${urgent.length}</span>
-                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
-            </div>
-            <div class="kasper-history-body"><div class="kasper-list">${urgent.map(it => _sxrKasperRenderCard(it)).join('')}</div></div>
-        </div>`;
-    }
-    function _sxrKasperRenderTweaksSection(tweaks) {
-        if (!tweaks.length) return '';
-        return `<div class="kasper-history-wrap${_sxrKasperState.tweaksCollapsed ? ' collapsed' : ''}" id="sxrKasperTweaksWrap">
-            <div class="kasper-history-head" onclick="_sxrKasperToggleTweaks()">
-                <span class="kasper-history-title">Tweaks pending</span>
-                <span class="kasper-history-count">${tweaks.length}</span>
-                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
-            </div>
-            <div class="kasper-history-body"><div class="kasper-list">${tweaks.map(it => _sxrKasperRenderCard(it)).join('')}</div></div>
-        </div>`;
+        if (!document.getElementById('kasperContent')) return;
+        if (typeof _kasperState === 'undefined' || !_kasperState || _kasperState.tab !== 'review') return;
+        if (typeof _kasperSamplesMerged === 'function' && _kasperSamplesMerged() && typeof _kasperPaintReview === 'function') _kasperPaintReview();
     }
     function _sxrKasperRenderHistorySection(title) {
         const list = _sxrKasperState.history || [];
@@ -75199,16 +75311,6 @@
             <div class="kasper-history-body"><div class="kasper-history-day">${rows}</div></div>
         </div>`;
     }
-    function _sxrKasperToggleUrgent() {
-        _sxrKasperState.urgentCollapsed = !_sxrKasperState.urgentCollapsed;
-        const w = document.getElementById('sxrKasperUrgentWrap');
-        if (!w) return;
-        w.classList.toggle('collapsed', _sxrKasperState.urgentCollapsed);
-        const head = w.querySelector('.kasper-history-head');
-        if (head) head.setAttribute('aria-expanded', _sxrKasperState.urgentCollapsed ? 'false' : 'true');
-    }
-    function _sxrKasperToggleWaiting() { _sxrKasperState.waitingCollapsed = !_sxrKasperState.waitingCollapsed; const w = document.getElementById('sxrKasperWaitingWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.waitingCollapsed); }
-    function _sxrKasperToggleTweaks() { _sxrKasperState.tweaksCollapsed = !_sxrKasperState.tweaksCollapsed; const w = document.getElementById('sxrKasperTweaksWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.tweaksCollapsed); }
     function _sxrKasperToggleHistory() { _sxrKasperState.historyCollapsed = !_sxrKasperState.historyCollapsed; const w = document.getElementById('sxrKasperHistoryWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.historyCollapsed); }
     function _sxrKasperRenderCard(item) {
         const p = item.post, pid = p.id;
@@ -75254,9 +75356,13 @@
         // URGENT ping (video at Tweaks Needed + linked) — reuses the existing N8N
         // workflow + message via _sxrKasperSendUrgentSlack → _calUrgentSlackDispatch.
         const urgentBtn = _sxrShowUrgent(p, 'video') ? _calUrgentButtonHtml(_sxrEscAttr(pid), '_sxrKasperSendUrgentSlack', p, 'kcard-urgent-btn', true) : '';
-        const pending = awaiting.length
-            ? `<span class="kcard-pending"><span class="kcard-pending-strong">${awaiting.map(c => _sxrEsc(COMP_LABELS[c])).join(' & ')}</span> awaiting your review</span>`
-            : (isFinished ? `<span class="kcard-pending">Sent to SMM — changes pending</span>` : '');
+        // Say what Kasper still has to do. A part he already sent back (Tweaks
+        // Needed) is not waiting on him, so only undecided parts count; once
+        // every part is decided, the next step is Finish reviewing.
+        const pending = undecided.length
+            ? `<span class="kcard-pending"><span class="kcard-pending-strong">${undecided.map(c => _sxrEsc(COMP_LABELS[c])).join(' & ')}</span> awaiting your review</span>`
+            : (isFinished ? `<span class="kcard-pending">Sent to SMM — changes pending</span>`
+                : `<span class="kcard-pending">All decided · tap <span class="kcard-pending-strong">Finish reviewing</span> to hand it to the SMM</span>`);
         const body = expanded
             ? (awaiting.length
                 ? `<div class="cal-review-body" style="grid-template-columns:repeat(${awaiting.length},minmax(0,1fr));" onclick="event.stopPropagation();">${awaiting.map(c => _sxrKasperPanelHtml(item, c)).join('')}</div>`
@@ -78860,9 +78966,18 @@
         { key: 'ad-performance', label: 'Ad Performance', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13.5h12"/><rect x="3.3" y="8.5" width="2.3" height="5"/><rect x="6.85" y="5.5" width="2.3" height="8"/><rect x="10.4" y="3" width="2.3" height="10.5"/></svg>' },
         { key: 'quiz-leads', label: 'Quiz Leads', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8s2.2-4.5 6-4.5S14 8 14 8s-2.2 4.5-6 4.5S2 8 2 8z"/><path d="M6.3 6.6a1.7 1.7 0 1 1 2.2 1.6c-.5.2-.8.6-.8 1.1"/><circle cx="8" cy="10.6" r=".2" fill="currentColor"/></svg>' }
     ];
-    if (typeof _sxrEnabled === 'function' && _sxrEnabled()) KASPER_SUBTABS.splice(1, 0, { key: 'samples', label: 'Samples', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2"/><path d="M5 8.2L7 10.2L11 5.8"/></svg>' }); // SXR_LINE
-    const KASPER_PRIMARY_SUBTAB_KEYS = ['review', 'samples', 'replies', 'filming'];
-    const KASPER_PRIMARY_SHORT_LABELS = { review: 'Review', samples: 'Samples', replies: 'Messages', filming: 'Filming' };
+    /* The Samples subtab was folded into Review (samples are listed in the
+       Review queue) and then removed. Links that still name it, including
+       urgent pings already sent, open Review instead of failing. */
+    const KASPER_SUBTAB_ALIASES = { samples: 'review' };
+    function _kasperResolveSubtab(sub) {
+        const key = Object.prototype.hasOwnProperty.call(KASPER_SUBTAB_ALIASES, sub) ? KASPER_SUBTAB_ALIASES[sub] : sub;
+        return KASPER_SUBTABS.some(t => t.key === key) ? key : '';
+    }
+    // Samples in Kasper's queue follow the samples feature switch.
+    function _kasperSamplesEnabled() { return typeof _sxrEnabled === 'function' && _sxrEnabled(); }
+    const KASPER_PRIMARY_SUBTAB_KEYS = ['review', 'replies', 'filming'];
+    const KASPER_PRIMARY_SHORT_LABELS = { review: 'Review', replies: 'Messages', filming: 'Filming' };
     const KASPER_MORE_GROUPS = [
         { label: 'Team', keys: ['editors', 'time-off'] },
         { label: 'Pipeline & Admin', keys: ['sales-intake', 'hiring-process', 'onboarding', 'quiz-leads', 'client-credentials', 'clients'] },
@@ -79003,7 +79118,8 @@
     }
     try {
         const _kSavedSub = localStorage.getItem(KASPER_SUBTAB_KEY);
-        if (_kSavedSub && KASPER_SUBTABS.some(t => t.key === _kSavedSub)) _kasperState.tab = _kSavedSub;
+        const _kSavedKey = _kSavedSub ? _kasperResolveSubtab(_kSavedSub) : '';
+        if (_kSavedKey) _kasperState.tab = _kSavedKey;
     } catch (e) {}
 
     function renderKasperView() {
@@ -79016,14 +79132,10 @@
                 : (t.key === 'quiz-leads' ? 'quiz-leads' : (t.key === 'clients' ? 'clients-admin' : capability));
             const gated = gatedCapability ? ` data-staff-capability="${gatedCapability}"${_syncviewStaffCan(gatedCapability) ? '' : ' hidden'}` : '';
             const active = _kasperState.tab === t.key;
-            // Samples are listed in the Review queue now; the tab stays
-            // registered (links to #kasper/samples still open it) but is hidden
-            // from the bar unless it is the one showing.
-            const mergedHidden = t.key === 'samples' ? ' data-kasper-merged-into="review"' + (active ? '' : ' hidden') : '';
             const count = t.showCount === false ? '' : `<span class="kasper-tab-count" data-kasper-count="${t.key}"${t.hideZero ? ' data-kasper-hide-zero' : ''}>·</span>`;
             const shortLabel = KASPER_PRIMARY_SHORT_LABELS[t.key] || t.label;
             return `
-            <button type="button" class="kasper-subtab ${inMore ? 'kasper-more-item' : 'kasper-primary-tab'}${active ? ' active' : ''}" data-kasper-tab="${t.key}"${gated}${mergedHidden}${inMore ? ' role="menuitem" tabindex="-1"' : ''}${active ? ' aria-current="page"' : ''} title="${_calEsc(t.label)}" onclick="_kasperGotoTab('${t.key}')">
+            <button type="button" class="kasper-subtab ${inMore ? 'kasper-more-item' : 'kasper-primary-tab'}${active ? ' active' : ''}" data-kasper-tab="${t.key}"${gated}${inMore ? ' role="menuitem" tabindex="-1"' : ''}${active ? ' aria-current="page"' : ''} title="${_calEsc(t.label)}" onclick="_kasperGotoTab('${t.key}')">
                 ${t.icon}<span class="kasper-tab-label-full">${_calEsc(t.label)}</span><span class="kasper-tab-label-short">${_calEsc(shortLabel)}</span>${count}
             </button>`;
         };
@@ -79172,8 +79284,6 @@
             button.classList.toggle('active', active);
             if (active) button.setAttribute('aria-current', 'page');
             else button.removeAttribute('aria-current');
-            // The merged Samples tab shows only while it is the open one.
-            if (button.hasAttribute('data-kasper-merged-into')) button.hidden = !active;
         });
         const activeMoreTab = KASPER_SUBTABS.find(tab => tab.key === activeKey && !KASPER_PRIMARY_SUBTAB_KEYS.includes(tab.key));
         const trigger = document.querySelector('[data-kasper-more-trigger]');
@@ -79297,23 +79407,14 @@
         // Replies was excluded before, so the inbox stayed frozen until you left
         // the tab and came back — incoming SMM/client replies never arrived live.
         if (!document.getElementById('kasperContent')) return;
-        // Samples sub-tab: same tab-return catch-up as Review/Replies below —
-        // without it the samples queue had NO refetch on any return path (its
-        // realtime socket can suspend in a backgrounded tab and miss events),
-        // so cards the SMM routed to Kasper while he was away never appeared
-        // until a manual reload.
+        // Samples listed in the Review queue get the same tab-return catch-up:
+        // their realtime socket can suspend in a backgrounded tab and miss
+        // events, so cards routed to Kasper while he was away need a refetch.
         if (_kasperState.tab === 'review' && typeof _sxrKasperState !== 'undefined' && _sxrKasperState
-            && !_sxrKasperState.loading && KASPER_SUBTABS.some(t => t.key === 'samples')
+            && !_sxrKasperState.loading && _kasperSamplesEnabled()
             && typeof _sxrKasperLoadQueue === 'function') {
             const ta = document.activeElement;
             if (!(ta && ta.tagName === 'TEXTAREA' && ta.closest && ta.closest('#kasperContent'))) _sxrKasperLoadQueue();
-        }
-        if (_kasperState.tab === 'samples') {
-            if (typeof _sxrKasperState === 'undefined' || !_sxrKasperState || _sxrKasperState.loading) return;
-            const ta = document.activeElement;
-            if (ta && ta.tagName === 'TEXTAREA' && ta.closest && ta.closest('#kasperContent')) return;
-            if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue();
-            return;
         }
         if (_kasperState.tab !== 'review' && _kasperState.tab !== 'replies') return;
         if (_kasperState.loading) return;
@@ -79516,7 +79617,8 @@
     }
 
     function _kasperGotoTab(tab) {
-        if (!KASPER_SUBTABS.some(t => t.key === tab)) return;
+        tab = _kasperResolveSubtab(tab);
+        if (!tab) return;
         _kasperPendingSubtab = '';
         if (tab === 'time-off' && !_ptoEnabled()) return;
         if (tab === 'time-off' && !_syncviewStaffCan('pto-admin')) return;
@@ -79562,7 +79664,6 @@
         _kasperSyncTabNav();
         // Only the review queue holds the analytics extras back (see _analyticsHoldExtras).
         if (_kasperState.tab !== 'review' && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
-        if (_kasperState.tab === 'samples' && typeof _sxrKasperRenderQueue === 'function') return _sxrKasperRenderQueue(); // SXR_LINE
         if (_kasperState.tab === 'review')  return _kasperRenderReview();
         if (_kasperState.tab === 'replies') return _kasperRenderReplies();
         if (_kasperState.tab === 'editors') return _kasperRenderEditors();
@@ -81509,15 +81610,6 @@
         // replies = unread message threads — owned by _kasperUpdateReplyCount, which
         // every load already calls. Deliberately NOT painted here: it isn't part of
         // the entry cache, so doing so would flash a stale 0 before the first fetch.
-        // samples = samples awaiting review (only present when that subtab exists).
-        // Count only the WAITING partition — finished/"Tweaks pending" cards are
-        // not awaiting Kasper, same rule as the review count above.
-        if (typeof _sxrKasperState !== 'undefined' && _sxrKasperState && _sxrKasperState.loaded) {
-            // urgent + waiting, for the same reason as the review pill: a ping
-            // relocates a card inside his queue, it does not clear it.
-            const _sxrParts = _sxrKasperPartitionItems(_sxrKasperState.items || []);
-            _kasperSetTabCount('samples', _sxrParts.urgent.length + _sxrParts.waiting.length);
-        }
         // filming = clients not yet covered (a plan is needed now or soon).
         const fd = _kasperState.filmingData;
         if (fd && Array.isArray(fd.rows)) {
@@ -81546,7 +81638,7 @@
     }
     function _kasperEnsureOtherTabCounts() {
         if (typeof _sxrKasperLoadQueue === 'function'
-            && KASPER_SUBTABS.some(t => t.key === 'samples')
+            && _kasperSamplesEnabled()
             && !_sxrKasperState.loading && !_sxrKasperState.loaded) {
             _sxrKasperLoadQueue();
         }
@@ -82830,7 +82922,7 @@
     function _kasperSamplesMerged() {
         return typeof _sxrKasperState !== 'undefined' && !!_sxrKasperState
             && typeof _sxrKasperRenderCard === 'function'
-            && KASPER_SUBTABS.some(t => t.key === 'samples');
+            && typeof _kasperSamplesEnabled === 'function' && _kasperSamplesEnabled();
     }
     // When a sample was handed to Kasper: the earliest status time among the
     // parts still waiting on him, else its last update. Same oldest-first

@@ -29155,3 +29155,71 @@ two-device case). Live: `qa/client-review-queue/offline.js`, 24 of 24 checks,
 including the two-device case, six seeds archived. Side effect to know: the
 review Approve failure path (staff SMM review too) now redraws the whole
 calendar view instead of repainting one card.
+
+## 262. [2026-09-26, BUILT] The separate Samples tab on Kasper's page is gone
+
+**Problem.** After 259 listed samples in the Review queue, the Samples tab was
+only hidden: its own list, sections and counts still lived in the page, and links
+(including urgent pings already sent) still pointed at `#kasper/samples`.
+
+**Fix.** The Samples subtab is no longer registered. `_kasperResolveSubtab` maps
+the old key to Review, and every route that picks a Kasper subtab uses it: the
+three hash readers, the remembered last tab, and `_kasperGotoTab`. So an old
+`#kasper/samples` link, a message that carries one, or a browser that last had
+Samples open all land on Review. New urgent pings for a sample now link to
+`#kasper`. The samples list code keeps only what Review uses (the cards, their
+handlers and saver, and the approved-samples history); its own page renderer,
+Urgent / Waiting / Tweaks sections and their toggles are removed. The "samples
+switched on" checks now read the samples feature switch directly. No n8n
+workflow was changed.
+
+**Proof.** `qa/probes/kasper_samples_in_review.js` (on demand, test client only):
+96 of 96 at 1440, 390 and 375, including that there is no Samples tab, that
+`_kasperGotoTab('samples')`, a fresh load of `#kasper/samples` and the clean
+address `/kasper/samples` all land on Review, and that every sample action still saves through the samples saver. The
+nav, urgent-ping and focus tests were updated to the single queue.
+
+## 263. [2026-09-26, BUILT] A sample said "Video awaiting your review" after Kasper had already sent the video back
+
+**Problem.** Found in Vigil's test of 259. When Kasper approves a sample's
+thumbnail and requests changes on its video, the card correctly stays in "Waiting
+for your review" until he taps Finish reviewing, the same as a calendar card. But
+its label read "Video awaiting your review", though the video was already back
+with the editor (Tweaks Needed). The label counted every part still shown on the
+card, including parts he had already decided. Calendar cards show no such label,
+so they were not misleading.
+
+**Fix.** The sample label now counts only undecided parts. Once every part is
+decided it reads "All decided · tap Finish reviewing to hand it to the SMM". Only
+the label changed; the queue rules, Urgent button and save paths are untouched.
+
+**Proof.** `qa/probes/kasper_samples_in_review.js` checks the label after the
+approve plus change request, at 1440, 390 and 375 on the test client: 93 of 93.
+
+## 264. [2026-09-26, BUILT] The client link's live updates: proven server-side, honest status, safety net
+
+**Checked live (read-only SQL, 2026-09-26).** `calendar_posts` is in the
+realtime publication, RLS is on with an anon SELECT policy that lets change
+events reach the client link's anonymous login, and the realtime server held
+live anon subscriptions on `calendar_posts` at the time of the check. So the
+server side of the client link's live updates is sound.
+
+**What was wrong in the page.** `calV2Status().subscribed` meant only "a
+channel object exists": measured the same day, a page whose realtime handshake
+failed every time still said `subscribed: true`, and with no poll behind it the
+open page never saw another page's change until the tab regained focus.
+
+**What changed** (`src/index/150-calendar-hydration-import.js.part` only): the
+page records the real connection state from the subscribe callback, and
+`calV2Status()` now also returns `connected`, `rtState`, `fallbackPolling` and
+`fallbackPulls` (`subscribed` keeps its old meaning for existing probes). While
+the connection is not up (an error, or still connecting after 15 s), a pull
+every 30 s through the normal realtime path keeps staff Calendar and the client
+link current; it stops once connected and skips hidden tabs.
+
+**Proof.** `qa/realtime-fallback/client-link-fallback.js`, test client only, one
+seed archived: with realtime unreachable, `calV2Status()` reported
+`connected: false, rtState: CHANNEL_ERROR`, and a staff change appeared on the
+open client link in 9.3 s without a refresh (before: never). Live realtime
+timing needs a machine where WebSockets work: run the same script there.
+Guard: `test/calendar-realtime-fallback.js`.

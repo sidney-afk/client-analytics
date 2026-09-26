@@ -3631,7 +3631,7 @@ export {
   _wlPlanSessionGeneration, _wlPlanWriteInFlight, _wlSetBackgroundRefreshMode,
   _wlSetBackgroundRefreshPromise, _wlSetNativeDueReceiptRetryAttempt,
   _wlSetNativeDueReceiptRetryPromise, _wlSetNativeDueReceiptRetryTimer,
-  _wlTakeNativeDueReceiptRetryAttempt, _wlV2CheckWatermark, _wlV2EnsureSubscribed,
+  _wlTakeNativeDueReceiptRetryAttempt, _wlV2CheckWatermark, _wlV2Client, _wlV2EnsureSubscribed,
   _wlV2EnsureWatermarkPoll, _wlV2FetchIssues, _wlV2FetchLatestWatermark, _wlV2Ready, _wlV2Teardown,
   getClientRoster, renderWorkloadShell, wlAddDays, wlAddWorkingDays, wlAdoptLinearMetadata,
   wlAdoptPlanRows, wlApplySettleAnimation, wlAutoPlacementTip, wlBackgroundBusinessFingerprint,

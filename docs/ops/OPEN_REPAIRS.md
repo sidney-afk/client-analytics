@@ -29155,3 +29155,13 @@ two-device case). Live: `qa/client-review-queue/offline.js`, 24 of 24 checks,
 including the two-device case, six seeds archived. Side effect to know: the
 review Approve failure path (staff SMM review too) now redraws the whole
 calendar view instead of repainting one card.
+
+## 263. [2026-09-26, BUILT] Production follows changes live instead of waiting for the 30-second poll
+
+**What.** The Production tab (`?prod=1`) learned about other people's edits only from the 30 s delta tick, paused on a hidden tab. It now opens one supabase-js realtime channel (`production_live`: postgres_changes on `deliverables`, `batches`, `deliverable_events`, the anon read path Workload already uses) and feeds every event into the existing `_prodDeltaRefresh`. Nothing about what is read, merged or painted changed.
+
+**How.** `_prodRtCreate` in `src/index/260-production-refresh-boot.js.part`: 300 ms debounce, bursts coalesced into one read; a batch change or a delete upgrades that read to a full reload (the delta cannot see either); echoes of this tab's own gateway writes (same `updated_at` as the held row) are ignored; a declined refresh (write in flight, open menu, typing) is retried, and a hidden tab holds the read until shown. The poll remains the fallback: 120 s only while the channel reports SUBSCRIBED, 30 s on anything else, and a SUBSCRIBED after a drop runs one full catch-up. Leaving Production removes the channel within one 5 s tick. `window.prodRtStatus()` shows status, counters and the current poll cadence.
+
+**Proof.** `test/prod-realtime-controller.js` (unit) drives the controller with a mocked channel and fake clock. No database change.
+
+**Not verified.** The sandbox proxy blocks WebSockets, so live event delivery and timings were not observed; the first real check is `prodRtStatus()` in a browser on the live site (expect `status: "SUBSCRIBED"`, `pollMs: 120000`).

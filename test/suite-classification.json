@@ -547,6 +547,7 @@
     "track-b-backup-corpus.js",
     "track-b-backup-integrated-corpus.js",
     "track-b-backup.js",
+    "track-b-backup-streaming.js",
     "track-b-recovery-callable-lexer.js",
     "track-b-recovery-deferred-defaults.js",
     "track-b-recovery-empty-target.js",

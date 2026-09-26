@@ -1,3 +1,23 @@
+import {
+  _toastEl, hideToast, showConfirm, showNotify, showToast
+} from './040-shared-briefs.js';
+import { currentNav } from './060-templates-filming.js';
+import { wlNormalizeClient } from './070-workload-source.js';
+import {
+  _calIsTitleReviewOn, _calLoadCommentsField, _calNormStatus, _calTitleEngaged, _calUpsertFetch,
+  computeOverallStatus
+} from './120-calendar-flags-write-repair.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { closeCalImport } from './134-calendar-prefs-mount.js';
+import { CAL_LOAD_TIMEOUT_MS, _calCacheWrite, _calV2Log } from './150-calendar-hydration-import.js';
+import { _CAL_CLIENT_READY_STATES, _calIsBlankId, _calRenderBody } from './160-calendar-organize-ui.js';
+import {
+  _calClientFieldEditBlocked, _calCloseStatusMenu, _calFlushCardSave, _calOnCaptionInput,
+  _calOpenStatusMenu, _calRefreshCaption, _calSetOpenStatusMenu
+} from './170-calendar-links-status.js';
+import { CAL_BULK_ARCHIVE_CONCURRENCY, _calCapGenBtnHtml, _calMarkKasperSeen, _calRunPooled } from './180-calendar-native-post-media.js';
+import { _calStringifyComments } from './190-calendar-approval-comments.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
     function _calMigratePostShape(p) {
         if (!p || typeof p !== 'object') return p;
         const legacy = _calNormStatus(p.status || 'In Progress');
@@ -420,7 +440,7 @@
         menu.style.top = top + 'px';
         menu.style.minWidth = '200px';
         requestAnimationFrame(() => menu.classList.add('open'));
-        _calOpenStatusMenu = { pid, key: menuKey, comp: 'altcap', el: menu, triggerEl };
+        _calSetOpenStatusMenu({ pid, key: menuKey, comp: 'altcap', el: menu, triggerEl });
     }
     function _calCapPlatPick(pid, key, mode) {
         _calCloseStatusMenu();
@@ -1339,3 +1359,21 @@
         if (rawHash.startsWith('calendar/' + slug + '/')) return; // keep the card deep link
         history.replaceState({ nav: 'calendar', client: null }, '', base + '#calendar/' + slug);
     }
+export {
+  CAL_CONFLICT_WINDOW_MS, CAL_FILTERS_KEY, CAL_PINS_KEY, CAL_PLATFORM_BY_KEY, CAL_PREFS_KEY,
+  CAL_SAVE_DEBOUNCE_MS, CAL_SETTINGS_DEFAULTS, _calAbandonLinkOnCalendarExit,
+  _calBulkColorSwatchesHtml, _calBumpThumbRev, _calCanDragCards, _calCapBlockHtml, _calCapSecMeta,
+  _calColorTagHtml, _calCommentsFor, _calCommentsForView, _calCompLinked, _calCurrentMonthIso,
+  _calEnabledPlatformsLocal, _calFailedNewCards, _calFocusRequest, _calFocusRequestLoadFailed,
+  _calHideOwnToast, _calIsAutoSortOn, _calIsCollabOn, _calIsStaleLinearRegress, _calLinearUrlFor,
+  _calLoadLocalSettings, _calLocalRecentSaves, _calMigratePostShape, _calMonthLabel,
+  _calMsgAudience, _calMsgIsTweak, _calNextTweakRound, _calNoLinearPush, _calNormMonthFilter,
+  _calNormSortMode, _calNormStatusFilter, _calOrganizerSort, _calPendingDeepLink, _calPendingEdits,
+  _calPillDisplayStatus, _calPlatformsStripHtml, _calPostColor, _calPostHasDate,
+  _calPostInMonthFilter, _calPostInStatusFilter, _calPostPlatforms, _calRecentSaveFields,
+  _calRecentSaveReconcile, _calReconcileSettings, _calReviewCapCardHtml, _calSaveInFlight,
+  _calSaveLocalSettings, _calSaveSettings, _calSaveTimers, _calSetCommentsFor, _calSetFocusRequest,
+  _calSetFocusRequestLoadFailed, _calSetPendingDeepLink, _calShiftMonthIso,
+  _calShouldBumpThumbRevForGraphicStatus, _calSplitSettings, _calSyncCollabSwitch,
+  _calSyncTitleReviewSwitch, _calSyncUrlClient, _calThumbRev, calClientSlug, calState
+};

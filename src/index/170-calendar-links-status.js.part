@@ -221,6 +221,7 @@
        same nice menu pattern used by the rest of the app. The menu is
        portaled to <body> so the card's overflow:hidden can't clip it. */
     let _calOpenStatusMenu = null;
+    function _calSetOpenStatusMenu(value) { _calOpenStatusMenu = value; }
     /* The slug becomes a CSS class suffix, so every character that is illegal
        in a class name has to collapse to a dash: "N/A" would otherwise emit
        `cal-fld-status-n/a`, which no stylesheet can match and which silently

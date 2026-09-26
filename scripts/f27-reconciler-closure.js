@@ -325,8 +325,15 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // the Linear round trip stopped carrying native writes, so it outlives the
   // exit rather than dying with it. This pin records those source bytes and
   // approves nothing else. (Previous pin: b193214e...)
+  //
+  // Re-pinned 2026-09-26: the `workload_source_freshness` lane changed only
+  // its `retired` field from null to a dated reason, and its host workflow was
+  // unscheduled in the same commit. No import, command, entrypoint or mutation
+  // path moved; closure membership is unchanged. Hash from
+  // `git show HEAD:scripts/monitoring-watchdog.js | sha256sum` on the retiring
+  // commit, never typed by hand. (Previous pin: a94d1cb8...)
   'scripts/monitoring-watchdog.js':
-    'a94d1cb87b96cfa7a2fb40a5de0237eb9df410715c306d339973fb921c2f4744',
+    'a5465ab28c79b0ccb437f0e7e844836c4d6d9881a6cffc2decb236348905cd2c',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

@@ -45,7 +45,7 @@ import {
   PROD_DELIVERABLE_SELECT, PROD_GROUP_SELECT_UNSUPPORTED, PROD_PROJECT_MOVE_UNSUPPORTED,
   _prodAssetState, _prodBatchFileFor, _prodBoardStatus, _prodBrowserProjectionRows,
   _prodCacheWrite, _prodEnabled, _prodEnsureAssets, _prodEnsureBatchFiles, _prodEnsureLabels,
-  _prodHasOwn, _prodModeText, _prodPostRows, _prodPreviewText, _prodState
+  _prodHasOwn, _prodPostRows, _prodPreviewText, _prodState
 } from './210-production-state-writes.js';
 import {
   PROD_FILE_LINK_ICON, _prodAdapter, _prodAssetEligibleRow, _prodAttributionResolved,
@@ -473,7 +473,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
                         : '')
                     + '</div>';
             };
-            return '<aside class="prod-side"><div class="prod-side-top"><div class="prod-brand" aria-label="SyncView workspace"><span class="prod-brand-mark">S</span><span class="prod-brand-name">SyncView</span><span class="prod-preview-chip">' + _prodModeText() + '</span></div><button class="prod-search-btn" type="button" onclick="_prodOpenPalette()" title="Search workspace (/)" data-prod-tip="Search workspace|/">' + _prodIcon('search') + '</button></div>'
+            return '<aside class="prod-side"><div class="prod-side-top"><span class="prod-spacer"></span><button class="prod-search-btn" type="button" onclick="_prodOpenPalette()" title="Search workspace (/)" data-prod-tip="Search workspace|/">' + _prodIcon('search') + '</button></div>'
                 + '<div class="prod-side-scroll"><div class="prod-nav">'
                 + _prodNavItem(_prodIcon('issues'), 'My issues', _prodState.view === 'my', '_prodSetView(' + _jsAttrArg('my') + ')')
                 + '</div>' + favHTML

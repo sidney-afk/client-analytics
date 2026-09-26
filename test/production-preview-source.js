@@ -222,9 +222,9 @@ check('preview block limits POSTs to protected reads, guarded creation, and auth
   && /async function _prodPostCreatePayload\(payload\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'/.test(prodBlock)
   && /async function _prodGatewayWrite\(issue, operation[\s\S]*?_prodCanWrite\(issue, operation\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,180}method: 'POST'/.test(prodBlock));
 check('preview block has no Supabase write helpers', !/\.(insert|update|upsert|rpc)\s*\(/.test(prodBlock));
-check('topbar exposes guarded New issue plus the F95 freshness control, and no scaffold Refresh pill',
-  /function _prodCreateTopbarButton\(clientSlug, team\)[\s\S]*?data-prod-create-trigger="1"[\s\S]*?New issue/.test(prodBlock)
-  && /_prodCreateGateText\(clientSlug, team\)/.test(prodBlock)
+check('topbar has no New issue button (only draft recovery) plus the F95 freshness control, and no scaffold Refresh pill',
+  /function _prodCreateTopbarButton\(clientSlug, team\)[\s\S]*?if \(!recovering\) return '';[\s\S]*?data-prod-create-trigger="1"/.test(prodBlock)
+  && !/: 'New issue'\)/.test(prodBlock)
   && /function _prodFreshnessHTML\(\)[\s\S]{0,900}data-prod-refresh="1"/.test(prodBlock)
   && (prodBlock.match(/_prodFreshnessHTML\(\)/g) || []).length >= 4
   && !/<button class="prod-tab" type="button" onclick="_prodRefresh\(\)">Refresh<\/button>/.test(prodBlock));

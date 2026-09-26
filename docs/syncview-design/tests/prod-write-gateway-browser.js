@@ -764,7 +764,8 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       && repairedProjection.detailRawLoaded === false,
     'a resolved identity repair stayed read-only until the detail-only raw load');
     await page.waitForSelector('[data-prod-comment-form="gra-fixture"]');
-    expect((await page.locator('.prod-preview-chip').textContent()).includes('Native writes'), 'both-team authority was not visible in the mirror chrome');
+    expect(await page.evaluate(() => !!(_prodState.authority && _prodState.authority.video === 'syncview' && _prodState.authority.graphics === 'syncview')), 'both-team authority was not loaded');
+    expect(await page.locator('.prod-side .prod-preview-chip, .prod-side .prod-brand').count() === 0, 'the sidebar still shows the SyncView wordmark or the authority badge');
     expect(await page.locator('[data-prod-prop="status"]').getAttribute('aria-disabled') === 'false', 'SyncView-authoritative graphics controls were not enabled');
 
     phase('create_closure');
@@ -806,9 +807,7 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     expect(closureGates.scoped === CREATE_CLOSED_TEXT
       && closureGates.parented === CREATE_CLOSED_TEXT
       && [closureGates.unscopedTopbar, closureGates.graphicsTopbar, closureGates.videoTopbar]
-        .every(html => / disabled /.test(html)
-          && html.includes('Posts are created on the content calendar')
-          && !html.includes('onclick')),
+        .every(html => html === ''),
     'a Production scope still offered a live New issue button: ' + JSON.stringify(closureGates));
 
     // 1b. Top-level creation refuses: no modal, no draft, no saved draft.

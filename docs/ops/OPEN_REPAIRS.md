@@ -29133,7 +29133,7 @@ switched on" checks now read the samples feature switch directly. No n8n
 workflow was changed.
 
 **Proof.** `qa/probes/kasper_samples_in_review.js` (on demand, test client only):
-93 of 93 at 1440, 390 and 375, including that there is no Samples tab, that
-`_kasperGotoTab('samples')` and a fresh load of `#kasper/samples` both land on
-Review, and that every sample action still saves through the samples saver. The
+96 of 96 at 1440, 390 and 375, including that there is no Samples tab, that
+`_kasperGotoTab('samples')`, a fresh load of `#kasper/samples` and the clean
+address `/kasper/samples` all land on Review, and that every sample action still saves through the samples saver. The
 nav, urgent-ping and focus tests were updated to the single queue.

@@ -161,6 +161,10 @@ async function runAt(browser, width) {
   await p.goto(ORIGIN + '/index.html?Kasper=1#kasper/samples', { waitUntil: 'domcontentloaded', timeout: 90000 });
   ok(await p.waitForFunction(() => !!document.getElementById('kasperReviewBody') && _kasperState.tab === 'review', null, { timeout: 60000 }).then(() => true, () => false),
     `${width}: opening #kasper/samples fresh lands on the Review tab`);
+  // And the clean address, the way the page stub hands /kasper/samples over.
+  await p.goto(ORIGIN + '/index.html?sv_path=' + encodeURIComponent('/kasper/samples'), { waitUntil: 'domcontentloaded', timeout: 90000 });
+  ok(await p.waitForFunction(() => !!document.getElementById('kasperReviewBody') && _kasperState.tab === 'review', null, { timeout: 60000 }).then(() => true, () => false),
+    `${width}: opening /kasper/samples lands on the Review tab`);
   ok(errs.length === 0, `${width}: no app errors`, errs[0]);
   await ctx.close();
 }

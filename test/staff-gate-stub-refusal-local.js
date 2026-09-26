@@ -52,6 +52,13 @@ async function callFrom(page, key) {
     assert.equal(stub.diag, 'headless-stub');
     assert.equal(reachedNetwork, 0, 'a stub-key production-write must not reach the live backend');
 
+    // Other invented keys (probes and suites that seed their own identity)
+    // are fake too and are answered locally the same way (2026-09-25).
+    const probe = await callFrom(page, 'probe-staff-key');
+    assert.equal(probe.status, 401);
+    assert.equal(probe.diag, 'headless-stub');
+    assert.equal(reachedNetwork, 0, 'an invented probe key must not reach the live backend either');
+
     const other = await callFrom(page, 'some-other-key');
     assert.equal(other.body.from, 'network', 'a non-stub key must fall through to the network untouched');
     assert.equal(reachedNetwork, 1);
@@ -65,7 +72,7 @@ async function callFrom(page, key) {
     await p2.goto(`http://127.0.0.1:${server.address().port}/`);
     assert.equal((await callFrom(p2, STAFF_GATE_KEY)).body.from, 'suite');
     await own.close();
-    console.log('staff-gate-stub-refusal-local: 5 checks passed ✅');
+    console.log('staff-gate-stub-refusal-local: 8 checks passed ✅');
   } finally {
     await browser.close();
     server.close();

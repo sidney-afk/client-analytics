@@ -8,3 +8,7 @@
 
     function _calMintId() { return 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7); }
 
+export {
+  _calAddDaysISO, _calAddMonthsISO, _calIsoFirstOfMonth, _calIsoMondayOf, _calIsoOf, _calMintId,
+  _calParseIso
+};

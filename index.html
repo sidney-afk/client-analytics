@@ -116,6 +116,25 @@
                         });
                         svVerify.catch(function () {});
                         window.__svEarlyKeyVerify = { key: String(svId.key), memberId: String(svId.member.id), at: Date.now(), response: svVerify };
+                        // Workload only: start its fresh board read in PARALLEL
+                        // with key-verify instead of after it (2026-09-25
+                        // measurement: it waited 0.45-0.85 s for the check).
+                        // Grants nothing: the server checks the key itself, and
+                        // the app uses this answer only after key-verify passes
+                        // for this exact key + member, once, within a minute
+                        // (_wlTakeEarlySnapshot); otherwise it is discarded and
+                        // the normal read runs. Same URL, headers and body as
+                        // wlFetchNativeSnapshot's first read.
+                        var svHash0 = String(location.hash || '').replace('#', '').split('/')[0];
+                        if (svHash0 === 'workload' && svId.member.name && svId.role) {
+                            var svSnap = fetch(svBase + '/functions/v1/workload-plan?forceFunctionRegion=us-east-1', {
+                                method: 'POST', cache: 'no-store',
+                                headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': String(svId.key), 'X-Syncview-Actor': String(svId.member.name), 'X-Syncview-Role': String(svId.role) },
+                                body: JSON.stringify({ action: 'native_snapshot_v2', if_version: '' })
+                            });
+                            svSnap.catch(function () {});
+                            window.__svEarlyWlSnapshot = { key: String(svId.key), memberId: String(svId.member.id), actor: String(svId.member.name), role: String(svId.role), at: Date.now(), response: svSnap };
+                        }
                     }
                 } catch (e) {}
                 var svFlagKeys = ['calendar_upsert_ef_clients', 'kasper_urgent_ping_enabled', 'write_ui_reroute_clients', 'client_comment_gateway_enabled', 'settings_ef_clients', 'sample_review_ef_clients', 'analytics_mirror_read_enabled'];
@@ -2098,6 +2117,12 @@
         html.boot-onboarding .header { display: none !important; }
         html.boot-onboarding #pageTop { display: none !important; }
         html.boot-onboarding-view .header, html.boot-onboarding-view #pageTop { display: none !important; }
+        /* Onboarding links (?onboarding=, /onboarding_form, ?onboarding_view=) set
+           no data-boot-nav, so the default rule above would paint the Analytics
+           skeleton first. Show nothing instead: the form paints on its own dark
+           canvas, and the viewer mounts its own onboarding-shaped skeleton. */
+        html.boot-onboarding .boot-skeleton-variant,
+        html.boot-onboarding-view .boot-skeleton-variant { display: none !important; }
         /* Intake is locked to the Linear page, which never shows the header
            and always hides #pageTop. */
         html.boot-intake .header { display: none !important; }
@@ -6634,6 +6659,8 @@
         .cal-cm-row:hover .cal-cm-actions, .cal-cm-row:focus-within .cal-cm-actions { opacity: 1; pointer-events: auto; }
         .cal-cm-action { background: transparent; border: none; border-radius: 5px; padding: 5px 7px; cursor: pointer; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; font-family: inherit; }
         .cal-cm-action:hover { background: var(--bg); color: var(--text-primary); }
+        .cal-cm-action:disabled { opacity: 0.45; cursor: progress; }
+        .cal-cm-action:disabled:hover { background: transparent; color: var(--text-muted); }
         .cal-cm-action svg { width: 12px; height: 12px; }
         .cal-cm-action.is-done-on { color: var(--sv-fg-166534); }
         .cal-cm-action.is-danger:hover { color: var(--sv-fg-b91c1c); background: var(--sv-bg-fee2e2); }
@@ -10427,7 +10454,7 @@
         if(_isClientLink){
             const cap=_syncviewClientEntryCapability;
             if(!cap||!cap.verified||_syncviewClientEntrySlug(name)!==cap.slug){_syncviewInvalidClientLinkScreen();return;}
-            _syncviewClientEntryCapability=Object.freeze({client:cap.client,slug:cap.slug,view:tab,verified:true});
+            _syncviewSetClientEntryCapability(Object.freeze({client:cap.client,slug:cap.slug,view:tab,verified:true}));
         }
         clientViewTab[name]=tab;
         // Header nav active state is NOT changed here — it reflects where the user came from,
@@ -15275,6 +15302,31 @@
             return new Set();
         }
     }
+    /* The fresh-board read the <head> boot script starts IN PARALLEL with
+       key-verify when the page opens on #workload (2026-09-25: it used to wait
+       0.45-0.85 s for the check to answer before it even started). Called only
+       after _syncviewRequireStaffIdentity has passed, and taken at most once.
+       It is used only when it was sent for the exact key, member, actor name
+       and role this page is now verified as, within the last minute; anything
+       else -- including a failed or rejected request -- returns null, and the
+       caller makes its normal read. Nothing from it is shown before the check
+       passes, because nothing reads it before then. */
+    async function _wlTakeEarlySnapshot() {
+        let early = null;
+        try { early = window.__svEarlyWlSnapshot; window.__svEarlyWlSnapshot = null; } catch (e) {}
+        if (!early || !early.response) return null;
+        const identity = typeof _syncviewStaffIdentityForHeaders === 'function' ? _syncviewStaffIdentityForHeaders() : null;
+        if (!identity || !identity.member) return null;
+        if (early.key !== String(identity.key || '') || early.memberId !== String(identity.member.id || '')
+            || early.actor !== String(identity.member.name || '') || early.role !== String(identity.role || '')) return null;
+        if (!(Date.now() - early.at < 60000)) return null;
+        try {
+            const response = await early.response;
+            // Only a genuine answer is reused; a refusal or a server error is
+            // re-asked through the normal read, with its normal handling.
+            return response && response.ok ? response : null;
+        } catch (e) { return null; }
+    }
     async function wlFetchNativeSnapshot() {
         await _syncviewRequireStaffIdentity('workload-plan-read');
         const owner = wlSnapshotIdentity(), session = _wlPlanSessionGeneration;
@@ -15298,7 +15350,8 @@
                 body: JSON.stringify(body)
             });
             let response = null;
-            if (!wlState.snapshotV2Unavailable) {
+            if (!wlState.snapshotV2Unavailable && !memo) response = await _wlTakeEarlySnapshot();
+            if (!response && !wlState.snapshotV2Unavailable) {
                 response = await post({ action: 'native_snapshot_v2', if_version: memo ? memo.version : '' });
                 if (response.status === 400 || response.status === 501) {
                     wlState.snapshotV2Unavailable = true;
@@ -28916,7 +28969,12 @@
                 ? error.status : null;
             const claim = {
                 action: 'browser_claim', surface: String(surface || ''),
-                operation: item && item.kind, code: error && error.code, identifiers
+                operation: item && item.kind, code: error && error.code, identifiers,
+                // Which kind of page refused: a client link or a staff page.
+                // A claim like the rest of this beacon (the server stores it as
+                // unverified), but it lets the log tell a client's refusal from
+                // staff without joining request logs (triage 2026-09-25).
+                page: (typeof _isClientLink !== 'undefined' && _isClientLink) ? 'client_link' : 'staff_page'
             };
             if (status !== null) claim.status = status;
             const body = JSON.stringify(claim);
@@ -36106,8 +36164,19 @@
             ? (rebased
                 ? 'A newer version was loaded. Your draft was preserved; Retry applies it to the current comment.'
                 : 'The edit was not saved. Your draft was kept and the canonical thread was refreshed.')
-            : 'The canonical comment action was not saved.';
+            : 'That change to the note was not saved.';
         const code = String(failure.message || '').trim();
+        /* A stale-thread refusal is not a fault the person can report or fix:
+           the note changed under them (or was still loading), the thread has
+           already been re-read, and trying again is the whole remedy. Say that
+           in plain words and drop the code (owner repro 2026-09-25). */
+        const stale = !rebased && failure.action !== 'edit'
+            && ['canonical_comment_read_required', 'comment_cas_required', 'write_conflict'].includes(code);
+        if (stale) {
+            return '<div class="prod-comment-state is-error" role="alert">This note changed while you were looking at it. It\'s been refreshed; try again if needed.'
+                + ' <button type="button" class="prod-comment-state-action" onclick="' + retryOnclick
+                + '">Retry</button></div>';
+        }
         const tail = rebased || !code ? '' : ' (code: ' + _calEsc(code.slice(0, 80)) + ')';
         return '<div class="prod-comment-state is-error" role="alert">' + lead + tail
             + ' <button type="button" class="prod-comment-state-action" onclick="' + retryOnclick
@@ -48927,7 +48996,7 @@
                     </div>
                     <div class="cal-cm-row-body">${c.deleted ? 'Comment deleted.' : _calEsc(c.body || '')}${editedTag}${attachments}</div>
                 </div>
-                ${_calCommentActionsHtml(c, isReply)}
+                ${_calCommentActionsHtml(c, isReply, !c.canonical || (!post._calCommentActionBusy && _prodCanonicalCommentGate(post, comp || c.component).ready))}
             </div>`;
         };
 
@@ -48989,8 +49058,17 @@
         // Only the SMM resolves threads — the client never marks anything done.
         return _calCommentRole() === 'smm';
     }
-    function _calCommentActionsHtml(c, isReply) {
+    /* `threadReady` is false while this card's comment thread (the canonical
+       store) is still loading. The write path refuses every lifecycle action in
+       that window (canonical_comment_read_required): the refusal log showed
+       real people clicking Edit, Reply or Mark done before the thread landed
+       and getting a "reload" message for a click the page had offered them.
+       So the buttons are drawn disabled until the read lands; the modal
+       re-renders when it does. Legacy (non-canonical) comments are unaffected. */
+    function _calCommentActionsHtml(c, isReply, threadReady = true) {
         if (c.deleted) return '';
+        const wait = threadReady ? '' : ' disabled aria-disabled="true"';
+        const waitTitle = title => threadReady ? title : 'Comments are still loading';
         const replyIco  = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"/></svg>`;
         const checkIco  = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
         const undoIco   = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3.5L2 7l3.5 3.5M2 7h7a3.5 3.5 0 0 1 0 7"/></svg>`;
@@ -48998,21 +49076,21 @@
         // Replies share the parent thread's "done" state — only the root gets
         // the resolve toggle, and only the SMM ever sees that toggle.
         const rootId = isReply ? c.parent_id : c.id;
-        const replyBtn = c.done ? '' : `<button class="cal-cm-action" type="button" onclick="_calBeginReply(${_jsAttrArg(rootId)})" title="Reply">${replyIco}<span>Reply</span></button>`;
+        const replyBtn = c.done ? '' : `<button class="cal-cm-action" type="button"${wait} onclick="_calBeginReply(${_jsAttrArg(rootId)})" title="${waitTitle('Reply')}">${replyIco}<span>Reply</span></button>`;
         const editBtn = c.canonical && c.can_edit
-            ? `<button class="cal-cm-action" type="button" onclick="_calBeginCommentEdit(${_jsAttrArg(c.id)})" title="Edit"><span>Edit</span></button>`
+            ? `<button class="cal-cm-action" type="button"${wait} onclick="_calBeginCommentEdit(${_jsAttrArg(c.id)})" title="${waitTitle('Edit')}"><span>Edit</span></button>`
             : '';
         // Resolve toggle is only meaningful on a change-request (tweak). A plain
         // comment is a conversation, not a task, so it gets no "Mark done".
         const canResolve = c.canonical ? c.can_resolve : (_calCanResolveComment() && _calMsgIsTweak(c));
         const doneBtn  = (!isReply && canResolve)
             ? (c.done
-                ? `<button class="cal-cm-action is-done-on" type="button" onclick="_calToggleCommentDone(${_jsAttrArg(c.id)})" title="Reopen">${undoIco}<span>Reopen</span></button>`
-                : `<button class="cal-cm-action" type="button" onclick="_calToggleCommentDone(${_jsAttrArg(c.id)})" title="Mark thread done">${checkIco}<span>Mark done</span></button>`)
+                ? `<button class="cal-cm-action is-done-on" type="button"${wait} onclick="_calToggleCommentDone(${_jsAttrArg(c.id)})" title="${waitTitle('Reopen')}">${undoIco}<span>Reopen</span></button>`
+                : `<button class="cal-cm-action" type="button"${wait} onclick="_calToggleCommentDone(${_jsAttrArg(c.id)})" title="${waitTitle('Mark thread done')}">${checkIco}<span>Mark done</span></button>`)
             : '';
         const canDelete = c.canonical ? c.can_delete : _calCanDeleteComment(c);
         const delBtn = canDelete
-            ? `<button class="cal-cm-action is-danger" type="button" onclick="_calDeleteComment(${_jsAttrArg(c.id)})" title="Delete">${trashIco}<span>Delete</span></button>`
+            ? `<button class="cal-cm-action is-danger" type="button"${wait} onclick="_calDeleteComment(${_jsAttrArg(c.id)})" title="${waitTitle('Delete')}">${trashIco}<span>Delete</span></button>`
             : '';
         if (!replyBtn && !editBtn && !doneBtn && !delBtn) return '';
         return `<div class="cal-cm-actions">${replyBtn}${editBtn}${doneBtn}${delBtn}</div>`;
@@ -49424,8 +49502,35 @@
                 _calResolveLastTweak(pid, comp, rootId);
                 return;
             }
+            /* Owner repro 2026-09-25: Mark done saved, but the panel kept
+               showing the thread open until the card-notes save that follows
+               (_writeUiPersistCanonicalCommentProjection awaits it) finished,
+               so a second click raced the refresh and was refused
+               (canonical_comment_read_required). Now the card's actions stay
+               disabled while this one is in flight, the thread is re-read and
+               the panel redrawn the moment the write lands, and only then does
+               the slower notes save run. */
+            // The busy mark lives on the card itself: its comment actions render
+            // disabled until this mark done / reopen settles.
+            if (post._calCommentActionBusy) return;
+            post._calCommentActionBusy = true;
+            _calCaptureModalDrafts();
+            _calRenderCommentsModal();
+            const done = () => {
+                post._calCommentActionBusy = false;
+                if (_calOpenCommentsPid === pid) { _calCaptureModalDrafts(); _calRenderCommentsModal(); }
+            };
             _writeUiCommitCardCommentLifecycle('calendar', post, comp, root, wasDone ? 'unresolve' : 'resolve')
-                .then(receipt => receipt && _writeUiPersistCanonicalCommentProjection('calendar', post, comp));
+                .then(async receipt => {
+                    if (receipt) {
+                        try {
+                            await _prodComments.readCanonical(_writeUiNativeId(post, comp), { replace: true });
+                            await _prodProjectCanonicalCardComments('calendar', post.id);
+                        } catch (e) {}
+                    }
+                    done();
+                    if (receipt) _writeUiPersistCanonicalCommentProjection('calendar', post, comp);
+                }, done);
             return;
         }
 

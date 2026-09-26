@@ -1,4 +1,22 @@
-<script>
+import {
+  render, renderChart, renderMRTab_angles, renderMRTab_gap, renderMRTab_hooks, renderMRTab_niche,
+  renderMRTab_overview, renderMRTab_sources, renderViewsChart
+} from './050-market-briefs.js';
+import { currentNav } from './060-templates-filming.js';
+import { wlCanonicalClient, wlIsAllowedClient, wlMergeClientsFromSheet } from './070-workload-source.js';
+import { navTo } from './090-workload-popovers-navigation.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svBootFlagRows } from './100-onboarding-staff-controls.js';
+import { _syncviewClientWriteToken } from './120-calendar-flags-write-repair.js';
+import { _calSyncClientLinks } from './160-calendar-organize-ui.js';
+import { _applyAllDataDependentChrome } from './200-intake-data-startup.js';
+import {
+  _isClientLink, _syncviewClientEntryCapability, _syncviewClientEntryDataRun,
+  _syncviewClientEntryLoader, _syncviewClientEntryRunCurrent, _syncviewClientEntrySlug,
+  _syncviewClientExtrasErrorScreen, _syncviewInvalidClientLinkScreen,
+  _syncviewSetClientEntryCapability, _syncviewStaleClientEntryError,
+  _syncviewSyncClientEntryRunHref
+} from './260-production-refresh-boot.js';
+import { _tkMounted, _tkRenderForm } from './300-tiktok-upload.js';
     const SYNCVIEW_THEME_KEY = 'syncview_theme';
     const SYNCVIEW_STATUS_PALETTE_KEY = 'syncview_status_palette';
     /*
@@ -1678,7 +1696,7 @@
         if(_isClientLink){
             const cap=_syncviewClientEntryCapability;
             if(!cap||!cap.verified||_syncviewClientEntrySlug(name)!==cap.slug){_syncviewInvalidClientLinkScreen();return;}
-            _syncviewClientEntryCapability=Object.freeze({client:cap.client,slug:cap.slug,view:tab,verified:true});
+            _syncviewSetClientEntryCapability(Object.freeze({client:cap.client,slug:cap.slug,view:tab,verified:true}));
         }
         clientViewTab[name]=tab;
         // Header nav active state is NOT changed here — it reflects where the user came from,
@@ -1783,3 +1801,33 @@
         </div>`;
     }
 
+export {
+  ANALYTICS_CACHE_KEY, CONTENT_SUMMARY_WEBHOOK, FILMING_PLANS_EF_URL, FILMING_PLAN_TABS_URL, ICON,
+  SHEET_ID, TIKTOK_FORM_KEY, TIKTOK_HIDDEN_KEY, TIKTOK_LEGACY_MAX_BYTES, TIKTOK_MAX_BYTES,
+  TIKTOK_MAX_PHOTOS, TIKTOK_OPTIMISTIC_TTL_MS, TIKTOK_PENDING_KEY, TIKTOK_PHOTO_MAX_BYTES,
+  TIKTOK_QUEUE_CACHE_KEY, TIKTOK_UPLOADS_LIST_URL, TIKTOK_UPLOAD_CANCEL_URL,
+  TIKTOK_UPLOAD_DIRECT_WEBHOOK, TIKTOK_UPLOAD_STATUS_URL, TIKTOK_UPLOAD_URL_WEBHOOK,
+  TIKTOK_UPLOAD_WEBHOOK, WEEKLY_SLACK_WEBHOOK, _analyticsAppliedFp, _analyticsExtrasApplied,
+  _analyticsExtrasArrival, _analyticsFlushPendingExtras, _analyticsHasTrustedMetrics,
+  _analyticsHoldExtras, _analyticsHydrateFromCache, _analyticsHydrateFromIdb, _analyticsIdbDelete,
+  _analyticsLiveApplied, _analyticsMetricFmt, _analyticsMetricNumber, _analyticsPlatformReceipt,
+  _analyticsPlatformVisible, _analyticsProviderFailed, _analyticsRefreshCurrentView,
+  _analyticsReleaseExtras, _analyticsStateBadge, _analyticsSyncCachedNote,
+  _analyticsTrustedReference, _clientBriefTabAvailable, _hookSaveKey, _nextFetchExtrasAttempt,
+  _safeWeekViewDelta, _setAllData, _setBriefs, _setClientEssentialsLoad, _setClientMap,
+  _setClientViewTab, _setContentSummaryState, _setCurrentClientHistory, _setFetchExtrasPromise,
+  _setFetchExtrasState, _setFollowersMode, _setFollowersPlat, _setGrowthChart,
+  _setLinearClientRows, _setLinearProjects, _setMrBriefs, _setSortCol, _setSortDir,
+  _setTabSummaryCache, _setTopVideos, _setViewsChart, _setViewsPlat, _storeHookCard,
+  _svCaptureFocus, _svPreserveFocus, _svRestoreFocus, _syncviewApplyStatusPalette,
+  _syncviewApplyTheme, _syncviewCancelBriefWork, _syncviewClientAnalyticsData,
+  _syncviewRenderClientExtrasGate, _syncviewStoredStatusPalette, _syncviewStoredTheme,
+  _syncviewWatchClientExtras, _toastEl, activeBriefSection, activeBriefTab, activeMRBriefTab,
+  activePeriods, buildTabData, clientHistory, clientMap, clientViewTab, contentSummaryState,
+  currentClientHistory, fetchAll, fetchEssentials, fetchExtras, fmt, fmtCompact, fmtDate,
+  followersMode, followersPlat, formatHookTemplate, getActivePeriod, getMonthRow, getPeriodKey,
+  getWeekRow, growthChart, hideToast, isPhrase, latestPerClient, linearClientRows, linearProjects,
+  monthPrevPerClient, n, parseCSV, parseViewCount, prevPerClient, renderBriefContent,
+  renderTabSummary, savedHooks, showConfirm, showNotify, showToast, sortCol, sortDir, topVideos,
+  viewsChart, viewsPlat, weekPrevPerClient
+};

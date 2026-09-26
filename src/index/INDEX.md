@@ -17,18 +17,18 @@
 | 9 | `060-templates-filming.js.part` | 2290 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `070-workload-source.js.part` | 3650 | Workload Calendar |
 | 11 | `080-workload-render.js.part` | 3413 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
-| 12 | `090-workload-popovers-navigation.js.part` | 1656 | Sub-issue popover |
+| 12 | `090-workload-popovers-navigation.js.part` | 1663 | Sub-issue popover |
 | 13 | `100-onboarding-staff-controls.js.part` | 2372 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 14 | `110-time-off-reports.js.part` | 2207 | Kasper Time Off calendar |
 | 15 | `120-calendar-flags-write-repair.js.part` | 3142 | The members a flag value offers, or null when it offers no member list at |
 | 16 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
-| 17 | `130-calendar-model-cache.js.part` | 1379 | Returns the comments array for a given component. Falls back to the |
+| 17 | `130-calendar-model-cache.js.part` | 1387 | Returns the comments array for a given component. Falls back to the |
 | 18 | `131-core-html.js.part` | 13 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 19 | `132-calendar-dates-ids.js.part` | 14 | — |
 | 20 | `133-core-loading-skeletons.js.part` | 367 | Modern animated loader — a single rotating ring with a subtle label. |
 | 21 | `134-calendar-prefs-mount.js.part` | 1065 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
 | 22 | `140-calendar-legacy-outbox.js.part` | 3071 | Shed the retired legacy rows from storage, under the surface mutation |
-| 23 | `150-calendar-hydration-import.js.part` | 2141 | For a card linked to a real sub-issue (not a parent), return which of |
+| 23 | `150-calendar-hydration-import.js.part` | 2142 | For a card linked to a real sub-issue (not a parent), return which of |
 | 24 | `160-calendar-organize-ui.js.part` | 2809 | Lighter path for the Order switch: update the chrome in place so the |
 | 25 | `170-calendar-links-status.js.part` | 2759 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 26 | `180-calendar-native-post-media.js.part` | 2748 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
@@ -40,7 +40,7 @@
 | 32 | `240-production-description.js.part` | 2646 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 33 | `250-production-controls-data.js.part` | 2881 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 34 | `260-production-refresh-boot.js.part` | 2368 | AND TYPING COUNTS, which is the case this guard was missing. |
-| 35 | `270-samples-model.js.part` | 2770 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
+| 35 | `270-samples-model.js.part` | 2852 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 36 | `280-samples-cards-notes.js.part` | 2834 | SURFACE 3: the save engine |
 | 37 | `290-samples-writes-review.js.part` | 1804 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 38 | `300-tiktok-upload.js.part` | 1998 | TIKTOK UPLOAD MODULE |

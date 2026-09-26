@@ -1359,6 +1359,14 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (rawHash.startsWith('calendar/' + slug + '/')) return; // keep the card deep link
         history.replaceState({ nav: 'calendar', client: null }, '', base + '#calendar/' + slug);
     }
+    /* The open card rides in the address (#calendar/<slug>/<card>) so a reload
+       opens it again; closing the card drops it back to #calendar/<slug>. */
+    function _calSyncUrlCard(pid) {
+        if (calState.embedded || currentNav !== 'calendar' || !calState.client) return;
+        const base = '/' + svRoute.search().replace(/#.*$/, '');
+        const slug = calClientSlug(calState.client);
+        history.replaceState({ nav: 'calendar', client: null }, '', base + '#calendar/' + slug + (pid ? '/' + encodeURIComponent(pid) : ''));
+    }
 export {
   CAL_CONFLICT_WINDOW_MS, CAL_FILTERS_KEY, CAL_PINS_KEY, CAL_PLATFORM_BY_KEY, CAL_PREFS_KEY,
   CAL_SAVE_DEBOUNCE_MS, CAL_SETTINGS_DEFAULTS, _calAbandonLinkOnCalendarExit,
@@ -1373,7 +1381,7 @@ export {
   _calPostInMonthFilter, _calPostInStatusFilter, _calPostPlatforms, _calRecentSaveFields,
   _calRecentSaveReconcile, _calReconcileSettings, _calReviewCapCardHtml, _calSaveInFlight,
   _calSaveLocalSettings, _calSaveSettings, _calSaveTimers, _calSetCommentsFor, _calSetFocusRequest,
-  _calSetFocusRequestLoadFailed, _calSetPendingDeepLink, _calShiftMonthIso,
+  _calSetFocusRequestLoadFailed, _calSetPendingDeepLink, _calSyncUrlCard, _calShiftMonthIso,
   _calShouldBumpThumbRevForGraphicStatus, _calSplitSettings, _calSyncCollabSwitch,
   _calSyncTitleReviewSwitch, _calSyncUrlClient, _calThumbRev, calClientSlug, calState
 };

@@ -1,4 +1,5 @@
-import { _svPreserveFocus, showConfirm, showNotify, showToast } from './040-shared-briefs.js';
+import { _svPreserveFocus, fetchEssentials, showConfirm, showNotify, showToast } from './040-shared-briefs.js';
+import { currentNav } from './060-templates-filming.js';
 import { WL_CLIENT_NAMES, wlIsAllowedClient, wlNormalizeClient } from './070-workload-source.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svBootFlagRows, _syncviewRequireStaffIdentity } from './100-onboarding-staff-controls.js';
 import {
@@ -381,9 +382,14 @@ import { _kasperOpenLightbox } from './320-kasper-dashboard-replies.js';
                 const parts = dh.slice('sample-reviews/'.length).split('/');
                 const slug = parts[0]; const cardId = parts[1] || null;
                 const match = (typeof WL_CLIENT_NAMES !== 'undefined' ? WL_CLIENT_NAMES : []).find(n => _sxrNormalizeClient(n) === slug) || null;
-                _sxrFocusRequest = (match || cardId) ? { client: match, cardId } : null;
+                _sxrFocusRequest = match ? { client: match, cardId: cardId ? decodeURIComponent(cardId) : null } : null;
+                // A fresh browser only knows the seed roster until the Clients
+                // Info sheet loads; hold the link and resolve it then, instead of
+                // opening an empty "No clients added yet" board.
+                if (!match && slug) _sxrPendingDeepLink = { slug, cardId: cardId ? decodeURIComponent(cardId) : null };
             }
         } catch (e) {}
+        if (_sxrFocusRequest && _sxrFocusRequest.client) _sxrPinClient(_sxrFocusRequest.client);
         const prefs = _sxrLoadPrefs();
         const pins  = _sxrGetPins();
         let initial = null;
@@ -398,9 +404,82 @@ import { _kasperOpenLightbox } from './320-kasper-dashboard-replies.js';
         sxrState.posts = [];
         sxrState.error = null;
         sxrState.previewId = null;
+        if (_sxrPendingDeepLink) {
+            sxrState.client = null;
+            _sxrRenderShell();   // the body keeps its loader until the roster lands
+            if (typeof fetchEssentials === 'function') fetchEssentials().then(_sxrResolvePendingDeepLink, _sxrResolvePendingDeepLink);
+            else _sxrResolvePendingDeepLink();
+            return;
+        }
         _sxrRenderShell();
         if (sxrState.client) loadSxrCards();
         else _sxrRenderBody();
+    }
+
+    /* Card deep links (#sample-reviews/<slug>/<card>): open that client as a
+       tab, then outline and centre the card once its row has painted. The card
+       stays in the address while it is open; closing it (a click elsewhere)
+       drops it back to #sample-reviews/<slug>. */
+    let _sxrPendingDeepLink = null;
+    function _sxrPinClient(name) {
+        const pins = _sxrGetPins();
+        if (name && !pins.includes(name)) _sxrSavePins(pins.concat([name]));
+    }
+    function _sxrResolvePendingDeepLink() {
+        const pending = _sxrPendingDeepLink;
+        _sxrPendingDeepLink = null;
+        if (!pending || currentNav !== 'sample-reviews' || sxrState.embedded) return;
+        const match = WL_CLIENT_NAMES.find(n => _sxrNormalizeClient(n) === pending.slug) || null;
+        if (!match) {
+            showNotify('Sample link not opened', 'That link points at a client this tab does not know yet. Reload and try the link again.');
+            const pins = _sxrGetPins();
+            if (pins.length) onSxrClientChange(pins[0]); else _sxrRenderBody();
+            return;
+        }
+        _sxrFocusRequest = { client: match, cardId: pending.cardId };
+        _sxrPinClient(match);
+        sxrState.view = 'organizer';
+        _sxrRenderShell();
+        onSxrClientChange(match);
+    }
+    function _sxrSyncUrlCard(pid) {
+        if (sxrState.embedded || currentNav !== 'sample-reviews') return;
+        const base = '/' + svRoute.search().replace(/#.*$/, '');
+        if (!sxrState.client) { history.replaceState({ nav: 'sample-reviews', client: null }, '', base + '#sample-reviews'); return; }
+        history.replaceState({ nav: 'sample-reviews', client: null }, '', base + '#sample-reviews/' + encodeURIComponent(sxrClientSlug(sxrState.client)) + (pid ? '/' + encodeURIComponent(pid) : ''));
+    }
+    function _sxrFocusOutsideHandler(e) {
+        const card = document.querySelector('#sxrView .cal-card-focused');
+        if (!card) { document.removeEventListener('mousedown', _sxrFocusOutsideHandler, true); return; }
+        if (card.contains(e.target)) return;
+        card.classList.remove('cal-card-focused');
+        document.removeEventListener('mousedown', _sxrFocusOutsideHandler, true);
+        _sxrSyncUrlCard(null);
+    }
+    // Called after each Samples render that has the client's cards.
+    function _sxrApplyFocusRequest() {
+        const req = _sxrFocusRequest;
+        if (!req || !req.cardId || !sxrState.client || sxrState.loading) return;
+        if (_sxrNormalizeClient(req.client) !== _sxrNormalizeClient(sxrState.client)) return;
+        _sxrFocusRequest = null;
+        const post = sxrState.posts.find(p => String(p.id) === String(req.cardId));
+        if (!post) { showNotify('Card not found', "That linked sample isn't on this client's board. It may have been archived."); return; }
+        sxrState.focusPid = post.id;
+        if (sxrState.view !== 'organizer') { sxrState.view = 'organizer'; _sxrRenderShell(); }
+        _sxrRenderBody();
+        let frames = 0;
+        const focusWhenPainted = () => {
+            const safe = (window.CSS && CSS.escape) ? CSS.escape(post.id) : post.id;
+            const card = document.querySelector('#sxrView .cal-card[data-pid="' + safe + '"]');
+            if (!card) { if (++frames < 40) requestAnimationFrame(focusWhenPainted); return; }
+            document.querySelectorAll('#sxrView .cal-card-focused').forEach(el => el.classList.remove('cal-card-focused'));
+            card.classList.add('cal-card-focused');
+            card.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
+            _sxrSyncUrlCard(post.id);
+            setTimeout(() => document.addEventListener('mousedown', _sxrFocusOutsideHandler, true), 0);
+            showToast('Linked to “' + String(post.name || 'Untitled sample').trim() + '”');
+        };
+        requestAnimationFrame(focusWhenPainted);
     }
 
     function _sxrRenderShell() {
@@ -556,6 +635,7 @@ import { _kasperOpenLightbox } from './320-kasper-dashboard-replies.js';
         sxrState.posts = [];
         _sxrSavePrefs();
         _sxrRenderTabs();
+        _sxrSyncUrlCard(null);   // the address follows the client now showing
         loadSxrCards();
     }
     function onSxrTabRemove(name) {
@@ -569,6 +649,7 @@ import { _kasperOpenLightbox } from './320-kasper-dashboard-replies.js';
             sxrState.posts = [];
             _sxrSavePrefs();
             _sxrRenderTabs();
+            _sxrSyncUrlCard(null);
             if (next) loadSxrCards();
             else _sxrRenderBody();
         } else {
@@ -895,6 +976,7 @@ import { _kasperOpenLightbox } from './320-kasper-dashboard-replies.js';
                 if (typeof _sxrRepaintLiveStatus === 'function') _sxrRepaintLiveStatus();
             }
             else _sxrRenderBody();
+            _sxrApplyFocusRequest();
             if (typeof _sxrV2EnsureSubscribed === 'function') _sxrV2EnsureSubscribed(slug);   // open/refresh realtime
             if (typeof _sxrV2DrainPending === 'function') _sxrV2DrainPending(slug);            // service a change that arrived mid-load
             /* Native cards materialize BEFORE the Linear mirror drains, so a

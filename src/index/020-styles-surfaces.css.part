@@ -2650,6 +2650,8 @@
         .cal-review-comment.is-new { background: var(--sv-bg-rgba-234-88-12-0_07); border-left-color: var(--sv-border-ea580c) !important; border-radius: 0 6px 6px 0; padding-right: 8px; }
         /* "New reply" chip on a review-queue card. */
         .kcard-newreply-chip { display: inline-flex; align-items: center; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 7px; border-radius: 99px; background: var(--sv-bg-rgba-234-88-12-0_12); color: var(--sv-fg-c2410c); }
+        .kcard-sample-chip { display: inline-flex; align-items: center; flex-shrink: 0; margin-right: 6px; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 7px; border-radius: 99px; background: var(--sv-bg-rgba-124-58-237-0_12); color: var(--sv-fg-6d28d9); }
+        .kasper-subtab[data-kasper-merged-into][hidden] { display: none; }
         .kasper-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
         .kasper-count-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-secondary); font-weight: 600; }
         .kasper-count-chip .kasper-count-num { background: var(--text-primary); color: var(--white); font-weight: 700; font-size: 0.72rem; padding: 2px 9px; border-radius: 99px; font-variant-numeric: tabular-nums; }
@@ -4092,6 +4094,8 @@
             #kasperReviewBody .kcard-expand-btn { width: 44px; height: 44px; border-radius: 12px; }
 
             /* Opened card: one piece at a time, full-width controls. */
+            /* Sample cards set their column count inline; stack them too. */
+            #kasperReviewBody .kcard[data-sxr-kasper-pid] .cal-review-body { grid-template-columns: minmax(0, 1fr) !important; }
             #kasperReviewBody .cal-review-panel-preview { display: flex; justify-content: center; }
             #kasperReviewBody .cal-review-preview-thumb-btn img { max-width: 100%; max-height: 52vh; }
             #kasperReviewBody .cal-review-approve-btn { width: 100%; min-height: 52px; font-size: 1rem; border-radius: 12px; }

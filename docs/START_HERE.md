@@ -143,6 +143,34 @@ For a specific question, use [Find anything](FIND_ANYTHING.md).
 | [Webhook replacement plan](independence/N8N_REPLACEMENT_PLAN.md) | The historical inventory of webhooks that read the former tracker and their proposed replacements. |
 | [Exit sequence](independence/LINEAR_EXIT_MASTER_SEQUENCE.md) | The cross-lane exit order retained as history; use State of things for current status. |
 
+## Dated audit evidence (August–September 2026)
+
+These records describe what was checked at the time, not the current operating state. Use State of things and the system references above for current status.
+
+| Document | What it covers |
+|---|---|
+| [Sep 24 — speed remeasure](audits/2026-09-24-speed-map.md) | Read-only test-client warm-load and tab-switch timings compared with the September 23 map. |
+| [Sep 24 — feature usage](audits/2026-09-24-feature-usage.md) | A read-only 30-day row and 24-hour function-call snapshot; zero calls in that window do not prove disuse. |
+| [Sep 24 — entry tax](audits/2026-09-24-entry-tax.md) | Before-and-after boot request evidence for the early key and flag read change. |
+| [Sep 24 — Analytics first content](audits/2026-09-24-analytics-blocking-requests.md) | A read-only cloud-rig request trace whose absolute timings are affected by proxy retries. |
+| [Sep 23 — speed map](audits/2026-09-23-speed-map.md) | Measurement-only first-load and switch timings across fifteen tabs using a test client. |
+| [Sep 23 — boot baseline](audits/2026-09-23-boot-baseline.md) | The first-load measurement method and baseline for the source-split roadmap. |
+| [Sep 21 — document freshness](audits/2026-09-21-base-audit/A1-docs-freshness.md) | A source survey of guidance after the cutoff, not a fresh runtime check of every document. |
+| [Sep 21 — dead-code inventory](audits/2026-09-21-base-audit/A2-dead-code-inventory.md) | Source and lexical reachability evidence with explicit limits on what may be removed. |
+| [Sep 21 — file-purpose inventory](audits/2026-09-21-base-audit/A3-junk-inventory.md) | A repository-only survey of assets, scripts, tests, and folders; deletion remains a proposal. |
+| [Sep 21 — onboarding eligibility](audits/2026-09-21-base-audit/A4-native-onboarding-eligibility.md) | A code trace and aggregate-only live read comparing native and retained provider assignment paths. |
+| [Sep 21 — pre-deletion boot](audits/2026-09-21-base-audit/C1-boot-baseline.md) | Committed page bytes and anonymous Chromium startup measurements before browser-source deletions. |
+| [Sep 15 — retirement rehearsal](audits/2026-09-15-linear-dead-rehearsal.md) | A prepared failure rehearsal and blank result form; the exercise was not run in this record. |
+| [Sep 8 — composed intake apply](audits/2026-09-08-composed-intake-apply-evidence.json) | Disposable PostgreSQL 16 apply proof for a composed intake artifact, not a hosted installation. |
+| [Sep 7 — urgent action UI](audits/2026-09-07-native-urgent-ui.md) | Source-only, uninstalled urgent-action preparation with synthetic transport and state checks. |
+| [Sep 7 — named intake append](audits/2026-09-07-native-named-append-evidence.json) | Restored-target SQL checks and an offline composition result that was not applied in that record. |
+| [Aug 5 — roster project coverage](audits/2026-08-05-roster-project-coverage.md) | A dated read-only, aggregate live-data check of project-mapping gaps before the Graphics flip. |
+| [Aug 5 — comment Mark done](audits/2026-08-05-production-comment-mark-done-cas.md) | A browser-only candidate and offline race audit for the canonical-comment completion action. |
+| [Aug 5 — attribution write paths](audits/2026-08-05-attribution-write-paths.md) | A source enumeration of deliverable creation and attribution stamping paths; no change was made. |
+| [Aug 5 — attribution soak signal](audits/2026-08-05-attribution-stamp-soak-signal.md) | An analysis of how attribution stamps distorted the then-current drift counter and an unreleased candidate fix. |
+| [Aug 4 — monitoring readiness](audits/2026-08-04-monitoring-readiness-cutover.md) | Historical pre-cutover evidence about the alert relay, watchdog, and monitoring proof lanes. |
+| [Aug 2 — Graphics evidence lane](audits/2026-08-02-graphics-f2-evidence-lane.md) | Source and isolated F2 evidence-tool proof; no authority flip or live action was performed. |
+
 ## Archived migrations and incidents
 
 These records explain earlier decisions and failures. Their dated status claims are not current operating instructions.

@@ -80989,6 +80989,8 @@
         Object.assign(_caState, { rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false, edit: null });
         const body = document.getElementById('caBody');
         if (body) body.innerHTML = '';
+        // The recently opened clients are this staff member's; drop them on sign-out.
+        try { localStorage.removeItem('syncview_kasper_clients_recent_v1'); } catch (e) {}
     }
 
     function _caRender() {
@@ -81170,18 +81172,41 @@
         if (_caState.edit && _caState.edit.slug !== slug && _caEditDirty() && !confirm('Discard your unsaved changes to this client?')) return;
         if (_caState.edit && _caState.edit.slug !== slug) _caState.edit = null;
         _caState.selected = slug || '';
+        if (slug) _caRememberOpened(slug);
         _caPaint();
         const d = document.getElementById('caDetail');
         if (d && window.matchMedia && window.matchMedia('(max-width: 767px)').matches) { try { d.scrollIntoView({ block: 'start' }); } catch (e) {} }
     }
 
+    /* When Kasper searches, the clients he opened most recently come first;
+       clients he never opened follow in alphabetical order. Kept in this
+       browser only (a convenience, not shared state). */
+    const CA_RECENT_KEY = 'syncview_kasper_clients_recent_v1';
+    function _caRecentMap() {
+        try { const m = JSON.parse(localStorage.getItem(CA_RECENT_KEY) || '{}'); return m && typeof m === 'object' ? m : {}; } catch (e) { return {}; }
+    }
+    function _caRememberOpened(slug) {
+        const m = _caRecentMap();
+        m[slug] = Date.now();
+        const keep = Object.keys(m).sort((a, b) => m[b] - m[a]).slice(0, 100);
+        const out = {}; for (const k of keep) out[k] = m[k];
+        try { localStorage.setItem(CA_RECENT_KEY, JSON.stringify(out)); } catch (e) {}
+    }
     function _caFiltered() {
         const q = String(_caState.search || '').trim().toLowerCase();
-        return (_caState.rows || []).filter(r => {
+        const rows = (_caState.rows || []).filter(r => {
             if (r.archived_at && !_caState.showArchived) return false;
             if (!q) return true;
             return [r.display_name, r.slug, r.email, r.instagram_handle, r.tiktok_handle, r.youtube_channel_id]
                 .some(v => String(v || '').toLowerCase().includes(q));
+        });
+        if (!q) return rows;
+        const recent = _caRecentMap();
+        const name = r => String(r.display_name || r.slug || '');
+        return rows.slice().sort((a, b) => {
+            const ta = Number(recent[a.slug]) || 0, tb = Number(recent[b.slug]) || 0;
+            if (ta !== tb) return tb - ta;
+            return name(a).localeCompare(name(b), undefined, { sensitivity: 'base' });
         });
     }
 

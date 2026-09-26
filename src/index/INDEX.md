@@ -9,11 +9,11 @@
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `005-head-boot.html.part` | 279 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 3 | `010-styles-foundation.css.part` | 3891 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 4 | `020-styles-surfaces.css.part` | 4135 | Templates view |
+| 4 | `020-styles-surfaces.css.part` | 4143 | Templates view |
 | 5 | `030-body-shell.html.part` | 446 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 1833 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1709 | Market Research Brief Tab Renderers |
-| 8 | `060-templates-filming.js.part` | 2277 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 8 | `060-templates-filming.js.part` | 2290 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3650 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3413 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
 | 11 | `090-workload-popovers-navigation.js.part` | 1645 | Sub-issue popover |
@@ -21,7 +21,7 @@
 | 13 | `110-time-off-reports.js.part` | 2189 | Kasper Time Off calendar |
 | 14 | `120-calendar-flags-write-repair.js.part` | 3075 | The members a flag value offers, or null when it offers no member list at |
 | 15 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
-| 16 | `130-calendar-model-cache.js.part` | 1341 | Returns the comments array for a given component. Falls back to the |
+| 16 | `130-calendar-model-cache.js.part` | 1379 | Returns the comments array for a given component. Falls back to the |
 | 17 | `131-core-html.js.part` | 13 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 18 | `132-calendar-dates-ids.js.part` | 14 | — |
 | 19 | `133-core-loading-skeletons.js.part` | 367 | Modern animated loader — a single rotating ring with a subtle label. |
@@ -29,7 +29,7 @@
 | 21 | `140-calendar-legacy-outbox.js.part` | 3071 | Shed the retired legacy rows from storage, under the surface mutation |
 | 22 | `150-calendar-hydration-import.js.part` | 2140 | For a card linked to a real sub-issue (not a parent), return which of |
 | 23 | `160-calendar-organize-ui.js.part` | 2809 | Lighter path for the Order switch: update the chrome in place so the |
-| 24 | `170-calendar-links-status.js.part` | 2758 | Move a Linear sub-issue link from the old card onto the new one. The |
+| 24 | `170-calendar-links-status.js.part` | 2759 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 25 | `180-calendar-native-post-media.js.part` | 2748 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 26 | `190-calendar-approval-comments.js.part` | 3020 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 27 | `200-intake-data-startup.js.part` | 1496 | Video-only and Thumbnail-only were already built, but sat |

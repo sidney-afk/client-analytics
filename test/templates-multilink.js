@@ -78,6 +78,8 @@ const sandbox = [
   'function setTemplatesEditMode() {}',
   INDEX.match(/const TPL_LINK_ICONS = \{[\s\S]*?\n    \};/)[0],
   INDEX.match(/const _TPL_ROW_ARROW = '[^']*';/)[0],
+  INDEX.match(/const TPL_LINKS_INLINE = \d+;/)[0],
+  "let _tplLinkRowOpen = '';",
   grabFunc('_tplLinkHost'),
   grabFunc('_tplLinkRow'),
   grabFunc('_tplRenderLinksView'),

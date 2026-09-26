@@ -2,7 +2,7 @@
 
 Source baseline: `3f5bd46e6086911ae2a7bb0d32507f03d5a44da8` (`origin/main`). This is a tracked-source inventory of the eight `scripts/track-b-*.sql` files, following the separate six-file JavaScript inventory in draft #1720. No SQL, recovery tool, workflow, database, or Drive operation was run.
 
-The important caller is constructed, not spelled out: `scripts/track-b-recovery-rehearsal.js` accepts `history-v7` through `history-v11` as `TRACK_B_RECOVERY_TEST_CORPUS`, builds `scripts/track-b-` + corpus + `-backup-prerequisites.sql`, and passes it to local `psql -f` in its selected-data check when the corpus is **not v7**. Its tracked portable wrapper sets v11; a direct local invocation could select v8, v9, or v10. Thus the v8/v9 files have a conditional executable caller despite having no exact-name code reference. Draft #1702's exact-basename review queue needs that correction.
+The important caller is constructed, not spelled out: `scripts/track-b-recovery-rehearsal.js` accepts `history-v7` through `history-v11` as `TRACK_B_RECOVERY_TEST_CORPUS`, builds `scripts/track-b-` + corpus + `-backup-prerequisites.sql`, and passes it to local `psql -f` in its selected-data check when the corpus is **not v7**. Its tracked portable wrapper sets v11; a direct local invocation could select v8, v9, or v10. Thus the v8/v9 files have a conditional executable caller despite having no exact-name code reference. Draft #1702's exact-basename review queue was corrected before this report opened.
 
 | SQL file under `scripts/` | Tracked use | Source-only disposition |
 |---|---|---|

@@ -42,7 +42,7 @@
 | 34 | `260-production-refresh-boot.js.part` | 2368 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 35 | `270-samples-model.js.part` | 2708 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 36 | `280-samples-cards-notes.js.part` | 2832 | SURFACE 3: the save engine |
-| 37 | `290-samples-writes-review.js.part` | 1804 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
+| 37 | `290-samples-writes-review.js.part` | 1808 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 38 | `300-tiktok-upload.js.part` | 1886 | TIKTOK UPLOAD MODULE |
 | 39 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
 | 40 | `320-kasper-dashboard-replies.js.part` | 3226 | RELOAD RACE (speed map §7). On a reload the stored staff |

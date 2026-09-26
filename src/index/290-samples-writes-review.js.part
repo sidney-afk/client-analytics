@@ -1353,9 +1353,13 @@
         // URGENT ping (video at Tweaks Needed + linked) — reuses the existing N8N
         // workflow + message via _sxrKasperSendUrgentSlack → _calUrgentSlackDispatch.
         const urgentBtn = _sxrShowUrgent(p, 'video') ? _calUrgentButtonHtml(_sxrEscAttr(pid), '_sxrKasperSendUrgentSlack', p, 'kcard-urgent-btn', true) : '';
-        const pending = awaiting.length
-            ? `<span class="kcard-pending"><span class="kcard-pending-strong">${awaiting.map(c => _sxrEsc(COMP_LABELS[c])).join(' & ')}</span> awaiting your review</span>`
-            : (isFinished ? `<span class="kcard-pending">Sent to SMM — changes pending</span>` : '');
+        // Say what Kasper still has to do. A part he already sent back (Tweaks
+        // Needed) is not waiting on him, so only undecided parts count; once
+        // every part is decided, the next step is Finish reviewing.
+        const pending = undecided.length
+            ? `<span class="kcard-pending"><span class="kcard-pending-strong">${undecided.map(c => _sxrEsc(COMP_LABELS[c])).join(' & ')}</span> awaiting your review</span>`
+            : (isFinished ? `<span class="kcard-pending">Sent to SMM — changes pending</span>`
+                : `<span class="kcard-pending">All decided · tap <span class="kcard-pending-strong">Finish reviewing</span> to hand it to the SMM</span>`);
         const body = expanded
             ? (awaiting.length
                 ? `<div class="cal-review-body" style="grid-template-columns:repeat(${awaiting.length},minmax(0,1fr));" onclick="event.stopPropagation();">${awaiting.map(c => _sxrKasperPanelHtml(item, c)).join('')}</div>`

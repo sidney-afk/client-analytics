@@ -136,6 +136,10 @@ async function runAt(browser, width) {
   if (hasG) {
     await p.waitForSelector(gPanel + ' .cal-review-approve-btn', { timeout: 10000 }).catch(() => {});
     await bigEnough(gPanel + ' .cal-review-approve-btn', 'Approve');
+    // A save repaints the list, deferred while a note box has focus; let that
+    // repaint land first so the Approve tap is not swallowed by it.
+    await p.evaluate(() => { const a = document.activeElement; if (a && a.blur) a.blur(); });
+    await sleep(1800);
     await waitFor(() => p.evaluate(q => { const b = document.querySelector(q); return !!b && !b.disabled; }, gPanel + ' .cal-review-approve-btn'), 20000);
     await tapSel(gPanel + ' .cal-review-approve-btn');
     const got = await waitFor(() => saves.some(x => x.graphic_status === 'Client Approval'), 30000);
@@ -143,6 +147,11 @@ async function runAt(browser, width) {
     ok(got, `${width}: Approve sends the sample thumbnail to the client through the samples saver`, JSON.stringify(saves.map(x => x.graphic_status)));
   }
   ok(await waitFor(() => p.evaluate(q => !!document.querySelector(q), sSel.replace(' .kasper-waiting-wrap', '')), 3000), `${width}: the sample card is still in the Review list after the decisions`);
+  // With the thumbnail approved and the video sent back, nothing is waiting on
+  // Kasper: the card must say the next step, not "Video awaiting your review".
+  const pendingText = await waitFor(() => p.evaluate(q => { const e = document.querySelector(q + ' .kcard-pending'); return !!e && /Finish reviewing/.test(e.textContent) && !/awaiting/.test(e.textContent); }, sSel.replace(' .kasper-waiting-wrap', '')), 8000);
+  ok(pendingText, `${width}: once every part is decided the sample says to tap Finish reviewing`,
+    await p.evaluate(q => { const e = document.querySelector(q + ' .kcard-pending'); return e ? e.textContent.trim() : 'none'; }, sSel.replace(' .kasper-waiting-wrap', '')));
   ok(wrongSaver.length === 0, `${width}: no calendar save was sent for the sample`);
   ok(NW.retiredCallCount(retired) === 0, `${width}: the retired Linear webhooks received nothing`);
   ok(gateway.length >= 1, `${width}: the native gateway received the sample's decisions`, gateway.length);

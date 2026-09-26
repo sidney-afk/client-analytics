@@ -28295,6 +28295,7 @@
        a live flip while the tab stays open), never on the routine
        focus/visibility/60s-timer polls that re-confirm the same value. */
     let _writeUiLastRenderedAuthoritySig = null;
+    function _writeUiSetLastRenderedAuthoritySig(value) { _writeUiLastRenderedAuthoritySig = value; }
 
     function _writeUiNormalizeAuthority(value) {
         if (typeof value === 'string') { try { value = JSON.parse(value); } catch (e) { return null; } }
@@ -74734,11 +74735,11 @@
             {
                 const authoritySig = JSON.stringify(authority);
                 if (authoritySig !== _writeUiLastRenderedAuthoritySig) {
-                    _writeUiLastRenderedAuthoritySig = authoritySig;
+                    _writeUiSetLastRenderedAuthoritySig(authoritySig);
                     const activeNav = typeof currentNav !== 'undefined' ? currentNav : null;
                     if (activeNav === 'calendar' && typeof _calRenderBody === 'function') {
                         if (typeof _calIsCalBusy === 'function' && _calIsCalBusy()) {
-                            _calPendingBackgroundRender = true;
+                            _calSetPendingBackgroundRender(true);
                             if (typeof _calSchedulePendingRender === 'function') _calSchedulePendingRender();
                         } else {
                             _calRenderBody({ preserveScroll: true, skipIfUnchanged: true });
@@ -74746,7 +74747,7 @@
                     }
                     if (activeNav === 'sample-reviews' && typeof _sxrRenderBody === 'function') {
                         if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
-                            _sxrPendingBackgroundRender = true;
+                            _sxrSetPendingBackgroundRender(true);
                             if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
                         } else {
                             _sxrRenderBody({ preserveScroll: true });
@@ -75347,7 +75348,7 @@
         p.updated_at = new Date().toISOString();
         const linearMeta = linearComment ? _sxrCommentsFor(p, comp).slice(-1)[0] : null;
         _sxrKasperState.saving[key] = true;
-        _sxrLastLocalWriteAt = Date.now();   // self-echo: defer the realtime queue refresh of our own write
+        _sxrSetLastLocalWriteAt(Date.now());   // self-echo: defer the realtime queue refresh of our own write
         _sxrKasperRepaint(pid);
         let gatewayAttempted = false;
         let gatewayCommitted = false;
@@ -75440,7 +75441,7 @@
             _kasperState.sxrRepairs = (_kasperState.sxrRepairs || []).filter(row => row && row.id !== p.id);
             _kasperPersistCache();
             _sxrKasperState.saving[key] = false;
-            _sxrLastLocalWriteAt = Date.now();   // echo lands a beat after the write resolves
+            _sxrSetLastLocalWriteAt(Date.now());   // echo lands a beat after the write resolves
             // Pin the card in the queue (touched) — it no longer auto-vanishes when
             // a component leaves Kasper Approval. It only leaves via "Finish
             // reviewing" (→ history / Tweaks pending) or the X (Close). The approve

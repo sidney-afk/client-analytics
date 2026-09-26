@@ -1,3 +1,71 @@
+import {
+  _svCaptureFocus, _svPreserveFocus, _svRestoreFocus, showNotify, showToast
+} from './040-shared-briefs.js';
+import { NATIVE_INTAKE_PENDING_KEY, currentNav } from './060-templates-filming.js';
+import { wlCanonicalClient, wlNormalizeClient } from './070-workload-source.js';
+import { _navPillSync } from './090-workload-popovers-navigation.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
+import {
+  WRITE_UI_PRODUCTION_WRITE_URL, _syncviewEfHeaders, _writeUiAdoptRepairAck,
+  _writeUiAppendRepairRef, _writeUiBuildSourceRepair, _writeUiClassifyTargetless,
+  _writeUiCompleteSourceRepairRefs, _writeUiComponentHasWorkItem, _writeUiExpireV1Caches,
+  _writeUiGatewayError, _writeUiGatewayWithRepair, _writeUiHasCredential, _writeUiHealRerouteFlag,
+  _writeUiIntentId, _writeUiLastRenderedAuthoritySig, _writeUiLegacyItemOwnedBy,
+  _writeUiLegacyResumeOwner, _writeUiLegacyResumeOwnerCurrent, _writeUiLegacyResumeOwnerKey,
+  _writeUiMarkRepairCommitted, _writeUiNativeId, _writeUiNativeStatus, _writeUiPrincipalKey,
+  _writeUiQueueDiagnostic, _writeUiRefreshAuthority, _writeUiRemoveCompletedRepairRefs,
+  _writeUiRepairCompanions, _writeUiRepairJournalRead, _writeUiReportFailure,
+  _writeUiSetLastRenderedAuthoritySig, _writeUiSnapshotRepairRefs, _writeUiTeam,
+  _writeUiUseGatewayWhenReady, computeOverallStatus
+} from './120-calendar-flags-write-repair.js';
+import {
+  _calCommentsFor, _calCompLinked, _calLinearUrlFor, _calPendingEdits, _calSaveInFlight,
+  _calSetCommentsFor, calClientSlug, calState
+} from './130-calendar-model-cache.js';
+import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
+import {
+  LINEAR_OUTBOX_KEY, WRITE_UI_LEGACY_QUARANTINE_KEY, _calIsCalBusy, _calMapNativeStatusStrict,
+  _calSchedulePendingRender, _calSetPendingBackgroundRender, _linearOutboxRead
+} from './134-calendar-prefs-mount.js';
+import {
+  URGENT_EDITOR_NEEDS_NATIVE, _calKasperUrgentActive, _calPostLinearComment, _calUrgentButtonHtml,
+  _calUrgentSlackDispatch, _linearOutboxFlush, _writeUiLegacyHydrateConfirmedCacheAfterAuthority,
+  _writeUiLegacyQuarantineRead, _writeUiLegacyReconcileCommittedTombstones,
+  _writeUiLegacyShedRetired
+} from './140-calendar-legacy-outbox.js';
+import { CAL_CACHE_KEY_PREFIX, _calCacheWrite, _calHydrateLinearMeta, _calPruneLinearMetaForAuthority } from './150-calendar-hydration-import.js';
+import { _calRenderBody, _calThumbImgTag } from './160-calendar-organize-ui.js';
+import { _calFlushCardSave } from './170-calendar-links-status.js';
+import { COMP_LABELS, _kasperHasUnreadReply, _kasperMarkSeenAt } from './180-calendar-native-post-media.js';
+import { REVIEW_APPROVE_DRAFT_TITLE, _calMergeCommentLists, _calStringifyComments } from './190-calendar-approval-comments.js';
+import {
+  CAL_CARD_JOBS_KEY, _calCardJobsRead, _linearIntakeJobId, _linearIntakeRead,
+  _linearResumeSubmissionHold, _resumeNativeIntakeJob, _resumePendingCalCardJobs
+} from './200-intake-data-startup.js';
+import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodVerifiedClientCommentMutationContext } from './230-production-create-comments.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
+import {
+  SXR_CACHE_PREFIX, SXR_COMPONENTS, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS,
+  SXR_RT_CHANNEL_PREFIX, SXR_TABLE, _sxrAbortActiveLoad, _sxrBgLoadInFlight, _sxrCacheWrite,
+  _sxrClearStaleApprovals, _sxrDeriveThumbInfo, _sxrEnabled, _sxrEsc, _sxrEscAttr,
+  _sxrMigrateShape, _sxrNormStatus, _sxrPendingEdits, _sxrPersistUrgentSentForPost, _sxrReady,
+  _sxrReviewBlockReason, _sxrSaveInFlight, _sxrShowUrgent, _sxrSupabaseFetchAllRows,
+  _sxrUpsertFetch, _sxrV2LoadLib, computeSampleOverallStatus, loadSxrCards, sxrClientSlug, sxrState
+} from './270-samples-model.js';
+import {
+  _sxrCommentsFor, _sxrCommentsForView, _sxrFlushAllPending, _sxrFlushCardSave, _sxrFmtCommentTime,
+  _sxrIsBusy, _sxrLastLocalWriteAt, _sxrLinearOutboxFlush, _sxrLinearOutboxRead,
+  _sxrLinearPushChain, _sxrLinearUrlFor, _sxrMaybeRunPendingRender, _sxrMergeCommentLists,
+  _sxrMiniLinkBadgeHtml, _sxrMintCommentId, _sxrMsgIsTweak, _sxrNextTweakRound,
+  _sxrRefreshOnReturn, _sxrRenderBody, _sxrReviewComponentPreview, _sxrSchedulePendingRender,
+  _sxrSetCommentsFor, _sxrSetLastLocalWriteAt, _sxrSetPendingBackgroundRender,
+  _sxrStringifyComments, _sxrThumbIconSvg
+} from './280-samples-cards-notes.js';
+import { KASPER_CACHE_KEY, _kasperPersistCache, _kasperRefreshTabCounts, _kasperState } from './320-kasper-dashboard-replies.js';
+import {
+  _kasperLoadSMMMap, _kasperPaintReview, _kasperPersistPost, _kasperResumeSourceRepairs,
+  _kasperSamplesMerged, _svSectionHeadA11y
+} from './330-kasper-review-history.js';
     /* RETIRED 2026-09-22 (B1 order row 5, OPEN_REPAIRS 239):
        `_sxrLegacyPushStatusToLinear` and `_sxrLegacyPostLinearComment` used to
        POST every legacy-routed Samples status and comment to the n8n webhooks
@@ -856,11 +924,11 @@
             {
                 const authoritySig = JSON.stringify(authority);
                 if (authoritySig !== _writeUiLastRenderedAuthoritySig) {
-                    _writeUiLastRenderedAuthoritySig = authoritySig;
+                    _writeUiSetLastRenderedAuthoritySig(authoritySig);
                     const activeNav = typeof currentNav !== 'undefined' ? currentNav : null;
                     if (activeNav === 'calendar' && typeof _calRenderBody === 'function') {
                         if (typeof _calIsCalBusy === 'function' && _calIsCalBusy()) {
-                            _calPendingBackgroundRender = true;
+                            _calSetPendingBackgroundRender(true);
                             if (typeof _calSchedulePendingRender === 'function') _calSchedulePendingRender();
                         } else {
                             _calRenderBody({ preserveScroll: true, skipIfUnchanged: true });
@@ -868,7 +936,7 @@
                     }
                     if (activeNav === 'sample-reviews' && typeof _sxrRenderBody === 'function') {
                         if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
-                            _sxrPendingBackgroundRender = true;
+                            _sxrSetPendingBackgroundRender(true);
                             if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
                         } else {
                             _sxrRenderBody({ preserveScroll: true });
@@ -1469,7 +1537,7 @@
         p.updated_at = new Date().toISOString();
         const linearMeta = linearComment ? _sxrCommentsFor(p, comp).slice(-1)[0] : null;
         _sxrKasperState.saving[key] = true;
-        _sxrLastLocalWriteAt = Date.now();   // self-echo: defer the realtime queue refresh of our own write
+        _sxrSetLastLocalWriteAt(Date.now());   // self-echo: defer the realtime queue refresh of our own write
         _sxrKasperRepaint(pid);
         let gatewayAttempted = false;
         let gatewayCommitted = false;
@@ -1562,7 +1630,7 @@
             _kasperState.sxrRepairs = (_kasperState.sxrRepairs || []).filter(row => row && row.id !== p.id);
             _kasperPersistCache();
             _sxrKasperState.saving[key] = false;
-            _sxrLastLocalWriteAt = Date.now();   // echo lands a beat after the write resolves
+            _sxrSetLastLocalWriteAt(Date.now());   // echo lands a beat after the write resolves
             // Pin the card in the queue (touched) — it no longer auto-vanishes when
             // a component leaves Kasper Approval. It only leaves via "Finish
             // reviewing" (→ history / Tweaks pending) or the X (Close). The approve
@@ -1802,3 +1870,12 @@
         }
     } catch (e) {}
     // <<< SXR_END
+export {
+  _sxrEnsureFreshnessWiring, _sxrKasperLoadQueue, _sxrKasperPartitionItems, _sxrKasperRenderCard,
+  _sxrKasperRenderHistorySection, _sxrKasperRenderQueue, _sxrKasperState,
+  _sxrKasperV2EnsureSubscribed, _sxrKasperV2Teardown, _sxrPostLinearComment,
+  _sxrPushStatusToLinear, _sxrV2DrainPending, _sxrV2EnsureSubscribed, _sxrV2Teardown,
+  _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs,
+  _writeUiReconcileReplayStatus, _writeUiResumeLegacyQueues, _writeUiResumeSourceRepairs,
+  _writeUiSourceRepairSuperseded
+};

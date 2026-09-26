@@ -20,13 +20,13 @@
 | 12 | `090-workload-popovers-navigation.js.part` | 1656 | Sub-issue popover |
 | 13 | `100-onboarding-staff-controls.js.part` | 2372 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 14 | `110-time-off-reports.js.part` | 2207 | Kasper Time Off calendar |
-| 15 | `120-calendar-flags-write-repair.js.part` | 3142 | The members a flag value offers, or null when it offers no member list at |
+| 15 | `120-calendar-flags-write-repair.js.part` | 3143 | The members a flag value offers, or null when it offers no member list at |
 | 16 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
 | 17 | `130-calendar-model-cache.js.part` | 1379 | Returns the comments array for a given component. Falls back to the |
 | 18 | `131-core-html.js.part` | 13 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 19 | `132-calendar-dates-ids.js.part` | 14 | — |
 | 20 | `133-core-loading-skeletons.js.part` | 367 | Modern animated loader — a single rotating ring with a subtle label. |
-| 21 | `134-calendar-prefs-mount.js.part` | 1065 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
+| 21 | `134-calendar-prefs-mount.js.part` | 1064 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
 | 22 | `140-calendar-legacy-outbox.js.part` | 3071 | Shed the retired legacy rows from storage, under the surface mutation |
 | 23 | `150-calendar-hydration-import.js.part` | 2141 | For a card linked to a real sub-issue (not a parent), return which of |
 | 24 | `160-calendar-organize-ui.js.part` | 2809 | Lighter path for the Order switch: update the chrome in place so the |
@@ -42,8 +42,8 @@
 | 34 | `250-production-controls-data.js.part` | 2881 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 35 | `260-production-refresh-boot.js.part` | 2368 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 36 | `270-samples-model.js.part` | 2770 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
-| 37 | `280-samples-cards-notes.js.part` | 2911 | SURFACE 3: the save engine |
-| 38 | `290-samples-writes-review.js.part` | 1804 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
+| 37 | `280-samples-cards-notes.js.part` | 2910 | SURFACE 3: the save engine |
+| 38 | `290-samples-writes-review.js.part` | 1881 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 39 | `300-tiktok-upload.js.part` | 1998 | TIKTOK UPLOAD MODULE |
 | 40 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
 | 41 | `320-kasper-dashboard-replies.js.part` | 3226 | RELOAD RACE (speed map §7). On a reload the stored staff |

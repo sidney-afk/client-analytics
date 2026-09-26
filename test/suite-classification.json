@@ -80,6 +80,8 @@
     "cal-link-clear-honesty.js",
     "cal-na-status.js",
     "cal-review-needs-content.js",
+    "client-review-queue.js",
+    "client-review-queue-behavior.js",
     "calendar-archive-parks-sub-issues.js",
     "calendar-card-deep-link.js",
     "calendar-card-write-jobs.js",

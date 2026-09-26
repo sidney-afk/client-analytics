@@ -91,7 +91,9 @@ function build(opts) {
      can tell "armed the interval" (which alone does nothing) from "armed it and
      set the flag" (which actually repaints once the user stops typing). */
   vm.createContext(scope);
-  vm.runInContext(extract('_sxrAdoptDeliverableLinks')
+  // 270 is a module: the adopter sets 280's flag through its owner's setter.
+  vm.runInContext(extract('_sxrSetPendingBackgroundRender') + '\n'
+    + extract('_sxrAdoptDeliverableLinks')
     + '\nthis.fn = _sxrAdoptDeliverableLinks;', scope);
   return { fn: scope.fn, calls, state, scope };
 }

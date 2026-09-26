@@ -22,11 +22,14 @@ name: Workload source freshness
 # merge. Until then, run it by hand (workflow_dispatch).
 
 on:
-  schedule:
-    # Every 30 minutes. The reconcile it watches runs every 10, and the lane's
-    # tolerance is 180 minutes, so this is frequent enough to catch a freeze on
-    # the working day it starts without being chatty.
-    - cron: '*/30 * * * *'
+  # Unscheduled 2026-09-26 and the `workload_source_freshness` lane retired in
+  # the same commit, per the handover note below. The board reads the native
+  # snapshot (workload-plan native_snapshot_v2, warmed every 10s by pg_cron);
+  # `workload_issues` has had no writer since 2026-09-21 14:50Z because the n8n
+  # Workload Reconcile was archived in the Linear exit, so this lane could only
+  # report that fixed fact forever. Dispatch is kept for a manual look.
+  #schedule:
+  #  - cron: '*/30 * * * *'
   workflow_dispatch:
 
 permissions:

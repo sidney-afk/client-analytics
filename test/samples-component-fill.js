@@ -355,6 +355,8 @@ const writeFn = new Function(
   '_sxrCacheWrite', '_sxrRenderBody', '_sxrIsBusy', '_sxrSchedulePendingRender',
   '_sxrPendingBackgroundRender', '_sxrPendingEdits', '_sxrFlushCardSave', '_sxrLastLocalWriteAt',
   '_writeUiQueueDiagnostic', '_sxrParkEditsForClient',
+  // 270 is a module: it writes 280's two render/echo flags through these setters.
+  '_sxrSetPendingBackgroundRender', '_sxrSetLastLocalWriteAt',
   writeSrc + '; return _sxrFillWriteCardLink;',
 );
 
@@ -394,6 +396,8 @@ function harness(options = {}) {
     0,
     (surface, outcome) => { state.diagnostics.push({ surface, outcome }); },
     (slug, pid) => { state.parked.push({ slug, pid, edits: state.pendingEdits[pid] }); delete state.pendingEdits[pid]; },
+    () => {},
+    () => {},
   );
   return { state, fn };
 }

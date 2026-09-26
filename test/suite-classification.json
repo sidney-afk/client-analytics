@@ -80,6 +80,8 @@
     "cal-link-clear-honesty.js",
     "cal-na-status.js",
     "cal-review-needs-content.js",
+    "client-review-queue.js",
+    "client-review-queue-behavior.js",
     "calendar-archive-parks-sub-issues.js",
     "calendar-card-deep-link.js",
     "calendar-card-write-jobs.js",
@@ -1223,11 +1225,27 @@
       "ci": "not_run_by_unit_ci"
     },
     {
+      "file": "tiktok-overdue-status-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
+      "reproduce": "node test/tiktok-overdue-status-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
       "file": "clean-urls-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; a local server that answers like GitHub Pages and every backend call answered locally, no hosted credentials and no live data.",
       "reproduce": "node test/clean-urls-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
+      "file": "tiktok-upload-steps-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
+      "reproduce": "node test/tiktok-upload-steps-browser.js (after repository Playwright/Chromium setup)",
       "ci": "not_run_by_unit_ci"
     },
     {

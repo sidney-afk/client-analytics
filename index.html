@@ -42480,6 +42480,9 @@
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const doApprove = () => {
+            const prev = {};
+            ['status', 'video_status', 'graphic_status', 'caption_status', 'client_video_approved_at',
+                'client_graphic_approved_at', 'client_caption_approved_at'].forEach(k => { prev[k] = post[k]; });
             const stamp = new Date().toISOString();
             post.video_status   = 'Approved';
             post.graphic_status = 'Approved';
@@ -42498,7 +42501,22 @@
                 client_graphic_approved_at: stamp,
                 client_caption_approved_at: stamp,
             });
-            _calFlushCardSave(pid);
+            // Held in this browser until the server confirms (185).
+            _calCrqBegin('approve', pid, 'all', {
+                edits: { status: 'Approved', video_status: 'Approved', graphic_status: 'Approved',
+                    caption_status: 'Approved', client_video_approved_at: stamp,
+                    client_graphic_approved_at: stamp, client_caption_approved_at: stamp },
+                prev,
+                serverStatus: { video: prev.video_status, graphic: prev.graphic_status, caption: prev.caption_status }
+            });
+            Promise.resolve(_calFlushCardSave(pid)).catch(e => {
+                post._saveError = _writeUiFailureSentence(e);
+            }).then(() => {
+                const current = calState.posts.find(p => p.id === pid) || post;
+                if (!current._saveError) { _calCrqDone(pid, 'all'); return; }
+                if (_calCrqFailed(pid, 'all', current._saveError)) return;
+                _calRenderBody({ preserveScroll: true });
+            });
             _calRenderBody({ preserveScroll: true });
         };
         let skip = false;
@@ -47282,6 +47300,343 @@
     // "Has media" = at least one of the video / thumbnail URL is linked. A
     // post with neither isn't ready for SMM sign-off, so the SMM Review tab
     // hides it and the calendar card flags it (see _calSmmMissingMedia).
+    /* Client review send queue: a client's Approve or Request changes is
+       never lost.
+
+       Measured 2026-09-26 on the test client: a client link that lost its
+       connection mid-Approve showed the card leaving the queue, no message,
+       and the approval never reached the server, not even after the
+       connection came back. The person believed they had approved.
+
+       Every client-link Approve / Request changes is now written to this
+       browser's storage BEFORE it is sent, and removed only when the server
+       confirms it. While it waits the person sees "Sending...", then
+       "Approved" / "Changes sent". A failure caused by the connection is held
+       and re-sent (when the browser comes back online, when the tab is shown
+       again, on a backoff timer, and after a reload). A failure the server
+       itself refused is not retried: the change is put back and a clear
+       message says it was not saved. An entry older than
+       CLIENT_REVIEW_QUEUE_MAX_AGE_MS (counted from the click, across reloads)
+       is dropped and the client is told plainly it was not saved.
+
+       A held Approve never lands on a newer state: the entry records the
+       server status at click time, and before any re-send the row is read
+       back from the SERVER (not the local copy); the approve is re-sent only
+       if that status is unchanged. So a change request made meanwhile, on
+       this device or another one, always wins over the held approve.
+
+       Re-sends go through the same save funnel as the click, so they are as
+       safe to repeat as the click is: an approve re-sends the same field
+       values, and a change request re-uses its action id, which the tweak
+       inspection already de-duplicates.
+
+       Only the tokened client link uses it (the hand-off lines in 170 and 190
+       are guarded by _isClientLink). Staff saves are unchanged. */
+    const CLIENT_REVIEW_QUEUE_KEY = 'sv-client-review-queue-v1';
+    const CLIENT_REVIEW_QUEUE_RETRY_MS = [3000, 6000, 12000, 24000, 45000, 60000];
+    const CLIENT_REVIEW_QUEUE_MAX_AGE_MS = 30 * 60 * 1000;
+    const _crqRun = { timer: null, attempt: 0, busy: false, toast: false,
+        inflight: new Set(), replaying: new Set() };
+
+    function _crqActive() {
+        return typeof _isClientLink !== 'undefined' && !!_isClientLink;
+    }
+    function _crqSlug() {
+        try { return calClientSlug(calState.client); } catch (e) { return ''; }
+    }
+    function _crqRead() {
+        try {
+            const all = JSON.parse(localStorage.getItem(CLIENT_REVIEW_QUEUE_KEY) || '{}');
+            return all && typeof all === 'object' && !Array.isArray(all) ? all : {};
+        } catch (e) { return {}; }
+    }
+    function _crqWrite(all) {
+        try { localStorage.setItem(CLIENT_REVIEW_QUEUE_KEY, JSON.stringify(all)); } catch (e) {}
+    }
+    function _crqKey(pid, comp) { return _crqSlug() + '|' + pid + '|' + comp; }
+    function _crqGet(pid, comp) { return _crqRead()[_crqKey(pid, comp)] || null; }
+    function _crqPut(entry) {
+        const all = _crqRead();
+        all[_crqKey(entry.pid, entry.comp)] = entry;
+        _crqWrite(all);
+    }
+    function _crqDrop(pid, comp) {
+        const all = _crqRead();
+        delete all[_crqKey(pid, comp)];
+        _crqWrite(all);
+        _crqRun.inflight.delete(pid + '|' + comp);
+    }
+    function _crqMine() {
+        const slug = _crqSlug();
+        const all = _crqRead();
+        return Object.keys(all).filter(k => k.indexOf(slug + '|') === 0).map(k => all[k]);
+    }
+    function _crqCompsOf(comp) { return comp === 'all' ? ['video', 'graphic', 'caption'] : [comp]; }
+    function _crqExpired(entry) { return !entry || !(Date.now() - Number(entry.at || 0) < CLIENT_REVIEW_QUEUE_MAX_AGE_MS); }
+
+    /* A failure the connection caused (worth re-sending), as opposed to one
+       the server refused (not worth re-sending). */
+    function _crqIsConnectionFailure(text) {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+        return /failed to fetch|networkerror|network error|load failed|internet|err_|timed? ?out|aborted|offline|\b50[234]\b/i
+            .test(String(text || ''));
+    }
+
+    function _crqSay(text, done) {
+        _crqRun.toast = !done;
+        try { showToast(text, { duration: done ? 3200 : 600000 }); } catch (e) {}
+    }
+    function _crqSending() {
+        const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+        _crqSay(offline ? 'Sending... waiting for your connection to come back' : 'Sending...', false);
+    }
+    /* Take our own "Sending..." down once nothing is left to send. Works even
+       when browser storage is unavailable and no entry was ever written. */
+    function _crqQuiet() {
+        if (_crqRun.toast && !_crqMine().length && !_crqRun.inflight.size) {
+            _crqRun.toast = false;
+            try { hideToast(); } catch (e) {}
+        }
+    }
+    function _crqTell(title, msg) {
+        _crqRun.toast = false;
+        try { hideToast(); showNotify(title, msg); } catch (e) {}
+    }
+    function _crqWhat(entry) { return entry && entry.kind === 'request' ? 'change request' : 'approval'; }
+    function _crqTellExpired(entry) {
+        _crqTell('Your ' + _crqWhat(entry) + ' was not saved',
+            'We could not reach SyncView for 30 minutes after you sent it, so nothing was saved. Please check your internet connection and do it again.');
+    }
+    function _crqTellChanged(entry) {
+        _crqTell('This post changed while your ' + _crqWhat(entry) + ' was waiting',
+            'Your ' + _crqWhat(entry) + ' was not saved, so it does not overwrite the newer update. Please look at the post again.');
+    }
+
+    /* Hand-off 1: the click. Records the action before anything is sent.
+       A newer action on the same part replaces a held approve for it. */
+    function _calCrqBegin(kind, pid, comp, data) {
+        if (!_crqActive()) return;
+        const key = pid + '|' + comp;
+        const prior = _crqGet(pid, comp);
+        const replay = _crqRun.replaying.has(key);
+        if (kind === 'request') {
+            _crqMine().filter(e => e.pid === pid && e.kind === 'approve'
+                && (e.comp === 'all' || e.comp === comp)).forEach(e => _crqDrop(e.pid, e.comp));
+        }
+        if (kind === 'request') {
+            // The request's action id exists BEFORE the first send and is kept
+            // with the entry, exactly as a retry of a failed request already
+            // carries one into the handler: the handler adopts it under its
+            // target lock, and a replay after a crash reuses it.
+            data = Object.assign({}, data || {});
+            data.actionId = String(data.actionId || _calReviewState.draftActionIds[key] || _calMintCommentId());
+            _calReviewState.draftActionIds[key] = data.actionId;
+        }
+        _crqPut(Object.assign({ kind, pid, comp,
+            at: replay && prior && prior.at || Date.now() }, data || {}));
+        _crqRun.inflight.add(key);
+        _crqSending();
+    }
+
+    /* Hand-off 2: the server confirmed. Returns true when the confirmation
+       was shown here, so the caller can skip its own toast. */
+    function _calCrqDone(pid, comp) {
+        if (!_crqActive()) return false;
+        const entry = _crqGet(pid, comp);
+        _crqDrop(pid, comp);
+        if (!_crqMine().length) _crqRun.attempt = 0;
+        if (!entry) { _crqQuiet(); return false; }
+        _crqSay(entry.kind === 'request' ? 'Changes sent' : 'Approved', true);
+        return true;
+    }
+
+    /* Hand-off 2b: the server already holds the outcome (a "superseded" or
+       "already saved" branch that explains itself inline). Nothing to re-send
+       and nothing more to announce. */
+    function _calCrqResolve(pid, comp) {
+        if (!_crqActive()) return;
+        _crqDrop(pid, comp);
+        _crqQuiet();
+    }
+
+    /* Hand-off 3: the save failed. Returns true when the action is HELD for
+       re-sending (a connection failure, entry younger than the maximum age):
+       the caller must then leave it looking sent instead of showing an error.
+       Returns false when the failure is final: the entry is dropped and a
+       clear message is shown; the caller's own rollback and inline error run. */
+    function _calCrqFailed(pid, comp, errorText) {
+        if (!_crqActive()) return false;
+        const entry = _crqGet(pid, comp);
+        _crqRun.inflight.delete(pid + '|' + comp);
+        if (!entry) { _crqQuiet(); return false; }
+        const key = pid + '|' + comp;
+        if (_crqIsConnectionFailure(errorText) && !_crqExpired(entry)) {
+            if (entry.kind === 'request') {
+                entry.actionId = String(_calReviewState.draftActionIds[key] || entry.actionId || '');
+                _crqPut(entry);
+            }
+            _calReviewState.errors[key] = '';
+            _calReviewState.saving[key] = true;
+            if (entry.kind === 'approve') _crqApplyApproved(entry);
+            _crqSending();
+            _crqSchedule();
+            return true;
+        }
+        _crqDrop(pid, comp);
+        if (_crqIsConnectionFailure(errorText)) _crqTellExpired(entry);
+        else _crqTell('Your ' + _crqWhat(entry) + ' was not saved',
+            'SyncView refused it, so nothing was saved: ' + String(errorText || 'unknown reason')
+            + ' Please try again, or tell your account manager if it keeps happening.');
+        return false;
+    }
+
+    /* Keep a held approve on screen as approved (the save funnel rolled the
+       fields back when the send failed). */
+    function _crqApplyApproved(entry) {
+        const post = (calState.posts || []).find(p => p.id === entry.pid);
+        if (!post || !entry.edits) return;
+        Object.assign(post, entry.edits);
+        delete post._saveError;
+        try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+    }
+    /* Put a dropped approve back to what the server holds, on screen. */
+    function _crqUnapply(entry, serverRow) {
+        const post = (calState.posts || []).find(p => p.id === entry.pid);
+        if (post) Object.assign(post, entry.prev || {}, serverRow || {});
+        _calReviewState.saving[entry.pid + '|' + entry.comp] = false;
+        try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+    }
+
+    function _crqSchedule() {
+        if (_crqRun.timer) return;
+        const delay = CLIENT_REVIEW_QUEUE_RETRY_MS[Math.min(_crqRun.attempt, CLIENT_REVIEW_QUEUE_RETRY_MS.length - 1)];
+        _crqRun.attempt++;
+        _crqRun.timer = setTimeout(() => { _crqRun.timer = null; _calCrqResend(); }, delay);
+    }
+
+    /* The row as the SERVER holds it now (never the local copy). Throws on a
+       network failure; resolves null when the row is gone. */
+    async function _crqReadServerRow(entry) {
+        const cols = _crqCompsOf(entry.comp).map(c => c + '_status').join(',');
+        const url = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=' + cols
+            + '&client=eq.' + encodeURIComponent(_crqSlug()) + '&id=eq.' + encodeURIComponent(entry.pid) + '&limit=2';
+        const response = await fetch(url, { cache: 'no-store', headers: {
+            apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const rows = await response.json();
+        return Array.isArray(rows) && rows.length === 1 ? rows[0] : null;
+    }
+    const _crqNorm = v => String(v == null ? '' : v).trim().toLowerCase();
+
+    /* Re-send everything this client link still owes. One at a time. */
+    async function _calCrqResend() {
+        if (!_crqActive() || _crqRun.busy) return;
+        if (_crqRun.timer) { clearTimeout(_crqRun.timer); _crqRun.timer = null; }
+        const entries = _crqMine();
+        if (!entries.length) { _crqQuiet(); return; }
+        _crqRun.busy = true;
+        let again = false;
+        try {
+            for (const entry of entries) {
+                if (_crqRun.inflight.has(entry.pid + '|' + entry.comp)) continue;
+                if (_crqExpired(entry)) {
+                    _crqDrop(entry.pid, entry.comp);
+                    if (entry.kind === 'approve') _crqUnapply(entry, null);
+                    else _calReviewState.saving[entry.pid + '|' + entry.comp] = false;
+                    _crqTellExpired(entry);
+                    continue;
+                }
+                const post = (calState.posts || []).find(p => p.id === entry.pid);
+                if (!post) { again = true; continue; }   // not loaded yet
+                if (typeof navigator !== 'undefined' && navigator.onLine === false) { again = true; continue; }
+                if (entry.kind === 'approve') { if (await _crqResendApprove(entry, post) === 'wait') again = true; }
+                else _crqResendRequest(entry, post);
+            }
+        } finally {
+            _crqRun.busy = false;
+        }
+        if (again) { _crqSending(); _crqSchedule(); }
+    }
+    async function _crqResendApprove(entry, post) {
+        const key = entry.pid + '|' + entry.comp;
+        const comps = _crqCompsOf(entry.comp);
+        let row;
+        _crqRun.inflight.add(key);
+        try { row = await _crqReadServerRow(entry); }
+        catch (e) { _crqRun.inflight.delete(key); return 'wait'; }   // still offline: keep holding
+        const target = entry.edits || {};
+        if (row && comps.every(c => _crqNorm(row[c + '_status']) === _crqNorm(target[c + '_status']))) {
+            // Already on the server (the first send landed; only its answer was lost).
+            _calCrqDone(entry.pid, entry.comp);
+            _calReviewState.saving[key] = false;
+            try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+            return 'done';
+        }
+        const was = entry.serverStatus || {};
+        const unchanged = !!row && comps.every(c => (c in was) && _crqNorm(row[c + '_status']) === _crqNorm(was[c]));
+        if (!unchanged) {
+            // Someone (on this device or another) moved the post on while the
+            // approval waited. The newer state wins; say so.
+            _crqDrop(entry.pid, entry.comp);
+            _crqUnapply(entry, row);
+            _crqTellChanged(entry);
+            return 'changed';
+        }
+        _crqSending();
+        Object.assign(post, target);
+        _calPendingEdits[entry.pid] = Object.assign(_calPendingEdits[entry.pid] || {}, target);
+        try { await _calFlushCardSave(entry.pid); }
+        catch (e) { post._saveError = _writeUiFailureSentence(e); }
+        _calReviewState.saving[key] = false;
+        const current = (calState.posts || []).find(p => p.id === entry.pid) || post;
+        if (current._saveError) {
+            if (!_calCrqFailed(entry.pid, entry.comp, current._saveError)) {
+                if (entry.prev) Object.assign(current, entry.prev);
+                _calReviewState.errors[key] = current._saveError;
+                try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+            }
+            return 'failed';
+        }
+        _calCrqDone(entry.pid, entry.comp);
+        try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+        return 'done';
+    }
+    function _crqResendRequest(entry, post) {
+        const key = entry.pid + '|' + entry.comp;
+        _calReviewState.saving[key] = false;
+        _calReviewState.drafts[key] = entry.body;
+        if (entry.actionId) _calReviewState.draftActionIds[key] = entry.actionId;
+        _crqSending();
+        // Its own completion calls _calCrqDone / _calCrqFailed / _calCrqResolve.
+        _crqRun.replaying.add(key);
+        try { _calReviewRequestTweak(entry.pid, entry.comp); }
+        finally { _crqRun.replaying.delete(key); }
+        // The handler returns early, without starting, when the part is no
+        // longer waiting on the client. Nothing was sent: say so, keep nothing.
+        if (!_calReviewState.saving[key] && _crqGet(entry.pid, entry.comp)) {
+            _crqDrop(entry.pid, entry.comp);
+            _crqTellChanged(entry);
+            try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+        }
+    }
+
+    /* Resume after a reload: wait until the page knows its client, then
+       re-send (entries whose post has not loaded yet wait for the next pass). */
+    function _crqResumeWhenLoaded(tries) {
+        if (!_crqActive() || tries >= 90) return;
+        if (!_crqSlug() || !((typeof calState !== 'undefined' && calState.posts) || []).length) {
+            setTimeout(() => _crqResumeWhenLoaded(tries + 1), 1000); return;
+        }
+        if (_crqMine().length) _calCrqResend();
+    }
+
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+        window.addEventListener('online', () => { _crqRun.attempt = 0; _calCrqResend(); });
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && _crqMine().length) _calCrqResend();
+        });
+        setTimeout(() => _crqResumeWhenLoaded(0), 1500);
+    }
     function _calHasMedia(p) {
         return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim());
     }
@@ -48046,15 +48401,32 @@
             status: post.status,
         }, mode === 'client' ? { [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`] } : {},
         _kasperSeenCsv != null ? { kasper_seen: _kasperSeenCsv } : {});
-        Promise.resolve(_calFlushCardSave(pid)).then(() => {
+        // Client link: held in this browser until the server confirms (185).
+        // Only the status and approval fields ride in the entry, with the
+        // server status the client saw, so a re-send can check nothing moved.
+        if (mode === 'client') _calCrqBegin('approve', pid, comp, {
+            edits: { [subKey]: post[subKey], status: post.status,
+                [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`] },
+            prev: Object.assign({}, prev),
+            serverStatus: { [comp]: prev[subKey] }
+        });
+        Promise.resolve(_calFlushCardSave(pid)).catch(e => {
+            const current = calState.posts.find(p => p.id === pid) || post;
+            current._saveError = _writeUiFailureSentence(e);
+        }).then(() => {
             _calReviewState.saving[key] = false;
             const current = calState.posts.find(p => p.id === pid) || post;
             if (current._saveError) {
+                if (mode === 'client' && _calCrqFailed(pid, comp, current._saveError)) return;
                 if (!current._writeUiRetrySourceAt) Object.assign(current, prev);
                 _calReviewState.errors[key] = current._saveError || 'Save failed';
-                _calReviewRepaintCard(pid);
+                // A full render, not a repaint: the failed save's own render
+                // can have dropped this card from the list already, and a
+                // repaint only replaces a card that is still on screen.
+                _calRenderBody({ preserveScroll: true });
                 return;
             }
+            if (mode === 'client') _calCrqDone(pid, comp);
             if (clearsCard) _calReviewRemoveCard(pid);
             else _calReviewRepaintCard(pid);
         });
@@ -48123,6 +48495,9 @@
         let deferredLegacyAttempt = false;
         let deferredLegacySourceOnly = false;
         let deferredLegacyOutboxIds = [];
+        // The queue stores this request's action id before the first send
+        // (185), so a replay after a crash or reload reuses it.
+        if (_isClientLink) _calCrqBegin('request', pid, comp, { body: rawDraft });
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
         delete _calReviewState.errorActionIds[key];
@@ -48360,6 +48735,7 @@
                     || attemptId);
                 _calReviewState.draftActionIds[key] = failedActionId;
                 _calReviewState.errorActionIds[key] = failedActionId;
+                if (_isClientLink) _calCrqFailed(pid, comp, _calReviewState.errors[key]);
                 _calRenderBody({ preserveScroll: true });
                 return;
             }
@@ -48390,6 +48766,7 @@
                         'calendar', current, comp, outcome.action || action, key, rawDraft,
                         outcome.comment_id || attemptId
                     );
+                    if (_isClientLink) _calCrqResolve(pid, comp);
                     return;
                 }
                 const sourceOnlySuperseded =
@@ -48402,6 +48779,7 @@
                 delete _calReviewState.errorActionIds[key];
                 if (outcome.item) _writeUiLegacyReconcileCommittedTweak('calendar', outcome.item);
                 _calRenderBody({ preserveScroll: true });
+                if (_isClientLink && _calCrqDone(pid, comp)) return;
                 showToast(sourceOnlySuperseded
                     ? 'Change request saved — a newer status was applied'
                     : (outcome.source_only
@@ -48428,6 +48806,7 @@
                     delete _calReviewState.errorActionIds[key];
                     _writeUiLegacyReconcileCommittedTweak('calendar', confirmed.item);
                     _calRenderBody({ preserveScroll: true });
+                    if (_isClientLink) _calCrqDone(pid, comp);
                     return;
                 }
                 if (deferredLegacyAttempt) _writeUiScheduleDeferredLegacyTweak('calendar');
@@ -48439,6 +48818,7 @@
                 _calReviewState.errors[key] = current._saveError || 'Save failed';
                 _calReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
                 _calReviewState.errorActionIds[key] = String(action && action.comment_id || attemptId);
+                if (_isClientLink) _calCrqFailed(pid, comp, current._saveError);
                 _calRenderBody({ preserveScroll: true });
                 return;
             }
@@ -48463,6 +48843,7 @@
                     'calendar', current, comp, action, key, rawDraft,
                     action && action.comment_id || attemptId
                 );
+                if (_isClientLink) _calCrqResolve(pid, comp);
                 return;
             }
             if (deliveryOutcome && deliveryOutcome.state === 'source_only_superseded') {
@@ -48476,11 +48857,13 @@
                 delete _calReviewState.errorActionIds[key];
                 _writeUiLegacyReconcileCommittedTweak('calendar', deliveryOutcome.item);
                 _calRenderBody({ preserveScroll: true });
+                if (_isClientLink) _calCrqDone(pid, comp);
                 showToast('Change request saved — a newer status was applied');
                 return;
             }
             if (action && action.clearsCard) _calReviewRemoveCard(pid);
             else _calReviewRepaintCard(pid);
+            if (_isClientLink && !current._saveError && _calCrqDone(pid, comp)) return;
             if (_calCommentRole() === 'client' && !current._saveError) {
                 showToast(deferredLegacySourceOnly
                     ? (deliveryPending
@@ -48517,6 +48900,7 @@
                 delete _calReviewState.errorActionIds[key];
                 _writeUiLegacyReconcileCommittedTweak('calendar', confirmed.item);
                 _calRenderBody({ preserveScroll: true });
+                if (_isClientLink) _calCrqDone(pid, comp);
                 return;
             }
             if (action && !action.rollbackApplied && !current._writeUiRetrySourceAt) {
@@ -48528,6 +48912,7 @@
             _calReviewState.errors[key] = _writeUiFailureSentence(error);
             _calReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
             _calReviewState.errorActionIds[key] = String(action && action.comment_id || attemptId);
+            if (_isClientLink) _calCrqFailed(pid, comp, _calReviewState.errors[key]);
             _calRenderBody({ preserveScroll: true });
         });
     }
@@ -68809,7 +69194,7 @@
             // Defer the repaint while the user is mid-edit so a realtime reload can't
             // clobber their caret / unsaved field (Surface 7 deferred-render guard).
             else if (background && typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
-                _sxrPendingBackgroundRender = true; if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
+                _sxrSetPendingBackgroundRender(true); if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
                 if (typeof _sxrRefreshCommentsBtn === 'function') { try { sxrState.posts.forEach(p => _sxrRefreshCommentsBtn(p.id)); } catch (e) {} }
                 // The full render is deferred while busy, but a peer's status change
                 // must still show LIVE — repaint just the status pills in place
@@ -69244,7 +69629,7 @@
             // Our own row change is about to arrive on the realtime channel; mark
             // it as a local write so the strip is not rebuilt underneath the
             // person who just pressed the button, as every samples write does.
-            _sxrLastLocalWriteAt = Date.now();
+            _sxrSetLastLocalWriteAt(Date.now());
             /* THE VIEW MAY HAVE MOVED ON (Codex P2 on PR 1342). Staff switch client
                tabs while a request is in flight, and `sxrState.posts` then holds
                the NEW client's rows while `clientSlug` still names the old one.
@@ -69265,7 +69650,7 @@
                the caret (the PR-705 focus guard). */
             try {
                 if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
-                    _sxrPendingBackgroundRender = true;
+                    _sxrSetPendingBackgroundRender(true);
                     if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
                 } else {
                     _sxrRenderBody({ preserveScroll: true });
@@ -69757,7 +70142,7 @@
                and eat the caret. preserveScroll on both legs: the adopter lands
                late enough that the user may well have scrolled. */
             if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
-                _sxrPendingBackgroundRender = true;
+                _sxrSetPendingBackgroundRender(true);
                 if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
             } else {
                 _sxrRenderBody({ preserveScroll: true });
@@ -70731,6 +71116,7 @@
     const _sxrFailedNewCards = new Set();         // new rows whose first save failed (keep on screen)
     const _sxrConflictNotified = new Set();
     let _sxrLastLocalWriteAt = 0;                 // self-echo window for realtime
+    function _sxrSetLastLocalWriteAt(value) { _sxrLastLocalWriteAt = value; }
 
     /* The comment data layer (_sxrCommentsFor / _sxrStringifyComments /
        _sxrMergePostComments + the rest) is installed by Surface 4 (Review) below;
@@ -73149,6 +73535,7 @@
 
     /* Deferred-render guard — hold a background repaint while the user is mid-edit. */
     let _sxrPendingBackgroundRender = false;
+    function _sxrSetPendingBackgroundRender(value) { _sxrPendingBackgroundRender = value; }
     let _sxrPendingRenderInterval = null;
     function _sxrIsBusy() {
         const body = document.getElementById('sxrBody');
@@ -75459,6 +75846,27 @@
         .tk-sub { font-size: 0.86rem; color: var(--text-secondary); margin-top: 2px; }
         .tk-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
         .tk-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; }
+        /* Form column: numbered steps on a thin rail instead of boxed cards. */
+        #tkFormCol { counter-reset: tkstep; }
+        #tkFormCol > .tk-card { background: none; border: 0; border-radius: 0; padding: 0 0 26px 40px; position: relative; counter-increment: tkstep; }
+        #tkFormCol > .tk-card::before { content: counter(tkstep); position: absolute; left: 0; top: -3px; width: 24px; height: 24px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--border); display: grid; place-items: center; font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); background: var(--bg); }
+        #tkFormCol > .tk-card::after { content: ""; position: absolute; left: 11px; top: 26px; bottom: 6px; width: 1.5px; background: var(--border); }
+        #tkFormCol > .tk-opts-card::after { display: none; }
+        .tk-step-note { display: block; font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; }
+        .tk-radio-row.tk-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; background: var(--field-bg); border-radius: 12px; padding: 4px; }
+        .tk-seg .tk-radio { justify-content: center; border: 0; border-radius: 9px; padding: 10px; background: none; }
+        .tk-seg .tk-radio:hover { color: var(--text-primary); }
+        .tk-seg .tk-radio.active { background: var(--text-primary); color: var(--white); }
+        .tk-sched-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        #tkFormCol .tk-sched-head h3 { margin: 0; }
+        #tkScheduleFields { margin-top: 14px; }
+        .tk-opts-head { all: unset; box-sizing: border-box; width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; }
+        .tk-opts-head:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 4px; border-radius: 6px; }
+        #tkFormCol .tk-opts-head h3 { margin: 0; }
+        .tk-opts-more { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 700; color: var(--text-primary); white-space: nowrap; }
+        .tk-opts-more svg { transition: transform 0.15s; }
+        .tk-opts-head[aria-expanded="true"] .tk-opts-more svg { transform: rotate(180deg); }
+        .tk-opts-body { margin-top: 16px; }
         .tk-card h3 { margin: 0 0 14px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
         .tk-card h3 .tk-card-hint { float: right; text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--text-secondary); font-size: 0.74rem; }
         .tk-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
@@ -75539,12 +75947,25 @@
         .tk-st.uploading, .tk-st.processing { color: var(--sv-fg-1e40af); }
         .tk-st.posted { color: var(--sv-fg-065f46); }
         .tk-st.failed { color: var(--sv-fg-dc2626); }
+        .tk-st.noresult { color: var(--sv-fg-92400e); }
         .tk-queue-actions { grid-column: 2; display: flex; gap: 6px; align-items: center; margin-top: 4px; }
         .tk-q-when { padding-top: 2px; }
         .tk-q-day { white-space: nowrap; }
         .tk-q-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-secondary); font-family: inherit; font-size: 0.74rem; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; }
         .tk-q-btn:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
         .tk-q-danger { color: var(--sv-fg-dc2626); }
+        /* Row actions: plain text, no box, shown on hover (always on touch screens). */
+        .tk-queue-item { position: relative; }
+        .tk-queue-actions { position: absolute; right: 0; top: 50%; transform: translateY(-50%); margin: 0; gap: 14px; opacity: 0; transition: opacity 0.15s; }
+        .tk-queue-item:hover .tk-queue-actions, .tk-queue-item:focus-within .tk-queue-actions { opacity: 1; }
+        .tk-queue-actions .tk-q-btn { border: 0; background: none; min-height: 0; padding: 4px; width: auto; color: var(--text-secondary); font-weight: 500; }
+        .tk-queue-actions .tk-q-btn:hover { color: var(--text-primary); text-decoration: underline; border: 0; }
+        .tk-queue-actions .tk-q-primary { color: var(--text-primary); font-weight: 600; }
+        @media (hover: none), (max-width: 640px) {
+            .tk-queue-actions { opacity: 1; position: static; transform: none; grid-column: 2; margin-top: 4px; }
+            .tk-queue-actions .tk-q-btn { min-height: 40px; padding: 0 6px; }
+        }
+        .tk-submit-bar .tk-mini-btn { border: 0; background: none; padding: 4px; }
         .tk-q-primary { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
         .tk-q-primary:hover { color: var(--white); opacity: 0.88; }
         .tk-q-x { width: 32px; padding: 0; font-size: 1rem; color: var(--text-muted); }
@@ -75851,7 +76272,25 @@
         // Trust the server status. An accepted upload is 'processing' until the
         // Post For Me result webhook flips the row to 'posted'/'failed' with the
         // real TikTok outcome — we no longer optimistically claim 'posted'.
-        return String(r.status || '').toLowerCase() || 'queued';
+        // When that webhook never arrives, the row would sit in Upcoming for
+        // ever, so an overdue row takes the answer from a direct Post For Me
+        // lookup, or says plainly that no result came back.
+        const s = String(r.status || '').toLowerCase() || 'queued';
+        if (!_tkIsOverdue(r)) return s;
+        const looked = (tkState.pfm || {})[r.id];
+        if (looked && looked.state === 'posted') return 'posted';
+        if (looked && looked.state === 'failed') return 'failed';
+        return 'noresult';
+    }
+    // An upload still marked pending well after it was due (or, for "post
+    // now", well after it was sent) has lost its result.
+    const TK_OVERDUE_MS = 3 * 3600000;
+    function _tkIsOverdue(r) {
+        if (r.optimistic) return false;
+        const s = String(r.status || '').toLowerCase() || 'queued';
+        if (!TK_UPCOMING.includes(s)) return false;
+        const at = Date.parse(r.scheduled_for || r.created_at || '');
+        return Number.isFinite(at) && Date.now() - at > TK_OVERDUE_MS;
     }
 
     function renderTiktokUploadView() {
@@ -75871,6 +76310,22 @@
                 </div>
             </div>
         `;
+    }
+
+    // One line under the collapsed TikTok options, naming what will be sent.
+    function _tkOptionsSummary(opts) {
+        const bits = [
+            (TK_PRIVACY_LEVELS.find(p => p.v === opts.privacy_level) || TK_PRIVACY_LEVELS[0]).label,
+            (TK_POST_MODES.find(p => p.v === opts.post_mode) || TK_POST_MODES[0]).label,
+        ];
+        if (tkState.mediaType === 'video') bits.push(`Cover at ${Math.round((Number(opts.cover_timestamp_ms) || 0) / 100) / 10} s`);
+        else bits.push(opts.auto_add_music !== false ? 'Auto music on' : 'Auto music off');
+        const off = [opts.disable_comment && 'comments', opts.disable_duet && 'duet', opts.disable_stitch && 'stitch'].filter(Boolean);
+        bits.push(off.length === 0 ? 'Comments, duet, stitch on' : off.length === 3 ? 'Comments, duet, stitch off' : `${off.join(', ')} off`);
+        if (opts.brand_content_toggle) bits.push('Branded content');
+        if (opts.brand_organic_toggle) bits.push('Your brand');
+        if (opts.is_aigc) bits.push('AI-generated');
+        return bits.join(' · ');
     }
 
     function _tkRenderForm() {
@@ -75993,14 +76448,14 @@
             <div class="tk-card">
                 <h3>Media</h3>
                 <div class="tk-row">
-                    <div class="tk-radio-row">
+                    <div class="tk-radio-row tk-seg" role="radiogroup" aria-label="Media type">
                         <label class="tk-radio ${tkState.mediaType === 'video' ? 'active' : ''}">
                             <input type="radio" name="tkMediaType" value="video" ${tkState.mediaType === 'video' ? 'checked' : ''} ${tkState.submitting ? 'disabled' : ''}>
-                            Video
+                            <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.8v8.4L10 6z" fill="currentColor"/></svg>Video
                         </label>
                         <label class="tk-radio ${tkState.mediaType === 'photo' ? 'active' : ''}">
                             <input type="radio" name="tkMediaType" value="photo" ${tkState.mediaType === 'photo' ? 'checked' : ''} ${tkState.submitting ? 'disabled' : ''}>
-                            Photo carousel
+                            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="1" y="1" width="10" height="10" rx="1.5" fill="currentColor"/></svg>Photo carousel
                         </label>
                     </div>
                 </div>
@@ -76017,7 +76472,54 @@
             </div>
 
             <div class="tk-card">
-                <h3>TikTok options</h3>
+                <div class="tk-sched-head">
+                    <h3>Scheduling</h3>
+                    <label class="tk-toggle">
+                        <input type="checkbox" id="tkPostNow" ${tkState.schedule.postNow ? 'checked' : ''}>
+                        <span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>
+                        Post immediately
+                    </label>
+                </div>
+                ${tkState.schedule.postNow ? '<div class="tk-step-note">Posts as soon as you press Post now. Switch off to pick a date and time.</div>' : ''}
+                <div id="tkScheduleFields" ${tkState.schedule.postNow ? 'hidden' : ''}>
+                    <div class="tk-grid-2">
+                        <div class="tk-row">
+                            <label for="tkScheduleDate">Date</label>
+                            <input class="tpl-input" id="tkScheduleDate" type="date" value="${_tkEscape(schedParts.date)}" min="${_tkEscape(schedTodayISO)}">
+                        </div>
+                        <div class="tk-row">
+                            <label>Time</label>
+                            <div class="tk-time-row">
+                                <select class="tk-select tk-time-select" id="tkScheduleHour">
+                                    ${schedHours.map(h => `<option value="${h}" ${String(h) === schedParts.hour12 ? 'selected' : ''}>${h}</option>`).join('')}
+                                </select>
+                                <span class="tk-time-sep">:</span>
+                                <select class="tk-select tk-time-select" id="tkScheduleMin">
+                                    ${schedMinutes.map(mm => `<option value="${mm}" ${mm === schedParts.minute ? 'selected' : ''}>${mm}</option>`).join('')}
+                                </select>
+                                <div class="tk-ampm" id="tkAmpm">
+                                    <button type="button" class="tk-ampm-btn ${schedParts.ampm === 'AM' ? 'active' : ''}" data-ampm="AM">AM</button>
+                                    <button type="button" class="tk-ampm-btn ${schedParts.ampm === 'PM' ? 'active' : ''}" data-ampm="PM">PM</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tk-row" style="margin-top:6px">
+                        <label for="tkScheduleTz">Timezone</label>
+                        <select class="tk-select" id="tkScheduleTz">
+                            ${TK_TIMEZONES.map(tz => `<option value="${tz}" ${tz === tkState.schedule.tz ? 'selected' : ''}>${tz}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="tk-schedule-preview" id="tkSchedulePreview" style="${schedPreview ? '' : 'display:none'}">${_tkEscape(schedPreview)}</div>
+                </div>
+            </div>
+
+            <div class="tk-card tk-opts-card">
+                <button type="button" class="tk-opts-head" id="tkOptsToggle" aria-expanded="${tkState.optsOpen ? 'true' : 'false'}" aria-controls="tkOptsBody">
+                    <span class="tk-opts-text"><h3>TikTok options</h3><span class="tk-step-note">${_tkEscape(_tkOptionsSummary(opts))}</span></span>
+                    <span class="tk-opts-more"><span id="tkOptsLabel">${tkState.optsOpen ? 'Hide options' : 'Show options'}</span><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span>
+                </button>
+                <div class="tk-opts-body" id="tkOptsBody" ${tkState.optsOpen ? '' : 'hidden'}>
                 <div class="tk-grid-2">
                     <div class="tk-row">
                         <label>Privacy level</label>
@@ -76067,47 +76569,6 @@
                         <label class="tk-toggle"><input type="checkbox" id="tkAigc"          ${opts.is_aigc ? 'checked' : ''}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>AI-generated</label>
                     </div>
                 </div>
-            </div>
-
-            <div class="tk-card">
-                <h3>Scheduling</h3>
-                <div class="tk-row">
-                    <label class="tk-toggle" style="align-self:flex-start">
-                        <input type="checkbox" id="tkPostNow" ${tkState.schedule.postNow ? 'checked' : ''}>
-                        <span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>
-                        Post immediately
-                    </label>
-                </div>
-                <div id="tkScheduleFields" style="${tkState.schedule.postNow ? 'opacity:0.45;pointer-events:none' : ''}">
-                    <div class="tk-grid-2">
-                        <div class="tk-row">
-                            <label for="tkScheduleDate">Date</label>
-                            <input class="tpl-input" id="tkScheduleDate" type="date" value="${_tkEscape(schedParts.date)}" min="${_tkEscape(schedTodayISO)}">
-                        </div>
-                        <div class="tk-row">
-                            <label>Time</label>
-                            <div class="tk-time-row">
-                                <select class="tk-select tk-time-select" id="tkScheduleHour">
-                                    ${schedHours.map(h => `<option value="${h}" ${String(h) === schedParts.hour12 ? 'selected' : ''}>${h}</option>`).join('')}
-                                </select>
-                                <span class="tk-time-sep">:</span>
-                                <select class="tk-select tk-time-select" id="tkScheduleMin">
-                                    ${schedMinutes.map(mm => `<option value="${mm}" ${mm === schedParts.minute ? 'selected' : ''}>${mm}</option>`).join('')}
-                                </select>
-                                <div class="tk-ampm" id="tkAmpm">
-                                    <button type="button" class="tk-ampm-btn ${schedParts.ampm === 'AM' ? 'active' : ''}" data-ampm="AM">AM</button>
-                                    <button type="button" class="tk-ampm-btn ${schedParts.ampm === 'PM' ? 'active' : ''}" data-ampm="PM">PM</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="tk-row" style="margin-top:6px">
-                        <label for="tkScheduleTz">Timezone</label>
-                        <select class="tk-select" id="tkScheduleTz">
-                            ${TK_TIMEZONES.map(tz => `<option value="${tz}" ${tz === tkState.schedule.tz ? 'selected' : ''}>${tz}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="tk-schedule-preview" id="tkSchedulePreview" style="${schedPreview ? '' : 'display:none'}">${_tkEscape(schedPreview)}</div>
                 </div>
             </div>
 
@@ -76282,6 +76743,13 @@
         tog('tkAigc', 'is_aigc');
         tog('tkAutoMusic', 'auto_add_music');
 
+        $('tkOptsToggle')?.addEventListener('click', () => {
+            tkState.optsOpen = !tkState.optsOpen;
+            const body = $('tkOptsBody');
+            if (body) body.hidden = !tkState.optsOpen;
+            $('tkOptsToggle').setAttribute('aria-expanded', tkState.optsOpen ? 'true' : 'false');
+            $('tkOptsLabel').textContent = tkState.optsOpen ? 'Hide options' : 'Show options';
+        });
         $('tkPostNow')?.addEventListener('change', (e) => {
             tkState.schedule.postNow = e.target.checked;
             _tkSaveDraft(); _tkRenderForm();
@@ -76934,6 +77402,7 @@
             // The live list is usually the same; repaint only on a change
             // (or to turn the cached, read-only rows into live ones).
             if (JSON.stringify(tkState.uploads) !== shownBefore) _tkRenderQueue();
+            await _tkLookupOverdue();
         } catch (e) {
             // Surface only on the very first failure — keep retrying quietly afterwards.
             const col = document.getElementById('tkQueueCol');
@@ -76944,7 +77413,7 @@
     }
 
     const TK_UPCOMING = ['queued', 'uploading', 'processing', 'scheduled'];
-    const TK_STATUS_LABELS = { queued: 'Queued', uploading: 'Uploading', processing: 'Uploading', scheduled: 'Scheduled', posted: 'Posted', failed: 'Failed', cancelled: 'Cancelled', canceled: 'Cancelled' };
+    const TK_STATUS_LABELS = { noresult: 'No result from Post For Me', queued: 'Queued', uploading: 'Uploading', processing: 'Uploading', scheduled: 'Scheduled', posted: 'Posted', failed: 'Failed', cancelled: 'Cancelled', canceled: 'Cancelled' };
 
     // The moment a row is about: its scheduled time while it waits, otherwise
     // when it posted (or was last touched).
@@ -77010,8 +77479,8 @@
         const groups = {
             upcoming: visible.filter(r => TK_UPCOMING.includes(_tkEffectiveStatus(r)))
                 .sort((x, y) => (x.scheduled_for ? t(x) : -Infinity) - (y.scheduled_for ? t(y) : -Infinity)),
-            failed: visible.filter(r => _tkEffectiveStatus(r) === 'failed').sort((x, y) => t(y) - t(x)),
-            done: visible.filter(r => !TK_UPCOMING.includes(_tkEffectiveStatus(r)) && _tkEffectiveStatus(r) !== 'failed').sort((x, y) => t(y) - t(x)),
+            failed: visible.filter(r => ['failed', 'noresult'].includes(_tkEffectiveStatus(r))).sort((x, y) => t(y) - t(x)),
+            done: visible.filter(r => !TK_UPCOMING.includes(_tkEffectiveStatus(r)) && !['failed', 'noresult'].includes(_tkEffectiveStatus(r))).sort((x, y) => t(y) - t(x)),
         };
         const tab = groups[tkState.queueTab] ? tkState.queueTab : 'upcoming';
         const rows = groups[tab];
@@ -77020,6 +77489,9 @@
 
         const itemHTML = (r) => {
             const status = _tkEffectiveStatus(r);
+            const looked = (tkState.pfm || {})[r.id] || {};
+            if (!r.tiktok_url && looked.url) r = { ...r, tiktok_url: looked.url };
+            if (!r.error && status === 'failed' && looked.error) r = { ...r, error: looked.error };
             const when = _tkWhenParts(r, status);
             const actions = [];
             // Rows painted from the local cache are read-only until the live
@@ -77027,7 +77499,7 @@
             const readOnly = tkState.queueFromCache && !r.optimistic;
             const id = _tkEscape(r.id);
             if (!readOnly && (status === 'scheduled' || status === 'queued')) actions.push(`<button type="button" class="tk-q-btn tk-q-danger" onclick="_tkCancelRow('${id}')">Cancel</button>`);
-            if (!readOnly && status === 'failed') actions.push(`<button type="button" class="tk-q-btn tk-q-primary" onclick="_tkRetryRow('${id}')">Retry</button>`);
+            if (!readOnly && status === 'failed' && !_tkIsOverdue(r)) actions.push(`<button type="button" class="tk-q-btn tk-q-primary" onclick="_tkRetryRow('${id}')">Retry</button>`);
             if (r.tiktok_url) actions.push(`<a class="tk-q-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
             if (!readOnly) actions.push(`<button type="button" class="tk-q-btn tk-q-x" onclick="_tkDismissRow('${id}')" title="Dismiss" aria-label="Dismiss">&times;</button>`);
             const tz = r.scheduled_for && r.timezone ? ` · ${_tkEscape(r.timezone.split('/').pop().replace(/_/g, ' '))}` : '';
@@ -77107,9 +77579,36 @@
     function _tkHasScheduled() {
         return (tkState.uploads || []).some(r => _tkEffectiveStatus(r) === 'scheduled');
     }
+    // Overdue rows still waiting on an answer from the Post For Me lookup.
+    function _tkUnresolvedOverdue() {
+        const pfm = tkState.pfm || {};
+        return (tkState.uploads || []).filter(r => _tkIsOverdue(r) && !['posted', 'failed'].includes((pfm[r.id] || {}).state));
+    }
+    // Ask Post For Me (through the read-only status webhook) what happened
+    // to overdue rows. At most a few per pass, each at most every 10 min.
+    const TK_LOOKUP_EVERY_MS = 10 * 60000;
+    async function _tkLookupOverdue() {
+        tkState.pfm = tkState.pfm || {};
+        const due = _tkUnresolvedOverdue().filter(r => r.upload_post_id && !(Date.now() - ((tkState.pfm[r.id] || {}).at || 0) < TK_LOOKUP_EVERY_MS))
+            .sort((x, y) => ((tkState.pfm[x.id] || {}).at || 0) - ((tkState.pfm[y.id] || {}).at || 0))   // longest-unasked first, so no row starves
+            .slice(0, 5);
+        let changed = false;
+        for (const r of due) {
+            try {
+                const resp = await fetch(TIKTOK_UPLOAD_STATUS_URL + '?id=' + encodeURIComponent(r.id) + '&_t=' + Date.now(), { method: 'GET', signal: (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined) });
+                const json = resp.ok ? await resp.json() : null;
+                const pfm = (json && json.pfm) || null;
+                const prev = tkState.pfm[r.id] || {};
+                tkState.pfm[r.id] = { ...(pfm || { state: 'unknown' }), at: Date.now() };
+                if (prev.state !== tkState.pfm[r.id].state) changed = true;
+            } catch { tkState.pfm[r.id] = { ...(tkState.pfm[r.id] || {}), state: (tkState.pfm[r.id] || {}).state || 'unknown', at: Date.now() }; }
+        }
+        if (changed) _tkRenderQueue();
+    }
     function _tkNextPollDelay() {
         if (_tkActiveUploadCount() > 0) return 30_000;   // something in-flight — watch closely
         if (_tkHasScheduled()) return 120_000;           // only future posts — check lazily
+        if (_tkUnresolvedOverdue().length) return 300_000; // overdue, no result yet — keep asking
         return 0;                                        // nothing pending — stop until activity resumes
     }
     function _tkStopPolling() {

@@ -11837,12 +11837,18 @@
     function addRecent(name){let r=getRecent().filter(n=>n!==name);r.unshift(name);r=r.slice(0,3);try{localStorage.setItem(RECENT_KEY,JSON.stringify(r));}catch(e){}}
     function openSearchDropdown(){const box=document.getElementById('searchBox');if(!box||box.classList.contains('open'))return;box.classList.add('open');const close=(e)=>{const wrap=document.getElementById('searchWrap');if(wrap&&!wrap.contains(e.target)){box.classList.remove('open');document.removeEventListener('click',close);}};setTimeout(()=>document.addEventListener('click',close),0);}
     function onSearchFocus(){renderSearchResults(document.getElementById('searchInput')?.value||'');openSearchDropdown();}
-    function onSearchIconClick(){const inp=document.getElementById('searchInput');const q=inp?.value.trim();if(q){const allNames=getClientRoster();const starts=allNames.filter(n=>n.toLowerCase().startsWith(q.toLowerCase()));const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q.toLowerCase())&&n.toLowerCase().includes(q.toLowerCase()));const first=[...starts,...contains][0];if(first){searchGoTo(first);return;}}inp?.focus();openSearchDropdown();}
+    function onSearchIconClick(){const inp=document.getElementById('searchInput');const q=inp?.value.trim();if(q){const allNames=getClientRoster();const first=clientSearchMatches(q,allNames)[0];if(first){searchGoTo(first);return;}}inp?.focus();openSearchDropdown();}
     function onSearchInput(){const q=document.getElementById('searchInput').value;renderSearchResults(q);updateSearchGhost(q);openSearchDropdown();}
-    function updateSearchGhost(q){const ghost=document.getElementById('searchGhost');const inp=document.getElementById('searchInput');if(!ghost||!inp)return;const q2=q.trim().toLowerCase();if(!q2){ghost.innerHTML='';return;}const allNames=getClientRoster();const starts=allNames.filter(n=>n.toLowerCase().startsWith(q2));const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q2)&&n.toLowerCase().includes(q2));const first=[...starts,...contains][0];if(!first){ghost.innerHTML='';return;}if(first.toLowerCase().startsWith(q2)){const typed=first.slice(0,q.length);const rest=first.slice(q.length);ghost.innerHTML=`<span style="color:transparent;white-space:pre">${typed}</span><span style="color:var(--text-muted);opacity:0.55;white-space:pre">${rest}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵</span>`;}else{ghost.innerHTML=`<span style="color:transparent;white-space:pre">${q}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵ ${first}</span>`;}}
-    function onSearchKey(e){if(e.key==='Escape'){const box=document.getElementById('searchBox');const ghost=document.getElementById('searchGhost');if(box)box.classList.remove('open');if(ghost)ghost.innerHTML='';document.getElementById('searchInput')?.blur();return;}if(e.key!=='Enter')return;const q=document.getElementById('searchInput')?.value.trim();if(!q)return;const allNames=getClientRoster();const _starts=allNames.filter(n=>n.toLowerCase().startsWith(q.toLowerCase()));const _contains=allNames.filter(n=>!n.toLowerCase().startsWith(q.toLowerCase())&&n.toLowerCase().includes(q.toLowerCase()));const first=[..._starts,..._contains][0];if(first)searchGoTo(first);}
+    function updateSearchGhost(q){const ghost=document.getElementById('searchGhost');const inp=document.getElementById('searchInput');if(!ghost||!inp)return;const allNames=getClientRoster();ghost.innerHTML=clientSearchGhostHtml(q,allNames);}
+    function onSearchKey(e){if(e.key==='Escape'){const box=document.getElementById('searchBox');const ghost=document.getElementById('searchGhost');if(box)box.classList.remove('open');if(ghost)ghost.innerHTML='';document.getElementById('searchInput')?.blur();return;}if(e.key!=='Enter')return;const q=document.getElementById('searchInput')?.value.trim();if(!q)return;const allNames=getClientRoster();const first=clientSearchMatches(q,allNames)[0];if(first)searchGoTo(first);}
+    // The client search behind the Analytics picker, shared so every client
+    // search looks and ranks the same: names that START with the query first,
+    // then names that merely contain it; the ghost previews the top match.
+    function clientSearchMatches(q,names){const q2=String(q||'').trim().toLowerCase();if(!q2)return[];const starts=names.filter(n=>n.toLowerCase().startsWith(q2));const contains=names.filter(n=>!n.toLowerCase().startsWith(q2)&&n.toLowerCase().includes(q2));return[...starts,...contains];}
+    function clientSearchGhostHtml(q,names){const q2=String(q||'').trim().toLowerCase();if(!q2)return'';const first=clientSearchMatches(q,names)[0];if(!first)return'';const key='margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;';if(first.toLowerCase().startsWith(q2)){return`<span style="color:transparent;white-space:pre">${_calEsc(first.slice(0,q.length))}</span><span style="color:var(--text-muted);opacity:0.55;white-space:pre">${_calEsc(first.slice(q.length))}</span><span style="${key}">↵</span>`;}return`<span style="color:transparent;white-space:pre">${_calEsc(q)}</span><span style="${key}">↵ ${_calEsc(first)}</span>`;}
+    function clientSearchResultsHtml(q,names,recent,pickAttr){const q2=String(q||'').trim();if(!q2){if(!recent.length)return'';return`<div class="search-section-label">Recent</div>`+recent.map(name=>`<div class="search-suggestion" ${pickAttr(name)}><span class="s-icon">↩</span><span>${_calEsc(name)}</span></div>`).join('');}const matches=clientSearchMatches(q2,names);if(!matches.length)return`<div class="search-empty">No clients found</div>`;return matches.slice(0,6).map(name=>`<div class="search-suggestion" ${pickAttr(name)}><span class="s-icon">👤</span><span>${highlightMatch(_calEsc(name),_calEsc(q2))}</span></div>`).join('');}
     function highlightMatch(name,q){if(!q)return name;const idx=name.toLowerCase().indexOf(q.toLowerCase());if(idx<0)return name;return name.slice(0,idx)+`<span class="s-match">`+name.slice(idx,idx+q.length)+`</span>`+name.slice(idx+q.length);}
-    function renderSearchResults(q){const el=document.getElementById('searchResults');if(!el)return;const allNames=getClientRoster();const recent=getRecent().filter(n=>allNames.includes(n));const q2=q.trim().toLowerCase();if(!q2){if(!recent.length){el.innerHTML='';return;}el.innerHTML=`<div class="search-section-label">Recent</div>`+recent.map(name=>`<div class="search-suggestion" onclick="searchGoTo(${_jsAttrArg(name)})"><span class="s-icon">↩</span><span>${_calEsc(name)}</span></div>`).join('');}else{const starts=allNames.filter(n=>n.toLowerCase().startsWith(q2));const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q2)&&n.toLowerCase().includes(q2));const matches=[...starts,...contains];if(!matches.length){el.innerHTML=`<div class="search-empty">No clients found</div>`;}else{el.innerHTML=matches.slice(0,6).map(name=>`<div class="search-suggestion" onclick="searchGoTo(${_jsAttrArg(name)})"><span class="s-icon">👤</span><span>${highlightMatch(name,q.trim())}</span></div>`).join('');}}}
+    function renderSearchResults(q){const el=document.getElementById('searchResults');if(!el)return;const allNames=getClientRoster();const recent=getRecent().filter(n=>allNames.includes(n));el.innerHTML=clientSearchResultsHtml(q,allNames,recent,name=>`onclick="searchGoTo(${_jsAttrArg(name)})"`);}
     function searchGoTo(name){addRecent(name);const box=document.getElementById('searchBox');const inp=document.getElementById('searchInput');const ghost=document.getElementById('searchGhost');if(box)box.classList.remove('open');if(inp){inp.value='';inp.blur();}if(ghost)ghost.innerHTML='';selectClient(name);}
 
     const PINS_KEY='syncview_pinned_clients';
@@ -75092,6 +75098,8 @@
         'Australia/Sydney', 'UTC',
     ];
 
+    const TK_QUEUE_PAGE = 5;
+
     const tkState = {
         client: null,
         profile: null,
@@ -75117,6 +75125,8 @@
         },
         schedule: { postNow: true, at: '', tz: 'America/New_York' },
         uploads: [],
+        queueTab: 'upcoming',       // 'upcoming' | 'failed' | 'done'
+        queueLimit: TK_QUEUE_PAGE,  // rows shown in the open tab; "Show more" adds a page
         submitting: false,
         error: null,
         progress: 0,
@@ -75207,12 +75217,12 @@
         @media (max-width: 640px) { .tk-grid-2 { grid-template-columns: 1fr; } }
         .tk-select { width: 100%; border: 1.5px solid transparent; background: var(--bg); border-radius: 8px; padding: 10px 12px; font-family: inherit; font-size: 0.88rem; color: var(--text-primary); outline: none; cursor: pointer; transition: border-color 0.13s, background 0.13s; appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
         .tk-select:hover { background-color: var(--sv-bg-ededea); }
-        .tk-select:focus { border-color: var(--sv-border-111110); background-color: var(--white); }
+        .tk-select:focus { border-color: var(--text-primary); background-color: var(--white); }
         .tk-profile-line { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
         .tk-profile-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; background: var(--bg); border-radius: 99px; font-weight: 600; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.74rem; }
         .tk-warn-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; background: var(--sv-bg-fef3c7); color: var(--sv-fg-92400e); border-radius: 99px; font-weight: 700; font-size: 0.72rem; }
         .tk-drop { position: relative; border: 1.8px dashed var(--border); border-radius: 12px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all 0.15s; background: var(--bg); }
-        .tk-drop:hover, .tk-drop.tk-drag { border-color: var(--sv-border-111110); background: var(--white); }
+        .tk-drop:hover, .tk-drop.tk-drag { border-color: var(--text-primary); background: var(--white); }
         .tk-drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
         .tk-drop-icon { width: 36px; height: 36px; margin: 0 auto 10px; display: grid; place-items: center; border-radius: 50%; background: var(--white); border: 1px solid var(--border); }
         .tk-drop-title { font-size: 0.92rem; font-weight: 700; color: var(--text-primary); }
@@ -75232,8 +75242,8 @@
         .tk-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; font-size: 0.82rem; color: var(--text-primary); font-weight: 600; position: relative; }
         .tk-toggle input { position: absolute; opacity: 0; pointer-events: none; }
         .tk-toggle-track { position: relative; width: 30px; height: 16px; border-radius: 8px; background: var(--border); transition: background 0.15s; flex-shrink: 0; }
-        .tk-toggle-thumb { position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: 50%; background: var(--sv-bg-fff); transition: left 0.15s; box-shadow: 0 1px 2px var(--sv-shadow-rgba-0-0-0-0_18); }
-        .tk-toggle input:checked ~ .tk-toggle-track { background: var(--sv-bg-111110); }
+        .tk-toggle-thumb { position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: 50%; background: var(--white); transition: left 0.15s; box-shadow: 0 1px 2px var(--sv-shadow-rgba-0-0-0-0_18); }
+        .tk-toggle input:checked ~ .tk-toggle-track { background: var(--text-primary); }
         .tk-toggle input:checked ~ .tk-toggle-track .tk-toggle-thumb { left: 15px; }
         .tk-radio-row { display: flex; gap: 8px; flex-wrap: wrap; }
         .tk-radio { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border: 1.5px solid var(--border); border-radius: 99px; cursor: pointer; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); background: var(--white); transition: all 0.13s; }
@@ -75243,38 +75253,65 @@
            announced by screen readers while looking identical for mouse/touch. */
         .tk-radio input { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
         .tk-radio:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); }
-        .tk-radio:focus-within { outline: 2px solid var(--sv-border-111110); outline-offset: 2px; }
-        .tk-radio.active { background: var(--sv-bg-111110); color: var(--sv-fg-fff); border-color: var(--sv-border-111110); }
+        .tk-radio:focus-within { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+        .tk-radio.active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
         .tk-submit-bar { display: flex; align-items: center; gap: 14px; padding: 14px 22px; background: var(--white); border: 1px solid var(--border); border-radius: 14px; position: sticky; bottom: 16px; box-shadow: 0 6px 24px var(--sv-shadow-rgba-0-0-0-0_06); }
-        .tk-submit-btn { flex-shrink: 0; padding: 12px 28px; background: var(--sv-bg-111110); color: var(--sv-fg-fff); border: none; border-radius: 10px; font-family: inherit; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
+        .tk-submit-btn { flex-shrink: 0; padding: 12px 28px; background: var(--text-primary); color: var(--white); border: none; border-radius: 10px; font-family: inherit; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
         .tk-submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
         .tk-submit-btn:not(:disabled):hover { opacity: 0.88; }
         .tk-progress { flex: 1; height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
-        .tk-progress-bar { height: 100%; background: var(--sv-bg-111110); width: 0%; transition: width 0.2s; }
+        .tk-progress-bar { height: 100%; background: var(--text-primary); width: 0%; transition: width 0.2s; }
         .tk-error { color: var(--sv-fg-dc2626); font-size: 0.82rem; font-weight: 600; }
-        .tk-queue-item { padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; background: var(--white); }
-        .tk-queue-item:last-child { margin-bottom: 0; }
-        .tk-queue-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .tk-client-search .search-bar-pill { width: 100%; box-sizing: border-box; }
+        .tk-client-search .search-suggestion.active { background: var(--bg); color: var(--text-primary); }
+        .tk-q-tabs { display: flex; gap: 4px; padding: 3px; background: var(--bg); border-radius: 10px; margin-bottom: 6px; }
+        .tk-q-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 0 6px; border: 0; border-radius: 8px; background: transparent; font-family: inherit; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
+        .tk-q-tab:hover { color: var(--text-primary); }
+        .tk-q-tab.on { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_1); }
+        .tk-q-tab b { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px; background: var(--border); font-size: 0.64rem; }
+        .tk-q-tab.alert b { background: var(--sv-bg-fee2e2); color: var(--sv-fg-991b1b); }
+        .tk-q-tab:focus-visible, .tk-q-btn:focus-visible, .tk-q-more:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+        .tk-queue-item { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 4px 12px; align-items: start; padding: 12px 2px; border-top: 1px solid var(--border); }
+        .tk-q-tabs + .tk-queue-item { border-top: 0; }
+        .tk-q-when { text-align: center; line-height: 1.15; }
+        .tk-q-day { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+        .tk-q-time { font-size: 0.88rem; font-weight: 800; color: var(--text-primary); margin-top: 2px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .tk-q-main { min-width: 0; }
         .tk-queue-client { font-size: 0.84rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .tk-queue-when { font-size: 0.72rem; color: var(--text-secondary); margin-top: 3px; }
-        .tk-queue-title { font-size: 0.78rem; color: var(--text-secondary); margin-top: 6px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        .tk-pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 99px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0; }
-        .tk-pill.queued    { background: var(--sv-bg-f3f4f6); color: var(--sv-fg-4b5563); }
-        .tk-pill.uploading { background: var(--sv-bg-dbeafe); color: var(--sv-fg-1e40af); }
-        .tk-pill.processing { background: var(--sv-bg-e0e7ff); color: var(--sv-fg-3730a3); }
-        .tk-pill.scheduled { background: var(--sv-bg-fef3c7); color: var(--sv-fg-92400e); }
-        .tk-pill.posted    { background: var(--sv-bg-d1fae5); color: var(--sv-fg-065f46); }
-        .tk-pill.failed    { background: var(--sv-bg-fee2e2); color: var(--sv-fg-991b1b); }
+        .tk-queue-title { font-size: 0.76rem; color: var(--text-secondary); margin: 2px 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tk-q-meta { display: flex; gap: 10px; align-items: center; font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; }
+        .tk-st { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; flex-shrink: 0; }
+        .tk-st::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+        .tk-st.scheduled { color: var(--sv-fg-92400e); }
+        .tk-st.queued, .tk-st.cancelled, .tk-st.canceled { color: var(--text-secondary); }
+        .tk-st.uploading, .tk-st.processing { color: var(--sv-fg-1e40af); }
+        .tk-st.posted { color: var(--sv-fg-065f46); }
+        .tk-st.failed { color: var(--sv-fg-dc2626); }
+        .tk-queue-actions { grid-column: 2; display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+        .tk-q-when { padding-top: 2px; }
+        .tk-q-day { white-space: nowrap; }
+        .tk-q-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-secondary); font-family: inherit; font-size: 0.74rem; font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap; }
+        .tk-q-btn:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
+        .tk-q-danger { color: var(--sv-fg-dc2626); }
+        .tk-q-primary { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
+        .tk-q-primary:hover { color: var(--white); opacity: 0.88; }
+        .tk-q-x { width: 32px; padding: 0; font-size: 1rem; color: var(--text-muted); }
+        .tk-q-more { display: block; width: 100%; margin-top: 8px; min-height: 36px; border: 1px dashed var(--border); border-radius: 10px; background: transparent; font-family: inherit; font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
+        .tk-q-more:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
+        .tk-q-more span { font-weight: 600; color: var(--text-muted); }
         .tk-queue-empty { padding: 24px 12px; text-align: center; color: var(--text-muted); font-size: 0.82rem; }
-        .tk-queue-actions { display: flex; gap: 6px; margin-top: 10px; }
-        .tk-queue-error { font-size: 0.72rem; color: var(--sv-fg-991b1b); margin-top: 6px; padding: 6px 8px; background: var(--sv-bg-fee2e2); border-radius: 6px; }
+        .tk-queue-error { font-size: 0.72rem; color: var(--sv-fg-991b1b); margin-top: 6px; padding: 6px 8px; background: var(--sv-bg-fee2e2); border-radius: 6px; white-space: normal; }
+        @media (max-width: 640px) {
+            .tk-q-btn, .tk-q-tab { min-height: 40px; }
+            .tk-q-x { width: 40px; }
+        }
         .tk-time-row { display: flex; align-items: center; gap: 8px; }
         .tk-time-select { width: auto; min-width: 64px; padding-right: 26px; flex-shrink: 0; }
         .tk-time-sep { font-weight: 700; color: var(--text-secondary); font-size: 1rem; }
         .tk-ampm { display: inline-flex; border: 1.5px solid var(--border); border-radius: 99px; padding: 2px; gap: 2px; background: var(--white); margin-left: 4px; }
         .tk-ampm-btn { padding: 5px 12px; border: none; background: transparent; border-radius: 99px; font-family: inherit; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; transition: all 0.13s; }
         .tk-ampm-btn:hover { color: var(--text-primary); }
-        .tk-ampm-btn.active { background: var(--sv-bg-111110); color: var(--sv-fg-fff); }
+        .tk-ampm-btn.active { background: var(--text-primary); color: var(--white); }
         .tk-schedule-preview { margin-top: 14px; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; font-size: 0.84rem; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
         .tk-schedule-preview::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--sv-bg-f59e0b); flex-shrink: 0; }
         .tk-preview-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 16px 16px 18px; }
@@ -75308,14 +75345,10 @@
         html[data-theme="dark"] .tk-drop:hover,
         html[data-theme="dark"] .tk-drop.tk-drag { background: var(--field-bg-hover); }
         html[data-theme="dark"] .tk-select:focus { border-color: var(--field-border-focus); background-color: var(--field-bg-focus); }
+        html[data-theme="dark"] .tk-toggle-thumb { background: var(--text-secondary); }
+        html[data-theme="dark"] .tk-toggle input:checked ~ .tk-toggle-track .tk-toggle-thumb { background: var(--white); }
         html[data-theme="dark"] .tk-progress { background: var(--upload-progress-track); }
         html[data-theme="dark"] .tk-progress-bar { background: var(--upload-progress-fill); box-shadow: 0 0 14px var(--upload-progress-glow); }
-        html[data-theme="dark"] .tk-pill.queued { background: var(--cal-status-archived-bg); color: var(--cal-status-archived-fg); }
-        html[data-theme="dark"] .tk-pill.uploading { background: var(--cal-status-posted-bg); color: var(--cal-status-posted-fg); }
-        html[data-theme="dark"] .tk-pill.processing { background: var(--cal-status-scheduled-bg); color: var(--cal-status-scheduled-fg); }
-        html[data-theme="dark"] .tk-pill.scheduled { background: var(--cal-status-in-progress-bg); color: var(--cal-status-in-progress-fg); }
-        html[data-theme="dark"] .tk-pill.posted { background: var(--cal-status-approved-bg); color: var(--cal-status-approved-fg); }
-        html[data-theme="dark"] .tk-pill.failed { background: var(--cal-status-client-approval-bg); color: var(--cal-status-client-approval-fg); }
         .tk-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; margin-bottom: 12px; }
         .tk-photo-item { position: relative; aspect-ratio: 3 / 4; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--bg); }
         .tk-photo-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -75600,7 +75633,7 @@
             tkState.profile = r.profile;
             tkState.profileSource = r.source;
         }
-        const clientNames = [...WL_CLIENT_NAMES].sort((a, b) => a.localeCompare(b));
+        const clientNames = _tkClientNames();
         const titleCount = (tkState.title || '').length;
         const titleOver = titleCount > 2200;
         const hasMedia = tkState.mediaType === 'photo' ? tkState.photos.length > 0 : !!tkState.file;
@@ -75691,10 +75724,16 @@
             <div class="tk-card">
                 <h3>Client <span class="tk-card-hint">${clientNames.length} clients</span></h3>
                 <div class="tk-row">
-                    <select class="tk-select" id="tkClient" ${tkState.submitting ? 'disabled' : ''}>
-                        <option value="">Select a client…</option>
-                        ${clientNames.map(n => `<option value="${_tkEscape(n)}" ${n === tkState.client ? 'selected' : ''}>${_tkEscape(n)}</option>`).join('')}
-                    </select>
+                    <div class="tk-client-search search-bar-wrap" id="tkClientWrap">
+                        <div class="search-bar-pill">
+                            <input class="search-bar-input" id="tkClientInput" type="text" placeholder="Search clients…" value="${_tkEscape(tkState.client || '')}" autocomplete="off" aria-label="Client" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="tkClientResults" ${tkState.submitting ? 'disabled' : ''}>
+                            <div class="search-ghost-overlay" id="tkClientGhost"></div>
+                            <button type="button" class="search-bar-icon" id="tkClientIcon" title="Search" aria-label="Search clients" ${tkState.submitting ? 'disabled' : ''}>
+                                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                            </button>
+                        </div>
+                        <div class="search-dropdown" id="tkClientBox"><div id="tkClientResults" role="listbox"></div></div>
+                    </div>
                     ${profileLine}
                 </div>
             </div>
@@ -75837,17 +75876,96 @@
         _tkRenderPreview();
     }
 
+    // Client search: the Analytics client picker's own search (same markup,
+    // ranking, ghost preview and result list), picking into this form.
+    function _tkClientNames() {
+        return [...WL_CLIENT_NAMES].sort((a, b) => a.localeCompare(b));
+    }
+    function _tkPickClient(name) {
+        tkState.client = name || null;
+        const r = _tkResolveProfile(tkState.client);
+        tkState.profile = r.profile;
+        tkState.profileSource = r.source;
+        _tkSaveDraft();
+        _tkRenderForm();
+    }
+    function _tkWireClientSearch() {
+        const wrap = document.getElementById('tkClientWrap');
+        const input = document.getElementById('tkClientInput');
+        const ghost = document.getElementById('tkClientGhost');
+        const box = document.getElementById('tkClientBox');
+        const results = document.getElementById('tkClientResults');
+        const icon = document.getElementById('tkClientIcon');
+        if (!wrap || !input || !box || !results) return;
+        const names = _tkClientNames();
+        let optSeq = 0;
+        const pickAttr = (name) => `data-tk-client-pick="${_tkEscape(name)}" role="option" id="tkClientOpt${optSeq++}" aria-selected="false"`;
+        let active = -1;
+        const options = () => [...results.querySelectorAll('[data-tk-client-pick]')];
+        const setActive = (i) => {
+            const opts = options();
+            active = opts.length ? (i + opts.length) % opts.length : -1;
+            opts.forEach((o, k) => { o.classList.toggle('active', k === active); o.setAttribute('aria-selected', String(k === active)); });
+            if (active >= 0) { input.setAttribute('aria-activedescendant', opts[active].id); opts[active].scrollIntoView({ block: 'nearest' }); }
+            else input.removeAttribute('aria-activedescendant');
+        };
+        const render = () => {
+            const q = input.value === (tkState.client || '') ? '' : input.value;
+            optSeq = 0;
+            results.innerHTML = clientSearchResultsHtml(q, names, getRecent().filter(n => names.includes(n)), pickAttr);
+            setActive(-1);
+            if (ghost) ghost.innerHTML = clientSearchGhostHtml(q, names);
+        };
+        const close = () => {
+            box.classList.remove('open');
+            input.setAttribute('aria-expanded', 'false');
+            setActive(-1);
+            if (ghost) ghost.innerHTML = '';
+            input.value = tkState.client || '';
+            document.removeEventListener('click', onOutside);
+        };
+        const onOutside = (e) => { if (!wrap.contains(e.target)) close(); };
+        const openBox = () => {
+            if (box.classList.contains('open')) return;
+            box.classList.add('open');
+            input.setAttribute('aria-expanded', 'true');
+            setTimeout(() => document.addEventListener('click', onOutside), 0);
+        };
+        const pickFirst = () => {
+            const first = clientSearchMatches(input.value, names)[0];
+            if (first) { close(); _tkPickClient(first); return true; }
+            return false;
+        };
+        input.addEventListener('focus', () => { input.select(); render(); openBox(); });
+        input.addEventListener('input', () => { render(); openBox(); });
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') { close(); input.blur(); return; }
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!box.classList.contains('open')) { render(); openBox(); }
+                setActive(active + (e.key === 'ArrowDown' ? 1 : -1));
+                return;
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const opt = options()[active];
+                if (opt) { close(); _tkPickClient(opt.getAttribute('data-tk-client-pick')); return; }
+                pickFirst();
+            }
+        });
+        icon?.addEventListener('click', () => { if (!pickFirst()) { input.focus(); openBox(); } });
+        results.addEventListener('click', (e) => {
+            const row = e.target.closest('[data-tk-client-pick]');
+            if (!row) return;
+            close();
+            _tkPickClient(row.getAttribute('data-tk-client-pick'));
+        });
+    }
+
     function _tkWireFormEvents() {
         const $ = (id) => document.getElementById(id);
 
-        $('tkClient')?.addEventListener('change', (e) => {
-            tkState.client = e.target.value || null;
-            const r = _tkResolveProfile(tkState.client);
-            tkState.profile = r.profile;
-            tkState.profileSource = r.source;
-            _tkSaveDraft();
-            _tkRenderForm();
-        });
+        _tkWireClientSearch();
 
         document.querySelectorAll('input[name=tkMediaType]').forEach(el => el.addEventListener('change', (e) => {
             tkState.mediaType = e.target.value;
@@ -76568,9 +76686,64 @@
             // Surface only on the very first failure — keep retrying quietly afterwards.
             const col = document.getElementById('tkQueueCol');
             if (col && !col.dataset.everLoaded) {
-                col.innerHTML = `<div class="tk-card"><h3>Upcoming uploads</h3><div class="tk-queue-empty">Couldn't reach the queue webhook.<br><small>${_tkEscape(e.message)}</small></div></div>`;
+                col.innerHTML = `<div class="tk-card"><h3>Uploads</h3><div class="tk-queue-empty">Couldn't load your uploads. Trying again shortly.<br><small>${_tkEscape(e.message)}</small></div></div>`;
             }
         }
+    }
+
+    const TK_UPCOMING = ['queued', 'uploading', 'processing', 'scheduled'];
+    const TK_STATUS_LABELS = { queued: 'Queued', uploading: 'Uploading', processing: 'Uploading', scheduled: 'Scheduled', posted: 'Posted', failed: 'Failed', cancelled: 'Cancelled', canceled: 'Cancelled' };
+
+    // The moment a row is about: its scheduled time while it waits, otherwise
+    // when it posted (or was last touched).
+    function _tkRowTime(r) {
+        const at = r.scheduled_for || r.posted_at || r.updated_at || r.created_at;
+        if (!at) return null;
+        if (/Z$|[+\-]\d{2}:?\d{2}$/.test(at)) { const d = new Date(at); return Number.isNaN(d.getTime()) ? null : d; }
+        const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(at);
+        if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+        const d = new Date(at); return Number.isNaN(d.getTime()) ? null : d;
+    }
+    function _tkRelative(ms) {
+        const abs = Math.abs(ms), min = Math.round(abs / 60000);
+        const txt = min < 1 ? 'less than a minute' : min < 60 ? `${min} min` : min < 60 * 36 ? `${Math.round(min / 60)} h` : `${Math.round(min / 1440)} days`;
+        return ms >= 0 ? `in ${txt}` : `${txt} ago`;
+    }
+    // { day: 'Today' | 'Tomorrow' | 'Yesterday' | 'Sat, Sep 26', time: '7:07 PM', rel: 'in 5 h' }
+    function _tkWhenParts(r, status) {
+        const d = _tkRowTime(r);
+        if (TK_UPCOMING.includes(status) && !r.scheduled_for) return { day: 'Today', time: 'Now', rel: status === 'queued' ? 'waiting its turn' : '' };
+        if (!d) return { day: '', time: '—', rel: '' };
+        const tz = r.scheduled_for && r.timezone ? r.timezone : undefined;
+        let dayKey, todayKey, time;
+        try {
+            dayKey = d.toLocaleDateString('en-CA', { timeZone: tz });
+            todayKey = new Date().toLocaleDateString('en-CA', { timeZone: tz });
+            time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: tz });
+        } catch {
+            dayKey = d.toLocaleDateString('en-CA'); todayKey = new Date().toLocaleDateString('en-CA');
+            time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        }
+        const diffDays = Math.round((Date.parse(dayKey) - Date.parse(todayKey)) / 86400000);
+        const day = diffDays === 0 ? 'Today' : diffDays === 1 ? 'Tomorrow' : diffDays === -1 ? 'Yesterday'
+            : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: tz });
+        return { day, time, rel: _tkRelative(d.getTime() - Date.now()) };
+    }
+
+    function _tkSetQueueTab(tab) {
+        tkState.queueTab = tab;
+        tkState.queueLimit = TK_QUEUE_PAGE;
+        _tkRenderQueue();
+        // The render replaces the tab strip; keep keyboard focus on the chosen tab.
+        document.querySelector('#tkQueueCol .tk-q-tab.on')?.focus();
+    }
+    function _tkQueueShowMore() {
+        const firstNew = tkState.queueLimit;
+        tkState.queueLimit += TK_QUEUE_PAGE;
+        _tkRenderQueue();
+        // Focus the first row the button revealed, so Tab carries on from there.
+        const row = document.querySelectorAll('#tkQueueCol .tk-queue-item')[firstNew];
+        (row?.querySelector('button, a') || document.querySelector('#tkQueueCol .tk-q-more') || document.querySelector('#tkQueueCol .tk-q-tab.on'))?.focus();
     }
 
     function _tkRenderQueue() {
@@ -76580,55 +76753,53 @@
 
         const hidden = _tkLoadHidden();
         const visible = tkState.uploads.filter(r => !hidden.has(r.id));
-        const upcoming = visible.filter(r => ['queued', 'uploading', 'processing', 'scheduled'].includes(_tkEffectiveStatus(r)));
-        const recent   = visible.filter(r => !['queued', 'uploading', 'processing', 'scheduled'].includes(_tkEffectiveStatus(r))).slice(0, 8);
+        const t = (r) => { const d = _tkRowTime(r); return d ? d.getTime() : 0; };
+        // Soonest first; an upload with no time yet is happening now, so it leads.
+        const groups = {
+            upcoming: visible.filter(r => TK_UPCOMING.includes(_tkEffectiveStatus(r)))
+                .sort((x, y) => (x.scheduled_for ? t(x) : -Infinity) - (y.scheduled_for ? t(y) : -Infinity)),
+            failed: visible.filter(r => _tkEffectiveStatus(r) === 'failed').sort((x, y) => t(y) - t(x)),
+            done: visible.filter(r => !TK_UPCOMING.includes(_tkEffectiveStatus(r)) && _tkEffectiveStatus(r) !== 'failed').sort((x, y) => t(y) - t(x)),
+        };
+        const tab = groups[tkState.queueTab] ? tkState.queueTab : 'upcoming';
+        const rows = groups[tab];
+        const shown = rows.slice(0, tkState.queueLimit);
+        const remaining = rows.length - shown.length;
 
         const itemHTML = (r) => {
-            const when = r.scheduled_for
-                ? _tkFormatQueueWhen(r.scheduled_for, r.timezone)
-                : (r.posted_at ? `posted ${new Date(r.posted_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}` : 'now');
             const status = _tkEffectiveStatus(r);
+            const when = _tkWhenParts(r, status);
             const actions = [];
             // Rows painted from the local cache are read-only until the live
             // list confirms them: the state may have moved on elsewhere.
             const readOnly = tkState.queueFromCache && !r.optimistic;
-            if (readOnly) {
-                if (r.tiktok_url) actions.push(`<a class="tk-mini-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
-            } else {
-                if (status === 'scheduled' || status === 'queued') {
-                    actions.push(`<button class="tk-mini-btn" onclick="_tkCancelRow('${_tkEscape(r.id)}')">Cancel</button>`);
-                }
-                if (status === 'failed') {
-                    actions.push(`<button class="tk-mini-btn" onclick="_tkRetryRow('${_tkEscape(r.id)}')">Retry</button>`);
-                }
-                if (r.tiktok_url) {
-                    actions.push(`<a class="tk-mini-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
-                }
-                actions.push(`<button class="tk-mini-btn" onclick="_tkDismissRow('${_tkEscape(r.id)}')">Dismiss</button>`);
-            }
+            const id = _tkEscape(r.id);
+            if (!readOnly && (status === 'scheduled' || status === 'queued')) actions.push(`<button type="button" class="tk-q-btn tk-q-danger" onclick="_tkCancelRow('${id}')">Cancel</button>`);
+            if (!readOnly && status === 'failed') actions.push(`<button type="button" class="tk-q-btn tk-q-primary" onclick="_tkRetryRow('${id}')">Retry</button>`);
+            if (r.tiktok_url) actions.push(`<a class="tk-q-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
+            if (!readOnly) actions.push(`<button type="button" class="tk-q-btn tk-q-x" onclick="_tkDismissRow('${id}')" title="Dismiss" aria-label="Dismiss">&times;</button>`);
+            const tz = r.scheduled_for && r.timezone ? ` · ${_tkEscape(r.timezone.split('/').pop().replace(/_/g, ' '))}` : '';
             return `
                 <div class="tk-queue-item${readOnly ? ' tk-queue-item-cached' : ''}">
-                    <div class="tk-queue-top">
-                        <div style="min-width:0">
-                            <div class="tk-queue-client">${_tkEscape(r.client || '—')}</div>
-                            <div class="tk-queue-when">${_tkEscape(when)}${r.timezone ? ' · ' + _tkEscape(r.timezone) : ''}</div>
-                        </div>
-                        <span class="tk-pill ${status}">${_tkEscape(status)}</span>
+                    <div class="tk-q-when"><div class="tk-q-day">${_tkEscape(when.day)}</div><div class="tk-q-time">${_tkEscape(when.time)}</div></div>
+                    <div class="tk-q-main">
+                        <div class="tk-queue-client">${_tkEscape(r.client || '—')}</div>
+                        ${r.title ? `<div class="tk-queue-title">${_tkEscape(r.title)}</div>` : ''}
+                        <div class="tk-q-meta"><span class="tk-st ${_tkEscape(status)}">${_tkEscape(TK_STATUS_LABELS[status] || status)}</span><span>${_tkEscape(when.rel)}${tz}</span></div>
+                        ${r.error ? `<div class="tk-queue-error">${_tkEscape(r.error)}</div>` : ''}
                     </div>
-                    ${r.title ? `<div class="tk-queue-title">${_tkEscape(r.title)}</div>` : ''}
-                    ${r.error ? `<div class="tk-queue-error">${_tkEscape(r.error)}</div>` : ''}
                     ${actions.length ? `<div class="tk-queue-actions">${actions.join('')}</div>` : ''}
                 </div>`;
         };
+        const tabBtn = (key, label) => `<button type="button" class="tk-q-tab${tab === key ? ' on' : ''}${key === 'failed' && groups.failed.length ? ' alert' : ''}" role="tab" aria-selected="${tab === key}" onclick="_tkSetQueueTab('${key}')">${label}<b>${groups[key].length}</b></button>`;
+        const empty = { upcoming: 'Nothing scheduled yet.', failed: 'No failed uploads.', done: 'No posts yet.' }[tab];
 
         col.innerHTML = `
             <div class="tk-card">
-                <h3>Upcoming uploads <span class="tk-card-hint">${upcoming.length}</span></h3>
-                ${upcoming.length ? upcoming.map(itemHTML).join('') : `<div class="tk-queue-empty">Nothing scheduled yet.</div>`}
-            </div>
-            <div class="tk-card">
-                <h3>Recent</h3>
-                ${recent.length ? recent.map(itemHTML).join('') : `<div class="tk-queue-empty">No recent posts.</div>`}
+                <h3>Uploads</h3>
+                <div class="tk-q-tabs" role="tablist">${tabBtn('upcoming', 'Upcoming')}${tabBtn('failed', 'Failed')}${tabBtn('done', 'Done')}</div>
+                ${shown.length ? shown.map(itemHTML).join('') : `<div class="tk-queue-empty">${empty}</div>`}
+                ${remaining > 0 ? `<button type="button" class="tk-q-more" onclick="_tkQueueShowMore()">Show ${Math.min(remaining, TK_QUEUE_PAGE)} more <span>· ${remaining} left</span></button>` : ''}
             </div>
         `;
     }
@@ -76762,6 +76933,8 @@
     window._tkCancelRow = _tkCancelRow;
     window._tkRetryRow = _tkRetryRow;
     window._tkDismissRow = _tkDismissRow;
+    window._tkSetQueueTab = _tkSetQueueTab;
+    window._tkQueueShowMore = _tkQueueShowMore;
 
     /* ============================================================
        KASPER REVIEW TAB

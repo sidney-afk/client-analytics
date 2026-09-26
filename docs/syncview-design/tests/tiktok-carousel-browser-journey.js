@@ -61,9 +61,9 @@ const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '..', '..', '..');
 const INDEX = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
-// Pull the exact client roster the page itself renders in #tkClient, so the
+// Pull the exact client roster the page's client search offers, so the
 // mocked Clients Info sheet grants postforme_account_id to a name that is
-// guaranteed to appear in the dropdown -- no guessing at casing/spelling.
+// guaranteed to appear in the search results -- no guessing at casing/spelling.
 const namesBlock = /const WL_CLIENT_NAMES\s*=\s*\[([\s\S]*?)\];/.exec(INDEX);
 if (!namesBlock) throw new Error('WL_CLIENT_NAMES not found in index.html -- roster extraction is stale');
 const CLIENT_NAMES = [...namesBlock[1].matchAll(/'((?:[^'\\]|\\.)*)'/g)].map(m => m[1]);
@@ -202,15 +202,18 @@ async function bootToTiktokUpload(browser, port, mockOpts) {
   await seedStaffGate(page);
   const calls = await mockNetwork(page, mockOpts);
   await page.goto(`http://127.0.0.1:${port}/#tiktok-upload`, { waitUntil: 'domcontentloaded' });
-  // state: 'attached', not the default 'visible' -- <option> elements in a
-  // closed native <select> never report as visible to Playwright.
-  await page.waitForSelector('#tkClient option', { state: 'attached' });
-  // Skip the "Select a client…" placeholder option (empty value) that leads the list.
-  const clientName = await page.$$eval('#tkClient option', opts => opts.map(o => o.value).find(v => v));
-  await page.selectOption('#tkClient', clientName);
+  // The client is chosen through the Analytics-style client search: type the
+  // start of a roster name, then pick the suggestion.
+  const clientName = [...CLIENT_NAMES].sort((a, b) => a.localeCompare(b))[0];
+  await page.waitForSelector('#tkClientInput');
+  await page.fill('#tkClientInput', clientName.slice(0, 3));
+  await page.locator('#tkClientResults [data-tk-client-pick]').first().waitFor();
+  const picked = await page.locator('#tkClientResults [data-tk-client-pick]').first().getAttribute('data-tk-client-pick');
+  await page.locator('#tkClientResults [data-tk-client-pick]').first().click();
+  await page.waitForFunction(n => document.getElementById('tkClientInput')?.value === n, picked);
   await page.locator('input[name=tkMediaType][value=photo]').check({ force: true });
   await page.waitForSelector('#tkPhotoFile');
-  return { page, calls, pageErrors, clientName };
+  return { page, calls, pageErrors, clientName: picked };
 }
 
 async function attachThreeImagesAndCaption(page, caption) {

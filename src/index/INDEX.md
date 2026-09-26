@@ -12,7 +12,7 @@
 | 4 | `020-styles-surfaces.css.part` | 4187 | Templates view |
 | 5 | `030-body-shell.html.part` | 446 | Confirmation modal |
 | 6 | `040-shared-briefs.js.part` | 1833 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
-| 7 | `050-market-briefs.js.part` | 1709 | Market Research Brief Tab Renderers |
+| 7 | `050-market-briefs.js.part` | 1716 | Market Research Brief Tab Renderers |
 | 8 | `060-templates-filming.js.part` | 2290 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3650 | Workload Calendar |
 | 10 | `080-workload-render.js.part` | 3413 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
@@ -42,7 +42,7 @@
 | 34 | `270-samples-model.js.part` | 2707 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 35 | `280-samples-cards-notes.js.part` | 2832 | SURFACE 3: the save engine |
 | 36 | `290-samples-writes-review.js.part` | 1798 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
-| 37 | `300-tiktok-upload.js.part` | 1718 | TIKTOK UPLOAD MODULE |
+| 37 | `300-tiktok-upload.js.part` | 1886 | TIKTOK UPLOAD MODULE |
 | 38 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
 | 39 | `320-kasper-dashboard-replies.js.part` | 3153 | RELOAD RACE (speed map §7). On a reload the stored staff |
 | 40 | `330-kasper-review-history.js.part` | 2614 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |

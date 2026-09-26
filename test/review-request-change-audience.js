@@ -83,6 +83,7 @@ function _writeUiMergeCommittedBatch(pending, committed){ Object.assign(pending,
 function _writeUiReportFailure(){}
 function _calRenderBody(){}
 function showToast(){}
+function _calCrqBegin(){} function _calCrqDone(){ return false; } function _calCrqFailed(){ return false; }
 function _calV2Log(){}
 function setClient(b){ _isClientLink = b; }
 function addPost(p){ calState.posts.push(p); return p; }

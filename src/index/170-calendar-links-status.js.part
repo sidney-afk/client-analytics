@@ -646,6 +646,9 @@
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const doApprove = () => {
+            const prev = {};
+            ['status', 'video_status', 'graphic_status', 'caption_status', 'client_video_approved_at',
+                'client_graphic_approved_at', 'client_caption_approved_at'].forEach(k => { prev[k] = post[k]; });
             const stamp = new Date().toISOString();
             post.video_status   = 'Approved';
             post.graphic_status = 'Approved';
@@ -664,7 +667,16 @@
                 client_graphic_approved_at: stamp,
                 client_caption_approved_at: stamp,
             });
-            _calFlushCardSave(pid);
+            // Held in this browser until the server confirms (185).
+            _calCrqBegin('approve', pid, 'all', { edits: Object.assign({}, _calPendingEdits[pid]), prev });
+            Promise.resolve(_calFlushCardSave(pid)).catch(e => {
+                post._saveError = _writeUiFailureSentence(e);
+            }).then(() => {
+                const current = calState.posts.find(p => p.id === pid) || post;
+                if (!current._saveError) { _calCrqDone(pid, 'all'); return; }
+                if (_calCrqFailed(pid, 'all', current._saveError)) return;
+                _calRenderBody({ preserveScroll: true });
+            });
             _calRenderBody({ preserveScroll: true });
         };
         let skip = false;

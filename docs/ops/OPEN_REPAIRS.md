@@ -29114,3 +29114,28 @@ in the approve and request-change logic.
    `_sxrKasperPersist` always sends an empty `comments_base_at` and never retries
    on a conflict, where the calendar sends its base time and merges comments on a
    conflict. A concurrent edit to the same sample can be overwritten.
+
+## 263. [2026-09-26, BUILT] The Time Off lifecycle browser test failed at random on CI ("cancelled future leave is removed from upcoming")
+
+**Problem.** `synthetic-browser` failed now and then in `qa/pto-lifecycle` (run
+36227249829 and PR 1673) while passing locally. It was not the app.
+
+**Cause, two races in the test.**
+1. *Checking too early.* After a click that writes (confirm a cancellation,
+   retry a send, send by keyboard, deny by keyboard, double-click Send), the step
+   waited for the page to look "ready". But the page only switches to "loading"
+   once the write has come back, so on a slower CI runner "ready" was already
+   true on the OLD list and the step read it before anything changed. Reproduced
+   on demand with the new opt-in `PTO_LIFECYCLE_WRITE_LATENCY_MS=600`: the old test
+   fails with exactly the CI message.
+2. *A late log entry.* The fake server logged a deliberately hung request only
+   after its hang ended, so the entry could land inside a later step's count and
+   make one double-click look like two calls. The app sends one.
+
+**Fix.** A helper, `awaitOverviewAfter`, runs the action and waits on the network
+for the write to be answered and for an overview reload that started after it to
+finish. Every write-then-check step above uses it. The fake server logs a hung
+request when it arrives. No check was removed or loosened.
+
+**Proof.** 20 runs in a row pass locally, plus passing runs with every write
+slowed by 600 ms and by 1.5 s, where the old test fails.

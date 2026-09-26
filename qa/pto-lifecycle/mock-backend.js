@@ -1078,8 +1078,11 @@ async function createMockBackend(options = {}) {
             return route.abort('failed').catch(() => {});
           }
           if (failure.kind === 'hang' || failure.kind === 'hung') {
-            await new Promise(resolve => setTimeout(resolve, failure.delayMs || 25000));
+            // Logged on arrival, which is when the browser sent it. Logging it
+            // only after the hang ended let the entry land in a LATER step's
+            // window and read as a second call from that step.
             record(action, method, '', 0, 'hung-without-commit');
+            await new Promise(resolve => setTimeout(resolve, failure.delayMs || 25000));
             return route.abort('timedout').catch(() => {});
           }
           if (failure.kind === 'delay' || failure.kind === 'delayed') {
@@ -1094,6 +1097,11 @@ async function createMockBackend(options = {}) {
             }));
           }
         }
+        // Opt-in write latency (off by default) that reproduces a slow CI
+        // runner: a write that takes a moment to come back is exactly when a
+        // step that only waits for "ready" can read the list too early.
+        const writeLatencyMs = Math.max(0, Math.min(10000, Number(process.env.PTO_LIFECYCLE_WRITE_LATENCY_MS || 0)));
+        if (writeLatencyMs && method !== 'GET') await new Promise(resolve => setTimeout(resolve, writeLatencyMs));
         const auth = authenticatePto(request, url, body, action);
         if (!auth.persona) {
           const result = response(

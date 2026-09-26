@@ -100,6 +100,31 @@ For a specific question, use [Find anything](FIND_ANYTHING.md).
 | [Section 4 capture](ops/F27_SECTION4_CAPTURE_PLAYBOOK.md) | How the owner handles the sealed rollback bundle before a manual release. |
 | [Flip and recovery](ops/FLIP_RUNBOOK.md) | Historical flip procedures and the retained per-team recovery contract; check State of things first. |
 
+## Operational status and retained records
+
+| Document | What it covers |
+| --- | --- |
+| [Open repairs](ops/OPEN_REPAIRS.md) | Numbered repairs and owner decisions; use State of things for the latest verified summary. |
+| [Live source differences](ops/LIVE_DIVERGENCE_REGISTER.md) | Files whose committed source differs from the live service and the checks around those exceptions. |
+| [Session bootstrap](ops/SESSION_BOOTSTRAP.md) | Starting pointers for a new working session, with older integration steps kept as history. |
+| [Public Submit link](ops/PUBLIC_SUBMIT_LINK.md) | Why public footage intake has its own runtime switch and how an owner checks it. |
+| [Repository privacy decision](ops/REPO_PRIVATE_COST_STUDY_2026-09-24.md) | Dated hosting and CI cost research behind the decision to keep this repository public. |
+| [Archived-asset rescue](ops/F34_LINEAR_ASSET_RESCUE.md) | The still-open archived-media and text rescue contract; the brief-media portion is complete. |
+| [Retirement admission](ops/SYNCVIEW_RETIREMENT_RUNBOOK.md) | A prepared retirement procedure whose activation remains blocked. |
+| [Private backup rehearsal](ops/TRACK_B_BACKUP.md) | Isolated backup and restore proof, with hosted recovery still unproven. |
+| [Cutoff record](ops/LINEAR_CUTOFF_RUNBOOK.md) | Dated cutoff and recovery steps; State of things supersedes its old credential status. |
+| [Exit execution map](ops/LINEAR_EXIT_EXECUTION_MAP.md) | The retirement program's dated step map, whose old progress counters are historical. |
+| [Installation recovery](ops/LINEAR_EXIT_RECOVERY_PROCEDURE.md) | Prepared recovery choices and evidence to preserve if an installation fails; real recovery needs owner authorization. |
+| [Storage custody handoff](ops/LINEAR_EXIT_STORAGE_CUSTODY_HANDOVER.md) | A dated handoff of private backup locations and operator tools that must be rechecked before use. |
+| [Exit journal](ops/LINEAR_EXIT_JOURNAL.md) | The chronological decisions and observed results behind the retirement program. |
+| [Safety-net install](ops/F27_INSTALL_RUNBOOK.md) | The completed installation record and source-exact rollback rules; current captures use Section 4 capture above. |
+| [Install checklist](ops/F27_INSTALL_CHECKLIST.md) | A generated checklist from the historical safety-net installation, not a fresh deployment instruction. |
+| [Function deploy inventory](ops/EF_DEPLOY_MANIFEST.md) | Generated source and workflow paths for functions, not a live deployment list. |
+| [Write-authorization window](ops/F27_WRITE_AUTH_WINDOW.md) | The completed authorization-window record, whose old apply steps must not be rerun. |
+| [CI gate audit](ops/CI_GATE_AUDIT.md) | A dated review of CI checks and their costs; inspect current workflows for today's setup. |
+| [Workload source scope](ops/WORKLOAD_NATIVE_SOURCE.md) | The early native Workload rationale, with old loading and fallback details superseded. |
+| [Rename plan](ops/RENAME_PLAN.md) | The original rename-propagation proposal; its plan-only status was superseded by applied releases. |
+
 ## Plans
 
 | Document | What it helps you find |

@@ -179,6 +179,7 @@ function contextHarness(overrides) {
   });
   vm.runInContext([
     flagDecl,
+    extract('_clientCommentSetGatewayEnabled'),
     extract('_clientCommentGatewaySetFlagValue'),
     extract('_clientCommentGatewayOn'),
     // _writeUiNativeId asks this whether the component owns a deliverable at

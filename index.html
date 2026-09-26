@@ -27438,11 +27438,17 @@
     const CLIENT_COMMENT_GATEWAY_FLAG_KEY = 'client_comment_gateway_enabled';
     const SETTINGS_EF_FLAG_KEY = 'settings_ef_clients';
     let _calUpsertEfClients = new Set();
+    function _calSetUpsertEfClients(value) { _calUpsertEfClients = value; }
     let _writeUiRerouteClients = new Set();
+    function _writeUiSetRerouteClients(value) { _writeUiRerouteClients = value; }
     let _clientCommentGatewayEnabled = false;
+    function _clientCommentSetGatewayEnabled(value) { _clientCommentGatewayEnabled = value; }
     let _calUpsertFlagPromise = null;
+    function _calSetUpsertFlagPromise(value) { _calUpsertFlagPromise = value; }
     let _writeUiRerouteFlagPromise = null;
+    function _writeUiSetRerouteFlagPromise(value) { _writeUiRerouteFlagPromise = value; }
     let _writeUiRerouteFlagFailed = false;
+    function _writeUiSetRerouteFlagFailed(value) { _writeUiRerouteFlagFailed = value; }
     /* VALIDITY IS TRACKED SEPARATELY FROM THE ALLOWLIST (Codex finding 1 on the
        item-175 fix, 2026-09-08).
 
@@ -27474,6 +27480,7 @@
        whole point is that the unknown case routes to the authority that can
        answer out loud. */
     let _writeUiRerouteRosterUnusable = true;
+    function _writeUiSetRerouteRosterUnusable(value) { _writeUiRerouteRosterUnusable = value; }
     /* Review finding on the item-70 fix: the heal re-fetch and the realtime
        channel are separate connections, so a heal that started BEFORE a
        channel delivery can land after it and overwrite a good roster -- a
@@ -27484,12 +27491,19 @@
        below is therefore stamped with the generation it was issued under and
        discards itself if a newer read (fetch OR channel) has already landed. */
     let _writeUiRerouteFlagGeneration = 0;
+    function _writeUiSetRerouteFlagGeneration(value) { _writeUiRerouteFlagGeneration = value; }
     let _calUpsertFlagChannel = null;
+    function _calSetUpsertFlagChannel(value) { _calUpsertFlagChannel = value; }
     let _calUpsertFlagClient = null;
+    function _calSetUpsertFlagClient(value) { _calUpsertFlagClient = value; }
     let _calUpsertFlagClientPromise = null;
+    function _calSetUpsertFlagClientPromise(value) { _calUpsertFlagClientPromise = value; }
     let _settingsEfClients = new Set();
+    function _settingsSetEfClients(value) { _settingsEfClients = value; }
     let _settingsFlagPromise = null;
+    function _settingsSetFlagPromise(value) { _settingsFlagPromise = value; }
     let _settingsFlagChannel = null;
+    function _settingsSetFlagChannel(value) { _settingsFlagChannel = value; }
     /* One roster MEMBER, normalised, or null when the member is not a slug at
        all. Codex finding on the item-175 repair: this used to be
        `calClientSlug(String(x || ''))` inline, and `String()` does not reject a
@@ -27527,12 +27541,12 @@
         return (raw || []).map(x => _calRuntimeFlagSlug(x)).filter(Boolean);
     }
     function _calSetUpsertFlagValue(value) {
-        _calUpsertEfClients = new Set(_calRuntimeFlagClients(value));
+        _calSetUpsertEfClients(new Set(_calRuntimeFlagClients(value)));
         _calV2Log('calendar-upsert EF clients:', Array.from(_calUpsertEfClients).join(',') || '(none)');
     }
     function _clientCommentGatewaySetFlagValue(value) {
-        _clientCommentGatewayEnabled = !!(value && typeof value === 'object'
-            && !Array.isArray(value) && value.enabled === true);
+        _clientCommentSetGatewayEnabled(!!(value && typeof value === 'object'
+            && !Array.isArray(value) && value.enabled === true));
         _calV2Log('client-comment gateway flag:', _clientCommentGatewayEnabled ? 'on' : 'off');
     }
     function _clientCommentGatewayOn() {
@@ -27570,7 +27584,7 @@
         const nextClients = new Set(_calRuntimeFlagClients(value));
         const changed = previousClients.size !== nextClients.size
             || Array.from(previousClients).some(slug => !nextClients.has(slug));
-        _writeUiRerouteClients = nextClients;
+        _writeUiSetRerouteClients(nextClients);
         _calV2Log('write-UI reroute clients:', Array.from(_writeUiRerouteClients).join(',') || '(none)');
         if (changed && options && options.refreshProjects) {
             return _linearRefreshProjectsForRerouteChange(previousClients, nextClients);
@@ -27687,7 +27701,8 @@
         }
     }
     async function _writeUiFetchRerouteFlagOnce(options) {
-        const generation = ++_writeUiRerouteFlagGeneration;
+        _writeUiSetRerouteFlagGeneration(_writeUiRerouteFlagGeneration + 1);
+        const generation = _writeUiRerouteFlagGeneration;
         const superseded = () => generation !== _writeUiRerouteFlagGeneration;
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) {
             if (superseded()) return;
@@ -27698,7 +27713,7 @@
             // Supabase config the native gateway is unreachable too, so
             // routing native routes into nothing. Legacy is the only lane that
             // could work here, so let the empty allowlist mean what it says.
-            _writeUiRerouteRosterUnusable = false;
+            _writeUiSetRerouteRosterUnusable(false);
             return;
         }
         const controller = typeof AbortController === 'function' ? new AbortController() : null;
@@ -27736,14 +27751,14 @@
             // An absent row is OFF by design: the flag defaults dark until the
             // owner flips it after the production-write EF deploy.
             _clientCommentGatewaySetFlagValue(commentGatewayRow && commentGatewayRow.value ? commentGatewayRow.value : null);
-            _writeUiRerouteFlagFailed = false;
+            _writeUiSetRerouteFlagFailed(false);
             // The READ succeeded, so the failed mark clears and the heal stands
             // down. Whether it succeeded with anything a ROUTER can use is a
             // separate question, and the line above deliberately does not
             // answer it: `[]`, an absent key, and a malformed value all reach
             // here with the allowlist emptied and nothing wrong with the
             // transport. Codex finding 1.
-            _writeUiRerouteRosterUnusable = !_writeUiRerouteRosterUsable(rerouteRow);
+            _writeUiSetRerouteRosterUnusable(!_writeUiRerouteRosterUsable(rerouteRow));
         } catch (e) {
             // A missing/unreadable rollout flag leaves the ALLOWLIST empty, and
             // the allowlist is still the factual answer the outbox drain needs.
@@ -27762,8 +27777,8 @@
             if (superseded()) return;
             _writeUiSetRerouteFlagValue({ clients: [] });
             _clientCommentGatewaySetFlagValue(null);
-            _writeUiRerouteFlagFailed = true;
-            _writeUiRerouteRosterUnusable = true;
+            _writeUiSetRerouteFlagFailed(true);
+            _writeUiSetRerouteRosterUnusable(true);
             console.warn('[SyncView] write-UI reroute flag read failed; routing live writes to the native gateway', e);
         } finally {
             if (timeoutId !== null) clearTimeout(timeoutId);
@@ -27775,12 +27790,12 @@
             // The call above bumps the generation synchronously, so reading it
             // here captures the generation THIS read was issued under.
             const generation = _writeUiRerouteFlagGeneration;
-            _writeUiRerouteFlagPromise = pending.catch(() => {
+            _writeUiSetRerouteFlagPromise(pending.catch(() => {
                 if (generation !== _writeUiRerouteFlagGeneration) return;
                 _writeUiSetRerouteFlagValue({ clients: [] });
-                _writeUiRerouteFlagFailed = true;
-                _writeUiRerouteRosterUnusable = true;
-            });
+                _writeUiSetRerouteFlagFailed(true);
+                _writeUiSetRerouteRosterUnusable(true);
+            }));
         }
         return _writeUiRerouteFlagPromise;
     }
@@ -27810,12 +27825,12 @@
             // the refresh helper early-returns before projects load anyway.
             const pending = _writeUiFetchRerouteFlagOnce({ refreshProjects: true });
             const generation = _writeUiRerouteFlagGeneration;
-            _writeUiRerouteFlagPromise = pending.catch(() => {
+            _writeUiSetRerouteFlagPromise(pending.catch(() => {
                 if (generation !== _writeUiRerouteFlagGeneration) return;
                 _writeUiSetRerouteFlagValue({ clients: [] });
-                _writeUiRerouteFlagFailed = true;
-                _writeUiRerouteRosterUnusable = true;
-            });
+                _writeUiSetRerouteFlagFailed(true);
+                _writeUiSetRerouteRosterUnusable(true);
+            }));
             return _writeUiRerouteFlagPromise;
         });
     }
@@ -27825,27 +27840,27 @@
        generation, which retires any heal already in flight. Named rather than
        inlined in the channel handler so the suites can execute the real thing. */
     function _writeUiApplyRerouteFlagFromChannel(row) {
-        _writeUiRerouteFlagGeneration++;
-        _writeUiRerouteFlagFailed = false;
+        _writeUiSetRerouteFlagGeneration(_writeUiRerouteFlagGeneration + 1);
+        _writeUiSetRerouteFlagFailed(false);
         // Same split as the fetch: the delivery is a successful read, so the
         // failed mark clears; whether it delivered a usable roster is asked
         // separately. A DELETE arrives here with no `row` at all, which is the
         // literal "someone removed the flag row" case Codex finding 1 names.
-        _writeUiRerouteRosterUnusable = !_writeUiRerouteRosterUsable(row);
+        _writeUiSetRerouteRosterUnusable(!_writeUiRerouteRosterUsable(row));
         return _writeUiSetRerouteFlagValue(row && row.value ? row.value : { clients: [] }, { refreshProjects: true });
     }
     function _calRuntimeFlagClient() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return Promise.resolve(null);
         if (_calUpsertFlagClient) return Promise.resolve(_calUpsertFlagClient);
         if (_calUpsertFlagClientPromise) return _calUpsertFlagClientPromise;
-        _calUpsertFlagClientPromise = _calV2LoadLib().then(lib => {
+        _calSetUpsertFlagClientPromise(_calV2LoadLib().then(lib => {
             if (!lib || !lib.createClient) return null;
-            _calUpsertFlagClient = lib.createClient(CAL_SUPABASE_URL, CAL_SUPABASE_ANON_KEY, {
+            _calSetUpsertFlagClient(lib.createClient(CAL_SUPABASE_URL, CAL_SUPABASE_ANON_KEY, {
                 auth: { persistSession: false, autoRefreshToken: false },
                 realtime: { params: { eventsPerSecond: 2 } }
-            });
+            }));
             return _calUpsertFlagClient;
-        }).catch(e => { console.warn('[Calendar] runtime flag realtime init failed', e); _calUpsertFlagClientPromise = null; return null; });
+        }).catch(e => { console.warn('[Calendar] runtime flag realtime init failed', e); _calSetUpsertFlagClientPromise(null); return null; }));
         return _calUpsertFlagClientPromise;
     }
     async function _calSubscribeUpsertFlag() {
@@ -27853,7 +27868,7 @@
         const client = await _calRuntimeFlagClient();
         if (!client || _calUpsertFlagChannel) return;
         try {
-            _calUpsertFlagChannel = client
+            _calSetUpsertFlagChannel(client
                 .channel('syncview-runtime-flags')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + CALENDAR_UPSERT_FLAG_KEY }, (payload) => {
                     const row = payload && payload.new ? payload.new : null;
@@ -27869,16 +27884,16 @@
                     const row = payload && payload.new ? payload.new : null;
                     _clientCommentGatewaySetFlagValue(row && row.value ? row.value : null);
                 })
-                .subscribe();
+                .subscribe());
         } catch (e) {
             console.warn('[Calendar] runtime flag realtime subscribe failed', e);
-            _calUpsertFlagChannel = null;
+            _calSetUpsertFlagChannel(null);
         }
     }
     function _calPrimeUpsertRoutingFlag() {
         if (!_calUpsertFlagPromise) {
-            _calUpsertFlagPromise = Promise.all([_calFetchUpsertFlagOnce(), _calFetchKasperUrgentFlagOnce(), _writeUiPrimeRerouteFlag()])
-                .then(() => _calSubscribeUpsertFlag()).catch(() => null);
+            _calSetUpsertFlagPromise(Promise.all([_calFetchUpsertFlagOnce(), _calFetchKasperUrgentFlagOnce(), _writeUiPrimeRerouteFlag()])
+                .then(() => _calSubscribeUpsertFlag()).catch(() => null));
         }
         return _calUpsertFlagPromise;
     }
@@ -30316,7 +30331,7 @@
     }
     _calPrimeUpsertRoutingFlag();
     function _settingsSetFlagValue(value) {
-        _settingsEfClients = new Set(_calRuntimeFlagClients(value));
+        _settingsSetEfClients(new Set(_calRuntimeFlagClients(value)));
         _calV2Log('settings EF clients:', Array.from(_settingsEfClients).join(',') || '(none)');
     }
     async function _settingsFetchFlagOnce() {
@@ -30341,21 +30356,21 @@
         const client = await _calRuntimeFlagClient();
         if (!client || _settingsFlagChannel) return;
         try {
-            _settingsFlagChannel = client
+            _settingsSetFlagChannel(client
                 .channel('syncview-settings-runtime-flags')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + SETTINGS_EF_FLAG_KEY }, (payload) => {
                     const row = payload && payload.new ? payload.new : null;
                     _settingsSetFlagValue(row && row.value ? row.value : { clients: [] });
                 })
-                .subscribe();
+                .subscribe());
         } catch (e) {
             console.warn('[Settings] runtime flag realtime subscribe failed', e);
-            _settingsFlagChannel = null;
+            _settingsSetFlagChannel(null);
         }
     }
     function _settingsPrimeRoutingFlag() {
         if (!_settingsFlagPromise) {
-            _settingsFlagPromise = _settingsFetchFlagOnce().then(() => _settingsSubscribeFlag()).catch(() => null);
+            _settingsSetFlagPromise(_settingsFetchFlagOnce().then(() => _settingsSubscribeFlag()).catch(() => null));
         }
         return _settingsFlagPromise;
     }

@@ -153,7 +153,8 @@ ok(!!gatewayRow,
 const gatewaySandbox = { console, Array, Boolean, String, _calV2Log: function () {}, _clientCommentGatewayEnabled: null };
 vm.createContext(gatewaySandbox);
 vm.runInContext(
-  grabFunc('_clientCommentGatewaySetFlagValue') + '\n'
+  grabFunc('_clientCommentSetGatewayEnabled') + '\n'
+  + grabFunc('_clientCommentGatewaySetFlagValue') + '\n'
   + grabFunc('_clientCommentGatewayOn'), gatewaySandbox);
 
 function frontDoorForBody(bodyText) {
@@ -196,6 +197,7 @@ function laneForHarnessBody(bodyText) {
     + grabFunc('_calRuntimeFlagRawMembers') + '\n'
     + grabFunc('_calRuntimeFlagClients') + '\n'
     + grabFunc('_writeUiRerouteRosterUsable') + '\n'
+    + grabFunc('_writeUiSetRerouteClients') + '\n'
     + grabFunc('_writeUiSetRerouteFlagValue') + '\n'
     + grabFunc('_writeUiRerouteUseGateway') + '\n'
     + grabFunc('_writeUiRerouteUseGatewayFailClosed'), sandbox);

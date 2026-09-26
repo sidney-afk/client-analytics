@@ -25,3 +25,4 @@
 040-shared-briefs.js.part
 130-calendar-model-cache.js.part
 134-calendar-prefs-mount.js.part
+120-calendar-flags-write-repair.js.part

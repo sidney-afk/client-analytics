@@ -1,3 +1,33 @@
+import { showNotify } from './040-shared-briefs.js';
+import { _linearRefreshProjectsForRerouteChange } from './060-templates-filming.js';
+import { wlNormalizeClient } from './070-workload-source.js';
+import {
+  CALENDAR_REORDER_BATCH_URL, CALENDAR_REORDER_EF_URL, CALENDAR_UPSERT_EF_URL,
+  CALENDAR_UPSERT_N8N_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, CLIENT_REVIEW_LINK_URL,
+  _svBootFlagRows, _syncviewOpenStaffIdentity, _syncviewStaffIdentityClear,
+  _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue, _syncviewStaffVerificationEpoch
+} from './100-onboarding-staff-controls.js';
+import {
+  CALENDAR_UPSERT_FLAG_KEY, CLIENT_COMMENT_GATEWAY_FLAG_KEY, SETTINGS_EF_FLAG_KEY,
+  WRITE_UI_REROUTE_FLAG_KEY, WRITE_UI_REROUTE_FLAG_TIMEOUT_MS, _calSetUpsertEfClients,
+  _calSetUpsertFlagChannel, _calSetUpsertFlagClient, _calSetUpsertFlagClientPromise,
+  _calSetUpsertFlagPromise, _calUpsertEfClients, _calUpsertFlagChannel, _calUpsertFlagClient,
+  _calUpsertFlagClientPromise, _calUpsertFlagPromise, _clientCommentGatewayEnabled,
+  _clientCommentSetGatewayEnabled, _settingsEfClients, _settingsFlagChannel, _settingsFlagPromise,
+  _settingsSetEfClients, _settingsSetFlagChannel, _settingsSetFlagPromise, _writeUiRerouteClients,
+  _writeUiRerouteFlagFailed, _writeUiRerouteFlagGeneration, _writeUiRerouteFlagPromise,
+  _writeUiRerouteRosterUnusable, _writeUiSetRerouteClients, _writeUiSetRerouteFlagFailed,
+  _writeUiSetRerouteFlagGeneration, _writeUiSetRerouteFlagPromise, _writeUiSetRerouteRosterUnusable
+} from './110-time-off-reports.js';
+import { _calCommentsFor, _calPostPlatforms, calClientSlug, calState } from './130-calendar-model-cache.js';
+import { _calMapNativeStatusStrict, renderCalendarView } from './134-calendar-prefs-mount.js';
+import { _calV2LoadLib, _calV2Log } from './150-calendar-hydration-import.js';
+import { _calStringifyComments } from './190-calendar-approval-comments.js';
+import { _isClientLink, _syncviewClientEntryDataRun, _syncviewClientEntryRunCurrent } from './260-production-refresh-boot.js';
+import { computeSampleOverallStatus, sxrClientSlug, sxrState } from './270-samples-model.js';
+import { _sxrCommentsFor, _sxrMsgAudience, _sxrStringifyComments } from './280-samples-cards-notes.js';
+import { _sxrKasperRenderQueue } from './290-samples-writes-review.js';
+import { _kasperPaintReview } from './330-kasper-review-history.js';
     function _calRuntimeFlagSlug(member) {
         if (typeof member !== 'string') return null;
         let slug;
@@ -21,12 +51,12 @@
         return (raw || []).map(x => _calRuntimeFlagSlug(x)).filter(Boolean);
     }
     function _calSetUpsertFlagValue(value) {
-        _calUpsertEfClients = new Set(_calRuntimeFlagClients(value));
+        _calSetUpsertEfClients(new Set(_calRuntimeFlagClients(value)));
         _calV2Log('calendar-upsert EF clients:', Array.from(_calUpsertEfClients).join(',') || '(none)');
     }
     function _clientCommentGatewaySetFlagValue(value) {
-        _clientCommentGatewayEnabled = !!(value && typeof value === 'object'
-            && !Array.isArray(value) && value.enabled === true);
+        _clientCommentSetGatewayEnabled(!!(value && typeof value === 'object'
+            && !Array.isArray(value) && value.enabled === true));
         _calV2Log('client-comment gateway flag:', _clientCommentGatewayEnabled ? 'on' : 'off');
     }
     function _clientCommentGatewayOn() {
@@ -64,7 +94,7 @@
         const nextClients = new Set(_calRuntimeFlagClients(value));
         const changed = previousClients.size !== nextClients.size
             || Array.from(previousClients).some(slug => !nextClients.has(slug));
-        _writeUiRerouteClients = nextClients;
+        _writeUiSetRerouteClients(nextClients);
         _calV2Log('write-UI reroute clients:', Array.from(_writeUiRerouteClients).join(',') || '(none)');
         if (changed && options && options.refreshProjects) {
             return _linearRefreshProjectsForRerouteChange(previousClients, nextClients);
@@ -181,7 +211,8 @@
         }
     }
     async function _writeUiFetchRerouteFlagOnce(options) {
-        const generation = ++_writeUiRerouteFlagGeneration;
+        _writeUiSetRerouteFlagGeneration(_writeUiRerouteFlagGeneration + 1);
+        const generation = _writeUiRerouteFlagGeneration;
         const superseded = () => generation !== _writeUiRerouteFlagGeneration;
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) {
             if (superseded()) return;
@@ -192,7 +223,7 @@
             // Supabase config the native gateway is unreachable too, so
             // routing native routes into nothing. Legacy is the only lane that
             // could work here, so let the empty allowlist mean what it says.
-            _writeUiRerouteRosterUnusable = false;
+            _writeUiSetRerouteRosterUnusable(false);
             return;
         }
         const controller = typeof AbortController === 'function' ? new AbortController() : null;
@@ -230,14 +261,14 @@
             // An absent row is OFF by design: the flag defaults dark until the
             // owner flips it after the production-write EF deploy.
             _clientCommentGatewaySetFlagValue(commentGatewayRow && commentGatewayRow.value ? commentGatewayRow.value : null);
-            _writeUiRerouteFlagFailed = false;
+            _writeUiSetRerouteFlagFailed(false);
             // The READ succeeded, so the failed mark clears and the heal stands
             // down. Whether it succeeded with anything a ROUTER can use is a
             // separate question, and the line above deliberately does not
             // answer it: `[]`, an absent key, and a malformed value all reach
             // here with the allowlist emptied and nothing wrong with the
             // transport. Codex finding 1.
-            _writeUiRerouteRosterUnusable = !_writeUiRerouteRosterUsable(rerouteRow);
+            _writeUiSetRerouteRosterUnusable(!_writeUiRerouteRosterUsable(rerouteRow));
         } catch (e) {
             // A missing/unreadable rollout flag leaves the ALLOWLIST empty, and
             // the allowlist is still the factual answer the outbox drain needs.
@@ -256,8 +287,8 @@
             if (superseded()) return;
             _writeUiSetRerouteFlagValue({ clients: [] });
             _clientCommentGatewaySetFlagValue(null);
-            _writeUiRerouteFlagFailed = true;
-            _writeUiRerouteRosterUnusable = true;
+            _writeUiSetRerouteFlagFailed(true);
+            _writeUiSetRerouteRosterUnusable(true);
             console.warn('[SyncView] write-UI reroute flag read failed; routing live writes to the native gateway', e);
         } finally {
             if (timeoutId !== null) clearTimeout(timeoutId);
@@ -269,12 +300,12 @@
             // The call above bumps the generation synchronously, so reading it
             // here captures the generation THIS read was issued under.
             const generation = _writeUiRerouteFlagGeneration;
-            _writeUiRerouteFlagPromise = pending.catch(() => {
+            _writeUiSetRerouteFlagPromise(pending.catch(() => {
                 if (generation !== _writeUiRerouteFlagGeneration) return;
                 _writeUiSetRerouteFlagValue({ clients: [] });
-                _writeUiRerouteFlagFailed = true;
-                _writeUiRerouteRosterUnusable = true;
-            });
+                _writeUiSetRerouteFlagFailed(true);
+                _writeUiSetRerouteRosterUnusable(true);
+            }));
         }
         return _writeUiRerouteFlagPromise;
     }
@@ -304,12 +335,12 @@
             // the refresh helper early-returns before projects load anyway.
             const pending = _writeUiFetchRerouteFlagOnce({ refreshProjects: true });
             const generation = _writeUiRerouteFlagGeneration;
-            _writeUiRerouteFlagPromise = pending.catch(() => {
+            _writeUiSetRerouteFlagPromise(pending.catch(() => {
                 if (generation !== _writeUiRerouteFlagGeneration) return;
                 _writeUiSetRerouteFlagValue({ clients: [] });
-                _writeUiRerouteFlagFailed = true;
-                _writeUiRerouteRosterUnusable = true;
-            });
+                _writeUiSetRerouteFlagFailed(true);
+                _writeUiSetRerouteRosterUnusable(true);
+            }));
             return _writeUiRerouteFlagPromise;
         });
     }
@@ -319,27 +350,27 @@
        generation, which retires any heal already in flight. Named rather than
        inlined in the channel handler so the suites can execute the real thing. */
     function _writeUiApplyRerouteFlagFromChannel(row) {
-        _writeUiRerouteFlagGeneration++;
-        _writeUiRerouteFlagFailed = false;
+        _writeUiSetRerouteFlagGeneration(_writeUiRerouteFlagGeneration + 1);
+        _writeUiSetRerouteFlagFailed(false);
         // Same split as the fetch: the delivery is a successful read, so the
         // failed mark clears; whether it delivered a usable roster is asked
         // separately. A DELETE arrives here with no `row` at all, which is the
         // literal "someone removed the flag row" case Codex finding 1 names.
-        _writeUiRerouteRosterUnusable = !_writeUiRerouteRosterUsable(row);
+        _writeUiSetRerouteRosterUnusable(!_writeUiRerouteRosterUsable(row));
         return _writeUiSetRerouteFlagValue(row && row.value ? row.value : { clients: [] }, { refreshProjects: true });
     }
     function _calRuntimeFlagClient() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return Promise.resolve(null);
         if (_calUpsertFlagClient) return Promise.resolve(_calUpsertFlagClient);
         if (_calUpsertFlagClientPromise) return _calUpsertFlagClientPromise;
-        _calUpsertFlagClientPromise = _calV2LoadLib().then(lib => {
+        _calSetUpsertFlagClientPromise(_calV2LoadLib().then(lib => {
             if (!lib || !lib.createClient) return null;
-            _calUpsertFlagClient = lib.createClient(CAL_SUPABASE_URL, CAL_SUPABASE_ANON_KEY, {
+            _calSetUpsertFlagClient(lib.createClient(CAL_SUPABASE_URL, CAL_SUPABASE_ANON_KEY, {
                 auth: { persistSession: false, autoRefreshToken: false },
                 realtime: { params: { eventsPerSecond: 2 } }
-            });
+            }));
             return _calUpsertFlagClient;
-        }).catch(e => { console.warn('[Calendar] runtime flag realtime init failed', e); _calUpsertFlagClientPromise = null; return null; });
+        }).catch(e => { console.warn('[Calendar] runtime flag realtime init failed', e); _calSetUpsertFlagClientPromise(null); return null; }));
         return _calUpsertFlagClientPromise;
     }
     async function _calSubscribeUpsertFlag() {
@@ -347,7 +378,7 @@
         const client = await _calRuntimeFlagClient();
         if (!client || _calUpsertFlagChannel) return;
         try {
-            _calUpsertFlagChannel = client
+            _calSetUpsertFlagChannel(client
                 .channel('syncview-runtime-flags')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + CALENDAR_UPSERT_FLAG_KEY }, (payload) => {
                     const row = payload && payload.new ? payload.new : null;
@@ -363,16 +394,16 @@
                     const row = payload && payload.new ? payload.new : null;
                     _clientCommentGatewaySetFlagValue(row && row.value ? row.value : null);
                 })
-                .subscribe();
+                .subscribe());
         } catch (e) {
             console.warn('[Calendar] runtime flag realtime subscribe failed', e);
-            _calUpsertFlagChannel = null;
+            _calSetUpsertFlagChannel(null);
         }
     }
     function _calPrimeUpsertRoutingFlag() {
         if (!_calUpsertFlagPromise) {
-            _calUpsertFlagPromise = Promise.all([_calFetchUpsertFlagOnce(), _calFetchKasperUrgentFlagOnce(), _writeUiPrimeRerouteFlag()])
-                .then(() => _calSubscribeUpsertFlag()).catch(() => null);
+            _calSetUpsertFlagPromise(Promise.all([_calFetchUpsertFlagOnce(), _calFetchKasperUrgentFlagOnce(), _writeUiPrimeRerouteFlag()])
+                .then(() => _calSubscribeUpsertFlag()).catch(() => null));
         }
         return _calUpsertFlagPromise;
     }
@@ -2810,7 +2841,7 @@
     }
     _calPrimeUpsertRoutingFlag();
     function _settingsSetFlagValue(value) {
-        _settingsEfClients = new Set(_calRuntimeFlagClients(value));
+        _settingsSetEfClients(new Set(_calRuntimeFlagClients(value)));
         _calV2Log('settings EF clients:', Array.from(_settingsEfClients).join(',') || '(none)');
     }
     async function _settingsFetchFlagOnce() {
@@ -2835,21 +2866,21 @@
         const client = await _calRuntimeFlagClient();
         if (!client || _settingsFlagChannel) return;
         try {
-            _settingsFlagChannel = client
+            _settingsSetFlagChannel(client
                 .channel('syncview-settings-runtime-flags')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + SETTINGS_EF_FLAG_KEY }, (payload) => {
                     const row = payload && payload.new ? payload.new : null;
                     _settingsSetFlagValue(row && row.value ? row.value : { clients: [] });
                 })
-                .subscribe();
+                .subscribe());
         } catch (e) {
             console.warn('[Settings] runtime flag realtime subscribe failed', e);
-            _settingsFlagChannel = null;
+            _settingsSetFlagChannel(null);
         }
     }
     function _settingsPrimeRoutingFlag() {
         if (!_settingsFlagPromise) {
-            _settingsFlagPromise = _settingsFetchFlagOnce().then(() => _settingsSubscribeFlag()).catch(() => null);
+            _settingsSetFlagPromise(_settingsFetchFlagOnce().then(() => _settingsSubscribeFlag()).catch(() => null));
         }
         return _settingsFlagPromise;
     }
@@ -3073,3 +3104,39 @@
        seeded to that value so workflow position is preserved. `tweaks`
        column content seeds video_comments so historical feedback isn't
        lost. The overall `status` is recomputed from the sub-statuses. */
+export {
+  CAL_CAPJOB_CANCEL_GRACE_MS, CAL_CAPJOB_CONCURRENCY, CAL_CAPJOB_CONFIRM_MS,
+  CAL_CAPJOB_FETCH_TIMEOUT_MS, CAL_CAPJOB_LS_KEY, CAL_CAPJOB_POLL_MS, CAL_CAPJOB_STALE_MS,
+  CAL_COMPONENTS, CAL_REVIEW_COMPONENTS, CAL_STATUSES, CAL_TITLE_STATUSES, DEFAULT_CAPTION_PROMPT,
+  WRITE_UI_NO_WORK_ITEM_TEXT, WRITE_UI_PRODUCTION_WRITE_URL, _calCapJobBatch, _calCapJobPollBusy,
+  _calCapJobPollTimer, _calCapJobTicker, _calCapJobsRestored, _calCaptionJobs, _calCaptionPrompts,
+  _calCaptionPromptsInFlight, _calCaptionPromptsLoaded, _calClearStaleApprovals, _calComponentsFor,
+  _calIsTitleReviewOn, _calIsYouTubeCard, _calLoadCommentsField, _calNormStatus,
+  _calPrimeUpsertRoutingFlag, _calReadFreshCardStamp, _calReorderUrlForClient,
+  _calRuntimeFlagClient, _calRuntimeFlagClients, _calSetCapJobBatch, _calSetCapJobPollBusy,
+  _calSetCapJobPollTimer, _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
+  _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calTitleEngaged, _calTitlePillShown,
+  _calUnionCommentCell, _calUpsertFetch, _calUpsertFetchPinned, _calUpsertHeaders, _calUpsertUseEf,
+  _clientCommentGatewayOn, _kasperUrgentPingOn, _kasperUrgentPingOnLive,
+  _prodCanonicalCoversLegacy, _prodCardBindingToken, _prodCommentAddRoutesLegacy,
+  _prodCrosswalkVerdict, _prodLegacyReadIncomplete, _prodLegacyUnrepresentableState,
+  _prodMarkLegacyReadIncomplete, _prodResolveCardCrosswalk, _prodRootAudienceClientRows,
+  _prodStripEphemeralCanonicalPosts, _settingsPrimeRoutingFlag, _settingsUseEf,
+  _settingsWriteHeaders, _settingsWriteUrlForClient, _syncviewClientWriteToken, _syncviewEfHeaders,
+  _syncviewIssueClientShareUrl, _writeUiAdoptRepairAck, _writeUiAdoptReplayStatus,
+  _writeUiAppendRepairRef, _writeUiAuthoritySnapshot, _writeUiBindRepairAck,
+  _writeUiBuildSourceRepair, _writeUiClassifyTargetless, _writeUiCompleteSourceRepairRefs,
+  _writeUiComponentHasWorkItem, _writeUiExpireV1Caches, _writeUiFailureSentence,
+  _writeUiFailureText, _writeUiFilterCachedPosts, _writeUiGatewayError, _writeUiGatewayPost,
+  _writeUiGatewayWithRepair, _writeUiHasCredential, _writeUiHealRerouteFlag,
+  _writeUiIdentifierAllowed, _writeUiIntentId, _writeUiLastRenderedAuthoritySig,
+  _writeUiLegacyItemOwnedBy, _writeUiLegacyResumeOwner, _writeUiLegacyResumeOwnerCurrent,
+  _writeUiLegacyResumeOwnerKey, _writeUiLegacyRetainFrom, _writeUiLinkSlotSealed,
+  _writeUiLinkSlotSealedLive, _writeUiLinkSlotSealedNotice, _writeUiMarkRepairCommitted,
+  _writeUiMergeCommittedBatch, _writeUiNativeId, _writeUiNativeStatus, _writeUiPrimeRerouteFlag,
+  _writeUiPrincipalKey, _writeUiQueueDiagnostic, _writeUiRefreshAuthority,
+  _writeUiRemoveCompletedRepairRefs, _writeUiRepairCompanions, _writeUiRepairJournalRead,
+  _writeUiReportFailure, _writeUiRerouteUseGateway, _writeUiRerouteUseGatewayWhenReady,
+  _writeUiSnapshotRepairRefs, _writeUiSourceClientSlug, _writeUiSourceEditsOnly, _writeUiTeam,
+  _writeUiUseGatewayWhenReady, computeOverallStatus
+};

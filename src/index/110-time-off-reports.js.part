@@ -2108,11 +2108,17 @@ import {
     const CLIENT_COMMENT_GATEWAY_FLAG_KEY = 'client_comment_gateway_enabled';
     const SETTINGS_EF_FLAG_KEY = 'settings_ef_clients';
     let _calUpsertEfClients = new Set();
+    function _calSetUpsertEfClients(value) { _calUpsertEfClients = value; }
     let _writeUiRerouteClients = new Set();
+    function _writeUiSetRerouteClients(value) { _writeUiRerouteClients = value; }
     let _clientCommentGatewayEnabled = false;
+    function _clientCommentSetGatewayEnabled(value) { _clientCommentGatewayEnabled = value; }
     let _calUpsertFlagPromise = null;
+    function _calSetUpsertFlagPromise(value) { _calUpsertFlagPromise = value; }
     let _writeUiRerouteFlagPromise = null;
+    function _writeUiSetRerouteFlagPromise(value) { _writeUiRerouteFlagPromise = value; }
     let _writeUiRerouteFlagFailed = false;
+    function _writeUiSetRerouteFlagFailed(value) { _writeUiRerouteFlagFailed = value; }
     /* VALIDITY IS TRACKED SEPARATELY FROM THE ALLOWLIST (Codex finding 1 on the
        item-175 fix, 2026-09-08).
 
@@ -2144,6 +2150,7 @@ import {
        whole point is that the unknown case routes to the authority that can
        answer out loud. */
     let _writeUiRerouteRosterUnusable = true;
+    function _writeUiSetRerouteRosterUnusable(value) { _writeUiRerouteRosterUnusable = value; }
     /* Review finding on the item-70 fix: the heal re-fetch and the realtime
        channel are separate connections, so a heal that started BEFORE a
        channel delivery can land after it and overwrite a good roster -- a
@@ -2154,12 +2161,19 @@ import {
        below is therefore stamped with the generation it was issued under and
        discards itself if a newer read (fetch OR channel) has already landed. */
     let _writeUiRerouteFlagGeneration = 0;
+    function _writeUiSetRerouteFlagGeneration(value) { _writeUiRerouteFlagGeneration = value; }
     let _calUpsertFlagChannel = null;
+    function _calSetUpsertFlagChannel(value) { _calUpsertFlagChannel = value; }
     let _calUpsertFlagClient = null;
+    function _calSetUpsertFlagClient(value) { _calUpsertFlagClient = value; }
     let _calUpsertFlagClientPromise = null;
+    function _calSetUpsertFlagClientPromise(value) { _calUpsertFlagClientPromise = value; }
     let _settingsEfClients = new Set();
+    function _settingsSetEfClients(value) { _settingsEfClients = value; }
     let _settingsFlagPromise = null;
+    function _settingsSetFlagPromise(value) { _settingsFlagPromise = value; }
     let _settingsFlagChannel = null;
+    function _settingsSetFlagChannel(value) { _settingsFlagChannel = value; }
     /* One roster MEMBER, normalised, or null when the member is not a slug at
        all. Codex finding on the item-175 repair: this used to be
        `calClientSlug(String(x || ''))` inline, and `String()` does not reject a
@@ -2177,13 +2191,17 @@ import {
 export {
   CALENDAR_UPSERT_FLAG_KEY, CAL_V2_KILL_KEY, CAL_V2_LS_KEY, CAL_V2_RT_DEBOUNCE_MS,
   CAL_V2_RT_MIN_RELOAD_MS, CLIENT_COMMENT_GATEWAY_FLAG_KEY, SETTINGS_EF_FLAG_KEY,
-  WRITE_UI_REROUTE_FLAG_KEY, WRITE_UI_REROUTE_FLAG_TIMEOUT_MS, _calUpsertEfClients,
-  _calUpsertFlagChannel, _calUpsertFlagClient, _calUpsertFlagClientPromise, _calUpsertFlagPromise,
-  _clientCommentGatewayEnabled, _ptoAdminPending, _ptoCalResetView, _ptoDate, _ptoEnabled,
+  WRITE_UI_REROUTE_FLAG_KEY, WRITE_UI_REROUTE_FLAG_TIMEOUT_MS, _calSetUpsertEfClients,
+  _calSetUpsertFlagChannel, _calSetUpsertFlagClient, _calSetUpsertFlagClientPromise,
+  _calSetUpsertFlagPromise, _calUpsertEfClients, _calUpsertFlagChannel, _calUpsertFlagClient,
+  _calUpsertFlagClientPromise, _calUpsertFlagPromise, _clientCommentGatewayEnabled,
+  _clientCommentSetGatewayEnabled, _ptoAdminPending, _ptoCalResetView, _ptoDate, _ptoEnabled,
   _ptoLoadAdmin, _ptoLoadOverview, _ptoPaint, _ptoPrimeFlag, _ptoRenderAdmin, _settingsEfClients,
-  _settingsFlagChannel, _settingsFlagPromise, _srpPurgeSensitiveState, _srpState,
-  _writeUiRerouteClients, _writeUiRerouteFlagFailed, _writeUiRerouteFlagGeneration,
-  _writeUiRerouteFlagPromise, _writeUiRerouteRosterUnusable, mountSmmWeeklyReportFormView,
-  mountSmmWeeklyReportsView, mountTimeOffView, renderSmmWeeklyReportFormView,
-  renderSmmWeeklyReportsView, renderTimeOffView
+  _settingsFlagChannel, _settingsFlagPromise, _settingsSetEfClients, _settingsSetFlagChannel,
+  _settingsSetFlagPromise, _srpPurgeSensitiveState, _srpState, _writeUiRerouteClients,
+  _writeUiRerouteFlagFailed, _writeUiRerouteFlagGeneration, _writeUiRerouteFlagPromise,
+  _writeUiRerouteRosterUnusable, _writeUiSetRerouteClients, _writeUiSetRerouteFlagFailed,
+  _writeUiSetRerouteFlagGeneration, _writeUiSetRerouteFlagPromise,
+  _writeUiSetRerouteRosterUnusable, mountSmmWeeklyReportFormView, mountSmmWeeklyReportsView,
+  mountTimeOffView, renderSmmWeeklyReportFormView, renderSmmWeeklyReportsView, renderTimeOffView
 };

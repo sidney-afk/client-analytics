@@ -101,6 +101,8 @@ async function runCase({ reroute = [], legacy, native = [], nativeError = null, 
     extract('_linearReconcileProjectSelection'),
     extract('_linearRefreshProjectsForRerouteChange'),
     extract('fetchLinearProjects'),
+    // 120 is a module: it writes 110's reroute allowlist through this setter.
+    extract('_writeUiSetRerouteClients'),
     extract('_writeUiSetRerouteFlagValue'),
     // 060 is a module: it writes 040's project lists through these setters.
     extract('_setLinearProjects'),

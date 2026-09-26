@@ -1053,6 +1053,8 @@
             return;
         }
     }
+    // Status columns a whole-card save may only send when this save edited them.
+    const CAL_WHOLE_CARD_STATUS_FIELDS = ['status', 'video_status', 'graphic_status', 'caption_status', 'title_status'];
     async function _calFlushCardSave(pid) {
         let edits = _calPendingEdits[pid];
         if (!edits) return;
@@ -1359,6 +1361,18 @@
                 delete wirePost._writeUiRepairRefs;
                 _calStripThumbnailFolderFields(wirePost);
                 _calApplyClearSentinels(wirePost, edits);
+                // A whole-card send for an EXISTING card (the v1 save mode, a
+                // sticky per-browser opt-out) must not carry statuses this save
+                // never edited: the tab's copy can be older than a status the
+                // Production board projected since, and re-sending it put an
+                // approved video back to In Progress (drift check 2026-09-26).
+                // Deliberate status changes always arrive in `edits`; an empty
+                // `edits` (forced re-send) keeps the whole card as before.
+                if (!wasNewRow && Object.keys(edits).length > 0) {
+                    for (const k of CAL_WHOLE_CARD_STATUS_FIELDS) {
+                        if (!(k in edits)) delete wirePost[k];
+                    }
+                }
             }
             // comments_base_at = the sheet's updated_at this browser last saw.
             // The upsert workflow 3-way-merges each *_tweaks cell against this

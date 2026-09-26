@@ -817,6 +817,22 @@ async function runScenario(browser, scn, shotDir, doShots) {
       else if (verb === 'smm.dragToFront') { const p = await actors.smm(); res = await smmDragToFront(p, uniqueUiName(args[0])); await shot(p, 'smm-drag'); }
       else if (verb === 'smm.reload') { const p = await actors.smm(); res = await smmReloadPage(p); await shot(p, 'smm-reload'); }
       else if (verb === 'smm.bgReload') { const p = await actors.smm(); res = await smmBgReload(p); await shot(p, 'smm-bgreload'); }
+      else if (verb === 'api.archiveStaleTestRows') {
+        // Archive live test rows a crashed earlier run left behind (same name
+        // rule as overnight_runner.sh cleanup_seeds), so an order check sees
+        // only this run's cards. Test client only.
+        const stale = /^(SCN |UI Create|UI Rapid|UI Reorder|UI Remote|UI Reload|UI Batch|UI Workflow|UI Drag|P91 UI RT|MID MERGE|DBG STATUS|OVN |P9\d |SXR )/;
+        let n = 0, failed = 0;
+        try {
+          const rows = supa('client=eq.sidneylaruel&or=(status.neq.Archived,status.is.null)&select=id,name&limit=1000') || [];
+          for (const r of rows) {
+            if (!stale.test(String(r.name || ''))) continue;
+            try { require('./sxr_courier_lib.js').archiveSafe(r.id); n++; } catch (e) { failed++; console.error('archiveStaleTestRows: ' + r.id + ' ' + (e.message || e)); }
+          }
+          res = failed ? 'archive-failed=' + failed : 'ok';
+          if (n) console.log('archiveStaleTestRows: archived ' + n);
+        } catch (e) { res = 'list-failed: ' + (e.message || e); }
+      }
       else if (verb === 'api.seedRow') {
         // Seed an EXTRA row via the API mid-scenario — "another session created
         // a row while I was working". A following smm.bgReload merges it in

@@ -1828,11 +1828,21 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
                     'Authorization': 'Bearer ' + CAL_SUPABASE_ANON_KEY,
                     'X-Syncview-Source': 'thumbnail-compare-availability'
                 }, THUMBNAIL_REVISION_READ_EF_URL);
+                // The function answers 401 without a staff key or a current client
+                // token. A client link before its entry run settles has neither, so
+                // skip the request instead of logging a guaranteed refusal.
+                if (!headers['X-Syncview-Key'] && !headers['X-Syncview-Client-Token']) return;
                 const response = await fetch(THUMBNAIL_REVISION_READ_EF_URL, {
                     method: 'POST', headers, cache: 'no-store',
                     body: JSON.stringify({ surface, client, mode: 'availability', source_ids: sourceIds })
                 });
                 const json = await response.json().catch(() => null);
+                if (response.status === 401 || response.status === 403) {
+                    // Refused for this caller: remember it per version so repaints
+                    // do not re-send the same refused request.
+                    sourceIds.forEach(pid => _thumbCompareKnown.set(_thumbCompareKey(surface, client, pid), { version: candidates.get(pid), available: false }));
+                    return;
+                }
                 if (!response.ok || !json || json.ok !== true || !Array.isArray(json.available_source_ids)) return;
                 const available = new Set(json.available_source_ids.map(String));
                 sourceIds.forEach(pid => {

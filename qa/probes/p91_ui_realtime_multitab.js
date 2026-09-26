@@ -67,6 +67,12 @@ async function readCardState(page, id, name) {
   const base = 'P91 UI RT ' + Date.now();
   const renamed = base + ' remote';
   let creator, observer, id = '';
+  // A run that died before its finally left a live card; archive those first.
+  try {
+    for (const r of (L.supa('client=eq.sidneylaruel&name=like.' + encodeURIComponent('P91 UI RT*') + '&or=(status.neq.Archived,status.is.null)&select=id') || [])) {
+      try { L.archiveSafe(r.id); } catch (e) { console.error('p91: stale archive of ' + r.id + ' failed: ' + (e && e.message || e)); }
+    }
+  } catch (e) { console.error('p91: stale lookup failed: ' + (e && e.message || e)); }
   try {
     observer = await L.smm(browser);
     await observer.evaluate(() => { const b = document.querySelector('#sxrView .cal-view-btn[data-cal-view="organizer"]'); if (b) b.click(); if (typeof loadSxrCards === 'function') loadSxrCards({ skipCache: true }); });
@@ -108,7 +114,7 @@ async function readCardState(page, id, name) {
     ok(false, 'probe threw', e && e.stack || String(e));
   } finally {
     try { await browser.close(); } catch {}
-    if (id) { try { L.archiveSafe(id); } catch {} }
+    if (id) { try { L.archiveSafe(id); } catch (e) { console.error('p91: archive of ' + id + ' failed: ' + (e && e.message || e)); } }
   }
   const fail = results.filter(r => !r.pass).length;
   console.log(`pass=${results.length - fail} fail=${fail}`);

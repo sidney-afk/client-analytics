@@ -4365,6 +4365,8 @@
         .tpl-brief-more { position: absolute; right: 0; top: 2px; width: 24px; height: 22px; border: 1px solid var(--border); border-radius: 6px; background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.8rem; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 0.12s; }
         .tpl-brief-li:hover .tpl-brief-more, .tpl-brief-more:focus-visible, .tpl-brief-more[aria-expanded="true"] { opacity: 1; }
         @media (hover: none) { .tpl-brief-more { opacity: 0.7; } }
+        .tpl-brief-more::after, .tpl-link-count::after { content: ""; position: absolute; inset: -11px; }
+        .tpl-link-count { position: relative; }
         .tpl-brief-acts { display: flex; gap: 6px; margin: 6px 0 2px; }
         .tpl-brief-act { font-size: 0.72rem; border: 1px solid var(--border); background: var(--white); border-radius: 6px; padding: 2px 7px; cursor: pointer; color: var(--text-secondary); }
         .tpl-brief-act:focus-visible, .tpl-brief-hex:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
@@ -13414,7 +13416,7 @@
     // One row in the Links card. One link: the whole row opens it. Several: numbered buttons, one per link.
     const TPL_LINKS_INLINE = 4;
     let _tplLinkRowOpen = '';
-    function tplLinkRowToggle(k) { _tplLinkRowOpen = _tplLinkRowOpen === k ? '' : k; _maybeRerenderTemplates(); }
+    function tplLinkRowToggle(k) { _tplLinkRowOpen = _tplLinkRowOpen === k ? '' : k; _maybeRerenderTemplates(); _tplRefocus('.tpl-link-count', k); }
     function _tplLinkRow(label, icon, links) {
         const ico = `<span class="tpl-link-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${TPL_LINK_ICONS[icon] || ''}</svg></span>`;
         if (!links.length) return `<div class="tpl-lrow empty">${ico}<span class="tpl-link-label">${label}</span><span class="tpl-link-right"><button type="button" class="tpl-link-add" onclick="setTemplatesEditMode(true)">Add link</button><span class="tpl-not-set" hidden>Not set</span></span></div>`;
@@ -13540,7 +13542,9 @@
     // Each line can show the fact(s) behind it and send a change to them.
     let _tplBriefSourceOpen = '';
     let _tplBriefMenuRow = '';          // brief line whose Source / Change buttons are showing
-    function tplBriefMenu(key) { _tplBriefMenuRow = _tplBriefMenuRow === key ? '' : key; _maybeRerenderTemplates(); }
+    function tplBriefMenu(key) { _tplBriefMenuRow = _tplBriefMenuRow === key ? '' : key; _maybeRerenderTemplates(); _tplRefocus('.tpl-brief-more', key); }
+    // A disclosure rerenders the page; put focus back on the button that was pressed.
+    function _tplRefocus(sel, key) { const el = document.querySelector(`${sel}[data-k="${CSS.escape(key)}"]`); if (el) el.focus(); }
     function tplBriefToggleSource(key) { _tplBriefSourceOpen = _tplBriefSourceOpen === key ? '' : key; _maybeRerenderTemplates(); }
     let _tplBriefFormRow = '';
     function tplBriefChange(key, row) { _tplBriefSourceOpen = ''; tplBrainOpen(key, row); }

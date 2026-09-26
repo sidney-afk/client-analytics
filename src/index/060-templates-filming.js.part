@@ -1225,7 +1225,7 @@ import {
     // One row in the Links card. One link: the whole row opens it. Several: numbered buttons, one per link.
     const TPL_LINKS_INLINE = 4;
     let _tplLinkRowOpen = '';
-    function tplLinkRowToggle(k) { _tplLinkRowOpen = _tplLinkRowOpen === k ? '' : k; _maybeRerenderTemplates(); }
+    function tplLinkRowToggle(k) { _tplLinkRowOpen = _tplLinkRowOpen === k ? '' : k; _maybeRerenderTemplates(); _tplRefocus('.tpl-link-count', k); }
     function _tplLinkRow(label, icon, links) {
         const ico = `<span class="tpl-link-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${TPL_LINK_ICONS[icon] || ''}</svg></span>`;
         if (!links.length) return `<div class="tpl-lrow empty">${ico}<span class="tpl-link-label">${label}</span><span class="tpl-link-right"><button type="button" class="tpl-link-add" onclick="setTemplatesEditMode(true)">Add link</button><span class="tpl-not-set" hidden>Not set</span></span></div>`;
@@ -1351,7 +1351,9 @@ import {
     // Each line can show the fact(s) behind it and send a change to them.
     let _tplBriefSourceOpen = '';
     let _tplBriefMenuRow = '';          // brief line whose Source / Change buttons are showing
-    function tplBriefMenu(key) { _tplBriefMenuRow = _tplBriefMenuRow === key ? '' : key; _maybeRerenderTemplates(); }
+    function tplBriefMenu(key) { _tplBriefMenuRow = _tplBriefMenuRow === key ? '' : key; _maybeRerenderTemplates(); _tplRefocus('.tpl-brief-more', key); }
+    // A disclosure rerenders the page; put focus back on the button that was pressed.
+    function _tplRefocus(sel, key) { const el = document.querySelector(`${sel}[data-k="${CSS.escape(key)}"]`); if (el) el.focus(); }
     function tplBriefToggleSource(key) { _tplBriefSourceOpen = _tplBriefSourceOpen === key ? '' : key; _maybeRerenderTemplates(); }
     let _tplBriefFormRow = '';
     function tplBriefChange(key, row) { _tplBriefSourceOpen = ''; tplBrainOpen(key, row); }

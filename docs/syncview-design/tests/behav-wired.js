@@ -15,7 +15,7 @@ const { chromium } = require('playwright');
 const { installReadConsoleAudit } = require('./prod-test-utils');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const TOTAL = 168;
+const TOTAL = 169;
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',

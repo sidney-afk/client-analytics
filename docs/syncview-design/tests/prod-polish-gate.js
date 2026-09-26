@@ -199,7 +199,7 @@ const ERROR_NAMES = [
 /*
  * WHICH CHECK, for the one suite whose every assertion failure was unnamed.
  *
- * behav-wired.js runs 168 assertions and, when one fails, exits through its own
+ * behav-wired.js runs 169 assertions and, when one fails, exits through its own
  * summary rather than through a framework error -- so no FAILURE_SIGNATURES
  * pattern matched and no ERROR_NAMES type applied. Every real assertion failure
  * in that suite therefore reported as `unclassified`, which is what run #607 on

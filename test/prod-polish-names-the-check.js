@@ -7,7 +7,7 @@
  *   Production heavy gate failed at: Production wired behavior [unclassified].
  *
  * `unclassified` is the gate's way of saying no signature matched. behav-wired
- * runs 168 assertions and exits through its OWN summary rather than through a
+ * runs 169 assertions and exits through its OWN summary rather than through a
  * framework error, so no FAILURE_SIGNATURES pattern and no ERROR_NAMES type
  * ever applied — every genuine assertion failure in the suite reported as
  * `unclassified`. The repo's own comments record the cost of this shape: the

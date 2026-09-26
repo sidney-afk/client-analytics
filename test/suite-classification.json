@@ -601,7 +601,8 @@
     "calendar-client-links-after-sheet.js",
     "client-phone-css-scope.js",
     "sheets-mirror-policy.js",
-    "client-profile-edit.js"
+    "client-profile-edit.js",
+    "onboarding-boot-skeleton.js"
   ],
   "profiles": [
     {

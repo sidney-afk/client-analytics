@@ -2117,6 +2117,12 @@
         html.boot-onboarding .header { display: none !important; }
         html.boot-onboarding #pageTop { display: none !important; }
         html.boot-onboarding-view .header, html.boot-onboarding-view #pageTop { display: none !important; }
+        /* Onboarding links (?onboarding=, /onboarding_form, ?onboarding_view=) set
+           no data-boot-nav, so the default rule above would paint the Analytics
+           skeleton first. Show nothing instead: the form paints on its own dark
+           canvas, and the viewer mounts its own onboarding-shaped skeleton. */
+        html.boot-onboarding .boot-skeleton-variant,
+        html.boot-onboarding-view .boot-skeleton-variant { display: none !important; }
         /* Intake is locked to the Linear page, which never shows the header
            and always hides #pageTop. */
         html.boot-intake .header { display: none !important; }

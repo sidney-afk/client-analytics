@@ -1364,3 +1364,11 @@ said so.
   The list also feeds batch multi-select, which no longer selects the parent.
 - **Parity note:** matches Linear, where a parent issue is never listed among
   its own sub-issues.
+
+## 2026-09-26 — Production follows changes live (OPEN_REPAIRS 263)
+
+Linear updates an open board as soon as someone else changes an issue. SyncLinear
+now does the same through a realtime channel on `deliverables`, `batches` and
+`deliverable_events`, instead of waiting for the 30 s poll. The poll remains as
+the fallback (90 s while live, 30 s otherwise), and the `prod_realtime` runtime
+flag turns the live path off in one step (ROLLBACK.md).

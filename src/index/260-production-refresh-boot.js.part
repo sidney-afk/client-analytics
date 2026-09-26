@@ -21,7 +21,7 @@ import {
 } from './070-workload-source.js';
 import { navTo } from './090-workload-popovers-navigation.js';
 import {
-  CAL_SUPABASE_ANON_KEY, CLIENT_TOKEN_VERIFY_URL, SMM_WEEKLY_REPORTS_URL,
+  CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, CLIENT_TOKEN_VERIFY_URL, SMM_WEEKLY_REPORTS_URL,
   SYNCVIEW_CLIENT_ENTRY_PROTOCOL, _obSetDraftKey, _obSetSubIdKey, _obSetVariant,
   _syncviewOpenStaffGate, _syncviewStaffCan, _syncviewStaffGateRequired,
   _syncviewStaffIdentityBoot, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentityLoad
@@ -256,22 +256,34 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
            painted changes. Only WHEN it runs changes:
 
            - events are debounced (300 ms) and coalesced: a burst of ten row
-             changes is one read, and a batch change or a delete in the burst
-             upgrades that one read to a full reload (the delta reads
-             deliverables by watermark and cannot see a batch change or a
-             removed row);
+             changes is one read, and a batch change, a delete or a
+             deliverable_events insert in the burst upgrades that one read to a
+             full reload. The delta reads deliverables by `updated_at`
+             watermark and cannot see a batch change, a removed row, or a
+             rename propagated from a card: that drain rewrites the title and
+             inserts a deliverable_events row but deliberately leaves
+             `updated_at` alone (migrations/2026-09-23-rename-propagation.sql);
            - an echo of this tab's own write is ignored: the gateway row was
              already adopted (`_prodApplyGatewayRow`), so an event whose
-             `updated_at` equals the row this tab holds carries nothing new --
-             the same equality `_prodMergeDeliverableRows` uses;
+             `updated_at` AND visible fields equal the row this tab holds
+             carries nothing new. Comparing `updated_at` alone is not enough,
+             for the same rename-propagation reason;
            - a refresh that declines (write in flight, menu open, typing) is
              retried rather than dropped, and nothing runs on a hidden tab --
              the pending read runs when the tab is shown again;
            - the status is tracked honestly. The poll stays as the fallback:
-             it slows to 120 s only while the channel reports SUBSCRIBED and is
+             it slows to 90 s only while the channel reports SUBSCRIBED and is
              back to 30 s the moment it reports anything else. A SUBSCRIBED
              after a drop runs one full catch-up, because realtime does not
-             replay what it missed while down.
+             replay what it missed while down. 90 s, not 120 s: the freshness
+             control calls a board older than PROD_STALE_AFTER_MS (120 s)
+             degraded, so the slow cadence keeps a 30 s margin under it;
+           - KILL SWITCH (ROLLBACK.md): runtime flag `prod_realtime` with value
+             {"enabled": false}, or localStorage `syncview.prodRealtime` = "off"
+             in one browser, turns the channel off and restores the 30 s poll.
+             A missing row or a failed read means ON; only an explicit false
+             turns it off. Open tabs re-read the flag every 5 minutes and on
+             every Production open.
 
            The controller takes all its effects as arguments so a unit test can
            drive it with a mocked channel (test/prod-realtime-controller.js).
@@ -290,11 +302,15 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
             function pollInterval() {
                 return st.status === 'SUBSCRIBED' ? d.slowPollMs : d.fastPollMs;
             }
+            const ECHO_FIELDS = ['title', 'status', 'due_date', 'assignee_id', 'brief', 'file_url', 'batch_id', 'name'];
             function isEcho(table, payload) {
                 const row = payload && payload.new;
                 if (!row || row.id == null || !row.updated_at) return false;
                 const local = d.localRow(table, String(row.id));
-                return !!local && String(local.updated_at || '') === String(row.updated_at);
+                if (!local || String(local.updated_at || '') !== String(row.updated_at)) return false;
+                return ECHO_FIELDS.every(f => !Object.prototype.hasOwnProperty.call(row, f)
+                    || !Object.prototype.hasOwnProperty.call(local, f)
+                    || JSON.stringify(row[f]) === JSON.stringify(local[f]));
             }
             function arm(ms) {
                 if (timer) return;
@@ -335,7 +351,12 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
                     st.echoes++;
                     return;
                 }
-                queue(table === 'batches' || removed);
+                // A changed row that kept its updated_at (a propagated rename)
+                // sits below the watermark, so only a full read can see it.
+                const row = payload && payload.new;
+                const local = row && row.id != null ? d.localRow(table, String(row.id)) : null;
+                const stampKept = !!(local && row.updated_at && String(local.updated_at || '') === String(row.updated_at));
+                queue(table !== 'deliverables' || removed || stampKept);
             }
             function onStatus(gen, status) {
                 if (gen !== generation) return; // a torn-down channel's CLOSED
@@ -351,6 +372,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
                 if (before !== pollInterval() && d.onPollChange) d.onPollChange(pollInterval());
             }
             function start() {
+                if (d.enabled && !d.enabled()) { stop(); st.status = 'disabled'; return; }
                 if (channel || st.status === 'connecting') return;
                 const gen = ++generation;
                 st.status = 'connecting';
@@ -373,7 +395,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
                 }, () => { if (gen === generation) { st.status = 'idle'; st.lastProblem = 'client_failed'; } });
             }
             function stop() {
-                if (!channel && st.status === 'idle') return;
+                if (!channel && (st.status === 'idle' || st.status === 'disabled')) return;
                 const wasSubscribed = st.status === 'SUBSCRIBED';
                 generation++;
                 if (timer) { d.clearTimeout(timer); timer = 0; }
@@ -403,7 +425,37 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
         }
         /* PROD_RT_CONTROLLER_END */
         const PROD_RT_DEBOUNCE_MS = 300;
-        const PROD_RT_SLOW_POLL_MS = 120000;
+        const PROD_RT_SLOW_POLL_MS = 90000;
+        const PROD_RT_FLAG_KEY = 'prod_realtime';
+        const PROD_RT_LOCAL_KEY = 'syncview.prodRealtime';
+        const PROD_RT_FLAG_REREAD_MS = 300000;
+        let _prodRtFlagOn = true, _prodRtFlagReadAt = 0, _prodRtFlagBusy = false;
+        function _prodRtEnabled() {
+            try { if (localStorage.getItem(PROD_RT_LOCAL_KEY) === 'off') return false; } catch (e) {}
+            return _prodRtFlagOn;
+        }
+        // Default ON: a missing row or a failed read keeps realtime on (the
+        // poll is still running underneath); only {"enabled": false} is off.
+        async function _prodRtReadFlag(force) {
+            if (_prodRtFlagBusy || (!force && Date.now() - _prodRtFlagReadAt < PROD_RT_FLAG_REREAD_MS)) return;
+            if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return;
+            _prodRtFlagBusy = true;
+            _prodRtFlagReadAt = Date.now();
+            try {
+                const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(PROD_RT_FLAG_KEY) + '&limit=1';
+                const response = await fetch(url, { cache: 'no-store', headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+                if (!response.ok) return;
+                const rows = await response.json();
+                const value = Array.isArray(rows) && rows[0] ? rows[0].value : null;
+                _prodRtFlagOn = !(value && value.enabled === false);
+            } catch (e) {
+                console.warn('[Production] realtime flag read failed; keeping realtime on', e);
+            } finally {
+                _prodRtFlagBusy = false;
+            }
+            if (!_prodRtEnabled()) _prodRt.stop();
+            else if (_prodRtActive()) _prodRt.start();
+        }
         let _prodOperationalTimer = 0;
         let _prodOperationalNextAt = 0;
         function _prodRtActive() {
@@ -419,6 +471,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
             now: () => Date.now(),
             hidden: () => !!document.hidden,
             active: _prodRtActive,
+            enabled: () => _prodRtEnabled(),
             getClient: () => _wlV2Client(),
             refresh: (o) => _prodDeltaRefresh({ full: !!(o && o.full) }),
             localRow: (table, id) => {
@@ -440,6 +493,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
             return Math.min(PROD_REFRESH_MAX_BACKOFF_MS, PROD_DELTA_REFRESH_MS * Math.pow(2, failures));
         }
         function _prodStartOperationalRefresh() {
+            _prodRtReadFlag(true);
             _prodRt.start();
             if (_prodOperationalTimer) return;
             _prodOperationalNextAt = Date.now() + PROD_DELTA_REFRESH_MS;
@@ -453,7 +507,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
                 // Leaving Production tears the live channel down within one
                 // tick; coming back (mount, or this tick) opens it again.
                 if (!_prodRtActive()) _prodRt.stop();
-                else _prodRt.start();
+                else { _prodRtReadFlag(false); _prodRt.start(); }
                 if (document.hidden || currentNav !== 'production' || !document.getElementById('prodRoot')) return;
                 if (Date.now() < _prodOperationalNextAt) return;
                 _prodOperationalNextAt = Date.now() + _prodOperationalRefreshDelay();

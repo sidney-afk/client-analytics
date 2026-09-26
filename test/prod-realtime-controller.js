@@ -19,6 +19,11 @@ const _prodRtCreate = new Function(src.slice(a, b) + '\nreturn _prodRtCreate;')(
 // The wiring the page relies on.
 assert.ok(/getClient: \(\) => _wlV2Client\(\)/.test(src), 'reuses the shared supabase-js client');
 assert.ok(/refresh: \(o\) => _prodDeltaRefresh\(\{ full: !!\(o && o\.full\) \}\)/.test(src), 'events feed the existing delta refresh');
+const stale = Number((fs.readFileSync(path.join(__dirname, '..', 'src/index/250-production-controls-data.js.part'), 'utf8').match(/const PROD_STALE_AFTER_MS = (\d+);/) || [])[1]);
+const slow = Number((src.match(/const PROD_RT_SLOW_POLL_MS = (\d+);/) || [])[1]);
+assert.ok(slow > 0 && stale > 0 && slow <= stale - 30000, 'slow poll keeps a 30 s margin under the stale threshold (no degraded flicker)');
+assert.ok(/const PROD_RT_FLAG_KEY = 'prod_realtime';/.test(src) && /localStorage\.getItem\(PROD_RT_LOCAL_KEY\) === 'off'/.test(src), 'kill switch: runtime flag + per-browser override');
+assert.ok(/_prodRtFlagOn = !\(value && value\.enabled === false\);/.test(src), 'flag defaults ON; only explicit enabled:false turns it off');
 assert.ok(/window\.prodRtStatus = \(\) => _prodRt\.status\(\)/.test(src), 'console helper exposed');
 assert.ok(/if \(!_prodRtActive\(\)\) _prodRt\.stop\(\);/.test(src), 'leaving Production tears the channel down');
 assert.ok(/if \(!failures\) return _prodRt\.pollInterval\(\);/.test(src), 'poll cadence follows realtime status');
@@ -30,7 +35,7 @@ function harness(opts) {
   let seq = 0;
   const calls = [];
   const pollChanges = [];
-  const env = { active: true, hidden: false, refreshResult: true };
+  const env = { active: true, hidden: false, refreshResult: true, enabled: true };
   const local = { deliverables: new Map(), batches: new Map() };
   const channel = { handlers: [], statusCb: null, name: '' };
   const client = {
@@ -46,12 +51,13 @@ function harness(opts) {
     removeChannel() { this.removed++; }
   };
   const rt = _prodRtCreate({
-    debounceMs: 300, retryMs: 2000, slowPollMs: 120000, fastPollMs: 30000,
+    debounceMs: 300, retryMs: 2000, slowPollMs: 90000, fastPollMs: 30000,
     setTimeout(fn, ms) { const id = ++seq; timers.push({ id, at: now + ms, fn }); return id; },
     clearTimeout(id) { timers = timers.filter(t => t.id !== id); },
     now: () => now,
     hidden: () => env.hidden,
     active: () => env.active,
+    enabled: () => env.enabled,
     getClient: () => (o.noClient ? null : client),
     refresh(x) { calls.push(x); return env.refreshResult; },
     localRow: (table, id) => local[table] ? local[table].get(id) || null : null,
@@ -88,16 +94,16 @@ function harness(opts) {
     ok(['deliverables', 'batches', 'deliverable_events'].every(t => h.channel.handlers.some(x => x.table === t && x.kind === 'postgres_changes')), 'three tables subscribed');
     ok(h.rt.status().status === 'connecting' && h.rt.pollInterval() === 30000, 'connecting still polls fast');
     h.status('SUBSCRIBED');
-    ok(h.rt.status().live === true && h.rt.pollInterval() === 120000, 'SUBSCRIBED slows the poll');
-    ok(h.pollChanges.join() === '120000', 'poll change reported');
+    ok(h.rt.status().live === true && h.rt.pollInterval() === 90000, 'SUBSCRIBED slows the poll');
+    ok(h.pollChanges.join() === '90000', 'poll change reported');
     ok(h.calls.length === 0, 'first SUBSCRIBED does not refresh');
     for (const bad of ['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED']) {
       h.status(bad);
       ok(h.rt.status().live === false && h.rt.pollInterval() === 30000 && h.rt.status().lastProblem === bad, bad + ' restores the fast poll');
       h.status('SUBSCRIBED');
-      ok(h.rt.pollInterval() === 120000, 'resubscribe after ' + bad + ' slows again');
+      ok(h.rt.pollInterval() === 90000, 'resubscribe after ' + bad + ' slows again');
     }
-    ok(h.pollChanges.join() === '120000,30000,120000,30000,120000,30000,120000', 'every switch reported once');
+    ok(h.pollChanges.join() === '90000,30000,90000,30000,90000,30000,90000', 'every switch reported once');
     // 2. Catch-up on re-subscribe: coalesced into one full refresh.
     await h.advance(300);
     ok(h.calls.length === 1 && h.calls[0].full === true, 'resubscribe runs one full catch-up (coalesced)');
@@ -130,7 +136,7 @@ function harness(opts) {
     ok(h.calls.length === 3, 'batch echo ignored');
     h.emit('deliverable_events', { eventType: 'INSERT', new: { id: 'e1', deliverable_id: 'd1' } });
     await h.advance(300);
-    ok(h.calls.length === 4 && h.calls[3].full === false, 'deliverable_events trigger a delta refresh');
+    ok(h.calls.length === 4 && h.calls[3].full === true, 'deliverable_events trigger a full refresh (propagated renames keep updated_at)');
 
     // 4. A declined refresh (null) is retried, not dropped.
     h.env.refreshResult = null;
@@ -165,7 +171,32 @@ function harness(opts) {
     ok(h.calls.length === 7, 'reopening: first SUBSCRIBED is not a catch-up');
   }
 
-  // 7. Inactive surface and missing client.
+  // 7. Propagated rename: same updated_at, new title -> not an echo, full read.
+  {
+    const h = harness();
+    await h.rt.start(); h.status('SUBSCRIBED');
+    h.local.deliverables.set('r1', { id: 'r1', updated_at: 't1', title: 'Old' });
+    h.emit('deliverables', { eventType: 'UPDATE', new: { id: 'r1', updated_at: 't1', title: 'New' } });
+    await h.advance(300);
+    ok(h.rt.status().echoesIgnored === 0 && h.calls.length === 1 && h.calls[0].full === true, 'rename with kept updated_at is not an echo and forces a full read');
+  }
+
+  // 8. Kill switch: disabled never subscribes, stays on the 30 s poll; turning
+  //    it off while live tears the channel down.
+  {
+    const h = harness();
+    h.env.enabled = false;
+    await h.rt.start();
+    ok(h.channel.handlers.length === 0 && h.rt.status().status === 'disabled' && h.rt.pollInterval() === 30000, 'disabled: no channel, fast poll');
+    h.env.enabled = true;
+    await h.rt.start(); h.status('SUBSCRIBED');
+    ok(h.rt.pollInterval() === 90000, 're-enabled goes live');
+    h.env.enabled = false;
+    h.rt.start();
+    ok(h.client.removed === 1 && h.rt.status().status === 'disabled' && h.rt.pollInterval() === 30000 && h.pollChanges.slice(-1)[0] === 30000, 'kill while live removes the channel and restores 30 s');
+  }
+
+  // 9. Inactive surface and missing client.
   {
     const h = harness({ noClient: true });
     await h.rt.start();

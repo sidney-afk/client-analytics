@@ -8399,3 +8399,17 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
 
 - Same deviation and rollback as the entry above: no pre-edit export; Unarchive restores; permanent deletion is blocked until exported.
 - **Database, by Lighthouse:** `content_samples` anon read policy dropped. Rights revoked from public, anon and authenticated. `service_role` keeps read. The three TikTok tables were verified already locked. No table was dropped.
+
+## 2026-09-26 — Production live updates over realtime (OPEN_REPAIRS 263)
+
+- Production subscribes to postgres_changes on `deliverables`, `batches` and
+  `deliverable_events`, and routes events, debounced 300 ms and coalesced, into
+  the existing `_prodDeltaRefresh`. A batch change, a delete, an event insert or
+  a row whose `updated_at` did not move (a propagated rename) forces a full read.
+- Poll kept as the fallback: 90 s while SUBSCRIBED, 30 s otherwise, and one full
+  catch-up after a re-subscribe. `prodRtStatus()` in the console.
+- Kill switch `prod_realtime` runtime flag (default on when the row is absent)
+  plus localStorage `syncview.prodRealtime` = `off`; see ROLLBACK.md. No row was
+  written; no database change.
+- Live WebSocket delivery was not observed in the build sandbox (proxy blocks
+  WebSockets); the unit test drives the controller with a mocked channel.

@@ -328,7 +328,8 @@ async function runTheme(port, browser, theme) {
     await shot(artifact, 'artifact-list');
     await shot(wired, 'wired-list');
 
-    await requirePair(gaps, 'list inventory', artifact, wired, '.sb-brand', '.prod-brand');
+    // Owner, 2026-09-26: the wired sidebar deliberately drops the artifact's wordmark (.sb-brand).
+    if (await wired.locator('.prod-side .prod-brand').count()) gaps.push({ rank: 2, state: 'list inventory', message: 'wired sidebar still shows the removed SyncView wordmark' });
     await requirePair(gaps, 'list inventory', artifact, wired, '.sb-icobtn', '.prod-search-btn');
     await requirePair(gaps, 'list inventory', artifact, wired, '#filterbtn', '#prodFilterBtn');
     await requirePair(gaps, 'list inventory', artifact, wired, '#groupbtn', '#prodGroupBtn');
@@ -351,7 +352,7 @@ async function runTheme(port, browser, theme) {
     const wiredTopbar = (await wired.locator('.prod-topbar').first().innerText()).replace(/\s+/g, ' ');
     if (/\bRefresh\b/.test(wiredTopbar)) gaps.push({ rank: 1, state: 'topbar', message: 'wired topbar contains non-artifact Refresh chrome' });
     const previewChips = await wired.locator('.prod-preview-chip').count();
-    if (previewChips !== 1) gaps.push({ rank: 2, state: 'topbar', message: `Preview chip count expected 1, saw ${previewChips}` });
+    if (previewChips !== 0) gaps.push({ rank: 2, state: 'topbar', message: `Authority badge was removed (owner, 2026-09-26); saw ${previewChips}` });
     const themePalettes = {
       light: [
         ['--bg', '--prod-bg', '#f3f3f4'],

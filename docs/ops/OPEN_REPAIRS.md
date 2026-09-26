@@ -29048,3 +29048,28 @@ live site to be recorded here after merge.
   **0.7 s saved** per Workload open. The first (saved-copy) paint is unchanged at
   ~0.9-1.1 s, because it still waits for `key-verify` by design. One read per load:
   the early answer was used and no duplicate request was made.
+
+## 258. [2026-09-26, BUILT] Kasper's Review tab on a phone
+
+**Before, measured at 390 and 375 wide.** The Review tab already fitted the screen
+(nothing scrolled sideways), but the section tabs stacked into a tall column that
+filled most of the first screen, and several controls were below a thumb-sized
+target: the card's X (22 px), Comment / Approve after tweaks / Request change
+(about 30 px), the lightbox close.
+
+**Fix.** A phone-only block in `src/index/020-styles-surfaces.css.part`, between
+`KASPER-PHONE` markers: every rule sits inside `@media (max-width: 767px)` and every
+selector starts with `#kasperReviewBody` or `.kasper-wrap:has(#kasperReviewBody)`
+(the Review tab is the only screen that renders `#kasperReviewBody`). Tabs become one
+scrollable row; the card and review controls become at least 40-52 px targets; the
+review note box uses a 16 px font so the phone does not zoom. No script changed, and
+the approve / request-change code is untouched.
+
+**Proof.** Desktop pixel-identical to `main` at 1440, 1280, 1024 and 800 wide, with
+the list and with a card open (screenshot diff of the whole page, zero changed
+pixels). `test/kasper-phone-css-scope.js` holds the scope contract.
+`qa/probes/kasper_phone_touch.js` (on demand) drives the tab by touch at 390 and 375
+on two test-client cards: open and switch cards, open the video, open and close the
+thumbnail, comment, request a change, approve; every control it taps is at least 40 px
+and nothing scrolls sideways: 44 of 44 checks. Card saves in that probe are recorded
+and answered rather than sent, because its cards carry synthetic work-item ids.

@@ -107,10 +107,15 @@
             var h = String(hash || '').replace(/^#/, '').split('?')[0].split('/')[0];
             return h && (Object.prototype.hasOwnProperty.call(LEGACY, h) || h === 'production' || h === 'samples' || h === 'staff-onboarding');
         }
+        // Where the app document itself lives. In production that is the site
+        // root ('/' or '/index.html') and addresses are shown clean. A copy served
+        // from another file (test harnesses such as /bfcache.html) keeps the old
+        // address form on its own path, so nothing is rewritten there.
+        var APP = (location.pathname === '/' || location.pathname === '/index.html' || toLegacy(location.pathname, '')) ? '/' : location.pathname;
         function current() {
             // An in-page "#route" link followed while on a clean path: the
             // hash is where the visitor asked to go.
-            if (location.pathname !== '/' && legacyHead(location.hash)) return { search: '', hash: location.hash };
+            if (APP === '/' && location.pathname !== '/' && location.pathname !== '/index.html' && legacyHead(location.hash)) return { search: '', hash: location.hash };
             var l = toLegacy(location.pathname, location.search);
             return l || { search: location.search, hash: location.hash };
         }
@@ -118,11 +123,12 @@
         // current address, rewritten to its clean path when it has one.
         function clean(url) {
             var cur = current();
-            var u = new URL(String(url), location.origin + '/' + cur.search + cur.hash);
+            var u = new URL(String(url), location.origin + APP + cur.search + cur.hash);
             if (u.origin !== location.origin) return String(url);
-            if (u.pathname !== '/' && u.pathname !== '/index.html') return u.pathname + u.search + u.hash;
+            if (u.pathname !== '/' && u.pathname !== '/index.html' && u.pathname !== APP) return u.pathname + u.search + u.hash;
+            if (APP !== '/') return APP + u.search + u.hash;
             var c = toClean(u.search, u.hash);
-            return c == null ? '/' + u.search + u.hash : c;
+            return c == null ? u.pathname + u.search + u.hash : c;
         }
 
         var origPush = history.pushState, origReplace = history.replaceState;
@@ -142,7 +148,7 @@
                 var p0 = q0.get('sv_path'); q0.delete('sv_path');
                 if (!/^\/(?!\/)[A-Za-z0-9._~%\/-]*$/.test(p0) || !toLegacy(p0, '')) p0 = '/';
                 origReplace.call(history, history.state, '', p0 + qs(q0) + location.hash);
-            } else if (location.pathname === '/' || location.pathname === '/index.html') {
+            } else if (APP === '/' && (location.pathname === '/' || location.pathname === '/index.html')) {
                 // An old address opened directly: show it at its clean path.
                 var c0 = toClean(location.search, location.hash);
                 if (c0 != null && c0 !== location.pathname + location.search + location.hash) {
@@ -157,7 +163,7 @@
             };
             window.addEventListener('hashchange', function () {
                 try {
-                    if (location.pathname !== '/' && legacyHead(location.hash)) {
+                    if (APP === '/' && location.pathname !== '/' && location.pathname !== '/index.html' && legacyHead(location.hash)) {
                         origReplace.call(history, history.state, '', toClean('', location.hash) || '/');
                     }
                 } catch (e) {}

@@ -27,13 +27,21 @@ function serveStatic() {
     const u = new URL(req.url, 'http://127.0.0.1');
     let p = decodeURIComponent(u.pathname === '/' ? '/index.html' : u.pathname);
     p = path.normalize(p).replace(/^([.][\\/])+/, '');
-    const full = path.join(root, p);
+    let full = path.join(root, p);
+    let status = 200;
+    // Answer like GitHub Pages: /x serves x.html when it exists (the clean-path
+    // stubs), and any other missing path serves 404.html with a 404 status
+    // (which hands clean deep links such as /calendar/<client>/<card> to the app).
     if (!full.startsWith(root) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) {
-      res.writeHead(404);
-      res.end('not found');
-      return;
+      if (full.startsWith(root) && fs.existsSync(full + '.html')) full = full + '.html';
+      else if (fs.existsSync(path.join(root, '404.html')) && !path.extname(p)) { full = path.join(root, '404.html'); status = 404; }
+      else {
+        res.writeHead(404);
+        res.end('not found');
+        return;
+      }
     }
-    res.writeHead(200, { 'Content-Type': mime[path.extname(full).toLowerCase()] || 'application/octet-stream' });
+    res.writeHead(status, { 'Content-Type': mime[path.extname(full).toLowerCase()] || 'application/octet-stream' });
     fs.createReadStream(full).pipe(res);
   });
   return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));

@@ -1424,18 +1424,19 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
     assert(await page.locator('#headerTimeOffMenuItem').isVisible() && await page.locator('#ptoRequestForm').isVisible(),
       'ordinary staff can open the Time Off menu and overview form');
     await page.keyboard.press('Escape');
+    // Kasper is admin-only: ordinary staff are sent home instead of reaching
+    // the Kasper Time Off admin subtab at all.
     await page.evaluate(() => { _kasperState.tab = 'time-off'; navTo('kasper', false); });
-    await page.waitForSelector('.kasper-subtabs');
     const nonAdminKasper = await page.evaluate(() => ({
       role: _syncviewStaffIdentityForHeaders()?.role || '',
       canAdmin: _syncviewStaffCan('pto-admin'),
-      activeTab: _kasperState.tab,
-      tabHidden: document.querySelector('.kasper-subtab[data-kasper-tab="time-off"]')?.hidden !== false,
+      nav: currentNav,
+      kasperMounted: !!document.querySelector('.kasper-subtabs'),
       adminControls: document.querySelectorAll('#ptoAdminMemberBtn').length,
     }));
-    assert(!nonAdminKasper.canAdmin && nonAdminKasper.tabHidden && nonAdminKasper.activeTab !== 'time-off'
+    assert(!nonAdminKasper.canAdmin && nonAdminKasper.nav !== 'kasper' && !nonAdminKasper.kasperMounted
       && nonAdminKasper.adminControls === 0,
-      'ordinary staff cannot see or restore the Kasper Time Off admin subtab (' + JSON.stringify(nonAdminKasper) + ')');
+      'ordinary staff cannot open Kasper or its Time Off admin subtab (' + JSON.stringify(nonAdminKasper) + ')');
     await page.evaluate(() => navTo('time-off', false));
     await page.waitForFunction(() => !!document.getElementById('ptoRequestTypeBtn') && !_ptoState.loading);
     await page.evaluate(() => {

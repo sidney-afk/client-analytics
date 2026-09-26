@@ -2141,7 +2141,8 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
             clientTab: tab,
             clientEntryView: view
         });
-        const url = '/' + '?' + q.toString();
+        // A share link keeps whatever path it was opened on.
+        const url = location.pathname + '?' + q.toString();
         history.replaceState(state, '', url);
         return Object.freeze({ client: entry.client, slug: entry.slug, view, verified: true });
     }

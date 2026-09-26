@@ -1837,12 +1837,6 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
                     body: JSON.stringify({ surface, client, mode: 'availability', source_ids: sourceIds })
                 });
                 const json = await response.json().catch(() => null);
-                if (response.status === 401 || response.status === 403) {
-                    // Refused for this caller: remember it per version so repaints
-                    // do not re-send the same refused request.
-                    sourceIds.forEach(pid => _thumbCompareKnown.set(_thumbCompareKey(surface, client, pid), { version: candidates.get(pid), available: false }));
-                    return;
-                }
                 if (!response.ok || !json || json.ok !== true || !Array.isArray(json.available_source_ids)) return;
                 const available = new Set(json.available_source_ids.map(String));
                 sourceIds.forEach(pid => {

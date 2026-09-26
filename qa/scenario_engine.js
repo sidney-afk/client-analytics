@@ -818,19 +818,15 @@ async function runScenario(browser, scn, shotDir, doShots) {
       else if (verb === 'smm.reload') { const p = await actors.smm(); res = await smmReloadPage(p); await shot(p, 'smm-reload'); }
       else if (verb === 'smm.bgReload') { const p = await actors.smm(); res = await smmBgReload(p); await shot(p, 'smm-bgreload'); }
       else if (verb === 'api.archiveStaleTestRows') {
-        // Archive live test rows a crashed earlier run left behind (same name
-        // rule as overnight_runner.sh cleanup_seeds), so an order check sees
-        // only this run's cards. Test client only.
+        // Archive test rows a crashed earlier run left behind (same name rule
+        // as overnight_runner.sh cleanup_seeds), so an order check sees only
+        // this run's cards. Rows touched in the last two hours are skipped so
+        // an overlapping run keeps its fixtures.
         const stale = /^(SCN |UI Create|UI Rapid|UI Reorder|UI Remote|UI Reload|UI Batch|UI Workflow|UI Drag|P91 UI RT|MID MERGE|DBG STATUS|OVN |P9\d |SXR )/;
-        let n = 0, failed = 0;
         try {
-          const rows = supa('client=eq.sidneylaruel&or=(status.neq.Archived,status.is.null)&select=id,name&limit=1000') || [];
-          for (const r of rows) {
-            if (!stale.test(String(r.name || ''))) continue;
-            try { require('./sxr_courier_lib.js').archiveSafe(r.id); n++; } catch (e) { failed++; console.error('archiveStaleTestRows: ' + r.id + ' ' + (e.message || e)); }
-          }
-          res = failed ? 'archive-failed=' + failed : 'ok';
-          if (n) console.log('archiveStaleTestRows: archived ' + n);
+          const r = L.archiveStaleTestRows(stale, 2 * 3600 * 1000, m => console.error('archiveStaleTestRows: ' + m));
+          res = r.failed ? 'archive-failed=' + r.failed : 'ok';
+          if (r.archived) console.log('archiveStaleTestRows: archived ' + r.archived);
         } catch (e) { res = 'list-failed: ' + (e.message || e); }
       }
       else if (verb === 'api.seedRow') {

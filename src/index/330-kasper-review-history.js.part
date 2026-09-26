@@ -760,7 +760,7 @@
     function _kasperSamplesMerged() {
         return typeof _sxrKasperState !== 'undefined' && !!_sxrKasperState
             && typeof _sxrKasperRenderCard === 'function'
-            && KASPER_SUBTABS.some(t => t.key === 'samples');
+            && typeof _kasperSamplesEnabled === 'function' && _kasperSamplesEnabled();
     }
     // When a sample was handed to Kasper: the earliest status time among the
     // parts still waiting on him, else its last update. Same oldest-first

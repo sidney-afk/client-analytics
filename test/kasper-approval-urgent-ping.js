@@ -247,9 +247,9 @@ console.log('\n-- the marker written to the row --');
 const patch = P._calBuildKasperUrgentPatch(card(), 'video', { sentAt: R2, by: 'SyncView' });
 check('stamps when, which component, and that component\'s round',
   patch.kasper_urgent_pinged_at === R2 && patch.kasper_urgent_comp === 'video' && patch.kasper_urgent_status_at === R1);
-check('links his review tab; samples get their own subtab',
+check('links his review tab for calendar cards and samples alike (samples are listed in Review)',
   P._calKasperReviewUrl('calendar') === 'https://syncview.synchrosocial.com/#kasper'
-  && P._calKasperReviewUrl('samples') === 'https://syncview.synchrosocial.com/#kasper/samples');
+  && P._calKasperReviewUrl('samples') === 'https://syncview.synchrosocial.com/#kasper');
 
 console.log('\n-- the dispatch: right webhook, right copy, right payload --');
 const DISPATCH = [
@@ -316,16 +316,16 @@ setTimeout(() => {
   console.log('\n-- source guards --');
   const calBody = INDEX.indexOf('_kasperRenderUrgentSection(urgent) + waitingHtml');
   check('review tab renders Urgent ABOVE Waiting for your review', calBody > 0);
-  check('samples queue renders Urgent above Waiting too',
-    INDEX.includes('_sxrKasperRenderUrgentSection(urgent) + waitingHtml'));
-  check('both sections hide when empty',
-    /_kasperRenderUrgentSection\(urgent\) \{\s*\n\s*if \(!urgent\.length\) return '';/.test(INDEX)
-    && /_sxrKasperRenderUrgentSection\(urgent\) \{\s*\n\s*if \(!urgent\.length\) return '';/.test(INDEX));
+  check('urgent samples join the same Urgent section in Review',
+    INDEX.includes('const urgent = _kasperMergeBySentAt(_cal.urgent, _sxr.urgent);'));
+  check('the Urgent section hides when empty',
+    /_kasperRenderUrgentSection\(urgent\) \{\s*\n\s*if \(!urgent\.length\) return '';/.test(INDEX));
   check('the review count pill adds urgent back to waiting',
     INDEX.includes("_parts.urgent.length + _parts.waiting.length")
     && INDEX.includes('const openCount = urgent.length + waiting.length;'));
-  check('the samples count pill does too',
-    INDEX.includes('_sxrParts.urgent.length + _sxrParts.waiting.length'));
+  check('the review count pill includes urgent samples too',
+    INDEX.includes('return p.urgent.length + p.waiting.length;')
+    && INDEX.includes('_parts.urgent.length + _parts.waiting.length + _sxrOpen'));
   check('both SMM surfaces offer the kasper button',
     INDEX.includes("_calUrgentButtonHtml(pid, '_calSendKasperUrgentSlack', p, '', false, 'kasper')")
     && INDEX.includes("_calUrgentButtonHtml(pid, '_sxrSendKasperUrgentSlack', p, '', false, 'kasper')"));
@@ -354,14 +354,14 @@ setTimeout(() => {
 
   // Codex P2: a click-only div is mouse-only. Both new heads are operable and
   // announce their state, and a focusable head has a visible ring.
-  check('both Urgent heads are keyboard-operable and announce collapsed state',
-    (INDEX.match(/_svSectionHeadA11y\(/g) || []).length === 3);   // 1 definition + 2 uses
+  check('the Urgent head is keyboard-operable and announces collapsed state',
+    (INDEX.match(/_svSectionHeadA11y\(/g) || []).length === 2);   // 1 definition + 1 use
   check('Enter and Space activate the head, and Space does not scroll',
     /_svSectionHeadKey\(ev\)[\s\S]{0,320}ev\.preventDefault\(\)/.test(INDEX));
   // Scoped to the two toggles themselves — aria-expanded is set in ~26 unrelated
   // places, so a repo-wide count proves nothing about these.
-  check('toggling keeps aria-expanded honest on both queues',
-    [grabFunc('_kasperToggleUrgent'), grabFunc('_sxrKasperToggleUrgent')]
+  check('toggling keeps aria-expanded honest',
+    [grabFunc('_kasperToggleUrgent')]
       .every(fn => /setAttribute\('aria-expanded',\s*_\w+\.urgentCollapsed \? 'false' : 'true'\)/.test(fn)));
   check('a focusable head has a visible focus ring',
     INDEX.includes('.kasper-urgent-wrap .kasper-history-head:focus-visible'));

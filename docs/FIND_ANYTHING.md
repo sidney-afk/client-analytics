@@ -35,6 +35,7 @@
 | Question | Open |
 |---|---|
 | I'm a new session — what is this system? | `docs/truth/BRIEFING.md` (**always first**) |
+| What do C3, gates, lanes, fingerprints, Track B, and other project terms mean? | `docs/GLOSSARY.md` (plain-English definitions; check `docs/STATE_OF_THINGS.md` for today's status) |
 | Where does file/folder X live? | `REPO_MAP.md` |
 | Which n8n webhooks / Edge Functions does the app call? | `docs/truth/ENDPOINTS.md` |
 | Supabase tables, flags, write contracts | `docs/truth/SUPABASE.md` |

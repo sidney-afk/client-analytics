@@ -55,6 +55,7 @@ async function runAt(browser, width) {
   await search('');
   const plain = await names();
   ok(plain.length >= after.length, `${width}: clearing the search shows the full list again`);
+  ok(await p.evaluate(() => { _caPurgeSensitiveState(); return localStorage.getItem('syncview_kasper_clients_recent_v1') === null; }), `${width}: signing out clears the recently opened list`);
   if (phone) { const sw = await p.evaluate(() => document.documentElement.scrollWidth - innerWidth); ok(sw <= 0, `${width}: nothing scrolls sideways`, sw); }
   ok(errs.length === 0, `${width}: no app errors`, errs[0]);
   await ctx.close();

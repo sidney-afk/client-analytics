@@ -2870,6 +2870,8 @@
         Object.assign(_caState, { rows: [], authority: null, loaded: false, loading: false, error: null, search: '', selected: '', showArchived: false, edit: null });
         const body = document.getElementById('caBody');
         if (body) body.innerHTML = '';
+        // The recently opened clients are this staff member's; drop them on sign-out.
+        try { localStorage.removeItem('syncview_kasper_clients_recent_v1'); } catch (e) {}
     }
 
     function _caRender() {

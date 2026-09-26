@@ -29196,7 +29196,7 @@ the label changed; the queue rules, Urgent button and save paths are untouched.
 **Proof.** `qa/probes/kasper_samples_in_review.js` checks the label after the
 approve plus change request, at 1440, 390 and 375 on the test client: 93 of 93.
 
-## 266. [2026-09-26, PROPOSED] The anon key reads, and can subscribe to, every client's cards
+## 267. [2026-09-26, PROPOSED] The anon key reads, and can subscribe to, every client's cards
 
 Measured read-only: `calendar_posts` and `sample_reviews` have an anon read
 policy `using (true)` on every column, and `deliverables`, `batches` and

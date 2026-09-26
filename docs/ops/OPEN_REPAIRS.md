@@ -29178,3 +29178,20 @@ workflow was changed.
 `_kasperGotoTab('samples')`, a fresh load of `#kasper/samples` and the clean
 address `/kasper/samples` all land on Review, and that every sample action still saves through the samples saver. The
 nav, urgent-ping and focus tests were updated to the single queue.
+
+## 263. [2026-09-26, BUILT] A sample said "Video awaiting your review" after Kasper had already sent the video back
+
+**Problem.** Found in Vigil's test of 259. When Kasper approves a sample's
+thumbnail and requests changes on its video, the card correctly stays in "Waiting
+for your review" until he taps Finish reviewing, the same as a calendar card. But
+its label read "Video awaiting your review", though the video was already back
+with the editor (Tweaks Needed). The label counted every part still shown on the
+card, including parts he had already decided. Calendar cards show no such label,
+so they were not misleading.
+
+**Fix.** The sample label now counts only undecided parts. Once every part is
+decided it reads "All decided · tap Finish reviewing to hand it to the SMM". Only
+the label changed; the queue rules, Urgent button and save paths are untouched.
+
+**Proof.** `qa/probes/kasper_samples_in_review.js` checks the label after the
+approve plus change request, at 1440, 390 and 375 on the test client: 93 of 93.

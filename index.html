@@ -33182,7 +33182,7 @@
         }
     }
     function _calClearSuspendedLoadOwnership() {
-        _calBgLoadInFlight = false;
+        _calSetBgLoadInFlight(false);
         calState.loading = false;
         _calSetRefreshing(false);
         _calPendingBackgroundRender = false;
@@ -37829,6 +37829,7 @@
     function _calNextLoadSeq() { return ++_calLoadSeq; }
     let _calActiveLoad = null;
     let _calBgLoadInFlight = false;
+    function _calSetBgLoadInFlight(value) { _calBgLoadInFlight = value; }
     function _calAbortActiveLoad() {
         const run = _calActiveLoad;
         _calActiveLoad = null;

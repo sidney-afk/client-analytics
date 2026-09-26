@@ -1,5 +1,5 @@
 'use strict';
-const { installReadConsoleAudit } = require('./prod-test-utils');
+const { installReadConsoleAudit, legacyPageUrl, pagesFallback } = require('./prod-test-utils');
 /*
  * Track B B2 wired-tab smoke suite.
  *
@@ -56,13 +56,18 @@ function serve() {
     let p = decodeURIComponent(u.pathname === '/' ? '/index.html' : u.pathname);
     p = path.normalize(p).replace(/^([.][\\/])+/, '');
     const full = path.join(root, p);
+    let serveFile = full, status = 200;
     if (!full.startsWith(root) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) {
-      res.writeHead(404);
-      res.end('not found');
-      return;
+      const hit = full.startsWith(root) ? pagesFallback(root, full, p) : null;
+      if (!hit) {
+        res.writeHead(404);
+        res.end('not found');
+        return;
+      }
+      [serveFile, status] = hit;
     }
-    res.writeHead(200, { 'Content-Type': mime[path.extname(full).toLowerCase()] || 'application/octet-stream' });
-    fs.createReadStream(full).pipe(res);
+    res.writeHead(status, { 'Content-Type': mime[path.extname(serveFile).toLowerCase()] || 'application/octet-stream' });
+    fs.createReadStream(serveFile).pipe(res);
   });
   return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
@@ -185,7 +190,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     stage('team_filter');
     await page.locator('.prod-nav').filter({ hasText: 'Video' }).locator('.prod-nav-btn', { hasText: 'Issues' }).first().click();
     await page.waitForSelector('.prod-row, .prod-empty', { timeout: 10000 });
-    if (!new URL(page.url()).searchParams.has('team')) throw new Error('Video team filter did not preserve ?prod=1&team=...');
+    if (!(await legacyPageUrl(page)).searchParams.has('team')) throw new Error('Video team filter did not preserve ?prod=1&team=...');
     const videoRows = await page.locator('.prod-row').count();
     if (videoRows) {
       const badTeamRows = await page.locator('.prod-row').evaluateAll(nodes => nodes.filter(n => n.getAttribute('data-prod-team') !== 'video').length);
@@ -200,7 +205,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     if (await page.locator('.prod-detail-title').count() !== 1) throw new Error('Detail view did not open');
     const detailId = await page.locator('.prod-detail').first().getAttribute('data-prod-detail');
     if (!detailId) throw new Error('Detail view does not expose its deliverable id');
-    const detailUrl = new URL(page.url());
+    const detailUrl = (await legacyPageUrl(page));
     if (detailUrl.searchParams.get('prod') !== '1' || !detailUrl.searchParams.get('d')) throw new Error('Detail view did not write a stable ?prod=1&d=... URL');
     stage('detail_guards');
     const disabledControls = await page.locator('[data-prod-disabled]').count();
@@ -307,7 +312,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
       }
       stage('parent_link_detail');
       await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
-      const parentUrl = new URL(page.url());
+      const parentUrl = (await legacyPageUrl(page));
       const parentId = parentUrl.searchParams.get('d');
       if (parentUrl.searchParams.get('prod') !== '1' || !parentId) throw new Error('Parent issue did not write a stable ?prod=1&d=... URL');
       if (parentId === childId) throw new Error('Parent issue link did not navigate off the child deliverable');
@@ -338,7 +343,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     if (!clientSlug) throw new Error('Projects board cards do not expose stable client slugs');
     await page.locator('[data-prod-client-card]').first().click();
     await page.waitForSelector('[data-prod-project-detail]', { timeout: 10000 });
-    const projectUrl = new URL(page.url());
+    const projectUrl = (await legacyPageUrl(page));
     if (projectUrl.searchParams.get('client') !== clientSlug || projectUrl.searchParams.get('view') !== 'project') throw new Error('Projects board card did not write a stable ?prod=1&view=project&client=... URL');
     if (await page.locator('[data-prod-pstatus]').count() < 1 || await page.locator('[data-prod-plead]').count() < 1 || await page.locator('[data-prod-ptarget]').count() < 1) {
       throw new Error('Project detail did not expose guarded status/lead/target controls');
@@ -346,7 +351,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     stage('client_list');
     await page.evaluate(slug => window._prodOpenClient(slug), clientSlug);
     await page.waitForSelector('.prod-row', { timeout: 10000 });
-    const clientUrl = new URL(page.url());
+    const clientUrl = (await legacyPageUrl(page));
     if (clientUrl.searchParams.get('client') !== clientSlug || clientUrl.searchParams.get('view')) throw new Error('Client list did not write a stable ?prod=1&client=... URL');
     const badClientRows = await page.locator('.prod-row').evaluateAll((nodes, slug) => nodes.filter(n => n.getAttribute('data-prod-client') !== slug).length, clientSlug);
     if (badClientRows) throw new Error('Client-filtered list included another client');

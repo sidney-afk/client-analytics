@@ -1240,6 +1240,14 @@
       "ci": "not_run_by_unit_ci"
     },
     {
+      "file": "refresh-skeleton-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; a local server that answers like GitHub Pages and every backend call answered locally, no hosted credentials and no live data.",
+      "reproduce": "node test/refresh-skeleton-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
       "file": "tiktok-upload-steps-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

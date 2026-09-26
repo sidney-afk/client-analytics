@@ -410,6 +410,19 @@
                 </div></div>
             </div>
         </div>
+        <!-- Neutral skeleton: a page whose own shape is not pre-painted (Time Off,
+             Onboarding, Client Credentials, Intake, or a route the early boot
+             cannot fully predict). Never another tab's shape. -->
+        <div class="boot-skeleton-variant boot-skeleton-neutral">
+            <div class="boot-page-skeleton" role="status" aria-label="Loading">
+                <div class="sv-skeleton-stack" style="gap:16px;">
+                    <div class="sv-skeleton sv-skeleton-line" style="width:180px;height:26px;"></div>
+                    <div class="sv-skeleton sv-skeleton-line" style="width:min(320px,70%);"></div>
+                    <div class="sv-skeleton-card"><div class="sv-skeleton-stack"><div class="sv-skeleton sv-skeleton-line" style="width:62%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:88%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:48%;"></div></div></div>
+                    <div class="sv-skeleton-card"><div class="sv-skeleton-stack"><div class="sv-skeleton sv-skeleton-line" style="width:54%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:80%;"></div></div></div>
+                </div>
+            </div>
+        </div>
         <div class="boot-skeleton-variant boot-skeleton-kasper">
             <div class="boot-page-skeleton kasper-wrap" role="status" aria-label="Loading">
                 <div class="kasper-head">

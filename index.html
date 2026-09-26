@@ -68790,7 +68790,7 @@
             // Defer the repaint while the user is mid-edit so a realtime reload can't
             // clobber their caret / unsaved field (Surface 7 deferred-render guard).
             else if (background && typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
-                _sxrPendingBackgroundRender = true; if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
+                _sxrSetPendingBackgroundRender(true); if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
                 if (typeof _sxrRefreshCommentsBtn === 'function') { try { sxrState.posts.forEach(p => _sxrRefreshCommentsBtn(p.id)); } catch (e) {} }
                 // The full render is deferred while busy, but a peer's status change
                 // must still show LIVE — repaint just the status pills in place
@@ -69225,7 +69225,7 @@
             // Our own row change is about to arrive on the realtime channel; mark
             // it as a local write so the strip is not rebuilt underneath the
             // person who just pressed the button, as every samples write does.
-            _sxrLastLocalWriteAt = Date.now();
+            _sxrSetLastLocalWriteAt(Date.now());
             /* THE VIEW MAY HAVE MOVED ON (Codex P2 on PR 1342). Staff switch client
                tabs while a request is in flight, and `sxrState.posts` then holds
                the NEW client's rows while `clientSlug` still names the old one.
@@ -69246,7 +69246,7 @@
                the caret (the PR-705 focus guard). */
             try {
                 if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
-                    _sxrPendingBackgroundRender = true;
+                    _sxrSetPendingBackgroundRender(true);
                     if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
                 } else {
                     _sxrRenderBody({ preserveScroll: true });
@@ -69738,7 +69738,7 @@
                and eat the caret. preserveScroll on both legs: the adopter lands
                late enough that the user may well have scrolled. */
             if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
-                _sxrPendingBackgroundRender = true;
+                _sxrSetPendingBackgroundRender(true);
                 if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
             } else {
                 _sxrRenderBody({ preserveScroll: true });
@@ -70712,6 +70712,7 @@
     const _sxrFailedNewCards = new Set();         // new rows whose first save failed (keep on screen)
     const _sxrConflictNotified = new Set();
     let _sxrLastLocalWriteAt = 0;                 // self-echo window for realtime
+    function _sxrSetLastLocalWriteAt(value) { _sxrLastLocalWriteAt = value; }
 
     /* The comment data layer (_sxrCommentsFor / _sxrStringifyComments /
        _sxrMergePostComments + the rest) is installed by Surface 4 (Review) below;
@@ -73130,6 +73131,7 @@
 
     /* Deferred-render guard — hold a background repaint while the user is mid-edit. */
     let _sxrPendingBackgroundRender = false;
+    function _sxrSetPendingBackgroundRender(value) { _sxrPendingBackgroundRender = value; }
     let _sxrPendingRenderInterval = null;
     function _sxrIsBusy() {
         const body = document.getElementById('sxrBody');

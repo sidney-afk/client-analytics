@@ -1861,7 +1861,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
     function wlParentUrl(sub) {
         if (sub && sub.workloadSource === 'native') {
             const batchId = String(sub.parentId || '');
-            if (batchId) return location.pathname + '?prod=1&batch=' + encodeURIComponent(batchId);
+            if (batchId) return svRoute.clean('/?prod=1&batch=' + encodeURIComponent(batchId));
             const nativeId = String(sub.nativeId || '');
             if (nativeId) return wlSyncLinearUrl(nativeId);
         }
@@ -2818,7 +2818,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
        find. Read-only navigation, never a write. */
     function wlSyncLinearUrl(identifier) {
         const ident = String(identifier || '').trim();
-        return ident ? (location.pathname + '?prod=1&d=' + encodeURIComponent(ident)) : '';
+        return ident ? svRoute.clean('/?prod=1&d=' + encodeURIComponent(ident)) : '';
     }
 
     /* The parent a loose sub-issue hangs off, as far as this board can see it.
@@ -2953,7 +2953,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
                 const parent = group.parent;
                 const subs = wlSortSubIssues(group.subs);
                 const syncUrl = parent && parent.nativeBatchId
-                    ? location.pathname + '?prod=1&batch=' + encodeURIComponent(parent.nativeBatchId)
+                    ? svRoute.clean('/?prod=1&batch=' + encodeURIComponent(parent.nativeBatchId))
                     : parent ? wlSyncLinearUrl(parent.identifier) : '';
                 const parentName = parent ? (parent.identifier || 'the parent issue') : '';
                 const openBtn = syncUrl

@@ -2044,7 +2044,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
             } else {
                 q.set('d', String(id || ''));
             }
-            return location.origin + location.pathname + '?' + q.toString() + '#production';
+            return svRoute.cleanAbs('/?' + q.toString() + '#production');
         }
         function _prodCopyLink(kind, id) {
             const ids = Array.isArray(id) ? id.filter(Boolean) : [id].filter(Boolean);

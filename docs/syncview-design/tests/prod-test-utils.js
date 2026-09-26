@@ -22,18 +22,45 @@ const mime = {
   '.woff2': 'font/woff2',
 };
 
+// The app address in its old routing form. Clean paths (/synclinear/<id>)
+// are shown in the bar; this reads the same ?prod=1&d=<id>#production form
+// the app routes on (src/index/003-sv-route.html.part), so URL assertions
+// keep checking what the app actually loaded.
+async function legacyPageUrl(page) {
+  const rel = await page.evaluate(() => (window.svRoute
+    ? window.svRoute.search() + window.svRoute.hash()
+    : location.search + location.hash));
+  return new URL('/' + rel, 'http://127.0.0.1');
+}
+
+// GitHub Pages answers: /x -> x.html (clean-path stubs); any other missing
+// extensionless path -> 404.html with a 404 status. Returns [file, status] or null.
+function pagesFallback(rootDir, full, requestPath) {
+  if (fs.existsSync(full + '.html')) return [full + '.html', 200];
+  if (!path.extname(requestPath) && fs.existsSync(path.join(rootDir, '404.html'))) return [path.join(rootDir, '404.html'), 404];
+  return null;
+}
+
 function serveStatic() {
   const server = http.createServer((req, res) => {
     const u = new URL(req.url, 'http://127.0.0.1');
     let p = decodeURIComponent(u.pathname === '/' ? '/index.html' : u.pathname);
     p = path.normalize(p).replace(/^([.][\\/])+/, '');
-    const full = path.join(root, p);
+    let full = path.join(root, p);
+    let status = 200;
+    // Answer like GitHub Pages: /x serves x.html when it exists (the clean-path
+    // stubs), and any other missing path serves 404.html with a 404 status
+    // (which hands clean deep links such as /calendar/<client>/<card> to the app).
     if (!full.startsWith(root) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) {
-      res.writeHead(404);
-      res.end('not found');
-      return;
+      if (full.startsWith(root) && fs.existsSync(full + '.html')) full = full + '.html';
+      else if (fs.existsSync(path.join(root, '404.html')) && !path.extname(p)) { full = path.join(root, '404.html'); status = 404; }
+      else {
+        res.writeHead(404);
+        res.end('not found');
+        return;
+      }
     }
-    res.writeHead(200, { 'Content-Type': mime[path.extname(full).toLowerCase()] || 'application/octet-stream' });
+    res.writeHead(status, { 'Content-Type': mime[path.extname(full).toLowerCase()] || 'application/octet-stream' });
     fs.createReadStream(full).pipe(res);
   });
   return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
@@ -391,7 +418,7 @@ function installReadConsoleAudit(page, opts = {}) {
   return { settle };
 }
 
-module.exports = {
+module.exports = { legacyPageUrl, pagesFallback,
   root,
   serveStatic,
   isWriteLikeRequest,

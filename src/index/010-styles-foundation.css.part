@@ -2585,15 +2585,15 @@
             -webkit-mask-position: center; mask-position: center;
             -webkit-mask-size: contain; mask-size: contain;
         }
-        .header-nav-btn .ico-analytics { -webkit-mask-image: url('nav-icons/analytics.png'); mask-image: url('nav-icons/analytics.png'); }
-        .header-nav-btn .ico-synclinear { -webkit-mask-image: url('nav-icons/synclinear.png'); mask-image: url('nav-icons/synclinear.png'); }
-        .header-nav-btn .ico-submit { -webkit-mask-image: url('nav-icons/submit.png'); mask-image: url('nav-icons/submit.png'); }
-        .header-nav-btn .ico-templates { -webkit-mask-image: url('nav-icons/templates.png'); mask-image: url('nav-icons/templates.png'); }
-        .header-nav-btn .ico-filmingplans { -webkit-mask-image: url('nav-icons/filming-plans.png'); mask-image: url('nav-icons/filming-plans.png'); }
-        .header-nav-btn .ico-workload { -webkit-mask-image: url('nav-icons/workload.png'); mask-image: url('nav-icons/workload.png'); }
-        .header-nav-btn .ico-calendar { -webkit-mask-image: url('nav-icons/calendar.png'); mask-image: url('nav-icons/calendar.png'); }
-        .header-nav-btn .ico-samples { -webkit-mask-image: url('nav-icons/samples.png'); mask-image: url('nav-icons/samples.png'); }
-        .header-nav-btn .ico-tiktok { -webkit-mask-image: url('nav-icons/tiktok.png'); mask-image: url('nav-icons/tiktok.png'); }
+        .header-nav-btn .ico-analytics { -webkit-mask-image: url('/nav-icons/analytics.png'); mask-image: url('/nav-icons/analytics.png'); }
+        .header-nav-btn .ico-synclinear { -webkit-mask-image: url('/nav-icons/synclinear.png'); mask-image: url('/nav-icons/synclinear.png'); }
+        .header-nav-btn .ico-submit { -webkit-mask-image: url('/nav-icons/submit.png'); mask-image: url('/nav-icons/submit.png'); }
+        .header-nav-btn .ico-templates { -webkit-mask-image: url('/nav-icons/templates.png'); mask-image: url('/nav-icons/templates.png'); }
+        .header-nav-btn .ico-filmingplans { -webkit-mask-image: url('/nav-icons/filming-plans.png'); mask-image: url('/nav-icons/filming-plans.png'); }
+        .header-nav-btn .ico-workload { -webkit-mask-image: url('/nav-icons/workload.png'); mask-image: url('/nav-icons/workload.png'); }
+        .header-nav-btn .ico-calendar { -webkit-mask-image: url('/nav-icons/calendar.png'); mask-image: url('/nav-icons/calendar.png'); }
+        .header-nav-btn .ico-samples { -webkit-mask-image: url('/nav-icons/samples.png'); mask-image: url('/nav-icons/samples.png'); }
+        .header-nav-btn .ico-tiktok { -webkit-mask-image: url('/nav-icons/tiktok.png'); mask-image: url('/nav-icons/tiktok.png'); }
         /* Sliding active pill.
            The pill is an absolutely-positioned sibling INSIDE #headerNav, so the
            buttons stay direct children (the active-tab scrollIntoView and the

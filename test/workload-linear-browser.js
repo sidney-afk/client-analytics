@@ -1872,6 +1872,7 @@ async function run() {
     warmContext.globalThis = warmContext;
     vm.createContext(warmContext);
     vm.runInContext(extract('_wlNativeDiffEnabled'), warmContext);
+    warmContext.svRoute = { search: () => warmContext.location.search, hash: () => '' };
     warmContext.location.search = '?wlnative=1';
     assert.strictEqual(warmContext._wlNativeDiffEnabled(), true, 'actual diagnostic flag helper is present');
     warmContext.location.search = '';

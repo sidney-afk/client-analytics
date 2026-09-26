@@ -273,7 +273,7 @@ async function txt(page, sel) {
       // POSTs to a read-style project-list webhook when its cache is empty.
       await page.evaluate(() => { linearProjects = ['TEST Workspace']; });
       await page.locator('#navLinear').press('Enter');
-      await page.waitForFunction(() => currentNav === 'linear' && location.hash === '#linear' && !new URLSearchParams(location.search).has('prod'));
+      await page.waitForFunction(() => currentNav === 'linear' && svRoute.hash() === '#linear' && !new URLSearchParams(svRoute.search()).has('prod'));
       const reachedSubmit = (await page.locator('.linear-form-title').textContent()).trim() === 'Create production work';
       await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('.prod-row, .prod-empty-state, .prod-error', { timeout: 30000 });
@@ -2312,7 +2312,7 @@ async function txt(page, sel) {
       await page.locator('.prod-row').first().click({ button: 'right' });
       await page.locator('.prod-pop [data-prod-ctx="copy"]').click();
       const copied = await page.evaluate(() => window.__prodCopied || window.__prodLastCopied || '');
-      return copied.includes('?prod=1') && copied.includes('d=');
+      return /\/synclinear\/[^/?#]+/.test(copied); // clean copy link (the old ?prod=1&d= form forwards to it)
     }); await reset();
     await ok('keyboardArrowFocus', async () => {
       await page.keyboard.press('ArrowDown');

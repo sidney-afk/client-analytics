@@ -199,6 +199,7 @@ const withSearch = search => {
   const saved = globalThis.location;
   try {
     Object.defineProperty(globalThis, 'location', { value: { search }, configurable: true, writable: true });
+    globalThis.svRoute = { search: () => globalThis.location.search, hash: () => '' };
     return _wlNativeDiffEnabled();
   } finally {
     if (saved === undefined) delete globalThis.location;

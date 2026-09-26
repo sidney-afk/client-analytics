@@ -118,6 +118,44 @@ For a specific question, use [Find anything](FIND_ANYTHING.md).
 | [Webhook replacement plan](independence/N8N_REPLACEMENT_PLAN.md) | The historical inventory of webhooks that read the former tracker and their proposed replacements. |
 | [Exit sequence](independence/LINEAR_EXIT_MASTER_SEQUENCE.md) | The cross-lane exit order retained as history; use State of things for current status. |
 
+### Native work and data links
+
+| Document | What it helps you find |
+|---|---|
+| [Create-post intake model](independence/CREATE_POST_INTAKE_MODEL.md) | The locked product model for creating batches and deliverables, with older provider routing marked as history. |
+| [Samples native creation](independence/SAMPLES_NATIVE_CREATE_PLAN.md) | The implementation record for creating Samples batches through native writes. |
+| [Samples legacy removal](independence/SAMPLES_LEGACY_REMOVAL_MAP.md) | The phased old-Samples route map and the client-link boundary that blocks treating removal as complete. |
+| [F42 comment import](independence/F42_CARD_COMMENT_IMPORT_RUNBOOK.md) | The linked-card comment import method, completed-run evidence, and limits on further runs. |
+| [F42 linkage investigation](independence/F42_CARD_DELIVERABLE_LINKAGE_REPORT.md) | The read-only investigation of cards whose deliverable link could not support comment import. |
+| [F42 link repair plan](independence/F42_LINKAGE_DEFECT_REPAIR_PLAN.md) | A non-authorizing proposal for repairing mismatched card-to-deliverable links. |
+| [Native intake mapping](independence/NATIVE_INTAKE_PROJECT_MAPPING.md) | The old project-mapping readiness check and its pointer to the newer native provisioning contract. |
+
+### Program decisions and cutover records
+
+| Document | What it helps you find |
+|---|---|
+| [Graphics flip status](independence/GRAPHICS_FLIP_STATUS.md) | The dated graphics coordination snapshot and its cutover gates; use State of things for current status. |
+| [Go-live checklist](independence/GO_LIVE_CHECKLIST.md) | The original cutover gates, retained as historical evidence rather than current instructions. |
+| [B4 readiness](independence/B4_READINESS.md) | Gate evidence and owners for the earlier B4 bridge to writable Production. |
+| [Track A specification](independence/TRACK_A_EDGE_FUNCTIONS_SPEC.md) | The historical design for moving interactive writes from workflows to Edge Functions. |
+| [Track B specification](independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md) | The phased design for in-app production management, with pre-cutoff status preserved. |
+| [Exit handoff](independence/LINEAR_EXIT_HANDOFF.md) | The dated session handoff and then-open exit work, retained as history. |
+| [Exit lane map](independence/LINEAR_EXIT_LANES.md) | The parallel work lanes and file ownership rules used during exit preparation. |
+| [Cutover touchpoints](independence/LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md) | A dated inventory of former tracker reads and writes across the app and services. |
+
+### Preparation and recovery evidence
+
+| Document | What it helps you find |
+|---|---|
+| [Asset-reference coverage](independence/LINEAR_EXIT_ASSET_REFERENCE_COVERAGE_20260912.md) | How an offline adapter compares captured application references with restored object bytes. |
+| [Atomic-save checkpoint](independence/LINEAR_EXIT_ATOMIC_SAVE_CHECKPOINT_20260912.md) | The earlier isolated save proof and its pointer to later recovery evidence. |
+| [Recovery and export checkpoint](independence/LINEAR_EXIT_RECOVERY_AND_EXPORT_CHECKPOINT_20260912.md) | A dated checkpoint for transaction recovery and data-export preparation. |
+| [Complete-data rehearsal](independence/LINEAR_EXIT_COMPLETE_DATA_CHECKPOINT_20260912.md) | Isolated complete-application-data reconstruction evidence and its limits. |
+| [Consolidated checkpoint](independence/LINEAR_EXIT_CONSOLIDATED_CHECKPOINT_20260912.md) | The consolidated preparation snapshot and its pointer to later handoff evidence. |
+| [Control-record recovery](independence/LINEAR_EXIT_CONTROL_RECOVERY_20260912.md) | Isolated recovery checks for private control records and their source pins. |
+| [Provider recovery](independence/LINEAR_EXIT_PROVIDER_RECOVERY_20260912.md) | Prepared paths for reconciling acknowledged provider effects without assuming a retry is safe. |
+| [Observed target calibration](independence/LINEAR_EXIT_OBSERVED_FULL_CALIBRATION_20260912.md) | Disposable-database comparison of the captured schema with the proposed installation target. |
+
 ## Archived migrations and incidents
 
 These records explain earlier decisions and failures. Their dated status claims are not current operating instructions.

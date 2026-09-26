@@ -31,8 +31,8 @@
 | 23 | `160-calendar-organize-ui.js.part` | 2809 | Lighter path for the Order switch: update the chrome in place so the |
 | 24 | `170-calendar-links-status.js.part` | 2771 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 25 | `180-calendar-native-post-media.js.part` | 2748 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
-| 26 | `185-client-review-queue.js.part` | 245 | Client review send queue: a client's Approve or Request changes is |
-| 27 | `190-calendar-approval-comments.js.part` | 3040 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 26 | `185-client-review-queue.js.part` | 250 | Client review send queue: a client's Approve or Request changes is |
+| 27 | `190-calendar-approval-comments.js.part` | 3046 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 28 | `200-intake-data-startup.js.part` | 1496 | Video-only and Thumbnail-only were already built, but sat |
 | 29 | `210-production-state-writes.js.part` | 3200 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 30 | `220-production-attribution-views.js.part` | 2764 | An ABSENT persisted slug is missing evidence, not |

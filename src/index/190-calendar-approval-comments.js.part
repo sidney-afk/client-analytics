@@ -851,7 +851,12 @@
         let deferredLegacyAttempt = false;
         let deferredLegacySourceOnly = false;
         let deferredLegacyOutboxIds = [];
-        if (_isClientLink) _calCrqBegin('request', pid, comp, { body: rawDraft });
+        // The action id is minted and stored BEFORE the first send, so a
+        // replay after a crash or reload reuses it and cannot post twice.
+        if (_isClientLink) {
+            if (!_calReviewState.draftActionIds[key]) _calReviewState.draftActionIds[key] = _calMintCommentId();
+            _calCrqBegin('request', pid, comp, { body: rawDraft, actionId: _calReviewState.draftActionIds[key] });
+        }
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
         delete _calReviewState.errorActionIds[key];
@@ -1209,6 +1214,7 @@
                 delete _calReviewState.errorActionIds[key];
                 _writeUiLegacyReconcileCommittedTweak('calendar', deliveryOutcome.item);
                 _calRenderBody({ preserveScroll: true });
+                if (_isClientLink) _calCrqDone(pid, comp);
                 showToast('Change request saved — a newer status was applied');
                 return;
             }

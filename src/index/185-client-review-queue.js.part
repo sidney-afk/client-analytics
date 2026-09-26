@@ -26,7 +26,7 @@
     const CLIENT_REVIEW_QUEUE_KEY = 'sv-client-review-queue-v1';
     const CLIENT_REVIEW_QUEUE_RETRY_MS = [3000, 6000, 12000, 24000, 45000, 60000];
     const CLIENT_REVIEW_QUEUE_GIVE_UP_MS = 30 * 60 * 1000;
-    const _crqRun = { timer: null, attempt: 0, failingSince: 0, busy: false, inflight: new Set() };
+    const _crqRun = { timer: null, attempt: 0, failingSince: {}, busy: false, inflight: new Set() };
 
     function _crqActive() {
         return typeof _isClientLink !== 'undefined' && !!_isClientLink;
@@ -96,7 +96,8 @@
         const entry = _crqGet(pid, comp);
         _crqRun.inflight.delete(pid + '|' + comp);
         _crqDrop(pid, comp);
-        if (!_crqMine().length) { _crqRun.failingSince = 0; _crqRun.attempt = 0; }
+        delete _crqRun.failingSince[pid + '|' + comp];
+        if (!_crqMine().length) _crqRun.attempt = 0;
         if (!entry) return false;
         _crqSay(entry.kind === 'request' ? 'Changes sent' : 'Approved', true);
         return true;
@@ -112,9 +113,11 @@
         const entry = _crqGet(pid, comp);
         _crqRun.inflight.delete(pid + '|' + comp);
         if (!entry) return false;
+        // The 30-minute window belongs to this action alone, from its first
+        // failure on this page (a reload starts a fresh window).
         const now = Date.now();
-        if (!_crqRun.failingSince) _crqRun.failingSince = now;
-        if (_crqIsConnectionFailure(errorText) && now - _crqRun.failingSince < CLIENT_REVIEW_QUEUE_GIVE_UP_MS) {
+        if (!_crqRun.failingSince[pid + '|' + comp]) _crqRun.failingSince[pid + '|' + comp] = now;
+        if (_crqIsConnectionFailure(errorText) && now - _crqRun.failingSince[pid + '|' + comp] < CLIENT_REVIEW_QUEUE_GIVE_UP_MS) {
             const key = pid + '|' + comp;
             if (entry.kind === 'request') {
                 entry.actionId = String(_calReviewState.draftActionIds[key] || entry.actionId || '');
@@ -128,6 +131,7 @@
             return true;
         }
         _crqDrop(pid, comp);
+        delete _crqRun.failingSince[pid + '|' + comp];
         const gaveUp = _crqIsConnectionFailure(errorText);
         const what = entry.kind === 'request' ? 'change request' : 'approval';
         try {
@@ -186,6 +190,7 @@
             // Someone moved this post on while the approval was waiting. Do
             // not overwrite their change; say so instead.
             _crqDrop(entry.pid, entry.comp);
+            delete _crqRun.failingSince[key];
             _calReviewState.saving[key] = false;
             try { hideToast(); showNotify('This post changed while your approval was waiting',
                 'Nothing was sent, so you do not overwrite the team’s update. Please look at the post again.'); } catch (e) {}

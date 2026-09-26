@@ -367,7 +367,7 @@ TikTok rejected it; TikTok posting is the TikTok Upload tab (Post For Me) only.
   rows) remain on legacy card-JSON truth until the linkage brick lands.
 - Kasper keeps Review Session, Messages, and Filming Plans in a stable priority row. Samples waiting
   for Kasper are listed inside Review Session beside calendar cards (each still saved by the samples
-  saver); there is no separate Samples tab, and old `#kasper/samples` or `/kasper/samples` links
+  saver); there is no separate Samples tab, and old #kasper/samples or /kasper/samples links
   (including urgent pings already sent) resolve to Review through `_kasperResolveSubtab`. Editors
   and Time Off sit under **Team** in an accessible More menu; Sales Intake, Hiring Process, Onboarding,
   and Client Credentials sit under **Pipeline & Admin**. The active More destination replaces the generic label,

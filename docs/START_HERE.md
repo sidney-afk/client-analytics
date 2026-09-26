@@ -177,6 +177,35 @@ For a specific question, use [Find anything](FIND_ANYTHING.md).
 | [Second preparation sitting](ops/LINEAR_EXIT_SESSION_C_20260916.md) | The 2026-09-16 read-only calibration sequence for a later owner work session. |
 | [Hard-coded world sweep](ops/LINEAR_EXIT_WORLD_LITERAL_SWEEP_20260916.md) | The 2026-09-16 inventory of fixed database counts and fingerprints; survey only. |
 
+## Exit recovery and repair records
+
+| Document | What it covers |
+| --- | --- |
+| [Application-schema recovery](ops/LINEAR_EXIT_PRIORITY_APPLICATION_SCHEMA_PLAN.md) | A preparation-only plan to extend isolated recovery proof to application tables. |
+| [Priority recovery](ops/LINEAR_EXIT_PRIORITY_RECOVERY_CONTRACT.md) | Bounded local backup and restore evidence for priority tables, without hosted recovery proof. |
+| [Comment observation](ops/LINEAR_EXIT_PROVIDER_COMMENT_OBSERVATION_PREPARATION.md) | Source-only recovery of uncertain comments from recorded reads, without resending them. |
+| [Create observation](ops/LINEAR_EXIT_PROVIDER_CREATE_OBSERVATION_PREPARATION.md) | Source-only recovery of uncertain item creation from bounded read observations. |
+| [Issue observation](ops/LINEAR_EXIT_PROVIDER_ISSUE_OBSERVATION_PREPARATION.md) | Source-only recovery of uncertain item changes and attachments from recorded reads. |
+| [Historical receipt eligibility](ops/LINEAR_EXIT_PROVIDER_TERMINAL_HISTORY_PREPARATION.md) | Source-only rules for classifying old provider receipts, without fresh provider verification. |
+| [Recorded create recovery](ops/LINEAR_EXIT_RECORDED_CREATE_RECOVERY_PREPARATION.md) | Source-only recovery for recorded batch and item creation while preserving later in-app edits. |
+| [Side-by-side restore decision](ops/LINEAR_EXIT_RESTORE_TO_NEW_PROJECT_PROPOSAL.md) | The 2026-09-16 decision that a separate restored copy aids proof but is not the recovery route. |
+| [Retirement switch design](ops/LINEAR_EXIT_RETIREMENT_SWITCH_PREPARATION.md) | The isolated-tested guarded switch design, without hosted activation proof. |
+| [Settled-world runner proposal](ops/LINEAR_EXIT_RUNNER_SETTLED_WORLD_PROPOSAL.md) | An unapplied 2026-09-16 proposal to build the settled test database before calibration. |
+| [Schedule and alert inventory](ops/LINEAR_EXIT_STEP29B_INVENTORY.md) | A read-only pre-cutoff inventory of workflow, schedule, and alert paths. |
+| [Alert consolidation](ops/LINEAR_EXIT_STEP29C_ALERT_CONSOLIDATION.md) | An unapplied design for consolidating alerts after older workflows are retired. |
+| [Table-name coupling](ops/LINEAR_EXIT_TABLE_NAME_COUPLING_PROPOSAL.md) | A 2026-09-16 proposal to check that four table-name references agree. |
+| [Urgent link review](ops/LINEAR_EXIT_URGENT_LINK_VERIFICATION.md) | Captured-source review of urgent notification links, without proof of delivered messages. |
+| [Intake receipt recovery](ops/LINEAR_INTAKE_RECOVERY.md) | Pre-cutoff steps for failed intake receipts, retained as historical recovery context. |
+| [Media rescue proposal](ops/LINEAR_MEDIA_RESCUE.md) | A superseded media-copy plan; the native brief-media copy was completed later. |
+| [Bounded reconciler reads](ops/LINEAR_RECONCILER_BOUNDED_READ_WINDOW.md) | A prepared 2026-08-03 installation window for bounded reads, not authorization to run it. |
+| [Retired status reconciler](ops/LINEAR_SYNC_RECONCILE.md) | The former status reconciler and workflows, retired on 2026-09-22. |
+| [Stray-item catcher](ops/B1_STRAY_CATCHER_DESIGN.md) | A pre-cutoff design for importing stray external work; implementation was pending when written. |
+| [Server cleanup plan](ops/B2_LINEAR_CLEANUP_PLAN.md) | The 2026-09-23 cleanup inventory and record of the slices executed at that time. |
+| [Client sign-off reconciliation](ops/CLIENT_SIGNOFF_RECONCILE.md) | How a committed client review is reconciled into its card after a partial update. |
+| [Card-link repair](ops/CROSSWALK_REPAIR_STRATEGY.md) | The September repair strategy and execution record for card-to-deliverable links. |
+| [Comment gateway rollout](ops/COMMENT_GATEWAY_ROLLOUT.md) | A dated rollout runsheet for an earlier comment entry route; check State of things before use. |
+| [Retirement assertion drift](ops/RETIREMENT_ASSERT_DRIFT_2026-09-24.md) | The 2026-09-24 diagnosis and proposal later superseded by an applied repair. |
+
 ## Plans
 
 | Document | What it helps you find |

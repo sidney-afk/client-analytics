@@ -146,6 +146,14 @@ async function runAt(browser, width) {
   ok(wrongSaver.length === 0, `${width}: no calendar save was sent for the sample`);
   ok(NW.retiredCallCount(retired) === 0, `${width}: the retired Linear webhooks received nothing`);
   ok(gateway.length >= 1, `${width}: the native gateway received the sample's decisions`, gateway.length);
+  // A samples repaint keeps a calendar load failure on screen.
+  ok(await p.evaluate(() => { _kasperState.error = 'probe failure'; _sxrKasperRenderQueue(); const kept = !!document.querySelector('#kasperReviewBody [data-kasper-queue-error]'); _kasperState.error = null; _kasperPaintReview(); return kept && !document.querySelector('#kasperReviewBody [data-kasper-queue-error]'); }), `${width}: a samples repaint keeps the calendar load failure notice`);
+  // Opening #kasper/samples shows its tab; going back to Review hides it again.
+  await p.evaluate(() => _kasperGotoTab('samples'));
+  const shown = await p.evaluate(() => { const t = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'); return !!t && getComputedStyle(t).display !== 'none'; });
+  await p.evaluate(() => _kasperGotoTab('review'));
+  const hiddenAgain = await p.evaluate(() => { const t = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'); return !t || getComputedStyle(t).display === 'none'; });
+  ok(shown && hiddenAgain, `${width}: the Samples tab shows only while it is open`, JSON.stringify({ shown, hiddenAgain }));
   ok(errs.length === 0, `${width}: no app errors`, errs[0]);
   await ctx.close();
 }

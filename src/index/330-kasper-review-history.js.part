@@ -804,6 +804,15 @@
     function _kasperRenderAnyCard(it) {
         return it && it._sxr ? _sxrKasperRenderCard(it) : _kasperRenderCard(it);
     }
+    // A samples repaint must not wipe a calendar load failure: keep saying
+    // the calendar cards are missing, with a retry, above whatever loaded.
+    function _kasperRenderQueueErrorNotice() {
+        if (!_kasperState.error) return '';
+        return `<div class="kasper-unloaded" data-kasper-queue-error="1">
+            <div class="kasper-stranded-title">Couldn't load the queue</div>
+            <div class="kasper-stranded-sub">Calendar cards are missing from the list below, not absent: ${_calEsc(_kasperState.error)} <button class="cal-link" type="button" onclick="_kasperLoadReview(true)">Try again</button></div>
+        </div>`;
+    }
     function _kasperRenderSampleNotice() {
         if (!_kasperSamplesMerged() || !_sxrKasperState.error) return '';
         return `<div class="kasper-unloaded" data-kasper-samples-unloaded="1">
@@ -880,7 +889,7 @@
         // Only once the queue has actually loaded -- the SMM sheet can land
         // first and repaint an empty body, which is not content.
         if (_kasperState.lastLoaded && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
-        body.innerHTML = _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + _kasperRenderSampleNotice() + _kasperRenderUrgentSection(urgent) + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection() + _kasperRenderSampleHistory();
+        body.innerHTML = _kasperRenderQueueErrorNotice() + _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + _kasperRenderSampleNotice() + _kasperRenderUrgentSection(urgent) + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection() + _kasperRenderSampleHistory();
         _kcardRestoreThumbs(body, _thumbs, 'data-kasper-pid');
     }
 

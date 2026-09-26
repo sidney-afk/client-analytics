@@ -29088,14 +29088,15 @@ statuses, rounds and where decisions are saved are unchanged. The Review count
 includes samples, sample approvals show as "Approved samples" under the history,
 and a failed samples load shows a notice with a retry instead of silently leaving
 them out. The Samples tab is hidden but still registered, so `#kasper/samples`
-links (the urgent-ping message) still open it; removing it is a later change.
+links (the urgent-ping message) still open it; removing it is a later change. A calendar
+load failure stays on screen, with a retry, when a samples load repaints the list.
 On the Kasper page the sample thumbnail zoom opens Kasper's own full-screen view,
 since the Samples view's is not mounted there, and on a phone the sample card's
 panels stack like calendar cards.
 
 **Proof.** `qa/probes/kasper_samples_in_review.js` (on demand) seeds one sample
 and one calendar card on the test client and drives both at 1440 (mouse) and at
-390 and 375 (touch): 84 of 84 checks, including that no calendar save is ever sent
+390 and 375 (touch): 90 of 90 checks, including that no calendar save is ever sent
 for the sample and the retired Linear webhooks see nothing.
 
 ## 260. [2026-09-26, OPEN] Three differences in how the Samples queue decides, found while merging it

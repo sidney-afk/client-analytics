@@ -1,3 +1,50 @@
+import { _svPreserveFocus, showConfirm, showNotify, showToast } from './040-shared-briefs.js';
+import { WL_CLIENT_NAMES, wlIsAllowedClient, wlNormalizeClient } from './070-workload-source.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svBootFlagRows, _syncviewRequireStaffIdentity } from './100-onboarding-staff-controls.js';
+import {
+  WRITE_UI_NO_WORK_ITEM_TEXT, _calRuntimeFlagClient, _calRuntimeFlagClients, _kasperUrgentPingOn,
+  _kasperUrgentPingOnLive, _prodMarkLegacyReadIncomplete, _prodStripEphemeralCanonicalPosts,
+  _syncviewEfHeaders, _syncviewIssueClientShareUrl, _writeUiAuthoritySnapshot,
+  _writeUiFilterCachedPosts, _writeUiLinkSlotSealed, _writeUiLinkSlotSealedLive,
+  _writeUiLinkSlotSealedNotice, _writeUiNativeId, _writeUiPrincipalKey, _writeUiQueueDiagnostic,
+  _writeUiReportFailure, _writeUiRerouteUseGatewayWhenReady
+} from './120-calendar-flags-write-repair.js';
+import { _calCompLinked, _calPillDisplayStatus } from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import { _calLoaderHtml } from './133-core-loading-skeletons.js';
+import { _calGetPins, _calLinkKey, _calMapLinearStatusStrict, _calSavePins } from './134-calendar-prefs-mount.js';
+import {
+  URGENT_EDITOR_NEEDS_NATIVE, _calApplyUrgentButtonState, _calBuildKasperUrgentPatch,
+  _calBuildUrgentPatch, _calKasperReviewUrl, _calUrgentButtonHtml, _calUrgentSlackDispatch,
+  _urgentKind
+} from './140-calendar-legacy-outbox.js';
+import {
+  _calFetchDeliverableLinkRows, _calIdentFromUrl, _calSupabaseFetchAllRows, _calV2LoadLib,
+  _calV2Log
+} from './150-calendar-hydration-import.js';
+import {
+  _calChevron, _calClientHue, _calDeriveThumbInfo, _calDriveWarnHtml, _calFillLookupExisting,
+  _calMatchClients, _calScrollTabStripToActive, _calStatusLabel, _calTabScrollBy,
+  _calThumbFolderIconSvg, _calThumbIconHtml, _calThumbMediaHtml, _calThumbnailFolderUrl,
+  _calUpdateTabScroll, _thumbCompareSlotHtml, _thumbRefreshChangedCards
+} from './160-calendar-organize-ui.js';
+import { _svSaveIndHtml } from './170-calendar-links-status.js';
+import { COMP_LABELS, COMP_PILL_COLORS, _calOpenNativePost } from './180-calendar-native-post-media.js';
+import { _kasperCompReviewable } from './190-calendar-approval-comments.js';
+import { PROD_WRITE_EF_URL } from './210-production-state-writes.js';
+import { _isClientLink, _syncviewClientEntryCapability } from './260-production-refresh-boot.js';
+import {
+  _sxrApprovalBadgeCount, _sxrAwaitCardSave, _sxrCommentsBtnHtml, _sxrFlushAllPending,
+  _sxrFlushCardSave, _sxrIsBusy, _sxrIsClientReady, _sxrMarkKasperSeen, _sxrMarkLocalStatus,
+  _sxrMergeServerRows, _sxrOnFieldBlur, _sxrOnFieldInput, _sxrPostsEqualForRender,
+  _sxrRefreshCommentsBtn, _sxrRenderBody, _sxrSchedulePendingRender, _sxrSetLastLocalWriteAt,
+  _sxrSetPendingBackgroundRender, _sxrUpdateReviewBadge
+} from './280-samples-cards-notes.js';
+import {
+  _sxrKasperState, _sxrV2DrainPending, _sxrV2EnsureSubscribed, _sxrV2Teardown,
+  _writeUiResumeSourceRepairs
+} from './290-samples-writes-review.js';
+import { _kasperOpenLightbox } from './320-kasper-dashboard-replies.js';
     // >>> SXR_BEGIN
     /* ============================================================
        SAMPLES (REVIEW) MODULE  —  ?sxr=1 (default-OFF), route #sample-reviews
@@ -76,7 +123,7 @@
         // (the rollback documented in docs/features/SAMPLES_GO_LIVE.md); `?sxr=1` clears it.
         let on = true;
         try {
-            const q = new URLSearchParams(location.search).get('sxr');
+            const q = new URLSearchParams(svRoute.search()).get('sxr');
             if (q === '1' || q === 'true') { on = true; try { localStorage.setItem(SXR_ON_KEY,'1'); localStorage.removeItem(SXR_OFF_KEY); } catch {} }
             else if (q === '0' || q === 'false') { on = false; try { localStorage.setItem(SXR_OFF_KEY,'1'); localStorage.removeItem(SXR_ON_KEY); } catch {} }
             else { on = (localStorage.getItem(SXR_OFF_KEY) !== '1'); }
@@ -167,7 +214,7 @@
     }
     function _sxrWriteHeaders(source, url) {
         let role = 'smm';
-        try { if (_isClientLink) role = 'client'; else if (location.hash === '#kasper' || new URLSearchParams(location.search).get('Kasper') === '1') role = 'kasper'; } catch (e) {}
+        try { if (_isClientLink) role = 'client'; else if (svRoute.hash() === '#kasper' || new URLSearchParams(svRoute.search()).get('Kasper') === '1') role = 'kasper'; } catch (e) {}
         const actor = role === 'client' ? 'Client' : (role === 'kasper' ? 'Kasper' : 'SyncView');
         return _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': actor, 'X-Syncview-Role': role, 'X-Syncview-Source': source || 'ui' }, url);
     }
@@ -839,7 +886,7 @@
             // Defer the repaint while the user is mid-edit so a realtime reload can't
             // clobber their caret / unsaved field (Surface 7 deferred-render guard).
             else if (background && typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
-                _sxrPendingBackgroundRender = true; if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
+                _sxrSetPendingBackgroundRender(true); if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
                 if (typeof _sxrRefreshCommentsBtn === 'function') { try { sxrState.posts.forEach(p => _sxrRefreshCommentsBtn(p.id)); } catch (e) {} }
                 // The full render is deferred while busy, but a peer's status change
                 // must still show LIVE — repaint just the status pills in place
@@ -1167,7 +1214,7 @@
         const id = String((which === 'graphic' ? p.graphic_deliverable_id : p.video_deliverable_id) || '').trim();
         if (!id) return '';
         const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
-        const href = location.pathname + '?prod=1&d=' + encodeURIComponent(id);
+        const href = svRoute.clean('/?prod=1&d=' + encodeURIComponent(id));
         const mark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6 10.2 10.2 6M7.2 6h3v3"/></svg>`;
         return `<a class="cal-linear-btn cal-prod-btn cal-linear-btn-${which}" href="${_sxrEscAttr(href)}" target="_blank" rel="noopener" title="Open the SyncView Production ${label} in a new tab">${mark}</a>`;
     }
@@ -1274,7 +1321,7 @@
             // Our own row change is about to arrive on the realtime channel; mark
             // it as a local write so the strip is not rebuilt underneath the
             // person who just pressed the button, as every samples write does.
-            _sxrLastLocalWriteAt = Date.now();
+            _sxrSetLastLocalWriteAt(Date.now());
             /* THE VIEW MAY HAVE MOVED ON (Codex P2 on PR 1342). Staff switch client
                tabs while a request is in flight, and `sxrState.posts` then holds
                the NEW client's rows while `clientSlug` still names the old one.
@@ -1295,7 +1342,7 @@
                the caret (the PR-705 focus guard). */
             try {
                 if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
-                    _sxrPendingBackgroundRender = true;
+                    _sxrSetPendingBackgroundRender(true);
                     if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
                 } else {
                     _sxrRenderBody({ preserveScroll: true });
@@ -1787,7 +1834,7 @@
                and eat the caret. preserveScroll on both legs: the adopter lands
                late enough that the user may well have scrolled. */
             if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
-                _sxrPendingBackgroundRender = true;
+                _sxrSetPendingBackgroundRender(true);
                 if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
             } else {
                 _sxrRenderBody({ preserveScroll: true });
@@ -2699,10 +2746,25 @@
     function _sxrCopyCardLink(e, pid) {
         if (e) e.stopPropagation();
         const slug = sxrClientSlug(sxrState.client);
-        const url = location.origin + location.pathname + '?sxr=1#sample-reviews/' + encodeURIComponent(slug) + '/' + encodeURIComponent(pid);
+        const url = svRoute.cleanAbs('/?sxr=1#sample-reviews/' + encodeURIComponent(slug) + '/' + encodeURIComponent(pid));
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(() => {}, () => window.prompt('Copy this link:', url));
         else window.prompt('Copy this link:', url);
     }
 
     /* Body dispatcher — enhanced for the Sheet (preserve scroll on optimistic
        repaints from card actions; drag wiring is a Surface 2 follow-up). */
+export {
+  SXR_CACHE_PREFIX, SXR_COMPONENTS, SXR_GET_URL, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS,
+  SXR_RT_CHANNEL_PREFIX, SXR_TABLE, _sxrAbortActiveLoad, _sxrAdoptLinksAfterCreate,
+  _sxrApplyClearSentinels, _sxrApplyZoom, _sxrBgLoadInFlight, _sxrBlankSample, _sxrCacheRead,
+  _sxrCacheWrite, _sxrClearStaleApprovals, _sxrClientCompPillsHtml, _sxrDeriveThumbInfo,
+  _sxrEnabled, _sxrEsc, _sxrEscAttr, _sxrForceThumbRefresh, _sxrIsBlankId, _sxrJsArg,
+  _sxrLastNetworkLoadAt, _sxrLinkFieldHtml, _sxrLoadPrefs, _sxrLoaderHtml, _sxrMigrateShape,
+  _sxrNextLoadSeq, _sxrNormStatus, _sxrNormZoom, _sxrOpenStatusMenu, _sxrPendingEdits,
+  _sxrPersistUrgentSentForPost, _sxrPrimeSampleRoutingFlag, _sxrReady, _sxrRenderShell,
+  _sxrReorderFetch, _sxrReviewBlockReason, _sxrSampleUseEf, _sxrSaveInFlight, _sxrSavePrefs,
+  _sxrSaveTimers, _sxrShowUrgent, _sxrSupabaseFetchAllRows, _sxrUpdateCardStatusDisplay,
+  _sxrUpsertFetch, _sxrUpsertFetchPinned, _sxrV2LoadLib, archiveSxrCard,
+  computeSampleOverallStatus, loadSxrCards, mountSxrView, renderSxrOrganizer, renderSxrView,
+  sxrClientSlug, sxrState
+};

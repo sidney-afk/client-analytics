@@ -26,7 +26,9 @@ import { _svLoadingSkeletonHtml, _svSkel } from './133-core-loading-skeletons.js
 import { mountCalendar, renderCalendarView } from './134-calendar-prefs-mount.js';
 import { _calV2Teardown } from './150-calendar-hydration-import.js';
 import { _calFmtCommentTime } from './190-calendar-approval-comments.js';
-import { _linearIntakeBatchTitle, _linearSubmissionHoldRead, renderLinearView } from './200-intake-data-startup.js';
+import {
+  _kasperApplyAccess, _linearIntakeBatchTitle, _linearSubmissionHoldRead, renderLinearView
+} from './200-intake-data-startup.js';
 import { _prodAccessAllowed } from './210-production-state-writes.js';
 import { mountProductionView, renderProductionView } from './250-production-controls-data.js';
 import { _isClientLink, _syncviewClientEntryCapability, _syncviewInvalidClientLinkScreen } from './260-production-refresh-boot.js';
@@ -34,7 +36,9 @@ import { mountSxrView, renderSxrView } from './270-samples-model.js';
 import { mountSxrClientView } from './280-samples-cards-notes.js';
 import { _sxrV2Teardown } from './290-samples-writes-review.js';
 import { _tkTeardown, mountTiktokUploadView, renderTiktokUploadView } from './300-tiktok-upload.js';
-import { _kasperState, _kasperTeardown, mountKasperView, renderKasperView } from './320-kasper-dashboard-replies.js';
+import {
+  _kasperState, _kasperTeardown, _svStaffPageRender, _svStaffPageShell, mountKasperView, renderKasperView
+} from './320-kasper-dashboard-replies.js';
     // ── Sub-issue popover ────────────────────────────────────────────────
     // Fetches the underlying subs for a rollup (either the in-progress list
     // or the work-on-that-day list), filters by assignee+client, and
@@ -739,9 +743,9 @@ import { _kasperState, _kasperTeardown, mountKasperView, renderKasperView } from
         const openIdent = soleSubIdent || parentIdent;
         const openIsParent = !soleSubIdent && !!(parentIdent || nativeBatchId);
         const parentSyncUrl = openIsParent && nativeBatchId
-            ? (location.pathname + '?prod=1&batch=' + encodeURIComponent(nativeBatchId))
+            ? svRoute.clean('/?prod=1&batch=' + encodeURIComponent(nativeBatchId))
             : openIdent
-                ? (location.pathname + '?prod=1&d=' + encodeURIComponent(openIdent))
+                ? svRoute.clean('/?prod=1&d=' + encodeURIComponent(openIdent))
                 : '';
         const openLabel = openIsParent ? 'Open parent →' : 'Open SyncView →';
         // The Linear escape hatch follows the primary target rather than
@@ -752,7 +756,7 @@ import { _kasperState, _kasperTeardown, mountKasperView, renderKasperView } from
         pop.setAttribute('aria-label', headerTitle ? ('Workload details for ' + headerTitle) : 'Workload details');
 
         const templatesUrl = clientName
-            ? (location.pathname + location.search + '#templates/' + encodeURIComponent(clientName))
+            ? svRoute.clean('/' + svRoute.search() + '#templates/' + encodeURIComponent(clientName))
             : '';
         const templatesLink = templatesUrl
             ? `<a class="workload-popover-templates" href="${wlEscape(templatesUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${wlEscape(clientName)} templates in a new tab">
@@ -1371,21 +1375,21 @@ import { _kasperState, _kasperTeardown, mountKasperView, renderKasperView } from
        test/boot-gate-parity.js exists to catch a drifted copy. The cost is a
        sub-second default-mark flash on a hard refresh into a deep link, which
        self-corrects the moment navTo runs. */
-    const SYNCVIEW_DEFAULT_FAVICON = 'syncview-favicon.png';
+    const SYNCVIEW_DEFAULT_FAVICON = '/syncview-favicon.png';
     const SYNCVIEW_TAB_FAVICONS = {
-        home: 'nav-icons/analytics-favicon.png',
-        production: 'nav-icons/synclinear-favicon.png',
-        linear: 'nav-icons/submit-favicon.png',
-        templates: 'nav-icons/templates-favicon.png',
-        'filming-plans': 'nav-icons/filming-plans-favicon.png',
-        workload: 'nav-icons/workload-favicon.png',
-        calendar: 'nav-icons/calendar-favicon.png',
-        'sample-reviews': 'nav-icons/samples-favicon.png',
-        'tiktok-upload': 'nav-icons/tiktok-favicon.png',
+        home: '/nav-icons/analytics-favicon.png',
+        production: '/nav-icons/synclinear-favicon.png',
+        linear: '/nav-icons/submit-favicon.png',
+        templates: '/nav-icons/templates-favicon.png',
+        'filming-plans': '/nav-icons/filming-plans-favicon.png',
+        workload: '/nav-icons/workload-favicon.png',
+        calendar: '/nav-icons/calendar-favicon.png',
+        'sample-reviews': '/nav-icons/samples-favicon.png',
+        'tiktok-upload': '/nav-icons/tiktok-favicon.png',
         // The two onboarding-facing routes keep SynchroSocial branding, which
         // the entry router already applies; naming them here keeps navTo from
         // overwriting it with the SyncView default.
-        onboarding: 'synchro-social-favicon.png',
+        onboarding: '/synchro-social-favicon.png',
     };
     function _syncviewFaviconFor(page) {
         return SYNCVIEW_TAB_FAVICONS[String(page || '')] || SYNCVIEW_DEFAULT_FAVICON;
@@ -1446,6 +1450,7 @@ import { _kasperState, _kasperTeardown, mountKasperView, renderKasperView } from
         if (page === 'time-off' && !_ptoEnabled()) page = 'home';
         page = _resolveRetiredSamplesRoute(page); // Samples Old retired: the old page was removed 2026-09-24; its links land on Sample reviews. dormant.
         if (page === 'production' && !_prodAccessAllowed()) page = 'home';
+        if (page === 'kasper' && !_kasperApplyAccess()) page = 'home'; // admins only
         _syncviewSetCurrentNav(page);
         // Guarded: on a FULL localStorage (a heavy user whose caches filled the
         // quota) this setItem throws QuotaExceededError, and unguarded it aborted
@@ -1477,6 +1482,8 @@ import { _kasperState, _kasperTeardown, mountKasperView, renderKasperView } from
         const navKp = document.getElementById('navKasper');
         if (navKp) navKp.classList.toggle('active', page === 'kasper');
         const navSxr = document.getElementById('navSxr'); if (navSxr) navSxr.classList.toggle('active', page === 'sample-reviews'); // SXR_LINE
+        document.getElementById('headerOnboardingMenuItem')?.classList.toggle('active', page === 'staff-onboarding');
+        document.getElementById('headerCredentialsMenuItem')?.classList.toggle('active', page === 'client-credentials');
         const navTimeOff = document.getElementById('navTimeOff'); if (navTimeOff) navTimeOff.classList.toggle('active', page === 'time-off'); // menu-only route; intentionally no visible nav button
         _syncviewApplyTabFavicon(page);
         const activeHeaderNav = document.querySelector('#headerNav > .header-nav-btn.active');
@@ -1551,11 +1558,11 @@ import { _kasperState, _kasperTeardown, mountKasperView, renderKasperView } from
             // line erased it from the URL the reload reads.
             if (page === 'kasper' && typeof _kasperState !== 'undefined' && _kasperState
                 && _kasperState.tab && _kasperState.tab !== 'review') hash = '#kasper/' + _kasperState.tab;
-            const query = new URLSearchParams(location.search);
+            const query = new URLSearchParams(svRoute.search());
             if (page === 'production') query.set('prod', '1');
             else query.delete('prod');
             const queryText = query.toString();
-            const url = location.pathname + (queryText ? '?' + queryText : '') + hash;
+            const url = '/' + (queryText ? '?' + queryText : '') + hash;
             if (push) history.pushState(state, '', url);
             else history.replaceState(state, '', url);
         }
@@ -1621,6 +1628,10 @@ import { _kasperState, _kasperTeardown, mountKasperView, renderKasperView } from
             content.innerHTML = renderSmmWeeklyReportsView();
             mountSmmWeeklyReportsView();
             window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'staff-onboarding' || page === 'client-credentials') {
+            pageTop.style.display = 'none';
+            content.innerHTML = _svStaffPageShell(page);
+            _svStaffPageRender(page);
         } else if (page === 'kasper') {
             pageTop.style.display = 'none';
             content.innerHTML = renderKasperView();

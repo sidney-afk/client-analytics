@@ -91,7 +91,9 @@ function build(opts) {
      can tell "armed the interval" (which alone does nothing) from "armed it and
      set the flag" (which actually repaints once the user stops typing). */
   vm.createContext(scope);
-  vm.runInContext(extract('_sxrAdoptDeliverableLinks')
+  // 270 is a module: the adopter sets 280's flag through its owner's setter.
+  vm.runInContext(extract('_sxrSetPendingBackgroundRender') + '\n'
+    + extract('_sxrAdoptDeliverableLinks')
     + '\nthis.fn = _sxrAdoptDeliverableLinks;', scope);
   return { fn: scope.fn, calls, state, scope };
 }
@@ -206,12 +208,13 @@ const LIVE_SHAPE = () => [{
     'the catch block does not re-run adoption on a failed load, where card state is stale or empty');
 
   // ---------- the Production buttons ----------------------------------------
-  const prodSlot = new Function('_isClientLink', '_sxrEscAttr', 'location',
-    extract('_sxrProdSlotHtml') + ' return _sxrProdSlotHtml;');
+  const svRoute = require('./helpers/sv-route.js').svRoute;
+  const prodSlot = (isClient, esc, location) => new Function('_isClientLink', '_sxrEscAttr', 'location', 'svRoute',
+    extract('_sxrProdSlotHtml') + ' return _sxrProdSlotHtml;')(isClient, esc, location, svRoute);
   const esc = s => String(s).replace(/"/g, '&quot;');
   const slot = prodSlot(false, esc, { pathname: '/index.html' });
   const withIds = { video_deliverable_id: 'del_vid', graphic_deliverable_id: 'del_gra' };
-  ok(/prod=1&d=del_vid/.test(slot(withIds, 'video')) && /prod=1&d=del_gra/.test(slot(withIds, 'graphic')),
+  ok(/\/synclinear\/del_vid/.test(slot(withIds, 'video')) && /\/synclinear\/del_gra/.test(slot(withIds, 'graphic')),
   'both components render an open-in-Production link built from the deliverable id');
   ok(slot({}, 'video') === '' && slot({ video_deliverable_id: '' }, 'video') === '',
   'a sample without a native deliverable id renders no Production button');

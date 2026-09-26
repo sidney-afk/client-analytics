@@ -14,7 +14,7 @@ import {
 } from './110-time-off-reports.js';
 import { _jsAttrArg } from './131-core-html.js';
 import { _thumbCompareScheduleAvailability } from './160-calendar-organize-ui.js';
-import { _linearIntakePurgeSensitiveState } from './200-intake-data-startup.js';
+import { _kasperApplyAccess, _kasperForgetAdmin, _linearIntakePurgeSensitiveState } from './200-intake-data-startup.js';
 import { PROD_CREATE_DRAFT_KEY, _prodCachePurge, _prodState } from './210-production-state-writes.js';
 import { _prodClearLayer } from './220-production-attribution-views.js';
 import { _prodComments } from './230-production-create-comments.js';
@@ -27,7 +27,7 @@ import { _hpPurgeSensitiveState } from './310-sales-intake-hiring.js';
 import {
   CC_ICON_EYE, _caPurgeSensitiveState, _ccCloseModal, _ccCloseSelect, _ccExpanded, _ccOpenSelectId, _ccRevTeardown,
   _ccRevealed, _ccSelectHtml, _ccState, _ccTogglePasswordField, _kasperFallbackToReview,
-  _kasperRenderTab, _kasperRestorePendingSubtab, _kasperState
+  _kasperRenderTab, _kasperRestorePendingSubtab, _kasperState, _svStaffPageRender
 } from './320-kasper-dashboard-replies.js';
     /* ============================================================
        CLIENT ONBOARDING MODULE  (standalone, private-link page)
@@ -115,7 +115,7 @@ import {
     ];
 
     const SC_THUMB = 'https://storage.googleapis.com/prod-sandcastles-thumbnails/';
-    const OB_VID = 'onboarding-video/';
+    const OB_VID = '/onboarding-video/';
     // Step-4 worked example — a real ~30s talking-to-camera clip (a teammate) so the client sees
     // exactly what a good "sample clip of you" looks like. Web-optimized 720×1280 H.264 w/ audio.
     // The poster paints Casper's face on the tile immediately (before the video metadata loads).
@@ -128,14 +128,14 @@ import {
       ['bold','Bold','Big, heavy captions that pop.', OB_VID+'sub-bold.mp4', OB_VID+'sub-bold-hl.mp4'],
     ];
     // AI "which look" examples — shown as selectable previews (client's own reference frames).
-    const OB_LOOK_TALKING = 'onboarding-ai/talking-head.jpg';
-    const OB_LOOK_PODCAST = 'onboarding-ai/podcast.jpg';
+    const OB_LOOK_TALKING = '/onboarding-ai/talking-head.jpg';
+    const OB_LOOK_PODCAST = '/onboarding-ai/podcast.jpg';
 
     const OB_BROLL_OPTS = [ ['stock','Stock footage'], ['ai','AI-generated'], ['mix','Mix of both'], ['own','My own footage'], ['none','No B-roll'] ];
 
     // Thumbnail text picker: Font (3) x Style (4) x Highlight (on/off) = 24 real renders,
     // hosted in thumbnail-styles/<font>-<style>[-hl].jpg. The client builds the combo live.
-    const OB_TF = 'thumbnail-styles/';
+    const OB_TF = '/thumbnail-styles/';
     const OB_THUMB_FONTS  = [ ['bold','Bold'], ['native','Native'], ['elegant','Elegant'] ];
     const OB_THUMB_TSTYLES = [ ['plain','Plain'], ['shadow','Shadow'], ['stroke','Stroke'], ['banner','Banner'] ];
     function _obThumbImg(font, style, hl){ return OB_TF + font + '-' + style + (hl ? '-hl' : '') + '.jpg'; }
@@ -506,7 +506,7 @@ import {
       const card = document.getElementById('obCard'); if(!card) return;
       const sections = _obSections();
       const head = '<div class="ob-headblock">'+
-        '<div class="ob-brand"><span class="ob-logo-wrap"><img class="ob-logo" src="synchro-social-logo.png" alt="Synchro Social"></span>'+
+        '<div class="ob-brand"><span class="ob-logo-wrap"><img class="ob-logo" src="/synchro-social-logo.png" alt="Synchro Social"></span>'+
         '<span class="ob-kicker ob-brand-kicker">Client Onboarding</span></div>'+
         '<h1 class="ob-title">Let\'s set up your content</h1>'+
         '<p class="ob-sub">The more you tell us, the faster we make content that feels like you. Saved as you go.</p></div>';
@@ -642,7 +642,7 @@ import {
 
     // ---- music preview (hosted local clips) ----
     let _obAudio=null, _obPlayingBtn=null;
-    function _obMusicUrl(key){ return 'onboarding-audio/'+key+'.mp3'; }
+    function _obMusicUrl(key){ return '/onboarding-audio/'+key+'.mp3'; }
     function _obResetPlay(){ if(_obAudio){ try{_obAudio.pause();}catch(e){} } if(_obPlayingBtn){ _obPlayingBtn.innerHTML=OB_PLAY_SVG; _obPlayingBtn.classList.remove('ob-playing'); _obPlayingBtn=null; } }
     function _obPlayMusic(btn){
       if(!_obAudio){ _obAudio=new Audio(); _obAudio.addEventListener('ended',_obResetPlay); _obAudio.addEventListener('error',_obResetPlay); }
@@ -1235,6 +1235,7 @@ import {
     }
     function _syncviewStaffIdentityClear() {
         _syncviewStaffPurgeSensitiveState();
+        try { if (typeof _kasperForgetAdmin === 'function') _kasperForgetAdmin(); } catch (e) {}
         if (typeof _syncviewInvalidateStaffVerification === 'function') _syncviewInvalidateStaffVerification();
         else _syncviewStaffIdentityVerified = false;
         _syncviewStaffIdentitySave(null);
@@ -1381,7 +1382,7 @@ import {
         return false;
     }
     function _syncviewProdDirectPreview() {
-        try { return new URLSearchParams(location.search).get('prod') === '1'; }
+        try { return new URLSearchParams(svRoute.search()).get('prod') === '1'; }
         catch (e) { return false; }
     }
     function _syncviewStaffEligible() {
@@ -1421,6 +1422,13 @@ import {
         document.querySelectorAll('[data-staff-capability]').forEach(element => {
             element.hidden = !_syncviewStaffCan(element.getAttribute('data-staff-capability'));
         });
+        // Kasper is admin-only; the standalone staff pages re-check their own
+        // capability once the sign-in check answers.
+        try { if (typeof _kasperApplyAccess === 'function') _kasperApplyAccess(); } catch (e) {}
+        try {
+            if (typeof currentNav !== 'undefined' && (currentNav === 'staff-onboarding' || currentNav === 'client-credentials')
+                && typeof _svStaffPageRender === 'function' && !document.querySelector('#kasperContent > :not(.kasper-empty)')) _svStaffPageRender(currentNav);
+        } catch (e) {}
         if (!valid) {
             _syncviewCloseStaffAccount();
             // Purging the in-memory PTO caches is not enough: immediately

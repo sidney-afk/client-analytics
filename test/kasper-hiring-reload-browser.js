@@ -5,7 +5,8 @@
 // admin identity, a key-verify answer that arrives ~1 s late (as live does,
 // which is the race the bug lived in), a mocked hiring list, and every other
 // backend call answered empty. It opens the hiring link, reloads it twice, and
-// requires the hiring rows to render each time with the hash intact.
+// requires the hiring rows to render each time with the address intact
+// (the old ?Kasper=1#kasper/hiring-process forwards to /kasper/hiring-process).
 const assert = require('assert/strict');
 const { chromium } = require('playwright');
 const { serveStatic } = require('../docs/syncview-design/tests/prod-test-utils.js');
@@ -46,7 +47,7 @@ const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers
     const url = `http://127.0.0.1:${server.address().port}/?Kasper=1#kasper/hiring-process`;
     const check = async label => {
       const rendered = await page.waitForSelector('.hp-row', { timeout: 15000 }).then(() => true, () => false);
-      results.push({ label, rendered, hash: await page.evaluate(() => location.hash) });
+      results.push({ label, rendered, path: await page.evaluate(() => location.pathname + location.hash) });
     };
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     await check('fresh open');
@@ -61,7 +62,7 @@ const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers
   console.log(JSON.stringify(results));
   for (const r of results) {
     assert.equal(r.rendered, true, `${r.label}: the hiring list never rendered`);
-    assert.equal(r.hash, '#kasper/hiring-process', `${r.label}: the hiring subtab was dropped from the URL`);
+    assert.equal(r.path, '/kasper/hiring-process', `${r.label}: the hiring subtab was dropped from the URL`);
   }
   console.log('kasper-hiring-reload-browser: hiring renders on open and on every reload ✅');
 })().catch(e => { console.error(e && e.stack || e); process.exit(1); });

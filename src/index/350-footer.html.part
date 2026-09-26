@@ -244,7 +244,7 @@
     function check(){
         // HEAD the app's own URL (path only — strips any ?client=… share params)
         // with no-store so we read the live deployed headers, not a cached copy.
-        fetch(location.pathname, { method: 'HEAD', cache: 'no-store' })
+        fetch('/', { method: 'HEAD', cache: 'no-store' })
             .then(function(resp){
                 if (!resp.ok) return;
                 var t = tokenOf(resp);

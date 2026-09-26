@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="referrer" content="no-referrer">
     <title>SyncView</title>
-    <link rel="icon" type="image/png" href="syncview-favicon.png">
+    <link rel="icon" type="image/png" href="/syncview-favicon.png">
     <!-- Pre-paint boot gate. The static <body> markup is the staff analytics
          dashboard, but the code that reroutes special entries (onboarding
          forms, ?intake=1, ?c= client links, the password gate, hash-tab

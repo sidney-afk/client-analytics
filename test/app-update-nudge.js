@@ -79,9 +79,11 @@ check('polls a backgrounded tab — the self-reload depends on it',
 
 // ── Version probe ───────────────────────────────────────────────────────────
 check('HEAD-fetches the app URL with cache: no-store (reads live deploy headers)',
-  /fetch\(location\.pathname, \{ method: 'HEAD', cache: 'no-store' \}\)/.test(NUDGE));
-check('targets location.pathname so client ?share= params are stripped',
-  /fetch\(location\.pathname,/.test(NUDGE) && !/fetch\(location\.href/.test(NUDGE));
+  /fetch\('\/', \{ method: 'HEAD', cache: 'no-store' \}\)/.test(NUDGE));
+// The app itself lives at '/': a clean path like /calendar/<client>/<card> is
+// served by 404.html, whose headers would read as a new deploy every time.
+check("targets the app root '/', so share params and clean paths never reach the check",
+  /fetch\('\/',/.test(NUDGE) && !/fetch\(location\.href/.test(NUDGE) && !/fetch\(location\.pathname/.test(NUDGE));
 check('version token comes from ETag or Last-Modified',
   /resp\.headers\.get\('etag'\) \|\| resp\.headers\.get\('last-modified'\)/.test(NUDGE));
 check('first poll captures the running version as the baseline (no false nudge)',

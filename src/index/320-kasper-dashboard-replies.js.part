@@ -152,7 +152,7 @@
         try { localStorage.setItem(KASPER_SUBTAB_KEY, 'review'); } catch (e) {}
         try {
             if (typeof currentNav !== 'undefined' && currentNav === 'kasper') {
-                history.replaceState({ nav: 'kasper' }, '', location.pathname + location.search + '#kasper');
+                history.replaceState({ nav: 'kasper' }, '', '/' + svRoute.search() + '#kasper');
             }
         } catch (e) {}
         if (typeof _kasperSyncTabNav === 'function') _kasperSyncTabNav();
@@ -688,7 +688,7 @@
         _kasperSetMoreOpen(false, false, false);
         _kasperState.tab = tab;
         try { localStorage.setItem(KASPER_SUBTAB_KEY, tab); } catch (e) {}
-        try { history.replaceState({ nav: 'kasper' }, '', location.pathname + location.search + '#kasper' + (tab === 'review' ? '' : '/' + tab)); } catch {}
+        try { history.replaceState({ nav: 'kasper' }, '', '/' + svRoute.search() + '#kasper' + (tab === 'review' ? '' : '/' + tab)); } catch {}
         _kasperSyncTabNav();
         _kasperRenderTab();
         if (returnFocusToMore) {
@@ -1385,6 +1385,35 @@
         if (resp.status === 403) throw new Error('Client credentials need an Admin or SMM account. Sign out first to use another authorized account.');
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || 'Credentials request failed');
         return json;
+    }
+
+    /* ── Standalone staff pages (/onboarding, /client-credentials) ──
+       Onboarding and Client Credentials are used by SMMs (and Onboarding by
+       creatives), not only admins, so they live at their own paths and in the
+       staff menu, outside the admin-only Kasper tab. They reuse the Kasper
+       renderers, which draw into #kasperContent, and keep each page's own
+       capability check. */
+    const SV_STAFF_PAGES = {
+        'staff-onboarding': { capability: 'onboarding', title: 'Onboarding', render: () => _kasperRenderOnboarding() },
+        'client-credentials': { capability: 'credentials', title: 'Client Credentials', render: () => _ccKasperRender() },
+    };
+    function _svStaffPageShell(page) {
+        const def = SV_STAFF_PAGES[page];
+        const head = page === 'client-credentials' ? '' : `<div class="kasper-head"><div class="kasper-title">${_calEsc(def.title)}</div></div>`;
+        return `<div class="kasper-wrap sv-staff-page" data-sv-staff-page="${page}">${head}<div id="kasperContent"></div></div>`;
+    }
+    function _svStaffPageRender(page) {
+        const def = SV_STAFF_PAGES[page];
+        const el = document.getElementById('kasperContent');
+        if (!def || !el) return;
+        if (_syncviewStaffCan(def.capability)) { def.render(); return; }
+        const pending = typeof _kasperStaffCheckPending === 'function' && _kasperStaffCheckPending();
+        el.innerHTML = `<div class="kasper-empty">${pending ? 'Checking your sign-in…' : 'This page needs an SMM or Admin sign-in.'}</div>`;
+        if (!pending) _syncviewOfferStaffSignIn(def.capability);
+    }
+    function _svOpenStaffPage(page) {
+        _syncviewCloseStaffAccount();
+        navTo(page);
     }
 
     function _ccKasperRender() {
@@ -2521,7 +2550,7 @@
             const open = r.docUrl
                 ? `<a class="kfilm-open" href="${_calEscAttr(r.docUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Open Doc ↗</a>`
                 : `<span class="kfilm-nodoc">No Doc linked</span>`;
-            const calUrl = `${location.pathname}#calendar/${encodeURIComponent(r.slug)}`;
+            const calUrl = svRoute.clean(`/#calendar/${encodeURIComponent(r.slug)}`);
             const calBtn = `<a class="kfilm-open kfilm-cal" href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Calendar ↗</a>`;
             const contentTxt = r.contentTotal == null
                 ? `<span class="kfilm-muted">Content total unavailable</span>`
@@ -2775,7 +2804,7 @@
         ).join('');
         const draft = item._replyDraft || '';
         const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
-        const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
+        const calUrl = svRoute.clean(`/#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`);
         return `<div class="kasper-replies-card" data-kasper-replies-pid="${_calEscAttr(pid)}">
             <div class="kasper-replies-head">
                 ${thumb ? `<img class="kasper-replies-thumb" src="${_calEscAttr(thumb)}" alt="" onerror="this.style.display='none'">` : ''}

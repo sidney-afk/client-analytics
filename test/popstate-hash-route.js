@@ -71,6 +71,7 @@ function fire(hash, opts) {
     },
     document: { getElementById: () => ({ set innerHTML(_v) {} }) },
     location: { hash: hash ? '#' + hash : '' },
+    svRoute: { hash: () => ctx.location.hash, search: () => '' },
     navTo: (nav) => calls.navTo.push(nav),
     render: (what) => calls.render.push(what),
     wlIsAllowedClient: name => name === 'Sidney Laruel',

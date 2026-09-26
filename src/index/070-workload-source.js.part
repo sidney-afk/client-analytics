@@ -646,6 +646,7 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
     }
     async function _wlV2EnsureSubscribed() {
         if (!WL_V2_REALTIME) return;            // one-line rollback lever (see note above)
+        if (_wlPlanLive && _wlV2Ready()) _wlPlanLive.ensure();
         if (!_wlV2Ready() || _wlV2Channel) return;
         const client = await _wlV2Client();
         if (!client || !document.querySelector('.workload-view')) return; // left during lib load
@@ -737,8 +738,180 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
             } catch {}
         }
         _wlV2Channel = null; _wlV2SubscribedOnce = false;
+        if (_wlPlanLive) _wlPlanLive.teardown();
     }
-    window.wlV2Status = function () { return { flag: _wlV2Enabled(), ready: _wlV2Ready(), subscribed: !!_wlV2Channel, polling: !!_wlV2WatermarkTimer, sourceSyncedAt: wlState.sourceSyncedAt }; };
+
+    /* Plan-day changes reach other open Workload pages in about a second.
+       `workload_plan` is private (not in the realtime publication, no anon or
+       authenticated grants) and must stay that way, so this does NOT stream
+       rows. After a confirmed save, the writer sends a Supabase Realtime
+       BROADCAST carrying only an opaque hint ({kind, at, from}) — no issue id,
+       client, card title or date. Every open board listens and, on a hint that
+       is not its own echo, re-reads through the existing authorized path
+       (_wlV2CheckWatermark -> wlRefetchSilent -> workload-plan), coalesced.
+       Same-browser tabs also get a `storage` hint, since a tab's own broadcast
+       may not loop back to its siblings. The 5-minute poll stays as the net.
+       Pure factory so test/workload-plan-live.js can drive it with mocks. */
+    function wlCreatePlanLive(opts) {
+        const o = opts || {};
+        const debounceMs = o.debounceMs == null ? 600 : o.debounceMs;
+        const sendCoalesceMs = o.sendCoalesceMs == null ? 250 : o.sendCoalesceMs;
+        const storageKey = o.storageKey || 'syncview.workload.plan-live.v1';
+        const from = Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+        const st = { channelStatus: 'idle', subscribedOnce: false, lastError: '', sent: 0, sendFailed: 0,
+            received: 0, echoesIgnored: 0, refreshes: 0, catchUps: 0, lastReceivedAt: '',
+            rejected: 0, throttled: 0, busyGaveUp: 0 };
+        let channel = null, client = null, recvTimer = null, sendTimer = null, opening = null;
+        // Broadcast is a PUBLIC channel: anyone with the publishable key can send
+        // to it. So broadcast-triggered re-reads are strictly validated and
+        // rate-limited to one per minRemoteIntervalMs per page; a hint inside the
+        // window schedules exactly one re-read at the window's end. The storage
+        // signal cannot come from outside this browser and is not throttled.
+        const minRemoteIntervalMs = o.minRemoteIntervalMs == null ? 10000 : o.minRemoteIntervalMs;
+        const busyRetryMs = o.busyRetryMs == null ? 2000 : o.busyRetryMs;
+        const busyRetryMax = o.busyRetryMax == null ? 30 : o.busyRetryMax;
+        const clock = typeof o.now === 'function' ? o.now : () => Date.now();
+        let lastRemoteRunAt = -Infinity, dirty = false, busyTries = 0;
+        function runRefresh() {
+            recvTimer = null;
+            // Busy (loading, manual refresh, own write): the existing check would
+            // return early and forget the hint. Keep it dirty and retry, bounded.
+            if (o.canRun && !o.canRun()) {
+                dirty = true;
+                if (busyTries++ < busyRetryMax) recvTimer = setTimeout(runRefresh, busyRetryMs);
+                else { dirty = false; busyTries = 0; st.busyGaveUp++; }
+                return;
+            }
+            dirty = false; busyTries = 0;
+            st.refreshes++;
+            try { const p = o.onRemote && o.onRemote(); if (p && p.catch) p.catch(() => {}); } catch {}
+        }
+        function scheduleRefresh(throttled) {
+            let delay = debounceMs;
+            if (throttled) {
+                const now = clock();
+                const earliest = lastRemoteRunAt + minRemoteIntervalMs;
+                if (now < earliest) {
+                    st.throttled++;
+                    if (recvTimer) return;           // one pending re-read already covers it
+                    delay = Math.max(debounceMs, earliest - now);
+                }
+                lastRemoteRunAt = Math.max(now + delay, lastRemoteRunAt);
+            }
+            if (recvTimer) clearTimeout(recvTimer);
+            busyTries = 0;
+            recvTimer = setTimeout(runRefresh, delay);
+        }
+        function validHint(hint) {
+            if (!hint || typeof hint !== 'object' || Array.isArray(hint)) return false;
+            const keys = Object.keys(hint);
+            if (keys.length !== 3 || keys.some(k => k !== 'kind' && k !== 'at' && k !== 'from')) return false;
+            if (hint.kind !== 'plan') return false;
+            if (typeof hint.at !== 'string' || hint.at.length > 40 || !/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(hint.at)) return false;
+            if (typeof hint.from !== 'string' || !/^[a-z0-9]{8,40}$/.test(hint.from)) return false;
+            return true;
+        }
+        function receive(msg, viaStorage) {
+            const hint = viaStorage ? msg : (msg && typeof msg === 'object' ? msg.payload : null);
+            if (!validHint(hint)) { st.rejected++; return false; }
+            if (hint.from === from) { st.echoesIgnored++; return false; }
+            st.received++;
+            st.lastReceivedAt = new Date().toISOString();
+            scheduleRefresh(!viaStorage);
+            return true;
+        }
+        function onStorage(event) {
+            if (!event || event.key !== storageKey || !event.newValue) return false;
+            let hint = null;
+            try { hint = JSON.parse(event.newValue); } catch { return false; }
+            return receive(hint, true);
+        }
+        function flush() {
+            sendTimer = null;
+            const hint = { kind: 'plan', at: new Date().toISOString(), from };
+            try {
+                if (o.storage) { o.storage.setItem(storageKey, JSON.stringify(hint)); o.storage.removeItem(storageKey); }
+            } catch {}
+            if (!channel || st.channelStatus !== 'SUBSCRIBED') { st.sendFailed++; return; }
+            try {
+                const r = channel.send({ type: 'broadcast', event: 'plan', payload: hint });
+                st.sent++;
+                if (r && typeof r.then === 'function') {
+                    r.then(res => { if (res && res !== 'ok') { st.sent--; st.sendFailed++; } }, () => { st.sent--; st.sendFailed++; });
+                }
+            } catch { st.sendFailed++; }
+        }
+        // Call ONLY after the server confirmed the save.
+        function announce() {
+            if (sendTimer) return;
+            sendTimer = setTimeout(flush, sendCoalesceMs);
+        }
+        async function ensure() {
+            if (channel || opening) return opening;
+            opening = (async () => {
+                const c = o.getClient ? await o.getClient() : null;
+                if (!c || typeof c.channel !== 'function' || channel) return;
+                if (o.isActive && !o.isActive()) return;
+                client = c;
+                st.channelStatus = 'CONNECTING';
+                try {
+                    channel = c.channel(o.channelName || 'workload-plan', { config: { broadcast: { self: false, ack: false } } })
+                        .on('broadcast', { event: 'plan' }, msg => receive(msg, false))
+                        .subscribe((status, err) => {
+                            st.channelStatus = String(status || '');
+                            if (status === 'SUBSCRIBED') {
+                                st.lastError = '';
+                                // Broadcast does not replay; a re-subscribe after a drop
+                                // re-reads once to catch whatever was missed.
+                                if (st.subscribedOnce) { st.catchUps++; scheduleRefresh(false); }
+                                st.subscribedOnce = true;
+                            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                                st.lastError = String(status) + (err && err.message ? ': ' + err.message : '');
+                            }
+                        });
+                } catch (e) {
+                    st.channelStatus = 'CHANNEL_ERROR';
+                    st.lastError = String(e && e.message || e);
+                    channel = null;
+                }
+            })().finally(() => { opening = null; });
+            return opening;
+        }
+        function teardown() {
+            if (recvTimer) { clearTimeout(recvTimer); recvTimer = null; }
+            // A confirmed save still inside the coalesce window is sent now
+            // (storage signal always; broadcast if the channel is still up).
+            if (sendTimer) { clearTimeout(sendTimer); flush(); }
+            dirty = false; busyTries = 0;
+            if (channel) {
+                try {
+                    if (client && typeof client.removeChannel === 'function') client.removeChannel(channel);
+                    else if (typeof channel.unsubscribe === 'function') channel.unsubscribe();
+                } catch {}
+            }
+            channel = null; client = null;
+            st.channelStatus = 'idle'; st.subscribedOnce = false;
+        }
+        function status() { return Object.assign({ subscribed: st.channelStatus === 'SUBSCRIBED', pendingReread: dirty || !!recvTimer }, st); }
+        return { announce, ensure, teardown, status, onStorage, receive };
+    }
+    const _wlPlanLive = (typeof window !== 'undefined') ? wlCreatePlanLive({
+        getClient: () => _wlV2Client(),
+        isActive: () => !!document.querySelector('.workload-view'),
+        onRemote: () => _wlV2CheckWatermark(),
+        // Mirrors the early returns in _wlV2CheckWatermark, so a hint is kept
+        // (and retried) instead of silently dropped while the page is busy.
+        canRun: () => !_wlV2WatermarkBusy && !document.hidden && !!document.querySelector('.workload-view')
+            && !wlState.loading && !wlState.refreshing && !_wlPlanWriteInFlight.size && !_wlDueWriteInFlight.size,
+        storage: (() => { try { return window.localStorage; } catch { return null; } })()
+    }) : null;
+    if (typeof window !== 'undefined' && _wlPlanLive && !window.__wlPlanLiveWired) {
+        window.__wlPlanLiveWired = true;
+        window.addEventListener('storage', e => { if (document.querySelector('.workload-view')) _wlPlanLive.onStorage(e); });
+    }
+    function wlAnnouncePlanSaved() { try { if (_wlPlanLive) _wlPlanLive.announce(); } catch {} }
+    window.wlPlanLiveStatus = function () { return _wlPlanLive ? _wlPlanLive.status() : null; };
+    window.wlV2Status = function () { return { flag: _wlV2Enabled(), ready: _wlV2Ready(), subscribed: !!_wlV2Channel, polling: !!_wlV2WatermarkTimer, sourceSyncedAt: wlState.sourceSyncedAt, planLive: _wlPlanLive ? _wlPlanLive.status() : null }; };
 
     function wlIssueClientAllowed(issue) {
         return issue && issue.workloadSource === 'native'
@@ -3632,7 +3805,7 @@ export {
   _wlSetBackgroundRefreshPromise, _wlSetNativeDueReceiptRetryAttempt,
   _wlSetNativeDueReceiptRetryPromise, _wlSetNativeDueReceiptRetryTimer,
   _wlTakeNativeDueReceiptRetryAttempt, _wlV2CheckWatermark, _wlV2Client, _wlV2EnsureSubscribed,
-  _wlV2EnsureWatermarkPoll, _wlV2FetchIssues, _wlV2FetchLatestWatermark, _wlV2Ready, _wlV2Teardown,
+  _wlV2EnsureWatermarkPoll, _wlV2FetchIssues, _wlV2FetchLatestWatermark, _wlV2Ready, _wlV2Teardown, wlAnnouncePlanSaved,
   getClientRoster, renderWorkloadShell, wlAddDays, wlAddWorkingDays, wlAdoptLinearMetadata,
   wlAdoptPlanRows, wlApplySettleAnimation, wlAutoPlacementTip, wlBackgroundBusinessFingerprint,
   wlBucketByDisplayDate, wlCachedBoardUsable, wlCachedRoster, wlCalendarDayDiff, wlCanonicalClient,

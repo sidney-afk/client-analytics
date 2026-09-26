@@ -29224,6 +29224,35 @@ open client link in 9.3 s without a refresh (before: never). Live realtime
 timing needs a machine where WebSockets work: run the same script there.
 Guard: `test/calendar-realtime-fallback.js`.
 
+## 265. [2026-09-26, BUILT] Workload plan-day changes reach other open boards in about a second
+
+(262 and 263 are claimed by concurrent branches; another may still collide.)
+A drag to a work day reached other open Workload pages only through the
+5-minute safety poll. `workload_plan` stays private (not in the realtime
+publication, no anon/authenticated grants; no DB change here). After a
+CONFIRMED save, `_wlPersistPlanDate` now calls `wlAnnouncePlanSaved()`, which
+sends a Supabase Realtime BROADCAST on channel `workload-plan` carrying only
+`{kind:'plan', at, from}` (`from` is a random per-page id; no issue id,
+client, title or date), coalesced 250 ms so a group drag sends one. Every open
+board subscribes; a hint that is not its own echo triggers the existing
+authorized re-read (`_wlV2CheckWatermark` -> `wlRefetchSilent`), debounced
+600 ms. Same-browser tabs also get a `localStorage`/`storage` hint. Channel
+status (CONNECTING / SUBSCRIBED / CHANNEL_ERROR / TIMED_OUT / CLOSED, send
+failures, catch-ups) is in `wlV2Status().planLive` and `wlPlanLiveStatus()`;
+a re-subscribe after a drop does one catch-up re-read. The 5-minute poll
+remains. Guard: `test/workload-plan-live.js` (mocked channel, 29 checks).
+UNVERIFIED live: the build sandbox blocks WebSockets, so end-to-end latency
+and that anon broadcast is permitted on this project (no private-channel
+authorization required) were not observed. Check with `wlV2Status().planLive`
+in two browsers.
+Review follow-up (PR #1684): broadcast hints are shape-validated and
+rate-limited to one re-read per 10 s per page (a hint inside the window
+schedules one re-read at its end); a hint arriving while the page is busy is
+kept and retried every 2 s (bounded); leaving Workload inside the 250 ms
+coalesce window flushes the confirmed announcement instead of dropping it.
+Sender authentication would need private channels plus `realtime.messages`
+RLS (a DB/auth change) and is left for later.
+
 ## 266. [2026-09-26, BUILT] Production follows changes live instead of waiting for the 30-second poll
 
 **What.** The Production tab (`?prod=1`) learned about other people's edits only from the 30 s delta tick, paused on a hidden tab. It now opens one supabase-js realtime channel (`production_live`: postgres_changes on `deliverables`, `batches`, `deliverable_events`, the anon read path Workload already uses) and feeds every event into the existing `_prodDeltaRefresh`. Nothing about what is read, merged or painted changed.

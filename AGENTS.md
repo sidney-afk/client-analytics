@@ -155,7 +155,8 @@ capture needs a private Management token and Google service-account
 credential neither this session nor any future one holds — so hand him this
 exact link rather than describing the workflow.
 
-His sealed-capture/upload step (`docs/ops/F27_INSTALL_RUNBOOK.md` Section 1)
+His sealed-capture/upload step (current commands: `docs/ops/F27_SECTION4_CAPTURE_PLAYBOOK.md`; the
+four-slug commands in `docs/ops/F27_INSTALL_RUNBOOK.md` Section 1 are the 2026-08-02 install record, not today's capture)
 runs from a saved script on his own machine, not typed by hand each time:
 `$env:USERPROFILE\.syncview\f27-capture.ps1` (Windows PowerShell, aliased
 `f27capture` in his `$PROFILE`). It cds into the repo, loads his saved

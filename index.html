@@ -4298,6 +4298,13 @@
         .tpl-link-label { font-weight: 700; font-size: 0.92rem; }
         .tpl-link-right { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 0.8rem; white-space: nowrap; }
         .tpl-link-nums { display: inline-flex; gap: 6px; }
+        .tpl-lrow-wrap { background: var(--surface-subtle); border-radius: 12px; }
+        .tpl-lrow-wrap .tpl-lrow { background: none; }
+        .tpl-link-count { font: inherit; font-size: 0.8rem; font-weight: 600; color: var(--text-primary); background: var(--white); border: 1px solid var(--border); border-radius: 99px; padding: 4px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+        .tpl-link-caret { display: inline-block; transition: transform 0.15s; font-size: 0.7rem; }
+        .tpl-link-caret.open { transform: rotate(180deg); }
+        .tpl-link-grid { padding: 0 12px 12px 56px; }
+        .tpl-link-grid .tpl-link-nums { flex-wrap: wrap; }
         .tpl-link-nums .tpl-view-link { width: 28px; height: 28px; padding: 0; justify-content: center; border-radius: 50%; border: 1px solid var(--border); background: var(--white); font-size: 0.78rem; line-height: 1; }
         .tpl-link-add { font: inherit; font-size: 0.8rem; font-weight: 600; background: none; border: 0; color: var(--text-secondary); cursor: pointer; padding: 4px 2px; }
         .tpl-link-add:hover, .tpl-link-add:focus-visible { color: var(--text-primary); text-decoration: underline; }
@@ -4349,17 +4356,18 @@
         .tpl-brief-li::before { content: ""; position: absolute; left: 5px; top: 15px; width: 7px; height: 7px; border-radius: 50%; background: var(--k); opacity: 0.85; }
         .tpl-brief-avoid .tpl-brief-li::before { content: "\00d7"; width: auto; height: auto; background: none; opacity: 1; top: 4px; left: 3px; font-weight: 800; font-size: 1.05rem; line-height: 1.5; color: var(--k); }
         .tpl-brief-asks .tpl-brief-li::before { content: "\21ba"; width: auto; height: auto; background: none; opacity: 1; top: 5px; left: 2px; font-weight: 700; font-size: 0.9rem; line-height: 1.6; color: var(--k); }
-        .tpl-brief-row { display: flex; align-items: flex-start; gap: 10px; }
-        .tpl-brief-text { flex: 1; min-width: 0; }
+        .tpl-brief-row { position: relative; padding-right: 28px; }
         .tpl-brief-text { font-size: 0.92rem; line-height: 1.65; color: var(--text-primary); }
         .tpl-brief-note { display: table; margin-top: 6px; padding: 2px 9px; border-radius: 999px; background: var(--kbg); color: var(--text-secondary); font-size: 0.74rem; }
         .tpl-brief-hex { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--surface-subtle); border-radius: 999px; padding: 1px 9px 1px 4px; font: inherit; font-size: 0.8rem; color: inherit; cursor: copy; vertical-align: 1px; }
         .tpl-brief-hex span { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--border); }
         .tpl-brief-hex.copied { font-weight: 700; }
-        .tpl-brief-acts { flex-shrink: 0; display: inline-flex; gap: 4px; margin-top: 2px; opacity: 0; pointer-events: none; transition: opacity 0.12s; white-space: nowrap; }
-        .tpl-brief-li:hover .tpl-brief-acts, .tpl-brief-acts:focus-within { pointer-events: auto; }
-        .tpl-brief-li:hover .tpl-brief-acts, .tpl-brief-acts:focus-within { opacity: 1; }
-        @media (hover: none) { .tpl-brief-row { flex-wrap: wrap; } .tpl-brief-acts { opacity: 1; pointer-events: auto; } }
+        .tpl-brief-more { position: absolute; right: 0; top: 2px; width: 24px; height: 22px; border: 1px solid var(--border); border-radius: 6px; background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.8rem; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 0.12s; }
+        .tpl-brief-li:hover .tpl-brief-more, .tpl-brief-more:focus-visible, .tpl-brief-more[aria-expanded="true"] { opacity: 1; }
+        @media (hover: none) { .tpl-brief-more { opacity: 0.7; } }
+        .tpl-brief-more::after, .tpl-link-count::after { content: ""; position: absolute; inset: -11px; }
+        .tpl-link-count { position: relative; }
+        .tpl-brief-acts { display: flex; gap: 6px; margin: 6px 0 2px; }
         .tpl-brief-act { font-size: 0.72rem; border: 1px solid var(--border); background: var(--white); border-radius: 6px; padding: 2px 7px; cursor: pointer; color: var(--text-secondary); }
         .tpl-brief-act:focus-visible, .tpl-brief-hex:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
         .tpl-brief-sources { margin: 8px 0 4px; padding: 8px 12px; border-left: 3px solid var(--border); }
@@ -13406,11 +13414,18 @@
     const _TPL_ROW_ARROW = '<svg class="tpl-link-arrow" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h10v10M19 5L6 18"/></svg>';
     function _tplLinkHost(u) { try { const h = new URL(u).hostname.replace(/^www\./, ''); return /docs\.google/.test(h) ? 'Google Docs' : /drive\.google/.test(h) ? 'Google Drive' : /dropbox/.test(h) ? 'Dropbox' : /frame\.io|f\.io/.test(h) ? 'Frame.io' : /canva/.test(h) ? 'Canva' : h; } catch (e) { return ''; } }
     // One row in the Links card. One link: the whole row opens it. Several: numbered buttons, one per link.
+    const TPL_LINKS_INLINE = 4;
+    let _tplLinkRowOpen = '';
+    function tplLinkRowToggle(k) { _tplLinkRowOpen = _tplLinkRowOpen === k ? '' : k; _maybeRerenderTemplates(); _tplRefocus('.tpl-link-count', k); }
     function _tplLinkRow(label, icon, links) {
         const ico = `<span class="tpl-link-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${TPL_LINK_ICONS[icon] || ''}</svg></span>`;
         if (!links.length) return `<div class="tpl-lrow empty">${ico}<span class="tpl-link-label">${label}</span><span class="tpl-link-right"><button type="button" class="tpl-link-add" onclick="setTemplatesEditMode(true)">Add link</button><span class="tpl-not-set" hidden>Not set</span></span></div>`;
         if (links.length === 1) return `<a class="tpl-lrow" href="${_tplEscAttr(links[0])}" target="_blank" rel="noopener">${ico}<span class="tpl-link-label">${label}</span><span class="tpl-link-right">${_tplEsc(_tplLinkHost(links[0]))}${_TPL_ROW_ARROW}</span></a>`;
-        return `<div class="tpl-lrow">${ico}<span class="tpl-link-label">${label}</span><span class="tpl-link-right"><span class="tpl-link-nums">${links.map((v, i) => `<a class="tpl-view-link" href="${_tplEscAttr(v)}" target="_blank" rel="noopener" title="${_tplEscAttr(_tplLinkHost(v))}">${i + 1}</a>`).join('')}</span>${_tplEsc(_tplLinkHost(links[0]))}</span></div>`;
+        const nums = `<span class="tpl-link-nums">${links.map((v, i) => `<a class="tpl-view-link" href="${_tplEscAttr(v)}" target="_blank" rel="noopener" title="${_tplEscAttr(_tplLinkHost(v))}">${i + 1}</a>`).join('')}</span>`;
+        if (links.length <= TPL_LINKS_INLINE) return `<div class="tpl-lrow">${ico}<span class="tpl-link-label">${label}</span><span class="tpl-link-right">${nums}${_tplEsc(_tplLinkHost(links[0]))}</span></div>`;
+        // Too many to sit on one line: a count that opens a wrapped grid under the row.
+        const open = _tplLinkRowOpen === label;
+        return `<div class="tpl-lrow-wrap"><div class="tpl-lrow">${ico}<span class="tpl-link-label">${label}</span><span class="tpl-link-right"><button type="button" class="tpl-link-count" data-k="${_tplEscAttr(label)}" onclick="tplLinkRowToggle(this.dataset.k)" aria-expanded="${open}">${links.length} links <span class="tpl-link-caret${open ? ' open' : ''}">&#x25BE;</span></button></span></div>${open ? `<div class="tpl-link-grid">${nums}</div>` : ''}</div>`;
     }
     function _tplBrainSpecStrip(name) {
         const b = _tplBrain[name];
@@ -13526,6 +13541,10 @@
     // The editor brief: a short plain-English page Claude writes from the facts.
     // Each line can show the fact(s) behind it and send a change to them.
     let _tplBriefSourceOpen = '';
+    let _tplBriefMenuRow = '';          // brief line whose Source / Change buttons are showing
+    function tplBriefMenu(key) { _tplBriefMenuRow = _tplBriefMenuRow === key ? '' : key; _maybeRerenderTemplates(); _tplRefocus('.tpl-brief-more', key); }
+    // A disclosure rerenders the page; put focus back on the button that was pressed.
+    function _tplRefocus(sel, key) { const el = document.querySelector(`${sel}[data-k="${CSS.escape(key)}"]`); if (el) el.focus(); }
     function tplBriefToggleSource(key) { _tplBriefSourceOpen = _tplBriefSourceOpen === key ? '' : key; _maybeRerenderTemplates(); }
     let _tplBriefFormRow = '';
     function tplBriefChange(key, row) { _tplBriefSourceOpen = ''; tplBrainOpen(key, row); }
@@ -13571,15 +13590,17 @@
             const fact = byId[bl.facts[0]] || null;
             const changeKey = _tplBrainKey(name, fact ? fact.id : '');
             const open = _tplBriefSourceOpen === srcKey;
+            const menuOpen = _tplBriefMenuRow === srcKey || open || (_tplBriefFormRow === srcKey && !!(_tplBrainOpenForm === changeKey || _tplBrainSent[changeKey]));
             const formOpen = _tplBriefFormRow === srcKey && (_tplBrainOpenForm === changeKey || _tplBrainSent[changeKey]);
             const sources = bl.facts.map(id => byId[id]).filter(Boolean);
             const t = _tplBriefText(bl.body);
             return `<li class="tpl-brief-li">
                 <div class="tpl-brief-row"><span class="tpl-brief-text">${t.html}${t.note ? `<span class="tpl-brief-note">${_tplEsc(t.note)}</span>` : ''}</span>
-                    <span class="tpl-brief-acts">
+                    ${sources.length || fact ? `<button type="button" class="tpl-brief-more" data-k="${_tplEscAttr(srcKey)}" onclick="tplBriefMenu(this.dataset.k)" aria-label="Source or change this line" aria-expanded="${menuOpen}">&middot;&middot;&middot;</button>` : ''}</div>
+                ${menuOpen ? `<div class="tpl-brief-acts">
                         ${sources.length ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(srcKey)}" onclick="tplBriefToggleSource(this.dataset.k)">${open ? 'Hide source' : 'Source'}</button>` : ''}
                         ${fact ? `<button type="button" class="tpl-brief-act" data-k="${_tplEscAttr(changeKey)}" data-row="${_tplEscAttr(srcKey)}" onclick="tplBriefChange(this.dataset.k, this.dataset.row)">Change</button>` : ''}
-                    </span></div>
+                    </div>` : ''}
                 ${open ? `<div class="tpl-brief-sources">${sources.map(f => `<div class="tpl-brief-source"><div class="tpl-brief-source-h">${_tplEsc(f.heading)}</div><div class="tpl-brain-body">${_tplBrainProse(f.body)}</div></div>`).join('')}</div>` : ''}
                 ${formOpen && fact ? _tplBrainChangeBox(name, fact, true) : ''}
             </li>`;
@@ -31314,7 +31335,7 @@
         menu.style.top = top + 'px';
         menu.style.minWidth = '200px';
         requestAnimationFrame(() => menu.classList.add('open'));
-        _calOpenStatusMenu = { pid, key: menuKey, comp: 'altcap', el: menu, triggerEl };
+        _calSetOpenStatusMenu({ pid, key: menuKey, comp: 'altcap', el: menu, triggerEl });
     }
     function _calCapPlatPick(pid, key, mode) {
         _calCloseStatusMenu();
@@ -33240,7 +33261,7 @@
         }
     }
     function _calClearSuspendedLoadOwnership() {
-        _calBgLoadInFlight = false;
+        _calSetBgLoadInFlight(false);
         calState.loading = false;
         _calSetRefreshing(false);
         _calPendingBackgroundRender = false;
@@ -37898,6 +37919,7 @@
     function _calNextLoadSeq() { return ++_calLoadSeq; }
     let _calActiveLoad = null;
     let _calBgLoadInFlight = false;
+    function _calSetBgLoadInFlight(value) { _calBgLoadInFlight = value; }
     function _calAbortActiveLoad() {
         const run = _calActiveLoad;
         _calActiveLoad = null;
@@ -41766,6 +41788,7 @@
        same nice menu pattern used by the rest of the app. The menu is
        portaled to <body> so the card's overflow:hidden can't clip it. */
     let _calOpenStatusMenu = null;
+    function _calSetOpenStatusMenu(value) { _calOpenStatusMenu = value; }
     /* The slug becomes a CSS class suffix, so every character that is illegal
        in a class name has to collapse to a dash: "N/A" would otherwise emit
        `cal-fld-status-n/a`, which no stylesheet can match and which silently
@@ -56136,7 +56159,7 @@
             p.style.left = x + 'px';
             p.style.top = y + 'px';
             p.style.visibility = 'visible';
-            _prodSubPop = p;
+            _prodSetSubPop(p);
         }
         // PORT-DELTA: openFilterMenu uses live adapter values; filter changes are pure local reads.
         function _prodOpenFilterMenu(ev) {
@@ -56567,7 +56590,7 @@
             document.querySelectorAll('.prod-cmd-bd').forEach(el => el.remove());
             _prodState.paletteOpen = false;
             document.querySelectorAll('#prodFilterBtn.menu-open, #prodGroupBtn.menu-open').forEach(el => el.classList.remove('menu-open'));
-            _prodSubPop = null;
+            _prodSetSubPop(null);
             _prodHideTip();
         }
         function _prodShowTip(el) {
@@ -62564,6 +62587,7 @@
             return pop;
         }
         let _prodSubPop = null;
+        function _prodSetSubPop(value) { _prodSubPop = value; }
         function _prodCloseSub() {
             if (_prodSubPop) {
                 _prodSubPop.remove();

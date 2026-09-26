@@ -185,7 +185,7 @@ assert(
   'Calendar return metadata must run only inside the exact owned load tail',
 );
 for (const token of [
-  '_calBgLoadInFlight = false;',
+  '_calSetBgLoadInFlight(false);',
   'calState.loading = false;',
   '_calSetRefreshing(false);',
   '_calPendingBackgroundRender = false;',
@@ -195,6 +195,10 @@ for (const token of [
 ]) {
   assert(calClearSuspendSource.includes(token), 'staff Calendar pagehide reset is missing: ' + token);
 }
+assert(
+  source.includes('function _calSetBgLoadInFlight(value) { _calBgLoadInFlight = value; }'),
+  'the staff Calendar pagehide reset clears the background-load flag through its owner\'s setter',
+);
 assert(
   calSuspendSource.indexOf('_calFlushAllPending();') < calSuspendSource.indexOf('_calV2Teardown();')
     && calSuspendSource.includes('_calClearSuspendedLoadOwnership();'),

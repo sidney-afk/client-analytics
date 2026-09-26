@@ -885,7 +885,7 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       && afterVideoFlip.topLevel === false && !afterVideoFlip.topLevelModal
       && afterVideoFlip.subIssue === false && !afterVideoFlip.subIssueModal
       && afterVideoFlip.gate === CREATE_CLOSED_TEXT
-      && / disabled /.test(afterVideoFlip.topbar),
+      && afterVideoFlip.topbar === '',
     'the simulated Video flip reopened Production creation: ' + JSON.stringify(afterVideoFlip));
 
     // 1e. Nothing left the browser for any of it.

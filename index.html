@@ -10454,7 +10454,7 @@
         if(_isClientLink){
             const cap=_syncviewClientEntryCapability;
             if(!cap||!cap.verified||_syncviewClientEntrySlug(name)!==cap.slug){_syncviewInvalidClientLinkScreen();return;}
-            _syncviewClientEntryCapability=Object.freeze({client:cap.client,slug:cap.slug,view:tab,verified:true});
+            _syncviewSetClientEntryCapability(Object.freeze({client:cap.client,slug:cap.slug,view:tab,verified:true}));
         }
         clientViewTab[name]=tab;
         // Header nav active state is NOT changed here — it reflects where the user came from,

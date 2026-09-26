@@ -10,8 +10,8 @@
 | 2 | `005-head-boot.html.part` | 279 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 3 | `010-styles-foundation.css.part` | 3891 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 4 | `020-styles-surfaces.css.part` | 4135 | Templates view |
-| 5 | `030-body-shell.html.part` | 445 | Confirmation modal |
-| 6 | `040-shared-briefs.js.part` | 1785 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
+| 5 | `030-body-shell.html.part` | 446 | Confirmation modal |
+| 6 | `040-shared-briefs.js.part` | 1833 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 7 | `050-market-briefs.js.part` | 1709 | Market Research Brief Tab Renderers |
 | 8 | `060-templates-filming.js.part` | 2277 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 9 | `070-workload-source.js.part` | 3650 | Workload Calendar |

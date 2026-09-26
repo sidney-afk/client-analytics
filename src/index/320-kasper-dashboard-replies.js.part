@@ -16,9 +16,18 @@
         { key: 'ad-performance', label: 'Ad Performance', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13.5h12"/><rect x="3.3" y="8.5" width="2.3" height="5"/><rect x="6.85" y="5.5" width="2.3" height="8"/><rect x="10.4" y="3" width="2.3" height="10.5"/></svg>' },
         { key: 'quiz-leads', label: 'Quiz Leads', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8s2.2-4.5 6-4.5S14 8 14 8s-2.2 4.5-6 4.5S2 8 2 8z"/><path d="M6.3 6.6a1.7 1.7 0 1 1 2.2 1.6c-.5.2-.8.6-.8 1.1"/><circle cx="8" cy="10.6" r=".2" fill="currentColor"/></svg>' }
     ];
-    if (typeof _sxrEnabled === 'function' && _sxrEnabled()) KASPER_SUBTABS.splice(1, 0, { key: 'samples', label: 'Samples', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2"/><path d="M5 8.2L7 10.2L11 5.8"/></svg>' }); // SXR_LINE
-    const KASPER_PRIMARY_SUBTAB_KEYS = ['review', 'samples', 'replies', 'filming'];
-    const KASPER_PRIMARY_SHORT_LABELS = { review: 'Review', samples: 'Samples', replies: 'Messages', filming: 'Filming' };
+    /* The Samples subtab was folded into Review (samples are listed in the
+       Review queue) and then removed. Links that still name it, including
+       urgent pings already sent, open Review instead of failing. */
+    const KASPER_SUBTAB_ALIASES = { samples: 'review' };
+    function _kasperResolveSubtab(sub) {
+        const key = Object.prototype.hasOwnProperty.call(KASPER_SUBTAB_ALIASES, sub) ? KASPER_SUBTAB_ALIASES[sub] : sub;
+        return KASPER_SUBTABS.some(t => t.key === key) ? key : '';
+    }
+    // Samples in Kasper's queue follow the samples feature switch.
+    function _kasperSamplesEnabled() { return typeof _sxrEnabled === 'function' && _sxrEnabled(); }
+    const KASPER_PRIMARY_SUBTAB_KEYS = ['review', 'replies', 'filming'];
+    const KASPER_PRIMARY_SHORT_LABELS = { review: 'Review', replies: 'Messages', filming: 'Filming' };
     const KASPER_MORE_GROUPS = [
         { label: 'Team', keys: ['editors', 'time-off'] },
         { label: 'Pipeline & Admin', keys: ['sales-intake', 'hiring-process', 'onboarding', 'quiz-leads', 'client-credentials', 'clients'] },
@@ -159,7 +168,8 @@
     }
     try {
         const _kSavedSub = localStorage.getItem(KASPER_SUBTAB_KEY);
-        if (_kSavedSub && KASPER_SUBTABS.some(t => t.key === _kSavedSub)) _kasperState.tab = _kSavedSub;
+        const _kSavedKey = _kSavedSub ? _kasperResolveSubtab(_kSavedSub) : '';
+        if (_kSavedKey) _kasperState.tab = _kSavedKey;
     } catch (e) {}
 
     function renderKasperView() {
@@ -172,14 +182,10 @@
                 : (t.key === 'quiz-leads' ? 'quiz-leads' : (t.key === 'clients' ? 'clients-admin' : capability));
             const gated = gatedCapability ? ` data-staff-capability="${gatedCapability}"${_syncviewStaffCan(gatedCapability) ? '' : ' hidden'}` : '';
             const active = _kasperState.tab === t.key;
-            // Samples are listed in the Review queue now; the tab stays
-            // registered (links to #kasper/samples still open it) but is hidden
-            // from the bar unless it is the one showing.
-            const mergedHidden = t.key === 'samples' ? ' data-kasper-merged-into="review"' + (active ? '' : ' hidden') : '';
             const count = t.showCount === false ? '' : `<span class="kasper-tab-count" data-kasper-count="${t.key}"${t.hideZero ? ' data-kasper-hide-zero' : ''}>·</span>`;
             const shortLabel = KASPER_PRIMARY_SHORT_LABELS[t.key] || t.label;
             return `
-            <button type="button" class="kasper-subtab ${inMore ? 'kasper-more-item' : 'kasper-primary-tab'}${active ? ' active' : ''}" data-kasper-tab="${t.key}"${gated}${mergedHidden}${inMore ? ' role="menuitem" tabindex="-1"' : ''}${active ? ' aria-current="page"' : ''} title="${_calEsc(t.label)}" onclick="_kasperGotoTab('${t.key}')">
+            <button type="button" class="kasper-subtab ${inMore ? 'kasper-more-item' : 'kasper-primary-tab'}${active ? ' active' : ''}" data-kasper-tab="${t.key}"${gated}${inMore ? ' role="menuitem" tabindex="-1"' : ''}${active ? ' aria-current="page"' : ''} title="${_calEsc(t.label)}" onclick="_kasperGotoTab('${t.key}')">
                 ${t.icon}<span class="kasper-tab-label-full">${_calEsc(t.label)}</span><span class="kasper-tab-label-short">${_calEsc(shortLabel)}</span>${count}
             </button>`;
         };
@@ -328,8 +334,6 @@
             button.classList.toggle('active', active);
             if (active) button.setAttribute('aria-current', 'page');
             else button.removeAttribute('aria-current');
-            // The merged Samples tab shows only while it is the open one.
-            if (button.hasAttribute('data-kasper-merged-into')) button.hidden = !active;
         });
         const activeMoreTab = KASPER_SUBTABS.find(tab => tab.key === activeKey && !KASPER_PRIMARY_SUBTAB_KEYS.includes(tab.key));
         const trigger = document.querySelector('[data-kasper-more-trigger]');
@@ -453,23 +457,14 @@
         // Replies was excluded before, so the inbox stayed frozen until you left
         // the tab and came back — incoming SMM/client replies never arrived live.
         if (!document.getElementById('kasperContent')) return;
-        // Samples sub-tab: same tab-return catch-up as Review/Replies below —
-        // without it the samples queue had NO refetch on any return path (its
-        // realtime socket can suspend in a backgrounded tab and miss events),
-        // so cards the SMM routed to Kasper while he was away never appeared
-        // until a manual reload.
+        // Samples listed in the Review queue get the same tab-return catch-up:
+        // their realtime socket can suspend in a backgrounded tab and miss
+        // events, so cards routed to Kasper while he was away need a refetch.
         if (_kasperState.tab === 'review' && typeof _sxrKasperState !== 'undefined' && _sxrKasperState
-            && !_sxrKasperState.loading && KASPER_SUBTABS.some(t => t.key === 'samples')
+            && !_sxrKasperState.loading && _kasperSamplesEnabled()
             && typeof _sxrKasperLoadQueue === 'function') {
             const ta = document.activeElement;
             if (!(ta && ta.tagName === 'TEXTAREA' && ta.closest && ta.closest('#kasperContent'))) _sxrKasperLoadQueue();
-        }
-        if (_kasperState.tab === 'samples') {
-            if (typeof _sxrKasperState === 'undefined' || !_sxrKasperState || _sxrKasperState.loading) return;
-            const ta = document.activeElement;
-            if (ta && ta.tagName === 'TEXTAREA' && ta.closest && ta.closest('#kasperContent')) return;
-            if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue();
-            return;
         }
         if (_kasperState.tab !== 'review' && _kasperState.tab !== 'replies') return;
         if (_kasperState.loading) return;
@@ -672,7 +667,8 @@
     }
 
     function _kasperGotoTab(tab) {
-        if (!KASPER_SUBTABS.some(t => t.key === tab)) return;
+        tab = _kasperResolveSubtab(tab);
+        if (!tab) return;
         _kasperPendingSubtab = '';
         if (tab === 'time-off' && !_ptoEnabled()) return;
         if (tab === 'time-off' && !_syncviewStaffCan('pto-admin')) return;
@@ -718,7 +714,6 @@
         _kasperSyncTabNav();
         // Only the review queue holds the analytics extras back (see _analyticsHoldExtras).
         if (_kasperState.tab !== 'review' && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
-        if (_kasperState.tab === 'samples' && typeof _sxrKasperRenderQueue === 'function') return _sxrKasperRenderQueue(); // SXR_LINE
         if (_kasperState.tab === 'review')  return _kasperRenderReview();
         if (_kasperState.tab === 'replies') return _kasperRenderReplies();
         if (_kasperState.tab === 'editors') return _kasperRenderEditors();
@@ -2636,15 +2631,6 @@
         // replies = unread message threads — owned by _kasperUpdateReplyCount, which
         // every load already calls. Deliberately NOT painted here: it isn't part of
         // the entry cache, so doing so would flash a stale 0 before the first fetch.
-        // samples = samples awaiting review (only present when that subtab exists).
-        // Count only the WAITING partition — finished/"Tweaks pending" cards are
-        // not awaiting Kasper, same rule as the review count above.
-        if (typeof _sxrKasperState !== 'undefined' && _sxrKasperState && _sxrKasperState.loaded) {
-            // urgent + waiting, for the same reason as the review pill: a ping
-            // relocates a card inside his queue, it does not clear it.
-            const _sxrParts = _sxrKasperPartitionItems(_sxrKasperState.items || []);
-            _kasperSetTabCount('samples', _sxrParts.urgent.length + _sxrParts.waiting.length);
-        }
         // filming = clients not yet covered (a plan is needed now or soon).
         const fd = _kasperState.filmingData;
         if (fd && Array.isArray(fd.rows)) {
@@ -2673,7 +2659,7 @@
     }
     function _kasperEnsureOtherTabCounts() {
         if (typeof _sxrKasperLoadQueue === 'function'
-            && KASPER_SUBTABS.some(t => t.key === 'samples')
+            && _kasperSamplesEnabled()
             && !_sxrKasperState.loading && !_sxrKasperState.loaded) {
             _sxrKasperLoadQueue();
         }

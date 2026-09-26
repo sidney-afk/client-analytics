@@ -2754,12 +2754,11 @@
         try { _calUpdateCardStatusDisplay(post.id); } catch (e) {}
         return echo;
     }
-    /* Where the DM points. Kasper's review tab is one hash away on the live
-       app, and the two surfaces have different subtabs — a sample must land on
-       Samples, not on the calendar queue where it is nowhere to be found. */
+    /* Where the DM points: Kasper's Review tab, which lists calendar cards and
+       samples together. Older messages that still say #kasper/samples open
+       Review too (see _kasperResolveSubtab). */
     function _calKasperReviewUrl(surface) {
-        const base = 'https://syncview.synchrosocial.com/';
-        return base + '#kasper' + (surface === 'samples' ? '/samples' : '');
+        return 'https://syncview.synchrosocial.com/#kasper';
     }
     /* Ping Kasper about a card parked at Kasper Approval. Reuses the SAME
        confirm → POST → latch dispatch as the editor ping; only the flavour

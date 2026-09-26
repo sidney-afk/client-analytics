@@ -1077,7 +1077,7 @@
        Tweaks Needed + a kasper-role tweak comment. Pushes status/comments to Linear.
        v1 omits URGENT + the Replies/Messages union (per SAMPLES_PARITY_LOG M5a).
        ============================================================ */
-    const _sxrKasperState = { items: [], history: [], loading: false, loaded: false, error: false, expanded: Object.create(null), drafts: Object.create(null), saving: Object.create(null), touched: Object.create(null), dismissed: Object.create(null), closed: Object.create(null), urgentCollapsed: false, waitingCollapsed: false, tweaksCollapsed: false, historyCollapsed: false };
+    const _sxrKasperState = { items: [], history: [], loading: false, loaded: false, error: false, expanded: Object.create(null), drafts: Object.create(null), saving: Object.create(null), touched: Object.create(null), dismissed: Object.create(null), closed: Object.create(null), historyCollapsed: false };
     // Per-component Kasper-queue visibility (mirror of _calCompKasperVisible):
     //  · an UNLINKED thumbnail is not reviewable — gated out so a junk
     //    'Kasper Approval' graphic_status can't surface a panel nobody can act on;
@@ -1214,70 +1214,12 @@
         finally { _sxrKasperState.loading = false; _sxrKasperRenderQueue(); }
     }
     function _sxrKasperRenderQueue() {
-        // Keep the Samples subtab pill live even when this fires from a background
-        // load while another Kasper tab is showing.
+        // Samples are listed in Kasper's Review queue (the separate Samples
+        // subtab was removed), so a samples load or decision repaints Review.
         if (typeof _kasperRefreshTabCounts === 'function') _kasperRefreshTabCounts();
-        const host = document.getElementById('kasperContent');
-        if (!host) return;
-        // #kasperContent is shared by every Kasper tab; a background samples load
-        // landing while another tab is open must not overwrite that tab's content.
-        // Samples are also listed in the Review queue: repaint that instead.
-        if (typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'review'
-            && typeof _kasperSamplesMerged === 'function' && _kasperSamplesMerged()) {
-            if (typeof _kasperPaintReview === 'function') _kasperPaintReview();
-            return;
-        }
-        if (typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab !== 'samples') return;
-        if (!_sxrKasperState.loaded && !_sxrKasperState.loading) { _sxrKasperLoadQueue(); }
-        const st = _sxrKasperState;
-        const head = `<div class="kasper-samples-head" style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 12px;gap:12px;"><div class="kasper-sub" style="margin:0;">Samples waiting on your review — all clients.</div><button class="cal-link" type="button" onclick="_sxrKasperLoadQueue(true)">Refresh</button></div>`;
-        if (st.loading && !st.items.length) { host.innerHTML = head + _svLoadingSkeletonHtml('review', { label: 'Loading samples for review' }); return; }
-        if (st.error && !st.items.length) { host.innerHTML = head + `<div class="cal-empty cal-error">Couldn't load samples — <button class="cal-link" onclick="_sxrKasperLoadQueue(true)">try again</button>.</div>`; return; }
-        const { urgent, waiting, tweaks } = _sxrKasperPartitionItems(st.items);
-        // Waiting bucket (collapsible head matches Tweaks-pending / history so the
-        // three feel like siblings). Defaults open — it's where Kasper works.
-        const waitingBody = waiting.length
-            ? `<div class="kasper-list">${waiting.map(it => _sxrKasperRenderCard(it)).join('')}</div>`
-            : `<div class="kasper-empty"><div class="kasper-empty-title">You're all caught up</div><div class="kasper-empty-sub">Nothing is waiting for your review right now.</div></div>`;
-        const waitingHtml = `<div class="kasper-history-wrap kasper-waiting-wrap${st.waitingCollapsed ? ' collapsed' : ''}" id="sxrKasperWaitingWrap">
-            <div class="kasper-history-head" onclick="_sxrKasperToggleWaiting()">
-                <span class="kasper-history-title">Waiting for your review</span>
-                <span class="kasper-history-count">${waiting.length}</span>
-                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
-            </div>
-            <div class="kasper-history-body">${waitingBody}</div>
-        </div>`;
-        // A full-queue rebuild (e.g. an approve that clears a card, or a
-        // background realtime reload) must not yank the caret out of a draft
-        // Kasper is typing in ANOTHER card. Preserve focus across the innerHTML
-        // swap, gated to #kasperContent so we never steal focus from elsewhere.
-        _svPreserveFocus(() => {
-            host.innerHTML = head + _sxrKasperRenderUrgentSection(urgent) + waitingHtml + _sxrKasperRenderTweaksSection(tweaks) + _sxrKasperRenderHistorySection();
-        }, host);
-    }
-    /* Samples twin of _kasperRenderUrgentSection — above "Waiting for your
-       review", hidden when empty, same cards and same chrome. */
-    function _sxrKasperRenderUrgentSection(urgent) {
-        if (!urgent.length) return '';
-        return `<div class="kasper-history-wrap kasper-urgent-wrap${_sxrKasperState.urgentCollapsed ? ' collapsed' : ''}" id="sxrKasperUrgentWrap">
-            <div class="kasper-history-head" onclick="_sxrKasperToggleUrgent()"${_svSectionHeadA11y(!_sxrKasperState.urgentCollapsed)}>
-                <span class="kasper-history-title">Urgent</span>
-                <span class="kasper-history-count">${urgent.length}</span>
-                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
-            </div>
-            <div class="kasper-history-body"><div class="kasper-list">${urgent.map(it => _sxrKasperRenderCard(it)).join('')}</div></div>
-        </div>`;
-    }
-    function _sxrKasperRenderTweaksSection(tweaks) {
-        if (!tweaks.length) return '';
-        return `<div class="kasper-history-wrap${_sxrKasperState.tweaksCollapsed ? ' collapsed' : ''}" id="sxrKasperTweaksWrap">
-            <div class="kasper-history-head" onclick="_sxrKasperToggleTweaks()">
-                <span class="kasper-history-title">Tweaks pending</span>
-                <span class="kasper-history-count">${tweaks.length}</span>
-                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
-            </div>
-            <div class="kasper-history-body"><div class="kasper-list">${tweaks.map(it => _sxrKasperRenderCard(it)).join('')}</div></div>
-        </div>`;
+        if (!document.getElementById('kasperContent')) return;
+        if (typeof _kasperState === 'undefined' || !_kasperState || _kasperState.tab !== 'review') return;
+        if (typeof _kasperSamplesMerged === 'function' && _kasperSamplesMerged() && typeof _kasperPaintReview === 'function') _kasperPaintReview();
     }
     function _sxrKasperRenderHistorySection(title) {
         const list = _sxrKasperState.history || [];
@@ -1298,16 +1240,6 @@
             <div class="kasper-history-body"><div class="kasper-history-day">${rows}</div></div>
         </div>`;
     }
-    function _sxrKasperToggleUrgent() {
-        _sxrKasperState.urgentCollapsed = !_sxrKasperState.urgentCollapsed;
-        const w = document.getElementById('sxrKasperUrgentWrap');
-        if (!w) return;
-        w.classList.toggle('collapsed', _sxrKasperState.urgentCollapsed);
-        const head = w.querySelector('.kasper-history-head');
-        if (head) head.setAttribute('aria-expanded', _sxrKasperState.urgentCollapsed ? 'false' : 'true');
-    }
-    function _sxrKasperToggleWaiting() { _sxrKasperState.waitingCollapsed = !_sxrKasperState.waitingCollapsed; const w = document.getElementById('sxrKasperWaitingWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.waitingCollapsed); }
-    function _sxrKasperToggleTweaks() { _sxrKasperState.tweaksCollapsed = !_sxrKasperState.tweaksCollapsed; const w = document.getElementById('sxrKasperTweaksWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.tweaksCollapsed); }
     function _sxrKasperToggleHistory() { _sxrKasperState.historyCollapsed = !_sxrKasperState.historyCollapsed; const w = document.getElementById('sxrKasperHistoryWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.historyCollapsed); }
     function _sxrKasperRenderCard(item) {
         const p = item.post, pid = p.id;

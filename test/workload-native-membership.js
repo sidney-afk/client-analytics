@@ -117,7 +117,7 @@ function browser(response=fixture()) {
  ['_wlV2MapRow','wlIssueClientAllowed','wlIssueEditorAllowed','wlSnapshotIdentity','wlProductionAuthorityValue',
  'wlProductionAuthorityFingerprint','wlMetadataTeamBucket','wlNativeWorkloadLabel','wlNativeDueDate','wlValidRfc3339Timestamp','wlNativeMetadataRow',
  '_wlFetchArchiveMarkerRows','_wlArchivedNativeIds',
- 'wlFetchNativeSnapshot','loadLinearIssues','wlAdoptPlanRows','wlLoadSnapshot','wlRefetchSilent','wlIsFresh',
+ '_wlTakeEarlySnapshot','wlFetchNativeSnapshot','loadLinearIssues','wlAdoptPlanRows','wlLoadSnapshot','wlRefetchSilent','wlIsFresh',
  'wlExcludedSummaryText','wlVisibleSubCount','wlDroppedPlanWarningText','renderWorkloadPlanStatus','wlManualRefresh',
  // 070's setters for the Workload render module (080): ES module imports are
  // read-only, so 080 writes 070's state through these (phase C step C3).

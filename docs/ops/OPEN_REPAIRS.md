@@ -29021,3 +29021,30 @@ router on the answer.
 Both are optional in `production_write_refusal_record_v1`, so functions deployed before the migration keep recording with the original nine keys. Grants restate all four roles: revoke from public, anon, authenticated, service_role; execute granted back to service_role only.
 
 **Order:** apply `supabase/migrations/20260925180000_write_refusal_page_and_traffic.sql` FIRST (the old function refuses the new keys with `refusal_shape`, and a refused receipt is simply lost), then deploy `write-diagnostics` and `production-write`. Guard: `test/write-refusal-page-traffic-postgres.js`.
+
+## 257. [2026-09-25, BUILT] Workload's fresh board waited for the sign-in check before it started
+
+**Measured on the live site, 2026-09-25, warm reloads signed in as staff.** Workload
+painted its saved copy at ~0.8 s but became live and editable only at 2.2-2.9 s. The
+fresh-board read (`workload-plan` `native_snapshot_v2`, ~2 MB, 0.9-1.3 s) started
+only after `key-verify` (0.45-0.85 s) had answered, so the two ran back to back.
+
+**Fix.** The `<head>` boot script, which already starts `key-verify` early, now also
+starts that read at the same moment when the page opens on `#workload`.
+`wlFetchNativeSnapshot` takes it through `_wlTakeEarlySnapshot` only after
+`_syncviewRequireStaffIdentity` has passed, only for the exact key, member, actor
+name and role it was sent for, once, within a minute, and only if it succeeded;
+anything else is discarded and the normal read runs. Nothing is shown before the
+check passes. Expected saving: about the length of `key-verify`, 0.45-0.85 s, on
+every Workload open. Test: `test/workload-early-snapshot.js`. Before/after on the
+live site to be recorded here after merge.
+
+- *Measured live, 2026-09-25, after merge (commit
+  `966c3490e6c71476ca795aeffe1a76d9a00c843c`), same rig as above: Playwright
+  Chromium through the sandbox proxy, staff key, 6 warm reloads of `#workload`.*
+  The fresh-board read now starts 124-233 ms into the load, beside `key-verify`,
+  instead of 787-943 ms (after it). Live and editable board: **1,681-1,911 ms,
+  median 1,779 ms**, against 2,253-2,941 ms (median ~2,480 ms) before, so about
+  **0.7 s saved** per Workload open. The first (saved-copy) paint is unchanged at
+  ~0.9-1.1 s, because it still waits for `key-verify` by design. One read per load:
+  the early answer was used and no duplicate request was made.

@@ -870,6 +870,31 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
             return new Set();
         }
     }
+    /* The fresh-board read the <head> boot script starts IN PARALLEL with
+       key-verify when the page opens on #workload (2026-09-25: it used to wait
+       0.45-0.85 s for the check to answer before it even started). Called only
+       after _syncviewRequireStaffIdentity has passed, and taken at most once.
+       It is used only when it was sent for the exact key, member, actor name
+       and role this page is now verified as, within the last minute; anything
+       else -- including a failed or rejected request -- returns null, and the
+       caller makes its normal read. Nothing from it is shown before the check
+       passes, because nothing reads it before then. */
+    async function _wlTakeEarlySnapshot() {
+        let early = null;
+        try { early = window.__svEarlyWlSnapshot; window.__svEarlyWlSnapshot = null; } catch (e) {}
+        if (!early || !early.response) return null;
+        const identity = typeof _syncviewStaffIdentityForHeaders === 'function' ? _syncviewStaffIdentityForHeaders() : null;
+        if (!identity || !identity.member) return null;
+        if (early.key !== String(identity.key || '') || early.memberId !== String(identity.member.id || '')
+            || early.actor !== String(identity.member.name || '') || early.role !== String(identity.role || '')) return null;
+        if (!(Date.now() - early.at < 60000)) return null;
+        try {
+            const response = await early.response;
+            // Only a genuine answer is reused; a refusal or a server error is
+            // re-asked through the normal read, with its normal handling.
+            return response && response.ok ? response : null;
+        } catch (e) { return null; }
+    }
     async function wlFetchNativeSnapshot() {
         await _syncviewRequireStaffIdentity('workload-plan-read');
         const owner = wlSnapshotIdentity(), session = _wlPlanSessionGeneration;
@@ -893,7 +918,8 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
                 body: JSON.stringify(body)
             });
             let response = null;
-            if (!wlState.snapshotV2Unavailable) {
+            if (!wlState.snapshotV2Unavailable && !memo) response = await _wlTakeEarlySnapshot();
+            if (!response && !wlState.snapshotV2Unavailable) {
                 response = await post({ action: 'native_snapshot_v2', if_version: memo ? memo.version : '' });
                 if (response.status === 400 || response.status === 501) {
                     wlState.snapshotV2Unavailable = true;

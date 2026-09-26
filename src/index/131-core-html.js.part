@@ -10,3 +10,4 @@
        parses the handler, so wrapping a value in '…' + _calEscAttr alone still
        breaks on apostrophes (&#39; decodes right back into a quote). */
     function _jsAttrArg(v) { return _calEscAttr(JSON.stringify(String(v == null ? '' : v))); }
+export { _calEsc, _calEscAttr, _jsAttrArg };

@@ -53,6 +53,7 @@
     const _sxrFailedNewCards = new Set();         // new rows whose first save failed (keep on screen)
     const _sxrConflictNotified = new Set();
     let _sxrLastLocalWriteAt = 0;                 // self-echo window for realtime
+    function _sxrSetLastLocalWriteAt(value) { _sxrLastLocalWriteAt = value; }
 
     /* The comment data layer (_sxrCommentsFor / _sxrStringifyComments /
        _sxrMergePostComments + the rest) is installed by Surface 4 (Review) below;
@@ -2471,6 +2472,7 @@
 
     /* Deferred-render guard — hold a background repaint while the user is mid-edit. */
     let _sxrPendingBackgroundRender = false;
+    function _sxrSetPendingBackgroundRender(value) { _sxrPendingBackgroundRender = value; }
     let _sxrPendingRenderInterval = null;
     function _sxrIsBusy() {
         const body = document.getElementById('sxrBody');

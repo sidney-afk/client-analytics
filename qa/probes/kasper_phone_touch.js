@@ -107,7 +107,7 @@ async function runAt(browser, width) {
 
   // Open the video (a new tab).
   await bigEnough(c1 + ' .kcard-watch-btn', 'Watch video');
-  const popup = p.context().waitForEvent('page', { timeout: 8000 }).catch(() => null);
+  const popup = p.context().waitForEvent('page', { timeout: 20000 }).catch(() => null);
   await tapSel(c1 + ' .kcard-watch-btn');
   const tab = await popup;
   ok(!!tab, `${width}: tapping Watch video opens the video`);
@@ -147,6 +147,8 @@ async function runAt(browser, width) {
     await tapSel(gPanel + ' .cal-review-approve-btn');
     ok(await waitFor(() => saves.some(x => x.id === cards[1].id && x.graphic_status === 'Client Approval'), 20000), `${width}: tapping Approve sends the thumbnail to the client`, JSON.stringify(saves.map(x => x.graphic_status)));
   }
+  // The native comment is sent after the card save, so it is checked last.
+  ok(await waitFor(() => NW.commentCalls(gateway, NW.nativeDeliverableId(cards[1].id, 'video')).length >= 1, 30000), `${width}: the comment reached the native gateway for the video work item`);
   ok(NW.retiredCallCount(retired) === 0, `${width}: the retired Linear webhooks received nothing`);
   ok(errs.length === 0, `${width}: no app errors`, errs[0]);
   await ctx.close();

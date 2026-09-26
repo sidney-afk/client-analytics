@@ -29071,5 +29071,5 @@ pixels). `test/kasper-phone-css-scope.js` holds the scope contract.
 `qa/probes/kasper_phone_touch.js` (on demand) drives the tab by touch at 390 and 375
 on two test-client cards: open and switch cards, open the video, open and close the
 thumbnail, comment, request a change, approve; every control it taps is at least 40 px
-and nothing scrolls sideways: 44 of 44 checks. Card saves in that probe are recorded
+and nothing scrolls sideways: 46 of 46 checks. Card saves in that probe are recorded
 and answered rather than sent, because its cards carry synthetic work-item ids.

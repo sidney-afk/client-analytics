@@ -29156,7 +29156,47 @@ including the two-device case, six seeds archived. Side effect to know: the
 review Approve failure path (staff SMM review too) now redraws the whole
 calendar view instead of repainting one card.
 
-## 262. [2026-09-26, OPEN] The database's temporary disk ran out on a read-only query
+## 262. [2026-09-26, BUILT] The separate Samples tab on Kasper's page is gone
+
+**Problem.** After 259 listed samples in the Review queue, the Samples tab was
+only hidden: its own list, sections and counts still lived in the page, and links
+(including urgent pings already sent) still pointed at `#kasper/samples`.
+
+**Fix.** The Samples subtab is no longer registered. `_kasperResolveSubtab` maps
+the old key to Review, and every route that picks a Kasper subtab uses it: the
+three hash readers, the remembered last tab, and `_kasperGotoTab`. So an old
+`#kasper/samples` link, a message that carries one, or a browser that last had
+Samples open all land on Review. New urgent pings for a sample now link to
+`#kasper`. The samples list code keeps only what Review uses (the cards, their
+handlers and saver, and the approved-samples history); its own page renderer,
+Urgent / Waiting / Tweaks sections and their toggles are removed. The "samples
+switched on" checks now read the samples feature switch directly. No n8n
+workflow was changed.
+
+**Proof.** `qa/probes/kasper_samples_in_review.js` (on demand, test client only):
+96 of 96 at 1440, 390 and 375, including that there is no Samples tab, that
+`_kasperGotoTab('samples')`, a fresh load of `#kasper/samples` and the clean
+address `/kasper/samples` all land on Review, and that every sample action still saves through the samples saver. The
+nav, urgent-ping and focus tests were updated to the single queue.
+
+## 263. [2026-09-26, BUILT] A sample said "Video awaiting your review" after Kasper had already sent the video back
+
+**Problem.** Found in Vigil's test of 259. When Kasper approves a sample's
+thumbnail and requests changes on its video, the card correctly stays in "Waiting
+for your review" until he taps Finish reviewing, the same as a calendar card. But
+its label read "Video awaiting your review", though the video was already back
+with the editor (Tweaks Needed). The label counted every part still shown on the
+card, including parts he had already decided. Calendar cards show no such label,
+so they were not misleading.
+
+**Fix.** The sample label now counts only undecided parts. Once every part is
+decided it reads "All decided · tap Finish reviewing to hand it to the SMM". Only
+the label changed; the queue rules, Urgent button and save paths are untouched.
+
+**Proof.** `qa/probes/kasper_samples_in_review.js` checks the label after the
+approve plus change request, at 1440, 390 and 375 on the test client: 93 of 93.
+
+## 264. [2026-09-26, OPEN] The database's temporary disk ran out on a read-only query
 
 While measuring the card change journal for the Track-B backup failure, one
 read-only aggregate over `card_change_journal` (grouping about 116,000 rows by
@@ -29167,11 +29207,11 @@ scratch space for sorts and hashes is small next to that table. The same
 measurements were then taken on a 5% `tablesample`, which ran fine.
 
 Not fixed. Worth knowing before any large read, backfill, index build or
-`pg_dump` against the journal; 263 is the growth that makes it likely. If it
+`pg_dump` against the journal; 265 is the growth that makes it likely. If it
 recurs on a normal query, check the project's disk usage in the Supabase
 dashboard before anything else.
 
-## 263. [2026-09-26, PROPOSED] The card change journal records timestamp-only saves and repeats its column layout
+## 265. [2026-09-26, PROPOSED] The card change journal records timestamp-only saves and repeats its column layout
 
 Found tracing the Track-B history-v11 backup failure ("dump is not valid
 UTF-8"), which was really the dump passing the backup script's ~512 MB string

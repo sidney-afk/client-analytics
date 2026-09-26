@@ -71,11 +71,11 @@ async function prodStatus(browser, id, status) {
     const inQ = await poll(() => sample(pid), s => s && s.video_status === 'Kasper Approval', 60000);
     ok(!!inQ, 'SMM sent it to Kasper: sample shows Kasper Approval', inQ ? '' : JSON.stringify(await sample(pid)));
     const k = await page(browser, '/index.html?Kasper=1&sxr=1#kasper');
-    // Same Kasper unlock + Samples sub-tab the courier kasper() page uses.
+    // Same Kasper unlock + Review tab the courier kasper() page uses.
     await k.evaluate(() => { try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); } catch (e) {} });
     await k.reload({ waitUntil: 'domcontentloaded' });
     await k.waitForFunction(() => typeof window._kasperGotoTab === 'function', null, { timeout: 60000 }).catch(() => {});
-    await k.evaluate(() => { try { window._kasperGotoTab('samples'); } catch (e) {} });
+    await k.evaluate(() => { try { window._kasperGotoTab('review'); } catch (e) {} });
     await k.waitForFunction(n => typeof _sxrKasperApproveComp === 'function' && document.body.innerText.includes(n), name, { timeout: 90000 }).catch(() => {});
     const visible = await k.evaluate(n => document.body.innerText.includes(n), name);
     ok(visible, 'sample is in Kasper\'s review queue');

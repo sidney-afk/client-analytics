@@ -117,3 +117,40 @@ For a specific question, use [Find anything](FIND_ANYTHING.md).
 | [Independence plan](independence/INDEPENDENCE_PLAN.md) | The original automation-removal and in-app replacement strategy, retained as pre-cutoff history. |
 | [Webhook replacement plan](independence/N8N_REPLACEMENT_PLAN.md) | The historical inventory of webhooks that read the former tracker and their proposed replacements. |
 | [Exit sequence](independence/LINEAR_EXIT_MASTER_SEQUENCE.md) | The cross-lane exit order retained as history; use State of things for current status. |
+
+## Archived migrations and incidents
+
+These records explain earlier decisions and failures. Their dated status claims are not current operating instructions.
+
+| Document | What it helps you find |
+|---|---|
+| [June migration audit](archive/AUDIT_2026-06-15.md) | The June 15 Calendar and Samples migration readback and the source decisions it recorded then. |
+| [June Calendar audit](archive/AUDIT-2026-06-18.md) | The June 18 staff and client Calendar defects, fixes, and test evidence. |
+| [July system audit](archive/AUDIT-2026-07-03.md) | A dated survey of the app, automation, backend, and release risks. |
+| [Calendar QA audit](archive/CALENDAR_QA_AUDIT_2026-06-20.md) | The June cross-surface browser scenarios and the defects they exposed. |
+| [Calendar migration plan](archive/CALENDAR_REALTIME_MIGRATION.md) | The original move from Sheet reads to database reads and live updates. |
+| [Calendar Phase 2 handoff](archive/CALENDAR_V2_AUDIT_HANDOFF.md) | The earlier audit brief and open questions for the Calendar migration. |
+| [Calendar Phase 3 handoff](archive/CALENDAR_V2_HANDOFF_2026-06-14.md) | A dated session handoff for finishing the Calendar source switch. |
+| [Migration cleanup record](archive/CLEANUP_2026-06-29.md) | The late-June cleanup changes, checks, and rollback notes. |
+| [Browser testing evaluation](archive/HEADLESS_TESTING_EVAL_2026-06-26.md) | An assessment of nightly browser tests, monitoring, and evidence limits at that time. |
+| [Status drift incident](archive/LINEAR_DRIFT_INCIDENT_2026-06-19.md) | Why a missed provider event left a card status stale for hours. |
+| [Save latency investigation](archive/N8N_SAVE_LATENCY_AUDIT_2026-06-15.md) | The June investigation of delayed saves and proposed workflow fixes. |
+| [Phase 3 audit prompt](archive/PHASE3_AUDIT_PROMPT.md) | A superseded session prompt for completing the Calendar migration. |
+| [Pages redeploy note](archive/REDEPLOY_2026-07-03.md) | A dated GitHub Pages deployment failure and its recovery evidence. |
+| [Samples parity plan](archive/SAMPLES_PARITY_PLAN.md) | The approved build plan for matching Samples review to Calendar behavior. |
+| [Samples migration kickoff](archive/SAMPLES_SUPABASE_KICKOFF.md) | The original three-phase plan for moving Samples from Sheets to the database. |
+| [Samples v2 plan](archive/SAMPLES_V2_PLAN.md) | An earlier proposal for rebuilding Samples with its former provider integration. |
+| [Thumbnail drift incident](archive/THUMBNAIL_DESYNC_INCIDENT_2026-06-24.md) | The deeper cause of a thumbnail and provider-status mismatch. |
+| [Track B audit handoff](archive/TRACK_B_FABLE5_HANDOFF.md) | A historical planning brief for replacing the former provider work surface. |
+| [Workload latency audit](archive/WORKLOAD_REFRESH_AUDIT_2026-06-17.md) | The former provider-backed Workload refresh delay and its proposed fix. |
+
+## Archived Samples test evidence
+
+| Document | What it helps you find |
+|---|---|
+| [Divergence catalog](archive/qa/DIVERGENCE_REPORT.md) | Differences between Samples and Calendar, with their historical dispositions. |
+| [Parity coverage ledger](archive/qa/PARITY_LEDGER.md) | The interactions and rendered states compared during the Samples parity work. |
+| [Parity test report](archive/qa/PARITY_REPORT.md) | How the old parity harness compared the two review surfaces. |
+| [Live-update status report](archive/qa/SAMPLES_REALTIME_STATUS.md) | The status propagation bug, fix, and multi-view checks. |
+| [Scenario suite report](archive/qa/SCENARIO_REPORT.md) | The 51 multi-actor Samples scenarios and their dated results. |
+| [Response-time report](archive/qa/TEMPORAL_REPORT.md) | Historical click, save, flicker, and reload measurements for Samples. |

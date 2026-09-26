@@ -1221,6 +1221,12 @@
         if (!host) return;
         // #kasperContent is shared by every Kasper tab; a background samples load
         // landing while another tab is open must not overwrite that tab's content.
+        // Samples are also listed in the Review queue: repaint that instead.
+        if (typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'review'
+            && typeof _kasperSamplesMerged === 'function' && _kasperSamplesMerged()) {
+            if (typeof _kasperPaintReview === 'function') _kasperPaintReview();
+            return;
+        }
         if (typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab !== 'samples') return;
         if (!_sxrKasperState.loaded && !_sxrKasperState.loading) { _sxrKasperLoadQueue(); }
         const st = _sxrKasperState;
@@ -1273,7 +1279,7 @@
             <div class="kasper-history-body"><div class="kasper-list">${tweaks.map(it => _sxrKasperRenderCard(it)).join('')}</div></div>
         </div>`;
     }
-    function _sxrKasperRenderHistorySection() {
+    function _sxrKasperRenderHistorySection(title) {
         const list = _sxrKasperState.history || [];
         if (!list.length) return '';
         const rows = list.map(e => {
@@ -1285,7 +1291,7 @@
         }).join('');
         return `<div class="kasper-history-wrap${_sxrKasperState.historyCollapsed ? ' collapsed' : ''}" id="sxrKasperHistoryWrap">
             <div class="kasper-history-head" onclick="_sxrKasperToggleHistory()">
-                <span class="kasper-history-title">Approved history</span>
+                <span class="kasper-history-title">${_sxrEsc(title || 'Approved history')}</span>
                 <span class="kasper-history-count">${list.length}</span>
                 <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
             </div>
@@ -1360,7 +1366,7 @@
             <div class="kcard-strip" onclick="_sxrKasperToggleCard('${_sxrEscAttr(pid)}')">
                 <div class="kcard-thumb">${thumb}${zoomBtn}</div>
                 <div class="kcard-main">
-                    <div class="kcard-line1"><span class="kcard-client">${_sxrEsc(item.client)}</span><span class="kcard-dot">·</span>${pending}${pillsHtml}${newMsg}</div>
+                    <div class="kcard-line1"><span class="kcard-sample-chip">Sample</span><span class="kcard-client">${_sxrEsc(item.client)}</span><span class="kcard-dot">·</span>${pending}${pillsHtml}${newMsg}</div>
                     <div class="kcard-title">${_sxrEsc(p.name || 'Untitled')}</div>
                     <div class="kcard-meta-row">${smmHtml}</div>
                 </div>

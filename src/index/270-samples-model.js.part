@@ -1046,7 +1046,8 @@
         const info = post ? _sxrDeriveThumbInfo(post) : null;
         if (!info || !info.url) return;
         const ovl = document.getElementById('sxrLightbox');
-        if (!ovl) return;
+        // On the Kasper page the Samples view is not mounted; use Kasper's.
+        if (!ovl) { if (typeof _kasperOpenLightbox === 'function') _kasperOpenLightbox(pid); return; }
         const img = ovl.querySelector('img');
         if (img) img.src = info.url;
         ovl.classList.add('open');

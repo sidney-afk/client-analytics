@@ -172,10 +172,14 @@
                 : (t.key === 'quiz-leads' ? 'quiz-leads' : (t.key === 'clients' ? 'clients-admin' : capability));
             const gated = gatedCapability ? ` data-staff-capability="${gatedCapability}"${_syncviewStaffCan(gatedCapability) ? '' : ' hidden'}` : '';
             const active = _kasperState.tab === t.key;
+            // Samples are listed in the Review queue now; the tab stays
+            // registered (links to #kasper/samples still open it) but is hidden
+            // from the bar unless it is the one showing.
+            const mergedHidden = t.key === 'samples' ? ' data-kasper-merged-into="review"' + (active ? '' : ' hidden') : '';
             const count = t.showCount === false ? '' : `<span class="kasper-tab-count" data-kasper-count="${t.key}"${t.hideZero ? ' data-kasper-hide-zero' : ''}>·</span>`;
             const shortLabel = KASPER_PRIMARY_SHORT_LABELS[t.key] || t.label;
             return `
-            <button type="button" class="kasper-subtab ${inMore ? 'kasper-more-item' : 'kasper-primary-tab'}${active ? ' active' : ''}" data-kasper-tab="${t.key}"${gated}${inMore ? ' role="menuitem" tabindex="-1"' : ''}${active ? ' aria-current="page"' : ''} title="${_calEsc(t.label)}" onclick="_kasperGotoTab('${t.key}')">
+            <button type="button" class="kasper-subtab ${inMore ? 'kasper-more-item' : 'kasper-primary-tab'}${active ? ' active' : ''}" data-kasper-tab="${t.key}"${gated}${mergedHidden}${inMore ? ' role="menuitem" tabindex="-1"' : ''}${active ? ' aria-current="page"' : ''} title="${_calEsc(t.label)}" onclick="_kasperGotoTab('${t.key}')">
                 ${t.icon}<span class="kasper-tab-label-full">${_calEsc(t.label)}</span><span class="kasper-tab-label-short">${_calEsc(shortLabel)}</span>${count}
             </button>`;
         };
@@ -324,6 +328,8 @@
             button.classList.toggle('active', active);
             if (active) button.setAttribute('aria-current', 'page');
             else button.removeAttribute('aria-current');
+            // The merged Samples tab shows only while it is the open one.
+            if (button.hasAttribute('data-kasper-merged-into')) button.hidden = !active;
         });
         const activeMoreTab = KASPER_SUBTABS.find(tab => tab.key === activeKey && !KASPER_PRIMARY_SUBTAB_KEYS.includes(tab.key));
         const trigger = document.querySelector('[data-kasper-more-trigger]');
@@ -342,9 +348,14 @@
     }
 
     function _kasperOpenLightbox(pid) {
-        const it = _kasperState.items.find(x => x.post.id === pid);
+        let it = _kasperState.items.find(x => x.post.id === pid), info = null;
+        if (it) info = _calDeriveThumbInfo(it.post);
+        // Sample cards listed in the Review queue open here too.
+        else if (typeof _sxrKasperState === 'object' && _sxrKasperState) {
+            it = (_sxrKasperState.items || []).find(x => x && x.post && x.post.id === pid);
+            if (it) info = _sxrDeriveThumbInfo(it.post);
+        }
         if (!it) return;
-        const info = _calDeriveThumbInfo(it.post);
         if (!info || !info.url) return;
         const ovl = document.getElementById('kasperLightbox');
         if (!ovl) return;
@@ -447,6 +458,12 @@
         // realtime socket can suspend in a backgrounded tab and miss events),
         // so cards the SMM routed to Kasper while he was away never appeared
         // until a manual reload.
+        if (_kasperState.tab === 'review' && typeof _sxrKasperState !== 'undefined' && _sxrKasperState
+            && !_sxrKasperState.loading && KASPER_SUBTABS.some(t => t.key === 'samples')
+            && typeof _sxrKasperLoadQueue === 'function') {
+            const ta = document.activeElement;
+            if (!(ta && ta.tagName === 'TEXTAREA' && ta.closest && ta.closest('#kasperContent'))) _sxrKasperLoadQueue();
+        }
         if (_kasperState.tab === 'samples') {
             if (typeof _sxrKasperState === 'undefined' || !_sxrKasperState || _sxrKasperState.loading) return;
             const ta = document.activeElement;
@@ -2641,7 +2658,9 @@
             // back -- otherwise pinging a card silently decrements the count of
             // work he still owes.
             const _parts = _kasperPartitionItems(_kasperState.items);
-            _kasperSetTabCount('review', _parts.urgent.length + _parts.waiting.length);
+            // Samples waiting on him are listed in the Review queue too.
+            const _sxrOpen = typeof _kasperSampleOpenCount === 'function' ? _kasperSampleOpenCount() : 0;
+            _kasperSetTabCount('review', _parts.urgent.length + _parts.waiting.length + _sxrOpen);
         }
         // replies = unread message threads — owned by _kasperUpdateReplyCount, which
         // every load already calls. Deliberately NOT painted here: it isn't part of

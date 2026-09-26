@@ -443,8 +443,9 @@ import { _kasperOpenLightbox } from './320-kasper-dashboard-replies.js';
         onSxrClientChange(match);
     }
     function _sxrSyncUrlCard(pid) {
-        if (sxrState.embedded || currentNav !== 'sample-reviews' || !sxrState.client) return;
+        if (sxrState.embedded || currentNav !== 'sample-reviews') return;
         const base = '/' + svRoute.search().replace(/#.*$/, '');
+        if (!sxrState.client) { history.replaceState({ nav: 'sample-reviews', client: null }, '', base + '#sample-reviews'); return; }
         history.replaceState({ nav: 'sample-reviews', client: null }, '', base + '#sample-reviews/' + encodeURIComponent(sxrClientSlug(sxrState.client)) + (pid ? '/' + encodeURIComponent(pid) : ''));
     }
     function _sxrFocusOutsideHandler(e) {
@@ -634,6 +635,7 @@ import { _kasperOpenLightbox } from './320-kasper-dashboard-replies.js';
         sxrState.posts = [];
         _sxrSavePrefs();
         _sxrRenderTabs();
+        _sxrSyncUrlCard(null);   // the address follows the client now showing
         loadSxrCards();
     }
     function onSxrTabRemove(name) {
@@ -647,6 +649,7 @@ import { _kasperOpenLightbox } from './320-kasper-dashboard-replies.js';
             sxrState.posts = [];
             _sxrSavePrefs();
             _sxrRenderTabs();
+            _sxrSyncUrlCard(null);
             if (next) loadSxrCards();
             else _sxrRenderBody();
         } else {

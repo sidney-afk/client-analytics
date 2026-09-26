@@ -328,6 +328,16 @@ const ADMIN_CASES = [
       await pg.waitForTimeout(300);
       const closed = await at();
       check(closed === clean.replace('/p_link_b', ''), `${label}: closing the card drops it from the address (${closed})`);
+      if (screen === 'sample-reviews') {
+        // Switching client while a linked card is open moves the address too.
+        await pg.goto(base + clean, { waitUntil: 'domcontentloaded' });
+        await waitFocus(pg);
+        const other = await pg.evaluate(() => WL_CLIENT_NAMES.find(n => sxrClientSlug(n) !== sxrClientSlug(sxrState.client)));
+        await pg.evaluate(n => onSxrTabClick(n), other);
+        await pg.waitForTimeout(300);
+        const want = await pg.evaluate(() => '/sample-reviews/' + encodeURIComponent(sxrClientSlug(sxrState.client)));
+        check((await at()).split('?')[0] === want, `${label}: switching client moves the address to the new client`);
+      }
       await cx.close();
     }
     // The copy-link button writes the clean card address.

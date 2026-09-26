@@ -2,6 +2,8 @@
 
 **Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. Earlier Linear topology, provider-write and authority statements below are retained for provenance and are superseded by this cutoff state. Legacy symbols, IDs, stored rows and endpoint definitions may remain without being live work paths. This correction does not re-verify unrelated counts, versions or historical findings. See [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md).
 
+**Source-only finding, 2026-09-26:** A client approval can commit through the native status gateway while its Calendar card save is refused. The card then shows “Saved, syncing” and retains source repair, but the client review queue says “nothing was saved.” See the [partial-commit audit](../audits/2026-09-26-client-approval-partial-commit.md) for the exact path and scoped copy fix. This is not a hosted or live verification.
+
 Source-only draft addition (2026-09-05): SyncLinear's **Feedback & tweaks** view
 keeps all canonical comments and adds staff-only read-only notes from the exact
 mapped Calendar/Samples component. Missing or partial source coverage is explicit;

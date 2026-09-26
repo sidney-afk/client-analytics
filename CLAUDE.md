@@ -12,7 +12,7 @@ minute and would otherwise ask the owner for — again.
 
 ## ⛔ THE OWNER'S MACHINE ALREADY HAS THE CAPTURE SCRIPT. DO NOT MAKE THEM REBUILD IT.
 
-Before any F27 Section 4 deploy, a sealed four-function rollback bundle has to be
+Before any F27 Section 4 deploy, a sealed three-function rollback bundle (`production-write`, `deliverable-write`, `batch-write`) has to be
 captured. **It is already automated.** The script lives on the owner's Windows
 machine, carries the credentials it needs, and names the file itself — a
 content-addressed `syncview-f27-edge-source-<sha256>.sourcebundle` written
@@ -82,8 +82,13 @@ succeeds.
 
 | Lane | Needs a capture? | Inputs |
 |---|---|---|
-| `deploy-f27-section4-closures.yml` (`linear-outbound`, `production-write`, `deliverable-write`, `batch-write`) | **Yes** — run the script above | commit SHA, `deploy-reviewed-release`, `DEPLOY_REVIEWED_F27_SECTION4_CLOSURES`, bundle sha256, bundle byte length |
-| `deploy-f27-linear-inbound.yml` (`linear-inbound`) | **No** — its bundle is pinned as `V39_BUNDLE_SHA256` | commit SHA, `deploy-reviewed-release`, `DEPLOY_REVIEWED_LINEAR_INBOUND` |
+| `deploy-f27-section4-closures.yml` (`production-write`, `deliverable-write`, `batch-write`) | **Yes** — run the script above | commit SHA, `deploy-reviewed-release`, `DEPLOY_REVIEWED_F27_SECTION4_CLOSURES`, bundle sha256, bundle byte length |
+
+The two Linear sync functions (`linear-inbound`, `linear-outbound`) and the
+`deploy-f27-linear-inbound.yml` lane were deleted on 2026-09-24 (B2 Slices 7
+and 8). Their source stays in the repo only as a frozen reference; there is no
+deploy path for them. The capture script's slug list must read
+`--slugs=production-write,deliverable-write,batch-write`.
 
 Always give the owner the **direct Actions URL**, never just the workflow name,
 and state which commit SHA to paste.
@@ -96,7 +101,7 @@ about 19 seconds and deploys nothing, so the cost is only a wasted cycle and the
 owner's patience — but it is entirely avoidable by simply not merging until they
 say it is green.
 
-Both lanes refuse on a fingerprint mismatch, which means they **fail closed**: a
+The lane refuses on a fingerprint mismatch, which means they **fail closed**: a
 wrong digest cannot deploy the wrong code, it can only decline to deploy. Digests
 are **per function**, so two PRs re-pinning different functions do not conflict.
 Regenerate with `node scripts/ef-fingerprint.js <sha> --slugs=<slug> --expected-only`

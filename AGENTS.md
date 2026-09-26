@@ -147,7 +147,10 @@ The dispatch itself is
 `https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-section4-closures.yml`
 (`Run workflow` → `commit_sha` = current `main`, `operation` = `deploy-reviewed-release`,
 `confirm` = `DEPLOY_REVIEWED_F27_SECTION4_CLOSURES`, plus the two
-`rollback_bundle_*` values from his capture). It is owner-only — the sealed
+`rollback_bundle_*` values from his capture). Since 2026-09-24 the lane
+deploys and seals exactly three functions: `production-write`,
+`deliverable-write`, `batch-write` (`linear-outbound` and `linear-inbound`
+are deleted and have no deploy path). It is owner-only — the sealed
 capture needs a private Management token and Google service-account
 credential neither this session nor any future one holds — so hand him this
 exact link rather than describing the workflow.
@@ -157,7 +160,8 @@ runs from a saved script on his own machine, not typed by hand each time:
 `$env:USERPROFILE\.syncview\f27-capture.ps1` (Windows PowerShell, aliased
 `f27capture` in his `$PROFILE`). It cds into the repo, loads his saved
 `PROJECT_REF` / `SUPABASE_ACCESS_TOKEN` from a sibling file in that same
-`.syncview\` folder, runs the capture, and drops a Drive-ready copy already
+`.syncview\` folder, runs the capture
+(`--slugs=production-write,deliverable-write,batch-write`), and drops a Drive-ready copy already
 named `syncview-f27-edge-source-<source_bundle_sha256>.sourcebundle` — the
 exact content-addressed name `scripts/f27-private-snapshot-store.js` would
 give it (`ARTIFACT_KINDS['edge-source']`) — so it can go straight into the

@@ -467,46 +467,108 @@ function allowedDumpControlLine(line, corpusName = 'legacy-v3') {
   return false;
 }
 
-function parseStrictPgDump(value, corpusName = 'legacy-v3') {
-  const bytes = Buffer.isBuffer(value) ? value : Buffer.from(String(value || ''), 'utf8');
-  let text;
-  try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch (_) {
-    throw new Error('Track-B PostgreSQL dump is not valid UTF-8');
+// The dump is checked one line at a time, never decoded as one string: V8
+// cannot hold a string longer than about 512 MB, and the history corpus dump
+// passed that on 2026-09-26 (the journal table alone is about 1.7 GB of text),
+// which the old whole-string decode reported as "not valid UTF-8". Splitting
+// on LF is exact for UTF-8 (0x0A never occurs inside a multi-byte sequence),
+// so every rule below is the same rule the whole-string check applied.
+const DUMP_UTF8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+const DUMP_UTF8_FIRST = new TextDecoder('utf-8', { fatal: true });
+const MAX_DUMP_LINE_BYTES = require('buffer').constants.MAX_STRING_LENGTH;
+
+// Returns the decoded line, or null with faults.utf8/tooLong set.
+function decodeDumpLine(bytes, first, faults) {
+  if (bytes.length > MAX_DUMP_LINE_BYTES) { faults.tooLong = true; return null; }
+  try {
+    return (first ? DUMP_UTF8_FIRST : DUMP_UTF8).decode(bytes);
+  } catch (error) {
+    if (error && error.code === 'ERR_STRING_TOO_LONG') faults.tooLong = true;
+    else faults.utf8 = true;
+    return null;
   }
-  if (text.includes('\0')) throw new Error('Track-B PostgreSQL dump contains a NUL byte');
-  if (/\r(?!\n)/.test(text)) throw new Error('Track-B PostgreSQL dump contains an invalid carriage return');
+}
+
+function* dumpLines(bytes, faults) {
+  let start = 0;
+  let first = true;
+  for (;;) {
+    // Search a slice, never with an offset: Buffer#indexOf(value, offset)
+    // returns -1 for offsets past 2^31 (measured on Node 22), which would
+    // silently merge the rest of a >2 GiB dump into one line.
+    const rel = bytes.subarray(start).indexOf(0x0a);
+    const end = rel === -1 ? -1 : start + rel;
+    const stop = end === -1 ? bytes.length : end;
+    let chunk = bytes.subarray(start, stop);
+    if (chunk.indexOf(0x00) !== -1) faults.nul = true;
+    if (chunk.length && chunk[chunk.length - 1] === 0x0d && end !== -1) chunk = chunk.subarray(0, chunk.length - 1);
+    if (chunk.indexOf(0x0d) !== -1) faults.cr = true;
+    yield decodeDumpLine(chunk, first, faults);
+    first = false;
+    if (end === -1) return;
+    start = end + 1;
+  }
+}
+
+// Byte faults win over statement faults, in the order the whole-string check
+// raised them, so the reported cause does not depend on where it sits.
+function throwDumpByteFaults(faults) {
+  if (faults.tooLong) throw new Error('Track-B PostgreSQL dump line is too long');
+  if (faults.utf8) throw new Error('Track-B PostgreSQL dump is not valid UTF-8');
+  if (faults.nul) throw new Error('Track-B PostgreSQL dump contains a NUL byte');
+  if (faults.cr) throw new Error('Track-B PostgreSQL dump contains an invalid carriage return');
+}
+
+// keepRows=false counts rows without retaining them (rowCount), which is all
+// the backup, manifest and authentication paths need. Callers that render or
+// inspect rows keep the default.
+function parseStrictPgDump(value, corpusName = 'legacy-v3', { keepRows = true } = {}) {
+  const bytes = Buffer.isBuffer(value) ? value : Buffer.from(String(value || ''), 'utf8');
   const corpus = resolveCorpus(corpusName);
   const allowlist = new Set(corpus.tables.map(config => config.name));
   const tables = {};
   let active = null;
   let sawHeader = false;
-  for (const line of text.split(/\r?\n/)) {
-    if (line === '-- PostgreSQL database dump') sawHeader = true;
-    if (active) {
-      if (line === '\\.') {
-        tables[active.name] = active;
-        active = null;
-      } else {
-        active.rows.push(line);
+  // Every line is byte-checked (UTF-8, NUL, lone CR) to the end even after a
+  // statement fault, so a bad byte late in the dump is still reported as that
+  // byte, exactly as the whole-string check did.
+  let pending = null;
+  const faults = {};
+  for (const line of dumpLines(bytes, faults)) {
+    if (pending || line === null) continue;
+    try {
+      if (line === '-- PostgreSQL database dump') sawHeader = true;
+      if (active) {
+        if (line === '\\.') {
+          tables[active.name] = active;
+          active = null;
+        } else {
+          active.rowCount += 1;
+          if (keepRows) active.rows.push(line);
+        }
+        continue;
       }
-      continue;
-    }
-    const copy = line.match(/^COPY public\.([a-z_][a-z0-9_]*) \((.+)\) FROM stdin;$/);
-    if (copy) {
-      const name = copy[1];
-      if (!allowlist.has(name)) throw new Error('Unexpected table in Track-B dump');
-      if (tables[name]) throw new Error(`Duplicate COPY section for public.${name}`);
-      const columns = copy[2].split(',').map(parseDumpIdentifier);
-      if (!columns.length || new Set(columns).size !== columns.length) {
-        throw new Error(`Invalid COPY column list for public.${name}`);
+      const copy = line.match(/^COPY public\.([a-z_][a-z0-9_]*) \((.+)\) FROM stdin;$/);
+      if (copy) {
+        const name = copy[1];
+        if (!allowlist.has(name)) throw new Error('Unexpected table in Track-B dump');
+        if (tables[name]) throw new Error(`Duplicate COPY section for public.${name}`);
+        const columns = copy[2].split(',').map(parseDumpIdentifier);
+        if (!columns.length || new Set(columns).size !== columns.length) {
+          throw new Error(`Invalid COPY column list for public.${name}`);
+        }
+        active = keepRows ? { name, columns, rows: [], rowCount: 0 } : { name, columns, rowCount: 0 };
+        continue;
       }
-      active = { name, columns, rows: [] };
-      continue;
-    }
-    if (!allowedDumpControlLine(line, corpusName)) {
-      throw new Error('Disallowed PostgreSQL dump statement');
+      if (!allowedDumpControlLine(line, corpusName)) {
+        throw new Error('Disallowed PostgreSQL dump statement');
+      }
+    } catch (error) {
+      pending = error;
     }
   }
+  throwDumpByteFaults(faults);
+  if (pending) throw pending;
   if (!sawHeader) throw new Error('Track-B package does not contain a PostgreSQL dump');
   if (active) throw new Error(`Unterminated COPY section for public.${active.name}`);
   for (const config of corpus.tables) {
@@ -520,9 +582,9 @@ function parseStrictPgDump(value, corpusName = 'legacy-v3') {
 }
 
 function inspectPlainDump(value, corpusName = 'legacy-v3') {
-  const parsed = parseStrictPgDump(value, corpusName);
+  const parsed = parseStrictPgDump(value, corpusName, { keepRows: false });
   return Object.fromEntries(resolveCorpus(corpusName).tables.map(config => [config.name, {
-    rows: parsed.tables[config.name].rows.length,
+    rows: parsed.tables[config.name].rowCount,
     primary_key: config.pk,
   }]));
 }
@@ -585,7 +647,7 @@ function buildManifest(dumpBytes, generatedAt = new Date().toISOString(), source
 
 function packSnapshot(dumpFile, output, generatedAt = new Date().toISOString(), sourceUrl = DB_URL, hmacInput = HMAC_KEY_INPUT, corpusName = 'legacy-v3') {
   const key = parseHmacKey(hmacInput);
-  const dumpBytes = fs.readFileSync(path.resolve(dumpFile));
+  const dumpBytes = readLargeFile(dumpFile);
   const manifest = buildManifest(dumpBytes, generatedAt, sourceUrl, corpusName);
   const compressed = zlib.gzipSync(dumpBytes, { level: 9 });
   manifest.snapshot.compressed_bytes = compressed.length;
@@ -668,7 +730,6 @@ function readSnapshotBytes(packageBytesInput, hmacInput = HMAC_KEY_INPUT, nowMs 
     || clean(manifest.snapshot && manifest.snapshot.sha256) !== sha256(dumpBytes)) {
     throw new Error('Track-B PostgreSQL dump checksum mismatch');
   }
-  const parsed = parseStrictPgDump(dumpBytes, corpus.name);
   const inspected = inspectPlainDump(dumpBytes, corpus.name);
   assertExactTableManifest(manifest, corpus.name);
   for (const config of corpus.tables) {
@@ -679,11 +740,39 @@ function readSnapshotBytes(packageBytesInput, hmacInput = HMAC_KEY_INPUT, nowMs 
     }
   }
   authenticatedGeneratedAt(manifest, nowMs);
-  return { manifest, dumpBytes, parsed, corpus: corpus.name };
+  // The dump was already checked in full by inspectPlainDump above, counting
+  // rows without keeping them. Rows are materialized only for a caller that
+  // reads `parsed` (the rehearsals), so a backup never holds them all.
+  let parsed = null;
+  return {
+    manifest,
+    dumpBytes,
+    get parsed() { return parsed || (parsed = parseStrictPgDump(dumpBytes, corpus.name)); },
+    corpus: corpus.name,
+  };
+}
+
+// fs.readFileSync refuses files over 2 GiB (ERR_FS_FILE_TOO_LARGE); the
+// history dump is past that, so large files are read in chunks.
+function readLargeFile(file) {
+  const fd = fs.openSync(path.resolve(file), 'r');
+  try {
+    const size = fs.fstatSync(fd).size;
+    const out = Buffer.allocUnsafe(size);
+    let offset = 0;
+    while (offset < size) {
+      const read = fs.readSync(fd, out, offset, Math.min(size - offset, 256 * 1024 * 1024), offset);
+      if (read <= 0) throw new Error('Track-B file ended before its reported size');
+      offset += read;
+    }
+    return out;
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 function readSnapshotFile(file, hmacInput = HMAC_KEY_INPUT, nowMs = Date.now()) {
-  return readSnapshotBytes(fs.readFileSync(path.resolve(file)), hmacInput, nowMs);
+  return readSnapshotBytes(readLargeFile(file), hmacInput, nowMs);
 }
 
 function verifySnapshotFile(file, extractTo = '', hmacInput = HMAC_KEY_INPUT) {
@@ -826,7 +915,7 @@ async function uploadDriveBytes(token, bytes, name, folderId = DRIVE_FOLDER_ID) 
 }
 
 async function uploadBackup(token, filePath, name, folderId = DRIVE_FOLDER_ID) {
-  return uploadDriveBytes(token, fs.readFileSync(filePath), name, folderId);
+  return uploadDriveBytes(token, readLargeFile(filePath), name, folderId);
 }
 
 async function driveFileMetadata(token, fileId, fetchImpl = fetch) {
@@ -869,6 +958,41 @@ async function downloadBackupBytes(token, fileId) {
   });
   if (!response.ok) throw new Error(`Google Drive download HTTP ${response.status}`);
   return Buffer.from(await response.arrayBuffer());
+}
+
+// Reads only the first bytes of a Drive file (the package magic names its
+// corpus). The body is cancelled after SNAPSHOT_HEADER_BYTES even if the server
+// ignores the Range header, so a skip never costs a full download.
+const SNAPSHOT_HEADER_BYTES = 64;
+async function peekBackupHeader(token, fileId) {
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`, {
+    headers: { Authorization: `Bearer ${token}`, Range: `bytes=0-${SNAPSHOT_HEADER_BYTES - 1}` },
+  });
+  if (!response.ok) throw new Error(`Google Drive header read HTTP ${response.status}`);
+  const reader = response.body.getReader();
+  const parts = [];
+  let length = 0;
+  try {
+    while (length < SNAPSHOT_HEADER_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parts.push(Buffer.from(value));
+      length += value.length;
+    }
+  } finally {
+    try { await reader.cancel(); } catch (_) {}
+  }
+  return Buffer.concat(parts).subarray(0, SNAPSHOT_HEADER_BYTES);
+}
+
+// True only when the header proves the package is a corpus OLDER than the
+// required one, which selectAuthenticatedCandidates would reject anyway. An
+// unknown or unreadable header is not proof, so that file is downloaded and
+// judged in full as before.
+function headerIsOlderCorpus(header, requiredCorpus) {
+  if (!Buffer.isBuffer(header)) return false;
+  const corpus = Object.values(CORPORA).find(item => header.subarray(0, item.magic.length).equals(item.magic));
+  return Boolean(corpus) && corpus.version < resolveCorpus(requiredCorpus).version;
 }
 
 function assertDriveReadback(metadata, remoteBytes, localBytes, expectedName, expectedFolderId, expectedFileId = '', expectedDriveId = '') {
@@ -932,7 +1056,7 @@ function readAlertMarker(bytes, staleKey, hmacInput = HMAC_KEY_INPUT) {
 }
 
 async function verifyUploadedBackup(token, fileId, expectedName, filePath, driveContext, hmacInput = HMAC_KEY_INPUT) {
-  const localBytes = fs.readFileSync(path.resolve(filePath));
+  const localBytes = readLargeFile(filePath);
   const localSnapshot = readSnapshotBytes(localBytes, hmacInput);
   const metadata = await driveFileMetadata(token, fileId);
   const remoteBytes = await downloadBackupBytes(token, fileId);
@@ -1006,6 +1130,7 @@ async function selectLatestAuthenticatedFromDrive(token, files, {
   hmacInput = HMAC_KEY_INPUT,
   nowMs = Date.now(),
   download = downloadBackupBytes,
+  peek = download === downloadBackupBytes ? peekBackupHeader : null,
   requiredCorpus = 'legacy-v3',
 } = {}) {
   parseHmacKey(hmacInput);
@@ -1020,6 +1145,18 @@ async function selectLatestAuthenticatedFromDrive(token, files, {
   let newestCandidateValid = true;
   let first = true;
   for (const file of files || []) {
+    // Skip a snapshot of an older corpus format on its header alone: it can
+    // never be selected, and downloading every one made this step take ~15 min.
+    if (peek && file && file.id) {
+      let header = null;
+      try { header = await peek(token, file.id); } catch (_) { header = null; }
+      if (headerIsOlderCorpus(header, requiredCorpus)) {
+        invalidCount += 1;
+        if (first) newestCandidateValid = false;
+        first = false;
+        continue;
+      }
+    }
     let candidate;
     try {
       candidate = { file, bytes: await download(token, file.id) };
@@ -1379,6 +1516,10 @@ module.exports = {
   runOpaqueTool,
   selectAuthenticatedCandidates,
   selectLatestAuthenticatedFromDrive,
+  headerIsOlderCorpus,
+  readLargeFile,
+  allowedDumpControlLine,
+  parseDumpIdentifier,
   sha256,
   snapshotName,
   strictConnectionInfo,

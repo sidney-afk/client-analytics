@@ -99,6 +99,7 @@
     "calendar-organize-menu.js",
     "calendar-preview-thumbnail-link.js",
     "calendar-realtime-burst-coalesces.js",
+    "calendar-realtime-fallback.js",
     "calendar-reorder-smoothness.js",
     "calendar-save-indicator.js",
     "calendar-tab-persistence.js",

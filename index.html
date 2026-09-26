@@ -38029,6 +38029,40 @@
        appears without a refresh jump. */
     let _calV2Channel = null;
     let _calV2SubSlug = null;
+    /* The live-update connection's REAL state, from the subscribe callback:
+       'idle' (no channel), 'connecting', 'SUBSCRIBED', 'CHANNEL_ERROR',
+       'TIMED_OUT' or 'CLOSED'. A channel object existing is not a connection:
+       measured 2026-09-26, a page whose WebSocket handshake failed every time
+       still reported subscribed:true. While the connection is not up, a
+       fallback pull every CAL_V2_FALLBACK_POLL_MS keeps an open page (the
+       client link included) from going stale; it stops once connected. */
+    let _calV2RtState = 'idle';
+    let _calV2RtStateAt = 0;
+    let _calV2FallbackTimer = null;
+    let _calV2FallbackPulls = 0;
+    const CAL_V2_FALLBACK_POLL_MS = 30000;
+    const CAL_V2_CONNECT_GRACE_MS = 15000;
+    function _calV2SetRtState(state) { _calV2RtState = state; _calV2RtStateAt = Date.now(); }
+    function _calV2StopFallback() {
+        if (_calV2FallbackTimer) { clearTimeout(_calV2FallbackTimer); _calV2FallbackTimer = null; }
+    }
+    function _calV2StartFallback(slug, lease) {
+        _calV2StopFallback();
+        _calV2FallbackTimer = setTimeout(function fallbackTick() {
+            _calV2FallbackTimer = null;
+            if (!_calV2LeaseCurrent(lease)) return;
+            const waitingTooLong = _calV2RtState === 'connecting'
+                && Date.now() - _calV2RtStateAt >= CAL_V2_CONNECT_GRACE_MS;
+            const down = _calV2RtState !== 'SUBSCRIBED' && _calV2RtState !== 'connecting';
+            const visible = typeof document === 'undefined' || document.visibilityState !== 'hidden';
+            if ((down || waitingTooLong) && visible) {
+                _calV2FallbackPulls++;
+                _calV2Log('realtime not connected (', _calV2RtState, '); fallback pull');
+                _calV2OnRealtimeChange(slug, lease);
+            }
+            _calV2FallbackTimer = setTimeout(fallbackTick, CAL_V2_FALLBACK_POLL_MS);
+        }, CAL_V2_FALLBACK_POLL_MS);
+    }
     let _calV2RtTimer = null;
     let _calV2RtPending = false;       // a realtime change arrived mid-load → service it after, don't drop it
     let _calV2SubscribedOnce = false;  // tell the FIRST subscribe apart from a reconnect (catch-up)
@@ -38082,8 +38116,11 @@
                 .channel('cal-' + slug)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_posts', filter: 'client=eq.' + slug }, () => _calV2OnRealtimeChange(slug, lease));
             _calV2Channel = channel;
+            _calV2SetRtState('connecting');
+            _calV2StartFallback(slug, lease);
             channel.subscribe((status) => {
                 if (_calV2Channel !== channel || !_calV2LeaseCurrent(lease)) return;
+                _calV2SetRtState(String(status || ''));
                 _calV2Log('subscribe status:', status, '| slug:', slug, '| is re-subscribe:', _calV2SubscribedOnce);
                 if (status === 'SUBSCRIBED') {
                     // A *re*-subscribe means the socket had dropped (a
@@ -38157,6 +38194,8 @@
         _calV2Channel = null; _calV2SubSlug = null;
         _calV2Lease = null;
         _calV2SubscribedOnce = false;
+        _calV2StopFallback();
+        _calV2SetRtState('idle');
     }
     function _calV2Teardown() {
         // Calendar ownership includes the read transport as well as realtime.
@@ -38175,7 +38214,12 @@
     }
     /* Console helper for the Phase 2 test week: window.calV2Status(). */
     window.calV2Status = function () {
-        return { flag: _calV2Enabled(), ready: _calV2Ready(), keySet: !!CAL_SUPABASE_ANON_KEY, subscribed: !!_calV2Channel, slug: _calV2SubSlug };
+        // `subscribed` keeps its old meaning (a channel exists) for existing
+        // probes; `connected` is the honest "live updates are arriving" answer.
+        return { flag: _calV2Enabled(), ready: _calV2Ready(), keySet: !!CAL_SUPABASE_ANON_KEY, subscribed: !!_calV2Channel,
+            connected: _calV2RtState === 'SUBSCRIBED', rtState: _calV2RtState, rtStateAt: _calV2RtStateAt,
+            fallbackPolling: !!_calV2FallbackTimer && _calV2RtState !== 'SUBSCRIBED', fallbackPulls: _calV2FallbackPulls,
+            slug: _calV2SubSlug };
     };
 
     let _calLoadSeq = 0;

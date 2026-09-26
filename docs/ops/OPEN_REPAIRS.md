@@ -29155,3 +29155,25 @@ two-device case). Live: `qa/client-review-queue/offline.js`, 24 of 24 checks,
 including the two-device case, six seeds archived. Side effect to know: the
 review Approve failure path (staff SMM review too) now redraws the whole
 calendar view instead of repainting one card.
+
+## 264. [2026-09-26, BUILT] Workload plan-day changes reach other open boards in about a second
+
+(262 and 263 are claimed by concurrent branches; another may still collide.)
+A drag to a work day reached other open Workload pages only through the
+5-minute safety poll. `workload_plan` stays private (not in the realtime
+publication, no anon/authenticated grants; no DB change here). After a
+CONFIRMED save, `_wlPersistPlanDate` now calls `wlAnnouncePlanSaved()`, which
+sends a Supabase Realtime BROADCAST on channel `workload-plan` carrying only
+`{kind:'plan', at, from}` (`from` is a random per-page id; no issue id,
+client, title or date), coalesced 250 ms so a group drag sends one. Every open
+board subscribes; a hint that is not its own echo triggers the existing
+authorized re-read (`_wlV2CheckWatermark` -> `wlRefetchSilent`), debounced
+600 ms. Same-browser tabs also get a `localStorage`/`storage` hint. Channel
+status (CONNECTING / SUBSCRIBED / CHANNEL_ERROR / TIMED_OUT / CLOSED, send
+failures, catch-ups) is in `wlV2Status().planLive` and `wlPlanLiveStatus()`;
+a re-subscribe after a drop does one catch-up re-read. The 5-minute poll
+remains. Guard: `test/workload-plan-live.js` (mocked channel, 29 checks).
+UNVERIFIED live: the build sandbox blocks WebSockets, so end-to-end latency
+and that anon broadcast is permitted on this project (no private-channel
+authorization required) were not observed. Check with `wlV2Status().planLive`
+in two browsers.

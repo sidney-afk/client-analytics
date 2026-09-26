@@ -15332,6 +15332,7 @@
     }
     async function _wlV2EnsureSubscribed() {
         if (!WL_V2_REALTIME) return;            // one-line rollback lever (see note above)
+        if (_wlPlanLive && _wlV2Ready()) _wlPlanLive.ensure();
         if (!_wlV2Ready() || _wlV2Channel) return;
         const client = await _wlV2Client();
         if (!client || !document.querySelector('.workload-view')) return; // left during lib load
@@ -15423,8 +15424,131 @@
             } catch {}
         }
         _wlV2Channel = null; _wlV2SubscribedOnce = false;
+        if (_wlPlanLive) _wlPlanLive.teardown();
     }
-    window.wlV2Status = function () { return { flag: _wlV2Enabled(), ready: _wlV2Ready(), subscribed: !!_wlV2Channel, polling: !!_wlV2WatermarkTimer, sourceSyncedAt: wlState.sourceSyncedAt }; };
+
+    /* Plan-day changes reach other open Workload pages in about a second.
+       `workload_plan` is private (not in the realtime publication, no anon or
+       authenticated grants) and must stay that way, so this does NOT stream
+       rows. After a confirmed save, the writer sends a Supabase Realtime
+       BROADCAST carrying only an opaque hint ({kind, at, from}) — no issue id,
+       client, card title or date. Every open board listens and, on a hint that
+       is not its own echo, re-reads through the existing authorized path
+       (_wlV2CheckWatermark -> wlRefetchSilent -> workload-plan), coalesced.
+       Same-browser tabs also get a `storage` hint, since a tab's own broadcast
+       may not loop back to its siblings. The 5-minute poll stays as the net.
+       Pure factory so test/workload-plan-live.js can drive it with mocks. */
+    function wlCreatePlanLive(opts) {
+        const o = opts || {};
+        const debounceMs = o.debounceMs == null ? 600 : o.debounceMs;
+        const sendCoalesceMs = o.sendCoalesceMs == null ? 250 : o.sendCoalesceMs;
+        const storageKey = o.storageKey || 'syncview.workload.plan-live.v1';
+        const from = Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+        const st = { channelStatus: 'idle', subscribedOnce: false, lastError: '', sent: 0, sendFailed: 0,
+            received: 0, echoesIgnored: 0, refreshes: 0, catchUps: 0, lastReceivedAt: '' };
+        let channel = null, client = null, recvTimer = null, sendTimer = null, opening = null;
+        function scheduleRefresh() {
+            if (recvTimer) clearTimeout(recvTimer);
+            recvTimer = setTimeout(() => {
+                recvTimer = null;
+                st.refreshes++;
+                try { const p = o.onRemote && o.onRemote(); if (p && p.catch) p.catch(() => {}); } catch {}
+            }, debounceMs);
+        }
+        function receive(payload) {
+            const hint = payload && payload.payload ? payload.payload : payload;
+            if (!hint || hint.kind !== 'plan') return false;
+            if (hint.from === from) { st.echoesIgnored++; return false; }
+            st.received++;
+            st.lastReceivedAt = new Date().toISOString();
+            scheduleRefresh();
+            return true;
+        }
+        function onStorage(event) {
+            if (!event || event.key !== storageKey || !event.newValue) return false;
+            let hint = null;
+            try { hint = JSON.parse(event.newValue); } catch { return false; }
+            return receive(hint);
+        }
+        function flush() {
+            sendTimer = null;
+            const hint = { kind: 'plan', at: new Date().toISOString(), from };
+            try {
+                if (o.storage) { o.storage.setItem(storageKey, JSON.stringify(hint)); o.storage.removeItem(storageKey); }
+            } catch {}
+            if (!channel || st.channelStatus !== 'SUBSCRIBED') { st.sendFailed++; return; }
+            try {
+                const r = channel.send({ type: 'broadcast', event: 'plan', payload: hint });
+                st.sent++;
+                if (r && typeof r.then === 'function') {
+                    r.then(res => { if (res && res !== 'ok') { st.sent--; st.sendFailed++; } }, () => { st.sent--; st.sendFailed++; });
+                }
+            } catch { st.sendFailed++; }
+        }
+        // Call ONLY after the server confirmed the save.
+        function announce() {
+            if (sendTimer) return;
+            sendTimer = setTimeout(flush, sendCoalesceMs);
+        }
+        async function ensure() {
+            if (channel || opening) return opening;
+            opening = (async () => {
+                const c = o.getClient ? await o.getClient() : null;
+                if (!c || typeof c.channel !== 'function' || channel) return;
+                if (o.isActive && !o.isActive()) return;
+                client = c;
+                st.channelStatus = 'CONNECTING';
+                try {
+                    channel = c.channel(o.channelName || 'workload-plan', { config: { broadcast: { self: false, ack: false } } })
+                        .on('broadcast', { event: 'plan' }, receive)
+                        .subscribe((status, err) => {
+                            st.channelStatus = String(status || '');
+                            if (status === 'SUBSCRIBED') {
+                                st.lastError = '';
+                                // Broadcast does not replay; a re-subscribe after a drop
+                                // re-reads once to catch whatever was missed.
+                                if (st.subscribedOnce) { st.catchUps++; scheduleRefresh(); }
+                                st.subscribedOnce = true;
+                            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                                st.lastError = String(status) + (err && err.message ? ': ' + err.message : '');
+                            }
+                        });
+                } catch (e) {
+                    st.channelStatus = 'CHANNEL_ERROR';
+                    st.lastError = String(e && e.message || e);
+                    channel = null;
+                }
+            })().finally(() => { opening = null; });
+            return opening;
+        }
+        function teardown() {
+            if (recvTimer) { clearTimeout(recvTimer); recvTimer = null; }
+            if (sendTimer) { clearTimeout(sendTimer); sendTimer = null; }
+            if (channel) {
+                try {
+                    if (client && typeof client.removeChannel === 'function') client.removeChannel(channel);
+                    else if (typeof channel.unsubscribe === 'function') channel.unsubscribe();
+                } catch {}
+            }
+            channel = null; client = null;
+            st.channelStatus = 'idle'; st.subscribedOnce = false;
+        }
+        function status() { return Object.assign({ subscribed: st.channelStatus === 'SUBSCRIBED' }, st); }
+        return { announce, ensure, teardown, status, onStorage, receive };
+    }
+    const _wlPlanLive = (typeof window !== 'undefined') ? wlCreatePlanLive({
+        getClient: () => _wlV2Client(),
+        isActive: () => !!document.querySelector('.workload-view'),
+        onRemote: () => _wlV2CheckWatermark(),
+        storage: (() => { try { return window.localStorage; } catch { return null; } })()
+    }) : null;
+    if (typeof window !== 'undefined' && _wlPlanLive && !window.__wlPlanLiveWired) {
+        window.__wlPlanLiveWired = true;
+        window.addEventListener('storage', e => { if (document.querySelector('.workload-view')) _wlPlanLive.onStorage(e); });
+    }
+    function wlAnnouncePlanSaved() { try { if (_wlPlanLive) _wlPlanLive.announce(); } catch {} }
+    window.wlPlanLiveStatus = function () { return _wlPlanLive ? _wlPlanLive.status() : null; };
+    window.wlV2Status = function () { return { flag: _wlV2Enabled(), ready: _wlV2Ready(), subscribed: !!_wlV2Channel, polling: !!_wlV2WatermarkTimer, sourceSyncedAt: wlState.sourceSyncedAt, planLive: _wlPlanLive ? _wlPlanLive.status() : null }; };
 
     function wlIssueClientAllowed(issue) {
         return issue && issue.workloadSource === 'native'
@@ -19517,6 +19641,7 @@
                 || (saved.plan_date == null ? null : String(saved.plan_date).slice(0, 10)) !== planDate) {
                 throw new Error((json && json.error) || ('HTTP ' + resp.status));
             }
+            if (typeof wlAnnouncePlanSaved === 'function') wlAnnouncePlanSaved();   // opaque hint to other open boards; confirmed saves only
             return true;
         } catch (error) {
             if (sessionGeneration != null && sessionGeneration !== _wlPlanSessionGeneration) return false;

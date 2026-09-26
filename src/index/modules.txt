@@ -23,3 +23,4 @@
 132-calendar-dates-ids.js.part
 133-core-loading-skeletons.js.part
 040-shared-briefs.js.part
+310-sales-intake-hiring.js.part

@@ -6846,6 +6846,8 @@
         .cal-review-comment.is-new { background: var(--sv-bg-rgba-234-88-12-0_07); border-left-color: var(--sv-border-ea580c) !important; border-radius: 0 6px 6px 0; padding-right: 8px; }
         /* "New reply" chip on a review-queue card. */
         .kcard-newreply-chip { display: inline-flex; align-items: center; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 7px; border-radius: 99px; background: var(--sv-bg-rgba-234-88-12-0_12); color: var(--sv-fg-c2410c); }
+        .kcard-sample-chip { display: inline-flex; align-items: center; flex-shrink: 0; margin-right: 6px; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 7px; border-radius: 99px; background: var(--sv-bg-rgba-124-58-237-0_12); color: var(--sv-fg-6d28d9); }
+        .kasper-subtab[data-kasper-merged-into][hidden] { display: none; }
         .kasper-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
         .kasper-count-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-secondary); font-weight: 600; }
         .kasper-count-chip .kasper-count-num { background: var(--text-primary); color: var(--white); font-weight: 700; font-size: 0.72rem; padding: 2px 9px; border-radius: 99px; font-variant-numeric: tabular-nums; }
@@ -8288,6 +8290,8 @@
             #kasperReviewBody .kcard-expand-btn { width: 44px; height: 44px; border-radius: 12px; }
 
             /* Opened card: one piece at a time, full-width controls. */
+            /* Sample cards set their column count inline; stack them too. */
+            #kasperReviewBody .kcard[data-sxr-kasper-pid] .cal-review-body { grid-template-columns: minmax(0, 1fr) !important; }
             #kasperReviewBody .cal-review-panel-preview { display: flex; justify-content: center; }
             #kasperReviewBody .cal-review-preview-thumb-btn img { max-width: 100%; max-height: 52vh; }
             #kasperReviewBody .cal-review-approve-btn { width: 100%; min-height: 52px; font-size: 1rem; border-radius: 12px; }
@@ -68771,7 +68775,8 @@
         const info = post ? _sxrDeriveThumbInfo(post) : null;
         if (!info || !info.url) return;
         const ovl = document.getElementById('sxrLightbox');
-        if (!ovl) return;
+        // On the Kasper page the Samples view is not mounted; use Kasper's.
+        if (!ovl) { if (typeof _kasperOpenLightbox === 'function') _kasperOpenLightbox(pid); return; }
         const img = ovl.querySelector('img');
         if (img) img.src = info.url;
         ovl.classList.add('open');
@@ -74485,6 +74490,12 @@
         if (!host) return;
         // #kasperContent is shared by every Kasper tab; a background samples load
         // landing while another tab is open must not overwrite that tab's content.
+        // Samples are also listed in the Review queue: repaint that instead.
+        if (typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'review'
+            && typeof _kasperSamplesMerged === 'function' && _kasperSamplesMerged()) {
+            if (typeof _kasperPaintReview === 'function') _kasperPaintReview();
+            return;
+        }
         if (typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab !== 'samples') return;
         if (!_sxrKasperState.loaded && !_sxrKasperState.loading) { _sxrKasperLoadQueue(); }
         const st = _sxrKasperState;
@@ -74537,7 +74548,7 @@
             <div class="kasper-history-body"><div class="kasper-list">${tweaks.map(it => _sxrKasperRenderCard(it)).join('')}</div></div>
         </div>`;
     }
-    function _sxrKasperRenderHistorySection() {
+    function _sxrKasperRenderHistorySection(title) {
         const list = _sxrKasperState.history || [];
         if (!list.length) return '';
         const rows = list.map(e => {
@@ -74549,7 +74560,7 @@
         }).join('');
         return `<div class="kasper-history-wrap${_sxrKasperState.historyCollapsed ? ' collapsed' : ''}" id="sxrKasperHistoryWrap">
             <div class="kasper-history-head" onclick="_sxrKasperToggleHistory()">
-                <span class="kasper-history-title">Approved history</span>
+                <span class="kasper-history-title">${_sxrEsc(title || 'Approved history')}</span>
                 <span class="kasper-history-count">${list.length}</span>
                 <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
             </div>
@@ -74624,7 +74635,7 @@
             <div class="kcard-strip" onclick="_sxrKasperToggleCard('${_sxrEscAttr(pid)}')">
                 <div class="kcard-thumb">${thumb}${zoomBtn}</div>
                 <div class="kcard-main">
-                    <div class="kcard-line1"><span class="kcard-client">${_sxrEsc(item.client)}</span><span class="kcard-dot">·</span>${pending}${pillsHtml}${newMsg}</div>
+                    <div class="kcard-line1"><span class="kcard-sample-chip">Sample</span><span class="kcard-client">${_sxrEsc(item.client)}</span><span class="kcard-dot">·</span>${pending}${pillsHtml}${newMsg}</div>
                     <div class="kcard-title">${_sxrEsc(p.name || 'Untitled')}</div>
                     <div class="kcard-meta-row">${smmHtml}</div>
                 </div>
@@ -78261,10 +78272,14 @@
                 : (t.key === 'quiz-leads' ? 'quiz-leads' : (t.key === 'clients' ? 'clients-admin' : capability));
             const gated = gatedCapability ? ` data-staff-capability="${gatedCapability}"${_syncviewStaffCan(gatedCapability) ? '' : ' hidden'}` : '';
             const active = _kasperState.tab === t.key;
+            // Samples are listed in the Review queue now; the tab stays
+            // registered (links to #kasper/samples still open it) but is hidden
+            // from the bar unless it is the one showing.
+            const mergedHidden = t.key === 'samples' ? ' data-kasper-merged-into="review"' + (active ? '' : ' hidden') : '';
             const count = t.showCount === false ? '' : `<span class="kasper-tab-count" data-kasper-count="${t.key}"${t.hideZero ? ' data-kasper-hide-zero' : ''}>·</span>`;
             const shortLabel = KASPER_PRIMARY_SHORT_LABELS[t.key] || t.label;
             return `
-            <button type="button" class="kasper-subtab ${inMore ? 'kasper-more-item' : 'kasper-primary-tab'}${active ? ' active' : ''}" data-kasper-tab="${t.key}"${gated}${inMore ? ' role="menuitem" tabindex="-1"' : ''}${active ? ' aria-current="page"' : ''} title="${_calEsc(t.label)}" onclick="_kasperGotoTab('${t.key}')">
+            <button type="button" class="kasper-subtab ${inMore ? 'kasper-more-item' : 'kasper-primary-tab'}${active ? ' active' : ''}" data-kasper-tab="${t.key}"${gated}${mergedHidden}${inMore ? ' role="menuitem" tabindex="-1"' : ''}${active ? ' aria-current="page"' : ''} title="${_calEsc(t.label)}" onclick="_kasperGotoTab('${t.key}')">
                 ${t.icon}<span class="kasper-tab-label-full">${_calEsc(t.label)}</span><span class="kasper-tab-label-short">${_calEsc(shortLabel)}</span>${count}
             </button>`;
         };
@@ -78413,6 +78428,8 @@
             button.classList.toggle('active', active);
             if (active) button.setAttribute('aria-current', 'page');
             else button.removeAttribute('aria-current');
+            // The merged Samples tab shows only while it is the open one.
+            if (button.hasAttribute('data-kasper-merged-into')) button.hidden = !active;
         });
         const activeMoreTab = KASPER_SUBTABS.find(tab => tab.key === activeKey && !KASPER_PRIMARY_SUBTAB_KEYS.includes(tab.key));
         const trigger = document.querySelector('[data-kasper-more-trigger]');
@@ -78431,9 +78448,14 @@
     }
 
     function _kasperOpenLightbox(pid) {
-        const it = _kasperState.items.find(x => x.post.id === pid);
+        let it = _kasperState.items.find(x => x.post.id === pid), info = null;
+        if (it) info = _calDeriveThumbInfo(it.post);
+        // Sample cards listed in the Review queue open here too.
+        else if (typeof _sxrKasperState === 'object' && _sxrKasperState) {
+            it = (_sxrKasperState.items || []).find(x => x && x.post && x.post.id === pid);
+            if (it) info = _sxrDeriveThumbInfo(it.post);
+        }
         if (!it) return;
-        const info = _calDeriveThumbInfo(it.post);
         if (!info || !info.url) return;
         const ovl = document.getElementById('kasperLightbox');
         if (!ovl) return;
@@ -78536,6 +78558,12 @@
         // realtime socket can suspend in a backgrounded tab and miss events),
         // so cards the SMM routed to Kasper while he was away never appeared
         // until a manual reload.
+        if (_kasperState.tab === 'review' && typeof _sxrKasperState !== 'undefined' && _sxrKasperState
+            && !_sxrKasperState.loading && KASPER_SUBTABS.some(t => t.key === 'samples')
+            && typeof _sxrKasperLoadQueue === 'function') {
+            const ta = document.activeElement;
+            if (!(ta && ta.tagName === 'TEXTAREA' && ta.closest && ta.closest('#kasperContent'))) _sxrKasperLoadQueue();
+        }
         if (_kasperState.tab === 'samples') {
             if (typeof _sxrKasperState === 'undefined' || !_sxrKasperState || _sxrKasperState.loading) return;
             const ta = document.activeElement;
@@ -80701,7 +80729,9 @@
             // back -- otherwise pinging a card silently decrements the count of
             // work he still owes.
             const _parts = _kasperPartitionItems(_kasperState.items);
-            _kasperSetTabCount('review', _parts.urgent.length + _parts.waiting.length);
+            // Samples waiting on him are listed in the Review queue too.
+            const _sxrOpen = typeof _kasperSampleOpenCount === 'function' ? _kasperSampleOpenCount() : 0;
+            _kasperSetTabCount('review', _parts.urgent.length + _parts.waiting.length + _sxrOpen);
         }
         // replies = unread message threads — owned by _kasperUpdateReplyCount, which
         // every load already calls. Deliberately NOT painted here: it isn't part of
@@ -81994,6 +82024,83 @@
         return { urgent, waiting, tweaks };
     }
 
+    /* Samples in the Review queue (owner request 2026-09-26). Sample cards
+       are listed beside calendar cards in the same sections, but each one is
+       still rendered, decided and saved by the Samples code: the card comes
+       from _sxrKasperRenderCard, its buttons call the _sxrKasper* handlers,
+       and its data stays in _sxrKasperState. Only the listing lives here. */
+    function _kasperSamplesMerged() {
+        return typeof _sxrKasperState !== 'undefined' && !!_sxrKasperState
+            && typeof _sxrKasperRenderCard === 'function'
+            && KASPER_SUBTABS.some(t => t.key === 'samples');
+    }
+    // When a sample was handed to Kasper: the earliest status time among the
+    // parts still waiting on him, else its last update. Same oldest-first
+    // meaning as _kasperSentAtMs for calendar cards.
+    function _kasperSampleSentAtMs(post) {
+        let best = Infinity;
+        for (const c of SXR_REVIEW_COMPONENTS) {
+            if (String(post[c + '_status'] || '') !== 'Kasper Approval') continue;
+            const t = Date.parse(post[c + '_status_at'] || '');
+            if (isFinite(t) && t < best) best = t;
+        }
+        if (best === Infinity) {
+            const t = Date.parse(post.updated_at || post.created_at || '');
+            if (isFinite(t)) best = t;
+        }
+        return best;
+    }
+    function _kasperSamplePartition() {
+        const none = { urgent: [], waiting: [], tweaks: [] };
+        if (!_kasperSamplesMerged() || !_sxrKasperState.loaded) return none;
+        const items = (_sxrKasperState.items || []).filter(Boolean);
+        for (const it of items) { it._sxr = true; it.sentAtMs = _kasperSampleSentAtMs(it.post); }
+        const parts = _sxrKasperPartitionItems(items);
+        const byTime = (a, b) => (a.sentAtMs === b.sentAtMs ? 0 : (a.sentAtMs < b.sentAtMs ? -1 : 1));
+        parts.urgent.sort(byTime); parts.waiting.sort(byTime); parts.tweaks.sort(byTime);
+        return parts;
+    }
+    // Stable merge: calendar order is kept as sorted, each sample slots in
+    // before the first calendar card handed over later than it.
+    function _kasperMergeBySentAt(calItems, sxrItems) {
+        if (!sxrItems.length) return calItems;
+        const out = []; let j = 0;
+        for (const it of calItems) {
+            const t = isFinite(it.sentAtMs) ? it.sentAtMs : Infinity;
+            while (j < sxrItems.length && sxrItems[j].sentAtMs < t) out.push(sxrItems[j++]);
+            out.push(it);
+        }
+        while (j < sxrItems.length) out.push(sxrItems[j++]);
+        return out;
+    }
+    function _kasperRenderAnyCard(it) {
+        return it && it._sxr ? _sxrKasperRenderCard(it) : _kasperRenderCard(it);
+    }
+    // A samples repaint must not wipe a calendar load failure: keep saying
+    // the calendar cards are missing, with a retry, above whatever loaded.
+    function _kasperRenderQueueErrorNotice() {
+        if (!_kasperState.error) return '';
+        return `<div class="kasper-unloaded" data-kasper-queue-error="1">
+            <div class="kasper-stranded-title">Couldn't load the queue</div>
+            <div class="kasper-stranded-sub">Calendar cards are missing from the list below, not absent: ${_calEsc(_kasperState.error)} <button class="cal-link" type="button" onclick="_kasperLoadReview(true)">Try again</button></div>
+        </div>`;
+    }
+    function _kasperRenderSampleNotice() {
+        if (!_kasperSamplesMerged() || !_sxrKasperState.error) return '';
+        return `<div class="kasper-unloaded" data-kasper-samples-unloaded="1">
+            <div class="kasper-stranded-title">Samples didn't load</div>
+            <div class="kasper-stranded-sub">Samples waiting for you are missing from the list below, not absent. <button class="cal-link" type="button" onclick="_sxrKasperLoadQueue(true)">Try again</button></div>
+        </div>`;
+    }
+    function _kasperRenderSampleHistory() {
+        if (!_kasperSamplesMerged() || typeof _sxrKasperRenderHistorySection !== 'function') return '';
+        return _sxrKasperRenderHistorySection('Approved samples');
+    }
+    function _kasperSampleOpenCount() {
+        const p = _kasperSamplePartition();
+        return p.urgent.length + p.waiting.length;
+    }
+
     let _kasperPaintRetry = null;
     function _kasperPaintReview() {
         const body = document.getElementById('kasperReviewBody');
@@ -82018,7 +82125,11 @@
             return;
         }
         if (_kasperPaintRetry) { clearTimeout(_kasperPaintRetry); _kasperPaintRetry = null; }
-        const { urgent, waiting, tweaks } = _kasperPartitionItems(_kasperState.items);
+        const _cal = _kasperPartitionItems(_kasperState.items);
+        const _sxr = _kasperSamplePartition();
+        const urgent = _kasperMergeBySentAt(_cal.urgent, _sxr.urgent);
+        const waiting = _kasperMergeBySentAt(_cal.waiting, _sxr.waiting);
+        const tweaks = _kasperMergeBySentAt(_cal.tweaks, _sxr.tweaks);
         // Both counters cover urgent + waiting: the ping changes where a card
         // SITS, never whether it is still his to do.
         const openCount = urgent.length + waiting.length;
@@ -82031,7 +82142,7 @@
         // defaults to open since it's where Kasper actually works.
         const waitingCollapsedCls = _kasperState.waitingCollapsed ? ' collapsed' : '';
         const waitingBodyHtml = waiting.length
-            ? `<div class="kasper-list">${waiting.map(_kasperRenderCard).join('')}</div>`
+            ? `<div class="kasper-list">${waiting.map(_kasperRenderAnyCard).join('')}</div>`
             : `<div class="kasper-empty">
                 <div class="kasper-empty-icon"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg></div>
                 <div class="kasper-empty-title">You're all caught up</div>
@@ -82050,7 +82161,7 @@
         // Only once the queue has actually loaded -- the SMM sheet can land
         // first and repaint an empty body, which is not content.
         if (_kasperState.lastLoaded && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
-        body.innerHTML = _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + _kasperRenderUrgentSection(urgent) + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection();
+        body.innerHTML = _kasperRenderUnloadedNotice() + _kasperRenderStrandedNotice() + _kasperRenderQueueErrorNotice() + _kasperRenderSampleNotice() + _kasperRenderUrgentSection(urgent) + waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection() + _kasperRenderSampleHistory();
         _kcardRestoreThumbs(body, _thumbs, 'data-kasper-pid');
     }
 
@@ -82147,7 +82258,7 @@
     function _kasperRenderUrgentSection(urgent) {
         if (!urgent.length) return '';
         const collapsedCls = _kasperState.urgentCollapsed ? ' collapsed' : '';
-        const cards = urgent.map(_kasperRenderCard).join('');
+        const cards = urgent.map(_kasperRenderAnyCard).join('');
         return `<div class="kasper-history-wrap kasper-urgent-wrap${collapsedCls}" id="kasperUrgentWrap">
             <div class="kasper-history-head" onclick="_kasperToggleUrgent()"${_svSectionHeadA11y(!_kasperState.urgentCollapsed)}>
                 <span class="kasper-history-title">Urgent</span>
@@ -82177,7 +82288,7 @@
     function _kasperRenderTweaksSection(tweaks) {
         if (!tweaks.length) return '';
         const collapsedCls = _kasperState.tweaksCollapsed ? ' collapsed' : '';
-        const cards = tweaks.map(_kasperRenderCard).join('');
+        const cards = tweaks.map(_kasperRenderAnyCard).join('');
         return `<div class="kasper-history-wrap${collapsedCls}" id="kasperTweaksWrap">
             <div class="kasper-history-head" onclick="_kasperToggleTweaks()">
                 <span class="kasper-history-title">Tweaks pending</span>

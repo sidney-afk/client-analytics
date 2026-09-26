@@ -29073,3 +29073,44 @@ on two test-client cards: open and switch cards, open the video, open and close 
 thumbnail, comment, request a change, approve; every control it taps is at least 40 px
 and nothing scrolls sideways: 46 of 46 checks. Card saves in that probe are recorded
 and answered rather than sent, because its cards carry synthetic work-item ids.
+
+## 259. [2026-09-26, BUILT] Samples are listed in Kasper's Review queue
+
+**Problem.** Samples waiting for Kasper lived on a separate Samples tab, so he
+had two queues to check.
+
+**Fix.** The Review tab now lists samples in the same sections (Urgent, Waiting
+for your review, Tweaks pending) as calendar cards, sorted in with them oldest
+hand-off first, with a small "Sample" label. Only the listing changed: each sample
+card is still drawn by `_sxrKasperRenderCard`, its buttons still call the
+`_sxrKasper*` handlers, and it still saves through `sample-review-upsert`, so
+statuses, rounds and where decisions are saved are unchanged. The Review count
+includes samples, sample approvals show as "Approved samples" under the history,
+and a failed samples load shows a notice with a retry instead of silently leaving
+them out. The Samples tab is hidden but still registered, so `#kasper/samples`
+links (the urgent-ping message) still open it; removing it is a later change. A calendar
+load failure stays on screen, with a retry, when a samples load repaints the list.
+On the Kasper page the sample thumbnail zoom opens Kasper's own full-screen view,
+since the Samples view's is not mounted there, and on a phone the sample card's
+panels stack like calendar cards.
+
+**Proof.** `qa/probes/kasper_samples_in_review.js` (on demand) seeds one sample
+and one calendar card on the test client and drives both at 1440 (mouse) and at
+390 and 375 (touch): 90 of 90 checks, including that no calendar save is ever sent
+for the sample and the retired Linear webhooks see nothing.
+
+## 260. [2026-09-26, OPEN] Three differences in how the Samples queue decides, found while merging it
+
+Found comparing the calendar and samples Kasper code for 259. Not fixed: they are
+in the approve and request-change logic.
+
+1. **"Approve after tweaks" keeps a sample in Kasper's queue.** The calendar
+   excludes an approved-after-tweaks part from his queue; `_sxrCompKasperVisible`
+   does not, so the sample stays listed as waiting on him.
+2. **Undoing a sample approval leaves the sign-off stamp.** `_sxrKasperUndoApprove`
+   restores the statuses but not `kasper_approved_at` / `kasper_approved_by`; the
+   calendar's undo restores both.
+3. **Sample saves have no protection against two people saving at once.**
+   `_sxrKasperPersist` always sends an empty `comments_base_at` and never retries
+   on a conflict, where the calendar sends its base time and merges comments on a
+   conflict. A concurrent edit to the same sample can be overwritten.

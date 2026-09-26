@@ -23,10 +23,6 @@ line is older than a week, re-check it before relying on it.
   (`syncview-restore-scratch`) is ACTIVE_HEALTHY. Storage custody step 1 says
   "scratch server stopped". Evidence: `list_projects` 2026-09-26. It costs money
   and holds a restored copy of production data.
-- **Client-link token check is still permissive.** `auth_enforcement` =
-  `permissive`, unchanged since 2026-07-05. By owner decision client links stay
-  tokenless (AGENTS.md), so this is a confirm-and-record item, not a bug; the
-  go-live checklist still has an unchecked "read back `enforced`" box.
 - **2026-10-15: assurance-ledger lane goes red again.** Four quality-tier rows
   were restated, not re-proven, and reach 90 days on about 2026-10-15
   (OPEN_REPAIRS 205a). The fix is to re-prove those surfaces, which needs live
@@ -112,5 +108,11 @@ line is older than a week, re-check it before relying on it.
 - **Deploys done:** `production-write` v95 (2026-09-25), `write-diagnostics`
   v14 (2026-09-25), `brain` (2026-09-24, OPEN_REPAIRS 251), `analytics-read`,
   `analytics-write`, `client-profile-write`.
+- **Client links require their secret token.** `client-token-verify` runs
+  browser entry in strict mode, which always requires one active client and
+  its current token. `auth_enforcement` = `permissive` only affects legacy
+  non-strict callers, and none remains: the only caller in this repo (and none
+  in the other three repos) is the browser entry, which sends `strict: true`
+  (`src/index/260-production-refresh-boot.js.part`).
 - **Urgent ping and public intake** are both enabled (docs that say "flag row
   absent" or "off by default" are old).

@@ -1229,7 +1229,7 @@
       "reproduce": "node test/tiktok-overdue-status-browser.js (after repository Playwright/Chromium setup)",
       "ci": "not_run_by_unit_ci"
     },
-      {
+    {
       "file": "clean-urls-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

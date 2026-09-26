@@ -493,22 +493,10 @@ async function assertNoWriteRequests(requests) {
     if (adapterFixture.boardStatus !== 'prog') throw new Error('Adapter did not map board in_progress to artifact prog');
     if (adapterFixture.editorInit !== 'MS' || !/^#[0-9a-f]{6}$/i.test(adapterFixture.editorColor)) throw new Error('Adapter did not produce artifact editor initials/color');
 
-    if (!(await text(page, '.prod-brand')).includes('SyncView')) throw new Error('Sidebar brand missing');
-    await expectExactCount(page, '.prod-brand[data-prod-brandmenu]', 0, 'brand workspace menu trigger removed');
-    await expectExactCount(page, '.prod-brand .prod-brand-caret', 0, 'brand workspace caret removed');
-    await page.locator('.prod-brand').click();
-    await expectExactCount(page, '.prod-pop [data-prod-brand-action]', 0, 'brand workspace menu removed');
-    // Post-flip (2026-08-16) the chip is authority-aware: it names the
-    // writable team(s) when any team is syncview-authoritative and only
-    // falls back to the read-only preview label when no team is. Compute
-    // the expectation independently from the live authority the page loaded.
-    const chipAuthority = await page.evaluate(() => (typeof _prodState !== 'undefined' && _prodState.authority) || null);
-    const expectedChip = chipAuthority && chipAuthority.video === 'syncview' && chipAuthority.graphics === 'syncview' ? 'Native writes'
-      : chipAuthority && chipAuthority.graphics === 'syncview' ? 'Graphics writable'
-        : chipAuthority && chipAuthority.video === 'syncview' ? 'Video writable'
-          : 'Preview - read-only';
-    const chipText = await text(page, '.prod-preview-chip');
-    if (!chipText.includes(expectedChip)) throw new Error('Preview chip does not reflect authority: expected "' + expectedChip + '", saw "' + chipText + '"');
+    // Owner, 2026-09-26: no SyncView wordmark and no authority badge in the sidebar; only search.
+    await expectExactCount(page, '.prod-side .prod-brand', 0, 'sidebar SyncView wordmark removed');
+    await expectExactCount(page, '.prod-side .prod-preview-chip', 0, 'sidebar authority badge removed');
+    await expectExactCount(page, '.prod-topbar [data-prod-create-trigger]', 0, 'no New issue button in the topbar');
     if (!(await page.locator('.prod-search-btn[title*="Search"]').count())) throw new Error('Search command button missing');
     await expectExactCount(page, '.prod-topbar [data-prod-disabled="favorite-view"], .prod-topbar [data-prod-disabled="favorite-issue"], .prod-topbar [data-prod-disabled="favorite-project"], .prod-topbar [data-prod-disabled="notifications"]', 0, 'fake topbar favorite/notification controls');
     await page.keyboard.press('Slash');

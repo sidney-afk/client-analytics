@@ -3192,7 +3192,7 @@ export {
   _prodFetchAuthority, _prodFetchNativeEpochTeams, _prodHasOwn, _prodHashText, _prodHeaders,
   _prodHydrateFromCache, _prodIdbCacheRead, _prodInitials, _prodIssueScopeSignature,
   _prodLabelState, _prodLinearRaw, _prodLoadDeliverableProjection, _prodLoadDisplayPrefs,
-  _prodModeText, _prodNativeEpochOn, _prodNextLabelRequestToken, _prodNormalizeLabelList,
+  _prodNativeEpochOn, _prodNextLabelRequestToken, _prodNormalizeLabelList,
   _prodPostRows, _prodPreserveProjectedFields, _prodPreviewText, _prodRefreshAuthority,
   _prodRefreshLabelSurfaces, _prodResolveBatchParentNodes, _prodResolveParentLinks, _prodRestRows,
   _prodSaveDisplayPrefs, _prodScopeSignatures, _prodSmmArtifactGate, _prodStartAuthorityRefresh,

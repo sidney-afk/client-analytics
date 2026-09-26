@@ -8592,7 +8592,7 @@
             <div class="prod-view" role="status" aria-label="Loading Production preview">
                 <aside class="prod-side">
                     <div class="prod-side-top">
-                        <span class="prod-brand"><span class="prod-brand-mark">S</span><span class="prod-brand-name">SyncView</span><span class="prod-preview-chip">Preview - read-only</span></span>
+                        <span class="prod-spacer"></span>
                     </div>
                     <div class="prod-side-scroll">
                         <div class="prod-nav">
@@ -56954,14 +56954,17 @@
              * question every other caller asks, so the closure cannot be true
              * in three places and false in the fourth.
              */
-            const gate = recovering
-                ? _prodCreateRecoveryGateText(saved)
-                : _prodCreateGateText(clientSlug, team);
+            // Issues are created from the content calendar, never here
+            // (owner, 2026-09-26): no New issue button at all. Only an
+            // ambiguous saved draft (a create that may already have
+            // committed) still gets its Recover control.
+            if (!recovering) return '';
+            const gate = _prodCreateRecoveryGateText(saved);
             return '<button class="prod-create-trigger" type="button" data-prod-create-trigger="1"'
                 + (gate
                     ? ' disabled title="' + _calEscAttr(gate) + '" data-prod-tip="' + _calEscAttr(gate) + '"'
-                    : ' onclick="return _prodOpenCreate()" title="' + (recovering ? 'Recover saved Production issue' : 'Create Production issue') + '" data-prod-tip="' + (recovering ? 'Recover saved issue' : 'Create issue') + '"')
-                + '>' + _prodIcon('plus') + '<span>' + (recovering ? 'Recover issue' : 'New issue') + '</span></button>';
+                    : ' onclick="return _prodOpenCreate()" title="Recover saved Production issue" data-prod-tip="Recover saved issue"')
+                + '>' + _prodIcon('plus') + '<span>Recover issue</span></button>';
         }
         function _prodCreateValidDate(value) {
             if (!value) return true;
@@ -65784,7 +65787,7 @@
                         : '')
                     + '</div>';
             };
-            return '<aside class="prod-side"><div class="prod-side-top"><div class="prod-brand" aria-label="SyncView workspace"><span class="prod-brand-mark">S</span><span class="prod-brand-name">SyncView</span><span class="prod-preview-chip">' + _prodModeText() + '</span></div><button class="prod-search-btn" type="button" onclick="_prodOpenPalette()" title="Search workspace (/)" data-prod-tip="Search workspace|/">' + _prodIcon('search') + '</button></div>'
+            return '<aside class="prod-side"><div class="prod-side-top"><span class="prod-spacer"></span><button class="prod-search-btn" type="button" onclick="_prodOpenPalette()" title="Search workspace (/)" data-prod-tip="Search workspace|/">' + _prodIcon('search') + '</button></div>'
                 + '<div class="prod-side-scroll"><div class="prod-nav">'
                 + _prodNavItem(_prodIcon('issues'), 'My issues', _prodState.view === 'my', '_prodSetView(' + _jsAttrArg('my') + ')')
                 + '</div>' + favHTML

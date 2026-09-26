@@ -15,7 +15,7 @@ const { chromium } = require('playwright');
 const { installReadConsoleAudit } = require('./prod-test-utils');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const TOTAL = 168;
+const TOTAL = 169;
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -1352,9 +1352,10 @@ async function txt(page, sel) {
       const tipGone = await page.locator('#prodTip.show').count() === 0;
       return crumbOk && tipGone && await page.evaluate(parent => _prodState.openId === parent, child.parent);
     }); await reset();
-    await ok('brandStatic', async () => await page.locator('.prod-brand').count() === 1
-      && await page.locator('.prod-brand[data-prod-brandmenu]').count() === 0
-      && await page.locator('.prod-brand .prod-brand-caret').count() === 0); await reset();
+    // Owner, 2026-09-26: the sidebar wordmark and authority badge are gone; only search stays.
+    await ok('brandRemoved', async () => await page.locator('.prod-side .prod-brand').count() === 0
+      && await page.locator('.prod-side .prod-preview-chip').count() === 0
+      && await page.locator('.prod-search-btn').count() === 1); await reset();
     await ok('kbFocusOverHover', async () => {
       await page.keyboard.press('j');
       const focused = await page.evaluate(() => _prodState.focusRow);
@@ -1922,11 +1923,9 @@ async function txt(page, sel) {
         && !!document.querySelector('[data-prod-plead]')
         && !!document.querySelector('[data-prod-ptarget]');
     })); await reset();
-    await ok('brandNoMenu', async () => {
-      await page.locator('.prod-brand').click();
-      return await page.locator('#prodLayer [data-prod-brand-action]').count() === 0
-        && await page.locator('.prod-brand[data-prod-brandmenu], .prod-brand .prod-brand-caret').count() === 0;
-    }); await reset();
+    await ok('brandNoMenu', async () => await page.locator('#prodLayer [data-prod-brand-action]').count() === 0
+      && await page.locator('.prod-brand[data-prod-brandmenu], .prod-brand .prod-brand-caret').count() === 0); await reset();
+    await ok('noCreateTrigger', async () => await page.locator('.prod-topbar [data-prod-create-trigger]').count() === 0); await reset();
     await ok('boardCardCmdSelect', async () => await page.evaluate(() => {
       _prodState.view = 'board';
       _prodState.team = 'all';

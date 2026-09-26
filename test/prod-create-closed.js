@@ -151,15 +151,12 @@ ok(gate('active-client', 'video') === CLOSED
 // ---- the topbar asks the same gate, on every scope -----------------------
 sandbox.savedDraft = null;
 const topbarHtml = [topbar('', ''), topbar('active-client', 'video'), topbar('active-client', 'graphics')];
-ok(topbarHtml.every(html => / disabled /.test(html)
-    && html.includes(sandbox._calEscAttr(CLOSED))
-    && !html.includes('onclick')
-    && html.includes('New issue')),
-  'the New issue button is disabled and carries the reason on the unscoped board and on both team scopes');
+ok(topbarHtml.every(html => html === ''),
+  'no New issue button renders on the unscoped board or either team scope (owner, 2026-09-26: issues are created from the calendar)');
 ok(!/Sign in with an Admin or SMM staff account to create issues/.test(extract(source, '_prodCreateTopbarButton')),
   'the topbar no longer carries its own copy of the gate (the inline copy is why it rendered live while the gate refused)');
-ok(/_prodCreateGateText\(clientSlug, team\)/.test(extract(source, '_prodCreateTopbarButton')),
-  'the topbar reads the one gate');
+ok(/if \(!recovering\) return '';/.test(extract(source, '_prodCreateTopbarButton')),
+  'the topbar renders nothing unless an ambiguous draft needs recovery');
 
 // ---- recovery is deliberately NOT closed --------------------------------
 ok(recoveryGate({ clientSlug: 'active-client' }) === '',
@@ -185,7 +182,7 @@ ok(!/ disabled /.test(recoveringHtml)
   && recoveringHtml.includes('Recover issue'),
   'a committed-but-unacknowledged create keeps its one recovery affordance');
 sandbox.savedDraft = { ambiguous: false, clientSlug: 'active-client', team: 'video' };
-ok(/ disabled /.test(topbar('active-client', 'video')),
+ok(topbar('active-client', 'video') === '',
   'a NON-ambiguous saved draft cannot reopen the dialog — only a create that may have committed can');
 sandbox.savedDraft = null;
 

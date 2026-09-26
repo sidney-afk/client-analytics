@@ -1,5 +1,7 @@
 # SyncView — session context
 
+**Every session: read `docs/STATE_OF_THINGS.md` first.** It is the live-verified list of what is open, dormant and done, and outranks older plans.
+
 index.html is a build output; edit src/index/ fragments and run npm run build:index, never edit index.html directly
 
 Single-file SPA (`index.html`) + Supabase Edge Functions + Postgres migrations,

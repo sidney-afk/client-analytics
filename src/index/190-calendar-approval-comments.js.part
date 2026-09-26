@@ -2016,7 +2016,7 @@
                     </div>
                     <div class="cal-cm-row-body">${c.deleted ? 'Comment deleted.' : _calEsc(c.body || '')}${editedTag}${attachments}</div>
                 </div>
-                ${_calCommentActionsHtml(c, isReply, !c.canonical || _prodCanonicalCommentGate(post, comp || c.component).ready)}
+                ${_calCommentActionsHtml(c, isReply, !c.canonical || (!post._calCommentActionBusy && _prodCanonicalCommentGate(post, comp || c.component).ready))}
             </div>`;
         };
 
@@ -2522,8 +2522,35 @@
                 _calResolveLastTweak(pid, comp, rootId);
                 return;
             }
+            /* Owner repro 2026-09-25: Mark done saved, but the panel kept
+               showing the thread open until the card-notes save that follows
+               (_writeUiPersistCanonicalCommentProjection awaits it) finished,
+               so a second click raced the refresh and was refused
+               (canonical_comment_read_required). Now the card's actions stay
+               disabled while this one is in flight, the thread is re-read and
+               the panel redrawn the moment the write lands, and only then does
+               the slower notes save run. */
+            // The busy mark lives on the card itself: its comment actions render
+            // disabled until this mark done / reopen settles.
+            if (post._calCommentActionBusy) return;
+            post._calCommentActionBusy = true;
+            _calCaptureModalDrafts();
+            _calRenderCommentsModal();
+            const done = () => {
+                post._calCommentActionBusy = false;
+                if (_calOpenCommentsPid === pid) { _calCaptureModalDrafts(); _calRenderCommentsModal(); }
+            };
             _writeUiCommitCardCommentLifecycle('calendar', post, comp, root, wasDone ? 'unresolve' : 'resolve')
-                .then(receipt => receipt && _writeUiPersistCanonicalCommentProjection('calendar', post, comp));
+                .then(async receipt => {
+                    if (receipt) {
+                        try {
+                            await _prodComments.readCanonical(_writeUiNativeId(post, comp), { replace: true });
+                            await _prodProjectCanonicalCardComments('calendar', post.id);
+                        } catch (e) {}
+                    }
+                    done();
+                    if (receipt) _writeUiPersistCanonicalCommentProjection('calendar', post, comp);
+                }, done);
             return;
         }
 

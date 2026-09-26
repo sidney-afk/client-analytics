@@ -26,12 +26,12 @@
 | 18 | `132-calendar-dates-ids.js.part` | 10 | — |
 | 19 | `133-core-loading-skeletons.js.part` | 363 | Modern animated loader — a single rotating ring with a subtle label. |
 | 20 | `134-calendar-prefs-mount.js.part` | 1023 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
-| 21 | `140-calendar-legacy-outbox.js.part` | 3060 | Shed the retired legacy rows from storage, under the surface mutation |
+| 21 | `140-calendar-legacy-outbox.js.part` | 3071 | Shed the retired legacy rows from storage, under the surface mutation |
 | 22 | `150-calendar-hydration-import.js.part` | 2140 | For a card linked to a real sub-issue (not a parent), return which of |
 | 23 | `160-calendar-organize-ui.js.part` | 2809 | Lighter path for the Order switch: update the chrome in place so the |
 | 24 | `170-calendar-links-status.js.part` | 2758 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 25 | `180-calendar-native-post-media.js.part` | 2748 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
-| 26 | `190-calendar-approval-comments.js.part` | 2993 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 26 | `190-calendar-approval-comments.js.part` | 3020 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 27 | `200-intake-data-startup.js.part` | 1496 | Video-only and Thumbnail-only were already built, but sat |
 | 28 | `210-production-state-writes.js.part` | 3200 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 29 | `220-production-attribution-views.js.part` | 2714 | An ABSENT persisted slug is missing evidence, not |

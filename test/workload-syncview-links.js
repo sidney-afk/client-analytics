@@ -1,4 +1,6 @@
 'use strict';
+// Links are built through the clean-address router, as in the page.
+global.svRoute = require('./helpers/sv-route.js').svRoute;
 /*
  * Two owner reports from 2026-08-21, one file because both are "the label
  * pointed somewhere untrue".
@@ -76,9 +78,9 @@ const pop = source.slice(source.indexOf('const parentRow   = parentId'),
   source.indexOf('No upcoming sub-issues.'));
 ok(/const parentIdent = clientName/.test(pop),
   'the header derives a Linear IDENTIFIER for the SyncView deep link');
-ok(/openIdent\s*\?\s*\(location\.pathname \+ '\?prod=1&d=' \+ encodeURIComponent\(openIdent\)\)/.test(pop),
+ok(/openIdent\s*\?\s*svRoute\.clean\('\/\?prod=1&d=' \+ encodeURIComponent\(openIdent\)\)/.test(pop),
   'the header link is the ?prod=1&d= deep link Production already resolves by identifier');
-ok(/openIsParent && nativeBatchId\s*\?\s*\(location\.pathname \+ '\?prod=1&batch=' \+ encodeURIComponent\(nativeBatchId\)\)/.test(pop),
+ok(/openIsParent && nativeBatchId\s*\?\s*svRoute\.clean\('\/\?prod=1&batch=' \+ encodeURIComponent\(nativeBatchId\)\)/.test(pop),
   'and a NATIVE parent routes to ?prod=1&batch=, the only deep link a batch resolves under');
 ok(/Open SyncView →/.test(pop), 'the primary header action now reads Open SyncView');
 ok(/workload-popover-parent-linear[^>]*href="\$\{wlEscape\(openLinearUrl\)\}/.test(pop)
@@ -105,21 +107,21 @@ ok(/wlSyncLinearUrl/.test(rowLinkStmt), 'the row-link statement extracts (harnes
 const rowLink = new Function('s', 'wlSyncLinearUrl', 'location',
   rowLinkStmt + '\nreturn rowSyncUrl;');
 const syncUrl = ident => { const t = String(ident || '').trim();
-  return t ? ('/?prod=1&d=' + encodeURIComponent(t)) : ''; };
+  return t ? ('/synclinear/' + encodeURIComponent(t)) : ''; };
 
 /* Synthetic ids. `?prod=1&d=` resolves a native id because _prodIssue() matches
    on `id` OR `displayId` — the same route the loose strips use. */
 const NATIVE_ROW_ID = 'del_0000000000000000000000000001';
 ok(rowLink({ nativeId: NATIVE_ROW_ID, identifier: '', url: '' }, syncUrl, { pathname: '/' })
-     === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+     === '/synclinear/' + encodeURIComponent(NATIVE_ROW_ID),
   'a post-flip row with no identifier and no Linear url still links to its SyncLinear detail');
 ok(rowLink({ nativeId: NATIVE_ROW_ID, identifier: '', url: '' }, syncUrl, { pathname: '/' }) !== '',
   'it does NOT render an empty href that reopens the Workload page -- the exact reported defect');
 ok(rowLink({ nativeId: NATIVE_ROW_ID, identifier: 'VID-9001', url: 'https://linear.app/x/issue/VID-9001' }, syncUrl, { pathname: '/' })
-     === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+     === '/synclinear/' + encodeURIComponent(NATIVE_ROW_ID),
   'a native row that still carries an identifier routes by the NATIVE id, matching the loose strips');
 ok(rowLink({ identifier: 'VID-9001', url: 'https://linear.app/x/issue/VID-9001' }, syncUrl, { pathname: '/' })
-     === '/?prod=1&d=VID-9001',
+     === '/synclinear/VID-9001',
   'a legacy row keeps its identifier deep link -- the path in use today is unchanged');
 ok(rowLink({ identifier: '', url: 'https://linear.app/x/issue/VID-9001' }, syncUrl, { pathname: '/' })
      === 'https://linear.app/x/issue/VID-9001',
@@ -194,9 +196,9 @@ const noParent = { parentById: new Map() };
 
 // A. one sub-issue in the group: the pill IS that video.
 const one = resolveLinks(withParent, PARENT_ID, 'A Client', [CHILD], loc);
-ok(one.parentSyncUrl === '/?prod=1&d=VID-9001',
+ok(one.parentSyncUrl === '/synclinear/VID-9001',
   "a single-video pill opens the SUB-ISSUE, the row carrying the status the chip asserted");
-ok(one.parentSyncUrl !== '/?prod=1&d=VID-9000',
+ok(one.parentSyncUrl !== '/synclinear/VID-9000',
   'a single-video pill does NOT open the parent -- the exact reported defect');
 ok(one.openLabel === 'Open SyncView →' && one.openIsParent === false,
   'and the button still reads Open SyncView, because a video is what it opens');
@@ -219,9 +221,9 @@ ok(one.openLinearUrl === 'https://linear.app/x/issue/VID-9001',
 const NATIVE_CHILD = { nativeId: NATIVE_ROW_ID, identifier: '', url: '',
                        parentIdentifier: 'VID-9000' };
 const oneNative = resolveLinks(withParent, PARENT_ID, 'A Client', [NATIVE_CHILD], loc);
-ok(oneNative.parentSyncUrl === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+ok(oneNative.parentSyncUrl === '/synclinear/' + encodeURIComponent(NATIVE_ROW_ID),
   'a post-flip single-video pill opens the DELIVERABLE, by native id');
-ok(oneNative.parentSyncUrl !== '/?prod=1&d=VID-9000',
+ok(oneNative.parentSyncUrl !== '/synclinear/VID-9000',
   'it does NOT fall through to the synthetic batch parent -- the exact reported defect');
 ok(oneNative.openIsParent === false && oneNative.openLabel === 'Open SyncView →',
   'and the button says what it opens, rather than mislabelling a video as the parent');
@@ -230,17 +232,17 @@ ok(oneNative.openLinearUrl === '',
 
 const orphanNative = resolveLinks(noParent, PARENT_ID, 'A Client',
   [{ nativeId: NATIVE_ROW_ID, identifier: '', url: '' }], loc);
-ok(orphanNative.parentSyncUrl === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+ok(orphanNative.parentSyncUrl === '/synclinear/' + encodeURIComponent(NATIVE_ROW_ID),
   'with no parent identifier recoverable either, the button is still aimed at the deliverable instead of disappearing');
 
 const mixedNative = resolveLinks(withParent, PARENT_ID, 'A Client',
   [{ ...CHILD, nativeId: NATIVE_ROW_ID }], loc);
-ok(mixedNative.parentSyncUrl === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+ok(mixedNative.parentSyncUrl === '/synclinear/' + encodeURIComponent(NATIVE_ROW_ID),
   'a native row that still carries an identifier routes by the NATIVE id, matching the rows below it');
 
 // A. several sub-issues: no single row is "the video", so guessing is refused.
 const many = resolveLinks(withParent, PARENT_ID, 'A Client', [CHILD, SIBLING], loc);
-ok(many.parentSyncUrl === '/?prod=1&d=VID-9000' && many.openIsParent === true,
+ok(many.parentSyncUrl === '/synclinear/VID-9000' && many.openIsParent === true,
   'a multi-video pill keeps the parent as the group destination rather than picking one child');
 ok(many.openLabel === 'Open parent →',
   'and it SAYS parent, so it is not mistaken for the video');
@@ -266,16 +268,16 @@ const NATIVE_B = { nativeId: '00000000-0000-4000-8000-0000000000b2', identifier:
 const NATIVE_PARENT_ROW = { identifier: 'A Batch Name', url: '', title: 'A Batch Name' };
 const nativeMany = resolveLinks({ parentById: new Map([[PARENT_ID, NATIVE_PARENT_ROW]]) },
   PARENT_ID, 'A Client', [NATIVE_A, NATIVE_B], loc);
-ok(nativeMany.parentSyncUrl === '/?prod=1&batch=' + encodeURIComponent(PARENT_ID),
+ok(nativeMany.parentSyncUrl === '/synclinear/batch/' + encodeURIComponent(PARENT_ID),
   'a native multi-video pill opens the BATCH by id, the deep link Production resolves for a post');
-ok(nativeMany.parentSyncUrl !== '/?prod=1&d=' + encodeURIComponent('A Batch Name'),
+ok(nativeMany.parentSyncUrl !== '/synclinear/' + encodeURIComponent('A Batch Name'),
   'it does NOT put the batch NAME into ?d= -- the exact reported defect');
 ok(nativeMany.openIsParent === true && nativeMany.openLabel === 'Open parent →',
   'and it is still labelled as the parent');
 const nativeManyNoRow = resolveLinks(noParent, PARENT_ID, 'A Client', [NATIVE_A, NATIVE_B], loc);
-ok(nativeManyNoRow.parentSyncUrl === '/?prod=1&batch=' + encodeURIComponent(PARENT_ID),
+ok(nativeManyNoRow.parentSyncUrl === '/synclinear/batch/' + encodeURIComponent(PARENT_ID),
   'with the batch row absent from the snapshot, the batch id on the children still routes it');
-ok(many.parentSyncUrl === '/?prod=1&d=VID-9000',
+ok(many.parentSyncUrl === '/synclinear/VID-9000',
   'a LEGACY multi-video pill is unchanged: it still routes by the Linear parent identifier');
 /* Codex P2 on #1454: `subs` is filtered by assignee and client, NOT by the
    clicked parent, so a legacy-parent chip can share the popover with a native
@@ -285,16 +287,16 @@ const OTHER_BATCH = '00000000-0000-4000-8000-00000000cafe';
 const STRAY_NATIVE = { nativeId: '00000000-0000-4000-8000-0000000000c3', identifier: '', url: '',
                        workloadSource: 'native', parentId: OTHER_BATCH, parentIdentifier: 'Other Post' };
 const legacyWithStray = resolveLinks(withParent, PARENT_ID, 'A Client', [CHILD, SIBLING, STRAY_NATIVE], loc);
-ok(legacyWithStray.parentSyncUrl === '/?prod=1&d=VID-9000',
+ok(legacyWithStray.parentSyncUrl === '/synclinear/VID-9000',
   'a legacy parent chip sharing the popover with a native row of another post still routes by identifier');
-ok(legacyWithStray.parentSyncUrl !== '/?prod=1&batch=' + encodeURIComponent(PARENT_ID),
+ok(legacyWithStray.parentSyncUrl !== '/synclinear/batch/' + encodeURIComponent(PARENT_ID),
   'and is NOT sent to ?batch=<legacy uuid>, which resolves nothing');
 
 // B. the parent branch never substitutes a child.
 const missMany = resolveLinks(noParent, PARENT_ID, 'A Client', [CHILD, SIBLING], loc);
 ok(missMany.parentIdent === 'VID-9000',
   "parent missing from the snapshot: the sub's own parentIdentifier answers");
-ok(missMany.parentSyncUrl === '/?prod=1&d=VID-9000',
+ok(missMany.parentSyncUrl === '/synclinear/VID-9000',
   'parent missing: the group link still opens the parent, not an arbitrary child');
 ok(missMany.openLinearUrl === '',
   'parent missing: Linear ↗ is dropped rather than aimed at a child -- no parent URL is recoverable');
@@ -329,10 +331,10 @@ ok(typeof parentUrl === 'function', 'the rollup href resolver extracts and execu
 
 const NATIVE_BATCH_ID = 'bat_0000000000000000000000000001';
 ok(parentUrl({ workloadSource: 'native', parentId: NATIVE_BATCH_ID, nativeId: NATIVE_ROW_ID, url: '' })
-     === '/?prod=1&batch=' + encodeURIComponent(NATIVE_BATCH_ID),
+     === '/synclinear/batch/' + encodeURIComponent(NATIVE_BATCH_ID),
   'a native row in a batch opens that batch in SyncLinear');
 ok(parentUrl({ workloadSource: 'native', parentId: '', nativeId: NATIVE_ROW_ID, url: '' })
-     === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+     === '/synclinear/' + encodeURIComponent(NATIVE_ROW_ID),
   'a native row with no batch parent opens the deliverable itself');
 ok(parentUrl({ workloadSource: 'native', parentId: NATIVE_BATCH_ID, nativeId: NATIVE_ROW_ID, url: '' }) !== ''
   && parentUrl({ workloadSource: 'native', parentId: '', nativeId: NATIVE_ROW_ID, url: '' }) !== '',

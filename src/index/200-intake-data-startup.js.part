@@ -11,7 +11,7 @@ import {
 import { wlAddWorkingDays, wlNormalizeClient, wlTodayISO } from './070-workload-source.js';
 import {
   _linearResolveClientRow, _linearResolvedPlanUrl, _linearSetResolvedPlanUrl, buildLinearTitle,
-  loadLinearForm, navTo, saveLinearForm
+  _navPillSync, loadLinearForm, navTo, saveLinearForm
 } from './090-workload-popovers-navigation.js';
 import { CAL_SUPABASE_ANON_KEY, _syncviewRequireStaffIdentity, _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue } from './100-onboarding-staff-controls.js';
 import {
@@ -1485,12 +1485,44 @@ import { _kasperCalCachePrune } from './330-kasper-review-history.js';
         // failed and the nav button stayed hidden on every refresh).
         const KASPER_UNLOCK_KEY = 'syncview_kasper_unlocked';
         let _kasperUnlocked = false;
-        function _setKasperUnlocked(value) { _kasperUnlocked = value; }
+        // Kasper is admin-only (the two admin team members). The role comes
+        // from the key-verify server check. A browser that has seen a verified
+        // admin remembers it, so a slow or failed check never hides Kasper
+        // from its owner; a verified non-admin or a sign-out forgets it.
+        const KASPER_ADMIN_SEEN_KEY = 'syncview_kasper_admin_seen';
+        function _kasperAdminAllowed() {
+            let identity = null;
+            try { identity = typeof _syncviewStaffIdentityForHeaders === 'function' ? _syncviewStaffIdentityForHeaders() : null; } catch (e) {}
+            if (identity) {
+                const admin = String(identity.role || '').trim().toLowerCase() === 'admin';
+                try { if (admin) localStorage.setItem(KASPER_ADMIN_SEEN_KEY, '1'); else localStorage.removeItem(KASPER_ADMIN_SEEN_KEY); } catch (e) {}
+                return admin;
+            }
+            try { return localStorage.getItem(KASPER_ADMIN_SEEN_KEY) === '1'; } catch (e) { return false; }
+        }
+        function _kasperForgetAdmin() {
+            try { localStorage.removeItem(KASPER_ADMIN_SEEN_KEY); } catch (e) {}
+        }
+        // Shows or hides the Kasper tab, and leaves Kasper if access was lost.
+        function _kasperApplyAccess() {
+            const allowed = _kasperAdminAllowed();
+            _kasperUnlocked = allowed;
+            try {
+                const nav = document.getElementById('navKasper');
+                if (nav && (nav.style.display === 'none') === allowed) {
+                    nav.style.display = allowed ? '' : 'none';
+                    if (typeof _navPillSync === 'function') _navPillSync(false);
+                }
+                if (!allowed && typeof currentNav !== 'undefined' && currentNav === 'kasper' && typeof navTo === 'function') navTo('home', false);
+            } catch (e) {}
+            return allowed;
+        }
 export {
   CAL_CARD_JOBS_KEY, FAST_TABS, KASPER_UNLOCK_KEY, RESTORABLE_FAST_TABS,
-  _applyAllDataDependentChrome, _calCardJobsRead, _kasperUnlocked, _linearIntakeActorContext,
+  _applyAllDataDependentChrome, _calCardJobsRead, _kasperApplyAccess,
+  _kasperForgetAdmin, _kasperUnlocked, _linearIntakeActorContext,
   _linearIntakeBatchTitle, _linearIntakeItems, _linearIntakeJobId, _linearIntakePending,
   _linearIntakePurgeSensitiveState, _linearIntakeRead, _linearIntakeRemoveIfCurrent,
   _linearIntakeWithLock, _linearResumeSubmissionHold, _linearSubmissionHoldRead,
-  _resumeNativeIntakeJob, _resumePendingCalCardJobs, _setKasperUnlocked, renderLinearView
+  _resumeNativeIntakeJob, _resumePendingCalCardJobs, renderLinearView
 };

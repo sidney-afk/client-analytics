@@ -206,7 +206,7 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
         // always falls back to the live linear-issues endpoint, so a flip is lossless.
         let on = true;
         try {
-            const q = new URLSearchParams(location.search).get('wl2');
+            const q = new URLSearchParams(svRoute.search()).get('wl2');
             if (q === '1' || q === 'true') { on = true; localStorage.setItem(WL_V2_LS_KEY, '1'); localStorage.removeItem(WL_V2_KILL_KEY); }
             else if (q === '0' || q === 'false') { on = false; localStorage.setItem(WL_V2_KILL_KEY, '1'); localStorage.removeItem(WL_V2_LS_KEY); }
             else { on = (localStorage.getItem(WL_V2_KILL_KEY) !== '1'); }
@@ -235,7 +235,7 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
         if (_wlFastPaintFlagCache !== null) return _wlFastPaintFlagCache;
         let on = WL_FAST_PAINT_DEFAULT;
         try {
-            const q = new URLSearchParams(location.search).get('wlfast');
+            const q = new URLSearchParams(svRoute.search()).get('wlfast');
             if (q === '1' || q === 'true') { on = true; localStorage.removeItem(WL_FAST_PAINT_KILL_KEY); }
             else if (q === '0' || q === 'false') { on = false; localStorage.setItem(WL_FAST_PAINT_KILL_KEY, '1'); }
             else { on = WL_FAST_PAINT_DEFAULT && (localStorage.getItem(WL_FAST_PAINT_KILL_KEY) !== '1'); }
@@ -453,7 +453,7 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
     // reads per board load long after whoever typed it had forgotten.
     function _wlNativeDiffEnabled() {
         try {
-            const q = new URLSearchParams(location.search).get('wlnative');
+            const q = new URLSearchParams(svRoute.search()).get('wlnative');
             return q === '1' || q === 'true';
         } catch { return false; }
     }

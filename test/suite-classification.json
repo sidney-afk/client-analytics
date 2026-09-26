@@ -2,6 +2,7 @@
   "format": "explicit-test-suite-routing-v1",
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
+    "clean-urls-routes.js",
     "b2-brief-link-rewrite.mjs",
     "a2-writer-edge-source.js",
     "a4-settings-edge-source.js",
@@ -1226,6 +1227,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
       "reproduce": "node test/tiktok-overdue-status-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+      {
+      "file": "clean-urls-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; a local server that answers like GitHub Pages and every backend call answered locally, no hosted credentials and no live data.",
+      "reproduce": "node test/clean-urls-browser.js (after repository Playwright/Chromium setup)",
       "ci": "not_run_by_unit_ci"
     },
     {

@@ -1550,16 +1550,18 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
                 || FAST_TABS.includes(hashRoute)
                 || hashRaw.startsWith('calendar/')
                 || hashRaw.startsWith('samples/')
-                || hashRaw.startsWith('templates/');
+                || hashRaw.startsWith('templates/')
+                // The standalone staff pages have their own APIs and checks.
+                || hashRaw === 'staff-onboarding' || hashRaw === 'client-credentials';
             const restoreFastNav = _isSmmWeeklyRoute(stateNav) ? savedNav : (stateNav || savedNav);
             const fallbackFast = !hashRaw && !stateClient && RESTORABLE_FAST_TABS.includes(restoreFastNav);
             // Kasper has no analytics dependency — every sub-tab fetches its own
             // data over webhooks. So a refresh straight onto Kasper (when the tab
             // is already unlocked for this session) should mount immediately
             // instead of flashing the analytics tab + "Loading analytics…" first.
-            const _kasperSessionUnlocked = (() => { try { return sessionStorage.getItem(KASPER_UNLOCK_KEY) === 'ok'; } catch (e) { return false; } })();
+            // Kasper is admin-only: a verified (or remembered) admin mounts at once.
             const _kasperHashLanding = (hashRaw === 'kasper' || hashRaw.startsWith('kasper/'))
-                && (_kasperSessionUnlocked || qp.get('Kasper') === '1');
+                && _kasperApplyAccess();
             // ?c=<client> needs allData to validate the token + render — never
             // a fast-tab refresh. history.state.client also needs allData.
             const skipAwait = !qp.get('c') && !stateClient && (hashIsFastTab || fallbackFast || _kasperHashLanding);
@@ -1746,7 +1748,7 @@ import { KASPER_SUBTABS, _kasperState } from './320-kasper-dashboard-replies.js'
                 } else if (hashRoute === 'smm-weekly-report' || hashRoute === 'smm-weekly-reports') {
                     navTo(hashRoute, false);
                 } else if (hashRaw === 'kasper' || hashRaw.startsWith('kasper/')) {
-                    // Already unlocked for this session (gated by _kasperHashLanding).
+                    // Admin access already confirmed (gated by _kasperHashLanding).
                     if (hashRaw.startsWith('kasper/')) {
                         const sub = hashRaw.slice('kasper/'.length);
                         if (KASPER_SUBTABS.some(t => t.key === sub)) _kasperState.tab = sub;

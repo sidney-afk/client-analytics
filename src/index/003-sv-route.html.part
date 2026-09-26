@@ -58,7 +58,7 @@
                 if (new URLSearchParams(search || '').get('Kasper') === '1') return '/kasper' + qs(q);
                 return '/' + qs(q);
             }
-            if (head === 'samples') return '/sample-reviews' + qs(q);
+            if (head === 'samples') return '/' + ['sample-reviews'].concat(seg.slice(1)).join('/') + qs(q);
             if (head === 'staff-onboarding') return '/onboarding' + qs(q);
             if (!Object.prototype.hasOwnProperty.call(LEGACY, head)) return null;
             if (hq) new URLSearchParams(hq).forEach(function (v, key) { q.set(key, v); });

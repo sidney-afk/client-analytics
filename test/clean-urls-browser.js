@@ -51,6 +51,7 @@ async function newContext(browser, member, opts = {}) {
   await context.route(/^https?:\/\/(?!127\.0\.0\.1)/, route => {
     const req = route.request(); const url = req.url();
     if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    if (opts.sheetsDown && /docs\.google\.com/.test(url)) return route.fulfill({ status: 500, headers: cors, body: 'down' });
     if (/\/functions\/v1\/key-verify/.test(url)) {
       if (opts.verifierDown) return route.fulfill({ status: 503, contentType: 'application/json', headers: cors, body: '{"ok":false}' });
       return route.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify({ ok: true, role: member.role, member }) });
@@ -121,6 +122,7 @@ const ADMIN_CASES = [
   ['/#sample-reviews', '/sample-reviews', 'sample-reviews'],
   ['/?sxr=1#sample-reviews/fixture-client/p_fixture_1', '/sample-reviews/fixture-client/p_fixture_1?sxr=1', 'sample-reviews'],
   ['/#samples', '/sample-reviews', 'sample-reviews'],
+  ['/#samples/fixture-client/p_fixture_1', '/sample-reviews/fixture-client/p_fixture_1', 'sample-reviews'],
   ['/#smm-weekly-reports?week=2026-09-21', '/smm-weekly-reports?week=2026-09-21', 'smm-weekly-reports'],
   ['/#kasper', '/kasper', 'kasper'],
   ['/#kasper/hiring-process', '/kasper/hiring-process', 'kasper'],
@@ -255,6 +257,15 @@ const ADMIN_CASES = [
     const menu = await sp.evaluate(() => ({ onb: !document.getElementById('headerOnboardingMenuItem').hidden, cc: !document.getElementById('headerCredentialsMenuItem').hidden }));
     check(menu.onb && menu.cc, 'SMM menu shows Onboarding and Client Credentials: ' + JSON.stringify(menu));
     await smm.close();
+
+    // Kasper and the standalone staff pages do not wait on the analytics
+    // sheets: they still mount when those reads fail.
+    const sheetsDown = await newContext(browser, ADMIN, { sheetsDown: true });
+    for (const [addr, nav] of [['/kasper', 'kasper'], ['/kasper/hiring-process', 'kasper'], ['/onboarding', 'staff-onboarding'], ['/client-credentials', 'client-credentials']]) {
+      const r = await land(sheetsDown, base, addr);
+      check(r.nav === nav, `${addr} with the analytics sheets down: screen ${r.nav}`);
+    }
+    await sheetsDown.close();
 
     const down = await newContext(browser, ADMIN, { verifierDown: true, rememberAdmin: true });
     const dp = await down.newPage();

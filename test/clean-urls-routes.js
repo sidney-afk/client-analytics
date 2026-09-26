@@ -15,6 +15,7 @@ const pairs = [
   ['?prod=1&batch=b_1', '', '/synclinear/batch/b_1'],
   ['?prod=1&d=a%2Fb&group=status', '#production', '/synclinear/a%2Fb?group=status'],
   ['', '#linear', '/submit'],
+  ['', '#samples/c1/p_1', '/sample-reviews/c1/p_1'],
   ['', '#calendar/c1/p_1', '/calendar/c1/p_1'],
   ['', '#templates/Some%20Client', '/templates/Some%20Client'],
   ['?sxr=1', '#sample-reviews/c1/p_1', '/sample-reviews/c1/p_1?sxr=1'],

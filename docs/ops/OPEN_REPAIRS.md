@@ -29155,3 +29155,46 @@ two-device case). Live: `qa/client-review-queue/offline.js`, 24 of 24 checks,
 including the two-device case, six seeds archived. Side effect to know: the
 review Approve failure path (staff SMM review too) now redraws the whole
 calendar view instead of repainting one card.
+
+## 262. [2026-09-26, OPEN] The database's temporary disk ran out on a read-only query
+
+While measuring the card change journal for the Track-B backup failure, one
+read-only aggregate over `card_change_journal` (grouping about 116,000 rows by
+week and serializing each row to text) failed with `53100: could not write to
+file "base/pgsql_tmp/...": No space left on device`. Nothing was written and the
+temporary files are released when a query ends, but it means the database's
+scratch space for sorts and hashes is small next to that table. The same
+measurements were then taken on a 5% `tablesample`, which ran fine.
+
+Not fixed. Worth knowing before any large read, backfill, index build or
+`pg_dump` against the journal; 263 is the growth that makes it likely. If it
+recurs on a normal query, check the project's disk usage in the Supabase
+dashboard before anything else.
+
+## 263. [2026-09-26, PROPOSED] The card change journal records timestamp-only saves and repeats its column layout
+
+Found tracing the Track-B history-v11 backup failure ("dump is not valid
+UTF-8"), which was really the dump passing the backup script's ~512 MB string
+limit. `card_change_journal` holds about 1.7 GB of text after nine days.
+Measured read-only on a 5% sample:
+
+- About 92% of `calendar_posts` journal rows change only `updated_at`, each in
+  its own one-row transaction under `service_role`.
+- Every row repeats the full column layout; there is one layout, and it is
+  about 565 MB of the calendar history.
+
+**Source.** `calendar_merge_comments` always sets `updated_at = now()`, even
+when no comment changed, and `calendar-upsert` calls it as a separate statement
+before its real update whenever a save carries any comment column (every
+whole-card save does). Live, that function is also executable by `anon` and
+`authenticated`, which the 2026-06-18 migration meant to prevent.
+
+**Proposal (not applied).** `migrations/2026-09-26-card-journal-slim.sql` makes
+the merge write only when a comment changes, stops the journal recording an
+update whose only change is `updated_at`, stores each layout once (resolved by
+`card_change_journal_row_schema()`), and resets the merge's ACL to
+`service_role` only. It deletes, trims or rewrites no existing journal row.
+Rehearsed on a disposable local PostgreSQL 16 with the live function bodies:
+`scripts/card-journal-slim-rehearsal.js`, 18 checks including its rollback.
+The backup script fix that tolerates the current size is separate
+(`scripts/track-b-backup.js`, line-by-line dump check).

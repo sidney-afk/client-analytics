@@ -5,7 +5,7 @@ import { _syncviewIssueClientShareUrl } from './120-calendar-flags-write-repair.
 import {
   CAL_FILTERS_KEY, CAL_PINS_KEY, CAL_PREFS_KEY, _calFocusRequest, _calHideOwnToast,
   _calNormMonthFilter, _calNormSortMode, _calNormStatusFilter, _calPendingDeepLink,
-  _calPendingEdits, _calSaveTimers, _calSetFocusRequest, _calSetPendingDeepLink, _calSyncUrlClient,
+  _calPendingEdits, _calSaveTimers, _calSetFocusRequest, _calSetPendingDeepLink, _calSyncUrlCard, _calSyncUrlClient,
   calClientSlug, calState
 } from './130-calendar-model-cache.js';
 import { _calIsoFirstOfMonth, _calIsoMondayOf } from './132-calendar-dates-ids.js';
@@ -786,7 +786,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _calFocusOutsideHandler(e) {
         const card = document.querySelector('.cal-card-focused');
         if (!card) { document.removeEventListener('mousedown', _calFocusOutsideHandler, true); return; }
-        if (!card.contains(e.target)) _calClearFocusHighlight();
+        if (!card.contains(e.target)) { _calClearFocusHighlight(); _calSyncUrlCard(null); }
     }
 
     /* ── Excel (.xlsx) import ──────────────────────────────────────────

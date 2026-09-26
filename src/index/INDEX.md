@@ -42,7 +42,7 @@
 | 34 | `250-production-controls-data.js.part` | 2881 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 35 | `260-production-refresh-boot.js.part` | 2368 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 36 | `270-samples-model.js.part` | 2770 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
-| 37 | `280-samples-cards-notes.js.part` | 2834 | SURFACE 3: the save engine |
+| 37 | `280-samples-cards-notes.js.part` | 2911 | SURFACE 3: the save engine |
 | 38 | `290-samples-writes-review.js.part` | 1804 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 39 | `300-tiktok-upload.js.part` | 1998 | TIKTOK UPLOAD MODULE |
 | 40 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |

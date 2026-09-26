@@ -65,10 +65,13 @@ like the body classes they anticipate). The app talks to three backends.
 2. **n8n** (`synchrosocial.app.n8n.cloud`) — webhooks and integrations for selected
    saves, onboarding, reminders and other workflows. The retired Linear sync is
    historical; see [State of things](docs/STATE_OF_THINGS.md) for current lane status.
-3. **Google Sheets** (via the `gviz` CSV endpoint) — still the source of truth for the
-   **analytics** data that was never migrated: Metrics, Clients Info, TopVideos,
-   Competitor / Market-Research Briefs, ContentSummaries, FilmingPlans, and the
-   Social-Media-Manager map.
+3. **Google Sheets** (via the `gviz` CSV endpoint) — still serves selected
+   analytics and profile reads: Metrics, Clients Info, TopVideos, Competitor /
+   Market-Research Briefs, ContentSummaries, FilmingPlans, and the
+   Social-Media-Manager map. The Supabase mirror write is on and backfilled, but
+   mirror READ is off and its enrollment contains only the TEST client;
+   `client_profiles_authority` remains `sheet`. See the dated
+   [State of things](docs/STATE_OF_THINGS.md) before changing a read path.
 
 > **Migration history:** Calendar and Samples moved from Google Sheets to Supabase
 > in June 2026. `docs/archive/CALENDAR_REALTIME_MIGRATION.md` and

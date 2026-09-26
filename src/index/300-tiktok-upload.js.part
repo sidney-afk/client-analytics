@@ -234,6 +234,7 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
         .tk-st.uploading, .tk-st.processing { color: var(--sv-fg-1e40af); }
         .tk-st.posted { color: var(--sv-fg-065f46); }
         .tk-st.failed { color: var(--sv-fg-dc2626); }
+        .tk-st.noresult { color: var(--sv-fg-92400e); }
         .tk-queue-actions { grid-column: 2; display: flex; gap: 6px; align-items: center; margin-top: 4px; }
         .tk-q-when { padding-top: 2px; }
         .tk-q-day { white-space: nowrap; }
@@ -546,7 +547,25 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
         // Trust the server status. An accepted upload is 'processing' until the
         // Post For Me result webhook flips the row to 'posted'/'failed' with the
         // real TikTok outcome — we no longer optimistically claim 'posted'.
-        return String(r.status || '').toLowerCase() || 'queued';
+        // When that webhook never arrives, the row would sit in Upcoming for
+        // ever, so an overdue row takes the answer from a direct Post For Me
+        // lookup, or says plainly that no result came back.
+        const s = String(r.status || '').toLowerCase() || 'queued';
+        if (!_tkIsOverdue(r)) return s;
+        const looked = (tkState.pfm || {})[r.id];
+        if (looked && looked.state === 'posted') return 'posted';
+        if (looked && looked.state === 'failed') return 'failed';
+        return 'noresult';
+    }
+    // An upload still marked pending well after it was due (or, for "post
+    // now", well after it was sent) has lost its result.
+    const TK_OVERDUE_MS = 3 * 3600000;
+    function _tkIsOverdue(r) {
+        if (r.optimistic) return false;
+        const s = String(r.status || '').toLowerCase() || 'queued';
+        if (!TK_UPCOMING.includes(s)) return false;
+        const at = Date.parse(r.scheduled_for || r.created_at || '');
+        return Number.isFinite(at) && Date.now() - at > TK_OVERDUE_MS;
     }
 
     function renderTiktokUploadView() {
@@ -1629,6 +1648,7 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
             // The live list is usually the same; repaint only on a change
             // (or to turn the cached, read-only rows into live ones).
             if (JSON.stringify(tkState.uploads) !== shownBefore) _tkRenderQueue();
+            await _tkLookupOverdue();
         } catch (e) {
             // Surface only on the very first failure — keep retrying quietly afterwards.
             const col = document.getElementById('tkQueueCol');
@@ -1639,7 +1659,7 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
     }
 
     const TK_UPCOMING = ['queued', 'uploading', 'processing', 'scheduled'];
-    const TK_STATUS_LABELS = { queued: 'Queued', uploading: 'Uploading', processing: 'Uploading', scheduled: 'Scheduled', posted: 'Posted', failed: 'Failed', cancelled: 'Cancelled', canceled: 'Cancelled' };
+    const TK_STATUS_LABELS = { noresult: 'No result from Post For Me', queued: 'Queued', uploading: 'Uploading', processing: 'Uploading', scheduled: 'Scheduled', posted: 'Posted', failed: 'Failed', cancelled: 'Cancelled', canceled: 'Cancelled' };
 
     // The moment a row is about: its scheduled time while it waits, otherwise
     // when it posted (or was last touched).
@@ -1705,8 +1725,8 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
         const groups = {
             upcoming: visible.filter(r => TK_UPCOMING.includes(_tkEffectiveStatus(r)))
                 .sort((x, y) => (x.scheduled_for ? t(x) : -Infinity) - (y.scheduled_for ? t(y) : -Infinity)),
-            failed: visible.filter(r => _tkEffectiveStatus(r) === 'failed').sort((x, y) => t(y) - t(x)),
-            done: visible.filter(r => !TK_UPCOMING.includes(_tkEffectiveStatus(r)) && _tkEffectiveStatus(r) !== 'failed').sort((x, y) => t(y) - t(x)),
+            failed: visible.filter(r => ['failed', 'noresult'].includes(_tkEffectiveStatus(r))).sort((x, y) => t(y) - t(x)),
+            done: visible.filter(r => !TK_UPCOMING.includes(_tkEffectiveStatus(r)) && !['failed', 'noresult'].includes(_tkEffectiveStatus(r))).sort((x, y) => t(y) - t(x)),
         };
         const tab = groups[tkState.queueTab] ? tkState.queueTab : 'upcoming';
         const rows = groups[tab];
@@ -1715,6 +1735,9 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
 
         const itemHTML = (r) => {
             const status = _tkEffectiveStatus(r);
+            const looked = (tkState.pfm || {})[r.id] || {};
+            if (!r.tiktok_url && looked.url) r = { ...r, tiktok_url: looked.url };
+            if (!r.error && status === 'failed' && looked.error) r = { ...r, error: looked.error };
             const when = _tkWhenParts(r, status);
             const actions = [];
             // Rows painted from the local cache are read-only until the live
@@ -1722,7 +1745,7 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
             const readOnly = tkState.queueFromCache && !r.optimistic;
             const id = _tkEscape(r.id);
             if (!readOnly && (status === 'scheduled' || status === 'queued')) actions.push(`<button type="button" class="tk-q-btn tk-q-danger" onclick="_tkCancelRow('${id}')">Cancel</button>`);
-            if (!readOnly && status === 'failed') actions.push(`<button type="button" class="tk-q-btn tk-q-primary" onclick="_tkRetryRow('${id}')">Retry</button>`);
+            if (!readOnly && status === 'failed' && !_tkIsOverdue(r)) actions.push(`<button type="button" class="tk-q-btn tk-q-primary" onclick="_tkRetryRow('${id}')">Retry</button>`);
             if (r.tiktok_url) actions.push(`<a class="tk-q-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
             if (!readOnly) actions.push(`<button type="button" class="tk-q-btn tk-q-x" onclick="_tkDismissRow('${id}')" title="Dismiss" aria-label="Dismiss">&times;</button>`);
             const tz = r.scheduled_for && r.timezone ? ` · ${_tkEscape(r.timezone.split('/').pop().replace(/_/g, ' '))}` : '';
@@ -1802,9 +1825,36 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
     function _tkHasScheduled() {
         return (tkState.uploads || []).some(r => _tkEffectiveStatus(r) === 'scheduled');
     }
+    // Overdue rows still waiting on an answer from the Post For Me lookup.
+    function _tkUnresolvedOverdue() {
+        const pfm = tkState.pfm || {};
+        return (tkState.uploads || []).filter(r => _tkIsOverdue(r) && !['posted', 'failed'].includes((pfm[r.id] || {}).state));
+    }
+    // Ask Post For Me (through the read-only status webhook) what happened
+    // to overdue rows. At most a few per pass, each at most every 10 min.
+    const TK_LOOKUP_EVERY_MS = 10 * 60000;
+    async function _tkLookupOverdue() {
+        tkState.pfm = tkState.pfm || {};
+        const due = _tkUnresolvedOverdue().filter(r => r.upload_post_id && !(Date.now() - ((tkState.pfm[r.id] || {}).at || 0) < TK_LOOKUP_EVERY_MS))
+            .sort((x, y) => ((tkState.pfm[x.id] || {}).at || 0) - ((tkState.pfm[y.id] || {}).at || 0))   // longest-unasked first, so no row starves
+            .slice(0, 5);
+        let changed = false;
+        for (const r of due) {
+            try {
+                const resp = await fetch(TIKTOK_UPLOAD_STATUS_URL + '?id=' + encodeURIComponent(r.id) + '&_t=' + Date.now(), { method: 'GET', signal: (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined) });
+                const json = resp.ok ? await resp.json() : null;
+                const pfm = (json && json.pfm) || null;
+                const prev = tkState.pfm[r.id] || {};
+                tkState.pfm[r.id] = { ...(pfm || { state: 'unknown' }), at: Date.now() };
+                if (prev.state !== tkState.pfm[r.id].state) changed = true;
+            } catch { tkState.pfm[r.id] = { ...(tkState.pfm[r.id] || {}), state: (tkState.pfm[r.id] || {}).state || 'unknown', at: Date.now() }; }
+        }
+        if (changed) _tkRenderQueue();
+    }
     function _tkNextPollDelay() {
         if (_tkActiveUploadCount() > 0) return 30_000;   // something in-flight — watch closely
         if (_tkHasScheduled()) return 120_000;           // only future posts — check lazily
+        if (_tkUnresolvedOverdue().length) return 300_000; // overdue, no result yet — keep asking
         return 0;                                        // nothing pending — stop until activity resumes
     }
     function _tkStopPolling() {

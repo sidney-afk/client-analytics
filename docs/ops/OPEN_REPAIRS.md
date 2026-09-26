@@ -29224,7 +29224,7 @@ open client link in 9.3 s without a refresh (before: never). Live realtime
 timing needs a machine where WebSockets work: run the same script there.
 Guard: `test/calendar-realtime-fallback.js`.
 
-## 267. [2026-09-26, PROPOSED] The anon key reads, and can subscribe to, every client's cards
+## 268. [2026-09-26, PROPOSED] The anon key reads, and can subscribe to, every client's cards
 
 Measured read-only: `calendar_posts` and `sample_reviews` have an anon read
 policy `using (true)` on every column, and `deliverables`, `batches` and

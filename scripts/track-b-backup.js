@@ -182,12 +182,23 @@ function clean(value) {
   return String(value == null ? '' : value).trim();
 }
 
+// Hash#update refuses more than 2^31-1 bytes in one call ("data is too
+// long"), so a Buffer is fed in 256 MiB slices. The digest is identical.
+const HASH_SLICE_BYTES = 256 * 1024 * 1024;
+function updateInSlices(hash, value) {
+  if (!Buffer.isBuffer(value) || value.length <= HASH_SLICE_BYTES) return hash.update(value);
+  for (let offset = 0; offset < value.length; offset += HASH_SLICE_BYTES) {
+    hash.update(value.subarray(offset, Math.min(value.length, offset + HASH_SLICE_BYTES)));
+  }
+  return hash;
+}
+
 function sha256(value) {
-  return crypto.createHash('sha256').update(value).digest('hex');
+  return updateInSlices(crypto.createHash('sha256'), value).digest('hex');
 }
 
 function md5(value) {
-  return crypto.createHash('md5').update(value).digest('hex');
+  return updateInSlices(crypto.createHash('md5'), value).digest('hex');
 }
 
 function canonicalize(value) {
@@ -618,7 +629,7 @@ function parseHmacKey(input = HMAC_KEY_INPUT) {
 }
 
 function hmacSha256(key, value) {
-  return crypto.createHmac('sha256', key).update(value).digest();
+  return updateInSlices(crypto.createHmac('sha256', key), value).digest();
 }
 
 function buildManifest(dumpBytes, generatedAt = new Date().toISOString(), sourceUrl = DB_URL, corpusName = 'legacy-v3') {

@@ -93,7 +93,10 @@ function writeDump(file, targetBytes, bigLineBytes = 0) {
     const snapshot = backup.readSnapshotFile(pack, key);
     assert.equal(snapshot.manifest.tables[BIG].rows, made.bigRows);
     assert.equal(snapshot.dumpBytes.length, made.bytes);
-    assert.equal(crypto.createHash('sha256').update(snapshot.dumpBytes).digest('hex'), manifest.snapshot.sha256);
+    // Independent digest, fed in 64 MiB slices (Hash#update refuses >2 GiB).
+    const h = crypto.createHash('sha256');
+    for (let o = 0; o < snapshot.dumpBytes.length; o += 64 * 2 ** 20) h.update(snapshot.dumpBytes.subarray(o, o + 64 * 2 ** 20));
+    assert.equal(h.digest('hex'), manifest.snapshot.sha256);
     log('authenticated, decompressed and re-verified: HMAC, both checksums and every table count match');
 
     const tampered = backup.readLargeFile(pack);

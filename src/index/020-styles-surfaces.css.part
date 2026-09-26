@@ -4063,6 +4063,50 @@
             html.boot-client .cal-tab-view .cal-week-card { width: 100%; }
         }
         /* CLIENT-PHONE:END */
+        /* KASPER REVIEW PHONE LAYOUT (Kasper's Review tab, phones only).
+           Same contract as the client-phone blocks: every rule between the
+           KASPER-PHONE markers sits inside @media (max-width: 767px), and
+           every selector starts with `#kasperReviewBody` or
+           `.kasper-wrap:has(#kasperReviewBody)` (the Review tab is the only
+           screen that renders #kasperReviewBody), so no desktop width and no
+           other screen can match it. Enforced by
+           test/kasper-phone-css-scope.js. */
+        /* KASPER-PHONE:BEGIN */
+        @media (max-width: 767px) {
+            /* Section tabs: one scrollable row instead of a column that
+               fills the first screen. */
+            .kasper-wrap:has(#kasperReviewBody) .kasper-subtabs { display: flex; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; gap: 4px; margin-bottom: 16px; }
+            .kasper-wrap:has(#kasperReviewBody) .kasper-subtabs::-webkit-scrollbar { display: none; }
+            .kasper-wrap:has(#kasperReviewBody) .kasper-subtab { flex: 0 0 auto; min-height: 44px; }
+            .kasper-wrap:has(#kasperReviewBody) .kasper-more { width: auto; grid-column: auto; margin-left: 0; }
+            .kasper-wrap:has(#kasperReviewBody) .kasper-more-trigger { width: auto; }
+            .kasper-wrap:has(#kasperReviewBody) .kasper-lightbox-close { width: 44px; height: 44px; }
+
+            /* Card strip: thumbnail + text, actions as full thumb targets. */
+            #kasperReviewBody .kcard-close-btn { width: 40px; height: 40px; top: 2px; right: 2px; opacity: 0.7; }
+            #kasperReviewBody .kcard-close-btn svg { width: 14px; height: 14px; }
+            #kasperReviewBody .kcard-thumb-zoom { min-width: 36px; min-height: 36px; }
+            #kasperReviewBody .kcard-actions { gap: 8px; flex-wrap: wrap; }
+            #kasperReviewBody .kcard-done-btn,
+            #kasperReviewBody .kcard-watch-btn { min-height: 44px; }
+            #kasperReviewBody .kcard-expand-btn { width: 44px; height: 44px; border-radius: 12px; }
+
+            /* Opened card: one piece at a time, full-width controls. */
+            #kasperReviewBody .cal-review-panel-preview { display: flex; justify-content: center; }
+            #kasperReviewBody .cal-review-preview-thumb-btn img { max-width: 100%; max-height: 52vh; }
+            #kasperReviewBody .cal-review-approve-btn { width: 100%; min-height: 52px; font-size: 1rem; border-radius: 12px; }
+            #kasperReviewBody .cal-review-textarea { font-size: 16px; min-height: 96px; padding: 12px 14px; border-radius: 12px; }
+            #kasperReviewBody .cal-review-tweak-actions { align-self: stretch; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+            #kasperReviewBody .cal-review-comment-btn,
+            #kasperReviewBody .cal-review-aat-btn,
+            #kasperReviewBody .cal-review-tweak-btn { justify-content: center; min-height: 48px; padding: 0 10px; font-size: 0.88rem; border-radius: 12px; white-space: nowrap; }
+            #kasperReviewBody .cal-review-tweak-btn { grid-column: 1 / -1; }
+            #kasperReviewBody .cal-review-thread-toggle { min-height: 44px; }
+            #kasperReviewBody .cal-review-comment-body { overflow-wrap: anywhere; }
+            #kasperReviewBody .kasper-history-wrap > summary,
+            #kasperReviewBody .kasper-history-head { min-height: 44px; }
+        }
+        /* KASPER-PHONE:END */
         /* Kasper › Clients (admin, read-only). Every selector is a new ca-
            class, so no other screen can match these rules. */
         .ca-body { min-height: 240px; }

@@ -30,22 +30,23 @@
 | 22 | `140-calendar-legacy-outbox.js.part` | 3071 | Shed the retired legacy rows from storage, under the surface mutation |
 | 23 | `150-calendar-hydration-import.js.part` | 2141 | For a card linked to a real sub-issue (not a parent), return which of |
 | 24 | `160-calendar-organize-ui.js.part` | 2809 | Lighter path for the Order switch: update the chrome in place so the |
-| 25 | `170-calendar-links-status.js.part` | 2759 | Move a Linear sub-issue link from the old card onto the new one. The |
+| 25 | `170-calendar-links-status.js.part` | 2777 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 26 | `180-calendar-native-post-media.js.part` | 2748 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
-| 27 | `190-calendar-approval-comments.js.part` | 3020 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
-| 28 | `200-intake-data-startup.js.part` | 1528 | Video-only and Thumbnail-only were already built, but sat |
-| 29 | `210-production-state-writes.js.part` | 3200 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
-| 30 | `220-production-attribution-views.js.part` | 2764 | An ABSENT persisted slug is missing evidence, not |
-| 31 | `230-production-create-comments.js.part` | 2639 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
-| 32 | `240-production-description.js.part` | 2646 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
-| 33 | `250-production-controls-data.js.part` | 2881 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 34 | `260-production-refresh-boot.js.part` | 2368 | AND TYPING COUNTS, which is the case this guard was missing. |
-| 35 | `270-samples-model.js.part` | 2770 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
-| 36 | `280-samples-cards-notes.js.part` | 2834 | SURFACE 3: the save engine |
-| 37 | `290-samples-writes-review.js.part` | 1804 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
-| 38 | `300-tiktok-upload.js.part` | 1998 | TIKTOK UPLOAD MODULE |
-| 39 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
-| 40 | `320-kasper-dashboard-replies.js.part` | 3226 | RELOAD RACE (speed map §7). On a reload the stored staff |
-| 41 | `330-kasper-review-history.js.part` | 2695 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
-| 42 | `340-editors-date-picker.js.part` | 1302 | Editor work model |
-| 43 | `350-footer.html.part` | 398 | Transcript preview modal |
+| 27 | `185-client-review-queue.js.part` | 337 | Client review send queue: a client's Approve or Request changes is |
+| 28 | `190-calendar-approval-comments.js.part` | 3050 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 29 | `200-intake-data-startup.js.part` | 1528 | Video-only and Thumbnail-only were already built, but sat |
+| 30 | `210-production-state-writes.js.part` | 3200 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
+| 31 | `220-production-attribution-views.js.part` | 2764 | An ABSENT persisted slug is missing evidence, not |
+| 32 | `230-production-create-comments.js.part` | 2639 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
+| 33 | `240-production-description.js.part` | 2646 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
+| 34 | `250-production-controls-data.js.part` | 2881 | F50 DISCLOSURE — say when a status has no word on the card. |
+| 35 | `260-production-refresh-boot.js.part` | 2368 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 36 | `270-samples-model.js.part` | 2770 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
+| 37 | `280-samples-cards-notes.js.part` | 2834 | SURFACE 3: the save engine |
+| 38 | `290-samples-writes-review.js.part` | 1804 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
+| 39 | `300-tiktok-upload.js.part` | 1998 | TIKTOK UPLOAD MODULE |
+| 40 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
+| 41 | `320-kasper-dashboard-replies.js.part` | 3226 | RELOAD RACE (speed map §7). On a reload the stored staff |
+| 42 | `330-kasper-review-history.js.part` | 2695 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
+| 43 | `340-editors-date-picker.js.part` | 1302 | Editor work model |
+| 44 | `350-footer.html.part` | 398 | Transcript preview modal |

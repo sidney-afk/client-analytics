@@ -1,0 +1,337 @@
+    /* Client review send queue: a client's Approve or Request changes is
+       never lost.
+
+       Measured 2026-09-26 on the test client: a client link that lost its
+       connection mid-Approve showed the card leaving the queue, no message,
+       and the approval never reached the server, not even after the
+       connection came back. The person believed they had approved.
+
+       Every client-link Approve / Request changes is now written to this
+       browser's storage BEFORE it is sent, and removed only when the server
+       confirms it. While it waits the person sees "Sending...", then
+       "Approved" / "Changes sent". A failure caused by the connection is held
+       and re-sent (when the browser comes back online, when the tab is shown
+       again, on a backoff timer, and after a reload). A failure the server
+       itself refused is not retried: the change is put back and a clear
+       message says it was not saved. An entry older than
+       CLIENT_REVIEW_QUEUE_MAX_AGE_MS (counted from the click, across reloads)
+       is dropped and the client is told plainly it was not saved.
+
+       A held Approve never lands on a newer state: the entry records the
+       server status at click time, and before any re-send the row is read
+       back from the SERVER (not the local copy); the approve is re-sent only
+       if that status is unchanged. So a change request made meanwhile, on
+       this device or another one, always wins over the held approve.
+
+       Re-sends go through the same save funnel as the click, so they are as
+       safe to repeat as the click is: an approve re-sends the same field
+       values, and a change request re-uses its action id, which the tweak
+       inspection already de-duplicates.
+
+       Only the tokened client link uses it (the hand-off lines in 170 and 190
+       are guarded by _isClientLink). Staff saves are unchanged. */
+    const CLIENT_REVIEW_QUEUE_KEY = 'sv-client-review-queue-v1';
+    const CLIENT_REVIEW_QUEUE_RETRY_MS = [3000, 6000, 12000, 24000, 45000, 60000];
+    const CLIENT_REVIEW_QUEUE_MAX_AGE_MS = 30 * 60 * 1000;
+    const _crqRun = { timer: null, attempt: 0, busy: false, toast: false,
+        inflight: new Set(), replaying: new Set() };
+
+    function _crqActive() {
+        return typeof _isClientLink !== 'undefined' && !!_isClientLink;
+    }
+    function _crqSlug() {
+        try { return calClientSlug(calState.client); } catch (e) { return ''; }
+    }
+    function _crqRead() {
+        try {
+            const all = JSON.parse(localStorage.getItem(CLIENT_REVIEW_QUEUE_KEY) || '{}');
+            return all && typeof all === 'object' && !Array.isArray(all) ? all : {};
+        } catch (e) { return {}; }
+    }
+    function _crqWrite(all) {
+        try { localStorage.setItem(CLIENT_REVIEW_QUEUE_KEY, JSON.stringify(all)); } catch (e) {}
+    }
+    function _crqKey(pid, comp) { return _crqSlug() + '|' + pid + '|' + comp; }
+    function _crqGet(pid, comp) { return _crqRead()[_crqKey(pid, comp)] || null; }
+    function _crqPut(entry) {
+        const all = _crqRead();
+        all[_crqKey(entry.pid, entry.comp)] = entry;
+        _crqWrite(all);
+    }
+    function _crqDrop(pid, comp) {
+        const all = _crqRead();
+        delete all[_crqKey(pid, comp)];
+        _crqWrite(all);
+        _crqRun.inflight.delete(pid + '|' + comp);
+    }
+    function _crqMine() {
+        const slug = _crqSlug();
+        const all = _crqRead();
+        return Object.keys(all).filter(k => k.indexOf(slug + '|') === 0).map(k => all[k]);
+    }
+    function _crqCompsOf(comp) { return comp === 'all' ? ['video', 'graphic', 'caption'] : [comp]; }
+    function _crqExpired(entry) { return !entry || !(Date.now() - Number(entry.at || 0) < CLIENT_REVIEW_QUEUE_MAX_AGE_MS); }
+
+    /* A failure the connection caused (worth re-sending), as opposed to one
+       the server refused (not worth re-sending). */
+    function _crqIsConnectionFailure(text) {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+        return /failed to fetch|networkerror|network error|load failed|internet|err_|timed? ?out|aborted|offline|\b50[234]\b/i
+            .test(String(text || ''));
+    }
+
+    function _crqSay(text, done) {
+        _crqRun.toast = !done;
+        try { showToast(text, { duration: done ? 3200 : 600000 }); } catch (e) {}
+    }
+    function _crqSending() {
+        const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+        _crqSay(offline ? 'Sending... waiting for your connection to come back' : 'Sending...', false);
+    }
+    /* Take our own "Sending..." down once nothing is left to send. Works even
+       when browser storage is unavailable and no entry was ever written. */
+    function _crqQuiet() {
+        if (_crqRun.toast && !_crqMine().length && !_crqRun.inflight.size) {
+            _crqRun.toast = false;
+            try { hideToast(); } catch (e) {}
+        }
+    }
+    function _crqTell(title, msg) {
+        _crqRun.toast = false;
+        try { hideToast(); showNotify(title, msg); } catch (e) {}
+    }
+    function _crqWhat(entry) { return entry && entry.kind === 'request' ? 'change request' : 'approval'; }
+    function _crqTellExpired(entry) {
+        _crqTell('Your ' + _crqWhat(entry) + ' was not saved',
+            'We could not reach SyncView for 30 minutes after you sent it, so nothing was saved. Please check your internet connection and do it again.');
+    }
+    function _crqTellChanged(entry) {
+        _crqTell('This post changed while your ' + _crqWhat(entry) + ' was waiting',
+            'Your ' + _crqWhat(entry) + ' was not saved, so it does not overwrite the newer update. Please look at the post again.');
+    }
+
+    /* Hand-off 1: the click. Records the action before anything is sent.
+       A newer action on the same part replaces a held approve for it. */
+    function _calCrqBegin(kind, pid, comp, data) {
+        if (!_crqActive()) return;
+        const key = pid + '|' + comp;
+        const prior = _crqGet(pid, comp);
+        const replay = _crqRun.replaying.has(key);
+        if (kind === 'request') {
+            _crqMine().filter(e => e.pid === pid && e.kind === 'approve'
+                && (e.comp === 'all' || e.comp === comp)).forEach(e => _crqDrop(e.pid, e.comp));
+        }
+        if (kind === 'request') {
+            // The request's action id exists BEFORE the first send and is kept
+            // with the entry, exactly as a retry of a failed request already
+            // carries one into the handler: the handler adopts it under its
+            // target lock, and a replay after a crash reuses it.
+            data = Object.assign({}, data || {});
+            data.actionId = String(data.actionId || _calReviewState.draftActionIds[key] || _calMintCommentId());
+            _calReviewState.draftActionIds[key] = data.actionId;
+        }
+        _crqPut(Object.assign({ kind, pid, comp,
+            at: replay && prior && prior.at || Date.now() }, data || {}));
+        _crqRun.inflight.add(key);
+        _crqSending();
+    }
+
+    /* Hand-off 2: the server confirmed. Returns true when the confirmation
+       was shown here, so the caller can skip its own toast. */
+    function _calCrqDone(pid, comp) {
+        if (!_crqActive()) return false;
+        const entry = _crqGet(pid, comp);
+        _crqDrop(pid, comp);
+        if (!_crqMine().length) _crqRun.attempt = 0;
+        if (!entry) { _crqQuiet(); return false; }
+        _crqSay(entry.kind === 'request' ? 'Changes sent' : 'Approved', true);
+        return true;
+    }
+
+    /* Hand-off 2b: the server already holds the outcome (a "superseded" or
+       "already saved" branch that explains itself inline). Nothing to re-send
+       and nothing more to announce. */
+    function _calCrqResolve(pid, comp) {
+        if (!_crqActive()) return;
+        _crqDrop(pid, comp);
+        _crqQuiet();
+    }
+
+    /* Hand-off 3: the save failed. Returns true when the action is HELD for
+       re-sending (a connection failure, entry younger than the maximum age):
+       the caller must then leave it looking sent instead of showing an error.
+       Returns false when the failure is final: the entry is dropped and a
+       clear message is shown; the caller's own rollback and inline error run. */
+    function _calCrqFailed(pid, comp, errorText) {
+        if (!_crqActive()) return false;
+        const entry = _crqGet(pid, comp);
+        _crqRun.inflight.delete(pid + '|' + comp);
+        if (!entry) { _crqQuiet(); return false; }
+        const key = pid + '|' + comp;
+        if (_crqIsConnectionFailure(errorText) && !_crqExpired(entry)) {
+            if (entry.kind === 'request') {
+                entry.actionId = String(_calReviewState.draftActionIds[key] || entry.actionId || '');
+                _crqPut(entry);
+            }
+            _calReviewState.errors[key] = '';
+            _calReviewState.saving[key] = true;
+            if (entry.kind === 'approve') _crqApplyApproved(entry);
+            _crqSending();
+            _crqSchedule();
+            return true;
+        }
+        _crqDrop(pid, comp);
+        if (_crqIsConnectionFailure(errorText)) _crqTellExpired(entry);
+        else _crqTell('Your ' + _crqWhat(entry) + ' was not saved',
+            'SyncView refused it, so nothing was saved: ' + String(errorText || 'unknown reason')
+            + ' Please try again, or tell your account manager if it keeps happening.');
+        return false;
+    }
+
+    /* Keep a held approve on screen as approved (the save funnel rolled the
+       fields back when the send failed). */
+    function _crqApplyApproved(entry) {
+        const post = (calState.posts || []).find(p => p.id === entry.pid);
+        if (!post || !entry.edits) return;
+        Object.assign(post, entry.edits);
+        delete post._saveError;
+        try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+    }
+    /* Put a dropped approve back to what the server holds, on screen. */
+    function _crqUnapply(entry, serverRow) {
+        const post = (calState.posts || []).find(p => p.id === entry.pid);
+        if (post) Object.assign(post, entry.prev || {}, serverRow || {});
+        _calReviewState.saving[entry.pid + '|' + entry.comp] = false;
+        try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+    }
+
+    function _crqSchedule() {
+        if (_crqRun.timer) return;
+        const delay = CLIENT_REVIEW_QUEUE_RETRY_MS[Math.min(_crqRun.attempt, CLIENT_REVIEW_QUEUE_RETRY_MS.length - 1)];
+        _crqRun.attempt++;
+        _crqRun.timer = setTimeout(() => { _crqRun.timer = null; _calCrqResend(); }, delay);
+    }
+
+    /* The row as the SERVER holds it now (never the local copy). Throws on a
+       network failure; resolves null when the row is gone. */
+    async function _crqReadServerRow(entry) {
+        const cols = _crqCompsOf(entry.comp).map(c => c + '_status').join(',');
+        const url = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=' + cols
+            + '&client=eq.' + encodeURIComponent(_crqSlug()) + '&id=eq.' + encodeURIComponent(entry.pid) + '&limit=2';
+        const response = await fetch(url, { cache: 'no-store', headers: {
+            apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const rows = await response.json();
+        return Array.isArray(rows) && rows.length === 1 ? rows[0] : null;
+    }
+    const _crqNorm = v => String(v == null ? '' : v).trim().toLowerCase();
+
+    /* Re-send everything this client link still owes. One at a time. */
+    async function _calCrqResend() {
+        if (!_crqActive() || _crqRun.busy) return;
+        if (_crqRun.timer) { clearTimeout(_crqRun.timer); _crqRun.timer = null; }
+        const entries = _crqMine();
+        if (!entries.length) { _crqQuiet(); return; }
+        _crqRun.busy = true;
+        let again = false;
+        try {
+            for (const entry of entries) {
+                if (_crqRun.inflight.has(entry.pid + '|' + entry.comp)) continue;
+                if (_crqExpired(entry)) {
+                    _crqDrop(entry.pid, entry.comp);
+                    if (entry.kind === 'approve') _crqUnapply(entry, null);
+                    else _calReviewState.saving[entry.pid + '|' + entry.comp] = false;
+                    _crqTellExpired(entry);
+                    continue;
+                }
+                const post = (calState.posts || []).find(p => p.id === entry.pid);
+                if (!post) { again = true; continue; }   // not loaded yet
+                if (typeof navigator !== 'undefined' && navigator.onLine === false) { again = true; continue; }
+                if (entry.kind === 'approve') { if (await _crqResendApprove(entry, post) === 'wait') again = true; }
+                else _crqResendRequest(entry, post);
+            }
+        } finally {
+            _crqRun.busy = false;
+        }
+        if (again) { _crqSending(); _crqSchedule(); }
+    }
+    async function _crqResendApprove(entry, post) {
+        const key = entry.pid + '|' + entry.comp;
+        const comps = _crqCompsOf(entry.comp);
+        let row;
+        _crqRun.inflight.add(key);
+        try { row = await _crqReadServerRow(entry); }
+        catch (e) { _crqRun.inflight.delete(key); return 'wait'; }   // still offline: keep holding
+        const target = entry.edits || {};
+        if (row && comps.every(c => _crqNorm(row[c + '_status']) === _crqNorm(target[c + '_status']))) {
+            // Already on the server (the first send landed; only its answer was lost).
+            _calCrqDone(entry.pid, entry.comp);
+            _calReviewState.saving[key] = false;
+            try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+            return 'done';
+        }
+        const was = entry.serverStatus || {};
+        const unchanged = !!row && comps.every(c => (c in was) && _crqNorm(row[c + '_status']) === _crqNorm(was[c]));
+        if (!unchanged) {
+            // Someone (on this device or another) moved the post on while the
+            // approval waited. The newer state wins; say so.
+            _crqDrop(entry.pid, entry.comp);
+            _crqUnapply(entry, row);
+            _crqTellChanged(entry);
+            return 'changed';
+        }
+        _crqSending();
+        Object.assign(post, target);
+        _calPendingEdits[entry.pid] = Object.assign(_calPendingEdits[entry.pid] || {}, target);
+        try { await _calFlushCardSave(entry.pid); }
+        catch (e) { post._saveError = _writeUiFailureSentence(e); }
+        _calReviewState.saving[key] = false;
+        const current = (calState.posts || []).find(p => p.id === entry.pid) || post;
+        if (current._saveError) {
+            if (!_calCrqFailed(entry.pid, entry.comp, current._saveError)) {
+                if (entry.prev) Object.assign(current, entry.prev);
+                _calReviewState.errors[key] = current._saveError;
+                try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+            }
+            return 'failed';
+        }
+        _calCrqDone(entry.pid, entry.comp);
+        try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+        return 'done';
+    }
+    function _crqResendRequest(entry, post) {
+        const key = entry.pid + '|' + entry.comp;
+        _calReviewState.saving[key] = false;
+        _calReviewState.drafts[key] = entry.body;
+        if (entry.actionId) _calReviewState.draftActionIds[key] = entry.actionId;
+        _crqSending();
+        // Its own completion calls _calCrqDone / _calCrqFailed / _calCrqResolve.
+        _crqRun.replaying.add(key);
+        try { _calReviewRequestTweak(entry.pid, entry.comp); }
+        finally { _crqRun.replaying.delete(key); }
+        // The handler returns early, without starting, when the part is no
+        // longer waiting on the client. Nothing was sent: say so, keep nothing.
+        if (!_calReviewState.saving[key] && _crqGet(entry.pid, entry.comp)) {
+            _crqDrop(entry.pid, entry.comp);
+            _crqTellChanged(entry);
+            try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+        }
+    }
+
+    /* Resume after a reload: wait until the page knows its client, then
+       re-send (entries whose post has not loaded yet wait for the next pass). */
+    function _crqResumeWhenLoaded(tries) {
+        if (!_crqActive() || tries >= 90) return;
+        if (!_crqSlug() || !((typeof calState !== 'undefined' && calState.posts) || []).length) {
+            setTimeout(() => _crqResumeWhenLoaded(tries + 1), 1000); return;
+        }
+        if (_crqMine().length) _calCrqResend();
+    }
+
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+        window.addEventListener('online', () => { _crqRun.attempt = 0; _calCrqResend(); });
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && _crqMine().length) _calCrqResend();
+        });
+        setTimeout(() => _crqResumeWhenLoaded(0), 1500);
+    }

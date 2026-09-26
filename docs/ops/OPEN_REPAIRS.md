@@ -29114,3 +29114,44 @@ in the approve and request-change logic.
    `_sxrKasperPersist` always sends an empty `comments_base_at` and never retries
    on a conflict, where the calendar sends its base time and merges comments on a
    conflict. A concurrent edit to the same sample can be overwritten.
+
+## 261. [2026-09-26, BUILT] A client's Approve or Request changes is never lost
+
+**What was wrong.** Measured on the test client on 2026-09-26: a client link
+that lost its connection during Approve showed the card leaving the queue, no
+message at all, and the approval never reached the server, not even after the
+connection came back. The client believed they had approved. Cause: the save
+failed and rolled the status back, but the page repainted only a card that the
+failed save's own render had already dropped from the list.
+
+**What changed.** `src/index/185-client-review-queue.js.part` (new) keeps each
+client-link Approve / Request changes in browser storage until the server
+confirms it. The client sees "Sending..." then "Approved" / "Changes sent". A
+connection failure is held and re-sent (back online, tab shown again, backoff
+timer, and after a reload); a server refusal is not retried, the change is put
+back and a clear message says it was not saved; after 30 minutes of failed
+re-sends the page says so plainly. Small hand-off lines in `170` (legacy
+"Approve post") and `190` (review Approve / Request changes). The approve
+failure path now does a full render, so a refused approve reappears.
+
+**Proof.** `qa/client-review-queue/offline.js`, live, test client only, five
+seeds archived after: online approve (DB in 0.9 s, "Sending..." then
+"Approved"); offline approve (held, landed 1.1 s after reconnect); offline
+request changes (landed 3.7 s after reconnect, exactly one copy of the
+comment); upsert down then page closed and reopened (landed 2.5 s after
+reopen, queue empty); server refusal (message shown, card back, nothing
+queued). Guard: `test/client-review-queue.js`.
+
+**261 addendum (2026-09-26, review fixes).** A held Approve now records the
+server status at click time and, before any re-send, reads the row back from
+the server; it is re-sent only if that status is unchanged, so a change request
+made meanwhile (on this device or another) always wins. A later change request
+on a part removes a held whole-post approve for it. Every entry has a hard
+30-minute maximum age from the click that survives reloads; on expiry it is
+dropped and the client is told plainly it was not saved. Superseded and
+early-return paths clear the entry. Entries carry only status and approval
+fields. Guards: `test/client-review-queue-behavior.js` (sandboxed, includes the
+two-device case). Live: `qa/client-review-queue/offline.js`, 24 of 24 checks,
+including the two-device case, six seeds archived. Side effect to know: the
+review Approve failure path (staff SMM review too) now redraws the whole
+calendar view instead of repainting one card.

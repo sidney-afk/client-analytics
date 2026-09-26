@@ -1068,12 +1068,15 @@ function readAlertMarker(bytes, staleKey, hmacInput = HMAC_KEY_INPUT) {
 
 async function verifyUploadedBackup(token, fileId, expectedName, filePath, driveContext, hmacInput = HMAC_KEY_INPUT) {
   const localBytes = readLargeFile(filePath);
-  const localSnapshot = readSnapshotBytes(localBytes, hmacInput);
+  // Keep only the local digest: holding the local snapshot (its decompressed
+  // dump) while the remote one is inflated would need two multi-GiB dumps at
+  // once. The packages themselves are byte-compared by assertDriveReadback.
+  const localDumpSha256 = readSnapshotBytes(localBytes, hmacInput).manifest.snapshot.sha256;
   const metadata = await driveFileMetadata(token, fileId);
   const remoteBytes = await downloadBackupBytes(token, fileId);
   assertDriveReadback(metadata, remoteBytes, localBytes, expectedName, driveContext.folderId, fileId, driveContext.driveId);
   const remoteSnapshot = readSnapshotBytes(remoteBytes, hmacInput);
-  if (remoteSnapshot.manifest.snapshot.sha256 !== localSnapshot.manifest.snapshot.sha256) {
+  if (remoteSnapshot.manifest.snapshot.sha256 !== localDumpSha256) {
     throw new Error('Google Drive backup readback snapshot checksum mismatch');
   }
   return {

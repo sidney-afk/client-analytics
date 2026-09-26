@@ -29177,3 +29177,10 @@ UNVERIFIED live: the build sandbox blocks WebSockets, so end-to-end latency
 and that anon broadcast is permitted on this project (no private-channel
 authorization required) were not observed. Check with `wlV2Status().planLive`
 in two browsers.
+Review follow-up (PR #1684): broadcast hints are shape-validated and
+rate-limited to one re-read per 10 s per page (a hint inside the window
+schedules one re-read at its end); a hint arriving while the page is busy is
+kept and retried every 2 s (bounded); leaving Workload inside the 250 ms
+coalesce window flushes the confirmed announcement instead of dropping it.
+Sender authentication would need private channels plus `realtime.messages`
+RLS (a DB/auth change) and is left for later.

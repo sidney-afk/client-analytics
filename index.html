@@ -15445,30 +15445,72 @@
         const storageKey = o.storageKey || 'syncview.workload.plan-live.v1';
         const from = Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
         const st = { channelStatus: 'idle', subscribedOnce: false, lastError: '', sent: 0, sendFailed: 0,
-            received: 0, echoesIgnored: 0, refreshes: 0, catchUps: 0, lastReceivedAt: '' };
+            received: 0, echoesIgnored: 0, refreshes: 0, catchUps: 0, lastReceivedAt: '',
+            rejected: 0, throttled: 0, busyGaveUp: 0 };
         let channel = null, client = null, recvTimer = null, sendTimer = null, opening = null;
-        function scheduleRefresh() {
-            if (recvTimer) clearTimeout(recvTimer);
-            recvTimer = setTimeout(() => {
-                recvTimer = null;
-                st.refreshes++;
-                try { const p = o.onRemote && o.onRemote(); if (p && p.catch) p.catch(() => {}); } catch {}
-            }, debounceMs);
+        // Broadcast is a PUBLIC channel: anyone with the publishable key can send
+        // to it. So broadcast-triggered re-reads are strictly validated and
+        // rate-limited to one per minRemoteIntervalMs per page; a hint inside the
+        // window schedules exactly one re-read at the window's end. The storage
+        // signal cannot come from outside this browser and is not throttled.
+        const minRemoteIntervalMs = o.minRemoteIntervalMs == null ? 10000 : o.minRemoteIntervalMs;
+        const busyRetryMs = o.busyRetryMs == null ? 2000 : o.busyRetryMs;
+        const busyRetryMax = o.busyRetryMax == null ? 30 : o.busyRetryMax;
+        const clock = typeof o.now === 'function' ? o.now : () => Date.now();
+        let lastRemoteRunAt = -Infinity, dirty = false, busyTries = 0;
+        function runRefresh() {
+            recvTimer = null;
+            // Busy (loading, manual refresh, own write): the existing check would
+            // return early and forget the hint. Keep it dirty and retry, bounded.
+            if (o.canRun && !o.canRun()) {
+                dirty = true;
+                if (busyTries++ < busyRetryMax) recvTimer = setTimeout(runRefresh, busyRetryMs);
+                else { dirty = false; busyTries = 0; st.busyGaveUp++; }
+                return;
+            }
+            dirty = false; busyTries = 0;
+            st.refreshes++;
+            try { const p = o.onRemote && o.onRemote(); if (p && p.catch) p.catch(() => {}); } catch {}
         }
-        function receive(payload) {
-            const hint = payload && payload.payload ? payload.payload : payload;
-            if (!hint || hint.kind !== 'plan') return false;
+        function scheduleRefresh(throttled) {
+            let delay = debounceMs;
+            if (throttled) {
+                const now = clock();
+                const earliest = lastRemoteRunAt + minRemoteIntervalMs;
+                if (now < earliest) {
+                    st.throttled++;
+                    if (recvTimer) return;           // one pending re-read already covers it
+                    delay = Math.max(debounceMs, earliest - now);
+                }
+                lastRemoteRunAt = Math.max(now + delay, lastRemoteRunAt);
+            }
+            if (recvTimer) clearTimeout(recvTimer);
+            busyTries = 0;
+            recvTimer = setTimeout(runRefresh, delay);
+        }
+        function validHint(hint) {
+            if (!hint || typeof hint !== 'object' || Array.isArray(hint)) return false;
+            const keys = Object.keys(hint);
+            if (keys.length !== 3 || keys.some(k => k !== 'kind' && k !== 'at' && k !== 'from')) return false;
+            if (hint.kind !== 'plan') return false;
+            if (typeof hint.at !== 'string' || hint.at.length > 40 || !/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(hint.at)) return false;
+            if (typeof hint.from !== 'string' || !/^[a-z0-9]{8,40}$/.test(hint.from)) return false;
+            return true;
+        }
+        function receive(msg, viaStorage) {
+            const hint = viaStorage ? msg : (msg && typeof msg === 'object' ? msg.payload : null);
+            if (!validHint(hint)) { st.rejected++; return false; }
             if (hint.from === from) { st.echoesIgnored++; return false; }
             st.received++;
             st.lastReceivedAt = new Date().toISOString();
-            scheduleRefresh();
+            scheduleRefresh(!viaStorage);
             return true;
         }
         function onStorage(event) {
             if (!event || event.key !== storageKey || !event.newValue) return false;
             let hint = null;
             try { hint = JSON.parse(event.newValue); } catch { return false; }
-            return receive(hint);
+            return receive(hint, true);
         }
         function flush() {
             sendTimer = null;
@@ -15500,14 +15542,14 @@
                 st.channelStatus = 'CONNECTING';
                 try {
                     channel = c.channel(o.channelName || 'workload-plan', { config: { broadcast: { self: false, ack: false } } })
-                        .on('broadcast', { event: 'plan' }, receive)
+                        .on('broadcast', { event: 'plan' }, msg => receive(msg, false))
                         .subscribe((status, err) => {
                             st.channelStatus = String(status || '');
                             if (status === 'SUBSCRIBED') {
                                 st.lastError = '';
                                 // Broadcast does not replay; a re-subscribe after a drop
                                 // re-reads once to catch whatever was missed.
-                                if (st.subscribedOnce) { st.catchUps++; scheduleRefresh(); }
+                                if (st.subscribedOnce) { st.catchUps++; scheduleRefresh(false); }
                                 st.subscribedOnce = true;
                             } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
                                 st.lastError = String(status) + (err && err.message ? ': ' + err.message : '');
@@ -15523,7 +15565,10 @@
         }
         function teardown() {
             if (recvTimer) { clearTimeout(recvTimer); recvTimer = null; }
-            if (sendTimer) { clearTimeout(sendTimer); sendTimer = null; }
+            // A confirmed save still inside the coalesce window is sent now
+            // (storage signal always; broadcast if the channel is still up).
+            if (sendTimer) { clearTimeout(sendTimer); flush(); }
+            dirty = false; busyTries = 0;
             if (channel) {
                 try {
                     if (client && typeof client.removeChannel === 'function') client.removeChannel(channel);
@@ -15533,13 +15578,17 @@
             channel = null; client = null;
             st.channelStatus = 'idle'; st.subscribedOnce = false;
         }
-        function status() { return Object.assign({ subscribed: st.channelStatus === 'SUBSCRIBED' }, st); }
+        function status() { return Object.assign({ subscribed: st.channelStatus === 'SUBSCRIBED', pendingReread: dirty || !!recvTimer }, st); }
         return { announce, ensure, teardown, status, onStorage, receive };
     }
     const _wlPlanLive = (typeof window !== 'undefined') ? wlCreatePlanLive({
         getClient: () => _wlV2Client(),
         isActive: () => !!document.querySelector('.workload-view'),
         onRemote: () => _wlV2CheckWatermark(),
+        // Mirrors the early returns in _wlV2CheckWatermark, so a hint is kept
+        // (and retried) instead of silently dropped while the page is busy.
+        canRun: () => !_wlV2WatermarkBusy && !document.hidden && !!document.querySelector('.workload-view')
+            && !wlState.loading && !wlState.refreshing && !_wlPlanWriteInFlight.size && !_wlDueWriteInFlight.size,
         storage: (() => { try { return window.localStorage; } catch { return null; } })()
     }) : null;
     if (typeof window !== 'undefined' && _wlPlanLive && !window.__wlPlanLiveWired) {

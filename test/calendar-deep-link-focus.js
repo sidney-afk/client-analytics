@@ -83,6 +83,7 @@ function harness(options) {
     '_calClearFocusHighlight', '_calFocusOutsideHandler',
     'onCalViewChange', 'onCalClearFilters', '_calOrganizeIsActive', '_calRenderBody',
     'showToast', '_calFmtDateShort', '_calSetFocusRequest', 'hideToast', '_calHideOwnToast',
+    '_calSyncUrlCard',
     src + '\nreturn _calApplyFocusRequest;',
   )(
     opts.identifier !== undefined || opts.nativeId !== undefined
@@ -106,6 +107,7 @@ function harness(options) {
     req => setFocusCalls.push(req),
     () => { hideToastCalls++; },
     () => { hideToastCalls++; },
+    pid => log.push('url-card:' + pid),
   );
   fn();
   return {

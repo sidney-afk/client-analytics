@@ -21,3 +21,4 @@
 260-production-refresh-boot.js.part
 131-core-html.js.part
 132-calendar-dates-ids.js.part
+133-core-loading-skeletons.js.part

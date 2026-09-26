@@ -24,7 +24,7 @@
 | 16 | `130-calendar-model-cache.js.part` | 1341 | Returns the comments array for a given component. Falls back to the |
 | 17 | `131-core-html.js.part` | 13 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 18 | `132-calendar-dates-ids.js.part` | 14 | — |
-| 19 | `133-core-loading-skeletons.js.part` | 363 | Modern animated loader — a single rotating ring with a subtle label. |
+| 19 | `133-core-loading-skeletons.js.part` | 367 | Modern animated loader — a single rotating ring with a subtle label. |
 | 20 | `134-calendar-prefs-mount.js.part` | 1023 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
 | 21 | `140-calendar-legacy-outbox.js.part` | 3071 | Shed the retired legacy rows from storage, under the surface mutation |
 | 22 | `150-calendar-hydration-import.js.part` | 2140 | For a card linked to a real sub-issue (not a parent), return which of |

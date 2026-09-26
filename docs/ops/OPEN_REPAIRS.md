@@ -29038,3 +29038,13 @@ anything else is discarded and the normal read runs. Nothing is shown before the
 check passes. Expected saving: about the length of `key-verify`, 0.45-0.85 s, on
 every Workload open. Test: `test/workload-early-snapshot.js`. Before/after on the
 live site to be recorded here after merge.
+
+- *Measured live, 2026-09-25, after merge (commit
+  `966c3490e6c71476ca795aeffe1a76d9a00c843c`), same rig as above: Playwright
+  Chromium through the sandbox proxy, staff key, 6 warm reloads of `#workload`.*
+  The fresh-board read now starts 124-233 ms into the load, beside `key-verify`,
+  instead of 787-943 ms (after it). Live and editable board: **1,681-1,911 ms,
+  median 1,779 ms**, against 2,253-2,941 ms (median ~2,480 ms) before, so about
+  **0.7 s saved** per Workload open. The first (saved-copy) paint is unchanged at
+  ~0.9-1.1 s, because it still waits for `key-verify` by design. One read per load:
+  the early answer was used and no duplicate request was made.

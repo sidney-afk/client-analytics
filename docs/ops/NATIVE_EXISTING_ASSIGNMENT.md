@@ -117,8 +117,9 @@ SQL sessions, real journal/outbox rollback and actual ordinary/targeted worker
 selection. Most reads/RPCs use the inherited administrative fixture adapter;
 the separate role canaries establish only their stated privilege boundaries.
 At that original checkpoint, ten intake/create/provider helpers and five
-browser/policy/frozen-auth source paths were unchanged from the exact base. See the
-[public-safe source and test receipt](../audits/2026-09-06-native-existing-assignment-evidence.json).
+browser/policy/frozen-auth source paths were unchanged from the exact base. The
+[focused assignment test](../../test/native-existing-assignment.js) remains in
+this repository; its original checkpoint receipt is absent from current `main`.
 The existing assignment/transition policy and native-assignee policy checks
 pass; deployment manifest ownership remains unchanged. The original checkpoint
 did not claim a full unit suite, aggregate Production polish or hosted CI.

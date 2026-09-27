@@ -10,9 +10,9 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 41 |
+| Deployable function slugs | 42 |
 | Main-push plus manual-dispatch paths | 12 |
-| Manual-dispatch-only paths | 12 |
+| Manual-dispatch-only paths | 13 |
 | No CI deploy path | 14 |
 | Deliberate-manual subset of no-CI paths | 5 |
 
@@ -55,6 +55,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `sample-review-reorder` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
 | `sample-review-upsert` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
 | `smm-weekly-reports` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
+| `syncview-session` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts`<br>`_shared/syncview-session-policy.mjs` | - |
 | `templates-save` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
 | `thumbnail-folder-resolve` | NONE | **NO CI DEPLOY PATH.** | - | - |
 | `thumbnail-revision-read` | [deploy-thumbnail](../../.github/workflows/deploy-thumbnail-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |

@@ -197,6 +197,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | `docs/audits/2026-09-26-scripts-entrypoints.md` | Source-only audit of confirmed scripts entry points and manual-review candidates, with no script execution or deletion. |
 | `docs/audits/2026-09-26-uncalled-browser-functions.md` | Source-only census of top-level browser functions with no assembled-page references, including ten small review candidates and protected-fragment exclusions. |
 | `docs/audits/2026-09-26-edge-onboarding-list-capture-source-review.md` | Proposal-only source review of standard onboarding-list completeness and fallback-capture ordering/alert receipts; no endpoint call or live change. |
+| `docs/audits/2026-09-26-edge-pto-body-source-review.md` | Source-only proposal for a consistent 400 response to non-object PTO POST bodies; no function or live change. |
 | `scripts/linear-only-slot-repair.js`, `test/linear-only-slot-repair.js`, `docs/ops/2026-09-24-linear-only-slot-repair.md` | Read-only finder for Calendar slots that hold only a retired Linear URL: classifies each against existing SyncView deliverables and writes a guarded, NOT APPLIED connection plan (ids and SQL) to a file outside the repo. Prints counts only. |
 
 ## Meta

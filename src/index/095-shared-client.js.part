@@ -13,14 +13,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
      * Staff used to re-pick the same client on every tab: Calendar and Samples
      * each kept their own pinned client strip, Templates its own open client,
      * TikTok Upload its own draft client, Filming Plans a typed search. Now one
-     * "current client" lives in the top bar above the tabs, with one-click
-     * buttons for the last three clients, and these tabs follow it:
+     * "current client" lives in a small first-name dropdown in the main bar,
+     * right after the logo (recent clients and search inside it; owner
+     * redesign 2026-09-27), and these tabs follow it:
      *
      *   Calendar, Samples, Templates, Filming Plans, TikTok Upload, Analytics.
      *
      * Team tabs (Workload, SyncLinear, Production, Submit, Kasper, the leave
-     * calendar, reports) ignore it on purpose: they are about people, not one client, and
-     * the bar is hidden there so nobody reads it as a filter.
+     * calendar, reports) ignore it on purpose: they are about people, not one
+     * client. The dropdown still shows there, so the tab row never moves.
      *
      * The client is a canonical roster display name (WL_CLIENT_NAMES), the same
      * identity every following tab already stored. It is a per-browser
@@ -146,29 +147,39 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     function _svClientDot(name) {
         return `<span class="sv-client-dot" style="--sv-client-h:${_svClientHue(name)}" aria-hidden="true">${_calEsc(_svClientInitials(name))}</span>`;
     }
+    // The badge shows the first name only (full name on hover and for
+    // assistive tech), tinted in the client's own colour.
+    function _svClientShortName(name) {
+        const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+        if (!words.length) return '';
+        return /\.$/.test(words[0]) && words[1] ? words[0] + ' ' + words[1] : words[0];
+    }
     function svClientBarRender() {
         const bar = document.getElementById('svClientBar');
         if (!bar) return;
         const cur = svSharedClientGet();
-        const badge = document.getElementById('svClientBadgeLabel');
+        const badge = document.getElementById('svClientBadge');
+        const label = document.getElementById('svClientBadgeLabel');
         const dot = document.getElementById('svClientBadgeDot');
-        if (badge) badge.textContent = cur || 'Pick a client';
-        if (dot) dot.outerHTML = cur ? _svClientDot(cur).replace('class="sv-client-dot"', 'class="sv-client-dot" id="svClientBadgeDot"') : '<span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>';
-        const recent = svRecentClients().filter(r => r !== cur).slice(0, 3);
-        const wrap = document.getElementById('svClientRecent');
-        if (wrap) {
-            wrap.innerHTML = recent.map(r => `<button type="button" class="sv-client-recent-btn" data-sv-client="${_calEscAttr(r)}" title="Switch to ${_calEscAttr(r)}">${_svClientDot(r)}<span>${_calEsc(r)}</span></button>`).join('');
+        if (label) label.textContent = cur ? _svClientShortName(cur) : 'Client';
+        if (badge) {
+            badge.setAttribute('data-sv-current', cur || '');
+            badge.title = cur || 'Pick a client';
+            badge.setAttribute('aria-label', cur ? 'Client: ' + cur + '. Change client' : 'Pick a client');
+            badge.classList.toggle('has-client', !!cur);
+            if (cur) badge.style.setProperty('--sv-client-h', String(_svClientHue(cur)));
+            else badge.style.removeProperty('--sv-client-h');
         }
-        const label = document.getElementById('svClientRecentLabel');
-        if (label) label.hidden = !recent.length;
+        if (dot) dot.outerHTML = cur ? _svClientDot(cur).replace('class="sv-client-dot"', 'class="sv-client-dot" id="svClientBadgeDot"') : '<span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>';
     }
-    // Show the bar only on the tabs that follow it, and only for staff.
+    // Staff see the picker on every tab, so the tab row never shifts; team
+    // tabs simply ignore the client. Client links never show it.
     function svClientBarSync(page) {
         const bar = document.getElementById('svClientBar');
         if (!bar) return;
-        const show = _svStaffShell() && SV_CLIENT_FOLLOW_TABS.includes(page);
+        const show = _svStaffShell();
         bar.hidden = !show;
-        document.body.classList.toggle('sv-shared-client', _svStaffShell());
+        document.body.classList.toggle('sv-shared-client', show);
         if (!show) _svClientPopClose();
         else svClientBarRender();
     }
@@ -182,23 +193,24 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const has = all.filter(n => !starts.includes(n) && n.toLowerCase().includes(needle));
         return starts.sort((a, b) => a.localeCompare(b)).concat(has.sort((a, b) => a.localeCompare(b))).slice(0, 8);
     }
+    // No query: the current client on top in its colour, a thin line, then
+    // the recent clients. A query: the matches only. No headings.
     function _svClientRenderResults() {
         const input = document.getElementById('svClientSearch');
         const box = document.getElementById('svClientResults');
         if (!input || !box) return;
-        const q = input.value;
+        const q = input.value.trim();
         const cur = svSharedClientGet();
-        const sections = [];
-        const matches = _svClientMatches(q);
-        if (q.trim()) sections.push({ title: 'Matches', names: matches });
         const recent = svRecentClients().filter(r => r !== cur);
-        if (!q.trim()) sections.push({ title: 'Recent', names: recent });
-        const flat = sections.flatMap(s => s.names);
+        const flat = q ? _svClientMatches(q) : (cur ? [cur] : []).concat(recent);
         if (_svClientActive >= flat.length) _svClientActive = 0;
-        let i = 0;
-        let html = sections.map(s => `<div class="sv-client-sec">${s.title}</div>` + (s.names.length
-            ? s.names.map(n => { const idx = i++; return `<div class="sv-client-row${idx === _svClientActive ? ' is-active' : ''}" role="option" id="svClientOpt${idx}" aria-selected="${idx === _svClientActive}" data-sv-client="${_calEscAttr(n)}">${_svClientDot(n)}<span>${_calEsc(n)}</span></div>`; }).join('')
-            : `<div class="sv-client-none">${q.trim() ? 'No clients match' : 'Type to search every client'}</div>`)).join('');
+        const rowHtml = (n, idx) => `<div class="sv-client-row${idx === _svClientActive ? ' is-active' : ''}${n === cur ? ' is-current' : ''}" style="--sv-client-h:${_svClientHue(n)}" role="option" id="svClientOpt${idx}" aria-selected="${n === cur}" data-sv-client="${_calEscAttr(n)}">${_svClientDot(n)}<span>${_calEsc(n)}</span></div>`;
+        let html = '';
+        if (!flat.length) html = `<div class="sv-client-none">${q ? 'No clients match' : 'Type a client name'}</div>`;
+        else flat.forEach((n, idx) => {
+            if (!q && cur && idx === 1) html += '<div class="sv-client-divider" role="separator"></div>';
+            html += rowHtml(n, idx);
+        });
         box.innerHTML = html;
         box._svFlat = flat;
         if (flat.length) input.setAttribute('aria-activedescendant', 'svClientOpt' + _svClientActive);
@@ -212,12 +224,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // Fixed, not absolute: the bar scrolls sideways on a phone and would clip it.
         const r = document.getElementById('svClientBadge')?.getBoundingClientRect();
         if (r) {
-            const w = Math.min(320, window.innerWidth - 28);
+            const w = Math.min(280, window.innerWidth - 28);
             pop.style.left = Math.max(14, Math.min(r.left, window.innerWidth - w - 14)) + 'px';
-            pop.style.top = Math.round(r.bottom) + 'px';
+            pop.style.top = Math.round(r.bottom + 6) + 'px';
         }
         pop.hidden = false;
         document.getElementById('svClientBadge')?.setAttribute('aria-expanded', 'true');
+        document.getElementById('svClientBadge')?.classList.add('is-open');
         const input = document.getElementById('svClientSearch');
         _svClientActive = 0;
         if (input) { input.value = ''; _svClientRenderResults(); setTimeout(() => input.focus(), 0); }
@@ -227,6 +240,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!pop || pop.hidden) return;
         pop.hidden = true;
         document.getElementById('svClientBadge')?.setAttribute('aria-expanded', 'false');
+        document.getElementById('svClientBadge')?.classList.remove('is-open');
     }
     function _svClientBarWire() {
         const bar = document.getElementById('svClientBar');

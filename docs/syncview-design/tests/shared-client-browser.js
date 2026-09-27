@@ -194,6 +194,114 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       await context.close();
     }
 
+    // My clients: an SMM sees their own clients above Recent, with no remove
+    // button; Recent holds at most three others; an admin sees only Recent;
+    // the current client is tinted wherever it shows; search still reaches
+    // a client in neither list. The SMM assignment is a seeded fixture map.
+    {
+      const { context, page } = await open(browser, port, '/calendar');
+      const MINE = ['Anchor Fixture Mine One', 'Anchor Fixture Mine Two'];
+      const OTHERS = ['Anchor Fixture Delta', 'Anchor Fixture Echo', 'Anchor Fixture Foxtrot', 'Anchor Fixture Golf'];
+      const OUTSIDE = 'Anchor Fixture Hotel';
+      const all = MINE.concat(OTHERS, [OUTSIDE]);
+      await page.evaluate(({ all, mine }) => {
+        all.forEach(n => { if (!WL_CLIENT_NAMES.includes(n)) WL_CLIENT_NAMES.push(n); });
+        _kasperState.smmByClient = new Map(mine.map(n => [wlNormalizeClient(n), { name: 'Qa' }]));
+      }, { all, mine: MINE });
+      const pick = async name => {
+        await page.click('#svClientBadge');
+        await page.fill('#svClientSearch', name);
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(300);
+      };
+      // Visit a mine client, then four others (Golf last = current).
+      for (const n of [MINE[1], ...OTHERS]) await pick(n);
+      const sections = () => page.$$eval('#svClientResults [data-sv-client]', els => els.map(e => ({
+        n: e.getAttribute('data-sv-client'), sec: e.getAttribute('data-sv-section'), cur: e.classList.contains('is-current'),
+        forget: !!(e.parentElement && e.parentElement.querySelector('.sv-client-forget'))
+      })));
+      const labels = () => page.$$eval('#svClientResults .sv-client-sec', els => els.map(e => ({ t: e.textContent.trim(), tt: getComputedStyle(e).textTransform })));
+
+      // Admin (the seeded identity): no My clients, Recent capped at three.
+      await page.click('#svClientBadge');
+      let rows = await sections();
+      expect(rows.every(r => r.sec === 'recent'), 'admin: only Recent should show');
+      expect(rows.length === 3, `admin: Recent should hold three rows, got ${rows.length}`);
+      expect(rows[0].n === OTHERS[3] && rows[0].cur, 'admin: the current client should lead Recent, tinted');
+      expect((await labels()).length === 0, 'admin: no section label when only Recent shows');
+      await page.keyboard.press('Escape');
+
+      // Become a verified SMM whose first name matches the fixture map.
+      await page.evaluate(() => {
+        const id = _syncviewStaffIdentityLoad();
+        _syncviewStaffIdentitySave(Object.assign({}, id, { role: 'smm', member: Object.assign({}, id.member, { role: 'smm', name: 'QA Staff' }) }));
+      });
+      await page.click('#svClientBadge');
+      rows = await sections();
+      const mineRows = rows.filter(r => r.sec === 'mine');
+      const recentRows = rows.filter(r => r.sec === 'recent');
+      expect(JSON.stringify(mineRows.map(r => r.n)) === JSON.stringify(MINE), `smm: My clients should be ${MINE}, got ${mineRows.map(r => r.n)}`);
+      expect(mineRows.every(r => !r.forget), 'smm: My clients must not offer a remove button');
+      expect(recentRows.length <= 3 && recentRows.length > 0, `smm: Recent should hold one to three rows, got ${recentRows.length}`);
+      expect(recentRows.every(r => !MINE.includes(r.n)), 'smm: Recent repeats a My clients entry');
+      expect(recentRows.filter(r => !r.cur).every(r => r.forget), 'smm: Recent rows should offer a remove button');
+      expect(rows.filter(r => r.cur).length === 1 && rows.find(r => r.cur).n === OTHERS[3], 'smm: the current client should be tinted once');
+      const ls = await labels();
+      expect(JSON.stringify(ls.map(l => l.t)) === JSON.stringify(['My clients', 'Recent']), `smm: section labels are ${ls.map(l => l.t)}`);
+      expect(ls.every(l => l.tt === 'none'), 'smm: section labels should be sentence case, not uppercase');
+      // Accessibility: listboxes hold options only; buttons sit outside them.
+      const a11y = await page.evaluate(() => {
+        const boxes = [...document.querySelectorAll('#svClientResults [role="listbox"]')];
+        const optionOnly = boxes.every(b => [...b.children].every(c => c.querySelector(':scope > [role="option"]') && !c.matches('[role="option"] *')));
+        const btnInOption = !!document.querySelector('#svClientResults [role="option"] button');
+        const clearInList = !!document.querySelector('#svClientResults [role="listbox"] .sv-client-clear');
+        return { n: boxes.length, optionOnly, btnInOption, clearInList };
+      });
+      expect(a11y.n === 2 && !a11y.btnInOption && !a11y.clearInList, `smm: remove / clear controls must sit outside options and listboxes (${JSON.stringify(a11y)})`);
+      await page.keyboard.press('Escape');
+
+      // Current is one of My clients: tinted there, not repeated in Recent.
+      await pick(MINE[0]);
+      await page.click('#svClientBadge');
+      rows = await sections();
+      expect(rows.find(r => r.n === MINE[0] && r.sec === 'mine' && r.cur), 'smm: a current My client should be tinted in My clients');
+      expect(rows.filter(r => r.sec === 'recent').length === 3 && rows.filter(r => r.sec === 'recent').every(r => !MINE.includes(r.n)), 'smm: Recent should show three others');
+      // Search reaches a client in neither list.
+      await page.fill('#svClientSearch', OUTSIDE);
+      rows = await sections();
+      expect(rows.length === 1 && rows[0].n === OUTSIDE, 'search: a client outside both lists is not found');
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(300);
+      expect(await page.evaluate(() => calState.client) === OUTSIDE, 'search: picking a client outside both lists did not switch');
+
+      await context.close();
+    }
+
+    // Touch device: the remove button is at least 44px square.
+    {
+      const context = await browser.newContext({ viewport: { width: 390, height: 800 }, hasTouch: true, isMobile: true });
+      await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()), route => {
+        route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }).catch(() => {});
+      });
+      await seedStaffGate(context);
+      await context.addInitScript(v => { try { localStorage.setItem('syncview_recent_clients', JSON.stringify(v)); } catch (e) {} }, [FIRST, SECOND]);
+      const page = await context.newPage();
+      await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(() => typeof window.navTo === 'function' && document.getElementById('svClientBar'));
+      await page.waitForTimeout(1500);
+      await page.evaluate(names => { names.forEach(n => { if (!WL_CLIENT_NAMES.includes(n)) WL_CLIENT_NAMES.push(n); }); }, [FIRST, SECOND]);
+      await page.evaluate(() => svClientPopToggle());
+      await page.waitForTimeout(200);
+      const box = await page.evaluate(() => {
+        const b = document.querySelector('#svClientResults .sv-client-forget');
+        if (!b) return null;
+        const r = b.getBoundingClientRect();
+        return { w: r.width, h: r.height, o: getComputedStyle(b).opacity };
+      });
+      expect(box && box.w >= 44 && box.h >= 44 && box.o === '1', `touch: the remove button should be a visible 44px target, got ${JSON.stringify(box)}`);
+      await context.close();
+    }
+
     // Samples in a fresh browser: the first top-bar pick draws its Share menu.
     {
       const { context, page } = await open(browser, port, '/sample-reviews');

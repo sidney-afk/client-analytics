@@ -4234,10 +4234,17 @@
         .sv-jump-touch { display: none; flex: none; width: 30px; height: 30px; margin-left: 6px; place-items: center; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-secondary); cursor: pointer; }
         @media (hover: none) and (pointer: coarse) { .sv-jump-touch { display: inline-grid; } }
         .sv-client-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .sv-client-forget { flex: none; width: 22px; height: 22px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); cursor: pointer; opacity: 0; }
-        .sv-client-row:hover .sv-client-forget, .sv-client-row.is-active .sv-client-forget, .sv-client-forget:focus-visible { opacity: 1; }
+        .sv-client-item { position: relative; }
+        .sv-client-item.has-forget .sv-client-row { padding-right: 36px; }
+        .sv-client-forget { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); width: 22px; height: 22px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); cursor: pointer; opacity: 0; }
+        .sv-client-item:hover .sv-client-forget, .sv-client-item.is-active .sv-client-forget, .sv-client-forget:focus-visible { opacity: 1; }
+        .sv-client-sec { padding: 6px 10px 3px; font-size: 0.7rem; font-weight: 500; color: var(--text-muted); }
         .sv-client-forget:hover { background: var(--border-light); color: var(--text-primary); }
-        @media (hover: none) { .sv-client-forget { opacity: 1; } }
+        /* Touch: always visible, and a 44px hit area (review on #1782). */
+        @media (hover: none) {
+            .sv-client-forget { opacity: 1; width: 44px; height: 44px; right: 0; }
+            .sv-client-item.has-forget .sv-client-row { min-height: 44px; padding-right: 48px; }
+        }
         .sv-client-clear { display: block; width: 100%; margin-top: 4px; padding: 8px 10px 4px; border: 0; border-top: 1px solid var(--border-light); background: transparent; text-align: left; font: inherit; font-size: 0.74rem; color: var(--text-muted); cursor: pointer; }
         .sv-client-clear:hover { color: var(--text-primary); }
         .sv-client-divider { height: 1px; margin: 4px; background: var(--border-light); }

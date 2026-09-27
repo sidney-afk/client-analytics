@@ -3039,11 +3039,22 @@
         .header-nav { display: flex; align-items: center; gap: 6px; width: max-content; max-width: 100%; min-width: 0; justify-self: center; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; position: relative; }
         .header-nav::-webkit-scrollbar { display: none; }
         .header-nav-btn { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; text-decoration: none; white-space: nowrap; position: relative; z-index: 1; }
-        @media (min-width: 761px) and (max-width: 1400px) {
+        /* Tighter tab spacing up to 1600px: the client picker (095) takes room in
+           the bar, so the row needs it sooner than the old 1400px. */
+        @media (min-width: 761px) and (max-width: 1600px) {
             .header { padding-left: 18px; padding-right: 18px; }
             .header-nav { gap: 4px; }
             .header-nav-btn { gap: 5px; padding-left: 10px; padding-right: 10px; font-size: 0.75rem; }
             .header-actions { gap: 6px; }
+        }
+        /* Icons only when the row still overflows (set by _navFitSync). The tab
+           you are on keeps its name; the others keep theirs on hover. */
+        #headerNav.is-measuring > .header-nav-btn { transition: none !important; }
+        #headerNav.is-compact > .header-nav-btn:not(.active) { font-size: 0; gap: 0; padding-left: 9px; padding-right: 9px; }
+        /* Touch screens cannot hover for the name, so compact keeps small labels
+           there; icons only (.is-icons) is the last resort if even those overflow. */
+        @media (hover: none) {
+            #headerNav.is-compact:not(.is-icons) > .header-nav-btn:not(.active) { font-size: 11px; gap: 4px; padding-left: 7px; padding-right: 7px; }
         }
         .header-nav-btn:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); background: var(--bg); }
         .header-nav-btn.active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
@@ -23352,7 +23363,52 @@
        per-button .active background. This must never throw — the boot probes
        fail on any console error. `animate` defaults to "animate unless this is
        the first placement", so the pill appears parked rather than flying in. */
+    /* TAB ROW FIT (owner, 2026-09-27; regression from the client picker in
+     * #1779). The tab row must fit without sideways scroll at 1280px and wider
+     * for every role. CSS tightens spacing up to 1600px; if the row still
+     * overflows, the tabs you are not on drop to icons only (full name on
+     * hover via title, and still in the accessible name). No tab is hidden.
+     * Measured, not a fixed breakpoint, so roles with fewer tabs keep labels. */
+    function _navFitSync() {
+        try {
+            const nav = document.getElementById('headerNav');
+            if (!nav) return;
+            nav.querySelectorAll(':scope > .header-nav-btn').forEach(b => {
+                const name = String(b.textContent || '').replace(/\s+/g, ' ').trim();
+                if (!b.title) b.title = name;
+                // Icon-only tabs on touch have no hover title: keep an explicit name.
+                if (!b.getAttribute('aria-label') && name) b.setAttribute('aria-label', name);
+            });
+            const wasCompact = nav.classList.contains('is-compact') + ':' + nav.classList.contains('is-icons');
+            // Tabs animate size changes (transition: all); measure the settled
+            // full-label width with transitions off, or the check reads a
+            // mid-animation size and flips back and forth.
+            nav.classList.add('is-measuring');
+            nav.classList.remove('is-compact', 'is-icons');
+            void nav.offsetWidth;
+            // Measure the tabs themselves, not scrollWidth: the sliding pill is
+            // absolutely positioned and can sit at a stale offset mid-route.
+            const btns = [...nav.querySelectorAll(':scope > .header-nav-btn')].filter(b => b.offsetWidth);
+            if (!btns.length || window.innerWidth <= 760) { nav.classList.remove('is-measuring'); return; }
+            const last = btns[btns.length - 1];
+            // Sub-pixel boxes: scrollWidth rounds a fractional overflow up, so must we.
+            const overflows = () => Math.ceil(last.getBoundingClientRect().right - btns[0].getBoundingClientRect().left - 0.01) > nav.clientWidth;
+            if (overflows()) {
+                nav.classList.add('is-compact');
+                void nav.offsetWidth;
+                // Touch screens (no hover) keep small labels in compact mode,
+                // since a title tooltip can never show there; only if even those
+                // overflow do they drop to icons (name kept in title/accessible name).
+                if (overflows()) nav.classList.add('is-icons');
+            }
+            void nav.offsetWidth;
+            nav.classList.remove('is-measuring');
+            // Tab widths just changed: move the sliding pill under the active tab again.
+            if (nav.classList.contains('is-compact') + ':' + nav.classList.contains('is-icons') !== wasCompact) requestAnimationFrame(() => _navPillSync(false));
+        } catch (e) {}
+    }
     function _navPillSync(animate) {
+        _navFitSync();
         try {
             // While the pre-paint gate is still up, the CSS route highlight owns
             // the active look and the .active CLASS may still be on the statically
@@ -23385,6 +23441,33 @@
         window.addEventListener('resize', () => _navPillSync(false));
         if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
             document.fonts.ready.then(() => _navPillSync(false)).catch(() => {});
+        }
+        // A tab revealed after first paint (Kasper, Samples) changes the row's
+        // width with no route change; watch the row itself so the fit and the
+        // pill follow. Coalesced to one pass per frame.
+        if (typeof MutationObserver === 'function') {
+            let queued = false;
+            const resync = () => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; _navPillSync(false); }); };
+            const watch = () => {
+                const nav = document.getElementById('headerNav');
+                if (!nav) return;
+                new MutationObserver(records => { if (records.some(r => !r.target.classList || !r.target.classList.contains('header-nav-pill'))) resync(); }).observe(nav, { subtree: true, attributes: true, attributeFilter: ['style', 'hidden'] });
+                // The row's own width changes when a neighbour in the bar does
+                // (the client picker's label). Compact toggling changes the tab
+                // widths, not the row's, so re-fitting only on a real width
+                // change cannot loop.
+                if (typeof ResizeObserver === 'function') {
+                    let lastW = -1;
+                    new ResizeObserver(entries => {
+                        const w = Math.round(entries[entries.length - 1].contentRect.width);
+                        if (w === lastW) return;
+                        lastW = w;
+                        resync();
+                    }).observe(nav);
+                }
+            };
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch);
+            else watch();
         }
     } catch (e) {}
     /* PER-TAB FAVICON (owner request 2026-08-21: "whenever we are in a tab the
@@ -23837,7 +23920,9 @@
         const badge = document.getElementById('svClientBadge');
         const label = document.getElementById('svClientBadgeLabel');
         const dot = document.getElementById('svClientBadgeDot');
-        if (label) label.textContent = cur ? _svClientShortName(cur) : 'Client';
+        const nextLabel = cur ? _svClientShortName(cur) : 'Client';
+        // A new label width changes the room left for the tab row: re-fit it.
+        if (label && label.textContent !== nextLabel) { label.textContent = nextLabel; requestAnimationFrame(() => _navPillSync(false)); }
         if (badge) {
             badge.setAttribute('data-sv-current', cur || '');
             badge.title = cur || 'Pick a client';
@@ -23854,7 +23939,11 @@
         const bar = document.getElementById('svClientBar');
         if (!bar) return;
         const show = _svStaffShell();
+        const changed = bar.hidden === show;
         bar.hidden = !show;
+        // The picker shares the bar with the tab row: re-fit the tabs when it
+        // appears or hides (090 _navFitSync, via the pill sync).
+        if (changed) requestAnimationFrame(() => _navPillSync(false));
         document.body.classList.toggle('sv-shared-client', show);
         if (!show) _svClientPopClose();
         else svClientBarRender();
@@ -44184,7 +44273,7 @@
             const _baseAtToSend = _calV2Enabled() ? '' : String(post._baseAt || '');
             // Mark this as a local write so the realtime ECHO of it (arriving a
             // second or two later) doesn't flicker the strip or race a delete.
-            _calLastLocalWriteAt = Date.now();
+            _calSetLastLocalWriteAt(Date.now());
             _calV2Log('SAVE → upsert', _saveSlug, '|', JSON.stringify(wirePost), '| base:', _baseAtToSend);
             const resp = await _calUpsertFetchPinned(
                 _saveSlug,
@@ -44263,7 +44352,7 @@
                     ? { video_status: prevSnapshot.video_status, graphic_status: prevSnapshot.graphic_status, caption_status: prevSnapshot.caption_status, title_status: prevSnapshot.title_status }
                     : {}
             });
-            _calLastLocalWriteAt = Date.now();   // refresh the self-echo window: the realtime echo fires just after this success
+            _calSetLastLocalWriteAt(Date.now());   // refresh the self-echo window: the realtime echo fires just after this success
             // Save landed — drop any failed-create flag so the "Save failed"
             // chip clears and the poll-merge no longer force-keeps the card on
             // that basis (the recent-save guard now covers it).

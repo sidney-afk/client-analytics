@@ -50,6 +50,7 @@ const go = (page, tab) => page.evaluate(t => navTo(t), tab);
       const { context, page, errors } = await open(browser, port, '/calendar');
       await page.evaluate(names => { names.forEach(n => { if (!WL_CLIENT_NAMES.includes(n)) WL_CLIENT_NAMES.push(n); }); }, [FIRST, SECOND]);
       expect(await page.isVisible('#svClientBar'), 'calendar: the client bar is not showing');
+      expect(!(await page.isVisible('#calTabs')), 'calendar: the old per-tab client strip is still showing');
 
       // Pick through the top bar search, keyboard only.
       const pick = async name => {
@@ -67,6 +68,7 @@ const go = (page, tab) => page.evaluate(t => navTo(t), tab);
       await go(page, 'sample-reviews');
       await page.waitForTimeout(300);
       expect(await page.evaluate(() => sxrState.client) === FIRST, 'samples: did not open on the shared client');
+      expect(!(await page.isVisible('#sxrTabs')), 'samples: the old per-tab client strip is still showing');
 
       await go(page, 'templates');
       await page.waitForTimeout(300);

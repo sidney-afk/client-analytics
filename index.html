@@ -8591,6 +8591,8 @@
         .sv-client-row .sv-client-dot { width: 20px; height: 20px; font-size: 0.56rem; }
         .sv-client-none { padding: 8px; font-size: 0.8rem; color: var(--text-muted); }
         .sv-client-foot { font-size: 0.7rem; color: var(--text-muted); padding: 8px 8px 2px; border-top: 1px solid var(--border-light); margin-top: 6px; }
+        /* The top bar is the only client picker for staff (owner, 2026-09-27). */
+        body.sv-shared-client #calTabs, body.sv-shared-client #sxrTabs { display: none !important; }
         .header-nav-sep { flex: none; width: 1px; height: 20px; margin: 0 4px; background: var(--border); }
         @media (max-width: 700px) { .sv-client-bar { padding: 8px 14px; gap: 6px; } .sv-client-cap, .sv-client-recent-label { display: none !important; } }
     </style>
@@ -23623,8 +23625,24 @@
         _svClientPopClose();
         const before = svSharedClientGet();
         svSharedClientNote(n);
-        if (before === n) return;
         const page = currentNav;
+        // Calendar and Samples switch in place through the same path their old
+        // per-tab strips used (flush pending saves, tear down, reload), so a
+        // pick never remounts the page and the boot suite's traces still hold.
+        if (page === 'calendar' && !calState.embedded) {
+            if (calState.client === n) return;
+            const pins = _calGetPins();
+            if (!pins.includes(n)) { pins.unshift(n); _calSavePins(pins); }
+            onCalTabClick(n);
+            return;
+        }
+        if (page === 'sample-reviews' && !sxrState.embedded) {
+            if (sxrState.client === n) return;
+            _sxrPinClient(n);
+            onSxrTabClick(n);
+            return;
+        }
+        if (before === n) return;
         if (page === 'home') { selectClient(n); return; }
         if (!SV_CLIENT_FOLLOW_TABS.includes(page)) return;
         svSharedClientApply(page, true);   // Templates / Filming Plans read it before the remount
@@ -40483,7 +40501,9 @@
         const scrollY0 = preserveScroll ? window.scrollY : null;
         const harvestedThumbs = (preserveScroll && stripBefore) ? _calHarvestThumbs() : null;
         if (!calState.client) {
-            body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab so you can switch between your clients quickly.</div>`;
+            body.innerHTML = document.body.classList.contains('sv-shared-client')
+                ? `<div class="cal-empty">Pick a client in the top bar to start.</div>`
+                : `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab so you can switch between your clients quickly.</div>`;
             return;
         }
         if (calState.loading) { body.innerHTML = _calLoaderHtml(); return; }
@@ -71967,7 +71987,7 @@
         if (!body) return;
         const preserveScroll = !!(opts && opts.preserveScroll);
         const scrollY0 = preserveScroll ? window.scrollY : null;
-        if (!sxrState.client) { body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start.</div>`; return; }
+        if (!sxrState.client) { body.innerHTML = document.body.classList.contains('sv-shared-client') ? `<div class="cal-empty">Pick a client in the top bar to start.</div>` : `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start.</div>`; return; }
         if (sxrState.loading) { body.innerHTML = _sxrLoaderHtml(); return; }
         if (sxrState.error) { body.innerHTML = `<div class="cal-empty cal-error">Couldn't load sample reviews — <button class="cal-link" onclick="loadSxrCards({skipCache:true})">try again</button>.</div>`; return; }
         if (sxrState.view === 'review' || sxrState.view === 'smmreview') {

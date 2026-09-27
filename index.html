@@ -47596,9 +47596,9 @@
        and re-sent (when the browser comes back online, when the tab is shown
        again, on a backoff timer, and after a reload). A failure the server
        itself refused is not retried: the change is put back and a clear
-       message says it was not saved. An entry older than
+       message says what was saved. An entry older than
        CLIENT_REVIEW_QUEUE_MAX_AGE_MS (counted from the click, across reloads)
-       is dropped and the client is told plainly it was not saved.
+       is dropped and the client is told whether an exact approval was saved.
 
        A held Approve never lands on a newer state: the entry records the
        server status at click time, and before any re-send the row is read
@@ -47684,7 +47684,29 @@
         try { hideToast(); showNotify(title, msg); } catch (e) {}
     }
     function _crqWhat(entry) { return entry && entry.kind === 'request' ? 'change request' : 'approval'; }
+    function _crqApprovalSourcePending(entry) {
+        if (!entry || entry.kind !== 'approve' || !entry.edits) return false;
+        const post = (calState.posts || []).find(p => p.id === entry.pid);
+        const pending = post && post._writeUiRetryEdits;
+        if (!post || !post._writeUiRetrySourceAt || !pending) return false;
+        // A whole-post approve counts only if every component, including its
+        // sign-off stamp, is in this exact source repair. A committed sibling
+        // cannot certify a component whose native write was refused.
+        const comps = _crqCompsOf(entry.comp);
+        if (!comps.length || !comps.every(c => ['video', 'graphic', 'caption'].includes(c)
+            && entry.edits[c + '_status'] === 'Approved'
+            && !!entry.edits['client_' + c + '_approved_at'])) return false;
+        const fields = ['status', ...comps.flatMap(c => [c + '_status', 'client_' + c + '_approved_at'])];
+        return fields.every(k => Object.prototype.hasOwnProperty.call(entry.edits, k)
+            && Object.prototype.hasOwnProperty.call(pending, k)
+            && pending[k] === entry.edits[k]);
+    }
+    function _crqTellSavedSyncing() {
+        _crqTell('Approval saved; card still syncing',
+            'Your approval was saved. The card will retry syncing automatically. If the warning remains, tell your account manager.');
+    }
     function _crqTellExpired(entry) {
+        if (_crqApprovalSourcePending(entry)) { _crqTellSavedSyncing(); return; }
         _crqTell('Your ' + _crqWhat(entry) + ' was not saved',
             'We could not reach SyncView for 30 minutes after you sent it, so nothing was saved. Please check your internet connection and do it again.');
     }
@@ -47764,7 +47786,8 @@
             return true;
         }
         _crqDrop(pid, comp);
-        if (_crqIsConnectionFailure(errorText)) _crqTellExpired(entry);
+        if (_crqApprovalSourcePending(entry)) _crqTellSavedSyncing();
+        else if (_crqIsConnectionFailure(errorText)) _crqTellExpired(entry);
         else _crqTell('Your ' + _crqWhat(entry) + ' was not saved',
             'SyncView refused it, so nothing was saved: ' + String(errorText || 'unknown reason')
             + ' Please try again, or tell your account manager if it keeps happening.');
@@ -47821,8 +47844,9 @@
             for (const entry of entries) {
                 if (_crqRun.inflight.has(entry.pid + '|' + entry.comp)) continue;
                 if (_crqExpired(entry)) {
+                    const approvalSaved = _crqApprovalSourcePending(entry);
                     _crqDrop(entry.pid, entry.comp);
-                    if (entry.kind === 'approve') _crqUnapply(entry, null);
+                    if (entry.kind === 'approve' && !approvalSaved) _crqUnapply(entry, null);
                     else _calReviewState.saving[entry.pid + '|' + entry.comp] = false;
                     _crqTellExpired(entry);
                     continue;

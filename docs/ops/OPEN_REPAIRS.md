@@ -29381,3 +29381,9 @@ return threshold and shows it again. On the old code focus moved to the first ca
 and the next keystroke went into it (4 checks failed); with the fix focus, text
 and caret stay in the same card (9 of 9). `test/background-update-focus.js` adds
 the two-cards case.
+
+## 270. [2026-09-27, BUILT, pending review] A saved client approval said nothing was saved
+
+When the native approval committed but the Calendar card save was refused, the card kept its source repair and showed Saved, syncing while the client review queue said nothing was saved. The queue now checks that the pending repair contains every status and sign-off field of the exact queued approval before saying "Approval saved; card still syncing." A partly refused whole-post approval, a pre-commit refusal, and a change request retain their existing failure notices. An aged queue entry with a committed approval keeps its approved display and leaves the source repair in place.
+
+Offline regression: `node test/client-review-queue-behavior.js` failed before the source fix and passes after. `node docs/syncview-design/tests/client-review-write-browser.js` passes nine fully intercepted browser cases, including one native approval followed by a refused source save and a separate pre-commit refusal. This is local evidence only; no live write or hosted behavior was tested.

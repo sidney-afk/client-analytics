@@ -82,6 +82,16 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       expect(!(await page.$('#svClientPop .sv-client-sec, #svClientPop .sv-client-foot')), 'calendar: the dropdown should carry no section labels or helper text');
       expect(!(await page.$('#svClientPop .ck')), 'calendar: no check mark in the dropdown');
       await page.keyboard.press('Escape');
+      // Dark theme: the tinted badge must stay dark so its light text reads.
+      await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+      await page.waitForTimeout(400);   // the badge fades its colours over 0.15s
+      const darkBg = await page.evaluate(() => {
+        const bg = getComputedStyle(document.getElementById('svClientBadge')).backgroundColor;
+        document.documentElement.removeAttribute('data-theme');
+        const [r, g, b] = (bg.match(/\d+/g) || [255, 255, 255]).map(Number);
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+      });
+      expect(darkBg < 0.35, `dark theme: the client badge background is too light (${darkBg.toFixed(2)})`);
       const calTop = await contentTop(page);
       const calNav = await navLeft(page);
 

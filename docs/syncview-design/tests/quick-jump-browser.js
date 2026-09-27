@@ -102,6 +102,31 @@ function blank(context) {
       if (errors.length) failures.push('page errors: ' + errors.slice(0, 3).join(' | '));
       await context.close();
     }
+    // Touch screens have no "/" key: a small button next to the client opens it.
+    {
+      const context = await browser.newContext({ viewport: { width: 390, height: 800 }, hasTouch: true, isMobile: true });
+      await blank(context);
+      await seedStaffGate(context);
+      const page = await context.newPage();
+      await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(() => typeof window.navTo === 'function' && document.getElementById('svJump'));
+      await page.waitForTimeout(1500);
+      expect(await page.isVisible('.sv-jump-touch'), 'touch: the quick jump button is not showing');
+      await page.tap('.sv-jump-touch');
+      await page.waitForTimeout(200);
+      expect(await page.isVisible('#svJump'), 'touch: tapping the button did not open quick jump');
+      await context.close();
+    }
+    {
+      const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+      await blank(context);
+      await seedStaffGate(context);
+      const page = await context.newPage();
+      await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(1500);
+      expect(!(await page.isVisible('.sv-jump-touch')), 'desktop: the touch-only quick jump button should stay hidden');
+      await context.close();
+    }
     {
       const context = await browser.newContext({ viewport: { width: 390, height: 800 } });
       await blank(context);

@@ -13,7 +13,7 @@
 | 5 | `020-styles-surfaces.css.part` | 4190 | Templates view |
 | 6 | `030-body-shell.html.part` | 467 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 1845 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
-| 8 | `050-market-briefs.js.part` | 1716 | Market Research Brief Tab Renderers |
+| 8 | `050-market-briefs.js.part` | 1771 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2290 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `070-workload-source.js.part` | 3823 | Workload Calendar |
 | 11 | `080-workload-render.js.part` | 3414 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
@@ -32,7 +32,7 @@
 | 24 | `160-calendar-organize-ui.js.part` | 2813 | Lighter path for the Order switch: update the chrome in place so the |
 | 25 | `170-calendar-links-status.js.part` | 2792 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 26 | `180-calendar-native-post-media.js.part` | 2748 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
-| 27 | `185-client-review-queue.js.part` | 337 | Client review send queue: a client's Approve or Request changes is |
+| 27 | `185-client-review-queue.js.part` | 361 | Client review send queue: a client's Approve or Request changes is |
 | 28 | `190-calendar-approval-comments.js.part` | 3050 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 29 | `200-intake-data-startup.js.part` | 1528 | Video-only and Thumbnail-only were already built, but sat |
 | 30 | `210-production-state-writes.js.part` | 3200 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
@@ -42,9 +42,9 @@
 | 34 | `250-production-controls-data.js.part` | 2881 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 35 | `260-production-refresh-boot.js.part` | 2618 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 36 | `270-samples-model.js.part` | 2852 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
-| 37 | `280-samples-cards-notes.js.part` | 2910 | SURFACE 3: the save engine |
+| 37 | `280-samples-cards-notes.js.part` | 2922 | SURFACE 3: the save engine |
 | 38 | `290-samples-writes-review.js.part` | 1814 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
-| 39 | `300-tiktok-upload.js.part` | 1998 | TIKTOK UPLOAD MODULE |
+| 39 | `300-tiktok-upload.js.part` | 2012 | TIKTOK UPLOAD MODULE |
 | 40 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
 | 41 | `320-kasper-dashboard-replies.js.part` | 3212 | The Samples subtab was folded into Review (samples are listed in the |
 | 42 | `330-kasper-review-history.js.part` | 2695 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |

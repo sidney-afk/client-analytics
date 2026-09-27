@@ -72,6 +72,8 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
         },
         schedule: { postNow: true, at: '', tz: 'America/New_York' },
         uploads: [],
+        queueReadState: 'loading', // only a successful server read proves an empty queue
+        queueFailures: 0,
         queueTab: 'upcoming',       // 'upcoming' | 'failed' | 'done'
         queueLimit: TK_QUEUE_PAGE,  // rows shown in the open tab; "Show more" adds a page
         submitting: false,
@@ -1702,21 +1704,25 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
             _tkSaveQueueCache(rows);
             const prunedPending = _tkPrunePending(_tkLoadPending());
             const shownBefore = tkState.queueFromCache ? null : JSON.stringify(tkState.uploads);
+            const wasUnverified = tkState.queueReadState !== 'ready';
             tkState.uploads = _tkMergeUploads(prunedPending, rows);
             // Trim local pending list of rows the server now knows about, plus stale optimistic ones.
             const knownIds = new Set(rows.map(r => r.id));
             _tkSavePending(prunedPending.filter(r => !knownIds.has(r.id)));
             tkState.queueFromCache = false;
+            tkState.queueReadState = 'ready';
+            tkState.queueFailures = 0;
             // The live list is usually the same; repaint only on a change
             // (or to turn the cached, read-only rows into live ones).
-            if (JSON.stringify(tkState.uploads) !== shownBefore) _tkRenderQueue();
+            if (wasUnverified || JSON.stringify(tkState.uploads) !== shownBefore) _tkRenderQueue();
             await _tkLookupOverdue();
         } catch (e) {
-            // Surface only on the very first failure — keep retrying quietly afterwards.
-            const col = document.getElementById('tkQueueCol');
-            if (col && !col.dataset.everLoaded) {
-                col.innerHTML = `<div class="tk-card"><h3>Uploads</h3><div class="tk-queue-empty">Couldn't load your uploads. Trying again shortly.<br><small>${_tkEscape(e.message)}</small></div></div>`;
-            }
+            tkState.queueReadState = 'error';
+            tkState.queueFailures++;
+            // Rows kept from an earlier read are unverified now: show them
+            // read-only (no Cancel, Retry or Dismiss) until a read succeeds.
+            tkState.queueFromCache = true;
+            _tkRenderQueue();
         }
     }
 
@@ -1778,7 +1784,6 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
     function _tkRenderQueue() {
         const col = document.getElementById('tkQueueCol');
         if (!col) return;
-        col.dataset.everLoaded = '1';
 
         const hidden = _tkLoadHidden();
         const visible = tkState.uploads.filter(r => !hidden.has(r.id));
@@ -1823,14 +1828,20 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
                     ${actions.length ? `<div class="tk-queue-actions">${actions.join('')}</div>` : ''}
                 </div>`;
         };
-        const tabBtn = (key, label) => `<button type="button" class="tk-q-tab${tab === key ? ' on' : ''}${key === 'failed' && groups.failed.length ? ' alert' : ''}" role="tab" aria-selected="${tab === key}" onclick="_tkSetQueueTab('${key}')">${label}<b>${groups[key].length}</b></button>`;
+        const tabBtn = (key, label) => `<button type="button" class="tk-q-tab${tab === key ? ' on' : ''}${key === 'failed' && groups.failed.length ? ' alert' : ''}" role="tab" aria-selected="${tab === key}" onclick="_tkSetQueueTab('${key}')">${label}<b>${tkState.queueReadState === 'ready' ? groups[key].length : '—'}</b></button>`;
         const empty = { upcoming: 'Nothing scheduled yet.', failed: 'No failed uploads.', done: 'No posts yet.' }[tab];
+        const readNotice = tkState.queueReadState === 'loading'
+            ? '<div class="tk-queue-empty" role="status">Loading uploads…</div>'
+            : tkState.queueReadState === 'error'
+                ? `<div class="tk-queue-empty" role="alert">Couldn't load your uploads. ${visible.length ? 'Showing available rows. ' : ''}Trying again shortly.</div>`
+                : '';
 
         col.innerHTML = `
             <div class="tk-card">
                 <h3>Uploads</h3>
                 <div class="tk-q-tabs" role="tablist">${tabBtn('upcoming', 'Upcoming')}${tabBtn('failed', 'Failed')}${tabBtn('done', 'Done')}</div>
-                ${shown.length ? shown.map(itemHTML).join('') : `<div class="tk-queue-empty">${empty}</div>`}
+                ${readNotice}
+                ${shown.length ? shown.map(itemHTML).join('') : tkState.queueReadState === 'ready' ? `<div class="tk-queue-empty">${empty}</div>` : ''}
                 ${remaining > 0 ? `<button type="button" class="tk-q-more" onclick="_tkQueueShowMore()">Show ${Math.min(remaining, TK_QUEUE_PAGE)} more <span>· ${remaining} left</span></button>` : ''}
             </div>
         `;
@@ -1914,6 +1925,7 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
         if (changed) _tkRenderQueue();
     }
     function _tkNextPollDelay() {
+        if (tkState.queueReadState === 'error') return Math.min(300_000, 30_000 * 2 ** Math.min(tkState.queueFailures - 1, 4));
         if (_tkActiveUploadCount() > 0) return 30_000;   // something in-flight — watch closely
         if (_tkHasScheduled()) return 120_000;           // only future posts — check lazily
         if (_tkUnresolvedOverdue().length) return 300_000; // overdue, no result yet — keep asking
@@ -1961,6 +1973,8 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
         const cachedRows = _tkLoadQueueCache();
         tkState.uploads = _tkMergeUploads(_tkPrunePending(_tkLoadPending()), cachedRows);
         tkState.queueFromCache = cachedRows.length > 0;
+        tkState.queueReadState = 'loading';
+        tkState.queueFailures = 0;
         _tkRenderForm();
         _tkRenderPreview();
         _tkRenderQueue();

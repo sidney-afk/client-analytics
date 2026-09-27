@@ -1239,6 +1239,14 @@
       "ci": "not_run_by_unit_ci"
     },
     {
+      "file": "tiktok-queue-first-read-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
+      "reproduce": "node test/tiktok-queue-first-read-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
       "file": "clean-urls-browser.js",
       "route": "isolated_browser",
       "required_for_release": true,

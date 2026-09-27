@@ -29402,3 +29402,11 @@ now keeps its error visible and asks for a refresh and fresh edit; it cannot
 claim success after an ID-only request. `test/samples-retry-stale-status.js`
 failed before the fixes and passes on the rebuilt page across all four cases. No
 browser or live write was used; the effect on a served page awaits merge.
+
+## 272. [2026-09-27, BUILT] TikTok Upload reports a failed first queue read instead of an empty queue
+
+The queue renderer used to mark its first paint as a completed read. If the list request then failed with no local rows, the page still said "Nothing scheduled yet" and stopped polling. It had no evidence that the queue was empty.
+
+The queue now treats only a successful server list as verified. An unfinished read says it is loading; a failed read says it could not load and will retry. Tab counts remain unknown until a successful read. Cached rows stay visible and read-only while a failed refresh is retried. Failed reads use a visible-tab retry starting at 30 seconds and backing off to five minutes; a successful empty list can still show the normal empty message and stops idle polling.
+
+Offline proof: `test/tiktok-queue-first-read-browser.js` failed before the fix on the false empty first paint and passes after it. It intercepts every backend call, forces the first list read to fail, sees the error and automatic retry recover a server row, then confirms a later failure keeps the cached row visible and read-only. No upload, retry, cancel, backend write or hosted behavior was exercised.

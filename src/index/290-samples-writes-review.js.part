@@ -1246,6 +1246,7 @@ import {
             ]);
             _sxrKasperState.smmByClient = smmMap;
             const items = [];
+            const keepDismissed = new Set();
             const repairById = new Map(((_kasperState && _kasperState.sxrRepairs) || []).map(repair => [repair && repair.id, repair]));
             for (const p of (rows || [])) {
                 if (!p || String(p.status || '').toLowerCase() === 'archived') continue;
@@ -1256,9 +1257,12 @@ import {
                     p._writeUiKasperRepair = repair;
                     _sxrMigrateShape(p);
                 }
-                // Membership: anything Kasper can still act on OR a card he has
-                // FINISHED (it sits in "Tweaks pending"); minus cards he X-closed.
-                if (!(_sxrPostKasperVisible(p) || _sxrKasperIsFinished(p))) continue;
+                // Membership: anything Kasper can still act on, minus cards he
+                // FINISHED (owner decision 2026-09-27: a sample he sent back
+                // leaves his queue until the editor sends a new version, which
+                // puts a component back at Kasper Approval) and cards he X-closed.
+                if (!_sxrPostKasperVisible(p)) continue;
+                if (_sxrKasperIsFinished(p)) { keepDismissed.add(p.id); continue; }
                 if (_sxrKasperIsClosed(p)) continue;
                 const slug = String(p.client || '');
                 const client = wlCanonicalClient(slug) || slug;
@@ -1268,7 +1272,7 @@ import {
             // Prune local dismiss/close flags whose card has fully left the queue
             // (so the sets can't grow without bound and a re-routed card reappears).
             const ids = new Set(items.map(it => it.post.id));
-            for (const id of Object.keys(_sxrKasperState.dismissed)) if (!ids.has(id)) delete _sxrKasperState.dismissed[id];
+            for (const id of Object.keys(_sxrKasperState.dismissed)) if (!ids.has(id) && !keepDismissed.has(id)) delete _sxrKasperState.dismissed[id];
             for (const id of Object.keys(_sxrKasperState.closed)) if (!ids.has(id)) delete _sxrKasperState.closed[id];
             // Preserve expanded / touched-comps across refreshes.
             const prev = new Map((_sxrKasperState.items || []).map(x => [x.post.id, x]));
@@ -1679,8 +1683,8 @@ import {
     }
     // "Finish reviewing" — explicit hand-off. Guard: every component decided.
     // Clean approve-all → Approved history; any change request → stamped finished
-    // and moved to "Tweaks pending" until the SMM addresses it or a fresh ask
-    // supersedes it (see _sxrKasperIsFinished). Stamps persist (the upsert drops
+    // and removed from his queue until a new version puts a component back at
+    // Kasper Approval (see _sxrKasperIsFinished). Stamps persist (the upsert drops
     // unknown columns, so the local flag is the same-device fallback).
     function _sxrKasperDismiss(pid) {
         const it = _sxrKasperFindItem(pid); if (!it) return;
@@ -1700,8 +1704,11 @@ import {
             // hand-off — matches the calendar's _kasperDismiss). The chip otherwise
             // persists while reviewing, exactly like the calendar.
             try { _kasperMarkSeenAt(pid, stamp); } catch (e) {}
+            _sxrKasperState.items = _sxrKasperState.items.filter(x => x.post.id !== pid);
             _sxrKasperRenderQueue();
-            _sxrKasperPersist(it, { kasper_finished_at: p.kasper_finished_at, kasper_finish_log: p.kasper_finish_log }).catch(() => {});
+            // If the stamp does not save, drop the same-device flag so the next
+            // load shows the sample again (a new version must never stay hidden).
+            _sxrKasperPersist(it, { kasper_finished_at: p.kasper_finished_at, kasper_finish_log: p.kasper_finish_log }).catch(() => { delete _sxrKasperState.dismissed[pid]; });
         }
     }
     function _sxrKasperAppendFinishLog(post, stampIso) {

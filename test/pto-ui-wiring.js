@@ -95,7 +95,7 @@ ok(/else if \(hashRaw === 'time-off'\) \{\s*navTo\('time-off', false\)/.test(sou
 ok(/if\(hash==='time-off'\)\{navTo\('time-off',false\);return;\}/.test(source), 'route 4/6: full hash router restores #time-off');
 ok(/var FAST = \[[^\]]*'time-off'[^\]]*\][\s\S]{0,180}var RESTORABLE_FAST = FAST\.filter/.test(source)
   && /const FAST_TABS = \[[^\]]*'time-off'[^\]]*\][\s\S]{0,180}const RESTORABLE_FAST_TABS = FAST_TABS\.filter/.test(source), 'route 5/6: both boot/app fast and restorable lists include Time Off');
-ok(source.includes('html[data-boot-nav="time-off"] .boot-skeleton-analytics'), 'route 6/6: pre-paint generic skeleton maps #time-off');
+ok(source.includes('html[data-boot-nav="time-off"] .boot-skeleton-neutral') && !source.includes('html[data-boot-nav="time-off"] .boot-skeleton-analytics'), 'route 6/6: pre-paint maps #time-off to the neutral skeleton, never Analytics');
 
 // One top-right menu retains the existing identity/theme/palette hooks.
 ok(/id="headerMenuButton"[^>]+aria-label="Open staff menu"[^>]+aria-haspopup="menu"[^>]+aria-expanded="false"/.test(source), 'header exposes one accessible staff menu button');

@@ -387,6 +387,11 @@
             else if (seg === 'calendar' || seg === 'samples' || seg === 'templates') target = seg === 'samples' ? 'sample-reviews' : seg;
             else if (seg === 'kasper' && kasperOk()) target = 'kasper'; // kasper + kasper/<subtab>
             else if (seg === 'sample-reviews' && sxrOn()) target = 'sample-reviews';
+            else if (seg === 'staff-onboarding' || seg === 'client-credentials') target = seg;
+            // Any other page the address names (a Kasper link before the admin
+            // check, Samples switched off, a sub-path the fast path does not
+            // predict): never guess Analytics, paint the neutral skeleton.
+            else if (seg && ['production', 'linear', 'workload', 'calendar', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'kasper', 'sample-reviews', 'samples'].indexOf(seg) >= 0) target = 'neutral';
             else if (!hash) {
                 var saved = null; try { saved = localStorage.getItem('syncview_nav'); } catch (e) {}
                 var nav = (st && st.nav) || saved;
@@ -2152,7 +2157,11 @@
         html[data-boot-nav="templates"] .boot-skeleton-templates,
         html[data-boot-nav="filming-plans"] .boot-skeleton-filming,
         html[data-boot-nav="tiktok-upload"] .boot-skeleton-tiktok,
-        html[data-boot-nav="time-off"] .boot-skeleton-analytics,
+        html[data-boot-nav="time-off"] .boot-skeleton-neutral,
+        html[data-boot-nav="neutral"] .boot-skeleton-neutral,
+        html[data-boot-nav="staff-onboarding"] .boot-skeleton-neutral,
+        html[data-boot-nav="client-credentials"] .boot-skeleton-neutral,
+        html.boot-intake .boot-skeleton-neutral,
         html[data-boot-nav="smm-weekly-report"] .boot-skeleton-sales-intake,
         html[data-boot-nav="smm-weekly-reports"] .boot-skeleton-kasper,
         html[data-boot-nav="client"][data-boot-subtab="verify"] .boot-skeleton-client-verify,
@@ -2297,6 +2306,7 @@
         /* Intake is locked to the Linear page, which never shows the header
            and always hides #pageTop. */
         html.boot-intake .header { display: none !important; }
+        html.boot-intake .boot-skeleton-analytics { display: none !important; }
         html.boot-intake #pageTop { display: none !important; }
         /* Client share links (?c=): staff chrome must never paint. boot-client
            is a permanent document-owner lock, not a transient loader flag;
@@ -8965,6 +8975,19 @@
                     <div class="si-q si-full"><div class="sv-skeleton sv-skeleton-line" style="width:126px;height:11px;"></div><div class="sv-skeleton boot-input-skeleton"></div></div>
                     <div class="si-q si-full"><div class="sv-skeleton sv-skeleton-line" style="width:136px;height:11px;"></div><div class="sv-skeleton" style="height:92px;border-radius:9px;"></div></div>
                 </div></div>
+            </div>
+        </div>
+        <!-- Neutral skeleton: a page whose own shape is not pre-painted (leave,
+             Onboarding, Client Credentials, Intake, or a route the early boot
+             cannot fully predict). Never another tab's shape. -->
+        <div class="boot-skeleton-variant boot-skeleton-neutral">
+            <div class="boot-page-skeleton" role="status" aria-label="Loading">
+                <div class="sv-skeleton-stack" style="gap:16px;">
+                    <div class="sv-skeleton sv-skeleton-line" style="width:180px;height:26px;"></div>
+                    <div class="sv-skeleton sv-skeleton-line" style="width:min(320px,70%);"></div>
+                    <div class="sv-skeleton-card"><div class="sv-skeleton-stack"><div class="sv-skeleton sv-skeleton-line" style="width:62%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:88%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:48%;"></div></div></div>
+                    <div class="sv-skeleton-card"><div class="sv-skeleton-stack"><div class="sv-skeleton sv-skeleton-line" style="width:54%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:80%;"></div></div></div>
+                </div>
             </div>
         </div>
         <div class="boot-skeleton-variant boot-skeleton-kasper">

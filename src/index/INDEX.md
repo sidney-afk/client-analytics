@@ -8,10 +8,10 @@
 |---|---|---|---|
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `003-sv-route.html.part` | 177 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
-| 3 | `005-head-boot.html.part` | 273 | NOT render-blocking, and the reason is measured rather than assumed. |
-| 4 | `010-styles-foundation.css.part` | 3891 | Video and Thumbnail share the same vibrant pink/blue pair the |
+| 3 | `005-head-boot.html.part` | 278 | NOT render-blocking, and the reason is measured rather than assumed. |
+| 4 | `010-styles-foundation.css.part` | 3896 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 5 | `020-styles-surfaces.css.part` | 4190 | Templates view |
-| 6 | `030-body-shell.html.part` | 454 | Confirmation modal |
+| 6 | `030-body-shell.html.part` | 467 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 1833 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 8 | `050-market-briefs.js.part` | 1716 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2290 | Multiple links per link field (client photos, thumbnail, reference reel) |

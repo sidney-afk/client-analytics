@@ -79901,6 +79901,7 @@
        just before the user approves a card can finish 200 ms later and
        repaint with the pre-approval state, making the card "snap back". */
     let _kasperLoadGen = 0;
+    function _kasperSetLoadGen(value) { _kasperLoadGen = value; }
     let _kasperLastLocalWriteAt = 0;   // last local Kasper action — used to ignore the realtime echo of our own writes
     function _kasperInvalidateInFlightLoad() { _kasperLoadGen++; _kasperLastLocalWriteAt = Date.now(); }
     /* Click-eaten-by-re-render guard. The queue repaints by rebuilding DOM
@@ -82748,7 +82749,8 @@
         _kasperState.error = null;
         // Capture the current generation so a user mutation during the
         // await can invalidate this load before its results are applied.
-        const myGen = ++_kasperLoadGen;
+        _kasperSetLoadGen(_kasperLoadGen + 1);
+        const myGen = _kasperLoadGen;
 
         try {
             // SMM sheet + every client's calendar in parallel, but only the

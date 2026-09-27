@@ -1,4 +1,5 @@
 import { svClientBarSync, svSharedClientApply } from './095-shared-client.js';
+import { _tdyTeardown, mountTodayView, renderTodayView } from './097-today.js';
 import { _analyticsReleaseExtras, linearClientRows, linearProjects } from './040-shared-briefs.js';
 import { _templatesActiveTab, _templatesSelected, highlightMatch, render } from './050-market-briefs.js';
 import {
@@ -1383,6 +1384,7 @@ import {
         linear: '/nav-icons/submit-favicon.png',
         templates: '/nav-icons/templates-favicon.png',
         'filming-plans': '/nav-icons/filming-plans-favicon.png',
+        today: '/nav-icons/today-favicon.png',
         workload: '/nav-icons/workload-favicon.png',
         calendar: '/nav-icons/calendar-favicon.png',
         'sample-reviews': '/nav-icons/samples-favicon.png',
@@ -1474,6 +1476,8 @@ import {
         if (navTpl) navTpl.classList.toggle('active', page === 'templates');
         const navFp = document.getElementById('navFilmingPlans');
         if (navFp) navFp.classList.toggle('active', page === 'filming-plans');
+        const navToday = document.getElementById('navToday');
+        if (navToday) navToday.classList.toggle('active', page === 'today');
         const navWl = document.getElementById('navWorkload');
         if (navWl) navWl.classList.toggle('active', page === 'workload');
         const navCal = document.getElementById('navCalendar');
@@ -1508,6 +1512,7 @@ import {
         // Tear down the TikTok-upload polling timer whenever we leave the page so
         // it doesn't keep hitting the queue webhook in the background.
         if (page !== 'tiktok-upload' && typeof _tkTeardown === 'function') _navTeardownSafe(_tkTeardown);
+        if (page !== 'today' && typeof _tdyTeardown === 'function') _navTeardownSafe(_tdyTeardown);
         // Same for Kasper review's 30 s background poller + visibility listeners.
         if (page !== 'kasper' && typeof _kasperTeardown === 'function') _navTeardownSafe(_kasperTeardown);
         // Phase 2: drop the calendar's Supabase realtime subscription when
@@ -1600,6 +1605,11 @@ import {
             pageTop.style.display = 'none';
             content.innerHTML = renderFilmingPlansView();
             mountFilmingPlansView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'today') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderTodayView();
+            mountTodayView();
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'workload') {
             pageTop.style.display = 'none';

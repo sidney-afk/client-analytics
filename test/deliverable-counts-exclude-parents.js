@@ -179,6 +179,8 @@ const rows = [
   const PARENT_AWARE = {
     _calLegacyVideoEditorPool: [2, 'freest-editor suggestion, PROVIDER lane — the count read plus the parent-uuid read it excludes with. Renamed 2026-09-08 when the native lane moved to the gateway; the body is byte-for-byte what _calNativeVideoEditorPool held'],
     _calFetchNativeBatchPostCounts: [1, 'empty-batch ranking — excludes parents via the batch parent map'],
+    _tdyLoad: [4, 'the Today tab (added 2026-09-27): the editor open and cleared reads and the SMM open and cleared reads. Every row passes child(), which drops a row whose linear_issue_uuid another row names as raw_issue_parent_id, before it is listed or counted'],
+    _tdyParentIds: [1, 'the parent-uuid read that _tdyLoad excludes with; it reads only raw_issue_parent_id and counts nothing'],
     /* handleIntakeEditorOptions and autoAssigneeForIntake HELD two queries
        each until 2026-09-19 and now hold none: the open-work read plus its
        parent-uuid read became one SQL aggregate,

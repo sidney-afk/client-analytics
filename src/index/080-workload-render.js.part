@@ -3432,5 +3432,5 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
 export {
   initWorkloadView, renderWorkloadAll, wlAdoptNativeDueGatewayRow, wlApplyData,
   wlClearBackgroundRefreshFailure, wlDueWriteRoute, wlEscape, wlMarkBackgroundRefreshFailure,
-  wlPublishNativeDueReceipt, wlRefetchSilent, wlRefreshSensitiveStateSilent, wlSyncLinearUrl
+  wlPublishNativeDueReceipt, wlRefetchSilent, wlRefreshSensitiveStateSilent, wlOpenInContentCalendar, wlSyncLinearUrl
 };

@@ -53,14 +53,15 @@ function _calCompLinked(p, c) { return c !== 'graphic' || !!p.graphic_linked; }
 function _calKasperUrgentActive() { return false; }
 function _sxrKasperRenderQueue() {}
 function _kasperMarkSeenAt() {}
-function _sxrKasperPersist(it, patch) { persisted.push(patch); return Promise.resolve(); }
+let failOnce = false;
+function _sxrKasperPersist(it, patch) { if (failOnce) { failOnce = false; return Promise.reject(new Error('x')); } persisted.push(patch); return Promise.resolve(); }
 const _kasperState = { sxrRepairs: [] };
 function setTimeout() {}
 `;
 
 const mod = new Function(HARNESS + REAL + `
 return { S: _sxrKasperState, setRows: r => { ROWS = r; }, load: _sxrKasperLoadQueue,
-  finish: _sxrKasperDismiss, part: _sxrKasperPartitionItems, persisted };`)();
+  finish: _sxrKasperDismiss, failNext: () => { failOnce = true; }, part: _sxrKasperPartitionItems, persisted };`)();
 
 let failures = 0;
 function check(label, got, want) {
@@ -109,6 +110,17 @@ const tweak = { id: 'c1', role: 'kasper', is_tweak: true, done: false, body: 'ch
   mod.finish('s_ok');
   check('clean approve: leaves the queue as today', mod.S.items.some(it => it.post.id === 's_ok'), false);
   check('clean approve: recorded in approved history', mod.S.history[0] && mod.S.history[0].id, 's_ok');
+
+  // A finish whose stamp fails to save must not hide the sample for good.
+  mod.S.dismissed = {};
+  mod.setRows([sentBack]);
+  await mod.load();
+  mod.failNext();
+  mod.finish('s_back');
+  await new Promise(r => setImmediate(r));
+  mod.setRows([Object.assign({}, sentBack, { video_status: 'Kasper Approval' })]);
+  await mod.load();
+  check('stamp failed to save: a new version still shows', ids(), 's_back');
 
   if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
   console.log('\nAll sxr-kasper-finish-leaves-queue checks passed.');

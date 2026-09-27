@@ -1706,7 +1706,9 @@ import {
             try { _kasperMarkSeenAt(pid, stamp); } catch (e) {}
             _sxrKasperState.items = _sxrKasperState.items.filter(x => x.post.id !== pid);
             _sxrKasperRenderQueue();
-            _sxrKasperPersist(it, { kasper_finished_at: p.kasper_finished_at, kasper_finish_log: p.kasper_finish_log }).catch(() => {});
+            // If the stamp does not save, drop the same-device flag so the next
+            // load shows the sample again (a new version must never stay hidden).
+            _sxrKasperPersist(it, { kasper_finished_at: p.kasper_finished_at, kasper_finish_log: p.kasper_finish_log }).catch(() => { delete _sxrKasperState.dismissed[pid]; });
         }
     }
     function _sxrKasperAppendFinishLog(post, stampIso) {

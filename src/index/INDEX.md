@@ -16,7 +16,7 @@
 | 8 | `050-market-briefs.js.part` | 1716 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2290 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `070-workload-source.js.part` | 3823 | Workload Calendar |
-| 11 | `080-workload-render.js.part` | 3433 | Smart default: a creative lands on their own work (see |
+| 11 | `080-workload-render.js.part` | 3436 | Smart default: a creative lands on their own work (see |
 | 12 | `090-workload-popovers-navigation.js.part` | 1663 | Sub-issue popover |
 | 13 | `100-onboarding-staff-controls.js.part` | 2386 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 14 | `110-time-off-reports.js.part` | 2207 | Kasper Time Off calendar |

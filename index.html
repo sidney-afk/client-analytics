@@ -18507,12 +18507,15 @@
      * dropped the moment the person picks an editor themselves. */
     let _wlCreativeDefaultDone = false;
     let _wlCreativePending = null;
+    function _wlCreativeDefaultInit() {
+        if (_wlCreativeDefaultDone) return;
+        _wlCreativeDefaultDone = true;
+        const me = _syncviewCreativeMe();
+        if (me && wlState.editor === 'all') _wlCreativePending = me;
+    }
     async function initWorkloadView() {
-        if (!_wlCreativeDefaultDone) {
-            _wlCreativeDefaultDone = true;
-            const me = _syncviewCreativeMe();
-            if (me && wlState.editor === 'all') _wlCreativePending = me;
-        }
+        // Guarded: unit suites run this mount alone in a sandbox.
+        if (typeof _wlCreativeDefaultInit === 'function') _wlCreativeDefaultInit();
         const todayISO = wlWorkloadTodayISO();
         const now = wlParseISO(todayISO);
         if (wlState.year == null)      { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }

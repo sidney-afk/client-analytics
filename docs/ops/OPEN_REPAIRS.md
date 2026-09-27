@@ -29382,13 +29382,13 @@ and the next keystroke went into it (4 checks failed); with the fix focus, text
 and caret stay in the same card (9 of 9). `test/background-update-focus.js` adds
 the two-cards case.
 
-## 270. [2026-09-27, BUILT, pending review] A saved client approval said nothing was saved
+## 271. [2026-09-27, BUILT, pending review] A saved client approval said nothing was saved
 
 When the native approval committed but the Calendar card save was refused, the card kept its source repair and showed Saved, syncing while the client review queue said nothing was saved. The queue now checks that the pending repair contains every status and sign-off field of the exact queued approval before saying "Approval saved; card still syncing." A partly refused whole-post approval, a pre-commit refusal, and a change request retain their existing failure notices. An aged queue entry with a committed approval keeps its approved display and leaves the source repair in place.
 
 Offline regression: `node test/client-review-queue-behavior.js` failed before the source fix and passes after. `node docs/syncview-design/tests/client-review-write-browser.js` passes nine fully intercepted browser cases, including one native approval followed by a refused source save and a separate pre-commit refusal. This is local evidence only; no live write or hosted behavior was tested.
 
-## 271. [2026-09-27, BUILT — pending merge] Samples Retry can resend an older status
+## 272. [2026-09-27, BUILT — pending merge] Samples Retry can resend an older status
 
 An existing card's failed save left no ordinary edit fields for Retry. Retry then
 sent the whole local card, including statuses the user had not changed, with no
@@ -29403,7 +29403,7 @@ claim success after an ID-only request. `test/samples-retry-stale-status.js`
 failed before the fixes and passes on the rebuilt page across all four cases. No
 browser or live write was used; the effect on a served page awaits merge.
 
-## 272. [2026-09-27, BUILT] TikTok Upload reports a failed first queue read instead of an empty queue
+## 273. [2026-09-27, BUILT] TikTok Upload reports a failed first queue read instead of an empty queue
 
 The queue renderer used to mark its first paint as a completed read. If the list request then failed with no local rows, the page still said "Nothing scheduled yet" and stopped polling. It had no evidence that the queue was empty.
 
@@ -29411,7 +29411,7 @@ The queue now treats only a successful server list as verified. An unfinished re
 
 Offline proof: `test/tiktok-queue-first-read-browser.js` failed before the fix on the false empty first paint and passes after it. It intercepts every backend call, forces the first list read to fail, sees the error and automatic retry recover a server row, then confirms a later failure keeps the cached row visible and read-only. No upload, retry, cancel, backend write or hosted behavior was exercised.
 
-## 273. [2026-09-27, BUILT, pending review] Templates can miss working-link changes after its live-update connection drops
+## 274. [2026-09-27, BUILT, pending review] Templates can miss working-link changes after its live-update connection drops
 
 The Templates channel existed even when its subscription failed, so an open page could keep showing an old working link until reload. The browser now observes subscription status. While Templates is open and visible but disconnected, it makes one REST catch-up read per minute. On reconnect it makes one more read for the missed interval and stops the poll. The existing REST load preserves queued and in-flight local edits.
 

@@ -1248,7 +1248,7 @@ Supabase REST read is a flag-gated OVERLAY, not a fallback. Templates: Supabase 
   The templates/settings realtime channels are deliberately never torn down.
   A [2026-09-26 source-only review](../audits/2026-09-26-templates-realtime-catchup-source-review.md)
   found that Templates did not check channel connection state or catch up after a missed event.
-  The source fix in OPEN_REPAIRS 273 tracks subscribe status, reads once on reconnect,
+  The source fix in OPEN_REPAIRS 274 tracks subscribe status, reads once on reconnect,
   and reads at most once per minute while the visible Templates view is disconnected.
   Catch-up uses the normal REST read and preserves queued or in-flight local edits.
   This is offline-tested source behavior; hosted reconnect has not been observed.

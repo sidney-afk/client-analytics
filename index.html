@@ -34079,7 +34079,9 @@
     let _linearOutboxFlushTimer = null;
     function _calSetLinearOutboxFlushTimer(value) { _linearOutboxFlushTimer = value; }
     let _linearOutboxFlushPromise = null;
+    function _calSetLinearOutboxFlushPromise(value) { _linearOutboxFlushPromise = value; }
     let _linearOutboxFlushOwnerKey = '';
+    function _calSetLinearOutboxFlushOwnerKey(value) { _linearOutboxFlushOwnerKey = value; }
     /* RETIRED LEGACY DEBT (OPEN_REPAIRS 239). A `legacy_n8n` row is a queued
        POST to `linear-set-status` / `linear-add-comment`. Both webhooks are
        revoked, nothing enqueues the transport any more, and no attempt could
@@ -35787,10 +35789,10 @@
         const owner = suppliedOwner || _writeUiLegacyResumeOwner();
         if (!_writeUiLegacyResumeOwnerCurrent(owner)) return;
         if (_linearOutboxFlushTimer) return;
-        _linearOutboxFlushTimer = setTimeout(() => {
-            _linearOutboxFlushTimer = null;
+        _calSetLinearOutboxFlushTimer(setTimeout(() => {
+            _calSetLinearOutboxFlushTimer(null);
             if (_writeUiLegacyResumeOwnerCurrent(owner)) _linearOutboxFlush(owner);
-        }, LINEAR_OUTBOX_RETRY_MS);
+        }, LINEAR_OUTBOX_RETRY_MS));
     }
     function _linearOutboxFlush(suppliedOwner) {
         const owner = suppliedOwner || _writeUiLegacyResumeOwner();
@@ -35803,12 +35805,12 @@
         }
         const tracked = _linearOutboxFlushRun(owner).finally(() => {
             if (_linearOutboxFlushPromise === tracked) {
-                _linearOutboxFlushPromise = null;
-                _linearOutboxFlushOwnerKey = '';
+                _calSetLinearOutboxFlushPromise(null);
+                _calSetLinearOutboxFlushOwnerKey('');
             }
         });
-        _linearOutboxFlushOwnerKey = ownerKey;
-        _linearOutboxFlushPromise = tracked;
+        _calSetLinearOutboxFlushOwnerKey(ownerKey);
+        _calSetLinearOutboxFlushPromise(tracked);
         return tracked;
     }
     async function _linearOutboxFlushRun(owner) {

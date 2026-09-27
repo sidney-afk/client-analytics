@@ -62,7 +62,7 @@
 - [ ] **Roster display is automatic; write enrollment is not** (F69): a Clients Info row makes the
   client visible, but the new slug is absent from the static Track-A routing flags and falls
   to unauthenticated n8n writers. Do not call onboarding complete until the atomic server receipt
-  proves all required authenticated routing entries/readbacks. → [§6e](#6e-roster-automatic-write-enrollment-blocked)
+  proves all required authenticated routing entries/readbacks. → [§6e](#6e-roster-automatic-write-enrollment-is-a-real-per-client-step)
 - [ ] **Enroll the slug in ALL FOUR routing flags — none of them are automatic** (corrected
   2026-08-25). This item used to say the onboarding job wrote the three `*_ef_clients` rosters
   itself and only `write_ui_reroute_clients` was manual. **That is no longer true, and it was
@@ -77,7 +77,7 @@
   Post-flip, an unenrolled client's graphics status/approval writes commit to the card and then
   park **silently**, with no error anyone sees. Enrol via §6e's single transaction:
 
-  **Run [§6e](#6e-roster-automatic-write-enrollment-blocked)** — ONE transaction that writes all
+  **Run [§6e](#6e-roster-automatic-write-enrollment-is-a-real-per-client-step)** — ONE transaction that writes all
   four and rolls back rather than leave a partial enrollment. Do not split it into separate
   statements: three flags committed with the fourth stale IS the production failure, not a smaller
   version of it.
@@ -743,7 +743,7 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
 - **Onboard one real card through the "Create Post" menu on Calendar/SXR for this client**, not just
   confirm the surface loads empty. A newly-onboarded slug can look fine (empty calendar renders
   cleanly) while every write actually 409s — see the enrollment/routing gotchas in
-  [§6e](#6e-roster-automatic-write-enrollment-blocked)/[§6f](#6f-create-the-canonical-clients-row).
+  [§6e](#6e-roster-automatic-write-enrollment-is-a-real-per-client-step)/[§6f](#6f-create-the-canonical-clients-row).
   Submit through **Create Post**, confirm it lands as a real `calendar_posts`/`sample_reviews` row
   for the client's slug (not silently parked or written to the wrong client), and confirm the same
   submission creates a real Linear issue attributed to the client's project (not
@@ -862,7 +862,7 @@ After that, new client calls and SyncView's "Send a change" button keep the fold
 
 - **Roster visibility only** — the Clients Info row appears without a frontend deploy, but the
   client is **not write-ready** until F69's atomic authenticated routing receipt/readback succeeds.
-  ([§6e](#6e-roster-automatic-write-enrollment-blocked))
+  ([§6e](#6e-roster-automatic-write-enrollment-is-a-real-per-client-step))
 - **Supabase row seeding** — Calendar/SXR rows can be created on first authenticated EF write; no
   manual row is needed. Routing/auth enrollment is still mandatory.
   ([§6f](#6f-supabase-calendar--samples-no-manual-row-but-routing-is-required))

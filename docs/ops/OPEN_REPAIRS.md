@@ -29253,7 +29253,51 @@ coalesce window flushes the confirmed announcement instead of dropping it.
 Sender authentication would need private channels plus `realtime.messages`
 RLS (a DB/auth change) and is left for later.
 
-## 268. [2026-09-26, PROPOSED] The anon key reads, and can subscribe to, every client's cards
+## 266. [2026-09-26, BUILT] Production follows changes live instead of waiting for the 30-second poll
+
+**What.** The Production tab (`?prod=1`) learned about other people's edits only from the 30 s delta tick, paused on a hidden tab. It now opens one supabase-js realtime channel (`production_live`: postgres_changes on `deliverables`, `batches`, `deliverable_events`, the anon read path Workload already uses) and feeds every event into the existing `_prodDeltaRefresh`. Nothing about what is read, merged or painted changed.
+
+**How.** `_prodRtCreate` in `src/index/260-production-refresh-boot.js.part`: 300 ms debounce, bursts coalesced into one read; a batch change, a delete, a deliverable_events insert or a row whose `updated_at` did not move (a propagated rename) upgrades that read to a full reload (the watermark delta cannot see any of them); echoes of this tab's own gateway writes (same `updated_at` and same visible fields as the held row) are ignored; a declined refresh (write in flight, open menu, typing) is retried, and a hidden tab holds the read until shown. The poll remains the fallback: 90 s only while the channel reports SUBSCRIBED (a 30 s margin under the 120 s stale threshold, so the freshness control does not flicker), 30 s on anything else, and a SUBSCRIBED after a drop runs one full catch-up. Leaving Production removes the channel within one 5 s tick. `window.prodRtStatus()` shows status, counters and the current poll cadence.
+
+**Kill switch.** Runtime flag `prod_realtime` = `{"enabled": false}` (or localStorage `syncview.prodRealtime` = `off` in one browser) closes the channel and restores the 30 s poll; a missing row means on. Procedure in `ROLLBACK.md`.
+
+**Proof.** `test/prod-realtime-controller.js` (unit) drives the controller with a mocked channel and fake clock. No database change.
+
+**Not verified.** The sandbox proxy blocks WebSockets, so live event delivery and timings were not observed; the first real check is `prodRtStatus()` in a browser on the live site (expect `status: "SUBSCRIBED"`, `pollMs: 90000`).
+
+## 267. [2026-09-26, BUILT] The Time Off lifecycle browser test failed at random on CI ("cancelled future leave is removed from upcoming")
+
+**Problem.** `synthetic-browser` failed now and then in `qa/pto-lifecycle` (run
+36227249829 and PR 1673) while passing locally. It was not the app.
+
+**Cause, two races in the test.**
+1. *Checking too early.* After a click that writes (confirm a cancellation,
+   retry a send, send by keyboard, deny by keyboard, double-click Send), the step
+   waited for the page to look "ready". But the page only switches to "loading"
+   once the write has come back, so on a slower CI runner "ready" was already
+   true on the OLD list and the step read it before anything changed. Reproduced
+   on demand with the new opt-in `PTO_LIFECYCLE_WRITE_LATENCY_MS=600`: the old test
+   fails with exactly the CI message.
+2. *A late log entry.* The fake server logged a deliberately hung request only
+   after its hang ended, so the entry could land inside a later step's count and
+   make one double-click look like two calls. The app sends one.
+
+**Fix.** A helper, `awaitOverviewAfter`, runs the action and waits on the network
+for the write to be answered and for an overview reload that started after it to
+finish. Every write-then-check step above uses it. The fake server logs a hung
+request when it arrives. No check was removed or loosened.
+
+**Proof.** 20 runs in a row pass locally, plus passing runs with every write
+slowed by 600 ms and by 1.5 s, where the old test fails.
+
+**Evidence fingerprint re-pinned by owner decision (2026-09-26).** The Time Off
+evidence packet fingerprints every `qa/pto-lifecycle/*.js` file, so this fix moved
+it. Only test timing changed, no app code and no screenshot content, so
+`source_tree_sha256` in `docs/audits/2026-07-17-pto-lifecycle-simulation/manifest.json`
+was re-pinned from `dd7bc753...` to `923dd9be...`, the value
+`test/leave-evidence-fingerprint-coupling.js` computes, as in #1619.
+
+## 270. [2026-09-26, PROPOSED] The anon key reads, and can subscribe to, every client's cards
 
 Measured read-only: `calendar_posts` and `sample_reviews` have an anon read
 policy `using (true)` on every column, and `deliverables`, `batches` and

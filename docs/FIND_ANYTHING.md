@@ -35,6 +35,7 @@
 | Question | Open |
 |---|---|
 | I'm a new session — what is this system? | `docs/truth/BRIEFING.md` (**always first**) |
+| What do C3, gates, lanes, fingerprints, Track B, and other project terms mean? | `docs/GLOSSARY.md` (plain-English definitions; check `docs/STATE_OF_THINGS.md` for today's status) |
 | Where does file/folder X live? | `REPO_MAP.md` |
 | Which n8n webhooks / Edge Functions does the app call? | `docs/truth/ENDPOINTS.md` |
 | Supabase tables, flags, write contracts | `docs/truth/SUPABASE.md` |
@@ -50,6 +51,7 @@
 | The n8n→EF / Linear-replacement programs | `docs/independence/INDEPENDENCE_PLAN.md` (entry), specs beside it |
 | Where is the Graphics flip right now, what blocks it, and what happens next? | `docs/independence/GRAPHICS_FLIP_STATUS.md` — living status: current verdict, open blockers with their state, PR merge order, owner decisions on record, and the ordered path to cutover. Gate evidence stays in `docs/independence/B4_READINESS.md`; the operator sequence stays in `docs/ops/FLIP_RUNBOOK.md`. |
 | How to test; which suite gates what | `docs/testing/README.md` |
+| Which GitHub Actions workflows exist, when they last ran, and which need review? | `docs/audits/2026-09-26-github-workflows-inventory.md` (dated, read-only inventory; refresh run dates before acting) |
 | What each surface *promises* (quality tiers) | `docs/QUALITY_TIERS.md` |
 | Live state, kill switches, one-step rollback | `ROLLBACK.md` (the law + Live State table) |
 | What happened on date X (deploys, flags, incidents) | `EXECUTION_LOG.md` |

@@ -1,4 +1,4 @@
-**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](../../ops/LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+**Historical-status note (2026-09-26):** This record describes its own period, not current operations. See the [cutoff record](../../ops/LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 sequence and [State of things](../../STATE_OF_THINGS.md) for dated current function and credential status.
 
 # Samples vs Calendar — Divergence Catalog (the live sweep)
 

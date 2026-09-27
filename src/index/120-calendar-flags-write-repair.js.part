@@ -557,6 +557,7 @@ import { _kasperPaintReview } from './330-kasper-review-history.js';
        a live flip while the tab stays open), never on the routine
        focus/visibility/60s-timer polls that re-confirm the same value. */
     let _writeUiLastRenderedAuthoritySig = null;
+    function _writeUiSetLastRenderedAuthoritySig(value) { _writeUiLastRenderedAuthoritySig = value; }
 
     function _writeUiNormalizeAuthority(value) {
         if (typeof value === 'string') { try { value = JSON.parse(value); } catch (e) { return null; } }
@@ -3137,6 +3138,6 @@ export {
   _writeUiPrincipalKey, _writeUiQueueDiagnostic, _writeUiRefreshAuthority,
   _writeUiRemoveCompletedRepairRefs, _writeUiRepairCompanions, _writeUiRepairJournalRead,
   _writeUiReportFailure, _writeUiRerouteUseGateway, _writeUiRerouteUseGatewayWhenReady,
-  _writeUiSnapshotRepairRefs, _writeUiSourceClientSlug, _writeUiSourceEditsOnly, _writeUiTeam,
-  _writeUiUseGatewayWhenReady, computeOverallStatus
+  _writeUiSetLastRenderedAuthoritySig, _writeUiSnapshotRepairRefs, _writeUiSourceClientSlug,
+  _writeUiSourceEditsOnly, _writeUiTeam, _writeUiUseGatewayWhenReady, computeOverallStatus
 };

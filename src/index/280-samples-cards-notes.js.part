@@ -2901,11 +2901,10 @@ export {
   _sxrLocalStatusAt, _sxrMarkKasperSeen, _sxrMarkLocalStatus, _sxrMaybeRunPendingRender,
   _sxrMergeCommentLists, _sxrMergeServerRows, _sxrMiniLinkBadgeHtml, _sxrMintCommentId,
   _sxrMsgAudience, _sxrMsgIsTweak, _sxrNextTweakRound, _sxrOnFieldBlur, _sxrOnFieldInput,
-  _sxrOpenCommentsPid, _sxrPendingBackgroundRender, _sxrPostsEqualForRender,
-  _sxrRefreshCommentsBtn, _sxrRefreshOnReturn, _sxrRenderBody, _sxrRenderCommentsModal,
-  _sxrRetryCommentEdit, _sxrReviewComponentPreview, _sxrReviewState, _sxrSchedulePendingRender,
-  _sxrSetCanonicalCommentsFor, _sxrSetCommentsFor, _sxrSetLastLocalWriteAt,
-  _sxrSetLinearOutboxTimer, _sxrSetPendingBackgroundRender, _sxrStringifyComments,
-  _sxrThumbIconSvg, _sxrToggleCommentDone, _sxrUpdateReviewBadge, _sxrWatchNoteSave,
-  mountSxrClientView
+  _sxrOpenCommentsPid, _sxrPostsEqualForRender, _sxrRefreshCommentsBtn, _sxrRefreshOnReturn,
+  _sxrRenderBody, _sxrRenderCommentsModal, _sxrRetryCommentEdit, _sxrReviewComponentPreview,
+  _sxrReviewState, _sxrSchedulePendingRender, _sxrSetCanonicalCommentsFor, _sxrSetCommentsFor,
+  _sxrSetLastLocalWriteAt, _sxrSetLinearOutboxTimer, _sxrSetPendingBackgroundRender,
+  _sxrStringifyComments, _sxrThumbIconSvg, _sxrToggleCommentDone, _sxrUpdateReviewBadge,
+  _sxrWatchNoteSave, mountSxrClientView
 };

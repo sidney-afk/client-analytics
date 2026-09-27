@@ -29353,3 +29353,31 @@ to `commit;`. Stop at the first error.
 
 **Applied 2026-09-27** by Lighthouse after the owner's go, as the three steps above: the pre-check passed, the index built valid and ready, and the transaction committed. Check on the test client: a timestamp-only update of one calendar card added no journal row (count unchanged). The live function bodies omit two comment lines from the file; behaviour is identical and the ROLLBACK does not depend on the new bodies' md5.
 
+
+## 270. [2026-09-27, BUILT] Coming back to the Samples tab put the caret in a different card's name box
+
+**Problem.** Found by Vigil. Type in a sample's name box without saving, hide the
+page for about 10 seconds, come back: the text stayed, but the caret landed in a
+different card's name box, so further typing went into the wrong sample. It hit
+every sample made in the Create dialog (4 of 4) and none of the simpler test
+samples (0 of 2).
+
+**Cause.** On return the Samples refresh remembers the focused box and puts focus
+back after it repaints. The shared helper (`_svFieldSig` in
+`src/index/040-shared-briefs.js.part`) recognised a box by its id, else its
+`oninput` text, else its name. Samples name boxes have no id and all share the same
+`oninput="_sxrOnFieldInput(this)"`, so every card's box matched and the helper
+focused the FIRST one on the page. A Create-dialog sample sits below other cards,
+so its box was never first.
+
+**Fix.** The helper now (1) goes back to the very box the person was in when it is
+still on the page, and (2) otherwise also matches on the box's card and field
+(`data-pid`, `data-fld`, `data-comp`), so boxes that share a handler no longer look
+alike. Calendar uses the same helper and gets the same protection.
+
+**Proof.** `docs/syncview-design/tests/sxr-focus-return-browser.js` (offline, runs
+in CI) types in the second of two samples, hides the page past the 8 second
+return threshold and shows it again. On the old code focus moved to the first card
+and the next keystroke went into it (4 checks failed); with the fix focus, text
+and caret stay in the same card (9 of 9). `test/background-update-focus.js` adds
+the two-cards case.

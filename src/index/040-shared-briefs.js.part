@@ -222,12 +222,22 @@ import { _tkMounted, _tkRenderForm } from './300-tiktok-upload.js';
        then re-focus the matching field in the fresh DOM and restore selection.
        No-ops when nothing is focused or the focused node isn't a text field, so
        it is always safe to wrap a render — even a background one. */
+    /* The handler string alone is not unique: every card's name box calls
+       the same `_sxrOnFieldInput(this)`, so a match on it alone picked the
+       FIRST card on the page, not the one being typed in. Where the field
+       carries its card and field identity (data-pid, data-fld, data-comp),
+       that identity is part of the signature. */
+    function _svFieldKey(el) {
+        const get = k => (el.getAttribute && el.getAttribute(k)) || '';
+        const parts = ['data-pid', 'data-fld', 'data-comp'].map(k => get(k) ? k + '=' + get(k) : '').filter(Boolean);
+        return parts.length ? '|' + parts.join('|') : '';
+    }
     function _svFieldSig(el) {
         if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA')) return '';
         if (el.id) return '#' + el.id;
         const oi = el.getAttribute && el.getAttribute('oninput');
-        if (oi) return 'oninput=' + oi;
-        if (el.name) return 'name=' + el.name;
+        if (oi) return 'oninput=' + oi + _svFieldKey(el);
+        if (el.name) return 'name=' + el.name + _svFieldKey(el);
         return '';
     }
     function _svCaptureFocus(root) {
@@ -236,14 +246,16 @@ import { _tkMounted, _tkRenderForm } from './300-tiktok-upload.js';
         if (root && !(root.contains && root.contains(a))) return null;   // focus isn't in the region being rebuilt
         const sig = _svFieldSig(a);
         if (!sig) return null;
-        const cap = { sig, start: null, end: null, dir: 'none' };
+        const cap = { sig, el: a, start: null, end: null, dir: 'none' };
         try { cap.start = a.selectionStart; cap.end = a.selectionEnd; cap.dir = a.selectionDirection || 'none'; } catch (e) {}
         return cap;
     }
     function _svRestoreFocus(cap) {
         if (!cap || !cap.sig) return;
         let el = null;
-        if (cap.sig.charAt(0) === '#') el = document.getElementById(cap.sig.slice(1));
+        // The very box the person was in, when a render left it in place.
+        if (cap.el && cap.el.isConnected && _svFieldSig(cap.el) === cap.sig) el = cap.el;
+        if (!el && cap.sig.charAt(0) === '#') el = document.getElementById(cap.sig.slice(1));
         if (!el) {
             const nodes = document.querySelectorAll('input, textarea');
             for (let i = 0; i < nodes.length; i++) { if (_svFieldSig(nodes[i]) === cap.sig) { el = nodes[i]; break; } }

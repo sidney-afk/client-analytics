@@ -86,7 +86,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (before === n) return;
         const page = currentNav;
         if (page === 'home') { selectClient(n); return; }
-        if (SV_CLIENT_FOLLOW_TABS.includes(page)) navTo(page, false);
+        if (!SV_CLIENT_FOLLOW_TABS.includes(page)) return;
+        svSharedClientApply(page, true);   // Templates / Filming Plans read it before the remount
+        navTo(page, false);
     }
     // Called by navTo before a tab mounts. Calendar, Samples and TikTok Upload
     // read svSharedClientFor() in their own mount; the two below have no mount
@@ -169,10 +171,12 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (_svClientActive >= flat.length) _svClientActive = 0;
         let i = 0;
         let html = sections.map(s => `<div class="sv-client-sec">${s.title}</div>` + (s.names.length
-            ? s.names.map(n => { const idx = i++; return `<div class="sv-client-row${idx === _svClientActive ? ' is-active' : ''}" role="option" aria-selected="${idx === _svClientActive}" data-sv-client="${_calEscAttr(n)}">${_svClientDot(n)}<span>${_calEsc(n)}</span></div>`; }).join('')
+            ? s.names.map(n => { const idx = i++; return `<div class="sv-client-row${idx === _svClientActive ? ' is-active' : ''}" role="option" id="svClientOpt${idx}" aria-selected="${idx === _svClientActive}" data-sv-client="${_calEscAttr(n)}">${_svClientDot(n)}<span>${_calEsc(n)}</span></div>`; }).join('')
             : `<div class="sv-client-none">${q.trim() ? 'No clients match' : 'Type to search every client'}</div>`)).join('');
         box.innerHTML = html;
         box._svFlat = flat;
+        if (flat.length) input.setAttribute('aria-activedescendant', 'svClientOpt' + _svClientActive);
+        else input.removeAttribute('aria-activedescendant');
     }
     function svClientPopToggle(e) {
         if (e) e.stopPropagation();

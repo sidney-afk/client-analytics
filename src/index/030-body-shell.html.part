@@ -67,7 +67,7 @@
             <svg class="sv-client-chev" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
         </button>
         <div class="sv-client-pop" id="svClientPop" hidden>
-            <input type="text" class="sv-client-search" id="svClientSearch" placeholder="Search any client…" autocomplete="off" aria-label="Search any client">
+            <input type="text" class="sv-client-search" id="svClientSearch" placeholder="Search any client…" autocomplete="off" aria-label="Search any client" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="svClientResults">
             <div class="sv-client-results" id="svClientResults" role="listbox"></div>
             <div class="sv-client-foot">Follows you across Calendar, Samples, Templates, Filming Plans, TikTok Upload and Analytics.</div>
         </div>

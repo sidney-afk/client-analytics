@@ -539,6 +539,7 @@
     "templates-brain-page.js",
     "templates-multilink.js",
     "templates-refresh-routing.js",
+    "templates-realtime-catchup.js",
     "test-client-entry-harness.js",
     "test-suite-routing.js",
     "test-window-integrity.js",

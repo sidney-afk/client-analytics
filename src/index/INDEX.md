@@ -13,7 +13,7 @@
 | 5 | `020-styles-surfaces.css.part` | 4190 | Templates view |
 | 6 | `030-body-shell.html.part` | 467 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 1845 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
-| 8 | `050-market-briefs.js.part` | 1716 | Market Research Brief Tab Renderers |
+| 8 | `050-market-briefs.js.part` | 1761 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2290 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `070-workload-source.js.part` | 3823 | Workload Calendar |
 | 11 | `080-workload-render.js.part` | 3414 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |

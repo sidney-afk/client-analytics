@@ -590,3 +590,4 @@ External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HAND
 ## Recent source-only reviews
 
 - `docs/audits/2026-09-26-templates-realtime-catchup-source-review.md` — evidence and a proposed catch-up check for an open Templates view whose live-update channel fails or misses changes.
+- `test/templates-realtime-catchup.js` — offline channel-status and REST-read test for disconnected polling, one reconnect catch-up, and preservation of local edits.

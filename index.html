@@ -12133,6 +12133,36 @@
     function _tplSetPinsEditMode(value) { _tplPinsEditMode = value; }
     function _tplSetPinSelectorOpen(value) { _tplPinSelectorOpen = value; }
     let _tplRealtimeChannel = null;
+    let _tplRealtimeConnected = false;
+    let _tplCatchupTimer = null;
+    let _tplCatchupInFlight = false;
+    let _tplReconnectCatchupPending = false;
+    const TPL_CATCHUP_POLL_MS = 60 * 1000;
+
+    function _tplStopCatchupPoll() {
+        if (_tplCatchupTimer) { clearInterval(_tplCatchupTimer); _tplCatchupTimer = null; }
+    }
+    async function _tplCatchup() {
+        if (currentNav !== 'templates' || document.visibilityState === 'hidden' || _tplCatchupInFlight) return;
+        _tplCatchupInFlight = true;
+        // If a poll was in flight when the channel reconnected, its response
+        // could predate the reconnect. Queue one read after that poll settles.
+        if (_tplRealtimeConnected) {
+            _tplReconnectCatchupPending = false;
+            _tplStopCatchupPoll();
+        }
+        try { await loadTemplates(); }
+        finally {
+            _tplCatchupInFlight = false;
+            if (_tplRealtimeConnected && _tplReconnectCatchupPending) _tplCatchup();
+        }
+    }
+    function _tplStartCatchupPoll() {
+        if (_tplCatchupTimer) return;
+        _tplCatchupTimer = setInterval(() => {
+            if (!_tplRealtimeConnected || _tplReconnectCatchupPending) _tplCatchup();
+        }, TPL_CATCHUP_POLL_MS);
+    }
 
     async function _tplLoadFromSupabase() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase not configured');
@@ -12152,10 +12182,12 @@
 
     async function _tplSubscribeSupabase() {
         if (_tplRealtimeChannel) return;
-        const client = await _calRuntimeFlagClient();
-        if (!client || _tplRealtimeChannel) return;
+        // An existing channel object is not proof that its socket connected.
+        _tplStartCatchupPoll();
         try {
-            _tplRealtimeChannel = client
+            const client = await _calRuntimeFlagClient();
+            if (!client || _tplRealtimeChannel) return;
+            const channel = client
                 .channel('syncview-templates')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'templates' }, (payload) => {
                     const row = payload && payload.new ? payload.new : null;
@@ -12164,11 +12196,24 @@
                     if (!name) return;
                     templatesData[name] = Object.assign({}, templatesData[name] || {}, data, { updated_at: row.updated_at || data.updated_at || '' });
                     _maybeRerenderTemplates();
-                })
-                .subscribe();
+                });
+            _tplRealtimeChannel = channel;
+            channel.subscribe((status) => {
+                if (_tplRealtimeChannel !== channel) return;
+                if (status === 'SUBSCRIBED') {
+                    _tplRealtimeConnected = true;
+                    if (_tplReconnectCatchupPending) _tplCatchup();
+                    else _tplStopCatchupPoll();
+                } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                    _tplRealtimeConnected = false;
+                    _tplReconnectCatchupPending = true;
+                    _tplStartCatchupPoll();
+                }
+            });
         } catch (e) {
             console.warn('[SyncView] templates realtime subscribe failed', e);
             _tplRealtimeChannel = null;
+            _tplRealtimeConnected = false;
         }
     }
 

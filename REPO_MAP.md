@@ -177,6 +177,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | `docs/audits/2026-09-26-linear-exit-followup-callers.md` | Source-only caller map for the seven follow-up modules: test imports, prepared bundle inputs, guarded operator commands, and absent tracked package/workflow launches. |
 | `docs/audits/2026-09-26-manual-script-purpose-review.md` | Source-only purpose, caller, and retention review for six scripts from the broad audit's original queue; confirms one extensionless offline test import and reviews five remaining manual-purpose files. |
 | `docs/audits/2026-09-26-native-intake-manifest-callers.md` | Source-only caller map for eleven native-intake manifest test-tool files, separating test launchers, source fragments, shared shims and README-only mentions. |
+| `docs/audits/2026-09-26-native-intake-script-callers.md` | Source-only caller map for ten native-intake reconcile/completion scripts; distinguishes workflow entry points, shared imports, and test support. |
 | `scripts/linear-only-slot-repair.js`, `test/linear-only-slot-repair.js`, `docs/ops/2026-09-24-linear-only-slot-repair.md` | Read-only finder for Calendar slots that hold only a retired Linear URL: classifies each against existing SyncView deliverables and writes a guarded, NOT APPLIED connection plan (ids and SQL) to a file outside the repo. Prints counts only. |
 
 ## Meta

@@ -29429,3 +29429,29 @@ Owner decision 2026-09-27: a sample Kasper sends back with a change request and 
   - A new version puts a component back at Kasper Approval, and `_sxrKasperIsFinished` already treats that as not finished, so the sample returns as normal.
   - Approve-all, the SMM view and the client view are unchanged. Before Finish, nothing changes.
 - **Proof.** `test/sxr-kasper-finish-leaves-queue.js` runs the real code. It fails 3 checks on the old code and passes 11 of 11 with the fix.
+
+## 276. [2026-09-26, PARTLY APPLIED] The anon key reads, and can subscribe to, every client's cards
+
+Measured read-only: `calendar_posts` and `sample_reviews` have an anon read
+policy `using (true)` on every column, and `deliverables`, `batches` and
+`deliverable_events` are readable across all clients (with their sensitive
+columns and comment bodies hidden). Anyone with the publishable key can read or
+subscribe to any client's rows without a client token; the client link's token
+is checked once at entry and never sent with these reads. anon and
+authenticated also still hold TRUNCATE (not subject to row security) on the
+five tables.
+
+Proposal, not applied: `docs/ops/ANON_READ_SCOPE_2026-09-26.md`. Phase 0 revokes
+the write grants now (no behaviour change). Phase 1 gives every reader a
+short-lived signed session from a new `syncview-session` Edge Function, which
+needs an owner check of the project's JWT signing keys first. Phase 2 replaces
+the open read policies with staff-or-own-client ones. Rehearsed locally:
+`scripts/anon-read-scope-rehearsal.js`, 11 checks.
+
+**Status 2026-09-27.** Phase 0 (`migrations/2026-09-26-anon-write-grants-revoke.sql`)
+was applied live on 2026-09-27 by the owner's go-ahead. The readback, posted
+on PR #1691, shows that anon and authenticated hold no write grant on the five
+tables, that reads are unchanged, and that service_role writes are unchanged.
+Phases 1 (session JWT in the browser) and 2 (`scoped-read-policies.sql`) are
+**deferred by the owner**. Until they ship, the anon key still reads every
+client's rows.

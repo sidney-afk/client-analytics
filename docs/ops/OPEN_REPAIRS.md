@@ -29353,3 +29353,8 @@ to `commit;`. Stop at the first error.
 
 **Applied 2026-09-27** by Lighthouse after the owner's go, as the three steps above: the pre-check passed, the index built valid and ready, and the transaction committed. Check on the test client: a timestamp-only update of one calendar card added no journal row (count unchanged). The live function bodies omit two comment lines from the file; behaviour is identical and the ROLLBACK does not depend on the new bodies' md5.
 
+## 270. [2026-09-27, BUILT, pending review] A saved client approval said nothing was saved
+
+When the native approval committed but the Calendar card save was refused, the card kept its source repair and showed Saved, syncing while the client review queue said nothing was saved. The queue now checks that the pending repair contains every status and sign-off field of the exact queued approval before saying "Approval saved; card still syncing." A partly refused whole-post approval, a pre-commit refusal, and a change request retain their existing failure notices. An aged queue entry with a committed approval keeps its approved display and leaves the source repair in place.
+
+Offline regression: `node test/client-review-queue-behavior.js` failed before the source fix and passes after. `node docs/syncview-design/tests/client-review-write-browser.js` passes nine fully intercepted browser cases, including one native approval followed by a refused source save and a separate pre-commit refusal. This is local evidence only; no live write or hosted behavior was tested.

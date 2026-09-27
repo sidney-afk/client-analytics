@@ -372,6 +372,39 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       expect(!m.jumpShown, `${tag}: the touch-only quick-jump button shows on a mouse desktop`);
       await context.close();
     }
+    // Resize burst (review, 2026-09-27): more than 30 resizes inside a second
+    // trips the fit's loop cap. A narrow-then-wide burst must still end on
+    // full labels, via the trailing fit, not stay stuck on icons.
+    {
+      const context = await browser.newContext({ viewport: { width: 1600, height: 800 } });
+      await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()), route => {
+        route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }).catch(() => {});
+      });
+      await seedStaffGate(context);
+      await context.addInitScript(v => {
+        try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); localStorage.setItem('syncview_shared_client', v); } catch (e) {}
+      }, FIRST);
+      const page = await context.newPage();
+      await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(2500);
+      // Burn the cap at the wide size, then go narrow (icons), then back wide
+      // while the cap is still tripped.
+      for (let i = 0; i < 40; i++) {
+        await page.evaluate(() => new Promise(r => { window.dispatchEvent(new Event('resize')); requestAnimationFrame(() => r()); }));
+      }
+      await page.setViewportSize({ width: 1100, height: 800 });
+      for (let i = 0; i < 10; i++) {
+        await page.evaluate(() => new Promise(r => { window.dispatchEvent(new Event('resize')); requestAnimationFrame(() => r()); }));
+      }
+      await page.setViewportSize({ width: 1600, height: 800 });
+      await page.waitForTimeout(1800);
+      const stuck = await page.evaluate(() => {
+        const nav = document.getElementById('headerNav');
+        return nav.classList.contains('is-compact') || nav.classList.contains('is-icons') || nav.scrollWidth > nav.clientWidth;
+      });
+      expect(!stuck, 'resize burst: the tab row did not settle on full labels after the burst');
+      await context.close();
+    }
     // Quick-jump button: shown only on a touch-first device.
     {
       const context = await browser.newContext({ viewport: { width: 820, height: 1180 }, hasTouch: true, isMobile: true });

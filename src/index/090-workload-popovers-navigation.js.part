@@ -1370,7 +1370,7 @@ import {
             if (nav.classList.contains('is-compact') + ':' + nav.classList.contains('is-icons') !== wasCompact) requestAnimationFrame(() => _navPillSync(false));
         } catch (e) {}
     }
-    let _navFitQueued = false, _navFitWindowAt = 0, _navFitWindowRuns = 0;
+    let _navFitQueued = false, _navFitTrailing = false, _navFitWindowAt = 0, _navFitWindowRuns = 0;
     function _navFitSchedule() {
         if (_navFitQueued) return;
         _navFitQueued = true;
@@ -1379,7 +1379,16 @@ import {
             _navFitQueued = false;
             const now = Date.now();
             if (now - _navFitWindowAt > 1000) { _navFitWindowAt = now; _navFitWindowRuns = 0; }
-            if (++_navFitWindowRuns > 30) return;   // loop guard: 30 fits a second is never real
+            // Loop guard: past 30 fits a second, stop fitting per signal but
+            // keep ONE trailing fit for when the window resets, so a burst
+            // (a fast drag-resize) still ends on the right layout.
+            if (++_navFitWindowRuns > 30) {
+                if (!_navFitTrailing) {
+                    _navFitTrailing = true;
+                    setTimeout(() => { _navFitTrailing = false; _navFitSchedule(); }, Math.max(0, 1001 - (Date.now() - _navFitWindowAt)));
+                }
+                return;
+            }
             _navPillSync(false);
         });
     }

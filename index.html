@@ -18500,7 +18500,19 @@
             <div id="wlPopover" class="workload-popover" role="dialog" aria-hidden="true"></div>
         </div>`;
     }
+    /* Smart default: a creative lands on their own work (see
+     * _syncviewCreativeMe). The editor filter holds workload assignee ids,
+     * which are not staff member ids, so the match waits for the rows and
+     * resolves in wlPopulateFilterOptions by id or by name. Once per load, and
+     * dropped the moment the person picks an editor themselves. */
+    let _wlCreativeDefaultDone = false;
+    let _wlCreativePending = null;
     async function initWorkloadView() {
+        if (!_wlCreativeDefaultDone) {
+            _wlCreativeDefaultDone = true;
+            const me = _syncviewCreativeMe();
+            if (me && wlState.editor === 'all') _wlCreativePending = me;
+        }
         const todayISO = wlWorkloadTodayISO();
         const now = wlParseISO(todayISO);
         if (wlState.year == null)      { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }
@@ -19909,7 +19921,7 @@
                 e.preventDefault();
                 const kind  = ddItem.getAttribute('data-wl-dropdown-item');
                 const value = ddItem.getAttribute('data-wl-value');
-                if (kind === 'editor') wlState.editor = value;
+                if (kind === 'editor') { wlState.editor = value; _wlCreativePending = null; }
                 wlCloseDropdowns(null);
                 renderWorkloadAll();
                 return;
@@ -20128,6 +20140,12 @@
         wlState.clientOptions = clients;
 
         // Reset selected value if it's no longer valid for the current data.
+        if (_wlCreativePending) {
+            const me = _wlCreativePending;
+            const myName = String(wlDisplayName(me.name) || '').trim().toLowerCase();
+            const hit = editors.find(([id, name]) => id === me.id || (myName && String(name).trim().toLowerCase() === myName));
+            if (hit) { _wlCreativePending = null; if (wlState.editor === 'all') wlState.editor = hit[0]; }
+        }
         if (wlState.editor !== 'all' && !editors.some(([id]) => id === wlState.editor)) wlState.editor = 'all';
         if (wlState.client !== 'all' && !clients.includes(wlState.client))              wlState.client = 'all';
 
@@ -24994,6 +25012,19 @@
             },
             verified_at: new Date().toISOString()
         };
+    }
+    /* SMART DEFAULTS (owner decision 2026-09-27). A creative is a non-admin
+     * whose team is video or graphics. Workload opens filtered to them and
+     * SyncLinear opens on "My issues", once per page load, and only when
+     * nothing else (a link, an earlier choice this visit) already decided.
+     * It reads the stored identity, which only decides what to paint first;
+     * it grants nothing. Returns { id, team } or null. */
+    function _syncviewCreativeMe() {
+        const identity = _syncviewStaffIdentityLoad();
+        const m = identity && identity.member;
+        if (!m || !m.id || String(identity.role || '') === 'admin') return null;
+        const team = String(m.team || '').toLowerCase();
+        return team === 'video' || team === 'graphics' ? { id: String(m.id), name: String(m.name || ''), team } : null;
     }
     function _syncviewStaffInitials(name) {
         const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
@@ -64632,6 +64663,7 @@
                 if (document.getElementById('prodRoot')) _prodRender();
             }, () => {});
         }
+        let _prodCreativeDefaultDone = false;
         function _prodPrimeFromUrl() {
             try {
                 const statePrefs = history.state && history.state.prod ? history.state.prod : null;
@@ -64647,7 +64679,13 @@
                 else if (subs === '1' || subs === 'true') _prodState.showSubIssues = true;
                 const team = q.get('team');
                 if (team === 'video' || team === 'graphics') _prodState.team = team;
-                const view = q.get('view');
+                // Smart default: a creative opening SyncLinear with no view, card
+                // or project in the address lands on My issues, once per load.
+                let view = q.get('view');
+                if (!view && !_prodCreativeDefaultDone && !q.get('d') && !q.get('batch') && !q.get('client')) {
+                    if (_syncviewCreativeMe()) view = 'my';
+                }
+                _prodCreativeDefaultDone = true;
                 if (view === 'my' || view === 'board' || view === 'list' || view === 'project') _prodState.view = view === 'board' ? 'board' : view === 'my' ? 'my' : view === 'project' ? 'project' : 'list';
                 const tab = q.get('issues');
                 if (tab === 'active' || tab === 'backlog' || tab === 'all') _prodState.tab = tab;

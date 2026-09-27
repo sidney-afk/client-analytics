@@ -16,9 +16,9 @@
 | 8 | `050-market-briefs.js.part` | 1716 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2290 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `070-workload-source.js.part` | 3823 | Workload Calendar |
-| 11 | `080-workload-render.js.part` | 3414 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
+| 11 | `080-workload-render.js.part` | 3433 | Smart default: a creative lands on their own work (see |
 | 12 | `090-workload-popovers-navigation.js.part` | 1663 | Sub-issue popover |
-| 13 | `100-onboarding-staff-controls.js.part` | 2372 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
+| 13 | `100-onboarding-staff-controls.js.part` | 2386 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 14 | `110-time-off-reports.js.part` | 2207 | Kasper Time Off calendar |
 | 15 | `120-calendar-flags-write-repair.js.part` | 3143 | The members a flag value offers, or null when it offers no member list at |
 | 16 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
@@ -39,7 +39,7 @@
 | 31 | `220-production-attribution-views.js.part` | 2764 | An ABSENT persisted slug is missing evidence, not |
 | 32 | `230-production-create-comments.js.part` | 2639 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 33 | `240-production-description.js.part` | 2646 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
-| 34 | `250-production-controls-data.js.part` | 2881 | F50 DISCLOSURE — say when a status has no word on the card. |
+| 34 | `250-production-controls-data.js.part` | 2889 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 35 | `260-production-refresh-boot.js.part` | 2618 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 36 | `270-samples-model.js.part` | 2852 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 37 | `280-samples-cards-notes.js.part` | 2910 | SURFACE 3: the save engine |

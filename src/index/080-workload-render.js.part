@@ -1,3 +1,4 @@
+import { _syncviewCreativeMe } from './100-onboarding-staff-controls.js';
 import { showNotify } from './040-shared-briefs.js';
 import {
   WL_CLIENT_NAMES, WL_DEADLINE_PREF_KEY, WL_LINEAR_WRITE_TIMEOUT_MS,
@@ -37,7 +38,19 @@ import { _svLoadingSkeletonHtml, _svSkel } from './133-core-loading-skeletons.js
 import { _calGetPins, _calSavePins } from './134-calendar-prefs-mount.js';
 import { PROD_WRITE_EF_URL } from './210-production-state-writes.js';
 import { _prodApplyGatewayRow } from './230-production-create-comments.js';
+    /* Smart default: a creative lands on their own work (see
+     * _syncviewCreativeMe). The editor filter holds workload assignee ids,
+     * which are not staff member ids, so the match waits for the rows and
+     * resolves in wlPopulateFilterOptions by id or by name. Once per load, and
+     * dropped the moment the person picks an editor themselves. */
+    let _wlCreativeDefaultDone = false;
+    let _wlCreativePending = null;
     async function initWorkloadView() {
+        if (!_wlCreativeDefaultDone) {
+            _wlCreativeDefaultDone = true;
+            const me = _syncviewCreativeMe();
+            if (me && wlState.editor === 'all') _wlCreativePending = me;
+        }
         const todayISO = wlWorkloadTodayISO();
         const now = wlParseISO(todayISO);
         if (wlState.year == null)      { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }
@@ -1446,7 +1459,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
                 e.preventDefault();
                 const kind  = ddItem.getAttribute('data-wl-dropdown-item');
                 const value = ddItem.getAttribute('data-wl-value');
-                if (kind === 'editor') wlState.editor = value;
+                if (kind === 'editor') { wlState.editor = value; _wlCreativePending = null; }
                 wlCloseDropdowns(null);
                 renderWorkloadAll();
                 return;
@@ -1665,6 +1678,12 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         wlState.clientOptions = clients;
 
         // Reset selected value if it's no longer valid for the current data.
+        if (_wlCreativePending) {
+            const me = _wlCreativePending;
+            const myName = String(wlDisplayName(me.name) || '').trim().toLowerCase();
+            const hit = editors.find(([id, name]) => id === me.id || (myName && String(name).trim().toLowerCase() === myName));
+            if (hit) { _wlCreativePending = null; if (wlState.editor === 'all') wlState.editor = hit[0]; }
+        }
         if (wlState.editor !== 'all' && !editors.some(([id]) => id === wlState.editor)) wlState.editor = 'all';
         if (wlState.client !== 'all' && !clients.includes(wlState.client))              wlState.client = 'all';
 

@@ -8592,8 +8592,6 @@
         .sv-client-none { padding: 8px; font-size: 0.8rem; color: var(--text-muted); }
         .sv-client-foot { font-size: 0.7rem; color: var(--text-muted); padding: 8px 8px 2px; border-top: 1px solid var(--border-light); margin-top: 6px; }
         .header-nav-sep { flex: none; width: 1px; height: 20px; margin: 0 4px; background: var(--border); }
-        /* The top bar replaces the per-tab client strips for staff. */
-        body.sv-shared-client #calTabs, body.sv-shared-client #sxrTabs { display: none !important; }
         @media (max-width: 700px) { .sv-client-bar { padding: 8px 14px; gap: 6px; } .sv-client-cap, .sv-client-recent-label { display: none !important; } }
         /* Quick jump (096-quick-jump). */
         .sv-client-kbd { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; font: inherit; font-size: 0.72rem; color: var(--text-muted); cursor: pointer; }
@@ -40658,9 +40656,7 @@
         const scrollY0 = preserveScroll ? window.scrollY : null;
         const harvestedThumbs = (preserveScroll && stripBefore) ? _calHarvestThumbs() : null;
         if (!calState.client) {
-            body.innerHTML = document.body.classList.contains('sv-shared-client')
-                ? `<div class="cal-empty">Pick a client in the top bar to start.</div>`
-                : `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab so you can switch between your clients quickly.</div>`;
+            body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab so you can switch between your clients quickly.</div>`;
             return;
         }
         if (calState.loading) { body.innerHTML = _calLoaderHtml(); return; }
@@ -72144,7 +72140,7 @@
         if (!body) return;
         const preserveScroll = !!(opts && opts.preserveScroll);
         const scrollY0 = preserveScroll ? window.scrollY : null;
-        if (!sxrState.client) { body.innerHTML = document.body.classList.contains('sv-shared-client') ? `<div class="cal-empty">Pick a client in the top bar to start.</div>` : `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start.</div>`; return; }
+        if (!sxrState.client) { body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start.</div>`; return; }
         if (sxrState.loading) { body.innerHTML = _sxrLoaderHtml(); return; }
         if (sxrState.error) { body.innerHTML = `<div class="cal-empty cal-error">Couldn't load sample reviews — <button class="cal-link" onclick="loadSxrCards({skipCache:true})">try again</button>.</div>`; return; }
         if (sxrState.view === 'review' || sxrState.view === 'smmreview') {

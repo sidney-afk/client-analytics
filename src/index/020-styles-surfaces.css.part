@@ -4215,8 +4215,6 @@
         .sv-client-none { padding: 8px; font-size: 0.8rem; color: var(--text-muted); }
         .sv-client-foot { font-size: 0.7rem; color: var(--text-muted); padding: 8px 8px 2px; border-top: 1px solid var(--border-light); margin-top: 6px; }
         .header-nav-sep { flex: none; width: 1px; height: 20px; margin: 0 4px; background: var(--border); }
-        /* The top bar replaces the per-tab client strips for staff. */
-        body.sv-shared-client #calTabs, body.sv-shared-client #sxrTabs { display: none !important; }
         @media (max-width: 700px) { .sv-client-bar { padding: 8px 14px; gap: 6px; } .sv-client-cap, .sv-client-recent-label { display: none !important; } }
         /* Quick jump (096-quick-jump). */
         .sv-client-kbd { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; font: inherit; font-size: 0.72rem; color: var(--text-muted); cursor: pointer; }

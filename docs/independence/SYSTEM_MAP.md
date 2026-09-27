@@ -1246,6 +1246,9 @@ Supabase REST read is a flag-gated OVERLAY, not a fallback. Templates: Supabase 
   `settings_ef_clients` gates exactly caption-prompts now (not templates, not credentials). Multi-link
   fields persist a JSON sibling column plus a mirrored legacy single column (2–3 patches per edit).
   The templates/settings realtime channels are deliberately never torn down.
+  A [2026-09-26 source-only review](../audits/2026-09-26-templates-realtime-catchup-source-review.md)
+  finds that Templates does not check channel connection state or catch up after a missed event;
+  an open view may stay stale after a disconnect. This has not been reproduced live or fixed.
 - **Track B.** Low. All active clients on the A4 EFs. Only Track-B touch: §6 role-key enforcement on
   the two save EFs at the auth flip. No B4/B5 mechanics.
 

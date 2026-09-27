@@ -558,3 +558,7 @@ External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HAND
 - `docs/audits/2026-09-21-base-audit/A2-dead-code-inventory.md` — per-fragment inventory of Linear-era code, DELETE-NOW vs AFTER-STEP-7, phase B1 worklist (PR #1478).
 - `docs/audits/2026-09-21-base-audit/A3-junk-inventory.md` — unreferenced files and the pre-2026-09-14 stale PR list with proposed dispositions (PR #1479).
 - `docs/audits/2026-09-21-base-audit/A4-native-onboarding-eligibility.md` — native assignee eligibility, complete `linear_user_id` read trace, aggregate live roster counts, and native new-client attribution/runbook findings.
+
+## Recent source-only reviews
+
+- `docs/audits/2026-09-26-templates-realtime-catchup-source-review.md` — evidence and a proposed catch-up check for an open Templates view whose live-update channel fails or misses changes.

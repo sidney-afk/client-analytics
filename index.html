@@ -3039,12 +3039,18 @@
         .header-nav { display: flex; align-items: center; gap: 6px; width: max-content; max-width: 100%; min-width: 0; justify-self: center; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; position: relative; }
         .header-nav::-webkit-scrollbar { display: none; }
         .header-nav-btn { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; text-decoration: none; white-space: nowrap; position: relative; z-index: 1; }
-        @media (min-width: 761px) and (max-width: 1400px) {
+        /* Tighter tab spacing up to 1600px: the client picker (095) takes room in
+           the bar, so the row needs it sooner than the old 1400px. */
+        @media (min-width: 761px) and (max-width: 1600px) {
             .header { padding-left: 18px; padding-right: 18px; }
             .header-nav { gap: 4px; }
             .header-nav-btn { gap: 5px; padding-left: 10px; padding-right: 10px; font-size: 0.75rem; }
             .header-actions { gap: 6px; }
         }
+        /* Icons only when the row still overflows (set by _navFitSync). The tab
+           you are on keeps its name; the others keep theirs on hover. */
+        #headerNav.is-measuring > .header-nav-btn { transition: none !important; }
+        #headerNav.is-compact > .header-nav-btn:not(.active) { font-size: 0; gap: 0; padding-left: 9px; padding-right: 9px; }
         .header-nav-btn:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); background: var(--bg); }
         .header-nav-btn.active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
         .header-nav-btn svg { flex-shrink: 0; }
@@ -23344,7 +23350,41 @@
        per-button .active background. This must never throw — the boot probes
        fail on any console error. `animate` defaults to "animate unless this is
        the first placement", so the pill appears parked rather than flying in. */
+    /* TAB ROW FIT (owner, 2026-09-27; regression from the client picker in
+     * #1779). The tab row must fit without sideways scroll at 1280px and wider
+     * for every role. CSS tightens spacing up to 1600px; if the row still
+     * overflows, the tabs you are not on drop to icons only (full name on
+     * hover via title, and still in the accessible name). No tab is hidden.
+     * Measured, not a fixed breakpoint, so roles with fewer tabs keep labels. */
+    function _navFitSync() {
+        try {
+            const nav = document.getElementById('headerNav');
+            if (!nav) return;
+            nav.querySelectorAll(':scope > .header-nav-btn').forEach(b => {
+                if (!b.title) b.title = String(b.textContent || '').replace(/\s+/g, ' ').trim();
+            });
+            const wasCompact = nav.classList.contains('is-compact');
+            // Tabs animate size changes (transition: all); measure the settled
+            // full-label width with transitions off, or the check reads a
+            // mid-animation size and flips back and forth.
+            nav.classList.add('is-measuring');
+            nav.classList.remove('is-compact');
+            void nav.offsetWidth;
+            // Measure the tabs themselves, not scrollWidth: the sliding pill is
+            // absolutely positioned and can sit at a stale offset mid-route.
+            const btns = [...nav.querySelectorAll(':scope > .header-nav-btn')].filter(b => b.offsetWidth);
+            if (!btns.length || window.innerWidth <= 760) { nav.classList.remove('is-measuring'); return; }
+            const last = btns[btns.length - 1];
+            const needed = last.offsetLeft + last.offsetWidth - btns[0].offsetLeft;
+            if (needed > nav.clientWidth + 1) nav.classList.add('is-compact');
+            void nav.offsetWidth;
+            nav.classList.remove('is-measuring');
+            // Tab widths just changed: move the sliding pill under the active tab again.
+            if (nav.classList.contains('is-compact') !== wasCompact) requestAnimationFrame(() => _navPillSync(false));
+        } catch (e) {}
+    }
     function _navPillSync(animate) {
+        _navFitSync();
         try {
             // While the pre-paint gate is still up, the CSS route highlight owns
             // the active look and the .active CLASS may still be on the statically
@@ -23377,6 +23417,20 @@
         window.addEventListener('resize', () => _navPillSync(false));
         if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
             document.fonts.ready.then(() => _navPillSync(false)).catch(() => {});
+        }
+        // A tab revealed after first paint (Kasper, Samples) changes the row's
+        // width with no route change; watch the row itself so the fit and the
+        // pill follow. Coalesced to one pass per frame.
+        if (typeof MutationObserver === 'function') {
+            let queued = false;
+            const resync = () => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; _navPillSync(false); }); };
+            const watch = () => {
+                const nav = document.getElementById('headerNav');
+                if (!nav) return;
+                new MutationObserver(records => { if (records.some(r => !r.target.classList || !r.target.classList.contains('header-nav-pill'))) resync(); }).observe(nav, { subtree: true, attributes: true, attributeFilter: ['style', 'hidden'] });
+            };
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch);
+            else watch();
         }
     } catch (e) {}
     /* PER-TAB FAVICON (owner request 2026-08-21: "whenever we are in a tab the
@@ -23846,7 +23900,11 @@
         const bar = document.getElementById('svClientBar');
         if (!bar) return;
         const show = _svStaffShell();
+        const changed = bar.hidden === show;
         bar.hidden = !show;
+        // The picker shares the bar with the tab row: re-fit the tabs when it
+        // appears or hides (090 _navFitSync, via the pill sync).
+        if (changed) requestAnimationFrame(() => _navPillSync(false));
         document.body.classList.toggle('sv-shared-client', show);
         if (!show) _svClientPopClose();
         else svClientBarRender();

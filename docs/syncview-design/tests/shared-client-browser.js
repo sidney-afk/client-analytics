@@ -179,6 +179,45 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       await context.close();
     }
 
+    // Tab row fit (regression from the picker in #1779): with the Kasper tab
+    // present, the whole row fits with no sideways scroll at 1280px and wider,
+    // no tab is hidden, and the sliding highlight sits under the active tab.
+    for (const width of [1280, 1366, 1440]) {
+      for (const path of ['/calendar', '/kasper']) {
+        const context = await browser.newContext({ viewport: { width, height: 700 } });
+        await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()), route => {
+          route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }).catch(() => {});
+        });
+        await seedStaffGate(context);
+        await context.addInitScript(v => {
+          try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); localStorage.setItem('syncview_shared_client', v); } catch (e) {}
+        }, FIRST);
+        const page = await context.newPage();
+        await page.goto(`http://127.0.0.1:${port}${path}`, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(2500);
+        const m = await page.evaluate(() => {
+          const nav = document.getElementById('headerNav');
+          const tabs = [...nav.querySelectorAll(':scope > .header-nav-btn')].filter(a => getComputedStyle(a).display !== 'none');
+          const navBox = nav.getBoundingClientRect();
+          const active = nav.querySelector(':scope > .header-nav-btn.active');
+          const pill = nav.querySelector(':scope > .header-nav-pill').getBoundingClientRect();
+          const act = active.getBoundingClientRect();
+          return {
+            over: nav.scrollWidth - nav.clientWidth,
+            kasper: tabs.some(a => a.id === 'navKasper'),
+            outside: tabs.filter(a => { const r = a.getBoundingClientRect(); return r.left < navBox.left - 1 || r.right > navBox.right + 1 || r.width < 20; }).map(a => a.id),
+            pillOff: Math.round(Math.abs(pill.left - act.left) + Math.abs(pill.width - act.width)),
+          };
+        });
+        const tag = `tab row @${width} on ${path}`;
+        expect(m.kasper, `${tag}: the Kasper tab should be present for this check`);
+        expect(m.over <= 0, `${tag}: overflows by ${m.over}px`);
+        expect(!m.outside.length, `${tag}: tabs cut off or hidden: ${m.outside.join(',')}`);
+        expect(m.pillOff <= 2, `${tag}: the active highlight is ${m.pillOff}px off its tab`);
+        await context.close();
+      }
+    }
+
     // A client share link: no bar, and the shared client is neither read nor written.
     {
       const context = await browser.newContext({ viewport: { width: 390, height: 800 } });

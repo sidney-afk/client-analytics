@@ -2558,12 +2558,18 @@
         .header-nav { display: flex; align-items: center; gap: 6px; width: max-content; max-width: 100%; min-width: 0; justify-self: center; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; position: relative; }
         .header-nav::-webkit-scrollbar { display: none; }
         .header-nav-btn { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; text-decoration: none; white-space: nowrap; position: relative; z-index: 1; }
-        @media (min-width: 761px) and (max-width: 1400px) {
+        /* Tighter tab spacing up to 1600px: the client picker (095) takes room in
+           the bar, so the row needs it sooner than the old 1400px. */
+        @media (min-width: 761px) and (max-width: 1600px) {
             .header { padding-left: 18px; padding-right: 18px; }
             .header-nav { gap: 4px; }
             .header-nav-btn { gap: 5px; padding-left: 10px; padding-right: 10px; font-size: 0.75rem; }
             .header-actions { gap: 6px; }
         }
+        /* Icons only when the row still overflows (set by _navFitSync). The tab
+           you are on keeps its name; the others keep theirs on hover. */
+        #headerNav.is-measuring > .header-nav-btn { transition: none !important; }
+        #headerNav.is-compact > .header-nav-btn:not(.active) { font-size: 0; gap: 0; padding-left: 9px; padding-right: 9px; }
         .header-nav-btn:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); background: var(--bg); }
         .header-nav-btn.active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
         .header-nav-btn svg { flex-shrink: 0; }

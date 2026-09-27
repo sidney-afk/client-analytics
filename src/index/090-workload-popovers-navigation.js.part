@@ -1326,7 +1326,41 @@ import {
        per-button .active background. This must never throw — the boot probes
        fail on any console error. `animate` defaults to "animate unless this is
        the first placement", so the pill appears parked rather than flying in. */
+    /* TAB ROW FIT (owner, 2026-09-27; regression from the client picker in
+     * #1779). The tab row must fit without sideways scroll at 1280px and wider
+     * for every role. CSS tightens spacing up to 1600px; if the row still
+     * overflows, the tabs you are not on drop to icons only (full name on
+     * hover via title, and still in the accessible name). No tab is hidden.
+     * Measured, not a fixed breakpoint, so roles with fewer tabs keep labels. */
+    function _navFitSync() {
+        try {
+            const nav = document.getElementById('headerNav');
+            if (!nav) return;
+            nav.querySelectorAll(':scope > .header-nav-btn').forEach(b => {
+                if (!b.title) b.title = String(b.textContent || '').replace(/\s+/g, ' ').trim();
+            });
+            const wasCompact = nav.classList.contains('is-compact');
+            // Tabs animate size changes (transition: all); measure the settled
+            // full-label width with transitions off, or the check reads a
+            // mid-animation size and flips back and forth.
+            nav.classList.add('is-measuring');
+            nav.classList.remove('is-compact');
+            void nav.offsetWidth;
+            // Measure the tabs themselves, not scrollWidth: the sliding pill is
+            // absolutely positioned and can sit at a stale offset mid-route.
+            const btns = [...nav.querySelectorAll(':scope > .header-nav-btn')].filter(b => b.offsetWidth);
+            if (!btns.length || window.innerWidth <= 760) { nav.classList.remove('is-measuring'); return; }
+            const last = btns[btns.length - 1];
+            const needed = last.offsetLeft + last.offsetWidth - btns[0].offsetLeft;
+            if (needed > nav.clientWidth + 1) nav.classList.add('is-compact');
+            void nav.offsetWidth;
+            nav.classList.remove('is-measuring');
+            // Tab widths just changed: move the sliding pill under the active tab again.
+            if (nav.classList.contains('is-compact') !== wasCompact) requestAnimationFrame(() => _navPillSync(false));
+        } catch (e) {}
+    }
     function _navPillSync(animate) {
+        _navFitSync();
         try {
             // While the pre-paint gate is still up, the CSS route highlight owns
             // the active look and the .active CLASS may still be on the statically
@@ -1359,6 +1393,20 @@ import {
         window.addEventListener('resize', () => _navPillSync(false));
         if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
             document.fonts.ready.then(() => _navPillSync(false)).catch(() => {});
+        }
+        // A tab revealed after first paint (Kasper, Samples) changes the row's
+        // width with no route change; watch the row itself so the fit and the
+        // pill follow. Coalesced to one pass per frame.
+        if (typeof MutationObserver === 'function') {
+            let queued = false;
+            const resync = () => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; _navPillSync(false); }); };
+            const watch = () => {
+                const nav = document.getElementById('headerNav');
+                if (!nav) return;
+                new MutationObserver(records => { if (records.some(r => !r.target.classList || !r.target.classList.contains('header-nav-pill'))) resync(); }).observe(nav, { subtree: true, attributes: true, attributeFilter: ['style', 'hidden'] });
+            };
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch);
+            else watch();
         }
     } catch (e) {}
     /* PER-TAB FAVICON (owner request 2026-08-21: "whenever we are in a tab the

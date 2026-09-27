@@ -615,7 +615,8 @@
     "client-phone-css-scope.js",
     "sheets-mirror-policy.js",
     "client-profile-edit.js",
-    "onboarding-boot-skeleton.js"
+    "onboarding-boot-skeleton.js",
+    "syncview-session.js"
   ],
   "profiles": [
     {

@@ -6,8 +6,8 @@ import { _syncviewIssueClientShareUrl } from './120-calendar-flags-write-repair.
 import {
   CAL_FILTERS_KEY, CAL_PINS_KEY, CAL_PREFS_KEY, _calFocusRequest, _calHideOwnToast,
   _calNormMonthFilter, _calNormSortMode, _calNormStatusFilter, _calPendingDeepLink,
-  _calPendingEdits, _calSaveTimers, _calSetFocusRequest, _calSetPendingDeepLink, _calSyncUrlCard, _calSyncUrlClient,
-  calClientSlug, calState
+  _calPendingEdits, _calSaveTimers, _calSetFocusRequest, _calSetPendingDeepLink, _calSyncUrlCard,
+  _calSyncUrlClient, calClientSlug, calState
 } from './130-calendar-model-cache.js';
 import { _calIsoFirstOfMonth, _calIsoMondayOf } from './132-calendar-dates-ids.js';
 import { _calLoaderHtml } from './133-core-loading-skeletons.js';
@@ -993,7 +993,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     let _linearOutboxFlushTimer = null;
     function _calSetLinearOutboxFlushTimer(value) { _linearOutboxFlushTimer = value; }
     let _linearOutboxFlushPromise = null;
+    function _calSetLinearOutboxFlushPromise(value) { _linearOutboxFlushPromise = value; }
     let _linearOutboxFlushOwnerKey = '';
+    function _calSetLinearOutboxFlushOwnerKey(value) { _linearOutboxFlushOwnerKey = value; }
     /* RETIRED LEGACY DEBT (OPEN_REPAIRS 239). A `legacy_n8n` row is a queued
        POST to `linear-set-status` / `linear-add-comment`. Both webhooks are
        revoked, nothing enqueues the transport any more, and no attempt could
@@ -1066,8 +1068,9 @@ export {
   _calSavePrefs, _calSaveScroll, _calSchedulePendingRender, _calSetClient, _calSetImportAoa,
   _calSetImportForcedLayout, _calSetImportHeaders, _calSetImportLayout, _calSetImportMap,
   _calSetImportRows, _calSetImportSelectedIdx, _calSetImportSheetName, _calSetImportWorkbook,
-  _calSetLastNetworkLoadAt, _calSetLinearOutboxFlushTimer, _calSetPendingBackgroundRender,
-  _linearOutboxFlushOwnerKey, _linearOutboxFlushPromise, _linearOutboxFlushTimer,
-  _linearOutboxRead, _linearOutboxWrite, _writeUiLegacyRetiredRow, _writeUiLegacyWithoutRetired,
-  calToggleClientPin, closeCalImport, mountCalendar, mountCalendarEmbedded, renderCalendarView
+  _calSetLastNetworkLoadAt, _calSetLinearOutboxFlushOwnerKey, _calSetLinearOutboxFlushPromise,
+  _calSetLinearOutboxFlushTimer, _calSetPendingBackgroundRender, _linearOutboxFlushOwnerKey,
+  _linearOutboxFlushPromise, _linearOutboxFlushTimer, _linearOutboxRead, _linearOutboxWrite,
+  _writeUiLegacyRetiredRow, _writeUiLegacyWithoutRetired, calToggleClientPin, closeCalImport,
+  mountCalendar, mountCalendarEmbedded, renderCalendarView
 };

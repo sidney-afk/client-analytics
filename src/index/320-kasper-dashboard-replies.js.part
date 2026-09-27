@@ -1,3 +1,48 @@
+import {
+  FILMING_PLAN_TABS_URL, SHEET_ID, _analyticsReleaseExtras, parseCSV, showConfirm, showToast
+} from './040-shared-briefs.js';
+import { _svCss, _svRgb } from './050-market-briefs.js';
+import {
+  _fpEnsureLoaded, _obvEnsureLoaded, _obvFetchFull, _obvInjectStyles, _obvLoading, _obvSetMode,
+  _obvSubs, _syncviewNavEpoch, currentNav, renderOnboardingInbox
+} from './060-templates-filming.js';
+import { WL_CLIENT_CANONICAL, WL_CLIENT_NAMES, wlNormalizeClient } from './070-workload-source.js';
+import { navTo } from './090-workload-popovers-navigation.js';
+import {
+  CALENDAR_GET_URL, CAL_SUPABASE_URL, _ptoAdminState, _ptoInvalidateOverviewCaches, _svSelectHtml,
+  _syncviewCloseStaffAccount, _syncviewOfferStaffSignIn, _syncviewOpenStaffIdentity,
+  _syncviewRequireStaffIdentity, _syncviewStaffCan, _syncviewStaffIdentityClear,
+  _syncviewStaffIdentityForHeaders, _syncviewStaffIdentityLoad, _syncviewStaffIdentitySignature,
+  _syncviewStaffIdentityValid, _syncviewStaffRoleValue
+} from './100-onboarding-staff-controls.js';
+import { _ptoAdminPending, _ptoEnabled, _ptoLoadAdmin, _ptoRenderAdmin } from './110-time-off-reports.js';
+import { _calComponentsFor, _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
+import {
+  _calCommentsFor, _calMigratePostShape, _calMsgAudience, _calMsgIsTweak, _calSetCommentsFor,
+  calClientSlug
+} from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import { _calLoaderHtml, _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
+import { _calCoerceDate } from './134-calendar-prefs-mount.js';
+import { _calV2Client, _calV2ClientObj, _calV2FetchPosts, _calV2Ready } from './150-calendar-hydration-import.js';
+import { _calDeriveThumb, _calDeriveThumbInfo } from './160-calendar-organize-ui.js';
+import {
+  _kasperGetSeenAt, _kasperLatestInternalComp, _kasperMarkSeenAt, _kasperOwnedThreadRoots,
+  _kasperRepliesSeenBasis
+} from './180-calendar-native-post-media.js';
+import {
+  _calFmtCommentTime, _calLatestMsgAt, _calLatestMsgCreatedAt, _calLoadComments, _calMintCommentId
+} from './190-calendar-approval-comments.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
+import { _sxrDeriveThumbInfo, _sxrEnabled } from './270-samples-model.js';
+import { _sxrKasperLoadQueue, _sxrKasperState, _sxrKasperV2EnsureSubscribed, _sxrKasperV2Teardown } from './290-samples-writes-review.js';
+import {
+  _hpLoadList, _hpPaint, mountSalesIntakeView, renderHiringProcessView, renderSalesIntakeView
+} from './310-sales-intake-hiring.js';
+import {
+  _kasperLoadReview, _kasperPartitionItems, _kasperPersistPost, _kasperRenderEditors,
+  _kasperRenderReview, _kasperReviewInFlight, _kasperSampleOpenCount
+} from './330-kasper-review-history.js';
     // KASPER_UNLOCK_KEY + _kasperUnlocked were hoisted up to before init()
     // (search for "Kasper unlock state — declared early") so the unlock
     // block at the top of init() can touch _kasperUnlocked without hitting
@@ -409,6 +454,7 @@
        just before the user approves a card can finish 200 ms later and
        repaint with the pre-approval state, making the card "snap back". */
     let _kasperLoadGen = 0;
+    function _kasperSetLoadGen(value) { _kasperLoadGen = value; }
     let _kasperLastLocalWriteAt = 0;   // last local Kasper action — used to ignore the realtime echo of our own writes
     function _kasperInvalidateInFlightLoad() { _kasperLoadGen++; _kasperLastLocalWriteAt = Date.now(); }
     /* Click-eaten-by-re-render guard. The queue repaints by rebuilding DOM
@@ -1217,7 +1263,7 @@
     function _kasperRenderOnboarding() {
         const el = document.getElementById('kasperContent');
         if (!el) return;
-        _obvMode = 'full';
+        _obvSetMode('full');
         if (Array.isArray(_obvSubs)) _kasperMarkOnboardingSeen();
         _obvInjectStyles();
         el.innerHTML = renderOnboardingInbox();
@@ -2695,7 +2741,7 @@
         if (!_kasperState.filmingLoading && !_kasperState.filmingData) _kasperLoadFilming(false);
         if (_ptoEnabled() && _syncviewStaffCan('pto-admin') && !_ptoAdminState.loading && !_ptoAdminState.overview) _ptoLoadAdmin(false);
         if (_syncviewStaffCan('onboarding') && !_obvLoading && !Array.isArray(_obvSubs)) {
-            _obvMode = 'full';
+            _obvSetMode('full');
             _obvEnsureLoaded();
         }
     }
@@ -3210,3 +3256,17 @@
                 <div class="ca-detail" id="caDetail">${_caDetailHtml(selected)}</div>
             </div>`;
     }
+export {
+  CC_ICON_EYE, KASPER_CACHE_KEY, KASPER_EDITORS_CACHE_KEY, KASPER_EDITORS_CACHE_MAX_AGE_MS,
+  KASPER_FILMING_CACHE_KEY, KASPER_HISTORY_CAP, KASPER_HISTORY_KEY, KASPER_SMM_URL,
+  _caPurgeSensitiveState, _ccCloseModal, _ccCloseSelect, _ccExpanded, _ccOpenSelectId,
+  _ccRevTeardown, _ccRevealed, _ccSelectHtml, _ccState, _ccTogglePasswordField,
+  _kasperCloseLightbox, _kasperFallbackToReview, _kasperGotoTab, _kasperInvalidateInFlightLoad,
+  _kasperIsReviewMounted, _kasperLoadFilming, _kasperLoadGen, _kasperMarkRepliesRead,
+  _kasperOpenLightbox, _kasperPersistCache, _kasperPointerHeld, _kasperRefreshTabCounts,
+  _kasperRenderOnboarding, _kasperRenderReplies, _kasperRenderSalesIntake, _kasperRenderTab,
+  _kasperRepliesDraftInput, _kasperRepliesReply, _kasperRepliesToggleAll, _kasperResolveSubtab,
+  _kasperRestorePendingSubtab, _kasperSamplesEnabled, _kasperSetLoadGen, _kasperSetTabCount,
+  _kasperState, _kasperTeardown, _kasperUpdateReplyCount, _svStaffPageRender, _svStaffPageShell,
+  mountKasperView, renderKasperView
+};

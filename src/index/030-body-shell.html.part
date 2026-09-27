@@ -55,6 +55,36 @@
     </div>
 </div>
 
+<!-- Shared client bar (095-shared-client). One client for Calendar, Samples,
+     Templates, Filming Plans, TikTok Upload and Analytics; hidden on team tabs
+     and on client links. -->
+<div class="sv-client-bar" id="svClientBar" hidden>
+    <span class="sv-client-cap">Client</span>
+    <div class="sv-client-badge-wrap" id="svClientBadgeWrap">
+        <button type="button" class="sv-client-badge" id="svClientBadge" onclick="svClientPopToggle(event)" aria-haspopup="listbox" aria-expanded="false" title="Search any client">
+            <span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>
+            <span id="svClientBadgeLabel">Pick a client</span>
+            <svg class="sv-client-chev" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
+        </button>
+        <div class="sv-client-pop" id="svClientPop" hidden>
+            <input type="text" class="sv-client-search" id="svClientSearch" placeholder="Search any client…" autocomplete="off" aria-label="Search any client" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="svClientResults">
+            <div class="sv-client-results" id="svClientResults" role="listbox"></div>
+            <div class="sv-client-foot">Follows you across Calendar, Samples, Templates, Filming Plans, TikTok Upload and Analytics.</div>
+        </div>
+    </div>
+    <span class="sv-client-recent-label" id="svClientRecentLabel" hidden>Recent</span>
+    <div class="sv-client-recent" id="svClientRecent"></div>
+    <button type="button" class="sv-client-kbd" onclick="svQuickJumpOpen()" title="Jump to a client and tab" aria-label="Quick jump"><span class="sv-client-kbd-text">Quick jump</span> <kbd>/</kbd></button>
+</div>
+<!-- Quick jump (096-quick-jump): "/" then "client tab", Enter. -->
+<div class="sv-jump" id="svJump" hidden>
+    <div class="sv-jump-box" role="dialog" aria-label="Quick jump">
+        <input type="text" class="sv-jump-input" id="svJumpInput" placeholder="Client and tab, like “calendar” or a client name…" autocomplete="off" role="combobox" aria-expanded="true" aria-controls="svJumpList" aria-label="Quick jump">
+        <div class="sv-jump-list" id="svJumpList" role="listbox"></div>
+        <div class="sv-jump-foot"><span><kbd>↑</kbd><kbd>↓</kbd> choose</span><span><kbd>Enter</kbd> go</span><span><kbd>Esc</kbd> close</span></div>
+    </div>
+</div>
+
 <header class="header" style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;">
     <a class="logo" href="/" onclick="if(_modClick(event))return;event.preventDefault();goHome();" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
         <img src="/syncview-favicon.png" alt="SyncView">
@@ -62,30 +92,6 @@
     </a>
     <div class="header-nav" id="headerNav">
         <span class="header-nav-pill" aria-hidden="true"></span>
-        <a class="header-nav-btn active" id="navHome" href="/" onclick="if(_modClick(event))return;event.preventDefault();navTo('home')">
-            <span class="header-nav-ico ico-analytics" aria-hidden="true"></span>
-            Analytics
-        </a>
-        <a class="header-nav-btn" id="navProd" href="/synclinear" onclick="if(_modClick(event))return;event.preventDefault();navTo('production')">
-            <span class="header-nav-ico ico-synclinear" aria-hidden="true"></span>
-            SyncLinear
-        </a>
-        <a class="header-nav-btn" id="navLinear" href="/submit" onclick="if(_modClick(event))return;event.preventDefault();navTo('linear')">
-            <span class="header-nav-ico ico-submit" aria-hidden="true"></span>
-            Submit
-        </a>
-        <a class="header-nav-btn" id="navTemplates" href="/templates" onclick="if(_modClick(event))return;event.preventDefault();navTo('templates')">
-            <span class="header-nav-ico ico-templates" aria-hidden="true"></span>
-            Templates
-        </a>
-        <a class="header-nav-btn" id="navFilmingPlans" href="/filming-plans" onclick="if(_modClick(event))return;event.preventDefault();navTo('filming-plans')">
-            <span class="header-nav-ico ico-filmingplans" aria-hidden="true"></span>
-            Filming Plans
-        </a>
-        <a class="header-nav-btn" id="navWorkload" href="/workload" onclick="if(_modClick(event))return;event.preventDefault();navTo('workload')">
-            <span class="header-nav-ico ico-workload" aria-hidden="true"></span>
-            Workload
-        </a>
         <a class="header-nav-btn" id="navCalendar" href="/calendar" onclick="if(_modClick(event))return;event.preventDefault();navTo('calendar')">
             <span class="header-nav-ico ico-calendar" aria-hidden="true"></span>
             Calendar
@@ -96,11 +102,35 @@
             Samples
         </a>
         <!-- <<< SXR_END -->
-
-
+        <a class="header-nav-btn" id="navTemplates" href="/templates" onclick="if(_modClick(event))return;event.preventDefault();navTo('templates')">
+            <span class="header-nav-ico ico-templates" aria-hidden="true"></span>
+            Templates
+        </a>
+        <a class="header-nav-btn" id="navFilmingPlans" href="/filming-plans" onclick="if(_modClick(event))return;event.preventDefault();navTo('filming-plans')">
+            <span class="header-nav-ico ico-filmingplans" aria-hidden="true"></span>
+            Filming Plans
+        </a>
         <a class="header-nav-btn" id="navTiktokUpload" href="/tiktok-upload" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-upload')">
             <span class="header-nav-ico ico-tiktok" aria-hidden="true"></span>
             TikTok Upload
+        </a>
+        <a class="header-nav-btn active" id="navHome" href="/" onclick="if(_modClick(event))return;event.preventDefault();svOpenAnalytics()">
+            <span class="header-nav-ico ico-analytics" aria-hidden="true"></span>
+            Analytics
+        </a>
+        <!-- The six tabs above follow the shared top-bar client; the team tabs below ignore it. -->
+        <span class="header-nav-sep" aria-hidden="true"></span>
+        <a class="header-nav-btn" id="navWorkload" href="/workload" onclick="if(_modClick(event))return;event.preventDefault();navTo('workload')">
+            <span class="header-nav-ico ico-workload" aria-hidden="true"></span>
+            Workload
+        </a>
+        <a class="header-nav-btn" id="navProd" href="/synclinear" onclick="if(_modClick(event))return;event.preventDefault();navTo('production')">
+            <span class="header-nav-ico ico-synclinear" aria-hidden="true"></span>
+            SyncLinear
+        </a>
+        <a class="header-nav-btn" id="navLinear" href="/submit" onclick="if(_modClick(event))return;event.preventDefault();navTo('linear')">
+            <span class="header-nav-ico ico-submit" aria-hidden="true"></span>
+            Submit
         </a>
         <a class="header-nav-btn" id="navKasper" href="/kasper" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('kasper')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.5"/></svg>

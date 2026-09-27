@@ -29382,7 +29382,55 @@ and the next keystroke went into it (4 checks failed); with the fix focus, text
 and caret stay in the same card (9 of 9). `test/background-update-focus.js` adds
 the two-cards case.
 
-## 271. [2026-09-26, PARTLY APPLIED] The anon key reads, and can subscribe to, every client's cards
+## 271. [2026-09-27, BUILT, pending review] A saved client approval said nothing was saved
+
+When the native approval committed but the Calendar card save was refused, the card kept its source repair and showed Saved, syncing while the client review queue said nothing was saved. The queue now checks that the pending repair contains every status and sign-off field of the exact queued approval before saying "Approval saved; card still syncing." A partly refused whole-post approval, a pre-commit refusal, and a change request retain their existing failure notices. An aged queue entry with a committed approval keeps its approved display and leaves the source repair in place.
+
+Offline regression: `node test/client-review-queue-behavior.js` failed before the source fix and passes after. `node docs/syncview-design/tests/client-review-write-browser.js` passes nine fully intercepted browser cases, including one native approval followed by a refused source save and a separate pre-commit refusal. This is local evidence only; no live write or hosted behavior was tested.
+
+## 272. [2026-09-27, BUILT — pending merge] Samples Retry can resend an older status
+
+An existing card's failed save left no ordinary edit fields for Retry. Retry then
+sent the whole local card, including statuses the user had not changed, with no
+scalar freshness base. A second tab's newer status could be overwritten.
+
+The page now retains the failed field set and retries an existing card with a
+field-level patch, even when the queued bucket would otherwise be empty. A
+failed first creation still retries the full row, and an intentional status
+edit still sends that status. An older failed card without retained edit fields
+now keeps its error visible and asks for a refresh and fresh edit; it cannot
+claim success after an ID-only request. `test/samples-retry-stale-status.js`
+failed before the fixes and passes on the rebuilt page across all four cases. No
+browser or live write was used; the effect on a served page awaits merge.
+
+## 273. [2026-09-27, BUILT] TikTok Upload reports a failed first queue read instead of an empty queue
+
+The queue renderer used to mark its first paint as a completed read. If the list request then failed with no local rows, the page still said "Nothing scheduled yet" and stopped polling. It had no evidence that the queue was empty.
+
+The queue now treats only a successful server list as verified. An unfinished read says it is loading; a failed read says it could not load and will retry. Tab counts remain unknown until a successful read. Cached rows stay visible and read-only while a failed refresh is retried. Failed reads use a visible-tab retry starting at 30 seconds and backing off to five minutes; a successful empty list can still show the normal empty message and stops idle polling.
+
+Offline proof: `test/tiktok-queue-first-read-browser.js` failed before the fix on the false empty first paint and passes after it. It intercepts every backend call, forces the first list read to fail, sees the error and automatic retry recover a server row, then confirms a later failure keeps the cached row visible and read-only. No upload, retry, cancel, backend write or hosted behavior was exercised.
+
+## 274. [2026-09-27, BUILT, pending review] Templates can miss working-link changes after its live-update connection drops
+
+The Templates channel existed even when its subscription failed, so an open page could keep showing an old working link until reload. The browser now observes subscription status. While Templates is open and visible but disconnected, it makes one REST catch-up read per minute. On reconnect it makes one more read for the missed interval and stops the poll. The existing REST load preserves queued and in-flight local edits.
+
+`test/templates-realtime-catchup.js` uses a fake REST server and channel. It failed before the fix because no subscription status callback was registered; it passes with disconnected polling, reconnect, connected-idle, hidden-tab, other-view, and dirty-edit checks. This is offline source proof, not a hosted reconnect observation. Risk: a failed connection adds at most one Templates REST read per minute per visible open page. Rollback is reverting this browser change; there is no database, Edge Function, or workflow change.
+
+## 275. [2026-09-27, BUILT] A sample Kasper sent back stayed in his queue after "Finish reviewing"
+
+Owner decision 2026-09-27: a sample Kasper sends back with a change request and then finishes must leave his queue. It returns only when the editor sends a new version.
+
+- **Cause.** `_sxrKasperLoadQueue` kept every finished card (the "Tweaks pending" group). `_sxrKasperDismiss` stamped the card but left it in the list.
+- **Fix** (`src/index/290-samples-writes-review.js.part`):
+  - Finished samples are no longer loaded into the queue.
+  - Finish removes the sample right away.
+  - The same-device finish flag is kept while the sample is hidden, so a refresh before the stamp saves cannot bring it back.
+  - A new version puts a component back at Kasper Approval, and `_sxrKasperIsFinished` already treats that as not finished, so the sample returns as normal.
+  - Approve-all, the SMM view and the client view are unchanged. Before Finish, nothing changes.
+- **Proof.** `test/sxr-kasper-finish-leaves-queue.js` runs the real code. It fails 3 checks on the old code and passes 11 of 11 with the fix.
+
+## 276. [2026-09-26, PARTLY APPLIED] The anon key reads, and can subscribe to, every client's cards
 
 Measured read-only: `calendar_posts` and `sample_reviews` have an anon read
 policy `using (true)` on every column, and `deliverables`, `batches` and

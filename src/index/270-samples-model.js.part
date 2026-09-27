@@ -1,3 +1,4 @@
+import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
 import { _svPreserveFocus, fetchEssentials, showConfirm, showNotify, showToast } from './040-shared-briefs.js';
 import { currentNav } from './060-templates-filming.js';
 import { WL_CLIENT_NAMES, wlIsAllowedClient, wlNormalizeClient } from './070-workload-source.js';
@@ -394,10 +395,12 @@ import { _kasperOpenLightbox } from './320-kasper-dashboard-replies.js';
         const pins  = _sxrGetPins();
         let initial = null;
         if (_sxrFocusRequest && _sxrFocusRequest.client && wlIsAllowedClient(_sxrFocusRequest.client)) initial = _sxrFocusRequest.client;
+        else if (svSharedClientFor('sample-reviews')) initial = svSharedClientFor('sample-reviews');   // shared top-bar client
         else if (prefs.client && pins.includes(prefs.client)) initial = prefs.client;
         else if (pins.length > 0) initial = pins[0];
         else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
         sxrState.client = initial;
+        if (initial) { svSharedClientNote(initial); _sxrPinClient(initial); }
         sxrState.embedded = false;
         sxrState.view = (_sxrFocusRequest ? 'organizer' : (prefs.view === 'smmreview' ? 'smmreview' : 'organizer'));
         sxrState.zoom = _sxrNormZoom(prefs.zoom);
@@ -631,6 +634,7 @@ import { _kasperOpenLightbox } from './320-kasper-dashboard-replies.js';
     function onSxrClientChange(name) {
         if (typeof _sxrFlushAllPending === 'function') _sxrFlushAllPending();
         sxrState.client = name;
+        svSharedClientNote(name);
         _sxrResetSelection();
         sxrState.posts = [];
         _sxrSavePrefs();
@@ -2836,6 +2840,7 @@ import { _kasperOpenLightbox } from './320-kasper-dashboard-replies.js';
     /* Body dispatcher — enhanced for the Sheet (preserve scroll on optimistic
        repaints from card actions; drag wiring is a Surface 2 follow-up). */
 export {
+  _sxrPinClient, onSxrTabClick,
   SXR_CACHE_PREFIX, SXR_COMPONENTS, SXR_GET_URL, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS,
   SXR_RT_CHANNEL_PREFIX, SXR_TABLE, _sxrAbortActiveLoad, _sxrAdoptLinksAfterCreate,
   _sxrApplyClearSentinels, _sxrApplyZoom, _sxrBgLoadInFlight, _sxrBlankSample, _sxrCacheRead,

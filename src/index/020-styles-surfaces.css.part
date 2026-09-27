@@ -4188,3 +4188,50 @@
             .ca-link { min-height: 44px; }
             .ca-group dl { grid-template-columns: 1fr; }
         }
+
+        /* Shared client bar (095-shared-client): one client above the tabs. */
+        .sv-client-bar { display: flex; align-items: center; gap: 10px; padding: 8px 32px; background: var(--white); border-bottom: 1px solid var(--border); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.8rem; overflow-x: auto; scrollbar-width: none; }
+        .sv-client-bar[hidden] { display: none; }
+        .sv-client-cap { font-size: 0.66rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); flex: none; }
+        .sv-client-badge-wrap { position: relative; flex: none; }
+        .sv-client-badge { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 6px; border: 1px solid var(--border); border-radius: 999px; background: var(--white); color: var(--text-primary); font: inherit; font-weight: 700; cursor: pointer; white-space: nowrap; }
+        .sv-client-badge:hover { background: var(--surface-hover); }
+        .sv-client-badge:focus-visible, .sv-client-recent-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        .sv-client-chev { opacity: 0.55; }
+        .sv-client-dot { width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; flex: none; font-size: 0.62rem; font-weight: 700; color: var(--sv-fg-fff); background: hsl(var(--sv-client-h, 220) 52% 46%); }
+        .sv-client-dot.is-empty { background: var(--surface-subtle); color: var(--text-muted); font-size: 0.9rem; }
+        .sv-client-recent-label { font-size: 0.72rem; color: var(--text-muted); margin-left: 6px; flex: none; }
+        .sv-client-recent { display: flex; gap: 8px; flex: none; }
+        .sv-client-recent-btn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px 4px 5px; border: 1px solid transparent; border-radius: 999px; background: var(--surface-subtle); color: var(--text-secondary); font: inherit; font-weight: 500; cursor: pointer; white-space: nowrap; }
+        .sv-client-recent-btn:hover { border-color: var(--border); color: var(--text-primary); }
+        .sv-client-recent-btn .sv-client-dot { width: 16px; height: 16px; font-size: 0.5rem; }
+        .sv-client-pop { position: fixed; z-index: 9998; margin-top: 8px; width: min(320px, calc(100vw - 28px)); background: var(--white); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm), 0 18px 48px var(--overlay); padding: 8px; }
+        .sv-client-search { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; font: inherit; font-size: 0.85rem; background: var(--white); color: var(--text-primary); outline: none; }
+        .sv-client-search:focus { border-color: var(--focus-ring); }
+        .sv-client-sec { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); padding: 10px 8px 4px; }
+        .sv-client-row { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 8px; cursor: pointer; font-size: 0.84rem; color: var(--text-primary); }
+        .sv-client-row:hover, .sv-client-row.is-active { background: var(--surface-hover); }
+        .sv-client-row .sv-client-dot { width: 20px; height: 20px; font-size: 0.56rem; }
+        .sv-client-none { padding: 8px; font-size: 0.8rem; color: var(--text-muted); }
+        .sv-client-foot { font-size: 0.7rem; color: var(--text-muted); padding: 8px 8px 2px; border-top: 1px solid var(--border-light); margin-top: 6px; }
+        /* The top bar is the only client picker for staff (owner, 2026-09-27). */
+        body.sv-shared-client #calTabs, body.sv-shared-client #sxrTabs { display: none !important; }
+        .header-nav-sep { flex: none; width: 1px; height: 20px; margin: 0 4px; background: var(--border); }
+        @media (max-width: 700px) { .sv-client-bar { padding: 8px 14px; gap: 6px; } .sv-client-cap, .sv-client-recent-label { display: none !important; } }
+        /* Quick jump (096-quick-jump). */
+        .sv-client-kbd { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; font: inherit; font-size: 0.72rem; color: var(--text-muted); cursor: pointer; }
+        .sv-client-kbd:hover { color: var(--text-primary); }
+        .sv-client-kbd kbd, .sv-jump-foot kbd { border: 1px solid var(--border); border-radius: 5px; padding: 0 6px; background: var(--white); font-family: inherit; font-size: 0.7rem; color: var(--text-secondary); }
+        .sv-jump { position: fixed; inset: 0; z-index: 10000; background: var(--overlay); display: flex; justify-content: center; align-items: flex-start; padding: 14vh 14px 0; }
+        .sv-jump[hidden] { display: none; }
+        .sv-jump-box { width: min(560px, 100%); background: var(--white); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm), 0 24px 64px var(--overlay); overflow: hidden; font-family: 'Plus Jakarta Sans', sans-serif; }
+        .sv-jump-input { width: 100%; box-sizing: border-box; border: 0; border-bottom: 1px solid var(--border); padding: 16px 18px; font: inherit; font-size: 1rem; background: var(--white); color: var(--text-primary); outline: none; }
+        .sv-jump-list { max-height: 50vh; overflow-y: auto; padding: 6px; }
+        .sv-jump-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 0.88rem; color: var(--text-primary); }
+        .sv-jump-row.is-active, .sv-jump-row:hover { background: var(--surface-hover); }
+        .sv-jump-tab { font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; flex: none; }
+        .sv-jump-muted, .sv-jump-empty { color: var(--text-muted); }
+        .sv-jump-empty { padding: 12px; font-size: 0.84rem; }
+        .sv-jump-foot { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--border-light); font-size: 0.7rem; color: var(--text-muted); }
+        /* Phones have no "/" key to spare: keep a compact tap target. */
+        @media (max-width: 700px) { .sv-client-kbd .sv-client-kbd-text { display: none; } .sv-client-kbd { min-width: 44px; min-height: 32px; justify-content: center; } }

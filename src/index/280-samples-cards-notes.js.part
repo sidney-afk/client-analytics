@@ -62,7 +62,7 @@ import {
         if (!body) return;
         const preserveScroll = !!(opts && opts.preserveScroll);
         const scrollY0 = preserveScroll ? window.scrollY : null;
-        if (!sxrState.client) { body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start.</div>`; return; }
+        if (!sxrState.client) { body.innerHTML = document.body.classList.contains('sv-shared-client') ? `<div class="cal-empty">Pick a client in the top bar to start.</div>` : `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start.</div>`; return; }
         if (sxrState.loading) { body.innerHTML = _sxrLoaderHtml(); return; }
         if (sxrState.error) { body.innerHTML = `<div class="cal-empty cal-error">Couldn't load sample reviews — <button class="cal-link" onclick="loadSxrCards({skipCache:true})">try again</button>.</div>`; return; }
         if (sxrState.view === 'review' || sxrState.view === 'smmreview') {
@@ -488,7 +488,7 @@ import {
                 }
                 _writeUiApplyOverallStatus('sxr', post, edits, wasNewRow, true);
                 let wirePost;
-                if (!wasNewRow && Object.keys(edits).length > 0) {
+                if (!wasNewRow && !_sxrFailedNewCards.has(realId)) {
                     // FIELD-LEVEL PATCH — only the columns this edit touched.
                     wirePost = { id: post.id };
                     for (const k of Object.keys(edits)) {
@@ -504,7 +504,7 @@ import {
                     // Intentional link clear → the explicit sentinel (a bare '' is carried-forward by the upsert guard).
                     _sxrApplyClearSentinels(wirePost);
                 } else {
-                    // Whole card (new row, or a forced retry with empty edits).
+                    // Whole card only for creation, including a failed first save.
                     wirePost = Object.assign({}, post);
                     wirePost.video_tweaks = _sxrStringifyComments(_sxrCommentsFor(post, 'video'));
                     wirePost.graphic_tweaks = _sxrStringifyComments(_sxrCommentsFor(post, 'graphic'));
@@ -587,8 +587,9 @@ import {
                     if (!gatewayCommitted) _SXR_ROLLBACK_FIELDS.forEach(k => { if (k in edits) cur[k] = prevSnapshot[k]; });
                     cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
                     cur._saveError = _writeUiFailureSentence(e, 'save failed');
+                    // Retry the failed field set, never an old whole-card snapshot.
+                    cur._writeUiRetryEdits = Object.assign({}, edits);
                     if (gatewayCommitted) {
-                        cur._writeUiRetryEdits = Object.assign({}, edits);
                         cur._writeUiRetrySourceAt = writeUiSourceAt;
                         cur._writeUiRetryPrincipal = _writeUiPrincipalKey();
                         delete cur._writeUiPrecommittedNative;
@@ -606,12 +607,23 @@ import {
         }
     }
 
-    /* Retry a failed save — queue an empty bucket so the flush re-sends the whole
-       current row through the normal funnel (fixes the old broken retry that
-       early-returned on an empty bucket). */
+    /* Retry the retained edits for an existing card; a failed first creation
+       still sends its full row through the normal funnel. */
     function _sxrRetrySave(pid) {
         if (!pid) return;
         const post = sxrState.posts.find(p => p.id === pid);
+        const pending = _sxrPendingEdits[pid];
+        const retained = post && Object.assign({}, post._writeUiRetryEdits || {}, post._writeUiHeldSourceEdits || {});
+        if (!post || (!_sxrIsBlankId(pid) && !_sxrFailedNewCards.has(pid)
+            && !(pending && Object.keys(pending).length)
+            && !Object.keys(retained).length
+            && !post._writeUiRetrySourceAt)) {
+            const message = 'Retry details are missing. Refresh this card and make the edit again.';
+            if (pending && !Object.keys(pending).length) delete _sxrPendingEdits[pid];
+            if (post) post._saveError = message;
+            _sxrSetCardStatus(pid, 'error', message);
+            return;
+        }
         if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = Object.assign({}, post && post._writeUiRetryEdits || {});
         _sxrSetCardStatus(pid, 'saving');
         _sxrFlushCardSave(pid);

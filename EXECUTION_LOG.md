@@ -8413,3 +8413,14 @@ Owner-approved cleanup after `docs/audits/2026-09-24-feature-usage.md`. Archived
   written; no database change.
 - Live WebSocket delivery was not observed in the build sandbox (proxy blocks
   WebSockets); the unit test drives the controller with a mocked channel.
+
+## 2026-09-27 — Smart defaults for creatives (session Anchor, owner decision)
+
+- A creative (a non-admin whose team is video or graphics) opens SyncLinear on
+  My issues and Workload filtered to themselves, once per page load.
+- SyncLinear: `_prodPrimeFromUrl` treats a missing `view` as `my` for a
+  creative only when the address names no `view`, `d`, `batch` or `client`.
+  No write path, gateway, role or authority check changed.
+- Workload: the editor filter resolves to the person by id or by name once
+  their rows load; picking an editor by hand cancels it.
+- Offline browser test: `docs/syncview-design/tests/smart-defaults-browser.js`.

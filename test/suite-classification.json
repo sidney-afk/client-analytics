@@ -235,6 +235,7 @@
     "kasper-click-during-rerender.js",
     "kasper-finish-log.js",
     "kasper-finish-refresh-popback.js",
+    "sxr-kasper-finish-leaves-queue.js",
     "kasper-priority-more-nav.js",
     "kasper-review-state-global.js",
     "kasper-stranded-handoff.js",
@@ -512,6 +513,7 @@
     "samples-native-dialog.js",
     "samples-native-materialize.js",
     "samples-realtime-status-propagation.js",
+    "samples-retry-stale-status.js",
     "samples-review-stranded-media.js",
     "samples-title-flavour.js",
     "save-indicator-rollout.js",
@@ -539,6 +541,7 @@
     "templates-brain-page.js",
     "templates-multilink.js",
     "templates-refresh-routing.js",
+    "templates-realtime-catchup.js",
     "test-client-entry-harness.js",
     "test-suite-routing.js",
     "test-window-integrity.js",
@@ -614,7 +617,8 @@
     "client-phone-css-scope.js",
     "sheets-mirror-policy.js",
     "client-profile-edit.js",
-    "onboarding-boot-skeleton.js"
+    "onboarding-boot-skeleton.js",
+    "syncview-session.js"
   ],
   "profiles": [
     {
@@ -1236,6 +1240,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
       "reproduce": "node test/tiktok-overdue-status-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
+      "file": "tiktok-queue-first-read-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
+      "reproduce": "node test/tiktok-queue-first-read-browser.js (after repository Playwright/Chromium setup)",
       "ci": "not_run_by_unit_ci"
     },
     {

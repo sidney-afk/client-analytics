@@ -32,3 +32,7 @@
 280-samples-cards-notes.js.part
 290-samples-writes-review.js.part
 140-calendar-legacy-outbox.js.part
+330-kasper-review-history.js.part
+095-shared-client.js.part
+096-quick-jump.js.part
+320-kasper-dashboard-replies.js.part

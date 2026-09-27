@@ -877,7 +877,9 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         const scrollY0 = preserveScroll ? window.scrollY : null;
         const harvestedThumbs = (preserveScroll && stripBefore) ? _calHarvestThumbs() : null;
         if (!calState.client) {
-            body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab so you can switch between your clients quickly.</div>`;
+            body.innerHTML = document.body.classList.contains('sv-shared-client')
+                ? `<div class="cal-empty">Pick a client in the top bar to start.</div>`
+                : `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab so you can switch between your clients quickly.</div>`;
             return;
         }
         if (calState.loading) { body.innerHTML = _calLoaderHtml(); return; }
@@ -2795,6 +2797,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         if (row) row.innerHTML = _calTitleRowHtml(pid, post || { id: pid }, _isClientLink);
     }
 export {
+  onCalTabClick,
   _CAL_CLIENT_READY_STATES, _CAL_WEEK_BUFFER, _calAdoptThumbnailFolderMeta, _calBlankPost,
   _calChevron, _calClearThumbnailFolderMeta, _calClientCompPillsHtml, _calClientHue,
   _calCompStatusLabel, _calDeriveThumb, _calDeriveThumbInfo, _calDriveWarnHtml,

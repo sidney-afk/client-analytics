@@ -50,6 +50,7 @@ const go = (page, tab) => page.evaluate(t => navTo(t), tab);
       const { context, page, errors } = await open(browser, port, '/calendar');
       await page.evaluate(names => { names.forEach(n => { if (!WL_CLIENT_NAMES.includes(n)) WL_CLIENT_NAMES.push(n); }); }, [FIRST, SECOND]);
       expect(await page.isVisible('#svClientBar'), 'calendar: the client bar is not showing');
+      expect(!(await page.isVisible('#calTabs')), 'calendar: the old per-tab client strip is still showing');
 
       // Pick through the top bar search, keyboard only.
       const pick = async name => {
@@ -58,7 +59,11 @@ const go = (page, tab) => page.evaluate(t => navTo(t), tab);
         await page.keyboard.press('Enter');
         await page.waitForTimeout(400);
       };
+      // Fresh browser, no client yet: the Calendar shell has no client-only
+      // controls. The first top-bar pick must draw them without a reload.
+      expect(!(await page.$('#calView .cal-kebab-wrap')), 'calendar: client-only controls drawn before any client');
       await pick(SECOND);
+      expect(!!(await page.$('#calView .cal-kebab-wrap')), 'calendar: the first top-bar pick did not draw the client controls');
       await pick(FIRST);
       expect(await page.evaluate(() => calState.client) === FIRST, 'calendar: picking in the top bar did not switch the calendar');
       expect((await page.textContent('#svClientBadgeLabel')).trim() === FIRST, 'calendar: the badge does not name the picked client');
@@ -67,6 +72,7 @@ const go = (page, tab) => page.evaluate(t => navTo(t), tab);
       await go(page, 'sample-reviews');
       await page.waitForTimeout(300);
       expect(await page.evaluate(() => sxrState.client) === FIRST, 'samples: did not open on the shared client');
+      expect(!(await page.isVisible('#sxrTabs')), 'samples: the old per-tab client strip is still showing');
 
       await go(page, 'templates');
       await page.waitForTimeout(300);
@@ -126,6 +132,20 @@ const go = (page, tab) => page.evaluate(t => navTo(t), tab);
       // throws reading them; that is pre-existing and not about the bar.
       const own = errors.filter(m => !/ig_followers/.test(m));
       if (own.length) failures.push('page errors: ' + own.slice(0, 3).join(' | '));
+      await context.close();
+    }
+
+    // Samples in a fresh browser: the first top-bar pick draws its Share menu.
+    {
+      const { context, page } = await open(browser, port, '/sample-reviews');
+      await page.evaluate(names => { names.forEach(n => { if (!WL_CLIENT_NAMES.includes(n)) WL_CLIENT_NAMES.push(n); }); }, [FIRST, SECOND]);
+      expect(!(await page.$('#sxrKebabMenu')), 'samples: client-only controls drawn before any client');
+      await page.click('#svClientBadge');
+      await page.fill('#svClientSearch', FIRST.slice(0, 18));
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(500);
+      expect(await page.evaluate(() => sxrState.client) === FIRST, 'samples: first top-bar pick did not switch Samples');
+      expect(!!(await page.$('#sxrKebabMenu')), 'samples: the first top-bar pick did not draw the client controls');
       await context.close();
     }
 

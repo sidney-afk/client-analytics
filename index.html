@@ -8591,8 +8591,27 @@
         .sv-client-row .sv-client-dot { width: 20px; height: 20px; font-size: 0.56rem; }
         .sv-client-none { padding: 8px; font-size: 0.8rem; color: var(--text-muted); }
         .sv-client-foot { font-size: 0.7rem; color: var(--text-muted); padding: 8px 8px 2px; border-top: 1px solid var(--border-light); margin-top: 6px; }
+        /* The top bar is the only client picker for staff (owner, 2026-09-27). */
+        body.sv-shared-client #calTabs, body.sv-shared-client #sxrTabs { display: none !important; }
         .header-nav-sep { flex: none; width: 1px; height: 20px; margin: 0 4px; background: var(--border); }
         @media (max-width: 700px) { .sv-client-bar { padding: 8px 14px; gap: 6px; } .sv-client-cap, .sv-client-recent-label { display: none !important; } }
+        /* Quick jump (096-quick-jump). */
+        .sv-client-kbd { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; font: inherit; font-size: 0.72rem; color: var(--text-muted); cursor: pointer; }
+        .sv-client-kbd:hover { color: var(--text-primary); }
+        .sv-client-kbd kbd, .sv-jump-foot kbd { border: 1px solid var(--border); border-radius: 5px; padding: 0 6px; background: var(--white); font-family: inherit; font-size: 0.7rem; color: var(--text-secondary); }
+        .sv-jump { position: fixed; inset: 0; z-index: 10000; background: var(--overlay); display: flex; justify-content: center; align-items: flex-start; padding: 14vh 14px 0; }
+        .sv-jump[hidden] { display: none; }
+        .sv-jump-box { width: min(560px, 100%); background: var(--white); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm), 0 24px 64px var(--overlay); overflow: hidden; font-family: 'Plus Jakarta Sans', sans-serif; }
+        .sv-jump-input { width: 100%; box-sizing: border-box; border: 0; border-bottom: 1px solid var(--border); padding: 16px 18px; font: inherit; font-size: 1rem; background: var(--white); color: var(--text-primary); outline: none; }
+        .sv-jump-list { max-height: 50vh; overflow-y: auto; padding: 6px; }
+        .sv-jump-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 0.88rem; color: var(--text-primary); }
+        .sv-jump-row.is-active, .sv-jump-row:hover { background: var(--surface-hover); }
+        .sv-jump-tab { font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; flex: none; }
+        .sv-jump-muted, .sv-jump-empty { color: var(--text-muted); }
+        .sv-jump-empty { padding: 12px; font-size: 0.84rem; }
+        .sv-jump-foot { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--border-light); font-size: 0.7rem; color: var(--text-muted); }
+        /* Phones have no "/" key to spare: keep a compact tap target. */
+        @media (max-width: 700px) { .sv-client-kbd .sv-client-kbd-text { display: none; } .sv-client-kbd { min-width: 44px; min-height: 32px; justify-content: center; } }
     </style>
 </head>
 <body>
@@ -8669,6 +8688,15 @@
     </div>
     <span class="sv-client-recent-label" id="svClientRecentLabel" hidden>Recent</span>
     <div class="sv-client-recent" id="svClientRecent"></div>
+    <button type="button" class="sv-client-kbd" onclick="svQuickJumpOpen()" title="Jump to a client and tab" aria-label="Quick jump"><span class="sv-client-kbd-text">Quick jump</span> <kbd>/</kbd></button>
+</div>
+<!-- Quick jump (096-quick-jump): "/" then "client tab", Enter. -->
+<div class="sv-jump" id="svJump" hidden>
+    <div class="sv-jump-box" role="dialog" aria-label="Quick jump">
+        <input type="text" class="sv-jump-input" id="svJumpInput" placeholder="Client and tab, like “calendar” or a client name…" autocomplete="off" role="combobox" aria-expanded="true" aria-controls="svJumpList" aria-label="Quick jump">
+        <div class="sv-jump-list" id="svJumpList" role="listbox"></div>
+        <div class="sv-jump-foot"><span><kbd>↑</kbd><kbd>↓</kbd> choose</span><span><kbd>Enter</kbd> go</span><span><kbd>Esc</kbd> close</span></div>
+    </div>
 </div>
 
 <header class="header" style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;">
@@ -23711,8 +23739,30 @@
         _svClientPopClose();
         const before = svSharedClientGet();
         svSharedClientNote(n);
-        if (before === n) return;
         const page = currentNav;
+        // Calendar and Samples switch in place through the same path their old
+        // per-tab strips used (flush pending saves, tear down, reload), so a
+        // pick never remounts the page and the boot suite's traces still hold.
+        if (page === 'calendar' && !calState.embedded) {
+            if (calState.client === n) return;
+            // No client yet: the shell was drawn without its client-only
+            // controls (More, bulk actions), and _calOpenClientTab redraws it.
+            if (!calState.client) { _calOpenClientTab(n); return; }
+            const pins = _calGetPins();
+            if (!pins.includes(n)) { pins.unshift(n); _calSavePins(pins); }
+            onCalTabClick(n);
+            return;
+        }
+        if (page === 'sample-reviews' && !sxrState.embedded) {
+            if (sxrState.client === n) return;
+            const hadClient = !!sxrState.client;
+            _sxrPinClient(n);
+            onSxrTabClick(n);
+            // Same for Samples: its Share menu and archive control need a client.
+            if (!hadClient) _sxrRenderShell();
+            return;
+        }
+        if (before === n) return;
         if (page === 'home') { selectClient(n); return; }
         if (!SV_CLIENT_FOLLOW_TABS.includes(page)) return;
         svSharedClientApply(page, true);   // Templates / Filming Plans read it before the remount
@@ -23868,6 +23918,173 @@
     window.svClientPopToggle = svClientPopToggle;
     window.svOpenAnalytics = svOpenAnalytics;
 
+    /* QUICK JUMP (owner decision 2026-09-27). Press / anywhere, type part of a
+     * client and a tab ("luna cal"), press Enter: that client becomes the
+     * shared client and the tab opens on it. A tab alone ("workload") just
+     * opens the tab; a client alone opens it on the tab you are on (or the
+     * Calendar when you are on a team tab).
+     *
+     * Staff only (body.sv-shared-client, which client links never get), never
+     * while typing in a field, and never on SyncLinear, whose own "/" opens its
+     * search palette and keeps doing so. */
+    const SV_JUMP_TABS = [
+        { page: 'calendar', label: 'Calendar', nav: 'navCalendar', words: ['calendar', 'cal'] },
+        { page: 'sample-reviews', label: 'Samples', nav: 'navSxr', words: ['samples', 'sample', 'sxr'] },
+        { page: 'templates', label: 'Templates', nav: 'navTemplates', words: ['templates', 'template', 'tpl'] },
+        { page: 'filming-plans', label: 'Filming Plans', nav: 'navFilmingPlans', words: ['filming', 'plans', 'plan', 'fp'] },
+        { page: 'tiktok-upload', label: 'TikTok Upload', nav: 'navTiktokUpload', words: ['tiktok', 'upload', 'tt'] },
+        { page: 'home', label: 'Analytics', nav: 'navHome', words: ['analytics', 'stats'] },
+        { page: 'workload', label: 'Workload', nav: 'navWorkload', words: ['workload', 'wl'] },
+        { page: 'production', label: 'SyncLinear', nav: 'navProd', words: ['synclinear', 'linear', 'issues'] },
+        { page: 'linear', label: 'Submit', nav: 'navLinear', words: ['submit'] },
+        { page: 'kasper', label: 'Kasper', nav: 'navKasper', words: ['kasper'] },
+    ];
+    function _svJumpTabVisible(t) {
+        const el = document.getElementById(t.nav);
+        return !!el && el.getClientRects().length > 0 && getComputedStyle(el).display !== 'none';
+    }
+    // A token names a tab when it is a prefix (2+ letters) of one of its words.
+    function _svJumpTabFor(token) {
+        if (!token || token.length < 2) return null;
+        return SV_JUMP_TABS.find(t => _svJumpTabVisible(t) && t.words.some(w => w.startsWith(token))) || null;
+    }
+    function _svJumpClients(q) {
+        const all = [...new Set(WL_CLIENT_NAMES.map(n => { try { return wlCanonicalClient(n) || n; } catch (e) { return n; } }))];
+        const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+        if (!words.length) return [];
+        const scored = all.map(n => {
+            const low = n.toLowerCase();
+            if (!words.every(w => low.includes(w))) return null;
+            const starts = low.startsWith(words[0]) || low.split(/\s+/).some(p => p.startsWith(words[0]));
+            return { n, score: starts ? 0 : 1 };
+        }).filter(Boolean);
+        return scored.sort((a, b) => a.score - b.score || a.n.localeCompare(b.n)).map(s => s.n).slice(0, 7);
+    }
+    // Every reading of the query, best first: { client, tab }.
+    function svQuickJumpOptions(query) {
+        const tokens = String(query || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+        if (!tokens.length) return [];
+        const here = SV_JUMP_TABS.find(t => t.page === currentNav && SV_CLIENT_FOLLOW_TABS.includes(t.page));
+        const fallbackTab = here || SV_JUMP_TABS[0];
+        const out = [];
+        const seen = new Set();
+        const add = (client, tab) => {
+            const key = (client || '') + '\u0000' + tab.page;
+            if (seen.has(key)) return;
+            seen.add(key);
+            out.push({ client, tab });
+        };
+        // Try each token as the tab word (last token first: "luna cal").
+        for (let i = tokens.length - 1; i >= 0; i--) {
+            const tab = _svJumpTabFor(tokens[i]);
+            if (!tab) continue;
+            const rest = tokens.filter((_, j) => j !== i).join(' ');
+            if (!rest) { add(null, tab); continue; }
+            if (!SV_CLIENT_FOLLOW_TABS.includes(tab.page)) continue;
+            _svJumpClients(rest).forEach(c => add(c, tab));
+        }
+        // The whole query as a client, on the tab you are on.
+        _svJumpClients(tokens.join(' ')).forEach(c => add(c, fallbackTab));
+        return out.slice(0, 8);
+    }
+    function svQuickJumpGo(opt) {
+        if (!opt || !opt.tab) return;
+        svQuickJumpClose();
+        if (opt.client) {
+            svSharedClientNote(opt.client);
+            // A card link for another client (#calendar/<slug>/<card>) would
+            // outlive the jump in the address and reopen the old client on reload.
+            try {
+                if (/^#(calendar|sample-reviews)\//.test(location.hash)) history.replaceState(history.state, '', location.pathname + location.search);
+            } catch (e) {}
+        }
+        if (opt.tab.page === 'home') svOpenAnalytics();
+        else navTo(opt.tab.page);
+    }
+
+    let _svJumpActive = 0;
+    let _svJumpOpts = [];
+    let _svJumpReturnFocus = null;
+    function _svJumpRender() {
+        const input = document.getElementById('svJumpInput');
+        const list = document.getElementById('svJumpList');
+        if (!input || !list) return;
+        _svJumpOpts = svQuickJumpOptions(input.value);
+        if (_svJumpActive >= _svJumpOpts.length) _svJumpActive = 0;
+        const cur = svSharedClientGet();
+        list.innerHTML = _svJumpOpts.length
+            ? _svJumpOpts.map((o, i) => `<div class="sv-jump-row${i === _svJumpActive ? ' is-active' : ''}" role="option" id="svJumpOpt${i}" aria-selected="${i === _svJumpActive}" data-sv-jump="${i}">
+                    <span class="sv-jump-client">${o.client ? _calEsc(o.client) : '<span class="sv-jump-muted">Open tab</span>'}</span>
+                    <span class="sv-jump-tab">${_calEsc(o.tab.label)}</span>
+                </div>`).join('')
+            : `<div class="sv-jump-empty">${input.value.trim() ? 'Nothing matches. Try part of a client name and a tab, like “' + _calEscAttr(cur ? cur.split(/\s+/)[0].toLowerCase() : 'client') + ' cal”.' : 'Type part of a client and a tab, then press Enter.'}</div>`;
+        input.setAttribute('aria-activedescendant', _svJumpOpts.length ? 'svJumpOpt' + _svJumpActive : '');
+    }
+    function svQuickJumpOpen() {
+        const box = document.getElementById('svJump');
+        if (!box) return;
+        _svJumpReturnFocus = document.activeElement;
+        box.hidden = false;
+        const input = document.getElementById('svJumpInput');
+        _svJumpActive = 0;
+        if (input) { input.value = ''; _svJumpRender(); input.focus(); }
+    }
+    function svQuickJumpClose() {
+        const box = document.getElementById('svJump');
+        if (!box || box.hidden) return;
+        box.hidden = true;
+        try { if (_svJumpReturnFocus && document.contains(_svJumpReturnFocus)) _svJumpReturnFocus.focus(); } catch (e) {}
+        _svJumpReturnFocus = null;
+    }
+    function _svJumpWire() {
+        const box = document.getElementById('svJump');
+        if (!box || box.dataset.wired === '1') return;
+        box.dataset.wired = '1';
+        const input = document.getElementById('svJumpInput');
+        input.addEventListener('input', () => { _svJumpActive = 0; _svJumpRender(); });
+        input.addEventListener('keydown', e => {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (!_svJumpOpts.length) return;
+                _svJumpActive = (_svJumpActive + (e.key === 'ArrowDown' ? 1 : -1) + _svJumpOpts.length) % _svJumpOpts.length;
+                _svJumpRender();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                svQuickJumpGo(_svJumpOpts[_svJumpActive]);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                svQuickJumpClose();
+            }
+        });
+        // Keep keyboard focus inside the dialog; Escape closes from anywhere in it.
+        box.addEventListener('keydown', e => {
+            if (e.key === 'Tab') { e.preventDefault(); input.focus(); }
+            else if (e.key === 'Escape' && e.target !== input) { e.preventDefault(); svQuickJumpClose(); }
+        });
+        box.addEventListener('mousedown', e => {
+            const row = e.target.closest('[data-sv-jump]');
+            if (row) { e.preventDefault(); svQuickJumpGo(_svJumpOpts[Number(row.getAttribute('data-sv-jump'))]); return; }
+            if (e.target === box) svQuickJumpClose();
+        });
+        document.addEventListener('keydown', e => {
+            if (!(e.key === '/' || e.code === 'Slash') || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+            if (!document.body.classList.contains('sv-shared-client')) return;   // staff only; never on client links
+            if (document.getElementById('prodRoot')) return;                     // SyncLinear keeps its own "/"
+            const a = document.activeElement;
+            if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return;
+            // Another dialog on screen owns the keyboard.
+            const openDialog = [...document.querySelectorAll('[role="dialog"], .confirm-overlay')]
+                .some(el => !box.contains(el) && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden');
+            if (openDialog) return;
+            if (!box.hidden) return;
+            e.preventDefault();
+            svQuickJumpOpen();
+        });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _svJumpWire);
+    else _svJumpWire();
+
+    window.svQuickJumpOpen = svQuickJumpOpen;
     /* ============================================================
        CLIENT ONBOARDING MODULE  (standalone, private-link page)
        Reachable ONLY via ?onboarding=<token>. Mirrors ?intake=1: bypasses the
@@ -40586,7 +40803,9 @@
         const scrollY0 = preserveScroll ? window.scrollY : null;
         const harvestedThumbs = (preserveScroll && stripBefore) ? _calHarvestThumbs() : null;
         if (!calState.client) {
-            body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab so you can switch between your clients quickly.</div>`;
+            body.innerHTML = document.body.classList.contains('sv-shared-client')
+                ? `<div class="cal-empty">Pick a client in the top bar to start.</div>`
+                : `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab so you can switch between your clients quickly.</div>`;
             return;
         }
         if (calState.loading) { body.innerHTML = _calLoaderHtml(); return; }
@@ -72101,7 +72320,7 @@
         if (!body) return;
         const preserveScroll = !!(opts && opts.preserveScroll);
         const scrollY0 = preserveScroll ? window.scrollY : null;
-        if (!sxrState.client) { body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start.</div>`; return; }
+        if (!sxrState.client) { body.innerHTML = document.body.classList.contains('sv-shared-client') ? `<div class="cal-empty">Pick a client in the top bar to start.</div>` : `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start.</div>`; return; }
         if (sxrState.loading) { body.innerHTML = _sxrLoaderHtml(); return; }
         if (sxrState.error) { body.innerHTML = `<div class="cal-empty cal-error">Couldn't load sample reviews — <button class="cal-link" onclick="loadSxrCards({skipCache:true})">try again</button>.</div>`; return; }
         if (sxrState.view === 'review' || sxrState.view === 'smmreview') {
@@ -81069,7 +81288,7 @@
     function _kasperRenderOnboarding() {
         const el = document.getElementById('kasperContent');
         if (!el) return;
-        _obvMode = 'full';
+        _obvSetMode('full');
         if (Array.isArray(_obvSubs)) _kasperMarkOnboardingSeen();
         _obvInjectStyles();
         el.innerHTML = renderOnboardingInbox();
@@ -82547,7 +82766,7 @@
         if (!_kasperState.filmingLoading && !_kasperState.filmingData) _kasperLoadFilming(false);
         if (_ptoEnabled() && _syncviewStaffCan('pto-admin') && !_ptoAdminState.loading && !_ptoAdminState.overview) _ptoLoadAdmin(false);
         if (_syncviewStaffCan('onboarding') && !_obvLoading && !Array.isArray(_obvSubs)) {
-            _obvMode = 'full';
+            _obvSetMode('full');
             _obvEnsureLoaded();
         }
     }

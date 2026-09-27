@@ -125,6 +125,58 @@ For a specific question, use [Find anything](FIND_ANYTHING.md).
 | [Workload source scope](ops/WORKLOAD_NATIVE_SOURCE.md) | The early native Workload rationale, with old loading and fallback details superseded. |
 | [Rename plan](ops/RENAME_PLAN.md) | The original rename-propagation proposal; its plan-only status was superseded by applied releases. |
 
+## Native capability contracts and holds
+
+| Document | What it covers |
+| --- | --- |
+| [Native client setup](ops/NATIVE_CLIENT_PROVISIONING.md) | A dormant server-side setup path for new clients, with no active onboarding caller. |
+| [Existing-card assignment](ops/NATIVE_EXISTING_ASSIGNMENT.md) | The original assignment draft; its unapplied banner predates native activation. |
+| [Native work IDs](ops/NATIVE_IDENTIFIER_MINT.md) | How in-app work IDs are issued and the recorded correction that this change was applied. |
+| [Intake completion](ops/NATIVE_INTAKE_COMPLETION.md) | Prepared recovery workflows for incomplete native intake that remain switched off. |
+| [Named intake append](ops/NATIVE_INTAKE_NAMED_APPEND.md) | An uninstalled proposal for keeping post names when appending native intake work. |
+| [Label catalog capture](ops/NATIVE_LABEL_CATALOG_CAPTURE.md) | The completed catalog capture record, with old recapture steps retained as history. |
+| [Label catalog foundation](ops/NATIVE_LABEL_CATALOG_FOUNDATION.md) | An early source-only label-write design whose disabled status predates native activation. |
+| [Native notifications](ops/NATIVE_NOTIFICATIONS.md) | The prepared notification outbox and sender design; activation remains a separate decision. |
+| [Notification handover](ops/NATIVE_NOTIFICATION_HANDOVER_PREPARATION_20260912.md) | Proposed installation checks for notifications, not permission to switch them on. |
+| [Ordinary receipt owners](ops/NATIVE_ORDINARY_RECEIPTS_OWNER_MATRIX.md) | Which write path owns each native receipt; its provider-default statement is historical. |
+| [Ordinary receipt repair](ops/NATIVE_ORDINARY_RECEIPTS_REPAIR_SPEC.md) | The safe-receipt design and remaining retirement gate; activation is still blocked. |
+| [Urgent handoff](ops/NATIVE_URGENT_HANDOFF.md) | Inactive source design for urgent video handoff and its access checks. |
+| [Urgent workflow draft](ops/NATIVE_URGENT_N8N_DRAFT.md) | A superseded receiver draft kept as evidence; its new workflow must not be installed. |
+| [Native Workload rollout](ops/LINEAR_EXIT_STEP26_NATIVE_WORKLOAD.md) | Dated plan for replacing Workload's old data source; check State of things for present status. |
+| [Native label rollout](ops/LINEAR_EXIT_STEP26_NATIVE_LABELS.md) | Dated acceptance record for moving labels to native storage after its original blockers were resolved. |
+| [Native intake rollout](ops/LINEAR_EXIT_STEP26_NATIVE_INTAKE.md) | Pre-cutoff design for closing the older intake fallback; its source snapshot is historical. |
+| [Native identifier rollout](ops/LINEAR_EXIT_STEP26_NATIVE_IDENTIFIER_MINT.md) | Dated plan and evidence for native work IDs; State of things records the current capability. |
+| [Native sign-off](ops/LINEAR_EXIT_NATIVE_SIGNOFF_CONTRACT.md) | Offline-tested reconciliation compatibility contract whose installation remains held. |
+| [Sequence safety](ops/LINEAR_EXIT_SEQUENCE_ALLOCATION_CONTRACT.md) | A proposed rule to prevent ID collisions during recovery, not yet fully implemented. |
+| [Writer package binding](ops/LINEAR_EXIT_ATOMIC_WRITER_INSTALLATION_BINDING.md) | How a prepared writer package binds to a reviewed database catalog without installing it. |
+
+## Exit preparation evidence (September 2026)
+
+| Document | What it covers |
+| --- | --- |
+| [Catalog recalibration](ops/LINEAR_EXIT_B9_CATALOG_REDERIVATION.md) | The September plan to recalculate a catalog check against a settled database state. |
+| [Test routing](ops/LINEAR_EXIT_CI_ROUTING.md) | How unit and isolated tests were assigned to CI for the September exit candidate. |
+| [Credential recovery](ops/LINEAR_EXIT_CREDENTIAL_RECOVERY_CONTRACT.md) | The dated local restore proof for credential tables and its hosted-recovery and custody limits. |
+| [Deferred tests: final report](ops/LINEAR_EXIT_D22_AUTHORITATIVE_20260917.md) | The 2026-09-17 outcome report for deferred test suites; it records results without fixing them. |
+| [Deferred tests: first pass](ops/LINEAR_EXIT_D22_DEFERRED_FIRST_PASS_20260917.md) | The preliminary 2026-09-17 test run, superseded by the final report above. |
+| [External worker handover](ops/LINEAR_EXIT_EXTERNAL_WORKER_HANDOVER_PREPARATION.md) | A historical checklist for finding and stopping external workers in a separately authorized window. |
+| [File-hash pin sweep](ops/LINEAR_EXIT_FILE_HASH_PIN_SWEEP_20260917.md) | The 2026-09-17 inventory of pinned file hashes and whether CI then enforced them. |
+| [Final freeze design](ops/LINEAR_EXIT_FINAL_FREEZE_PREPARATION.md) | Prepared freeze design with isolated proof, not an executable release procedure. |
+| [Final switch decision](ops/LINEAR_EXIT_FINAL_SWITCH_DECISION_20260912.md) | The 2026-09-12 decision allowing preparation only, without installation or activation. |
+| [Follow-up supervisor](ops/LINEAR_EXIT_FOLLOWUP_SUPERVISOR.md) | A default-disabled worker supervisor design and the gates around an authorized run. |
+| [Guard-count survey](ops/LINEAR_EXIT_GUARD_COUNT_SITES.md) | A survey of hard-coded count checks and possible replacements, with no fix made. |
+| [Installation-day plan](ops/LINEAR_EXIT_INSTALLATION_DAY_20260914.md) | The pre-cutoff installation sequence retained as history, not today's runbook. |
+| [Preinstall backup](ops/LINEAR_EXIT_NATIVE_PREINSTALL_BACKUP_PREPARATION.md) | Isolated database-backup proof and its limits, separate from any live restore. |
+| [Observed pipeline rehearsal](ops/LINEAR_EXIT_OBSERVED_FULL_PIPELINE_PREPARATION.md) | A disposable-database installation rehearsal and exact comparison without release authorization. |
+| [Owner before and after](ops/LINEAR_EXIT_OWNER_BEFORE_AFTER_20260914.md) | The 2026-09-14 plain-English explanation of the planned installation, now historical. |
+| [Owner preparation sitting](ops/LINEAR_EXIT_OWNER_SITTING_20260915.md) | The 2026-09-15 read-only keyboard sequence for catalog and backup preparation. |
+| [Preparation checkpoint](ops/LINEAR_EXIT_PREPARATION_CHECKPOINT_20260914.md) | A dated checkpoint whose earlier provider and progress details are historical. |
+| [Release matrix](ops/LINEAR_EXIT_RELEASE_MATRIX_20260912.md) | The 2026-09-12 readiness matrix and evidence limits, retained after cutoff. |
+| [Repair installation order](ops/LINEAR_EXIT_REPAIR_INSTALL.md) | Prepared dependency order for a repaired candidate, not permission to install it. |
+| [Review repairs](ops/LINEAR_EXIT_REVIEW_REPAIRS_20260913.md) | The 2026-09-13 review-repair handoff and local proof scope, retained as preparation history. |
+| [Second preparation sitting](ops/LINEAR_EXIT_SESSION_C_20260916.md) | The 2026-09-16 read-only calibration sequence for a later owner work session. |
+| [Hard-coded world sweep](ops/LINEAR_EXIT_WORLD_LITERAL_SWEEP_20260916.md) | The 2026-09-16 inventory of fixed database counts and fingerprints; survey only. |
+
 ## Plans
 
 | Document | What it helps you find |

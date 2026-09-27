@@ -1538,6 +1538,19 @@ import {
             verified_at: new Date().toISOString()
         };
     }
+    /* SMART DEFAULTS (owner decision 2026-09-27). A creative is a non-admin
+     * whose team is video or graphics. Workload opens filtered to them and
+     * SyncLinear opens on "My issues", once per page load, and only when
+     * nothing else (a link, an earlier choice this visit) already decided.
+     * It reads the stored identity, which only decides what to paint first;
+     * it grants nothing. Returns { id, team } or null. */
+    function _syncviewCreativeMe() {
+        const identity = _syncviewStaffIdentityLoad();
+        const m = identity && identity.member;
+        if (!m || !m.id || String(identity.role || '') === 'admin') return null;
+        const team = String(m.team || '').toLowerCase();
+        return team === 'video' || team === 'graphics' ? { id: String(m.id), name: String(m.name || ''), team } : null;
+    }
     function _syncviewStaffInitials(name) {
         const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
         return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] || 'S').slice(0, 2)).toUpperCase();
@@ -2347,6 +2360,7 @@ import {
         _svSyncStepper(id);
     }
 export {
+  _syncviewCreativeMe,
   CALENDAR_GET_URL, CALENDAR_REORDER_BATCH_URL, CALENDAR_REORDER_EF_URL, CALENDAR_REORDER_URL,
   CALENDAR_UPSERT_EF_URL, CALENDAR_UPSERT_N8N_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL,
   CAL_SUPABASE_URL, CAPTION_JOB_STATUS_URL, CAPTION_JOB_UPDATE_URL, CAPTION_PROMPTS_GET_URL,

@@ -8608,7 +8608,8 @@
         .sv-jump-muted, .sv-jump-empty { color: var(--text-muted); }
         .sv-jump-empty { padding: 12px; font-size: 0.84rem; }
         .sv-jump-foot { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--border-light); font-size: 0.7rem; color: var(--text-muted); }
-        @media (max-width: 700px) { .sv-client-kbd { display: none; } }
+        /* Phones have no "/" key to spare: keep a compact tap target. */
+        @media (max-width: 700px) { .sv-client-kbd .sv-client-kbd-text { display: none; } .sv-client-kbd { min-width: 44px; min-height: 32px; justify-content: center; } }
     </style>
 </head>
 <body>
@@ -8685,7 +8686,7 @@
     </div>
     <span class="sv-client-recent-label" id="svClientRecentLabel" hidden>Recent</span>
     <div class="sv-client-recent" id="svClientRecent"></div>
-    <button type="button" class="sv-client-kbd" onclick="svQuickJumpOpen()" title="Jump to a client and tab">Quick jump <kbd>/</kbd></button>
+    <button type="button" class="sv-client-kbd" onclick="svQuickJumpOpen()" title="Jump to a client and tab" aria-label="Quick jump"><span class="sv-client-kbd-text">Quick jump</span> <kbd>/</kbd></button>
 </div>
 <!-- Quick jump (096-quick-jump): "/" then "client tab", Enter. -->
 <div class="sv-jump" id="svJump" hidden>
@@ -23877,7 +23878,14 @@
     function svQuickJumpGo(opt) {
         if (!opt || !opt.tab) return;
         svQuickJumpClose();
-        if (opt.client) svSharedClientNote(opt.client);
+        if (opt.client) {
+            svSharedClientNote(opt.client);
+            // A card link for another client (#calendar/<slug>/<card>) would
+            // outlive the jump in the address and reopen the old client on reload.
+            try {
+                if (/^#(calendar|sample-reviews)\//.test(location.hash)) history.replaceState(history.state, '', location.pathname + location.search);
+            } catch (e) {}
+        }
         if (opt.tab.page === 'home') svOpenAnalytics();
         else navTo(opt.tab.page);
     }
@@ -23935,6 +23943,11 @@
                 e.preventDefault();
                 svQuickJumpClose();
             }
+        });
+        // Keep keyboard focus inside the dialog; Escape closes from anywhere in it.
+        box.addEventListener('keydown', e => {
+            if (e.key === 'Tab') { e.preventDefault(); input.focus(); }
+            else if (e.key === 'Escape' && e.target !== input) { e.preventDefault(); svQuickJumpClose(); }
         });
         box.addEventListener('mousedown', e => {
             const row = e.target.closest('[data-sv-jump]');

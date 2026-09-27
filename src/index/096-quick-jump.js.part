@@ -75,7 +75,14 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
     function svQuickJumpGo(opt) {
         if (!opt || !opt.tab) return;
         svQuickJumpClose();
-        if (opt.client) svSharedClientNote(opt.client);
+        if (opt.client) {
+            svSharedClientNote(opt.client);
+            // A card link for another client (#calendar/<slug>/<card>) would
+            // outlive the jump in the address and reopen the old client on reload.
+            try {
+                if (/^#(calendar|sample-reviews)\//.test(location.hash)) history.replaceState(history.state, '', location.pathname + location.search);
+            } catch (e) {}
+        }
         if (opt.tab.page === 'home') svOpenAnalytics();
         else navTo(opt.tab.page);
     }
@@ -133,6 +140,11 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
                 e.preventDefault();
                 svQuickJumpClose();
             }
+        });
+        // Keep keyboard focus inside the dialog; Escape closes from anywhere in it.
+        box.addEventListener('keydown', e => {
+            if (e.key === 'Tab') { e.preventDefault(); input.focus(); }
+            else if (e.key === 'Escape' && e.target !== input) { e.preventDefault(); svQuickJumpClose(); }
         });
         box.addEventListener('mousedown', e => {
             const row = e.target.closest('[data-sv-jump]');

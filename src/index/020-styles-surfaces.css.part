@@ -4231,4 +4231,5 @@
         .sv-jump-muted, .sv-jump-empty { color: var(--text-muted); }
         .sv-jump-empty { padding: 12px; font-size: 0.84rem; }
         .sv-jump-foot { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--border-light); font-size: 0.7rem; color: var(--text-muted); }
-        @media (max-width: 700px) { .sv-client-kbd { display: none; } }
+        /* Phones have no "/" key to spare: keep a compact tap target. */
+        @media (max-width: 700px) { .sv-client-kbd .sv-client-kbd-text { display: none; } .sv-client-kbd { min-width: 44px; min-height: 32px; justify-content: center; } }

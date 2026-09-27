@@ -69,13 +69,26 @@ function blank(context) {
       await jump(page, 'workload');
       expect(await page.evaluate(() => currentNav) === 'workload', 'workload: a tab alone did not open it');
 
+      // Tab stays inside the dialog.
+      await page.click('body', { position: { x: 5, y: 600 } });
+      await page.keyboard.press('/');
+      await page.keyboard.press('Tab');
+      expect(await page.evaluate(() => document.activeElement && document.activeElement.id) === 'svJumpInput', 'Tab left the quick jump dialog');
+      await page.keyboard.press('Escape');
+
+      // A jump drops a stale card link for another client from the address.
+      await page.evaluate(() => history.replaceState(history.state, '', location.pathname + '#sample-reviews/stale-fixture/card-1'));
+      await page.click('body', { position: { x: 5, y: 600 } });
+      await jump(page, 'alpha samp');
+      expect(!(await page.evaluate(() => location.hash)).includes('stale-fixture'), 'a jump kept the old client card link in the address');
+
       // Escape closes without moving.
       await page.click('body', { position: { x: 5, y: 600 } });
       await page.keyboard.press('/');
       await page.keyboard.type('alpha');
       await page.keyboard.press('Escape');
       expect(await page.isHidden('#svJump'), 'Escape did not close quick jump');
-      expect(await page.evaluate(() => currentNav) === 'workload', 'Escape moved the page');
+      expect(await page.evaluate(() => currentNav) === 'sample-reviews', 'Escape moved the page');
 
       // "/" typed into a field stays a slash.
       await page.evaluate(() => navTo('filming-plans'));

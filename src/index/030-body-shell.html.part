@@ -74,7 +74,7 @@
     </div>
     <span class="sv-client-recent-label" id="svClientRecentLabel" hidden>Recent</span>
     <div class="sv-client-recent" id="svClientRecent"></div>
-    <button type="button" class="sv-client-kbd" onclick="svQuickJumpOpen()" title="Jump to a client and tab">Quick jump <kbd>/</kbd></button>
+    <button type="button" class="sv-client-kbd" onclick="svQuickJumpOpen()" title="Jump to a client and tab" aria-label="Quick jump"><span class="sv-client-kbd-text">Quick jump</span> <kbd>/</kbd></button>
 </div>
 <!-- Quick jump (096-quick-jump): "/" then "client tab", Enter. -->
 <div class="sv-jump" id="svJump" hidden>

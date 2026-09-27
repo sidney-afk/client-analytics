@@ -83,7 +83,9 @@ check('Submit keeps linear id, clean path, and nav key', /href="\/submit"/.test(
 check('the mirror tab carries its own icon and not the Submit one', navProd.includes(synclinearIcon) && !navProd.includes(submitIcon));
 check('Submit carries its own icon and not the mirror one', navLinear.includes(submitIcon) && !navLinear.includes(synclinearIcon));
 check('Production pre-paint route lights the promoted mirror tab', index.includes('html[data-boot-nav="production"] #navProd'));
-check('desktop header reserves a bounded middle column for nav', index.includes('grid-template-columns:auto minmax(0,1fr) auto'));
+// The client picker (095-shared-client) takes its own column after the logo;
+// the nav keeps the bounded minmax(0,1fr) middle column.
+check('desktop header reserves a bounded middle column for nav', index.includes('grid-template-columns:auto auto minmax(0,1fr) auto'));
 check('header nav scrolls without colliding with shell actions', /\.header-nav \{[^}]*width: max-content;[^}]*max-width: 100%;[^}]*overflow-x: auto;/.test(index));
 check('header nav items remain intact inside the scroll strip', /\.header-nav-btn \{[^}]*flex: 0 0 auto;[^}]*white-space: nowrap;/.test(index));
 check('navigation reveals the active tab inside the bounded strip', /activeHeaderNav\.scrollIntoView\(\{ block: 'nearest', inline: 'nearest' \}\)/.test(index));

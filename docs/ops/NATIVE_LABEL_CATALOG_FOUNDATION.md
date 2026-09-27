@@ -1,6 +1,6 @@
 # Native label catalog and writes: default-disabled, uninstalled
 
-This bounded G2 slice belongs to [the single go-live checklist](../independence/GO_LIVE_CHECKLIST.md). Base: 8514a83ed1a65145a3a51ffe52e5fcbb2976be31. Original cloud proposal892894e1b is preserved; [current evidence](../audits/2026-09-06-native-label-writes.md) distinguishes its failures from the corrected source. Observed main5ed005c32732f415ea1868951fb42a132ddf045a was not integrated.
+This bounded G2 slice belongs to [the single go-live checklist](../independence/GO_LIVE_CHECKLIST.md). Base: 8514a83ed1a65145a3a51ffe52e5fcbb2976be31. Original cloud proposal892894e1b is preserved; the [local QA handoff](../../qa/native-label-catalog/README.md) describes the corrected source checks and their limits. The original audit file is absent from current `main`. Observed main5ed005c32732f415ea1868951fb42a132ddf045a was not integrated.
 
 **Implemented source:** authorized staff can read and save labels using one immutable, operator-attested catalog version without a provider request or new provider intent in that admitted path. Default mode remains provider. **Installation, real catalog completeness, serving, external zero-egress and release remain HELD/UNPROVEN.** No live/TEST/deploy/flag/n8n/credential/alert/billing action occurred. Frozen anonymous writer and auth files are unchanged.
 

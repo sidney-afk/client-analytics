@@ -286,10 +286,28 @@ These records describe what was checked at the time, not the current operating s
 
 ## July 2026 audit evidence
 
-These records capture checks and proposals from July. Their dated findings do not establish the current operating state.
+These records capture checks and proposals from July. Their dated findings do not establish the current operating state; some cover superseded or operator-gated work.
 
 | Document | What it covers |
 |---|---|
+| [Jul 30 — flip status](audits/2026-07-30-flip-status-review.md) | A dated, read-only status review after the Graphics flip work; no change was made by the review. |
+| [Jul 29 — B3 zero gate](audits/2026-07-29-b3-zero-gate-investigation.md) | A read-only investigation of gate counters and an alarm gap at that date. |
+| [Jul 28 — Graphics flip gates](audits/2026-07-28-graphics-flip-gates-report.md) | Offline and isolated evidence for five proposed gates, without a live-provider drill or authority change. |
+| [Jul 23 — Production and Graphics gaps](audits/2026-07-23-production-tab-graphics-gap-audit.md) | Read-only findings and design options for the then-current Production tab and Graphics workflow. |
+| [Jul 22 — staff boot and history](audits/2026-07-22-staff-boot-refresh-history-audit.md) | An immutable, public-safe audit of staff boot, refresh, history, and browser cache behavior. |
+| [Jul 22 — F27 operator toolkit](audits/2026-07-22-f27-install-operator-toolkit.md) | Source-only preparation for a future owner-gated installation; it records no installation. |
+| [Jul 21 — F27 corrective proof](audits/2026-07-21-f27-corrective-source-proof.md) | Source-only corrections for two identified races and a bounded drill contract. |
+| [Jul 20 — F27 rollback proof](audits/2026-07-20-f27-team-rollback-proof.md) | Superseded isolated TEST proof, explicitly marked not installable. |
+| [Jul 19 — vault audit](audits/2026-07-19-vault-audit.md) | A read-only review of the documentation system and its cross-repository boundaries. |
+| [Jul 19 — F141 browser drill](audits/2026-07-19-f141-live-drill/README.md) | A dated owner-authorized browser drill on TEST scope, not current release proof. |
+| [Jul 19 — boot and history](audits/2026-07-19-boot-refresh-history-audit.md) | A controlled browser evidence snapshot with separately labeled later source and remediation addenda. |
+| [Jul 17 — PTO visual review](audits/2026-07-17-pto-lifecycle-simulation/VISUAL_REVIEW.md) | Synthetic TEST screenshots of the time-off lifecycle; no live personnel screenshots. |
+| [Jul 17 — PTO simulation findings](audits/2026-07-17-pto-lifecycle-simulation/FINDINGS.md) | Synthetic time-off lifecycle findings and fixes from an isolated simulation. |
+| [Jul 17 — bug archaeology](audits/2026-07-17-bug-archaeology.md) | A dated sweep of the preceding three weeks of changes and the issues it found. |
+| [Jul 15 — PTO release audit](audits/2026-07-15-pto-release-audit.md) | A dated time-off release audit with source, test, and bounded read-only data evidence. |
+| [Jul 11 — B4 shadow evidence](audits/2026-07-11-b4-postmerge-shadow-evidence.md) | Historical post-merge readback and a read-only full-roster shadow aggregate. |
+| [Jul 11 — B3 scenario harness](audits/2026-07-11-b3-inbound-mirror-scenario-harness.md) | The scope and safeguards of a historical TEST-project scenario harness, not a current run instruction. |
+| [Jul 9 — Production foundation](audits/2026-07-09-production-foundation-audit.md) | A dated audit of the read-only Production foundation against its design reference. |
 | [Jul 7 — former tracker state map](audits/2026-07-07-linear-state-map.md) | A public-safe review of status and type names for the former tracker; private identifiers were not committed. |
 | [Jul 6 — Production parity gaps](audits/2026-07-06-prod-parity-gaps.md) | A source and artifact comparison that seeded a then-current Production parity backlog. |
 | [Jul 6 — data assumptions](audits/2026-07-06-data-assumption-sweep.md) | A sweep of unverified data assumptions and proposed checks in the then-current migration plan. |

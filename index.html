@@ -23411,6 +23411,19 @@
             if (nav.classList.contains('is-compact') + ':' + nav.classList.contains('is-icons') !== wasCompact) requestAnimationFrame(() => _navPillSync(false));
         } catch (e) {}
     }
+    let _navFitQueued = false, _navFitWindowAt = 0, _navFitWindowRuns = 0;
+    function _navFitSchedule() {
+        if (_navFitQueued) return;
+        _navFitQueued = true;
+        const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (f => setTimeout(f, 16));
+        raf(() => {
+            _navFitQueued = false;
+            const now = Date.now();
+            if (now - _navFitWindowAt > 1000) { _navFitWindowAt = now; _navFitWindowRuns = 0; }
+            if (++_navFitWindowRuns > 30) return;   // loop guard: 30 fits a second is never real
+            _navPillSync(false);
+        });
+    }
     function _navPillSync(animate) {
         _navFitSync();
         try {
@@ -23441,10 +23454,25 @@
     }
     // Re-measure on anything that can change a tab's width or position: viewport
     // changes, the webfont swapping in, and tabs revealed later by a flag.
+    //
+    // LATE FIRST FIT (owner, 2026-09-27): on a wide desktop the first fit could
+    // run before the web font or the rest of the header settled, go icons only,
+    // and never retry: the row's ResizeObserver only sees the row's OWN width,
+    // and an icons-only row keeps the same width when room frees up beside it.
+    // Every fit starts from full labels (see _navFitSync), so re-running it is
+    // always safe; we re-run once per frame on every signal that can change
+    // the room: fonts (ready + each loadingdone, since the Google Fonts sheet
+    // is attached after onload and can outlive fonts.ready), window load, any
+    // resize, the client picker rendering, and the header's other children
+    // resizing. A per-second cap guards against any feedback loop.
     try {
-        window.addEventListener('resize', () => _navPillSync(false));
-        if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
-            document.fonts.ready.then(() => _navPillSync(false)).catch(() => {});
+        window.addEventListener('resize', _navFitSchedule);
+        window.addEventListener('load', _navFitSchedule);
+        if (document.fonts) {
+            if (document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+                document.fonts.ready.then(_navFitSchedule).catch(() => {});
+            }
+            if (typeof document.fonts.addEventListener === 'function') document.fonts.addEventListener('loadingdone', _navFitSchedule);
         }
         // A tab revealed after first paint (Kasper, Samples) changes the row's
         // width with no route change; watch the row itself so the fit and the
@@ -23468,6 +23496,14 @@
                         lastW = w;
                         resync();
                     }).observe(nav);
+                    // Room beside the row: the header's other children (logo,
+                    // client picker, actions). Their size never depends on the
+                    // row's compact state, so this cannot loop either.
+                    const header = nav.parentElement;
+                    if (header) {
+                        const sib = new ResizeObserver(() => _navFitSchedule());
+                        [...header.children].forEach(ch => { if (ch !== nav) sib.observe(ch); });
+                    }
                 }
             };
             if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch);
@@ -23936,6 +23972,8 @@
             else badge.style.removeProperty('--sv-client-h');
         }
         if (dot) dot.outerHTML = cur ? _svClientDot(cur).replace('class="sv-client-dot"', 'class="sv-client-dot" id="svClientBadgeDot"') : '<span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>';
+        // Re-fit the tab row whenever the picker draws: its width sets the room.
+        _navFitSchedule();
     }
     // Staff see the picker on every tab, so the tab row never shifts; team
     // tabs simply ignore the client. Client links never show it.

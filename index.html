@@ -8591,6 +8591,8 @@
         .sv-client-row .sv-client-dot { width: 20px; height: 20px; font-size: 0.56rem; }
         .sv-client-none { padding: 8px; font-size: 0.8rem; color: var(--text-muted); }
         .sv-client-foot { font-size: 0.7rem; color: var(--text-muted); padding: 8px 8px 2px; border-top: 1px solid var(--border-light); margin-top: 6px; }
+        /* The top bar is the only client picker for staff (owner, 2026-09-27). */
+        body.sv-shared-client #calTabs, body.sv-shared-client #sxrTabs { display: none !important; }
         .header-nav-sep { flex: none; width: 1px; height: 20px; margin: 0 4px; background: var(--border); }
         @media (max-width: 700px) { .sv-client-bar { padding: 8px 14px; gap: 6px; } .sv-client-cap, .sv-client-recent-label { display: none !important; } }
         /* Quick jump (096-quick-jump). */
@@ -18649,7 +18651,22 @@
             <div id="wlPopover" class="workload-popover" role="dialog" aria-hidden="true"></div>
         </div>`;
     }
+    /* Smart default: a creative lands on their own work (see
+     * _syncviewCreativeMe). The editor filter holds workload assignee ids,
+     * which are not staff member ids, so the match waits for the rows and
+     * resolves in wlPopulateFilterOptions by id or by name. Once per load, and
+     * dropped the moment the person picks an editor themselves. */
+    let _wlCreativeDefaultDone = false;
+    let _wlCreativePending = null;
+    function _wlCreativeDefaultInit() {
+        if (_wlCreativeDefaultDone) return;
+        _wlCreativeDefaultDone = true;
+        const me = _syncviewCreativeMe();
+        if (me && wlState.editor === 'all') _wlCreativePending = me;
+    }
     async function initWorkloadView() {
+        // Guarded: unit suites run this mount alone in a sandbox.
+        if (typeof _wlCreativeDefaultInit === 'function') _wlCreativeDefaultInit();
         const todayISO = wlWorkloadTodayISO();
         const now = wlParseISO(todayISO);
         if (wlState.year == null)      { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }
@@ -20058,7 +20075,7 @@
                 e.preventDefault();
                 const kind  = ddItem.getAttribute('data-wl-dropdown-item');
                 const value = ddItem.getAttribute('data-wl-value');
-                if (kind === 'editor') wlState.editor = value;
+                if (kind === 'editor') { wlState.editor = value; _wlCreativePending = null; }
                 wlCloseDropdowns(null);
                 renderWorkloadAll();
                 return;
@@ -20277,6 +20294,12 @@
         wlState.clientOptions = clients;
 
         // Reset selected value if it's no longer valid for the current data.
+        if (_wlCreativePending) {
+            const me = _wlCreativePending;
+            const myName = String(wlDisplayName(me.name) || '').trim().toLowerCase();
+            const hit = editors.find(([id, name]) => id === me.id || (myName && String(name).trim().toLowerCase() === myName));
+            if (hit) { _wlCreativePending = null; if (wlState.editor === 'all') wlState.editor = hit[0]; }
+        }
         if (wlState.editor !== 'all' && !editors.some(([id]) => id === wlState.editor)) wlState.editor = 'all';
         if (wlState.client !== 'all' && !clients.includes(wlState.client))              wlState.client = 'all';
 
@@ -23716,8 +23739,30 @@
         _svClientPopClose();
         const before = svSharedClientGet();
         svSharedClientNote(n);
-        if (before === n) return;
         const page = currentNav;
+        // Calendar and Samples switch in place through the same path their old
+        // per-tab strips used (flush pending saves, tear down, reload), so a
+        // pick never remounts the page and the boot suite's traces still hold.
+        if (page === 'calendar' && !calState.embedded) {
+            if (calState.client === n) return;
+            // No client yet: the shell was drawn without its client-only
+            // controls (More, bulk actions), and _calOpenClientTab redraws it.
+            if (!calState.client) { _calOpenClientTab(n); return; }
+            const pins = _calGetPins();
+            if (!pins.includes(n)) { pins.unshift(n); _calSavePins(pins); }
+            onCalTabClick(n);
+            return;
+        }
+        if (page === 'sample-reviews' && !sxrState.embedded) {
+            if (sxrState.client === n) return;
+            const hadClient = !!sxrState.client;
+            _sxrPinClient(n);
+            onSxrTabClick(n);
+            // Same for Samples: its Share menu and archive control need a client.
+            if (!hadClient) _sxrRenderShell();
+            return;
+        }
+        if (before === n) return;
         if (page === 'home') { selectClient(n); return; }
         if (!SV_CLIENT_FOLLOW_TABS.includes(page)) return;
         svSharedClientApply(page, true);   // Templates / Filming Plans read it before the remount
@@ -25548,6 +25593,19 @@
             },
             verified_at: new Date().toISOString()
         };
+    }
+    /* SMART DEFAULTS (owner decision 2026-09-27). A creative is a non-admin
+     * whose team is video or graphics. Workload opens filtered to them and
+     * SyncLinear opens on "My issues", once per page load, and only when
+     * nothing else (a link, an earlier choice this visit) already decided.
+     * It reads the stored identity, which only decides what to paint first;
+     * it grants nothing. Returns { id, team } or null. */
+    function _syncviewCreativeMe() {
+        const identity = _syncviewStaffIdentityLoad();
+        const m = identity && identity.member;
+        if (!m || !m.id || String(identity.role || '') === 'admin') return null;
+        const team = String(m.team || '').toLowerCase();
+        return team === 'video' || team === 'graphics' ? { id: String(m.id), name: String(m.name || ''), team } : null;
     }
     function _syncviewStaffInitials(name) {
         const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
@@ -40745,7 +40803,9 @@
         const scrollY0 = preserveScroll ? window.scrollY : null;
         const harvestedThumbs = (preserveScroll && stripBefore) ? _calHarvestThumbs() : null;
         if (!calState.client) {
-            body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab so you can switch between your clients quickly.</div>`;
+            body.innerHTML = document.body.classList.contains('sv-shared-client')
+                ? `<div class="cal-empty">Pick a client in the top bar to start.</div>`
+                : `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab so you can switch between your clients quickly.</div>`;
             return;
         }
         if (calState.loading) { body.innerHTML = _calLoaderHtml(); return; }
@@ -65219,6 +65279,7 @@
                 if (document.getElementById('prodRoot')) _prodRender();
             }, () => {});
         }
+        let _prodCreativeDefaultDone = false;
         function _prodPrimeFromUrl() {
             try {
                 const statePrefs = history.state && history.state.prod ? history.state.prod : null;
@@ -65234,7 +65295,13 @@
                 else if (subs === '1' || subs === 'true') _prodState.showSubIssues = true;
                 const team = q.get('team');
                 if (team === 'video' || team === 'graphics') _prodState.team = team;
-                const view = q.get('view');
+                // Smart default: a creative opening SyncLinear with no view, card
+                // or project in the address lands on My issues, once per load.
+                let view = q.get('view');
+                if (!view && !_prodCreativeDefaultDone && !q.get('d') && !q.get('batch') && !q.get('client')) {
+                    if (_syncviewCreativeMe()) view = 'my';
+                }
+                _prodCreativeDefaultDone = true;
                 if (view === 'my' || view === 'board' || view === 'list' || view === 'project') _prodState.view = view === 'board' ? 'board' : view === 'my' ? 'my' : view === 'project' ? 'project' : 'list';
                 const tab = q.get('issues');
                 if (tab === 'active' || tab === 'backlog' || tab === 'all') _prodState.tab = tab;
@@ -72253,7 +72320,7 @@
         if (!body) return;
         const preserveScroll = !!(opts && opts.preserveScroll);
         const scrollY0 = preserveScroll ? window.scrollY : null;
-        if (!sxrState.client) { body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start.</div>`; return; }
+        if (!sxrState.client) { body.innerHTML = document.body.classList.contains('sv-shared-client') ? `<div class="cal-empty">Pick a client in the top bar to start.</div>` : `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start.</div>`; return; }
         if (sxrState.loading) { body.innerHTML = _sxrLoaderHtml(); return; }
         if (sxrState.error) { body.innerHTML = `<div class="cal-empty cal-error">Couldn't load sample reviews — <button class="cal-link" onclick="loadSxrCards({skipCache:true})">try again</button>.</div>`; return; }
         if (sxrState.view === 'review' || sxrState.view === 'smmreview') {

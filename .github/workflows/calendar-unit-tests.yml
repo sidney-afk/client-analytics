@@ -202,6 +202,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/quick-jump-browser.js
+      - name: Creatives open on their own work in Workload and SyncLinear
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/smart-defaults-browser.js
       - name: Samples keeps the caret in the same box across a hide and return
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

@@ -4214,6 +4214,8 @@
         .sv-client-row .sv-client-dot { width: 20px; height: 20px; font-size: 0.56rem; }
         .sv-client-none { padding: 8px; font-size: 0.8rem; color: var(--text-muted); }
         .sv-client-foot { font-size: 0.7rem; color: var(--text-muted); padding: 8px 8px 2px; border-top: 1px solid var(--border-light); margin-top: 6px; }
+        /* The top bar is the only client picker for staff (owner, 2026-09-27). */
+        body.sv-shared-client #calTabs, body.sv-shared-client #sxrTabs { display: none !important; }
         .header-nav-sep { flex: none; width: 1px; height: 20px; margin: 0 4px; background: var(--border); }
         @media (max-width: 700px) { .sv-client-bar { padding: 8px 14px; gap: 6px; } .sv-client-cap, .sv-client-recent-label { display: none !important; } }
         /* Quick jump (096-quick-jump). */

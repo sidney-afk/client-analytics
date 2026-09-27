@@ -1,3 +1,4 @@
+import { _syncviewCreativeMe } from './100-onboarding-staff-controls.js';
 import { wlWorkloadTodayISO } from './070-workload-source.js';
 import { _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
@@ -1151,6 +1152,7 @@ import {
                 if (document.getElementById('prodRoot')) _prodRender();
             }, () => {});
         }
+        let _prodCreativeDefaultDone = false;
         function _prodPrimeFromUrl() {
             try {
                 const statePrefs = history.state && history.state.prod ? history.state.prod : null;
@@ -1166,7 +1168,13 @@ import {
                 else if (subs === '1' || subs === 'true') _prodState.showSubIssues = true;
                 const team = q.get('team');
                 if (team === 'video' || team === 'graphics') _prodState.team = team;
-                const view = q.get('view');
+                // Smart default: a creative opening SyncLinear with no view, card
+                // or project in the address lands on My issues, once per load.
+                let view = q.get('view');
+                if (!view && !_prodCreativeDefaultDone && !q.get('d') && !q.get('batch') && !q.get('client')) {
+                    if (_syncviewCreativeMe()) view = 'my';
+                }
+                _prodCreativeDefaultDone = true;
                 if (view === 'my' || view === 'board' || view === 'list' || view === 'project') _prodState.view = view === 'board' ? 'board' : view === 'my' ? 'my' : view === 'project' ? 'project' : 'list';
                 const tab = q.get('issues');
                 if (tab === 'active' || tab === 'backlog' || tab === 'all') _prodState.tab = tab;

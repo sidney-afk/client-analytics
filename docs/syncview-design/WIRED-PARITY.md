@@ -1372,3 +1372,11 @@ now does the same through a realtime channel on `deliverables`, `batches` and
 `deliverable_events`, instead of waiting for the 30 s poll. The poll remains as
 the fallback (90 s while live, 30 s otherwise), and the `prod_realtime` runtime
 flag turns the live path off in one step (ROLLBACK.md).
+
+## 2026-09-27 — creatives land on My issues
+
+Linear opens on the view you last chose; SyncLinear had always opened on
+Issues. A creative (non-admin, video or graphics team) now lands on My issues
+once per page load, which is where their work is. Any `view`, `d`, `batch` or
+`client` in the address still wins, and admins keep Issues. Read-only routing:
+nothing about writes or authority changed.

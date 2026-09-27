@@ -2840,6 +2840,7 @@ import { _kasperOpenLightbox } from './320-kasper-dashboard-replies.js';
     /* Body dispatcher — enhanced for the Sheet (preserve scroll on optimistic
        repaints from card actions; drag wiring is a Surface 2 follow-up). */
 export {
+  _sxrPinClient, onSxrTabClick,
   SXR_CACHE_PREFIX, SXR_COMPONENTS, SXR_GET_URL, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS,
   SXR_RT_CHANNEL_PREFIX, SXR_TABLE, _sxrAbortActiveLoad, _sxrAdoptLinksAfterCreate,
   _sxrApplyClearSentinels, _sxrApplyZoom, _sxrBgLoadInFlight, _sxrBlankSample, _sxrCacheRead,

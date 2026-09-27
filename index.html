@@ -8565,6 +8565,34 @@
             .ca-link { min-height: 44px; }
             .ca-group dl { grid-template-columns: 1fr; }
         }
+
+        /* Shared client bar (095-shared-client): one client above the tabs. */
+        .sv-client-bar { display: flex; align-items: center; gap: 10px; padding: 8px 32px; background: var(--white); border-bottom: 1px solid var(--border); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.8rem; overflow-x: auto; scrollbar-width: none; }
+        .sv-client-bar[hidden] { display: none; }
+        .sv-client-cap { font-size: 0.66rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); flex: none; }
+        .sv-client-badge-wrap { position: relative; flex: none; }
+        .sv-client-badge { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 6px; border: 1px solid var(--border); border-radius: 999px; background: var(--white); color: var(--text-primary); font: inherit; font-weight: 700; cursor: pointer; white-space: nowrap; }
+        .sv-client-badge:hover { background: var(--surface-hover); }
+        .sv-client-badge:focus-visible, .sv-client-recent-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        .sv-client-chev { opacity: 0.55; }
+        .sv-client-dot { width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; flex: none; font-size: 0.62rem; font-weight: 700; color: var(--sv-fg-fff); background: hsl(var(--sv-client-h, 220) 52% 46%); }
+        .sv-client-dot.is-empty { background: var(--surface-subtle); color: var(--text-muted); font-size: 0.9rem; }
+        .sv-client-recent-label { font-size: 0.72rem; color: var(--text-muted); margin-left: 6px; flex: none; }
+        .sv-client-recent { display: flex; gap: 8px; flex: none; }
+        .sv-client-recent-btn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px 4px 5px; border: 1px solid transparent; border-radius: 999px; background: var(--surface-subtle); color: var(--text-secondary); font: inherit; font-weight: 500; cursor: pointer; white-space: nowrap; }
+        .sv-client-recent-btn:hover { border-color: var(--border); color: var(--text-primary); }
+        .sv-client-recent-btn .sv-client-dot { width: 16px; height: 16px; font-size: 0.5rem; }
+        .sv-client-pop { position: fixed; z-index: 9998; margin-top: 8px; width: min(320px, calc(100vw - 28px)); background: var(--white); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm), 0 18px 48px var(--overlay); padding: 8px; }
+        .sv-client-search { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; font: inherit; font-size: 0.85rem; background: var(--white); color: var(--text-primary); outline: none; }
+        .sv-client-search:focus { border-color: var(--focus-ring); }
+        .sv-client-sec { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); padding: 10px 8px 4px; }
+        .sv-client-row { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 8px; cursor: pointer; font-size: 0.84rem; color: var(--text-primary); }
+        .sv-client-row:hover, .sv-client-row.is-active { background: var(--surface-hover); }
+        .sv-client-row .sv-client-dot { width: 20px; height: 20px; font-size: 0.56rem; }
+        .sv-client-none { padding: 8px; font-size: 0.8rem; color: var(--text-muted); }
+        .sv-client-foot { font-size: 0.7rem; color: var(--text-muted); padding: 8px 8px 2px; border-top: 1px solid var(--border-light); margin-top: 6px; }
+        .header-nav-sep { flex: none; width: 1px; height: 20px; margin: 0 4px; background: var(--border); }
+        @media (max-width: 700px) { .sv-client-bar { padding: 8px 14px; gap: 6px; } .sv-client-cap, .sv-client-recent-label { display: none !important; } }
     </style>
 </head>
 <body>
@@ -8622,6 +8650,27 @@
     </div>
 </div>
 
+<!-- Shared client bar (095-shared-client). One client for Calendar, Samples,
+     Templates, Filming Plans, TikTok Upload and Analytics; hidden on team tabs
+     and on client links. -->
+<div class="sv-client-bar" id="svClientBar" hidden>
+    <span class="sv-client-cap">Client</span>
+    <div class="sv-client-badge-wrap" id="svClientBadgeWrap">
+        <button type="button" class="sv-client-badge" id="svClientBadge" onclick="svClientPopToggle(event)" aria-haspopup="listbox" aria-expanded="false" title="Search any client">
+            <span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>
+            <span id="svClientBadgeLabel">Pick a client</span>
+            <svg class="sv-client-chev" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
+        </button>
+        <div class="sv-client-pop" id="svClientPop" hidden>
+            <input type="text" class="sv-client-search" id="svClientSearch" placeholder="Search any client…" autocomplete="off" aria-label="Search any client" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="svClientResults">
+            <div class="sv-client-results" id="svClientResults" role="listbox"></div>
+            <div class="sv-client-foot">Follows you across Calendar, Samples, Templates, Filming Plans, TikTok Upload and Analytics.</div>
+        </div>
+    </div>
+    <span class="sv-client-recent-label" id="svClientRecentLabel" hidden>Recent</span>
+    <div class="sv-client-recent" id="svClientRecent"></div>
+</div>
+
 <header class="header" style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;">
     <a class="logo" href="/" onclick="if(_modClick(event))return;event.preventDefault();goHome();" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
         <img src="/syncview-favicon.png" alt="SyncView">
@@ -8629,30 +8678,6 @@
     </a>
     <div class="header-nav" id="headerNav">
         <span class="header-nav-pill" aria-hidden="true"></span>
-        <a class="header-nav-btn active" id="navHome" href="/" onclick="if(_modClick(event))return;event.preventDefault();navTo('home')">
-            <span class="header-nav-ico ico-analytics" aria-hidden="true"></span>
-            Analytics
-        </a>
-        <a class="header-nav-btn" id="navProd" href="/synclinear" onclick="if(_modClick(event))return;event.preventDefault();navTo('production')">
-            <span class="header-nav-ico ico-synclinear" aria-hidden="true"></span>
-            SyncLinear
-        </a>
-        <a class="header-nav-btn" id="navLinear" href="/submit" onclick="if(_modClick(event))return;event.preventDefault();navTo('linear')">
-            <span class="header-nav-ico ico-submit" aria-hidden="true"></span>
-            Submit
-        </a>
-        <a class="header-nav-btn" id="navTemplates" href="/templates" onclick="if(_modClick(event))return;event.preventDefault();navTo('templates')">
-            <span class="header-nav-ico ico-templates" aria-hidden="true"></span>
-            Templates
-        </a>
-        <a class="header-nav-btn" id="navFilmingPlans" href="/filming-plans" onclick="if(_modClick(event))return;event.preventDefault();navTo('filming-plans')">
-            <span class="header-nav-ico ico-filmingplans" aria-hidden="true"></span>
-            Filming Plans
-        </a>
-        <a class="header-nav-btn" id="navWorkload" href="/workload" onclick="if(_modClick(event))return;event.preventDefault();navTo('workload')">
-            <span class="header-nav-ico ico-workload" aria-hidden="true"></span>
-            Workload
-        </a>
         <a class="header-nav-btn" id="navCalendar" href="/calendar" onclick="if(_modClick(event))return;event.preventDefault();navTo('calendar')">
             <span class="header-nav-ico ico-calendar" aria-hidden="true"></span>
             Calendar
@@ -8663,11 +8688,35 @@
             Samples
         </a>
         <!-- <<< SXR_END -->
-
-
+        <a class="header-nav-btn" id="navTemplates" href="/templates" onclick="if(_modClick(event))return;event.preventDefault();navTo('templates')">
+            <span class="header-nav-ico ico-templates" aria-hidden="true"></span>
+            Templates
+        </a>
+        <a class="header-nav-btn" id="navFilmingPlans" href="/filming-plans" onclick="if(_modClick(event))return;event.preventDefault();navTo('filming-plans')">
+            <span class="header-nav-ico ico-filmingplans" aria-hidden="true"></span>
+            Filming Plans
+        </a>
         <a class="header-nav-btn" id="navTiktokUpload" href="/tiktok-upload" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-upload')">
             <span class="header-nav-ico ico-tiktok" aria-hidden="true"></span>
             TikTok Upload
+        </a>
+        <a class="header-nav-btn active" id="navHome" href="/" onclick="if(_modClick(event))return;event.preventDefault();svOpenAnalytics()">
+            <span class="header-nav-ico ico-analytics" aria-hidden="true"></span>
+            Analytics
+        </a>
+        <!-- The six tabs above follow the shared top-bar client; the team tabs below ignore it. -->
+        <span class="header-nav-sep" aria-hidden="true"></span>
+        <a class="header-nav-btn" id="navWorkload" href="/workload" onclick="if(_modClick(event))return;event.preventDefault();navTo('workload')">
+            <span class="header-nav-ico ico-workload" aria-hidden="true"></span>
+            Workload
+        </a>
+        <a class="header-nav-btn" id="navProd" href="/synclinear" onclick="if(_modClick(event))return;event.preventDefault();navTo('production')">
+            <span class="header-nav-ico ico-synclinear" aria-hidden="true"></span>
+            SyncLinear
+        </a>
+        <a class="header-nav-btn" id="navLinear" href="/submit" onclick="if(_modClick(event))return;event.preventDefault();navTo('linear')">
+            <span class="header-nav-ico ico-submit" aria-hidden="true"></span>
+            Submit
         </a>
         <a class="header-nav-btn" id="navKasper" href="/kasper" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('kasper')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.5"/></svg>
@@ -11794,6 +11843,7 @@
     }
 
     function render(sel,clientOnly){
+        if (typeof svClientBarSync === 'function') svClientBarSync('home');   // client Analytics can be reached without navTo (hash, history)
         if(_isClientLink){
             const cap=_syncviewClientEntryCapability;
             if(!clientOnly||!cap||!cap.verified||_syncviewClientEntrySlug(sel)!==cap.slug){
@@ -11906,6 +11956,7 @@
     }
 
     function selectClient(name){
+        svSharedClientNote(name);
         const tab = 'analytics';
         clientViewTab[name] = tab;
         history.pushState({nav:currentNav, client:name, clientTab:tab},'','#'+encodeURIComponent(name));
@@ -11914,6 +11965,8 @@
     }
 
     window.addEventListener('popstate',(e)=>{
+        // Several branches below route without navTo; keep the client bar in step.
+        setTimeout(()=>{ if (typeof svClientBarSync === 'function') svClientBarSync(currentNav); },0);
         const state=e.state;
         if(_isClientLink){
             const cap=_syncviewClientEntryCapability;
@@ -13451,6 +13504,7 @@
     }
 
     function openClientTemplate(name) {
+        svSharedClientNote(name);
         _templatesSetSelected(name);
         _templatesSetActiveTab('reels');
         _templatesSetEditMode(false);
@@ -14413,6 +14467,8 @@
         const content = document.getElementById('content');
         if (content) { content.innerHTML = renderFilmingPlansView(); mountFilmingPlansView(); }
     }
+    // The shared top-bar client pre-fills the search before the page renders.
+    function _fpSetQueryQuiet(v) { _fpQuery = String(v || ''); }
     function _fpSetQuery(v) {
         _fpQuery = String(v || '');
         _fpRenderPage();
@@ -23389,6 +23445,7 @@
             requestAnimationFrame(() => activeHeaderNav.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
         }
         _navPillSync();
+        svClientBarSync(page);   // the shared client bar shows on client tabs only
         // The standalone Calendar page hides the page header (pageTop) and drops
         // the toolbar straight under the sticky nav, so the global .main top
         // gutter reads as dead space. Tag the body so we can tighten that band
@@ -23434,6 +23491,7 @@
         if (page !== 'sample-reviews' && typeof _sxrV2Teardown === 'function') _navTeardownSafe(_sxrV2Teardown); // SXR_LINE
         if (page !== 'workload' && typeof _wlV2Teardown === 'function') _navTeardownSafe(_wlV2Teardown);
 
+        svSharedClientApply(page, push);   // Templates / Filming Plans open on the shared client
         const state = {nav: page, client: null};
         // Templates keeps the selected client + active tab in the URL / history
         // state so a refresh or back/forward restores exactly where you were —
@@ -23552,6 +23610,242 @@
             render('all');
         }
     }
+
+    /* ONE CLIENT ACROSS THE SITE (owner decision 2026-09-27, option A).
+     *
+     * Staff used to re-pick the same client on every tab: Calendar and Samples
+     * each kept their own pinned client strip, Templates its own open client,
+     * TikTok Upload its own draft client, Filming Plans a typed search. Now one
+     * "current client" lives in the top bar above the tabs, with one-click
+     * buttons for the last three clients, and these tabs follow it:
+     *
+     *   Calendar, Samples, Templates, Filming Plans, TikTok Upload, Analytics.
+     *
+     * Team tabs (Workload, SyncLinear, Production, Submit, Kasper, the leave
+     * calendar, reports) ignore it on purpose: they are about people, not one client, and
+     * the bar is hidden there so nobody reads it as a filter.
+     *
+     * The client is a canonical roster display name (WL_CLIENT_NAMES), the same
+     * identity every following tab already stored. It is a per-browser
+     * convenience (localStorage), never sent anywhere.
+     *
+     * Client share links (?c=...) never show the bar and never read or write the
+     * shared client: every entry point below returns early on _isClientLink. A
+     * deep link that names a card (#calendar/<slug>/<card>) still wins over the
+     * shared client; opening it simply makes that client the shared one. */
+    const SV_SHARED_CLIENT_KEY = 'syncview_shared_client';
+    const SV_RECENT_CLIENTS_KEY = 'syncview_recent_clients';
+    const SV_RECENT_MAX = 4;   // current + the three shown as buttons
+    const SV_CLIENT_FOLLOW_TABS = ['calendar', 'sample-reviews', 'templates', 'filming-plans', 'tiktok-upload', 'home'];
+
+    function _svClientLinkMode() {
+        try { return !!_isClientLink; } catch (e) { return true; }   // unknown: stay out of the way
+    }
+    function _svStaffShell() {
+        const b = document.body;
+        return !_svClientLinkMode() && !!b && !b.classList.contains('intake-mode') && !b.classList.contains('onboarding-mode');
+    }
+    function svSharedClientGet() {
+        if (_svClientLinkMode()) return null;
+        try {
+            const v = localStorage.getItem(SV_SHARED_CLIENT_KEY);
+            return v && v.trim() ? v : null;
+        } catch (e) { return null; }
+    }
+    function svRecentClients() {
+        try {
+            const a = JSON.parse(localStorage.getItem(SV_RECENT_CLIENTS_KEY) || '[]');
+            return Array.isArray(a) ? a.filter(n => typeof n === 'string' && n.trim()).slice(0, SV_RECENT_MAX) : [];
+        } catch (e) { return []; }
+    }
+    // What a following tab should open on, or null (client link, or none picked).
+    function svSharedClientFor(page) {
+        if (!SV_CLIENT_FOLLOW_TABS.includes(page)) return null;
+        return svSharedClientGet();
+    }
+    function _svCanon(name) {
+        const s = String(name || '').trim();
+        if (!s) return null;
+        try { return wlCanonicalClient(s) || s; } catch (e) { return s; }
+    }
+    // A tab changed its own client (a deep link, the Analytics grid, the
+    // Templates index): remember it as the shared client. Never re-mounts.
+    function svSharedClientNote(name) {
+        if (_svClientLinkMode()) return;
+        const n = _svCanon(name);
+        if (!n) return;
+        try {
+            localStorage.setItem(SV_SHARED_CLIENT_KEY, n);
+            const rec = svRecentClients().filter(r => r !== n);
+            rec.unshift(n);
+            localStorage.setItem(SV_RECENT_CLIENTS_KEY, JSON.stringify(rec.slice(0, SV_RECENT_MAX)));
+        } catch (e) {}
+        svClientBarRender();
+    }
+    // The person picked a client in the top bar: remember it and re-open the
+    // tab they are on so it shows that client.
+    function svSharedClientPick(name) {
+        const n = _svCanon(name);
+        if (!n) return;
+        _svClientPopClose();
+        const before = svSharedClientGet();
+        svSharedClientNote(n);
+        if (before === n) return;
+        const page = currentNav;
+        if (page === 'home') { selectClient(n); return; }
+        if (!SV_CLIENT_FOLLOW_TABS.includes(page)) return;
+        svSharedClientApply(page, true);   // Templates / Filming Plans read it before the remount
+        navTo(page, false);
+    }
+    // Called by navTo before a tab mounts. Calendar, Samples and TikTok Upload
+    // read svSharedClientFor() in their own mount; the two below have no mount
+    // hook of their own. Only on a click (push): a refresh or Back restores the
+    // client already in the address.
+    function svSharedClientApply(page, push) {
+        const c = svSharedClientFor(page);
+        if (!c || !push) return;
+        if (page === 'templates') _templatesSetSelected(c);
+        else if (page === 'filming-plans') _fpSetQueryQuiet(c);
+    }
+    // The Analytics tab: overview when no client is picked, else that client.
+    function svOpenAnalytics() {
+        navTo('home');
+        const c = svSharedClientFor('home');
+        if (c && WL_CLIENT_NAMES.includes(c)) selectClient(c);
+    }
+
+    function _svClientHue(name) {
+        let h = 0;
+        const s = String(name || '');
+        for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+        return h;
+    }
+    function _svClientInitials(name) {
+        const words = String(name || '').split(/\s+/).filter(w => /[A-Za-z0-9]/.test(w.charAt(0)));
+        return (words.slice(0, 2).map(w => w.charAt(0)).join('') || '?').toUpperCase();
+    }
+    function _svClientDot(name) {
+        return `<span class="sv-client-dot" style="--sv-client-h:${_svClientHue(name)}" aria-hidden="true">${_calEsc(_svClientInitials(name))}</span>`;
+    }
+    function svClientBarRender() {
+        const bar = document.getElementById('svClientBar');
+        if (!bar) return;
+        const cur = svSharedClientGet();
+        const badge = document.getElementById('svClientBadgeLabel');
+        const dot = document.getElementById('svClientBadgeDot');
+        if (badge) badge.textContent = cur || 'Pick a client';
+        if (dot) dot.outerHTML = cur ? _svClientDot(cur).replace('class="sv-client-dot"', 'class="sv-client-dot" id="svClientBadgeDot"') : '<span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>';
+        const recent = svRecentClients().filter(r => r !== cur).slice(0, 3);
+        const wrap = document.getElementById('svClientRecent');
+        if (wrap) {
+            wrap.innerHTML = recent.map(r => `<button type="button" class="sv-client-recent-btn" data-sv-client="${_calEscAttr(r)}" title="Switch to ${_calEscAttr(r)}">${_svClientDot(r)}<span>${_calEsc(r)}</span></button>`).join('');
+        }
+        const label = document.getElementById('svClientRecentLabel');
+        if (label) label.hidden = !recent.length;
+    }
+    // Show the bar only on the tabs that follow it, and only for staff.
+    function svClientBarSync(page) {
+        const bar = document.getElementById('svClientBar');
+        if (!bar) return;
+        const show = _svStaffShell() && SV_CLIENT_FOLLOW_TABS.includes(page);
+        bar.hidden = !show;
+        document.body.classList.toggle('sv-shared-client', _svStaffShell());
+        if (!show) _svClientPopClose();
+        else svClientBarRender();
+    }
+
+    let _svClientActive = 0;
+    function _svClientMatches(q) {
+        const all = [...new Set(WL_CLIENT_NAMES.map(_svCanon).filter(Boolean))];
+        const needle = String(q || '').trim().toLowerCase();
+        if (!needle) return [];
+        const starts = all.filter(n => n.toLowerCase().startsWith(needle));
+        const has = all.filter(n => !starts.includes(n) && n.toLowerCase().includes(needle));
+        return starts.sort((a, b) => a.localeCompare(b)).concat(has.sort((a, b) => a.localeCompare(b))).slice(0, 8);
+    }
+    function _svClientRenderResults() {
+        const input = document.getElementById('svClientSearch');
+        const box = document.getElementById('svClientResults');
+        if (!input || !box) return;
+        const q = input.value;
+        const cur = svSharedClientGet();
+        const sections = [];
+        const matches = _svClientMatches(q);
+        if (q.trim()) sections.push({ title: 'Matches', names: matches });
+        const recent = svRecentClients().filter(r => r !== cur);
+        if (!q.trim()) sections.push({ title: 'Recent', names: recent });
+        const flat = sections.flatMap(s => s.names);
+        if (_svClientActive >= flat.length) _svClientActive = 0;
+        let i = 0;
+        let html = sections.map(s => `<div class="sv-client-sec">${s.title}</div>` + (s.names.length
+            ? s.names.map(n => { const idx = i++; return `<div class="sv-client-row${idx === _svClientActive ? ' is-active' : ''}" role="option" id="svClientOpt${idx}" aria-selected="${idx === _svClientActive}" data-sv-client="${_calEscAttr(n)}">${_svClientDot(n)}<span>${_calEsc(n)}</span></div>`; }).join('')
+            : `<div class="sv-client-none">${q.trim() ? 'No clients match' : 'Type to search every client'}</div>`)).join('');
+        box.innerHTML = html;
+        box._svFlat = flat;
+        if (flat.length) input.setAttribute('aria-activedescendant', 'svClientOpt' + _svClientActive);
+        else input.removeAttribute('aria-activedescendant');
+    }
+    function svClientPopToggle(e) {
+        if (e) e.stopPropagation();
+        const pop = document.getElementById('svClientPop');
+        if (!pop) return;
+        if (!pop.hidden) { _svClientPopClose(); return; }
+        // Fixed, not absolute: the bar scrolls sideways on a phone and would clip it.
+        const r = document.getElementById('svClientBadge')?.getBoundingClientRect();
+        if (r) {
+            const w = Math.min(320, window.innerWidth - 28);
+            pop.style.left = Math.max(14, Math.min(r.left, window.innerWidth - w - 14)) + 'px';
+            pop.style.top = Math.round(r.bottom) + 'px';
+        }
+        pop.hidden = false;
+        document.getElementById('svClientBadge')?.setAttribute('aria-expanded', 'true');
+        const input = document.getElementById('svClientSearch');
+        _svClientActive = 0;
+        if (input) { input.value = ''; _svClientRenderResults(); setTimeout(() => input.focus(), 0); }
+    }
+    function _svClientPopClose() {
+        const pop = document.getElementById('svClientPop');
+        if (!pop || pop.hidden) return;
+        pop.hidden = true;
+        document.getElementById('svClientBadge')?.setAttribute('aria-expanded', 'false');
+    }
+    function _svClientBarWire() {
+        const bar = document.getElementById('svClientBar');
+        if (!bar || bar.dataset.wired === '1') return;
+        bar.dataset.wired = '1';
+        bar.addEventListener('click', e => {
+            const pick = e.target.closest('[data-sv-client]');
+            if (pick) { e.preventDefault(); svSharedClientPick(pick.getAttribute('data-sv-client')); }
+        });
+        const input = document.getElementById('svClientSearch');
+        if (input) {
+            input.addEventListener('input', () => { _svClientActive = 0; _svClientRenderResults(); });
+            input.addEventListener('keydown', e => {
+                const flat = (document.getElementById('svClientResults') || {})._svFlat || [];
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (!flat.length) return;
+                    _svClientActive = (_svClientActive + (e.key === 'ArrowDown' ? 1 : -1) + flat.length) % flat.length;
+                    _svClientRenderResults();
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (flat[_svClientActive]) svSharedClientPick(flat[_svClientActive]);
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    _svClientPopClose();
+                    document.getElementById('svClientBadge')?.focus();
+                }
+            });
+        }
+        document.addEventListener('click', e => {
+            if (!e.target.closest('#svClientBadgeWrap')) _svClientPopClose();
+        });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _svClientBarWire);
+    else _svClientBarWire();
+
+    window.svClientPopToggle = svClientPopToggle;
+    window.svOpenAnalytics = svOpenAnalytics;
 
     /* ============================================================
        CLIENT ONBOARDING MODULE  (standalone, private-link page)
@@ -33559,6 +33853,8 @@
     }
     function _calOpenClientTab(name) {
         if (!name || calState.embedded || currentNav !== 'calendar') return;
+        // A card link names its client: that becomes the shared top-bar client.
+        if (typeof svSharedClientNote === 'function') svSharedClientNote(name);
         const pins = _calGetPins();
         if (!pins.includes(name)) { pins.unshift(name); _calSavePins(pins); }
         if (calState.client === name) { _calRenderTabs(); return; }
@@ -33675,11 +33971,16 @@
         // allowlist is sheet-driven and hasn't loaded yet on the calendar fast
         // path, so a sheet-only last client would otherwise be skipped here and
         // a different tab (or none) would open on every refresh.
+        // The shared top-bar client (095-shared-client) comes next: the
+        // client you were just on elsewhere is the one you meant.
+        else if (svSharedClientFor('calendar')) initial = svSharedClientFor('calendar');
         else if (prefs.client && pins.includes(prefs.client)) initial = prefs.client;
         else if (pins.length > 0) initial = pins[0];
         else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
+        if (initial && !pins.includes(initial)) { pins.unshift(initial); _calSavePins(pins); }
         if (focusClient && !pins.includes(focusClient)) { pins.unshift(focusClient); _calSavePins(pins); }
         _calSetClient(initial);
+        if (initial) svSharedClientNote(initial);
         calState.embedded = false;
         calState.view = _calFocusRequest ? 'organizer' : _calResolveInitialView(prefs.view);
         calState.zoom = _calNormZoom(prefs.zoom);
@@ -69310,10 +69611,12 @@
         const pins  = _sxrGetPins();
         let initial = null;
         if (_sxrFocusRequest && _sxrFocusRequest.client && wlIsAllowedClient(_sxrFocusRequest.client)) initial = _sxrFocusRequest.client;
+        else if (svSharedClientFor('sample-reviews')) initial = svSharedClientFor('sample-reviews');   // shared top-bar client
         else if (prefs.client && pins.includes(prefs.client)) initial = prefs.client;
         else if (pins.length > 0) initial = pins[0];
         else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
         sxrState.client = initial;
+        if (initial) { svSharedClientNote(initial); _sxrPinClient(initial); }
         sxrState.embedded = false;
         sxrState.view = (_sxrFocusRequest ? 'organizer' : (prefs.view === 'smmreview' ? 'smmreview' : 'organizer'));
         sxrState.zoom = _sxrNormZoom(prefs.zoom);
@@ -69547,6 +69850,7 @@
     function onSxrClientChange(name) {
         if (typeof _sxrFlushAllPending === 'function') _sxrFlushAllPending();
         sxrState.client = name;
+        svSharedClientNote(name);
         _sxrResetSelection();
         sxrState.posts = [];
         _sxrSavePrefs();
@@ -77236,6 +77540,7 @@
     }
     function _tkPickClient(name) {
         tkState.client = name || null;
+        if (tkState.client) svSharedClientNote(tkState.client);
         const r = _tkResolveProfile(tkState.client);
         tkState.profile = r.profile;
         tkState.profileSource = r.source;
@@ -78293,6 +78598,12 @@
 
     function mountTiktokUploadView() {
         _tkLoadDraft();
+        // Follow the shared top-bar client, unless a half-filled upload for
+        // another client is in the draft: never move a file to a different
+        // client's TikTok account behind the person's back.
+        const shared = svSharedClientFor('tiktok-upload');
+        const draftInProgress = !!(tkState.title || tkState.fileMeta || (tkState.photosMeta && tkState.photosMeta.length));
+        if (shared && shared !== tkState.client && WL_CLIENT_NAMES.includes(shared) && !draftInProgress) { tkState.client = shared; _tkSaveDraft(); }
         if (tkState.client) {
             const r = _tkResolveProfile(tkState.client);
             tkState.profile = r.profile;

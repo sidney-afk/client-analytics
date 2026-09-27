@@ -1,5 +1,5 @@
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, SMM_WEEKLY_REPORTS_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
-import { wlNormalizeClient } from './070-workload-source.js';
+import { svClientKey, svCurrentClients, svRosterEntryFor, svSmmCurrentClients } from './098-smm-clients.js';
 import { _srpState } from './110-time-off-reports.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _calSetFocusRequest } from './130-calendar-model-cache.js';
@@ -21,13 +21,12 @@ import { navTo } from './090-workload-popovers-navigation.js';
      *   Video and graphics: their own queue (urgent, changes, to do) as a list
      *     or a deck. Editors work in SyncLinear, so rows only open SyncLinear.
      *
-     * Client ownership: the SMM roster SyncLinear's "Social media manager" card
-     * reads (social_media_managers, copied nightly from the owner's roster
-     * sheet; each SMM lists the clients they own). An SMM sees only their own
-     * clients; an admin sees every client, including ones no SMM lists. If the
-     * roster cannot be read the page says so and offers a retry; an SMM who is
-     * not on the roster is told so and shown no clients, because a client with
-     * no SMM listed belongs to admins only. Today is a team tab: it ignores
+     * Client scope follows the one shared rule in 098-smm-clients (the same
+     * rule the client dropdown's "My clients" uses): only current Clients Info
+     * clients; an SMM sees the ones the SMM roster lists for them; an admin sees
+     * all of them. An SMM with no clients listed gets a short note. If the
+     * roster or Clients Info cannot be read, the page says so and offers a
+     * retry rather than guessing. Today is a team tab: it ignores
      * the shared client, but opening a card makes that card's client current. */
     const TDY_VIEW_KEY = 'syncview_today_view';
     const TDY_OPEN = ['todo', 'in_progress', 'tweak', 'smm_approval'];
@@ -107,24 +106,21 @@ import { navTo } from './090-workload-popovers-navigation.js';
             return data.managers;
         } catch (e) { return null; }
     }
-    /* The roster names people as the sheet does; staff sign in by roster
-       member. Match on email first, then full name, then a first name that
-       only one roster entry carries. */
-    async function _tdyMyClients(me) {
+    /* The current Clients Info clients this person may see: every one for an
+       admin, the roster's list for an SMM (see 098-smm-clients). */
+    async function _tdyVisibleClients(me) {
+        const current = svCurrentClients();
+        if (!current.size) throw new Error('clients');
+        if (me.role === 'admin') return { keys: new Set(current.keys()), notListed: false };
         const managers = await _tdyRoster();
         if (!managers) throw new Error('roster');
         let email = '';
         try {
             const rows = await _tdyRest('team_members', 'select=email&id=eq.' + encodeURIComponent(me.id));
-            email = String(rows[0] && rows[0].email || '').trim().toLowerCase();
+            email = String(rows[0] && rows[0].email || '');
         } catch (e) {}
-        const norm = v => String(v || '').trim().toLowerCase();
-        const byFirst = managers.filter(m => norm(m.name).split(/\s+/)[0] === norm(me.first));
-        const mine = (email && managers.find(m => norm(m.email) === email))
-            || managers.find(m => norm(m.name) === norm(me.name))
-            || (byFirst.length === 1 ? byFirst[0] : null);
-        if (!mine) return new Set();
-        return new Set((Array.isArray(mine.source_clients) ? mine.source_clients : []).map(wlNormalizeClient).filter(Boolean));
+        const mine = svSmmCurrentClients(svRosterEntryFor(managers, { email, name: me.name }), current);
+        return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0 };
     }
     async function _tdyLoad(me) {
         const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
@@ -147,11 +143,8 @@ import { navTo } from './090-workload-popovers-navigation.js';
             }
             return { names, open: open.filter(r => child(r) && (r.status === 'tweak' || _tdyFresh(r))), done: done.filter(child), urgent };
         }
-        const active = clients.filter(c => c.active !== false);
-        const mineSet = me.role === 'admin' ? null : await _tdyMyClients(me);
-        const scope = (mineSet
-            ? active.filter(c => mineSet.has(wlNormalizeClient(c.display_name)) || mineSet.has(wlNormalizeClient(c.slug)))
-            : active).map(c => c.slug);
+        const visible = await _tdyVisibleClients(me);
+        const scope = clients.filter(c => visible.keys.has(svClientKey(c.display_name)) || visible.keys.has(svClientKey(c.slug))).map(c => c.slug);
         const inScope = r => scope.includes(r.client_slug || r.client);
         const today = _tdyIso(_tdyDays(0));
         const [open, done, posts] = await Promise.all([
@@ -160,7 +153,7 @@ import { navTo } from './090-workload-popovers-navigation.js';
             _tdyRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
                 + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)')
         ]);
-        return { names, notListed: !!mineSet && mineSet.size === 0, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
+        return { names, notListed: visible.notListed, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
     }
 
     /* ---------- small pieces ---------- */
@@ -352,7 +345,7 @@ import { navTo } from './090-workload-popovers-navigation.js';
             tdyState.who = me.id + '|' + me.role;
         } catch (e) {
             if (gen !== tdyState.gen) return;
-            tdyState.error = e && e.message === 'roster' ? 'Your client list could not be read. Try again in a moment.' : 'Check your connection and try again.';
+            tdyState.error = e && (e.message === 'roster' || e.message === 'clients') ? 'Your client list could not be read. Try again in a moment.' : 'Check your connection and try again.';
         }
         _tdyPaint();
     }

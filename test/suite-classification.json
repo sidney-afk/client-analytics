@@ -520,6 +520,7 @@
     "setall-skips-what-it-cannot-set.js",
     "shadow-audit-attribution-classes.js",
     "slice5-test-drills.js",
+    "smm-client-match.js",
     "smm-review-stranded-media.js",
     "smm-weekly-auth.js",
     "smm-weekly-routing-source.js",

@@ -13,6 +13,7 @@
 095-shared-client.js.part
 096-quick-jump.js.part
 097-today.js.part
+098-smm-clients.js.part
 100-onboarding-staff-controls.js.part
 110-time-off-reports.js.part
 120-calendar-flags-write-repair.js.part

@@ -24238,13 +24238,12 @@
      *   Video and graphics: their own queue (urgent, changes, to do) as a list
      *     or a deck. Editors work in SyncLinear, so rows only open SyncLinear.
      *
-     * Client ownership: the SMM roster SyncLinear's "Social media manager" card
-     * reads (social_media_managers, copied nightly from the owner's roster
-     * sheet; each SMM lists the clients they own). An SMM sees only their own
-     * clients; an admin sees every client, including ones no SMM lists. If the
-     * roster cannot be read the page says so and offers a retry; an SMM who is
-     * not on the roster is told so and shown no clients, because a client with
-     * no SMM listed belongs to admins only. Today is a team tab: it ignores
+     * Client scope follows the one shared rule in 098-smm-clients (the same
+     * rule the client dropdown's "My clients" uses): only current Clients Info
+     * clients; an SMM sees the ones the SMM roster lists for them; an admin sees
+     * all of them. An SMM with no clients listed gets a short note. If the
+     * roster or Clients Info cannot be read, the page says so and offers a
+     * retry rather than guessing. Today is a team tab: it ignores
      * the shared client, but opening a card makes that card's client current. */
     const TDY_VIEW_KEY = 'syncview_today_view';
     const TDY_OPEN = ['todo', 'in_progress', 'tweak', 'smm_approval'];
@@ -24324,24 +24323,21 @@
             return data.managers;
         } catch (e) { return null; }
     }
-    /* The roster names people as the sheet does; staff sign in by roster
-       member. Match on email first, then full name, then a first name that
-       only one roster entry carries. */
-    async function _tdyMyClients(me) {
+    /* The current Clients Info clients this person may see: every one for an
+       admin, the roster's list for an SMM (see 098-smm-clients). */
+    async function _tdyVisibleClients(me) {
+        const current = svCurrentClients();
+        if (!current.size) throw new Error('clients');
+        if (me.role === 'admin') return { keys: new Set(current.keys()), notListed: false };
         const managers = await _tdyRoster();
         if (!managers) throw new Error('roster');
         let email = '';
         try {
             const rows = await _tdyRest('team_members', 'select=email&id=eq.' + encodeURIComponent(me.id));
-            email = String(rows[0] && rows[0].email || '').trim().toLowerCase();
+            email = String(rows[0] && rows[0].email || '');
         } catch (e) {}
-        const norm = v => String(v || '').trim().toLowerCase();
-        const byFirst = managers.filter(m => norm(m.name).split(/\s+/)[0] === norm(me.first));
-        const mine = (email && managers.find(m => norm(m.email) === email))
-            || managers.find(m => norm(m.name) === norm(me.name))
-            || (byFirst.length === 1 ? byFirst[0] : null);
-        if (!mine) return new Set();
-        return new Set((Array.isArray(mine.source_clients) ? mine.source_clients : []).map(wlNormalizeClient).filter(Boolean));
+        const mine = svSmmCurrentClients(svRosterEntryFor(managers, { email, name: me.name }), current);
+        return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0 };
     }
     async function _tdyLoad(me) {
         const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
@@ -24364,11 +24360,8 @@
             }
             return { names, open: open.filter(r => child(r) && (r.status === 'tweak' || _tdyFresh(r))), done: done.filter(child), urgent };
         }
-        const active = clients.filter(c => c.active !== false);
-        const mineSet = me.role === 'admin' ? null : await _tdyMyClients(me);
-        const scope = (mineSet
-            ? active.filter(c => mineSet.has(wlNormalizeClient(c.display_name)) || mineSet.has(wlNormalizeClient(c.slug)))
-            : active).map(c => c.slug);
+        const visible = await _tdyVisibleClients(me);
+        const scope = clients.filter(c => visible.keys.has(svClientKey(c.display_name)) || visible.keys.has(svClientKey(c.slug))).map(c => c.slug);
         const inScope = r => scope.includes(r.client_slug || r.client);
         const today = _tdyIso(_tdyDays(0));
         const [open, done, posts] = await Promise.all([
@@ -24377,7 +24370,7 @@
             _tdyRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
                 + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)')
         ]);
-        return { names, notListed: !!mineSet && mineSet.size === 0, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
+        return { names, notListed: visible.notListed, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
     }
 
     /* ---------- small pieces ---------- */
@@ -24569,7 +24562,7 @@
             tdyState.who = me.id + '|' + me.role;
         } catch (e) {
             if (gen !== tdyState.gen) return;
-            tdyState.error = e && e.message === 'roster' ? 'Your client list could not be read. Try again in a moment.' : 'Check your connection and try again.';
+            tdyState.error = e && (e.message === 'roster' || e.message === 'clients') ? 'Your client list could not be read. Try again in a moment.' : 'Check your connection and try again.';
         }
         _tdyPaint();
     }
@@ -24611,6 +24604,73 @@
     window._tdyOpenSync = _tdyOpenSync;
     window._tdyOpenCard = _tdyOpenCard;
     window.mountTodayView = mountTodayView;
+
+    /* WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the
+     * main-bar client dropdown's "My clients", so the two can never disagree
+     * (owner decision 2026-09-27).
+     *
+     *   1. Only CURRENT clients count: a client is current when it has a row in
+     *      Clients Info (clientMap, the list the rest of SyncView reads). A
+     *      former client leaves that sheet, so it disappears here whatever the
+     *      SMM roster still says.
+     *   2. The SMM roster (social_media_managers, the nightly copy of the
+     *      owner's roster sheet; SyncLinear's "Social media manager" card reads
+     *      it too) says which clients each SMM owns. Roster rows marked
+     *      inactive are former SMMs and are ignored.
+     *   3. Roster and Clients Info spell names differently, so both sides go
+     *      through svClientKey: titles (Dr, Dr.), "&" versus "and",
+     *      punctuation, accents, case and spacing are all ignored.
+     *   4. An admin sees every current client. A current client that no active
+     *      SMM lists is shown to admins only.
+     *
+     * Everything here is pure over its inputs except svCurrentClients, which
+     * reads the loaded Clients Info rows. */
+    const SV_CLIENT_TITLES = /^(?:dr|doctor|mr|mrs|ms|miss|prof|professor)\.?\s+/;
+    function svClientKey(name) {
+        let t = String(name == null ? '' : name).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+        t = t.replace(SV_CLIENT_TITLES, '');
+        t = t.replace(/&/g, ' and ');
+        return t.replace(/[^a-z0-9]+/g, '');
+    }
+    /* Current clients as Map(key -> Clients Info name). Empty until Clients
+       Info has loaded; callers treat empty as "not known yet", never as "no
+       clients". */
+    function svCurrentClients(names) {
+        const list = Array.isArray(names) ? names : Object.keys(clientMap || {});
+        const out = new Map();
+        for (const n of list) { const k = svClientKey(n); if (k && !out.has(k)) out.set(k, String(n).trim()); }
+        return out;
+    }
+    function svActiveManagers(managers) {
+        return (Array.isArray(managers) ? managers : []).filter(m => m && m.active !== false && String(m.name || '').trim());
+    }
+    /* The roster entry for a signed-in staff member: email first, then full
+       name, then a first name only one active roster entry carries. */
+    function svRosterEntryFor(managers, member) {
+        const norm = v => String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        const list = svActiveManagers(managers);
+        const email = norm(member && member.email);
+        const name = norm(member && member.name);
+        const first = name.split(' ')[0];
+        const byFirst = first ? list.filter(m => norm(m.name).split(' ')[0] === first) : [];
+        return (email && list.find(m => norm(m.email) === email))
+            || (name && list.find(m => norm(m.name) === name))
+            || (byFirst.length === 1 ? byFirst[0] : null);
+    }
+    /* The current clients one roster entry owns, as Clients Info names. */
+    function svSmmCurrentClients(entry, current) {
+        if (!entry) return [];
+        const cur = current instanceof Map ? current : svCurrentClients();
+        const owned = new Set((Array.isArray(entry.source_clients) ? entry.source_clients : []).map(svClientKey).filter(Boolean));
+        return [...cur].filter(([k]) => owned.has(k)).map(([, n]) => n);
+    }
+    /* Current clients no active SMM lists: admins only. */
+    function svUnownedCurrentClients(managers, current) {
+        const cur = current instanceof Map ? current : svCurrentClients();
+        const owned = new Set();
+        for (const m of svActiveManagers(managers)) for (const c of (Array.isArray(m.source_clients) ? m.source_clients : [])) owned.add(svClientKey(c));
+        return [...cur].filter(([k]) => !owned.has(k)).map(([, n]) => n);
+    }
 
     /* ============================================================
        CLIENT ONBOARDING MODULE  (standalone, private-link page)

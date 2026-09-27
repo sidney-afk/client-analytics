@@ -11,6 +11,9 @@ const {
   submitRequest,
   refreshStaff,
   refreshAdmin,
+  confirmWrite,
+  clickAndAwaitOverview,
+  awaitOverviewAfter,
   waitStaffReady,
   waitAdminReady,
   requestRow,
@@ -712,8 +715,7 @@ async function runDesktopLifecycle(harness, sessions, coverage) {
     label: 'confirm admin cancellation',
     expected: 'The approved block disappears from Upcoming Leave and history preserves both approval and cancellation attribution.',
     action: async page => {
-      await page.locator('#confirmYes').click();
-      await waitAdminReady(page);
+      await confirmWrite(page, 'admin');
     },
     see: async page => {
       assert(await upcomingAdminRowLocator(page, {
@@ -1071,8 +1073,7 @@ async function runDesktopLifecycle(harness, sessions, coverage) {
     label: 'confirm own pending cancellation',
     expected: 'The pending request becomes Cancelled and the balance/calendar remain unchanged.',
     action: async page => {
-      await page.locator('#confirmYes').click();
-      await waitStaffReady(page);
+      await confirmWrite(page, 'staff');
     },
     see: async page => {
       await requestRow(page, { ...request.pendingCancel, status: 'cancelled' });
@@ -1258,7 +1259,7 @@ async function runResilience(harness, sessions, coverage) {
     session: staff,
     label: 'retry succeeds after 500',
     expected: 'The unchanged form retries successfully and the pending row appears once.',
-    action: p => p.locator('#ptoSubmit').click(),
+    action: p => clickAndAwaitOverview(p, '#ptoSubmit', 'staff'),
     see: async p => {
       await waitStaffReady(p);
       await requestRow(p, { ...retry500, status: 'pending' });
@@ -1524,8 +1525,8 @@ async function runResilience(harness, sessions, coverage) {
       const before = backend.calls.filter(call => call.action === 'request').length;
       const box = await p.locator('#ptoSubmit').boundingBox();
       assert(box, 'submit button has a clickable box');
-      await p.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2, { delay: 20 });
-      await waitStaffReady(p);
+      await awaitOverviewAfter(p, 'staff',
+        () => p.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2, { delay: 20 }));
       const after = backend.calls.filter(call => call.action === 'request').length;
       assert(after - before === 1, 'double-click emitted exactly one request call');
     },
@@ -2357,8 +2358,7 @@ async function runKeyboardJourney(harness, sessions, coverage) {
     label: 'keyboard submits request',
     expected: 'Enter sends exactly one request and lands on a visible Pending row.',
     action: async p => {
-      await p.keyboard.press('Enter');
-      await waitStaffReady(p);
+      await awaitOverviewAfter(p, 'staff', () => p.keyboard.press('Enter'));
     },
     see: async p => {
       await requestRow(p, { ...keyboardRequest, status: 'pending' });
@@ -2445,8 +2445,7 @@ async function runKeyboardJourney(harness, sessions, coverage) {
     label: 'keyboard denies request',
     expected: 'Enter saves exactly one denial and the Recent Decisions count updates.',
     action: async p => {
-      await p.keyboard.press('Enter');
-      await waitAdminReady(p);
+      await awaitOverviewAfter(p, 'admin', () => p.keyboard.press('Enter'));
     },
     see: async p => {
       exactBackendRequest(backend, {

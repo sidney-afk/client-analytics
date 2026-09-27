@@ -1,11 +1,11 @@
 # SyncView
 
-**Corrected 2026-09-21:** Linear was retired as a work surface at the 2026-09-20 cutoff. Staff work in SyncView; normal outbound writes and legacy parity are off. The inbound webhook remains, and STEP 7 credential revocation is still owner-gated. The introduction, Workload and integration descriptions below retain the earlier topology. Workload is native, and production work no longer depends on a Linear task or an outbound mirror. See [cutoff record](docs/ops/LINEAR_CUTOFF_RUNBOOK.md).
+**Current state (2026-09-26):** Staff work in SyncView, including the native Workload board. Linear is off: its Edge Functions are not deployed and its API keys were revoked on 2026-09-23 per the dated live check in STATE_OF_THINGS (the cutoff runbook's STEP 7). `docs/ops/LINEAR_CUTOFF_RUNBOOK.md`, `ROLLBACK.md` and some `docs/truth/` headers predate that check and still describe STEP 7 as pending; treat STATE_OF_THINGS as current. Older Linear-named source and records remain for history and compatibility. See [State of things](docs/STATE_OF_THINGS.md) for the dated live check.
 
 SyncView is the internal client-operations dashboard for Synchro Social — a single-page
 web app for running the content pipeline end to end: planning the content calendar,
 reviewing samples and thumbnails, tracking YouTube title review, handling client
-onboarding, and keeping everything in sync with Linear.
+onboarding, and managing production work.
 
 **Live:** <https://syncview.synchrosocial.com> — served via GitHub Pages from `index.html` on `main`.
 
@@ -32,19 +32,20 @@ onboarding, and keeping everything in sync with Linear.
   under the current shared-role-key identity model; individually revocable staff
   sessions remain post-launch security hardening, not a launch prerequisite.
   See `docs/features/PTO_TRACKER.md`.
-- **Workload view** — derived per-person workload, rebuilt from Linear. Work
-  that is terminal in Linear does not consume capacity: completed, canceled,
+- **Workload view** — per-person workload from the native snapshot. Work
+  that is terminal does not consume capacity: completed, canceled,
   triage and **duplicate** are all excluded, matching what the Production
   surface already treats as done.
-- **Linear sync** — two-way status sync between the calendar and Linear issues.
+- **Production / Sync** — native staff work on deliverables, including status,
+  comments, due dates and assignments.
 - **Analytics** — follower/engagement metrics, top videos, and competitor /
   market-research briefs.
 
 ## Architecture
 
-The entire front end is one file, `index.html` (~2 MB): an inline-`<script>` SPA with
-no build step. A tiny **pre-paint boot gate** script in `<head>` re-derives the boot
-mode (onboarding form, `?intake=1`, `?c=` client links, password gate, hash-tab
+The served front end is one file, `index.html`, assembled from ordered `src/index/`
+fragments with `npm run build:index`. A tiny **pre-paint boot gate** script in
+`<head>` re-derives the boot mode (onboarding form, `?intake=1`, `?c=` client links, password gate, hash-tab
 refresh) from the URL + storage before any body markup exists and tags `<html>`,
 so the staff dashboard chrome never flashes on special entries; the app script lifts
 each tag when its own routing takes over (the onboarding/intake tags are permanent,
@@ -57,43 +58,46 @@ like the body classes they anticipate). The app talks to three backends.
    are projected only through a role-key-authenticated Edge Function. D-36 accepts the residual
    same-role impersonation risk for this launch; individual identity binding remains a documented
    post-launch hardening item. Other reads come straight from the
-   Supabase REST API; updates arrive over realtime channels (no polling — an idle tab
-   makes no calls). The browser uses a committed publishable (anon) key; row-level
+   Supabase REST API; realtime channels and freshness polling update different
+   surfaces. The browser uses a committed publishable (anon) key; row-level
    security controls direct table access, while privileged writes go through n8n or
    Supabase Edge Functions using service-role credentials.
-2. **n8n** (`synchrosocial.app.n8n.cloud`) — the write / integration layer. Webhooks
-   handle saves, reorders, onboarding submissions, SMM roster sync/reminders, and the Linear ⇄ Supabase sync.
-   Writers also dual-write to Google Sheets, so the Sheet stays a human-readable mirror
-   and a lossless rollback path.
-3. **Google Sheets** (via the `gviz` CSV endpoint) — still the source of truth for the
-   **analytics** data that was never migrated: Metrics, Clients Info, TopVideos,
-   Competitor / Market-Research Briefs, ContentSummaries, FilmingPlans, and the
-   Social-Media-Manager map.
+2. **n8n** (`synchrosocial.app.n8n.cloud`) — webhooks and integrations for selected
+   saves, onboarding, reminders and other workflows. The retired Linear sync is
+   historical; see [State of things](docs/STATE_OF_THINGS.md) for current lane status.
+3. **Google Sheets** (via the `gviz` CSV endpoint) — still serves selected
+   analytics and profile reads: Metrics, Clients Info, TopVideos, Competitor /
+   Market-Research Briefs, ContentSummaries, FilmingPlans, and the
+   Social-Media-Manager map. The Supabase mirror write is on and backfilled, but
+   mirror READ is off and its enrollment contains only the TEST client;
+   `client_profiles_authority` remains `sheet`. See the dated
+   [State of things](docs/STATE_OF_THINGS.md) before changing a read path.
 
-> **Migration history:** the calendar and samples features were moved from Google Sheets
-> to Supabase (dual-write → hidden flag → flip-default) in June 2026. For those features
-> the Sheet now survives only as an automatic fallback if Supabase is unreachable; for
-> analytics it remains the live source. See `docs/archive/CALENDAR_REALTIME_MIGRATION.md`,
-> `docs/archive/SAMPLES_SUPABASE_KICKOFF.md`, and the current source of truth `docs/archive/AUDIT_2026-06-15.md`.
+> **Migration history:** Calendar and Samples moved from Google Sheets to Supabase
+> in June 2026. `docs/archive/CALENDAR_REALTIME_MIGRATION.md` and
+> `docs/archive/SAMPLES_SUPABASE_KICKOFF.md` describe that migration, not today's
+> fallback contract. Use `docs/STATE_OF_THINGS.md` and `docs/truth/SHEETS.md`
+> for current data-source status.
 
 ## Repository layout
 
-The full annotated map lives in **`REPO_MAP.md`** (enforced by
-`test/repo-map-sync.js`, so it cannot go stale). The short version:
+The full annotated map lives in **`REPO_MAP.md`**. `test/repo-map-sync.js`
+checks top-level entries, `docs/` subdirectories and eligible backticked paths; factual
+status still needs the dated [State of things](docs/STATE_OF_THINGS.md). The short version:
 
 | Path | What it is |
 |---|---|
 | `index.html` | The entire application. |
-| `test/` | Fast, offline unit/wiring tests that extract and exercise pieces of the inline script. Run with `npm test`. |
-| `qa/` | Headless (Playwright) end-to-end probes against the live backend. Run with `npm run test:e2e`. |
-| `scripts/` | CI reconcile jobs (Linear ⇄ calendar/samples) and tested one-shot ops tools. |
-| `.github/workflows/` | CI: unit tests on every push, nightly E2E, the Production polish gate, reconcile crons, and scoped Edge-Function deploys. |
+| `test/` | Classified unit, browser and disposable Postgres suites. `npm test` runs the unit lane and reports required isolated profiles separately. |
+| `qa/` | Headless browser checks, including mocked rigs and live TEST-scope probes. `npm run test:e2e` runs probes against the live backend. |
+| `scripts/` | Build tools, tests, read-only monitors and one-shot operator tools. |
+| `.github/workflows/` | CI checks, nightly probes, monitoring and scoped Edge Function release workflows. |
 | `migrations/` | One-time, **manually applied** Supabase SQL-editor migrations, kept for provenance — there is no auto-runner. See `migrations/README.md`. |
-| `supabase/` | Supabase CLI config + Edge Function sources (path-triggered deploys). |
+| `supabase/` | Supabase CLI config and Edge Function sources; release lanes vary by function. |
 | `n8n-backups/` | Point-in-time snapshots of the n8n workflows (rollback anchors). |
-| `docs/features/` | Living design/spec doc for each shipped feature. |
+| `docs/features/` | Feature contracts and plans, with status in each document. |
 | `docs/ops/` | Runbooks: new-client onboarding, reconcile safety net, monitoring. |
-| `docs/independence/` | The active independence program (Track A/B specs and plan). |
+| `docs/independence/` | Linear-exit plans, evidence and handoffs; use `docs/STATE_OF_THINGS.md` for current state. |
 | `docs/testing/` | Test catalog, headless-testing guide, prod-polish automation. |
 | `docs/archive/` | Completed migrations, superseded plans, old audits and QA reports. |
 | `docs/syncview-design/` | The locked Production-tab design kit + its wired test gates. |
@@ -101,13 +105,18 @@ The full annotated map lives in **`REPO_MAP.md`** (enforced by
 
 ## Development
 
-No build step. Open `index.html` in a browser, or serve the folder statically.
+Serve the repository statically to preview the current `index.html`. After editing
+any `src/index/` fragment, rebuild and commit the served output. Run
+`npm run check:index` after that commit: it compares assembled, working-tree and
+committed bytes.
 
 ```bash
-npm install        # installs Playwright (only needed for the E2E probes)
-npm test           # offline unit/wiring suite — no network; run before every commit
-npm run test:e2e   # headless end-to-end probes (these hit the live backend)
-npm run test:prod-polish  # full Production polish gate for ?prod=1 UI work
+npm install           # installs the development and test dependencies
+npm run build:index   # after changing src/index/ fragments
+npm test              # offline unit/wiring suite; run before every commit
+npm run check:index   # after committing source and rebuilt output
+npm run test:e2e      # live TEST-scope probes; may write test data
+npm run test:prod-polish  # Production gate for ?prod=1 UI work; includes live reads
 ```
 
 ## Deployment

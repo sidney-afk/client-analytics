@@ -1407,3 +1407,22 @@ browser-key access): `alter table public.batches_parent_claim_backup_20260824
 disable row level security; grant select, insert, update, delete, truncate,
 references, trigger, maintain on table public.batches_parent_claim_backup_20260824
 to anon, authenticated;` No flag, Edge Function, n8n or row data is involved.
+
+## 2026-09-26 — kill switch for Production live updates (OPEN_REPAIRS 263; browser only)
+
+Production (`?prod=1`) subscribes to realtime changes on `deliverables`,
+`batches` and `deliverable_events` and slows its poll to 90 s while the channel
+is SUBSCRIBED. To turn ONLY the realtime path off and return to the old 30 s
+poll, without disabling Production:
+
+- **Everyone, one step:** `insert into public.syncview_runtime_flags (key, value)
+  values ('prod_realtime', '{"enabled": false}') on conflict (key) do update set
+  value = excluded.value;` Open tabs pick it up within 5 minutes or on the next
+  Production open; the channel is removed and the poll returns to 30 s.
+- **One browser:** in the console, `localStorage.setItem('syncview.prodRealtime', 'off')`,
+  then reopen Production. Undo with `localStorage.removeItem('syncview.prodRealtime')`.
+- **Re-enable:** set the value to `{"enabled": true}` or delete the row. A
+  missing row or a failed flag read means ON.
+- **Check:** `prodRtStatus()` shows `status: "disabled"` and `pollMs: 30000`.
+- **Full inverse:** revert the PR (GitHub Pages redeploys on push). No database
+  object, Edge Function or n8n state was created or changed.

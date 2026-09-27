@@ -38,11 +38,6 @@ line is older than a week, re-check it before relying on it.
 
 ## Needs a session
 
-- **CLAUDE.md deploy-lane table is stale.** `linear-inbound` and `linear-outbound`
-  are deleted (not in the live function list), `deploy-f27-linear-inbound.yml`
-  no longer exists, and the Section 4 lane now releases **three** functions
-  (`production-write`, `deliverable-write`, `batch-write`), not four. The owner's
-  capture script needs `--slugs=production-write,deliverable-write,batch-write`.
 - **Duplicate ledger numbers in OPEN_REPAIRS:** 13, 14, 22, 23, 175, 176, 177,
   180 each appear twice, and 220 sits before 218/219. Append a renumbering
   note; never rewrite.
@@ -90,6 +85,13 @@ line is older than a week, re-check it before relying on it.
 
 ## Done (was listed as open somewhere)
 
+- **F27 capture guidance already names the three-function closure.** Read-only
+  source check on 2026-09-26: `CLAUDE.md` and the Section 4 workflow both name
+  `production-write`, `deliverable-write`, `batch-write`, and the old Linear
+  inbound lane is absent. The saved `%USERPROFILE%\.syncview\f27-capture.ps1`
+  also contains exactly `--slugs=production-write,deliverable-write,batch-write`
+  and no Linear slug. This confirms the saved script text, not a fresh capture,
+  bundle readback, or deployment; follow the fresh-capture gate before dispatch.
 - **Linear is fully off.** No `linear-*` Edge Function is deployed
   (`linear-inbound`, `linear-outbound`, `workload-linear` all gone); all Linear
   API keys revoked 2026-09-23 (the runbook's STEP 7, which some docs still call

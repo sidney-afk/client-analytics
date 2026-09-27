@@ -266,4 +266,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     window.svClientPopToggle = svClientPopToggle;
     window.svOpenAnalytics = svOpenAnalytics;
 
-export { svClientBarSync, svSharedClientApply, svSharedClientFor, svSharedClientNote };
+export {
+  SV_CLIENT_FOLLOW_TABS, svClientBarSync, svOpenAnalytics, svSharedClientApply, svSharedClientFor,
+  svSharedClientGet, svSharedClientNote
+};

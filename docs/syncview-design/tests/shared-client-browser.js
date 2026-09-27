@@ -208,8 +208,20 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
         all.forEach(n => { if (!WL_CLIENT_NAMES.includes(n)) WL_CLIENT_NAMES.push(n); });
         _kasperState.smmByClient = new Map(mine.map(n => [wlNormalizeClient(n), { name: 'Qa' }]));
       }, { all, mine: MINE });
-      const pick = async name => {
+      // Open the dropdown from a known closed state and wait for focus. An
+      // Escape pressed before the search box had focus left it open on CI,
+      // so the next badge click closed it and the checks read a stale render.
+      const closePop = async () => {
+        await page.evaluate(() => { if (!document.getElementById('svClientPop').hidden) _svClientPopClose(); });
+        await page.waitForFunction(() => document.getElementById('svClientPop').hidden, null, { timeout: 5000 });
+      };
+      const openPop = async () => {
+        await closePop();
         await page.click('#svClientBadge');
+        await page.waitForFunction(() => !document.getElementById('svClientPop').hidden && document.activeElement && document.activeElement.id === 'svClientSearch', null, { timeout: 5000 });
+      };
+      const pick = async name => {
+        await openPop();
         await page.fill('#svClientSearch', name);
         await page.keyboard.press('Enter');
         await page.waitForTimeout(300);
@@ -223,13 +235,13 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       const labels = () => page.$$eval('#svClientResults .sv-client-sec', els => els.map(e => ({ t: e.textContent.trim(), tt: getComputedStyle(e).textTransform })));
 
       // Admin (the seeded identity): no My clients, Recent capped at three.
-      await page.click('#svClientBadge');
+      await openPop();
       let rows = await sections();
       expect(rows.every(r => r.sec === 'recent'), 'admin: only Recent should show');
       expect(rows.length === 3, `admin: Recent should hold three rows, got ${rows.length}`);
       expect(rows[0].n === OTHERS[3] && rows[0].cur, 'admin: the current client should lead Recent, tinted');
       expect((await labels()).length === 0, 'admin: no section label when only Recent shows');
-      await page.keyboard.press('Escape');
+      await closePop();
 
       // Become a verified SMM whose first name matches the fixture map.
       await page.evaluate(() => {
@@ -244,7 +256,7 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
         .catch(() => failures.push('smm: the seeded SMM identity never became valid'));
       await page.waitForTimeout(1500);
       await page.evaluate(mine => { _kasperState.smmByClient = new Map(mine.map(n => [wlNormalizeClient(n), { name: 'Qa' }])); }, MINE);
-      await page.click('#svClientBadge');
+      await openPop();
       rows = await sections();
       const mineRows = rows.filter(r => r.sec === 'mine');
       const recentRows = rows.filter(r => r.sec === 'recent');
@@ -266,11 +278,11 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
         return { n: boxes.length, optionOnly, btnInOption, clearInList };
       });
       expect(a11y.n === 2 && !a11y.btnInOption && !a11y.clearInList, `smm: remove / clear controls must sit outside options and listboxes (${JSON.stringify(a11y)})`);
-      await page.keyboard.press('Escape');
+      await closePop();
 
       // Current is one of My clients: tinted there, not repeated in Recent.
       await pick(MINE[0]);
-      await page.click('#svClientBadge');
+      await openPop();
       rows = await sections();
       expect(rows.find(r => r.n === MINE[0] && r.sec === 'mine' && r.cur), 'smm: a current My client should be tinted in My clients');
       expect(rows.filter(r => r.sec === 'recent').length === 3 && rows.filter(r => r.sec === 'recent').every(r => !MINE.includes(r.n)), 'smm: Recent should show three others');
@@ -281,6 +293,15 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       await page.keyboard.press('Enter');
       await page.waitForTimeout(300);
       expect(await page.evaluate(() => calState.client) === OUTSIDE, 'search: picking a client outside both lists did not switch');
+      // Escape pressed before focus reaches the search box still closes it.
+      const earlyEsc = await page.evaluate(() => {
+        const badge = document.getElementById('svClientBadge');
+        badge.focus();
+        svClientPopToggle();
+        badge.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        return document.getElementById('svClientPop').hidden;
+      });
+      expect(earlyEsc, 'escape: an Escape before the search box had focus left the dropdown open');
 
       await context.close();
     }

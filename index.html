@@ -24068,6 +24068,16 @@
         document.addEventListener('click', e => {
             if (!e.target.closest('#svClientBadgeWrap')) _svClientPopClose();
         });
+        // Escape closes the dropdown even before focus has reached the search
+        // box (the focus move is deferred a tick); without this, a quick
+        // Escape left it open and the next badge click closed it instead.
+        document.addEventListener('keydown', e => {
+            if (e.key !== 'Escape' || e.target && e.target.id === 'svClientSearch') return;
+            const pop = document.getElementById('svClientPop');
+            if (!pop || pop.hidden) return;
+            _svClientPopClose();
+            document.getElementById('svClientBadge')?.focus();
+        });
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _svClientBarWire);
     else _svClientBarWire();

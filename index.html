@@ -81021,7 +81021,7 @@
     function _kasperRenderOnboarding() {
         const el = document.getElementById('kasperContent');
         if (!el) return;
-        _obvMode = 'full';
+        _obvSetMode('full');
         if (Array.isArray(_obvSubs)) _kasperMarkOnboardingSeen();
         _obvInjectStyles();
         el.innerHTML = renderOnboardingInbox();
@@ -82499,7 +82499,7 @@
         if (!_kasperState.filmingLoading && !_kasperState.filmingData) _kasperLoadFilming(false);
         if (_ptoEnabled() && _syncviewStaffCan('pto-admin') && !_ptoAdminState.loading && !_ptoAdminState.overview) _ptoLoadAdmin(false);
         if (_syncviewStaffCan('onboarding') && !_obvLoading && !Array.isArray(_obvSubs)) {
-            _obvMode = 'full';
+            _obvSetMode('full');
             _obvEnsureLoaded();
         }
     }

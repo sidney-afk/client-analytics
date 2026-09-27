@@ -1,3 +1,4 @@
+import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
 import {
   TIKTOK_FORM_KEY, TIKTOK_HIDDEN_KEY, TIKTOK_LEGACY_MAX_BYTES, TIKTOK_MAX_BYTES, TIKTOK_MAX_PHOTOS,
   TIKTOK_OPTIMISTIC_TTL_MS, TIKTOK_PENDING_KEY, TIKTOK_PHOTO_MAX_BYTES, TIKTOK_QUEUE_CACHE_KEY,
@@ -904,6 +905,7 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
     }
     function _tkPickClient(name) {
         tkState.client = name || null;
+        if (tkState.client) svSharedClientNote(tkState.client);
         const r = _tkResolveProfile(tkState.client);
         tkState.profile = r.profile;
         tkState.profileSource = r.source;
@@ -1951,6 +1953,12 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
 
     function mountTiktokUploadView() {
         _tkLoadDraft();
+        // Follow the shared top-bar client, unless a half-filled upload for
+        // another client is in the draft: never move a file to a different
+        // client's TikTok account behind the person's back.
+        const shared = svSharedClientFor('tiktok-upload');
+        const draftInProgress = !!(tkState.title || tkState.fileMeta || (tkState.photosMeta && tkState.photosMeta.length));
+        if (shared && shared !== tkState.client && WL_CLIENT_NAMES.includes(shared) && !draftInProgress) { tkState.client = shared; _tkSaveDraft(); }
         if (tkState.client) {
             const r = _tkResolveProfile(tkState.client);
             tkState.profile = r.profile;

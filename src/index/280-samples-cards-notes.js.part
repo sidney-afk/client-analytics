@@ -62,7 +62,7 @@ import {
         if (!body) return;
         const preserveScroll = !!(opts && opts.preserveScroll);
         const scrollY0 = preserveScroll ? window.scrollY : null;
-        if (!sxrState.client) { body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start.</div>`; return; }
+        if (!sxrState.client) { body.innerHTML = document.body.classList.contains('sv-shared-client') ? `<div class="cal-empty">Pick a client in the top bar to start.</div>` : `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start.</div>`; return; }
         if (sxrState.loading) { body.innerHTML = _sxrLoaderHtml(); return; }
         if (sxrState.error) { body.innerHTML = `<div class="cal-empty cal-error">Couldn't load sample reviews — <button class="cal-link" onclick="loadSxrCards({skipCache:true})">try again</button>.</div>`; return; }
         if (sxrState.view === 'review' || sxrState.view === 'smmreview') {

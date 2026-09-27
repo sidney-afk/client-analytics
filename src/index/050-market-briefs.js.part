@@ -1,3 +1,4 @@
+import { svSharedClientNote } from './095-shared-client.js';
 import {
   CONTENT_SUMMARY_WEBHOOK, ICON, WEEKLY_SLACK_WEBHOOK, _analyticsExtrasApplied,
   _analyticsExtrasArrival, _analyticsFlushPendingExtras, _analyticsHasTrustedMetrics,
@@ -1117,6 +1118,7 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
     }
 
     function selectClient(name){
+        svSharedClientNote(name);
         const tab = 'analytics';
         clientViewTab[name] = tab;
         history.pushState({nav:currentNav, client:name, clientTab:tab},'','#'+encodeURIComponent(name));
@@ -1702,6 +1704,7 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
     }
 
 export {
+  selectClient,
   CHECK_SVG, PEN_ICON_SVG, PIN_ICON_SVG, TPL_MAX_PINS, TPL_PINS_KEY, TPL_RECENT_KEY, _NOT_SET,
   _autoSummaryAttempted, _maybeRerenderTemplates, _mrExternalLink, _setTplStatus, _svCss, _svRgb,
   _templatesActiveTab, _templatesEditMode, _templatesSelected, _templatesSetActiveTab,

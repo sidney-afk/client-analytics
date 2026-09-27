@@ -1,3 +1,4 @@
+import { svClientBarSync, svSharedClientApply } from './095-shared-client.js';
 import { _analyticsReleaseExtras, linearClientRows, linearProjects } from './040-shared-briefs.js';
 import { _templatesActiveTab, _templatesSelected, highlightMatch, render } from './050-market-briefs.js';
 import {
@@ -1491,6 +1492,7 @@ import {
             requestAnimationFrame(() => activeHeaderNav.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
         }
         _navPillSync();
+        svClientBarSync(page);   // the shared client bar shows on client tabs only
         // The standalone Calendar page hides the page header (pageTop) and drops
         // the toolbar straight under the sticky nav, so the global .main top
         // gutter reads as dead space. Tag the body so we can tighten that band
@@ -1536,6 +1538,7 @@ import {
         if (page !== 'sample-reviews' && typeof _sxrV2Teardown === 'function') _navTeardownSafe(_sxrV2Teardown); // SXR_LINE
         if (page !== 'workload' && typeof _wlV2Teardown === 'function') _navTeardownSafe(_wlV2Teardown);
 
+        svSharedClientApply(page, push);   // Templates / Filming Plans open on the shared client
         const state = {nav: page, client: null};
         // Templates keeps the selected client + active tab in the URL / history
         // state so a refresh or back/forward restores exactly where you were —

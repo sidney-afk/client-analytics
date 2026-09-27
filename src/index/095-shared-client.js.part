@@ -1,0 +1,239 @@
+import { selectClient, _templatesSetSelected } from './050-market-briefs.js';
+import { currentNav, _fpSetQueryQuiet } from './060-templates-filming.js';
+import { WL_CLIENT_NAMES, wlCanonicalClient } from './070-workload-source.js';
+import { navTo } from './090-workload-popovers-navigation.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
+    /* ONE CLIENT ACROSS THE SITE (owner decision 2026-09-27, option A).
+     *
+     * Staff used to re-pick the same client on every tab: Calendar and Samples
+     * each kept their own pinned client strip, Templates its own open client,
+     * TikTok Upload its own draft client, Filming Plans a typed search. Now one
+     * "current client" lives in the top bar above the tabs, with one-click
+     * buttons for the last three clients, and these tabs follow it:
+     *
+     *   Calendar, Samples, Templates, Filming Plans, TikTok Upload, Analytics.
+     *
+     * Team tabs (Workload, SyncLinear, Production, Submit, Kasper, Time Off,
+     * reports) ignore it on purpose: they are about people, not one client, and
+     * the bar is hidden there so nobody reads it as a filter.
+     *
+     * The client is a canonical roster display name (WL_CLIENT_NAMES), the same
+     * identity every following tab already stored. It is a per-browser
+     * convenience (localStorage), never sent anywhere.
+     *
+     * Client share links (?c=...) never show the bar and never read or write the
+     * shared client: every entry point below returns early on _isClientLink. A
+     * deep link that names a card (#calendar/<slug>/<card>) still wins over the
+     * shared client; opening it simply makes that client the shared one. */
+    const SV_SHARED_CLIENT_KEY = 'syncview_shared_client';
+    const SV_RECENT_CLIENTS_KEY = 'syncview_recent_clients';
+    const SV_RECENT_MAX = 4;   // current + the three shown as buttons
+    const SV_CLIENT_FOLLOW_TABS = ['calendar', 'sample-reviews', 'templates', 'filming-plans', 'tiktok-upload', 'home'];
+
+    function _svClientLinkMode() {
+        try { return !!_isClientLink; } catch (e) { return true; }   // unknown: stay out of the way
+    }
+    function _svStaffShell() {
+        const b = document.body;
+        return !_svClientLinkMode() && !!b && !b.classList.contains('intake-mode') && !b.classList.contains('onboarding-mode');
+    }
+    function svSharedClientGet() {
+        if (_svClientLinkMode()) return null;
+        try {
+            const v = localStorage.getItem(SV_SHARED_CLIENT_KEY);
+            return v && v.trim() ? v : null;
+        } catch (e) { return null; }
+    }
+    function svRecentClients() {
+        try {
+            const a = JSON.parse(localStorage.getItem(SV_RECENT_CLIENTS_KEY) || '[]');
+            return Array.isArray(a) ? a.filter(n => typeof n === 'string' && n.trim()).slice(0, SV_RECENT_MAX) : [];
+        } catch (e) { return []; }
+    }
+    // What a following tab should open on, or null (client link, or none picked).
+    function svSharedClientFor(page) {
+        if (!SV_CLIENT_FOLLOW_TABS.includes(page)) return null;
+        return svSharedClientGet();
+    }
+    function _svCanon(name) {
+        const s = String(name || '').trim();
+        if (!s) return null;
+        try { return wlCanonicalClient(s) || s; } catch (e) { return s; }
+    }
+    // A tab changed its own client (a deep link, the Analytics grid, the
+    // Templates index): remember it as the shared client. Never re-mounts.
+    function svSharedClientNote(name) {
+        if (_svClientLinkMode()) return;
+        const n = _svCanon(name);
+        if (!n) return;
+        try {
+            localStorage.setItem(SV_SHARED_CLIENT_KEY, n);
+            const rec = svRecentClients().filter(r => r !== n);
+            rec.unshift(n);
+            localStorage.setItem(SV_RECENT_CLIENTS_KEY, JSON.stringify(rec.slice(0, SV_RECENT_MAX)));
+        } catch (e) {}
+        svClientBarRender();
+    }
+    // The person picked a client in the top bar: remember it and re-open the
+    // tab they are on so it shows that client.
+    function svSharedClientPick(name) {
+        const n = _svCanon(name);
+        if (!n) return;
+        _svClientPopClose();
+        const before = svSharedClientGet();
+        svSharedClientNote(n);
+        if (before === n) return;
+        const page = currentNav;
+        if (page === 'home') { selectClient(n); return; }
+        if (SV_CLIENT_FOLLOW_TABS.includes(page)) navTo(page, false);
+    }
+    // Called by navTo before a tab mounts. Calendar, Samples and TikTok Upload
+    // read svSharedClientFor() in their own mount; the two below have no mount
+    // hook of their own. Only on a click (push): a refresh or Back restores the
+    // client already in the address.
+    function svSharedClientApply(page, push) {
+        const c = svSharedClientFor(page);
+        if (!c || !push) return;
+        if (page === 'templates') _templatesSetSelected(c);
+        else if (page === 'filming-plans') _fpSetQueryQuiet(c);
+    }
+    // The Analytics tab: overview when no client is picked, else that client.
+    function svOpenAnalytics() {
+        navTo('home');
+        const c = svSharedClientFor('home');
+        if (c && WL_CLIENT_NAMES.includes(c)) selectClient(c);
+    }
+
+    function _svClientHue(name) {
+        let h = 0;
+        const s = String(name || '');
+        for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+        return h;
+    }
+    function _svClientInitials(name) {
+        const words = String(name || '').split(/\s+/).filter(w => /[A-Za-z0-9]/.test(w.charAt(0)));
+        return (words.slice(0, 2).map(w => w.charAt(0)).join('') || '?').toUpperCase();
+    }
+    function _svClientDot(name) {
+        return `<span class="sv-client-dot" style="--sv-client-h:${_svClientHue(name)}" aria-hidden="true">${_calEsc(_svClientInitials(name))}</span>`;
+    }
+    function svClientBarRender() {
+        const bar = document.getElementById('svClientBar');
+        if (!bar) return;
+        const cur = svSharedClientGet();
+        const badge = document.getElementById('svClientBadgeLabel');
+        const dot = document.getElementById('svClientBadgeDot');
+        if (badge) badge.textContent = cur || 'Pick a client';
+        if (dot) dot.outerHTML = cur ? _svClientDot(cur).replace('class="sv-client-dot"', 'class="sv-client-dot" id="svClientBadgeDot"') : '<span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>';
+        const recent = svRecentClients().filter(r => r !== cur).slice(0, 3);
+        const wrap = document.getElementById('svClientRecent');
+        if (wrap) {
+            wrap.innerHTML = recent.map(r => `<button type="button" class="sv-client-recent-btn" data-sv-client="${_calEscAttr(r)}" title="Switch to ${_calEscAttr(r)}">${_svClientDot(r)}<span>${_calEsc(r)}</span></button>`).join('');
+        }
+        const label = document.getElementById('svClientRecentLabel');
+        if (label) label.hidden = !recent.length;
+    }
+    // Show the bar only on the tabs that follow it, and only for staff.
+    function svClientBarSync(page) {
+        const bar = document.getElementById('svClientBar');
+        if (!bar) return;
+        const show = _svStaffShell() && SV_CLIENT_FOLLOW_TABS.includes(page);
+        bar.hidden = !show;
+        document.body.classList.toggle('sv-shared-client', _svStaffShell());
+        if (!show) _svClientPopClose();
+        else svClientBarRender();
+    }
+
+    let _svClientActive = 0;
+    function _svClientMatches(q) {
+        const all = [...new Set(WL_CLIENT_NAMES.map(_svCanon).filter(Boolean))];
+        const needle = String(q || '').trim().toLowerCase();
+        if (!needle) return [];
+        const starts = all.filter(n => n.toLowerCase().startsWith(needle));
+        const has = all.filter(n => !starts.includes(n) && n.toLowerCase().includes(needle));
+        return starts.sort((a, b) => a.localeCompare(b)).concat(has.sort((a, b) => a.localeCompare(b))).slice(0, 8);
+    }
+    function _svClientRenderResults() {
+        const input = document.getElementById('svClientSearch');
+        const box = document.getElementById('svClientResults');
+        if (!input || !box) return;
+        const q = input.value;
+        const cur = svSharedClientGet();
+        const sections = [];
+        const matches = _svClientMatches(q);
+        if (q.trim()) sections.push({ title: 'Matches', names: matches });
+        const recent = svRecentClients().filter(r => r !== cur);
+        if (!q.trim()) sections.push({ title: 'Recent', names: recent });
+        const flat = sections.flatMap(s => s.names);
+        if (_svClientActive >= flat.length) _svClientActive = 0;
+        let i = 0;
+        let html = sections.map(s => `<div class="sv-client-sec">${s.title}</div>` + (s.names.length
+            ? s.names.map(n => { const idx = i++; return `<div class="sv-client-row${idx === _svClientActive ? ' is-active' : ''}" role="option" aria-selected="${idx === _svClientActive}" data-sv-client="${_calEscAttr(n)}">${_svClientDot(n)}<span>${_calEsc(n)}</span></div>`; }).join('')
+            : `<div class="sv-client-none">${q.trim() ? 'No clients match' : 'Type to search every client'}</div>`)).join('');
+        box.innerHTML = html;
+        box._svFlat = flat;
+    }
+    function svClientPopToggle(e) {
+        if (e) e.stopPropagation();
+        const pop = document.getElementById('svClientPop');
+        if (!pop) return;
+        if (!pop.hidden) { _svClientPopClose(); return; }
+        // Fixed, not absolute: the bar scrolls sideways on a phone and would clip it.
+        const r = document.getElementById('svClientBadge')?.getBoundingClientRect();
+        if (r) {
+            const w = Math.min(320, window.innerWidth - 28);
+            pop.style.left = Math.max(14, Math.min(r.left, window.innerWidth - w - 14)) + 'px';
+            pop.style.top = Math.round(r.bottom) + 'px';
+        }
+        pop.hidden = false;
+        document.getElementById('svClientBadge')?.setAttribute('aria-expanded', 'true');
+        const input = document.getElementById('svClientSearch');
+        _svClientActive = 0;
+        if (input) { input.value = ''; _svClientRenderResults(); setTimeout(() => input.focus(), 0); }
+    }
+    function _svClientPopClose() {
+        const pop = document.getElementById('svClientPop');
+        if (!pop || pop.hidden) return;
+        pop.hidden = true;
+        document.getElementById('svClientBadge')?.setAttribute('aria-expanded', 'false');
+    }
+    function _svClientBarWire() {
+        const bar = document.getElementById('svClientBar');
+        if (!bar || bar.dataset.wired === '1') return;
+        bar.dataset.wired = '1';
+        bar.addEventListener('click', e => {
+            const pick = e.target.closest('[data-sv-client]');
+            if (pick) { e.preventDefault(); svSharedClientPick(pick.getAttribute('data-sv-client')); }
+        });
+        const input = document.getElementById('svClientSearch');
+        if (input) {
+            input.addEventListener('input', () => { _svClientActive = 0; _svClientRenderResults(); });
+            input.addEventListener('keydown', e => {
+                const flat = (document.getElementById('svClientResults') || {})._svFlat || [];
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (!flat.length) return;
+                    _svClientActive = (_svClientActive + (e.key === 'ArrowDown' ? 1 : -1) + flat.length) % flat.length;
+                    _svClientRenderResults();
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (flat[_svClientActive]) svSharedClientPick(flat[_svClientActive]);
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    _svClientPopClose();
+                    document.getElementById('svClientBadge')?.focus();
+                }
+            });
+        }
+        document.addEventListener('click', e => {
+            if (!e.target.closest('#svClientBadgeWrap')) _svClientPopClose();
+        });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _svClientBarWire);
+    else _svClientBarWire();
+
+    window.svClientPopToggle = svClientPopToggle;
+    window.svOpenAnalytics = svOpenAnalytics;
+
+export { svClientBarSync, svSharedClientApply, svSharedClientFor, svSharedClientNote };

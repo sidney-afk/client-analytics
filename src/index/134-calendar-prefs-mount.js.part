@@ -1,3 +1,4 @@
+import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
 import { showNotify, showToast } from './040-shared-briefs.js';
 import { currentNav } from './060-templates-filming.js';
 import { WL_CLIENT_NAMES, wlCanonicalClient, wlIsAllowedClient, wlNormalizeClient } from './070-workload-source.js';
@@ -395,6 +396,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             }
         }
         calState.client = name;
+        if (name) svSharedClientNote(name);
     }
     function _calOpenClientTab(name) {
         if (!name || calState.embedded || currentNav !== 'calendar') return;
@@ -514,9 +516,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // allowlist is sheet-driven and hasn't loaded yet on the calendar fast
         // path, so a sheet-only last client would otherwise be skipped here and
         // a different tab (or none) would open on every refresh.
+        // The shared top-bar client (095-shared-client) comes next: the
+        // client you were just on elsewhere is the one you meant.
+        else if (svSharedClientFor('calendar')) initial = svSharedClientFor('calendar');
         else if (prefs.client && pins.includes(prefs.client)) initial = prefs.client;
         else if (pins.length > 0) initial = pins[0];
         else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
+        if (initial && !pins.includes(initial)) { pins.unshift(initial); _calSavePins(pins); }
         if (focusClient && !pins.includes(focusClient)) { pins.unshift(focusClient); _calSavePins(pins); }
         _calSetClient(initial);
         calState.embedded = false;

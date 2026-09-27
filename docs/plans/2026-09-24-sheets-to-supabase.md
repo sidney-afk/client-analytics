@@ -1,7 +1,15 @@
 # Plan: move the data SyncView reads from Google Sheets to Supabase
 
-Date: 2026-09-24. Status: PLAN ONLY. This document changes no code, no
-database, and no n8n workflow.
+Date: 2026-09-24. Written as a plan only; parts are now live.
+
+**Where things stand (2026-09-27):** the Phase 1 migration is applied,
+`analytics-read` and `analytics-write` are deployed,
+`analytics_mirror_write_enabled` is on, and the one-time backfill ran on
+2026-09-25. TOP VIDEOS dual-writes since 2026-09-27 (see the Phase 1 status
+note below). Pending: the top-up backfill, the dual-write in CLIENTS
+METRICS, MARKET RESEARCH and Append Client Row (each needs the owner's
+go-ahead), the 3-day comparison, and every Phase 2 switch beyond the test
+client's link.
 
 ## Why
 
@@ -82,7 +90,7 @@ the place the results are stored changes.
 
 ### Phase 1: n8n writes to both Sheets and Supabase (dual-write)
 
-**Status, 2026-09-25: database side built, not applied.** One PR adds
+**Status, 2026-09-25: database side built, not applied** (since applied and deployed; see "Where things stand" at the top). One PR adds
 `migrations/2026-09-25-sheets-mirror-phase1.sql` (source-only; Lighthouse
 applies it), the `analytics-read` and `analytics-write` Edge Functions (not
 deployed, not used by the page), `scripts/sheets-mirror-backfill.js`,

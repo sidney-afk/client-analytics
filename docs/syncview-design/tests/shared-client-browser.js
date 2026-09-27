@@ -247,13 +247,36 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       })));
       const labels = () => page.$$eval('#svClientResults .sv-client-sec', els => els.map(e => ({ t: e.textContent.trim(), tt: getComputedStyle(e).textTransform })));
 
-      // Admin (the seeded identity): no My clients, Recent capped at three.
+      // Admin not on the roster: no My clients, Recent capped at three.
+      const asStaff = async (role, name) => {
+        await page.evaluate(({ role, name }) => {
+          const id = _syncviewStaffIdentityLoad();
+          _syncviewStaffIdentitySave(Object.assign({}, id, { role, member: Object.assign({}, id.member, { role, name }) }));
+        }, { role, name });
+        await page.waitForFunction(r => _syncviewStaffIdentityValid() && _syncviewStaffIdentityLoad().member.role === r, role, { timeout: 15000 })
+          .catch(() => failures.push(`${role}: the seeded identity never became valid`));
+        await page.evaluate(all => { all.forEach(n => { clientMap[n] = { client_name: n }; }); }, all);
+      };
+      await asStaff('admin', 'Unlisted Admin Fixture');
       await openPop();
+      await page.waitForTimeout(800);
       let rows = await sections();
       expect(rows.every(r => r.sec === 'recent'), 'admin: only Recent should show');
       expect(rows.length === 3, `admin: Recent should hold three rows, got ${rows.length}`);
       expect(rows[0].n === OTHERS[3] && rows[0].cur, 'admin: the current client should lead Recent, tinted');
       expect((await labels()).length === 0, 'admin: no section label when only Recent shows');
+      await closePop();
+
+      // Admin on the roster (the owner is an admin and an SMM): My clients
+      // shows, with no remove button.
+      await asStaff('admin', 'QA Staff');
+      await openPop();
+      await page.waitForFunction(() => document.querySelector('#svClientResults [data-sv-section="mine"]'), null, { timeout: 10000 })
+        .catch(() => failures.push('rostered admin: My clients never appeared'));
+      rows = await sections();
+      expect(JSON.stringify(rows.filter(r => r.sec === 'mine').map(r => r.n)) === JSON.stringify(MINE), `rostered admin: My clients should be ${MINE}, got ${rows.filter(r => r.sec === 'mine').map(r => r.n)}`);
+      expect(rows.filter(r => r.sec === 'mine').every(r => !r.forget), 'rostered admin: My clients must not offer a remove button');
+      expect(rows.filter(r => r.sec === 'recent').every(r => !MINE.includes(r.n)), 'rostered admin: Recent repeats a My clients entry');
       await closePop();
 
       // Become a verified SMM whose first name matches the fixture map.

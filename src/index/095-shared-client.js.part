@@ -224,9 +224,9 @@ import { tdyMyClientNames } from './097-today.js';
      * current Clients Info clients), so Today and this dropdown can never
      * disagree. Nothing new is stored: the answer is kept in memory for the
      * signed-in member only, and a failed or not-yet-loaded roster is retried
-     * on the next open. Admins get no My clients section (they see every
-     * client), and neither does anyone with no listed client: search and
-     * Recent only. */
+     * on the next open. Anyone on the SMM roster gets My clients, admins
+     * included (an admin can also be an SMM). Anyone not on the roster, or
+     * with no listed client, gets search and Recent only. */
     let _svMine = null;          // { id, names } once loaded
     let _svMineLoading = null;
     function svMyClients() {
@@ -234,12 +234,12 @@ import { tdyMyClientNames } from './097-today.js';
         let role = '';
         try { const id = _syncviewStaffIdentityForHeaders(); me = id && id.member; role = String(id && id.role || me && me.role || '').toLowerCase(); } catch (e) {}
         if (!me || !me.id) return [];
-        const meId = String(me.id) + '|' + role;   // a role change re-reads
+        const meId = String(me.id) + '|' + role + '|' + String(me.name || '');   // a role or name change re-reads
         if (_svMine && _svMine.id === meId) return _svMine.names;
         if (!_svMineLoading && typeof tdyMyClientNames === 'function') {
             _svMineLoading = Promise.resolve().then(() => tdyMyClientNames()).then(r => {
                 _svMineLoading = null;
-                if (!r || String(r.id) + '|' + role !== meId) return;
+                if (!r || String(r.id) + '|' + role + '|' + String(me.name || '') !== meId) return;
                 const names = [...new Set((r.names || []).map(n => _svCanon(n) || String(n).trim()).filter(Boolean))];
                 _svMine = { id: meId, names: names.sort((x, y) => x.localeCompare(y)) };
                 const pop = document.getElementById('svClientPop');

@@ -180,6 +180,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | `docs/audits/2026-09-26-native-intake-manifest-callers.md` | Source-only caller map for eleven native-intake manifest test-tool files, separating test launchers, source fragments, shared shims and README-only mentions. |
 | `docs/audits/2026-09-26-native-intake-script-callers.md` | Source-only caller map for ten native-intake reconcile/completion scripts; distinguishes workflow entry points, shared imports, and test support. |
 | `docs/audits/2026-09-26-startup-footprint.md` | Local anonymous page-size and startup-request measurement with five bounded speed proposals, not a hosted readiness claim. |
+| `docs/audits/2026-09-26-public-key-read-inventory.md` | Source grants and RLS inventory reconciled with zero-row public-key HEAD probes; names cross-client read capabilities and source/live drift without exposing row data. |
 | `scripts/linear-only-slot-repair.js`, `test/linear-only-slot-repair.js`, `docs/ops/2026-09-24-linear-only-slot-repair.md` | Read-only finder for Calendar slots that hold only a retired Linear URL: classifies each against existing SyncView deliverables and writes a guarded, NOT APPLIED connection plan (ids and SQL) to a file outside the repo. Prints counts only. |
 
 ## Meta

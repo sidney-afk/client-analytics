@@ -3051,6 +3051,11 @@
            you are on keeps its name; the others keep theirs on hover. */
         #headerNav.is-measuring > .header-nav-btn { transition: none !important; }
         #headerNav.is-compact > .header-nav-btn:not(.active) { font-size: 0; gap: 0; padding-left: 9px; padding-right: 9px; }
+        /* Touch screens cannot hover for the name, so compact keeps small labels
+           there; icons only (.is-icons) is the last resort if even those overflow. */
+        @media (hover: none) {
+            #headerNav.is-compact:not(.is-icons) > .header-nav-btn:not(.active) { font-size: 11px; gap: 4px; padding-left: 7px; padding-right: 7px; }
+        }
         .header-nav-btn:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); background: var(--bg); }
         .header-nav-btn.active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
         .header-nav-btn svg { flex-shrink: 0; }
@@ -23361,26 +23366,37 @@
             const nav = document.getElementById('headerNav');
             if (!nav) return;
             nav.querySelectorAll(':scope > .header-nav-btn').forEach(b => {
-                if (!b.title) b.title = String(b.textContent || '').replace(/\s+/g, ' ').trim();
+                const name = String(b.textContent || '').replace(/\s+/g, ' ').trim();
+                if (!b.title) b.title = name;
+                // Icon-only tabs on touch have no hover title: keep an explicit name.
+                if (!b.getAttribute('aria-label') && name) b.setAttribute('aria-label', name);
             });
-            const wasCompact = nav.classList.contains('is-compact');
+            const wasCompact = nav.classList.contains('is-compact') + ':' + nav.classList.contains('is-icons');
             // Tabs animate size changes (transition: all); measure the settled
             // full-label width with transitions off, or the check reads a
             // mid-animation size and flips back and forth.
             nav.classList.add('is-measuring');
-            nav.classList.remove('is-compact');
+            nav.classList.remove('is-compact', 'is-icons');
             void nav.offsetWidth;
             // Measure the tabs themselves, not scrollWidth: the sliding pill is
             // absolutely positioned and can sit at a stale offset mid-route.
             const btns = [...nav.querySelectorAll(':scope > .header-nav-btn')].filter(b => b.offsetWidth);
             if (!btns.length || window.innerWidth <= 760) { nav.classList.remove('is-measuring'); return; }
             const last = btns[btns.length - 1];
-            const needed = last.offsetLeft + last.offsetWidth - btns[0].offsetLeft;
-            if (needed > nav.clientWidth + 1) nav.classList.add('is-compact');
+            // Sub-pixel boxes: scrollWidth rounds a fractional overflow up, so must we.
+            const overflows = () => Math.ceil(last.getBoundingClientRect().right - btns[0].getBoundingClientRect().left - 0.01) > nav.clientWidth;
+            if (overflows()) {
+                nav.classList.add('is-compact');
+                void nav.offsetWidth;
+                // Touch screens (no hover) keep small labels in compact mode,
+                // since a title tooltip can never show there; only if even those
+                // overflow do they drop to icons (name kept in title/accessible name).
+                if (overflows()) nav.classList.add('is-icons');
+            }
             void nav.offsetWidth;
             nav.classList.remove('is-measuring');
             // Tab widths just changed: move the sliding pill under the active tab again.
-            if (nav.classList.contains('is-compact') !== wasCompact) requestAnimationFrame(() => _navPillSync(false));
+            if (nav.classList.contains('is-compact') + ':' + nav.classList.contains('is-icons') !== wasCompact) requestAnimationFrame(() => _navPillSync(false));
         } catch (e) {}
     }
     function _navPillSync(animate) {
@@ -23428,6 +23444,19 @@
                 const nav = document.getElementById('headerNav');
                 if (!nav) return;
                 new MutationObserver(records => { if (records.some(r => !r.target.classList || !r.target.classList.contains('header-nav-pill'))) resync(); }).observe(nav, { subtree: true, attributes: true, attributeFilter: ['style', 'hidden'] });
+                // The row's own width changes when a neighbour in the bar does
+                // (the client picker's label). Compact toggling changes the tab
+                // widths, not the row's, so re-fitting only on a real width
+                // change cannot loop.
+                if (typeof ResizeObserver === 'function') {
+                    let lastW = -1;
+                    new ResizeObserver(entries => {
+                        const w = Math.round(entries[entries.length - 1].contentRect.width);
+                        if (w === lastW) return;
+                        lastW = w;
+                        resync();
+                    }).observe(nav);
+                }
             };
             if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch);
             else watch();
@@ -23883,7 +23912,9 @@
         const badge = document.getElementById('svClientBadge');
         const label = document.getElementById('svClientBadgeLabel');
         const dot = document.getElementById('svClientBadgeDot');
-        if (label) label.textContent = cur ? _svClientShortName(cur) : 'Client';
+        const nextLabel = cur ? _svClientShortName(cur) : 'Client';
+        // A new label width changes the room left for the tab row: re-fit it.
+        if (label && label.textContent !== nextLabel) { label.textContent = nextLabel; requestAnimationFrame(() => _navPillSync(false)); }
         if (badge) {
             badge.setAttribute('data-sv-current', cur || '');
             badge.title = cur || 'Pick a client';

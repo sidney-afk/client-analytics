@@ -161,7 +161,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const badge = document.getElementById('svClientBadge');
         const label = document.getElementById('svClientBadgeLabel');
         const dot = document.getElementById('svClientBadgeDot');
-        if (label) label.textContent = cur ? _svClientShortName(cur) : 'Client';
+        const nextLabel = cur ? _svClientShortName(cur) : 'Client';
+        // A new label width changes the room left for the tab row: re-fit it.
+        if (label && label.textContent !== nextLabel) { label.textContent = nextLabel; requestAnimationFrame(() => _navPillSync(false)); }
         if (badge) {
             badge.setAttribute('data-sv-current', cur || '');
             badge.title = cur || 'Pick a client';

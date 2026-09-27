@@ -1,6 +1,6 @@
 # SyncView
 
-**Current state (2026-09-26):** Staff work in SyncView, including the native Workload board. Linear is off: its Edge Functions are not deployed and its API keys were revoked on 2026-09-23. Older Linear-named source and records remain for history and compatibility. See [State of things](docs/STATE_OF_THINGS.md) for the dated live check.
+**Current state (2026-09-26):** Staff work in SyncView, including the native Workload board. Linear is off: its Edge Functions are not deployed and its API keys were revoked on 2026-09-23 per the dated live check in STATE_OF_THINGS (the cutoff runbook's STEP 7). `docs/ops/LINEAR_CUTOFF_RUNBOOK.md`, `ROLLBACK.md` and some `docs/truth/` headers predate that check and still describe STEP 7 as pending; treat STATE_OF_THINGS as current. Older Linear-named source and records remain for history and compatibility. See [State of things](docs/STATE_OF_THINGS.md) for the dated live check.
 
 SyncView is the internal client-operations dashboard for Synchro Social — a single-page
 web app for running the content pipeline end to end: planning the content calendar,

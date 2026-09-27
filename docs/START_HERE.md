@@ -234,7 +234,7 @@ These files retain old names to redirect readers; none is a current runbook.
 | [Flip-day test playbook](ops/FLIP_DAY_TEST_PLAYBOOK.md) | The 2026-08-30 browser test steps for the video flip, retained as history. |
 | [Flip test round two](ops/FLIP_TEST_ROUND2.md) | Follow-up journey checks after the first round found defects; a historical test plan. |
 | [Flip test round three](ops/FLIP_TEST_ROUND3.md) | The 2026-08-31 asset-handling checks planned after round two. |
-| [Round-three tester prompt](ops/FLIP_TEST_ROUND3_PROMPT.md) | Companion tester handoff text for the August round-three checklist. |
+| [Round-three tester prompt](archive/FLIP_TEST_ROUND3_PROMPT.md) | Companion tester handoff text for the August round-three checklist. |
 | [Graphics drill artifact](ops/GRAPHICS_DRILL_ARTIFACT_SETUP.md) | Dated setup for the parked test graphic used by a self-test. |
 | [Graphics flip pointer](ops/GRAPHICS_FLIP_STATUS.md) | A pointer to the maintained independence status, plus an old resolved blocker. |
 | [Parity-arm record](ops/PARITY_ARM_WINDOW.md) | The July 2026 switch-arming record; State of things records its later shutoff. |
@@ -408,7 +408,7 @@ locate evidence; they are not safe instructions to execute.
 
 | Document | What it helps you find |
 |---|---|
-| [Original agent prompt](independence/CODEX_PROMPT.md) | The preserved two-track migration kickoff prompt, not a current work order. |
+| [Original agent prompt](archive/CODEX_PROMPT.md) | The preserved two-track migration kickoff prompt, not a current work order. |
 | [Workload lane brief](independence/LINEAR_EXIT_BRIEF_A.md) | The historical Workload-native lane assignment and its restoration notes. |
 | [Write-path lane brief](independence/LINEAR_EXIT_BRIEF_B.md) | The historical write-path lane assignment and its restoration notes. |
 | [Endpoints lane brief](independence/LINEAR_EXIT_BRIEF_C.md) | The historical endpoints-and-Submit lane assignment and its restoration notes. |

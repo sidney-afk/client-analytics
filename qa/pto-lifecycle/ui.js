@@ -186,6 +186,76 @@ async function waitAdminReady(page) {
   await settle(page);
 }
 
+/* Click the confirm dialog's Yes and wait for the write it starts to finish.
+   The dialog runs the write in the background and the page only reports
+   "loading" once the write has come back and the overview reload begins, so
+   waiting for "ready" straight after the click can pass on the OLD overview
+   and read the list before anything changed (the intermittent CI failure
+   "cancelled future leave is removed from upcoming"). A freshly loaded
+   overview object is the page's own signal that the write and the reload are
+   both done. */
+async function confirmWrite(page, surface) {
+  await clickAndAwaitOverview(page, '#confirmYes', surface);
+}
+
+/* Click something that starts a write and wait until the page has loaded the
+   overview that follows it (see confirmWrite for why "ready" alone races). */
+async function clickAndAwaitOverview(page, selector, surface) {
+  await awaitOverviewAfter(page, surface, () => page.locator(selector).click());
+}
+
+/* Run `act` (anything that starts a write) and wait for the page to finish
+   what that write sets off: the write request itself, then an overview
+   reload that STARTED after the write came back. Watching the requests, not
+   page state, matters because a background refresh can also swap the
+   overview and would otherwise let the wait pass before the write landed. */
+async function awaitOverviewAfter(page, surface, act) {
+  const isPto = request => /\/functions\/v1\/pto(\?|$)/.test(request.url());
+  const isWrite = request => isPto(request) && request.method() !== 'GET';
+  const isOverview = request => isPto(request) && request.method() === 'GET' && /[?&]action=overview(&|$)/.test(request.url());
+  // A write counts as answered at its response (the app reads the body and
+  // only then starts the reload), and as settled once fully finished.
+  let started = 0;
+  let answered = 0;
+  let settled = 0;
+  let reloadDone = false;
+  const pendingReloads = new Set();
+  const onRequest = request => {
+    if (isWrite(request)) started += 1;
+    else if (isOverview(request) && started > 0 && answered === started) pendingReloads.add(request);
+  };
+  const onResponse = response => { if (isWrite(response.request())) answered += 1; };
+  const onDone = request => {
+    if (isWrite(request)) settled += 1;
+    else if (pendingReloads.has(request)) reloadDone = true;
+  };
+  const onFailed = request => {
+    if (isWrite(request)) { answered += 1; settled += 1; }
+    else if (pendingReloads.has(request)) reloadDone = true;
+  };
+  page.on('request', onRequest);
+  page.on('response', onResponse);
+  page.on('requestfinished', onDone);
+  page.on('requestfailed', onFailed);
+  try {
+    await act();
+    const deadline = Date.now() + 30000;
+    while (!(started > 0 && settled === started && reloadDone)) {
+      if (Date.now() > deadline) {
+        throw new Error(`write did not finish with an overview reload (writes started ${started}, finished ${settled}, reload ${reloadDone})`);
+      }
+      await page.waitForTimeout(50);
+    }
+  } finally {
+    page.off('request', onRequest);
+    page.off('response', onResponse);
+    page.off('requestfinished', onDone);
+    page.off('requestfailed', onFailed);
+  }
+  if (surface === 'admin') await waitAdminReady(page);
+  else await waitStaffReady(page);
+}
+
 async function refreshAdmin(page) {
   await page.locator('.pto-admin > .pto-card-head .pto-refresh').click();
   await waitAdminReady(page);
@@ -211,8 +281,7 @@ async function cancelOwnPending(page, criteria) {
   const row = await requestRow(page, { ...normalizeRequestCriteria(criteria), status: 'pending' });
   await row.locator('button', { hasText: 'Cancel' }).click();
   await page.waitForSelector('#confirmOverlay.active');
-  await page.locator('#confirmYes').click();
-  await waitStaffReady(page);
+  await confirmWrite(page, 'staff');
 }
 
 async function cancelApproved(page, criteria) {
@@ -222,8 +291,7 @@ async function cancelApproved(page, criteria) {
   const row = rows.first();
   await row.getByRole('button', { name: 'Cancel leave' }).click();
   await page.waitForSelector('#confirmOverlay.active');
-  await page.locator('#confirmYes').click();
-  await waitAdminReady(page);
+  await confirmWrite(page, 'admin');
 }
 
 async function signOut(page) {
@@ -336,6 +404,9 @@ module.exports = {
   refreshStaff,
   waitAdminReady,
   refreshAdmin,
+  confirmWrite,
+  clickAndAwaitOverview,
+  awaitOverviewAfter,
   requestRow,
   staffRequestRowLocator,
   pendingAdminCard,

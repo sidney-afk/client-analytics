@@ -23631,6 +23631,9 @@
         // pick never remounts the page and the boot suite's traces still hold.
         if (page === 'calendar' && !calState.embedded) {
             if (calState.client === n) return;
+            // No client yet: the shell was drawn without its client-only
+            // controls (More, bulk actions), and _calOpenClientTab redraws it.
+            if (!calState.client) { _calOpenClientTab(n); return; }
             const pins = _calGetPins();
             if (!pins.includes(n)) { pins.unshift(n); _calSavePins(pins); }
             onCalTabClick(n);
@@ -23638,8 +23641,11 @@
         }
         if (page === 'sample-reviews' && !sxrState.embedded) {
             if (sxrState.client === n) return;
+            const hadClient = !!sxrState.client;
             _sxrPinClient(n);
             onSxrTabClick(n);
+            // Same for Samples: its Share menu and archive control need a client.
+            if (!hadClient) _sxrRenderShell();
             return;
         }
         if (before === n) return;

@@ -1,7 +1,7 @@
 import { calState } from './130-calendar-model-cache.js';
-import { _calGetPins, _calSavePins } from './134-calendar-prefs-mount.js';
+import { _calGetPins, _calOpenClientTab, _calSavePins } from './134-calendar-prefs-mount.js';
 import { onCalTabClick } from './160-calendar-organize-ui.js';
-import { _sxrPinClient, onSxrTabClick, sxrState } from './270-samples-model.js';
+import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-samples-model.js';
 import { selectClient, _templatesSetSelected } from './050-market-briefs.js';
 import { currentNav, _fpSetQueryQuiet } from './060-templates-filming.js';
 import { WL_CLIENT_NAMES, wlCanonicalClient } from './070-workload-source.js';
@@ -93,6 +93,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         // pick never remounts the page and the boot suite's traces still hold.
         if (page === 'calendar' && !calState.embedded) {
             if (calState.client === n) return;
+            // No client yet: the shell was drawn without its client-only
+            // controls (More, bulk actions), and _calOpenClientTab redraws it.
+            if (!calState.client) { _calOpenClientTab(n); return; }
             const pins = _calGetPins();
             if (!pins.includes(n)) { pins.unshift(n); _calSavePins(pins); }
             onCalTabClick(n);
@@ -100,8 +103,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         }
         if (page === 'sample-reviews' && !sxrState.embedded) {
             if (sxrState.client === n) return;
+            const hadClient = !!sxrState.client;
             _sxrPinClient(n);
             onSxrTabClick(n);
+            // Same for Samples: its Share menu and archive control need a client.
+            if (!hadClient) _sxrRenderShell();
             return;
         }
         if (before === n) return;

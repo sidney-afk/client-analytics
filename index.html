@@ -8660,6 +8660,7 @@
         .tdy-note { margin-top: 18px; }
         .tdy-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
         .tdy-date { font-size: 0.88rem; font-weight: 600; color: var(--text-secondary); }
+        .tdy-scope { margin-left: auto; }
         .tdy-vw { display: flex; gap: 2px; background: var(--surface-subtle); border: 1px solid var(--border-light); border-radius: 10px; padding: 3px; }
         .tdy-vw button { font: 600 0.78rem 'Plus Jakarta Sans', sans-serif; color: var(--text-secondary); background: none; border: 0; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
         .tdy-vw button.on { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
@@ -24351,6 +24352,7 @@
      * retry rather than guessing. Today is a team tab: it ignores
      * the shared client, but opening a card makes that card's client current. */
     const TDY_VIEW_KEY = 'syncview_today_view';
+    const TDY_SCOPE_KEY = 'syncview_today_scope';   // admin's My clients / All clients choice
     const TDY_OPEN = ['todo', 'in_progress', 'tweak', 'smm_approval'];
     const TDY_PAST_EDIT = ['smm_approval', 'kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted'];
     const TDY_PAST_SMM = ['kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted'];
@@ -24430,19 +24432,26 @@
     }
     /* The current Clients Info clients this person may see: every one for an
        admin, the roster's list for an SMM (see 098-smm-clients). */
+    function _tdySavedScope() { try { return localStorage.getItem(TDY_SCOPE_KEY) || ''; } catch (e) { return ''; } }
     async function _tdyVisibleClients(me) {
         const current = svCurrentClients();
         if (!current.size) throw new Error('clients');
-        if (me.role === 'admin') return { keys: new Set(current.keys()), notListed: false };
+        const isAdmin = me.role === 'admin';
         const managers = await _tdyRoster();
-        if (!managers) throw new Error('roster');
+        // An admin can always fall back to every client; an SMM cannot guess.
+        if (!managers && !isAdmin) throw new Error('roster');
         let email = '';
-        try {
-            const rows = await _tdyRest('team_members', 'select=email&id=eq.' + encodeURIComponent(me.id));
-            email = String(rows[0] && rows[0].email || '');
-        } catch (e) {}
-        const mine = svSmmCurrentClients(svRosterEntryFor(managers, { email, name: me.name }), current);
-        return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0 };
+        if (managers) {
+            try {
+                const rows = await _tdyRest('team_members', 'select=email&id=eq.' + encodeURIComponent(me.id));
+                email = String(rows[0] && rows[0].email || '');
+            } catch (e) {}
+        }
+        const entry = managers ? svRosterEntryFor(managers, { email, name: me.name }) : null;
+        const scope = svScopeMode(isAdmin, !!entry, isAdmin ? _tdySavedScope() : '');
+        if (scope.mode === 'all') return { keys: new Set(current.keys()), notListed: false, scope };
+        const mine = svSmmCurrentClients(entry, current);
+        return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0, scope };
     }
     async function _tdyLoad(me) {
         const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
@@ -24475,7 +24484,7 @@
             _tdyRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
                 + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)')
         ]);
-        return { names, notListed: visible.notListed, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
+        return { names, scope: visible.scope, notListed: visible.notListed, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
     }
 
     /* ---------- small pieces ---------- */
@@ -24519,9 +24528,12 @@
         const chips = list.slice(0, 12).map(r => `<span class="tdy-chip"><span class="tdy-tk"></span>${_calEsc(r.title || 'Untitled')}<span class="tdy-cn">${_calEsc(names[r.client_slug] || '')}</span><time>${_calEsc(_tdyTimeOf(r.status_at))}</time></span>`).join('');
         return `<div class="tdy-trail"><div class="tdy-st">Cleared today <span>${list.length}</span></div><div class="tdy-chips">${chips}</div></div>`;
     }
-    function _tdyTop(views, on) {
+    function _tdyTop(views, on, scope) {
         const d = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
-        return `<div class="tdy-top"><span class="tdy-date">${_calEsc(d)}</span><div class="tdy-vw" role="tablist">${views.map(v => `<button type="button" role="tab" aria-selected="${v === on}" class="${v === on ? 'on' : ''}" data-tdy-key="view-${_calEscAttr(v)}" onclick="_tdySetView(${_calEscAttr(JSON.stringify(v))})">${_calEsc(v)}</button>`).join('')}</div></div>`;
+        const sw = scope && scope.canSwitch
+            ? `<div class="tdy-vw tdy-scope" role="group" aria-label="Clients shown">${[['mine', 'My clients'], ['all', 'All clients']].map(([k, l]) => `<button type="button" aria-pressed="${scope.mode === k}" class="${scope.mode === k ? 'on' : ''}" data-tdy-key="scope-${k}" onclick="_tdySetScope('${k}')">${l}</button>`).join('')}</div>`
+            : '';
+        return `<div class="tdy-top"><span class="tdy-date">${_calEsc(d)}</span>${sw}<div class="tdy-vw" role="tablist">${views.map(v => `<button type="button" role="tab" aria-selected="${v === on}" class="${v === on ? 'on' : ''}" data-tdy-key="view-${_calEscAttr(v)}" onclick="_tdySetView(${_calEscAttr(JSON.stringify(v))})">${_calEsc(v)}</button>`).join('')}</div></div>`;
     }
     const _tdyToday = rows => rows.filter(r => r.status_at && new Date(r.status_at) >= _tdyDays(0));
 
@@ -24591,7 +24603,7 @@
         const jobs = _tdyJobs(d);
         const left = jobs.reduce((s, j) => s + j.rows.length, 0);
         const today = _tdyToday(d.done);
-        const head = _tdyTop(['Rings', 'Walk-through'], view) + _tdyMeter(today.length, left, d.done.length);
+        const head = _tdyTop(['Rings', 'Walk-through'], view, d.scope) + _tdyMeter(today.length, left, d.done.length);
         const scope = d.notListed ? '<p class="tdy-note">No clients are listed for you yet. Ask an admin to add yours to the SMM list.</p>' : '';
         if (view === 'Walk-through') {
             const list = _tdyWalkList(d);
@@ -24677,6 +24689,10 @@
         _tdyPaint();
     }
     function _tdySetJob(k) { tdyState.job = k; _tdyPaint(); }
+    function _tdySetScope(k) {
+        try { localStorage.setItem(TDY_SCOPE_KEY, k); } catch (e) {}
+        mountTodayView();
+    }
     function _tdyWalkNext() { tdyState.walk++; _tdyPaint(); }
     function _tdySkip(id) { tdyState.skipped = tdyState.skipped.filter(x => x !== id).concat(id); _tdyPaint(); }
     function _tdyOpenSync(id) {
@@ -24704,6 +24720,7 @@
 
     window._tdySetView = _tdySetView;
     window._tdySetJob = _tdySetJob;
+    window._tdySetScope = _tdySetScope;
     window._tdyWalkNext = _tdyWalkNext;
     window._tdySkip = _tdySkip;
     window._tdyOpenSync = _tdyOpenSync;
@@ -24725,8 +24742,12 @@
      *   3. Roster and Clients Info spell names differently, so both sides go
      *      through svClientKey: titles (Dr, Dr.), "&" versus "and",
      *      punctuation, accents, case and spacing are all ignored.
-     *   4. An admin sees every current client. A current client that no active
-     *      SMM lists is shown to admins only.
+     *   4. Anyone on the roster sees their own clients by default, admins
+     *      included (svScopeMode). An admin also gets a "My clients / All
+     *      clients" switch, remembered per browser; an admin who is not on the
+     *      roster starts on All clients. A non-admin SMM only ever sees their
+     *      own. A current client that no active SMM lists shows under All
+     *      clients only.
      *
      * Everything here is pure over its inputs except svCurrentClients, which
      * reads the loaded Clients Info rows. */
@@ -24768,6 +24789,15 @@
         const cur = current instanceof Map ? current : svCurrentClients();
         const owned = new Set((Array.isArray(entry.source_clients) ? entry.source_clients : []).map(svClientKey).filter(Boolean));
         return [...cur].filter(([k]) => owned.has(k)).map(([, n]) => n);
+    }
+    /* Which clients a Today-style view starts on.
+       isAdmin: the signed-in role is admin. onRoster: an active roster entry
+       matched them. saved: an admin's remembered choice ('mine' | 'all' | '').
+       Returns { mode: 'mine' | 'all', canSwitch }. */
+    function svScopeMode(isAdmin, onRoster, saved) {
+        if (!isAdmin) return { mode: 'mine', canSwitch: false };
+        if (saved === 'mine' || saved === 'all') return { mode: saved, canSwitch: true };
+        return { mode: onRoster ? 'mine' : 'all', canSwitch: true };
     }
     /* Current clients no active SMM lists: admins only. */
     function svUnownedCurrentClients(managers, current) {

@@ -165,6 +165,35 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       await context.close();
     }
 
+    // Recent list: remove one client, then clear the rest. The current client
+    // and everything else stay as they were.
+    {
+      const { context, page } = await open(browser, port, '/calendar');
+      const THIRD = 'Anchor Fixture Charlie';
+      await page.evaluate(names => { names.forEach(n => { if (!WL_CLIENT_NAMES.includes(n)) WL_CLIENT_NAMES.push(n); }); }, [FIRST, SECOND, THIRD]);
+      for (const n of [THIRD, SECOND, FIRST]) {
+        await page.click('#svClientBadge');
+        await page.fill('#svClientSearch', n.slice(0, 22));
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(300);
+      }
+      const recentNames = () => page.$$eval('#svClientResults [data-sv-client]:not(.is-current)', els => els.map(e => e.getAttribute('data-sv-client')));
+      await page.click('#svClientBadge');
+      expect(!(await page.$(`#svClientResults .is-current .sv-client-forget`)), 'recent: the current client must not offer a remove button');
+      expect(JSON.stringify(await recentNames()) === JSON.stringify([SECOND, THIRD]), `recent: expected two recent clients, got ${await recentNames()}`);
+      await page.hover(`#svClientResults [data-sv-client="${SECOND}"]`);
+      await page.click(`#svClientResults [data-sv-forget="${SECOND}"]`);
+      expect(await page.isVisible('#svClientPop'), 'recent: removing a client closed the dropdown');
+      expect(JSON.stringify(await recentNames()) === JSON.stringify([THIRD]), 'recent: the removed client is still listed');
+      expect(await page.evaluate(() => calState.client) === FIRST && await page.getAttribute('#svClientBadge', 'data-sv-current') === FIRST, 'recent: removing a recent client changed the current client');
+      await page.click('#svClientResults [data-sv-forget-all]');
+      expect((await recentNames()).length === 0, 'recent: Clear recent left clients behind');
+      expect(await page.$('#svClientResults .is-current') !== null, 'recent: Clear recent removed the current client');
+      expect(!(await page.$('#svClientResults [data-sv-forget-all]')), 'recent: Clear recent should hide once the list is empty');
+      expect(await page.evaluate(() => calState.client) === FIRST, 'recent: Clear recent changed the current client');
+      await context.close();
+    }
+
     // Samples in a fresh browser: the first top-bar pick draws its Share menu.
     {
       const { context, page } = await open(browser, port, '/sample-reviews');

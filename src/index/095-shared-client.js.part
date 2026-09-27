@@ -66,6 +66,18 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!s) return null;
         try { return wlCanonicalClient(s) || s; } catch (e) { return s; }
     }
+    // Forget clients from the Recent list only. The current client is never in
+    // that list (it is shown on top, not as a recent), and nothing else is
+    // touched: no pins, no drafts, no data.
+    function svRecentClientRemove(name) {
+        const cur = svSharedClientGet();
+        if (!name || name === cur) return;
+        try { localStorage.setItem(SV_RECENT_CLIENTS_KEY, JSON.stringify(svRecentClients().filter(r => r !== name))); } catch (e) {}
+    }
+    function svRecentClientsClear() {
+        const cur = svSharedClientGet();
+        try { localStorage.setItem(SV_RECENT_CLIENTS_KEY, JSON.stringify(cur ? [cur] : [])); } catch (e) {}
+    }
     // A tab changed its own client (a deep link, the Analytics grid, the
     // Templates index): remember it as the shared client. Never re-mounts.
     function svSharedClientNote(name) {
@@ -204,13 +216,15 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const recent = svRecentClients().filter(r => r !== cur);
         const flat = q ? _svClientMatches(q) : (cur ? [cur] : []).concat(recent);
         if (_svClientActive >= flat.length) _svClientActive = 0;
-        const rowHtml = (n, idx) => `<div class="sv-client-row${idx === _svClientActive ? ' is-active' : ''}${n === cur ? ' is-current' : ''}" style="--sv-client-h:${_svClientHue(n)}" role="option" id="svClientOpt${idx}" aria-selected="${n === cur}" data-sv-client="${_calEscAttr(n)}">${_svClientDot(n)}<span>${_calEsc(n)}</span></div>`;
+        const removable = n => !q && n !== cur;
+        const rowHtml = (n, idx) => `<div class="sv-client-row${idx === _svClientActive ? ' is-active' : ''}${n === cur ? ' is-current' : ''}" style="--sv-client-h:${_svClientHue(n)}" role="option" id="svClientOpt${idx}" aria-selected="${n === cur}" data-sv-client="${_calEscAttr(n)}">${_svClientDot(n)}<span class="sv-client-row-name">${_calEsc(n)}</span>${removable(n) ? `<button type="button" class="sv-client-forget" data-sv-forget="${_calEscAttr(n)}" aria-label="Remove ${_calEscAttr(n)} from recent" title="Remove from recent"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3l6 6M9 3 3 9"/></svg></button>` : ''}</div>`;
         let html = '';
         if (!flat.length) html = `<div class="sv-client-none">${q ? 'No clients match' : 'Type a client name'}</div>`;
         else flat.forEach((n, idx) => {
             if (!q && cur && idx === 1) html += '<div class="sv-client-divider" role="separator"></div>';
             html += rowHtml(n, idx);
         });
+        if (!q && recent.length) html += '<button type="button" class="sv-client-clear" data-sv-forget-all="1">Clear recent</button>';
         box.innerHTML = html;
         box._svFlat = flat;
         if (flat.length) input.setAttribute('aria-activedescendant', 'svClientOpt' + _svClientActive);
@@ -247,6 +261,19 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (!bar || bar.dataset.wired === '1') return;
         bar.dataset.wired = '1';
         bar.addEventListener('click', e => {
+            // Remove buttons sit inside a row: handle them first, never as a pick.
+            const forget = e.target.closest('[data-sv-forget]');
+            const forgetAll = e.target.closest('[data-sv-forget-all]');
+            if (forget || forgetAll) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (forgetAll) svRecentClientsClear();
+                else svRecentClientRemove(forget.getAttribute('data-sv-forget'));
+                _svClientActive = 0;
+                _svClientRenderResults();
+                document.getElementById('svClientSearch')?.focus();
+                return;
+            }
             const pick = e.target.closest('[data-sv-client]');
             if (pick) { e.preventDefault(); svSharedClientPick(pick.getAttribute('data-sv-client')); }
         });

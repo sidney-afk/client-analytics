@@ -1,4 +1,4 @@
-**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](../ops/LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+**Archived 2026-09-26:** This July migration handoff is spent. See the [current state](../STATE_OF_THINGS.md) before using any historical instructions below.
 
 # CODEX_PROMPT.md — paste-ready handoff prompt for the executing agent
 

@@ -343,10 +343,25 @@ assert.strictEqual(
   'the exact historical same-client hash is migration input only',
 );
 assert.strictEqual(
-  envelope('?c=Client+One&t=token', '', { client: 'Client One', clientTab: 'brief' }).view,
-  'brief',
+  envelope('?c=Client+One&t=token', '', { client: 'Client One', clientTab: 'calendar' }).view,
+  'calendar',
   'same-client history may restore a supported profile subtab',
 );
+// Client links show only Analytics and Content Calendar: a stale Brief
+// history entry or an old v=brief link lands on the Calendar, never an error.
+assert.strictEqual(
+  envelope('?c=Client+One&t=token', '', { client: 'Client One', clientTab: 'brief' }).view,
+  'calendar',
+  'a stale same-client Brief history entry restores the Calendar',
+);
+assert.deepStrictEqual(envelope('?c=Client+One&t=current-token&v=brief'), {
+  ok: true,
+  client: 'Client One',
+  slug: 'clientone',
+  token: 'current-token',
+  view: 'calendar',
+  legacyHash: false,
+}, 'a legacy v=brief client link is accepted and redirected to the Calendar');
 
 function canonicalize(entry) {
   let replacement = null;

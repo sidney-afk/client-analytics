@@ -40,7 +40,7 @@
     (function () {
         // clean first path segment -> legacy hash route
         var SIMPLE = {
-            'submit': 'linear', 'workload': 'workload', 'calendar': 'calendar',
+            'today': 'today', 'submit': 'linear', 'workload': 'workload', 'calendar': 'calendar',
             'templates': 'templates', 'filming-plans': 'filming-plans',
             'tiktok-upload': 'tiktok-upload', 'time-off': 'time-off',
             'sample-reviews': 'sample-reviews', 'smm-weekly-report': 'smm-weekly-report',
@@ -391,7 +391,7 @@
             // Any other page the address names (a Kasper link before the admin
             // check, Samples switched off, a sub-path the fast path does not
             // predict): never guess Analytics, paint the neutral skeleton.
-            else if (seg && ['production', 'linear', 'workload', 'calendar', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'kasper', 'sample-reviews', 'samples'].indexOf(seg) >= 0) target = 'neutral';
+            else if (seg && ['today', 'production', 'linear', 'workload', 'calendar', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'kasper', 'sample-reviews', 'samples'].indexOf(seg) >= 0) target = 'neutral';
             else if (!hash) {
                 var saved = null; try { saved = localStorage.getItem('syncview_nav'); } catch (e) {}
                 var nav = (st && st.nav) || saved;
@@ -3051,6 +3051,10 @@
            you are on keeps its name; the others keep theirs on hover. */
         #headerNav.is-measuring > .header-nav-btn { transition: none !important; }
         #headerNav.is-compact > .header-nav-btn:not(.active) { font-size: 0; gap: 0; padding-left: 9px; padding-right: 9px; }
+        /* In compact mode only the ACTIVE tab keeps its label, so the row's width
+           changes with the page. Centred, every tab would slide sideways on each
+           switch; anchor it at the start of its column so tabs stay put. */
+        #headerNav.is-compact { justify-self: start; }
         /* Touch screens cannot hover for the name, so compact keeps small labels
            there; icons only (.is-icons) is the last resort if even those overflow. */
         @media (hover: none) {
@@ -3087,6 +3091,7 @@
         .header-nav-btn .ico-submit { -webkit-mask-image: url('/nav-icons/submit.png'); mask-image: url('/nav-icons/submit.png'); }
         .header-nav-btn .ico-templates { -webkit-mask-image: url('/nav-icons/templates.png'); mask-image: url('/nav-icons/templates.png'); }
         .header-nav-btn .ico-filmingplans { -webkit-mask-image: url('/nav-icons/filming-plans.png'); mask-image: url('/nav-icons/filming-plans.png'); }
+        .header-nav-btn .ico-today { -webkit-mask-image: url('/nav-icons/today.png'); mask-image: url('/nav-icons/today.png'); }
         .header-nav-btn .ico-workload { -webkit-mask-image: url('/nav-icons/workload.png'); mask-image: url('/nav-icons/workload.png'); }
         .header-nav-btn .ico-calendar { -webkit-mask-image: url('/nav-icons/calendar.png'); mask-image: url('/nav-icons/calendar.png'); }
         .header-nav-btn .ico-samples { -webkit-mask-image: url('/nav-icons/samples.png'); mask-image: url('/nav-icons/samples.png'); }
@@ -8648,6 +8653,101 @@
         .sv-jump-muted, .sv-jump-empty { color: var(--text-muted); }
         .sv-jump-empty { padding: 12px; font-size: 0.84rem; }
         .sv-jump-foot { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--border-light); font-size: 0.7rem; color: var(--text-muted); }
+
+        /* TODAY: what is waiting on you (097-today). Reads only; no checkboxes. */
+        .tdy { max-width: 880px; margin: 0 auto; padding: 36px 24px 80px; font-family: 'Plus Jakarta Sans', sans-serif; color: var(--text-primary); }
+        .tdy-loading, .tdy-note { color: var(--text-secondary); font-size: 0.85rem; }
+        .tdy-note { margin-top: 18px; }
+        .tdy-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+        .tdy-date { font-size: 0.88rem; font-weight: 600; color: var(--text-secondary); }
+        .tdy-vw { display: flex; gap: 2px; background: var(--surface-subtle); border: 1px solid var(--border-light); border-radius: 10px; padding: 3px; }
+        .tdy-vw button { font: 600 0.78rem 'Plus Jakarta Sans', sans-serif; color: var(--text-secondary); background: none; border: 0; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+        .tdy-vw button.on { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+        .tdy-big { font-size: 2.3rem; line-height: 1.08; letter-spacing: -0.03em; font-weight: 800; margin: 4px 0 18px; }
+        .tdy-meter { display: flex; gap: 4px; margin-bottom: 8px; }
+        .tdy-meter i { flex: 1; height: 10px; border-radius: 3px; background: var(--border); }
+        .tdy-meter i.f { background: var(--chart-spend); }
+        .tdy-meter i.bar { position: relative; overflow: hidden; }
+        .tdy-meter i.bar b { position: absolute; inset: 0 auto 0 0; background: var(--chart-spend); border-radius: 3px; }
+        .tdy-meter.all i.f, .tdy-meter.all i.bar b { background: var(--up); }
+        .tdy-mrow { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 30px; }
+        .tdy-mrow b { color: var(--text-primary); }
+        .tdy-st { font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); margin: 0 0 8px 4px; }
+        .tdy-st span { color: var(--text-muted); margin-left: 4px; }
+        .tdy-ls { background: var(--white); border: 1px solid var(--border-light); border-radius: 14px; }
+        .tdy-rw { display: flex; align-items: center; gap: 12px; padding: 11px 14px 11px 16px; }
+        .tdy-rw + .tdy-rw { border-top: 1px solid var(--border-light); }
+        .tdy-av { width: 24px; height: 24px; border-radius: 50%; display: inline-grid; place-items: center; color: var(--text-inverse); font-size: 0.6rem; font-weight: 800; flex: none; }
+        .tdy-pipe { display: flex; gap: 3px; width: 52px; flex: none; }
+        .tdy-pipe i { height: 4px; flex: 1; border-radius: 99px; background: var(--border); }
+        .tdy-pipe i.d { background: var(--text-muted); }
+        .tdy-pipe i.n { background: var(--chart-spend); }
+        .tdy-pipe i.w { background: var(--wl-tweaks-accent); }
+        .tdy-who { flex: 1; min-width: 0; }
+        .tdy-tt { font-size: 0.88rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .tdy-cn { font-size: 0.78rem; color: var(--text-secondary); font-weight: 500; }
+        .tdy-urg { font-size: 0.68rem; font-weight: 800; color: var(--text-inverse); background: var(--dn); border-radius: 6px; padding: 3px 7px; flex: none; }
+        .tdy-b { display: inline-flex; align-items: center; gap: 6px; font: 700 0.75rem 'Plus Jakarta Sans', sans-serif; color: var(--text-primary); background: var(--surface-subtle); border: 1px solid var(--border-light); border-radius: 8px; padding: 7px 10px; white-space: nowrap; cursor: pointer; flex: none; }
+        .tdy-b:hover { background: var(--surface-hover); }
+        .tdy-b.p { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); font-size: 0.84rem; padding: 10px 15px; }
+        .tdy-b:focus-visible, .tdy-vw button:focus-visible, .tdy-rg:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        .tdy-ic { width: 14px; height: 14px; background: currentColor; -webkit-mask: var(--ic) center / contain no-repeat; mask: var(--ic) center / contain no-repeat; flex: none; }
+        .tdy-more { padding: 11px 16px; border-top: 1px solid var(--border-light); font-size: 0.78rem; color: var(--text-secondary); font-weight: 600; }
+        .tdy-rings { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 22px; }
+        .tdy-rg { background: var(--white); border: 1px solid var(--border-light); border-radius: 16px; padding: 14px 8px 12px; text-align: center; cursor: pointer; font: 600 0.78rem 'Plus Jakarta Sans', sans-serif; color: var(--text-secondary); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .tdy-rg.on { border-color: var(--text-primary); box-shadow: 0 0 0 1px var(--text-primary); color: var(--text-primary); }
+        .tdy-ring { width: 56px; height: 56px; border-radius: 50%; border: 5px solid var(--chart-spend); display: grid; place-items: center; }
+        .tdy-ring b { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); }
+        .tdy-ring.full { border-color: var(--up); background: var(--up); }
+        .tdy-ring.full b::after { content: ''; display: block; width: 14px; height: 7px; border: 3px solid var(--text-inverse); border-top: 0; border-right: 0; transform: rotate(-45deg) translate(2px, -2px); }
+        .tdy-trail { margin-top: 24px; }
+        .tdy-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .tdy-chip { display: inline-flex; align-items: center; gap: 7px; background: var(--white); border: 1px solid var(--border-light); border-radius: 99px; padding: 5px 12px 5px 6px; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); }
+        .tdy-chip .tdy-cn { font-size: 0.72rem; }
+        .tdy-chip time { color: var(--text-muted); font-weight: 500; }
+        .tdy-tk, .tdy-ok { width: 16px; height: 16px; border-radius: 50%; background: var(--up); display: inline-grid; place-items: center; flex: none; }
+        .tdy-tk::after, .tdy-ok::after, .tdy-steps .ok .tdy-ck::after { content: ''; width: 6px; height: 3px; border: 2px solid var(--text-inverse); border-top: 0; border-right: 0; transform: rotate(-45deg) translate(1px, -1px); }
+        .tdy-win { background: var(--white); border: 1px solid var(--border-light); border-radius: 20px; padding: 48px 28px; text-align: center; }
+        .tdy-win .tdy-ok { width: 56px; height: 56px; margin: 0 auto 16px; }
+        .tdy-win .tdy-ok::after { width: 18px; height: 9px; border-width: 4px; }
+        .tdy-win h2 { font-size: 1.7rem; letter-spacing: -0.02em; margin: 0 0 6px; }
+        .tdy-win p { color: var(--text-secondary); margin: 0 0 14px; }
+        .tdy-focus, .tdy-cd.c1 { background: var(--white); border: 1px solid var(--border-light); border-radius: 20px; padding: 30px 28px 26px; text-align: center; }
+        .tdy-focus .tdy-av, .tdy-cd.c1 .tdy-av { width: 46px; height: 46px; font-size: 0.9rem; margin-bottom: 12px; }
+        .tdy-focus h2, .tdy-cd.c1 h2 { font-size: 1.7rem; letter-spacing: -0.02em; margin: 0 0 4px; }
+        .tdy-focus .tdy-cn, .tdy-cd.c1 .tdy-cn { font-size: 0.88rem; margin-bottom: 16px; }
+        .tdy-n { font-size: 0.78rem; font-weight: 700; color: var(--chart-spend); margin-bottom: 14px; }
+        .tdy-steps { text-align: left; max-width: 380px; margin: 0 auto 22px; border: 1px solid var(--border-light); border-radius: 12px; }
+        .tdy-steps div { display: flex; align-items: center; gap: 12px; padding: 10px 14px; font-size: 0.88rem; font-weight: 600; }
+        .tdy-steps div + div { border-top: 1px solid var(--border-light); }
+        .tdy-ck { width: 18px; height: 18px; border-radius: 50%; border: 1.8px solid var(--border); display: grid; place-items: center; flex: none; }
+        .tdy-steps .ok { color: var(--text-secondary); }
+        .tdy-steps .ok .tdy-ck { background: var(--up); border-color: var(--up); }
+        .tdy-steps .bad { color: var(--wl-tweaks-label); }
+        .tdy-steps .bad .tdy-ck { border-color: var(--wl-tweaks-accent); }
+        .tdy-acts { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+        .tdy-cd.c1 .tdy-pipe { width: 180px; margin: 12px auto 20px; }
+        .tdy-cd.c1 .tdy-pipe i { height: 6px; }
+        .tdy-deck { position: relative; display: grid; grid-template-columns: 1fr minmax(0, 460px) 1fr; align-items: start; gap: 16px; margin: 6px 0 30px; }
+        .tdy-deck .tdy-cd.c1 { grid-column: 2; grid-row: 1; position: relative; z-index: 2; box-shadow: var(--shadow-md); }
+        .tdy-deck .tdy-cd.c2, .tdy-deck .tdy-cd.c3 { grid-column: 2; grid-row: 1; align-self: stretch; background: var(--white); border: 1px solid var(--border-light); border-radius: 20px; }
+        .tdy-deck .tdy-cd.c2 { transform: translateY(10px) scale(0.96); opacity: 0.8; z-index: 1; }
+        .tdy-deck .tdy-cd.c3 { transform: translateY(20px) scale(0.92); opacity: 0.55; }
+        .tdy-pile, .tdy-left { grid-row: 1; }
+        .tdy-left { grid-column: 3; text-align: right; }
+        .tdy-pile b, .tdy-left b { display: block; font-size: 2.6rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+        .tdy-pile b { color: var(--up); }
+        .tdy-pile span, .tdy-left span { font-size: 0.78rem; color: var(--text-secondary); font-weight: 600; }
+        @media (max-width: 760px) {
+            .tdy { padding: 20px 16px 60px; }
+            .tdy-big { font-size: 1.6rem; }
+            .tdy-rings { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .tdy-pipe { display: none; }
+            .tdy-rw .tdy-b { padding: 7px; font-size: 0; gap: 0; }
+            .tdy-deck { grid-template-columns: 1fr 1fr; }
+            .tdy-deck .tdy-cd { grid-column: 1 / -1 !important; grid-row: 2 !important; }
+            .tdy-left { grid-column: 2; }
+        }
     </style>
 </head>
 <body>
@@ -8741,6 +8841,10 @@
     </div>
     <div class="header-nav" id="headerNav">
         <span class="header-nav-pill" aria-hidden="true"></span>
+        <a class="header-nav-btn" id="navToday" href="/today" onclick="if(_modClick(event))return;event.preventDefault();navTo('today')">
+            <span class="header-nav-ico ico-today" aria-hidden="true"></span>
+            Today
+        </a>
         <a class="header-nav-btn" id="navCalendar" href="/calendar" onclick="if(_modClick(event))return;event.preventDefault();navTo('calendar')">
             <span class="header-nav-ico ico-calendar" aria-hidden="true"></span>
             Calendar
@@ -23496,6 +23600,7 @@
         linear: '/nav-icons/submit-favicon.png',
         templates: '/nav-icons/templates-favicon.png',
         'filming-plans': '/nav-icons/filming-plans-favicon.png',
+        today: '/nav-icons/today-favicon.png',
         workload: '/nav-icons/workload-favicon.png',
         calendar: '/nav-icons/calendar-favicon.png',
         'sample-reviews': '/nav-icons/samples-favicon.png',
@@ -23587,6 +23692,8 @@
         if (navTpl) navTpl.classList.toggle('active', page === 'templates');
         const navFp = document.getElementById('navFilmingPlans');
         if (navFp) navFp.classList.toggle('active', page === 'filming-plans');
+        const navToday = document.getElementById('navToday');
+        if (navToday) navToday.classList.toggle('active', page === 'today');
         const navWl = document.getElementById('navWorkload');
         if (navWl) navWl.classList.toggle('active', page === 'workload');
         const navCal = document.getElementById('navCalendar');
@@ -23621,6 +23728,7 @@
         // Tear down the TikTok-upload polling timer whenever we leave the page so
         // it doesn't keep hitting the queue webhook in the background.
         if (page !== 'tiktok-upload' && typeof _tkTeardown === 'function') _navTeardownSafe(_tkTeardown);
+        if (page !== 'today' && typeof _tdyTeardown === 'function') _navTeardownSafe(_tdyTeardown);
         // Same for Kasper review's 30 s background poller + visibility listeners.
         if (page !== 'kasper' && typeof _kasperTeardown === 'function') _navTeardownSafe(_kasperTeardown);
         // Phase 2: drop the calendar's Supabase realtime subscription when
@@ -23713,6 +23821,11 @@
             pageTop.style.display = 'none';
             content.innerHTML = renderFilmingPlansView();
             mountFilmingPlansView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'today') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderTodayView();
+            mountTodayView();
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'workload') {
             pageTop.style.display = 'none';
@@ -24216,6 +24329,454 @@
     else _svJumpWire();
 
     window.svQuickJumpOpen = svQuickJumpOpen;
+    /* TODAY (owner design 2026-09-27, session Compass).
+     *
+     * One summary page per person: what is waiting on YOU right now, pulled
+     * from the tabs that already hold it. It reads only; it never writes and it
+     * has no checkboxes. A card leaves the page by itself when its status moves
+     * on (you approved it, the editor sent it back, and so on), and lands in
+     * "Cleared today".
+     *
+     *   SMM and admin: five jobs as rings (to approve, missing links, captions
+     *     to write, to schedule, dates to move), or a walk-through that takes
+     *     one upcoming post at a time.
+     *   Video and graphics: their own queue (urgent, changes, to do) as a list
+     *     or a deck. Editors work in SyncLinear, so rows only open SyncLinear.
+     *
+     * Client scope follows the one shared rule in 098-smm-clients (the same
+     * rule the client dropdown's "My clients" uses): only current Clients Info
+     * clients; an SMM sees the ones the SMM roster lists for them; an admin sees
+     * all of them. An SMM with no clients listed gets a short note. If the
+     * roster or Clients Info cannot be read, the page says so and offers a
+     * retry rather than guessing. Today is a team tab: it ignores
+     * the shared client, but opening a card makes that card's client current. */
+    const TDY_VIEW_KEY = 'syncview_today_view';
+    const TDY_OPEN = ['todo', 'in_progress', 'tweak', 'smm_approval'];
+    const TDY_PAST_EDIT = ['smm_approval', 'kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted'];
+    const TDY_PAST_SMM = ['kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted'];
+    const TDY_STAGE = { todo: 0, in_progress: 0, tweak: 0, smm_approval: 1, kasper_approval: 2, client_approval: 3 };
+    // no-hardcoded-colors: allow-start (client avatar dots, same hues as the design mockups)
+    const TDY_PALETTE = ['#7c5cff', '#e1306c', '#0e9f8e', '#2f7de1', '#d98a12', '#5b6b82', '#c2410c', '#16a34a', '#9333ea', '#0891b2'];
+    // no-hardcoded-colors: allow-end
+    const tdyState = { gen: 0, data: null, error: '', view: '', walk: 0, skipped: [] };
+
+    function _tdyIdentity() {
+        const id = _syncviewStaffIdentityForHeaders();
+        const m = id && id.member;
+        if (!m || !m.id) return null;
+        const role = String(id.role || m.role || '').toLowerCase();
+        const team = String(m.team || '').toLowerCase();
+        const editor = role !== 'admin' && role !== 'smm' && (team === 'video' || team === 'graphics');
+        return { id: String(m.id), name: String(m.name || '').trim(), first: String(m.name || '').trim().split(/\s+/)[0] || '', role, team, editor };
+    }
+    function _tdyIso(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function _tdyDays(n) { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + n); return d; }
+    function _tdyMonday() { const d = _tdyDays(0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; }
+    async function _tdyRest(table, query) {
+        const out = [];
+        for (let page = 0; page < 8; page++) {
+            let rows = null;
+            for (let attempt = 0; attempt < 3 && !rows; attempt++) {
+                try {
+                    const res = await fetch(CAL_SUPABASE_URL + '/rest/v1/' + table + '?' + query + '&limit=1000&offset=' + (page * 1000), {
+                        headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY }
+                    });
+                    if (!res.ok) throw new Error(table + ' ' + res.status);
+                    rows = await res.json();
+                } catch (e) {
+                    if (attempt === 2) throw e;
+                    await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
+                }
+            }
+            out.push(...rows);
+            if (rows.length < 1000) break;
+        }
+        return out;
+    }
+    const _tdyIn = list => 'in.(' + list.join(',') + ')';
+    /* Cards left over from the Linear era sit in open statuses for months and
+       nobody is working them. A card counts only while something about it is
+       recent: its status moved in the last 30 days, or its due date is no
+       older than that. */
+    function _tdyFresh(r) {
+        const cut = _tdyDays(-30);
+        return (!!r.status_at && new Date(r.status_at) >= cut) || (!!r.due_date && r.due_date >= _tdyIso(cut));
+    }
+
+    /* A batch PARENT (the old Linear post issue) sits in the same view as its
+       video and thumbnail children. It is not work anybody owes, so every list
+       and count here drops it: a row is a parent when another row names it as
+       its parent. */
+    async function _tdyParentIds() {
+        const rows = await _tdyRest('production_deliverables_browser_v1', 'select=raw_issue_parent_id&raw_issue_parent_id=not.is.null');
+        return new Set(rows.map(r => r.raw_issue_parent_id));
+    }
+    async function _tdyRoster() {
+        if (_srpState.managersLoaded) return _srpState.managers;
+        const ident = _syncviewStaffIdentityForHeaders();
+        if (!ident || !ident.key) return null;
+        try {
+            const resp = await fetch(SMM_WEEKLY_REPORTS_URL + '?action=options', {
+                headers: { Accept: 'application/json', apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, 'X-Syncview-Key': ident.key }
+            });
+            const data = await resp.json().catch(() => null);
+            if (!resp.ok || !data || !Array.isArray(data.managers)) return null;
+            _srpState.managers = data.managers;
+            _srpState.managersLoaded = true;
+            return data.managers;
+        } catch (e) { return null; }
+    }
+    /* The current Clients Info clients this person may see: every one for an
+       admin, the roster's list for an SMM (see 098-smm-clients). */
+    async function _tdyVisibleClients(me) {
+        const current = svCurrentClients();
+        if (!current.size) throw new Error('clients');
+        if (me.role === 'admin') return { keys: new Set(current.keys()), notListed: false };
+        const managers = await _tdyRoster();
+        if (!managers) throw new Error('roster');
+        let email = '';
+        try {
+            const rows = await _tdyRest('team_members', 'select=email&id=eq.' + encodeURIComponent(me.id));
+            email = String(rows[0] && rows[0].email || '');
+        } catch (e) {}
+        const mine = svSmmCurrentClients(svRosterEntryFor(managers, { email, name: me.name }), current);
+        return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0 };
+    }
+    async function _tdyLoad(me) {
+        const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
+        const monday = _tdyMonday().toISOString();
+        const [clients, parents] = await Promise.all([_tdyRest('clients', 'select=slug,display_name,active'), _tdyParentIds()]);
+        const child = r => !(r.linear_issue_uuid && parents.has(r.linear_issue_uuid));
+        const names = {};
+        clients.forEach(c => { names[c.slug] = c.display_name || c.slug; });
+        if (me.editor) {
+            const mine = 'assignee_id=eq.' + encodeURIComponent(me.id);
+            const [open, done] = await Promise.all([
+                _tdyRest('production_deliverables_browser_v1', DSEL + '&' + mine + '&status=' + _tdyIn(['todo', 'in_progress', 'tweak'])),
+                _tdyRest('production_deliverables_browser_v1', DSEL + '&' + mine + '&status=' + _tdyIn(TDY_PAST_EDIT) + '&status_at=gte.' + encodeURIComponent(monday))
+            ]);
+            const urgent = new Set();
+            const ids = open.filter(child).map(r => r.id);
+            for (let i = 0; i < ids.length; i += 100) {
+                const rows = await _tdyRest('deliverables', 'select=id,priority&id=' + _tdyIn(ids.slice(i, i + 100)));
+                rows.forEach(r => { if (Number(r.priority) === 1) urgent.add(r.id); });
+            }
+            return { names, open: open.filter(r => child(r) && (r.status === 'tweak' || _tdyFresh(r))), done: done.filter(child), urgent };
+        }
+        const visible = await _tdyVisibleClients(me);
+        const scope = clients.filter(c => visible.keys.has(svClientKey(c.display_name)) || visible.keys.has(svClientKey(c.slug))).map(c => c.slug);
+        const inScope = r => scope.includes(r.client_slug || r.client);
+        const today = _tdyIso(_tdyDays(0));
+        const [open, done, posts] = await Promise.all([
+            _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_OPEN)),
+            _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_PAST_SMM) + '&status_at=gte.' + encodeURIComponent(monday)),
+            _tdyRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
+                + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)')
+        ]);
+        return { names, notListed: visible.notListed, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
+    }
+
+    /* ---------- small pieces ---------- */
+    function _tdyColor(slug) {
+        let h = 0;
+        for (const ch of String(slug || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+        return TDY_PALETTE[h % TDY_PALETTE.length];
+    }
+    function _tdyInitials(name) {
+        const w = String(name || '').replace(/^Dr\.?\s+/i, '').trim().split(/\s+/).filter(Boolean);
+        return ((w[0] || '?')[0] + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase();
+    }
+    function _tdyAvatar(slug, name) {
+        return `<span class="tdy-av" style="background:${_tdyColor(slug)}">${_calEsc(_tdyInitials(name))}</span>`;
+    }
+    function _tdyPipe(status) {
+        const s = TDY_STAGE[status] != null ? TDY_STAGE[status] : 0;
+        return `<span class="tdy-pipe" aria-hidden="true">${[0, 1, 2, 3].map(k => `<i class="${k < s ? 'd' : k === s ? (status === 'tweak' ? 'w' : 'n') : ''}"></i>`).join('')}</span>`;
+    }
+    function _tdyIco(name) { return `<span class="tdy-ic" style="--ic:url('/nav-icons/${name}.png')" aria-hidden="true"></span>`; }
+    function _tdyBtnSync(id) {
+        return id ? `<button type="button" class="tdy-b" onclick="_tdyOpenSync(${_calEscAttr(JSON.stringify(String(id)))})">${_tdyIco('synclinear')}SyncLinear</button>` : '';
+    }
+    function _tdyBtnCard(kind, id) {
+        return `<button type="button" class="tdy-b" onclick="_tdyOpenCard(${_calEscAttr(JSON.stringify(kind))},${_calEscAttr(JSON.stringify(String(id)))})">${_tdyIco('calendar')}Open card</button>`;
+    }
+    function _tdyTimeOf(iso) {
+        const d = new Date(iso);
+        return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
+    function _tdyMeter(done, left, week) {
+        const total = done + left;
+        const segs = total > 0 && total <= 24
+            ? Array.from({ length: total }, (_, k) => `<i class="${k < done ? 'f' : ''}"></i>`).join('')
+            : `<i class="bar"><b style="width:${total ? Math.round(done / total * 100) : 0}%"></b></i>`;
+        return `<div class="tdy-meter ${total && !left ? 'all' : ''}">${segs}</div>
+            <div class="tdy-mrow"><span><b>${done} of ${total}</b> cleared today</span><span>${week} this week</span></div>`;
+    }
+    function _tdyTrail(list, names) {
+        if (!list.length) return '';
+        const chips = list.slice(0, 12).map(r => `<span class="tdy-chip"><span class="tdy-tk"></span>${_calEsc(r.title || 'Untitled')}<span class="tdy-cn">${_calEsc(names[r.client_slug] || '')}</span><time>${_calEsc(_tdyTimeOf(r.status_at))}</time></span>`).join('');
+        return `<div class="tdy-trail"><div class="tdy-st">Cleared today <span>${list.length}</span></div><div class="tdy-chips">${chips}</div></div>`;
+    }
+    function _tdyTop(views, on) {
+        const d = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+        return `<div class="tdy-top"><span class="tdy-date">${_calEsc(d)}</span><div class="tdy-vw" role="tablist">${views.map(v => `<button type="button" role="tab" aria-selected="${v === on}" class="${v === on ? 'on' : ''}" data-tdy-key="view-${_calEscAttr(v)}" onclick="_tdySetView(${_calEscAttr(JSON.stringify(v))})">${_calEsc(v)}</button>`).join('')}</div></div>`;
+    }
+    const _tdyToday = rows => rows.filter(r => r.status_at && new Date(r.status_at) >= _tdyDays(0));
+
+    /* ---------- editors ---------- */
+    function _tdyEditorQueue(d) {
+        const due = r => r.due_date || '9999';
+        const rank = r => (r.status === 'tweak' ? 0 : 2) - (d.urgent.has(r.id) ? 1 : 0);
+        return d.open.filter(r => !tdyState.skipped.includes(r.id))
+            .concat(d.open.filter(r => tdyState.skipped.includes(r.id)))
+            .sort((a, b) => rank(a) - rank(b) || due(a).localeCompare(due(b)));
+    }
+    function _tdyEditorRow(r, d) {
+        const name = d.names[r.client_slug] || r.client_slug || '';
+        return `<div class="tdy-rw">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}${r.status === 'tweak' ? ' · changes asked' : ''}</div></div>${d.urgent.has(r.id) ? '<span class="tdy-urg">Urgent</span>' : ''}${_tdyBtnSync(r.id)}</div>`;
+    }
+    function _tdyEditorHtml(me, d, view) {
+        const q = _tdyEditorQueue(d);
+        const today = _tdyToday(d.done);
+        const head = _tdyTop(['List', 'Deck'], view) + _tdyMeter(today.length, q.length, d.done.length);
+        if (!q.length) return head + `<div class="tdy-win"><span class="tdy-ok"></span><h2>All clear${me.first ? ', ' + _calEsc(me.first) : ''}.</h2><p>Nothing is waiting on you.</p></div>` + _tdyTrail(today, d.names);
+        if (view === 'Deck') {
+            const r = q[0];
+            const name = d.names[r.client_slug] || r.client_slug || '';
+            return head + `<div class="tdy-deck"><div class="tdy-pile"><b>${today.length}</b><span>cleared today</span></div><div class="tdy-left"><b>${q.length}</b><span>in the deck</span></div>
+                ${q.length > 2 ? '<div class="tdy-cd c3"></div>' : ''}${q.length > 1 ? '<div class="tdy-cd c2"></div>' : ''}
+                <div class="tdy-cd c1">${_tdyAvatar(r.client_slug, name)}<h2>${_calEsc(r.title || 'Untitled')}</h2><div class="tdy-cn">${_calEsc(name)}${r.status === 'tweak' ? ' · changes asked' : ''}</div>
+                ${d.urgent.has(r.id) ? '<div><span class="tdy-urg">Urgent</span></div>' : ''}${_tdyPipe(r.status)}
+                <div class="tdy-acts"><button type="button" class="tdy-b p" onclick="_tdyOpenSync(${_calEscAttr(JSON.stringify(r.id))})">${_tdyIco('synclinear')}Open in SyncLinear</button>${q.length > 1 ? `<button type="button" class="tdy-b" onclick="_tdySkip(${_calEscAttr(JSON.stringify(r.id))})">Skip for now</button>` : ''}</div></div></div>`
+                + (q.length > 1 ? `<div class="tdy-st">Next in the deck</div><div class="tdy-ls">${q.slice(1, 4).map(x => _tdyEditorRow(x, d)).join('')}</div>` : '')
+                + _tdyTrail(today, d.names);
+        }
+        return head + `<p class="tdy-big">${me.first ? _calEsc(me.first) + ', ' : ''}${q.length} to clear.</p><div class="tdy-ls">${q.slice(0, 15).map(r => _tdyEditorRow(r, d)).join('')}${q.length > 15 ? `<div class="tdy-more">${q.length - 15} more in SyncLinear</div>` : ''}</div>` + _tdyTrail(today, d.names);
+    }
+
+    /* ---------- SMM and admin ---------- */
+    function _tdyJobs(d) {
+        const today = _tdyIso(_tdyDays(0));
+        const liveCal = p => !['Archived', 'Posted', 'Scheduled'].includes(p.status);
+        return [
+            { key: 'approve', label: 'To approve', rows: d.open.filter(r => r.status === 'smm_approval').map(r => ({ kind: 'del', r })) },
+            { key: 'links', label: 'Missing links', rows: d.posts.filter(p => liveCal(p) && _calSmmMediaGap(p)).map(p => ({ kind: 'post', p })) },
+            { key: 'captions', label: 'Captions to write', rows: d.posts.filter(p => liveCal(p) && !String(p.caption || '').trim()).map(p => ({ kind: 'post', p })) },
+            { key: 'schedule', label: 'To schedule', rows: d.posts.filter(p => p.status === 'Approved').map(p => ({ kind: 'post', p })) },
+            { key: 'dates', label: 'Dates to move', rows: d.open.filter(r => r.status !== 'smm_approval' && r.due_date && r.due_date < today).map(r => ({ kind: 'del', r })) }
+        ];
+    }
+    function _tdySmmRow(x, d) {
+        if (x.kind === 'del') {
+            const r = x.r, name = d.names[r.client_slug] || r.client_slug || '';
+            const card = r.origin === 'calendar' ? _tdyBtnCard('del', r.id) : '';
+            return `<div class="tdy-rw">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}</div></div>${card}${_tdyBtnSync(r.id)}</div>`;
+        }
+        const p = x.p, name = d.names[p.client] || p.client || '';
+        return `<div class="tdy-rw">${_tdyAvatar(p.client, name)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(p.name || 'Untitled post')}</div><div class="tdy-cn">${_calEsc(name)} · ${_calEsc(_tdyShortDate(p.scheduled_date))}</div></div>${_tdyBtnCard('post', p.id)}${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id)}</div>`;
+    }
+    function _tdyShortDate(iso) {
+        const d = new Date(String(iso || '') + 'T12:00:00');
+        return isNaN(d) ? '' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+    function _tdyWalkList(d) {
+        const approving = p => /smm approval/i.test(p.video_status || '') || /smm approval/i.test(p.graphic_status || '') || /smm approval/i.test(p.status || '');
+        return d.posts.filter(p => !['Archived', 'Posted', 'Scheduled'].includes(p.status)
+            && (approving(p) || _calSmmMediaGap(p) || !String(p.caption || '').trim()))
+            .sort((a, b) => String(a.scheduled_date).localeCompare(String(b.scheduled_date)));
+    }
+    function _tdySmmHtml(me, d, view) {
+        const jobs = _tdyJobs(d);
+        const left = jobs.reduce((s, j) => s + j.rows.length, 0);
+        const today = _tdyToday(d.done);
+        const head = _tdyTop(['Rings', 'Walk-through'], view) + _tdyMeter(today.length, left, d.done.length);
+        const scope = d.notListed ? '<p class="tdy-note">No clients are listed for you yet. Ask an admin to add yours to the SMM list.</p>' : '';
+        if (view === 'Walk-through') {
+            const list = _tdyWalkList(d);
+            if (!list.length) return head + `<div class="tdy-win"><span class="tdy-ok"></span><h2>Every post is ready.</h2><p>Nothing to walk through for the next two weeks.</p></div>` + scope;
+            const i = ((tdyState.walk % list.length) + list.length) % list.length;
+            const p = list[i], name = d.names[p.client] || p.client || '';
+            const gap = _calSmmMediaGap(p) || {};
+            const approving = /smm approval/i.test((p.video_status || '') + (p.graphic_status || '') + (p.status || ''));
+            const step = (ok, text, bad) => `<div class="${ok ? 'ok' : bad ? 'bad' : ''}"><span class="tdy-ck"></span>${_calEsc(text)}</div>`;
+            return head + `<div class="tdy-focus"><div class="tdy-n">Post ${i + 1} of ${list.length} · ${_calEsc(_tdyShortDate(p.scheduled_date))}</div>${_tdyAvatar(p.client, name)}<h2>${_calEsc(p.name || 'Untitled post')}</h2><div class="tdy-cn">${_calEsc(name)}</div>
+                <div class="tdy-steps">${step(!gap.video, gap.video ? 'Video link missing' : 'Video link in place', gap.video)}${step(!gap.thumb, gap.thumb ? 'Thumbnail link missing' : 'Thumbnail link in place', gap.thumb)}${step(!!String(p.caption || '').trim(), String(p.caption || '').trim() ? 'Caption written' : 'Caption to write', !String(p.caption || '').trim())}${step(!approving && !gap.video && !gap.thumb, approving ? 'Approve and send to Kasper' : 'Nothing waiting on your approval', false)}</div>
+                <div class="tdy-acts"><button type="button" class="tdy-b p" onclick="_tdyOpenCard('post',${_calEscAttr(JSON.stringify(p.id))})">${_tdyIco('calendar')}Open card</button>${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id)}${list.length > 1 ? '<button type="button" class="tdy-b" onclick="_tdyWalkNext()">Skip</button>' : ''}</div></div>` + _tdyTrail(today, d.names) + scope;
+        }
+        const on = jobs.find(j => j.key === tdyState.job && j.rows.length) || jobs.find(j => j.rows.length) || jobs[0];
+        const rings = jobs.map(j => {
+            const n = j.rows.length;
+            return `<button type="button" class="tdy-rg ${j === on ? 'on' : ''}" data-tdy-key="job-${j.key}" onclick="_tdySetJob(${_calEscAttr(JSON.stringify(j.key))})"><span class="tdy-ring ${n ? '' : 'full'}"><b>${n || ''}</b></span><span>${_calEsc(j.label)}</span></button>`;
+        }).join('');
+        const body = on.rows.length
+            ? `<div class="tdy-ls">${on.rows.slice(0, 12).map(x => _tdySmmRow(x, d)).join('')}${on.rows.length > 12 ? `<div class="tdy-more">${on.rows.length - 12} more in SyncLinear and Calendar</div>` : ''}</div>`
+            : `<div class="tdy-win"><span class="tdy-ok"></span><h2>All clear${me.first ? ', ' + _calEsc(me.first) : ''}.</h2><p>Nothing is waiting on you.</p></div>`;
+        return head + `<p class="tdy-big">${me.first ? _calEsc(me.first) + ', ' : ''}${left} to clear.</p><div class="tdy-rings">${rings}</div>` + body + _tdyTrail(today, d.names) + scope;
+    }
+
+    /* ---------- page ---------- */
+    function renderTodayView() {
+        return `<div class="tdy" id="tdyRoot"><div class="tdy-loading">Loading your day…</div></div>`;
+    }
+    function _tdyPaint() {
+        const root = document.getElementById('tdyRoot');
+        if (!root) return;
+        const me = _tdyIdentity();
+        if (!me) { root.innerHTML = '<div class="tdy-win"><h2>Sign in to see your day.</h2><p>Today shows what is waiting on you once you pick your name in the staff menu.</p></div>'; return; }
+        if (tdyState.error) { root.innerHTML = `<div class="tdy-win"><h2>Today could not load.</h2><p>${_calEsc(tdyState.error)}</p><button type="button" class="tdy-b p" onclick="mountTodayView()">Try again</button></div>`; return; }
+        if (!tdyState.data) return;
+        const focused = document.activeElement && root.contains(document.activeElement) ? document.activeElement.getAttribute('data-tdy-key') : '';
+        const views = me.editor ? ['List', 'Deck'] : ['Rings', 'Walk-through'];
+        const view = views.includes(tdyState.view) ? tdyState.view : views[0];
+        root.innerHTML = me.editor ? _tdyEditorHtml(me, tdyState.data, view) : _tdySmmHtml(me, tdyState.data, view);
+        // Repainting replaces the controls; put keyboard focus back on the one
+        // that was just used so a keyboard user keeps their place.
+        if (focused) { const back = root.querySelector('[data-tdy-key="' + focused + '"]'); if (back) back.focus(); }
+    }
+    /* The page is only as fresh as its last read. Cards move on in other
+       tabs (SyncLinear opens in a new one), so coming back to this tab reads
+       again, quietly, keeping what is on screen until the answer lands. A
+       different person signing in on this browser never sees the previous
+       person's day: the sign-out purge clears it (_tdyPurgeSensitiveState). */
+    function _tdyOnVisible() {
+        if (document.visibilityState !== 'visible' || !document.getElementById('tdyRoot')) return;
+        const me = _tdyIdentity();
+        if (!me || (me.id + '|' + me.role) !== tdyState.who) { tdyState.data = null; }
+        mountTodayView();
+    }
+    function _tdyPurgeSensitiveState() {
+        tdyState.gen++;
+        tdyState.data = null; tdyState.who = ''; tdyState.skipped = []; tdyState.walk = 0;
+        const root = document.getElementById('tdyRoot');
+        if (root) { root.innerHTML = '<div class="tdy-loading">Loading your day…</div>'; mountTodayView(); }
+    }
+    async function mountTodayView() {
+        if (!tdyState.listening) { tdyState.listening = true; document.addEventListener('visibilitychange', _tdyOnVisible); }
+        const gen = ++tdyState.gen;
+        try { tdyState.view = localStorage.getItem(TDY_VIEW_KEY) || ''; } catch (e) {}
+        tdyState.error = '';
+        const me = _tdyIdentity();
+        if (!me) { tdyState.data = null; tdyState.who = ''; _tdyPaint(); return; }
+        if ((me.id + '|' + me.role) !== tdyState.who) tdyState.data = null;
+        try {
+            const data = await _tdyLoad(me);
+            if (gen !== tdyState.gen) return;
+            tdyState.data = data;
+            tdyState.who = me.id + '|' + me.role;
+        } catch (e) {
+            if (gen !== tdyState.gen) return;
+            tdyState.error = e && (e.message === 'roster' || e.message === 'clients') ? 'Your client list could not be read. Try again in a moment.' : 'Check your connection and try again.';
+        }
+        _tdyPaint();
+    }
+    function _tdySetView(v) {
+        tdyState.view = v;
+        try { localStorage.setItem(TDY_VIEW_KEY, v); } catch (e) {}
+        _tdyPaint();
+    }
+    function _tdySetJob(k) { tdyState.job = k; _tdyPaint(); }
+    function _tdyWalkNext() { tdyState.walk++; _tdyPaint(); }
+    function _tdySkip(id) { tdyState.skipped = tdyState.skipped.filter(x => x !== id).concat(id); _tdyPaint(); }
+    function _tdyOpenSync(id) {
+        try { window.open('/synclinear/' + encodeURIComponent(id), '_blank', 'noopener'); } catch (e) {}
+    }
+    function _tdyOpenCard(kind, id) {
+        const d = tdyState.data;
+        if (!d) return;
+        if (kind === 'post') {
+            const p = d.posts.find(x => x.id === id);
+            if (!p) return;
+            const name = d.names[p.client] || p.client;
+            try { svSharedClientNote(name); } catch (e) {}
+            _calSetFocusRequest({ client: name, cardId: p.id });
+            navTo('calendar');
+            return;
+        }
+        const r = d.open.find(x => x.id === id);
+        if (!r) return;
+        const name = d.names[r.client_slug] || r.client_slug;
+        try { svSharedClientNote(name); } catch (e) {}
+        wlOpenInContentCalendar(name, '', r.id);
+    }
+    function _tdyTeardown() { tdyState.gen++; }
+
+    window._tdySetView = _tdySetView;
+    window._tdySetJob = _tdySetJob;
+    window._tdyWalkNext = _tdyWalkNext;
+    window._tdySkip = _tdySkip;
+    window._tdyOpenSync = _tdyOpenSync;
+    window._tdyOpenCard = _tdyOpenCard;
+    window.mountTodayView = mountTodayView;
+
+    /* WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the
+     * main-bar client dropdown's "My clients", so the two can never disagree
+     * (owner decision 2026-09-27).
+     *
+     *   1. Only CURRENT clients count: a client is current when it has a row in
+     *      Clients Info (clientMap, the list the rest of SyncView reads). A
+     *      former client leaves that sheet, so it disappears here whatever the
+     *      SMM roster still says.
+     *   2. The SMM roster (social_media_managers, the nightly copy of the
+     *      owner's roster sheet; SyncLinear's "Social media manager" card reads
+     *      it too) says which clients each SMM owns. Roster rows marked
+     *      inactive are former SMMs and are ignored.
+     *   3. Roster and Clients Info spell names differently, so both sides go
+     *      through svClientKey: titles (Dr, Dr.), "&" versus "and",
+     *      punctuation, accents, case and spacing are all ignored.
+     *   4. An admin sees every current client. A current client that no active
+     *      SMM lists is shown to admins only.
+     *
+     * Everything here is pure over its inputs except svCurrentClients, which
+     * reads the loaded Clients Info rows. */
+    const SV_CLIENT_TITLES = /^(?:dr|doctor|mr|mrs|ms|miss|prof|professor)\.?\s+/;
+    function svClientKey(name) {
+        let t = String(name == null ? '' : name).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+        t = t.replace(SV_CLIENT_TITLES, '');
+        t = t.replace(/&/g, ' and ');
+        return t.replace(/[^a-z0-9]+/g, '');
+    }
+    /* Current clients as Map(key -> Clients Info name). Empty until Clients
+       Info has loaded; callers treat empty as "not known yet", never as "no
+       clients". */
+    function svCurrentClients(names) {
+        const list = Array.isArray(names) ? names : Object.keys(clientMap || {});
+        const out = new Map();
+        for (const n of list) { const k = svClientKey(n); if (k && !out.has(k)) out.set(k, String(n).trim()); }
+        return out;
+    }
+    function svActiveManagers(managers) {
+        return (Array.isArray(managers) ? managers : []).filter(m => m && m.active !== false && String(m.name || '').trim());
+    }
+    /* The roster entry for a signed-in staff member: email first, then full
+       name, then a first name only one active roster entry carries. */
+    function svRosterEntryFor(managers, member) {
+        const norm = v => String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        const list = svActiveManagers(managers);
+        const email = norm(member && member.email);
+        const name = norm(member && member.name);
+        const first = name.split(' ')[0];
+        const byFirst = first ? list.filter(m => norm(m.name).split(' ')[0] === first) : [];
+        return (email && list.find(m => norm(m.email) === email))
+            || (name && list.find(m => norm(m.name) === name))
+            || (byFirst.length === 1 ? byFirst[0] : null);
+    }
+    /* The current clients one roster entry owns, as Clients Info names. */
+    function svSmmCurrentClients(entry, current) {
+        if (!entry) return [];
+        const cur = current instanceof Map ? current : svCurrentClients();
+        const owned = new Set((Array.isArray(entry.source_clients) ? entry.source_clients : []).map(svClientKey).filter(Boolean));
+        return [...cur].filter(([k]) => owned.has(k)).map(([, n]) => n);
+    }
+    /* Current clients no active SMM lists: admins only. */
+    function svUnownedCurrentClients(managers, current) {
+        const cur = current instanceof Map ? current : svCurrentClients();
+        const owned = new Set();
+        for (const m of svActiveManagers(managers)) for (const c of (Array.isArray(m.source_clients) ? m.source_clients : [])) owned.add(svClientKey(c));
+        return [...cur].filter(([k]) => !owned.has(k)).map(([, n]) => n);
+    }
+
     /* ============================================================
        CLIENT ONBOARDING MODULE  (standalone, private-link page)
        Reachable ONLY via ?onboarding=<token>. Mirrors ?intake=1: bypasses the
@@ -25747,6 +26308,7 @@
         try { if (typeof _linearIntakePurgeSensitiveState === 'function') _linearIntakePurgeSensitiveState(); } catch (e) {}
         try { if (typeof _fpPurgeSensitiveState === 'function') _fpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _srpPurgeSensitiveState === 'function') _srpPurgeSensitiveState(); } catch (e) {}
+        try { if (typeof _tdyPurgeSensitiveState === 'function') _tdyPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _prodSmmPurgeSensitiveState === 'function') _prodSmmPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _hpPurgeSensitiveState === 'function') _hpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _caPurgeSensitiveState === 'function') _caPurgeSensitiveState(); } catch (e) {}
@@ -69164,6 +69726,7 @@
                 if(s.mrBriefTab)activeMRBriefTab[c]=s.mrBriefTab;
                 render(c,false);return;
             }
+            if(hash==='today'){navTo(hash,false);return;}
             if(hash==='linear'){navTo(hash,false);return;}
             if(hash==='workload'){navTo(hash,false);return;}
             if(hash==='calendar'){navTo(hash,false);return;}
@@ -69197,7 +69760,7 @@
             if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(wlIsAllowedClient(tn)){_templatesSetSelected(wlCanonicalClient(tn));navTo('templates',false);return;}}
             if(hash&&wlIsAllowedClient(hash)){render(wlCanonicalClient(hash),false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
-            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||savedNav==='time-off'||(savedNav==='kasper'&&_kasperUnlocked))){navTo(savedNav,false);return;}
+            if(history.state&&history.state.nav&&(savedNav==='today'||savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||savedNav==='time-off'||(savedNav==='kasper'&&_kasperUnlocked))){navTo(savedNav,false);return;}
             navTo('home',false);
         }catch(err){
             if(_isClientLink){

@@ -1,0 +1,69 @@
+import { clientMap } from './040-shared-briefs.js';
+    /* WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the
+     * main-bar client dropdown's "My clients", so the two can never disagree
+     * (owner decision 2026-09-27).
+     *
+     *   1. Only CURRENT clients count: a client is current when it has a row in
+     *      Clients Info (clientMap, the list the rest of SyncView reads). A
+     *      former client leaves that sheet, so it disappears here whatever the
+     *      SMM roster still says.
+     *   2. The SMM roster (social_media_managers, the nightly copy of the
+     *      owner's roster sheet; SyncLinear's "Social media manager" card reads
+     *      it too) says which clients each SMM owns. Roster rows marked
+     *      inactive are former SMMs and are ignored.
+     *   3. Roster and Clients Info spell names differently, so both sides go
+     *      through svClientKey: titles (Dr, Dr.), "&" versus "and",
+     *      punctuation, accents, case and spacing are all ignored.
+     *   4. An admin sees every current client. A current client that no active
+     *      SMM lists is shown to admins only.
+     *
+     * Everything here is pure over its inputs except svCurrentClients, which
+     * reads the loaded Clients Info rows. */
+    const SV_CLIENT_TITLES = /^(?:dr|doctor|mr|mrs|ms|miss|prof|professor)\.?\s+/;
+    function svClientKey(name) {
+        let t = String(name == null ? '' : name).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+        t = t.replace(SV_CLIENT_TITLES, '');
+        t = t.replace(/&/g, ' and ');
+        return t.replace(/[^a-z0-9]+/g, '');
+    }
+    /* Current clients as Map(key -> Clients Info name). Empty until Clients
+       Info has loaded; callers treat empty as "not known yet", never as "no
+       clients". */
+    function svCurrentClients(names) {
+        const list = Array.isArray(names) ? names : Object.keys(clientMap || {});
+        const out = new Map();
+        for (const n of list) { const k = svClientKey(n); if (k && !out.has(k)) out.set(k, String(n).trim()); }
+        return out;
+    }
+    function svActiveManagers(managers) {
+        return (Array.isArray(managers) ? managers : []).filter(m => m && m.active !== false && String(m.name || '').trim());
+    }
+    /* The roster entry for a signed-in staff member: email first, then full
+       name, then a first name only one active roster entry carries. */
+    function svRosterEntryFor(managers, member) {
+        const norm = v => String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        const list = svActiveManagers(managers);
+        const email = norm(member && member.email);
+        const name = norm(member && member.name);
+        const first = name.split(' ')[0];
+        const byFirst = first ? list.filter(m => norm(m.name).split(' ')[0] === first) : [];
+        return (email && list.find(m => norm(m.email) === email))
+            || (name && list.find(m => norm(m.name) === name))
+            || (byFirst.length === 1 ? byFirst[0] : null);
+    }
+    /* The current clients one roster entry owns, as Clients Info names. */
+    function svSmmCurrentClients(entry, current) {
+        if (!entry) return [];
+        const cur = current instanceof Map ? current : svCurrentClients();
+        const owned = new Set((Array.isArray(entry.source_clients) ? entry.source_clients : []).map(svClientKey).filter(Boolean));
+        return [...cur].filter(([k]) => owned.has(k)).map(([, n]) => n);
+    }
+    /* Current clients no active SMM lists: admins only. */
+    function svUnownedCurrentClients(managers, current) {
+        const cur = current instanceof Map ? current : svCurrentClients();
+        const owned = new Set();
+        for (const m of svActiveManagers(managers)) for (const c of (Array.isArray(m.source_clients) ? m.source_clients : [])) owned.add(svClientKey(c));
+        return [...cur].filter(([k]) => !owned.has(k)).map(([, n]) => n);
+    }
+
+export { svClientKey, svCurrentClients, svRosterEntryFor, svSmmCurrentClients };

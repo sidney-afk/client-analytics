@@ -3096,7 +3096,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
 export {
   CAL_REPLY_DRAFT_MAX, REVIEW_APPROVE_DRAFT_TITLE, _calApplyAutoStatus, _calApprovalBadgeCount,
   _calCommentRole, _calCommentsBtnHtml, _calCompHasUnresolvedKasperTweak, _calCompKasperVisible,
-  _calCurrentAuthor, _calDeleteComment, _calFmtCommentTime, _calLatestMsgAt,
+  _calCurrentAuthor, _calDeleteComment, _calFmtCommentTime, _calLatestMsgAt, _calSmmMediaGap,
   _calLatestMsgCreatedAt, _calLoadComments, _calMergeCommentLists, _calMergePostComments,
   _calMintCommentId, _calOpenCommentsPid, _calPostHasUnresolvedKasperTweak, _calPostKasperVisible,
   _calRefreshCommentsBtn, _calRenderCommentsModal, _calRetryCommentEdit,

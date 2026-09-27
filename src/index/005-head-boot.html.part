@@ -188,7 +188,7 @@
             // Any other page the address names (a Kasper link before the admin
             // check, Samples switched off, a sub-path the fast path does not
             // predict): never guess Analytics, paint the neutral skeleton.
-            else if (seg && ['production', 'linear', 'workload', 'calendar', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'kasper', 'sample-reviews', 'samples'].indexOf(seg) >= 0) target = 'neutral';
+            else if (seg && ['today', 'production', 'linear', 'workload', 'calendar', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'kasper', 'sample-reviews', 'samples'].indexOf(seg) >= 0) target = 'neutral';
             else if (!hash) {
                 var saved = null; try { saved = localStorage.getItem('syncview_nav'); } catch (e) {}
                 var nav = (st && st.nav) || saved;

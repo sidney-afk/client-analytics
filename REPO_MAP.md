@@ -174,6 +174,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | `docs/audits/2026-09-26-hiring-automation-rpc-errors.md` | Source-only review of the hiring automation bridge's unknown-RPC-error response: its fallback unavailable code returns 422, unlike its other availability responses; proposes a status split and mocked check. |
 | `docs/audits/2026-09-26-production-archive-comment-cursor.md` | Source-only review of an incomplete chronological archive comment cursor when another detail lane still has pages; proposes a paired-cursor guard and mocked continuation check. |
 | `docs/audits/2026-09-26-f200-script-callers.md` | Source-only caller and owner map for the four F200 attribution scripts, separating imports, opt-in workflow execution, tests, and local operator purpose. |
+| `docs/audits/2026-09-26-linear-exit-followup-callers.md` | Source-only caller map for the seven follow-up modules: test imports, prepared bundle inputs, guarded operator commands, and absent tracked package/workflow launches. |
 | `scripts/linear-only-slot-repair.js`, `test/linear-only-slot-repair.js`, `docs/ops/2026-09-24-linear-only-slot-repair.md` | Read-only finder for Calendar slots that hold only a retired Linear URL: classifies each against existing SyncView deliverables and writes a guarded, NOT APPLIED connection plan (ids and SQL) to a file outside the repo. Prints counts only. |
 
 ## Meta

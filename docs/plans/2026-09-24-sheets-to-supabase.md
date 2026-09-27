@@ -171,7 +171,24 @@ until that step. Without `--apply` the script is a dry run and needs no key.
 8. Run the timing again for the real one-client payload.
 
 The n8n dual-write nodes come after, one workflow at a time, each with the
-owner's go-ahead. `analytics_mirror_read_enabled` stays off until Phase 2.
+owner's go-ahead.
+
+**Status, 2026-09-27: TOP VIDEOS dual-writes (owner go-ahead given for this
+workflow only).** Two nodes were added after "Write to TopVideos Sheet":
+"Build Supabase Mirror Payload" (one payload per client: the rows that
+client just appended, `source: n8n`, `run_id: n8n-topvideos-<execution>`,
+`run_part` = that node's run number, `complete: true`) and "Mirror to
+Supabase" (one POST to `analytics-write` using the n8n credential
+"Analytics mirror key"). Both continue on error, so a Supabase failure
+cannot stop the Sheet write or the client loop. Rollback: disable the two
+nodes, or restore the workflow's previous version in n8n. Tested with pinned
+sample data for the test client (payload correct, loop completed), then
+published. CLIENTS METRICS, MARKET RESEARCH and Append Client Row are NOT
+edited. Top-up backfill dry run the same day: the Sheets held 72 Metrics and
+601 TopVideos rows not yet in Supabase; the `--apply` run needs the write key
+and runs from the owner's machine. `analytics_mirror_read_enabled` already
+reads `{"enabled": false, "clients": ["<test client>"]}`, so only the test
+client's link reads Supabase. `analytics_mirror_read_enabled` stays off until Phase 2.
 
 **Measured 2026-09-25 (before anything is deployed):**
 

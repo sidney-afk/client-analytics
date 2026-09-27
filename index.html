@@ -8662,7 +8662,7 @@
             <svg class="sv-client-chev" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
         </button>
         <div class="sv-client-pop" id="svClientPop" hidden>
-            <input type="text" class="sv-client-search" id="svClientSearch" placeholder="Search any client…" autocomplete="off" aria-label="Search any client">
+            <input type="text" class="sv-client-search" id="svClientSearch" placeholder="Search any client…" autocomplete="off" aria-label="Search any client" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="svClientResults">
             <div class="sv-client-results" id="svClientResults" role="listbox"></div>
             <div class="sv-client-foot">Follows you across Calendar, Samples, Templates, Filming Plans, TikTok Upload and Analytics.</div>
         </div>
@@ -11831,6 +11831,7 @@
     }
 
     function render(sel,clientOnly){
+        if (typeof svClientBarSync === 'function') svClientBarSync('home');   // client Analytics can be reached without navTo (hash, history)
         if(_isClientLink){
             const cap=_syncviewClientEntryCapability;
             if(!clientOnly||!cap||!cap.verified||_syncviewClientEntrySlug(sel)!==cap.slug){
@@ -11952,6 +11953,8 @@
     }
 
     window.addEventListener('popstate',(e)=>{
+        // Several branches below route without navTo; keep the client bar in step.
+        setTimeout(()=>{ if (typeof svClientBarSync === 'function') svClientBarSync(currentNav); },0);
         const state=e.state;
         if(_isClientLink){
             const cap=_syncviewClientEntryCapability;
@@ -23623,7 +23626,9 @@
         if (before === n) return;
         const page = currentNav;
         if (page === 'home') { selectClient(n); return; }
-        if (SV_CLIENT_FOLLOW_TABS.includes(page)) navTo(page, false);
+        if (!SV_CLIENT_FOLLOW_TABS.includes(page)) return;
+        svSharedClientApply(page, true);   // Templates / Filming Plans read it before the remount
+        navTo(page, false);
     }
     // Called by navTo before a tab mounts. Calendar, Samples and TikTok Upload
     // read svSharedClientFor() in their own mount; the two below have no mount
@@ -23706,10 +23711,12 @@
         if (_svClientActive >= flat.length) _svClientActive = 0;
         let i = 0;
         let html = sections.map(s => `<div class="sv-client-sec">${s.title}</div>` + (s.names.length
-            ? s.names.map(n => { const idx = i++; return `<div class="sv-client-row${idx === _svClientActive ? ' is-active' : ''}" role="option" aria-selected="${idx === _svClientActive}" data-sv-client="${_calEscAttr(n)}">${_svClientDot(n)}<span>${_calEsc(n)}</span></div>`; }).join('')
+            ? s.names.map(n => { const idx = i++; return `<div class="sv-client-row${idx === _svClientActive ? ' is-active' : ''}" role="option" id="svClientOpt${idx}" aria-selected="${idx === _svClientActive}" data-sv-client="${_calEscAttr(n)}">${_svClientDot(n)}<span>${_calEsc(n)}</span></div>`; }).join('')
             : `<div class="sv-client-none">${q.trim() ? 'No clients match' : 'Type to search every client'}</div>`)).join('');
         box.innerHTML = html;
         box._svFlat = flat;
+        if (flat.length) input.setAttribute('aria-activedescendant', 'svClientOpt' + _svClientActive);
+        else input.removeAttribute('aria-activedescendant');
     }
     function svClientPopToggle(e) {
         if (e) e.stopPropagation();

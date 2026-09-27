@@ -1,4 +1,4 @@
-import { svSharedClientNote } from './095-shared-client.js';
+import { svClientBarSync, svSharedClientNote } from './095-shared-client.js';
 import {
   CONTENT_SUMMARY_WEBHOOK, ICON, WEEKLY_SLACK_WEBHOOK, _analyticsExtrasApplied,
   _analyticsExtrasArrival, _analyticsFlushPendingExtras, _analyticsHasTrustedMetrics,
@@ -1006,6 +1006,7 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
     }
 
     function render(sel,clientOnly){
+        if (typeof svClientBarSync === 'function') svClientBarSync('home');   // client Analytics can be reached without navTo (hash, history)
         if(_isClientLink){
             const cap=_syncviewClientEntryCapability;
             if(!clientOnly||!cap||!cap.verified||_syncviewClientEntrySlug(sel)!==cap.slug){
@@ -1127,6 +1128,8 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
     }
 
     window.addEventListener('popstate',(e)=>{
+        // Several branches below route without navTo; keep the client bar in step.
+        setTimeout(()=>{ if (typeof svClientBarSync === 'function') svClientBarSync(currentNav); },0);
         const state=e.state;
         if(_isClientLink){
             const cap=_syncviewClientEntryCapability;

@@ -182,6 +182,42 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       await context.close();
     }
 
+    // Toolbar balance (owner request 2026-09-27): the view switch sits at the
+    // left end of the Calendar and Samples toolbars, the other controls at the
+    // right, and nothing widens the page on a phone.
+    for (const [path, zoom] of [['/calendar', '#calZoomCtl'], ['/sample-reviews', '#sxrZoomCtl']]) {
+      for (const width of [1440, 390]) {
+        const context = await browser.newContext({ viewport: { width, height: 800 } });
+        await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()), route => {
+          route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }).catch(() => {});
+        });
+        await seedStaffGate(context);
+        await context.addInitScript(v => { try { localStorage.setItem('syncview_shared_client', v); } catch (e) {} }, FIRST);
+        const page = await context.newPage();
+        await page.goto(`http://127.0.0.1:${port}${path}`, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(2500);
+        const m = await page.evaluate(z => {
+          const bar = document.querySelector('.cal-toolbar');
+          const tog = bar && bar.querySelector('.cal-view-toggle');
+          const zm = document.querySelector(z);
+          const b = bar.getBoundingClientRect(), t = tog.getBoundingClientRect(), r = zm.getBoundingClientRect();
+          // DOM order must equal visual order so keyboard Tab reaches the switch
+          // first: it is the first child group of .cal-toolbar-mid holding a
+          // focusable control.
+          const mid = bar.querySelector('.cal-toolbar-mid');
+          const firstFocusable = [...mid.children].find(el => el.matches('button,a[href],input,select,[tabindex]') || el.querySelector('button,a[href],input,select,[tabindex]'));
+          return { toggleGap: Math.round(t.left - b.left), zoomGap: Math.round(b.right - r.right), togLeftOfZoom: t.left < r.left, togFirstInDom: firstFocusable === tog, page: document.documentElement.scrollWidth };
+        }, zoom);
+        const tag = `${path.slice(1)} @${width}`;
+        expect(m.toggleGap < 40, `${tag}: the view switch is not at the left end of the toolbar (${m.toggleGap}px in)`);
+        expect(m.togLeftOfZoom, `${tag}: the view switch should sit left of zoom`);
+        expect(m.togFirstInDom, `${tag}: the view switch is not the first focusable group in the toolbar DOM (tab order would jump)`);
+        if (width > 800) expect(m.zoomGap < 200, `${tag}: zoom should stay on the right (${m.zoomGap}px from the edge)`);
+        expect(m.page <= width, `${tag}: the page is ${m.page}px wide on a ${width}px screen`);
+        await context.close();
+      }
+    }
+
     // Tab row fit (regression from the picker in #1779): with the Kasper tab
     // present, the whole row fits with no sideways scroll at 1280px and wider,
     // no tab is hidden, and the sliding highlight sits under the active tab.

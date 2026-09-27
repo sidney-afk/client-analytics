@@ -1641,6 +1641,8 @@ import { _tkMounted, _tkRenderForm } from './300-tiktok-upload.js';
     }
 
     function _clientBriefTabAvailable(name,clientOnly){
+        // Client share links show only Analytics and Content Calendar.
+        if(_isClientLink)return false;
         const hasData=getClientMRBriefs(name).length>0;
         if(!clientOnly||hasData)return true;
         const cap=_syncviewClientEntryCapability;

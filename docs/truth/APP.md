@@ -215,12 +215,14 @@ TikTok rejected it; TikTok posting is the TikTok Upload tab (Post For Me) only.
   mixed staff history/hash/Production state; and canonical-name mismatch all end on one client-safe
   invalid-link surface with no client-data request or staff fallback. Network, timeout, rate-limit,
   and verifier 5xx failures show a distinct retry surface and never fake an empty dataset.
-- Calendar, Brief, and Analytics serialize their client tab in the query/history envelope rather
-  than a staff hash. A verified client can always open the supported Brief tab while slower extras
-  stream: the requested route owns a loader until required responses succeed, a failed required response
-  shows a keyboard-operable retry instead of fake-empty data, and an explicit retry fetches only
-  extras before repainting the still-active route. Genuine absence uses the existing visible
-  no-brief copy. Legacy `v=samples` is verified
+- A verified client link shows exactly two tabs, Analytics and Content Calendar, serialized in the
+  query/history envelope rather than a staff hash. Brief is staff-only: a legacy client `v=brief`
+  link (or a stale `clientTab: 'brief'` history entry) is accepted, the verifier is asked for
+  `calendar`, and the URL is canonicalized in place to `v=calendar` with no error surface. Staff
+  client profiles keep Brief. While slower extras stream, Analytics owns a loader until required
+  responses succeed, a failed required response shows a keyboard-operable retry instead of
+  fake-empty data, and an explicit retry fetches only extras before repainting the still-active
+  route. Legacy `v=samples` is verified
   first, then replaced in place with `v=sample-reviews&sxr=1` and mounted directly for the exact
   verified client. Staff Samples preferences, pins, and sticky opt-out neither rebind nor mutate.
 - Verification grants only an in-memory capability. Every client analytics continuation is leased
@@ -241,8 +243,9 @@ TikTok rejected it; TikTok posting is the TikTok Upload tab (Post For Me) only.
   settle, reload, Back/Forward, and real `pageshow.persisted` BFCache returns. Its 23 groups include
   verifier 408 and 500 responses that visibly offer keyboard-operable retry and recover without a document reload,
   rotated-token denial, deliberately late analytics, Calendar, and Samples responses after capability revocation,
-  Calendar → Brief/Analytics retirement, a held Calendar-to-Brief extras loader → visible retry →
-  loader → mounted Brief sequence, A → B visible-loader ownership, stale realtime-factory denial,
+  a legacy `v=brief` client link landing on Content Calendar as `v=calendar` with no Brief tab,
+  Calendar → Analytics transport and realtime retirement, a held Calendar-to-Analytics extras loader →
+  visible retry → loader → mounted Analytics sequence, Analytics BFCache tab-summary retirement, A → B visible-loader ownership, stale realtime-factory denial,
   held v1 reconcile/metadata denial after client replacement, pending/settled staff BFCache recovery,
   the exact-client legacy queue resume lease,
   and legacy Samples exact-client migration/traversal with generic/wrong-client frames forbidden. It

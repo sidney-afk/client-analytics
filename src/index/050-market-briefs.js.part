@@ -1014,6 +1014,8 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
                 return;
             }
             sel=cap.client;
+            // A stale Brief tab (old history entry) lands on the Content Calendar.
+            if(clientViewTab[sel]==='brief')clientViewTab[sel]='calendar';
         }
         _syncviewNextNavEpoch(); // Phase D: a client profile is a route too.
         // Boot-gate belt-and-braces: today's render()-first boot paths

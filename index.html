@@ -4756,6 +4756,14 @@
         .cal-toolbar-left  { flex: 1 1 380px; min-width: 0; }
         .cal-toolbar-mid   { flex: 0 0 auto; }
         .cal-toolbar-right { flex: 0 0 auto; }
+        /* Staff Calendar and Samples (owner request 2026-09-27): the client now
+           lives in the main bar, so the empty left slot goes and the view switch
+           takes the left end; Organize, search, zoom and the rest stay right.
+           Client links and the embedded calendar keep their layout. The middle
+           group wraps on narrow screens instead of widening the page. */
+        .cal-toolbar.is-picker-shell > .cal-toolbar-left { display: none; }
+        .cal-toolbar.is-picker-shell > .cal-toolbar-mid { flex: 1 1 auto; min-width: 0; flex-wrap: wrap; row-gap: 8px; }
+        .cal-toolbar.is-picker-shell .cal-toolbar-mid > .cal-view-toggle { margin-right: auto; }
         .cal-tool-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); flex-shrink: 0; }
 
         /* Tabs (one per pinned client). Kept to a SINGLE row: the pills live in
@@ -10864,6 +10872,8 @@
     }
 
     function _clientBriefTabAvailable(name,clientOnly){
+        // Client share links show only Analytics and Content Calendar.
+        if(_isClientLink)return false;
         const hasData=getClientMRBriefs(name).length>0;
         if(!clientOnly||hasData)return true;
         const cap=_syncviewClientEntryCapability;
@@ -12010,6 +12020,8 @@
                 return;
             }
             sel=cap.client;
+            // A stale Brief tab (old history entry) lands on the Content Calendar.
+            if(clientViewTab[sel]==='brief')clientViewTab[sel]='calendar';
         }
         _syncviewNextNavEpoch(); // Phase D: a client profile is a route too.
         // Boot-gate belt-and-braces: today's render()-first boot paths
@@ -40669,7 +40681,10 @@
         } else {
             // Same slot the shell builds it into: ahead of the client-links
             // pill when that exists, otherwise straight before the view toggle.
-            mid.insertBefore(node, mid.querySelector('.cal-client-links') || mid.querySelector('.cal-view-toggle'));
+            // In the staff picker shell the view toggle leads the row (DOM order
+            // = visual order), so the anchor is the zoom control instead.
+            const picker = !!mid.closest('.cal-toolbar.is-picker-shell');
+            mid.insertBefore(node, mid.querySelector('.cal-client-links') || mid.querySelector(picker ? '.cal-zoom' : '.cal-view-toggle'));
         }
     }
     /* Lighter path for the Order switch: update the chrome in place so the
@@ -40915,7 +40930,8 @@
         tmp.innerHTML = html;
         const node = tmp.firstElementChild;
         if (!node) return;
-        const toggle = mid.querySelector('.cal-view-toggle');
+        const picker = !!mid.closest('.cal-toolbar.is-picker-shell');
+        const toggle = mid.querySelector(picker ? '.cal-zoom' : '.cal-view-toggle');
         if (toggle) mid.insertBefore(node, toggle);
         else mid.appendChild(node);
     }
@@ -40960,19 +40976,24 @@
         // gets the parallel SMM-approval queue ('smmreview'). Both run on the
         // same review machinery — only the target status differs.
         const tabViews = _isClientLink ? ['review','organizer','month','week'] : ['smmreview','organizer','month','week'];
-        view.innerHTML = `
-            <div class="cal-toolbar">
-                <div class="cal-toolbar-left">${leftHtml}</div>
-                <div class="cal-toolbar-mid">
-                    ${_calOrganizeHtml()}
-                    ${_calClientLinksHtml()}
-                    <div class="cal-view-toggle">
+        // Staff picker shell: the view switch leads the mid row in the DOM too,
+        // so keyboard tab order matches what is on screen.
+        const pickerShell = !embedded && !_isClientLink;
+        const toggleHtml = `<div class="cal-view-toggle">
                         ${tabViews.map(v => {
                             const n = (v === 'review' || v === 'smmreview') ? _calApprovalBadgeCount(v === 'smmreview' ? 'smm' : 'client') : 0;
                             const badge = n > 0 ? `<span class="cal-view-badge">${n}</span>` : '';
                             return `<button type="button" class="cal-view-btn${calState.view === v ? ' active' : ''}" data-cal-view="${v}" onclick="onCalViewChange('${v}')">${viewLabels[v]}${badge}</button>`;
                         }).join('')}
-                    </div>
+                    </div>`;
+        view.innerHTML = `
+            <div class="cal-toolbar${pickerShell ? ' is-picker-shell' : ''}">
+                <div class="cal-toolbar-left">${leftHtml}</div>
+                <div class="cal-toolbar-mid">
+                    ${pickerShell ? toggleHtml : ''}
+                    ${_calOrganizeHtml()}
+                    ${_calClientLinksHtml()}
+                    ${pickerShell ? '' : toggleHtml}
                     <div class="cal-zoom" id="calZoomCtl" title="Card size">
                         <svg class="cal-zoom-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
                         <button type="button" id="calZoomOut" onclick="calZoom(-1)" aria-label="Zoom out"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="7" x2="11" y2="7"/></svg></button>
@@ -69836,6 +69857,10 @@
         }
         let view = String(q.get('v') || 'analytics').trim().toLowerCase();
         if (!SYNCVIEW_CLIENT_ENTRY_VIEWS.includes(view)) return { ok: false, reason: 'unsupported_view' };
+        // Clients no longer see Brief (owner, 2026-09-27): an old link that asks
+        // for it opens the Content Calendar instead, never an error. Staff
+        // client profiles keep Brief unchanged.
+        if (view === 'brief') view = 'calendar';
         const sxr = q.get('sxr');
         if (view === 'sample-reviews') {
             if (sxr !== '1') return { ok: false, reason: 'invalid_samples_entry' };
@@ -69854,7 +69879,7 @@
         }
         if (state && !state.client && state.nav) return { ok: false, reason: 'staff_history' };
         if ((view === 'analytics' || !q.get('v')) && state && state.client && _syncviewClientEntrySlug(state.client) === slug) {
-            if (state.clientTab === 'calendar' || state.clientTab === 'brief') view = state.clientTab;
+            if (state.clientTab === 'calendar' || state.clientTab === 'brief') view = 'calendar';
         }
         return { ok: true, client, slug, token, view, legacyHash: !!hash };
     }
@@ -70669,7 +70694,7 @@
         // Two tabs only — Review + Sheet. No Month/Week (samples have no dates).
         const tabViews = _isClientLink ? ['review','organizer'] : ['smmreview','organizer'];
         view.innerHTML = `
-            <div class="cal-toolbar">
+            <div class="cal-toolbar${(!embedded && !_isClientLink) ? ' is-picker-shell' : ''}">
                 <div class="cal-toolbar-left">${leftHtml}</div>
                 <div class="cal-toolbar-mid">
                     <div class="cal-view-toggle">

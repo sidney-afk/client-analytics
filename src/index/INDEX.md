@@ -10,10 +10,10 @@
 | 2 | `003-sv-route.html.part` | 177 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 278 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3912 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 4349 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 4357 | Templates view |
 | 6 | `030-body-shell.html.part` | 500 | Confirmation modal |
-| 7 | `040-shared-briefs.js.part` | 1845 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
-| 8 | `050-market-briefs.js.part` | 1777 | Market Research Brief Tab Renderers |
+| 7 | `040-shared-briefs.js.part` | 1847 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
+| 8 | `050-market-briefs.js.part` | 1779 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2295 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `070-workload-source.js.part` | 3823 | Workload Calendar |
 | 11 | `080-workload-render.js.part` | 3436 | Smart default: a creative lands on their own work (see |
@@ -33,7 +33,7 @@
 | 25 | `134-calendar-prefs-mount.js.part` | 1076 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
 | 26 | `140-calendar-legacy-outbox.js.part` | 3155 | Shed the retired legacy rows from storage, under the surface mutation |
 | 27 | `150-calendar-hydration-import.js.part` | 2197 | For a card linked to a real sub-issue (not a parent), return which of |
-| 28 | `160-calendar-organize-ui.js.part` | 2816 | Lighter path for the Order switch: update the chrome in place so the |
+| 28 | `160-calendar-organize-ui.js.part` | 2825 | Lighter path for the Order switch: update the chrome in place so the |
 | 29 | `170-calendar-links-status.js.part` | 2852 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 30 | `180-calendar-native-post-media.js.part` | 2748 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 31 | `185-client-review-queue.js.part` | 361 | Client review send queue: a client's Approve or Request changes is |
@@ -44,7 +44,7 @@
 | 36 | `230-production-create-comments.js.part` | 2639 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 37 | `240-production-description.js.part` | 2646 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 38 | `250-production-controls-data.js.part` | 2889 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 39 | `260-production-refresh-boot.js.part` | 2619 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 39 | `260-production-refresh-boot.js.part` | 2623 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 40 | `270-samples-model.js.part` | 2857 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 41 | `280-samples-cards-notes.js.part` | 2922 | SURFACE 3: the save engine |
 | 42 | `290-samples-writes-review.js.part` | 1821 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |

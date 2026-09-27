@@ -100,6 +100,31 @@ For a specific question, use [Find anything](FIND_ANYTHING.md).
 | [Section 4 capture](ops/F27_SECTION4_CAPTURE_PLAYBOOK.md) | How the owner handles the sealed rollback bundle before a manual release. |
 | [Flip and recovery](ops/FLIP_RUNBOOK.md) | Historical flip procedures and the retained per-team recovery contract; check State of things first. |
 
+## Operational status and retained records
+
+| Document | What it covers |
+| --- | --- |
+| [Open repairs](ops/OPEN_REPAIRS.md) | Numbered repairs and owner decisions; use State of things for the latest verified summary. |
+| [Live source differences](ops/LIVE_DIVERGENCE_REGISTER.md) | Files whose committed source differs from the live service and the checks around those exceptions. |
+| [Session bootstrap](ops/SESSION_BOOTSTRAP.md) | Starting pointers for a new working session, with older integration steps kept as history. |
+| [Public Submit link](ops/PUBLIC_SUBMIT_LINK.md) | Why public footage intake has its own runtime switch and how an owner checks it. |
+| [Repository privacy decision](ops/REPO_PRIVATE_COST_STUDY_2026-09-24.md) | Dated hosting and CI cost research behind the decision to keep this repository public. |
+| [Archived-asset rescue](ops/F34_LINEAR_ASSET_RESCUE.md) | The still-open archived-media and text rescue contract; the brief-media portion is complete. |
+| [Retirement admission](ops/SYNCVIEW_RETIREMENT_RUNBOOK.md) | A prepared retirement procedure whose activation remains blocked. |
+| [Private backup rehearsal](ops/TRACK_B_BACKUP.md) | Isolated backup and restore proof, with hosted recovery still unproven. |
+| [Cutoff record](ops/LINEAR_CUTOFF_RUNBOOK.md) | Dated cutoff and recovery steps; State of things supersedes its old credential status. |
+| [Exit execution map](ops/LINEAR_EXIT_EXECUTION_MAP.md) | The retirement program's dated step map, whose old progress counters are historical. |
+| [Installation recovery](ops/LINEAR_EXIT_RECOVERY_PROCEDURE.md) | Prepared recovery choices and evidence to preserve if an installation fails; real recovery needs owner authorization. |
+| [Storage custody handoff](ops/LINEAR_EXIT_STORAGE_CUSTODY_HANDOVER.md) | A dated handoff of private backup locations and operator tools that must be rechecked before use. |
+| [Exit journal](ops/LINEAR_EXIT_JOURNAL.md) | The chronological decisions and observed results behind the retirement program. |
+| [Safety-net install](ops/F27_INSTALL_RUNBOOK.md) | The completed installation record and source-exact rollback rules; current captures use Section 4 capture above. |
+| [Install checklist](ops/F27_INSTALL_CHECKLIST.md) | A generated checklist from the historical safety-net installation, not a fresh deployment instruction. |
+| [Function deploy inventory](ops/EF_DEPLOY_MANIFEST.md) | Generated source and workflow paths for functions, not a live deployment list. |
+| [Write-authorization window](ops/F27_WRITE_AUTH_WINDOW.md) | The completed authorization-window record, whose old apply steps must not be rerun. |
+| [CI gate audit](ops/CI_GATE_AUDIT.md) | A dated review of CI checks and their costs; inspect current workflows for today's setup. |
+| [Workload source scope](ops/WORKLOAD_NATIVE_SOURCE.md) | The early native Workload rationale, with old loading and fallback details superseded. |
+| [Rename plan](ops/RENAME_PLAN.md) | The original rename-propagation proposal; its plan-only status was superseded by applied releases. |
+
 ## Plans
 
 | Document | What it helps you find |
@@ -117,6 +142,34 @@ For a specific question, use [Find anything](FIND_ANYTHING.md).
 | [Independence plan](independence/INDEPENDENCE_PLAN.md) | The original automation-removal and in-app replacement strategy, retained as pre-cutoff history. |
 | [Webhook replacement plan](independence/N8N_REPLACEMENT_PLAN.md) | The historical inventory of webhooks that read the former tracker and their proposed replacements. |
 | [Exit sequence](independence/LINEAR_EXIT_MASTER_SEQUENCE.md) | The cross-lane exit order retained as history; use State of things for current status. |
+
+## Dated audit evidence (August–September 2026)
+
+These records describe what was checked at the time, not the current operating state. Use State of things and the system references above for current status.
+
+| Document | What it covers |
+|---|---|
+| [Sep 24 — speed remeasure](audits/2026-09-24-speed-map.md) | Read-only test-client warm-load and tab-switch timings compared with the September 23 map. |
+| [Sep 24 — feature usage](audits/2026-09-24-feature-usage.md) | A read-only 30-day row and 24-hour function-call snapshot; zero calls in that window do not prove disuse. |
+| [Sep 24 — entry tax](audits/2026-09-24-entry-tax.md) | Before-and-after boot request evidence for the early key and flag read change. |
+| [Sep 24 — Analytics first content](audits/2026-09-24-analytics-blocking-requests.md) | A read-only cloud-rig request trace whose absolute timings are affected by proxy retries. |
+| [Sep 23 — speed map](audits/2026-09-23-speed-map.md) | Measurement-only first-load and switch timings across fifteen tabs using a test client. |
+| [Sep 23 — boot baseline](audits/2026-09-23-boot-baseline.md) | The first-load measurement method and baseline for the source-split roadmap. |
+| [Sep 21 — document freshness](audits/2026-09-21-base-audit/A1-docs-freshness.md) | A source survey of guidance after the cutoff, not a fresh runtime check of every document. |
+| [Sep 21 — dead-code inventory](audits/2026-09-21-base-audit/A2-dead-code-inventory.md) | Source and lexical reachability evidence with explicit limits on what may be removed. |
+| [Sep 21 — file-purpose inventory](audits/2026-09-21-base-audit/A3-junk-inventory.md) | A repository-only survey of assets, scripts, tests, and folders; deletion remains a proposal. |
+| [Sep 21 — onboarding eligibility](audits/2026-09-21-base-audit/A4-native-onboarding-eligibility.md) | A code trace and aggregate-only live read comparing native and retained provider assignment paths. |
+| [Sep 21 — pre-deletion boot](audits/2026-09-21-base-audit/C1-boot-baseline.md) | Committed page bytes and anonymous Chromium startup measurements before browser-source deletions. |
+| [Sep 15 — retirement rehearsal](audits/2026-09-15-linear-dead-rehearsal.md) | A prepared failure rehearsal and blank result form; the exercise was not run in this record. |
+| [Sep 8 — composed intake apply](audits/2026-09-08-composed-intake-apply-evidence.json) | Disposable PostgreSQL 16 apply proof for a composed intake artifact, not a hosted installation. |
+| [Sep 7 — urgent action UI](audits/2026-09-07-native-urgent-ui.md) | Source-only, uninstalled urgent-action preparation with synthetic transport and state checks. |
+| [Sep 7 — named intake append](audits/2026-09-07-native-named-append-evidence.json) | Restored-target SQL checks and an offline composition result that was not applied in that record. |
+| [Aug 5 — roster project coverage](audits/2026-08-05-roster-project-coverage.md) | A dated read-only, aggregate live-data check of project-mapping gaps before the Graphics flip. |
+| [Aug 5 — comment Mark done](audits/2026-08-05-production-comment-mark-done-cas.md) | A browser-only candidate and offline race audit for the canonical-comment completion action. |
+| [Aug 5 — attribution write paths](audits/2026-08-05-attribution-write-paths.md) | A source enumeration of deliverable creation and attribution stamping paths; no change was made. |
+| [Aug 5 — attribution soak signal](audits/2026-08-05-attribution-stamp-soak-signal.md) | An analysis of how attribution stamps distorted the then-current drift counter and an unreleased candidate fix. |
+| [Aug 4 — monitoring readiness](audits/2026-08-04-monitoring-readiness-cutover.md) | Historical pre-cutover evidence about the alert relay, watchdog, and monitoring proof lanes. |
+| [Aug 2 — Graphics evidence lane](audits/2026-08-02-graphics-f2-evidence-lane.md) | Source and isolated F2 evidence-tool proof; no authority flip or live action was performed. |
 
 ## Archived migrations and incidents
 

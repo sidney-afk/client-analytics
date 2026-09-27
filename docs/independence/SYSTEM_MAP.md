@@ -1246,6 +1246,9 @@ Supabase REST read is a flag-gated OVERLAY, not a fallback. Templates: Supabase 
   `settings_ef_clients` gates exactly caption-prompts now (not templates, not credentials). Multi-link
   fields persist a JSON sibling column plus a mirrored legacy single column (2–3 patches per edit).
   The templates/settings realtime channels are deliberately never torn down.
+  A [2026-09-26 source-only review](../audits/2026-09-26-templates-realtime-catchup-source-review.md)
+  finds that Templates does not check channel connection state or catch up after a missed event;
+  an open view may stay stale after a disconnect. This has not been reproduced live or fixed.
 - **Track B.** Low. All active clients on the A4 EFs. Only Track-B touch: §6 role-key enforcement on
   the two save EFs at the auth flip. No B4/B5 mechanics.
 
@@ -1287,9 +1290,11 @@ separate hidden first-party Direct-Post surface.*
 - **Roles.** Both team-only behind the password; Pilot needs the extra `?ttpilot=1` unlock; no per-
   user roles beyond that. Clients/intake never reach either.
 - **Failure/fallback.** Submits show inline errors, keep the draft/file, **no auto-retry / fallback /
-  queue**. Queue list: 20 s timeout, first fail shows a card then silent retries; adaptive poll (30 s
-  in-flight / 120 s scheduled / stop when idle) replaced a fixed loop that cost ~2.5k empty
-  executions/week. Draft file can't persist across reload (only fileMeta → "re-attach" hint).
+  queue**. Queue list: 20 s timeout. A [2026-09-26 source-only review](../audits/2026-09-26-tiktok-upload-false-empty-source-review.md)
+  found that the first fetch failure's error card is suppressed after the queue paints, and an empty
+  queue schedules no retry; a tab return or remount does refetch. The adaptive poll (30 s in-flight /
+  120 s scheduled / stop when idle) replaced a fixed loop that cost ~2.5k empty executions/week.
+  Draft file can't persist across reload (only fileMeta → "re-attach" hint).
 - **Notable / corrections.** `ttp-status` is a **dead constant** (never fetched — matches the live-
   n8n "not-found"); `tiktok-upload-status` is a retry trigger, not a poller. Pilot is a deliberate
   clean room sharing no webhooks/state with production. Idempotency key doubles as the optimistic row

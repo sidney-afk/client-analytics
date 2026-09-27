@@ -1,4 +1,4 @@
-**Corrected 2026-09-21:** Historical record; its Linear workflow/topology statements describe the period recorded, not current operations. See the [cutoff record](LINEAR_CUTOFF_RUNBOOK.md) for the 2026-09-20 retirement (outbound and parity off; inbound remains; STEP 7 pending).
+**Archived 2026-09-26:** This August test invitation is spent. See the [current state](../STATE_OF_THINGS.md) before using any historical instructions below.
 
 # Round 3 tester prompt — paste this to the tester
 

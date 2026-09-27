@@ -1,0 +1,12 @@
+# F200 attribution scripts: source-only caller map
+
+Scope: the four `scripts/f200-*` files at `origin/main` `3f5bd46e` on 2026-09-26. This follows the broad draft #1702 inventory and does not run a script, read a live service, or decide that a historical path is safe to remove.
+
+| Script | Tracked caller and ownership evidence | Classification |
+|---|---|---|
+| `f200-attribution.js` | Imported by `f200-attribution-plan.js`, `f200-roster-project-coverage.js`, `b1-linear-backfill.js`, `linear-deliverables-reconcile-lib.js`, and `linear-deliverables-reconcile.js`; three direct test files also import it. It exports attribution helpers and has no standalone command. | Shared source dependency, not an uncalled CLI. The B1/reconciler imports do not prove those historical jobs still run. |
+| `f200-attribution-plan.js` | Imported by `linear-deliverables-reconcile.js` and `test/f200-attribution.js`. Its guarded CLI can prepare an offline owner-approved plan. F27 closure lists and workflow path filters name its file but do not invoke that CLI. | Retain as a reconciler dependency and operator-capable planner; no tracked package/workflow command runs it directly. |
+| `f200-attribution-live-snapshot.js` | `test/f200-attribution.js` imports a path guard and reads its source; `REPO_MAP.md` calls it a local-only private snapshot. No tracked package or workflow command invokes the guarded CLI. | Operator-only purpose in source; actual use is unverified. Do not confuse the test import with a live snapshot. |
+| `f200-roster-project-coverage.js` | `monitoring-cutover-proof.yml:223-228` directly runs its offline test, then the read-only roster command in the conditional `roster-coverage` job; `test/f200-roster-project-coverage.js` imports its report helpers. `docs/ops/MONITORING.md:207-213` names that owner lane. | Opt-in workflow command, not a schedule: the workflow allows manual dispatch or a named-branch push with the roster marker (`:14-40, 209-211`). No run history was checked. |
+
+The workflow that calls `linear-deliverables-reconcile.js` was unscheduled in source at the Linear cutoff and retains manual dispatch (`.github/workflows/linear-deliverables-reconcile.yml:7-15, 83-102`). F27 closure and path-filter references are source-integrity/watch entries, not command invocations. This map distinguishes reachable tracked code from present-day operation; neither a source import nor a manual workflow route proves a current run. No deletion or live action is proposed.

@@ -1,3 +1,59 @@
+import { _analyticsReleaseExtras, parseCSV, showNotify, showToast } from './040-shared-briefs.js';
+import { WL_CLIENT_NAMES, wlCanonicalClient, wlNormalizeClient } from './070-workload-source.js';
+import {
+  CALENDAR_GET_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, KASPER_QUEUE_URL,
+  _syncviewStaffIdentityForHeaders
+} from './100-onboarding-staff-controls.js';
+import {
+  _calClearStaleApprovals, _calComponentsFor, _calNormStatus, _calReadFreshCardStamp,
+  _calUnionCommentCell, _calUpsertFetch, _writeUiAdoptRepairAck, _writeUiAdoptReplayStatus,
+  _writeUiAppendRepairRef, _writeUiCompleteSourceRepairRefs, _writeUiFailureSentence,
+  _writeUiGatewayError, _writeUiNativeId, _writeUiPrincipalKey, _writeUiQueueDiagnostic,
+  _writeUiRemoveCompletedRepairRefs, _writeUiRepairCompanions, _writeUiReportFailure,
+  computeOverallStatus
+} from './120-calendar-flags-write-repair.js';
+import {
+  _calCapSecMeta, _calCommentsFor, _calLinearUrlFor, _calMigratePostShape, _calNextTweakRound,
+  _calSetCommentsFor, calClientSlug
+} from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
+import { _calArchivedRefs, _calCoerceDate, _calDedupeByLinearIssue, _calIsArchivedRef } from './134-calendar-prefs-mount.js';
+import {
+  URGENT_EDITOR_NEEDS_NATIVE, _calKasperUrgentActive, _calPersistUrgentSentForPost,
+  _calPostLinearComment, _calPushStatusToLinear, _calUrgentButtonHtml, _calUrgentSlackDispatch
+} from './140-calendar-legacy-outbox.js';
+import { _calSupabaseFetchAllRows, _calV2Ready } from './150-calendar-hydration-import.js';
+import {
+  _calDeriveThumb, _calDeriveThumbInfo, _calFolderOpenUrl, _calFrameOpenUrl, _calIsFolderLink,
+  _calIsFrameLink, _calMiniLinkBadgeHtml, _calOpenCardMeta, _calReviewFrameHtml, _calThumbImgTag,
+  _kcardHarvestThumbs, _kcardRestoreThumbs, _kcardReuseThumbInto
+} from './160-calendar-organize-ui.js';
+import { _calReviewBlockReason } from './170-calendar-links-status.js';
+import {
+  COMP_LABELS, _calClearApprovedAfterTweaks, _calRecordApprovedAfterTweaks,
+  _calRecordKasperSeenOnPost, _calShowApprovedAfterTweaks, _kasperHasUnreadReply, _kasperMarkSeenAt
+} from './180-calendar-native-post-media.js';
+import {
+  REVIEW_APPROVE_DRAFT_TITLE, _calCompHasUnresolvedKasperTweak, _calCompKasperVisible,
+  _calFmtCommentTime, _calLatestMsgCreatedAt, _calLoadComments, _calMergeCommentLists,
+  _calMintCommentId, _calPostHasUnresolvedKasperTweak, _calPostKasperVisible,
+  _calReviewComponentPreview, _calShowUrgent, _calStringifyComments, _kasperCompReviewable,
+  _kasperOpenTweakCount, _kasperPanelComps, _kasperUndecidedComps
+} from './190-calendar-approval-comments.js';
+import { SXR_REVIEW_COMPONENTS } from './270-samples-model.js';
+import {
+  _sxrKasperPartitionItems, _sxrKasperRenderCard, _sxrKasperRenderHistorySection, _sxrKasperState,
+  _writeUiJournalCoversRepairRefs, _writeUiReconcileReplayStatus
+} from './290-samples-writes-review.js';
+import {
+  KASPER_EDITORS_CACHE_KEY, KASPER_EDITORS_CACHE_MAX_AGE_MS, KASPER_HISTORY_CAP,
+  KASPER_HISTORY_KEY, KASPER_SMM_URL, _kasperInvalidateInFlightLoad, _kasperIsReviewMounted,
+  _kasperLoadGen, _kasperPersistCache, _kasperPointerHeld, _kasperRefreshTabCounts,
+  _kasperRenderReplies, _kasperSamplesEnabled, _kasperSetLoadGen, _kasperState,
+  _kasperUpdateReplyCount
+} from './320-kasper-dashboard-replies.js';
+import { _kedPaint } from './340-editors-date-picker.js';
     async function _kasperRenderReview() {
         const root = document.getElementById('kasperContent');
         if (!root) return;
@@ -44,7 +100,8 @@
         _kasperState.error = null;
         // Capture the current generation so a user mutation during the
         // await can invalidate this load before its results are applied.
-        const myGen = ++_kasperLoadGen;
+        _kasperSetLoadGen(_kasperLoadGen + 1);
+        const myGen = _kasperLoadGen;
 
         try {
             // SMM sheet + every client's calendar in parallel, but only the
@@ -2693,3 +2750,11 @@
         }
     }
 
+export {
+  _kasperAddCommentComp, _kasperApproveAfterTweaksComp, _kasperApproveComp, _kasperCalCachePrune,
+  _kasperClose, _kasperDismiss, _kasperHistoryThumbFallback, _kasperLoadEditors, _kasperLoadReview,
+  _kasperLoadSMMMap, _kasperOnPanelDraftInput, _kasperPaintReview, _kasperPartitionItems,
+  _kasperPersistPost, _kasperRenderEditors, _kasperRenderReview, _kasperRequestTweakComp,
+  _kasperResumeSourceRepairs, _kasperReviewInFlight, _kasperSampleOpenCount, _kasperSamplesMerged,
+  _kasperSetEditorsAvg, _kasperToggleCard, _kasperToggleHistory, _kedToggleInfo
+};

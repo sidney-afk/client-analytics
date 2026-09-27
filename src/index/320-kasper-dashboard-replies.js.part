@@ -409,6 +409,7 @@
        just before the user approves a card can finish 200 ms later and
        repaint with the pre-approval state, making the card "snap back". */
     let _kasperLoadGen = 0;
+    function _kasperSetLoadGen(value) { _kasperLoadGen = value; }
     let _kasperLastLocalWriteAt = 0;   // last local Kasper action — used to ignore the realtime echo of our own writes
     function _kasperInvalidateInFlightLoad() { _kasperLoadGen++; _kasperLastLocalWriteAt = Date.now(); }
     /* Click-eaten-by-re-render guard. The queue repaints by rebuilding DOM

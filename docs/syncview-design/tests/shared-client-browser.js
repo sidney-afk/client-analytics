@@ -236,11 +236,19 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
         const id = _syncviewStaffIdentityLoad();
         _syncviewStaffIdentitySave(Object.assign({}, id, { role: 'smm', member: Object.assign({}, id.member, { role: 'smm', name: 'QA Staff' }) }));
       });
+      // Boot keeps loading in the background (key-verify, Kasper's cached
+      // SMM map), and on a slower runner that can land after the seed above
+      // and replace the fixture map. Wait for the verified SMM identity, then
+      // seed the assignment again right before opening the dropdown.
+      await page.waitForFunction(() => _syncviewStaffIdentityValid() && _syncviewStaffIdentityLoad().member.role === 'smm', null, { timeout: 15000 })
+        .catch(() => failures.push('smm: the seeded SMM identity never became valid'));
+      await page.waitForTimeout(1500);
+      await page.evaluate(mine => { _kasperState.smmByClient = new Map(mine.map(n => [wlNormalizeClient(n), { name: 'Qa' }])); }, MINE);
       await page.click('#svClientBadge');
       rows = await sections();
       const mineRows = rows.filter(r => r.sec === 'mine');
       const recentRows = rows.filter(r => r.sec === 'recent');
-      expect(JSON.stringify(mineRows.map(r => r.n)) === JSON.stringify(MINE), `smm: My clients should be ${MINE}, got ${mineRows.map(r => r.n)}`);
+      expect(JSON.stringify(mineRows.map(r => r.n)) === JSON.stringify(MINE), `smm: My clients should be ${MINE}, got ${mineRows.map(r => r.n)} (state: ${JSON.stringify(await page.evaluate(() => ({ valid: _syncviewStaffIdentityValid(), role: (_syncviewStaffIdentityLoad() || {}).role, map: _kasperState.smmByClient instanceof Map ? _kasperState.smmByClient.size : String(_kasperState.smmByClient) })))})`);
       expect(mineRows.every(r => !r.forget), 'smm: My clients must not offer a remove button');
       expect(recentRows.length <= 3 && recentRows.length > 0, `smm: Recent should hold one to three rows, got ${recentRows.length}`);
       expect(recentRows.every(r => !MINE.includes(r.n)), 'smm: Recent repeats a My clients entry');

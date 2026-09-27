@@ -78,6 +78,7 @@ function makeContainer(children){
 `;
 
 const REAL = [
+  grabFunc('_svFieldKey'),
   grabFunc('_svFieldSig'),
   grabFunc('_svCaptureFocus'),
   grabFunc('_svRestoreFocus'),
@@ -173,6 +174,30 @@ check('id wins', mod.fieldSig(mod.makeField({ id: 'x', oninput: 'f()', name: 'n'
 check('oninput next', mod.fieldSig(mod.makeField({ oninput: 'f()', name: 'n' })), 'oninput=f()');
 check('name last', mod.fieldSig(mod.makeField({ name: 'n' })), 'name=n');
 check('non-field → empty sig', mod.fieldSig({ tagName: 'DIV' }), '');
+
+console.log('\n— Two cards whose boxes share one handler string (the Samples name box) —');
+{
+  // Every Samples name box calls the same _sxrOnFieldInput(this); only its
+  // data-pid tells the cards apart. Focus must come back to the card that
+  // was being typed in, not the first one on the page.
+  const mk = pid => {
+    const f = mod.makeField({ oninput: '_sxrOnFieldInput(this)', start: 4, end: 4 });
+    const base = f.getAttribute.bind(f);
+    f.getAttribute = k => (k === 'data-pid' ? pid : k === 'data-fld' ? 'name' : base(k));
+    return f;
+  };
+  const first = mk('p_first'), second = mk('p_second');
+  check('the two boxes get different signatures', mod.fieldSig(first) !== mod.fieldSig(second), true);
+  mod.document._all = [first, second];
+  second.focus();
+  const cap = mod.capture();
+  mod.document.activeElement = null;
+  const first2 = mk('p_first'), second2 = mk('p_second');
+  mod.document._all = [first2, second2];
+  mod.restore(cap);
+  check('focus returns to the SAME card, not the first one', mod.document.activeElement === second2, true);
+  check('and the caret is where it was', mod.document.activeElement && mod.document.activeElement.selectionStart, 4);
+}
 
 console.log('\n— Source-form: the Samples Kasper re-render paths use the guard —');
 const repaintSrc = grabFunc('_sxrKasperRepaint');

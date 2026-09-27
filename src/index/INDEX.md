@@ -12,8 +12,8 @@
 | 4 | `010-styles-foundation.css.part` | 3896 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 5 | `020-styles-surfaces.css.part` | 4235 | Templates view |
 | 6 | `030-body-shell.html.part` | 497 | Confirmation modal |
-| 7 | `040-shared-briefs.js.part` | 1833 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
-| 8 | `050-market-briefs.js.part` | 1722 | Market Research Brief Tab Renderers |
+| 7 | `040-shared-briefs.js.part` | 1845 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
+| 8 | `050-market-briefs.js.part` | 1777 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2295 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `070-workload-source.js.part` | 3823 | Workload Calendar |
 | 11 | `080-workload-render.js.part` | 3414 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
@@ -28,13 +28,13 @@
 | 20 | `131-core-html.js.part` | 13 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 21 | `132-calendar-dates-ids.js.part` | 14 | — |
 | 22 | `133-core-loading-skeletons.js.part` | 367 | Modern animated loader — a single rotating ring with a subtle label. |
-| 23 | `134-calendar-prefs-mount.js.part` | 1072 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
-| 24 | `140-calendar-legacy-outbox.js.part` | 3070 | Shed the retired legacy rows from storage, under the surface mutation |
+| 23 | `134-calendar-prefs-mount.js.part` | 1075 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
+| 24 | `140-calendar-legacy-outbox.js.part` | 3155 | Shed the retired legacy rows from storage, under the surface mutation |
 | 25 | `150-calendar-hydration-import.js.part` | 2197 | For a card linked to a real sub-issue (not a parent), return which of |
 | 26 | `160-calendar-organize-ui.js.part` | 2813 | Lighter path for the Order switch: update the chrome in place so the |
 | 27 | `170-calendar-links-status.js.part` | 2792 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 28 | `180-calendar-native-post-media.js.part` | 2748 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
-| 29 | `185-client-review-queue.js.part` | 337 | Client review send queue: a client's Approve or Request changes is |
+| 29 | `185-client-review-queue.js.part` | 361 | Client review send queue: a client's Approve or Request changes is |
 | 30 | `190-calendar-approval-comments.js.part` | 3050 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 31 | `200-intake-data-startup.js.part` | 1528 | Video-only and Thumbnail-only were already built, but sat |
 | 32 | `210-production-state-writes.js.part` | 3200 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
@@ -44,11 +44,11 @@
 | 36 | `250-production-controls-data.js.part` | 2881 | F50 DISCLOSURE — say when a status has no word on the card. |
 | 37 | `260-production-refresh-boot.js.part` | 2618 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 38 | `270-samples-model.js.part` | 2856 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
-| 39 | `280-samples-cards-notes.js.part` | 2910 | SURFACE 3: the save engine |
+| 39 | `280-samples-cards-notes.js.part` | 2922 | SURFACE 3: the save engine |
 | 40 | `290-samples-writes-review.js.part` | 1814 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
-| 41 | `300-tiktok-upload.js.part` | 2006 | TIKTOK UPLOAD MODULE |
+| 41 | `300-tiktok-upload.js.part` | 2020 | TIKTOK UPLOAD MODULE |
 | 42 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
-| 43 | `320-kasper-dashboard-replies.js.part` | 3212 | The Samples subtab was folded into Review (samples are listed in the |
-| 44 | `330-kasper-review-history.js.part` | 2695 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
+| 43 | `320-kasper-dashboard-replies.js.part` | 3213 | The Samples subtab was folded into Review (samples are listed in the |
+| 44 | `330-kasper-review-history.js.part` | 2760 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 45 | `340-editors-date-picker.js.part` | 1302 | Editor work model |
 | 46 | `350-footer.html.part` | 398 | Transcript preview modal |

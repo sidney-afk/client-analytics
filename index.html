@@ -9312,12 +9312,22 @@
        then re-focus the matching field in the fresh DOM and restore selection.
        No-ops when nothing is focused or the focused node isn't a text field, so
        it is always safe to wrap a render — even a background one. */
+    /* The handler string alone is not unique: every card's name box calls
+       the same `_sxrOnFieldInput(this)`, so a match on it alone picked the
+       FIRST card on the page, not the one being typed in. Where the field
+       carries its card and field identity (data-pid, data-fld, data-comp),
+       that identity is part of the signature. */
+    function _svFieldKey(el) {
+        const get = k => (el.getAttribute && el.getAttribute(k)) || '';
+        const parts = ['data-pid', 'data-fld', 'data-comp'].map(k => get(k) ? k + '=' + get(k) : '').filter(Boolean);
+        return parts.length ? '|' + parts.join('|') : '';
+    }
     function _svFieldSig(el) {
         if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA')) return '';
         if (el.id) return '#' + el.id;
         const oi = el.getAttribute && el.getAttribute('oninput');
-        if (oi) return 'oninput=' + oi;
-        if (el.name) return 'name=' + el.name;
+        if (oi) return 'oninput=' + oi + _svFieldKey(el);
+        if (el.name) return 'name=' + el.name + _svFieldKey(el);
         return '';
     }
     function _svCaptureFocus(root) {
@@ -9326,14 +9336,16 @@
         if (root && !(root.contains && root.contains(a))) return null;   // focus isn't in the region being rebuilt
         const sig = _svFieldSig(a);
         if (!sig) return null;
-        const cap = { sig, start: null, end: null, dir: 'none' };
+        const cap = { sig, el: a, start: null, end: null, dir: 'none' };
         try { cap.start = a.selectionStart; cap.end = a.selectionEnd; cap.dir = a.selectionDirection || 'none'; } catch (e) {}
         return cap;
     }
     function _svRestoreFocus(cap) {
         if (!cap || !cap.sig) return;
         let el = null;
-        if (cap.sig.charAt(0) === '#') el = document.getElementById(cap.sig.slice(1));
+        // The very box the person was in, when a render left it in place.
+        if (cap.el && cap.el.isConnected && _svFieldSig(cap.el) === cap.sig) el = cap.el;
+        if (!el && cap.sig.charAt(0) === '#') el = document.getElementById(cap.sig.slice(1));
         if (!el) {
             const nodes = document.querySelectorAll('input, textarea');
             for (let i = 0; i < nodes.length; i++) { if (_svFieldSig(nodes[i]) === cap.sig) { el = nodes[i]; break; } }
@@ -12200,6 +12212,43 @@
     function _tplSetPinsEditMode(value) { _tplPinsEditMode = value; }
     function _tplSetPinSelectorOpen(value) { _tplPinSelectorOpen = value; }
     let _tplRealtimeChannel = null;
+    let _tplRealtimeConnected = false;
+    let _tplCatchupTimer = null;
+    let _tplCatchupInFlight = false;
+    let _tplReconnectCatchupPending = false;
+    const TPL_CATCHUP_POLL_MS = 60 * 1000;
+
+    function _tplStopCatchupPoll() {
+        if (_tplCatchupTimer) { clearInterval(_tplCatchupTimer); _tplCatchupTimer = null; }
+    }
+    async function _tplCatchup() {
+        if (currentNav !== 'templates' || document.visibilityState === 'hidden' || _tplCatchupInFlight) return;
+        _tplCatchupInFlight = true;
+        // If a poll was in flight when the channel reconnected, its response
+        // could predate the reconnect. Queue one read after that poll settles.
+        const clearedPending = _tplRealtimeConnected;
+        if (clearedPending) {
+            _tplReconnectCatchupPending = false;
+            _tplStopCatchupPoll();
+        }
+        let ok = false;
+        try { ok = (await loadTemplates()) === true; }
+        finally {
+            _tplCatchupInFlight = false;
+            // A failed catch-up read must not end the catch-up: keep it armed
+            // and keep polling until one read succeeds.
+            if (clearedPending && !ok) {
+                _tplReconnectCatchupPending = true;
+                _tplStartCatchupPoll();
+            } else if (_tplRealtimeConnected && _tplReconnectCatchupPending) _tplCatchup();
+        }
+    }
+    function _tplStartCatchupPoll() {
+        if (_tplCatchupTimer) return;
+        _tplCatchupTimer = setInterval(() => {
+            if (!_tplRealtimeConnected || _tplReconnectCatchupPending) _tplCatchup();
+        }, TPL_CATCHUP_POLL_MS);
+    }
 
     async function _tplLoadFromSupabase() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase not configured');
@@ -12219,10 +12268,12 @@
 
     async function _tplSubscribeSupabase() {
         if (_tplRealtimeChannel) return;
-        const client = await _calRuntimeFlagClient();
-        if (!client || _tplRealtimeChannel) return;
+        // An existing channel object is not proof that its socket connected.
+        _tplStartCatchupPoll();
         try {
-            _tplRealtimeChannel = client
+            const client = await _calRuntimeFlagClient();
+            if (!client || _tplRealtimeChannel) return;
+            const channel = client
                 .channel('syncview-templates')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'templates' }, (payload) => {
                     const row = payload && payload.new ? payload.new : null;
@@ -12231,11 +12282,24 @@
                     if (!name) return;
                     templatesData[name] = Object.assign({}, templatesData[name] || {}, data, { updated_at: row.updated_at || data.updated_at || '' });
                     _maybeRerenderTemplates();
-                })
-                .subscribe();
+                });
+            _tplRealtimeChannel = channel;
+            channel.subscribe((status) => {
+                if (_tplRealtimeChannel !== channel) return;
+                if (status === 'SUBSCRIBED') {
+                    _tplRealtimeConnected = true;
+                    if (_tplReconnectCatchupPending) _tplCatchup();
+                    else _tplStopCatchupPoll();
+                } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                    _tplRealtimeConnected = false;
+                    _tplReconnectCatchupPending = true;
+                    _tplStartCatchupPoll();
+                }
+            });
         } catch (e) {
             console.warn('[SyncView] templates realtime subscribe failed', e);
             _tplRealtimeChannel = null;
+            _tplRealtimeConnected = false;
         }
     }
 
@@ -12286,8 +12350,11 @@
         } catch (e) {
             console.warn('[SyncView] loadTemplates failed:', e);
             templatesLoadError = e.message || String(e);
+            _maybeRerenderTemplates();
+            return false;
         }
         _maybeRerenderTemplates();
+        return true;
     }
     function _maybeRerenderTemplates() {
         if (currentNav !== 'templates') return;
@@ -34573,7 +34640,9 @@
     let _linearOutboxFlushTimer = null;
     function _calSetLinearOutboxFlushTimer(value) { _linearOutboxFlushTimer = value; }
     let _linearOutboxFlushPromise = null;
+    function _calSetLinearOutboxFlushPromise(value) { _linearOutboxFlushPromise = value; }
     let _linearOutboxFlushOwnerKey = '';
+    function _calSetLinearOutboxFlushOwnerKey(value) { _linearOutboxFlushOwnerKey = value; }
     /* RETIRED LEGACY DEBT (OPEN_REPAIRS 239). A `legacy_n8n` row is a queued
        POST to `linear-set-status` / `linear-add-comment`. Both webhooks are
        revoked, nothing enqueues the transport any more, and no attempt could
@@ -36281,10 +36350,10 @@
         const owner = suppliedOwner || _writeUiLegacyResumeOwner();
         if (!_writeUiLegacyResumeOwnerCurrent(owner)) return;
         if (_linearOutboxFlushTimer) return;
-        _linearOutboxFlushTimer = setTimeout(() => {
-            _linearOutboxFlushTimer = null;
+        _calSetLinearOutboxFlushTimer(setTimeout(() => {
+            _calSetLinearOutboxFlushTimer(null);
             if (_writeUiLegacyResumeOwnerCurrent(owner)) _linearOutboxFlush(owner);
-        }, LINEAR_OUTBOX_RETRY_MS);
+        }, LINEAR_OUTBOX_RETRY_MS));
     }
     function _linearOutboxFlush(suppliedOwner) {
         const owner = suppliedOwner || _writeUiLegacyResumeOwner();
@@ -36297,12 +36366,12 @@
         }
         const tracked = _linearOutboxFlushRun(owner).finally(() => {
             if (_linearOutboxFlushPromise === tracked) {
-                _linearOutboxFlushPromise = null;
-                _linearOutboxFlushOwnerKey = '';
+                _calSetLinearOutboxFlushPromise(null);
+                _calSetLinearOutboxFlushOwnerKey('');
             }
         });
-        _linearOutboxFlushOwnerKey = ownerKey;
-        _linearOutboxFlushPromise = tracked;
+        _calSetLinearOutboxFlushOwnerKey(ownerKey);
+        _calSetLinearOutboxFlushPromise(tracked);
         return tracked;
     }
     async function _linearOutboxFlushRun(owner) {
@@ -48076,9 +48145,9 @@
        and re-sent (when the browser comes back online, when the tab is shown
        again, on a backoff timer, and after a reload). A failure the server
        itself refused is not retried: the change is put back and a clear
-       message says it was not saved. An entry older than
+       message says what was saved. An entry older than
        CLIENT_REVIEW_QUEUE_MAX_AGE_MS (counted from the click, across reloads)
-       is dropped and the client is told plainly it was not saved.
+       is dropped and the client is told whether an exact approval was saved.
 
        A held Approve never lands on a newer state: the entry records the
        server status at click time, and before any re-send the row is read
@@ -48164,7 +48233,29 @@
         try { hideToast(); showNotify(title, msg); } catch (e) {}
     }
     function _crqWhat(entry) { return entry && entry.kind === 'request' ? 'change request' : 'approval'; }
+    function _crqApprovalSourcePending(entry) {
+        if (!entry || entry.kind !== 'approve' || !entry.edits) return false;
+        const post = (calState.posts || []).find(p => p.id === entry.pid);
+        const pending = post && post._writeUiRetryEdits;
+        if (!post || !post._writeUiRetrySourceAt || !pending) return false;
+        // A whole-post approve counts only if every component, including its
+        // sign-off stamp, is in this exact source repair. A committed sibling
+        // cannot certify a component whose native write was refused.
+        const comps = _crqCompsOf(entry.comp);
+        if (!comps.length || !comps.every(c => ['video', 'graphic', 'caption'].includes(c)
+            && entry.edits[c + '_status'] === 'Approved'
+            && !!entry.edits['client_' + c + '_approved_at'])) return false;
+        const fields = ['status', ...comps.flatMap(c => [c + '_status', 'client_' + c + '_approved_at'])];
+        return fields.every(k => Object.prototype.hasOwnProperty.call(entry.edits, k)
+            && Object.prototype.hasOwnProperty.call(pending, k)
+            && pending[k] === entry.edits[k]);
+    }
+    function _crqTellSavedSyncing() {
+        _crqTell('Approval saved; card still syncing',
+            'Your approval was saved. The card will retry syncing automatically. If the warning remains, tell your account manager.');
+    }
     function _crqTellExpired(entry) {
+        if (_crqApprovalSourcePending(entry)) { _crqTellSavedSyncing(); return; }
         _crqTell('Your ' + _crqWhat(entry) + ' was not saved',
             'We could not reach SyncView for 30 minutes after you sent it, so nothing was saved. Please check your internet connection and do it again.');
     }
@@ -48244,7 +48335,8 @@
             return true;
         }
         _crqDrop(pid, comp);
-        if (_crqIsConnectionFailure(errorText)) _crqTellExpired(entry);
+        if (_crqApprovalSourcePending(entry)) _crqTellSavedSyncing();
+        else if (_crqIsConnectionFailure(errorText)) _crqTellExpired(entry);
         else _crqTell('Your ' + _crqWhat(entry) + ' was not saved',
             'SyncView refused it, so nothing was saved: ' + String(errorText || 'unknown reason')
             + ' Please try again, or tell your account manager if it keeps happening.');
@@ -48301,8 +48393,9 @@
             for (const entry of entries) {
                 if (_crqRun.inflight.has(entry.pid + '|' + entry.comp)) continue;
                 if (_crqExpired(entry)) {
+                    const approvalSaved = _crqApprovalSourcePending(entry);
                     _crqDrop(entry.pid, entry.comp);
-                    if (entry.kind === 'approve') _crqUnapply(entry, null);
+                    if (entry.kind === 'approve' && !approvalSaved) _crqUnapply(entry, null);
                     else _calReviewState.saving[entry.pid + '|' + entry.comp] = false;
                     _crqTellExpired(entry);
                     continue;
@@ -72586,7 +72679,7 @@
                 }
                 _writeUiApplyOverallStatus('sxr', post, edits, wasNewRow, true);
                 let wirePost;
-                if (!wasNewRow && Object.keys(edits).length > 0) {
+                if (!wasNewRow && !_sxrFailedNewCards.has(realId)) {
                     // FIELD-LEVEL PATCH — only the columns this edit touched.
                     wirePost = { id: post.id };
                     for (const k of Object.keys(edits)) {
@@ -72602,7 +72695,7 @@
                     // Intentional link clear → the explicit sentinel (a bare '' is carried-forward by the upsert guard).
                     _sxrApplyClearSentinels(wirePost);
                 } else {
-                    // Whole card (new row, or a forced retry with empty edits).
+                    // Whole card only for creation, including a failed first save.
                     wirePost = Object.assign({}, post);
                     wirePost.video_tweaks = _sxrStringifyComments(_sxrCommentsFor(post, 'video'));
                     wirePost.graphic_tweaks = _sxrStringifyComments(_sxrCommentsFor(post, 'graphic'));
@@ -72685,8 +72778,9 @@
                     if (!gatewayCommitted) _SXR_ROLLBACK_FIELDS.forEach(k => { if (k in edits) cur[k] = prevSnapshot[k]; });
                     cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
                     cur._saveError = _writeUiFailureSentence(e, 'save failed');
+                    // Retry the failed field set, never an old whole-card snapshot.
+                    cur._writeUiRetryEdits = Object.assign({}, edits);
                     if (gatewayCommitted) {
-                        cur._writeUiRetryEdits = Object.assign({}, edits);
                         cur._writeUiRetrySourceAt = writeUiSourceAt;
                         cur._writeUiRetryPrincipal = _writeUiPrincipalKey();
                         delete cur._writeUiPrecommittedNative;
@@ -72704,12 +72798,23 @@
         }
     }
 
-    /* Retry a failed save — queue an empty bucket so the flush re-sends the whole
-       current row through the normal funnel (fixes the old broken retry that
-       early-returned on an empty bucket). */
+    /* Retry the retained edits for an existing card; a failed first creation
+       still sends its full row through the normal funnel. */
     function _sxrRetrySave(pid) {
         if (!pid) return;
         const post = sxrState.posts.find(p => p.id === pid);
+        const pending = _sxrPendingEdits[pid];
+        const retained = post && Object.assign({}, post._writeUiRetryEdits || {}, post._writeUiHeldSourceEdits || {});
+        if (!post || (!_sxrIsBlankId(pid) && !_sxrFailedNewCards.has(pid)
+            && !(pending && Object.keys(pending).length)
+            && !Object.keys(retained).length
+            && !post._writeUiRetrySourceAt)) {
+            const message = 'Retry details are missing. Refresh this card and make the edit again.';
+            if (pending && !Object.keys(pending).length) delete _sxrPendingEdits[pid];
+            if (post) post._saveError = message;
+            _sxrSetCardStatus(pid, 'error', message);
+            return;
+        }
         if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = Object.assign({}, post && post._writeUiRetryEdits || {});
         _sxrSetCardStatus(pid, 'saving');
         _sxrFlushCardSave(pid);
@@ -76794,6 +76899,8 @@
         },
         schedule: { postNow: true, at: '', tz: 'America/New_York' },
         uploads: [],
+        queueReadState: 'loading', // only a successful server read proves an empty queue
+        queueFailures: 0,
         queueTab: 'upcoming',       // 'upcoming' | 'failed' | 'done'
         queueLimit: TK_QUEUE_PAGE,  // rows shown in the open tab; "Show more" adds a page
         submitting: false,
@@ -78425,21 +78532,25 @@
             _tkSaveQueueCache(rows);
             const prunedPending = _tkPrunePending(_tkLoadPending());
             const shownBefore = tkState.queueFromCache ? null : JSON.stringify(tkState.uploads);
+            const wasUnverified = tkState.queueReadState !== 'ready';
             tkState.uploads = _tkMergeUploads(prunedPending, rows);
             // Trim local pending list of rows the server now knows about, plus stale optimistic ones.
             const knownIds = new Set(rows.map(r => r.id));
             _tkSavePending(prunedPending.filter(r => !knownIds.has(r.id)));
             tkState.queueFromCache = false;
+            tkState.queueReadState = 'ready';
+            tkState.queueFailures = 0;
             // The live list is usually the same; repaint only on a change
             // (or to turn the cached, read-only rows into live ones).
-            if (JSON.stringify(tkState.uploads) !== shownBefore) _tkRenderQueue();
+            if (wasUnverified || JSON.stringify(tkState.uploads) !== shownBefore) _tkRenderQueue();
             await _tkLookupOverdue();
         } catch (e) {
-            // Surface only on the very first failure — keep retrying quietly afterwards.
-            const col = document.getElementById('tkQueueCol');
-            if (col && !col.dataset.everLoaded) {
-                col.innerHTML = `<div class="tk-card"><h3>Uploads</h3><div class="tk-queue-empty">Couldn't load your uploads. Trying again shortly.<br><small>${_tkEscape(e.message)}</small></div></div>`;
-            }
+            tkState.queueReadState = 'error';
+            tkState.queueFailures++;
+            // Rows kept from an earlier read are unverified now: show them
+            // read-only (no Cancel, Retry or Dismiss) until a read succeeds.
+            tkState.queueFromCache = true;
+            _tkRenderQueue();
         }
     }
 
@@ -78501,7 +78612,6 @@
     function _tkRenderQueue() {
         const col = document.getElementById('tkQueueCol');
         if (!col) return;
-        col.dataset.everLoaded = '1';
 
         const hidden = _tkLoadHidden();
         const visible = tkState.uploads.filter(r => !hidden.has(r.id));
@@ -78546,14 +78656,20 @@
                     ${actions.length ? `<div class="tk-queue-actions">${actions.join('')}</div>` : ''}
                 </div>`;
         };
-        const tabBtn = (key, label) => `<button type="button" class="tk-q-tab${tab === key ? ' on' : ''}${key === 'failed' && groups.failed.length ? ' alert' : ''}" role="tab" aria-selected="${tab === key}" onclick="_tkSetQueueTab('${key}')">${label}<b>${groups[key].length}</b></button>`;
+        const tabBtn = (key, label) => `<button type="button" class="tk-q-tab${tab === key ? ' on' : ''}${key === 'failed' && groups.failed.length ? ' alert' : ''}" role="tab" aria-selected="${tab === key}" onclick="_tkSetQueueTab('${key}')">${label}<b>${tkState.queueReadState === 'ready' ? groups[key].length : '—'}</b></button>`;
         const empty = { upcoming: 'Nothing scheduled yet.', failed: 'No failed uploads.', done: 'No posts yet.' }[tab];
+        const readNotice = tkState.queueReadState === 'loading'
+            ? '<div class="tk-queue-empty" role="status">Loading uploads…</div>'
+            : tkState.queueReadState === 'error'
+                ? `<div class="tk-queue-empty" role="alert">Couldn't load your uploads. ${visible.length ? 'Showing available rows. ' : ''}Trying again shortly.</div>`
+                : '';
 
         col.innerHTML = `
             <div class="tk-card">
                 <h3>Uploads</h3>
                 <div class="tk-q-tabs" role="tablist">${tabBtn('upcoming', 'Upcoming')}${tabBtn('failed', 'Failed')}${tabBtn('done', 'Done')}</div>
-                ${shown.length ? shown.map(itemHTML).join('') : `<div class="tk-queue-empty">${empty}</div>`}
+                ${readNotice}
+                ${shown.length ? shown.map(itemHTML).join('') : tkState.queueReadState === 'ready' ? `<div class="tk-queue-empty">${empty}</div>` : ''}
                 ${remaining > 0 ? `<button type="button" class="tk-q-more" onclick="_tkQueueShowMore()">Show ${Math.min(remaining, TK_QUEUE_PAGE)} more <span>· ${remaining} left</span></button>` : ''}
             </div>
         `;
@@ -78637,6 +78753,7 @@
         if (changed) _tkRenderQueue();
     }
     function _tkNextPollDelay() {
+        if (tkState.queueReadState === 'error') return Math.min(300_000, 30_000 * 2 ** Math.min(tkState.queueFailures - 1, 4));
         if (_tkActiveUploadCount() > 0) return 30_000;   // something in-flight — watch closely
         if (_tkHasScheduled()) return 120_000;           // only future posts — check lazily
         if (_tkUnresolvedOverdue().length) return 300_000; // overdue, no result yet — keep asking
@@ -78690,6 +78807,8 @@
         const cachedRows = _tkLoadQueueCache();
         tkState.uploads = _tkMergeUploads(_tkPrunePending(_tkLoadPending()), cachedRows);
         tkState.queueFromCache = cachedRows.length > 0;
+        tkState.queueReadState = 'loading';
+        tkState.queueFailures = 0;
         _tkRenderForm();
         _tkRenderPreview();
         _tkRenderQueue();
@@ -80286,6 +80405,7 @@
        just before the user approves a card can finish 200 ms later and
        repaint with the pre-approval state, making the card "snap back". */
     let _kasperLoadGen = 0;
+    function _kasperSetLoadGen(value) { _kasperLoadGen = value; }
     let _kasperLastLocalWriteAt = 0;   // last local Kasper action — used to ignore the realtime echo of our own writes
     function _kasperInvalidateInFlightLoad() { _kasperLoadGen++; _kasperLastLocalWriteAt = Date.now(); }
     /* Click-eaten-by-re-render guard. The queue repaints by rebuilding DOM
@@ -83133,7 +83253,8 @@
         _kasperState.error = null;
         // Capture the current generation so a user mutation during the
         // await can invalidate this load before its results are applied.
-        const myGen = ++_kasperLoadGen;
+        _kasperSetLoadGen(_kasperLoadGen + 1);
+        const myGen = _kasperLoadGen;
 
         try {
             // SMM sheet + every client's calendar in parallel, but only the

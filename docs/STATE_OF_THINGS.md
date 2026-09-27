@@ -85,6 +85,14 @@ line is older than a week, re-check it before relying on it.
 
 ## Done (was listed as open somewhere)
 
+- **Guest-login gap closed before v2 sign-in (applied 2026-09-27).** The
+  `authenticated` role no longer holds any right `anon` lacks: a live
+  re-measure across tables, sequences, columns, functions, schemas and
+  policies returns 0 rows (`migrations/2026-09-27-authenticated-grants-revoke-three.sql`,
+  PR #1772). Anonymous sign-in stays OFF until the owner turns it on.
+  Still open, separate: `anon` holds write and TRUNCATE grants (no SELECT) on
+  the same three tables.
+
 - **F27 capture guidance already names the three-function closure.** Read-only
   source check on 2026-09-26: `CLAUDE.md` and the Section 4 workflow both name
   `production-write`, `deliverable-write`, `batch-write`, and the old Linear

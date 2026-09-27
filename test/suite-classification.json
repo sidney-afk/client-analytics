@@ -511,6 +511,7 @@
     "samples-native-dialog.js",
     "samples-native-materialize.js",
     "samples-realtime-status-propagation.js",
+    "samples-retry-stale-status.js",
     "samples-review-stranded-media.js",
     "samples-title-flavour.js",
     "save-indicator-rollout.js",
@@ -538,6 +539,7 @@
     "templates-brain-page.js",
     "templates-multilink.js",
     "templates-refresh-routing.js",
+    "templates-realtime-catchup.js",
     "test-client-entry-harness.js",
     "test-suite-routing.js",
     "test-window-integrity.js",
@@ -1235,6 +1237,14 @@
       "required_for_release": true,
       "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
       "reproduce": "node test/tiktok-overdue-status-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
+      "file": "tiktok-queue-first-read-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data.",
+      "reproduce": "node test/tiktok-queue-first-read-browser.js (after repository Playwright/Chromium setup)",
       "ci": "not_run_by_unit_ci"
     },
     {

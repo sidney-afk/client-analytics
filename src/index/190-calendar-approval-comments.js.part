@@ -1,3 +1,48 @@
+import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
+import {
+  CAL_COMPONENTS, CAL_REVIEW_COMPONENTS, _calClearStaleApprovals, _calComponentsFor,
+  _calIsYouTubeCard, _calNormStatus, _prodCommentAddRoutesLegacy, _writeUiBindRepairAck,
+  _writeUiFailureSentence, _writeUiMergeCommittedBatch, _writeUiNativeId, _writeUiReportFailure,
+  _writeUiSourceClientSlug, computeOverallStatus
+} from './120-calendar-flags-write-repair.js';
+import {
+  _calCommentsFor, _calCommentsForView, _calCompLinked, _calLinearUrlFor, _calMsgAudience,
+  _calMsgIsTweak, _calNextTweakRound, _calNoLinearPush, _calPendingEdits, _calPillDisplayStatus,
+  _calReviewCapCardHtml, _calSetCommentsFor, calState
+} from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
+import { _calParseIso } from './132-calendar-dates-ids.js';
+import { _calSavePrefs } from './134-calendar-prefs-mount.js';
+import {
+  _calApplyUrgentButtonState, _calPostLinearComment, _calShowKasperUrgent, _calUrgentButtonHtml,
+  _writeUiApplySupersededTeamDelivery, _writeUiCommentActionFailureHtml,
+  _writeUiCommitCardCommentLifecycle, _writeUiFlushDeferredLegacyTweak,
+  _writeUiLegacyCommittedTweak, _writeUiLegacyInspectTargetTweak,
+  _writeUiLegacyPinnedSourceTransport, _writeUiLegacyReconcileCommittedTweak,
+  _writeUiLegacyRefreshActiveTweak, _writeUiLegacyTargetWithLock,
+  _writeUiPersistCanonicalCommentProjection, _writeUiQueueDeferredLegacyTweak,
+  _writeUiRequestTweakMarkLocalStatus, _writeUiRollbackRequestTweak,
+  _writeUiScheduleDeferredLegacyTweak
+} from './140-calendar-legacy-outbox.js';
+import { _calMarkLocalStatus, _calV2Log } from './150-calendar-hydration-import.js';
+import {
+  _calClientCompPillsHtml, _calCompStatusLabel, _calDeriveThumb, _calDeriveThumbInfo,
+  _calFolderOpenUrl, _calFrameOpenUrl, _calIsFolderLink, _calIsFrameLink, _calMiniLinkBadgeHtml,
+  _calRenderBody, _calReviewFrameHtml, _calStatusLabel, _calThumbIconSvg, _calThumbImgTag,
+  _kcardReuseThumbInto, _thumbCompareSlotHtml
+} from './160-calendar-organize-ui.js';
+import {
+  _calAutoResolveDestStatus, _calFlushCardSave, _calReviewBlockReason, _calSmmApproveTo,
+  _calStatusSlug
+} from './170-calendar-links-status.js';
+import {
+  COMP_LABELS, _CAL_REVIEW_CFG, _calHasBeenToKasper, _calHasUnreadNotes,
+  _calRecordKasperSeenOnPost, _calReviewComponentActive, _calReviewMode, _calReviewState,
+  _calShowApprovedAfterTweaks, _notesMarkSeen
+} from './180-calendar-native-post-media.js';
+import { _calCrqBegin, _calCrqDone, _calCrqFailed, _calCrqResolve } from './185-client-review-queue.js';
+import { _prodCanonicalCommentGate, _prodComments, _prodProjectCanonicalCardComments } from './230-production-create-comments.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
     function _calHasMedia(p) {
         return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim());
     }
@@ -3048,3 +3093,16 @@
     // and per-card saves already have their own in-card save chip. Don't
     // re-add a toolbar text badge — it reflows the controls next to it.
 
+export {
+  CAL_REPLY_DRAFT_MAX, REVIEW_APPROVE_DRAFT_TITLE, _calApplyAutoStatus, _calApprovalBadgeCount,
+  _calCommentRole, _calCommentsBtnHtml, _calCompHasUnresolvedKasperTweak, _calCompKasperVisible,
+  _calCurrentAuthor, _calDeleteComment, _calFmtCommentTime, _calLatestMsgAt, _calSmmMediaGap,
+  _calLatestMsgCreatedAt, _calLoadComments, _calMergeCommentLists, _calMergePostComments,
+  _calMintCommentId, _calOpenCommentsPid, _calPostHasUnresolvedKasperTweak, _calPostKasperVisible,
+  _calRefreshCommentsBtn, _calRenderCommentsModal, _calRetryCommentEdit,
+  _calReviewComponentPreview, _calReviewRequestTweak, _calShowUrgent, _calSmmMissingMedia,
+  _calSmmWarnDotHtml, _calSmmWarnOverlayHtml, _calStringifyComments, _calToggleCommentDone,
+  _calUpdateCardStatusDisplay, _calUpdateReviewBadge, _calWatchNoteSave, _calWireReviewExpand,
+  _kasperCompReviewable, _kasperOpenTweakCount, _kasperPanelComps, _kasperUndecidedComps,
+  renderCalReview
+};

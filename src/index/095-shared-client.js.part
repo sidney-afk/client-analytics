@@ -5,7 +5,7 @@ import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-s
 import { selectClient, _templatesSetSelected } from './050-market-briefs.js';
 import { currentNav, _fpSetQueryQuiet } from './060-templates-filming.js';
 import { WL_CLIENT_NAMES, wlCanonicalClient } from './070-workload-source.js';
-import { navTo } from './090-workload-popovers-navigation.js';
+import { _navPillSync, navTo } from './090-workload-popovers-navigation.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
     /* ONE CLIENT ACROSS THE SITE (owner decision 2026-09-27, option A).
@@ -161,7 +161,9 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const badge = document.getElementById('svClientBadge');
         const label = document.getElementById('svClientBadgeLabel');
         const dot = document.getElementById('svClientBadgeDot');
-        if (label) label.textContent = cur ? _svClientShortName(cur) : 'Client';
+        const nextLabel = cur ? _svClientShortName(cur) : 'Client';
+        // A new label width changes the room left for the tab row: re-fit it.
+        if (label && label.textContent !== nextLabel) { label.textContent = nextLabel; requestAnimationFrame(() => _navPillSync(false)); }
         if (badge) {
             badge.setAttribute('data-sv-current', cur || '');
             badge.title = cur || 'Pick a client';
@@ -178,7 +180,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         const bar = document.getElementById('svClientBar');
         if (!bar) return;
         const show = _svStaffShell();
+        const changed = bar.hidden === show;
         bar.hidden = !show;
+        // The picker shares the bar with the tab row: re-fit the tabs when it
+        // appears or hides (090 _navFitSync, via the pill sync).
+        if (changed) requestAnimationFrame(() => _navPillSync(false));
         document.body.classList.toggle('sv-shared-client', show);
         if (!show) _svClientPopClose();
         else svClientBarRender();

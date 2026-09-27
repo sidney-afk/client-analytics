@@ -66,6 +66,15 @@ Neither graph directly calls Linear. Deep historical per-workflow reads:
 
 **Corrected 2026-09-21:** Linear-related schedules and write targets below must be read against the executed cutoff, not treated as instructions to restore them. Outbound and parity are off; only the inbound webhook and STEP 7 credential decision remain in the retirement boundary. Other n8n services are outside this correction.
 
+- TOP VIDEOS `DyVPx0neUZ94R0hJ` — **edited and published 2026-09-27 with the owner's go-ahead**
+  (active version `3e1e6242-45f6-4f09-9729-69baf45d4fb3`). Two nodes now sit between "Write to
+  TopVideos Sheet" and "Wait Between Rows": "Build Supabase Mirror Payload" and "Mirror to
+  Supabase", which POSTs each client's appended rows to the `analytics-write` Edge Function with
+  the n8n credential "Analytics mirror key" (Sheets-to-Supabase plan, Phase 1 dual-write). Both
+  continue on error, so the Sheet write and the client loop cannot be stopped by them. Rollback:
+  disable the two nodes or restore the previous version (`c6599395-6fb8-48e6-9f5c-da57a6b0bec6`).
+  Other writers of the analytics tabs (CLIENTS METRICS, MARKET RESEARCH, Append Client Row) are
+  unchanged.
 - Kasper-approval urgent ping `1WjZZjfQjDlg1Crf` (`SyncView — Urgent Kasper Review → Slack`) is
   active at version **`fddb0d5a-790b-4e3e-85f7-8c357f7b3969`** (published 2026-09-10). Created
   2026-09-09 as the twin of `send-urgent-slack`, aimed at Kasper rather than the editor:

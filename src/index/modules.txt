@@ -39,3 +39,4 @@
 097-today.js.part
 098-smm-clients.js.part
 170-calendar-links-status.js.part
+190-calendar-approval-comments.js.part

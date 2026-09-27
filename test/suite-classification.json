@@ -116,6 +116,7 @@
     "canonical-coverage-hold-routes-legacy.js",
     "caption-cancel-grace.js",
     "caption-has-no-work-item.js",
+    "card-journal-slim-migration.js",
     "card-calendar-status-drift-check.js",
     "card-comment-transport-split.js",
     "card-linkage-leak-check.js",

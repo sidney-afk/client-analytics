@@ -38,6 +38,13 @@ async function open(browser, port, suffix, { staff = true } = {}) {
 }
 
 const go = (page, tab) => page.evaluate(t => navTo(t), tab);
+// Recent clients live inside the dropdown now (owner redesign 2026-09-27).
+async function pickRecent(page, name) {
+  await page.click('#svClientBadge');
+  await page.click(`#svClientResults [data-sv-client="${name}"]`);
+}
+const contentTop = page => page.evaluate(() => Math.round(document.getElementById('mainWrap').getBoundingClientRect().top));
+const navLeft = page => page.evaluate(() => Math.round(document.getElementById('headerNav').getBoundingClientRect().left));
 
 (async () => {
   const server = await serveStatic();
@@ -66,8 +73,17 @@ const go = (page, tab) => page.evaluate(t => navTo(t), tab);
       expect(!!(await page.$('#calView .cal-kebab-wrap')), 'calendar: the first top-bar pick did not draw the client controls');
       await pick(FIRST);
       expect(await page.evaluate(() => calState.client) === FIRST, 'calendar: picking in the top bar did not switch the calendar');
-      expect((await page.textContent('#svClientBadgeLabel')).trim() === FIRST, 'calendar: the badge does not name the picked client');
-      expect(await page.isVisible(`#svClientRecent [data-sv-client="${SECOND}"]`), 'calendar: the previous client is not offered as a recent button');
+      expect(await page.getAttribute('#svClientBadge', 'data-sv-current') === FIRST, 'calendar: the badge does not hold the picked client');
+      expect((await page.textContent('#svClientBadgeLabel')).trim() === FIRST.split(' ')[0], 'calendar: the badge should show the first name only');
+      await page.click('#svClientBadge');
+      const rows = await page.$$eval('#svClientResults [data-sv-client]', els => els.map(e => ({ n: e.getAttribute('data-sv-client'), cur: e.classList.contains('is-current') })));
+      expect(rows[0] && rows[0].n === FIRST && rows[0].cur, 'calendar: the dropdown should open with the current client on top');
+      expect(rows.some(r => r.n === SECOND && !r.cur), 'calendar: the previous client is not offered in the dropdown');
+      expect(!(await page.$('#svClientPop .sv-client-sec, #svClientPop .sv-client-foot')), 'calendar: the dropdown should carry no section labels or helper text');
+      expect(!(await page.$('#svClientPop .ck')), 'calendar: no check mark in the dropdown');
+      await page.keyboard.press('Escape');
+      const calTop = await contentTop(page);
+      const calNav = await navLeft(page);
 
       await go(page, 'sample-reviews');
       await page.waitForTimeout(300);
@@ -93,12 +109,12 @@ const go = (page, tab) => page.evaluate(t => navTo(t), tab);
       // Picking in the top bar while ON Templates / Filming Plans switches them in place.
       await go(page, 'templates');
       await page.waitForTimeout(300);
-      await page.click(`#svClientRecent [data-sv-client="${SECOND}"]`);
+      await pickRecent(page, SECOND);
       await page.waitForTimeout(400);
       expect(await page.evaluate(() => _templatesSelected) === SECOND, 'templates: a top-bar pick on Templates did not switch it');
       await go(page, 'filming-plans');
       await page.waitForTimeout(300);
-      await page.click(`#svClientRecent [data-sv-client="${FIRST}"]`);
+      await pickRecent(page, FIRST);
       await page.waitForTimeout(400);
       expect(await page.inputValue('#fpSearchInput') === FIRST, 'filming plans: a top-bar pick on Filming Plans did not switch it');
 
@@ -114,13 +130,17 @@ const go = (page, tab) => page.evaluate(t => navTo(t), tab);
       // A team tab ignores it: bar hidden, nothing about the tab changes.
       await go(page, 'workload');
       await page.waitForTimeout(300);
-      expect(!(await page.isVisible('#svClientBar')), 'workload: the client bar should be hidden on a team tab');
+      // The picker stays on team tabs, so nothing moves: same content top,
+      // same tab-row position as on Calendar.
+      expect(await page.isVisible('#svClientBar'), 'workload: the client dropdown should stay in the bar');
+      expect(await contentTop(page) === calTop, `workload: page content starts at ${await contentTop(page)}px, Calendar at ${calTop}px`);
+      expect(await navLeft(page) === calNav, 'workload: the tab row moved compared with Calendar');
 
       // One click on a recent client switches the tab you are on.
       await go(page, 'calendar');
       await page.waitForTimeout(300);
       const other = await page.evaluate(() => calState.client === 'Anchor Fixture Alpha' ? 'Anchor Fixture Bravo' : 'Anchor Fixture Alpha');
-      await page.click(`#svClientRecent [data-sv-client="${other}"]`);
+      await pickRecent(page, other);
       await page.waitForTimeout(400);
       expect(await page.evaluate(() => calState.client) === other, 'calendar: the recent client button did not switch the calendar');
 

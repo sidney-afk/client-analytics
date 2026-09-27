@@ -511,6 +511,7 @@
     "samples-native-dialog.js",
     "samples-native-materialize.js",
     "samples-realtime-status-propagation.js",
+    "samples-retry-stale-status.js",
     "samples-review-stranded-media.js",
     "samples-title-flavour.js",
     "save-indicator-rollout.js",

@@ -29387,3 +29387,18 @@ the two-cards case.
 When the native approval committed but the Calendar card save was refused, the card kept its source repair and showed Saved, syncing while the client review queue said nothing was saved. The queue now checks that the pending repair contains every status and sign-off field of the exact queued approval before saying "Approval saved; card still syncing." A partly refused whole-post approval, a pre-commit refusal, and a change request retain their existing failure notices. An aged queue entry with a committed approval keeps its approved display and leaves the source repair in place.
 
 Offline regression: `node test/client-review-queue-behavior.js` failed before the source fix and passes after. `node docs/syncview-design/tests/client-review-write-browser.js` passes nine fully intercepted browser cases, including one native approval followed by a refused source save and a separate pre-commit refusal. This is local evidence only; no live write or hosted behavior was tested.
+
+## 271. [2026-09-27, BUILT — pending merge] Samples Retry can resend an older status
+
+An existing card's failed save left no ordinary edit fields for Retry. Retry then
+sent the whole local card, including statuses the user had not changed, with no
+scalar freshness base. A second tab's newer status could be overwritten.
+
+The page now retains the failed field set and retries an existing card with a
+field-level patch, even when the queued bucket would otherwise be empty. A
+failed first creation still retries the full row, and an intentional status
+edit still sends that status. An older failed card without retained edit fields
+now keeps its error visible and asks for a refresh and fresh edit; it cannot
+claim success after an ID-only request. `test/samples-retry-stale-status.js`
+failed before the fixes and passes on the rebuilt page across all four cases. No
+browser or live write was used; the effect on a served page awaits merge.

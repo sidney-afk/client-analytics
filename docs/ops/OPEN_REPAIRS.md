@@ -29416,3 +29416,16 @@ Offline proof: `test/tiktok-queue-first-read-browser.js` failed before the fix o
 The Templates channel existed even when its subscription failed, so an open page could keep showing an old working link until reload. The browser now observes subscription status. While Templates is open and visible but disconnected, it makes one REST catch-up read per minute. On reconnect it makes one more read for the missed interval and stops the poll. The existing REST load preserves queued and in-flight local edits.
 
 `test/templates-realtime-catchup.js` uses a fake REST server and channel. It failed before the fix because no subscription status callback was registered; it passes with disconnected polling, reconnect, connected-idle, hidden-tab, other-view, and dirty-edit checks. This is offline source proof, not a hosted reconnect observation. Risk: a failed connection adds at most one Templates REST read per minute per visible open page. Rollback is reverting this browser change; there is no database, Edge Function, or workflow change.
+
+## 275. [2026-09-27, BUILT] A sample Kasper sent back stayed in his queue after "Finish reviewing"
+
+Owner decision 2026-09-27: a sample Kasper sends back with a change request and then finishes must leave his queue. It returns only when the editor sends a new version.
+
+- **Cause.** `_sxrKasperLoadQueue` kept every finished card (the "Tweaks pending" group). `_sxrKasperDismiss` stamped the card but left it in the list.
+- **Fix** (`src/index/290-samples-writes-review.js.part`):
+  - Finished samples are no longer loaded into the queue.
+  - Finish removes the sample right away.
+  - The same-device finish flag is kept while the sample is hidden, so a refresh before the stamp saves cannot bring it back.
+  - A new version puts a component back at Kasper Approval, and `_sxrKasperIsFinished` already treats that as not finished, so the sample returns as normal.
+  - Approve-all, the SMM view and the client view are unchanged. Before Finish, nothing changes.
+- **Proof.** `test/sxr-kasper-finish-leaves-queue.js` runs the real code. It fails 3 checks on the old code and passes 11 of 11 with the fix.

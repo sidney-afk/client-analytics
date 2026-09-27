@@ -10,7 +10,9 @@
 Kasper's **Finish reviewing** handoff and **X-close** state are global, not browser-local:
 
 - `kasper_finished_at` records an explicit handoff when unresolved change requests remain. The
-  card stays in **Tweaks pending** across refreshes and devices. A later message updates the thread
+  card stays in **Tweaks pending** across refreshes and devices. **Samples differ (owner decision
+  2026-09-27):** a finished sample leaves Kasper's queue entirely and returns only when the editor
+  sends a new version, which puts a component back at `Kasper Approval`. A later message updates the thread
   in place and does **not** return the card to Waiting. Only an actionable component explicitly
   routed back to `Kasper Approval` creates a fresh ask.
 - `kasper_closed_at` records an X-close. A genuinely newer message can reopen that hidden card.
@@ -33,7 +35,8 @@ from the operative tree. Git history preserves them if incident forensics needs 
 ## Verification
 
 Use two isolated TEST-client sessions, ideally separate profiles/devices. Request a change, finish
-reviewing, and prove both sessions remain in **Tweaks pending** after refresh. Add an SMM/client
+reviewing, and prove both sessions remain in **Tweaks pending** after refresh (for a sample,
+prove it is gone from both queues instead). Add an SMM/client
 reply and prove it remains pending. Explicitly route an actionable component back to
 `Kasper Approval` and prove it returns to Waiting. Separately X-close a card and prove only a newer
 message reopens it. No verification step should touch a real-client record.

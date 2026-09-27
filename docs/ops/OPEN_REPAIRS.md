@@ -29353,3 +29353,8 @@ to `commit;`. Stop at the first error.
 
 **Applied 2026-09-27** by Lighthouse after the owner's go, as the three steps above: the pre-check passed, the index built valid and ready, and the transaction committed. Check on the test client: a timestamp-only update of one calendar card added no journal row (count unchanged). The live function bodies omit two comment lines from the file; behaviour is identical and the ROLLBACK does not depend on the new bodies' md5.
 
+## 273. [2026-09-27, BUILT, pending review] Templates can miss working-link changes after its live-update connection drops
+
+The Templates channel existed even when its subscription failed, so an open page could keep showing an old working link until reload. The browser now observes subscription status. While Templates is open and visible but disconnected, it makes one REST catch-up read per minute. On reconnect it makes one more read for the missed interval and stops the poll. The existing REST load preserves queued and in-flight local edits.
+
+`test/templates-realtime-catchup.js` uses a fake REST server and channel. It failed before the fix because no subscription status callback was registered; it passes with disconnected polling, reconnect, connected-idle, hidden-tab, other-view, and dirty-edit checks. This is offline source proof, not a hosted reconnect observation. Risk: a failed connection adds at most one Templates REST read per minute per visible open page. Rollback is reverting this browser change; there is no database, Edge Function, or workflow change.

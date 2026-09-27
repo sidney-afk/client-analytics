@@ -171,6 +171,7 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | `docs/audits/2026-09-24-speed-map.md` | Warm re-measure of all fifteen tabs against the 2026-09-23 speed map: first content, switching from the calendar, and what each tab waits on, with raw reps, medians and the rig difference. |
 | `docs/audits/2026-09-26-description-image-upload-body-bound.md` | Source-only review of the description image upload's request-body memory bound: the 4 MiB policy check occurs after buffering when the length header is absent; proposes a bounded read and offline test. |
 | `docs/audits/2026-09-26-hiring-automation-rpc-errors.md` | Source-only review of the hiring automation bridge's unknown-RPC-error response: its fallback unavailable code returns 422, unlike its other availability responses; proposes a status split and mocked check. |
+| `docs/audits/2026-09-26-production-archive-comment-cursor.md` | Source-only review of an incomplete chronological archive comment cursor when another detail lane still has pages; proposes a paired-cursor guard and mocked continuation check. |
 | `scripts/linear-only-slot-repair.js`, `test/linear-only-slot-repair.js`, `docs/ops/2026-09-24-linear-only-slot-repair.md` | Read-only finder for Calendar slots that hold only a retired Linear URL: classifies each against existing SyncView deliverables and writes a guarded, NOT APPLIED connection plan (ids and SQL) to a file outside the repo. Prints counts only. |
 
 ## Meta

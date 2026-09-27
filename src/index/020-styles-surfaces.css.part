@@ -370,7 +370,7 @@
            group wraps on narrow screens instead of widening the page. */
         .cal-toolbar.is-picker-shell > .cal-toolbar-left { display: none; }
         .cal-toolbar.is-picker-shell > .cal-toolbar-mid { flex: 1 1 auto; min-width: 0; flex-wrap: wrap; row-gap: 8px; }
-        .cal-toolbar.is-picker-shell .cal-toolbar-mid > .cal-view-toggle { order: -1; margin-right: auto; }
+        .cal-toolbar.is-picker-shell .cal-toolbar-mid > .cal-view-toggle { margin-right: auto; }
         .cal-tool-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); flex-shrink: 0; }
 
         /* Tabs (one per pinned client). Kept to a SINGLE row: the pills live in

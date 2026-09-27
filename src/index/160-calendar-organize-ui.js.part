@@ -62,7 +62,10 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         } else {
             // Same slot the shell builds it into: ahead of the client-links
             // pill when that exists, otherwise straight before the view toggle.
-            mid.insertBefore(node, mid.querySelector('.cal-client-links') || mid.querySelector('.cal-view-toggle'));
+            // In the staff picker shell the view toggle leads the row (DOM order
+            // = visual order), so the anchor is the zoom control instead.
+            const picker = !!mid.closest('.cal-toolbar.is-picker-shell');
+            mid.insertBefore(node, mid.querySelector('.cal-client-links') || mid.querySelector(picker ? '.cal-zoom' : '.cal-view-toggle'));
         }
     }
     /* Lighter path for the Order switch: update the chrome in place so the
@@ -308,7 +311,8 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         tmp.innerHTML = html;
         const node = tmp.firstElementChild;
         if (!node) return;
-        const toggle = mid.querySelector('.cal-view-toggle');
+        const picker = !!mid.closest('.cal-toolbar.is-picker-shell');
+        const toggle = mid.querySelector(picker ? '.cal-zoom' : '.cal-view-toggle');
         if (toggle) mid.insertBefore(node, toggle);
         else mid.appendChild(node);
     }
@@ -353,19 +357,24 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         // gets the parallel SMM-approval queue ('smmreview'). Both run on the
         // same review machinery — only the target status differs.
         const tabViews = _isClientLink ? ['review','organizer','month','week'] : ['smmreview','organizer','month','week'];
-        view.innerHTML = `
-            <div class="cal-toolbar${(!embedded && !_isClientLink) ? ' is-picker-shell' : ''}">
-                <div class="cal-toolbar-left">${leftHtml}</div>
-                <div class="cal-toolbar-mid">
-                    ${_calOrganizeHtml()}
-                    ${_calClientLinksHtml()}
-                    <div class="cal-view-toggle">
+        // Staff picker shell: the view switch leads the mid row in the DOM too,
+        // so keyboard tab order matches what is on screen.
+        const pickerShell = !embedded && !_isClientLink;
+        const toggleHtml = `<div class="cal-view-toggle">
                         ${tabViews.map(v => {
                             const n = (v === 'review' || v === 'smmreview') ? _calApprovalBadgeCount(v === 'smmreview' ? 'smm' : 'client') : 0;
                             const badge = n > 0 ? `<span class="cal-view-badge">${n}</span>` : '';
                             return `<button type="button" class="cal-view-btn${calState.view === v ? ' active' : ''}" data-cal-view="${v}" onclick="onCalViewChange('${v}')">${viewLabels[v]}${badge}</button>`;
                         }).join('')}
-                    </div>
+                    </div>`;
+        view.innerHTML = `
+            <div class="cal-toolbar${pickerShell ? ' is-picker-shell' : ''}">
+                <div class="cal-toolbar-left">${leftHtml}</div>
+                <div class="cal-toolbar-mid">
+                    ${pickerShell ? toggleHtml : ''}
+                    ${_calOrganizeHtml()}
+                    ${_calClientLinksHtml()}
+                    ${pickerShell ? '' : toggleHtml}
                     <div class="cal-zoom" id="calZoomCtl" title="Card size">
                         <svg class="cal-zoom-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
                         <button type="button" id="calZoomOut" onclick="calZoom(-1)" aria-label="Zoom out"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="7" x2="11" y2="7"/></svg></button>

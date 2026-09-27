@@ -10749,6 +10749,8 @@
     }
 
     function _clientBriefTabAvailable(name,clientOnly){
+        // Client share links show only Analytics and Content Calendar.
+        if(_isClientLink)return false;
         const hasData=getClientMRBriefs(name).length>0;
         if(!clientOnly||hasData)return true;
         const cap=_syncviewClientEntryCapability;
@@ -11895,6 +11897,8 @@
                 return;
             }
             sel=cap.client;
+            // A stale Brief tab (old history entry) lands on the Content Calendar.
+            if(clientViewTab[sel]==='brief')clientViewTab[sel]='calendar';
         }
         _syncviewNextNavEpoch(); // Phase D: a client profile is a route too.
         // Boot-gate belt-and-braces: today's render()-first boot paths
@@ -69184,6 +69188,10 @@
         }
         let view = String(q.get('v') || 'analytics').trim().toLowerCase();
         if (!SYNCVIEW_CLIENT_ENTRY_VIEWS.includes(view)) return { ok: false, reason: 'unsupported_view' };
+        // Clients no longer see Brief (owner, 2026-09-27): an old link that asks
+        // for it opens the Content Calendar instead, never an error. Staff
+        // client profiles keep Brief unchanged.
+        if (view === 'brief') view = 'calendar';
         const sxr = q.get('sxr');
         if (view === 'sample-reviews') {
             if (sxr !== '1') return { ok: false, reason: 'invalid_samples_entry' };
@@ -69202,7 +69210,7 @@
         }
         if (state && !state.client && state.nav) return { ok: false, reason: 'staff_history' };
         if ((view === 'analytics' || !q.get('v')) && state && state.client && _syncviewClientEntrySlug(state.client) === slug) {
-            if (state.clientTab === 'calendar' || state.clientTab === 'brief') view = state.clientTab;
+            if (state.clientTab === 'calendar' || state.clientTab === 'brief') view = 'calendar';
         }
         return { ok: true, client, slug, token, view, legacyHash: !!hash };
     }

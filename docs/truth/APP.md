@@ -326,10 +326,12 @@ TikTok rejected it; TikTok posting is the TikTok Upload tab (Post For Me) only.
 ## Samples (SXR + legacy)
 
 - Logic map: `docs/audits/2026-07-05-logic-samples.md`.
-- Source-only proposal (2026-09-26): an existing-card Samples Retry with no retained
-  edits copies the local whole row, including untouched statuses, while its
-  upsert request supplies no scalar freshness base. A stale tab could overwrite
-  a newer status; no live reproduction is claimed. See
+- Source-only finding (2026-09-26): an existing-card Samples Retry with no
+  retained edits copied the local whole row, including untouched statuses,
+  without a scalar freshness base. The page fix retains failed edit fields and
+  retries existing cards as field-level patches; a failed first creation still
+  sends the full card. `test/samples-retry-stale-status.js` passed offline after
+  failing on the original source. No live reproduction or merge is claimed. See
   `docs/audits/2026-09-26-samples-retry-status-source-review.md`.
 - SXR rejects pushing Scheduled/Posted to Linear (unlike calendar).
 - `_sxrReassertLinearStatus` was **defined but never called** (dead drift-protection) and was

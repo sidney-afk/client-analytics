@@ -29353,3 +29353,15 @@ to `commit;`. Stop at the first error.
 
 **Applied 2026-09-27** by Lighthouse after the owner's go, as the three steps above: the pre-check passed, the index built valid and ready, and the transaction committed. Check on the test client: a timestamp-only update of one calendar card added no journal row (count unchanged). The live function bodies omit two comment lines from the file; behaviour is identical and the ROLLBACK does not depend on the new bodies' md5.
 
+## 271. [2026-09-27, BUILT — pending merge] Samples Retry can resend an older status
+
+An existing card's failed save left no ordinary edit fields for Retry. Retry then
+sent the whole local card, including statuses the user had not changed, with no
+scalar freshness base. A second tab's newer status could be overwritten.
+
+The page now retains the failed field set and retries an existing card with a
+field-level patch, even when the queued bucket would otherwise be empty. A
+failed first creation still retries the full row, and an intentional status
+edit still sends that status. `test/samples-retry-stale-status.js` failed on the
+original source and passes on the rebuilt page across all three cases. No
+browser or live write was used; the effect on a served page awaits merge.

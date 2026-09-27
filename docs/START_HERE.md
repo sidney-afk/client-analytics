@@ -35,6 +35,13 @@ For a specific question, use [Find anything](FIND_ANYTHING.md).
 | [UI design standards](features/UI_DESIGN_STANDARDS.md) | Requirements for controls, explanations, keyboard use, touch, and mobile layouts. |
 | [Production design kit](syncview-design/README.md) | The current screen contract and the separate frozen prototype evidence. |
 
+## Owner vision and documentation design
+
+| Document | What it helps you find |
+|---|---|
+| [The step back](vision/STEP_BACK_2026-07-18.md) | The owner's rationale for shared company-and-software documentation and small, connected research slices. |
+| [Repository-map improvement pass](vision/IMPROVEMENT_PASS_2026-07-20.md) | A proposal to make the repository map easier to scan while keeping current-state ownership clear. |
+
 ## Testing and assurance
 
 | Document | What it helps you find |
@@ -54,6 +61,17 @@ For a specific question, use [Find anything](FIND_ANYTHING.md).
 | [Design test map](syncview-design/tests/README.md) | Runnable design checks and the boundary between live reads and mocked writes. |
 | [Frozen design tokens](syncview-design/linear-design-tokens.md) | Dated visual measurements used by the prototype; not a current runtime rule. |
 | [Frozen prototype](syncview-design/SyncView.html) | The preserved visual reference that must be judged against current app behavior. |
+
+### Quarantined prototype pointers
+
+These files retain old names to redirect readers; none is a current runbook.
+
+| Document | What it helps you find |
+|---|---|
+| [Prototype continuation](syncview-design/CONTINUATION.md) | A safe redirect from an obsolete prototype-session continuation to current design references. |
+| [Design-session handoff](syncview-design/HANDOFF.md) | A safe redirect from an old design handoff to the current design and test guides. |
+| [Prototype parity loop](syncview-design/PARITY-LOOP.md) | A safe redirect from the old parity loop to the living parity ledger and tests. |
+| [Prototype parity checklist](syncview-design/PARITY.md) | A frozen checklist that points to current parity and adapter references. |
 
 ## Feature contracts
 
@@ -334,6 +352,81 @@ These records capture checks and proposals from July. Their dated findings do no
 | [Jul 3 — n8n](audits/2026-07-03-n8n.md) | A read-only workflow inventory with partial node-level coverage. |
 | [Jul 3 — former tracker](audits/2026-07-03-linear.md) | A read-only workspace inventory that separates measured facts from estimates. |
 | [Jul 3 — application code](audits/2026-07-03-code.md) | A dated source survey of app structure, deployment paths, and key flows. |
+### Native work and data links
+
+| Document | What it helps you find |
+|---|---|
+| [Create-post intake model](independence/CREATE_POST_INTAKE_MODEL.md) | The locked product model for creating batches and deliverables, with older provider routing marked as history. |
+| [Samples native creation](independence/SAMPLES_NATIVE_CREATE_PLAN.md) | The implementation record for creating Samples batches through native writes. |
+| [Samples legacy removal](independence/SAMPLES_LEGACY_REMOVAL_MAP.md) | The phased old-Samples route map and the client-link boundary that blocks treating removal as complete. |
+| [F42 comment import](independence/F42_CARD_COMMENT_IMPORT_RUNBOOK.md) | The linked-card comment import method, completed-run evidence, and limits on further runs. |
+| [F42 linkage investigation](independence/F42_CARD_DELIVERABLE_LINKAGE_REPORT.md) | The read-only investigation of cards whose deliverable link could not support comment import. |
+| [F42 link repair plan](independence/F42_LINKAGE_DEFECT_REPAIR_PLAN.md) | A non-authorizing proposal for repairing mismatched card-to-deliverable links. |
+| [Native intake mapping](independence/NATIVE_INTAKE_PROJECT_MAPPING.md) | The old project-mapping readiness check and its pointer to the newer native provisioning contract. |
+
+### Program decisions and cutover records
+
+| Document | What it helps you find |
+|---|---|
+| [Graphics flip status](independence/GRAPHICS_FLIP_STATUS.md) | The dated graphics coordination snapshot and its cutover gates; use State of things for current status. |
+| [Go-live checklist](independence/GO_LIVE_CHECKLIST.md) | The original cutover gates, retained as historical evidence rather than current instructions. |
+| [B4 readiness](independence/B4_READINESS.md) | Gate evidence and owners for the earlier B4 bridge to writable Production. |
+| [Track A specification](independence/TRACK_A_EDGE_FUNCTIONS_SPEC.md) | The historical design for moving interactive writes from workflows to Edge Functions. |
+| [Track B specification](independence/TRACK_B_LINEAR_REPLACEMENT_SPEC.md) | The phased design for in-app production management, with pre-cutoff status preserved. |
+| [Exit handoff](independence/LINEAR_EXIT_HANDOFF.md) | The dated session handoff and then-open exit work, retained as history. |
+| [Exit lane map](independence/LINEAR_EXIT_LANES.md) | The parallel work lanes and file ownership rules used during exit preparation. |
+| [Cutover touchpoints](independence/LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md) | A dated inventory of former tracker reads and writes across the app and services. |
+
+### Preparation and recovery evidence
+
+| Document | What it helps you find |
+|---|---|
+| [Asset-reference coverage](independence/LINEAR_EXIT_ASSET_REFERENCE_COVERAGE_20260912.md) | How an offline adapter compares captured application references with restored object bytes. |
+| [Atomic-save checkpoint](independence/LINEAR_EXIT_ATOMIC_SAVE_CHECKPOINT_20260912.md) | The earlier isolated save proof and its pointer to later recovery evidence. |
+| [Recovery and export checkpoint](independence/LINEAR_EXIT_RECOVERY_AND_EXPORT_CHECKPOINT_20260912.md) | A dated checkpoint for transaction recovery and data-export preparation. |
+| [Complete-data rehearsal](independence/LINEAR_EXIT_COMPLETE_DATA_CHECKPOINT_20260912.md) | Isolated complete-application-data reconstruction evidence and its limits. |
+| [Consolidated checkpoint](independence/LINEAR_EXIT_CONSOLIDATED_CHECKPOINT_20260912.md) | The consolidated preparation snapshot and its pointer to later handoff evidence. |
+| [Control-record recovery](independence/LINEAR_EXIT_CONTROL_RECOVERY_20260912.md) | Isolated recovery checks for private control records and their source pins. |
+| [Provider recovery](independence/LINEAR_EXIT_PROVIDER_RECOVERY_20260912.md) | Prepared paths for reconciling acknowledged provider effects without assuming a retry is safe. |
+| [Observed target calibration](independence/LINEAR_EXIT_OBSERVED_FULL_CALIBRATION_20260912.md) | Disposable-database comparison of the captured schema with the proposed installation target. |
+
+### Earlier audits and migration designs
+
+| Document | What it helps you find |
+|---|---|
+| [Cutover findings](independence/CUTOVER_AUDIT_2026-07-13.md) | The dated findings register behind the former cutover gates and decisions. |
+| [Edge migration design](independence/EDGE_FUNCTIONS_MIGRATION.md) | A superseded workflow-to-Edge design for two older handlers; its steps are not current instructions. |
+| [Comment backfill record](independence/LINEAR_COMMENT_BACKFILL_PLAYBOOK.md) | The completed comment-history import and withdrawn rollback, preserved as history rather than a rerun guide. |
+| [Phase 0 audit](independence/PHASE0_AUDIT_2026-07-28.md) | The July classification of unchecked early launch gates against evidence available then. |
+| [Phase 2 merge review](independence/PHASE2_MERGE_READINESS_2026-07-16.md) | The dated whole-system review of an earlier dark merge and its required fixes. |
+| [Slack-to-Roam audit](independence/SLACK_ROAM_MIGRATION_AUDIT.md) | The June inventory of Slack dependencies and a proposed move to Roam; audit only. |
+
+### Exit handoffs and lane briefs
+
+The six lane briefs preserve clipped historical instructions. Their links help
+locate evidence; they are not safe instructions to execute.
+
+| Document | What it helps you find |
+|---|---|
+| [Original agent prompt](independence/CODEX_PROMPT.md) | The preserved two-track migration kickoff prompt, not a current work order. |
+| [Workload lane brief](independence/LINEAR_EXIT_BRIEF_A.md) | The historical Workload-native lane assignment and its restoration notes. |
+| [Write-path lane brief](independence/LINEAR_EXIT_BRIEF_B.md) | The historical write-path lane assignment and its restoration notes. |
+| [Endpoints lane brief](independence/LINEAR_EXIT_BRIEF_C.md) | The historical endpoints-and-Submit lane assignment and its restoration notes. |
+| [Feedback lane brief](independence/LINEAR_EXIT_BRIEF_D.md) | The historical comments-and-feedback lane assignment and its restoration notes. |
+| [Media lane brief](independence/LINEAR_EXIT_BRIEF_E.md) | The historical media-rescue lane assignment and its restoration notes. |
+| [Cutoff lane brief](independence/LINEAR_EXIT_BRIEF_F.md) | The historical cutoff-and-watchers lane assignment and its restoration notes. |
+| [September 11 handoff](independence/LINEAR_EXIT_CLAUDE_HANDOFF_20260911.md) | The then-current preparation source and open questions at the first continuation handoff. |
+| [September 12 handoff](independence/LINEAR_EXIT_CLAUDE_HANDOFF_20260912.md) | The dated reviewer handoff for the preparation build and its separate acceptance gates. |
+| [September 14 resume](independence/LINEAR_EXIT_CLAUDE_RESUME_20260914.md) | The later preparation entrypoint and then-open owner decisions; historical. |
+| [Fast-finish plan](independence/LINEAR_EXIT_FAST_FINISH_PLAN_20260912.md) | The dated plan linking preparation owners, isolated proofs, and the installation hold. |
+
+### Retained preparation checkpoints
+
+| Document | What it helps you find |
+|---|---|
+| [Composition checkpoint](independence/LINEAR_EXIT_COMPOSITION_CHECKPOINT_20260912.md) | The source inventory and isolated composition checks recorded on September 12. |
+| [Observed schema and journal](independence/LINEAR_EXIT_OBSERVED_BASELINE_AND_JOURNAL_20260912.md) | The captured starting schema and isolated installation-journal rehearsal. |
+| [September 10 recovery checkpoint](independence/LINEAR_EXIT_RECOVERY_CHECKPOINT_20260910.md) | An earlier restore and preparation snapshot, superseded by later handoffs. |
 
 ## Archived migrations and incidents
 

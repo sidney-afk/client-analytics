@@ -437,6 +437,8 @@ function installBootObserver(config) {
         || firstVisible('#calRefreshing:not([hidden])')
       ),
       calendarActiveClient: firstVisible('#calTabs .cal-tab.active')?.getAttribute('data-cal-tab')
+        || (firstVisible('#calView') && !firstVisible('#calView .cal-embed-title') && firstVisible('#svClientBar')
+          ? cleanText(document.getElementById('svClientBadgeLabel')) : '')
         || cleanText(firstVisible('#calView .cal-embed-title strong')),
       calendarFieldValues: Array.from(document.querySelectorAll('#calBody input, #calBody textarea'))
         .filter(visible)
@@ -1522,7 +1524,8 @@ async function armTrustedClickTraceBoundary(page, selector, expectedText) {
       const target = event.target && typeof event.target.closest === 'function'
         ? event.target.closest(targetSelector)
         : null;
-      if (!target || String(target.textContent || '').trim() !== targetText) return;
+      const targetName = target && (target.getAttribute('data-sv-client') || String(target.textContent || '').trim());
+      if (!target || targetName !== targetText) return;
       window.__syncviewResetBootTrace();
       window.__syncviewBootClickBoundary = {
         count: 1,
@@ -1531,6 +1534,19 @@ async function armTrustedClickTraceBoundary(page, selector, expectedText) {
       };
     }, { capture: true, once: true });
   }, { selector, expectedText });
+}
+
+/* The top bar is the only staff client picker (owner, 2026-09-27): Calendar's
+ * own client strip is gone. Opening the search and typing are setup; the
+ * switch itself is the click on the result row, which runs the same in-place
+ * switch the old strip tab did. Returns the row locator to click. */
+const TOP_BAR_CLIENT_ROW = '#svClientResults .sv-client-row';
+async function openTopBarClientSearch(page, clientName) {
+  await page.locator('#svClientBadge').click();
+  await page.locator('#svClientSearch').fill(clientName);
+  const row = page.locator(`${TOP_BAR_CLIENT_ROW}[data-sv-client="${clientName}"]`);
+  await row.waitFor({ state: 'visible', timeout: 5_000 });
+  return row;
 }
 
 function traceExcerpt(frames) {
@@ -2940,8 +2956,11 @@ async function runPendingCalendarOwnershipScenario(browser, server) {
       window.__syncviewHeldCalendarTransport?.reads.length === 1
       && Boolean(document.getElementById('calView'))
     ), null, { timeout: 10_000 });
+    const staffRow = await openTopBarClientSearch(staffRun.page, CLIENT_B);
+    assert.equal(await staffRun.page.locator('#calTabs').isVisible(), false,
+      'staff Calendar: the top bar is the only client picker, the per-tab strip stays hidden');
     await staffRun.page.evaluate(() => { window.__syncviewBootTrace = []; });
-    await staffRun.page.locator('#calTabs .cal-tab', { hasText: CLIENT_B }).click();
+    await staffRow.click();
     await staffRun.page.waitForFunction(() => (
       window.__syncviewHeldCalendarTransport?.reads.length === 2
       && calState.client === 'Residual Fixture Client'
@@ -3479,8 +3498,9 @@ async function runStaffCalendarOwnedTailAndBfcacheScenario(browser, server) {
     assert.equal(initialTail[0].hasSignal, false,
       `${label}: the deliverables tail read carries no abort signal, so the lease is its only guard`);
 
-    await armTrustedClickTraceBoundary(tailRun.page, '#calTabs .cal-tab', CLIENT_B);
-    await tailRun.page.locator('#calTabs .cal-tab', { hasText: CLIENT_B }).click();
+    const tailRunRow = await openTopBarClientSearch(tailRun.page, CLIENT_B);
+    await armTrustedClickTraceBoundary(tailRun.page, TOP_BAR_CLIENT_ROW, CLIENT_B);
+    await tailRunRow.click();
     await tailRun.page.waitForFunction(expectedClient => {
       const held = window.__syncviewHeldTailPostLoad;
       return calState.client === expectedClient
@@ -3927,8 +3947,9 @@ async function runStaffCalendarOwnedTailAndBfcacheScenario(browser, server) {
       `${label}: settled restore paints refresh then fresh A row\n${JSON.stringify(traceExcerpt(forcedMetaHeld.trace), null, 2)}`,
     );
 
-    await armTrustedClickTraceBoundary(settledRun.page, '#calTabs .cal-tab', CLIENT_B);
-    await settledRun.page.locator('#calTabs .cal-tab', { hasText: CLIENT_B }).click();
+    const settledRunRow = await openTopBarClientSearch(settledRun.page, CLIENT_B);
+    await armTrustedClickTraceBoundary(settledRun.page, TOP_BAR_CLIENT_ROW, CLIENT_B);
+    await settledRunRow.click();
     await settledRun.page.waitForFunction(expectedRow => (
       calState.client === 'Residual Fixture Client'
       && calState.posts.some(post => post.name === expectedRow)

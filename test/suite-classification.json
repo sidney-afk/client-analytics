@@ -114,6 +114,7 @@
     "calendar-v2-banner-persist.js",
     "calendar-v2-status-repro.js",
     "canonical-coverage-hold-routes-legacy.js",
+    "anon-read-scope-migrations.js",
     "caption-cancel-grace.js",
     "caption-has-no-work-item.js",
     "card-journal-slim-migration.js",

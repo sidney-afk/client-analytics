@@ -1,6 +1,6 @@
 // Supabase Edge Function: syncview-session
 //
-// SyncView v2 sign-in (docs/ops/ANON_READ_SCOPE_2026-09-26.md, phase 1 shape).
+// SyncView v2 sign-in. Design record: docs/ops/SYNCVIEW_SESSION.md.
 // The project signs access tokens with asymmetric keys, so this function never
 // signs anything itself. The browser first gets a Supabase guest (anonymous)
 // login, then calls this function with that login plus exactly one SyncView
@@ -80,5 +80,5 @@ Deno.serve(async (req) => {
   const { error: updateError } = await admin.auth.admin.updateUserById(user.id, { app_metadata: claims });
   if (updateError) return json({ ok: false, error: "session_unavailable" }, 503);
 
-  return json({ ok: true, scope: claims.svc_scope, client: claims.svc_client || null, role: claims.svc_role || null, refresh: true });
+  return json({ ok: true, scope: claims.svc_scope, client: claims.svc_client || null, role: claims.svc_role || null, expires_at: claims.svc_expires_at, refresh: true });
 });

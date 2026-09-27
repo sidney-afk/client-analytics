@@ -29297,7 +29297,7 @@ it. Only test timing changed, no app code and no screenshot content, so
 was re-pinned from `dd7bc753...` to `923dd9be...`, the value
 `test/leave-evidence-fingerprint-coupling.js` computes, as in #1619.
 
-## 270. [2026-09-26, PROPOSED] The anon key reads, and can subscribe to, every client's cards
+## 270. [2026-09-26, PARTLY APPLIED] The anon key reads, and can subscribe to, every client's cards
 
 Measured read-only: `calendar_posts` and `sample_reviews` have an anon read
 policy `using (true)` on every column, and `deliverables`, `batches` and
@@ -29314,3 +29314,11 @@ short-lived signed session from a new `syncview-session` Edge Function, which
 needs an owner check of the project's JWT signing keys first. Phase 2 replaces
 the open read policies with staff-or-own-client ones. Rehearsed locally:
 `scripts/anon-read-scope-rehearsal.js`, 11 checks.
+
+**Status 2026-09-27.** Phase 0 (`migrations/2026-09-26-anon-write-grants-revoke.sql`)
+was applied live on 2026-09-27 by the owner's go-ahead. The readback, posted
+on PR #1691, shows that anon and authenticated hold no write grant on the five
+tables, that reads are unchanged, and that service_role writes are unchanged.
+Phases 1 (session JWT in the browser) and 2 (`scoped-read-policies.sql`) are
+**deferred by the owner**. Until they ship, the anon key still reads every
+client's rows.

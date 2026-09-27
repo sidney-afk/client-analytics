@@ -1,5 +1,5 @@
 -- ============================================================
--- NOT APPLIED -- proposal for owner review (2026-09-26). PHASE 0 of
+-- APPLIED LIVE 2026-09-27 (owner go-ahead; readback on PR #1691). PHASE 0 of
 -- docs/ops/ANON_READ_SCOPE_2026-09-26.md. Safe to apply on its own.
 --
 -- WHAT. anon and authenticated still hold INSERT, UPDATE, DELETE, TRUNCATE,

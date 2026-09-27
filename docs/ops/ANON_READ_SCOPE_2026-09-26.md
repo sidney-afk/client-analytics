@@ -1,6 +1,11 @@
 # The anon key reads every client's cards — measurement and proposal (2026-09-26)
 
-Read-only investigation. Nothing here is applied. First flagged in
+Read-only investigation.
+
+**Status (2026-09-27): Phase 0 is APPLIED live** (owner go-ahead; readback on
+PR #1691). anon and authenticated no longer hold any write grant on the five
+tables, reads are unchanged, and service_role writes are unchanged. **Phases 1
+and 2 are deferred by the owner**, so the read exposure below still stands. First flagged in
 `docs/audits/2026-07-03-supabase.md:73`.
 
 ## What the anon (publishable) key can read today
@@ -50,12 +55,12 @@ something the database can check.
 
 ## Proposal
 
-**Phase 0 — now, no behaviour change.**
+**Phase 0 — APPLIED 2026-09-27, no behaviour change.**
 `migrations/2026-09-26-anon-write-grants-revoke.sql` revokes every write privilege
 (including TRUNCATE) from `public`, `anon` and `authenticated` on the five
 tables. It refuses to run if any anon/authenticated write policy exists.
 
-**Phase 1 — code, before any read policy changes.** A short-lived signed session
+**Phase 1 — DEFERRED by the owner. Code, before any read policy changes.** A short-lived signed session
 for every reader:
 1. A new Edge Function, `syncview-session`, verifies either a client link's token
    (the same `client_access` check `client-token-verify` does) or a staff role key
@@ -78,7 +83,7 @@ moved to asymmetric signing keys, the session has to come from Supabase Auth
 instead (for example anonymous sign-in plus a custom-access-token hook that adds
 the two claims). This choice decides phase 1's shape.
 
-**Phase 2 — after phase 1 is measured.** It also covers the two card event
+**Phase 2 — DEFERRED by the owner; only after phase 1 is measured.** It also covers the two card event
 ledgers and the three owner-rights views (found in review). The views cannot
 simply switch to `security_invoker`: two of them read `deliverables.linear_raw`,
 which the session role must not read, and one reads a table the session role

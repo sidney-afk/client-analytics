@@ -1719,6 +1719,9 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
         } catch (e) {
             tkState.queueReadState = 'error';
             tkState.queueFailures++;
+            // Rows kept from an earlier read are unverified now: show them
+            // read-only (no Cancel, Retry or Dismiss) until a read succeeds.
+            tkState.queueFromCache = true;
             _tkRenderQueue();
         }
     }

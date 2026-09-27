@@ -17,6 +17,7 @@ let nextInterval = 1;
 let statusCallback;
 let restReads = 0;
 let restValue = 'first';
+let restFail = false;
 let visible = true;
 const channel = {
   on() { return this; },
@@ -33,6 +34,7 @@ const context = {
     assert.match(url, /\/rest\/v1\/templates\?/);
     assert.equal(options.method || 'GET', 'GET');
     restReads++;
+    if (restFail) return { ok: false, status: 503, json: async () => ({}) };
     const value = restValue;
     return { ok: true, json: async () => [{ data: { client_name: 'fixture', reels_reference_link: value } }] };
   },
@@ -87,6 +89,22 @@ async function tick() {
   statusCallback('SUBSCRIBED');
   await settle();
   assert.equal(restReads, beforeReconnect + 1, 'repeated connected status does not keep reading');
+
+  // A reconnect whose catch-up read fails must stay armed and keep polling
+  // until one read succeeds (Codex review on #1773).
+  statusCallback('CHANNEL_ERROR');
+  await settle();
+  restFail = true;
+  restValue = 'missed during a failed catch-up';
+  const beforeFailedCatchup = restReads;
+  statusCallback('SUBSCRIBED');
+  await settle();
+  assert.equal(restReads, beforeFailedCatchup + 1, 'reconnect tries one catch-up read');
+  assert.equal(intervals.size, 1, 'a failed catch-up read keeps the poll armed');
+  restFail = false;
+  await tick();
+  assert.equal(api.data().fixture.reels_reference_link, restValue, 'the next poll catches up after the failed read');
+  assert.equal(intervals.size, 0, 'a successful catch-up read stops the poll');
 
   api.data().fixture.reels_reference_link = 'local edit';
   api.dirty.fixture = { reels_reference_link: 'local edit' };

@@ -1358,14 +1358,21 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
         _tplCatchupInFlight = true;
         // If a poll was in flight when the channel reconnected, its response
         // could predate the reconnect. Queue one read after that poll settles.
-        if (_tplRealtimeConnected) {
+        const clearedPending = _tplRealtimeConnected;
+        if (clearedPending) {
             _tplReconnectCatchupPending = false;
             _tplStopCatchupPoll();
         }
-        try { await loadTemplates(); }
+        let ok = false;
+        try { ok = (await loadTemplates()) === true; }
         finally {
             _tplCatchupInFlight = false;
-            if (_tplRealtimeConnected && _tplReconnectCatchupPending) _tplCatchup();
+            // A failed catch-up read must not end the catch-up: keep it armed
+            // and keep polling until one read succeeds.
+            if (clearedPending && !ok) {
+                _tplReconnectCatchupPending = true;
+                _tplStartCatchupPoll();
+            } else if (_tplRealtimeConnected && _tplReconnectCatchupPending) _tplCatchup();
         }
     }
     function _tplStartCatchupPoll() {
@@ -1475,8 +1482,11 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
         } catch (e) {
             console.warn('[SyncView] loadTemplates failed:', e);
             templatesLoadError = e.message || String(e);
+            _maybeRerenderTemplates();
+            return false;
         }
         _maybeRerenderTemplates();
+        return true;
     }
     function _maybeRerenderTemplates() {
         if (currentNav !== 'templates') return;

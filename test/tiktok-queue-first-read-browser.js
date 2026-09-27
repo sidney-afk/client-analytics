@@ -68,6 +68,18 @@ const rows = [{ id: 'queued-fixture', client: 'Fixture account', title: 'Recover
     assert.equal(reads, 2, 'the empty local queue retries on its own'); checks++;
     assert.match(await queue.innerText(), /Recovered upload/, 'the retry shows the server row'); checks++;
     assert.doesNotMatch(await queue.innerText(), /Couldn't load your uploads|Nothing scheduled yet\./, 'the error clears after recovery'); checks++;
+    assert.equal(await queue.locator('.tk-queue-item-cached').count(), 0, 'a live row is actionable'); checks++;
+
+    // A later refresh that fails, without a reload, must make the kept row
+    // read-only too, so a stale Cancel or Retry cannot be sent (Codex review on #1773).
+    failNextRead = true;
+    await page.clock.runFor(31_000);
+    await page.waitForFunction(() => /Couldn't load your uploads/.test(document.querySelector('#tkQueueCol')?.innerText || ''), null, { timeout: 5000 });
+    assert.equal(await queue.locator('.tk-queue-item-cached').count(), 1, 'a failed refresh makes the kept row read-only'); checks++;
+    assert.equal(await queue.locator('.tk-q-danger, .tk-q-primary').count(), 0, 'no Cancel or Retry on an unverified row'); checks++;
+    await page.clock.runFor(61_000);
+    await page.waitForFunction(() => !/Couldn't load your uploads/.test(document.querySelector('#tkQueueCol')?.innerText || ''), null, { timeout: 5000 });
+    assert.equal(await queue.locator('.tk-queue-item-cached').count(), 0, 'a successful read makes the row actionable again'); checks++;
 
     failNextRead = true;
     await page.reload({ waitUntil: 'domcontentloaded' });

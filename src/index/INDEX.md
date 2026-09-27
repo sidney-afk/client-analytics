@@ -13,7 +13,7 @@
 | 5 | `020-styles-surfaces.css.part` | 4190 | Templates view |
 | 6 | `030-body-shell.html.part` | 467 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 1845 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
-| 8 | `050-market-briefs.js.part` | 1761 | Market Research Brief Tab Renderers |
+| 8 | `050-market-briefs.js.part` | 1771 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2290 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `070-workload-source.js.part` | 3823 | Workload Calendar |
 | 11 | `080-workload-render.js.part` | 3414 | LAST GOOD BOARD FIRST (Loom, ). Measured on the live site: |
@@ -44,7 +44,7 @@
 | 36 | `270-samples-model.js.part` | 2852 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 37 | `280-samples-cards-notes.js.part` | 2922 | SURFACE 3: the save engine |
 | 38 | `290-samples-writes-review.js.part` | 1814 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
-| 39 | `300-tiktok-upload.js.part` | 2009 | TIKTOK UPLOAD MODULE |
+| 39 | `300-tiktok-upload.js.part` | 2012 | TIKTOK UPLOAD MODULE |
 | 40 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
 | 41 | `320-kasper-dashboard-replies.js.part` | 3212 | The Samples subtab was folded into Review (samples are listed in the |
 | 42 | `330-kasper-review-history.js.part` | 2695 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |

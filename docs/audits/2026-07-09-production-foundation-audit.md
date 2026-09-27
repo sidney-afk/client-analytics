@@ -635,3 +635,9 @@ this only changes what `_prodOpenBatch`/the `?batch=` URL route/the boot
 deep-link fallback do on their own. `_prodSubIssueRowHTML` was already the
 parent view's row renderer for the identical row shape; reusing it in the
 batch view changes markup, not data access.
+
+**2026-09-27 addendum (smart defaults).** `_prodPrimeFromUrl` gained one
+read-only default: with no `view`, `d`, `batch` or `client` in the address, a
+creative's first SyncLinear open of the page load uses `view=my`. It reads the
+stored staff identity only to choose what to paint; the gateway, role checks
+and team authority are unchanged. Recorded in EXECUTION_LOG.md and ROLLBACK.md.

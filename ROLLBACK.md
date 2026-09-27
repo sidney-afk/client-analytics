@@ -1426,3 +1426,10 @@ poll, without disabling Production:
 - **Check:** `prodRtStatus()` shows `status: "disabled"` and `pollMs: 30000`.
 - **Full inverse:** revert the PR (GitHub Pages redeploys on push). No database
   object, Edge Function or n8n state was created or changed.
+
+## 2026-09-27 — inverse for creative smart defaults (browser only)
+
+- **Full inverse:** revert the PR (GitHub Pages redeploys on push). It adds no
+  flag, table, Edge Function or n8n change.
+- **One person:** opening SyncLinear with `?prod=1&view=list`, or picking
+  "All" in Workload's editor filter, overrides the default for that visit.

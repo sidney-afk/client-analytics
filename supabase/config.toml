@@ -169,3 +169,9 @@ verify_jwt = false
 # writes the Clients Info Sheet first, then Supabase.
 [functions.client-profile-write]
 verify_jwt = false
+
+# SyncView v2 login pass. The gateway check is off because the function checks
+# the caller's guest login itself (auth.getUser) and refuses anything that is
+# not a guest; it then requires a staff key or client token as well.
+[functions.syncview-session]
+verify_jwt = false

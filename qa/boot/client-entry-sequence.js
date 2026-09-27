@@ -438,7 +438,7 @@ function installBootObserver(config) {
       ),
       calendarActiveClient: firstVisible('#calTabs .cal-tab.active')?.getAttribute('data-cal-tab')
         || (firstVisible('#calView') && !firstVisible('#calView .cal-embed-title') && firstVisible('#svClientBar')
-          ? cleanText(document.getElementById('svClientBadgeLabel')) : '')
+          ? (document.getElementById('svClientBadge')?.getAttribute('data-sv-current') || '') : '')
         || cleanText(firstVisible('#calView .cal-embed-title strong')),
       calendarFieldValues: Array.from(document.querySelectorAll('#calBody input, #calBody textarea'))
         .filter(visible)

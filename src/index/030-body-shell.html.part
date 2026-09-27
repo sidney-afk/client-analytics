@@ -55,27 +55,6 @@
     </div>
 </div>
 
-<!-- Shared client bar (095-shared-client). One client for Calendar, Samples,
-     Templates, Filming Plans, TikTok Upload and Analytics; hidden on team tabs
-     and on client links. -->
-<div class="sv-client-bar" id="svClientBar" hidden>
-    <span class="sv-client-cap">Client</span>
-    <div class="sv-client-badge-wrap" id="svClientBadgeWrap">
-        <button type="button" class="sv-client-badge" id="svClientBadge" onclick="svClientPopToggle(event)" aria-haspopup="listbox" aria-expanded="false" title="Search any client">
-            <span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>
-            <span id="svClientBadgeLabel">Pick a client</span>
-            <svg class="sv-client-chev" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
-        </button>
-        <div class="sv-client-pop" id="svClientPop" hidden>
-            <input type="text" class="sv-client-search" id="svClientSearch" placeholder="Search any client…" autocomplete="off" aria-label="Search any client" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="svClientResults">
-            <div class="sv-client-results" id="svClientResults" role="listbox"></div>
-            <div class="sv-client-foot">Follows you across Calendar, Samples, Templates, Filming Plans, TikTok Upload and Analytics.</div>
-        </div>
-    </div>
-    <span class="sv-client-recent-label" id="svClientRecentLabel" hidden>Recent</span>
-    <div class="sv-client-recent" id="svClientRecent"></div>
-    <button type="button" class="sv-client-kbd" onclick="svQuickJumpOpen()" title="Jump to a client and tab" aria-label="Quick jump"><span class="sv-client-kbd-text">Quick jump</span> <kbd>/</kbd></button>
-</div>
 <!-- Quick jump (096-quick-jump): "/" then "client tab", Enter. -->
 <div class="sv-jump" id="svJump" hidden>
     <div class="sv-jump-box" role="dialog" aria-label="Quick jump">
@@ -85,11 +64,31 @@
     </div>
 </div>
 
-<header class="header" style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;">
+<header class="header" style="display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;gap:12px;">
     <a class="logo" href="/" onclick="if(_modClick(event))return;event.preventDefault();goHome();" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
         <img src="/syncview-favicon.png" alt="SyncView">
         <span class="logo-text">SyncView</span>
     </a>
+    <!-- Shared client picker (095-shared-client), owner-approved 2026-09-27:
+         one small first-name dropdown after the logo, on every staff tab so
+         the tabs never move; never on client links. -->
+    <div class="sv-client-pick" id="svClientBar" hidden>
+        <div class="sv-client-badge-wrap" id="svClientBadgeWrap">
+            <button type="button" class="sv-client-badge" id="svClientBadge" onclick="svClientPopToggle(event)" aria-haspopup="listbox" aria-expanded="false" aria-label="Change client" data-sv-current="">
+                <span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>
+                <span id="svClientBadgeLabel">Client</span>
+                <svg class="sv-client-chev" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
+            </button>
+            <div class="sv-client-pop" id="svClientPop" hidden>
+                <div class="sv-client-searchrow">
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+                    <input type="text" class="sv-client-search" id="svClientSearch" placeholder="Search clients" autocomplete="off" aria-label="Search clients" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="svClientResults">
+                </div>
+                <div class="sv-client-results" id="svClientResults" role="listbox"></div>
+            </div>
+        </div>
+        <button type="button" class="sv-jump-touch" onclick="svQuickJumpOpen()" aria-label="Quick jump to a client and tab"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg></button>
+    </div>
     <div class="header-nav" id="headerNav">
         <span class="header-nav-pill" aria-hidden="true"></span>
         <a class="header-nav-btn" id="navCalendar" href="/calendar" onclick="if(_modClick(event))return;event.preventDefault();navTo('calendar')">

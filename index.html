@@ -8566,39 +8566,58 @@
             .ca-group dl { grid-template-columns: 1fr; }
         }
 
-        /* Shared client bar (095-shared-client): one client above the tabs. */
-        .sv-client-bar { display: flex; align-items: center; gap: 10px; padding: 8px 32px; background: var(--white); border-bottom: 1px solid var(--border); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.8rem; overflow-x: auto; scrollbar-width: none; }
-        .sv-client-bar[hidden] { display: none; }
-        .sv-client-cap { font-size: 0.66rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); flex: none; }
-        .sv-client-badge-wrap { position: relative; flex: none; }
-        .sv-client-badge { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 6px; border: 1px solid var(--border); border-radius: 999px; background: var(--white); color: var(--text-primary); font: inherit; font-weight: 700; cursor: pointer; white-space: nowrap; }
-        .sv-client-badge:hover { background: var(--surface-hover); }
-        .sv-client-badge:focus-visible, .sv-client-recent-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-        .sv-client-chev { opacity: 0.55; }
-        .sv-client-dot { width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; flex: none; font-size: 0.62rem; font-weight: 700; color: var(--sv-fg-fff); background: hsl(var(--sv-client-h, 220) 52% 46%); }
-        .sv-client-dot.is-empty { background: var(--surface-subtle); color: var(--text-muted); font-size: 0.9rem; }
-        .sv-client-recent-label { font-size: 0.72rem; color: var(--text-muted); margin-left: 6px; flex: none; }
-        .sv-client-recent { display: flex; gap: 8px; flex: none; }
-        .sv-client-recent-btn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px 4px 5px; border: 1px solid transparent; border-radius: 999px; background: var(--surface-subtle); color: var(--text-secondary); font: inherit; font-weight: 500; cursor: pointer; white-space: nowrap; }
-        .sv-client-recent-btn:hover { border-color: var(--border); color: var(--text-primary); }
-        .sv-client-recent-btn .sv-client-dot { width: 16px; height: 16px; font-size: 0.5rem; }
-        .sv-client-pop { position: fixed; z-index: 9998; margin-top: 8px; width: min(320px, calc(100vw - 28px)); background: var(--white); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm), 0 18px 48px var(--overlay); padding: 8px; }
-        .sv-client-search { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; font: inherit; font-size: 0.85rem; background: var(--white); color: var(--text-primary); outline: none; }
-        .sv-client-search:focus { border-color: var(--focus-ring); }
-        .sv-client-sec { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); padding: 10px 8px 4px; }
-        .sv-client-row { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 8px; cursor: pointer; font-size: 0.84rem; color: var(--text-primary); }
-        .sv-client-row:hover, .sv-client-row.is-active { background: var(--surface-hover); }
-        .sv-client-row .sv-client-dot { width: 20px; height: 20px; font-size: 0.56rem; }
-        .sv-client-none { padding: 8px; font-size: 0.8rem; color: var(--text-muted); }
-        .sv-client-foot { font-size: 0.7rem; color: var(--text-muted); padding: 8px 8px 2px; border-top: 1px solid var(--border-light); margin-top: 6px; }
         /* The top bar is the only client picker for staff (owner, 2026-09-27). */
         body.sv-shared-client #calTabs, body.sv-shared-client #sxrTabs { display: none !important; }
+        /* Shared client picker (095-shared-client), owner-approved 2026-09-27:
+           a small first-name dropdown in the main bar, tinted in the client's
+           own colour, with the same corner radius as the tab buttons. */
+        /* Fixed columns, so the tab row sits in the same place whether or not
+           the picker is shown (it is absent on client links). */
+        @media (min-width: 761px) {
+            .header > .logo { grid-column: 1; }
+            .header > .sv-client-pick { grid-column: 2; }
+            .header > #headerNav { grid-column: 3; }
+            .header > .header-actions { grid-column: 4; }
+        }
+        .sv-client-pick { display: flex; align-items: center; padding-left: 12px; border-left: 1px solid var(--border); min-width: 0; }
+        .sv-client-pick[hidden] { display: none; }
+        .sv-client-badge-wrap { position: relative; flex: none; }
+        .sv-client-badge { --sv-client-h: 220; display: inline-flex; align-items: center; gap: 7px; height: 30px; max-width: 180px; padding: 0 9px 0 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-primary); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 650; white-space: nowrap; cursor: pointer; transition: background 0.15s, border-color 0.15s, box-shadow 0.15s; }
+        .sv-client-badge.has-client { border-color: hsl(var(--sv-client-h) 45% 86%); background: hsl(var(--sv-client-h) 60% 96.5%); }
+        .sv-client-badge.has-client:hover { background: hsl(var(--sv-client-h) 60% 94%); }
+        .sv-client-badge.is-open { border-color: hsl(var(--sv-client-h) 45% 62%); box-shadow: 0 0 0 3px hsl(var(--sv-client-h) 60% 92%); }
+        .sv-client-badge #svClientBadgeLabel { overflow: hidden; text-overflow: ellipsis; }
+        .sv-client-badge:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        .sv-client-chev { flex: none; color: var(--text-muted); transition: transform 0.15s; }
+        .sv-client-badge.is-open .sv-client-chev { transform: rotate(180deg); }
+        .sv-client-dot { width: 20px; height: 20px; border-radius: 6px; display: inline-grid; place-items: center; flex: none; font-size: 0.56rem; font-weight: 800; letter-spacing: 0.02em; color: var(--sv-fg-fff); background: hsl(var(--sv-client-h, 220) 52% 46%); }
+        .sv-client-dot.is-empty { background: var(--surface-subtle); color: var(--text-muted); font-size: 0.85rem; }
+        .sv-client-pop { position: fixed; z-index: 9998; width: min(280px, calc(100vw - 28px)); background: var(--white); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 32px -8px var(--overlay); padding: 0 6px 6px; font-family: 'Plus Jakarta Sans', sans-serif; }
+        .sv-client-searchrow { display: flex; align-items: center; gap: 8px; height: 40px; margin: 0 -6px 4px; padding: 0 12px; border-bottom: 1px solid var(--border-light); color: var(--text-muted); }
+        .sv-client-search { flex: 1; min-width: 0; border: 0; padding: 0; background: transparent; font: inherit; font-size: 0.84rem; color: var(--text-primary); outline: none; }
+        .sv-client-results { max-height: min(360px, 60vh); overflow-y: auto; }
+        .sv-client-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: 500; color: var(--text-primary); }
+        .sv-client-row:hover, .sv-client-row.is-active { background: var(--surface-hover); }
+        .sv-client-row.is-current { background: hsl(var(--sv-client-h) 60% 96.5%); }
+        .sv-client-row.is-current.is-active, .sv-client-row.is-current:hover { background: hsl(var(--sv-client-h) 60% 94%); }
+        /* Dark theme: a deep tint of the client's colour, light text on top. */
+        html[data-theme="dark"] .sv-client-badge.has-client { border-color: hsl(var(--sv-client-h) 30% 34%); background: hsl(var(--sv-client-h) 32% 20%); }
+        html[data-theme="dark"] .sv-client-badge.has-client:hover { background: hsl(var(--sv-client-h) 32% 24%); }
+        html[data-theme="dark"] .sv-client-badge.is-open { border-color: hsl(var(--sv-client-h) 40% 52%); box-shadow: 0 0 0 3px hsl(var(--sv-client-h) 32% 22%); }
+        html[data-theme="dark"] .sv-client-row.is-current { background: hsl(var(--sv-client-h) 32% 20%); }
+        html[data-theme="dark"] .sv-client-row.is-current.is-active, html[data-theme="dark"] .sv-client-row.is-current:hover { background: hsl(var(--sv-client-h) 32% 24%); }
+        /* Quick jump has no "/" key on touch screens: a small search button
+           next to the client opens it there, and only there. */
+        .sv-jump-touch { display: none; flex: none; width: 30px; height: 30px; margin-left: 6px; place-items: center; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-secondary); cursor: pointer; }
+        @media (hover: none) and (pointer: coarse) { .sv-jump-touch { display: inline-grid; } }
+        .sv-client-divider { height: 1px; margin: 4px; background: var(--border-light); }
+        .sv-client-none { padding: 10px; font-size: 0.8rem; color: var(--text-muted); }
+        @media (max-width: 760px) {
+            .header { grid-template-columns: auto minmax(0, 1fr) auto !important; grid-template-areas: "logo pick actions" "nav nav nav" !important; }
+            .sv-client-pick { grid-area: pick; justify-self: start; }
+        }
         .header-nav-sep { flex: none; width: 1px; height: 20px; margin: 0 4px; background: var(--border); }
-        @media (max-width: 700px) { .sv-client-bar { padding: 8px 14px; gap: 6px; } .sv-client-cap, .sv-client-recent-label { display: none !important; } }
         /* Quick jump (096-quick-jump). */
-        .sv-client-kbd { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; font: inherit; font-size: 0.72rem; color: var(--text-muted); cursor: pointer; }
-        .sv-client-kbd:hover { color: var(--text-primary); }
-        .sv-client-kbd kbd, .sv-jump-foot kbd { border: 1px solid var(--border); border-radius: 5px; padding: 0 6px; background: var(--white); font-family: inherit; font-size: 0.7rem; color: var(--text-secondary); }
         .sv-jump { position: fixed; inset: 0; z-index: 10000; background: var(--overlay); display: flex; justify-content: center; align-items: flex-start; padding: 14vh 14px 0; }
         .sv-jump[hidden] { display: none; }
         .sv-jump-box { width: min(560px, 100%); background: var(--white); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm), 0 24px 64px var(--overlay); overflow: hidden; font-family: 'Plus Jakarta Sans', sans-serif; }
@@ -8610,8 +8629,6 @@
         .sv-jump-muted, .sv-jump-empty { color: var(--text-muted); }
         .sv-jump-empty { padding: 12px; font-size: 0.84rem; }
         .sv-jump-foot { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--border-light); font-size: 0.7rem; color: var(--text-muted); }
-        /* Phones have no "/" key to spare: keep a compact tap target. */
-        @media (max-width: 700px) { .sv-client-kbd .sv-client-kbd-text { display: none; } .sv-client-kbd { min-width: 44px; min-height: 32px; justify-content: center; } }
     </style>
 </head>
 <body>
@@ -8669,27 +8686,6 @@
     </div>
 </div>
 
-<!-- Shared client bar (095-shared-client). One client for Calendar, Samples,
-     Templates, Filming Plans, TikTok Upload and Analytics; hidden on team tabs
-     and on client links. -->
-<div class="sv-client-bar" id="svClientBar" hidden>
-    <span class="sv-client-cap">Client</span>
-    <div class="sv-client-badge-wrap" id="svClientBadgeWrap">
-        <button type="button" class="sv-client-badge" id="svClientBadge" onclick="svClientPopToggle(event)" aria-haspopup="listbox" aria-expanded="false" title="Search any client">
-            <span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>
-            <span id="svClientBadgeLabel">Pick a client</span>
-            <svg class="sv-client-chev" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
-        </button>
-        <div class="sv-client-pop" id="svClientPop" hidden>
-            <input type="text" class="sv-client-search" id="svClientSearch" placeholder="Search any client…" autocomplete="off" aria-label="Search any client" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="svClientResults">
-            <div class="sv-client-results" id="svClientResults" role="listbox"></div>
-            <div class="sv-client-foot">Follows you across Calendar, Samples, Templates, Filming Plans, TikTok Upload and Analytics.</div>
-        </div>
-    </div>
-    <span class="sv-client-recent-label" id="svClientRecentLabel" hidden>Recent</span>
-    <div class="sv-client-recent" id="svClientRecent"></div>
-    <button type="button" class="sv-client-kbd" onclick="svQuickJumpOpen()" title="Jump to a client and tab" aria-label="Quick jump"><span class="sv-client-kbd-text">Quick jump</span> <kbd>/</kbd></button>
-</div>
 <!-- Quick jump (096-quick-jump): "/" then "client tab", Enter. -->
 <div class="sv-jump" id="svJump" hidden>
     <div class="sv-jump-box" role="dialog" aria-label="Quick jump">
@@ -8699,11 +8695,31 @@
     </div>
 </div>
 
-<header class="header" style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;">
+<header class="header" style="display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;gap:12px;">
     <a class="logo" href="/" onclick="if(_modClick(event))return;event.preventDefault();goHome();" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
         <img src="/syncview-favicon.png" alt="SyncView">
         <span class="logo-text">SyncView</span>
     </a>
+    <!-- Shared client picker (095-shared-client), owner-approved 2026-09-27:
+         one small first-name dropdown after the logo, on every staff tab so
+         the tabs never move; never on client links. -->
+    <div class="sv-client-pick" id="svClientBar" hidden>
+        <div class="sv-client-badge-wrap" id="svClientBadgeWrap">
+            <button type="button" class="sv-client-badge" id="svClientBadge" onclick="svClientPopToggle(event)" aria-haspopup="listbox" aria-expanded="false" aria-label="Change client" data-sv-current="">
+                <span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>
+                <span id="svClientBadgeLabel">Client</span>
+                <svg class="sv-client-chev" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
+            </button>
+            <div class="sv-client-pop" id="svClientPop" hidden>
+                <div class="sv-client-searchrow">
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
+                    <input type="text" class="sv-client-search" id="svClientSearch" placeholder="Search clients" autocomplete="off" aria-label="Search clients" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="svClientResults">
+                </div>
+                <div class="sv-client-results" id="svClientResults" role="listbox"></div>
+            </div>
+        </div>
+        <button type="button" class="sv-jump-touch" onclick="svQuickJumpOpen()" aria-label="Quick jump to a client and tab"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg></button>
+    </div>
     <div class="header-nav" id="headerNav">
         <span class="header-nav-pill" aria-hidden="true"></span>
         <a class="header-nav-btn" id="navCalendar" href="/calendar" onclick="if(_modClick(event))return;event.preventDefault();navTo('calendar')">
@@ -23665,14 +23681,15 @@
      * Staff used to re-pick the same client on every tab: Calendar and Samples
      * each kept their own pinned client strip, Templates its own open client,
      * TikTok Upload its own draft client, Filming Plans a typed search. Now one
-     * "current client" lives in the top bar above the tabs, with one-click
-     * buttons for the last three clients, and these tabs follow it:
+     * "current client" lives in a small first-name dropdown in the main bar,
+     * right after the logo (recent clients and search inside it; owner
+     * redesign 2026-09-27), and these tabs follow it:
      *
      *   Calendar, Samples, Templates, Filming Plans, TikTok Upload, Analytics.
      *
      * Team tabs (Workload, SyncLinear, Production, Submit, Kasper, the leave
-     * calendar, reports) ignore it on purpose: they are about people, not one client, and
-     * the bar is hidden there so nobody reads it as a filter.
+     * calendar, reports) ignore it on purpose: they are about people, not one
+     * client. The dropdown still shows there, so the tab row never moves.
      *
      * The client is a canonical roster display name (WL_CLIENT_NAMES), the same
      * identity every following tab already stored. It is a per-browser
@@ -23798,29 +23815,39 @@
     function _svClientDot(name) {
         return `<span class="sv-client-dot" style="--sv-client-h:${_svClientHue(name)}" aria-hidden="true">${_calEsc(_svClientInitials(name))}</span>`;
     }
+    // The badge shows the first name only (full name on hover and for
+    // assistive tech), tinted in the client's own colour.
+    function _svClientShortName(name) {
+        const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+        if (!words.length) return '';
+        return /\.$/.test(words[0]) && words[1] ? words[0] + ' ' + words[1] : words[0];
+    }
     function svClientBarRender() {
         const bar = document.getElementById('svClientBar');
         if (!bar) return;
         const cur = svSharedClientGet();
-        const badge = document.getElementById('svClientBadgeLabel');
+        const badge = document.getElementById('svClientBadge');
+        const label = document.getElementById('svClientBadgeLabel');
         const dot = document.getElementById('svClientBadgeDot');
-        if (badge) badge.textContent = cur || 'Pick a client';
-        if (dot) dot.outerHTML = cur ? _svClientDot(cur).replace('class="sv-client-dot"', 'class="sv-client-dot" id="svClientBadgeDot"') : '<span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>';
-        const recent = svRecentClients().filter(r => r !== cur).slice(0, 3);
-        const wrap = document.getElementById('svClientRecent');
-        if (wrap) {
-            wrap.innerHTML = recent.map(r => `<button type="button" class="sv-client-recent-btn" data-sv-client="${_calEscAttr(r)}" title="Switch to ${_calEscAttr(r)}">${_svClientDot(r)}<span>${_calEsc(r)}</span></button>`).join('');
+        if (label) label.textContent = cur ? _svClientShortName(cur) : 'Client';
+        if (badge) {
+            badge.setAttribute('data-sv-current', cur || '');
+            badge.title = cur || 'Pick a client';
+            badge.setAttribute('aria-label', cur ? 'Client: ' + cur + '. Change client' : 'Pick a client');
+            badge.classList.toggle('has-client', !!cur);
+            if (cur) badge.style.setProperty('--sv-client-h', String(_svClientHue(cur)));
+            else badge.style.removeProperty('--sv-client-h');
         }
-        const label = document.getElementById('svClientRecentLabel');
-        if (label) label.hidden = !recent.length;
+        if (dot) dot.outerHTML = cur ? _svClientDot(cur).replace('class="sv-client-dot"', 'class="sv-client-dot" id="svClientBadgeDot"') : '<span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>';
     }
-    // Show the bar only on the tabs that follow it, and only for staff.
+    // Staff see the picker on every tab, so the tab row never shifts; team
+    // tabs simply ignore the client. Client links never show it.
     function svClientBarSync(page) {
         const bar = document.getElementById('svClientBar');
         if (!bar) return;
-        const show = _svStaffShell() && SV_CLIENT_FOLLOW_TABS.includes(page);
+        const show = _svStaffShell();
         bar.hidden = !show;
-        document.body.classList.toggle('sv-shared-client', _svStaffShell());
+        document.body.classList.toggle('sv-shared-client', show);
         if (!show) _svClientPopClose();
         else svClientBarRender();
     }
@@ -23834,23 +23861,24 @@
         const has = all.filter(n => !starts.includes(n) && n.toLowerCase().includes(needle));
         return starts.sort((a, b) => a.localeCompare(b)).concat(has.sort((a, b) => a.localeCompare(b))).slice(0, 8);
     }
+    // No query: the current client on top in its colour, a thin line, then
+    // the recent clients. A query: the matches only. No headings.
     function _svClientRenderResults() {
         const input = document.getElementById('svClientSearch');
         const box = document.getElementById('svClientResults');
         if (!input || !box) return;
-        const q = input.value;
+        const q = input.value.trim();
         const cur = svSharedClientGet();
-        const sections = [];
-        const matches = _svClientMatches(q);
-        if (q.trim()) sections.push({ title: 'Matches', names: matches });
         const recent = svRecentClients().filter(r => r !== cur);
-        if (!q.trim()) sections.push({ title: 'Recent', names: recent });
-        const flat = sections.flatMap(s => s.names);
+        const flat = q ? _svClientMatches(q) : (cur ? [cur] : []).concat(recent);
         if (_svClientActive >= flat.length) _svClientActive = 0;
-        let i = 0;
-        let html = sections.map(s => `<div class="sv-client-sec">${s.title}</div>` + (s.names.length
-            ? s.names.map(n => { const idx = i++; return `<div class="sv-client-row${idx === _svClientActive ? ' is-active' : ''}" role="option" id="svClientOpt${idx}" aria-selected="${idx === _svClientActive}" data-sv-client="${_calEscAttr(n)}">${_svClientDot(n)}<span>${_calEsc(n)}</span></div>`; }).join('')
-            : `<div class="sv-client-none">${q.trim() ? 'No clients match' : 'Type to search every client'}</div>`)).join('');
+        const rowHtml = (n, idx) => `<div class="sv-client-row${idx === _svClientActive ? ' is-active' : ''}${n === cur ? ' is-current' : ''}" style="--sv-client-h:${_svClientHue(n)}" role="option" id="svClientOpt${idx}" aria-selected="${n === cur}" data-sv-client="${_calEscAttr(n)}">${_svClientDot(n)}<span>${_calEsc(n)}</span></div>`;
+        let html = '';
+        if (!flat.length) html = `<div class="sv-client-none">${q ? 'No clients match' : 'Type a client name'}</div>`;
+        else flat.forEach((n, idx) => {
+            if (!q && cur && idx === 1) html += '<div class="sv-client-divider" role="separator"></div>';
+            html += rowHtml(n, idx);
+        });
         box.innerHTML = html;
         box._svFlat = flat;
         if (flat.length) input.setAttribute('aria-activedescendant', 'svClientOpt' + _svClientActive);
@@ -23864,12 +23892,13 @@
         // Fixed, not absolute: the bar scrolls sideways on a phone and would clip it.
         const r = document.getElementById('svClientBadge')?.getBoundingClientRect();
         if (r) {
-            const w = Math.min(320, window.innerWidth - 28);
+            const w = Math.min(280, window.innerWidth - 28);
             pop.style.left = Math.max(14, Math.min(r.left, window.innerWidth - w - 14)) + 'px';
-            pop.style.top = Math.round(r.bottom) + 'px';
+            pop.style.top = Math.round(r.bottom + 6) + 'px';
         }
         pop.hidden = false;
         document.getElementById('svClientBadge')?.setAttribute('aria-expanded', 'true');
+        document.getElementById('svClientBadge')?.classList.add('is-open');
         const input = document.getElementById('svClientSearch');
         _svClientActive = 0;
         if (input) { input.value = ''; _svClientRenderResults(); setTimeout(() => input.focus(), 0); }
@@ -23879,6 +23908,7 @@
         if (!pop || pop.hidden) return;
         pop.hidden = true;
         document.getElementById('svClientBadge')?.setAttribute('aria-expanded', 'false');
+        document.getElementById('svClientBadge')?.classList.remove('is-open');
     }
     function _svClientBarWire() {
         const bar = document.getElementById('svClientBar');

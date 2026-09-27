@@ -194,7 +194,11 @@ sample data for the test client (payload correct, loop completed), then
 published. CLIENTS METRICS, MARKET RESEARCH and Append Client Row are NOT
 edited. Top-up backfill dry run the same day: the Sheets held 72 Metrics and
 601 TopVideos rows not yet in Supabase; the `--apply` run needs the write key
-and runs from the owner's machine. `analytics_mirror_read_enabled` already
+and runs from the owner's machine. `scripts/windows/analytics-topup.ps1` does it from any
+folder: it finds the repo (saved path, the f27 capture script's path, or a
+search of the user folder), loads the key from `%USERPROFILE%\.syncview\`
+(asked once, saved DPAPI-encrypted for that Windows user), shows the dry run
+and writes only after the owner types YES. `analytics_mirror_read_enabled` already
 reads `{"enabled": false, "clients": ["<test client>"]}`, so only the test
 client's link reads Supabase. `analytics_mirror_read_enabled` stays off until Phase 2.
 

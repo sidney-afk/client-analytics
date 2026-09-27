@@ -1,7 +1,15 @@
 # Plan: move the data SyncView reads from Google Sheets to Supabase
 
-Date: 2026-09-24. Status: PLAN ONLY. This document changes no code, no
-database, and no n8n workflow.
+Date: 2026-09-24. Written as a plan only; parts are now live.
+
+**Where things stand (2026-09-27):** the Phase 1 migration is applied,
+`analytics-read` and `analytics-write` are deployed,
+`analytics_mirror_write_enabled` is on, and the one-time backfill ran on
+2026-09-25. TOP VIDEOS dual-writes since 2026-09-27 (see the Phase 1 status
+note below). Pending: the top-up backfill, the dual-write in CLIENTS
+METRICS, MARKET RESEARCH and Append Client Row (each needs the owner's
+go-ahead), the 3-day comparison, and every Phase 2 switch beyond the test
+client's link.
 
 ## Why
 
@@ -82,7 +90,7 @@ the place the results are stored changes.
 
 ### Phase 1: n8n writes to both Sheets and Supabase (dual-write)
 
-**Status, 2026-09-25: database side built, not applied.** One PR adds
+**Status, 2026-09-25: database side built, not applied** (since applied and deployed; see "Where things stand" at the top). One PR adds
 `migrations/2026-09-25-sheets-mirror-phase1.sql` (source-only; Lighthouse
 applies it), the `analytics-read` and `analytics-write` Edge Functions (not
 deployed, not used by the page), `scripts/sheets-mirror-backfill.js`,
@@ -171,7 +179,28 @@ until that step. Without `--apply` the script is a dry run and needs no key.
 8. Run the timing again for the real one-client payload.
 
 The n8n dual-write nodes come after, one workflow at a time, each with the
-owner's go-ahead. `analytics_mirror_read_enabled` stays off until Phase 2.
+owner's go-ahead.
+
+**Status, 2026-09-27: TOP VIDEOS dual-writes (owner go-ahead given for this
+workflow only).** Two nodes were added after "Write to TopVideos Sheet":
+"Build Supabase Mirror Payload" (one payload per client: the rows that
+client just appended, `source: n8n`, `run_id: n8n-topvideos-<execution>`,
+`run_part` = that node's run number, `complete: true`) and "Mirror to
+Supabase" (one POST to `analytics-write` using the n8n credential
+"Analytics mirror key"). Both continue on error, so a Supabase failure
+cannot stop the Sheet write or the client loop. Rollback: disable the two
+nodes, or restore the workflow's previous version in n8n. Tested with pinned
+sample data for the test client (payload correct, loop completed), then
+published. CLIENTS METRICS, MARKET RESEARCH and Append Client Row are NOT
+edited. Top-up backfill dry run the same day: the Sheets held 72 Metrics and
+601 TopVideos rows not yet in Supabase; the `--apply` run needs the write key
+and runs from the owner's machine. `scripts/windows/analytics-topup.ps1` does it from any
+folder: it finds the repo (saved path, the f27 capture script's path, or a
+search of the user folder), loads the key from `%USERPROFILE%\.syncview\`
+(asked once, saved DPAPI-encrypted for that Windows user), shows the dry run
+and writes only after the owner types YES. `analytics_mirror_read_enabled` already
+reads `{"enabled": false, "clients": ["<test client>"]}`, so only the test
+client's link reads Supabase. `analytics_mirror_read_enabled` stays off until Phase 2.
 
 **Measured 2026-09-25 (before anything is deployed):**
 

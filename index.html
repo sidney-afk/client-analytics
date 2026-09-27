@@ -44167,7 +44167,7 @@
             const _baseAtToSend = _calV2Enabled() ? '' : String(post._baseAt || '');
             // Mark this as a local write so the realtime ECHO of it (arriving a
             // second or two later) doesn't flicker the strip or race a delete.
-            _calLastLocalWriteAt = Date.now();
+            _calSetLastLocalWriteAt(Date.now());
             _calV2Log('SAVE → upsert', _saveSlug, '|', JSON.stringify(wirePost), '| base:', _baseAtToSend);
             const resp = await _calUpsertFetchPinned(
                 _saveSlug,
@@ -44246,7 +44246,7 @@
                     ? { video_status: prevSnapshot.video_status, graphic_status: prevSnapshot.graphic_status, caption_status: prevSnapshot.caption_status, title_status: prevSnapshot.title_status }
                     : {}
             });
-            _calLastLocalWriteAt = Date.now();   // refresh the self-echo window: the realtime echo fires just after this success
+            _calSetLastLocalWriteAt(Date.now());   // refresh the self-echo window: the realtime echo fires just after this success
             // Save landed — drop any failed-create flag so the "Save failed"
             // chip clears and the poll-merge no longer force-keeps the card on
             // that basis (the recent-save guard now covers it).

@@ -1,3 +1,48 @@
+import { showConfirm, showNotify } from './040-shared-briefs.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svSyncStepper, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
+import {
+  CAL_COMPONENTS, CAL_REVIEW_COMPONENTS, CAL_STATUSES, CAL_TITLE_STATUSES,
+  WRITE_UI_NO_WORK_ITEM_TEXT, _calClearStaleApprovals, _calNormStatus, _calUpsertFetchPinned,
+  _syncviewEfHeaders, _writeUiAdoptRepairAck, _writeUiAdoptReplayStatus, _writeUiAppendRepairRef,
+  _writeUiCompleteSourceRepairRefs, _writeUiFailureSentence, _writeUiGatewayError,
+  _writeUiLinkSlotSealedLive, _writeUiLinkSlotSealedNotice, _writeUiPrincipalKey,
+  _writeUiQueueDiagnostic, _writeUiRemoveCompletedRepairRefs, _writeUiReportFailure,
+  _writeUiSnapshotRepairRefs, _writeUiSourceEditsOnly, computeOverallStatus
+} from './120-calendar-flags-write-repair.js';
+import { _calNameSyncAfterSave } from './125-title-name-rule.js';
+import {
+  CAL_SAVE_DEBOUNCE_MS, _calBumpThumbRev, _calCapBlockHtml, _calColorTagHtml, _calCommentsFor,
+  _calCompLinked, _calFailedNewCards, _calIsAutoSortOn, _calIsCollabOn, _calLocalRecentSaves,
+  _calMigratePostShape, _calNoLinearPush, _calNormMonthFilter, _calPendingEdits,
+  _calPillDisplayStatus, _calPlatformsStripHtml, _calRecentSaveFields, _calSaveInFlight,
+  _calSaveTimers, _calShouldBumpThumbRevForGraphicStatus, calClientSlug, calState
+} from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { _calMintId } from './132-calendar-dates-ids.js';
+import { _calArchivedRemove, _calDupeWarnText, _calLinkDuplicatePeers, _calLinkKey } from './134-calendar-prefs-mount.js';
+import { _calPushStatusToLinear, _calShowKasperUrgent, _calUrgentButtonHtml, _writeUiApplyOverallStatus } from './140-calendar-legacy-outbox.js';
+import {
+  _calCacheWrite, _calMarkLocalStatus, _calSetLastLocalWriteAt, _calV2Enabled, _calV2Log
+} from './150-calendar-hydration-import.js';
+import {
+  _calBlankPost, _calClearThumbnailFolderMeta, _calClientCompPillsHtml, _calCompStatusLabel,
+  _calDeriveThumbInfo, _calFmtDateShort, _calIsBlankId, _calLinearPileHtml, _calLinkFieldHtml,
+  _calPendingLinkMove, _calRenderBody, _calResolveThumbnailFolder, _calSetThumbMedia,
+  _calStatusLabel, _calStripThumbnailFolderFields, _calThumbContent, _calThumbFrameHtml,
+  _calThumbIconHtml, _calThumbImgTag, _calTitleRowHtml, onCalMonthFilterChange
+} from './160-calendar-organize-ui.js';
+import {
+  COMP_LABELS, COMP_PILL_COLORS, _calRenderNativePostChoice, _calWireDragOnCard,
+  _nativePostViewSlug, archiveCalPost
+} from './180-calendar-native-post-media.js';
+import { _calCrqBegin, _calCrqDone, _calCrqFailed } from './185-client-review-queue.js';
+import {
+  _calCommentsBtnHtml, _calMergePostComments, _calShowUrgent, _calSmmWarnOverlayHtml,
+  _calStringifyComments, _calUpdateCardStatusDisplay, _kasperCompReviewable
+} from './190-calendar-approval-comments.js';
+import { _linearIntakeBatchTitle } from './200-intake-data-startup.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
+import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _writeUiReconcileReplayStatus, _writeUiSourceRepairSuperseded } from './290-samples-writes-review.js';
     function _calMoveLinkConfirm(pid) {
         const mv = _calPendingLinkMove[pid];
         if (!mv) return;
@@ -1413,7 +1458,7 @@
             const _baseAtToSend = _calV2Enabled() ? '' : String(post._baseAt || '');
             // Mark this as a local write so the realtime ECHO of it (arriving a
             // second or two later) doesn't flicker the strip or race a delete.
-            _calLastLocalWriteAt = Date.now();
+            _calSetLastLocalWriteAt(Date.now());
             _calV2Log('SAVE → upsert', _saveSlug, '|', JSON.stringify(wirePost), '| base:', _baseAtToSend);
             const resp = await _calUpsertFetchPinned(
                 _saveSlug,
@@ -1492,7 +1537,7 @@
                     ? { video_status: prevSnapshot.video_status, graphic_status: prevSnapshot.graphic_status, caption_status: prevSnapshot.caption_status, title_status: prevSnapshot.title_status }
                     : {}
             });
-            _calLastLocalWriteAt = Date.now();   // refresh the self-echo window: the realtime echo fires just after this success
+            _calSetLastLocalWriteAt(Date.now());   // refresh the self-echo window: the realtime echo fires just after this success
             // Save landed — drop any failed-create flag so the "Save failed"
             // chip clears and the poll-merge no longer force-keeps the card on
             // that basis (the recent-save guard now covers it).
@@ -2790,3 +2835,18 @@
         });
         return uuids;
     }
+export {
+  CAL_NATIVE_BATCH_COUNT_TIMEOUT_MS, CAL_NATIVE_BATCH_FILTER_MIN,
+  CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS, CAL_NATIVE_NAME_MAX, CAL_NATIVE_TITLE_SEPARATOR,
+  _calAutoResolveDestStatus, _calAutosizeTextareas, _calClientFieldEditBlocked,
+  _calCloseNativePost, _calCloseStatusMenu, _calFlushCardSave, _calForceThumbRefresh,
+  _calInsertLocalBlankCard, _calLivePreviewThumb, _calNativeBatchCompatible,
+  _calNativeBatchDisplayName, _calNativeBatchLists, _calNativeBatchMatches, _calNativeBatchNameFor,
+  _calNativeBatchOptionsHtml, _calNativeBatchStartMeta, _calNativeParentUuids, _calNativePostCount,
+  _calNativePostCountMax, _calNativePostNamesFor, _calNativePostNamesHtml, _calNativePostState,
+  _calNativeReceiptHtml, _calNativeTitleOrdinal, _calNativeVideoEditorPool, _calOnCaptionInput,
+  _calOnFieldBlur, _calOnFieldInput, _calOpenStatusMenu, _calRefreshCaption, _calRefreshCardThumb,
+  _calRefreshMediaWarning, _calRenderInlineCard, _calReviewBlockReason,
+  _calSetNativeBatchOptionsHtml, _calSetNativePostState, _calSetOpenStatusMenu, _calSmmApproveTo,
+  _calStatusSlug, _calThumbSrcBase, _svSaveIndApply, _svSaveIndHtml
+};

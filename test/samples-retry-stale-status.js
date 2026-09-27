@@ -12,25 +12,27 @@ const functions = [
   '_writeUiApplyOverallStatus', '_sxrFlushCardSave', '_sxrRetrySave'
 ].map(name => (name === '_sxrFlushCardSave' ? 'async ' : '') + extractFunction(source, name)).join('\n');
 
-function harness({ blank = false, statusEdit = false } = {}) {
+function harness({ blank = false, statusEdit = false, oldFailure = false } = {}) {
   const blankId = '__sxrblank__offline';
   const id = blank ? blankId : 'sample-offline';
-  const initialStatus = statusEdit ? 'Kasper Approval' : 'In Progress';
+  const initialStatus = statusEdit ? 'Client Approval' : 'In Progress';
   const local = {
     id, asset_url: 'new-asset', video_status: initialStatus,
     graphic_status: 'Approved', status: initialStatus,
     updated_at: '2026-09-26T10:00:00.000Z'
   };
+  if (oldFailure) local._saveError = 'Save failed';
   const server = {
     id: blank ? 'sample-created' : id, asset_url: 'old-asset',
     video_status: 'In Progress', graphic_status: 'Approved', status: 'In Progress',
     updated_at: '2026-09-26T10:00:00.000Z'
   };
   const calls = [];
-  let failNext = true;
+  const statusMessages = [];
+  let failNext = !oldFailure;
   const context = {
     sxrState: { client: null, posts: [local] },
-    _sxrPendingEdits: { [id]: statusEdit ? { video_status: initialStatus } : { asset_url: 'new-asset' } },
+    _sxrPendingEdits: oldFailure ? {} : { [id]: statusEdit ? { video_status: initialStatus } : { asset_url: 'new-asset' } },
     _sxrSaveInFlight: Object.create(null),
     _sxrNoLinearPush: new Set(),
     _sxrFailedNewCards: new Set(),
@@ -49,7 +51,7 @@ function harness({ blank = false, statusEdit = false } = {}) {
     _calShouldBumpThumbRevForGraphicStatus: () => false,
     _sxrBumpThumbRev: () => 2,
     _sxrForceThumbRefresh: () => {},
-    _sxrSetCardStatus: () => {},
+    _sxrSetCardStatus: (_id, state, message) => { statusMessages.push({ state, message }); },
     _sxrCacheWrite: () => true,
     _sxrRenderBody: () => {},
     _sxrApplyClearSentinels: () => {},
@@ -77,7 +79,7 @@ function harness({ blank = false, statusEdit = false } = {}) {
   vm.createContext(context);
   vm.runInContext(functions, context);
   return {
-    context, calls, server,
+    context, calls, server, statusMessages,
     async failFirstSave() { await context._sxrFlushCardSave(id); },
     async retry() {
       const retryId = blank ? 'sample-created' : id;
@@ -107,8 +109,8 @@ async function main() {
   const intentional = harness({ statusEdit: true });
   await intentional.failFirstSave();
   await intentional.retry();
-  assert.equal(intentional.calls[1].video_status, 'Kasper Approval', 'intentional status Retry keeps the edit');
-  assert.equal(intentional.calls[1].status, 'Kasper Approval', 'intentional status Retry keeps overall status');
+  assert.equal(intentional.calls[1].video_status, 'Client Approval', 'intentional status Retry keeps the edit');
+  assert.equal(intentional.calls[1].status, 'Client Approval', 'intentional status Retry keeps overall status');
 
   const newCard = harness({ blank: true });
   await newCard.failFirstSave();
@@ -116,7 +118,16 @@ async function main() {
   assert.equal(newCard.calls[1].asset_url, 'new-asset', 'failed new card retries its content');
   assert.equal(newCard.calls[1].video_status, 'In Progress', 'failed new card still sends a full creation payload');
   assert.equal(newCard.calls[1].graphic_status, 'Approved', 'failed new card retains both component states');
-  console.log('Samples Retry field scope: 3 offline scenarios passed');
+
+  const oldFailure = harness({ oldFailure: true });
+  oldFailure.context._sxrRetrySave('sample-offline');
+  const unexpectedSave = oldFailure.context._sxrSaveInFlight['sample-offline'];
+  if (unexpectedSave) await unexpectedSave;
+  assert.equal(oldFailure.calls.length, 0, 'an older failure with no retained edit sends no id-only save');
+  assert.equal(oldFailure.statusMessages.at(-1).state, 'error', 'Retry leaves the error visible');
+  assert.match(oldFailure.context.sxrState.posts[0]._saveError, /refresh.*edit again/i);
+  assert.equal(Object.hasOwn(oldFailure.context._sxrPendingEdits, 'sample-offline'), false, 'no empty bucket remains for background flush');
+  console.log('Samples Retry field scope: 4 offline scenarios passed');
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; });

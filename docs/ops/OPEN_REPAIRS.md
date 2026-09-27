@@ -29362,6 +29362,8 @@ scalar freshness base. A second tab's newer status could be overwritten.
 The page now retains the failed field set and retries an existing card with a
 field-level patch, even when the queued bucket would otherwise be empty. A
 failed first creation still retries the full row, and an intentional status
-edit still sends that status. `test/samples-retry-stale-status.js` failed on the
-original source and passes on the rebuilt page across all three cases. No
+edit still sends that status. An older failed card without retained edit fields
+now keeps its error visible and asks for a refresh and fresh edit; it cannot
+claim success after an ID-only request. `test/samples-retry-stale-status.js`
+failed before the fixes and passes on the rebuilt page across all four cases. No
 browser or live write was used; the effect on a served page awaits merge.

@@ -72213,6 +72213,18 @@
     function _sxrRetrySave(pid) {
         if (!pid) return;
         const post = sxrState.posts.find(p => p.id === pid);
+        const pending = _sxrPendingEdits[pid];
+        const retained = post && Object.assign({}, post._writeUiRetryEdits || {}, post._writeUiHeldSourceEdits || {});
+        if (!post || (!_sxrIsBlankId(pid) && !_sxrFailedNewCards.has(pid)
+            && !(pending && Object.keys(pending).length)
+            && !Object.keys(retained).length
+            && !post._writeUiRetrySourceAt)) {
+            const message = 'Retry details are missing. Refresh this card and make the edit again.';
+            if (pending && !Object.keys(pending).length) delete _sxrPendingEdits[pid];
+            if (post) post._saveError = message;
+            _sxrSetCardStatus(pid, 'error', message);
+            return;
+        }
         if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = Object.assign({}, post && post._writeUiRetryEdits || {});
         _sxrSetCardStatus(pid, 'saving');
         _sxrFlushCardSave(pid);

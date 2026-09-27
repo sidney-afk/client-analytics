@@ -330,8 +330,10 @@ TikTok rejected it; TikTok posting is the TikTok Upload tab (Post For Me) only.
   retained edits copied the local whole row, including untouched statuses,
   without a scalar freshness base. The page fix retains failed edit fields and
   retries existing cards as field-level patches; a failed first creation still
-  sends the full card. `test/samples-retry-stale-status.js` passed offline after
-  failing on the original source. No live reproduction or merge is claimed. See
+  sends the full card. An older failed card without retained fields refuses
+  Retry with a refresh-and-edit message instead of claiming an ID-only save.
+  `test/samples-retry-stale-status.js` passed offline after failing on the
+  original source. No live reproduction or merge is claimed. See
   `docs/audits/2026-09-26-samples-retry-status-source-review.md`.
 - SXR rejects pushing Scheduled/Posted to Linear (unlike calendar).
 - `_sxrReassertLinearStatus` was **defined but never called** (dead drift-protection) and was

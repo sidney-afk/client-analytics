@@ -4740,6 +4740,14 @@
         .cal-toolbar-left  { flex: 1 1 380px; min-width: 0; }
         .cal-toolbar-mid   { flex: 0 0 auto; }
         .cal-toolbar-right { flex: 0 0 auto; }
+        /* Staff Calendar and Samples (owner request 2026-09-27): the client now
+           lives in the main bar, so the empty left slot goes and the view switch
+           takes the left end; Organize, search, zoom and the rest stay right.
+           Client links and the embedded calendar keep their layout. The middle
+           group wraps on narrow screens instead of widening the page. */
+        .cal-toolbar.is-picker-shell > .cal-toolbar-left { display: none; }
+        .cal-toolbar.is-picker-shell > .cal-toolbar-mid { flex: 1 1 auto; min-width: 0; flex-wrap: wrap; row-gap: 8px; }
+        .cal-toolbar.is-picker-shell .cal-toolbar-mid > .cal-view-toggle { order: -1; margin-right: auto; }
         .cal-tool-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); flex-shrink: 0; }
 
         /* Tabs (one per pinned client). Kept to a SINGLE row: the pills live in
@@ -40310,7 +40318,7 @@
         // same review machinery — only the target status differs.
         const tabViews = _isClientLink ? ['review','organizer','month','week'] : ['smmreview','organizer','month','week'];
         view.innerHTML = `
-            <div class="cal-toolbar">
+            <div class="cal-toolbar${(!embedded && !_isClientLink) ? ' is-picker-shell' : ''}">
                 <div class="cal-toolbar-left">${leftHtml}</div>
                 <div class="cal-toolbar-mid">
                     ${_calOrganizeHtml()}
@@ -70017,7 +70025,7 @@
         // Two tabs only — Review + Sheet. No Month/Week (samples have no dates).
         const tabViews = _isClientLink ? ['review','organizer'] : ['smmreview','organizer'];
         view.innerHTML = `
-            <div class="cal-toolbar">
+            <div class="cal-toolbar${(!embedded && !_isClientLink) ? ' is-picker-shell' : ''}">
                 <div class="cal-toolbar-left">${leftHtml}</div>
                 <div class="cal-toolbar-mid">
                     <div class="cal-view-toggle">

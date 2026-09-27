@@ -354,7 +354,7 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         // same review machinery — only the target status differs.
         const tabViews = _isClientLink ? ['review','organizer','month','week'] : ['smmreview','organizer','month','week'];
         view.innerHTML = `
-            <div class="cal-toolbar">
+            <div class="cal-toolbar${(!embedded && !_isClientLink) ? ' is-picker-shell' : ''}">
                 <div class="cal-toolbar-left">${leftHtml}</div>
                 <div class="cal-toolbar-mid">
                     ${_calOrganizeHtml()}

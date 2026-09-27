@@ -179,6 +179,36 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       await context.close();
     }
 
+    // Toolbar balance (owner request 2026-09-27): the view switch sits at the
+    // left end of the Calendar and Samples toolbars, the other controls at the
+    // right, and nothing widens the page on a phone.
+    for (const [path, zoom] of [['/calendar', '#calZoomCtl'], ['/sample-reviews', '#sxrZoomCtl']]) {
+      for (const width of [1440, 390]) {
+        const context = await browser.newContext({ viewport: { width, height: 800 } });
+        await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()), route => {
+          route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }).catch(() => {});
+        });
+        await seedStaffGate(context);
+        await context.addInitScript(v => { try { localStorage.setItem('syncview_shared_client', v); } catch (e) {} }, FIRST);
+        const page = await context.newPage();
+        await page.goto(`http://127.0.0.1:${port}${path}`, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(2500);
+        const m = await page.evaluate(z => {
+          const bar = document.querySelector('.cal-toolbar');
+          const tog = bar && bar.querySelector('.cal-view-toggle');
+          const zm = document.querySelector(z);
+          const b = bar.getBoundingClientRect(), t = tog.getBoundingClientRect(), r = zm.getBoundingClientRect();
+          return { toggleGap: Math.round(t.left - b.left), zoomGap: Math.round(b.right - r.right), togLeftOfZoom: t.left < r.left, page: document.documentElement.scrollWidth };
+        }, zoom);
+        const tag = `${path.slice(1)} @${width}`;
+        expect(m.toggleGap < 40, `${tag}: the view switch is not at the left end of the toolbar (${m.toggleGap}px in)`);
+        expect(m.togLeftOfZoom, `${tag}: the view switch should sit left of zoom`);
+        if (width > 800) expect(m.zoomGap < 200, `${tag}: zoom should stay on the right (${m.zoomGap}px from the edge)`);
+        expect(m.page <= width, `${tag}: the page is ${m.page}px wide on a ${width}px screen`);
+        await context.close();
+      }
+    }
+
     // A client share link: no bar, and the shared client is neither read nor written.
     {
       const context = await browser.newContext({ viewport: { width: 390, height: 800 } });

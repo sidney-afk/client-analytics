@@ -549,6 +549,7 @@ External worker handover preparation: `docs/ops/LINEAR_EXIT_EXTERNAL_WORKER_HAND
 - `docs/audits/2026-09-26-edge-analytics-source-review.md` — proposal-only source review of analytics mirror read/write error and malformed-body responses; no function or live change.
 - `docs/audits/2026-09-26-edge-inbox-lists-source-review.md` — proposal-only source review of AI onboarding and quiz inbox pagination, method handling, and bounded JSON failures.
 - `docs/audits/2026-09-26-install-script-callers.md` — source and test dependency map for the eight guarded `scripts/linear-exit-install-*` preparation files; distinguishes imports from an authorized install.
+- `docs/audits/2026-09-26-provider-script-callers.md` — source callers and preparation references for all ten `scripts/linear-exit-provider-*` files; distinguishes imported tests from source pins and finds no tracked automated command.
 - `docs/audits/2026-09-21-base-audit/A1-docs-freshness.md` — dated documentation corrections and complete file dispositions.
 - `docs/audits/2026-09-21-base-audit/A2-dead-code-inventory.md` — per-fragment inventory of Linear-era code, DELETE-NOW vs AFTER-STEP-7, phase B1 worklist (PR #1478).
 - `docs/audits/2026-09-21-base-audit/A3-junk-inventory.md` — unreferenced files and the pre-2026-09-14 stale PR list with proposed dispositions (PR #1479).

@@ -583,8 +583,11 @@ const ownerB = Object.freeze({
   }
 
   for (const fixture of [
-    { name: '_linearOutboxFlush', promise: '_linearOutboxFlushPromise', key: '_linearOutboxFlushOwnerKey', run: '_linearOutboxFlushRun' },
-    { name: '_sxrLinearOutboxFlush', promise: '_sxrLinearOutboxPromise', key: '_sxrLinearOutboxOwnerKey', run: '_sxrLinearOutboxFlushRun' }
+    // 140 is a module: the Calendar flush records its promise and owner key
+    // through 134's setters, so the sandbox loads those too.
+    { name: '_linearOutboxFlush', promise: '_linearOutboxFlushPromise', key: '_linearOutboxFlushOwnerKey', run: '_linearOutboxFlushRun',
+      setters: ['_calSetLinearOutboxFlushPromise', '_calSetLinearOutboxFlushOwnerKey'] },
+    { name: '_sxrLinearOutboxFlush', promise: '_sxrLinearOutboxPromise', key: '_sxrLinearOutboxOwnerKey', run: '_sxrLinearOutboxFlushRun', setters: [] }
   ]) {
     const held = [];
     const context = {
@@ -601,6 +604,7 @@ const ownerB = Object.freeze({
       Promise
     };
     vm.createContext(context);
+    for (const setter of fixture.setters) vm.runInContext(extract(setter), context);
     vm.runInContext(extract(fixture.name), context);
     const firstA = context[fixture.name](ownerA);
     const secondA = context[fixture.name](ownerA);

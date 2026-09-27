@@ -9237,12 +9237,22 @@
        then re-focus the matching field in the fresh DOM and restore selection.
        No-ops when nothing is focused or the focused node isn't a text field, so
        it is always safe to wrap a render — even a background one. */
+    /* The handler string alone is not unique: every card's name box calls
+       the same `_sxrOnFieldInput(this)`, so a match on it alone picked the
+       FIRST card on the page, not the one being typed in. Where the field
+       carries its card and field identity (data-pid, data-fld, data-comp),
+       that identity is part of the signature. */
+    function _svFieldKey(el) {
+        const get = k => (el.getAttribute && el.getAttribute(k)) || '';
+        const parts = ['data-pid', 'data-fld', 'data-comp'].map(k => get(k) ? k + '=' + get(k) : '').filter(Boolean);
+        return parts.length ? '|' + parts.join('|') : '';
+    }
     function _svFieldSig(el) {
         if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA')) return '';
         if (el.id) return '#' + el.id;
         const oi = el.getAttribute && el.getAttribute('oninput');
-        if (oi) return 'oninput=' + oi;
-        if (el.name) return 'name=' + el.name;
+        if (oi) return 'oninput=' + oi + _svFieldKey(el);
+        if (el.name) return 'name=' + el.name + _svFieldKey(el);
         return '';
     }
     function _svCaptureFocus(root) {
@@ -9251,14 +9261,16 @@
         if (root && !(root.contains && root.contains(a))) return null;   // focus isn't in the region being rebuilt
         const sig = _svFieldSig(a);
         if (!sig) return null;
-        const cap = { sig, start: null, end: null, dir: 'none' };
+        const cap = { sig, el: a, start: null, end: null, dir: 'none' };
         try { cap.start = a.selectionStart; cap.end = a.selectionEnd; cap.dir = a.selectionDirection || 'none'; } catch (e) {}
         return cap;
     }
     function _svRestoreFocus(cap) {
         if (!cap || !cap.sig) return;
         let el = null;
-        if (cap.sig.charAt(0) === '#') el = document.getElementById(cap.sig.slice(1));
+        // The very box the person was in, when a render left it in place.
+        if (cap.el && cap.el.isConnected && _svFieldSig(cap.el) === cap.sig) el = cap.el;
+        if (!el && cap.sig.charAt(0) === '#') el = document.getElementById(cap.sig.slice(1));
         if (!el) {
             const nodes = document.querySelectorAll('input, textarea');
             for (let i = 0; i < nodes.length; i++) { if (_svFieldSig(nodes[i]) === cap.sig) { el = nodes[i]; break; } }
@@ -34079,7 +34091,9 @@
     let _linearOutboxFlushTimer = null;
     function _calSetLinearOutboxFlushTimer(value) { _linearOutboxFlushTimer = value; }
     let _linearOutboxFlushPromise = null;
+    function _calSetLinearOutboxFlushPromise(value) { _linearOutboxFlushPromise = value; }
     let _linearOutboxFlushOwnerKey = '';
+    function _calSetLinearOutboxFlushOwnerKey(value) { _linearOutboxFlushOwnerKey = value; }
     /* RETIRED LEGACY DEBT (OPEN_REPAIRS 239). A `legacy_n8n` row is a queued
        POST to `linear-set-status` / `linear-add-comment`. Both webhooks are
        revoked, nothing enqueues the transport any more, and no attempt could
@@ -35787,10 +35801,10 @@
         const owner = suppliedOwner || _writeUiLegacyResumeOwner();
         if (!_writeUiLegacyResumeOwnerCurrent(owner)) return;
         if (_linearOutboxFlushTimer) return;
-        _linearOutboxFlushTimer = setTimeout(() => {
-            _linearOutboxFlushTimer = null;
+        _calSetLinearOutboxFlushTimer(setTimeout(() => {
+            _calSetLinearOutboxFlushTimer(null);
             if (_writeUiLegacyResumeOwnerCurrent(owner)) _linearOutboxFlush(owner);
-        }, LINEAR_OUTBOX_RETRY_MS);
+        }, LINEAR_OUTBOX_RETRY_MS));
     }
     function _linearOutboxFlush(suppliedOwner) {
         const owner = suppliedOwner || _writeUiLegacyResumeOwner();
@@ -35803,12 +35817,12 @@
         }
         const tracked = _linearOutboxFlushRun(owner).finally(() => {
             if (_linearOutboxFlushPromise === tracked) {
-                _linearOutboxFlushPromise = null;
-                _linearOutboxFlushOwnerKey = '';
+                _calSetLinearOutboxFlushPromise(null);
+                _calSetLinearOutboxFlushOwnerKey('');
             }
         });
-        _linearOutboxFlushOwnerKey = ownerKey;
-        _linearOutboxFlushPromise = tracked;
+        _calSetLinearOutboxFlushOwnerKey(ownerKey);
+        _calSetLinearOutboxFlushPromise(tracked);
         return tracked;
     }
     async function _linearOutboxFlushRun(owner) {

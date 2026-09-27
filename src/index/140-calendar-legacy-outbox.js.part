@@ -1,3 +1,67 @@
+import { showConfirm, showNotify } from './040-shared-briefs.js';
+import {
+  CALENDAR_GET_URL, CALENDAR_UPSERT_EF_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL,
+  URGENT_KASPER_SLACK_URL, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature,
+  _syncviewStaffVerificationEpoch
+} from './100-onboarding-staff-controls.js';
+import {
+  CAL_REVIEW_COMPONENTS, WRITE_UI_PRODUCTION_WRITE_URL, _calNormStatus, _calPrimeUpsertRoutingFlag,
+  _calUpsertHeaders, _calUpsertUseEf, _kasperUrgentPingOn, _kasperUrgentPingOnLive,
+  _prodCardBindingToken, _syncviewEfHeaders, _writeUiAuthoritySnapshot, _writeUiBuildSourceRepair,
+  _writeUiClassifyTargetless, _writeUiComponentHasWorkItem, _writeUiFailureText,
+  _writeUiGatewayError, _writeUiGatewayPost, _writeUiGatewayWithRepair, _writeUiIntentId,
+  _writeUiLegacyItemOwnedBy, _writeUiLegacyResumeOwner, _writeUiLegacyResumeOwnerCurrent,
+  _writeUiLegacyResumeOwnerKey, _writeUiLegacyRetainFrom, _writeUiNativeId, _writeUiNativeStatus,
+  _writeUiPrimeRerouteFlag, _writeUiPrincipalKey, _writeUiQueueDiagnostic,
+  _writeUiRefreshAuthority, _writeUiReportFailure, _writeUiSourceClientSlug, _writeUiTeam,
+  _writeUiUseGatewayWhenReady, computeOverallStatus
+} from './120-calendar-flags-write-repair.js';
+import {
+  _calCommentsFor, _calCompLinked, _calLinearUrlFor, _calMigratePostShape, _calNextTweakRound,
+  _calPendingEdits, _calSetCommentsFor, calClientSlug, calState
+} from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
+import {
+  LINEAR_OUTBOX_KEY, LINEAR_OUTBOX_MAX_ATTEMPTS, LINEAR_OUTBOX_RETRY_MS,
+  WRITE_UI_LEGACY_COMMITTED_TWEAK_KEY, WRITE_UI_LEGACY_QUARANTINE_KEY,
+  WRITE_UI_LEGACY_SOURCE_GATE_PENDING_MS, _calSetLinearOutboxFlushOwnerKey,
+  _calSetLinearOutboxFlushPromise, _calSetLinearOutboxFlushTimer, _linearOutboxFlushOwnerKey,
+  _linearOutboxFlushPromise, _linearOutboxFlushTimer, _linearOutboxRead, _linearOutboxWrite,
+  _writeUiLegacyRetiredRow
+} from './134-calendar-prefs-mount.js';
+import {
+  _calCacheRead, _calCacheWrite, _calLocalStatusAt, _calMarkLocalStatus, _calSupabaseFetchAllRows,
+  _calV2Log, loadCalendarPosts
+} from './150-calendar-hydration-import.js';
+import { _calRenderBody } from './160-calendar-organize-ui.js';
+import { _calAutoResolveDestStatus, _calReviewBlockReason } from './170-calendar-links-status.js';
+import { _calReviewState } from './180-calendar-native-post-media.js';
+import {
+  _calApplyAutoStatus, _calCommentRole, _calCurrentAuthor, _calDeleteComment, _calOpenCommentsPid,
+  _calRefreshCommentsBtn, _calRenderCommentsModal, _calRetryCommentEdit, _calShowUrgent,
+  _calStringifyComments, _calToggleCommentDone, _calUpdateCardStatusDisplay, _calWatchNoteSave,
+  _kasperCompReviewable
+} from './190-calendar-approval-comments.js';
+import {
+  _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodComments,
+  _prodProjectCanonicalCardComments, _prodVerifiedClientCommentMutationContext
+} from './230-production-create-comments.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
+import {
+  SXR_GET_URL, SXR_LINEAR_OUTBOX_KEY, SXR_TABLE, _sxrCacheRead, _sxrCacheWrite, _sxrMigrateShape,
+  _sxrNormStatus, _sxrPendingEdits, _sxrPrimeSampleRoutingFlag, _sxrReviewBlockReason,
+  _sxrSampleUseEf, _sxrSupabaseFetchAllRows, _sxrUpdateCardStatusDisplay,
+  computeSampleOverallStatus, loadSxrCards, sxrClientSlug, sxrState
+} from './270-samples-model.js';
+import {
+  _sxrApplyAutoStatus, _sxrAutoResolveDestStatus, _sxrCanonicalCommentsFor, _sxrCommentRole,
+  _sxrCommentsFor, _sxrCurrentAuthor, _sxrDeleteComment, _sxrLinearOutboxFlush,
+  _sxrLinearOutboxRead, _sxrLinearOutboxScheduleRetry, _sxrLinearOutboxWrite, _sxrLinearUrlFor,
+  _sxrLocalStatusAt, _sxrMarkLocalStatus, _sxrNextTweakRound, _sxrOpenCommentsPid,
+  _sxrRefreshCommentsBtn, _sxrRenderBody, _sxrRenderCommentsModal, _sxrRetryCommentEdit,
+  _sxrReviewState, _sxrSetCommentsFor, _sxrStringifyComments, _sxrToggleCommentDone,
+  _sxrWatchNoteSave
+} from './280-samples-cards-notes.js';
     function _writeUiLegacyOutboxItems(surface) {
         return surface === 'sxr' ? _sxrLinearOutboxRead() : _linearOutboxRead();
     }
@@ -1648,10 +1712,10 @@
         const owner = suppliedOwner || _writeUiLegacyResumeOwner();
         if (!_writeUiLegacyResumeOwnerCurrent(owner)) return;
         if (_linearOutboxFlushTimer) return;
-        _linearOutboxFlushTimer = setTimeout(() => {
-            _linearOutboxFlushTimer = null;
+        _calSetLinearOutboxFlushTimer(setTimeout(() => {
+            _calSetLinearOutboxFlushTimer(null);
             if (_writeUiLegacyResumeOwnerCurrent(owner)) _linearOutboxFlush(owner);
-        }, LINEAR_OUTBOX_RETRY_MS);
+        }, LINEAR_OUTBOX_RETRY_MS));
     }
     function _linearOutboxFlush(suppliedOwner) {
         const owner = suppliedOwner || _writeUiLegacyResumeOwner();
@@ -1664,12 +1728,12 @@
         }
         const tracked = _linearOutboxFlushRun(owner).finally(() => {
             if (_linearOutboxFlushPromise === tracked) {
-                _linearOutboxFlushPromise = null;
-                _linearOutboxFlushOwnerKey = '';
+                _calSetLinearOutboxFlushPromise(null);
+                _calSetLinearOutboxFlushOwnerKey('');
             }
         });
-        _linearOutboxFlushOwnerKey = ownerKey;
-        _linearOutboxFlushPromise = tracked;
+        _calSetLinearOutboxFlushOwnerKey(ownerKey);
+        _calSetLinearOutboxFlushPromise(tracked);
         return tracked;
     }
     async function _linearOutboxFlushRun(owner) {
@@ -3068,3 +3132,24 @@
        longer a Linear request to throttle or to switch off. The persisted
        copy above (LS key + TTL) is what the banners read now.
        See OPEN_REPAIRS 236. */
+export {
+  CAL_LINEAR_META_LS_KEY, CAL_LINEAR_META_TTL_MS, URGENT_EDITOR_NEEDS_NATIVE,
+  _calApplyUrgentButtonState, _calBuildKasperUrgentPatch, _calBuildUrgentPatch,
+  _calKasperReviewUrl, _calKasperUrgentActive, _calLinearMetaByIdent, _calLinearMetaHydrated,
+  _calParentLinks, _calPersistUrgentSentForPost, _calPostLinearComment, _calPushStatusToLinear,
+  _calReassertLinearStatus, _calSetLinearMetaHydrated, _calShowKasperUrgent, _calUrgentButtonHtml,
+  _calUrgentSlackDispatch, _linearOutboxFlush, _urgentKind, _writeUiApplyOverallStatus,
+  _writeUiApplySupersededTeamDelivery, _writeUiCommentActionFailureHtml,
+  _writeUiCommitCardCommentLifecycle, _writeUiFlushDeferredLegacyTweak,
+  _writeUiLegacyCommittedTweak, _writeUiLegacyDrainWithLock, _writeUiLegacyFinalizeFlush,
+  _writeUiLegacyGateSignature, _writeUiLegacyHydrateConfirmedCacheAfterAuthority,
+  _writeUiLegacyInspectTargetTweak, _writeUiLegacyPinnedSourceTransport, _writeUiLegacyQuarantine,
+  _writeUiLegacyQuarantineRead, _writeUiLegacyReconcileCommittedTombstones,
+  _writeUiLegacyReconcileCommittedTweak, _writeUiLegacyRecordedTeamDeliveryReceiptItem,
+  _writeUiLegacyRefreshActiveTweak, _writeUiLegacyRememberCommittedTweak,
+  _writeUiLegacyShedRetired, _writeUiLegacySourceGateState, _writeUiLegacyStoredTeamTerminalItem,
+  _writeUiLegacySupersededSourceItem, _writeUiLegacySupersededTeamItem,
+  _writeUiLegacyTargetWithLock, _writeUiPersistCanonicalCommentProjection,
+  _writeUiQueueDeferredLegacyTweak, _writeUiRequestTweakMarkLocalStatus,
+  _writeUiRollbackRequestTweak, _writeUiScheduleDeferredLegacyTweak
+};

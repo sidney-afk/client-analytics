@@ -1,0 +1,408 @@
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, SMM_WEEKLY_REPORTS_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
+import { svClientKey, svCurrentClients, svRosterEntryFor, svSmmCurrentClients } from './098-smm-clients.js';
+import { _srpState } from './110-time-off-reports.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { _calSetFocusRequest } from './130-calendar-model-cache.js';
+import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
+import { wlOpenInContentCalendar } from './080-workload-render.js';
+import { svSharedClientNote } from './095-shared-client.js';
+import { navTo } from './090-workload-popovers-navigation.js';
+    /* TODAY (owner design 2026-09-27, session Compass).
+     *
+     * One summary page per person: what is waiting on YOU right now, pulled
+     * from the tabs that already hold it. It reads only; it never writes and it
+     * has no checkboxes. A card leaves the page by itself when its status moves
+     * on (you approved it, the editor sent it back, and so on), and lands in
+     * "Cleared today".
+     *
+     *   SMM and admin: five jobs as rings (to approve, missing links, captions
+     *     to write, to schedule, dates to move), or a walk-through that takes
+     *     one upcoming post at a time.
+     *   Video and graphics: their own queue (urgent, changes, to do) as a list
+     *     or a deck. Editors work in SyncLinear, so rows only open SyncLinear.
+     *
+     * Client scope follows the one shared rule in 098-smm-clients (the same
+     * rule the client dropdown's "My clients" uses): only current Clients Info
+     * clients; an SMM sees the ones the SMM roster lists for them; an admin sees
+     * all of them. An SMM with no clients listed gets a short note. If the
+     * roster or Clients Info cannot be read, the page says so and offers a
+     * retry rather than guessing. Today is a team tab: it ignores
+     * the shared client, but opening a card makes that card's client current. */
+    const TDY_VIEW_KEY = 'syncview_today_view';
+    const TDY_OPEN = ['todo', 'in_progress', 'tweak', 'smm_approval'];
+    const TDY_PAST_EDIT = ['smm_approval', 'kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted'];
+    const TDY_PAST_SMM = ['kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted'];
+    const TDY_STAGE = { todo: 0, in_progress: 0, tweak: 0, smm_approval: 1, kasper_approval: 2, client_approval: 3 };
+    // no-hardcoded-colors: allow-start (client avatar dots, same hues as the design mockups)
+    const TDY_PALETTE = ['#7c5cff', '#e1306c', '#0e9f8e', '#2f7de1', '#d98a12', '#5b6b82', '#c2410c', '#16a34a', '#9333ea', '#0891b2'];
+    // no-hardcoded-colors: allow-end
+    const tdyState = { gen: 0, data: null, error: '', view: '', walk: 0, skipped: [] };
+
+    function _tdyIdentity() {
+        const id = _syncviewStaffIdentityForHeaders();
+        const m = id && id.member;
+        if (!m || !m.id) return null;
+        const role = String(id.role || m.role || '').toLowerCase();
+        const team = String(m.team || '').toLowerCase();
+        const editor = role !== 'admin' && role !== 'smm' && (team === 'video' || team === 'graphics');
+        return { id: String(m.id), name: String(m.name || '').trim(), first: String(m.name || '').trim().split(/\s+/)[0] || '', role, team, editor };
+    }
+    function _tdyIso(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function _tdyDays(n) { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + n); return d; }
+    function _tdyMonday() { const d = _tdyDays(0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; }
+    async function _tdyRest(table, query) {
+        const out = [];
+        for (let page = 0; page < 8; page++) {
+            let rows = null;
+            for (let attempt = 0; attempt < 3 && !rows; attempt++) {
+                try {
+                    const res = await fetch(CAL_SUPABASE_URL + '/rest/v1/' + table + '?' + query + '&limit=1000&offset=' + (page * 1000), {
+                        headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY }
+                    });
+                    if (!res.ok) throw new Error(table + ' ' + res.status);
+                    rows = await res.json();
+                } catch (e) {
+                    if (attempt === 2) throw e;
+                    await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
+                }
+            }
+            out.push(...rows);
+            if (rows.length < 1000) break;
+        }
+        return out;
+    }
+    const _tdyIn = list => 'in.(' + list.join(',') + ')';
+    /* Cards left over from the Linear era sit in open statuses for months and
+       nobody is working them. A card counts only while something about it is
+       recent: its status moved in the last 30 days, or its due date is no
+       older than that. */
+    function _tdyFresh(r) {
+        const cut = _tdyDays(-30);
+        return (!!r.status_at && new Date(r.status_at) >= cut) || (!!r.due_date && r.due_date >= _tdyIso(cut));
+    }
+
+    /* A batch PARENT (the old Linear post issue) sits in the same view as its
+       video and thumbnail children. It is not work anybody owes, so every list
+       and count here drops it: a row is a parent when another row names it as
+       its parent. */
+    async function _tdyParentIds() {
+        const rows = await _tdyRest('production_deliverables_browser_v1', 'select=raw_issue_parent_id&raw_issue_parent_id=not.is.null');
+        return new Set(rows.map(r => r.raw_issue_parent_id));
+    }
+    async function _tdyRoster() {
+        if (_srpState.managersLoaded) return _srpState.managers;
+        const ident = _syncviewStaffIdentityForHeaders();
+        if (!ident || !ident.key) return null;
+        try {
+            const resp = await fetch(SMM_WEEKLY_REPORTS_URL + '?action=options', {
+                headers: { Accept: 'application/json', apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, 'X-Syncview-Key': ident.key }
+            });
+            const data = await resp.json().catch(() => null);
+            if (!resp.ok || !data || !Array.isArray(data.managers)) return null;
+            _srpState.managers = data.managers;
+            _srpState.managersLoaded = true;
+            return data.managers;
+        } catch (e) { return null; }
+    }
+    /* The current Clients Info clients one SMM owns, by the shared rule in
+       098-smm-clients. Throws when Clients Info or the roster is not
+       available, so a caller never mistakes "not loaded" for "no clients".
+       The main-bar dropdown's "My clients" calls this too (tdyMyClientNames),
+       so Today and the dropdown always agree. */
+    async function _tdySmmClients(me) {
+        const current = svCurrentClients();
+        if (!current.size) throw new Error('clients');
+        const managers = await _tdyRoster();
+        if (!managers) throw new Error('roster');
+        let email = '';
+        try {
+            const rows = await _tdyRest('team_members', 'select=email&id=eq.' + encodeURIComponent(me.id));
+            email = String(rows[0] && rows[0].email || '');
+        } catch (e) {}
+        return svSmmCurrentClients(svRosterEntryFor(managers, { email, name: me.name }), current);
+    }
+    /* The current Clients Info clients this person may see: every one for an
+       admin, the roster's list for an SMM (see 098-smm-clients). */
+    async function _tdyVisibleClients(me) {
+        const current = svCurrentClients();
+        if (!current.size) throw new Error('clients');
+        if (me.role === 'admin') return { keys: new Set(current.keys()), notListed: false };
+        const mine = await _tdySmmClients(me);
+        return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0 };
+    }
+    /* The signed-in member's own clients for the dropdown: { id, names }, with
+       names empty for an admin or anyone signed out. Rejects when not loaded. */
+    async function tdyMyClientNames() {
+        const me = _tdyIdentity();
+        if (!me || me.role === 'admin') return { id: me ? me.id : '', names: [] };
+        return { id: me.id, names: await _tdySmmClients(me) };
+    }
+    async function _tdyLoad(me) {
+        const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
+        const monday = _tdyMonday().toISOString();
+        const [clients, parents] = await Promise.all([_tdyRest('clients', 'select=slug,display_name,active'), _tdyParentIds()]);
+        const child = r => !(r.linear_issue_uuid && parents.has(r.linear_issue_uuid));
+        const names = {};
+        clients.forEach(c => { names[c.slug] = c.display_name || c.slug; });
+        if (me.editor) {
+            const mine = 'assignee_id=eq.' + encodeURIComponent(me.id);
+            const [open, done] = await Promise.all([
+                _tdyRest('production_deliverables_browser_v1', DSEL + '&' + mine + '&status=' + _tdyIn(['todo', 'in_progress', 'tweak'])),
+                _tdyRest('production_deliverables_browser_v1', DSEL + '&' + mine + '&status=' + _tdyIn(TDY_PAST_EDIT) + '&status_at=gte.' + encodeURIComponent(monday))
+            ]);
+            const urgent = new Set();
+            const ids = open.filter(child).map(r => r.id);
+            for (let i = 0; i < ids.length; i += 100) {
+                const rows = await _tdyRest('deliverables', 'select=id,priority&id=' + _tdyIn(ids.slice(i, i + 100)));
+                rows.forEach(r => { if (Number(r.priority) === 1) urgent.add(r.id); });
+            }
+            return { names, open: open.filter(r => child(r) && (r.status === 'tweak' || _tdyFresh(r))), done: done.filter(child), urgent };
+        }
+        const visible = await _tdyVisibleClients(me);
+        const scope = clients.filter(c => visible.keys.has(svClientKey(c.display_name)) || visible.keys.has(svClientKey(c.slug))).map(c => c.slug);
+        const inScope = r => scope.includes(r.client_slug || r.client);
+        const today = _tdyIso(_tdyDays(0));
+        const [open, done, posts] = await Promise.all([
+            _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_OPEN)),
+            _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_PAST_SMM) + '&status_at=gte.' + encodeURIComponent(monday)),
+            _tdyRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
+                + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)')
+        ]);
+        return { names, notListed: visible.notListed, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
+    }
+
+    /* ---------- small pieces ---------- */
+    function _tdyColor(slug) {
+        let h = 0;
+        for (const ch of String(slug || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+        return TDY_PALETTE[h % TDY_PALETTE.length];
+    }
+    function _tdyInitials(name) {
+        const w = String(name || '').replace(/^Dr\.?\s+/i, '').trim().split(/\s+/).filter(Boolean);
+        return ((w[0] || '?')[0] + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase();
+    }
+    function _tdyAvatar(slug, name) {
+        return `<span class="tdy-av" style="background:${_tdyColor(slug)}">${_calEsc(_tdyInitials(name))}</span>`;
+    }
+    function _tdyPipe(status) {
+        const s = TDY_STAGE[status] != null ? TDY_STAGE[status] : 0;
+        return `<span class="tdy-pipe" aria-hidden="true">${[0, 1, 2, 3].map(k => `<i class="${k < s ? 'd' : k === s ? (status === 'tweak' ? 'w' : 'n') : ''}"></i>`).join('')}</span>`;
+    }
+    function _tdyIco(name) { return `<span class="tdy-ic" style="--ic:url('/nav-icons/${name}.png')" aria-hidden="true"></span>`; }
+    function _tdyBtnSync(id) {
+        return id ? `<button type="button" class="tdy-b" onclick="_tdyOpenSync(${_calEscAttr(JSON.stringify(String(id)))})">${_tdyIco('synclinear')}SyncLinear</button>` : '';
+    }
+    function _tdyBtnCard(kind, id) {
+        return `<button type="button" class="tdy-b" onclick="_tdyOpenCard(${_calEscAttr(JSON.stringify(kind))},${_calEscAttr(JSON.stringify(String(id)))})">${_tdyIco('calendar')}Open card</button>`;
+    }
+    function _tdyTimeOf(iso) {
+        const d = new Date(iso);
+        return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
+    function _tdyMeter(done, left, week) {
+        const total = done + left;
+        const segs = total > 0 && total <= 24
+            ? Array.from({ length: total }, (_, k) => `<i class="${k < done ? 'f' : ''}"></i>`).join('')
+            : `<i class="bar"><b style="width:${total ? Math.round(done / total * 100) : 0}%"></b></i>`;
+        return `<div class="tdy-meter ${total && !left ? 'all' : ''}">${segs}</div>
+            <div class="tdy-mrow"><span><b>${done} of ${total}</b> cleared today</span><span>${week} this week</span></div>`;
+    }
+    function _tdyTrail(list, names) {
+        if (!list.length) return '';
+        const chips = list.slice(0, 12).map(r => `<span class="tdy-chip"><span class="tdy-tk"></span>${_calEsc(r.title || 'Untitled')}<span class="tdy-cn">${_calEsc(names[r.client_slug] || '')}</span><time>${_calEsc(_tdyTimeOf(r.status_at))}</time></span>`).join('');
+        return `<div class="tdy-trail"><div class="tdy-st">Cleared today <span>${list.length}</span></div><div class="tdy-chips">${chips}</div></div>`;
+    }
+    function _tdyTop(views, on) {
+        const d = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+        return `<div class="tdy-top"><span class="tdy-date">${_calEsc(d)}</span><div class="tdy-vw" role="tablist">${views.map(v => `<button type="button" role="tab" aria-selected="${v === on}" class="${v === on ? 'on' : ''}" data-tdy-key="view-${_calEscAttr(v)}" onclick="_tdySetView(${_calEscAttr(JSON.stringify(v))})">${_calEsc(v)}</button>`).join('')}</div></div>`;
+    }
+    const _tdyToday = rows => rows.filter(r => r.status_at && new Date(r.status_at) >= _tdyDays(0));
+
+    /* ---------- editors ---------- */
+    function _tdyEditorQueue(d) {
+        const due = r => r.due_date || '9999';
+        const rank = r => (r.status === 'tweak' ? 0 : 2) - (d.urgent.has(r.id) ? 1 : 0);
+        return d.open.filter(r => !tdyState.skipped.includes(r.id))
+            .concat(d.open.filter(r => tdyState.skipped.includes(r.id)))
+            .sort((a, b) => rank(a) - rank(b) || due(a).localeCompare(due(b)));
+    }
+    function _tdyEditorRow(r, d) {
+        const name = d.names[r.client_slug] || r.client_slug || '';
+        return `<div class="tdy-rw">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}${r.status === 'tweak' ? ' · changes asked' : ''}</div></div>${d.urgent.has(r.id) ? '<span class="tdy-urg">Urgent</span>' : ''}${_tdyBtnSync(r.id)}</div>`;
+    }
+    function _tdyEditorHtml(me, d, view) {
+        const q = _tdyEditorQueue(d);
+        const today = _tdyToday(d.done);
+        const head = _tdyTop(['List', 'Deck'], view) + _tdyMeter(today.length, q.length, d.done.length);
+        if (!q.length) return head + `<div class="tdy-win"><span class="tdy-ok"></span><h2>All clear${me.first ? ', ' + _calEsc(me.first) : ''}.</h2><p>Nothing is waiting on you.</p></div>` + _tdyTrail(today, d.names);
+        if (view === 'Deck') {
+            const r = q[0];
+            const name = d.names[r.client_slug] || r.client_slug || '';
+            return head + `<div class="tdy-deck"><div class="tdy-pile"><b>${today.length}</b><span>cleared today</span></div><div class="tdy-left"><b>${q.length}</b><span>in the deck</span></div>
+                ${q.length > 2 ? '<div class="tdy-cd c3"></div>' : ''}${q.length > 1 ? '<div class="tdy-cd c2"></div>' : ''}
+                <div class="tdy-cd c1">${_tdyAvatar(r.client_slug, name)}<h2>${_calEsc(r.title || 'Untitled')}</h2><div class="tdy-cn">${_calEsc(name)}${r.status === 'tweak' ? ' · changes asked' : ''}</div>
+                ${d.urgent.has(r.id) ? '<div><span class="tdy-urg">Urgent</span></div>' : ''}${_tdyPipe(r.status)}
+                <div class="tdy-acts"><button type="button" class="tdy-b p" onclick="_tdyOpenSync(${_calEscAttr(JSON.stringify(r.id))})">${_tdyIco('synclinear')}Open in SyncLinear</button>${q.length > 1 ? `<button type="button" class="tdy-b" onclick="_tdySkip(${_calEscAttr(JSON.stringify(r.id))})">Skip for now</button>` : ''}</div></div></div>`
+                + (q.length > 1 ? `<div class="tdy-st">Next in the deck</div><div class="tdy-ls">${q.slice(1, 4).map(x => _tdyEditorRow(x, d)).join('')}</div>` : '')
+                + _tdyTrail(today, d.names);
+        }
+        return head + `<p class="tdy-big">${me.first ? _calEsc(me.first) + ', ' : ''}${q.length} to clear.</p><div class="tdy-ls">${q.slice(0, 15).map(r => _tdyEditorRow(r, d)).join('')}${q.length > 15 ? `<div class="tdy-more">${q.length - 15} more in SyncLinear</div>` : ''}</div>` + _tdyTrail(today, d.names);
+    }
+
+    /* ---------- SMM and admin ---------- */
+    function _tdyJobs(d) {
+        const today = _tdyIso(_tdyDays(0));
+        const liveCal = p => !['Archived', 'Posted', 'Scheduled'].includes(p.status);
+        return [
+            { key: 'approve', label: 'To approve', rows: d.open.filter(r => r.status === 'smm_approval').map(r => ({ kind: 'del', r })) },
+            { key: 'links', label: 'Missing links', rows: d.posts.filter(p => liveCal(p) && _calSmmMediaGap(p)).map(p => ({ kind: 'post', p })) },
+            { key: 'captions', label: 'Captions to write', rows: d.posts.filter(p => liveCal(p) && !String(p.caption || '').trim()).map(p => ({ kind: 'post', p })) },
+            { key: 'schedule', label: 'To schedule', rows: d.posts.filter(p => p.status === 'Approved').map(p => ({ kind: 'post', p })) },
+            { key: 'dates', label: 'Dates to move', rows: d.open.filter(r => r.status !== 'smm_approval' && r.due_date && r.due_date < today).map(r => ({ kind: 'del', r })) }
+        ];
+    }
+    function _tdySmmRow(x, d) {
+        if (x.kind === 'del') {
+            const r = x.r, name = d.names[r.client_slug] || r.client_slug || '';
+            const card = r.origin === 'calendar' ? _tdyBtnCard('del', r.id) : '';
+            return `<div class="tdy-rw">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}</div></div>${card}${_tdyBtnSync(r.id)}</div>`;
+        }
+        const p = x.p, name = d.names[p.client] || p.client || '';
+        return `<div class="tdy-rw">${_tdyAvatar(p.client, name)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(p.name || 'Untitled post')}</div><div class="tdy-cn">${_calEsc(name)} · ${_calEsc(_tdyShortDate(p.scheduled_date))}</div></div>${_tdyBtnCard('post', p.id)}${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id)}</div>`;
+    }
+    function _tdyShortDate(iso) {
+        const d = new Date(String(iso || '') + 'T12:00:00');
+        return isNaN(d) ? '' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+    function _tdyWalkList(d) {
+        const approving = p => /smm approval/i.test(p.video_status || '') || /smm approval/i.test(p.graphic_status || '') || /smm approval/i.test(p.status || '');
+        return d.posts.filter(p => !['Archived', 'Posted', 'Scheduled'].includes(p.status)
+            && (approving(p) || _calSmmMediaGap(p) || !String(p.caption || '').trim()))
+            .sort((a, b) => String(a.scheduled_date).localeCompare(String(b.scheduled_date)));
+    }
+    function _tdySmmHtml(me, d, view) {
+        const jobs = _tdyJobs(d);
+        const left = jobs.reduce((s, j) => s + j.rows.length, 0);
+        const today = _tdyToday(d.done);
+        const head = _tdyTop(['Rings', 'Walk-through'], view) + _tdyMeter(today.length, left, d.done.length);
+        const scope = d.notListed ? '<p class="tdy-note">No clients are listed for you yet. Ask an admin to add yours to the SMM list.</p>' : '';
+        if (view === 'Walk-through') {
+            const list = _tdyWalkList(d);
+            if (!list.length) return head + `<div class="tdy-win"><span class="tdy-ok"></span><h2>Every post is ready.</h2><p>Nothing to walk through for the next two weeks.</p></div>` + scope;
+            const i = ((tdyState.walk % list.length) + list.length) % list.length;
+            const p = list[i], name = d.names[p.client] || p.client || '';
+            const gap = _calSmmMediaGap(p) || {};
+            const approving = /smm approval/i.test((p.video_status || '') + (p.graphic_status || '') + (p.status || ''));
+            const step = (ok, text, bad) => `<div class="${ok ? 'ok' : bad ? 'bad' : ''}"><span class="tdy-ck"></span>${_calEsc(text)}</div>`;
+            return head + `<div class="tdy-focus"><div class="tdy-n">Post ${i + 1} of ${list.length} · ${_calEsc(_tdyShortDate(p.scheduled_date))}</div>${_tdyAvatar(p.client, name)}<h2>${_calEsc(p.name || 'Untitled post')}</h2><div class="tdy-cn">${_calEsc(name)}</div>
+                <div class="tdy-steps">${step(!gap.video, gap.video ? 'Video link missing' : 'Video link in place', gap.video)}${step(!gap.thumb, gap.thumb ? 'Thumbnail link missing' : 'Thumbnail link in place', gap.thumb)}${step(!!String(p.caption || '').trim(), String(p.caption || '').trim() ? 'Caption written' : 'Caption to write', !String(p.caption || '').trim())}${step(!approving && !gap.video && !gap.thumb, approving ? 'Approve and send to Kasper' : 'Nothing waiting on your approval', false)}</div>
+                <div class="tdy-acts"><button type="button" class="tdy-b p" onclick="_tdyOpenCard('post',${_calEscAttr(JSON.stringify(p.id))})">${_tdyIco('calendar')}Open card</button>${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id)}${list.length > 1 ? '<button type="button" class="tdy-b" onclick="_tdyWalkNext()">Skip</button>' : ''}</div></div>` + _tdyTrail(today, d.names) + scope;
+        }
+        const on = jobs.find(j => j.key === tdyState.job && j.rows.length) || jobs.find(j => j.rows.length) || jobs[0];
+        const rings = jobs.map(j => {
+            const n = j.rows.length;
+            return `<button type="button" class="tdy-rg ${j === on ? 'on' : ''}" data-tdy-key="job-${j.key}" onclick="_tdySetJob(${_calEscAttr(JSON.stringify(j.key))})"><span class="tdy-ring ${n ? '' : 'full'}"><b>${n || ''}</b></span><span>${_calEsc(j.label)}</span></button>`;
+        }).join('');
+        const body = on.rows.length
+            ? `<div class="tdy-ls">${on.rows.slice(0, 12).map(x => _tdySmmRow(x, d)).join('')}${on.rows.length > 12 ? `<div class="tdy-more">${on.rows.length - 12} more in SyncLinear and Calendar</div>` : ''}</div>`
+            : `<div class="tdy-win"><span class="tdy-ok"></span><h2>All clear${me.first ? ', ' + _calEsc(me.first) : ''}.</h2><p>Nothing is waiting on you.</p></div>`;
+        return head + `<p class="tdy-big">${me.first ? _calEsc(me.first) + ', ' : ''}${left} to clear.</p><div class="tdy-rings">${rings}</div>` + body + _tdyTrail(today, d.names) + scope;
+    }
+
+    /* ---------- page ---------- */
+    function renderTodayView() {
+        return `<div class="tdy" id="tdyRoot"><div class="tdy-loading">Loading your day…</div></div>`;
+    }
+    function _tdyPaint() {
+        const root = document.getElementById('tdyRoot');
+        if (!root) return;
+        const me = _tdyIdentity();
+        if (!me) { root.innerHTML = '<div class="tdy-win"><h2>Sign in to see your day.</h2><p>Today shows what is waiting on you once you pick your name in the staff menu.</p></div>'; return; }
+        if (tdyState.error) { root.innerHTML = `<div class="tdy-win"><h2>Today could not load.</h2><p>${_calEsc(tdyState.error)}</p><button type="button" class="tdy-b p" onclick="mountTodayView()">Try again</button></div>`; return; }
+        if (!tdyState.data) return;
+        const focused = document.activeElement && root.contains(document.activeElement) ? document.activeElement.getAttribute('data-tdy-key') : '';
+        const views = me.editor ? ['List', 'Deck'] : ['Rings', 'Walk-through'];
+        const view = views.includes(tdyState.view) ? tdyState.view : views[0];
+        root.innerHTML = me.editor ? _tdyEditorHtml(me, tdyState.data, view) : _tdySmmHtml(me, tdyState.data, view);
+        // Repainting replaces the controls; put keyboard focus back on the one
+        // that was just used so a keyboard user keeps their place.
+        if (focused) { const back = root.querySelector('[data-tdy-key="' + focused + '"]'); if (back) back.focus(); }
+    }
+    /* The page is only as fresh as its last read. Cards move on in other
+       tabs (SyncLinear opens in a new one), so coming back to this tab reads
+       again, quietly, keeping what is on screen until the answer lands. A
+       different person signing in on this browser never sees the previous
+       person's day: the sign-out purge clears it (_tdyPurgeSensitiveState). */
+    function _tdyOnVisible() {
+        if (document.visibilityState !== 'visible' || !document.getElementById('tdyRoot')) return;
+        const me = _tdyIdentity();
+        if (!me || (me.id + '|' + me.role) !== tdyState.who) { tdyState.data = null; }
+        mountTodayView();
+    }
+    function _tdyPurgeSensitiveState() {
+        tdyState.gen++;
+        tdyState.data = null; tdyState.who = ''; tdyState.skipped = []; tdyState.walk = 0;
+        const root = document.getElementById('tdyRoot');
+        if (root) { root.innerHTML = '<div class="tdy-loading">Loading your day…</div>'; mountTodayView(); }
+    }
+    async function mountTodayView() {
+        if (!tdyState.listening) { tdyState.listening = true; document.addEventListener('visibilitychange', _tdyOnVisible); }
+        const gen = ++tdyState.gen;
+        try { tdyState.view = localStorage.getItem(TDY_VIEW_KEY) || ''; } catch (e) {}
+        tdyState.error = '';
+        const me = _tdyIdentity();
+        if (!me) { tdyState.data = null; tdyState.who = ''; _tdyPaint(); return; }
+        if ((me.id + '|' + me.role) !== tdyState.who) tdyState.data = null;
+        try {
+            const data = await _tdyLoad(me);
+            if (gen !== tdyState.gen) return;
+            tdyState.data = data;
+            tdyState.who = me.id + '|' + me.role;
+        } catch (e) {
+            if (gen !== tdyState.gen) return;
+            tdyState.error = e && (e.message === 'roster' || e.message === 'clients') ? 'Your client list could not be read. Try again in a moment.' : 'Check your connection and try again.';
+        }
+        _tdyPaint();
+    }
+    function _tdySetView(v) {
+        tdyState.view = v;
+        try { localStorage.setItem(TDY_VIEW_KEY, v); } catch (e) {}
+        _tdyPaint();
+    }
+    function _tdySetJob(k) { tdyState.job = k; _tdyPaint(); }
+    function _tdyWalkNext() { tdyState.walk++; _tdyPaint(); }
+    function _tdySkip(id) { tdyState.skipped = tdyState.skipped.filter(x => x !== id).concat(id); _tdyPaint(); }
+    function _tdyOpenSync(id) {
+        try { window.open('/synclinear/' + encodeURIComponent(id), '_blank', 'noopener'); } catch (e) {}
+    }
+    function _tdyOpenCard(kind, id) {
+        const d = tdyState.data;
+        if (!d) return;
+        if (kind === 'post') {
+            const p = d.posts.find(x => x.id === id);
+            if (!p) return;
+            const name = d.names[p.client] || p.client;
+            try { svSharedClientNote(name); } catch (e) {}
+            _calSetFocusRequest({ client: name, cardId: p.id });
+            navTo('calendar');
+            return;
+        }
+        const r = d.open.find(x => x.id === id);
+        if (!r) return;
+        const name = d.names[r.client_slug] || r.client_slug;
+        try { svSharedClientNote(name); } catch (e) {}
+        wlOpenInContentCalendar(name, '', r.id);
+    }
+    function _tdyTeardown() { tdyState.gen++; }
+
+    window._tdySetView = _tdySetView;
+    window._tdySetJob = _tdySetJob;
+    window._tdyWalkNext = _tdyWalkNext;
+    window._tdySkip = _tdySkip;
+    window._tdyOpenSync = _tdyOpenSync;
+    window._tdyOpenCard = _tdyOpenCard;
+    window.mountTodayView = mountTodayView;
+
+export { _tdyPurgeSensitiveState, _tdyTeardown, mountTodayView, renderTodayView, tdyMyClientNames };

@@ -1587,10 +1587,9 @@ function assertHealthyHarness(run, label) {
 function assertTruthfulTrace(frames, label, options = {}) {
   assert.ok(frames.length > 0, `${label}: browser must record at least one rendered frame`);
   const forbidden = frames.filter(frame => (
-    frame.analyticsFlash
+    (!options.analyticsOwned && (frame.analyticsFlash || frame.activeClientTab === 'Analytics'))
     || frame.productionVisible
     || frame.oldSamplesVisible
-    || frame.activeClientTab === 'Analytics'
     || (options.clientOwned && (frame.headerVisible || frame.pageTopVisible || frame.passwordVisible))
     || (options.samplesOwned && (
       frame.sxrGenericVisible
@@ -1692,8 +1691,13 @@ async function runStaffHistoryScenario(browser, server, view) {
 }
 
 async function runClientTabScenario(browser, server, view) {
-  const tabLabel = view === 'calendar' ? 'Content Calendar' : 'Brief';
-  const label = `zero-analytics client ${view} boot/reload`;
+  // Client links show only Analytics and Content Calendar: an old v=brief
+  // link must land on the Content Calendar, canonicalized to v=calendar.
+  const landedView = view === 'brief' ? 'calendar' : view;
+  const tabLabel = 'Content Calendar';
+  const label = view === 'brief'
+    ? 'zero-analytics client legacy brief link lands on calendar'
+    : `zero-analytics client ${view} boot/reload`;
   const run = await openCase(browser, server, {
     network: {
       zeroAnalytics: true,
@@ -1716,17 +1720,14 @@ async function runClientTabScenario(browser, server, view) {
       () => run.page.goto(`${server.origin}/index.html?${query}`, { waitUntil: 'load', timeout: 15_000 }),
       'static:client-verify',
     );
-    if (view === 'calendar') {
-      await waitForCalendarSettled(run.page);
-      await run.network.waitForExtraResponses(0);
-    }
-    else await waitForClientTab(run.page, tabLabel);
+    await waitForCalendarSettled(run.page);
+    if (view === 'calendar') await run.network.waitForExtraResponses(0);
     const firstFrames = await traceOf(run.page);
     assert.ok(firstFrames.some(frame => frame.surface === 'static:client-verify'), `${label}: neutral verifier must paint first`);
     // The client Calendar no longer waits on the Sheets essentials, so it may
     // mount its own loader-bearing shell straight after verification instead
     // of holding the entry loader. Either is a route-owned client surface.
-    const routeOwned = frame => frame.surface === `loading:${view}` || (view === 'calendar' && frame.surface === 'mounted:calendar');
+    const routeOwned = frame => frame.surface === `loading:${landedView}` || frame.surface === 'mounted:calendar';
     assert.ok(firstFrames.some(routeOwned), `${label}: route-owned loader must visibly paint`);
     assertTruthfulTrace(firstFrames, `${label} first navigation`, { clientOwned: true });
 
@@ -1736,11 +1737,8 @@ async function runClientTabScenario(browser, server, view) {
       () => run.page.reload({ waitUntil: 'load', timeout: 15_000 }),
       'static:client-verify',
     );
-    if (view === 'calendar') {
-      await waitForCalendarSettled(run.page);
-      await run.network.waitForHeldExtras(1);
-    }
-    else await waitForClientTab(run.page, tabLabel);
+    await waitForCalendarSettled(run.page);
+    if (view === 'calendar') await run.network.waitForHeldExtras(1);
     const reloadFrames = await traceOf(run.page);
     assert.ok(reloadFrames.some(frame => frame.surface === 'static:client-verify'), `${label}: reload must repaint neutral verifier`);
     assert.ok(reloadFrames.some(routeOwned), `${label}: reload must repaint route-owned loader`);
@@ -1757,7 +1755,7 @@ async function runClientTabScenario(browser, server, view) {
           view: verifyBody.view,
           strict: verifyBody.strict,
         },
-        { client: CLIENT_A, slug: CLIENT_A_SLUG, token: CURRENT_TOKEN, view, strict: true },
+        { client: CLIENT_A, slug: CLIENT_A_SLUG, token: CURRENT_TOKEN, view: landedView, strict: true },
         `${label}: verifier request must bind the exact client, token, view, and strict mode`,
       );
     }
@@ -1766,19 +1764,34 @@ async function runClientTabScenario(browser, server, view) {
       active: document.querySelector('.view-tab-btn.active')?.textContent.replace(/\s+/g, ' ').trim() || '',
       embeddedClient: document.querySelector('.cal-embed-title strong')?.textContent.trim() || '',
       body: document.body.innerText,
+      v: new URLSearchParams(location.search).get('v'),
+      clientTab: history.state && history.state.clientTab,
+      entryState: document.querySelector('[data-client-entry-state]')?.getAttribute('data-client-entry-state') || '',
+      extrasError: Boolean(document.querySelector('[data-client-extras-state="error"]')),
+      tabs: Array.from(document.querySelectorAll('.view-tab-btn'))
+        .filter(element => getComputedStyle(element).display !== 'none')
+        .map(element => element.textContent.replace(/\s+/g, ' ').trim()),
+      hasBrief: Boolean(document.getElementById('briefViewContainer')),
     }));
     assert.equal(routeFinal.active, tabLabel, `${label}: requested tab must settle after reload`);
-    if (view === 'calendar') {
-      assert.equal(routeFinal.embeddedClient, CLIENT_A, `${label}: residual calendar prefs cannot rebind the client`);
-    }
+    assert.equal(routeFinal.embeddedClient, CLIENT_A, `${label}: residual calendar prefs cannot rebind the client`);
+    assert.deepEqual(
+      { v: routeFinal.v, clientTab: routeFinal.clientTab, entryState: routeFinal.entryState, extrasError: routeFinal.extrasError },
+      { v: 'calendar', clientTab: 'calendar', entryState: '', extrasError: false },
+      `${label}: URL and history must be canonical Calendar with no error surface`,
+    );
+    assert.deepEqual(routeFinal.tabs, ['Analytics', 'Content Calendar'],
+      `${label}: a client link must offer only Analytics and Content Calendar`);
+    assert.equal(routeFinal.hasBrief, false, `${label}: no Brief DOM may mount on a client link`);
     assert.equal(routeFinal.body.includes(CLIENT_B), false, `${label}: residual client must never become visible`);
 
     if (view === 'calendar') {
-      await waitForClientTabButton(run.page, 'Brief');
+      // Analytics is the extras-dependent client tab now that Brief is staff-only.
+      await waitForClientTabButton(run.page, 'Analytics');
       await run.page.evaluate(() => { window.__syncviewBootTrace = []; });
-      await armTrustedClickTraceBoundary(run.page, '.view-tab-btn', 'Brief');
-      await run.page.getByRole('button', { name: 'Brief', exact: true }).click({ timeout: 10_000 });
-      await run.page.waitForSelector('[data-client-extras-state="loading"][data-client-entry-loading="brief"]', {
+      await armTrustedClickTraceBoundary(run.page, '.view-tab-btn', 'Analytics');
+      await run.page.getByRole('button', { name: 'Analytics', exact: true }).click({ timeout: 10_000 });
+      await run.page.waitForSelector('[data-client-extras-state="loading"][data-client-entry-loading="analytics"]', {
         state: 'visible',
         timeout: 10_000,
       });
@@ -1786,24 +1799,24 @@ async function runClientTabScenario(browser, server, view) {
         v: new URLSearchParams(location.search).get('v'),
         clientTab: history.state && history.state.clientTab,
         extrasStatus: _fetchExtrasState.status,
-        fakeEmpty: /No Keywords Brief yet|No competitors brief yet/i.test(document.getElementById('content')?.innerText || ''),
+        fakeEmpty: /No analytics yet/i.test(document.getElementById('content')?.innerText || ''),
         click: window.__syncviewBootClickBoundary,
       }));
       assert.deepEqual(
         { v: pending.v, clientTab: pending.clientTab, extrasStatus: pending.extrasStatus, fakeEmpty: pending.fakeEmpty },
-        { v: 'brief', clientTab: 'brief', extrasStatus: 'loading', fakeEmpty: false },
-        `${label}: held extras must move URL/history to Brief while the visible route stays on its loader`,
+        { v: null, clientTab: 'analytics', extrasStatus: 'loading', fakeEmpty: false },
+        `${label}: held extras must move URL/history to Analytics while the visible route stays on its loader`,
       );
       assert.deepEqual(
         pending.click,
-        { count: 1, target: 'Brief', isTrusted: true },
-        `${label}: the extras race must be driven by one real trusted Brief click`,
+        { count: 1, target: 'Analytics', isTrusted: true },
+        `${label}: the extras race must be driven by one real trusted Analytics click`,
       );
       assert.equal(run.network.verifierCalls.length, 2, `${label}: tab click must reuse the verified capability`);
       const firstLoadingFrames = await traceOf(run.page);
-      assert.ok(firstLoadingFrames.some(frame => frame.surface === 'loading:brief'),
-        `${label}: Brief loader must visibly paint while extras are held`);
-      assertTruthfulTrace(firstLoadingFrames, `${label} Calendar -> held Brief`, { clientOwned: true });
+      assert.ok(firstLoadingFrames.some(frame => frame.surface === 'loading:analytics'),
+        `${label}: Analytics loader must visibly paint while extras are held`);
+      assertTruthfulTrace(firstLoadingFrames, `${label} Calendar -> held Analytics`, { clientOwned: true, analyticsOwned: true });
 
       assert.equal(run.network.releaseExtras(1), 3, `${label}: failure releases the exact three held extras`);
       await run.page.waitForSelector('[data-client-extras-state="error"]', { state: 'visible', timeout: 10_000 });
@@ -1818,18 +1831,20 @@ async function runClientTabScenario(browser, server, view) {
       const failed = await run.page.evaluate(() => ({
         activeText: document.activeElement?.textContent.replace(/\s+/g, ' ').trim() || '',
         extrasStatus: _fetchExtrasState.status,
-        fakeEmpty: /No Keywords Brief yet|No competitors brief yet/i.test(document.getElementById('content')?.innerText || ''),
+        extrasView: document.querySelector('[data-client-extras-state="error"]')?.getAttribute('data-client-extras-view') || '',
+        fakeEmpty: /No analytics yet/i.test(document.getElementById('content')?.innerText || ''),
         body: document.getElementById('content')?.innerText || '',
       }));
       assert.equal(failed.extrasStatus, 'error', `${label}: HTTP 500 extras must become an explicit error state`);
-      assert.equal(failed.fakeEmpty, false, `${label}: HTTP 500 extras must never masquerade as an empty Brief`);
+      assert.equal(failed.extrasView, 'analytics', `${label}: the error surface must belong to the Analytics route`);
+      assert.equal(failed.fakeEmpty, false, `${label}: HTTP 500 extras must never masquerade as empty Analytics`);
       assert.match(failed.body, /not replaced with an empty result/i, `${label}: failure copy must explain that empty data was not faked`);
       assert.doesNotMatch(failed.body, /synthetic extras failure/i, `${label}: upstream HTTP body must not reach the client surface`);
       assert.equal(failed.activeText, 'Try again', `${label}: extras retry must be keyboard focusable`);
       await traceOf(run.page);
 
       await run.page.keyboard.press('Enter');
-      await run.page.waitForSelector('[data-client-extras-state="loading"][data-client-entry-loading="brief"]', {
+      await run.page.waitForSelector('[data-client-extras-state="loading"][data-client-entry-loading="analytics"]', {
         state: 'visible',
         timeout: 10_000,
       });
@@ -1842,8 +1857,8 @@ async function runClientTabScenario(browser, server, view) {
       }));
       assert.deepEqual(
         { extrasStatus: retryPending.extrasStatus, v: retryPending.v, clientTab: retryPending.clientTab },
-        { extrasStatus: 'loading', v: 'brief', clientTab: 'brief' },
-        `${label}: explicit retry must repaint the same Brief loader without changing route ownership`,
+        { extrasStatus: 'loading', v: null, clientTab: 'analytics' },
+        `${label}: explicit retry must repaint the same Analytics loader without changing route ownership`,
       );
       assert.equal(retryPending.navigations, 1, `${label}: extras retry must not reload the document`);
       assert.equal(run.network.verifierCalls.length, 2, `${label}: extras retry must not repeat strict verification`);
@@ -1857,34 +1872,41 @@ async function runClientTabScenario(browser, server, view) {
 
       assert.equal(run.network.releaseExtras(2), 3, `${label}: success releases the exact three retry requests`);
       await run.network.waitForExtraResponses(2);
-      await waitForClientTab(run.page, 'Brief');
+      await waitForClientTab(run.page, 'Analytics');
+      await run.page.waitForFunction(() => !document.querySelector('[data-client-extras-state]'), null, { timeout: 10_000 });
       const recovered = await run.page.evaluate(() => ({
         extrasStatus: _fetchExtrasState.status,
         briefCount: mrBriefs.length,
         loading: Boolean(document.querySelector('[data-client-extras-state="loading"]')),
         error: Boolean(document.querySelector('[data-client-extras-state="error"]')),
         active: document.querySelector('.view-tab-btn.active')?.textContent.replace(/\s+/g, ' ').trim() || '',
+        honestEmpty: /No analytics yet/i.test(document.getElementById('content')?.innerText || ''),
       }));
       assert.deepEqual(
         recovered,
-        { extrasStatus: 'ready', briefCount: 1, loading: false, error: false, active: 'Brief' },
-        `${label}: successful retry must rerender the active Brief with its loaded data`,
+        { extrasStatus: 'ready', briefCount: 1, loading: false, error: false, active: 'Analytics', honestEmpty: true },
+        `${label}: successful retry must rerender the active Analytics route with its loaded data`,
       );
       const recoveredFrames = await traceOf(run.page);
-      const firstLoaderAt = recoveredFrames.findIndex(frame => frame.surface === 'loading:brief');
+      const firstLoaderAt = recoveredFrames.findIndex(frame => frame.surface === 'loading:analytics');
       const errorAt = recoveredFrames.findIndex(frame => frame.surface === 'extras:error');
-      const secondLoaderAt = recoveredFrames.findIndex((frame, index) => index > errorAt && frame.surface === 'loading:brief');
-      const mountedAt = recoveredFrames.findIndex((frame, index) => index > secondLoaderAt && frame.surface === 'mounted:client-brief');
+      const secondLoaderAt = recoveredFrames.findIndex((frame, index) => index > errorAt && frame.surface === 'loading:analytics');
+      const mountedAt = recoveredFrames.findIndex((frame, index) => index > secondLoaderAt && frame.surface === 'mounted:client-analytics');
       assert.ok(firstLoaderAt >= 0 && errorAt > firstLoaderAt && secondLoaderAt > errorAt && mountedAt > secondLoaderAt,
-        `${label}: visible sequence must be Brief loader -> retry -> Brief loader -> mounted Brief\n${JSON.stringify(traceExcerpt(recoveredFrames), null, 2)}`);
+        `${label}: visible sequence must be Analytics loader -> retry -> Analytics loader -> mounted Analytics\n${JSON.stringify(traceExcerpt(recoveredFrames), null, 2)}`);
+      assertTruthfulTrace(recoveredFrames, `${label} Analytics retry`, { clientOwned: true, analyticsOwned: true });
 
       await run.page.goBack();
       await waitForCalendarSettled(run.page);
       await run.page.goForward();
-      await waitForClientTab(run.page, 'Brief');
+      await waitForClientTab(run.page, 'Analytics');
       const historyFrames = await traceOf(run.page);
-      assertTruthfulTrace(historyFrames, `${label} Calendar -> Brief -> Back -> Forward`, { clientOwned: true });
+      assertTruthfulTrace(historyFrames, `${label} Calendar -> Analytics -> Back -> Forward`, { clientOwned: true, analyticsOwned: true });
       assert.equal(run.network.verifierCalls.length, 2, `${label}: same-document Back/Forward must not bypass or repeat verification`);
+      // Return to the Calendar so the closing Analytics click below still
+      // proves Calendar DOM teardown.
+      await run.page.getByRole('button', { name: 'Content Calendar', exact: true }).click();
+      await waitForCalendarSettled(run.page);
     }
 
     await run.page.getByRole('button', { name: 'Analytics', exact: true }).click();
@@ -1930,17 +1952,19 @@ async function runClientTabScenario(browser, server, view) {
 }
 
 async function runBriefWorkTeardownScenario(browser, server) {
-  const label = 'client Brief BFCache retires tab-summary work';
-  const run = await openBfcacheCase(browser, { view: 'brief', validVerifierCalls: 2 });
+  // Brief is staff-only on client links now; the tab-summary work this guards
+  // is still owned by the client-entry generation, so it runs under Analytics.
+  const label = 'client Analytics BFCache retires tab-summary work';
+  const run = await openBfcacheCase(browser, { view: 'analytics', validVerifierCalls: 2 });
   try {
-    const query = new URLSearchParams({ c: CLIENT_A, v: 'brief', t: CURRENT_TOKEN });
+    const query = new URLSearchParams({ c: CLIENT_A, t: CURRENT_TOKEN });
     await streamedNavigation(
       run.page,
       server,
       () => run.page.goto(`${server.origin}/bfcache.html?${query}`, { waitUntil: 'load', timeout: 15_000 }),
       'static:client-verify',
     );
-    await waitForClientTab(run.page, 'Brief');
+    await waitForClientTab(run.page, 'Analytics');
     await run.page.waitForFunction(() => (
       window.__syncviewBfcacheNetwork
       && window.__syncviewBfcacheNetwork.verifierResponses.length === 1
@@ -1998,8 +2022,8 @@ async function runBriefWorkTeardownScenario(browser, server) {
     await run.page.waitForTimeout(60);
     const beforeHide = await traceOf(run.page);
     assert.ok(
-      beforeHide.some(frame => frame.surface === 'mounted:client-brief'),
-      `${label}: the real Brief surface must be visible while owned work is pending`,
+      beforeHide.some(frame => frame.surface === 'mounted:client-analytics'),
+      `${label}: the real Analytics surface must be visible while owned work is pending`,
     );
 
     // Keep the deliberately uncooperative promises alive, but restore the
@@ -2020,7 +2044,7 @@ async function runBriefWorkTeardownScenario(browser, server) {
       && window.__syncviewBfcacheNetwork.verifierResponses[1].valid === true
       && window.__syncviewBfcacheNetwork.analyticsResponsesCompleted === 10
     ), null, { timeout: 10_000 });
-    await waitForClientTab(run.page, 'Brief');
+    await waitForClientTab(run.page, 'Analytics');
     await run.page.waitForTimeout(180);
 
     const beforeLateRelease = await run.page.evaluate(clientName => {
@@ -2047,7 +2071,7 @@ async function runBriefWorkTeardownScenario(browser, server) {
       beforeLateRelease.pageShows.some(event => event.persisted === true),
       `${label}: pageshow.persisted must prove actual BFCache restoration`,
     );
-    assert.deepEqual(beforeLateRelease.pagehide.signalsAborted, [true], `${label}: every held Brief transport must observe revocation`);
+    assert.deepEqual(beforeLateRelease.pagehide.signalsAborted, [true], `${label}: every held tab-summary transport must observe revocation`);
     assert.equal(beforeLateRelease.pagehide.capability, false, `${label}: pagehide must revoke client capability`);
     assert.equal(beforeLateRelease.pagehide.dataRun, false, `${label}: pagehide must retire the old client data generation`);
     assert.equal(beforeLateRelease.pagehide.controllers, 0, `${label}: purge must drop every tab-summary controller`);
@@ -2057,13 +2081,13 @@ async function runBriefWorkTeardownScenario(browser, server) {
       beforeLateRelease.freshGeneration > beforeLateRelease.oldGeneration,
       `${label}: persisted return must create one newer client-entry data generation`,
     );
-    assert.equal(beforeLateRelease.freshRunCurrent, true, `${label}: the replacement Brief generation must own the restored route`);
+    assert.equal(beforeLateRelease.freshRunCurrent, true, `${label}: the replacement client generation must own the restored route`);
     assert.equal(beforeLateRelease.network.verifierCalls.length, 2, `${label}: BFCache return must verify exactly once`);
     assert.deepEqual(beforeLateRelease.network.verifierResponses.map(item => item.valid), [true, true], `${label}: both strict verifier calls must succeed`);
     assert.deepEqual(beforeLateRelease.network.unmocked, [], `${label}: every BFCache request must remain synthetic`);
     assert.ok(beforeLateRelease.trace.some(frame => frame.surface === 'loading:verify'), `${label}: restored document must visibly re-enter verification`);
-    assert.ok(beforeLateRelease.trace.some(frame => frame.surface === 'mounted:client-brief'), `${label}: one healthy fresh Brief generation must visibly settle`);
-    assertTruthfulTrace(beforeLateRelease.trace, label, { clientOwned: true });
+    assert.ok(beforeLateRelease.trace.some(frame => frame.surface === 'mounted:client-analytics'), `${label}: one healthy fresh Analytics generation must visibly settle`);
+    assertTruthfulTrace(beforeLateRelease.trace, label, { clientOwned: true, analyticsOwned: true });
 
     const lateMarker = 'SYNTHETIC_LATE_BRIEF_RESULT';
     const afterLateRelease = await run.page.evaluate(async ({ clientName, marker }) => {
@@ -2090,12 +2114,12 @@ async function runBriefWorkTeardownScenario(browser, server) {
     assert.deepEqual(
       { briefs: afterLateRelease.briefs, mrBriefs: afterLateRelease.mrBriefs, tabState: afterLateRelease.tabState },
       { briefs: beforeLateRelease.briefs, mrBriefs: beforeLateRelease.mrBriefs, tabState: beforeLateRelease.tabState },
-      `${label}: late responses cannot replace the fresh Brief globals`,
+      `${label}: late responses cannot replace the fresh brief/extras globals`,
     );
     assert.equal(afterLateRelease.tabCache, beforeLateRelease.tabCache, `${label}: late tab summary cannot change localStorage`);
     assert.equal(afterLateRelease.tabCache.includes(lateMarker), false, `${label}: late tab summary marker cannot enter localStorage`);
-    assert.equal(afterLateRelease.body.includes(lateMarker), false, `${label}: late Brief work cannot repaint the fresh document`);
-    assert.equal(afterLateRelease.surface, beforeLateRelease.surface, `${label}: late work cannot replace the fresh Brief surface`);
+    assert.equal(afterLateRelease.body.includes(lateMarker), false, `${label}: late tab-summary work cannot repaint the fresh document`);
+    assert.equal(afterLateRelease.surface, beforeLateRelease.surface, `${label}: late work cannot replace the fresh Analytics surface`);
     assert.equal(afterLateRelease.generation, beforeLateRelease.freshGeneration, `${label}: late work cannot replace the fresh generation`);
     assert.equal(afterLateRelease.runCurrent, true, `${label}: the one fresh generation remains healthy after late release`);
     assert.equal(afterLateRelease.verifierCalls, 2, `${label}: late work must not trigger another verification`);
@@ -2658,15 +2682,16 @@ async function runPendingCalendarOwnershipScenario(browser, server) {
       { clientOwned: true },
     );
 
-    // Calendar → Brief is a same-document profile transition and never enters
+    // Calendar → Analytics is a same-document profile transition and never enters
+    // navTo() (Brief is staff-only on client links, so Analytics owns this race).
     // navTo(). It must retire the Calendar transport before replacing the DOM.
     await clientRun.page.evaluate(() => { window.__syncviewBootTrace = []; });
-    await clientRun.page.locator('.view-tab-btn', { hasText: 'Brief' }).click();
-    await waitForClientTab(clientRun.page, 'Brief');
+    await clientRun.page.locator('.view-tab-btn', { hasText: 'Analytics' }).click();
+    await waitForClientTab(clientRun.page, 'Analytics');
     await clientRun.page.waitForFunction(() => (
       window.__syncviewBfcacheNetwork.calendarAbortEvents === 1
     ), null, { timeout: 10_000 });
-    const briefBeforeRelease = await clientRun.page.evaluate(() => ({
+    const analyticsBeforeRelease = await clientRun.page.evaluate(() => ({
       network: JSON.parse(JSON.stringify(window.__syncviewBfcacheNetwork)),
       activeTab: Array.from(document.querySelectorAll('.view-tab-btn.active'))
         .find(element => getComputedStyle(element).display !== 'none')?.textContent.trim() || '',
@@ -2676,25 +2701,25 @@ async function runPendingCalendarOwnershipScenario(browser, server) {
       realtime: JSON.parse(JSON.stringify(window.__syncviewRealtimeTrace)),
       captionJobs: localStorage.getItem('syncview_captionJobs_v1'),
     }));
-    const briefCalendarReads = briefBeforeRelease.network.sensitiveClientReads
+    const analyticsCalendarReads = analyticsBeforeRelease.network.sensitiveClientReads
       .filter(read => read.kind === 'calendar_posts');
-    assert.equal(briefCalendarReads.length, 1, `${label}: one exact-client Calendar read is held`);
-    assert.equal(briefCalendarReads[0].signalAbortedBeforeRelease, true,
-      `${label}: Calendar → Brief must abort the transport before the late response`);
-    assert.equal(briefBeforeRelease.activeTab, 'Brief', `${label}: Brief must own the visible route before release`);
-    assert.equal(briefBeforeRelease.calendarVisible, false, `${label}: Calendar DOM must be retired on Brief`);
-    assert.equal(briefBeforeRelease.posts, 0, `${label}: held Calendar rows must not apply before release`);
-    assert.equal(briefBeforeRelease.cache, null, `${label}: held Calendar rows must not cache before release`);
-    assert.deepEqual(calendarRealtime(briefBeforeRelease.realtime).created, [],
+    assert.equal(analyticsCalendarReads.length, 1, `${label}: one exact-client Calendar read is held`);
+    assert.equal(analyticsCalendarReads[0].signalAbortedBeforeRelease, true,
+      `${label}: Calendar → Analytics must abort the transport before the late response`);
+    assert.equal(analyticsBeforeRelease.activeTab, 'Analytics', `${label}: Analytics must own the visible route before release`);
+    assert.equal(analyticsBeforeRelease.calendarVisible, false, `${label}: Calendar DOM must be retired on Analytics`);
+    assert.equal(analyticsBeforeRelease.posts, 0, `${label}: held Calendar rows must not apply before release`);
+    assert.equal(analyticsBeforeRelease.cache, null, `${label}: held Calendar rows must not cache before release`);
+    assert.deepEqual(calendarRealtime(analyticsBeforeRelease.realtime).created, [],
       `${label}: a held read must not subscribe Calendar realtime`);
-    assert.equal(briefBeforeRelease.captionJobs, residualCaptionJobs, `${label}: staff caption jobs remain untouched`);
+    assert.equal(analyticsBeforeRelease.captionJobs, residualCaptionJobs, `${label}: staff caption jobs remain untouched`);
 
     await clientRun.page.evaluate(() => window.__syncviewReleaseBfcacheCalendar());
     await clientRun.page.waitForFunction(() => (
       window.__syncviewBfcacheNetwork.calendarResponsesCompleted === 1
     ), null, { timeout: 10_000 });
     await clientRun.page.waitForTimeout(200);
-    const briefAfterRelease = await clientRun.page.evaluate(expectedRow => ({
+    const analyticsAfterRelease = await clientRun.page.evaluate(expectedRow => ({
       activeTab: Array.from(document.querySelectorAll('.view-tab-btn.active'))
         .find(element => getComputedStyle(element).display !== 'none')?.textContent.trim() || '',
       calendarVisible: Boolean(document.getElementById('calView')),
@@ -2705,11 +2730,11 @@ async function runPendingCalendarOwnershipScenario(browser, server) {
       captionJobs: localStorage.getItem('syncview_captionJobs_v1'),
       transitionTrace: window.__syncviewBootTrace.slice(),
     }), CALENDAR_ROWS[0].name);
-    const { transitionTrace: briefTransitionTrace, ...briefAfterReleaseState } = briefAfterRelease;
+    const { transitionTrace: analyticsTransitionTrace, ...analyticsAfterReleaseState } = analyticsAfterRelease;
     assert.deepEqual(
-      { ...briefAfterReleaseState, realtime: calendarRealtime(briefAfterRelease.realtime) },
+      { ...analyticsAfterReleaseState, realtime: calendarRealtime(analyticsAfterRelease.realtime) },
       {
-        activeTab: 'Brief',
+        activeTab: 'Analytics',
         calendarVisible: false,
         posts: 0,
         cache: null,
@@ -2717,20 +2742,20 @@ async function runPendingCalendarOwnershipScenario(browser, server) {
         leakedRow: false,
         captionJobs: residualCaptionJobs,
       },
-      `${label}: late Calendar completion must not revive data/cache/DOM/realtime on Brief`,
+      `${label}: late Calendar completion must not revive data/cache/DOM/realtime on Analytics`,
     );
-    const briefFrame = briefTransitionTrace.findIndex(frame => frame.surface === 'mounted:client-brief');
-    assert.ok(briefFrame >= 0, `${label}: the animation-frame trace must observe Brief ownership`);
+    const abortedCalendarFrame = analyticsTransitionTrace.findIndex(frame => frame.surface === 'mounted:client-analytics');
+    assert.ok(abortedCalendarFrame >= 0, `${label}: the animation-frame trace must observe Analytics ownership`);
     assert.ok(
-      briefTransitionTrace.slice(briefFrame).every(frame => (
-        frame.surface === 'mounted:client-brief'
-        && frame.activeClientTab === 'Brief'
+      analyticsTransitionTrace.slice(abortedCalendarFrame).every(frame => (
+        frame.surface === 'mounted:client-analytics'
+        && frame.activeClientTab === 'Analytics'
         && frame.calendarVisible === false
         && frame.analyticsFlash === false
       )),
-      `${label}: every frame after Brief ownership must stay Brief-owned\n${JSON.stringify(traceExcerpt(briefTransitionTrace), null, 2)}`,
+      `${label}: every frame after Analytics ownership must stay Analytics-owned\n${JSON.stringify(traceExcerpt(analyticsTransitionTrace), null, 2)}`,
     );
-    assertTruthfulTrace(briefTransitionTrace, `${label} Calendar → Brief`, { clientOwned: true });
+    assertTruthfulTrace(analyticsTransitionTrace, `${label} Calendar → Analytics`, { clientOwned: true, analyticsOwned: true });
 
     // Settle one current Calendar read but pause the lazy realtime client while
     // _calV2EnsureSubscribed awaits it. Calendar → Analytics must invalidate

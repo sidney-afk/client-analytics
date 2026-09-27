@@ -2107,6 +2107,7 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
                 if(s.mrBriefTab)activeMRBriefTab[c]=s.mrBriefTab;
                 render(c,false);return;
             }
+            if(hash==='today'){navTo(hash,false);return;}
             if(hash==='linear'){navTo(hash,false);return;}
             if(hash==='workload'){navTo(hash,false);return;}
             if(hash==='calendar'){navTo(hash,false);return;}
@@ -2140,7 +2141,7 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
             if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(wlIsAllowedClient(tn)){_templatesSetSelected(wlCanonicalClient(tn));navTo('templates',false);return;}}
             if(hash&&wlIsAllowedClient(hash)){render(wlCanonicalClient(hash),false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
-            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||savedNav==='time-off'||(savedNav==='kasper'&&_kasperUnlocked))){navTo(savedNav,false);return;}
+            if(history.state&&history.state.nav&&(savedNav==='today'||savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||savedNav==='time-off'||(savedNav==='kasper'&&_kasperUnlocked))){navTo(savedNav,false);return;}
             navTo('home',false);
         }catch(err){
             if(_isClientLink){
@@ -2237,6 +2238,10 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
         }
         let view = String(q.get('v') || 'analytics').trim().toLowerCase();
         if (!SYNCVIEW_CLIENT_ENTRY_VIEWS.includes(view)) return { ok: false, reason: 'unsupported_view' };
+        // Clients no longer see Brief (owner, 2026-09-27): an old link that asks
+        // for it opens the Content Calendar instead, never an error. Staff
+        // client profiles keep Brief unchanged.
+        if (view === 'brief') view = 'calendar';
         const sxr = q.get('sxr');
         if (view === 'sample-reviews') {
             if (sxr !== '1') return { ok: false, reason: 'invalid_samples_entry' };
@@ -2255,7 +2260,7 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
         }
         if (state && !state.client && state.nav) return { ok: false, reason: 'staff_history' };
         if ((view === 'analytics' || !q.get('v')) && state && state.client && _syncviewClientEntrySlug(state.client) === slug) {
-            if (state.clientTab === 'calendar' || state.clientTab === 'brief') view = state.clientTab;
+            if (state.clientTab === 'calendar' || state.clientTab === 'brief') view = 'calendar';
         }
         return { ok: true, client, slug, token, view, legacyHash: !!hash };
     }

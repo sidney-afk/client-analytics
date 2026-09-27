@@ -511,7 +511,7 @@ import { _kasperOpenLightbox } from './320-kasper-dashboard-replies.js';
         // Two tabs only — Review + Sheet. No Month/Week (samples have no dates).
         const tabViews = _isClientLink ? ['review','organizer'] : ['smmreview','organizer'];
         view.innerHTML = `
-            <div class="cal-toolbar">
+            <div class="cal-toolbar${(!embedded && !_isClientLink) ? ' is-picker-shell' : ''}">
                 <div class="cal-toolbar-left">${leftHtml}</div>
                 <div class="cal-toolbar-mid">
                     <div class="cal-view-toggle">

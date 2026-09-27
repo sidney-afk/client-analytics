@@ -18,6 +18,8 @@ const { seedStaffGate } = require('../../../qa/staff-gate-seed');
 
 const FIRST = 'Anchor Fixture Alpha';
 const SECOND = 'Anchor Fixture Bravo';
+// An invented long first name: the picker label grows and squeezes the tab row.
+const LONG = 'Wolfgangmaximilian Fixture Charlie';
 
 async function open(browser, port, suffix, { staff = true } = {}) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -154,10 +156,11 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       await page.waitForTimeout(400);
       expect(await page.evaluate(() => calState.client) === other, 'calendar: the recent client button did not switch the calendar');
 
-      // Tab order: the six client tabs first, together, in the decided order.
+      // Tab order: Today (the per-person summary, a team tab) leads, then the
+      // six client tabs together, in the decided order.
       const order = await page.evaluate(() => [...document.querySelectorAll('#headerNav > .header-nav-btn')].map(a => a.id));
-      const want = ['navCalendar', 'navSxr', 'navTemplates', 'navFilmingPlans', 'navTiktokUpload', 'navHome'];
-      expect(JSON.stringify(order.slice(0, 6)) === JSON.stringify(want), `tab order is ${order.join(',')}`);
+      const want = ['navToday', 'navCalendar', 'navSxr', 'navTemplates', 'navFilmingPlans', 'navTiktokUpload', 'navHome'];
+      expect(JSON.stringify(order.slice(0, 7)) === JSON.stringify(want), `tab order is ${order.join(',')}`);
       // Fixture clients carry no analytics numbers, so Analytics' own renderer
       // throws reading them; that is pre-existing and not about the bar.
       const own = errors.filter(m => !/ig_followers/.test(m));
@@ -197,16 +200,26 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
     // My clients: an SMM sees their own clients above Recent, with no remove
     // button; Recent holds at most three others; an admin sees only Recent;
     // the current client is tinted wherever it shows; search still reaches
-    // a client in neither list. The SMM assignment is a seeded fixture map.
+    // a client in neither list. The SMM assignment comes from the same source
+    // Today reads (098-smm-clients): the social_media_managers roster from the
+    // smm-weekly-reports options call, mocked here with an invented SMM, and
+    // the current clients from Clients Info (clientMap), seeded in the page.
     {
       const { context, page } = await open(browser, port, '/calendar');
+      const ROSTER_MINE = ['Anchor Fixture Mine One', 'Anchor Fixture Mine Two'];
+      await context.route(/\/functions\/v1\/smm-weekly-reports\?action=options/, route => {
+        route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ managers: [
+          { name: 'QA Staff', email: '', active: true, source_clients: ROSTER_MINE },
+          { name: 'Other Fixture Person', email: '', active: true, source_clients: ['Anchor Fixture Delta'] }
+        ] }) }).catch(() => {});
+      });
       const MINE = ['Anchor Fixture Mine One', 'Anchor Fixture Mine Two'];
       const OTHERS = ['Anchor Fixture Delta', 'Anchor Fixture Echo', 'Anchor Fixture Foxtrot', 'Anchor Fixture Golf'];
       const OUTSIDE = 'Anchor Fixture Hotel';
       const all = MINE.concat(OTHERS, [OUTSIDE]);
       await page.evaluate(({ all, mine }) => {
         all.forEach(n => { if (!WL_CLIENT_NAMES.includes(n)) WL_CLIENT_NAMES.push(n); });
-        _kasperState.smmByClient = new Map(mine.map(n => [wlNormalizeClient(n), { name: 'Qa' }]));
+        all.forEach(n => { clientMap[n] = { client_name: n }; });
       }, { all, mine: MINE });
       // Open the dropdown from a known closed state and wait for focus. An
       // Escape pressed before the search box had focus left it open on CI,
@@ -248,19 +261,28 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
         const id = _syncviewStaffIdentityLoad();
         _syncviewStaffIdentitySave(Object.assign({}, id, { role: 'smm', member: Object.assign({}, id.member, { role: 'smm', name: 'QA Staff' }) }));
       });
-      // Boot keeps loading in the background (key-verify, Kasper's cached
-      // SMM map), and on a slower runner that can land after the seed above
-      // and replace the fixture map. Wait for the verified SMM identity, then
-      // seed the assignment again right before opening the dropdown.
+      // Boot keeps loading in the background (key-verify, Clients Info), and
+      // on a slower runner that can land after the seed above. Wait for the
+      // verified SMM identity, then seed Clients Info again and open the
+      // dropdown once so the roster loads, as it does for a real SMM.
       await page.waitForFunction(() => _syncviewStaffIdentityValid() && _syncviewStaffIdentityLoad().member.role === 'smm', null, { timeout: 15000 })
         .catch(() => failures.push('smm: the seeded SMM identity never became valid'));
       await page.waitForTimeout(1500);
-      await page.evaluate(mine => { _kasperState.smmByClient = new Map(mine.map(n => [wlNormalizeClient(n), { name: 'Qa' }])); }, MINE);
+      await page.evaluate(all => { all.forEach(n => { clientMap[n] = { client_name: n }; }); }, all);
       await openPop();
+      await page.waitForFunction(() => document.querySelector('#svClientResults [data-sv-section="mine"]'), null, { timeout: 10000 })
+        .catch(() => failures.push('smm: My clients never appeared after the roster loaded'));
       rows = await sections();
       const mineRows = rows.filter(r => r.sec === 'mine');
       const recentRows = rows.filter(r => r.sec === 'recent');
-      expect(JSON.stringify(mineRows.map(r => r.n)) === JSON.stringify(MINE), `smm: My clients should be ${MINE}, got ${mineRows.map(r => r.n)} (state: ${JSON.stringify(await page.evaluate(() => ({ valid: _syncviewStaffIdentityValid(), role: (_syncviewStaffIdentityLoad() || {}).role, map: _kasperState.smmByClient instanceof Map ? _kasperState.smmByClient.size : String(_kasperState.smmByClient) })))})`);
+      expect(JSON.stringify(mineRows.map(r => r.n)) === JSON.stringify(MINE), `smm: My clients should be ${MINE}, got ${mineRows.map(r => r.n)} (state: ${JSON.stringify(await page.evaluate(() => ({ valid: _syncviewStaffIdentityValid(), role: (_syncviewStaffIdentityLoad() || {}).role, roster: _srpState.managersLoaded })))})`);
+      // Today and the dropdown agree: Today's own visible-client list for this
+      // SMM is exactly the dropdown's My clients.
+      const today = await page.evaluate(async () => {
+        const v = await _tdyVisibleClients(_tdyIdentity());
+        return [...v.keys].map(k => svCurrentClients().get(k)).sort((a, b) => a.localeCompare(b));
+      }).catch(e => 'error: ' + e.message);
+      expect(JSON.stringify(today) === JSON.stringify(mineRows.map(r => r.n)), `smm: Today's clients ${JSON.stringify(today)} differ from the dropdown's My clients ${JSON.stringify(mineRows.map(r => r.n))}`);
       expect(mineRows.every(r => !r.forget), 'smm: My clients must not offer a remove button');
       expect(recentRows.length <= 3 && recentRows.length > 0, `smm: Recent should hold one to three rows, got ${recentRows.length}`);
       expect(recentRows.every(r => !MINE.includes(r.n)), 'smm: Recent repeats a My clients entry');
@@ -343,6 +365,109 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       expect(await page.evaluate(() => sxrState.client) === FIRST, 'samples: first top-bar pick did not switch Samples');
       expect(!!(await page.$('#sxrKebabMenu')), 'samples: the first top-bar pick did not draw the client controls');
       await context.close();
+    }
+
+    // Toolbar balance (owner request 2026-09-27): the view switch sits at the
+    // left end of the Calendar and Samples toolbars, the other controls at the
+    // right, and nothing widens the page on a phone.
+    for (const [path, zoom] of [['/calendar', '#calZoomCtl'], ['/sample-reviews', '#sxrZoomCtl']]) {
+      for (const width of [1440, 390]) {
+        const context = await browser.newContext({ viewport: { width, height: 800 } });
+        await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()), route => {
+          route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }).catch(() => {});
+        });
+        await seedStaffGate(context);
+        await context.addInitScript(v => { try { localStorage.setItem('syncview_shared_client', v); } catch (e) {} }, FIRST);
+        const page = await context.newPage();
+        await page.goto(`http://127.0.0.1:${port}${path}`, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(2500);
+        const m = await page.evaluate(z => {
+          const bar = document.querySelector('.cal-toolbar');
+          const tog = bar && bar.querySelector('.cal-view-toggle');
+          const zm = document.querySelector(z);
+          const b = bar.getBoundingClientRect(), t = tog.getBoundingClientRect(), r = zm.getBoundingClientRect();
+          // DOM order must equal visual order so keyboard Tab reaches the switch
+          // first: it is the first child group of .cal-toolbar-mid holding a
+          // focusable control.
+          const mid = bar.querySelector('.cal-toolbar-mid');
+          const firstFocusable = [...mid.children].find(el => el.matches('button,a[href],input,select,[tabindex]') || el.querySelector('button,a[href],input,select,[tabindex]'));
+          return { toggleGap: Math.round(t.left - b.left), zoomGap: Math.round(b.right - r.right), togLeftOfZoom: t.left < r.left, togFirstInDom: firstFocusable === tog, page: document.documentElement.scrollWidth };
+        }, zoom);
+        const tag = `${path.slice(1)} @${width}`;
+        expect(m.toggleGap < 40, `${tag}: the view switch is not at the left end of the toolbar (${m.toggleGap}px in)`);
+        expect(m.togLeftOfZoom, `${tag}: the view switch should sit left of zoom`);
+        expect(m.togFirstInDom, `${tag}: the view switch is not the first focusable group in the toolbar DOM (tab order would jump)`);
+        if (width > 800) expect(m.zoomGap < 200, `${tag}: zoom should stay on the right (${m.zoomGap}px from the edge)`);
+        expect(m.page <= width, `${tag}: the page is ${m.page}px wide on a ${width}px screen`);
+        await context.close();
+      }
+    }
+
+    // Tab row fit (regression from the picker in #1779): with the Kasper tab
+    // present, the whole row fits with no sideways scroll at 1280px and wider,
+    // no tab is hidden, and the sliding highlight sits under the active tab.
+    // Also under touch (no hover): compact keeps small labels, not icons only,
+    // and switching to a client with a long first name re-fits the row.
+    for (const touch of [false, true])
+    for (const width of [1280, 1366, 1440]) {
+      for (const path of ['/calendar', '/kasper']) {
+        const context = await browser.newContext({ viewport: { width, height: 700 }, hasTouch: touch });
+        await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()), route => {
+          route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }).catch(() => {});
+        });
+        await seedStaffGate(context);
+        await context.addInitScript(v => {
+          try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); localStorage.setItem('syncview_shared_client', v); } catch (e) {}
+        }, FIRST);
+        const page = await context.newPage();
+        await page.goto(`http://127.0.0.1:${port}${path}`, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(2500);
+        const measure = () => page.evaluate(() => {
+          const nav = document.getElementById('headerNav');
+          const tabs = [...nav.querySelectorAll(':scope > .header-nav-btn')].filter(a => getComputedStyle(a).display !== 'none');
+          const navBox = nav.getBoundingClientRect();
+          const active = nav.querySelector(':scope > .header-nav-btn.active');
+          const pill = nav.querySelector(':scope > .header-nav-pill').getBoundingClientRect();
+          const act = active.getBoundingClientRect();
+          return {
+            over: nav.scrollWidth - nav.clientWidth,
+            kasper: tabs.some(a => a.id === 'navKasper'),
+            outside: tabs.filter(a => { const r = a.getBoundingClientRect(); return r.left < navBox.left - 1 || r.right > navBox.right + 1 || r.width < 20; }).map(a => a.id),
+            pillOff: Math.round(Math.abs(pill.left - act.left) + Math.abs(pill.width - act.width)),
+            noHover: matchMedia('(hover: none)').matches,
+            iconOnly: tabs.filter(a => !a.classList.contains('active') && parseFloat(getComputedStyle(a).fontSize) < 1).map(a => a.id),
+            unlabelled: tabs.filter(a => !a.classList.contains('active') && parseFloat(getComputedStyle(a).fontSize) < 1 && !String(a.getAttribute('aria-label') || '').trim()).map(a => a.id),
+            unnamed: tabs.filter(a => !String(a.title || a.getAttribute('aria-label') || '').trim()).map(a => a.id),
+          };
+        });
+        const check = (m, tag) => {
+          expect(m.kasper, `${tag}: the Kasper tab should be present for this check`);
+          expect(m.over <= 0, `${tag}: overflows by ${m.over}px`);
+          expect(!m.outside.length, `${tag}: tabs cut off or hidden: ${m.outside.join(',')}`);
+          expect(m.pillOff <= 2, `${tag}: the active highlight is ${m.pillOff}px off its tab`);
+          expect(!m.unnamed.length, `${tag}: tabs with no title or accessible name: ${m.unnamed.join(',')}`);
+          if (touch) {
+            expect(m.noHover, `${tag}: the touch context does not report hover:none`);
+            // Small labels where they fit; icons only is the last resort, and
+            // then every tab must carry its name as an aria-label.
+            if (width >= 1440 && !/long/.test(tag)) expect(!m.iconOnly.length, `${tag}: touch tabs shown as icons only: ${m.iconOnly.join(',')}`);
+            expect(!m.unlabelled.length, `${tag}: icon-only touch tabs with no aria-label: ${m.unlabelled.join(',')}`);
+          }
+        };
+        const base = `tab row @${width} on ${path}${touch ? ' (touch)' : ''}`;
+        check(await measure(), base);
+        // Switch to a client with a long first name: the label widens, the row
+        // narrows with no window resize, and it must re-fit.
+        await page.evaluate(n => { if (!WL_CLIENT_NAMES.includes(n)) WL_CLIENT_NAMES.push(n); }, LONG);
+        await page.click('#svClientBadge');
+        await page.fill('#svClientSearch', LONG.slice(0, 18));
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(800);
+        const labelNow = await page.evaluate(() => document.getElementById('svClientBadgeLabel').textContent);
+        expect(labelNow === LONG.split(' ')[0], `${base}: the picker label did not switch to the long name (${labelNow})`);
+        check(await measure(), `${base} after a long client name`);
+        await context.close();
+      }
     }
 
     // A client share link: no bar, and the shared client is neither read nor written.

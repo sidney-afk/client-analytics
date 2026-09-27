@@ -36,3 +36,7 @@
 095-shared-client.js.part
 096-quick-jump.js.part
 320-kasper-dashboard-replies.js.part
+097-today.js.part
+098-smm-clients.js.part
+170-calendar-links-status.js.part
+190-calendar-approval-comments.js.part

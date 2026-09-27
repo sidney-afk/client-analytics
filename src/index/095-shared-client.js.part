@@ -4,13 +4,12 @@ import { onCalTabClick } from './160-calendar-organize-ui.js';
 import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-samples-model.js';
 import { selectClient, _templatesSetSelected } from './050-market-briefs.js';
 import { currentNav, _fpSetQueryQuiet } from './060-templates-filming.js';
-import { WL_CLIENT_NAMES, wlCanonicalClient, wlNormalizeClient } from './070-workload-source.js';
-import { navTo } from './090-workload-popovers-navigation.js';
+import { WL_CLIENT_NAMES, wlCanonicalClient } from './070-workload-source.js';
+import { _navPillSync, navTo } from './090-workload-popovers-navigation.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
-import { _syncviewStaffIdentityLoad, _syncviewStaffIdentityValid } from './100-onboarding-staff-controls.js';
-import { _kasperState } from './320-kasper-dashboard-replies.js';
-import { _kasperLoadSMMMap } from './330-kasper-review-history.js';
+import { _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
+import { tdyMyClientNames } from './097-today.js';
     /* ONE CLIENT ACROSS THE SITE (owner decision 2026-09-27, option A).
      *
      * Staff used to re-pick the same client on every tab: Calendar and Samples
@@ -179,7 +178,9 @@ import { _kasperLoadSMMMap } from './330-kasper-review-history.js';
         const badge = document.getElementById('svClientBadge');
         const label = document.getElementById('svClientBadgeLabel');
         const dot = document.getElementById('svClientBadgeDot');
-        if (label) label.textContent = cur ? _svClientShortName(cur) : 'Client';
+        const nextLabel = cur ? _svClientShortName(cur) : 'Client';
+        // A new label width changes the room left for the tab row: re-fit it.
+        if (label && label.textContent !== nextLabel) { label.textContent = nextLabel; requestAnimationFrame(() => _navPillSync(false)); }
         if (badge) {
             badge.setAttribute('data-sv-current', cur || '');
             badge.title = cur || 'Pick a client';
@@ -196,7 +197,11 @@ import { _kasperLoadSMMMap } from './330-kasper-review-history.js';
         const bar = document.getElementById('svClientBar');
         if (!bar) return;
         const show = _svStaffShell();
+        const changed = bar.hidden === show;
         bar.hidden = !show;
+        // The picker shares the bar with the tab row: re-fit the tabs when it
+        // appears or hides (090 _navFitSync, via the pill sync).
+        if (changed) requestAnimationFrame(() => _navPillSync(false));
         document.body.classList.toggle('sv-shared-client', show);
         if (!show) _svClientPopClose();
         else svClientBarRender();
@@ -212,58 +217,36 @@ import { _kasperLoadSMMMap } from './330-kasper-review-history.js';
         return starts.sort((a, b) => a.localeCompare(b)).concat(has.sort((a, b) => a.localeCompare(b))).slice(0, 8);
     }
     /* MY CLIENTS (owner request 2026-09-27). The signed-in SMM's own clients
-     * sit above Recent, always, with no remove button. The client -> SMM
-     * assignment is the same one Kasper's review queue and Samples use: the
-     * "Social Media Managers" tab of the SyncView sheet (client_name ->
-     * social_media_manager, a first name), loaded by _kasperLoadSMMMap into
-     * _kasperState.smmByClient (slug -> { name }). Nothing new is stored: if
-     * that map is not in memory yet, the dropdown fetches it once and keeps it
-     * in memory only.
-     *
-     * Matching: the sheet holds the SMM's first name, the staff identity
-     * holds the roster name, so a client is "mine" when the sheet name equals
-     * either the member's full name or its first word, case-insensitive.
-     * Admins get no My clients section (they own the whole roster), and
-     * neither does anyone with no listed client: search and Recent only. */
-    let _svSmmMapMem = null;
-    let _svSmmMapLoading = null;
-    function _svSmmMap() {
-        try {
-            if (_kasperState && _kasperState.smmByClient instanceof Map && _kasperState.smmByClient.size) return _kasperState.smmByClient;
-        } catch (e) {}
-        if (_svSmmMapMem) return _svSmmMapMem;
-        if (!_svSmmMapLoading && typeof _kasperLoadSMMMap === 'function') {
-            _svSmmMapLoading = Promise.resolve().then(() => _kasperLoadSMMMap()).then(m => {
-                if (m instanceof Map && m.size) _svSmmMapMem = m;
-                else _svSmmMapLoading = null;   // empty or failed: try again next open
-                const pop = document.getElementById('svClientPop');
-                if (_svSmmMapMem && pop && !pop.hidden) _svClientRenderResults();
-            }).catch(() => { _svSmmMapLoading = null; });
-        }
-        return null;
-    }
+     * sit above Recent, always, with no remove button. Which clients are
+     * "mine" is the ONE shared rule in 098-smm-clients, computed by Today's
+     * own loader (tdyMyClientNames in 097-today: the SMM roster from the
+     * smm-weekly-reports options call, cached in _srpState, matched against
+     * current Clients Info clients), so Today and this dropdown can never
+     * disagree. Nothing new is stored: the answer is kept in memory for the
+     * signed-in member only, and a failed or not-yet-loaded roster is retried
+     * on the next open. Admins get no My clients section (they see every
+     * client), and neither does anyone with no listed client: search and
+     * Recent only. */
+    let _svMine = null;          // { id, names } once loaded
+    let _svMineLoading = null;
     function svMyClients() {
-        let identity = null;
-        try {
-            if (typeof _syncviewStaffIdentityValid === 'function' && !_syncviewStaffIdentityValid()) return [];
-            identity = typeof _syncviewStaffIdentityLoad === 'function' ? _syncviewStaffIdentityLoad() : null;
-        } catch (e) { return []; }
-        const member = identity && identity.member;
-        if (!member || !member.name) return [];
-        const role = String(member.role || identity.role || '').toLowerCase();
-        if (role === 'admin') return [];
-        const full = String(member.name).trim().toLowerCase().replace(/\s+/g, ' ');
-        const first = full.split(' ')[0];
-        const map = _svSmmMap();
-        if (!map || !first) return [];
-        const mine = [];
-        for (const n of new Set(WL_CLIENT_NAMES.map(_svCanon).filter(Boolean))) {
-            let row = null;
-            try { row = map.get(typeof wlNormalizeClient === 'function' ? wlNormalizeClient(n) : n); } catch (e) {}
-            const smm = String(row && row.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
-            if (smm && (smm === full || smm === first)) mine.push(n);
+        let me = null;
+        let role = '';
+        try { const id = _syncviewStaffIdentityForHeaders(); me = id && id.member; role = String(id && id.role || me && me.role || '').toLowerCase(); } catch (e) {}
+        if (!me || !me.id) return [];
+        const meId = String(me.id) + '|' + role;   // a role change re-reads
+        if (_svMine && _svMine.id === meId) return _svMine.names;
+        if (!_svMineLoading && typeof tdyMyClientNames === 'function') {
+            _svMineLoading = Promise.resolve().then(() => tdyMyClientNames()).then(r => {
+                _svMineLoading = null;
+                if (!r || String(r.id) + '|' + role !== meId) return;
+                const names = [...new Set((r.names || []).map(n => _svCanon(n) || String(n).trim()).filter(Boolean))];
+                _svMine = { id: meId, names: names.sort((x, y) => x.localeCompare(y)) };
+                const pop = document.getElementById('svClientPop');
+                if (pop && !pop.hidden) _svClientRenderResults();
+            }).catch(() => { _svMineLoading = null; });
         }
-        return mine.sort((a, b) => a.localeCompare(b));
+        return [];
     }
     // No query: My clients (if any), then Recent (at most three rows, the
     // current client first when it is not one of My clients). The current

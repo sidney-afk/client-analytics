@@ -91,6 +91,10 @@
     </div>
     <div class="header-nav" id="headerNav">
         <span class="header-nav-pill" aria-hidden="true"></span>
+        <a class="header-nav-btn" id="navToday" href="/today" onclick="if(_modClick(event))return;event.preventDefault();navTo('today')">
+            <span class="header-nav-ico ico-today" aria-hidden="true"></span>
+            Today
+        </a>
         <a class="header-nav-btn" id="navCalendar" href="/calendar" onclick="if(_modClick(event))return;event.preventDefault();navTo('calendar')">
             <span class="header-nav-ico ico-calendar" aria-hidden="true"></span>
             Calendar

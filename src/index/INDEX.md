@@ -27,7 +27,7 @@
 | 19 | `131-core-html.js.part` | 13 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 20 | `132-calendar-dates-ids.js.part` | 14 | — |
 | 21 | `133-core-loading-skeletons.js.part` | 367 | Modern animated loader — a single rotating ring with a subtle label. |
-| 22 | `134-calendar-prefs-mount.js.part` | 1070 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
+| 22 | `134-calendar-prefs-mount.js.part` | 1072 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
 | 23 | `140-calendar-legacy-outbox.js.part` | 3070 | Shed the retired legacy rows from storage, under the surface mutation |
 | 24 | `150-calendar-hydration-import.js.part` | 2197 | For a card linked to a real sub-issue (not a parent), return which of |
 | 25 | `160-calendar-organize-ui.js.part` | 2815 | Lighter path for the Order switch: update the chrome in place so the |

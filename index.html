@@ -23553,8 +23553,8 @@
      *
      *   Calendar, Samples, Templates, Filming Plans, TikTok Upload, Analytics.
      *
-     * Team tabs (Workload, SyncLinear, Production, Submit, Kasper, Time Off,
-     * reports) ignore it on purpose: they are about people, not one client, and
+     * Team tabs (Workload, SyncLinear, Production, Submit, Kasper, the leave
+     * calendar, reports) ignore it on purpose: they are about people, not one client, and
      * the bar is hidden there so nobody reads it as a filter.
      *
      * The client is a canonical roster display name (WL_CLIENT_NAMES), the same
@@ -33778,10 +33778,11 @@
             }
         }
         calState.client = name;
-        if (name) svSharedClientNote(name);
     }
     function _calOpenClientTab(name) {
         if (!name || calState.embedded || currentNav !== 'calendar') return;
+        // A card link names its client: that becomes the shared top-bar client.
+        if (typeof svSharedClientNote === 'function') svSharedClientNote(name);
         const pins = _calGetPins();
         if (!pins.includes(name)) { pins.unshift(name); _calSavePins(pins); }
         if (calState.client === name) { _calRenderTabs(); return; }
@@ -33907,6 +33908,7 @@
         if (initial && !pins.includes(initial)) { pins.unshift(initial); _calSavePins(pins); }
         if (focusClient && !pins.includes(focusClient)) { pins.unshift(focusClient); _calSavePins(pins); }
         _calSetClient(initial);
+        if (initial) svSharedClientNote(initial);
         calState.embedded = false;
         calState.view = _calFocusRequest ? 'organizer' : _calResolveInitialView(prefs.view);
         calState.zoom = _calNormZoom(prefs.zoom);

@@ -396,10 +396,11 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             }
         }
         calState.client = name;
-        if (name) svSharedClientNote(name);
     }
     function _calOpenClientTab(name) {
         if (!name || calState.embedded || currentNav !== 'calendar') return;
+        // A card link names its client: that becomes the shared top-bar client.
+        if (typeof svSharedClientNote === 'function') svSharedClientNote(name);
         const pins = _calGetPins();
         if (!pins.includes(name)) { pins.unshift(name); _calSavePins(pins); }
         if (calState.client === name) { _calRenderTabs(); return; }
@@ -525,6 +526,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
         if (initial && !pins.includes(initial)) { pins.unshift(initial); _calSavePins(pins); }
         if (focusClient && !pins.includes(focusClient)) { pins.unshift(focusClient); _calSavePins(pins); }
         _calSetClient(initial);
+        if (initial) svSharedClientNote(initial);
         calState.embedded = false;
         calState.view = _calFocusRequest ? 'organizer' : _calResolveInitialView(prefs.view);
         calState.zoom = _calNormZoom(prefs.zoom);

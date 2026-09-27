@@ -14,8 +14,8 @@ import { _isClientLink } from './260-production-refresh-boot.js';
      *
      *   Calendar, Samples, Templates, Filming Plans, TikTok Upload, Analytics.
      *
-     * Team tabs (Workload, SyncLinear, Production, Submit, Kasper, Time Off,
-     * reports) ignore it on purpose: they are about people, not one client, and
+     * Team tabs (Workload, SyncLinear, Production, Submit, Kasper, the leave
+     * calendar, reports) ignore it on purpose: they are about people, not one client, and
      * the bar is hidden there so nobody reads it as a filter.
      *
      * The client is a canonical roster display name (WL_CLIENT_NAMES), the same

@@ -127,7 +127,9 @@ const ok = (c, l) => { if (c) { pass++; console.log('  ok   ' + l); } else { fai
   await page.evaluate(() => onCalViewChange('organizer')); await page.waitForTimeout(400);
   ok(await page.$('#calOrganizeWrap') !== null, 'pill is back on the Sheet tab');
   const order = await page.$$eval('.cal-toolbar-mid > *', els => els.map(e => e.className.split(' ')[1] || e.className));
-  ok(order[0] === 'cal-organize', 'and back in its original toolbar slot (' + JSON.stringify(order) + ')');
+  // Staff picker shell: the view switch leads the row, the pill follows it.
+  const pickerShell = await page.$('.cal-toolbar.is-picker-shell') !== null;
+  ok(order[pickerShell ? 1 : 0] === 'cal-organize', 'and back in its original toolbar slot (' + JSON.stringify(order) + ')');
 
   console.log('\nH) persistence across a reload');
   await page.evaluate(() => onCalSortModeToggle());

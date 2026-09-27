@@ -284,6 +284,31 @@ These records describe what was checked at the time, not the current operating s
 | [Aug 4 — monitoring readiness](audits/2026-08-04-monitoring-readiness-cutover.md) | Historical pre-cutover evidence about the alert relay, watchdog, and monitoring proof lanes. |
 | [Aug 2 — Graphics evidence lane](audits/2026-08-02-graphics-f2-evidence-lane.md) | Source and isolated F2 evidence-tool proof; no authority flip or live action was performed. |
 
+## July 2026 audit evidence
+
+These records capture checks and proposals from July. Their dated findings do not establish the current operating state.
+
+| Document | What it covers |
+|---|---|
+| [Jul 7 — former tracker state map](audits/2026-07-07-linear-state-map.md) | A public-safe review of status and type names for the former tracker; private identifiers were not committed. |
+| [Jul 6 — Production parity gaps](audits/2026-07-06-prod-parity-gaps.md) | A source and artifact comparison that seeded a then-current Production parity backlog. |
+| [Jul 6 — data assumptions](audits/2026-07-06-data-assumption-sweep.md) | A sweep of unverified data assumptions and proposed checks in the then-current migration plan. |
+| [Jul 5 — Supabase re-audit](audits/2026-07-05-supabase.md) | Read-only anonymous API checks of reachability and schema visibility at that date. |
+| [Jul 5 — Sheets re-audit](audits/2026-07-05-sheets.md) | Read-only views and a workflow inspection of the then-current roster and editor-feed shape. |
+| [Jul 5 — re-audit summary](audits/2026-07-05-reaudit-summary.md) | A dated summary of parallel read-only service and source re-audits, with their coverage limits. |
+| [Jul 5 — n8n re-audit](audits/2026-07-05-n8n.md) | A read-only workflow inventory compared with the July 3 snapshot; no workflow was run or edited. |
+| [Jul 5 — sync logic](audits/2026-07-05-logic-sync.md) | A source trace of the former tracker consistency, reconciliation, and workload paths. |
+| [Jul 5 — Samples logic](audits/2026-07-05-logic-samples.md) | A source-only trace of then-current Samples reads and legacy behavior. |
+| [Jul 5 — review logic](audits/2026-07-05-logic-reviews.md) | A source-only trace of client and staff review flows at that commit. |
+| [Jul 5 — Calendar logic](audits/2026-07-05-logic-calendar.md) | A source-only trace of Calendar behavior at that commit. |
+| [Jul 5 — former tracker re-audit](audits/2026-07-05-linear.md) | Read-only workspace findings that distinguish measured facts from estimates. |
+| [Jul 4 — settings gate evidence](audits/2026-07-04-a4-gate-evidence.md) | Public-safe readback and review-gate evidence for the then-draft settings rollout. |
+| [Jul 3 — marketing repository](audits/2026-07-03-synchrosocial-repo.md) | A source audit of the marketing site and its then-observed relationship to this app. |
+| [Jul 3 — Supabase](audits/2026-07-03-supabase.md) | A dated schema and access snapshot of the repository and backend. |
+| [Jul 3 — n8n](audits/2026-07-03-n8n.md) | A read-only workflow inventory with partial node-level coverage. |
+| [Jul 3 — former tracker](audits/2026-07-03-linear.md) | A read-only workspace inventory that separates measured facts from estimates. |
+| [Jul 3 — application code](audits/2026-07-03-code.md) | A dated source survey of app structure, deployment paths, and key flows. |
+
 ## Archived migrations and incidents
 
 These records explain earlier decisions and failures. Their dated status claims are not current operating instructions.

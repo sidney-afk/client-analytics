@@ -1,3 +1,4 @@
+import { svClientBarSync, svSharedClientNote } from './095-shared-client.js';
 import {
   CONTENT_SUMMARY_WEBHOOK, ICON, WEEKLY_SLACK_WEBHOOK, _analyticsExtrasApplied,
   _analyticsExtrasArrival, _analyticsFlushPendingExtras, _analyticsHasTrustedMetrics,
@@ -1005,6 +1006,7 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
     }
 
     function render(sel,clientOnly){
+        if (typeof svClientBarSync === 'function') svClientBarSync('home');   // client Analytics can be reached without navTo (hash, history)
         if(_isClientLink){
             const cap=_syncviewClientEntryCapability;
             if(!clientOnly||!cap||!cap.verified||_syncviewClientEntrySlug(sel)!==cap.slug){
@@ -1117,6 +1119,7 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
     }
 
     function selectClient(name){
+        svSharedClientNote(name);
         const tab = 'analytics';
         clientViewTab[name] = tab;
         history.pushState({nav:currentNav, client:name, clientTab:tab},'','#'+encodeURIComponent(name));
@@ -1125,6 +1128,8 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
     }
 
     window.addEventListener('popstate',(e)=>{
+        // Several branches below route without navTo; keep the client bar in step.
+        setTimeout(()=>{ if (typeof svClientBarSync === 'function') svClientBarSync(currentNav); },0);
         const state=e.state;
         if(_isClientLink){
             const cap=_syncviewClientEntryCapability;
@@ -1344,6 +1349,43 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
     function _tplSetPinsEditMode(value) { _tplPinsEditMode = value; }
     function _tplSetPinSelectorOpen(value) { _tplPinSelectorOpen = value; }
     let _tplRealtimeChannel = null;
+    let _tplRealtimeConnected = false;
+    let _tplCatchupTimer = null;
+    let _tplCatchupInFlight = false;
+    let _tplReconnectCatchupPending = false;
+    const TPL_CATCHUP_POLL_MS = 60 * 1000;
+
+    function _tplStopCatchupPoll() {
+        if (_tplCatchupTimer) { clearInterval(_tplCatchupTimer); _tplCatchupTimer = null; }
+    }
+    async function _tplCatchup() {
+        if (currentNav !== 'templates' || document.visibilityState === 'hidden' || _tplCatchupInFlight) return;
+        _tplCatchupInFlight = true;
+        // If a poll was in flight when the channel reconnected, its response
+        // could predate the reconnect. Queue one read after that poll settles.
+        const clearedPending = _tplRealtimeConnected;
+        if (clearedPending) {
+            _tplReconnectCatchupPending = false;
+            _tplStopCatchupPoll();
+        }
+        let ok = false;
+        try { ok = (await loadTemplates()) === true; }
+        finally {
+            _tplCatchupInFlight = false;
+            // A failed catch-up read must not end the catch-up: keep it armed
+            // and keep polling until one read succeeds.
+            if (clearedPending && !ok) {
+                _tplReconnectCatchupPending = true;
+                _tplStartCatchupPoll();
+            } else if (_tplRealtimeConnected && _tplReconnectCatchupPending) _tplCatchup();
+        }
+    }
+    function _tplStartCatchupPoll() {
+        if (_tplCatchupTimer) return;
+        _tplCatchupTimer = setInterval(() => {
+            if (!_tplRealtimeConnected || _tplReconnectCatchupPending) _tplCatchup();
+        }, TPL_CATCHUP_POLL_MS);
+    }
 
     async function _tplLoadFromSupabase() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase not configured');
@@ -1363,10 +1405,12 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
 
     async function _tplSubscribeSupabase() {
         if (_tplRealtimeChannel) return;
-        const client = await _calRuntimeFlagClient();
-        if (!client || _tplRealtimeChannel) return;
+        // An existing channel object is not proof that its socket connected.
+        _tplStartCatchupPoll();
         try {
-            _tplRealtimeChannel = client
+            const client = await _calRuntimeFlagClient();
+            if (!client || _tplRealtimeChannel) return;
+            const channel = client
                 .channel('syncview-templates')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'templates' }, (payload) => {
                     const row = payload && payload.new ? payload.new : null;
@@ -1375,11 +1419,24 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
                     if (!name) return;
                     templatesData[name] = Object.assign({}, templatesData[name] || {}, data, { updated_at: row.updated_at || data.updated_at || '' });
                     _maybeRerenderTemplates();
-                })
-                .subscribe();
+                });
+            _tplRealtimeChannel = channel;
+            channel.subscribe((status) => {
+                if (_tplRealtimeChannel !== channel) return;
+                if (status === 'SUBSCRIBED') {
+                    _tplRealtimeConnected = true;
+                    if (_tplReconnectCatchupPending) _tplCatchup();
+                    else _tplStopCatchupPoll();
+                } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                    _tplRealtimeConnected = false;
+                    _tplReconnectCatchupPending = true;
+                    _tplStartCatchupPoll();
+                }
+            });
         } catch (e) {
             console.warn('[SyncView] templates realtime subscribe failed', e);
             _tplRealtimeChannel = null;
+            _tplRealtimeConnected = false;
         }
     }
 
@@ -1430,8 +1487,11 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
         } catch (e) {
             console.warn('[SyncView] loadTemplates failed:', e);
             templatesLoadError = e.message || String(e);
+            _maybeRerenderTemplates();
+            return false;
         }
         _maybeRerenderTemplates();
+        return true;
     }
     function _maybeRerenderTemplates() {
         if (currentNav !== 'templates') return;
@@ -1702,6 +1762,7 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
     }
 
 export {
+  selectClient,
   CHECK_SVG, PEN_ICON_SVG, PIN_ICON_SVG, TPL_MAX_PINS, TPL_PINS_KEY, TPL_RECENT_KEY, _NOT_SET,
   _autoSummaryAttempted, _maybeRerenderTemplates, _mrExternalLink, _setTplStatus, _svCss, _svRgb,
   _templatesActiveTab, _templatesEditMode, _templatesSelected, _templatesSetActiveTab,

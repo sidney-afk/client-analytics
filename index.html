@@ -8565,6 +8565,34 @@
             .ca-link { min-height: 44px; }
             .ca-group dl { grid-template-columns: 1fr; }
         }
+
+        /* Shared client bar (095-shared-client): one client above the tabs. */
+        .sv-client-bar { display: flex; align-items: center; gap: 10px; padding: 8px 32px; background: var(--white); border-bottom: 1px solid var(--border); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.8rem; overflow-x: auto; scrollbar-width: none; }
+        .sv-client-bar[hidden] { display: none; }
+        .sv-client-cap { font-size: 0.66rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); flex: none; }
+        .sv-client-badge-wrap { position: relative; flex: none; }
+        .sv-client-badge { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 6px; border: 1px solid var(--border); border-radius: 999px; background: var(--white); color: var(--text-primary); font: inherit; font-weight: 700; cursor: pointer; white-space: nowrap; }
+        .sv-client-badge:hover { background: var(--surface-hover); }
+        .sv-client-badge:focus-visible, .sv-client-recent-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        .sv-client-chev { opacity: 0.55; }
+        .sv-client-dot { width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; flex: none; font-size: 0.62rem; font-weight: 700; color: var(--sv-fg-fff); background: hsl(var(--sv-client-h, 220) 52% 46%); }
+        .sv-client-dot.is-empty { background: var(--surface-subtle); color: var(--text-muted); font-size: 0.9rem; }
+        .sv-client-recent-label { font-size: 0.72rem; color: var(--text-muted); margin-left: 6px; flex: none; }
+        .sv-client-recent { display: flex; gap: 8px; flex: none; }
+        .sv-client-recent-btn { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px 4px 5px; border: 1px solid transparent; border-radius: 999px; background: var(--surface-subtle); color: var(--text-secondary); font: inherit; font-weight: 500; cursor: pointer; white-space: nowrap; }
+        .sv-client-recent-btn:hover { border-color: var(--border); color: var(--text-primary); }
+        .sv-client-recent-btn .sv-client-dot { width: 16px; height: 16px; font-size: 0.5rem; }
+        .sv-client-pop { position: fixed; z-index: 9998; margin-top: 8px; width: min(320px, calc(100vw - 28px)); background: var(--white); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm), 0 18px 48px var(--overlay); padding: 8px; }
+        .sv-client-search { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; font: inherit; font-size: 0.85rem; background: var(--white); color: var(--text-primary); outline: none; }
+        .sv-client-search:focus { border-color: var(--focus-ring); }
+        .sv-client-sec { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); padding: 10px 8px 4px; }
+        .sv-client-row { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 8px; cursor: pointer; font-size: 0.84rem; color: var(--text-primary); }
+        .sv-client-row:hover, .sv-client-row.is-active { background: var(--surface-hover); }
+        .sv-client-row .sv-client-dot { width: 20px; height: 20px; font-size: 0.56rem; }
+        .sv-client-none { padding: 8px; font-size: 0.8rem; color: var(--text-muted); }
+        .sv-client-foot { font-size: 0.7rem; color: var(--text-muted); padding: 8px 8px 2px; border-top: 1px solid var(--border-light); margin-top: 6px; }
+        .header-nav-sep { flex: none; width: 1px; height: 20px; margin: 0 4px; background: var(--border); }
+        @media (max-width: 700px) { .sv-client-bar { padding: 8px 14px; gap: 6px; } .sv-client-cap, .sv-client-recent-label { display: none !important; } }
     </style>
 </head>
 <body>
@@ -8622,6 +8650,27 @@
     </div>
 </div>
 
+<!-- Shared client bar (095-shared-client). One client for Calendar, Samples,
+     Templates, Filming Plans, TikTok Upload and Analytics; hidden on team tabs
+     and on client links. -->
+<div class="sv-client-bar" id="svClientBar" hidden>
+    <span class="sv-client-cap">Client</span>
+    <div class="sv-client-badge-wrap" id="svClientBadgeWrap">
+        <button type="button" class="sv-client-badge" id="svClientBadge" onclick="svClientPopToggle(event)" aria-haspopup="listbox" aria-expanded="false" title="Search any client">
+            <span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>
+            <span id="svClientBadgeLabel">Pick a client</span>
+            <svg class="sv-client-chev" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
+        </button>
+        <div class="sv-client-pop" id="svClientPop" hidden>
+            <input type="text" class="sv-client-search" id="svClientSearch" placeholder="Search any client…" autocomplete="off" aria-label="Search any client" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="svClientResults">
+            <div class="sv-client-results" id="svClientResults" role="listbox"></div>
+            <div class="sv-client-foot">Follows you across Calendar, Samples, Templates, Filming Plans, TikTok Upload and Analytics.</div>
+        </div>
+    </div>
+    <span class="sv-client-recent-label" id="svClientRecentLabel" hidden>Recent</span>
+    <div class="sv-client-recent" id="svClientRecent"></div>
+</div>
+
 <header class="header" style="display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;">
     <a class="logo" href="/" onclick="if(_modClick(event))return;event.preventDefault();goHome();" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
         <img src="/syncview-favicon.png" alt="SyncView">
@@ -8629,30 +8678,6 @@
     </a>
     <div class="header-nav" id="headerNav">
         <span class="header-nav-pill" aria-hidden="true"></span>
-        <a class="header-nav-btn active" id="navHome" href="/" onclick="if(_modClick(event))return;event.preventDefault();navTo('home')">
-            <span class="header-nav-ico ico-analytics" aria-hidden="true"></span>
-            Analytics
-        </a>
-        <a class="header-nav-btn" id="navProd" href="/synclinear" onclick="if(_modClick(event))return;event.preventDefault();navTo('production')">
-            <span class="header-nav-ico ico-synclinear" aria-hidden="true"></span>
-            SyncLinear
-        </a>
-        <a class="header-nav-btn" id="navLinear" href="/submit" onclick="if(_modClick(event))return;event.preventDefault();navTo('linear')">
-            <span class="header-nav-ico ico-submit" aria-hidden="true"></span>
-            Submit
-        </a>
-        <a class="header-nav-btn" id="navTemplates" href="/templates" onclick="if(_modClick(event))return;event.preventDefault();navTo('templates')">
-            <span class="header-nav-ico ico-templates" aria-hidden="true"></span>
-            Templates
-        </a>
-        <a class="header-nav-btn" id="navFilmingPlans" href="/filming-plans" onclick="if(_modClick(event))return;event.preventDefault();navTo('filming-plans')">
-            <span class="header-nav-ico ico-filmingplans" aria-hidden="true"></span>
-            Filming Plans
-        </a>
-        <a class="header-nav-btn" id="navWorkload" href="/workload" onclick="if(_modClick(event))return;event.preventDefault();navTo('workload')">
-            <span class="header-nav-ico ico-workload" aria-hidden="true"></span>
-            Workload
-        </a>
         <a class="header-nav-btn" id="navCalendar" href="/calendar" onclick="if(_modClick(event))return;event.preventDefault();navTo('calendar')">
             <span class="header-nav-ico ico-calendar" aria-hidden="true"></span>
             Calendar
@@ -8663,11 +8688,35 @@
             Samples
         </a>
         <!-- <<< SXR_END -->
-
-
+        <a class="header-nav-btn" id="navTemplates" href="/templates" onclick="if(_modClick(event))return;event.preventDefault();navTo('templates')">
+            <span class="header-nav-ico ico-templates" aria-hidden="true"></span>
+            Templates
+        </a>
+        <a class="header-nav-btn" id="navFilmingPlans" href="/filming-plans" onclick="if(_modClick(event))return;event.preventDefault();navTo('filming-plans')">
+            <span class="header-nav-ico ico-filmingplans" aria-hidden="true"></span>
+            Filming Plans
+        </a>
         <a class="header-nav-btn" id="navTiktokUpload" href="/tiktok-upload" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-upload')">
             <span class="header-nav-ico ico-tiktok" aria-hidden="true"></span>
             TikTok Upload
+        </a>
+        <a class="header-nav-btn active" id="navHome" href="/" onclick="if(_modClick(event))return;event.preventDefault();svOpenAnalytics()">
+            <span class="header-nav-ico ico-analytics" aria-hidden="true"></span>
+            Analytics
+        </a>
+        <!-- The six tabs above follow the shared top-bar client; the team tabs below ignore it. -->
+        <span class="header-nav-sep" aria-hidden="true"></span>
+        <a class="header-nav-btn" id="navWorkload" href="/workload" onclick="if(_modClick(event))return;event.preventDefault();navTo('workload')">
+            <span class="header-nav-ico ico-workload" aria-hidden="true"></span>
+            Workload
+        </a>
+        <a class="header-nav-btn" id="navProd" href="/synclinear" onclick="if(_modClick(event))return;event.preventDefault();navTo('production')">
+            <span class="header-nav-ico ico-synclinear" aria-hidden="true"></span>
+            SyncLinear
+        </a>
+        <a class="header-nav-btn" id="navLinear" href="/submit" onclick="if(_modClick(event))return;event.preventDefault();navTo('linear')">
+            <span class="header-nav-ico ico-submit" aria-hidden="true"></span>
+            Submit
         </a>
         <a class="header-nav-btn" id="navKasper" href="/kasper" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('kasper')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.5"/></svg>
@@ -9237,12 +9286,22 @@
        then re-focus the matching field in the fresh DOM and restore selection.
        No-ops when nothing is focused or the focused node isn't a text field, so
        it is always safe to wrap a render — even a background one. */
+    /* The handler string alone is not unique: every card's name box calls
+       the same `_sxrOnFieldInput(this)`, so a match on it alone picked the
+       FIRST card on the page, not the one being typed in. Where the field
+       carries its card and field identity (data-pid, data-fld, data-comp),
+       that identity is part of the signature. */
+    function _svFieldKey(el) {
+        const get = k => (el.getAttribute && el.getAttribute(k)) || '';
+        const parts = ['data-pid', 'data-fld', 'data-comp'].map(k => get(k) ? k + '=' + get(k) : '').filter(Boolean);
+        return parts.length ? '|' + parts.join('|') : '';
+    }
     function _svFieldSig(el) {
         if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA')) return '';
         if (el.id) return '#' + el.id;
         const oi = el.getAttribute && el.getAttribute('oninput');
-        if (oi) return 'oninput=' + oi;
-        if (el.name) return 'name=' + el.name;
+        if (oi) return 'oninput=' + oi + _svFieldKey(el);
+        if (el.name) return 'name=' + el.name + _svFieldKey(el);
         return '';
     }
     function _svCaptureFocus(root) {
@@ -9251,14 +9310,16 @@
         if (root && !(root.contains && root.contains(a))) return null;   // focus isn't in the region being rebuilt
         const sig = _svFieldSig(a);
         if (!sig) return null;
-        const cap = { sig, start: null, end: null, dir: 'none' };
+        const cap = { sig, el: a, start: null, end: null, dir: 'none' };
         try { cap.start = a.selectionStart; cap.end = a.selectionEnd; cap.dir = a.selectionDirection || 'none'; } catch (e) {}
         return cap;
     }
     function _svRestoreFocus(cap) {
         if (!cap || !cap.sig) return;
         let el = null;
-        if (cap.sig.charAt(0) === '#') el = document.getElementById(cap.sig.slice(1));
+        // The very box the person was in, when a render left it in place.
+        if (cap.el && cap.el.isConnected && _svFieldSig(cap.el) === cap.sig) el = cap.el;
+        if (!el && cap.sig.charAt(0) === '#') el = document.getElementById(cap.sig.slice(1));
         if (!el) {
             const nodes = document.querySelectorAll('input, textarea');
             for (let i = 0; i < nodes.length; i++) { if (_svFieldSig(nodes[i]) === cap.sig) { el = nodes[i]; break; } }
@@ -11782,6 +11843,7 @@
     }
 
     function render(sel,clientOnly){
+        if (typeof svClientBarSync === 'function') svClientBarSync('home');   // client Analytics can be reached without navTo (hash, history)
         if(_isClientLink){
             const cap=_syncviewClientEntryCapability;
             if(!clientOnly||!cap||!cap.verified||_syncviewClientEntrySlug(sel)!==cap.slug){
@@ -11894,6 +11956,7 @@
     }
 
     function selectClient(name){
+        svSharedClientNote(name);
         const tab = 'analytics';
         clientViewTab[name] = tab;
         history.pushState({nav:currentNav, client:name, clientTab:tab},'','#'+encodeURIComponent(name));
@@ -11902,6 +11965,8 @@
     }
 
     window.addEventListener('popstate',(e)=>{
+        // Several branches below route without navTo; keep the client bar in step.
+        setTimeout(()=>{ if (typeof svClientBarSync === 'function') svClientBarSync(currentNav); },0);
         const state=e.state;
         if(_isClientLink){
             const cap=_syncviewClientEntryCapability;
@@ -12121,6 +12186,43 @@
     function _tplSetPinsEditMode(value) { _tplPinsEditMode = value; }
     function _tplSetPinSelectorOpen(value) { _tplPinSelectorOpen = value; }
     let _tplRealtimeChannel = null;
+    let _tplRealtimeConnected = false;
+    let _tplCatchupTimer = null;
+    let _tplCatchupInFlight = false;
+    let _tplReconnectCatchupPending = false;
+    const TPL_CATCHUP_POLL_MS = 60 * 1000;
+
+    function _tplStopCatchupPoll() {
+        if (_tplCatchupTimer) { clearInterval(_tplCatchupTimer); _tplCatchupTimer = null; }
+    }
+    async function _tplCatchup() {
+        if (currentNav !== 'templates' || document.visibilityState === 'hidden' || _tplCatchupInFlight) return;
+        _tplCatchupInFlight = true;
+        // If a poll was in flight when the channel reconnected, its response
+        // could predate the reconnect. Queue one read after that poll settles.
+        const clearedPending = _tplRealtimeConnected;
+        if (clearedPending) {
+            _tplReconnectCatchupPending = false;
+            _tplStopCatchupPoll();
+        }
+        let ok = false;
+        try { ok = (await loadTemplates()) === true; }
+        finally {
+            _tplCatchupInFlight = false;
+            // A failed catch-up read must not end the catch-up: keep it armed
+            // and keep polling until one read succeeds.
+            if (clearedPending && !ok) {
+                _tplReconnectCatchupPending = true;
+                _tplStartCatchupPoll();
+            } else if (_tplRealtimeConnected && _tplReconnectCatchupPending) _tplCatchup();
+        }
+    }
+    function _tplStartCatchupPoll() {
+        if (_tplCatchupTimer) return;
+        _tplCatchupTimer = setInterval(() => {
+            if (!_tplRealtimeConnected || _tplReconnectCatchupPending) _tplCatchup();
+        }, TPL_CATCHUP_POLL_MS);
+    }
 
     async function _tplLoadFromSupabase() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase not configured');
@@ -12140,10 +12242,12 @@
 
     async function _tplSubscribeSupabase() {
         if (_tplRealtimeChannel) return;
-        const client = await _calRuntimeFlagClient();
-        if (!client || _tplRealtimeChannel) return;
+        // An existing channel object is not proof that its socket connected.
+        _tplStartCatchupPoll();
         try {
-            _tplRealtimeChannel = client
+            const client = await _calRuntimeFlagClient();
+            if (!client || _tplRealtimeChannel) return;
+            const channel = client
                 .channel('syncview-templates')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'templates' }, (payload) => {
                     const row = payload && payload.new ? payload.new : null;
@@ -12152,11 +12256,24 @@
                     if (!name) return;
                     templatesData[name] = Object.assign({}, templatesData[name] || {}, data, { updated_at: row.updated_at || data.updated_at || '' });
                     _maybeRerenderTemplates();
-                })
-                .subscribe();
+                });
+            _tplRealtimeChannel = channel;
+            channel.subscribe((status) => {
+                if (_tplRealtimeChannel !== channel) return;
+                if (status === 'SUBSCRIBED') {
+                    _tplRealtimeConnected = true;
+                    if (_tplReconnectCatchupPending) _tplCatchup();
+                    else _tplStopCatchupPoll();
+                } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                    _tplRealtimeConnected = false;
+                    _tplReconnectCatchupPending = true;
+                    _tplStartCatchupPoll();
+                }
+            });
         } catch (e) {
             console.warn('[SyncView] templates realtime subscribe failed', e);
             _tplRealtimeChannel = null;
+            _tplRealtimeConnected = false;
         }
     }
 
@@ -12207,8 +12324,11 @@
         } catch (e) {
             console.warn('[SyncView] loadTemplates failed:', e);
             templatesLoadError = e.message || String(e);
+            _maybeRerenderTemplates();
+            return false;
         }
         _maybeRerenderTemplates();
+        return true;
     }
     function _maybeRerenderTemplates() {
         if (currentNav !== 'templates') return;
@@ -13384,6 +13504,7 @@
     }
 
     function openClientTemplate(name) {
+        svSharedClientNote(name);
         _templatesSetSelected(name);
         _templatesSetActiveTab('reels');
         _templatesSetEditMode(false);
@@ -14346,6 +14467,8 @@
         const content = document.getElementById('content');
         if (content) { content.innerHTML = renderFilmingPlansView(); mountFilmingPlansView(); }
     }
+    // The shared top-bar client pre-fills the search before the page renders.
+    function _fpSetQueryQuiet(v) { _fpQuery = String(v || ''); }
     function _fpSetQuery(v) {
         _fpQuery = String(v || '');
         _fpRenderPage();
@@ -23343,6 +23466,7 @@
             requestAnimationFrame(() => activeHeaderNav.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
         }
         _navPillSync();
+        svClientBarSync(page);   // the shared client bar shows on client tabs only
         // The standalone Calendar page hides the page header (pageTop) and drops
         // the toolbar straight under the sticky nav, so the global .main top
         // gutter reads as dead space. Tag the body so we can tighten that band
@@ -23388,6 +23512,7 @@
         if (page !== 'sample-reviews' && typeof _sxrV2Teardown === 'function') _navTeardownSafe(_sxrV2Teardown); // SXR_LINE
         if (page !== 'workload' && typeof _wlV2Teardown === 'function') _navTeardownSafe(_wlV2Teardown);
 
+        svSharedClientApply(page, push);   // Templates / Filming Plans open on the shared client
         const state = {nav: page, client: null};
         // Templates keeps the selected client + active tab in the URL / history
         // state so a refresh or back/forward restores exactly where you were —
@@ -23506,6 +23631,242 @@
             render('all');
         }
     }
+
+    /* ONE CLIENT ACROSS THE SITE (owner decision 2026-09-27, option A).
+     *
+     * Staff used to re-pick the same client on every tab: Calendar and Samples
+     * each kept their own pinned client strip, Templates its own open client,
+     * TikTok Upload its own draft client, Filming Plans a typed search. Now one
+     * "current client" lives in the top bar above the tabs, with one-click
+     * buttons for the last three clients, and these tabs follow it:
+     *
+     *   Calendar, Samples, Templates, Filming Plans, TikTok Upload, Analytics.
+     *
+     * Team tabs (Workload, SyncLinear, Production, Submit, Kasper, the leave
+     * calendar, reports) ignore it on purpose: they are about people, not one client, and
+     * the bar is hidden there so nobody reads it as a filter.
+     *
+     * The client is a canonical roster display name (WL_CLIENT_NAMES), the same
+     * identity every following tab already stored. It is a per-browser
+     * convenience (localStorage), never sent anywhere.
+     *
+     * Client share links (?c=...) never show the bar and never read or write the
+     * shared client: every entry point below returns early on _isClientLink. A
+     * deep link that names a card (#calendar/<slug>/<card>) still wins over the
+     * shared client; opening it simply makes that client the shared one. */
+    const SV_SHARED_CLIENT_KEY = 'syncview_shared_client';
+    const SV_RECENT_CLIENTS_KEY = 'syncview_recent_clients';
+    const SV_RECENT_MAX = 4;   // current + the three shown as buttons
+    const SV_CLIENT_FOLLOW_TABS = ['calendar', 'sample-reviews', 'templates', 'filming-plans', 'tiktok-upload', 'home'];
+
+    function _svClientLinkMode() {
+        try { return !!_isClientLink; } catch (e) { return true; }   // unknown: stay out of the way
+    }
+    function _svStaffShell() {
+        const b = document.body;
+        return !_svClientLinkMode() && !!b && !b.classList.contains('intake-mode') && !b.classList.contains('onboarding-mode');
+    }
+    function svSharedClientGet() {
+        if (_svClientLinkMode()) return null;
+        try {
+            const v = localStorage.getItem(SV_SHARED_CLIENT_KEY);
+            return v && v.trim() ? v : null;
+        } catch (e) { return null; }
+    }
+    function svRecentClients() {
+        try {
+            const a = JSON.parse(localStorage.getItem(SV_RECENT_CLIENTS_KEY) || '[]');
+            return Array.isArray(a) ? a.filter(n => typeof n === 'string' && n.trim()).slice(0, SV_RECENT_MAX) : [];
+        } catch (e) { return []; }
+    }
+    // What a following tab should open on, or null (client link, or none picked).
+    function svSharedClientFor(page) {
+        if (!SV_CLIENT_FOLLOW_TABS.includes(page)) return null;
+        return svSharedClientGet();
+    }
+    function _svCanon(name) {
+        const s = String(name || '').trim();
+        if (!s) return null;
+        try { return wlCanonicalClient(s) || s; } catch (e) { return s; }
+    }
+    // A tab changed its own client (a deep link, the Analytics grid, the
+    // Templates index): remember it as the shared client. Never re-mounts.
+    function svSharedClientNote(name) {
+        if (_svClientLinkMode()) return;
+        const n = _svCanon(name);
+        if (!n) return;
+        try {
+            localStorage.setItem(SV_SHARED_CLIENT_KEY, n);
+            const rec = svRecentClients().filter(r => r !== n);
+            rec.unshift(n);
+            localStorage.setItem(SV_RECENT_CLIENTS_KEY, JSON.stringify(rec.slice(0, SV_RECENT_MAX)));
+        } catch (e) {}
+        svClientBarRender();
+    }
+    // The person picked a client in the top bar: remember it and re-open the
+    // tab they are on so it shows that client.
+    function svSharedClientPick(name) {
+        const n = _svCanon(name);
+        if (!n) return;
+        _svClientPopClose();
+        const before = svSharedClientGet();
+        svSharedClientNote(n);
+        if (before === n) return;
+        const page = currentNav;
+        if (page === 'home') { selectClient(n); return; }
+        if (!SV_CLIENT_FOLLOW_TABS.includes(page)) return;
+        svSharedClientApply(page, true);   // Templates / Filming Plans read it before the remount
+        navTo(page, false);
+    }
+    // Called by navTo before a tab mounts. Calendar, Samples and TikTok Upload
+    // read svSharedClientFor() in their own mount; the two below have no mount
+    // hook of their own. Only on a click (push): a refresh or Back restores the
+    // client already in the address.
+    function svSharedClientApply(page, push) {
+        const c = svSharedClientFor(page);
+        if (!c || !push) return;
+        if (page === 'templates') _templatesSetSelected(c);
+        else if (page === 'filming-plans') _fpSetQueryQuiet(c);
+    }
+    // The Analytics tab: overview when no client is picked, else that client.
+    function svOpenAnalytics() {
+        navTo('home');
+        const c = svSharedClientFor('home');
+        if (c && WL_CLIENT_NAMES.includes(c)) selectClient(c);
+    }
+
+    function _svClientHue(name) {
+        let h = 0;
+        const s = String(name || '');
+        for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+        return h;
+    }
+    function _svClientInitials(name) {
+        const words = String(name || '').split(/\s+/).filter(w => /[A-Za-z0-9]/.test(w.charAt(0)));
+        return (words.slice(0, 2).map(w => w.charAt(0)).join('') || '?').toUpperCase();
+    }
+    function _svClientDot(name) {
+        return `<span class="sv-client-dot" style="--sv-client-h:${_svClientHue(name)}" aria-hidden="true">${_calEsc(_svClientInitials(name))}</span>`;
+    }
+    function svClientBarRender() {
+        const bar = document.getElementById('svClientBar');
+        if (!bar) return;
+        const cur = svSharedClientGet();
+        const badge = document.getElementById('svClientBadgeLabel');
+        const dot = document.getElementById('svClientBadgeDot');
+        if (badge) badge.textContent = cur || 'Pick a client';
+        if (dot) dot.outerHTML = cur ? _svClientDot(cur).replace('class="sv-client-dot"', 'class="sv-client-dot" id="svClientBadgeDot"') : '<span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>';
+        const recent = svRecentClients().filter(r => r !== cur).slice(0, 3);
+        const wrap = document.getElementById('svClientRecent');
+        if (wrap) {
+            wrap.innerHTML = recent.map(r => `<button type="button" class="sv-client-recent-btn" data-sv-client="${_calEscAttr(r)}" title="Switch to ${_calEscAttr(r)}">${_svClientDot(r)}<span>${_calEsc(r)}</span></button>`).join('');
+        }
+        const label = document.getElementById('svClientRecentLabel');
+        if (label) label.hidden = !recent.length;
+    }
+    // Show the bar only on the tabs that follow it, and only for staff.
+    function svClientBarSync(page) {
+        const bar = document.getElementById('svClientBar');
+        if (!bar) return;
+        const show = _svStaffShell() && SV_CLIENT_FOLLOW_TABS.includes(page);
+        bar.hidden = !show;
+        document.body.classList.toggle('sv-shared-client', _svStaffShell());
+        if (!show) _svClientPopClose();
+        else svClientBarRender();
+    }
+
+    let _svClientActive = 0;
+    function _svClientMatches(q) {
+        const all = [...new Set(WL_CLIENT_NAMES.map(_svCanon).filter(Boolean))];
+        const needle = String(q || '').trim().toLowerCase();
+        if (!needle) return [];
+        const starts = all.filter(n => n.toLowerCase().startsWith(needle));
+        const has = all.filter(n => !starts.includes(n) && n.toLowerCase().includes(needle));
+        return starts.sort((a, b) => a.localeCompare(b)).concat(has.sort((a, b) => a.localeCompare(b))).slice(0, 8);
+    }
+    function _svClientRenderResults() {
+        const input = document.getElementById('svClientSearch');
+        const box = document.getElementById('svClientResults');
+        if (!input || !box) return;
+        const q = input.value;
+        const cur = svSharedClientGet();
+        const sections = [];
+        const matches = _svClientMatches(q);
+        if (q.trim()) sections.push({ title: 'Matches', names: matches });
+        const recent = svRecentClients().filter(r => r !== cur);
+        if (!q.trim()) sections.push({ title: 'Recent', names: recent });
+        const flat = sections.flatMap(s => s.names);
+        if (_svClientActive >= flat.length) _svClientActive = 0;
+        let i = 0;
+        let html = sections.map(s => `<div class="sv-client-sec">${s.title}</div>` + (s.names.length
+            ? s.names.map(n => { const idx = i++; return `<div class="sv-client-row${idx === _svClientActive ? ' is-active' : ''}" role="option" id="svClientOpt${idx}" aria-selected="${idx === _svClientActive}" data-sv-client="${_calEscAttr(n)}">${_svClientDot(n)}<span>${_calEsc(n)}</span></div>`; }).join('')
+            : `<div class="sv-client-none">${q.trim() ? 'No clients match' : 'Type to search every client'}</div>`)).join('');
+        box.innerHTML = html;
+        box._svFlat = flat;
+        if (flat.length) input.setAttribute('aria-activedescendant', 'svClientOpt' + _svClientActive);
+        else input.removeAttribute('aria-activedescendant');
+    }
+    function svClientPopToggle(e) {
+        if (e) e.stopPropagation();
+        const pop = document.getElementById('svClientPop');
+        if (!pop) return;
+        if (!pop.hidden) { _svClientPopClose(); return; }
+        // Fixed, not absolute: the bar scrolls sideways on a phone and would clip it.
+        const r = document.getElementById('svClientBadge')?.getBoundingClientRect();
+        if (r) {
+            const w = Math.min(320, window.innerWidth - 28);
+            pop.style.left = Math.max(14, Math.min(r.left, window.innerWidth - w - 14)) + 'px';
+            pop.style.top = Math.round(r.bottom) + 'px';
+        }
+        pop.hidden = false;
+        document.getElementById('svClientBadge')?.setAttribute('aria-expanded', 'true');
+        const input = document.getElementById('svClientSearch');
+        _svClientActive = 0;
+        if (input) { input.value = ''; _svClientRenderResults(); setTimeout(() => input.focus(), 0); }
+    }
+    function _svClientPopClose() {
+        const pop = document.getElementById('svClientPop');
+        if (!pop || pop.hidden) return;
+        pop.hidden = true;
+        document.getElementById('svClientBadge')?.setAttribute('aria-expanded', 'false');
+    }
+    function _svClientBarWire() {
+        const bar = document.getElementById('svClientBar');
+        if (!bar || bar.dataset.wired === '1') return;
+        bar.dataset.wired = '1';
+        bar.addEventListener('click', e => {
+            const pick = e.target.closest('[data-sv-client]');
+            if (pick) { e.preventDefault(); svSharedClientPick(pick.getAttribute('data-sv-client')); }
+        });
+        const input = document.getElementById('svClientSearch');
+        if (input) {
+            input.addEventListener('input', () => { _svClientActive = 0; _svClientRenderResults(); });
+            input.addEventListener('keydown', e => {
+                const flat = (document.getElementById('svClientResults') || {})._svFlat || [];
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (!flat.length) return;
+                    _svClientActive = (_svClientActive + (e.key === 'ArrowDown' ? 1 : -1) + flat.length) % flat.length;
+                    _svClientRenderResults();
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (flat[_svClientActive]) svSharedClientPick(flat[_svClientActive]);
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    _svClientPopClose();
+                    document.getElementById('svClientBadge')?.focus();
+                }
+            });
+        }
+        document.addEventListener('click', e => {
+            if (!e.target.closest('#svClientBadgeWrap')) _svClientPopClose();
+        });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _svClientBarWire);
+    else _svClientBarWire();
+
+    window.svClientPopToggle = svClientPopToggle;
+    window.svOpenAnalytics = svOpenAnalytics;
 
     /* ============================================================
        CLIENT ONBOARDING MODULE  (standalone, private-link page)
@@ -33526,6 +33887,8 @@
     }
     function _calOpenClientTab(name) {
         if (!name || calState.embedded || currentNav !== 'calendar') return;
+        // A card link names its client: that becomes the shared top-bar client.
+        if (typeof svSharedClientNote === 'function') svSharedClientNote(name);
         const pins = _calGetPins();
         if (!pins.includes(name)) { pins.unshift(name); _calSavePins(pins); }
         if (calState.client === name) { _calRenderTabs(); return; }
@@ -33642,11 +34005,16 @@
         // allowlist is sheet-driven and hasn't loaded yet on the calendar fast
         // path, so a sheet-only last client would otherwise be skipped here and
         // a different tab (or none) would open on every refresh.
+        // The shared top-bar client (095-shared-client) comes next: the
+        // client you were just on elsewhere is the one you meant.
+        else if (svSharedClientFor('calendar')) initial = svSharedClientFor('calendar');
         else if (prefs.client && pins.includes(prefs.client)) initial = prefs.client;
         else if (pins.length > 0) initial = pins[0];
         else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
+        if (initial && !pins.includes(initial)) { pins.unshift(initial); _calSavePins(pins); }
         if (focusClient && !pins.includes(focusClient)) { pins.unshift(focusClient); _calSavePins(pins); }
         _calSetClient(initial);
+        if (initial) svSharedClientNote(initial);
         calState.embedded = false;
         calState.view = _calFocusRequest ? 'organizer' : _calResolveInitialView(prefs.view);
         calState.zoom = _calNormZoom(prefs.zoom);
@@ -34113,7 +34481,9 @@
     let _linearOutboxFlushTimer = null;
     function _calSetLinearOutboxFlushTimer(value) { _linearOutboxFlushTimer = value; }
     let _linearOutboxFlushPromise = null;
+    function _calSetLinearOutboxFlushPromise(value) { _linearOutboxFlushPromise = value; }
     let _linearOutboxFlushOwnerKey = '';
+    function _calSetLinearOutboxFlushOwnerKey(value) { _linearOutboxFlushOwnerKey = value; }
     /* RETIRED LEGACY DEBT (OPEN_REPAIRS 239). A `legacy_n8n` row is a queued
        POST to `linear-set-status` / `linear-add-comment`. Both webhooks are
        revoked, nothing enqueues the transport any more, and no attempt could
@@ -35821,10 +36191,10 @@
         const owner = suppliedOwner || _writeUiLegacyResumeOwner();
         if (!_writeUiLegacyResumeOwnerCurrent(owner)) return;
         if (_linearOutboxFlushTimer) return;
-        _linearOutboxFlushTimer = setTimeout(() => {
-            _linearOutboxFlushTimer = null;
+        _calSetLinearOutboxFlushTimer(setTimeout(() => {
+            _calSetLinearOutboxFlushTimer(null);
             if (_writeUiLegacyResumeOwnerCurrent(owner)) _linearOutboxFlush(owner);
-        }, LINEAR_OUTBOX_RETRY_MS);
+        }, LINEAR_OUTBOX_RETRY_MS));
     }
     function _linearOutboxFlush(suppliedOwner) {
         const owner = suppliedOwner || _writeUiLegacyResumeOwner();
@@ -35837,12 +36207,12 @@
         }
         const tracked = _linearOutboxFlushRun(owner).finally(() => {
             if (_linearOutboxFlushPromise === tracked) {
-                _linearOutboxFlushPromise = null;
-                _linearOutboxFlushOwnerKey = '';
+                _calSetLinearOutboxFlushPromise(null);
+                _calSetLinearOutboxFlushOwnerKey('');
             }
         });
-        _linearOutboxFlushOwnerKey = ownerKey;
-        _linearOutboxFlushPromise = tracked;
+        _calSetLinearOutboxFlushOwnerKey(ownerKey);
+        _calSetLinearOutboxFlushPromise(tracked);
         return tracked;
     }
     async function _linearOutboxFlushRun(owner) {
@@ -47616,9 +47986,9 @@
        and re-sent (when the browser comes back online, when the tab is shown
        again, on a backoff timer, and after a reload). A failure the server
        itself refused is not retried: the change is put back and a clear
-       message says it was not saved. An entry older than
+       message says what was saved. An entry older than
        CLIENT_REVIEW_QUEUE_MAX_AGE_MS (counted from the click, across reloads)
-       is dropped and the client is told plainly it was not saved.
+       is dropped and the client is told whether an exact approval was saved.
 
        A held Approve never lands on a newer state: the entry records the
        server status at click time, and before any re-send the row is read
@@ -47704,7 +48074,29 @@
         try { hideToast(); showNotify(title, msg); } catch (e) {}
     }
     function _crqWhat(entry) { return entry && entry.kind === 'request' ? 'change request' : 'approval'; }
+    function _crqApprovalSourcePending(entry) {
+        if (!entry || entry.kind !== 'approve' || !entry.edits) return false;
+        const post = (calState.posts || []).find(p => p.id === entry.pid);
+        const pending = post && post._writeUiRetryEdits;
+        if (!post || !post._writeUiRetrySourceAt || !pending) return false;
+        // A whole-post approve counts only if every component, including its
+        // sign-off stamp, is in this exact source repair. A committed sibling
+        // cannot certify a component whose native write was refused.
+        const comps = _crqCompsOf(entry.comp);
+        if (!comps.length || !comps.every(c => ['video', 'graphic', 'caption'].includes(c)
+            && entry.edits[c + '_status'] === 'Approved'
+            && !!entry.edits['client_' + c + '_approved_at'])) return false;
+        const fields = ['status', ...comps.flatMap(c => [c + '_status', 'client_' + c + '_approved_at'])];
+        return fields.every(k => Object.prototype.hasOwnProperty.call(entry.edits, k)
+            && Object.prototype.hasOwnProperty.call(pending, k)
+            && pending[k] === entry.edits[k]);
+    }
+    function _crqTellSavedSyncing() {
+        _crqTell('Approval saved; card still syncing',
+            'Your approval was saved. The card will retry syncing automatically. If the warning remains, tell your account manager.');
+    }
     function _crqTellExpired(entry) {
+        if (_crqApprovalSourcePending(entry)) { _crqTellSavedSyncing(); return; }
         _crqTell('Your ' + _crqWhat(entry) + ' was not saved',
             'We could not reach SyncView for 30 minutes after you sent it, so nothing was saved. Please check your internet connection and do it again.');
     }
@@ -47784,7 +48176,8 @@
             return true;
         }
         _crqDrop(pid, comp);
-        if (_crqIsConnectionFailure(errorText)) _crqTellExpired(entry);
+        if (_crqApprovalSourcePending(entry)) _crqTellSavedSyncing();
+        else if (_crqIsConnectionFailure(errorText)) _crqTellExpired(entry);
         else _crqTell('Your ' + _crqWhat(entry) + ' was not saved',
             'SyncView refused it, so nothing was saved: ' + String(errorText || 'unknown reason')
             + ' Please try again, or tell your account manager if it keeps happening.');
@@ -47841,8 +48234,9 @@
             for (const entry of entries) {
                 if (_crqRun.inflight.has(entry.pid + '|' + entry.comp)) continue;
                 if (_crqExpired(entry)) {
+                    const approvalSaved = _crqApprovalSourcePending(entry);
                     _crqDrop(entry.pid, entry.comp);
-                    if (entry.kind === 'approve') _crqUnapply(entry, null);
+                    if (entry.kind === 'approve' && !approvalSaved) _crqUnapply(entry, null);
                     else _calReviewState.saving[entry.pid + '|' + entry.comp] = false;
                     _crqTellExpired(entry);
                     continue;
@@ -69258,10 +69652,12 @@
         const pins  = _sxrGetPins();
         let initial = null;
         if (_sxrFocusRequest && _sxrFocusRequest.client && wlIsAllowedClient(_sxrFocusRequest.client)) initial = _sxrFocusRequest.client;
+        else if (svSharedClientFor('sample-reviews')) initial = svSharedClientFor('sample-reviews');   // shared top-bar client
         else if (prefs.client && pins.includes(prefs.client)) initial = prefs.client;
         else if (pins.length > 0) initial = pins[0];
         else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
         sxrState.client = initial;
+        if (initial) { svSharedClientNote(initial); _sxrPinClient(initial); }
         sxrState.embedded = false;
         sxrState.view = (_sxrFocusRequest ? 'organizer' : (prefs.view === 'smmreview' ? 'smmreview' : 'organizer'));
         sxrState.zoom = _sxrNormZoom(prefs.zoom);
@@ -69495,6 +69891,7 @@
     function onSxrClientChange(name) {
         if (typeof _sxrFlushAllPending === 'function') _sxrFlushAllPending();
         sxrState.client = name;
+        svSharedClientNote(name);
         _sxrResetSelection();
         sxrState.posts = [];
         _sxrSavePrefs();
@@ -72130,7 +72527,7 @@
                 }
                 _writeUiApplyOverallStatus('sxr', post, edits, wasNewRow, true);
                 let wirePost;
-                if (!wasNewRow && Object.keys(edits).length > 0) {
+                if (!wasNewRow && !_sxrFailedNewCards.has(realId)) {
                     // FIELD-LEVEL PATCH — only the columns this edit touched.
                     wirePost = { id: post.id };
                     for (const k of Object.keys(edits)) {
@@ -72146,7 +72543,7 @@
                     // Intentional link clear → the explicit sentinel (a bare '' is carried-forward by the upsert guard).
                     _sxrApplyClearSentinels(wirePost);
                 } else {
-                    // Whole card (new row, or a forced retry with empty edits).
+                    // Whole card only for creation, including a failed first save.
                     wirePost = Object.assign({}, post);
                     wirePost.video_tweaks = _sxrStringifyComments(_sxrCommentsFor(post, 'video'));
                     wirePost.graphic_tweaks = _sxrStringifyComments(_sxrCommentsFor(post, 'graphic'));
@@ -72229,8 +72626,9 @@
                     if (!gatewayCommitted) _SXR_ROLLBACK_FIELDS.forEach(k => { if (k in edits) cur[k] = prevSnapshot[k]; });
                     cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
                     cur._saveError = _writeUiFailureSentence(e, 'save failed');
+                    // Retry the failed field set, never an old whole-card snapshot.
+                    cur._writeUiRetryEdits = Object.assign({}, edits);
                     if (gatewayCommitted) {
-                        cur._writeUiRetryEdits = Object.assign({}, edits);
                         cur._writeUiRetrySourceAt = writeUiSourceAt;
                         cur._writeUiRetryPrincipal = _writeUiPrincipalKey();
                         delete cur._writeUiPrecommittedNative;
@@ -72248,12 +72646,23 @@
         }
     }
 
-    /* Retry a failed save — queue an empty bucket so the flush re-sends the whole
-       current row through the normal funnel (fixes the old broken retry that
-       early-returned on an empty bucket). */
+    /* Retry the retained edits for an existing card; a failed first creation
+       still sends its full row through the normal funnel. */
     function _sxrRetrySave(pid) {
         if (!pid) return;
         const post = sxrState.posts.find(p => p.id === pid);
+        const pending = _sxrPendingEdits[pid];
+        const retained = post && Object.assign({}, post._writeUiRetryEdits || {}, post._writeUiHeldSourceEdits || {});
+        if (!post || (!_sxrIsBlankId(pid) && !_sxrFailedNewCards.has(pid)
+            && !(pending && Object.keys(pending).length)
+            && !Object.keys(retained).length
+            && !post._writeUiRetrySourceAt)) {
+            const message = 'Retry details are missing. Refresh this card and make the edit again.';
+            if (pending && !Object.keys(pending).length) delete _sxrPendingEdits[pid];
+            if (post) post._saveError = message;
+            _sxrSetCardStatus(pid, 'error', message);
+            return;
+        }
         if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = Object.assign({}, post && post._writeUiRetryEdits || {});
         _sxrSetCardStatus(pid, 'saving');
         _sxrFlushCardSave(pid);
@@ -76338,6 +76747,8 @@
         },
         schedule: { postNow: true, at: '', tz: 'America/New_York' },
         uploads: [],
+        queueReadState: 'loading', // only a successful server read proves an empty queue
+        queueFailures: 0,
         queueTab: 'upcoming',       // 'upcoming' | 'failed' | 'done'
         queueLimit: TK_QUEUE_PAGE,  // rows shown in the open tab; "Show more" adds a page
         submitting: false,
@@ -77170,6 +77581,7 @@
     }
     function _tkPickClient(name) {
         tkState.client = name || null;
+        if (tkState.client) svSharedClientNote(tkState.client);
         const r = _tkResolveProfile(tkState.client);
         tkState.profile = r.profile;
         tkState.profileSource = r.source;
@@ -77968,21 +78380,25 @@
             _tkSaveQueueCache(rows);
             const prunedPending = _tkPrunePending(_tkLoadPending());
             const shownBefore = tkState.queueFromCache ? null : JSON.stringify(tkState.uploads);
+            const wasUnverified = tkState.queueReadState !== 'ready';
             tkState.uploads = _tkMergeUploads(prunedPending, rows);
             // Trim local pending list of rows the server now knows about, plus stale optimistic ones.
             const knownIds = new Set(rows.map(r => r.id));
             _tkSavePending(prunedPending.filter(r => !knownIds.has(r.id)));
             tkState.queueFromCache = false;
+            tkState.queueReadState = 'ready';
+            tkState.queueFailures = 0;
             // The live list is usually the same; repaint only on a change
             // (or to turn the cached, read-only rows into live ones).
-            if (JSON.stringify(tkState.uploads) !== shownBefore) _tkRenderQueue();
+            if (wasUnverified || JSON.stringify(tkState.uploads) !== shownBefore) _tkRenderQueue();
             await _tkLookupOverdue();
         } catch (e) {
-            // Surface only on the very first failure — keep retrying quietly afterwards.
-            const col = document.getElementById('tkQueueCol');
-            if (col && !col.dataset.everLoaded) {
-                col.innerHTML = `<div class="tk-card"><h3>Uploads</h3><div class="tk-queue-empty">Couldn't load your uploads. Trying again shortly.<br><small>${_tkEscape(e.message)}</small></div></div>`;
-            }
+            tkState.queueReadState = 'error';
+            tkState.queueFailures++;
+            // Rows kept from an earlier read are unverified now: show them
+            // read-only (no Cancel, Retry or Dismiss) until a read succeeds.
+            tkState.queueFromCache = true;
+            _tkRenderQueue();
         }
     }
 
@@ -78044,7 +78460,6 @@
     function _tkRenderQueue() {
         const col = document.getElementById('tkQueueCol');
         if (!col) return;
-        col.dataset.everLoaded = '1';
 
         const hidden = _tkLoadHidden();
         const visible = tkState.uploads.filter(r => !hidden.has(r.id));
@@ -78089,14 +78504,20 @@
                     ${actions.length ? `<div class="tk-queue-actions">${actions.join('')}</div>` : ''}
                 </div>`;
         };
-        const tabBtn = (key, label) => `<button type="button" class="tk-q-tab${tab === key ? ' on' : ''}${key === 'failed' && groups.failed.length ? ' alert' : ''}" role="tab" aria-selected="${tab === key}" onclick="_tkSetQueueTab('${key}')">${label}<b>${groups[key].length}</b></button>`;
+        const tabBtn = (key, label) => `<button type="button" class="tk-q-tab${tab === key ? ' on' : ''}${key === 'failed' && groups.failed.length ? ' alert' : ''}" role="tab" aria-selected="${tab === key}" onclick="_tkSetQueueTab('${key}')">${label}<b>${tkState.queueReadState === 'ready' ? groups[key].length : '—'}</b></button>`;
         const empty = { upcoming: 'Nothing scheduled yet.', failed: 'No failed uploads.', done: 'No posts yet.' }[tab];
+        const readNotice = tkState.queueReadState === 'loading'
+            ? '<div class="tk-queue-empty" role="status">Loading uploads…</div>'
+            : tkState.queueReadState === 'error'
+                ? `<div class="tk-queue-empty" role="alert">Couldn't load your uploads. ${visible.length ? 'Showing available rows. ' : ''}Trying again shortly.</div>`
+                : '';
 
         col.innerHTML = `
             <div class="tk-card">
                 <h3>Uploads</h3>
                 <div class="tk-q-tabs" role="tablist">${tabBtn('upcoming', 'Upcoming')}${tabBtn('failed', 'Failed')}${tabBtn('done', 'Done')}</div>
-                ${shown.length ? shown.map(itemHTML).join('') : `<div class="tk-queue-empty">${empty}</div>`}
+                ${readNotice}
+                ${shown.length ? shown.map(itemHTML).join('') : tkState.queueReadState === 'ready' ? `<div class="tk-queue-empty">${empty}</div>` : ''}
                 ${remaining > 0 ? `<button type="button" class="tk-q-more" onclick="_tkQueueShowMore()">Show ${Math.min(remaining, TK_QUEUE_PAGE)} more <span>· ${remaining} left</span></button>` : ''}
             </div>
         `;
@@ -78180,6 +78601,7 @@
         if (changed) _tkRenderQueue();
     }
     function _tkNextPollDelay() {
+        if (tkState.queueReadState === 'error') return Math.min(300_000, 30_000 * 2 ** Math.min(tkState.queueFailures - 1, 4));
         if (_tkActiveUploadCount() > 0) return 30_000;   // something in-flight — watch closely
         if (_tkHasScheduled()) return 120_000;           // only future posts — check lazily
         if (_tkUnresolvedOverdue().length) return 300_000; // overdue, no result yet — keep asking
@@ -78217,6 +78639,12 @@
 
     function mountTiktokUploadView() {
         _tkLoadDraft();
+        // Follow the shared top-bar client, unless a half-filled upload for
+        // another client is in the draft: never move a file to a different
+        // client's TikTok account behind the person's back.
+        const shared = svSharedClientFor('tiktok-upload');
+        const draftInProgress = !!(tkState.title || tkState.fileMeta || (tkState.photosMeta && tkState.photosMeta.length));
+        if (shared && shared !== tkState.client && WL_CLIENT_NAMES.includes(shared) && !draftInProgress) { tkState.client = shared; _tkSaveDraft(); }
         if (tkState.client) {
             const r = _tkResolveProfile(tkState.client);
             tkState.profile = r.profile;
@@ -78227,6 +78655,8 @@
         const cachedRows = _tkLoadQueueCache();
         tkState.uploads = _tkMergeUploads(_tkPrunePending(_tkLoadPending()), cachedRows);
         tkState.queueFromCache = cachedRows.length > 0;
+        tkState.queueReadState = 'loading';
+        tkState.queueFailures = 0;
         _tkRenderForm();
         _tkRenderPreview();
         _tkRenderQueue();
@@ -79823,6 +80253,7 @@
        just before the user approves a card can finish 200 ms later and
        repaint with the pre-approval state, making the card "snap back". */
     let _kasperLoadGen = 0;
+    function _kasperSetLoadGen(value) { _kasperLoadGen = value; }
     let _kasperLastLocalWriteAt = 0;   // last local Kasper action — used to ignore the realtime echo of our own writes
     function _kasperInvalidateInFlightLoad() { _kasperLoadGen++; _kasperLastLocalWriteAt = Date.now(); }
     /* Click-eaten-by-re-render guard. The queue repaints by rebuilding DOM
@@ -82670,7 +83101,8 @@
         _kasperState.error = null;
         // Capture the current generation so a user mutation during the
         // await can invalidate this load before its results are applied.
-        const myGen = ++_kasperLoadGen;
+        _kasperSetLoadGen(_kasperLoadGen + 1);
+        const myGen = _kasperLoadGen;
 
         try {
             // SMM sheet + every client's calendar in parallel, but only the

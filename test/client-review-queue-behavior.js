@@ -182,6 +182,83 @@ const approveData = { edits: { caption_status: 'Approved', status: 'Approved', c
         s2.api._calCrqFailed('p1', 'caption', 'HTTP 403');
         t(s2.log.hides >= 1, 'no storage: "Sending..." is taken down on failure');
     }
+    // 5. A native approval committed, but its source card is awaiting repair.
+    // Match the exact queued status and sign-off values; a sibling's success
+    // cannot make a refused whole-post approval sound saved.
+    {
+        const s = sandbox();
+        s.api._calCrqBegin('approve', 'p1', 'caption', approveData);
+        Object.assign(s.post, approveData.edits, {
+            _writeUiRetrySourceAt: '2026-09-26T12:00:00Z',
+            _writeUiRetryEdits: { ...approveData.edits },
+            _saveError: 'HTTP 403'
+        });
+        t(s.api._calCrqFailed('p1', 'caption', 'HTTP 403') === false, 'committed approval: refused source save is final for the send queue');
+        t(s.log.notes[0] === 'Approval saved; card still syncing | Your approval was saved. The card will retry syncing automatically. If the warning remains, tell your account manager.',
+            'committed approval: the notice describes the saved approval and pending card sync');
+        t(s.api._crqMine().length === 0 && s.post._writeUiRetrySourceAt && s.post.caption_status === 'Approved',
+            'committed approval: the queue is dropped while the card repair stays armed');
+    }
+    {
+        const storage = memStorage();
+        const s = sandbox({ storage });
+        s.api._calCrqBegin('approve', 'p1', 'caption', approveData);
+        Object.assign(s.post, approveData.edits, {
+            _writeUiRetrySourceAt: '2026-09-26T12:00:00Z',
+            _writeUiRetryEdits: { ...approveData.edits }
+        });
+        s.api._calCrqFailed('p1', 'caption', 'Failed to fetch');
+        const all = JSON.parse(storage.getItem('sv-client-review-queue-v1'));
+        Object.values(all).forEach(e => { e.at = Date.now() - 31 * 60 * 1000; });
+        storage.setItem('sv-client-review-queue-v1', JSON.stringify(all));
+        await s.api._calCrqResend();
+        t(s.log.notes[0].startsWith('Approval saved; card still syncing') && s.post.caption_status === 'Approved',
+            'aged queue entry: a committed approval remains visible with the honest notice');
+        t(s.api._crqMine().length === 0 && s.log.fetches === 0,
+            'aged queue entry: the source repair owns syncing without another send');
+    }
+    {
+        const s = sandbox();
+        s.api._calCrqBegin('approve', 'p1', 'caption', approveData);
+        s.api._calCrqFailed('p1', 'caption', 'HTTP 403');
+        t(/Your approval was not saved.*nothing was saved/.test(s.log.notes[0]),
+            'pre-commit refusal: the unsaved notice remains');
+    }
+    {
+        const allEdits = {
+            status: 'Approved', video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Approved',
+            client_video_approved_at: 'v', client_graphic_approved_at: 'g', client_caption_approved_at: 'c'
+        };
+        const s = sandbox();
+        s.api._calCrqBegin('approve', 'p1', 'all', { edits: allEdits });
+        Object.assign(s.post, allEdits, {
+            _writeUiRetrySourceAt: '2026-09-26T12:00:00Z',
+            _writeUiRetryEdits: { ...allEdits }
+        });
+        delete s.post._writeUiRetryEdits.graphic_status;
+        delete s.post._writeUiRetryEdits.client_graphic_approved_at;
+        s.api._calCrqFailed('p1', 'all', 'HTTP 403');
+        t(/Your approval was not saved/.test(s.log.notes[0]) && !/card still syncing/.test(s.log.notes[0]),
+            'mixed whole-post refusal: a committed sibling cannot certify the refused component');
+        const complete = sandbox();
+        complete.api._calCrqBegin('approve', 'p1', 'all', { edits: allEdits });
+        Object.assign(complete.post, allEdits, {
+            _writeUiRetrySourceAt: '2026-09-26T12:00:00Z',
+            _writeUiRetryEdits: { ...allEdits }
+        });
+        complete.api._calCrqFailed('p1', 'all', 'HTTP 403');
+        t(/Approval saved; card still syncing/.test(complete.log.notes[0]),
+            'complete whole-post approval: every status and sign-off is covered');
+    }
+    {
+        const s = sandbox();
+        s.api._calCrqBegin('request', 'p1', 'caption', { body: 'x', actionId: 'a1' });
+        s.post._writeUiRetrySourceAt = '2026-09-26T12:00:00Z';
+        s.post._writeUiRetryEdits = { ...approveData.edits };
+        s.api._calCrqFailed('p1', 'caption', 'HTTP 403');
+        t(/Your change request was not saved/.test(s.log.notes[0]),
+            'request-change refusal keeps its existing copy');
+    }
     if (failed) { console.error('client-review-queue-behavior: ' + failed + ' check(s) failed'); process.exit(1); }
     console.log('client-review-queue-behavior: all checks passed');
 })();

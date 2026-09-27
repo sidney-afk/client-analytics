@@ -29353,3 +29353,66 @@ to `commit;`. Stop at the first error.
 
 **Applied 2026-09-27** by Lighthouse after the owner's go, as the three steps above: the pre-check passed, the index built valid and ready, and the transaction committed. Check on the test client: a timestamp-only update of one calendar card added no journal row (count unchanged). The live function bodies omit two comment lines from the file; behaviour is identical and the ROLLBACK does not depend on the new bodies' md5.
 
+
+## 270. [2026-09-27, BUILT] Coming back to the Samples tab put the caret in a different card's name box
+
+**Problem.** Found by Vigil. Type in a sample's name box without saving, hide the
+page for about 10 seconds, come back: the text stayed, but the caret landed in a
+different card's name box, so further typing went into the wrong sample. It hit
+every sample made in the Create dialog (4 of 4) and none of the simpler test
+samples (0 of 2).
+
+**Cause.** On return the Samples refresh remembers the focused box and puts focus
+back after it repaints. The shared helper (`_svFieldSig` in
+`src/index/040-shared-briefs.js.part`) recognised a box by its id, else its
+`oninput` text, else its name. Samples name boxes have no id and all share the same
+`oninput="_sxrOnFieldInput(this)"`, so every card's box matched and the helper
+focused the FIRST one on the page. A Create-dialog sample sits below other cards,
+so its box was never first.
+
+**Fix.** The helper now (1) goes back to the very box the person was in when it is
+still on the page, and (2) otherwise also matches on the box's card and field
+(`data-pid`, `data-fld`, `data-comp`), so boxes that share a handler no longer look
+alike. Calendar uses the same helper and gets the same protection.
+
+**Proof.** `docs/syncview-design/tests/sxr-focus-return-browser.js` (offline, runs
+in CI) types in the second of two samples, hides the page past the 8 second
+return threshold and shows it again. On the old code focus moved to the first card
+and the next keystroke went into it (4 checks failed); with the fix focus, text
+and caret stay in the same card (9 of 9). `test/background-update-focus.js` adds
+the two-cards case.
+
+## 271. [2026-09-27, BUILT, pending review] A saved client approval said nothing was saved
+
+When the native approval committed but the Calendar card save was refused, the card kept its source repair and showed Saved, syncing while the client review queue said nothing was saved. The queue now checks that the pending repair contains every status and sign-off field of the exact queued approval before saying "Approval saved; card still syncing." A partly refused whole-post approval, a pre-commit refusal, and a change request retain their existing failure notices. An aged queue entry with a committed approval keeps its approved display and leaves the source repair in place.
+
+Offline regression: `node test/client-review-queue-behavior.js` failed before the source fix and passes after. `node docs/syncview-design/tests/client-review-write-browser.js` passes nine fully intercepted browser cases, including one native approval followed by a refused source save and a separate pre-commit refusal. This is local evidence only; no live write or hosted behavior was tested.
+
+## 272. [2026-09-27, BUILT — pending merge] Samples Retry can resend an older status
+
+An existing card's failed save left no ordinary edit fields for Retry. Retry then
+sent the whole local card, including statuses the user had not changed, with no
+scalar freshness base. A second tab's newer status could be overwritten.
+
+The page now retains the failed field set and retries an existing card with a
+field-level patch, even when the queued bucket would otherwise be empty. A
+failed first creation still retries the full row, and an intentional status
+edit still sends that status. An older failed card without retained edit fields
+now keeps its error visible and asks for a refresh and fresh edit; it cannot
+claim success after an ID-only request. `test/samples-retry-stale-status.js`
+failed before the fixes and passes on the rebuilt page across all four cases. No
+browser or live write was used; the effect on a served page awaits merge.
+
+## 273. [2026-09-27, BUILT] TikTok Upload reports a failed first queue read instead of an empty queue
+
+The queue renderer used to mark its first paint as a completed read. If the list request then failed with no local rows, the page still said "Nothing scheduled yet" and stopped polling. It had no evidence that the queue was empty.
+
+The queue now treats only a successful server list as verified. An unfinished read says it is loading; a failed read says it could not load and will retry. Tab counts remain unknown until a successful read. Cached rows stay visible and read-only while a failed refresh is retried. Failed reads use a visible-tab retry starting at 30 seconds and backing off to five minutes; a successful empty list can still show the normal empty message and stops idle polling.
+
+Offline proof: `test/tiktok-queue-first-read-browser.js` failed before the fix on the false empty first paint and passes after it. It intercepts every backend call, forces the first list read to fail, sees the error and automatic retry recover a server row, then confirms a later failure keeps the cached row visible and read-only. No upload, retry, cancel, backend write or hosted behavior was exercised.
+
+## 274. [2026-09-27, BUILT, pending review] Templates can miss working-link changes after its live-update connection drops
+
+The Templates channel existed even when its subscription failed, so an open page could keep showing an old working link until reload. The browser now observes subscription status. While Templates is open and visible but disconnected, it makes one REST catch-up read per minute. On reconnect it makes one more read for the missed interval and stops the poll. The existing REST load preserves queued and in-flight local edits.
+
+`test/templates-realtime-catchup.js` uses a fake REST server and channel. It failed before the fix because no subscription status callback was registered; it passes with disconnected polling, reconnect, connected-idle, hidden-tab, other-view, and dirty-edit checks. This is offline source proof, not a hosted reconnect observation. Risk: a failed connection adds at most one Templates REST read per minute per visible open page. Rollback is reverting this browser change; there is no database, Edge Function, or workflow change.

@@ -4,6 +4,7 @@
   "unit": [
     "workload-plan-live.js",
     "clean-urls-routes.js",
+    "prod-realtime-controller.js",
     "b2-brief-link-rewrite.mjs",
     "a2-writer-edge-source.js",
     "a4-settings-edge-source.js",

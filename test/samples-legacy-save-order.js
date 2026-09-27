@@ -441,6 +441,8 @@ async function runKasperTweakCase({ gateway, saveOk }) {
   vm.runInContext(extract('_writeUiComponentHasWorkItem'), context);
   loadFailureSentence(context);
   vm.runInContext(extract('_sxrPostLinearComment'), context);
+  // 290 is a module: it stamps 280's self-echo time through this setter.
+  vm.runInContext(extract('_sxrSetLastLocalWriteAt'), context);
   vm.runInContext(extract('_sxrKasperApplyAndPersist'), context);
   await context._sxrKasperApplyAndPersist(pid, 'video', row => {
     const message = {

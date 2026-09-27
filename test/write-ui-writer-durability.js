@@ -3981,6 +3981,10 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     Promise,
   };
   vm.createContext(resumeContext);
+  // 290 is a module: the resume loop records the rendered authority and
+  // defers busy repaints through the owners' setters (120, 134, 280).
+  for (const name of ['_writeUiSetLastRenderedAuthoritySig', '_calSetPendingBackgroundRender',
+    '_sxrSetPendingBackgroundRender']) vm.runInContext(extract(name), resumeContext);
   vm.runInContext(legacyResume, resumeContext);
   await resumeContext._writeUiResumeLegacyQueues('authority-outage');
   assert(resumeHydrationCalls === 0 && resumeTrace.join(',') === 'authority',

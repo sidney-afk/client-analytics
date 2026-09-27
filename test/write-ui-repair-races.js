@@ -187,6 +187,8 @@ async function sxrKasperCommentFirstCase() {
     JSON, Date, Object, Array, Set, Promise, console
   };
   vm.createContext(ctx);
+  // 290 is a module: it stamps 280's self-echo time through this setter.
+  vm.runInContext(extract('_sxrSetLastLocalWriteAt'), ctx);
   vm.runInContext(extractUntil('_sxrKasperApplyAndPersist', '_sxrKasperResumeSourceRepairs'), ctx);
   await ctx._sxrKasperApplyAndPersist('card', 'video', value => {
     value.video_status = 'Tweaks Needed';
@@ -289,6 +291,8 @@ async function sxrKasperFreshCompanionExecutesStatusCase() {
   vm.runInContext(extract('_calMapNativeStatusStrict'), ctx);
   vm.runInContext(extract('_writeUiCardOrigin'), ctx);
   vm.runInContext(extract('_writeUiReconcileReplayStatus'), ctx);
+  // 290 is a module: it stamps 280's self-echo time through this setter.
+  vm.runInContext(extract('_sxrSetLastLocalWriteAt'), ctx);
   vm.runInContext(extractUntil('_sxrKasperApplyAndPersist', '_sxrKasperResumeSourceRepairs'), ctx);
   vm.runInContext(extract('_sxrKasperUndecidedComps'), ctx);
 
@@ -373,6 +377,8 @@ async function kasperInvocationIsolationCase() {
   vm.createContext(ctx);
   for (const name of ['_writeUiAppendRepairRef', '_writeUiAdoptRepairAck', '_writeUiSnapshotRepairRefs',
     '_writeUiRemoveCompletedRepairRefs']) vm.runInContext(extract(name), ctx);
+  // 290 is a module: it stamps 280's self-echo time through this setter.
+  vm.runInContext(extract('_sxrSetLastLocalWriteAt'), ctx);
   vm.runInContext(extractUntil('_sxrKasperApplyAndPersist', '_sxrKasperResumeSourceRepairs'), ctx);
 
   const video = ctx._sxrKasperApplyAndPersist('card', 'video', value => {

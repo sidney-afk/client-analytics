@@ -16,11 +16,12 @@ import {
   NAV_KEY, _isSmmWeeklyRoute, _obvMountStandalone, _syncviewNavEpoch, currentNav
 } from './060-templates-filming.js';
 import {
-  WL_CLIENT_NAMES, getClientRoster, wlCanonicalClient, wlIsAllowedClient, wlNormalizeClient
+  WL_CLIENT_NAMES, _wlV2Client, getClientRoster, wlCanonicalClient, wlIsAllowedClient,
+  wlNormalizeClient
 } from './070-workload-source.js';
 import { navTo } from './090-workload-popovers-navigation.js';
 import {
-  CAL_SUPABASE_ANON_KEY, CLIENT_TOKEN_VERIFY_URL, SMM_WEEKLY_REPORTS_URL,
+  CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, CLIENT_TOKEN_VERIFY_URL, SMM_WEEKLY_REPORTS_URL,
   SYNCVIEW_CLIENT_ENTRY_PROTOCOL, _obSetDraftKey, _obSetSubIdKey, _obSetVariant,
   _syncviewOpenStaffGate, _syncviewStaffCan, _syncviewStaffGateRequired,
   _syncviewStaffIdentityBoot, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentityLoad
@@ -243,15 +244,259 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
                 else _prodSyncFreshnessControl();
             }
         }
+        /* LIVE UPDATES FOR PRODUCTION (realtime first, the poll as fallback).
+
+           The board used to learn about other people's changes only from the
+           30-second delta tick, which also pauses on a hidden tab. It now opens
+           one supabase-js channel (postgres_changes on deliverables, batches
+           and deliverable_events -- all three are in the realtime publication
+           and readable by the page's key, the same way Workload subscribes)
+           and routes every event into the EXISTING refresh path,
+           `_prodDeltaRefresh`, so nothing about what is read, merged, cached or
+           painted changes. Only WHEN it runs changes:
+
+           - events are debounced (300 ms) and coalesced: a burst of ten row
+             changes is one read, and a batch change, a delete or a
+             deliverable_events insert in the burst upgrades that one read to a
+             full reload. The delta reads deliverables by `updated_at`
+             watermark and cannot see a batch change, a removed row, or a
+             rename propagated from a card: that drain rewrites the title and
+             inserts a deliverable_events row but deliberately leaves
+             `updated_at` alone (migrations/2026-09-23-rename-propagation.sql);
+           - an echo of this tab's own write is ignored: the gateway row was
+             already adopted (`_prodApplyGatewayRow`), so an event whose
+             `updated_at` AND visible fields equal the row this tab holds
+             carries nothing new. Comparing `updated_at` alone is not enough,
+             for the same rename-propagation reason;
+           - a refresh that declines (write in flight, menu open, typing) is
+             retried rather than dropped, and nothing runs on a hidden tab --
+             the pending read runs when the tab is shown again;
+           - the status is tracked honestly. The poll stays as the fallback:
+             it slows to 90 s only while the channel reports SUBSCRIBED and is
+             back to 30 s the moment it reports anything else. A SUBSCRIBED
+             after a drop runs one full catch-up, because realtime does not
+             replay what it missed while down. 90 s, not 120 s: the freshness
+             control calls a board older than PROD_STALE_AFTER_MS (120 s)
+             degraded, so the slow cadence keeps a 30 s margin under it;
+           - KILL SWITCH (ROLLBACK.md): runtime flag `prod_realtime` with value
+             {"enabled": false}, or localStorage `syncview.prodRealtime` = "off"
+             in one browser, turns the channel off and restores the 30 s poll.
+             A missing row or a failed read means ON; only an explicit false
+             turns it off. Open tabs re-read the flag every 5 minutes and on
+             every Production open.
+
+           The controller takes all its effects as arguments so a unit test can
+           drive it with a mocked channel (test/prod-realtime-controller.js).
+           `window.prodRtStatus()` prints the live state. */
+        /* PROD_RT_CONTROLLER_BEGIN */
+        function _prodRtCreate(deps) {
+            const d = deps;
+            const debounceMs = Number(d.debounceMs || 300);
+            const retryMs = Number(d.retryMs || 2000);
+            const st = {
+                status: 'idle', subscribedOnce: false, events: 0, echoes: 0,
+                refreshes: 0, retries: 0, catchups: 0, lastEventAt: 0,
+                lastStatusAt: 0, lastProblem: ''
+            };
+            let channel = null, client = null, timer = 0, pending = false, pendingFull = false, generation = 0;
+            function pollInterval() {
+                return st.status === 'SUBSCRIBED' ? d.slowPollMs : d.fastPollMs;
+            }
+            const ECHO_FIELDS = ['title', 'status', 'due_date', 'assignee_id', 'brief', 'file_url', 'batch_id', 'name'];
+            function isEcho(table, payload) {
+                const row = payload && payload.new;
+                if (!row || row.id == null || !row.updated_at) return false;
+                const local = d.localRow(table, String(row.id));
+                if (!local || String(local.updated_at || '') !== String(row.updated_at)) return false;
+                return ECHO_FIELDS.every(f => !Object.prototype.hasOwnProperty.call(row, f)
+                    || !Object.prototype.hasOwnProperty.call(local, f)
+                    || JSON.stringify(row[f]) === JSON.stringify(local[f]));
+            }
+            function arm(ms) {
+                if (timer) return;
+                timer = d.setTimeout(flush, ms);
+            }
+            function queue(full) {
+                pending = true;
+                if (full) pendingFull = true;
+                arm(debounceMs);
+            }
+            function flush() {
+                timer = 0;
+                if (!pending) return;
+                if (!d.active()) { pending = false; pendingFull = false; return; }
+                if (d.hidden()) return; // resume() runs it when the tab is shown
+                const full = pendingFull;
+                pending = false; pendingFull = false;
+                st.refreshes++;
+                let result;
+                try { result = d.refresh({ full }); } catch (e) { result = false; }
+                return Promise.resolve(result).then((ok) => {
+                    // null = the refresh declined (busy / already in flight).
+                    // Put the request back so a change is never dropped.
+                    if (ok === null && d.active()) {
+                        st.retries++;
+                        pending = true;
+                        if (full) pendingFull = true;
+                        arm(retryMs);
+                    }
+                }, () => {});
+            }
+            function onEvent(table, payload) {
+                st.events++;
+                st.lastEventAt = d.now();
+                // A realtime event type, not an HTTP method.
+                const removed = /^DELETE$/.test(String(payload && payload.eventType || ''));
+                if (!removed && table !== 'deliverable_events' && isEcho(table, payload)) {
+                    st.echoes++;
+                    return;
+                }
+                // A changed row that kept its updated_at (a propagated rename)
+                // sits below the watermark, so only a full read can see it.
+                const row = payload && payload.new;
+                const local = row && row.id != null ? d.localRow(table, String(row.id)) : null;
+                const stampKept = !!(local && row.updated_at && String(local.updated_at || '') === String(row.updated_at));
+                queue(table !== 'deliverables' || removed || stampKept);
+            }
+            function onStatus(gen, status) {
+                if (gen !== generation) return; // a torn-down channel's CLOSED
+                const before = pollInterval();
+                st.status = String(status || '');
+                st.lastStatusAt = d.now();
+                if (st.status === 'SUBSCRIBED') {
+                    if (st.subscribedOnce) { st.catchups++; queue(true); }
+                    st.subscribedOnce = true;
+                } else {
+                    st.lastProblem = st.status;
+                }
+                if (before !== pollInterval() && d.onPollChange) d.onPollChange(pollInterval());
+            }
+            function start() {
+                if (d.enabled && !d.enabled()) { stop(); st.status = 'disabled'; return; }
+                if (channel || st.status === 'connecting') return;
+                const gen = ++generation;
+                st.status = 'connecting';
+                return Promise.resolve(d.getClient()).then((c) => {
+                    if (gen !== generation) return;
+                    if (!c || !d.active()) { st.status = 'idle'; return; }
+                    client = c;
+                    try {
+                        let ch = c.channel(d.channelName || 'production_live');
+                        ['deliverables', 'batches', 'deliverable_events'].forEach((table) => {
+                            ch = ch.on('postgres_changes', { event: '*', schema: 'public', table }, (p) => onEvent(table, p));
+                        });
+                        channel = ch;
+                        ch.subscribe((s) => onStatus(gen, s));
+                    } catch (e) {
+                        channel = null;
+                        st.status = 'CHANNEL_ERROR';
+                        st.lastProblem = 'subscribe_threw';
+                    }
+                }, () => { if (gen === generation) { st.status = 'idle'; st.lastProblem = 'client_failed'; } });
+            }
+            function stop() {
+                if (!channel && (st.status === 'idle' || st.status === 'disabled')) return;
+                const wasSubscribed = st.status === 'SUBSCRIBED';
+                generation++;
+                if (timer) { d.clearTimeout(timer); timer = 0; }
+                pending = false; pendingFull = false;
+                if (channel && client && typeof client.removeChannel === 'function') {
+                    try { client.removeChannel(channel); } catch (e) {}
+                }
+                channel = null;
+                st.status = 'idle';
+                st.subscribedOnce = false;
+                if (wasSubscribed && d.onPollChange) d.onPollChange(pollInterval());
+            }
+            function resume() {
+                if (pending && !timer) arm(0);
+            }
+            function status() {
+                return {
+                    status: st.status, live: st.status === 'SUBSCRIBED', pollMs: pollInterval(),
+                    pending, pendingFull, events: st.events, echoesIgnored: st.echoes,
+                    refreshes: st.refreshes, retries: st.retries, catchups: st.catchups,
+                    lastEventAt: st.lastEventAt ? new Date(st.lastEventAt).toISOString() : '',
+                    lastStatusAt: st.lastStatusAt ? new Date(st.lastStatusAt).toISOString() : '',
+                    lastProblem: st.lastProblem
+                };
+            }
+            return { start, stop, resume, status, pollInterval, onEvent };
+        }
+        /* PROD_RT_CONTROLLER_END */
+        const PROD_RT_DEBOUNCE_MS = 300;
+        const PROD_RT_SLOW_POLL_MS = 90000;
+        const PROD_RT_FLAG_KEY = 'prod_realtime';
+        const PROD_RT_LOCAL_KEY = 'syncview.prodRealtime';
+        const PROD_RT_FLAG_REREAD_MS = 300000;
+        let _prodRtFlagOn = true, _prodRtFlagReadAt = 0, _prodRtFlagBusy = false;
+        function _prodRtEnabled() {
+            try { if (localStorage.getItem(PROD_RT_LOCAL_KEY) === 'off') return false; } catch (e) {}
+            return _prodRtFlagOn;
+        }
+        // Default ON: a missing row or a failed read keeps realtime on (the
+        // poll is still running underneath); only {"enabled": false} is off.
+        async function _prodRtReadFlag(force) {
+            if (_prodRtFlagBusy || (!force && Date.now() - _prodRtFlagReadAt < PROD_RT_FLAG_REREAD_MS)) return;
+            if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return;
+            _prodRtFlagBusy = true;
+            _prodRtFlagReadAt = Date.now();
+            try {
+                const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(PROD_RT_FLAG_KEY) + '&limit=1';
+                const response = await fetch(url, { cache: 'no-store', headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+                if (!response.ok) return;
+                const rows = await response.json();
+                const value = Array.isArray(rows) && rows[0] ? rows[0].value : null;
+                _prodRtFlagOn = !(value && value.enabled === false);
+            } catch (e) {
+                console.warn('[Production] realtime flag read failed; keeping realtime on', e);
+            } finally {
+                _prodRtFlagBusy = false;
+            }
+            if (!_prodRtEnabled()) _prodRt.stop();
+            else if (_prodRtActive()) _prodRt.start();
+        }
         let _prodOperationalTimer = 0;
+        let _prodOperationalNextAt = 0;
+        function _prodRtActive() {
+            return currentNav === 'production' && !!document.getElementById('prodRoot') && _prodEnabled();
+        }
+        const _prodRt = _prodRtCreate({
+            debounceMs: PROD_RT_DEBOUNCE_MS,
+            slowPollMs: PROD_RT_SLOW_POLL_MS,
+            fastPollMs: PROD_DELTA_REFRESH_MS,
+            channelName: 'production_live',
+            setTimeout: (fn, ms) => setTimeout(fn, ms),
+            clearTimeout: (t) => clearTimeout(t),
+            now: () => Date.now(),
+            hidden: () => !!document.hidden,
+            active: _prodRtActive,
+            enabled: () => _prodRtEnabled(),
+            getClient: () => _wlV2Client(),
+            refresh: (o) => _prodDeltaRefresh({ full: !!(o && o.full) }),
+            localRow: (table, id) => {
+                const rows = table === 'batches' ? _prodState.batches : _prodState.deliverables;
+                return (rows || []).find(r => String(r && r.id || '') === id) || null;
+            },
+            onPollChange: (ms) => {
+                // Dropping back to the fast poll must not wait out a 120 s
+                // countdown that was set while realtime was up.
+                const soonest = Date.now() + ms;
+                if (!_prodOperationalNextAt || _prodOperationalNextAt > soonest) _prodOperationalNextAt = soonest;
+            }
+        });
+        window.prodRtStatus = () => _prodRt.status();
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) _prodRt.resume(); });
         function _prodOperationalRefreshDelay() {
             const failures = Number(_prodState.refreshFailures || 0);
-            if (!failures) return PROD_DELTA_REFRESH_MS;
+            if (!failures) return _prodRt.pollInterval();
             return Math.min(PROD_REFRESH_MAX_BACKOFF_MS, PROD_DELTA_REFRESH_MS * Math.pow(2, failures));
         }
         function _prodStartOperationalRefresh() {
+            _prodRtReadFlag(true);
+            _prodRt.start();
             if (_prodOperationalTimer) return;
-            let nextAt = Date.now() + PROD_DELTA_REFRESH_MS;
+            _prodOperationalNextAt = Date.now() + PROD_DELTA_REFRESH_MS;
             _prodOperationalTimer = setInterval(() => {
                 // The age keeps counting even when no read runs, so a hidden or
                 // blocked tab still shows an honest last-success age instead of
@@ -259,9 +504,13 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
                 if (document.getElementById('prodRoot') && currentNav === 'production') {
                     _prodSyncFreshnessControl();
                 }
+                // Leaving Production tears the live channel down within one
+                // tick; coming back (mount, or this tick) opens it again.
+                if (!_prodRtActive()) _prodRt.stop();
+                else { _prodRtReadFlag(false); _prodRt.start(); }
                 if (document.hidden || currentNav !== 'production' || !document.getElementById('prodRoot')) return;
-                if (Date.now() < nextAt) return;
-                nextAt = Date.now() + _prodOperationalRefreshDelay();
+                if (Date.now() < _prodOperationalNextAt) return;
+                _prodOperationalNextAt = Date.now() + _prodOperationalRefreshDelay();
                 _prodDeltaRefresh({});
             }, 5000);
         }

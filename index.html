@@ -387,6 +387,11 @@
             else if (seg === 'calendar' || seg === 'samples' || seg === 'templates') target = seg === 'samples' ? 'sample-reviews' : seg;
             else if (seg === 'kasper' && kasperOk()) target = 'kasper'; // kasper + kasper/<subtab>
             else if (seg === 'sample-reviews' && sxrOn()) target = 'sample-reviews';
+            else if (seg === 'staff-onboarding' || seg === 'client-credentials') target = seg;
+            // Any other page the address names (a Kasper link before the admin
+            // check, Samples switched off, a sub-path the fast path does not
+            // predict): never guess Analytics, paint the neutral skeleton.
+            else if (seg && ['production', 'linear', 'workload', 'calendar', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'kasper', 'sample-reviews', 'samples'].indexOf(seg) >= 0) target = 'neutral';
             else if (!hash) {
                 var saved = null; try { saved = localStorage.getItem('syncview_nav'); } catch (e) {}
                 var nav = (st && st.nav) || saved;
@@ -2152,7 +2157,11 @@
         html[data-boot-nav="templates"] .boot-skeleton-templates,
         html[data-boot-nav="filming-plans"] .boot-skeleton-filming,
         html[data-boot-nav="tiktok-upload"] .boot-skeleton-tiktok,
-        html[data-boot-nav="time-off"] .boot-skeleton-analytics,
+        html[data-boot-nav="time-off"] .boot-skeleton-neutral,
+        html[data-boot-nav="neutral"] .boot-skeleton-neutral,
+        html[data-boot-nav="staff-onboarding"] .boot-skeleton-neutral,
+        html[data-boot-nav="client-credentials"] .boot-skeleton-neutral,
+        html.boot-intake .boot-skeleton-neutral,
         html[data-boot-nav="smm-weekly-report"] .boot-skeleton-sales-intake,
         html[data-boot-nav="smm-weekly-reports"] .boot-skeleton-kasper,
         html[data-boot-nav="client"][data-boot-subtab="verify"] .boot-skeleton-client-verify,
@@ -2297,6 +2306,7 @@
         /* Intake is locked to the Linear page, which never shows the header
            and always hides #pageTop. */
         html.boot-intake .header { display: none !important; }
+        html.boot-intake .boot-skeleton-analytics { display: none !important; }
         html.boot-intake #pageTop { display: none !important; }
         /* Client share links (?c=): staff chrome must never paint. boot-client
            is a permanent document-owner lock, not a transient loader flag;
@@ -8967,6 +8977,19 @@
                 </div></div>
             </div>
         </div>
+        <!-- Neutral skeleton: a page whose own shape is not pre-painted (leave,
+             Onboarding, Client Credentials, Intake, or a route the early boot
+             cannot fully predict). Never another tab's shape. -->
+        <div class="boot-skeleton-variant boot-skeleton-neutral">
+            <div class="boot-page-skeleton" role="status" aria-label="Loading">
+                <div class="sv-skeleton-stack" style="gap:16px;">
+                    <div class="sv-skeleton sv-skeleton-line" style="width:180px;height:26px;"></div>
+                    <div class="sv-skeleton sv-skeleton-line" style="width:min(320px,70%);"></div>
+                    <div class="sv-skeleton-card"><div class="sv-skeleton-stack"><div class="sv-skeleton sv-skeleton-line" style="width:62%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:88%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:48%;"></div></div></div>
+                    <div class="sv-skeleton-card"><div class="sv-skeleton-stack"><div class="sv-skeleton sv-skeleton-line" style="width:54%;"></div><div class="sv-skeleton sv-skeleton-line" style="width:80%;"></div></div></div>
+                </div>
+            </div>
+        </div>
         <div class="boot-skeleton-variant boot-skeleton-kasper">
             <div class="boot-page-skeleton kasper-wrap" role="status" aria-label="Loading">
                 <div class="kasper-head">
@@ -15331,6 +15354,7 @@
     }
     async function _wlV2EnsureSubscribed() {
         if (!WL_V2_REALTIME) return;            // one-line rollback lever (see note above)
+        if (_wlPlanLive && _wlV2Ready()) _wlPlanLive.ensure();
         if (!_wlV2Ready() || _wlV2Channel) return;
         const client = await _wlV2Client();
         if (!client || !document.querySelector('.workload-view')) return; // left during lib load
@@ -15422,8 +15446,180 @@
             } catch {}
         }
         _wlV2Channel = null; _wlV2SubscribedOnce = false;
+        if (_wlPlanLive) _wlPlanLive.teardown();
     }
-    window.wlV2Status = function () { return { flag: _wlV2Enabled(), ready: _wlV2Ready(), subscribed: !!_wlV2Channel, polling: !!_wlV2WatermarkTimer, sourceSyncedAt: wlState.sourceSyncedAt }; };
+
+    /* Plan-day changes reach other open Workload pages in about a second.
+       `workload_plan` is private (not in the realtime publication, no anon or
+       authenticated grants) and must stay that way, so this does NOT stream
+       rows. After a confirmed save, the writer sends a Supabase Realtime
+       BROADCAST carrying only an opaque hint ({kind, at, from}) — no issue id,
+       client, card title or date. Every open board listens and, on a hint that
+       is not its own echo, re-reads through the existing authorized path
+       (_wlV2CheckWatermark -> wlRefetchSilent -> workload-plan), coalesced.
+       Same-browser tabs also get a `storage` hint, since a tab's own broadcast
+       may not loop back to its siblings. The 5-minute poll stays as the net.
+       Pure factory so test/workload-plan-live.js can drive it with mocks. */
+    function wlCreatePlanLive(opts) {
+        const o = opts || {};
+        const debounceMs = o.debounceMs == null ? 600 : o.debounceMs;
+        const sendCoalesceMs = o.sendCoalesceMs == null ? 250 : o.sendCoalesceMs;
+        const storageKey = o.storageKey || 'syncview.workload.plan-live.v1';
+        const from = Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+        const st = { channelStatus: 'idle', subscribedOnce: false, lastError: '', sent: 0, sendFailed: 0,
+            received: 0, echoesIgnored: 0, refreshes: 0, catchUps: 0, lastReceivedAt: '',
+            rejected: 0, throttled: 0, busyGaveUp: 0 };
+        let channel = null, client = null, recvTimer = null, sendTimer = null, opening = null;
+        // Broadcast is a PUBLIC channel: anyone with the publishable key can send
+        // to it. So broadcast-triggered re-reads are strictly validated and
+        // rate-limited to one per minRemoteIntervalMs per page; a hint inside the
+        // window schedules exactly one re-read at the window's end. The storage
+        // signal cannot come from outside this browser and is not throttled.
+        const minRemoteIntervalMs = o.minRemoteIntervalMs == null ? 10000 : o.minRemoteIntervalMs;
+        const busyRetryMs = o.busyRetryMs == null ? 2000 : o.busyRetryMs;
+        const busyRetryMax = o.busyRetryMax == null ? 30 : o.busyRetryMax;
+        const clock = typeof o.now === 'function' ? o.now : () => Date.now();
+        let lastRemoteRunAt = -Infinity, dirty = false, busyTries = 0;
+        function runRefresh() {
+            recvTimer = null;
+            // Busy (loading, manual refresh, own write): the existing check would
+            // return early and forget the hint. Keep it dirty and retry, bounded.
+            if (o.canRun && !o.canRun()) {
+                dirty = true;
+                if (busyTries++ < busyRetryMax) recvTimer = setTimeout(runRefresh, busyRetryMs);
+                else { dirty = false; busyTries = 0; st.busyGaveUp++; }
+                return;
+            }
+            dirty = false; busyTries = 0;
+            st.refreshes++;
+            try { const p = o.onRemote && o.onRemote(); if (p && p.catch) p.catch(() => {}); } catch {}
+        }
+        function scheduleRefresh(throttled) {
+            let delay = debounceMs;
+            if (throttled) {
+                const now = clock();
+                const earliest = lastRemoteRunAt + minRemoteIntervalMs;
+                if (now < earliest) {
+                    st.throttled++;
+                    if (recvTimer) return;           // one pending re-read already covers it
+                    delay = Math.max(debounceMs, earliest - now);
+                }
+                lastRemoteRunAt = Math.max(now + delay, lastRemoteRunAt);
+            }
+            if (recvTimer) clearTimeout(recvTimer);
+            busyTries = 0;
+            recvTimer = setTimeout(runRefresh, delay);
+        }
+        function validHint(hint) {
+            if (!hint || typeof hint !== 'object' || Array.isArray(hint)) return false;
+            const keys = Object.keys(hint);
+            if (keys.length !== 3 || keys.some(k => k !== 'kind' && k !== 'at' && k !== 'from')) return false;
+            if (hint.kind !== 'plan') return false;
+            if (typeof hint.at !== 'string' || hint.at.length > 40 || !/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(hint.at)) return false;
+            if (typeof hint.from !== 'string' || !/^[a-z0-9]{8,40}$/.test(hint.from)) return false;
+            return true;
+        }
+        function receive(msg, viaStorage) {
+            const hint = viaStorage ? msg : (msg && typeof msg === 'object' ? msg.payload : null);
+            if (!validHint(hint)) { st.rejected++; return false; }
+            if (hint.from === from) { st.echoesIgnored++; return false; }
+            st.received++;
+            st.lastReceivedAt = new Date().toISOString();
+            scheduleRefresh(!viaStorage);
+            return true;
+        }
+        function onStorage(event) {
+            if (!event || event.key !== storageKey || !event.newValue) return false;
+            let hint = null;
+            try { hint = JSON.parse(event.newValue); } catch { return false; }
+            return receive(hint, true);
+        }
+        function flush() {
+            sendTimer = null;
+            const hint = { kind: 'plan', at: new Date().toISOString(), from };
+            try {
+                if (o.storage) { o.storage.setItem(storageKey, JSON.stringify(hint)); o.storage.removeItem(storageKey); }
+            } catch {}
+            if (!channel || st.channelStatus !== 'SUBSCRIBED') { st.sendFailed++; return; }
+            try {
+                const r = channel.send({ type: 'broadcast', event: 'plan', payload: hint });
+                st.sent++;
+                if (r && typeof r.then === 'function') {
+                    r.then(res => { if (res && res !== 'ok') { st.sent--; st.sendFailed++; } }, () => { st.sent--; st.sendFailed++; });
+                }
+            } catch { st.sendFailed++; }
+        }
+        // Call ONLY after the server confirmed the save.
+        function announce() {
+            if (sendTimer) return;
+            sendTimer = setTimeout(flush, sendCoalesceMs);
+        }
+        async function ensure() {
+            if (channel || opening) return opening;
+            opening = (async () => {
+                const c = o.getClient ? await o.getClient() : null;
+                if (!c || typeof c.channel !== 'function' || channel) return;
+                if (o.isActive && !o.isActive()) return;
+                client = c;
+                st.channelStatus = 'CONNECTING';
+                try {
+                    channel = c.channel(o.channelName || 'workload-plan', { config: { broadcast: { self: false, ack: false } } })
+                        .on('broadcast', { event: 'plan' }, msg => receive(msg, false))
+                        .subscribe((status, err) => {
+                            st.channelStatus = String(status || '');
+                            if (status === 'SUBSCRIBED') {
+                                st.lastError = '';
+                                // Broadcast does not replay; a re-subscribe after a drop
+                                // re-reads once to catch whatever was missed.
+                                if (st.subscribedOnce) { st.catchUps++; scheduleRefresh(false); }
+                                st.subscribedOnce = true;
+                            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                                st.lastError = String(status) + (err && err.message ? ': ' + err.message : '');
+                            }
+                        });
+                } catch (e) {
+                    st.channelStatus = 'CHANNEL_ERROR';
+                    st.lastError = String(e && e.message || e);
+                    channel = null;
+                }
+            })().finally(() => { opening = null; });
+            return opening;
+        }
+        function teardown() {
+            if (recvTimer) { clearTimeout(recvTimer); recvTimer = null; }
+            // A confirmed save still inside the coalesce window is sent now
+            // (storage signal always; broadcast if the channel is still up).
+            if (sendTimer) { clearTimeout(sendTimer); flush(); }
+            dirty = false; busyTries = 0;
+            if (channel) {
+                try {
+                    if (client && typeof client.removeChannel === 'function') client.removeChannel(channel);
+                    else if (typeof channel.unsubscribe === 'function') channel.unsubscribe();
+                } catch {}
+            }
+            channel = null; client = null;
+            st.channelStatus = 'idle'; st.subscribedOnce = false;
+        }
+        function status() { return Object.assign({ subscribed: st.channelStatus === 'SUBSCRIBED', pendingReread: dirty || !!recvTimer }, st); }
+        return { announce, ensure, teardown, status, onStorage, receive };
+    }
+    const _wlPlanLive = (typeof window !== 'undefined') ? wlCreatePlanLive({
+        getClient: () => _wlV2Client(),
+        isActive: () => !!document.querySelector('.workload-view'),
+        onRemote: () => _wlV2CheckWatermark(),
+        // Mirrors the early returns in _wlV2CheckWatermark, so a hint is kept
+        // (and retried) instead of silently dropped while the page is busy.
+        canRun: () => !_wlV2WatermarkBusy && !document.hidden && !!document.querySelector('.workload-view')
+            && !wlState.loading && !wlState.refreshing && !_wlPlanWriteInFlight.size && !_wlDueWriteInFlight.size,
+        storage: (() => { try { return window.localStorage; } catch { return null; } })()
+    }) : null;
+    if (typeof window !== 'undefined' && _wlPlanLive && !window.__wlPlanLiveWired) {
+        window.__wlPlanLiveWired = true;
+        window.addEventListener('storage', e => { if (document.querySelector('.workload-view')) _wlPlanLive.onStorage(e); });
+    }
+    function wlAnnouncePlanSaved() { try { if (_wlPlanLive) _wlPlanLive.announce(); } catch {} }
+    window.wlPlanLiveStatus = function () { return _wlPlanLive ? _wlPlanLive.status() : null; };
+    window.wlV2Status = function () { return { flag: _wlV2Enabled(), ready: _wlV2Ready(), subscribed: !!_wlV2Channel, polling: !!_wlV2WatermarkTimer, sourceSyncedAt: wlState.sourceSyncedAt, planLive: _wlPlanLive ? _wlPlanLive.status() : null }; };
 
     function wlIssueClientAllowed(issue) {
         return issue && issue.workloadSource === 'native'
@@ -19516,6 +19712,7 @@
                 || (saved.plan_date == null ? null : String(saved.plan_date).slice(0, 10)) !== planDate) {
                 throw new Error((json && json.error) || ('HTTP ' + resp.status));
             }
+            if (typeof wlAnnouncePlanSaved === 'function') wlAnnouncePlanSaved();   // opaque hint to other open boards; confirmed saves only
             return true;
         } catch (error) {
             if (sessionGeneration != null && sessionGeneration !== _wlPlanSessionGeneration) return false;
@@ -28301,6 +28498,7 @@
        a live flip while the tab stays open), never on the routine
        focus/visibility/60s-timer polls that re-confirm the same value. */
     let _writeUiLastRenderedAuthoritySig = null;
+    function _writeUiSetLastRenderedAuthoritySig(value) { _writeUiLastRenderedAuthoritySig = value; }
 
     function _writeUiNormalizeAuthority(value) {
         if (typeof value === 'string') { try { value = JSON.parse(value); } catch (e) { return null; } }
@@ -66309,15 +66507,259 @@
                 else _prodSyncFreshnessControl();
             }
         }
+        /* LIVE UPDATES FOR PRODUCTION (realtime first, the poll as fallback).
+
+           The board used to learn about other people's changes only from the
+           30-second delta tick, which also pauses on a hidden tab. It now opens
+           one supabase-js channel (postgres_changes on deliverables, batches
+           and deliverable_events -- all three are in the realtime publication
+           and readable by the page's key, the same way Workload subscribes)
+           and routes every event into the EXISTING refresh path,
+           `_prodDeltaRefresh`, so nothing about what is read, merged, cached or
+           painted changes. Only WHEN it runs changes:
+
+           - events are debounced (300 ms) and coalesced: a burst of ten row
+             changes is one read, and a batch change, a delete or a
+             deliverable_events insert in the burst upgrades that one read to a
+             full reload. The delta reads deliverables by `updated_at`
+             watermark and cannot see a batch change, a removed row, or a
+             rename propagated from a card: that drain rewrites the title and
+             inserts a deliverable_events row but deliberately leaves
+             `updated_at` alone (migrations/2026-09-23-rename-propagation.sql);
+           - an echo of this tab's own write is ignored: the gateway row was
+             already adopted (`_prodApplyGatewayRow`), so an event whose
+             `updated_at` AND visible fields equal the row this tab holds
+             carries nothing new. Comparing `updated_at` alone is not enough,
+             for the same rename-propagation reason;
+           - a refresh that declines (write in flight, menu open, typing) is
+             retried rather than dropped, and nothing runs on a hidden tab --
+             the pending read runs when the tab is shown again;
+           - the status is tracked honestly. The poll stays as the fallback:
+             it slows to 90 s only while the channel reports SUBSCRIBED and is
+             back to 30 s the moment it reports anything else. A SUBSCRIBED
+             after a drop runs one full catch-up, because realtime does not
+             replay what it missed while down. 90 s, not 120 s: the freshness
+             control calls a board older than PROD_STALE_AFTER_MS (120 s)
+             degraded, so the slow cadence keeps a 30 s margin under it;
+           - KILL SWITCH (ROLLBACK.md): runtime flag `prod_realtime` with value
+             {"enabled": false}, or localStorage `syncview.prodRealtime` = "off"
+             in one browser, turns the channel off and restores the 30 s poll.
+             A missing row or a failed read means ON; only an explicit false
+             turns it off. Open tabs re-read the flag every 5 minutes and on
+             every Production open.
+
+           The controller takes all its effects as arguments so a unit test can
+           drive it with a mocked channel (test/prod-realtime-controller.js).
+           `window.prodRtStatus()` prints the live state. */
+        /* PROD_RT_CONTROLLER_BEGIN */
+        function _prodRtCreate(deps) {
+            const d = deps;
+            const debounceMs = Number(d.debounceMs || 300);
+            const retryMs = Number(d.retryMs || 2000);
+            const st = {
+                status: 'idle', subscribedOnce: false, events: 0, echoes: 0,
+                refreshes: 0, retries: 0, catchups: 0, lastEventAt: 0,
+                lastStatusAt: 0, lastProblem: ''
+            };
+            let channel = null, client = null, timer = 0, pending = false, pendingFull = false, generation = 0;
+            function pollInterval() {
+                return st.status === 'SUBSCRIBED' ? d.slowPollMs : d.fastPollMs;
+            }
+            const ECHO_FIELDS = ['title', 'status', 'due_date', 'assignee_id', 'brief', 'file_url', 'batch_id', 'name'];
+            function isEcho(table, payload) {
+                const row = payload && payload.new;
+                if (!row || row.id == null || !row.updated_at) return false;
+                const local = d.localRow(table, String(row.id));
+                if (!local || String(local.updated_at || '') !== String(row.updated_at)) return false;
+                return ECHO_FIELDS.every(f => !Object.prototype.hasOwnProperty.call(row, f)
+                    || !Object.prototype.hasOwnProperty.call(local, f)
+                    || JSON.stringify(row[f]) === JSON.stringify(local[f]));
+            }
+            function arm(ms) {
+                if (timer) return;
+                timer = d.setTimeout(flush, ms);
+            }
+            function queue(full) {
+                pending = true;
+                if (full) pendingFull = true;
+                arm(debounceMs);
+            }
+            function flush() {
+                timer = 0;
+                if (!pending) return;
+                if (!d.active()) { pending = false; pendingFull = false; return; }
+                if (d.hidden()) return; // resume() runs it when the tab is shown
+                const full = pendingFull;
+                pending = false; pendingFull = false;
+                st.refreshes++;
+                let result;
+                try { result = d.refresh({ full }); } catch (e) { result = false; }
+                return Promise.resolve(result).then((ok) => {
+                    // null = the refresh declined (busy / already in flight).
+                    // Put the request back so a change is never dropped.
+                    if (ok === null && d.active()) {
+                        st.retries++;
+                        pending = true;
+                        if (full) pendingFull = true;
+                        arm(retryMs);
+                    }
+                }, () => {});
+            }
+            function onEvent(table, payload) {
+                st.events++;
+                st.lastEventAt = d.now();
+                // A realtime event type, not an HTTP method.
+                const removed = /^DELETE$/.test(String(payload && payload.eventType || ''));
+                if (!removed && table !== 'deliverable_events' && isEcho(table, payload)) {
+                    st.echoes++;
+                    return;
+                }
+                // A changed row that kept its updated_at (a propagated rename)
+                // sits below the watermark, so only a full read can see it.
+                const row = payload && payload.new;
+                const local = row && row.id != null ? d.localRow(table, String(row.id)) : null;
+                const stampKept = !!(local && row.updated_at && String(local.updated_at || '') === String(row.updated_at));
+                queue(table !== 'deliverables' || removed || stampKept);
+            }
+            function onStatus(gen, status) {
+                if (gen !== generation) return; // a torn-down channel's CLOSED
+                const before = pollInterval();
+                st.status = String(status || '');
+                st.lastStatusAt = d.now();
+                if (st.status === 'SUBSCRIBED') {
+                    if (st.subscribedOnce) { st.catchups++; queue(true); }
+                    st.subscribedOnce = true;
+                } else {
+                    st.lastProblem = st.status;
+                }
+                if (before !== pollInterval() && d.onPollChange) d.onPollChange(pollInterval());
+            }
+            function start() {
+                if (d.enabled && !d.enabled()) { stop(); st.status = 'disabled'; return; }
+                if (channel || st.status === 'connecting') return;
+                const gen = ++generation;
+                st.status = 'connecting';
+                return Promise.resolve(d.getClient()).then((c) => {
+                    if (gen !== generation) return;
+                    if (!c || !d.active()) { st.status = 'idle'; return; }
+                    client = c;
+                    try {
+                        let ch = c.channel(d.channelName || 'production_live');
+                        ['deliverables', 'batches', 'deliverable_events'].forEach((table) => {
+                            ch = ch.on('postgres_changes', { event: '*', schema: 'public', table }, (p) => onEvent(table, p));
+                        });
+                        channel = ch;
+                        ch.subscribe((s) => onStatus(gen, s));
+                    } catch (e) {
+                        channel = null;
+                        st.status = 'CHANNEL_ERROR';
+                        st.lastProblem = 'subscribe_threw';
+                    }
+                }, () => { if (gen === generation) { st.status = 'idle'; st.lastProblem = 'client_failed'; } });
+            }
+            function stop() {
+                if (!channel && (st.status === 'idle' || st.status === 'disabled')) return;
+                const wasSubscribed = st.status === 'SUBSCRIBED';
+                generation++;
+                if (timer) { d.clearTimeout(timer); timer = 0; }
+                pending = false; pendingFull = false;
+                if (channel && client && typeof client.removeChannel === 'function') {
+                    try { client.removeChannel(channel); } catch (e) {}
+                }
+                channel = null;
+                st.status = 'idle';
+                st.subscribedOnce = false;
+                if (wasSubscribed && d.onPollChange) d.onPollChange(pollInterval());
+            }
+            function resume() {
+                if (pending && !timer) arm(0);
+            }
+            function status() {
+                return {
+                    status: st.status, live: st.status === 'SUBSCRIBED', pollMs: pollInterval(),
+                    pending, pendingFull, events: st.events, echoesIgnored: st.echoes,
+                    refreshes: st.refreshes, retries: st.retries, catchups: st.catchups,
+                    lastEventAt: st.lastEventAt ? new Date(st.lastEventAt).toISOString() : '',
+                    lastStatusAt: st.lastStatusAt ? new Date(st.lastStatusAt).toISOString() : '',
+                    lastProblem: st.lastProblem
+                };
+            }
+            return { start, stop, resume, status, pollInterval, onEvent };
+        }
+        /* PROD_RT_CONTROLLER_END */
+        const PROD_RT_DEBOUNCE_MS = 300;
+        const PROD_RT_SLOW_POLL_MS = 90000;
+        const PROD_RT_FLAG_KEY = 'prod_realtime';
+        const PROD_RT_LOCAL_KEY = 'syncview.prodRealtime';
+        const PROD_RT_FLAG_REREAD_MS = 300000;
+        let _prodRtFlagOn = true, _prodRtFlagReadAt = 0, _prodRtFlagBusy = false;
+        function _prodRtEnabled() {
+            try { if (localStorage.getItem(PROD_RT_LOCAL_KEY) === 'off') return false; } catch (e) {}
+            return _prodRtFlagOn;
+        }
+        // Default ON: a missing row or a failed read keeps realtime on (the
+        // poll is still running underneath); only {"enabled": false} is off.
+        async function _prodRtReadFlag(force) {
+            if (_prodRtFlagBusy || (!force && Date.now() - _prodRtFlagReadAt < PROD_RT_FLAG_REREAD_MS)) return;
+            if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return;
+            _prodRtFlagBusy = true;
+            _prodRtFlagReadAt = Date.now();
+            try {
+                const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(PROD_RT_FLAG_KEY) + '&limit=1';
+                const response = await fetch(url, { cache: 'no-store', headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+                if (!response.ok) return;
+                const rows = await response.json();
+                const value = Array.isArray(rows) && rows[0] ? rows[0].value : null;
+                _prodRtFlagOn = !(value && value.enabled === false);
+            } catch (e) {
+                console.warn('[Production] realtime flag read failed; keeping realtime on', e);
+            } finally {
+                _prodRtFlagBusy = false;
+            }
+            if (!_prodRtEnabled()) _prodRt.stop();
+            else if (_prodRtActive()) _prodRt.start();
+        }
         let _prodOperationalTimer = 0;
+        let _prodOperationalNextAt = 0;
+        function _prodRtActive() {
+            return currentNav === 'production' && !!document.getElementById('prodRoot') && _prodEnabled();
+        }
+        const _prodRt = _prodRtCreate({
+            debounceMs: PROD_RT_DEBOUNCE_MS,
+            slowPollMs: PROD_RT_SLOW_POLL_MS,
+            fastPollMs: PROD_DELTA_REFRESH_MS,
+            channelName: 'production_live',
+            setTimeout: (fn, ms) => setTimeout(fn, ms),
+            clearTimeout: (t) => clearTimeout(t),
+            now: () => Date.now(),
+            hidden: () => !!document.hidden,
+            active: _prodRtActive,
+            enabled: () => _prodRtEnabled(),
+            getClient: () => _wlV2Client(),
+            refresh: (o) => _prodDeltaRefresh({ full: !!(o && o.full) }),
+            localRow: (table, id) => {
+                const rows = table === 'batches' ? _prodState.batches : _prodState.deliverables;
+                return (rows || []).find(r => String(r && r.id || '') === id) || null;
+            },
+            onPollChange: (ms) => {
+                // Dropping back to the fast poll must not wait out a 120 s
+                // countdown that was set while realtime was up.
+                const soonest = Date.now() + ms;
+                if (!_prodOperationalNextAt || _prodOperationalNextAt > soonest) _prodOperationalNextAt = soonest;
+            }
+        });
+        window.prodRtStatus = () => _prodRt.status();
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) _prodRt.resume(); });
         function _prodOperationalRefreshDelay() {
             const failures = Number(_prodState.refreshFailures || 0);
-            if (!failures) return PROD_DELTA_REFRESH_MS;
+            if (!failures) return _prodRt.pollInterval();
             return Math.min(PROD_REFRESH_MAX_BACKOFF_MS, PROD_DELTA_REFRESH_MS * Math.pow(2, failures));
         }
         function _prodStartOperationalRefresh() {
+            _prodRtReadFlag(true);
+            _prodRt.start();
             if (_prodOperationalTimer) return;
-            let nextAt = Date.now() + PROD_DELTA_REFRESH_MS;
+            _prodOperationalNextAt = Date.now() + PROD_DELTA_REFRESH_MS;
             _prodOperationalTimer = setInterval(() => {
                 // The age keeps counting even when no read runs, so a hidden or
                 // blocked tab still shows an honest last-success age instead of
@@ -66325,9 +66767,13 @@
                 if (document.getElementById('prodRoot') && currentNav === 'production') {
                     _prodSyncFreshnessControl();
                 }
+                // Leaving Production tears the live channel down within one
+                // tick; coming back (mount, or this tick) opens it again.
+                if (!_prodRtActive()) _prodRt.stop();
+                else { _prodRtReadFlag(false); _prodRt.start(); }
                 if (document.hidden || currentNav !== 'production' || !document.getElementById('prodRoot')) return;
-                if (Date.now() < nextAt) return;
-                nextAt = Date.now() + _prodOperationalRefreshDelay();
+                if (Date.now() < _prodOperationalNextAt) return;
+                _prodOperationalNextAt = Date.now() + _prodOperationalRefreshDelay();
                 _prodDeltaRefresh({});
             }, 5000);
         }
@@ -74904,11 +75350,11 @@
             {
                 const authoritySig = JSON.stringify(authority);
                 if (authoritySig !== _writeUiLastRenderedAuthoritySig) {
-                    _writeUiLastRenderedAuthoritySig = authoritySig;
+                    _writeUiSetLastRenderedAuthoritySig(authoritySig);
                     const activeNav = typeof currentNav !== 'undefined' ? currentNav : null;
                     if (activeNav === 'calendar' && typeof _calRenderBody === 'function') {
                         if (typeof _calIsCalBusy === 'function' && _calIsCalBusy()) {
-                            _calPendingBackgroundRender = true;
+                            _calSetPendingBackgroundRender(true);
                             if (typeof _calSchedulePendingRender === 'function') _calSchedulePendingRender();
                         } else {
                             _calRenderBody({ preserveScroll: true, skipIfUnchanged: true });
@@ -74916,7 +75362,7 @@
                     }
                     if (activeNav === 'sample-reviews' && typeof _sxrRenderBody === 'function') {
                         if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
-                            _sxrPendingBackgroundRender = true;
+                            _sxrSetPendingBackgroundRender(true);
                             if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
                         } else {
                             _sxrRenderBody({ preserveScroll: true });
@@ -75453,7 +75899,7 @@
         p.updated_at = new Date().toISOString();
         const linearMeta = linearComment ? _sxrCommentsFor(p, comp).slice(-1)[0] : null;
         _sxrKasperState.saving[key] = true;
-        _sxrLastLocalWriteAt = Date.now();   // self-echo: defer the realtime queue refresh of our own write
+        _sxrSetLastLocalWriteAt(Date.now());   // self-echo: defer the realtime queue refresh of our own write
         _sxrKasperRepaint(pid);
         let gatewayAttempted = false;
         let gatewayCommitted = false;
@@ -75546,7 +75992,7 @@
             _kasperState.sxrRepairs = (_kasperState.sxrRepairs || []).filter(row => row && row.id !== p.id);
             _kasperPersistCache();
             _sxrKasperState.saving[key] = false;
-            _sxrLastLocalWriteAt = Date.now();   // echo lands a beat after the write resolves
+            _sxrSetLastLocalWriteAt(Date.now());   // echo lands a beat after the write resolves
             // Pin the card in the queue (touched) — it no longer auto-vanishes when
             // a component leaves Kasper Approval. It only leaves via "Finish
             // reviewing" (→ history / Tweaks pending) or the X (Close). The approve

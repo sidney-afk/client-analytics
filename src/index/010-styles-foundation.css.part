@@ -1676,7 +1676,11 @@
         html[data-boot-nav="templates"] .boot-skeleton-templates,
         html[data-boot-nav="filming-plans"] .boot-skeleton-filming,
         html[data-boot-nav="tiktok-upload"] .boot-skeleton-tiktok,
-        html[data-boot-nav="time-off"] .boot-skeleton-analytics,
+        html[data-boot-nav="time-off"] .boot-skeleton-neutral,
+        html[data-boot-nav="neutral"] .boot-skeleton-neutral,
+        html[data-boot-nav="staff-onboarding"] .boot-skeleton-neutral,
+        html[data-boot-nav="client-credentials"] .boot-skeleton-neutral,
+        html.boot-intake .boot-skeleton-neutral,
         html[data-boot-nav="smm-weekly-report"] .boot-skeleton-sales-intake,
         html[data-boot-nav="smm-weekly-reports"] .boot-skeleton-kasper,
         html[data-boot-nav="client"][data-boot-subtab="verify"] .boot-skeleton-client-verify,
@@ -1821,6 +1825,7 @@
         /* Intake is locked to the Linear page, which never shows the header
            and always hides #pageTop. */
         html.boot-intake .header { display: none !important; }
+        html.boot-intake .boot-skeleton-analytics { display: none !important; }
         html.boot-intake #pageTop { display: none !important; }
         /* Client share links (?c=): staff chrome must never paint. boot-client
            is a permanent document-owner lock, not a transient loader flag;

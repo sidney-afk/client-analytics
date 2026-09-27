@@ -1,4 +1,6 @@
-import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, SMM_WEEKLY_REPORTS_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
+import { wlNormalizeClient } from './070-workload-source.js';
+import { _srpState } from './110-time-off-reports.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _calSetFocusRequest } from './130-calendar-model-cache.js';
 import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
@@ -19,8 +21,13 @@ import { navTo } from './090-workload-popovers-navigation.js';
      *   Video and graphics: their own queue (urgent, changes, to do) as a list
      *     or a deck. Editors work in SyncLinear, so rows only open SyncLinear.
      *
-     * Client ownership: clients.lead_member_id. While nobody owns a client
-     * there, an SMM sees every active client. Today is a team tab: it ignores
+     * Client ownership: the SMM roster SyncLinear's "Social media manager" card
+     * reads (social_media_managers, copied nightly from the owner's roster
+     * sheet; each SMM lists the clients they own). An SMM sees only their own
+     * clients; an admin sees every client, including ones no SMM lists. If the
+     * roster cannot be read the page says so and offers a retry; an SMM who is
+     * not on the roster is told so and shown no clients, because a client with
+     * no SMM listed belongs to admins only. Today is a team tab: it ignores
      * the shared client, but opening a card makes that card's client current. */
     const TDY_VIEW_KEY = 'syncview_today_view';
     const TDY_OPEN = ['todo', 'in_progress', 'tweak', 'smm_approval'];
@@ -39,7 +46,7 @@ import { navTo } from './090-workload-popovers-navigation.js';
         const role = String(id.role || m.role || '').toLowerCase();
         const team = String(m.team || '').toLowerCase();
         const editor = role !== 'admin' && role !== 'smm' && (team === 'video' || team === 'graphics');
-        return { id: String(m.id), first: String(m.name || '').trim().split(/\s+/)[0] || '', role, team, editor };
+        return { id: String(m.id), name: String(m.name || '').trim(), first: String(m.name || '').trim().split(/\s+/)[0] || '', role, team, editor };
     }
     function _tdyIso(d) {
         return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -85,10 +92,44 @@ import { navTo } from './090-workload-popovers-navigation.js';
         const rows = await _tdyRest('production_deliverables_browser_v1', 'select=raw_issue_parent_id&raw_issue_parent_id=not.is.null');
         return new Set(rows.map(r => r.raw_issue_parent_id));
     }
+    async function _tdyRoster() {
+        if (_srpState.managersLoaded) return _srpState.managers;
+        const ident = _syncviewStaffIdentityForHeaders();
+        if (!ident || !ident.key) return null;
+        try {
+            const resp = await fetch(SMM_WEEKLY_REPORTS_URL + '?action=options', {
+                headers: { Accept: 'application/json', apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, 'X-Syncview-Key': ident.key }
+            });
+            const data = await resp.json().catch(() => null);
+            if (!resp.ok || !data || !Array.isArray(data.managers)) return null;
+            _srpState.managers = data.managers;
+            _srpState.managersLoaded = true;
+            return data.managers;
+        } catch (e) { return null; }
+    }
+    /* The roster names people as the sheet does; staff sign in by roster
+       member. Match on email first, then full name, then a first name that
+       only one roster entry carries. */
+    async function _tdyMyClients(me) {
+        const managers = await _tdyRoster();
+        if (!managers) throw new Error('roster');
+        let email = '';
+        try {
+            const rows = await _tdyRest('team_members', 'select=email&id=eq.' + encodeURIComponent(me.id));
+            email = String(rows[0] && rows[0].email || '').trim().toLowerCase();
+        } catch (e) {}
+        const norm = v => String(v || '').trim().toLowerCase();
+        const byFirst = managers.filter(m => norm(m.name).split(/\s+/)[0] === norm(me.first));
+        const mine = (email && managers.find(m => norm(m.email) === email))
+            || managers.find(m => norm(m.name) === norm(me.name))
+            || (byFirst.length === 1 ? byFirst[0] : null);
+        if (!mine) return new Set();
+        return new Set((Array.isArray(mine.source_clients) ? mine.source_clients : []).map(wlNormalizeClient).filter(Boolean));
+    }
     async function _tdyLoad(me) {
         const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
         const monday = _tdyMonday().toISOString();
-        const [clients, parents] = await Promise.all([_tdyRest('clients', 'select=slug,display_name,lead_member_id,active'), _tdyParentIds()]);
+        const [clients, parents] = await Promise.all([_tdyRest('clients', 'select=slug,display_name,active'), _tdyParentIds()]);
         const child = r => !(r.linear_issue_uuid && parents.has(r.linear_issue_uuid));
         const names = {};
         clients.forEach(c => { names[c.slug] = c.display_name || c.slug; });
@@ -106,8 +147,11 @@ import { navTo } from './090-workload-popovers-navigation.js';
             }
             return { names, open: open.filter(r => child(r) && (r.status === 'tweak' || _tdyFresh(r))), done: done.filter(child), urgent };
         }
-        const owned = clients.filter(c => c.active !== false && c.lead_member_id === me.id).map(c => c.slug);
-        const scope = owned.length ? owned : clients.filter(c => c.active !== false).map(c => c.slug);
+        const active = clients.filter(c => c.active !== false);
+        const mineSet = me.role === 'admin' ? null : await _tdyMyClients(me);
+        const scope = (mineSet
+            ? active.filter(c => mineSet.has(wlNormalizeClient(c.display_name)) || mineSet.has(wlNormalizeClient(c.slug)))
+            : active).map(c => c.slug);
         const inScope = r => scope.includes(r.client_slug || r.client);
         const today = _tdyIso(_tdyDays(0));
         const [open, done, posts] = await Promise.all([
@@ -116,7 +160,7 @@ import { navTo } from './090-workload-popovers-navigation.js';
             _tdyRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
                 + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)')
         ]);
-        return { names, owned: owned.length > 0, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
+        return { names, notListed: !!mineSet && mineSet.size === 0, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
     }
 
     /* ---------- small pieces ---------- */
@@ -162,7 +206,7 @@ import { navTo } from './090-workload-popovers-navigation.js';
     }
     function _tdyTop(views, on) {
         const d = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
-        return `<div class="tdy-top"><span class="tdy-date">${_calEsc(d)}</span><div class="tdy-vw" role="tablist">${views.map(v => `<button type="button" role="tab" aria-selected="${v === on}" class="${v === on ? 'on' : ''}" onclick="_tdySetView(${_calEscAttr(JSON.stringify(v))})">${_calEsc(v)}</button>`).join('')}</div></div>`;
+        return `<div class="tdy-top"><span class="tdy-date">${_calEsc(d)}</span><div class="tdy-vw" role="tablist">${views.map(v => `<button type="button" role="tab" aria-selected="${v === on}" class="${v === on ? 'on' : ''}" data-tdy-key="view-${_calEscAttr(v)}" onclick="_tdySetView(${_calEscAttr(JSON.stringify(v))})">${_calEsc(v)}</button>`).join('')}</div></div>`;
     }
     const _tdyToday = rows => rows.filter(r => r.status_at && new Date(r.status_at) >= _tdyDays(0));
 
@@ -233,7 +277,7 @@ import { navTo } from './090-workload-popovers-navigation.js';
         const left = jobs.reduce((s, j) => s + j.rows.length, 0);
         const today = _tdyToday(d.done);
         const head = _tdyTop(['Rings', 'Walk-through'], view) + _tdyMeter(today.length, left, d.done.length);
-        const scope = d.owned ? '' : '<p class="tdy-note">Showing every client. Set a lead on a client to see only yours.</p>';
+        const scope = d.notListed ? '<p class="tdy-note">No clients are listed for you yet. Ask an admin to add yours to the SMM list.</p>' : '';
         if (view === 'Walk-through') {
             const list = _tdyWalkList(d);
             if (!list.length) return head + `<div class="tdy-win"><span class="tdy-ok"></span><h2>Every post is ready.</h2><p>Nothing to walk through for the next two weeks.</p></div>` + scope;
@@ -249,7 +293,7 @@ import { navTo } from './090-workload-popovers-navigation.js';
         const on = jobs.find(j => j.key === tdyState.job && j.rows.length) || jobs.find(j => j.rows.length) || jobs[0];
         const rings = jobs.map(j => {
             const n = j.rows.length;
-            return `<button type="button" class="tdy-rg ${j === on ? 'on' : ''}" onclick="_tdySetJob(${_calEscAttr(JSON.stringify(j.key))})"><span class="tdy-ring ${n ? '' : 'full'}"><b>${n || ''}</b></span><span>${_calEsc(j.label)}</span></button>`;
+            return `<button type="button" class="tdy-rg ${j === on ? 'on' : ''}" data-tdy-key="job-${j.key}" onclick="_tdySetJob(${_calEscAttr(JSON.stringify(j.key))})"><span class="tdy-ring ${n ? '' : 'full'}"><b>${n || ''}</b></span><span>${_calEsc(j.label)}</span></button>`;
         }).join('');
         const body = on.rows.length
             ? `<div class="tdy-ls">${on.rows.slice(0, 12).map(x => _tdySmmRow(x, d)).join('')}${on.rows.length > 12 ? `<div class="tdy-more">${on.rows.length - 12} more in SyncLinear and Calendar</div>` : ''}</div>`
@@ -268,23 +312,47 @@ import { navTo } from './090-workload-popovers-navigation.js';
         if (!me) { root.innerHTML = '<div class="tdy-win"><h2>Sign in to see your day.</h2><p>Today shows what is waiting on you once you pick your name in the staff menu.</p></div>'; return; }
         if (tdyState.error) { root.innerHTML = `<div class="tdy-win"><h2>Today could not load.</h2><p>${_calEsc(tdyState.error)}</p><button type="button" class="tdy-b p" onclick="mountTodayView()">Try again</button></div>`; return; }
         if (!tdyState.data) return;
+        const focused = document.activeElement && root.contains(document.activeElement) ? document.activeElement.getAttribute('data-tdy-key') : '';
         const views = me.editor ? ['List', 'Deck'] : ['Rings', 'Walk-through'];
         const view = views.includes(tdyState.view) ? tdyState.view : views[0];
         root.innerHTML = me.editor ? _tdyEditorHtml(me, tdyState.data, view) : _tdySmmHtml(me, tdyState.data, view);
+        // Repainting replaces the controls; put keyboard focus back on the one
+        // that was just used so a keyboard user keeps their place.
+        if (focused) { const back = root.querySelector('[data-tdy-key="' + focused + '"]'); if (back) back.focus(); }
+    }
+    /* The page is only as fresh as its last read. Cards move on in other
+       tabs (SyncLinear opens in a new one), so coming back to this tab reads
+       again, quietly, keeping what is on screen until the answer lands. A
+       different person signing in on this browser never sees the previous
+       person's day: the sign-out purge clears it (_tdyPurgeSensitiveState). */
+    function _tdyOnVisible() {
+        if (document.visibilityState !== 'visible' || !document.getElementById('tdyRoot')) return;
+        const me = _tdyIdentity();
+        if (!me || (me.id + '|' + me.role) !== tdyState.who) { tdyState.data = null; }
+        mountTodayView();
+    }
+    function _tdyPurgeSensitiveState() {
+        tdyState.gen++;
+        tdyState.data = null; tdyState.who = ''; tdyState.skipped = []; tdyState.walk = 0;
+        const root = document.getElementById('tdyRoot');
+        if (root) { root.innerHTML = '<div class="tdy-loading">Loading your day…</div>'; mountTodayView(); }
     }
     async function mountTodayView() {
+        if (!tdyState.listening) { tdyState.listening = true; document.addEventListener('visibilitychange', _tdyOnVisible); }
         const gen = ++tdyState.gen;
         try { tdyState.view = localStorage.getItem(TDY_VIEW_KEY) || ''; } catch (e) {}
         tdyState.error = '';
         const me = _tdyIdentity();
-        if (!me) { _tdyPaint(); return; }
+        if (!me) { tdyState.data = null; tdyState.who = ''; _tdyPaint(); return; }
+        if ((me.id + '|' + me.role) !== tdyState.who) tdyState.data = null;
         try {
             const data = await _tdyLoad(me);
             if (gen !== tdyState.gen) return;
             tdyState.data = data;
+            tdyState.who = me.id + '|' + me.role;
         } catch (e) {
             if (gen !== tdyState.gen) return;
-            tdyState.error = 'Check your connection and try again.';
+            tdyState.error = e && e.message === 'roster' ? 'Your client list could not be read. Try again in a moment.' : 'Check your connection and try again.';
         }
         _tdyPaint();
     }
@@ -327,4 +395,4 @@ import { navTo } from './090-workload-popovers-navigation.js';
     window._tdyOpenCard = _tdyOpenCard;
     window.mountTodayView = mountTodayView;
 
-export { _tdyTeardown, mountTodayView, renderTodayView };
+export { _tdyPurgeSensitiveState, _tdyTeardown, mountTodayView, renderTodayView };

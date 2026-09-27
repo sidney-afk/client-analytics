@@ -7,6 +7,7 @@ import {
   _obvSetSelected, _obvSetSubs, _obvSetWarn, currentNav
 } from './060-templates-filming.js';
 import { wlNormalizeClient, wlPurgePlanSensitiveState } from './070-workload-source.js';
+import { _tdyPurgeSensitiveState } from './097-today.js';
 import { wlRefreshSensitiveStateSilent } from './080-workload-render.js';
 import {
   _ptoCalResetView, _ptoDate, _ptoEnabled, _ptoLoadAdmin, _ptoLoadOverview, _ptoPaint,
@@ -1560,6 +1561,7 @@ import {
         try { if (typeof _linearIntakePurgeSensitiveState === 'function') _linearIntakePurgeSensitiveState(); } catch (e) {}
         try { if (typeof _fpPurgeSensitiveState === 'function') _fpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _srpPurgeSensitiveState === 'function') _srpPurgeSensitiveState(); } catch (e) {}
+        try { if (typeof _tdyPurgeSensitiveState === 'function') _tdyPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _prodSmmPurgeSensitiveState === 'function') _prodSmmPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _hpPurgeSensitiveState === 'function') _hpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _caPurgeSensitiveState === 'function') _caPurgeSensitiveState(); } catch (e) {}

@@ -154,10 +154,11 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       await page.waitForTimeout(400);
       expect(await page.evaluate(() => calState.client) === other, 'calendar: the recent client button did not switch the calendar');
 
-      // Tab order: the six client tabs first, together, in the decided order.
+      // Tab order: Today (the per-person summary, a team tab) leads, then the
+      // six client tabs together, in the decided order.
       const order = await page.evaluate(() => [...document.querySelectorAll('#headerNav > .header-nav-btn')].map(a => a.id));
-      const want = ['navCalendar', 'navSxr', 'navTemplates', 'navFilmingPlans', 'navTiktokUpload', 'navHome'];
-      expect(JSON.stringify(order.slice(0, 6)) === JSON.stringify(want), `tab order is ${order.join(',')}`);
+      const want = ['navToday', 'navCalendar', 'navSxr', 'navTemplates', 'navFilmingPlans', 'navTiktokUpload', 'navHome'];
+      expect(JSON.stringify(order.slice(0, 7)) === JSON.stringify(want), `tab order is ${order.join(',')}`);
       // Fixture clients carry no analytics numbers, so Analytics' own renderer
       // throws reading them; that is pre-existing and not about the bar.
       const own = errors.filter(m => !/ig_followers/.test(m));

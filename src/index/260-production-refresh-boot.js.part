@@ -2107,6 +2107,7 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
                 if(s.mrBriefTab)activeMRBriefTab[c]=s.mrBriefTab;
                 render(c,false);return;
             }
+            if(hash==='today'){navTo(hash,false);return;}
             if(hash==='linear'){navTo(hash,false);return;}
             if(hash==='workload'){navTo(hash,false);return;}
             if(hash==='calendar'){navTo(hash,false);return;}
@@ -2140,7 +2141,7 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
             if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(wlIsAllowedClient(tn)){_templatesSetSelected(wlCanonicalClient(tn));navTo('templates',false);return;}}
             if(hash&&wlIsAllowedClient(hash)){render(wlCanonicalClient(hash),false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
-            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||savedNav==='time-off'||(savedNav==='kasper'&&_kasperUnlocked))){navTo(savedNav,false);return;}
+            if(history.state&&history.state.nav&&(savedNav==='today'||savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||savedNav==='time-off'||(savedNav==='kasper'&&_kasperUnlocked))){navTo(savedNav,false);return;}
             navTo('home',false);
         }catch(err){
             if(_isClientLink){

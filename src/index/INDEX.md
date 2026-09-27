@@ -20,8 +20,8 @@
 | 12 | `090-workload-popovers-navigation.js.part` | 1676 | Sub-issue popover |
 | 13 | `095-shared-client.js.part` | 286 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
 | 14 | `096-quick-jump.js.part` | 172 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
-| 15 | `097-today.js.part` | 330 | TODAY (owner design , session Compass). |
-| 16 | `100-onboarding-staff-controls.js.part` | 2386 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
+| 15 | `097-today.js.part` | 398 | TODAY (owner design , session Compass). |
+| 16 | `100-onboarding-staff-controls.js.part` | 2388 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 17 | `110-time-off-reports.js.part` | 2207 | Kasper Time Off calendar |
 | 18 | `120-calendar-flags-write-repair.js.part` | 3143 | The members a flag value offers, or null when it offers no member list at |
 | 19 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
@@ -43,7 +43,7 @@
 | 35 | `230-production-create-comments.js.part` | 2639 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 36 | `240-production-description.js.part` | 2646 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 37 | `250-production-controls-data.js.part` | 2889 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 38 | `260-production-refresh-boot.js.part` | 2618 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 38 | `260-production-refresh-boot.js.part` | 2619 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 39 | `270-samples-model.js.part` | 2857 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 40 | `280-samples-cards-notes.js.part` | 2922 | SURFACE 3: the save engine |
 | 41 | `290-samples-writes-review.js.part` | 1821 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |

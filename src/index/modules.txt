@@ -32,3 +32,4 @@
 280-samples-cards-notes.js.part
 290-samples-writes-review.js.part
 095-shared-client.js.part
+096-quick-jump.js.part

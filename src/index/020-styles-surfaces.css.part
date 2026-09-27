@@ -4218,3 +4218,19 @@
         /* The top bar replaces the per-tab client strips for staff. */
         body.sv-shared-client #calTabs, body.sv-shared-client #sxrTabs { display: none !important; }
         @media (max-width: 700px) { .sv-client-bar { padding: 8px 14px; gap: 6px; } .sv-client-cap, .sv-client-recent-label { display: none !important; } }
+        /* Quick jump (096-quick-jump). */
+        .sv-client-kbd { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; font: inherit; font-size: 0.72rem; color: var(--text-muted); cursor: pointer; }
+        .sv-client-kbd:hover { color: var(--text-primary); }
+        .sv-client-kbd kbd, .sv-jump-foot kbd { border: 1px solid var(--border); border-radius: 5px; padding: 0 6px; background: var(--white); font-family: inherit; font-size: 0.7rem; color: var(--text-secondary); }
+        .sv-jump { position: fixed; inset: 0; z-index: 10000; background: var(--overlay); display: flex; justify-content: center; align-items: flex-start; padding: 14vh 14px 0; }
+        .sv-jump[hidden] { display: none; }
+        .sv-jump-box { width: min(560px, 100%); background: var(--white); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm), 0 24px 64px var(--overlay); overflow: hidden; font-family: 'Plus Jakarta Sans', sans-serif; }
+        .sv-jump-input { width: 100%; box-sizing: border-box; border: 0; border-bottom: 1px solid var(--border); padding: 16px 18px; font: inherit; font-size: 1rem; background: var(--white); color: var(--text-primary); outline: none; }
+        .sv-jump-list { max-height: 50vh; overflow-y: auto; padding: 6px; }
+        .sv-jump-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 0.88rem; color: var(--text-primary); }
+        .sv-jump-row.is-active, .sv-jump-row:hover { background: var(--surface-hover); }
+        .sv-jump-tab { font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; flex: none; }
+        .sv-jump-muted, .sv-jump-empty { color: var(--text-muted); }
+        .sv-jump-empty { padding: 12px; font-size: 0.84rem; }
+        .sv-jump-foot { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--border-light); font-size: 0.7rem; color: var(--text-muted); }
+        @media (max-width: 700px) { .sv-client-kbd { display: none; } }

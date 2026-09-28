@@ -12,9 +12,9 @@
 | 4 | `010-styles-foundation.css.part` | 3925 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 5 | `020-styles-surfaces.css.part` | 4391 | Templates view |
 | 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
-| 7 | `040-shared-briefs.js.part` | 2032 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
+| 7 | `040-shared-briefs.js.part` | 2035 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1781 | Market Research Brief Tab Renderers |
-| 9 | `060-templates-filming.js.part` | 2124 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 9 | `060-templates-filming.js.part` | 2153 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
 | 11 | `066-core-workload-state.js.part` | 118 | Workload Calendar |
 | 12 | `067-workload-board-source.js.part` | 2496 | The roster saved with a cached board, checked with the same rules the |
@@ -35,14 +35,14 @@
 | 27 | `115-core-calendar-flags.js.part` | 136 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
 | 28 | `120-calendar-flags-write-repair.js.part` | 3233 | The members a flag value offers, or null when it offers no member list at |
 | 29 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
-| 30 | `130-calendar-model-cache.js.part` | 1387 | Returns the comments array for a given component. Falls back to the |
+| 30 | `130-calendar-model-cache.js.part` | 1388 | Returns the comments array for a given component. Falls back to the |
 | 31 | `131-core-html.js.part` | 13 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
 | 32 | `132-calendar-dates-ids.js.part` | 14 | — |
 | 33 | `133-core-loading-skeletons.js.part` | 367 | Modern animated loader — a single rotating ring with a subtle label. |
 | 34 | `134-calendar-prefs-mount.js.part` | 1076 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
 | 35 | `140-calendar-legacy-outbox.js.part` | 3155 | Shed the retired legacy rows from storage, under the surface mutation |
 | 36 | `150-calendar-hydration-import.js.part` | 2197 | For a card linked to a real sub-issue (not a parent), return which of |
-| 37 | `160-calendar-organize-ui.js.part` | 2825 | Lighter path for the Order switch: update the chrome in place so the |
+| 37 | `160-calendar-organize-ui.js.part` | 2831 | Lighter path for the Order switch: update the chrome in place so the |
 | 38 | `170-calendar-links-status.js.part` | 2855 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 39 | `180-calendar-native-post-media.js.part` | 2866 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 40 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |

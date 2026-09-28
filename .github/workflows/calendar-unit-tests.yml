@@ -197,6 +197,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/inline-handlers-browser.js
+      - name: Templates client page shows the client's social links
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/templates-social-links-browser.js
       - name: Split switch off means one inline script
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

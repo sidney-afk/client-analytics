@@ -1,7 +1,7 @@
 import { FILMING_PLANS_EF_URL, showToast, svAreaRegister } from './040-shared-briefs.js';
 import {
   CHECK_SVG, PEN_ICON_SVG, PIN_ICON_SVG, TPL_MAX_PINS, TPL_PINS_KEY, TPL_RECENT_KEY, _NOT_SET,
-  _maybeRerenderTemplates, _setTplStatus, _templatesEditMode, _templatesSelected,
+  _maybeRerenderTemplates, _mrExternalLink, _setTplStatus, _templatesEditMode, _templatesSelected,
   _templatesSetActiveTab, _templatesSetEditMode, _templatesSetSelected, _tplClientReady, _tplDirty,
   _tplEsc, _tplEscAttr, _tplFieldLink, _tplFlush, _tplGet, _tplGetColorSets, _tplPinSelectorOpen,
   _tplPinsEditMode, _tplQueueSave, _tplSaveColorSets, _tplSaveErrorMsg, _tplSetPinSelectorOpen,
@@ -17,9 +17,10 @@ import {
   _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature
 } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
-import { calClientSlug } from './130-calendar-model-cache.js';
+import { CAL_PLATFORM_BY_KEY, calClientSlug } from './130-calendar-model-cache.js';
 import { _jsAttrArg } from './131-core-html.js';
 import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
+import { _calSocialLinksFor } from './160-calendar-organize-ui.js';
 import { _svSaveIndHtml } from './170-calendar-links-status.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import {
@@ -674,6 +675,12 @@ import {
       .tpl-ob-btn{ display:inline-flex; align-items:center; gap:5px; padding:5px 12px; border-radius:99px; background:var(--ig-light); border:1px solid var(--ig-light); color:var(--ig); font-family:inherit; font-size:0.74rem; font-weight:700; cursor:pointer; transition:all 0.15s; }
       .tpl-ob-btn:hover{ filter:brightness(0.97); box-shadow:0 2px 6px var(--sv-shadow-rgba-0-0-0-0_06); }
       .tpl-ob-arrow{ font-size:0.85em; }
+      .tpl-social{ display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; }
+      .tpl-social:empty{ display:none; }
+      .tpl-social-link{ display:inline-flex; align-items:center; gap:5px; padding:3px 10px 3px 5px; border-radius:99px; background:var(--white); border:1px solid var(--border); text-decoration:none; transition:all 0.15s; }
+      .tpl-social-link:hover{ background:var(--bg); box-shadow:0 2px 6px var(--sv-shadow-rgba-0-0-0-0_06); }
+      .tpl-social-link .cal-client-link-name{ font-size:0.74rem; }
+      .tpl-social-link:hover .cal-client-link-ext{ opacity:0.9; }
       `;
       const st = document.createElement('style'); st.id='obvStyles'; st.textContent=css; document.head.appendChild(st);
     }
@@ -1469,6 +1476,27 @@ import {
         </div>`;
     }
 
+    // The client's own Instagram / TikTok / YouTube, one click each, next to the
+    // name. Same fields, addresses, icons and colours as the Calendar's profile
+    // links (160 _calSocialLinksFor); a platform with no handle on file is left
+    // out. Handles come from the client info (clientMap), which can land after
+    // this page first draws, so _tplRefreshSocialLinks repaints just this strip.
+    function _tplSocialLinksHtml(name) {
+        return _calSocialLinksFor(name).map(l => {
+            const p = CAL_PLATFORM_BY_KEY[l.key] || {};
+            const lbl = p.label || l.key;
+            return `<a class="tpl-social-link" data-platform="${_tplEscAttr(l.key)}" href="${_tplEscAttr(l.url)}" target="_blank" rel="noopener noreferrer" title="Open ${_tplEscAttr(lbl)} (${_tplEscAttr(l.sub)}) in a new tab">`
+                + `<span class="cal-client-link-ico" style="color:${p.color || 'var(--text-secondary)'}">${p.icon || ''}</span>`
+                + `<span class="cal-client-link-name">${_tplEsc(lbl)}</span>`
+                + `<span class="cal-client-link-ext" aria-hidden="true">${_mrExternalLink}</span></a>`;
+        }).join('');
+    }
+    function _tplRefreshSocialLinks() {
+        if (currentNav !== 'templates' || !_templatesSelected) return;
+        const el = document.querySelector('[data-tpl-social]');
+        if (el) el.innerHTML = _tplSocialLinksHtml(_templatesSelected);
+    }
+
     function renderClientTemplate(name) {
         // Loading state — first paint while the GET is in flight.
         if (!_tplClientReady(name) && !templatesLoadError) {
@@ -1544,7 +1572,7 @@ import {
         return `<div class="tpl-view${isEdit?' editing':''}">
             <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
             <div class="tpl-client-head">
-                <div class="tpl-client-name-wrap"><div class="tpl-client-name">${_tplEsc(name)}</div>${obBtn}</div>
+                <div class="tpl-client-name-wrap"><div class="tpl-client-name">${_tplEsc(name)}</div>${obBtn}<span class="tpl-social" data-tpl-social>${_tplSocialLinksHtml(name)}</span></div>
                 <div class="tpl-head-right">${_svSaveIndHtml('templates')}${editToggle}</div>
             </div>
             ${isEdit ? `${links}` : `<div class="tpl-top${quickLook ? '' : ' solo'}">
@@ -2121,4 +2149,5 @@ import {
         renderOnboardingInbox,
         obvEnsureLoaded: _obvEnsureLoaded,
         obvFetchFull: _obvFetchFull,
+        refreshSocialLinks: _tplRefreshSocialLinks,
     });

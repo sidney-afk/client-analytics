@@ -53,7 +53,7 @@ import {
   _kasperRenderReplies, _kasperSamplesEnabled, _kasperSetLoadGen, _kasperState,
   _kasperUpdateReplyCount
 } from './320-kasper-dashboard-replies.js';
-import { _kedPaint } from './340-editors-date-picker.js';
+import { _kedPaint } from './340-kasper-editors-board.js';
     async function _kasperRenderReview() {
         const root = document.getElementById('kasperContent');
         if (!root) return;

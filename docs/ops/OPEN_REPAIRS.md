@@ -29667,7 +29667,7 @@ of that repair could in principle write the old overall status back.
 
 ## 285. [2026-09-28] The item 284 cleanup ran: 46 stuck work items parked in Backlog
 
-Lighthouse ran `scripts/archived-work-items-park.js --apply` on main a1bc3dd3,
+Lighthouse ran `scripts/archived-work-items-park.js --apply` on main a1bc3dd3563cf538b126fcbfe8c88c4eef58e7ee,
 after the owner's go, through the guarded `production-write` status operation
 with a staff key and a named staff member.
 

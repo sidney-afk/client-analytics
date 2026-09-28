@@ -10,9 +10,9 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 42 |
+| Deployable function slugs | 43 |
 | Main-push plus manual-dispatch paths | 12 |
-| Manual-dispatch-only paths | 13 |
+| Manual-dispatch-only paths | 14 |
 | No CI deploy path | 14 |
 | Deliberate-manual subset of no-CI paths | 5 |
 
@@ -35,6 +35,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `deliverable-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/b4-write.ts` | - |
 | `description-image-upload` | [deploy-description-image-upload](../../.github/workflows/deploy-description-image-upload.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | `description-image-upload/policy.mjs` |
 | `filming-plans` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
+| `higgsfield-mcp` | [deploy-single-function](../../.github/workflows/deploy-single-function.yml) | workflow_dispatch only (pinned SHA guard) | - | - |
 | `hiring-applications` | [deploy-hiring-applications](../../.github/workflows/deploy-hiring-applications.yml) | workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `hiring-automation` | [deploy-hiring-automation](../../.github/workflows/deploy-hiring-automation.yml) | workflow_dispatch | - | - |
 | `kasper-ad-performance-read` | NONE | **NO CI DEPLOY PATH.** | `_shared/staff-role-auth.ts` | - |

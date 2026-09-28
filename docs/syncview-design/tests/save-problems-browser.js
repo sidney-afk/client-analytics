@@ -7,8 +7,8 @@
  *     `staff_list` with the admin key, 7 days, automation hidden;
  *   - the table shows when, screen, action, who (client link hash prefix or
  *     verified staff role), card, error, cleaned message, browser, version;
- *   - the Screen and Who filters narrow the rows without a new request;
- *     "Show automated tests" and the period ask again with the new values;
+ *   - every filter (period, screen, who, automated tests) uses the SyncView
+ *     dropdown and asks the SERVER again, so a capped page never hides rows;
  *   - an SMM or CREATIVE session never sees the item and never sends the call;
  *   - a phone (390 wide) has no sideways page scroll and 44px controls;
  *   - nothing writes: no other non-read request leaves the page.
@@ -98,24 +98,30 @@ async function open(browser, origin, role, viewport) {
         if (!text.includes(want)) failures.push(`${label}: the table is missing "${want}"`);
       const summary = await s.page.$eval('.sp-summary', e => e.innerText).catch(() => '');
       if (!/3 shown/.test(summary) || !/5 automated test rows hidden/.test(summary)) failures.push(`${label}: summary reads "${summary}"`);
-      await s.page.selectOption('[data-sp-screen]', 'production');
-      let n = await s.page.$$eval('.sp-table tbody tr', x => x.length).catch(() => 0);
-      if (n !== 1) failures.push(`${label}: the Screen filter left ${n} rows, expected 1`);
-      await s.page.selectOption('[data-sp-screen]', '');
-      await s.page.selectOption('[data-sp-page]', 'client_link');
-      n = await s.page.$$eval('.sp-table tbody tr', x => x.length).catch(() => 0);
-      if (n !== 1) failures.push(`${label}: the Who filter left ${n} rows, expected 1`);
-      if (s.calls.length !== 1) failures.push(`${label}: filtering sent a new request`);
+      // SyncView dropdowns: open the trigger, pick the option.
+      const pick = async (id, value) => {
+        await s.page.click('#' + id + 'Btn');
+        await s.page.click('#' + id + 'Menu [data-value="' + value + '"]');
+        await s.page.waitForTimeout(400);
+      };
+      if (await s.page.$('.sp-controls select')) failures.push(`${label}: a browser-native select is still on the page`);
+      await pick('spScreen', 'production');
+      let lastBody = s.calls[s.calls.length - 1] && s.calls[s.calls.length - 1].body;
+      if (!lastBody || lastBody.surface !== 'production' || lastBody.page !== null) failures.push(`${label}: the Screen filter did not ask the server (${JSON.stringify(lastBody)})`);
+      await pick('spPage', 'client_link');
+      lastBody = s.calls[s.calls.length - 1].body;
+      if (lastBody.surface !== 'production' || lastBody.page !== 'client_link') failures.push(`${label}: the Who filter did not ask the server (${JSON.stringify(lastBody)})`);
+      await pick('spScreen', '');
+      await pick('spPage', '');
       await s.page.check('[data-sp-automation]');
       await s.page.waitForTimeout(400);
-      await s.page.selectOption('[data-sp-days]', '30');
-      await s.page.waitForTimeout(400);
+      await pick('spDays', '30');
       const last = s.calls[s.calls.length - 1];
-      if (s.calls.length !== 3 || !last || last.body.days !== 30 || last.body.include_automation !== true) failures.push(`${label}: period and automation did not ask again (${JSON.stringify(s.calls.map(c => c.body))})`);
+      if (s.calls.length !== 7 || !last || last.body.days !== 30 || last.body.include_automation !== true || last.body.surface !== null) failures.push(`${label}: filters did not ask again as expected (${JSON.stringify(s.calls.map(c => c.body))})`);
       const m = await s.page.evaluate(() => {
         const W = document.documentElement.clientWidth;
-        const small = [...document.querySelectorAll('.sp-controls select, .sp-controls label, .sp-refresh')].filter(e => e.getClientRects().length)
-          .map(e => ({ what: (e.innerText || e.getAttribute('data-sp-days') || e.tagName).trim().slice(0, 24), h: e.getBoundingClientRect().height })).filter(x => x.h < 44);
+        const small = [...document.querySelectorAll('.sp-control .sv-select-trigger, .sp-check, .sp-refresh')].filter(e => e.getClientRects().length)
+          .map(e => ({ what: (e.innerText || e.tagName).trim().slice(0, 24), h: e.getBoundingClientRect().height })).filter(x => x.h < 44);
         return { W, sw: document.documentElement.scrollWidth, small };
       });
       if (process.env.SP_SHOTS) await s.page.screenshot({ path: path.join(process.env.SP_SHOTS, `save-problems-${vp.width}.png`), fullPage: true });

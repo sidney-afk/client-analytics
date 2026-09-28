@@ -82042,7 +82042,7 @@
         const style = document.createElement('style');
         style.id = 'spStyles';
         style.textContent = '.sp-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px;font-size:0.74rem;color:var(--text-secondary)}' +
-            '.sp-controls select{height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font:inherit;padding:0 8px}' +
+            '.sp-control{display:inline-flex;align-items:center;gap:6px}.sp-control .sv-select{min-width:150px}' +
             '.sp-summary{margin-bottom:10px;font-size:0.74rem;color:var(--text-muted)}' +
             '.sp-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:10px}' +
             '.sp-table{width:100%;border-collapse:collapse;font-size:0.72rem}' +
@@ -82051,8 +82051,8 @@
             '.sp-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.68rem}' +
             '.sp-muted{color:var(--text-muted)}' +
             '.sp-detail{max-width:360px;overflow-wrap:anywhere}' +
-            '.sp-controls label{display:inline-flex;align-items:center;gap:6px}' +
-            '@media (max-width:767px){.sp-controls select,.sp-controls label,.sp-refresh{min-height:44px}.sp-controls select{font-size:16px}.sp-controls input[type=checkbox]{width:22px;height:22px}}';
+            '.sp-check{display:inline-flex;align-items:center;gap:6px}' +
+            '@media (max-width:767px){.sp-control .sv-select-trigger,.sp-check,.sp-refresh{min-height:44px}.sp-controls input[type=checkbox]{width:22px;height:22px}}';
         document.head.appendChild(style);
     }
     function _spRender() {
@@ -82061,20 +82061,23 @@
         if (!_syncviewStaffCan('clients-admin')) { _kasperDenySubtab('clients-admin'); return; }
         _kqlInjectStyles();   // the shared card head and Refresh button
         _spInjectStyles();
-        const opt = (value, label, current) => '<option value="' + _calEscAttr(value) + '"' + (String(current) === String(value) ? ' selected' : '') + '>' + _calEsc(label) + '</option>';
+        // SyncView dropdowns (UI_DESIGN_STANDARDS: no browser-native selects).
+        const items = (pairs) => pairs.map(([value, label]) => ({ value: String(value), label }));
         root.innerHTML = '<div class="kql-wrap"><div class="kql-card-head"><div><div class="kql-card-title">Save problems</div>' +
             '<div class="kql-card-sub">Every refused or failed save that reached the server log, newest first. Kept for 30 days.</div></div>' +
             '<button class="kql-refresh sp-refresh" type="button" data-sp-refresh>Refresh</button></div>' +
             '<div class="sp-controls">' +
-            '<label>Period <select data-sp-days>' + opt(1, 'Last 24 hours', _spState.days) + opt(7, 'Last 7 days', _spState.days) + opt(30, 'Last 30 days', _spState.days) + '</select></label>' +
-            '<label>Screen <select data-sp-screen>' + opt('', 'All', _spState.screen) + Object.keys(SP_SCREENS).map(k => opt(k, SP_SCREENS[k], _spState.screen)).join('') + '</select></label>' +
-            '<label>Who <select data-sp-page>' + opt('', 'Everyone', _spState.page) + opt('client_link', 'Client links', _spState.page) + opt('staff_page', 'Staff', _spState.page) + '</select></label>' +
-            '<label><input type="checkbox" data-sp-automation' + (_spState.automation ? ' checked' : '') + '> Show automated tests</label>' +
+            '<span class="sp-control"><span class="sp-control-label">Period</span>' + _svSelectHtml('spDays', items([[1, 'Last 24 hours'], [7, 'Last 7 days'], [30, 'Last 30 days']]), String(_spState.days)) + '</span>' +
+            '<span class="sp-control"><span class="sp-control-label">Screen</span>' + _svSelectHtml('spScreen', items([['', 'All screens']].concat(Object.keys(SP_SCREENS).map(k => [k, SP_SCREENS[k]]))), _spState.screen) + '</span>' +
+            '<span class="sp-control"><span class="sp-control-label">Who</span>' + _svSelectHtml('spPage', items([['', 'Everyone'], ['client_link', 'Client links'], ['staff_page', 'Staff']]), _spState.page) + '</span>' +
+            '<label class="sp-check"><input type="checkbox" data-sp-automation' + (_spState.automation ? ' checked' : '') + '> Show automated tests</label>' +
             '</div><div id="spBody"></div></div>';
         root.querySelector('[data-sp-refresh]').addEventListener('click', () => _spLoad());
-        root.querySelector('[data-sp-days]').addEventListener('change', e => { _spState.days = Number(e.target.value) || 7; _spLoad(); });
-        root.querySelector('[data-sp-screen]').addEventListener('change', e => { _spState.screen = e.target.value; _spPaint(); });
-        root.querySelector('[data-sp-page]').addEventListener('change', e => { _spState.page = e.target.value; _spPaint(); });
+        // Every filter asks the server again: filtering a capped page here
+        // would hide older rows that match.
+        document.getElementById('spDays').addEventListener('change', e => { _spState.days = Number(e.target.value) || 7; _spLoad(); });
+        document.getElementById('spScreen').addEventListener('change', e => { _spState.screen = e.target.value; _spLoad(); });
+        document.getElementById('spPage').addEventListener('change', e => { _spState.page = e.target.value; _spLoad(); });
         root.querySelector('[data-sp-automation]').addEventListener('change', e => { _spState.automation = !!e.target.checked; _spLoad(); });
         _spPaint();
         _spLoad();
@@ -82089,7 +82092,7 @@
             const resp = await fetch(SP_EF_URL, {
                 method: 'POST',
                 headers: { 'content-type': 'application/json', 'X-Syncview-Key': ident.key },
-                body: JSON.stringify({ action: 'staff_list', days: _spState.days, include_automation: _spState.automation })
+                body: JSON.stringify({ action: 'staff_list', days: _spState.days, include_automation: _spState.automation, surface: _spState.screen || null, page: _spState.page || null })
             });
             const data = await resp.json().catch(() => null);
             if (resp.status === 403) throw new Error('Save problems need an Admin account.');
@@ -82118,10 +82121,10 @@
             return;
         }
         const data = _spState.data || { rows: [] };
-        const rows = (Array.isArray(data.rows) ? data.rows : []).filter(r => (!_spState.screen || r.surface === _spState.screen) && (!_spState.page || r.page === _spState.page));
+        const rows = Array.isArray(data.rows) ? data.rows : [];
         const hidden = Number(data.hidden_automation) || 0;
         const summary = '<div class="sp-summary">' + _calEsc(String(rows.length)) + ' shown' +
-            (Number(data.total) > (Array.isArray(data.rows) ? data.rows.length : 0) ? ' (newest ' + _calEsc(String(data.rows.length)) + ' of ' + _calEsc(String(data.total)) + ')' : '') +
+            (Number(data.total) > rows.length ? ' (newest ' + _calEsc(String(rows.length)) + ' of ' + _calEsc(String(data.total)) + ')' : '') +
             (!data.include_automation && hidden ? ' · ' + _calEsc(String(hidden)) + ' automated test rows hidden' : '') + '</div>';
         if (!rows.length) {
             body.innerHTML = summary + '<div class="kasper-empty"><div class="kasper-empty-title">No save problems</div><div class="kasper-empty-sub">Nothing was refused or failed in this period.</div></div>';

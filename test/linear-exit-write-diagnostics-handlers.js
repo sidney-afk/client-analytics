@@ -25,7 +25,8 @@ const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir()
  const realRpc=globalThis.__wr101db.rpc;globalThis.__wr101db.rpc=async(name,args)=>{calls.push({name,args});return name==='production_write_refusal_record_browser_v2'?{error:{code:'PGRST202'}}:{data:{recorded:true},error:null};};
  assert.equal((await handler(request({action:'browser_claim',code:'write_conflict',status:409}))).status,202);assert.deepEqual(calls.map(c=>c.name),['production_write_refusal_record_browser_v2','production_write_refusal_record_v1'],'before the migration a claim still records through v1');globalThis.__wr101db.rpc=realRpc;calls=[];
  assert.equal((await handler(request({action:'staff_list'}))).status,401);assert.equal((await handler(withKey({action:'staff_list'},'synthetic-smm'))).status,403);assert.equal(calls.length,0,'only an admin key reads the list');
- assert.equal((await handler(withKey({action:'staff_list',days:30,include_automation:true},'synthetic-admin'))).status,200);assert.deepEqual(calls[0],{name:'production_write_refusal_list_v1',args:{p_days:30,p_include_automation:true,p_limit:300}});calls=[];
+ assert.equal((await handler(withKey({action:'staff_list',days:30,include_automation:true,surface:'production',page:'client_link'},'synthetic-admin'))).status,200);assert.deepEqual(calls[0],{name:'production_write_refusal_list_v1',args:{p_days:30,p_include_automation:true,p_limit:300,p_surface:'production',p_page:'client_link'}});calls=[];
+ await handler(withKey({action:'staff_list',surface:'drop table',page:'x'},'synthetic-admin'));assert.equal(calls[0].args.p_surface,null);assert.equal(calls[0].args.p_page,null,'unknown filter values are dropped');calls=[];
  // Real composed top-level GatewayError path. Business handlers are not invoked by this invalid action.
  const composed=require('../scripts/linear-exit-write-diagnostics-compose').gateway().source;
  // The Deno.serve block now runs to end of file. It used to be bounded by the

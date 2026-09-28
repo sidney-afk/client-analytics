@@ -86,6 +86,14 @@ const MIGRATION = 'supabase/migrations/20260927200000_write_refusal_detail_and_v
     assert.equal(first.page, 'client_link'); assert.equal(first.client_ref.length, 12);
     assert(!JSON.stringify(shown).includes('identifiers') && !/[a-f0-9]{64}/.test(JSON.stringify(shown)), 'no full identifier hash leaves the list');
     assert.equal(shown.rows.find(r => r.traffic === 'automation').staff_role, 'admin');
+    // Filters run in the query, so a rare screen is never lost to the row cap.
+    const only = (surface, page) => JSON.parse(psql(`set role service_role; select public.production_write_refusal_list_v1(7, true, 1, ${surface ? `'${surface}'` : 'null'}, ${page ? `'${page}'` : 'null'})`).split('\n').pop());
+    const rare = only('unknown', null);
+    assert.equal(rare.total, 1); assert.equal(rare.rows.length, 1); assert.equal(rare.rows[0].surface, 'unknown', 'the one rare-screen row survives a limit of 1');
+    assert.equal(only('production', null).total, 0);
+    const clientOnly = only(null, 'client_link');
+    assert.equal(clientOnly.total, 2); assert(clientOnly.rows.every(r => r.page === 'client_link'));
+    fails(`set role service_role; select public.production_write_refusal_list_v1(7, true, 10, 'nowhere', null)`, /refusal_list_surface/, 'an unknown screen is refused');
 
     psql(`insert into write_refusal_diagnostics.receipts_v1(attempt_id,recorded_at,origin,surface,operation,code,status,principal_kind,identifiers)
           select gen_random_uuid(), now()-interval '40 days','gateway','production','status','write_conflict',409,'unverified','{}'::jsonb from generate_series(1,2500)`);

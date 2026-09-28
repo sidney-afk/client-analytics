@@ -50,7 +50,7 @@
 | 42 | `290-samples-writes-review.js.part` | 1824 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 43 | `300-tiktok-upload.js.part` | 2020 | TIKTOK UPLOAD MODULE |
 | 44 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
-| 45 | `320-kasper-dashboard-replies.js.part` | 3395 | The Samples subtab was folded into Review (samples are listed in the |
+| 45 | `320-kasper-dashboard-replies.js.part` | 3398 | The Samples subtab was folded into Review (samples are listed in the |
 | 46 | `330-kasper-review-history.js.part` | 2760 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 47 | `340-editors-date-picker.js.part` | 1302 | Editor work model |
 | 48 | `350-footer.html.part` | 398 | Transcript preview modal |

@@ -29,7 +29,9 @@ Deno.serve(async(req:Request)=>{
   if(!staff||!staff.ok)return json({ok:false},staff?.role?403:401);
   if(staff.role!=='admin')return json({ok:false},403);
   const days=Number.isInteger(body.days)?body.days:7;
-  const result=await db.rpc('production_write_refusal_list_v1',{p_days:days,p_include_automation:body.include_automation===true,p_limit:300});
+  const surface=['calendar','sxr','production','unknown'].includes(body.surface)?body.surface:null;
+  const page=['client_link','staff_page','unknown'].includes(body.page)?body.page:null;
+  const result=await db.rpc('production_write_refusal_list_v1',{p_days:days,p_include_automation:body.include_automation===true,p_limit:300,p_surface:surface,p_page:page});
   return result.error?json({ok:false,error:'telemetry_unavailable'},503):json({ok:true,result:result.data});
  }
  const runner=Deno.env.get('WRITE_DIAGNOSTICS_RUNNER_KEY');if(!runner||!timingSafeEqual(req.headers.get('x-diagnostics-runner-key')||'',runner))return json({ok:false},401);

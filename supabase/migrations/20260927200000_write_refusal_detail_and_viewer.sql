@@ -109,25 +109,33 @@ begin
  return v_result;
 end $fn$;
 
--- Staff list: newest first, automation hidden unless asked for. The client
+-- Staff list: newest first, automation hidden unless asked for, optionally
+-- narrowed to one screen and/or one kind of page IN THE QUERY (filtering a
+-- truncated page in the browser would hide older matching rows). The client
 -- link appears only as the first 12 characters of its hash, enough to group a
 -- client's refusals together and to look one up, not to name anyone.
-create or replace function public.production_write_refusal_list_v1(p_days integer default 7, p_include_automation boolean default false, p_limit integer default 200)
+create or replace function public.production_write_refusal_list_v1(p_days integer default 7, p_include_automation boolean default false, p_limit integer default 200, p_surface text default null, p_page text default null)
 returns jsonb language plpgsql stable security definer set search_path=pg_catalog,public as $fn$
 declare v_days integer:=least(greatest(coalesce(p_days,7),1),30); v_limit integer:=least(greatest(coalesce(p_limit,200),1),500);
+ v_auto boolean:=coalesce(p_include_automation,false); v_surface text:=nullif(p_surface,''); v_page text:=nullif(p_page,'');
 begin
- return jsonb_build_object(
-  'days',v_days,'include_automation',coalesce(p_include_automation,false),
-  'total',(select count(*) from write_refusal_diagnostics.receipts_v1 r where r.recorded_at>=now()-make_interval(days=>v_days) and (coalesce(p_include_automation,false) or r.traffic is distinct from 'automation')),
-  'hidden_automation',(select count(*) from write_refusal_diagnostics.receipts_v1 r where r.recorded_at>=now()-make_interval(days=>v_days) and r.traffic='automation'),
-  'rows',(select coalesce(jsonb_agg(to_jsonb(x) order by x.recorded_at desc),'[]'::jsonb) from (
-    select r.recorded_at,r.origin,r.surface,r.operation,r.ui_action,r.code,r.status,
-      case when r.origin='browser_claim' then coalesce(r.claimed_page,'unknown') when r.principal_kind='client' then 'client_link' when r.principal_kind in ('staff','test') then 'staff_page' else 'unknown' end as page,
-      r.staff_role,r.card_ref,left(r.identifiers->>'client_slug',12) as client_ref,
-      r.detail,r.browser,r.os,r.app_version,coalesce(r.traffic,'unknown') as traffic
-    from write_refusal_diagnostics.receipts_v1 r
-    where r.recorded_at>=now()-make_interval(days=>v_days) and (coalesce(p_include_automation,false) or r.traffic is distinct from 'automation')
-    order by r.recorded_at desc limit v_limit) x));
+ if v_surface is not null and v_surface not in ('calendar','sxr','production','unknown') then raise exception 'refusal_list_surface';end if;
+ if v_page is not null and v_page not in ('client_link','staff_page','unknown') then raise exception 'refusal_list_page';end if;
+ return (with base as (
+   select r.*,
+     case when r.origin='browser_claim' then coalesce(r.claimed_page,'unknown') when r.principal_kind='client' then 'client_link' when r.principal_kind in ('staff','test') then 'staff_page' else 'unknown' end as page
+   from write_refusal_diagnostics.receipts_v1 r
+   where r.recorded_at>=now()-make_interval(days=>v_days)
+     and (v_surface is null or r.surface=v_surface)),
+  shown as (select * from base where (v_auto or traffic is distinct from 'automation') and (v_page is null or page=v_page))
+  select jsonb_build_object(
+   'days',v_days,'include_automation',v_auto,'surface',v_surface,'page',v_page,
+   'total',(select count(*) from shown),
+   'hidden_automation',(select count(*) from base where traffic='automation' and (v_page is null or page=v_page)),
+   'rows',(select coalesce(jsonb_agg(to_jsonb(x) order by x.recorded_at desc),'[]'::jsonb) from (
+     select recorded_at,origin,surface,operation,ui_action,code,status,page,staff_role,card_ref,left(identifiers->>'client_slug',12) as client_ref,
+       detail,browser,os,app_version,coalesce(traffic,'unknown') as traffic
+     from shown order by recorded_at desc limit v_limit) x)));
 end $fn$;
 
 -- Daily cleanup: the existing retention function deletes 1,000 rows per call,
@@ -145,8 +153,8 @@ begin
 end $fn$;
 
 revoke all on function write_refusal_diagnostics.clean_detail_v1(text) from public,anon,authenticated,service_role;
-revoke all on function public.production_write_refusal_record_browser_v2(jsonb,jsonb),public.production_write_refusal_list_v1(integer,boolean,integer),public.production_write_refusal_retention_daily_v1() from public,anon,authenticated,service_role;
-grant execute on function public.production_write_refusal_record_browser_v2(jsonb,jsonb),public.production_write_refusal_list_v1(integer,boolean,integer) to service_role;
+revoke all on function public.production_write_refusal_record_browser_v2(jsonb,jsonb),public.production_write_refusal_list_v1(integer,boolean,integer,text,text),public.production_write_refusal_retention_daily_v1() from public,anon,authenticated,service_role;
+grant execute on function public.production_write_refusal_record_browser_v2(jsonb,jsonb),public.production_write_refusal_list_v1(integer,boolean,integer,text,text) to service_role;
 revoke all on write_refusal_diagnostics.receipts_v1 from public,anon,authenticated,service_role;
 
 -- Schedule the cleanup once a day at 04:17 UTC. cron.schedule replaces a job

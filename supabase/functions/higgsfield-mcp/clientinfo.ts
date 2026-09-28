@@ -50,20 +50,24 @@ const MAX_TABS = 16;
 // month's plan in its own Docs tab (NEW_CLIENT_ONBOARDING §6a). A plain export
 // returns only the first tab, so read the tab ids from the Doc page (the Doc
 // is shared by link) and export each tab as text.
-async function planTabs(docId: string): Promise<Array<{ id: string; text: string }>> {
+async function planTabs(docId: string): Promise<Array<{ id: string; name: string; text: string }>> {
   const base = `https://docs.google.com/document/d/${encodeURIComponent(docId)}`;
   const page = await fetch(`${base}/edit`);
   const html = page.ok ? await page.text() : "";
-  const ids = [...new Set([...html.matchAll(/"(t\.[a-z0-9]{6,20})"/g)].map((m) => m[1]))].slice(0, MAX_TABS);
+  // Tab names sit in the page model as {"ty":"ac","d":["t.<id>",[1,"<name>"],[<order>]]}.
+  const names = new Map<string, string>();
+  for (const m of html.matchAll(/\{"ty":"ac","d":\["(t\.[a-z0-9]{6,20})",\[1,"([^"]{1,80})"\]/g)) names.set(m[1], m[2]);
+  const ids = (names.size ? [...names.keys()] : [...new Set([...html.matchAll(/"(t\.[a-z0-9]{6,20})"/g)].map((m) => m[1]))]).slice(0, MAX_TABS);
   const targets = ids.length ? ids : [""];
   const tabs = await Promise.all(targets.map(async (id) => {
     const res = await fetch(`${base}/export?format=txt${id ? `&tab=${encodeURIComponent(id)}` : ""}`);
-    return { id, text: res.ok ? (await res.text()).replace(/^﻿/, "").replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n") : "" };
+    return { id, name: names.get(id) || "", text: res.ok ? (await res.text()).replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n") : "" };
   }));
   return tabs.filter((t) => t.text.trim());
 }
 
-// A tab's label: the month (and year) it mentions most, ignoring the shared header.
+// Fallback label when the Doc page gives no tab name: the month (and year)
+// the tab mentions most.
 function tabMonth(text: string): string {
   const counts = new Map<string, number>();
   for (const m of text.matchAll(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\b(?:\s+(\d{4}))?/gi)) {
@@ -82,7 +86,7 @@ export async function filmingPlan(db: SupabaseClient, client: string, month: str
   if (!p.doc_id) return `${p.client_name} has no filming plan linked in SyncView.`;
   const tabs = await planTabs(p.doc_id);
   if (!tabs.length) return `Could not open ${p.client_name}'s filming plan. It may not be shared by link.`;
-  const labelled = tabs.map((t, i) => ({ ...t, n: i + 1, month: tabMonth(t.text) }));
+  const labelled = tabs.map((t, i) => ({ ...t, n: i + 1, month: t.name || tabMonth(t.text) }));
   const want = String(month || "").trim().toLowerCase();
   const list = labelled.map((t) => `${t.n}. ${t.month}`).join("\n");
   let pick = labelled.length === 1 ? labelled[0] : undefined;

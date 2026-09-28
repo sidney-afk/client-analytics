@@ -1,19 +1,22 @@
 // Supabase Edge Function: higgsfield-mcp
 //
 // A small MCP connector (the plug-in format Claude and ChatGPT both speak) that
-// lets anyone on the team make Higgsfield videos from their own chat app while
-// spending the pay-per-video Higgsfield API balance instead of a subscription.
+// lets anyone on the team make Higgsfield videos and images, with every model the
+// Higgsfield API offers (catalog.ts), from their own chat app while spending the
+// pay-per-use API balance instead of a subscription.
 //
 // - Each teammate adds their personal link: .../higgsfield-mcp?key=<token>.
 //   The token is a row in hf_team_members and only identifies who made what.
-// - Every video is logged in hf_generations with its estimated cost.
-// - A monthly cap (HF_MONTHLY_CAP_USD, default 200) refuses a video that would
-//   push this month's estimated spend past it.
+// - Every job is logged in hf_generations with its exact price from
+//   Higgsfield's estimate endpoint, checked before anything is submitted.
+// - A monthly cap (HF_MONTHLY_CAP_USD, default 200) refuses a job that would
+//   push this month's spend past it.
 // - The Higgsfield key lives only in the HIGGSFIELD_KEY secret ("KEY_ID:KEY_SECRET").
 //
 // Stateless Streamable HTTP: every POST is one JSON-RPC message answered with JSON.
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
+import { CATALOG } from "./catalog.ts";
 
 const HF_API = "https://api.higgsfield.ai";
 const CAP_RAW = (Deno.env.get("HF_MONTHLY_CAP_USD") || "200").trim();
@@ -31,139 +34,127 @@ const CORS: Record<string, string> = {
 
 type JsonMap = Record<string, unknown>;
 
-// ---- Models --------------------------------------------------------------
+// ---- Catalog and guide ---------------------------------------------------
 
-type Model = {
-  id: "seedance-2.5" | "kling-2.6";
-  label: string;
-  bestFor: string;
-  textPath: string;
-  imagePath: string;
-};
+type Pick = { task: string; picks: string[] };
 
-const MODELS: Record<string, Model> = {
-  "seedance-2.5": {
-    id: "seedance-2.5",
-    label: "Seedance 2.5 (best quality)",
-    bestFor: "hero shots, people and faces up close, talking, realistic motion, anything the viewer looks at closely, clips longer than 10 seconds",
-    textPath: "bytedance/seedance-2.5/text-to-video",
-    imagePath: "bytedance/seedance-2.5/image-to-video",
-  },
-  "kling-2.6": {
-    id: "kling-2.6",
-    label: "Kling 2.6 Pro (good and cheaper)",
-    bestFor: "b-roll, background and filler shots, scenery, objects, simple motion, quick social cutaways",
-    textPath: "kling-video/v2.6/pro/text-to-video",
-    imagePath: "kling-video/v2.6/pro/image-to-video",
-  },
-};
+// Plain-language shortlist the chat app reads first. Every id is in CATALOG
+// (the generated list of all 80+ API models); find_models lists the rest.
+const GO_TO: Pick[] = [
+  { task: "B-roll, background or filler video (cheaper)", picks: ["kling-video/v2.6/pro/text-to-video", "kling-video/v3.0-turbo/text-to-video"] },
+  { task: "Best-quality video: people up close, realistic motion, clips up to 30s", picks: ["bytedance/seedance-2.5/text-to-video"] },
+  { task: "Animate a photo", picks: ["bytedance/seedance-2.5/image-to-video", "kling-video/v2.6/pro/image-to-video"] },
+  { task: "Keep the same person or product across shots (reference images)", picks: ["bytedance/seedance-2.5/reference-to-video", "kling-video/o3/image-reference"] },
+  { task: "Video that goes from a chosen first frame to a chosen last frame", picks: ["kling-video/o3/first-last-frame"] },
+  { task: "4K video", picks: ["kling-video/v3.0/4k/text-to-video", "kling-video/v3.0/4k/image-to-video"] },
+  { task: "Cinematic video with camera, lens, lighting and era controls", picks: ["higgsfield/cinema-studio/4.0"] },
+  { task: "Edit an existing video (change people, clothes, setting, style)", picks: ["bytedance/seedance-2.5/video-edit", "kling-video/o3/video-edit"] },
+  { task: "Make an existing video longer", picks: ["bytedance/seedance-2.5/video-extend"] },
+  { task: "Copy the movement from one video onto a person in a photo", picks: ["higgsfield/genjutsu/motion-transfer/v1.0", "kling-video/v3/motion-control/pro"] },
+  { task: "Swap an object in a video for another", picks: ["higgsfield/genjutsu/object-swap/v1.0"] },
+  { task: "Photorealistic image of people or scenes", picks: ["higgsfield-ai/soul/v2/standard"] },
+  { task: "Edit a photo (change a person, outfit, background, add or remove things)", picks: ["xai/grok-imagine-image-2.0", "alibaba/qwen-image-3/edit"] },
+  { task: "Image with readable text: thumbnails, posters, quotes", picks: ["ideogram/v4.0"] },
+  { task: "Logos, icons, illustrations, design assets", picks: ["recraft/v4.1/pro/text-to-image", "recraft/v4.1/utility/pro/text-to-image"] },
+  { task: "Quick, cheap image drafts", picks: ["z-image/turbo"] },
+  { task: "Product and ad images", picks: ["marketing-studio/image/sunburst", "marketing-studio/image/flare"] },
+];
 
-// Seedance: Higgsfield's published per-second rates (no video input).
-const SEEDANCE_PER_SEC: Record<string, number> = { "480p": 0.2056, "720p": 0.4622, "1080p": 1.1372 };
-// Kling 2.6 Pro: Higgsfield publishes no API price, so this is a deliberately
-// high estimate. The real charge shows in the Higgsfield console.
-const KLING_PER_SEC = { sound: 0.14, silent: 0.07 };
-
-const SHAPES: Record<string, string> = { vertical: "9:16", horizontal: "16:9", square: "1:1" };
-
-type Plan = { model: Model; path: string; input: JsonMap; seconds: number; cost: number; notes: string[] };
-
-function planVideo(args: JsonMap): Plan | { error: string } {
-  const model = MODELS[String(args.model || "")];
-  if (!model) return { error: "model must be \"seedance-2.5\" or \"kling-2.6\"." };
-  const prompt = String(args.prompt || "").trim();
-  if (!prompt) return { error: "prompt is required." };
-  const aspect = SHAPES[String(args.shape || "vertical")];
-  if (!aspect) return { error: "shape must be vertical, horizontal or square." };
-  const imageUrl = String(args.image_url || "").trim();
-  const sound = args.sound !== false;
-  const notes: string[] = [];
-  let seconds = Math.round(Number(args.seconds || 5));
-
-  if (model.id === "kling-2.6") {
-    const s = seconds <= 7 ? 5 : 10;
-    if (s !== seconds) notes.push(`Kling makes 5 or 10 second clips, so this will be ${s} seconds.`);
-    seconds = s;
-    const input: JsonMap = { prompt, duration: seconds, aspect_ratio: aspect, sound: sound ? "on" : "off" };
-    if (imageUrl) input.image_url = imageUrl;
-    const cost = seconds * (sound ? KLING_PER_SEC.sound : KLING_PER_SEC.silent);
-    return { model, path: imageUrl ? model.imagePath : model.textPath, input, seconds, cost, notes };
-  }
-
-  const s = Math.min(30, Math.max(4, seconds || 5));
-  if (s !== seconds) notes.push(`Seedance makes 4 to 30 second clips, so this will be ${s} seconds.`);
-  seconds = s;
-  const resolution = ["480p", "720p", "1080p"].includes(String(args.resolution)) ? String(args.resolution) : "720p";
-  const input: JsonMap = { prompt, duration: seconds, resolution, generate_audio: sound };
-  if (imageUrl) input.image_url = imageUrl;
-  else input.aspect_ratio = aspect;
-  const cost = seconds * SEEDANCE_PER_SEC[resolution];
-  return { model, path: imageUrl ? model.imagePath : model.textPath, input, seconds, cost, notes };
-}
-
-// ---- Tools ---------------------------------------------------------------
-
-const GUIDE = [
-  "Two models are available. Pick with the person, in plain words:",
-  "",
-  `1. ${MODELS["kling-2.6"].label}: about $0.70 for 5 seconds, $1.40 for 10. Best for ${MODELS["kling-2.6"].bestFor}.`,
-  `2. ${MODELS["seedance-2.5"].label}: about $2.30 for 5 seconds at 720p ($1.00 at 480p, $5.70 at 1080p). Best for ${MODELS["seedance-2.5"].bestFor}.`,
-  "",
-  "How to choose: ask what the clip is for. Background or b-roll -> Kling. The main shot, a person up close, realistic human movement, or longer than 10 seconds -> Seedance.",
-  "If unsure, suggest Kling first (cheaper) and offer Seedance if the result is not good enough.",
-  "Kling only makes 5 or 10 second clips. Seedance makes 4 to 30 seconds.",
-  "Shapes: vertical (Reels, TikTok, Shorts), horizontal (YouTube), square.",
-  "To animate a photo, pass a public image link as image_url (Seedance uses the photo's own shape).",
-].join("\n");
+const BY_ID = new Map(CATALOG.map((m) => [m.id, m]));
 
 const INSTRUCTIONS = [
-  "You help non-technical teammates of a social media agency make AI videos. Talk in plain English, no jargon.",
-  "Before making a video: (1) ask what the video is for if it is not obvious, (2) recommend a model using video_model_guide's rules and say why in one sentence, (3) state the length, shape and estimated cost, and (4) get a yes.",
-  "Write a rich visual prompt for them (subject, action, setting, camera movement, lighting, mood) from what they describe; show it to them.",
-  "After make_video, call check_video about every 30 seconds until it is done (usually 1 to 5 minutes), then give them the download link.",
-  "Never go around the monthly budget. If make_video refuses for budget, tell them to ask the account owner.",
+  "You help non-technical teammates of a social media agency make AI videos and images with Higgsfield. Talk in plain English, no jargon.",
+  "Start with start_here. Work out what they want (ask one short question if unclear), pick a model from the shortlist and say why in one sentence.",
+  "Call model_details before the first create with a model, write a rich prompt for them (subject, action, setting, camera, lighting, mood) and show it.",
+  "Always run price_check, tell them the exact cost in dollars, and get a yes before create. Never make anything without stating its price first. Mention the cost again when it is done.",
+  "Input media must be public links. If they have a file in Google Drive or Dropbox, pass its share link to import_file and use the link it returns.",
+  "After create, call check_job about every 20 to 30 seconds until it is done (images take seconds, videos 1 to 5 minutes), then give them the download link.",
+  "Never go around the monthly budget. If create refuses for budget, tell them to ask the account owner.",
 ].join(" ");
 
+const EMPTY = { type: "object", properties: {}, additionalProperties: false };
+const MODEL_ARG = { type: "string", description: "Model id, e.g. bytedance/seedance-2.5/text-to-video" };
+const INPUTS_ARG = { type: "object", description: "The model's settings, as listed by model_details (prompt, duration, aspect_ratio, image_url, ...)." };
+
 const TOOLS = [
+  { name: "start_here", description: "Read first. What this connector can make, which model to use for what, and the team's remaining budget this month.", inputSchema: EMPTY },
   {
-    name: "video_model_guide",
-    description: "Read first. Explains which video model to use for what, what it costs, and this month's remaining team budget.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    name: "find_models",
+    description: "List every available model, optionally only one kind (text-to-video, image-to-video, reference-to-video, first-last-frame-video, video-edit, video-extend, motion-transfer, object-swap, cinematic-video, text-to-image, image-edit, marketing-image).",
+    inputSchema: { type: "object", additionalProperties: false, properties: { category: { type: "string" } } },
   },
   {
-    name: "make_video",
-    description: "Start making a video. Only call after the person agreed to the model, length and estimated cost. Returns a job_id to pass to check_video.",
+    name: "model_details",
+    description: "The settings a model accepts (names, allowed values, defaults) and its usage notes. Call before creating with a model.",
+    inputSchema: { type: "object", required: ["model"], additionalProperties: false, properties: { model: MODEL_ARG } },
+  },
+  {
+    name: "price_check",
+    description: "Exact cost in dollars of a request, without making anything.",
+    inputSchema: { type: "object", required: ["model", "inputs"], additionalProperties: false, properties: { model: MODEL_ARG, inputs: INPUTS_ARG } },
+  },
+  {
+    name: "create",
+    description: "Make a video or image. Only call after the person agreed to the model, settings and price. Returns a job_id for check_job.",
+    inputSchema: { type: "object", required: ["model", "inputs"], additionalProperties: false, properties: { model: MODEL_ARG, inputs: INPUTS_ARG } },
+  },
+  {
+    name: "check_job",
+    description: "Check whether a job is finished. Returns the download links when done.",
+    inputSchema: { type: "object", required: ["job_id"], additionalProperties: false, properties: { job_id: { type: "string" } } },
+  },
+  {
+    name: "import_file",
+    description: "Turn a Google Drive, Dropbox or other public file link (image jpg/png/webp/gif, video mp4, audio wav) into a link the models can read. Returns the new link.",
+    inputSchema: { type: "object", required: ["link"], additionalProperties: false, properties: { link: { type: "string" } } },
+  },
+  {
+    name: "get_upload_link",
+    description: "Advanced: a one-hour upload address for sending a file's bytes directly (HTTP PUT with the returned headers). Returns the public link to use afterwards.",
     inputSchema: {
-      type: "object",
-      required: ["model", "prompt"],
-      additionalProperties: false,
-      properties: {
-        model: { type: "string", enum: ["kling-2.6", "seedance-2.5"], description: "kling-2.6 = good and cheaper (b-roll). seedance-2.5 = best quality." },
-        prompt: { type: "string", description: "Detailed visual description of the video." },
-        seconds: { type: "integer", minimum: 4, maximum: 30, default: 5, description: "Kling: 5 or 10. Seedance: 4 to 30." },
-        shape: { type: "string", enum: ["vertical", "horizontal", "square"], default: "vertical" },
-        resolution: { type: "string", enum: ["480p", "720p", "1080p"], default: "720p", description: "Seedance only." },
-        sound: { type: "boolean", default: true, description: "Generate sound with the video." },
-        image_url: { type: "string", description: "Optional public link to a photo to animate." },
-      },
+      type: "object", required: ["content_type"], additionalProperties: false,
+      properties: { content_type: { type: "string", enum: ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "audio/wav"] } },
     },
   },
-  {
-    name: "check_video",
-    description: "Check whether a video is finished. Returns the download link when done.",
-    inputSchema: {
-      type: "object",
-      required: ["job_id"],
-      additionalProperties: false,
-      properties: { job_id: { type: "string" } },
-    },
-  },
-  {
-    name: "team_usage",
-    description: "This month's team spending against the budget, and the most recent videos with who made them.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-  },
+  { name: "team_usage", description: "This month's team spending against the budget, and the most recent jobs with who made them.", inputSchema: EMPTY },
 ];
+
+// ---- Input validation (light; Higgsfield validates fully too) -------------
+
+type Schema = { type?: string; enum?: unknown[]; minimum?: number; maximum?: number; maxItems?: number; minItems?: number; properties?: Record<string, Schema>; required?: string[]; default?: unknown; description?: string };
+
+function validate(schema: Schema, inputs: JsonMap): string[] {
+  const problems: string[] = [];
+  const props = schema.properties || {};
+  for (const key of Object.keys(inputs)) if (!(key in props)) problems.push(`"${key}" is not a setting of this model`);
+  for (const key of schema.required || []) if (inputs[key] === undefined || inputs[key] === "") problems.push(`"${key}" is required`);
+  for (const [key, value] of Object.entries(inputs)) {
+    const p = props[key];
+    if (!p) continue;
+    if (p.enum && !p.enum.includes(value)) problems.push(`"${key}" must be one of ${p.enum.map((v) => JSON.stringify(v)).join(", ")}`);
+    if (typeof value === "number") {
+      if (p.minimum !== undefined && value < p.minimum) problems.push(`"${key}" must be at least ${p.minimum}`);
+      if (p.maximum !== undefined && value > p.maximum) problems.push(`"${key}" must be at most ${p.maximum}`);
+    }
+    if (Array.isArray(value) && p.maxItems !== undefined && value.length > p.maxItems) problems.push(`"${key}" takes at most ${p.maxItems} items`);
+  }
+  return problems;
+}
+
+function describeModel(id: string): string {
+  const m = BY_ID.get(id)!;
+  const schema = m.schema as Schema;
+  const required = new Set(schema.required || []);
+  const lines = Object.entries(schema.properties || {}).map(([k, p]) => {
+    const bits = [p.type || "value"];
+    if (p.enum) bits.push("one of " + p.enum.map((v) => JSON.stringify(v)).join(" | "));
+    if (p.minimum !== undefined || p.maximum !== undefined) bits.push(`range ${p.minimum ?? ""} to ${p.maximum ?? ""}`);
+    if (p.maxItems !== undefined) bits.push(`up to ${p.maxItems} items`);
+    if (p.default !== undefined) bits.push("default " + JSON.stringify(p.default));
+    return `- ${k}${required.has(k) ? " (required)" : ""}: ${bits.join(", ")}${p.description ? ". " + p.description : ""}`;
+  });
+  return `${m.name} [${m.id}], ${m.category}\n\nSettings:\n${lines.join("\n")}${m.notes.length ? "\n\nNotes:\n- " + m.notes.join("\n- ") : ""}`;
+}
 
 // ---- Helpers -------------------------------------------------------------
 
@@ -206,82 +197,177 @@ async function hf(method: string, path: string, body?: JsonMap): Promise<{ ok: b
   return { ok: res.ok, status: res.status, data };
 }
 
-// ---- Tool handlers -------------------------------------------------------
-
 async function idemKey(member: string, model: string, input: JsonMap): Promise<string> {
   const bytes = new TextEncoder().encode(JSON.stringify([member, model, input]));
   const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
   return Array.from(hash, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function callTool(name: string, args: JsonMap, member: string): Promise<string> {
-  if (CAP_USD === null && (name === "video_model_guide" || name === "make_video" || name === "team_usage")) {
-    return "The monthly budget setting (HF_MONTHLY_CAP_USD) is not a valid dollar amount, so video making is paused. Ask the account owner.";
+
+async function estimate(model: string, inputs: JsonMap): Promise<{ usd: number } | { error: string }> {
+  const res = await hf("POST", "estimate/" + model, inputs);
+  const usd = Number(res.data.usd);
+  if (!res.ok || !Number.isFinite(usd)) return { error: hfError(res) };
+  return { usd };
+}
+
+function hfError(res: { status: number; data: JsonMap }): string {
+  const d = res.data.detail;
+  const text = Array.isArray(d) ? d.map((x) => (x as JsonMap).msg || JSON.stringify(x)).join("; ") : String(d || res.data.error || `Higgsfield answered ${res.status}`);
+  return res.status === 403 ? text + " (the API balance needs a top-up)" : text;
+}
+
+function directLink(link: string): string {
+  const drive = link.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=download&)?id=)([\w-]+)/);
+  if (drive) return `https://drive.usercontent.google.com/download?id=${drive[1]}&export=download&confirm=t`;
+  if (/dropbox\.com\//.test(link)) return link.replace(/([?&])dl=0/, "$1dl=1") + (/[?&]dl=1/.test(link) ? "" : (link.includes("?") ? "&dl=1" : "?dl=1"));
+  return link;
+}
+
+const UPLOAD_TYPES: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", mp4: "video/mp4", wav: "audio/wav" };
+const MAX_IMPORT_BYTES = 60 * 1024 * 1024;
+
+async function uploadLink(contentType: string) {
+  const res = await hf("POST", "files/generate-upload-url", { content_type: contentType });
+  if (!res.ok || !res.data.upload_url) return { error: hfError(res) };
+  return res.data as { upload_url: string; public_url: string; upload_headers: Record<string, string> };
+}
+
+async function importFile(link: string): Promise<string> {
+  if (!/^https:\/\//i.test(link)) return "The link must start with https://";
+  const res = await fetch(directLink(link), { redirect: "follow" });
+  if (!res.ok) return `Could not download that link (${res.status}). Make sure it is shared as "anyone with the link".`;
+  const size = Number(res.headers.get("content-length") || 0);
+  if (size > MAX_IMPORT_BYTES) return "That file is over 60 MB, too big to import.";
+  let type = (res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+  if (type === "audio/x-wav" || type === "audio/wave") type = "audio/wav";
+  if (type === "image/jpg") type = "image/jpeg";
+  if (!Object.values(UPLOAD_TYPES).includes(type)) {
+    const ext = (res.headers.get("content-disposition")?.match(/filename\*?=(?:UTF-8'')?"?[^";]*\.(\w+)/i)?.[1] || new URL(link).pathname.split(".").pop() || "").toLowerCase();
+    type = UPLOAD_TYPES[ext] || "";
   }
-  const cap = CAP_USD as number;
-  if (name === "video_model_guide") {
+  if (!type) return "That link is not a supported file (jpg, png, webp, gif, mp4 or wav), or it opened a web page instead of the file. Check the sharing setting.";
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  if (bytes.length > MAX_IMPORT_BYTES) return "That file is over 60 MB, too big to import.";
+  const up = await uploadLink(type);
+  if ("error" in up) return "Could not prepare the upload: " + up.error;
+  const put = await fetch(up.upload_url, { method: "PUT", headers: up.upload_headers, body: bytes });
+  if (!put.ok) return `The upload failed (${put.status}).`;
+  return `Imported (${type}, ${(bytes.length / 1048576).toFixed(1)} MB). Use this link as the model's input:\n${up.public_url}\n(Higgsfield keeps uploaded inputs for a limited time.)`;
+}
+
+function outputs(data: JsonMap): string[] {
+  const urls: string[] = [];
+  const add = (v: unknown) => { const u = (v as JsonMap | undefined)?.url; if (u) urls.push(String(u)); };
+  for (const key of ["video", "audio", "zip", "mov"]) add(data[key]);
+  for (const key of ["images", "audios", "videos"]) if (Array.isArray(data[key])) (data[key] as unknown[]).forEach(add);
+  return urls;
+}
+
+// ---- Tool handlers -------------------------------------------------------
+
+async function callTool(name: string, args: JsonMap, member: string): Promise<string> {
+  if (CAP_USD === null) {
+    return "The monthly budget setting (HF_MONTHLY_CAP_USD) is not a valid dollar amount, so the connector is paused. Ask the account owner.";
+  }
+  const cap = CAP_USD;
+  const needModel = (): string | null => {
+    const id = String(args.model || "").trim();
+    return BY_ID.has(id) ? id : null;
+  };
+  const inputsOf = (): JsonMap => (args.inputs && typeof args.inputs === "object" && !Array.isArray(args.inputs) ? args.inputs as JsonMap : {});
+
+  if (name === "start_here") {
     const spent = await monthSpend();
-    return `${GUIDE}\n\nTeam budget this month: ${money(spent)} of ${money(cap)} used, ${money(Math.max(0, cap - spent))} left.`;
+    const list = GO_TO.map((g) => `- ${g.task}: ${g.picks.map((id) => `${BY_ID.get(id)?.name} [${id}]`).join(" or ")}`).join("\n");
+    return `This connector can make videos and images with ${CATALOG.length} Higgsfield models. Go-to picks:\n${list}\n\nThere are more options per task: use find_models.\nPrices vary by model, length and resolution; price_check gives the exact figure.\nInput photos, videos and audio must be public links; import_file converts Drive and Dropbox links.\n\nTeam budget this month: ${money(spent)} of ${money(cap)} used, ${money(Math.max(0, cap - spent))} left.`;
   }
 
-  if (name === "make_video") {
-    const plan = planVideo(args);
-    if ("error" in plan) return "Could not start: " + plan.error;
+  if (name === "find_models") {
+    const category = String(args.category || "").trim();
+    const models = CATALOG.filter((m) => !category || m.category === category);
+    if (!models.length) return `No models in "${category}". Kinds: ${[...new Set(CATALOG.map((m) => m.category))].join(", ")}.`;
+    return models.map((m) => `- ${m.name} [${m.id}] (${m.category})${m.notes[0] ? ": " + m.notes[0] : ""}`).join("\n");
+  }
+
+  if (name === "model_details") {
+    const id = needModel();
+    return id ? describeModel(id) : "Unknown model. Use find_models for the exact ids.";
+  }
+
+  if (name === "price_check" || name === "create") {
+    const id = needModel();
+    if (!id) return "Unknown model. Use find_models for the exact ids.";
+    const inputs = inputsOf();
+    const problems = validate(BY_ID.get(id)!.schema as Schema, inputs);
+    if (problems.length) return "Fix these settings first:\n- " + problems.join("\n- ") + "\n\n" + describeModel(id);
+    const est = await estimate(id, inputs);
+    if ("error" in est) return "Higgsfield could not price this request: " + est.error;
+    if (name === "price_check") {
+      const spent = await monthSpend();
+      return `Exact price: ${money(est.usd)}. Team budget left this month: ${money(Math.max(0, cap - spent))}.`;
+    }
+
     const client = db();
     // Cap check, retry dedupe and log row happen in one serialized database step.
     const { data: rsv, error } = await client.rpc("hf_reserve_generation", {
       p_member: member,
-      p_model: plan.model.id,
-      p_prompt: String(args.prompt),
-      p_params: plan.input,
-      p_cost: plan.cost,
+      p_model: id,
+      p_prompt: String(inputs.prompt || "(no prompt)"),
+      p_params: inputs,
+      p_cost: est.usd,
       p_cap: cap,
-      p_idem_key: await idemKey(member, plan.model.id, plan.input),
+      p_idem_key: await idemKey(member, id, inputs),
     });
     if (error || !rsv) return "Could not start: the log is unavailable, so nothing was spent.";
     const reservation = rsv as JsonMap;
     if (reservation.outcome === "over_cap") {
-      return `Refused: this video (about ${money(plan.cost)}) would pass the team's monthly budget of ${money(cap)} (${money(Number(reservation.spent))} already used). Ask the account owner.`;
+      return `Refused: this (${money(est.usd)}) would pass the team's monthly budget of ${money(cap)} (${money(Number(reservation.spent))} already used). Ask the account owner.`;
     }
     if (reservation.outcome === "duplicate") {
       return reservation.request_id
-        ? `This exact video was already started a moment ago, so it was not charged twice.\njob_id: ${reservation.request_id}\nUse check_video with that job_id.`
-        : "This exact video is being started right now. Wait a minute, then ask for team_usage to find its job.";
+        ? `This exact request was already started a moment ago, so it was not charged twice.\njob_id: ${reservation.request_id}\nUse check_job with that job_id.`
+        : "This exact request is being started right now. Wait a minute, then ask for team_usage to find its job.";
     }
-    const row = { id: Number(reservation.id) };
-
-    const res = await hf("POST", plan.path, plan.input);
+    const rowId = Number(reservation.id);
+    const res = await hf("POST", id, inputs);
     const requestId = String(res.data.request_id || "");
     if (!res.ok || !requestId) {
-      const why = String(res.data.detail || res.data.error || `Higgsfield answered ${res.status}`);
-      await client.from("hf_generations").update({ status: "submit_failed", error: why, updated_at: new Date().toISOString() }).eq("id", row.id);
-      return "Higgsfield refused the request: " + why + (res.status === 402 || /balance|credit|fund/i.test(why) ? " (the API balance may need a top-up)." : "");
+      const why = hfError(res);
+      await client.from("hf_generations").update({ status: "submit_failed", error: why, updated_at: new Date().toISOString() }).eq("id", rowId);
+      return "Higgsfield refused the request: " + why;
     }
-    await client.from("hf_generations").update({ request_id: requestId, status: String(res.data.status || "queued"), updated_at: new Date().toISOString() }).eq("id", row.id);
-    return [
-      `Started: ${plan.model.label}, ${plan.seconds} seconds, estimated ${money(plan.cost)}.`,
-      ...plan.notes,
-      `job_id: ${requestId}`,
-      "Check back with check_video in about 30 seconds. It usually takes 1 to 5 minutes.",
-    ].join("\n");
+    await client.from("hf_generations").update({ request_id: requestId, status: String(res.data.status || "queued"), updated_at: new Date().toISOString() }).eq("id", rowId);
+    return `Started: ${BY_ID.get(id)!.name}, ${money(est.usd)}.\njob_id: ${requestId}\nCheck with check_job in about 20 to 30 seconds.`;
   }
 
-  if (name === "check_video") {
+  if (name === "check_job" || name === "check_video") {
     const jobId = String(args.job_id || "").trim();
     if (!/^[0-9a-f-]{36}$/i.test(jobId)) return "That job_id does not look right.";
     const res = await hf("GET", `requests/${jobId}/status`);
-    if (!res.ok) return "Could not check: " + String(res.data.detail || `Higgsfield answered ${res.status}`);
+    if (!res.ok) return "Could not check: " + hfError(res);
     const status = String(res.data.status || "unknown");
-    const url = String((res.data.video as JsonMap | undefined)?.url || "");
+    const urls = outputs(res.data);
     const err = res.data.error ? String(res.data.error) : null;
-    await db().from("hf_generations").update({
-      status, video_url: url || null, error: err, updated_at: new Date().toISOString(),
-    }).eq("request_id", jobId);
-    if (status === "completed" && url) return `Done. Download: ${url}\n(Links from Higgsfield may expire, so save the file.)`;
-    if (status === "failed") return "The video failed: " + (err || "no reason given") + ". Nothing is charged for a failed video; try again or adjust the prompt.";
-    if (status === "nsfw") return "Higgsfield blocked this video for its content rules. Try a different prompt.";
-    if (status === "canceled") return "This video was canceled.";
-    return `Still working (${status.replace("_", " ")}). Check again in about 30 seconds.`;
+    const { data: logged } = await db().from("hf_generations").update({
+      status, video_url: urls[0] || null, error: err, updated_at: new Date().toISOString(),
+    }).eq("request_id", jobId).select("est_cost_usd");
+    const cost = logged && logged[0] ? ` It cost ${money(Number(logged[0].est_cost_usd))}.` : "";
+    if (status === "completed" && urls.length) return `Done.${cost} Download:\n${urls.join("\n")}\n(Higgsfield keeps results for about 7 days, so save the files.)`;
+    if (status === "failed") return "It failed: " + (err || "no reason given") + ". Failed jobs are not charged; try again or adjust the prompt.";
+    if (status === "nsfw") return "Higgsfield blocked this for its content rules (not charged). Try a different prompt or image.";
+    if (status === "canceled") return "This job was canceled.";
+    return `Still working (${status.replace("_", " ")}). Check again in about 20 to 30 seconds.`;
+  }
+
+  if (name === "import_file") return await importFile(String(args.link || "").trim());
+
+  if (name === "get_upload_link") {
+    const type = String(args.content_type || "");
+    if (!Object.values(UPLOAD_TYPES).includes(type)) return "Unsupported content_type.";
+    const up = await uploadLink(type);
+    if ("error" in up) return "Could not prepare the upload: " + up.error;
+    return JSON.stringify({ upload_url: up.upload_url, upload_headers: up.upload_headers, public_url: up.public_url, expires: "in 1 hour" });
   }
 
   if (name === "team_usage") {
@@ -292,9 +378,9 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
       .order("created_at", { ascending: false })
       .limit(15);
     const lines = (data || []).map((r) =>
-      `${String(r.created_at).slice(0, 10)}  ${r.member_name}  ${r.model}  ~${money(Number(r.est_cost_usd))}  ${r.status}  "${String(r.prompt).slice(0, 60)}"`
+      `${String(r.created_at).slice(0, 10)}  ${r.member_name}  ${r.model}  ${money(Number(r.est_cost_usd))}  ${r.status}  "${String(r.prompt).slice(0, 60)}"`
     );
-    return `This month: ${money(spent)} of ${money(cap)} used (estimates; the Higgsfield console shows exact charges).\n\nRecent videos:\n${lines.join("\n") || "none yet"}`;
+    return `This month: ${money(spent)} of ${money(cap)} used.\n\nRecent jobs:\n${lines.join("\n") || "none yet"}`;
   }
 
   return "Unknown tool: " + name;
@@ -341,7 +427,7 @@ Deno.serve(async (req) => {
       result: {
         protocolVersion: PROTOCOLS.includes(asked) ? asked : PROTOCOLS[0],
         capabilities: { tools: {} },
-        serverInfo: { name: "synchro-higgsfield", version: "1.0.0" },
+        serverInfo: { name: "synchro-higgsfield", version: "2.0.0" },
         instructions: INSTRUCTIONS,
       },
     });

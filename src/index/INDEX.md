@@ -17,7 +17,7 @@
 | 9 | `060-templates-filming.js.part` | 2295 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `070-workload-source.js.part` | 3823 | Workload Calendar |
 | 11 | `080-workload-render.js.part` | 3436 | Smart default: a creative lands on their own work (see |
-| 12 | `090-workload-popovers-navigation.js.part` | 1827 | Sub-issue popover |
+| 12 | `090-workload-popovers-navigation.js.part` | 1838 | Sub-issue popover |
 | 13 | `095-shared-client.js.part` | 397 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
 | 14 | `096-quick-jump.js.part` | 172 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
 | 15 | `097-today.js.part` | 542 | TODAY (owner design , session Compass). |

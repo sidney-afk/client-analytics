@@ -8,7 +8,7 @@ import {
   mountTemplatesView, renderFilmingPlansView, renderTemplatesView
 } from './060-templates-filming.js';
 import {
-  WL_PLAN_READ_TIMEOUT_MS, _wlDueWriteInFlight, _wlPlanWriteInFlight, _wlV2Teardown,
+  WL_PLAN_READ_TIMEOUT_MS, _wlDueWriteInFlight, _wlPlanWriteInFlight, _wlV2Enabled, _wlV2Teardown,
   renderWorkloadShell, wlDeadlineTagHtml, wlDisplayDate, wlIsTweaksNeeded, wlLinearEditingEnabled,
   wlPlacementMode, wlPlanDate, wlPlanEditingEnabled, wlPlanOriginHtml, wlSnapshotIdentity, wlState,
   wlWorkloadBadgeHtml
@@ -26,15 +26,15 @@ import { _calAbandonLinkOnCalendarExit, calState } from './130-calendar-model-ca
 import { _jsAttrArg } from './131-core-html.js';
 import { _svLoadingSkeletonHtml, _svSkel } from './133-core-loading-skeletons.js';
 import { mountCalendar, renderCalendarView } from './134-calendar-prefs-mount.js';
-import { _calV2Teardown } from './150-calendar-hydration-import.js';
+import { _calV2Enabled, _calV2Teardown } from './150-calendar-hydration-import.js';
 import { _calFmtCommentTime } from './190-calendar-approval-comments.js';
 import {
   _kasperApplyAccess, _linearIntakeBatchTitle, _linearSubmissionHoldRead, renderLinearView
 } from './200-intake-data-startup.js';
-import { _prodAccessAllowed } from './210-production-state-writes.js';
+import { _prodAccessAllowed, _prodCacheEnabled } from './210-production-state-writes.js';
 import { mountProductionView, renderProductionView } from './250-production-controls-data.js';
 import { _isClientLink, _syncviewClientEntryCapability, _syncviewInvalidClientLinkScreen } from './260-production-refresh-boot.js';
-import { mountSxrView, renderSxrView } from './270-samples-model.js';
+import { _sxrEnabled, mountSxrView, renderSxrView } from './270-samples-model.js';
 import { mountSxrClientView } from './280-samples-cards-notes.js';
 import { _sxrV2Teardown } from './290-samples-writes-review.js';
 import { _tkTeardown, mountTiktokUploadView, renderTiktokUploadView } from './300-tiktok-upload.js';
@@ -1530,7 +1530,14 @@ import {
        from an empty query, so /workload never carries SyncLinear's card or
        sort. Staying on the same tab (a re-render, or boot opening an old link)
        keeps the address as it was, so old links still open exactly. Client
-       share links (c / t / v) are never touched. */
+       share links (c / t / v), the public intake form and the onboarding
+       views are never touched (their address IS their access).
+
+       The per-browser switches (wl2, v2, sxr, prodcache) are read lazily by
+       their own tabs, which is also when they are saved to this browser. So
+       before a switch leaves the address, each one is read here once: it is
+       saved exactly as if its tab had opened, and nothing is lost (Codex on
+       #1798). */
     function _svAddressPage(search, hash) {
         const q = new URLSearchParams(search || '');
         if (q.get('prod') === '1') return 'production';
@@ -1541,8 +1548,12 @@ import {
     function _svNavQuery(page) {
         const search = svRoute.search();
         const cur = new URLSearchParams(search);
-        const isClientLink = cur.has('c') || cur.has('t') || cur.has('v');
-        const query = isClientLink || _svAddressPage(search, svRoute.hash()) === page ? cur : new URLSearchParams();
+        const ownAccess = ['c', 't', 'v', 'intake', 'onboarding', 'onboarding_view'].some(k => cur.has(k));
+        const keep = ownAccess || _svAddressPage(search, svRoute.hash()) === page;
+        if (!keep && ['wl2', 'v2', 'sxr', 'prodcache'].some(k => cur.has(k))) {
+            for (const read of [_wlV2Enabled, _calV2Enabled, _sxrEnabled, _prodCacheEnabled]) { try { read(); } catch (e) {} }
+        }
+        const query = keep ? cur : new URLSearchParams();
         if (page === 'production') query.set('prod', '1');
         else query.delete('prod');
         return query;

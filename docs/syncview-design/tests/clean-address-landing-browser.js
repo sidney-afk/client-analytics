@@ -70,6 +70,24 @@ const nav = page => page.evaluate(() => typeof currentNav === 'string' ? current
       check(await addr(page) === '/workload?sxr=1', 'staying on the same tab keeps its address');
       await context.close();
     }
+    // 3b. A switch in the address is saved before it is dropped (Codex on #1798).
+    {
+      const { context, page } = await openStaff(browser, port, '/?wl2=0&v2=0');
+      await page.waitForFunction(() => currentNav === 'today', null, { timeout: 20000 }).catch(() => {});
+      await page.evaluate(() => navTo('workload'));
+      const saved = await page.evaluate(() => ({ wl: localStorage.getItem('syncview_workload_v2_off'), cal: localStorage.getItem('syncview_calendar_v2_off'), at: location.pathname + location.search }));
+      check(saved.at === '/workload', 'a switch leaves the address on a tab change (got ' + saved.at + ')');
+      check(saved.wl === '1' && saved.cal === '1', 'and is saved to this browser first, as if its tab had opened (' + JSON.stringify(saved) + ')');
+      await context.close();
+    }
+    // 3c. The public intake form keeps its address (Codex on #1798).
+    {
+      const { context, page } = await openStaff(browser, port, '/intake');
+      await page.waitForTimeout(800);
+      await page.evaluate(() => navTo('linear'));
+      check(await addr(page) === '/intake', 'the public intake form keeps /intake (got ' + await addr(page) + ')');
+      await context.close();
+    }
     // 4. Default landing.
     {
       const { context, page, errors } = await openStaff(browser, port, '/');

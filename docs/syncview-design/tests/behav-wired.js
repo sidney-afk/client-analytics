@@ -258,7 +258,7 @@ async function txt(page, sel) {
       const home = document.getElementById('navHome');
       if (!mirror || !submit || !home) return false;
       const items = Array.from(document.querySelectorAll('#headerNav > .header-nav-btn'));
-      return mirror.textContent.trim() === 'SyncLinear'
+      return mirror.textContent.trim() === 'Linear' && mirror.title === 'SyncLinear'
         && submit.textContent.trim() === 'Submit'
         && mirror.getAttribute('href') === '#production'
         && submit.getAttribute('href') === '#linear'

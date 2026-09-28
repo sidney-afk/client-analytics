@@ -70,7 +70,9 @@ const prodRowRule = (index.match(/\.prod-row\s*\{([^}]*)\}/) || [])[1] || '';
    hash, separate icon — so the mirror can never be wired to the Submit form or
    vice versa. The icons are painted through a CSS mask so they still take
    their colour from currentColor exactly as the glyphs did; only the anchor
-   moved from `</svg>` to the icon span's closing tag. */
+   moved from `</svg>` to the icon span's closing tag.
+   2026-09-28 (owner decision): the visible label is now "Linear"; SyncLinear
+   stays as the tab's title and aria-label. Submit keeps its own route. */
 const synclinearIcon = 'ico-synclinear';
 const submitIcon = 'ico-submit';
 
@@ -78,7 +80,7 @@ check('Production preview block exists before init()', !!prodBlock);
 check('promoted Linear mirror nav is always mounted', !!navProd && !/display\s*:\s*none/.test(navProd) && !/navProd\.style\.display/.test(index));
 check('staff-identity and Production mount code no longer hide the promoted nav', !/getElementById\('navProd'\)[\s\S]{0,140}\.style\.display/.test(index));
 check('visible order is Analytics then Linear mirror then Submit', index.indexOf('id="navHome"') < index.indexOf('id="navProd"') && index.indexOf('id="navProd"') < index.indexOf('id="navLinear"'));
-check('Linear mirror keeps production id, clean path, and nav key', /href="\/synclinear"/.test(navProd) && /navTo\('production'\)/.test(navProd) && />\s*SyncLinear\s*<\/a>$/.test(navProd));
+check('Linear mirror keeps production id, clean path, and nav key', /href="\/synclinear"/.test(navProd) && /navTo\('production'\)/.test(navProd) && />\s*Linear\s*<\/a>$/.test(navProd) && /title="SyncLinear"/.test(navProd) && /aria-label="SyncLinear"/.test(navProd));
 check('Submit keeps linear id, clean path, and nav key', /href="\/submit"/.test(navLinear) && /navTo\('linear'\)/.test(navLinear) && />\s*Submit\s*<\/a>$/.test(navLinear));
 check('the mirror tab carries its own icon and not the Submit one', navProd.includes(synclinearIcon) && !navProd.includes(submitIcon));
 check('Submit carries its own icon and not the mirror one', navLinear.includes(submitIcon) && !navLinear.includes(synclinearIcon));

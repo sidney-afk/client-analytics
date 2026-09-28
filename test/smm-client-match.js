@@ -14,7 +14,7 @@ const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'index', '098-smm-
 const body = src.split('\n').filter(l => !/^import /.test(l)).join('\n').split('\nexport {')[0];
 const sandbox = { clientMap: {} };
 vm.createContext(sandbox);
-vm.runInContext(body + '\nthis.api = { svClientKey, svCurrentClients, svRosterEntryFor, svSmmCurrentClients, svUnownedCurrentClients };', sandbox);
+vm.runInContext(body + '\nthis.api = { svClientKey, svCurrentClients, svRosterEntryFor, svScopeMode, svSmmCurrentClients, svUnownedCurrentClients };', sandbox);
 const api = sandbox.api;
 
 let failed = 0;
@@ -46,6 +46,14 @@ ok(api.svSmmCurrentClients(api.svRosterEntryFor(roster, { name: 'Robin Smm' }), 
 
 const unowned = api.svUnownedCurrentClients(roster, current).sort();
 ok(JSON.stringify(unowned) === JSON.stringify(['Omega Fixture', 'Unowned Fixture']), 'admins-only list = current clients no ACTIVE SMM lists');
+
+// Which clients a person starts on (svScopeMode).
+const m = (a, r, s) => JSON.stringify(api.svScopeMode(a, r, s));
+ok(m(true, true, '') === JSON.stringify({ mode: 'mine', canSwitch: true }), 'an admin on the roster starts on My clients, with the switch');
+ok(m(true, false, '') === JSON.stringify({ mode: 'all', canSwitch: true }), 'an admin not on the roster starts on All clients, with the switch');
+ok(m(true, true, 'all') === JSON.stringify({ mode: 'all', canSwitch: true }), "an admin's remembered choice wins");
+ok(m(true, false, 'mine') === JSON.stringify({ mode: 'mine', canSwitch: true }), 'an admin may pick My clients even when not on the roster');
+ok(m(false, true, 'all') === JSON.stringify({ mode: 'mine', canSwitch: false }), 'a non-admin SMM only ever sees their own clients, whatever is saved');
 
 if (failed) { console.log(`smm-client-match: ${failed} failed`); process.exit(1); }
 console.log('smm-client-match: all checks passed');

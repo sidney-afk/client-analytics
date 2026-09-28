@@ -10,7 +10,7 @@
 | 2 | `003-sv-route.html.part` | 177 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 278 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3912 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 4371 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 4374 | Templates view |
 | 6 | `030-body-shell.html.part` | 500 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 1847 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 8 | `050-market-briefs.js.part` | 1779 | Market Research Brief Tab Renderers |
@@ -20,8 +20,8 @@
 | 12 | `090-workload-popovers-navigation.js.part` | 1805 | Sub-issue popover |
 | 13 | `095-shared-client.js.part` | 397 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
 | 14 | `096-quick-jump.js.part` | 172 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
-| 15 | `097-today.js.part` | 411 | TODAY (owner design , session Compass). |
-| 16 | `098-smm-clients.js.part` | 69 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
+| 15 | `097-today.js.part` | 435 | TODAY (owner design , session Compass). |
+| 16 | `098-smm-clients.js.part` | 82 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
 | 17 | `100-onboarding-staff-controls.js.part` | 2388 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 18 | `110-time-off-reports.js.part` | 2207 | Kasper Time Off calendar |
 | 19 | `120-calendar-flags-write-repair.js.part` | 3143 | The members a flag value offers, or null when it offers no member list at |

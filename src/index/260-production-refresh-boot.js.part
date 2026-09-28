@@ -13,6 +13,7 @@ import {
   loadTemplates, render
 } from './050-market-briefs.js';
 import { NAV_KEY, _isSmmWeeklyRoute, _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
+import { _wlV2Client } from './067-workload-board-source.js';
 import {
   WL_CLIENT_NAMES, getClientRoster, wlCanonicalClient, wlIsAllowedClient, wlNormalizeClient
 } from './070-core-client-names.js';

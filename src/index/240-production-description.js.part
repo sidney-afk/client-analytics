@@ -1,5 +1,5 @@
 import { CAL_SUPABASE_ANON_KEY, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature, _syncviewStaffVerificationEpoch } from './100-onboarding-staff-controls.js';
-import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
+import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
 import {
   PROD_ASSET_SPECS, PROD_BATCH_DESCRIPTION_SELECT, PROD_DESCRIPTION_IMAGE_EF_URL,
@@ -2125,6 +2125,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
                 }
                 return true;
             } catch (error) {
+                _writeUiRecordFailure('production', 'description_image', error, { id: String(id) });
                 _prodDescriptionReplaceInDraft(id, placeholder, '');
                 _prodToast(_prodDescriptionImageErrorText(error));
                 return false;
@@ -2260,6 +2261,7 @@ import { _prodRender } from './260-production-refresh-boot.js';
                 _prodRender();
                 _prodFocusDescriptionControl(id, 'edit');
             } catch (error) {
+                _writeUiRecordFailure('production', 'description', error, { id: String(id) });
                 /* A write_conflict hands back the row that won. For a batch
                    parent that is a BATCH carrying `description`, not a
                    deliverable carrying `brief` -- reading the wrong field would

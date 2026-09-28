@@ -7,7 +7,7 @@ import {
   _calComponentsFor, _clientCommentGatewayOn, _prodCanonicalCoversLegacy, _prodCardBindingToken,
   _prodCrosswalkVerdict, _prodLegacyReadIncomplete, _prodLegacyUnrepresentableState,
   _prodResolveCardCrosswalk, _syncviewClientWriteToken, _syncviewEfHeaders, _writeUiFailureText,
-  _writeUiNativeId, _writeUiPrimeRerouteFlag
+  _writeUiNativeId, _writeUiPrimeRerouteFlag, _writeUiRecordFailure
 } from './120-calendar-flags-write-repair.js';
 import { _calCommentsFor, _calSetCommentsFor, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
@@ -284,6 +284,7 @@ import {
                 if (_prodIssue(createdId)) _prodOpenDeliverable(createdId);
                 return false;
             } catch (error) {
+                _writeUiRecordFailure('production', 'create', error);
                 const code = String(error && error.code || '');
                 /*
                  * `production_create_closed` is a DEFINITIVE no-replay verdict,
@@ -710,6 +711,8 @@ import {
                 }
                 _prodToast(completed > 1 ? completed + ' issues updated' : (kind === 'status' ? 'Status updated' : kind === 'assign' ? 'Assignee updated' : 'Due date updated'));
             } catch (error) {
+                // OPEN_REPAIRS 101: leave a server record of the refusal (no UI).
+                _writeUiRecordFailure('production', kind, error, { id: String(issues[completed] && issues[completed].id || '') });
                 let rolledBack = false;
                 optimistic.slice(completed).forEach(entry => {
                     if (!entry) return;
@@ -914,6 +917,7 @@ import {
                 _prodToast('Labels updated');
                 _prodRefreshLabelSurfaces(id);
             } catch (error) {
+                _writeUiRecordFailure('production', 'labels', error, { id: String(id) });
                 if (!requestStillCurrent()) {
                     if (identityStillCurrent()) _prodEnsureLabels(id, true);
                     return;
@@ -1092,6 +1096,7 @@ import {
                 _prodComments.refresh(id);
                 _prodToast(finishedAction === 'edit' ? 'Comment updated' : wasReply ? 'Reply added' : 'Comment added');
             }).catch(async error => {
+                _writeUiRecordFailure('production', 'comment', error, { id: String(id) });
                 draft.error = _prodWriteErrorText(error, issue, 'comment');
                 if (error && error.status === 409) {
                     if (draft.action === 'edit') {
@@ -1132,6 +1137,7 @@ import {
                 _prodComments.adopt(id, result && result.comment);
                 _prodComments.refresh(id);
             }).catch(error => {
+                _writeUiRecordFailure('production', 'comment_lifecycle', error, { id: String(id) });
                 state.error = _prodWriteErrorText(error, issue, 'comment');
                 _prodComments.refresh(id);
                 _prodRender();

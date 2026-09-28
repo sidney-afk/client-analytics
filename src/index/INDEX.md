@@ -10,11 +10,11 @@
 | 2 | `003-sv-route.html.part` | 177 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 283 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3913 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 4383 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 4390 | Templates view |
 | 6 | `030-body-shell.html.part` | 511 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 1918 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1779 | Market Research Brief Tab Renderers |
-| 9 | `060-templates-filming.js.part` | 2295 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 9 | `060-templates-filming.js.part` | 2303 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `070-workload-source.js.part` | 3823 | Workload Calendar |
 | 11 | `080-workload-render.js.part` | 3436 | Smart default: a creative lands on their own work (see |
 | 12 | `090-workload-popovers-navigation.js.part` | 1844 | Sub-issue popover |
@@ -50,7 +50,7 @@
 | 42 | `290-samples-writes-review.js.part` | 1824 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 43 | `300-tiktok-upload.js.part` | 2028 | TIKTOK UPLOAD MODULE |
 | 44 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
-| 45 | `320-kasper-dashboard-replies.js.part` | 3398 | The Samples subtab was folded into Review (samples are listed in the |
+| 45 | `320-kasper-dashboard-replies.js.part` | 3401 | The Samples subtab was folded into Review (samples are listed in the |
 | 46 | `330-kasper-review-history.js.part` | 2760 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 47 | `340-editors-date-picker.js.part` | 1302 | Editor work model |
 | 48 | `350-footer.html.part` | 398 | Transcript preview modal |

@@ -8771,6 +8771,13 @@
             .tdy-rw { padding: 10px 12px; gap: 10px; }
             .tdy-rw .tdy-b { min-width: 44px; min-height: 44px; justify-content: center; padding: 0; font-size: 0; gap: 0; }
             .tdy-vw button, .tdy-rg, .tdy-b.p, .tdy-acts .tdy-b { min-height: 44px; }
+            /* Walk-through and Deck actions stay on one line at phone width
+               (owner, 2026-09-28). Each button is as wide as its label, never
+               clipped (Codex on PR 1800); the small icons give way so all
+               three fit at 360px. */
+            .tdy-acts { flex-wrap: nowrap; gap: 6px; }
+            .tdy-acts .tdy-b { flex: 0 1 auto; justify-content: center; padding: 0 10px; font-size: 0.78rem; }
+            .tdy-acts .tdy-ic { display: none; }
             .tdy-ic { width: 16px; height: 16px; }
             .tdy-chip { overflow: hidden; }
             .tdy-win { padding: 36px 20px; }
@@ -13061,6 +13068,14 @@
     // tab) or the standalone per-client viewer. (It used to live under Templates.)
     function _obvRerender(){
       if (typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'onboarding' && document.getElementById('kasperContent')) {
+        _kasperRenderOnboarding();
+        try{ if(document.getElementById('obvSearchInput')) setTimeout(_obvFilter, 0); }catch(e){}
+        return;
+      }
+      // The standalone staff page (/onboarding, from the staff profile menu)
+      // reuses the same #kasperContent renderer. Without this branch the list
+      // arrived and nothing redrew it: the page sat on its skeleton forever.
+      if (document.querySelector('[data-sv-staff-page="staff-onboarding"] #kasperContent')) {
         _kasperRenderOnboarding();
         try{ if(document.getElementById('obvSearchInput')) setTimeout(_obvFilter, 0); }catch(e){}
         return;
@@ -83646,7 +83661,10 @@
                 else _ccRevModalTimer = setTimeout(tick, 1200);
                 return;
             }
-            if (scope === 'kasper') { _ccRevKasperTimer = null; if (_kasperState.tab === 'client-credentials') _ccLoadKasper(true); }
+            // The list is live on the Kasper subtab AND on the standalone
+            // /client-credentials page (same #ccKasperBody), so refresh when
+            // either is showing it.
+            if (scope === 'kasper') { _ccRevKasperTimer = null; if (_kasperState.tab === 'client-credentials' || document.getElementById('ccKasperBody')) _ccLoadKasper(true); }
             else { _ccRevModalTimer = null; if (_ccState.modal.open) _ccLoadModal(true); }
         };
         if (scope === 'kasper') _ccRevKasperTimer = setTimeout(run, 900);

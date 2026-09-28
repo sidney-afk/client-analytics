@@ -4372,6 +4372,13 @@
             .tdy-rw { padding: 10px 12px; gap: 10px; }
             .tdy-rw .tdy-b { min-width: 44px; min-height: 44px; justify-content: center; padding: 0; font-size: 0; gap: 0; }
             .tdy-vw button, .tdy-rg, .tdy-b.p, .tdy-acts .tdy-b { min-height: 44px; }
+            /* Walk-through and Deck actions stay on one line at phone width
+               (owner, 2026-09-28). Each button is as wide as its label, never
+               clipped (Codex on PR 1800); the small icons give way so all
+               three fit at 360px. */
+            .tdy-acts { flex-wrap: nowrap; gap: 6px; }
+            .tdy-acts .tdy-b { flex: 0 1 auto; justify-content: center; padding: 0 10px; font-size: 0.78rem; }
+            .tdy-acts .tdy-ic { display: none; }
             .tdy-ic { width: 16px; height: 16px; }
             .tdy-chip { overflow: hidden; }
             .tdy-win { padding: 36px 20px; }

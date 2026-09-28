@@ -214,6 +214,14 @@ import {
         try{ if(document.getElementById('obvSearchInput')) setTimeout(_obvFilter, 0); }catch(e){}
         return;
       }
+      // The standalone staff page (/onboarding, from the staff profile menu)
+      // reuses the same #kasperContent renderer. Without this branch the list
+      // arrived and nothing redrew it: the page sat on its skeleton forever.
+      if (document.querySelector('[data-sv-staff-page="staff-onboarding"] #kasperContent')) {
+        _kasperRenderOnboarding();
+        try{ if(document.getElementById('obvSearchInput')) setTimeout(_obvFilter, 0); }catch(e){}
+        return;
+      }
       if (document.getElementById('obvStandaloneWrap')) { _obvRenderStandalone(); return; }
     }
     function _obvOpen(id){ _obvSelected = id; _obvRerender(); }

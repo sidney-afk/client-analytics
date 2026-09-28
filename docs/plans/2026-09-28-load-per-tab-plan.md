@@ -70,7 +70,7 @@ not on code (`docs/audits/2026-09-23-boot-baseline.md` §3.4).
 
 ## Step 1 findings (2026-09-28)
 
-- 94 recorded hazards: 42 buttons and 52 guards that reach into another on-demand area.
+- 95 recorded hazards: 42 buttons and 53 guards that reach into another on-demand area.
 - The approve path borrows 110 names from staff-only areas. Most are the Calendar write
   flags that live in the Time Off file (`110`), the client comment gateway in SyncLinear
   (`210`–`250`), and the client-name helpers in Workload (`070`). They are state and

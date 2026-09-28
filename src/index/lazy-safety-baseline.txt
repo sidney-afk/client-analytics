@@ -55,6 +55,7 @@ guard 090-workload-popovers-navigation.js.part _kasperTeardown
 guard 090-workload-popovers-navigation.js.part _linearSubmissionHoldRead
 guard 090-workload-popovers-navigation.js.part _tdyTeardown
 guard 090-workload-popovers-navigation.js.part _tkTeardown
+guard 095-shared-client.js.part tdyMyClientNames
 guard 100-onboarding-staff-controls.js.part _caPurgeSensitiveState
 guard 100-onboarding-staff-controls.js.part _ccCloseModal
 guard 100-onboarding-staff-controls.js.part _ccCloseSelect

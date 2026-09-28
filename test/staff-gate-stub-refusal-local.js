@@ -72,7 +72,42 @@ async function callFrom(page, key) {
     await p2.goto(`http://127.0.0.1:${server.address().port}/`);
     assert.equal((await callFrom(p2, STAFF_GATE_KEY)).body.from, 'suite');
     await own.close();
-    console.log('staff-gate-stub-refusal-local: 8 checks passed ✅');
+
+    // Case 4 (analytics-read, 2026-09-28): a stub key's staff analytics read is
+    // answered locally with "no mirror" (never reaching the live function);
+    // a real-looking key falls through; keepAnalyticsRead leaves the suite's
+    // own mock in charge.
+    const AR = EF.replace('production-write', 'analytics-read');
+    const readFrom = (pg, key) => pg.evaluate(async ({ url, key }) => {
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': key }, body: '{"scope":"overview"}' });
+      return { status: r.status, body: await r.json() };
+    }, { url: AR, key });
+    const net = { hits: 0 };
+    const answerNetwork = ctx => ctx.route('**/functions/v1/analytics-read', route => {
+      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'POST, OPTIONS', 'access-control-allow-headers': '*' } });
+      net.hits++;
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{"ok":true,"from":"network"}' });
+    });
+    const ar = await browser.newContext();
+    await answerNetwork(ar);
+    await seedStaffGate(ar);
+    const p3 = await ar.newPage();
+    await p3.goto(`http://127.0.0.1:${server.address().port}/`);
+    const stubRead = await readFrom(p3, STAFF_GATE_KEY);
+    assert.equal(stubRead.status, 200);
+    assert.deepEqual(stubRead.body, { ok: false, error: 'invalid_staff_key' });
+    assert.equal(net.hits, 0, 'a stub-key analytics read must not reach the live backend');
+    assert.equal((await readFrom(p3, 'some-other-key')).body.from, 'network', 'a non-stub key must fall through');
+    await ar.close();
+
+    const keep = await browser.newContext();
+    await answerNetwork(keep);
+    await seedStaffGate(keep, { keepAnalyticsRead: true });
+    const p4 = await keep.newPage();
+    await p4.goto(`http://127.0.0.1:${server.address().port}/`);
+    assert.equal((await readFrom(p4, STAFF_GATE_KEY)).body.from, 'network', 'keepAnalyticsRead leaves the suite mock in charge');
+    await keep.close();
+    console.log('staff-gate-stub-refusal-local: 13 checks passed ✅');
   } finally {
     await browser.close();
     server.close();

@@ -162,10 +162,35 @@ async function refuseStubKeyProductionWrite(target) {
   });
 }
 
+// Same reason, a second service. Since #1810 a verified staff page asks the
+// analytics-read Edge Function for its numbers whenever the LIVE runtime flag
+// analytics_mirror_read_enabled says so, sending the page's staff key. The
+// owner turned that flag on for staff at 2026-09-28 17:21 UTC, and from then
+// every harness page sent its stub key to the live function, got a 401, and
+// the browser logged a failed resource: the production-polish fast lane went
+// red on every PR, app change or not (bisected: green through #1805, red from
+// #1810). A stub key can never read the mirror, so answer it here with the
+// shape of "no mirror for you" and the page takes the Sheets, as it did
+// before the flag. Only fake keys are matched; a suite that tests this read
+// itself passes { keepAnalyticsRead: true } so its own mock answers.
+async function answerStubKeyAnalyticsRead(target) {
+  await target.route('**/functions/v1/analytics-read', route => {
+    const request = route.request();
+    if (!isStubKeyProductionWrite(request)) return route.fallback();
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'access-control-allow-origin': request.headers().origin || '*' },
+      body: JSON.stringify({ ok: false, error: 'invalid_staff_key' })
+    });
+  });
+}
+
 async function seedStaffGate(target, options) {
   await target.addInitScript(staffGateInit, staffGateIdentityJson());
   if (options && options.dropVerificationAfterBoot) await dropVerificationAfterBoot(target);
   await refuseStubKeyProductionWrite(target);
+  if (!(options && options.keepAnalyticsRead)) await answerStubKeyAnalyticsRead(target);
   await target.route('**/functions/v1/key-verify', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -173,4 +198,4 @@ async function seedStaffGate(target, options) {
   }));
 }
 
-module.exports = { seedStaffGate, refuseStubKeyProductionWrite, isStubKeyProductionWrite, isFakeStaffKey, seedStaffIdentity, dropVerificationAfterBoot, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };
+module.exports = { seedStaffGate, refuseStubKeyProductionWrite, answerStubKeyAnalyticsRead, isStubKeyProductionWrite, isFakeStaffKey, seedStaffIdentity, dropVerificationAfterBoot, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };

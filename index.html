@@ -8612,11 +8612,12 @@
         .sv-client-pick { display: flex; align-items: center; padding-left: 12px; border-left: 1px solid var(--border); min-width: 0; }
         .sv-client-pick[hidden] { display: none; }
         .sv-client-badge-wrap { position: relative; flex: none; }
-        .sv-client-badge { --sv-client-h: 220; display: inline-flex; align-items: center; gap: 7px; height: 30px; max-width: 180px; padding: 0 9px 0 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-primary); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 650; white-space: nowrap; cursor: pointer; transition: background 0.15s, border-color 0.15s, box-shadow 0.15s; }
+        .sv-client-badge { --sv-client-h: 220; display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 9px 0 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-primary); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 650; white-space: nowrap; cursor: pointer; transition: background 0.15s, border-color 0.15s, box-shadow 0.15s; }
         .sv-client-badge.has-client { border-color: hsl(var(--sv-client-h) 45% 86%); background: hsl(var(--sv-client-h) 60% 96.5%); }
         .sv-client-badge.has-client:hover { background: hsl(var(--sv-client-h) 60% 94%); }
         .sv-client-badge.is-open { border-color: hsl(var(--sv-client-h) 45% 62%); box-shadow: 0 0 0 3px hsl(var(--sv-client-h) 60% 92%); }
-        .sv-client-badge #svClientBadgeLabel { overflow: hidden; text-overflow: ellipsis; }
+        /* Owner, 2026-09-28: the client name always shows in full, never truncated. */
+        .sv-client-badge #svClientBadgeLabel { flex: none; }
         .sv-client-badge:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
         .sv-client-chev { flex: none; color: var(--text-muted); transition: transform 0.15s; }
         .sv-client-badge.is-open .sv-client-chev { transform: rotate(180deg); }
@@ -8898,27 +8899,29 @@
             <span class="header-nav-ico ico-templates" aria-hidden="true"></span>
             Templates
         </a>
-        <a class="header-nav-btn" id="navFilmingPlans" href="/filming-plans" onclick="if(_modClick(event))return;event.preventDefault();navTo('filming-plans')">
+        <a class="header-nav-btn" id="navFilmingPlans" title="Filming Plans" aria-label="Filming Plans" href="/filming-plans" onclick="if(_modClick(event))return;event.preventDefault();navTo('filming-plans')">
             <span class="header-nav-ico ico-filmingplans" aria-hidden="true"></span>
-            Filming Plans
+            Filming
         </a>
-        <a class="header-nav-btn" id="navTiktokUpload" href="/tiktok-upload" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-upload')">
+        <a class="header-nav-btn" id="navTiktokUpload" title="TikTok Upload" aria-label="TikTok Upload" href="/tiktok-upload" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-upload')">
             <span class="header-nav-ico ico-tiktok" aria-hidden="true"></span>
-            TikTok Upload
+            TikTok
         </a>
         <a class="header-nav-btn active" id="navHome" href="/" onclick="if(_modClick(event))return;event.preventDefault();svOpenAnalytics()">
             <span class="header-nav-ico ico-analytics" aria-hidden="true"></span>
             Analytics
         </a>
+        <!-- Tab row labels (owner, 2026-09-28): Filming, TikTok and Linear are short so the
+             admin row keeps full labels at 1366/1440px; title and aria-label keep the full names. -->
         <!-- The six tabs above follow the shared top-bar client; the team tabs below ignore it. -->
         <span class="header-nav-sep" aria-hidden="true"></span>
         <a class="header-nav-btn" id="navWorkload" href="/workload" onclick="if(_modClick(event))return;event.preventDefault();navTo('workload')">
             <span class="header-nav-ico ico-workload" aria-hidden="true"></span>
             Workload
         </a>
-        <a class="header-nav-btn" id="navProd" href="/synclinear" onclick="if(_modClick(event))return;event.preventDefault();navTo('production')">
+        <a class="header-nav-btn" id="navProd" title="SyncLinear" aria-label="SyncLinear" href="/synclinear" onclick="if(_modClick(event))return;event.preventDefault();navTo('production')">
             <span class="header-nav-ico ico-synclinear" aria-hidden="true"></span>
-            SyncLinear
+            Linear
         </a>
         <a class="header-nav-btn" id="navLinear" href="/submit" onclick="if(_modClick(event))return;event.preventDefault();navTo('linear')">
             <span class="header-nav-ico ico-submit" aria-hidden="true"></span>
@@ -71215,6 +71218,13 @@
             return;
         }
         _sxrRenderShell();
+        // The address names the client showing, like Calendar's
+        // /calendar/<client> (Vigil, 2026-09-28): opening the tab used to leave
+        // a bare /sample-reviews until the client was switched by hand, so a
+        // refresh or a copied address lost it. A card link already in the
+        // address for this client is kept.
+        const _sxrHash = svRoute.hash().replace(/^#/, '');
+        if (!sxrState.client || _sxrHash.indexOf('sample-reviews/' + encodeURIComponent(sxrClientSlug(sxrState.client)) + '/') !== 0) _sxrSyncUrlCard(null);
         if (sxrState.client) loadSxrCards();
         else _sxrRenderBody();
     }

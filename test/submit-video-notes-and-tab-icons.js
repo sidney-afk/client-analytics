@@ -226,11 +226,12 @@ for (const cls of iconClasses) {
 }
 ok(!/<img[^>]*header-nav-ico/.test(navBlock),
   'the icons are masked spans, not <img> — an <img> paints its own pixels and cannot take the theme colour');
-ok(/id="navProd"[\s\S]{0,400}?>\s*SyncLinear\s*<\/a>/.test(navBlock), 'the mirror tab reads SyncLinear');
+ok(/id="navProd"[\s\S]{0,400}?>\s*Linear\s*<\/a>/.test(navBlock), 'the mirror tab reads Linear (short visible label, owner 2026-09-28)');
+ok(/id="navProd"[^>]*title="SyncLinear"[^>]*aria-label="SyncLinear"/.test(navBlock), 'the mirror tab keeps SyncLinear as its title and accessible name');
 ok(/id="navProd"[\s\S]{0,400}?href="\/synclinear"/.test(navBlock) || /href="\/synclinear"[\s\S]{0,400}?id="navProd"/.test(navBlock),
   'the mirror tab opens /synclinear (the clean path for the #production route)');
 ok(/id="navLinear"[\s\S]{0,400}?>\s*Submit\s*<\/a>/.test(navBlock), 'the Submit tab is untouched');
-ok(!/>\s*Linear\s*<\/a>/.test(navBlock), 'no tab is still labelled the bare word Linear');
+ok((navBlock.match(/>\s*Linear\s*<\/a>/g) || []).length === 1, 'only the SyncLinear mirror tab (navProd) shows the bare word Linear; the Submit tab never does');
 
 // The per-video notes field: rendered, renumbered, collected, persisted.
 const cardFn = extractFn('renderVideoCard');

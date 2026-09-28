@@ -22,6 +22,7 @@ const CHECKS = Object.freeze({
   'workload': 'Workload opens',
   'synclinear': 'SyncLinear first rows',
   'analytics': 'Analytics first numbers',
+  'templates': 'Every current client has a Templates page',
   'harness': 'Harness ran to the end',
   'cleanup': 'Everything put back',
 });
@@ -54,6 +55,9 @@ const D = Object.freeze({
   tabBlocked: () => 'not measured: this tab needs a staff role key and the run has none (set the SYNCVIEW_ROLE_KEY secret)',
   noTarget: () => 'not run: no test card with a two-sided, Linear-free sub-issue link was found',
   harness: () => 'the harness stopped early; see the runner for details',
+  templatesOk: (n) => `all ${fmt(n)} current clients have a Templates page and a thumbnail link`,
+  templatesGap: (noRow, noLink, n) => `${fmt(noRow)} of ${fmt(n)} current clients have no Templates page; ${fmt(noLink)} more have no thumbnail link`,
+  templatesUnread: () => 'not measured: the client list or the Templates rows could not be read',
   cleanup: (archived, seeds, renamed, card, sub, blocked) =>
     `seeds archived ${fmt(archived)}/${fmt(seeds)}` +
     (renamed ? `, rename restored on card=${yn(card)} sub-issue=${yn(sub)}` : '') +
@@ -76,6 +80,9 @@ const DETAIL = [
   'not measured: this tab needs a staff role key and the run has none \\(set the SYNCVIEW_ROLE_KEY secret\\)',
   'not run: no test card with a two-sided, Linear-free sub-issue link was found',
   'the harness stopped early; see the runner for details',
+  `all ${N} current clients have a Templates page and a thumbnail link`,
+  `${N} of ${N} current clients have no Templates page; ${N} more have no thumbnail link`,
+  'not measured: the client list or the Templates rows could not be read',
   `seeds archived ${N}/${N}(?:, rename restored on card=(?:yes|no) sub-issue=(?:yes|no))?(?:, ${N} other-client write\\(s\\) blocked)?`,
 ].join('|');
 const CELL = `(?:never|not measured|not reached|${N} ms)`;
@@ -83,7 +90,7 @@ const LINE_ALLOW = [
   /^$/,
   /^# Dawn check — \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/,
   new RegExp(`^\\*\\*${N} of ${N} checks failed\\.\\*\\*$`),
-  new RegExp(`^\\*\\*All ${N} checks that ran passed\\.\\*\\*(?: ${N} ran slow\\.)?(?: ${N} could not run \\(see ⚠️\\)\\.)?$`),
+  new RegExp(`^\\*\\*All ${N} checks that ran passed\\.\\*\\*(?: ${N} ran slow\\.)?(?: ${N} could not run \\(see ⚠️\\)\\.)?(?: ${N} need(?:s)? attention \\(see ⚠️\\)\\.)?$`),
   new RegExp(`^⛔ Blocked ${N} write\\(s\\) aimed at a client other than the test client\\.$`),
   new RegExp(`^- (?:✅|❌|⚠️|🐢) \\*\\*(?:${TITLES})\\*\\* — (?:${DETAIL})(?: \\(screenshot (?:attached|kept on the runner)\\))?$`),
   /^## Timings vs the speed map \(2026-09-23\)$/,
@@ -110,16 +117,17 @@ function buildReport({ started, results, violations = 0, calMs = null, baseline 
   const fails = results.filter(r => !r.ok);
   const slows = results.filter(r => r.ok && r.slow);
   const blocked = results.filter(r => r.blocked);
+  const warns = results.filter(r => r.ok && !r.blocked && r.warn);
   L.push(`# Dawn check — ${new Date(started).toISOString().slice(0, 16).replace('T', ' ')} UTC`);
   L.push('');
   L.push(fails.length ? `**${fmt(fails.length)} of ${fmt(results.length)} checks failed.**`
-    : `**All ${fmt(results.length - blocked.length)} checks that ran passed.**` + (slows.length ? ` ${fmt(slows.length)} ran slow.` : '') + (blocked.length ? ` ${fmt(blocked.length)} could not run (see ⚠️).` : ''));
+    : `**All ${fmt(results.length - blocked.length)} checks that ran passed.**` + (slows.length ? ` ${fmt(slows.length)} ran slow.` : '') + (blocked.length ? ` ${fmt(blocked.length)} could not run (see ⚠️).` : '') + (warns.length ? ` ${fmt(warns.length)} need${warns.length === 1 ? 's' : ''} attention (see ⚠️).` : ''));
   if (violations) { L.push(''); L.push(`⛔ Blocked ${fmt(violations)} write(s) aimed at a client other than the test client.`); }
   L.push('');
   for (const r of results) {
     const title = CHECKS[r.key];
     if (!title) throw new Error('dawn-report: unknown check');
-    const mark = !r.ok ? '❌' : r.blocked ? '⚠️' : r.slow ? '🐢' : '✅';
+    const mark = !r.ok ? '❌' : (r.blocked || r.warn) ? '⚠️' : r.slow ? '🐢' : '✅';
     const shot = r.shot === 'attached' ? ' (screenshot attached)' : r.shot === 'runner' ? ' (screenshot kept on the runner)' : '';
     L.push(`- ${mark} **${title}** — ${r.detail}${shot}`);
   }

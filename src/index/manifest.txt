@@ -44,5 +44,6 @@
 310-sales-intake-hiring.js.part
 320-kasper-dashboard-replies.js.part
 330-kasper-review-history.js.part
-340-editors-date-picker.js.part
+340-kasper-editors-board.js.part
+345-core-tooltip-date-picker.js.part
 350-footer.html.part

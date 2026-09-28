@@ -119,3 +119,19 @@ on it, both as it would ship and with everyone, clients included, on the parts.
 - Found on the way: the Workload area (`090`) holds `navTo`, the router every tab uses, so
   Workload can only go on demand after the router moves to core. That move is part of the
   Workload step.
+
+## Step 3, area 2 of 9: Editors (2026-09-28)
+
+`340-editors-date-picker` was three things in one file: Kasper's Editors board, the block that
+puts Kasper's button functions on `window`, and two site-wide features (the styled hover
+tooltip and the date picker) that every page uses, client links included. It is now two
+consecutive fragments with the same bytes, so the served page is byte-identical:
+
+- `340-kasper-editors-board`: the board and the `window` bridges. Area **kasper** (it is
+  Kasper's code), so it goes on demand with Kasper, not on its own. This also drops Kasper's
+  outside import ties from 56 names to 37, since `330` importing `_kedPaint` is now inside the
+  area.
+- `345-core-tooltip-date-picker`: the tooltip and the date picker. **core**.
+
+The separate "editors" area no longer exists; the remaining order is Today and SMM clients,
+Submit, Time off, Templates and Filming, Workload, Kasper (with the Editors board), SyncLinear.

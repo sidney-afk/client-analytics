@@ -94,4 +94,4 @@ guard 290-samples-writes-review.js.part _kasperRefreshTabCounts
 guard 290-samples-writes-review.js.part _kasperResumeSourceRepairs
 guard 290-samples-writes-review.js.part _kasperSamplesMerged
 guard 290-samples-writes-review.js.part _linearResumeSubmissionHold
-guard 340-editors-date-picker.js.part wlWorkloadTodayISO
+guard 345-core-tooltip-date-picker.js.part wlWorkloadTodayISO

@@ -59,22 +59,21 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const INDEX = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 
-// Pull the exact client roster the page's client search offers, so the
-// mocked Clients Info sheet grants postforme_account_id to a name that is
-// guaranteed to appear in the search results -- no guessing at casing/spelling.
-const namesBlock = /const WL_CLIENT_NAMES\s*=\s*\[([\s\S]*?)\];/.exec(INDEX);
-if (!namesBlock) throw new Error('WL_CLIENT_NAMES not found in index.html -- roster extraction is stale');
-const CLIENT_NAMES = [...namesBlock[1].matchAll(/'((?:[^'\\]|\\.)*)'/g)].map(m => m[1]);
-if (!CLIENT_NAMES.length) throw new Error('WL_CLIENT_NAMES parsed empty -- extraction regex is stale');
+// One synthetic client, never the real roster. The repo and its CI logs are
+// public, and a Playwright failure prints the element it was waiting on --
+// including its data-tk-client-pick name -- so a real roster name must never
+// reach the picker in this suite. The page's built-in list is replaced with
+// this name after load (see useSyntheticRoster), and the mocked Clients Info
+// sheet grants the test account to it alone.
+const SYNTHETIC_CLIENT = 'Carousel Test Client';
 
 const TEST_ACCOUNT_ID = 'spc_test_carousel_journey';
 
 function csvField(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }
 function clientsInfoCSV() {
   const lines = ['client_name,postforme_account_id'];
-  for (const name of CLIENT_NAMES) lines.push(`${csvField(name)},${csvField(TEST_ACCOUNT_ID)}`);
+  lines.push(`${csvField(SYNTHETIC_CLIENT)},${csvField(TEST_ACCOUNT_ID)}`);
   return lines.join('\r\n') + '\r\n';
 }
 const EMPTY_SHEET_CSV = 'col\r\n'; // header-only -> parseCSV() returns [] (rows.length < 2)
@@ -195,6 +194,18 @@ async function mockNetwork(page, { mintDelayMs = 0, putFailAtIndex = null, direc
   return calls;
 }
 
+// Replace the page's client list with the one synthetic client, in place
+// (WL_CLIENT_NAMES is a const array), then redraw the form so the search
+// reads the new list.
+async function useSyntheticRoster(page) {
+  await page.evaluate((name) => {
+    WL_CLIENT_NAMES.length = 0;
+    WL_CLIENT_NAMES.push(name);
+    if (typeof WL_CLIENT_CANONICAL !== 'undefined') { WL_CLIENT_CANONICAL.clear(); WL_CLIENT_CANONICAL.set(wlNormalizeClient(name), name); }
+    if (typeof _tkRenderForm === 'function') _tkRenderForm();
+  }, SYNTHETIC_CLIENT);
+}
+
 async function bootToTiktokUpload(browser, port, mockOpts) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const pageErrors = [];
@@ -202,15 +213,25 @@ async function bootToTiktokUpload(browser, port, mockOpts) {
   await seedStaffGate(page);
   const calls = await mockNetwork(page, mockOpts);
   await page.goto(`http://127.0.0.1:${port}/#tiktok-upload`, { waitUntil: 'domcontentloaded' });
-  // The client is chosen through the Analytics-style client search: type the
-  // start of a roster name, then pick the suggestion.
-  const clientName = [...CLIENT_NAMES].sort((a, b) => a.localeCompare(b))[0];
   await page.waitForSelector('#tkClientInput');
-  await page.fill('#tkClientInput', clientName.slice(0, 3));
-  await page.locator('#tkClientResults [data-tk-client-pick]').first().waitFor();
-  const picked = await page.locator('#tkClientResults [data-tk-client-pick]').first().getAttribute('data-tk-client-pick');
-  await page.locator('#tkClientResults [data-tk-client-pick]').first().click();
-  await page.waitForFunction(n => document.getElementById('tkClientInput')?.value === n, picked);
+  await useSyntheticRoster(page);
+  // The client is chosen through the Analytics-style client search: type the
+  // start of the name, check the suggestion is offered, pick it with Enter.
+  // The form redraws when the Clients Info sheet lands, which can replace the
+  // input mid-pick (a mouse click then hit a detached option), so each
+  // attempt re-reads the current input and the pick is confirmed by value.
+  let picked = null;
+  for (let attempt = 0; attempt < 4 && !picked; attempt++) {
+    const input = page.locator('#tkClientInput');
+    await input.fill(SYNTHETIC_CLIENT.slice(0, 3));
+    const offered = await page.locator('#tkClientResults [data-tk-client-pick]').first()
+      .getAttribute('data-tk-client-pick', { timeout: 5000 }).catch(() => null);
+    if (offered !== SYNTHETIC_CLIENT) continue;
+    await input.press('Enter').catch(() => {});
+    picked = await page.waitForFunction(n => document.getElementById('tkClientInput')?.value === n, SYNTHETIC_CLIENT, { timeout: 5000 })
+      .then(() => SYNTHETIC_CLIENT).catch(() => null);
+  }
+  if (!picked) throw new Error('could not pick the synthetic client in the TikTok client search');
   await page.locator('input[name=tkMediaType][value=photo]').check({ force: true });
   await page.waitForSelector('#tkPhotoFile');
   return { page, calls, pageErrors, clientName: picked };
@@ -233,7 +254,7 @@ async function attachThreeImagesAndCaption(page, caption) {
      * ---------------------------------------------------------------- */
     {
       const { page, calls, pageErrors, clientName } = await bootToTiktokUpload(browser, port, {});
-      ok('client dropdown offers a real WL_CLIENT_NAMES entry', CLIENT_NAMES.includes(clientName));
+      ok('client search offers and picks the synthetic client', clientName === SYNTHETIC_CLIENT);
       await attachThreeImagesAndCaption(page, 'Hermetic journey test caption');
 
       const [directResp] = await Promise.all([

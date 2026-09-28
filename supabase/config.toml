@@ -175,3 +175,9 @@ verify_jwt = false
 # not a guest; it then requires a staff key or client token as well.
 [functions.syncview-session]
 verify_jwt = false
+
+# Higgsfield team connector (MCP) added to teammates' own Claude/ChatGPT. JWT
+# stays off because chat apps are not Supabase clients; each request carries a
+# personal hf_team_members token instead, and spend is held under a monthly cap.
+[functions.higgsfield-mcp]
+verify_jwt = false

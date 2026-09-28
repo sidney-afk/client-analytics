@@ -173,6 +173,11 @@ const PICKER_SOURCES = [
   extract('_calNativeBatchById'),
   extract('_calNativeReceiptHtml'),
   extract('_calNativeSyncReceipt'),
+  /* The saved-post box (owner rule 2026-09-28) renders at the top of the
+     dialog from the browser's saved intake; nothing is saved in this harness,
+     so it renders nothing -- stubbed rather than extracted with its storage
+     readers. */
+  "function _calNativeSavedBoxHtml() { return ''; }",
   extract('_calRenderNativePostChoice'),
   extract('_calNativePrevBatchPick'),
   // 180 is a module: it writes 170's dialog state through these setters.

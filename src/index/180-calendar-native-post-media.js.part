@@ -8,17 +8,7 @@ import {
 } from './100-onboarding-staff-controls.js';
 import { _settingsEfClients } from './115-core-calendar-flags.js';
 import {
-  CAL_CAPJOB_CANCEL_GRACE_MS, CAL_CAPJOB_CONCURRENCY, CAL_CAPJOB_CONFIRM_MS,
-  CAL_CAPJOB_FETCH_TIMEOUT_MS, CAL_CAPJOB_LS_KEY, CAL_CAPJOB_POLL_MS, CAL_CAPJOB_STALE_MS,
-  DEFAULT_CAPTION_PROMPT, _calCapJobBatch, _calCapJobPollBusy, _calCapJobPollTimer,
-  _calCapJobTicker, _calCapJobsRestored, _calCaptionJobs, _calCaptionPrompts,
-  _calCaptionPromptsInFlight, _calCaptionPromptsLoaded, _calComponentsFor, _calNormStatus,
-  _calReorderUrlForClient, _calSetCapJobBatch, _calSetCapJobPollBusy, _calSetCapJobPollTimer,
-  _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
-  _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calUpsertFetch, _calUpsertHeaders,
-  _calUpsertUseEf, _settingsPrimeRoutingFlag, _settingsUseEf, _settingsWriteHeaders,
-  _settingsWriteUrlForClient, _writeUiNativeId, _writeUiRecordFailure,
-  _writeUiRerouteUseGatewayWhenReady, computeOverallStatus
+  _calCapJobBatch, _calCapJobPollBusy, _calCapJobPollTimer, _calCapJobsRestored, _calCapJobTicker, _calCaptionJobs, _calCaptionPrompts, _calCaptionPromptsInFlight, _calCaptionPromptsLoaded, _calComponentsFor, _calNormStatus, _calReorderUrlForClient, _calSetCapJobBatch, _calSetCapJobPollBusy, _calSetCapJobPollTimer, _calSetCapJobsRestored, _calSetCapJobTicker, _calSetCaptionPrompts, _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calUpsertFetch, _calUpsertHeaders, _calUpsertUseEf, _settingsPrimeRoutingFlag, _settingsUseEf, _settingsWriteHeaders, _settingsWriteUrlForClient, _writeUiNativeId, _writeUiQueueDiagnostic, _writeUiRecordFailure, _writeUiRerouteUseGatewayWhenReady, CAL_CAPJOB_CANCEL_GRACE_MS, CAL_CAPJOB_CONCURRENCY, CAL_CAPJOB_CONFIRM_MS, CAL_CAPJOB_FETCH_TIMEOUT_MS, CAL_CAPJOB_LS_KEY, CAL_CAPJOB_POLL_MS, CAL_CAPJOB_STALE_MS, computeOverallStatus, DEFAULT_CAPTION_PROMPT
 } from './120-calendar-flags-write-repair.js';
 import {
   _calCanDragCards, _calCommentsFor, _calCommentsForView, _calFailedNewCards, _calIsCollabOn,
@@ -51,8 +41,7 @@ import {
 } from './170-calendar-links-status.js';
 import { _calCommentRole, _calSmmMissingMedia, _calSmmWarnDotHtml } from './190-calendar-approval-comments.js';
 import {
-  _linearIntakeActorContext, _linearIntakeBatchTitle, _linearIntakeItems, _linearIntakePending,
-  _linearIntakeRead, _linearIntakeRemoveIfCurrent, _linearIntakeWithLock, _resumeNativeIntakeJob
+  _linearIntakeActorContext, _linearIntakeBatchTitle, _linearIntakeItems, _linearIntakeJobId, _linearIntakeMarkRestored, _linearIntakePending, _linearIntakePrepareReplace, _linearIntakeRead, _linearIntakeRemoveIfCurrent, _linearIntakeWithLock, _linearIntakeWrite, _linearSavedWhen, _linearSavedWork, _resumeNativeIntakeJob
 } from './200-intake-data-startup.js';
 import { _prodRestRows } from './210-production-state-writes.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
@@ -376,6 +365,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
                 <h3 id="calNativePostTitle">Create Post</h3>
             </div>
             <div class="cal-import-body">
+                <div id="calNativeSavedSlot">${_calNativeSavedBoxHtml()}</div>
                 <div class="cal-native-mode-toggle" role="radiogroup" aria-label="What this post needs">
                     <label><input type="radio" name="calNativeModeChoice" value="both"${mode === 'both' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)"><span>Video + Thumbnail</span></label>
                     <label><input type="radio" name="calNativeModeChoice" value="video"${mode === 'video' ? ' checked' : ''} onchange="_calSetNativePostMode(this.value)"><span>Video only</span></label>
@@ -428,14 +418,125 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
          */
         if (typeof _svSyncStepper === 'function') _svSyncStepper('calNativePostCount');
     }
+
+    /* ---------- The saved-post box in Create Post (owner rule 2026-09-28) ----------
+     * The same way out as the Submit tab's box (_linearSavedWork in the intake
+     * fragment): a post saved in this browser is shown with client, title,
+     * post count and time, and can be restored into this window (only when it
+     * was made here, for this client, and nothing of it was created), sent as
+     * it was, or discarded after a confirm. Restoring marks it
+     * replace_on_submit, so the edited Create replaces it under the same
+     * request id and can never make a second batch. */
+    function _calNativeSavedBoxHtml() {
+        const work = typeof _linearSavedWork === 'function' ? _linearSavedWork() : null;
+        if (!work || work.kind !== 'native') return '';
+        const state = _calNativePostState;
+        const here = state && state.surface === 'sxr' ? 'sxr' : 'calendar';
+        const payload = work.job.payload || {};
+        const canRestore = !work.committed && work.surface === here
+            && String(payload.client_slug || '') === String(state && state.clientSlug || '');
+        const what = work.surface === 'submission' ? 'Submit-tab submission' : (work.surface === 'sxr' ? 'Samples post' : 'post');
+        const lead = work.committed
+            ? 'A ' + what + ' saved in this browser was already created, but its calendar card did not finish.'
+            : work.restored && canRestore
+                ? 'The saved post is back in this window. Change anything, then Create: it replaces the saved copy.'
+                : 'A ' + what + ' is saved in this browser and was not sent yet. It blocks a new one until you choose:';
+        const facts = [
+            work.clientName ? '<b>' + _calEsc(work.clientName) + '</b>' : '',
+            // The generated title starts with the client; do not say it twice.
+            work.title ? _calEsc(work.clientName && work.title.indexOf(work.clientName) === 0 ? work.title.slice(work.clientName.length).replace(/^\s*·\s*/, '') : work.title) : '',
+            work.videos ? work.videos + (work.videos === 1 ? ' post' : ' posts') : '',
+            'saved ' + _calEsc(_linearSavedWhen(work.savedAt))
+        ].filter(Boolean).join(' · ');
+        const btn = (fn, label, primary) => '<button type="button" class="linear-saved-btn' + (primary ? ' primary' : '') + '" onclick="' + fn + '()">' + label + '</button>';
+        return '<div class="linear-saved-box" id="calNativeSavedBox" role="region" aria-label="Saved post">'
+            + '<div class="linear-saved-lead">' + lead + '</div><div class="linear-saved-facts">' + facts + '</div>'
+            + '<div class="linear-saved-actions">'
+            + (canRestore && !work.restored ? btn('_calNativeSavedRestore', 'Restore it', true) : '')
+            + btn('_calNativeSavedSend', work.committed ? 'Finish it' : 'Send it as it was', !canRestore || work.restored)
+            + btn('_calNativeSavedDiscard', 'Discard it', false)
+            + '</div><div class="linear-saved-status" id="calNativeSavedStatus" role="status"></div></div>';
+    }
+    function _calNativeSavedRefresh() {
+        const slot = document.getElementById('calNativeSavedSlot');
+        if (slot) slot.innerHTML = _calNativeSavedBoxHtml();
+    }
+    function _calNativeSavedSay(text) { const el = document.getElementById('calNativeSavedStatus'); if (el) el.textContent = text; }
+    async function _calNativeSavedRestore() {
+        const state = _calNativePostState;
+        const work = _linearSavedWork();
+        if (!state || !work || work.kind !== 'native' || work.committed) return;
+        const job = work.job, payload = job.payload || {}, context = job.context || {};
+        const items = Array.isArray(payload.items) ? payload.items : [];
+        const numbers = [...new Set(items.map(item => Number(item && item.videoNumber)).filter(Boolean))].sort((a, b) => a - b);
+        const nameOf = n => { const hit = items.find(item => Number(item.videoNumber) === n && item.name); return hit ? String(hit.name) : ''; };
+        const requestId = _linearIntakeJobId(job);
+        try {
+            // Refuses unless the mark is read back: the window is left as it
+            // was rather than filled for an edit that would be refused.
+            await _linearIntakeWithLock(() => _linearIntakeMarkRestored(requestId));
+        } catch (error) {
+            _writeUiRecordFailure(work.surface === 'sxr' ? 'sxr' : 'calendar', 'create_post', error);
+            _calNativeSavedSay('It could not be restored in this browser (' + String(error && (error.code || error.message) || 'error') + '). You can still send it as it was, or discard it.');
+            return;
+        }
+        state.mode = ['video', 'thumbnail', 'both'].includes(context.mode) ? context.mode : state.mode;
+        state.postCount = numbers.length || 1;
+        state.postNames = numbers.map(nameOf);
+        state.batchName = payload.batch && payload.batch.name ? String(payload.batch.name) : '';
+        state.batchChoice = payload.batch_id ? { value: 'batch', batchId: String(payload.batch_id) } : { value: 'new', batchId: '' };
+        _writeUiQueueDiagnostic(work.surface, 'saved_submission_restored', { kind: 'native' }, null);
+        _calRenderNativePostChoice();
+    }
+    async function _calNativeSavedSend() {
+        const work = _linearSavedWork();
+        if (!work || work.kind !== 'native') return;
+        _calNativeSavedSay('Sending…');
+        document.querySelectorAll('#calNativeSavedBox button').forEach(button => { button.disabled = true; });
+        const requestId = _linearIntakeJobId(work.job);
+        try {
+            await _linearIntakeWithLock(() => {
+                const current = _linearIntakeRead();
+                if (current && _linearIntakeJobId(current) === requestId && current.replace_on_submit) { delete current.replace_on_submit; _linearIntakeWrite(current); }
+            });
+            await _resumeNativeIntakeJob('calendar-create-post');
+            _calNativeSavedRefresh();
+            const errorBox = document.getElementById('calNativePostError');
+            if (errorBox) errorBox.hidden = true;
+            showNotify('Saved post created', 'The saved ' + (work.surface === 'submission' ? 'submission' : 'post') + ' was sent. You can create the new one now.');
+        } catch (error) {
+            _writeUiRecordFailure(work.surface === 'sxr' ? 'sxr' : (work.surface === 'submission' ? 'production' : 'calendar'), 'create_post', error);
+            _calNativeSavedRefresh();
+            _calNativeSavedSay('It was not sent (' + String(error && (error.code || error.message) || 'error') + '). You can try again or discard it.');
+        }
+    }
+    async function _calNativeSavedDiscard() {
+        const work = _linearSavedWork();
+        if (!work || work.kind !== 'native') return;
+        const what = work.surface === 'submission' ? 'submission' : 'post';
+        const question = work.committed
+            ? 'Discard the saved ' + what + '? It was already created in Production; discarding only stops this browser from finishing its calendar card.'
+            : 'Discard the saved ' + what + (work.clientName ? ' for ' + work.clientName : '') + '? Nothing from it has been created, and it cannot be brought back.';
+        if (!window.confirm(question)) return;
+        const requestId = _linearIntakeJobId(work.job);
+        try { await _linearIntakeWithLock(() => _linearIntakeRemoveIfCurrent(requestId)); }
+        catch (error) { _calNativeSavedSay('It could not be removed: ' + String(error && (error.code || error.message) || 'error') + '.'); return; }
+        _writeUiQueueDiagnostic(work.surface, 'saved_submission_discarded', { kind: 'native' }, null);
+        _calNativeSavedRefresh();
+        const errorBox = document.getElementById('calNativePostError');
+        if (errorBox) { errorBox.hidden = false; errorBox.textContent = 'The saved ' + what + ' was discarded. You can create the new one now.'; }
+    }
+
     function _calNativePostErrorText(error) {
         const code = String(error && (error.code || error.message) || '');
         if (code === 'intake_assignee_override_not_allowed') return 'Choosing a different editor is not live on this workspace yet. Leave the suggested editor selected to create the post now, or reassign it in Production afterwards.';
         if (code === 'intake_assignee_override_conflict') return 'This post asked for two different editors at once. Reopen Create Post and choose one.';
         if (code === 'invalid_intake_item_name') return 'One of the post names is longer than a sub-issue title can carry. Shorten it and try again.';
         if (code === 'assignee_not_eligible' || code === 'assignee_ineligible') return 'That editor cannot take this work right now. Choose someone else.';
-        if (code === 'native_intake_pending_conflict') return 'Finish the previously saved intake before starting a different one.';
-        if (code === 'native_intake_recovery_pending') return 'An earlier post in this browser is still finishing its calendar card. Reload the page and try again; it stops retrying on its own.';
+        if (code === 'native_intake_pending_conflict') return 'An earlier post is still saved in this browser. Use the box at the top of this window to restore it, send it, or discard it.';
+        if (code === 'native_intake_recovery_pending') return 'An earlier post in this browser is still finishing its calendar card. Use the box at the top of this window to finish it or discard it.';
+        if (code === 'native_intake_saved_committed') return 'The saved post already went through on the server, so your changes were not sent: they would have made a second batch. Use Send it as it was in the box above to finish it, then create your changes as a new post.';
+        if (code === 'native_intake_saved_unverified') return 'Your changes were not sent: the server could not confirm whether the saved post already went through. Try again in a moment, or use the box above to send it as it was or discard it.';
         if (code === 'batch_version_conflict' || code === 'write_conflict') return 'That batch changed while this window was open. Close this message and try again.';
         if (/^invalid_intake_append_|^batch_not_(active|found)$/.test(code)) return 'That batch cannot take this post right now. Start a new batch instead.';
         if (code === 'legacy_parity_disabled' || code === 'team_is_linear_authoritative') return 'Native Create Post is still locked for this team. No post was created.';
@@ -736,6 +837,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
         });
         let pending;
         try {
+            await _linearIntakePrepareReplace(surface);
             pending = await _linearIntakeWithLock(() => _linearIntakePending(signature, (requestId, sourceEditedAt) => {
                 const payload = {
                     operation: 'intake_create', surface, client_slug: state.clientSlug,
@@ -757,6 +859,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
         } catch (error) {
             _writeUiRecordFailure(surface === 'sxr' ? 'sxr' : 'calendar', 'create_post', error);
             if (errorBox) { errorBox.hidden = false; errorBox.textContent = _calNativePostErrorText(error); }
+            _calNativeSavedRefresh();
             return;
         }
         overlay.dataset.busy = '1';

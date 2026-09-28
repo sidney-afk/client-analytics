@@ -16,7 +16,7 @@ const t = (pass, msg, extra) => { console.log(`${pass ? '✓' : '✗'}  ${msg}${
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function kasperCardState(page, cid) {
-  await page.evaluate(() => { const b = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'); if (b) b.click(); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
+  await page.evaluate(() => { if (typeof _kasperGotoTab === 'function' && (typeof _kasperState === 'undefined' || !_kasperState || _kasperState.tab !== 'review')) _kasperGotoTab('review'); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
   await sleep(3500);
   return page.evaluate((cid) => {
     const it = (typeof _sxrKasperFindItem === 'function') && _sxrKasperFindItem(cid);

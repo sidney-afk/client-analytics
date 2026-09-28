@@ -167,7 +167,7 @@ async function staffScenario(browser, origin, name, flag, efMode) {
     }
     return route.abort();
   });
-  await seedStaffGate(ctx);
+  await seedStaffGate(ctx, { keepAnalyticsRead: true });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(String(e.message || e).slice(0, 160)));

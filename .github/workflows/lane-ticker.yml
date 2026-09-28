@@ -7,11 +7,16 @@
 # nothing replaced it. This ticker does, instead of widening any threshold.
 #
 # One long job loops for ~5h40m, dispatching each lane when its interval is
-# due, then dispatches a fresh ticker before it ends. The hourly cron only
-# restarts the chain if it ever breaks; a second ticker exits at once.
+# due, then dispatches a fresh ticker before it ends. Workflow concurrency
+# keeps exactly one ticker running and at most one waiting (the hand-over);
+# the hourly cron only restarts the chain if it ever breaks.
 # Dispatches made with GITHUB_TOKEN do start workflow_dispatch runs.
 # The two dormant censuses get scheduled_tick=true, so they stay dormant
 # exactly as on a timer run.
+#
+# KILL SWITCH (one step): disable this workflow in the Actions tab. The
+# running ticker checks that state before every pass and stops within a
+# minute without handing over. Cancelling a run also skips the hand-over.
 name: Lane ticker
 
 on:
@@ -23,6 +28,10 @@ permissions:
   actions: write
   contents: read
 
+concurrency:
+  group: lane-ticker
+  cancel-in-progress: false
+
 jobs:
   tick:
     runs-on: ubuntu-latest
@@ -31,22 +40,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
-      - name: Exit if another ticker is already running
-        id: solo
-        shell: bash
-        run: |
-          # A hand-over ticker starts while its predecessor is still finishing,
-          # so wait up to 10 minutes for others to end before deciding.
-          for i in $(seq 1 20); do
-            others=$(gh run list --workflow lane-ticker.yml --status in_progress --json databaseId \
-              --jq "[.[] | select(.databaseId != ${{ github.run_id }})] | length")
-            [ "$others" = "0" ] && break
-            sleep 30
-          done
-          if [ "$others" != "0" ]; then echo "Another ticker is running; exiting."; echo "run=false" >> "$GITHUB_OUTPUT"; else echo "run=true" >> "$GITHUB_OUTPUT"; fi
-
       - name: Dispatch lanes on cadence
-        if: steps.solo.outputs.run == 'true'
         shell: bash
         run: |
           # lane file | interval minutes | extra dispatch fields
@@ -62,6 +56,8 @@ jobs:
           declare -A last
           end=$(( $(date +%s) + 340*60 ))
           while [ "$(date +%s)" -lt "$end" ]; do
+            state=$(gh workflow view lane-ticker.yml --json state --jq .state || echo unknown)
+            if [ "$state" != "active" ]; then echo "Ticker workflow is $state; stopping."; echo "stopped=true" >> "$GITHUB_ENV"; break; fi
             now=$(date +%s)
             for entry in "${LANES[@]}"; do
               IFS='|' read -r file every extra <<< "$entry"
@@ -76,5 +72,5 @@ jobs:
           done
 
       - name: Hand over to a fresh ticker
-        if: always() && steps.solo.outputs.run == 'true'
+        if: success() && env.stopped != 'true'
         run: gh workflow run lane-ticker.yml --ref main

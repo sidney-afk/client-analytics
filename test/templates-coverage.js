@@ -4,7 +4,7 @@
  * Templates page" count (qa/dawn/templates-coverage.js). Offline, fixture names.
  */
 const assert = require('assert');
-const { coverage, clientNamesFromCsv, parseCsv } = require('../qa/dawn/templates-coverage.js');
+const { coverage, hasThumbnailLink, clientNamesFromCsv, parseCsv } = require('../qa/dawn/templates-coverage.js');
 let n = 0;
 const ok = (c, m) => { assert.ok(c, m); n++; };
 
@@ -27,7 +27,27 @@ ok(c.noLink === 1, 'a row with a blank thumbnail link is counted once, separatel
 ok(JSON.stringify(coverage({ clientNames: ['Alpha Fixture'], clients, templates })) === JSON.stringify({ current: 1, noRow: 0, noLink: 0 }), 'a fully set-up client is not flagged');
 ok(coverage({ clientNames: ['Alpha Fixture', 'alpha fixture'], clients, templates }).current === 1, 'the same client written twice counts once');
 const titled = [{ slug: 'epsilonfixture', display_name: 'Dr. Epsilon Fixture', kind: 'client' }];
-ok(JSON.stringify(coverage({ clientNames: ['Dr. Epsilon Fixture'], clients: titled, templates: [{ client_slug: 'epsilonfixture', data: { thumbnails_canva_link: 'x' } }] })) === JSON.stringify({ current: 1, noRow: 0, noLink: 0 }),
+ok(JSON.stringify(coverage({ clientNames: ['Dr. Epsilon Fixture'], clients: titled, templates: [{ client_slug: 'epsilonfixture', data: { thumbnails_canva_link: 'https://example.invalid/x' } }] })) === JSON.stringify({ current: 1, noRow: 0, noLink: 0 }),
   'a row keyed by the client slug is found even when the display name differs');
 
-console.log(`templates-coverage: ${n} checks passed ✅`);
+// Codex review on #1836: a link the page shows is a link; a non-link is not.
+ok(hasThumbnailLink({ thumbnails_canva_link: '', thumbnails_canva_link_list: JSON.stringify(['', 'https://example.invalid/b']) }), 'a blank first slot with a link after it counts as a link');
+ok(!hasThumbnailLink({ thumbnails_canva_link: 'see the brief' }), 'a non-link string does not count');
+ok(hasThumbnailLink({ thumbnails_canva_link: 'https://example.invalid/c' }), 'the single field alone still counts');
+ok(!hasThumbnailLink({ thumbnails_canva_link_list: '["  "]', thumbnails_canva_link: '' }), 'an empty list does not count');
+
+// Codex review on #1836: with no clients row, the fallback key is the writer's own
+// rule (templates-save names rows with normalizeWriteClient).
+(async () => {
+  const { normalizeWriteClient } = await import('../supabase/functions/_shared/browser-write-auth-policy.mjs');
+  const rows = [
+    { client_slug: normalizeWriteClient('Dr. Zeta Fixture'), data: { thumbnails_canva_link: 'https://example.invalid/z' } },
+    { client_slug: normalizeWriteClient('Eta and Theta'), data: { thumbnails_canva_link: 'https://example.invalid/e' } },
+  ];
+  const r = coverage({ clientNames: ['Dr. Zeta Fixture', 'Eta and Theta'], clients: [], templates: rows, normalize: normalizeWriteClient });
+  ok(r.current === 2 && r.noRow === 0 && r.noLink === 0, 'rows the writer named are found for clients with no clients row');
+  const src = require('fs').readFileSync(require('path').join(__dirname, '../qa/dawn/templates-coverage.js'), 'utf8');
+  ok(/normalize: normalizeWriteClient/.test(src), 'the live read passes the writer normalizer');
+  ok((src.match(/signal: sig\(\)/g) || []).length === 3, 'all three live reads carry a deadline');
+  console.log(`templates-coverage: ${n} checks passed ✅`);
+})().catch(e => { console.error(e); process.exit(1); });

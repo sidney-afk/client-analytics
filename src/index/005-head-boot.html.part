@@ -192,6 +192,11 @@
             else if (!hash) {
                 var saved = null; try { saved = localStorage.getItem('syncview_nav'); } catch (e) {}
                 var nav = (st && st.nav) || saved;
+                // Mirror of init()'s _bareLanding: a new visit to the bare
+                // address opens Today (BARE_LANDING_OK_PARAMS may ride along).
+                var bareOk = ['sxr', 'wl2', 'v2', 'prodcache'], bare = !(st && (st.nav || st.client));
+                q.forEach(function (v, k) { if (bareOk.indexOf(k) < 0) bare = false; });
+                if (bare) nav = 'today';
                 // Mirror of init(): the fast path restores (stateNav ||
                 // savedNav) for FAST tabs even in a NEW tab (fallbackFast —
                 // no history.state needed); the post-await router restores

@@ -3187,7 +3187,7 @@ export {
   PROD_TERMINAL_FILTER, PROD_WRITE_EF_URL, _prodAccessAllowed, _prodAdoptLabelPayload,
   _prodApplyDisplayPrefs, _prodArtifactStatus, _prodAssetDefaultEvidence, _prodAssetState,
   _prodAssigneeOptionsState, _prodBatchFileFor, _prodBoardStatus, _prodBrowserProjectionMissing,
-  _prodBrowserProjectionRows, _prodCacheIsTerminal, _prodCachePurge, _prodCacheWrite,
+  _prodBrowserProjectionRows, _prodCacheEnabled, _prodCacheIsTerminal, _prodCachePurge, _prodCacheWrite,
   _prodCarryBatchDescriptions, _prodClientRows, _prodDeliverableLive, _prodEnabled,
   _prodEnsureAssets, _prodEnsureAssigneeOptions, _prodEnsureBatchFiles, _prodEnsureLabels,
   _prodFetchAuthority, _prodFetchNativeEpochTeams, _prodHasOwn, _prodHashText, _prodHeaders,

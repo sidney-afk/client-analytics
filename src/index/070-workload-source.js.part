@@ -3819,5 +3819,5 @@ export {
   wlMetadataTeamBucket, wlNativeDueDate, wlNormalizeClient, wlParseISO, wlPlacementMode,
   wlPlanDate, wlPlanEditingEnabled, wlPlanOriginHtml, wlPurgePlanSensitiveState, wlReadCache,
   wlSnapshotIdentity, wlState, wlTeamBucket, wlTodayISO, wlValidRfc3339Timestamp, wlWeekMondayISO,
-  wlWorkloadBadgeHtml, wlWorkloadTodayISO, wlWorkloadUnits, wlWorkloadWeight
+  wlWorkloadBadgeHtml, wlWorkloadTodayISO, wlWorkloadUnits, wlWorkloadWeight, _wlV2Enabled
 };

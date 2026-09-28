@@ -511,19 +511,31 @@ async function fetchInputImage(url: string): Promise<Fetched> {
   return { bytes, type };
 }
 
-async function runDirectJob(rowId: number, id: string, inputs: JsonMap): Promise<void> {
+// A provider failure is "failed" (not billed, not counted). Once the provider
+// returned an image it has charged, so its cost is recorded first; if storing
+// the result then fails the row becomes "delivery_failed", which still counts
+// toward the monthly spend. Every terminal update re-sets request_id so
+// check_job can always find the row.
+async function runDirectJob(rowId: number, requestId: string, id: string, inputs: JsonMap): Promise<void> {
   const client = db();
+  const now = () => new Date().toISOString();
+  let out;
   try {
-    const out = await runDirect(id, inputs, fetchInputImage);
+    out = await runDirect(id, inputs, fetchInputImage);
+  } catch (e) {
+    await client.from("hf_generations").update({ request_id: requestId, status: "failed", error: String((e as Error).message || e).slice(0, 500), updated_at: now() }).eq("id", rowId);
+    return;
+  }
+  const cost: JsonMap = out.usd !== null && Number.isFinite(out.usd) ? { est_cost_usd: Math.round(out.usd * 10000) / 10000 } : {};
+  await client.from("hf_generations").update({ request_id: requestId, status: "storing", ...cost, updated_at: now() }).eq("id", rowId);
+  try {
     const up = await uploadLink(out.type === "image/jpeg" ? "image/jpeg" : out.type === "image/webp" ? "image/webp" : "image/png");
     if ("error" in up) throw new Error("Could not store the result: " + up.error);
     const put = await fetch(up.upload_url, { method: "PUT", headers: up.upload_headers, body: out.bytes });
     if (!put.ok) throw new Error(`Could not store the result (${put.status}).`);
-    const update: JsonMap = { status: "completed", video_url: up.public_url, error: null, updated_at: new Date().toISOString() };
-    if (out.usd !== null && Number.isFinite(out.usd)) update.est_cost_usd = Math.round(out.usd * 10000) / 10000;
-    await client.from("hf_generations").update(update).eq("id", rowId);
+    await client.from("hf_generations").update({ request_id: requestId, status: "completed", video_url: up.public_url, error: null, updated_at: now() }).eq("id", rowId);
   } catch (e) {
-    await client.from("hf_generations").update({ status: "failed", error: String((e as Error).message || e).slice(0, 500), updated_at: new Date().toISOString() }).eq("id", rowId);
+    await client.from("hf_generations").update({ request_id: requestId, status: "delivery_failed", error: String((e as Error).message || e).slice(0, 500), updated_at: now() }).eq("id", rowId);
   }
 }
 
@@ -553,8 +565,12 @@ async function submitJob(member: string, id: string, inputs: JsonMap, usd: numbe
   const rowId = Number(reservation.id);
   if (isDirect(id)) {
     const requestId = crypto.randomUUID();
-    await client.from("hf_generations").update({ request_id: requestId, status: "in_progress", updated_at: new Date().toISOString() }).eq("id", rowId);
-    background(runDirectJob(rowId, id, inputs));
+    const { error: idError } = await client.from("hf_generations").update({ request_id: requestId, status: "in_progress", updated_at: new Date().toISOString() }).eq("id", rowId);
+    if (idError) {
+      await client.from("hf_generations").update({ status: "submit_failed", error: "could not record the job id", updated_at: new Date().toISOString() }).eq("id", rowId);
+      return { text: "Could not start: the log is unavailable, so nothing was spent." };
+    }
+    background(runDirectJob(rowId, requestId, id, inputs));
     return { text: `Started: ${BY_ID.get(id)!.name}, about ${money(usd)}.\njob_id: ${requestId}\nCheck with check_job in about 30 to 60 seconds.`, jobId: requestId };
   }
   const res = await hf("POST", id, inputs);
@@ -573,7 +589,8 @@ async function checkJob(jobId: string): Promise<string> {
   const { data: row } = await db().from("hf_generations").select("model,status,video_url,error,est_cost_usd").eq("request_id", jobId).maybeSingle();
   if (row && isDirect(String(row.model))) {
     if (row.status === "completed" && row.video_url) return `Done. It cost ${money(Number(row.est_cost_usd))}. Download:\n${row.video_url}\n(Save the file; stored results are kept for a limited time.)`;
-    if (row.status === "failed") return "It failed: " + (row.error || "no reason given") + ". Nothing was charged by the provider for a failed image; try again or adjust the prompt.";
+    if (row.status === "failed") return "It failed: " + (row.error || "no reason given") + ". The provider did not make an image, so it was not charged; try again or adjust the prompt.";
+    if (row.status === "delivery_failed") return `The image was made (and charged, ${money(Number(row.est_cost_usd))}) but could not be saved: ${row.error || "storage error"}. Tell the account owner before retrying.`;
     return "Still working. Check again in about 20 to 30 seconds.";
   }
   const res = await hf("GET", `requests/${jobId}/status`);
@@ -677,7 +694,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
         `- Model: ${BY_ID.get(model)!.name}${recipe.models.length > 1 ? `  [other options: ${recipe.models.filter((m) => m !== model).map((m) => BY_ID.get(m)?.name).join(", ")}]` : ""}`,
         `- Images: ${images.length}`,
         notes ? `- Extra instruction: "${notes}"` : "- Extra instruction: none",
-        `- Output: same shape as each screenshot, 2K`,
+        `- Output: ${model === "openai/gpt-image" ? "same shape as each screenshot, high quality" : model === "alibaba/qwen-image-3/edit" ? `${aspect || "16:9"} shape, 2K` : "same shape as each screenshot, 2K"}`,
         `- Price: ${money(est.usd)} each, ${money(total)} total`,
         await budget(),
         "",

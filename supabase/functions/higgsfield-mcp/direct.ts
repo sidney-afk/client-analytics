@@ -21,7 +21,7 @@ const GOOGLE_MODELS: Record<string, { api: string; inRate: number; perImage: Rec
   "google/nano-banana-pro": { api: "gemini-3-pro-image", inRate: 2e-6, perImage: { "1K": 0.134, "2K": 0.134, "4K": 0.24 } },
 };
 
-const IMAGES = { type: "array", items: { type: "string", format: "uri" }, maxItems: 10, description: "Public image links to edit or use as references. Leave out to make a new image from the prompt." };
+const IMAGES = { type: "array", items: { type: "string", format: "uri" }, maxItems: 4, description: "Up to 4 public image links to edit or use as references. Leave out to make a new image from the prompt." };
 
 export const DIRECT_MODELS: CatalogModel[] = [
   {
@@ -88,22 +88,33 @@ function images(inputs: JsonMap): string[] {
 // OpenAI output tokens by quality for a square / non-square image (published
 // gpt-image table); "auto" size is priced as non-square, the larger of the two.
 const OPENAI_OUT: Record<string, [number, number]> = { low: [272, 408], medium: [1056, 1584], high: [4160, 6240] };
-const OPENAI_IN_IMAGE_TOKENS = 6500;
-const TEXT_TOKENS = 1500;
+// Reservation ceilings. A prompt is capped at MAX_PROMPT_CHARS and never
+// tokenizes to more than one token per character, so textTokens() is a true
+// upper bound; input images are priced at a generous per-image ceiling and
+// capped at MAX_DIRECT_IMAGES. The actual cost replaces this once known.
+export const MAX_PROMPT_CHARS = 8000;
+export const MAX_DIRECT_IMAGES = 4;
+const OPENAI_IN_IMAGE_TOKENS = 10000;
+const GOOGLE_IN_IMAGE_TOKENS = 3000;
+function textTokens(inputs: JsonMap): number {
+  return String(inputs.prompt || "").length + 50;
+}
 
 export function directEstimate(id: string, inputs: JsonMap): { usd: number } | { error: string } {
   const n = images(inputs).length;
+  if (String(inputs.prompt || "").length > MAX_PROMPT_CHARS) return { error: `The prompt is over ${MAX_PROMPT_CHARS} characters; shorten it.` };
+  if (n > MAX_DIRECT_IMAGES) return { error: `At most ${MAX_DIRECT_IMAGES} input images for this model.` };
   if (id === "openai/gpt-image") {
     if (!Deno.env.get("OPENAI_KEY")) return { error: "GPT Image is not set up yet (OPENAI_KEY missing)." };
     const [sq, wide] = OPENAI_OUT[String(inputs.quality || "high")] || OPENAI_OUT.high;
     const out = String(inputs.size || "auto") === "1024x1024" ? sq : wide;
-    return { usd: out * 30e-6 + n * OPENAI_IN_IMAGE_TOKENS * 8e-6 + TEXT_TOKENS * 5e-6 };
+    return { usd: out * 30e-6 + n * OPENAI_IN_IMAGE_TOKENS * 8e-6 + textTokens(inputs) * 5e-6 };
   }
   const g = GOOGLE_MODELS[id];
   if (!g) return { error: "Unknown model." };
   if (!Deno.env.get("GOOGLE_AI_KEY")) return { error: "Nano Banana is not set up yet (GOOGLE_AI_KEY missing)." };
   const size = String(inputs.image_size || "2K");
-  return { usd: (g.perImage[size] ?? g.perImage["2K"]) + (n * 2000 + TEXT_TOKENS) * g.inRate };
+  return { usd: (g.perImage[size] ?? g.perImage["2K"]) + (n * GOOGLE_IN_IMAGE_TOKENS + textTokens(inputs)) * g.inRate };
 }
 
 export type Fetched = { bytes: Uint8Array<ArrayBuffer>; type: string };

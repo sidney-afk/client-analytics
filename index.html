@@ -53531,7 +53531,7 @@
            "Restore it" puts a saved, never-committed job back into the form
            and marks it replace_on_submit. The edited submit then REPLACES it
            under the saved request id and timestamp, so it can only ever land
-           in that one batch. Two guards (Codex review on #1824):
+           in that one batch. Two guards (Codex review on PR 1824):
            - the id is reused only after the server said the saved request
              never committed (_linearIntakePrepareReplace, stamped as
              replace_verified just before this). A committed first manifest is
@@ -53789,7 +53789,7 @@
     }
     /* Mark the saved job restored, and prove the mark is stored before any
        form is filled: an unmarked job would refuse the edited submit again
-       (Codex, #1824). Throws, leaving the page as it was, when it is not. */
+       (Codex, PR 1824). Throws, leaving the page as it was, when it is not. */
     function _linearIntakeMarkRestored(requestId) {
         const current = _linearIntakeRead();
         if (!current || _linearIntakeJobId(current) !== requestId) throw _linearIntakeActorError(409, 'native_intake_job_replaced');
@@ -54723,7 +54723,7 @@
         if (_nativeIntakeResumePromise) return _nativeIntakeResumePromise;
         const job = suppliedJob || _linearIntakeRead();
         if (!job) return Promise.resolve(null);
-        // A job restored for editing waits for the person (Codex, #1824):
+        // A job restored for editing waits for the person (Codex, PR 1824):
         // sending it behind the form would leave the edits to go out later
         // under a fresh id, as a second batch.
         if (_linearIntakeRestoredPaused(job, reason)) return Promise.resolve(null);

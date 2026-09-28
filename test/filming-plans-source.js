@@ -76,7 +76,11 @@ ok(/filmingPlansData = null/.test(purgePlans)
   && /_kasperState\.filmingData = null/.test(purgePlans),
   'staff sign-out must purge in-memory and persisted filming-plan data');
 const staffPurge = grabFunc('_syncviewStaffPurgeSensitiveState');
-ok(/_fpPurgeSensitiveState/.test(staffPurge), 'global staff sign-out must invoke the filming-plan purge');
+// Filming plans load on demand (Templates area): sign-out reaches the purge
+// through the area registry, and the area registers that purge.
+ok(/svAreaApi\('templates'\)[\s\S]{0,80}\.fpPurgeSensitiveState\(\)/.test(staffPurge)
+  && /fpPurgeSensitiveState: _fpPurgeSensitiveState/.test(INDEX),
+  'global staff sign-out must invoke the filming-plan purge');
 const loadKasperCache = grabFunc('_filmsLoadCache');
 ok(/if \(!_syncviewStaffIdentityForHeaders\(\)\) return null/.test(loadKasperCache),
   'Kasper filming cache must not load before staff identity is reverified');
@@ -96,7 +100,8 @@ ok(/_fpEnsureLoaded\(false\)/.test(mountTemplates), 'Templates must load filming
 
 const linearPlans = grabFunc('loadLinearPlanMap');
 const intakePlanGuardStart = linearPlans.indexOf('if (_linearIntakeUsesServerPlanResolution())');
-const staffPlanLoadStart = linearPlans.indexOf('_fpEnsureLoaded(!!force)');
+// The staff read goes through the on-demand Templates area (svArea).
+const staffPlanLoadStart = linearPlans.indexOf("(await svArea('templates')).fpEnsureLoaded(!!force)");
 const intakePlanGuard = intakePlanGuardStart >= 0 && staffPlanLoadStart > intakePlanGuardStart
   ? linearPlans.slice(intakePlanGuardStart, staffPlanLoadStart)
   : '';
@@ -104,9 +109,10 @@ ok(intakePlanGuardStart >= 0 && staffPlanLoadStart > intakePlanGuardStart
   && /_linearPlanMapState = 'server'/.test(intakePlanGuard)
   && /_linearResolvedPlanUrl = ''/.test(intakePlanGuard)
   && /return;/.test(intakePlanGuard)
-  && !/_fpEnsureLoaded/.test(intakePlanGuard),
+  && !/fpEnsureLoaded|svArea\(/.test(intakePlanGuard),
   'intake mode must defer filming-plan resolution to the server before any staff-only browser read');
-ok(/_fpEnsureLoaded\(\!\!force\)/.test(linearPlans),
+ok(/\(await svArea\('templates'\)\)\.fpEnsureLoaded\(!!force\)/.test(linearPlans)
+  && /fpEnsureLoaded: _fpEnsureLoaded/.test(INDEX),
   'non-intake Linear form use must continue resolving filming plans through the shared staff source');
 ok(/_linearPlanMapState = 'loaded'/.test(linearPlans)
   && /_linearPlanMapState = 'failed'/.test(linearPlans)
@@ -122,7 +128,7 @@ ok(/_linearPlanMapState === 'server'/.test(updateLinearPlan)
   'Linear plan display must keep server resolution distinct from a failed staff lookup');
 
 const kasperLoad = grabFunc('_kasperLoadFilming');
-ok(/_fpEnsureLoaded\(\!\!forceRefresh\)/.test(kasperLoad), 'Kasper filming tab must resolve plans through the shared source');
+ok(/\(await svArea\('templates'\)\)\.fpEnsureLoaded\(!!forceRefresh\)/.test(kasperLoad), 'Kasper filming tab must resolve plans through the shared source');
 ok(/_filmsRowsFromPlans/.test(kasperLoad), 'Kasper filming tab must convert shared rows into content-bank rows');
 ok(!/fetch\(FILMING_PLANS_URL/.test(kasperLoad), 'Kasper filming tab must not fetch the sheet directly');
 

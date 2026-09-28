@@ -258,7 +258,10 @@ ok(JSON.stringify(notificationKeys) === JSON.stringify(['time-off', 'onboarding'
 const unreadSource = functionSource('_kasperOnboardingUnreadCount');
 const seenSource = functionSource('_kasperMarkOnboardingSeen');
 ok(/KASPER_ONBOARDING_SEEN_KEY/.test(unreadSource)
-  && /_obvSubs\.filter/.test(unreadSource)
+  && /const subs = _kasperOnboardingSubs\(\)/.test(unreadSource)
+  && /subs\.filter/.test(unreadSource)
+  // The list lives in the on-demand Templates area; read through its getter.
+  && /svAreaApi\('templates'\)[\s\S]{0,60}tpl\.obvSubs\(\)/.test(functionSource('_kasperOnboardingSubs'))
   && /localStorage\.setItem\(KASPER_ONBOARDING_SEEN_KEY, newest\)/.test(seenSource)
   && /_kasperSetTabCount\('onboarding', 0\)/.test(seenSource),
   'Onboarding counts submissions newer than the saved cursor and clears only when opened');

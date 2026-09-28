@@ -19,10 +19,8 @@ import { _tdyTeardown, mountTodayView, renderTodayView } from './097-today.js';
 import {
   CAL_SUPABASE_URL, OB_VARIANT, _svDateHtml, mountOnboardingView, renderOnboardingView
 } from './100-onboarding-staff-controls.js';
-import {
-  _ptoEnabled, mountSmmWeeklyReportFormView, mountSmmWeeklyReportsView, mountTimeOffView,
-  renderSmmWeeklyReportFormView, renderSmmWeeklyReportsView, renderTimeOffView
-} from './110-time-off-reports.js';
+import { _ptoEnabled, mountTimeOffView, renderTimeOffView } from './110-time-off.js';
+import { mountSmmWeeklyReportFormView, mountSmmWeeklyReportsView, renderSmmWeeklyReportFormView, renderSmmWeeklyReportsView } from './112-smm-weekly-reports.js';
 import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
 import { _calAbandonLinkOnCalendarExit, calState } from './130-calendar-model-cache.js';
 import { _jsAttrArg } from './131-core-html.js';

@@ -19,7 +19,9 @@
 097-today.js.part                          core
 098-smm-clients.js.part                    core
 100-onboarding-staff-controls.js.part      core
-110-time-off-reports.js.part               time-off
+110-time-off.js.part                       time-off
+112-smm-weekly-reports.js.part             smm-weekly
+115-core-calendar-flags.js.part            core!
 120-calendar-flags-write-repair.js.part    core!
 125-title-name-rule.js.part                core!
 130-calendar-model-cache.js.part           core!

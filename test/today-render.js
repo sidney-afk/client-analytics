@@ -7,8 +7,10 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
+const { splitModuleFragment } = require('../scripts/index-modules');
+// 097 is an ES module source; strip its import header and export footer the way the build does.
 const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'index', '097-today.js.part'), 'utf8');
-const body = src.split('\n').filter(l => !/^import /.test(l)).join('\n').split('\nexport {')[0];
+const body = splitModuleFragment(Buffer.from(src, 'utf8')).body.toString('utf8');
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';');
 const sandbox = {
   window: {}, document: { addEventListener() {} }, localStorage: { getItem() { return null; }, setItem() {}, removeItem() {} },

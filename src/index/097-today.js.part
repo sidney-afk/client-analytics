@@ -1,14 +1,16 @@
+import { wlOpenInContentCalendar } from './080-workload-render.js';
+import { navTo } from './090-workload-popovers-navigation.js';
+import { svSharedClientNote } from './095-shared-client.js';
+import {
+  svClientKey, svCurrentClients, svRosterEntryFor, svScopeMode, svSmmCurrentClients
+} from './098-smm-clients.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, SMM_WEEKLY_REPORTS_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
-import { svClientKey, svCurrentClients, svRosterEntryFor, svScopeMode, svSmmCurrentClients } from './098-smm-clients.js';
+import { _srpState } from './112-smm-weekly-reports.js';
+import { _calSetFocusRequest } from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _svSkel } from './133-core-loading-skeletons.js';
 import { _calV2Client } from './150-calendar-hydration-import.js';
-import { _srpState } from './110-time-off-reports.js';
-import { _calEsc, _calEscAttr } from './131-core-html.js';
-import { _calSetFocusRequest } from './130-calendar-model-cache.js';
 import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
-import { wlOpenInContentCalendar } from './080-workload-render.js';
-import { svSharedClientNote } from './095-shared-client.js';
-import { navTo } from './090-workload-popovers-navigation.js';
     /* TODAY (owner design 2026-09-27, session Compass).
      *
      * One summary page per person: what is waiting on YOU right now, pulled
@@ -539,4 +541,7 @@ import { navTo } from './090-workload-popovers-navigation.js';
     window._tdyOpenCard = _tdyOpenCard;
     window.mountTodayView = mountTodayView;
 
-export { _tdyPurgeSensitiveState, _tdyTeardown, mountTodayView, renderTodayView, tdyMyClientNames, tdySetClientsInfoReady };
+export {
+  _tdyPurgeSensitiveState, _tdyTeardown, mountTodayView, renderTodayView, tdyMyClientNames,
+  tdySetClientsInfoReady
+};

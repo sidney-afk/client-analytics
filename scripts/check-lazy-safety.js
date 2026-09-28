@@ -57,6 +57,7 @@ const UPDATE = process.argv.includes('--update');
 // The client approve / request-changes path. Owner, 2026-09-28: it stays in
 // core and is never split. Kept here as well as in areas.txt on purpose.
 const APPROVE_PATH = [
+  '115-core-calendar-flags.js.part',
   '120-calendar-flags-write-repair.js.part', '125-title-name-rule.js.part',
   '130-calendar-model-cache.js.part', '131-core-html.js.part', '132-calendar-dates-ids.js.part',
   '133-core-loading-skeletons.js.part', '134-calendar-prefs-mount.js.part',

@@ -4,7 +4,7 @@
 // and keep the managers roster to one read per page load.
 const fs = require('fs');
 const path = require('path');
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'src/index/110-time-off-reports.js.part'), 'utf8');
+const SRC = fs.readFileSync(path.join(__dirname, '..', 'src/index/112-smm-weekly-reports.js.part'), 'utf8');
 const STAFF = fs.readFileSync(path.join(__dirname, '..', 'src/index/100-onboarding-staff-controls.js.part'), 'utf8');
 function ok(v, m) { if (!v) { console.error('FAIL smm-weekly-saved-copy-source:', m); process.exit(1); } }
 const owner = SRC.slice(SRC.indexOf('function _srpSavedOwner()'), SRC.indexOf('function _srpSavedViewKey()'));

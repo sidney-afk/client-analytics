@@ -11,11 +11,18 @@
  *   4. flag on but the database has no copy (no rows, no receipt): the Sheets
  *      are read instead;
  *   5. flag on, no rows but a complete receipt: a real "no rows", no Sheets.
+ * And for STAFF (the overview and every per-client page):
+ *   6. flag on for one client only: staff keep reading the Sheets;
+ *   7. {"staff": true}: one "overview" and one "extras" answer, no Sheet tab;
+ *   8. staff read fails: the Sheets are read instead;
+ *   9. staff copy incomplete (no whole-dataset receipt): the Sheets are read;
+ *  10. staff copy stale (last whole-dataset receipt older than 3 days): Sheets.
  * No request leaves the machine.
  */
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
+const { seedStaffGate } = require('../../../qa/staff-gate-seed.js');
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) { ({ chromium } = require('/opt/node22/lib/node_modules/playwright')); }
 
@@ -112,6 +119,77 @@ async function scenario(browser, origin, name, flag, efMode) {
   return { name, seen, got, errors };
 }
 
+const STAFF_METRIC_COLUMNS = ['date', 'client_name', 'ig_followers', 'ig_avg_views'];
+function staffAnswer(scope, mode) {
+  const receipt = { complete: true, full_snapshot: true, created_at: new Date().toISOString() };
+  const stale = { complete: true, full_snapshot: true, created_at: '2026-01-01T00:00:00Z' };
+  if (scope === 'overview') {
+    return { ok: true, principal: 'staff', scope, latest_metrics_date: DAY,
+      receipts: mode === 'incomplete' ? { metrics: null, client_profiles: receipt }
+        : mode === 'stale' ? { metrics: stale, client_profiles: receipt } : { metrics: receipt, client_profiles: receipt },
+      data: { metrics: { columns: STAFF_METRIC_COLUMNS, rows: [[DAY, CLIENT, DB_FOLLOWERS, '200']] },
+        client_profiles: [{ slug: SLUG, display_name: CLIENT, instagram_handle: 'fixture', content_description: 'Database description', extra: {} }] } };
+  }
+  return { ok: true, principal: 'staff', scope,
+    receipts: { top_videos: receipt, market_research_briefs: receipt, content_summaries: receipt },
+    data: { top_videos: { columns: ['scraped_date', 'client_name', 'platform', 'period', 'rank', 'caption', 'video_url', 'views'],
+      rows: [[DAY, CLIENT, 'instagram', 'week', '1', 'Database video', 'https://example.invalid/d', '20']] },
+      market_research_briefs: [], content_summaries: [] } };
+}
+
+async function staffScenario(browser, origin, name, flag, efMode) {
+  const seen = { sheets: [], scopes: [], keyed: 0 };
+  const ctx = await browser.newContext();
+  await ctx.route('**/*', async route => {
+    const r = route.request(); const u = new URL(r.url());
+    if (r.url().startsWith(origin)) return route.continue();
+    if (r.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
+    const json = (body, status = 200) => route.fulfill({ status, headers: CORS, contentType: 'application/json', body: JSON.stringify(body) });
+    if (u.pathname === '/functions/v1/analytics-read') {
+      let b = {}; try { b = JSON.parse(r.postData() || '{}'); } catch (e) {}
+      seen.scopes.push(b.scope || 'client');
+      if (r.headers()['x-syncview-key']) seen.keyed++;
+      if (efMode === 'fail') return json({ ok: false, error: 'read_failed' }, 500);
+      return json(staffAnswer(b.scope, efMode));
+    }
+    if (u.pathname === '/rest/v1/syncview_runtime_flags') {
+      const rows = [];
+      if (flag && /analytics_mirror_read_enabled/.test(decodeURIComponent(u.search))) rows.push({ key: 'analytics_mirror_read_enabled', value: flag });
+      return json(rows);
+    }
+    if (/\/rest\/v1\//.test(u.pathname)) return json([]);
+    if (/\/functions\/v1\/|\/webhook\//.test(u.pathname)) return json({});
+    if (/docs\.google\.com/.test(u.host)) {
+      const tab = u.searchParams.get('sheet');
+      seen.sheets.push(tab);
+      const body = tab === 'Metrics' ? METRICS_CSV : tab === 'Clients Info' ? CLIENTS_CSV : tab === 'TopVideos' ? TOPVIDS_CSV : '';
+      return route.fulfill({ status: 200, headers: CORS, contentType: 'text/csv', body });
+    }
+    return route.abort();
+  });
+  await seedStaffGate(ctx);
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push(String(e.message || e).slice(0, 160)));
+  await page.goto(`${origin}/index.html`, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => typeof allData !== 'undefined' && allData.some(r => r.date), null, { timeout: 20000 }).catch(() => {});
+  // The per-client pages' extras load behind the overview.
+  await page.evaluate(() => { try { return typeof fetchExtras === 'function' ? fetchExtras(null) : null; } catch (e) { return null; } }).catch(() => {});
+  await page.waitForFunction(() => typeof _analyticsExtrasApplied !== 'undefined' && _analyticsExtrasApplied, null, { timeout: 20000 }).catch(() => {});
+  await page.waitForTimeout(300);
+  const got = await page.evaluate(() => ({
+    followers: (allData.find(r => r.date) || {}).ig_followers || '',
+    video: (topVideos[0] || {}).caption || '',
+    desc: (Object.values(clientMap)[0] || {}).content_description || '',
+  }));
+  await ctx.close();
+  // The five analytics tabs only; other Sheet readers (the review queue's
+  // manager tab) are not part of this switch.
+  const ANALYTICS_TABS = ['Metrics', 'Clients Info', 'TopVideos', 'Market Research Briefs', 'ContentSummaries'];
+  seen.sheets = seen.sheets.filter(t => ANALYTICS_TABS.includes(t));
+  return { name, seen, got, errors };
+}
+
 (async () => {
   const server = await serve();
   const origin = `http://127.0.0.1:${server.address().port}`;
@@ -147,8 +225,33 @@ async function scenario(browser, origin, name, flag, efMode) {
     expect(empty.seen.sheets.length === 0, 'no rows with a complete receipt is a real answer, not a fallback');
     expect(empty.got.videos === 0, 'no rows: no videos shown');
 
+    const sOff = await staffScenario(browser, origin, 'staff, one client enrolled', { enabled: false, clients: [SLUG] }, 'full');
+    expect(sOff.seen.scopes.length === 0, 'staff with a one-client flag must not call analytics-read (got ' + sOff.seen.scopes.join(',') + ')');
+    expect(sOff.seen.sheets.includes('Metrics') && sOff.got.followers === SHEET_FOLLOWERS, 'staff with a one-client flag keep the Sheets');
+
+    const sOn = await staffScenario(browser, origin, 'staff flag on', { enabled: false, staff: true }, 'full');
+    expect(sOn.seen.scopes.includes('overview') && sOn.seen.scopes.includes('extras'), 'staff flag on: overview and extras are read from the database (got ' + sOn.seen.scopes.join(',') + ')');
+    expect(sOn.seen.keyed === sOn.seen.scopes.length, 'staff flag on: every staff read carries the staff key');
+    expect(sOn.seen.sheets.length === 0, 'staff flag on: no analytics Sheet tab is downloaded (got ' + sOn.seen.sheets.join(',') + ')');
+    expect(sOn.got.followers === DB_FOLLOWERS && sOn.got.video === 'Database video' && sOn.got.desc === 'Database description',
+      'staff flag on: numbers, videos and roster come from the database');
+
+    const sFail = await staffScenario(browser, origin, 'staff read fails', { enabled: true }, 'fail');
+    expect(sFail.seen.sheets.includes('Metrics') && sFail.seen.sheets.includes('TopVideos') && sFail.got.followers === SHEET_FOLLOWERS,
+      'staff read failure: falls back to the Sheets');
+
+    const sPart = await staffScenario(browser, origin, 'staff copy incomplete', { enabled: true }, 'incomplete');
+    expect(sPart.seen.sheets.includes('Metrics') && sPart.got.followers === SHEET_FOLLOWERS, 'staff copy with no whole-dataset receipt: the numbers come from the Sheets');
+
+    const sStale = await staffScenario(browser, origin, 'staff copy stale', { enabled: true }, 'stale');
+    expect(sStale.seen.sheets.includes('Metrics') && sStale.got.followers === SHEET_FOLLOWERS, 'staff copy whose last whole-dataset receipt is old: the numbers come from the Sheets');
+
     for (const s of [off, other, on, fail, nocopy, empty]) {
       console.log(`  ${s.name.padEnd(28)} analytics-read=${s.seen.ef} sheets=[${s.seen.sheets.join(', ')}] followers=${s.got.followers || '-'}`);
+      if (s.errors.length) failures.push(`${s.name}: page error ${s.errors[0]}`);
+    }
+    for (const s of [sOff, sOn, sFail, sPart, sStale]) {
+      console.log(`  ${s.name.padEnd(28)} analytics-read=[${s.seen.scopes.join(', ')}] sheets=[${s.seen.sheets.join(', ')}] followers=${s.got.followers || '-'}`);
       if (s.errors.length) failures.push(`${s.name}: page error ${s.errors[0]}`);
     }
   } finally {

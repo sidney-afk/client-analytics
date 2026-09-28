@@ -69,6 +69,74 @@ async function readAll(
   }
 }
 
+// Pages through a table in parallel: the first page brings the total, the
+// rest are fetched a few at a time. The staff overview reads every client, so
+// the sequential readAll above would cost one round trip per 1000 rows.
+async function readAllParallel(
+  build: (from: number, to: number, count: boolean) => PromiseLike<{ data: unknown[] | null; error: unknown; count?: number | null }>,
+): Promise<unknown[]> {
+  const first = await build(0, PAGE - 1, true);
+  if (first.error) throw first.error;
+  const rows: unknown[][] = [first.data || []];
+  const total = Number(first.count || 0);
+  const starts: number[] = [];
+  for (let from = PAGE; from < total; from += PAGE) starts.push(from);
+  for (let i = 0; i < starts.length; i += 6) {
+    const batch = await Promise.all(starts.slice(i, i + 6).map(async (from) => {
+      const { data, error } = await build(from, from + PAGE - 1, false);
+      if (error) throw error;
+      return data || [];
+    }));
+    rows.push(...batch);
+  }
+  return rows.flat();
+}
+
+// Rows as one header plus arrays of values: the same data in roughly the size
+// of the Sheet CSV, instead of repeating every column name on every row.
+function columnar(columns: string[], rows: unknown[]): { columns: string[]; rows: unknown[][] } {
+  return { columns, rows: (rows as JsonMap[]).map((r) => columns.map((c) => r[c] ?? null)) };
+}
+
+// JSON, gzipped when the caller accepts it (every browser does). The staff
+// answers are megabytes of repetitive text, which compresses about tenfold.
+async function jsonMaybeGzip(req: Request, obj: unknown): Promise<Response> {
+  const text = JSON.stringify(obj);
+  if (!/\bgzip\b/.test(req.headers.get("accept-encoding") || "") || typeof CompressionStream !== "function") {
+    return new Response(text, { status: 200, headers: { ...CORS, "Content-Type": "application/json" } });
+  }
+  const gz = new Blob([text]).stream().pipeThrough(new CompressionStream("gzip"));
+  return new Response(gz, {
+    status: 200,
+    headers: { ...CORS, "Content-Type": "application/json", "Content-Encoding": "gzip", "Vary": "Accept-Encoding" },
+  });
+}
+
+const METRICS_COLUMNS = ["date", "client_name", "ig_followers", "ig_avg_views", "ig_avg_likes", "tiktok_followers",
+  "tiktok_avg_plays", "yt_subscribers", "yt_total_views", "ig_views_gained_today", "tiktok_plays_gained_today",
+  "ig_views_this_month", "tiktok_plays_this_month", "yt_views_gained_today", "yt_shorts_views", "yt_longs_views",
+  "analytics_receipt"];
+const TOP_VIDEO_COLUMNS = ["scraped_date", "client_name", "platform", "period", "rank", "caption", "video_url", "views",
+  "likes", "comments", "shares"];
+// The Clients Info columns the staff pages read, under their Sheet names.
+const STAFF_PROFILE_COLUMNS = "slug,display_name,email,competitors,keywords,specific_keywords,content_description,"
+  + "instagram_handle,tiktok_handle,youtube_channel_id,slack_channel_id,creative_channel_id,roam_channel_id,"
+  + "upload_post_profile,postforme_account_id,extra";
+
+// The newest complete whole-dataset receipt per dataset: proof the copy of
+// every client finished, which the staff pages need before trusting a read.
+async function snapshotReceipts(supabase: SupabaseClient, names: string[]): Promise<JsonMap> {
+  const found = await Promise.all(names.map(async (dataset) => {
+    const { data, error } = await supabase.from("analytics_ingest_receipts")
+      .select("source,run_id,rows_received,rows_written,complete,full_snapshot,created_at")
+      .eq("dataset", dataset).eq("complete", true).eq("full_snapshot", true)
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (error) throw error;
+    return [dataset, data || null] as const;
+  }));
+  return Object.fromEntries(found);
+}
+
 // The newest COMPLETE receipt that proves this client was covered: either a
 // call that listed this client, or a whole-dataset copy (backfill, daily
 // Clients Info copy). A receipt for other clients never vouches for this one,
@@ -138,6 +206,55 @@ Deno.serve(async (req: Request): Promise<Response> => {
         principal: "staff",
         authority: authority && typeof authority.value === "object" ? authority.value : null,
         clients: rows,
+        elapsed_ms: Math.round(performance.now() - started),
+      });
+    }
+
+    // Staff pages that show every client (the Analytics overview, and the
+    // per-client pages' videos and briefs): the whole roster in one answer.
+    // Any staff role key; never a client link token. Works whatever the read
+    // flag says, like the one-client staff read, so it can be checked first.
+    const scope = clean(body.scope);
+    if (scope === "overview" || scope === "extras") {
+      const staffKey = clean(req.headers.get("x-syncview-key"));
+      if (!staffKey || !authorizeStaffKey(staffKey, ["admin", "smm", "creative"]).ok) {
+        return json({ ok: false, error: "unauthorized" }, 401);
+      }
+      const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
+      if (scope === "overview") {
+        const [metrics, profiles, receipts] = await Promise.all([
+          readAllParallel((a, b, count) => supabase.from("analytics_metrics")
+            .select(METRICS_COLUMNS.join(","), count ? { count: "exact" } : undefined)
+            .order("date").order("seq").range(a, b)),
+          readAll((a, b) => supabase.from("client_profiles").select(STAFF_PROFILE_COLUMNS)
+            .is("archived_at", null).order("slug").range(a, b)),
+          snapshotReceipts(supabase, ["metrics", "client_profiles"]),
+        ]);
+        const latest = (metrics as JsonMap[]).reduce((m, r) => (String(r.date) > m ? String(r.date) : m), "");
+        return await jsonMaybeGzip(req, {
+          ok: true, principal: "staff", scope, receipts, latest_metrics_date: latest || null,
+          data: { metrics: columnar(METRICS_COLUMNS, metrics), client_profiles: profiles },
+          elapsed_ms: Math.round(performance.now() - started),
+        });
+      }
+      const cutoff = topVideosCutoff();
+      const [videos, briefs, summaries, receipts] = await Promise.all([
+        readAllParallel((a, b, count) => supabase.from("analytics_top_videos")
+          .select(TOP_VIDEO_COLUMNS.join(","), count ? { count: "exact" } : undefined)
+          .gte("scraped_date", cutoff).order("scraped_date").order("seq").range(a, b)),
+        readAll((a, b) => supabase.from("analytics_market_research_briefs")
+          .select("id,client_name,date,raw_json,raw_json_2,raw_json_3").order("id").range(a, b)),
+        readAll((a, b) => supabase.from("analytics_content_summaries")
+          .select("date,client_name,bullets").order("seq").range(a, b)),
+        snapshotReceipts(supabase, ["top_videos", "market_research_briefs", "content_summaries"]),
+      ]);
+      return await jsonMaybeGzip(req, {
+        ok: true, principal: "staff", scope, receipts, top_videos_since: cutoff,
+        data: {
+          top_videos: columnar(TOP_VIDEO_COLUMNS, videos),
+          market_research_briefs: briefs,
+          content_summaries: summaries,
+        },
         elapsed_ms: Math.round(performance.now() - started),
       });
     }

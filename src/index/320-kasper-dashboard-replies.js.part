@@ -1,11 +1,8 @@
 import {
-  FILMING_PLAN_TABS_URL, SHEET_ID, _analyticsReleaseExtras, parseCSV, showConfirm, showToast
+  FILMING_PLAN_TABS_URL, SHEET_ID, _analyticsReleaseExtras, parseCSV, showConfirm, showToast,
+  svArea, svAreaApi, svWithArea
 } from './040-shared-briefs.js';
 import { _svCss, _svRgb } from './050-market-briefs.js';
-import {
-  _fpEnsureLoaded, _obvEnsureLoaded, _obvFetchFull, _obvInjectStyles, _obvLoading, _obvSetMode,
-  _obvSubs, renderOnboardingInbox
-} from './060-templates-filming.js';
 import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
 import { WL_CLIENT_CANONICAL, WL_CLIENT_NAMES, wlNormalizeClient } from './070-workload-source.js';
 import { navTo } from './090-workload-popovers-navigation.js';
@@ -1390,11 +1387,14 @@ import {
     function _kasperRenderOnboarding() {
         const el = document.getElementById('kasperContent');
         if (!el) return;
-        _obvSetMode('full');
-        if (Array.isArray(_obvSubs)) _kasperMarkOnboardingSeen();
-        _obvInjectStyles();
-        el.innerHTML = renderOnboardingInbox();
-        _obvEnsureLoaded();
+        // The inbox lives in the on-demand Templates area (040, svWithArea).
+        svWithArea('templates', el, tpl => {
+            tpl.obvSetMode('full');
+            if (Array.isArray(tpl.obvSubs())) _kasperMarkOnboardingSeen();
+            tpl.obvInjectStyles();
+            el.innerHTML = tpl.renderOnboardingInbox();
+            tpl.obvEnsureLoaded();
+        }, _kasperRenderOnboarding);
     }
 
 
@@ -2012,7 +2012,7 @@ import {
 
         let groups = [];
         try {
-            const full = await _obvFetchFull();
+            const full = await (await svArea('templates')).obvFetchFull();
             if (full && full.error) throw new Error(full.error);
             /* onboarding-full returns THREE funnel shapes and they do not agree.
                A legacy row carries a `credentials` array; a standard or AI row
@@ -2645,7 +2645,7 @@ import {
         _kasperState.filmingLoading = true;
         _kasperState.filmingError = null;
         try {
-            const plans = await _fpEnsureLoaded(!!forceRefresh);
+            const plans = await (await svArea('templates')).fpEnsureLoaded(!!forceRefresh);
             const rows = _filmsRowsFromPlans(plans.rows || []);
             if (!rows.length) {
                 _kasperState.filmingData = { rows: [] };
@@ -2805,15 +2805,23 @@ import {
     function _kasperOnboardingStamp(submission) {
         return String(submission && (submission.created_at || submission.submitted_on || submission.updated_at) || '');
     }
+    // The onboarding list is held by the on-demand Templates area; until it has
+    // loaded there is no list, so no count.
+    function _kasperOnboardingSubs() {
+        const tpl = svAreaApi('templates');
+        return tpl ? tpl.obvSubs() : null;
+    }
     function _kasperOnboardingUnreadCount() {
-        if (!Array.isArray(_obvSubs)) return null;
+        const subs = _kasperOnboardingSubs();
+        if (!Array.isArray(subs)) return null;
         let seen = '';
         try { seen = localStorage.getItem(KASPER_ONBOARDING_SEEN_KEY) || ''; } catch (e) {}
-        return _obvSubs.filter(submission => _kasperOnboardingStamp(submission) > seen).length;
+        return subs.filter(submission => _kasperOnboardingStamp(submission) > seen).length;
     }
     function _kasperMarkOnboardingSeen() {
-        if (!Array.isArray(_obvSubs)) return;
-        const newest = _obvSubs.reduce((stamp, submission) => {
+        const subs = _kasperOnboardingSubs();
+        if (!Array.isArray(subs)) return;
+        const newest = subs.reduce((stamp, submission) => {
             const next = _kasperOnboardingStamp(submission);
             return next > stamp ? next : stamp;
         }, '');
@@ -2870,9 +2878,15 @@ import {
         }
         if (!_kasperState.filmingLoading && !_kasperState.filmingData) _kasperLoadFilming(false);
         if (_ptoEnabled() && _syncviewStaffCan('pto-admin') && !_ptoAdminState.loading && !_ptoAdminState.overview) _ptoLoadAdmin(false);
-        if (_syncviewStaffCan('onboarding') && !_obvLoading && !Array.isArray(_obvSubs)) {
-            _obvSetMode('full');
-            _obvEnsureLoaded();
+        if (_syncviewStaffCan('onboarding')) {
+            const loadOnboarding = tpl => {
+                if (tpl.obvLoading() || Array.isArray(tpl.obvSubs())) return;
+                tpl.obvSetMode('full');
+                tpl.obvEnsureLoaded();
+            };
+            const tpl = svAreaApi('templates');
+            if (tpl) loadOnboarding(tpl);
+            else svArea('templates').then(loadOnboarding, () => {});
         }
     }
     let _kasperRepliesPaintRetry = null;

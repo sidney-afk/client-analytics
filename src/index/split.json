@@ -1,4 +1,4 @@
 {
   "enabled": false,
-  "lazy": ["tiktok"]
+  "lazy": ["tiktok", "templates"]
 }

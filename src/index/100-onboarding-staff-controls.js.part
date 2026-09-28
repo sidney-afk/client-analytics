@@ -1,11 +1,7 @@
 import {
   _syncviewApplyStatusPalette, _syncviewApplyTheme, _syncviewStoredStatusPalette,
-  _syncviewStoredTheme, _toastEl, showNotify, showToast
+  _syncviewStoredTheme, _toastEl, showNotify, showToast, svAreaApi
 } from './040-shared-briefs.js';
-import {
-  _fpPurgeSensitiveState, _obvMode, _obvSetError, _obvSetLoadedAt, _obvSetLoading, _obvSetMode,
-  _obvSetSelected, _obvSetSubs, _obvSetWarn
-} from './060-templates-filming.js';
 import { currentNav } from './065-core-nav-intake-state.js';
 import { wlNormalizeClient, wlPurgePlanSensitiveState } from './070-workload-source.js';
 import { wlRefreshSensitiveStateSilent } from './080-workload-render.js';
@@ -1562,7 +1558,7 @@ import {
     function _syncviewStaffPurgeSensitiveState() {
         try { if (typeof wlPurgePlanSensitiveState === 'function') wlPurgePlanSensitiveState(); } catch (e) {}
         try { if (typeof _linearIntakePurgeSensitiveState === 'function') _linearIntakePurgeSensitiveState(); } catch (e) {}
-        try { if (typeof _fpPurgeSensitiveState === 'function') _fpPurgeSensitiveState(); } catch (e) {}
+        try { const tpl = svAreaApi('templates'); if (tpl) tpl.fpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _srpPurgeSensitiveState === 'function') _srpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _tdyPurgeSensitiveState === 'function') _tdyPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _prodSmmPurgeSensitiveState === 'function') _prodSmmPurgeSensitiveState(); } catch (e) {}
@@ -1586,17 +1582,7 @@ import {
         } catch (e) {}
         try { _ccRevealed.clear(); } catch (e) {}
         try { _ccExpanded.clear(); } catch (e) {}
-        try {
-            if (_obvMode === 'full') {
-                _obvSetSubs(null);
-                _obvSetSelected(null);
-                _obvSetError('');
-                _obvSetWarn('');
-                _obvSetLoadedAt(0);
-                _obvSetLoading(false);
-                _obvSetMode('edge');
-            }
-        } catch (e) {}
+        try { const tpl = svAreaApi('templates'); if (tpl) tpl.obvPurgeFullMode(); } catch (e) {}
         try {
             if (typeof _prodState !== 'undefined' && _prodState) {
                 _prodState.commentDrafts.clear();

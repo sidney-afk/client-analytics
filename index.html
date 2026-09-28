@@ -12752,8 +12752,11 @@
         // Same for a "Send a change" box being typed into.
         // Only a field being typed into blocks it; a focused Save/Cancel button must not.
         if (ae && ae.matches && ae.matches('input, textarea') && (ae.closest('.tpl-brain-form') || ae.closest('.tpl-spec-form'))) return;
-        content.innerHTML = renderTemplatesView();
-        mountTemplatesView();
+        // Templates is an on-demand area: nothing to redraw until it has loaded.
+        const tpl = svAreaApi('templates');
+        if (!tpl) return;
+        content.innerHTML = tpl.renderTemplates();
+        tpl.mountTemplates();
     }
 
     function _tplGet(name, field) {
@@ -12955,7 +12958,8 @@
         _tplSaveColorSets(name, sets);
         if (_templatesSelected === name) {
             const content = document.getElementById('content');
-            if (content) { content.innerHTML = renderClientTemplate(name); mountTemplatesView(); }
+            const tpl = svAreaApi('templates');
+            if (content && tpl) { content.innerHTML = tpl.renderClientTemplate(name); tpl.mountTemplates(); }
         }
     }
     function _tplRemoveColorSet(name, index) {
@@ -12966,7 +12970,8 @@
         _tplSaveColorSets(name, sets);
         if (_templatesSelected === name) {
             const content = document.getElementById('content');
-            if (content) { content.innerHTML = renderClientTemplate(name); mountTemplatesView(); }
+            const tpl = svAreaApi('templates');
+            if (content && tpl) { content.innerHTML = tpl.renderClientTemplate(name); tpl.mountTemplates(); }
         }
     }
 
@@ -15068,6 +15073,41 @@
     window._fpSaveExisting = _fpSaveExisting;
     window._fpSaveNew = _fpSaveNew;
 
+    // Templates, the onboarding inbox and Filming plans are one on-demand area
+    // (plan: docs/plans/2026-09-28-load-per-tab-plan.md). Everything outside
+    // it reaches in through here (040 svAreaApi / svArea / svWithArea); state
+    // is read through getters so callers always see the current value.
+    svAreaRegister('templates', {
+        renderTemplates: renderTemplatesView,
+        mountTemplates: mountTemplatesView,
+        renderClientTemplate,
+        renderFilmingPlans: renderFilmingPlansView,
+        mountFilmingPlans: mountFilmingPlansView,
+        fpEnsureLoaded: _fpEnsureLoaded,
+        fpSetQueryQuiet: _fpSetQueryQuiet,
+        fpPurgeSensitiveState: _fpPurgeSensitiveState,
+        // Sign-out / identity change: the full (credential-bearing) inbox
+        // goes back to the public edge view with nothing cached.
+        obvPurgeFullMode() {
+            if (_obvMode === 'full') {
+                _obvSetSubs(null);
+                _obvSetSelected(null);
+                _obvSetError('');
+                _obvSetWarn('');
+                _obvSetLoadedAt(0);
+                _obvSetLoading(false);
+                _obvSetMode('edge');
+            }
+        },
+        obvMountStandalone: _obvMountStandalone,
+        obvSetMode: _obvSetMode,
+        obvSubs: () => _obvSubs,
+        obvLoading: () => _obvLoading,
+        obvInjectStyles: _obvInjectStyles,
+        renderOnboardingInbox,
+        obvEnsureLoaded: _obvEnsureLoaded,
+        obvFetchFull: _obvFetchFull,
+    });
     const LOG_SUBMISSION_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/log-linear-submission';
     /*
      * The gateway's own cap on ONE credential-less submission, mirrored here so
@@ -23580,7 +23620,7 @@
         _linearPlanMapState = 'loading';
         _linearPlanMapError = '';
         try {
-            const data = await _fpEnsureLoaded(!!force);
+            const data = await (await svArea('templates')).fpEnsureLoaded(!!force);
             const map = {};
             (data.rows || []).forEach(row => {
                 if (row.clientName && row.docUrl) map[_normLinearName(row.clientName)] = row.docUrl;
@@ -24152,13 +24192,18 @@
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'templates') {
             pageTop.style.display = 'none';
-            content.innerHTML = renderTemplatesView();
-            mountTemplatesView();
+            // Templates and Filming plans are one on-demand area (040, svWithArea).
+            svWithArea('templates', content, tpl => {
+                content.innerHTML = tpl.renderTemplates();
+                tpl.mountTemplates();
+            }, () => navTo('templates'));
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'filming-plans') {
             pageTop.style.display = 'none';
-            content.innerHTML = renderFilmingPlansView();
-            mountFilmingPlansView();
+            svWithArea('templates', content, tpl => {
+                content.innerHTML = tpl.renderFilmingPlans();
+                tpl.mountFilmingPlans();
+            }, () => navTo('filming-plans'));
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'today') {
             pageTop.style.display = 'none';
@@ -24358,7 +24403,13 @@
         const c = svSharedClientFor(page);
         if (!c || !push) return;
         if (page === 'templates') _templatesSetSelected(c);
-        else if (page === 'filming-plans') _fpSetQueryQuiet(c);
+        else if (page === 'filming-plans') {
+            // Filming plans is on demand (040): set the search before it draws.
+            // svArea's promise is shared, so this runs ahead of navTo's draw.
+            const tpl = svAreaApi('templates');
+            if (tpl) tpl.fpSetQueryQuiet(c);
+            else svArea('templates').then(t => t.fpSetQueryQuiet(c), () => {});
+        }
     }
     // The Analytics tab: overview when no client is picked, else that client.
     function svOpenAnalytics() {
@@ -26917,7 +26968,7 @@
     function _syncviewStaffPurgeSensitiveState() {
         try { if (typeof wlPurgePlanSensitiveState === 'function') wlPurgePlanSensitiveState(); } catch (e) {}
         try { if (typeof _linearIntakePurgeSensitiveState === 'function') _linearIntakePurgeSensitiveState(); } catch (e) {}
-        try { if (typeof _fpPurgeSensitiveState === 'function') _fpPurgeSensitiveState(); } catch (e) {}
+        try { const tpl = svAreaApi('templates'); if (tpl) tpl.fpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _srpPurgeSensitiveState === 'function') _srpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _tdyPurgeSensitiveState === 'function') _tdyPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _prodSmmPurgeSensitiveState === 'function') _prodSmmPurgeSensitiveState(); } catch (e) {}
@@ -26941,17 +26992,7 @@
         } catch (e) {}
         try { _ccRevealed.clear(); } catch (e) {}
         try { _ccExpanded.clear(); } catch (e) {}
-        try {
-            if (_obvMode === 'full') {
-                _obvSetSubs(null);
-                _obvSetSelected(null);
-                _obvSetError('');
-                _obvSetWarn('');
-                _obvSetLoadedAt(0);
-                _obvSetLoading(false);
-                _obvSetMode('edge');
-            }
-        } catch (e) {}
+        try { const tpl = svAreaApi('templates'); if (tpl) tpl.obvPurgeFullMode(); } catch (e) {}
         try {
             if (typeof _prodState !== 'undefined' && _prodState) {
                 _prodState.commentDrafts.clear();
@@ -70923,7 +70964,7 @@
         try { document.title = 'Onboarding — SynchroSocial'; } catch(e){}
         const _hV=document.querySelector('header.header'); if(_hV) _hV.style.display='none';
         const _ptV=document.getElementById('pageTop'); if(_ptV) _ptV.style.display='none';
-        setTimeout(function(){ try{ _obvMountStandalone(new URLSearchParams(svRoute.search()).get('onboarding_view')); }catch(e){ console.error('[onboarding_view] mount failed', e); } }, 0);
+        setTimeout(function(){ svArea('templates').then(function(tpl){ tpl.obvMountStandalone(new URLSearchParams(svRoute.search()).get('onboarding_view')); }).catch(function(e){ console.error('[onboarding_view] mount failed', e); }); }, 0);
     } else if(_isSmmWeeklyEntry||_isIntake||!!_syncviewStaffIdentityLoad()){
         // A saved identity boots the app optimistically so signed-in staff
         // never see the gate flash. It grants nothing: _syncviewStaffIdentityBoot()
@@ -82874,11 +82915,14 @@
     function _kasperRenderOnboarding() {
         const el = document.getElementById('kasperContent');
         if (!el) return;
-        _obvSetMode('full');
-        if (Array.isArray(_obvSubs)) _kasperMarkOnboardingSeen();
-        _obvInjectStyles();
-        el.innerHTML = renderOnboardingInbox();
-        _obvEnsureLoaded();
+        // The inbox lives in the on-demand Templates area (040, svWithArea).
+        svWithArea('templates', el, tpl => {
+            tpl.obvSetMode('full');
+            if (Array.isArray(tpl.obvSubs())) _kasperMarkOnboardingSeen();
+            tpl.obvInjectStyles();
+            el.innerHTML = tpl.renderOnboardingInbox();
+            tpl.obvEnsureLoaded();
+        }, _kasperRenderOnboarding);
     }
 
 
@@ -83496,7 +83540,7 @@
 
         let groups = [];
         try {
-            const full = await _obvFetchFull();
+            const full = await (await svArea('templates')).obvFetchFull();
             if (full && full.error) throw new Error(full.error);
             /* onboarding-full returns THREE funnel shapes and they do not agree.
                A legacy row carries a `credentials` array; a standard or AI row
@@ -84129,7 +84173,7 @@
         _kasperState.filmingLoading = true;
         _kasperState.filmingError = null;
         try {
-            const plans = await _fpEnsureLoaded(!!forceRefresh);
+            const plans = await (await svArea('templates')).fpEnsureLoaded(!!forceRefresh);
             const rows = _filmsRowsFromPlans(plans.rows || []);
             if (!rows.length) {
                 _kasperState.filmingData = { rows: [] };
@@ -84289,15 +84333,23 @@
     function _kasperOnboardingStamp(submission) {
         return String(submission && (submission.created_at || submission.submitted_on || submission.updated_at) || '');
     }
+    // The onboarding list is held by the on-demand Templates area; until it has
+    // loaded there is no list, so no count.
+    function _kasperOnboardingSubs() {
+        const tpl = svAreaApi('templates');
+        return tpl ? tpl.obvSubs() : null;
+    }
     function _kasperOnboardingUnreadCount() {
-        if (!Array.isArray(_obvSubs)) return null;
+        const subs = _kasperOnboardingSubs();
+        if (!Array.isArray(subs)) return null;
         let seen = '';
         try { seen = localStorage.getItem(KASPER_ONBOARDING_SEEN_KEY) || ''; } catch (e) {}
-        return _obvSubs.filter(submission => _kasperOnboardingStamp(submission) > seen).length;
+        return subs.filter(submission => _kasperOnboardingStamp(submission) > seen).length;
     }
     function _kasperMarkOnboardingSeen() {
-        if (!Array.isArray(_obvSubs)) return;
-        const newest = _obvSubs.reduce((stamp, submission) => {
+        const subs = _kasperOnboardingSubs();
+        if (!Array.isArray(subs)) return;
+        const newest = subs.reduce((stamp, submission) => {
             const next = _kasperOnboardingStamp(submission);
             return next > stamp ? next : stamp;
         }, '');
@@ -84354,9 +84406,15 @@
         }
         if (!_kasperState.filmingLoading && !_kasperState.filmingData) _kasperLoadFilming(false);
         if (_ptoEnabled() && _syncviewStaffCan('pto-admin') && !_ptoAdminState.loading && !_ptoAdminState.overview) _ptoLoadAdmin(false);
-        if (_syncviewStaffCan('onboarding') && !_obvLoading && !Array.isArray(_obvSubs)) {
-            _obvSetMode('full');
-            _obvEnsureLoaded();
+        if (_syncviewStaffCan('onboarding')) {
+            const loadOnboarding = tpl => {
+                if (tpl.obvLoading() || Array.isArray(tpl.obvSubs())) return;
+                tpl.obvSetMode('full');
+                tpl.obvEnsureLoaded();
+            };
+            const tpl = svAreaApi('templates');
+            if (tpl) loadOnboarding(tpl);
+            else svArea('templates').then(loadOnboarding, () => {});
         }
     }
     let _kasperRepliesPaintRetry = null;

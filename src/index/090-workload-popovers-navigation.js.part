@@ -1,11 +1,7 @@
 import {
-  _analyticsReleaseExtras, linearClientRows, linearProjects, svAreaApi, svWithArea
+  _analyticsReleaseExtras, linearClientRows, linearProjects, svArea, svAreaApi, svWithArea
 } from './040-shared-briefs.js';
 import { _templatesActiveTab, _templatesSelected, highlightMatch, render } from './050-market-briefs.js';
-import {
-  _fpEnsureLoaded, mountFilmingPlansView, mountTemplatesView, renderFilmingPlansView,
-  renderTemplatesView
-} from './060-templates-filming.js';
 import {
   LINEAR_FORM_KEY, NAV_KEY, _isSmmWeeklyRoute, _syncviewNextNavEpoch, _syncviewSetCurrentNav,
   fetchLinearProjects, linearProjectsLoading
@@ -1190,7 +1186,7 @@ import {
         _linearPlanMapState = 'loading';
         _linearPlanMapError = '';
         try {
-            const data = await _fpEnsureLoaded(!!force);
+            const data = await (await svArea('templates')).fpEnsureLoaded(!!force);
             const map = {};
             (data.rows || []).forEach(row => {
                 if (row.clientName && row.docUrl) map[_normLinearName(row.clientName)] = row.docUrl;
@@ -1762,13 +1758,18 @@ import {
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'templates') {
             pageTop.style.display = 'none';
-            content.innerHTML = renderTemplatesView();
-            mountTemplatesView();
+            // Templates and Filming plans are one on-demand area (040, svWithArea).
+            svWithArea('templates', content, tpl => {
+                content.innerHTML = tpl.renderTemplates();
+                tpl.mountTemplates();
+            }, () => navTo('templates'));
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'filming-plans') {
             pageTop.style.display = 'none';
-            content.innerHTML = renderFilmingPlansView();
-            mountFilmingPlansView();
+            svWithArea('templates', content, tpl => {
+                content.innerHTML = tpl.renderFilmingPlans();
+                tpl.mountFilmingPlans();
+            }, () => navTo('filming-plans'));
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'today') {
             pageTop.style.display = 'none';

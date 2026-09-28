@@ -13,17 +13,17 @@
 | 5 | `020-styles-surfaces.css.part` | 4391 | Templates view |
 | 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2032 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
-| 8 | `050-market-briefs.js.part` | 1779 | Market Research Brief Tab Renderers |
-| 9 | `060-templates-filming.js.part` | 2095 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 8 | `050-market-briefs.js.part` | 1781 | Market Research Brief Tab Renderers |
+| 9 | `060-templates-filming.js.part` | 2123 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `065-core-nav-intake-state.js.part` | 212 | The gateway's own cap on ONE credential-less submission, mirrored here so |
 | 11 | `070-workload-source.js.part` | 3823 | Workload Calendar |
 | 12 | `080-workload-render.js.part` | 3436 | Smart default: a creative lands on their own work (see |
-| 13 | `090-workload-popovers-navigation.js.part` | 1845 | Sub-issue popover |
-| 14 | `095-shared-client.js.part` | 398 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
+| 13 | `090-workload-popovers-navigation.js.part` | 1846 | Sub-issue popover |
+| 14 | `095-shared-client.js.part` | 404 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
 | 15 | `096-quick-jump.js.part` | 172 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
 | 16 | `097-today.js.part` | 547 | TODAY (owner design , session Compass). |
 | 17 | `098-smm-clients.js.part` | 86 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
-| 18 | `100-onboarding-staff-controls.js.part` | 2390 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
+| 18 | `100-onboarding-staff-controls.js.part` | 2376 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 19 | `110-time-off.js.part` | 1372 | Kasper Time Off calendar |
 | 20 | `112-smm-weekly-reports.js.part` | 705 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
 | 21 | `115-core-calendar-flags.js.part` | 136 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
@@ -47,13 +47,13 @@
 | 39 | `230-production-create-comments.js.part` | 2645 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 40 | `240-production-description.js.part` | 2648 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 41 | `250-production-controls-data.js.part` | 2889 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 42 | `260-production-refresh-boot.js.part` | 2636 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 42 | `260-production-refresh-boot.js.part` | 2635 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 43 | `270-samples-model.js.part` | 2866 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 44 | `280-samples-cards-notes.js.part` | 2922 | SURFACE 3: the save engine |
 | 45 | `290-samples-writes-review.js.part` | 1824 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 46 | `300-tiktok-upload.js.part` | 2028 | TIKTOK UPLOAD MODULE |
 | 47 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
-| 48 | `320-kasper-dashboard-replies.js.part` | 3402 | The Samples subtab was folded into Review (samples are listed in the |
+| 48 | `320-kasper-dashboard-replies.js.part` | 3416 | The Samples subtab was folded into Review (samples are listed in the |
 | 49 | `330-kasper-review-history.js.part` | 2760 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
 | 50 | `340-kasper-editors-board.js.part` | 677 | Editor work model |
 | 51 | `345-core-tooltip-date-picker.js.part` | 625 | Global styled tooltip — replaces every browser-native title popup |

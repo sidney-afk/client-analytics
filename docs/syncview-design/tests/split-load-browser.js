@@ -55,11 +55,20 @@ async function load(browser, origin, { url, staff, route, dropFirstPart }) {
   return Object.assign(state, { navigations, dropped });
 }
 
-const LAZY_VIEWS = { tiktok: { route: 'tiktok-upload', drawn: '.tk-page #tkFormCol' } };
+// Each area's views; the first is also used for the refresh, Retry and
+// background checks, and every one must draw on demand from a cold start.
+const LAZY_VIEWS = {
+  tiktok: [{ route: 'tiktok-upload', drawn: '.tk-page #tkFormCol' }],
+  templates: [
+    { route: 'templates', drawn: '.tpl-index-centered, [data-sv-save-ind="templates"]' },
+    { route: 'filming-plans', drawn: '.fp-view' },
+  ],
+};
 async function lazyChecks(browser, origin, failures) {
   const lazyNames = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'index', 'split.json'), 'utf8')).lazy || [];
   for (const name of lazyNames) {
-    const view = LAZY_VIEWS[name];
+    const views = LAZY_VIEWS[name];
+    const view = views && views[0];
     if (!view) { failures.push(`lazy area "${name}" has no view in LAZY_VIEWS; add how to open it`); continue; }
     const open = async (url, opts = {}) => {
       const context = await browser.newContext();
@@ -75,16 +84,16 @@ async function lazyChecks(browser, origin, failures) {
       return { context, page, fetched };
     };
     // 1. Not in the first download; opening the tab fetches it and draws.
-    {
+    for (const view of views) {
       const { context, page, fetched } = await open('/');
       const early = await page.evaluate(n => ({ lazy: self.__svLoad && self.__svLoad.lazy && self.__svLoad.lazy[n], ran: (self.__svParts || []).some(f => f.includes('-' + n + '-')) }), name);
       if (!early.lazy) failures.push(`${name}: not listed as on demand in the parts page`);
       if (early.ran) failures.push(`${name}: its code ran before anyone asked for it`);
       await page.evaluate(r => navTo(r), view.route);
       const drew = await page.waitForSelector(view.drawn, { timeout: 15000 }).then(() => true, () => false);
-      if (!drew) failures.push(`${name}: opening its tab never drew it`);
-      if (fetched.length !== 1) failures.push(`${name}: expected one download of its code, saw ${fetched.length}`);
-      console.log(`split-load: ${name} on demand: ${drew ? 'drawn' : 'NOT drawn'} after ${fetched.length} download(s)`);
+      if (!drew) failures.push(`${name}: opening ${view.route} never drew it`);
+      if (fetched.length !== 1) failures.push(`${name}: expected one download of its code for ${view.route}, saw ${fetched.length}`);
+      console.log(`split-load: ${name} on demand (${view.route}): ${drew ? 'drawn' : 'NOT drawn'} after ${fetched.length} download(s)`);
       await context.close();
     }
     // 2. Refresh while on the tab.

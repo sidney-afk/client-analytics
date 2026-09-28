@@ -2027,6 +2027,6 @@ export {
   followersMode, followersPlat, formatHookTemplate, getActivePeriod, getMonthRow, getPeriodKey,
   getWeekRow, growthChart, hideToast, isPhrase, latestPerClient, linearClientRows, linearProjects,
   monthPrevPerClient, n, parseCSV, parseViewCount, prevPerClient, renderBriefContent,
-  renderTabSummary, savedHooks, showConfirm, showNotify, showToast, sortCol, sortDir, svAreaApi,
-  svAreaRegister, svWithArea, topVideos, viewsChart, viewsPlat, weekPrevPerClient
+  renderTabSummary, savedHooks, showConfirm, showNotify, showToast, sortCol, sortDir, svArea,
+  svAreaApi, svAreaRegister, svWithArea, topVideos, viewsChart, viewsPlat, weekPrevPerClient
 };

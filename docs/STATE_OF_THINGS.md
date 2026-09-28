@@ -79,7 +79,9 @@ line is older than a week, re-check it before relying on it.
   named append, existing-card assignment: built or drafted, not switched on.
 - Linear-only calendar slots: the repair script found **0** slots to connect
   (2026-09-24), so there is nothing to apply.
-- Five Linear-only GitHub workflows are unscheduled but kept for hand dispatch.
+- The historical monitoring cutover workflow retains only its manual TEST
+  cleanup and roster report. Its Linear-dependent proof jobs are retired.
+  Other Linear-only workflows are unscheduled for hand dispatch.
 - SyncView v2 (Next.js) and making the repo private: plans only; the owner
   decided on 2026-09-24 to keep the repo public for now.
 

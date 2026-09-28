@@ -46,19 +46,61 @@ async function run() {
     fetchImpl: async (url, options) => {
       calls.push({ url: String(url), options });
       return response({
-        total: { value: 1234, unit: 'count', deviation: 10 },
-        failed: { value: 12, unit: 'count', deviation: 2 },
+        total: { value: calls.length === 1 ? 1000 : 234, unit: 'count', deviation: 10 },
+        failed: { value: calls.length === 1 ? 10 : 2, unit: 'count', deviation: 2 },
       });
     },
   });
   ok(usage.execution_count === 1234 && usage.failed_count === 12, 'billing-grade Insights production totals are preserved');
   ok(usage.source === 'n8n_insights_summary' && usage.complete, 'the result identifies the compacted Insights source');
-  ok(calls.length === 1 && calls[0].options.method === 'GET', 'n8n Insights access is one read-only request');
+  ok(calls.length === 2 && calls.every(call => call.options.method === 'GET'), 'closed and current days use read-only Insights queries');
   const insightsUrl = new URL(calls[0].url);
   ok(insightsUrl.pathname === '/api/v1/insights/summary', 'the supported public Insights endpoint owns the count');
   ok(insightsUrl.searchParams.get('startDate') === '2026-07-01T00:00:00.000Z'
-    && insightsUrl.searchParams.get('endDate') === '2026-07-15T00:00:00.000Z',
-  'the query spans the exact current calendar month through now');
+    && insightsUrl.searchParams.get('endDate') === '2026-07-15T00:00:00.000Z'
+    && new URL(calls[1].url).searchParams.get('startDate') === '2026-07-15T00:00:00.000Z'
+    && new URL(calls[1].url).searchParams.get('endDate') === '2026-07-16T00:00:00.000Z',
+  'closed days and current day form nonoverlapping calendar intervals');
+  ok(usage.checkpoint.through === '2026-07-15T00:00:00.000Z'
+    && usage.checkpoint.execution_count === 1000,
+  'only complete days enter the checkpoint');
+
+  let missingHistoryFailed = false;
+  try {
+    await readMonthlyExecutionCount({
+      baseUrl: 'https://fixture.invalid', apiKey: 'fixture-key',
+      now: new Date('2026-07-28T12:00:00.000Z'), timeZone: 'UTC',
+      fetchImpl: async () => { throw new Error('should not query a partial month'); },
+    });
+  } catch (error) {
+    missingHistoryFailed = /complete monthly checkpoint is required/.test(String(error.message));
+  }
+  ok(missingHistoryFailed, 'missing early history fails before a partial count can pass');
+
+  const resumedCalls = [];
+  const resumed = await readMonthlyExecutionCount({
+    baseUrl: 'https://fixture.invalid', apiKey: 'fixture-key',
+    now: new Date('2026-07-28T12:00:00.000Z'), timeZone: 'UTC',
+    checkpoint: { month: '2026-07', time_zone: 'UTC', through: '2026-07-27T00:00:00.000Z', execution_count: 4000, failed_count: 40 },
+    fetchImpl: async url => {
+      resumedCalls.push(new URL(url));
+      return response({ total: { value: resumedCalls.length === 1 ? 200 : 30, unit: 'count' }, failed: { value: resumedCalls.length === 1 ? 2 : 1, unit: 'count' } });
+    },
+  });
+  ok(resumed.execution_count === 4230 && resumed.checkpoint.execution_count === 4200
+    && resumedCalls[0].searchParams.get('startDate') === '2026-07-27T00:00:00.000Z',
+  'a verified checkpoint carries forward exactly the uncovered closed days');
+
+  let partialCheckpointFailed = false;
+  try {
+    await readMonthlyExecutionCount({
+      baseUrl: 'https://fixture.invalid', apiKey: 'fixture-key',
+      now: new Date('2026-07-28T12:00:00.000Z'), timeZone: 'UTC',
+      checkpoint: { month: '2026-07', time_zone: 'UTC', through: '2026-07-15T17:39:00.000Z', execution_count: 1000, failed_count: 10 },
+      fetchImpl: async () => response({ total: { value: 1, unit: 'count' } }),
+    });
+  } catch (error) { partialCheckpointFailed = /checkpoint is invalid/.test(String(error.message)); }
+  ok(partialCheckpointFailed, 'a mid-day count cannot masquerade as a complete-day checkpoint');
 
   let invalidSummaryFailed = false;
   try {

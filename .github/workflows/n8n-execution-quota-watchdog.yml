@@ -41,6 +41,8 @@ jobs:
       N8N_BASE_URL: ${{ vars.N8N_BASE_URL || 'https://synchrosocial.app.n8n.cloud' }}
       N8N_MONTHLY_EXECUTION_CAP: ${{ vars.N8N_MONTHLY_EXECUTION_CAP }}
       N8N_QUOTA_TIMEZONE: ${{ vars.N8N_QUOTA_TIMEZONE || 'America/Guatemala' }}
+      N8N_QUOTA_MAX_HISTORY_DAYS: ${{ vars.N8N_QUOTA_MAX_HISTORY_DAYS || '14' }}
+      N8N_QUOTA_CHECKPOINT_PATH: .quota-watchdog/count/state.json
       N8N_QUOTA_ALERT_WEBHOOK: ${{ secrets.N8N_QUOTA_ALERT_WEBHOOK }}
       N8N_QUOTA_ALERT_WORKFLOW_ID: ${{ vars.N8N_QUOTA_ALERT_WORKFLOW_ID || 'Tfhc3vebZyG6obOg' }}
       N8N_QUOTA_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -76,6 +78,14 @@ jobs:
         shell: bash
         run: node scripts/n8n-execution-quota-watchdog.js --month-key >> "$GITHUB_OUTPUT"
 
+      - name: Restore complete-month count checkpoint
+        uses: actions/cache/restore@v4
+        with:
+          path: .quota-watchdog/count
+          key: n8n-execution-quota-count-v1-${{ steps.month.outputs.month }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            n8n-execution-quota-count-v1-${{ steps.month.outputs.month }}-
+
       - name: Restore 80 percent monthly marker
         id: marker-80
         uses: actions/cache/restore@v4
@@ -98,6 +108,13 @@ jobs:
           N8N_QUOTA_ALREADY_80: ${{ steps.marker-80.outputs.cache-hit == 'true' }}
           N8N_QUOTA_ALREADY_90: ${{ steps.marker-90.outputs.cache-hit == 'true' }}
         run: node scripts/n8n-execution-quota-watchdog.js
+
+      - name: Save complete-month count checkpoint
+        if: steps.watchdog.outputs.dry_run == 'false'
+        uses: actions/cache/save@v4
+        with:
+          path: .quota-watchdog/count
+          key: n8n-execution-quota-count-v1-${{ steps.month.outputs.month }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Prepare 80 percent marker
         if: steps.watchdog.outputs.alert_80_sent == 'true' && steps.watchdog.outputs.dry_run == 'false'

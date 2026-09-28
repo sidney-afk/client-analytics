@@ -23460,8 +23460,10 @@
         v2Client: _wlV2Client,
         purgePlanSensitiveState: wlPurgePlanSensitiveState,
         refreshSensitiveStateSilent: wlRefreshSensitiveStateSilent,
-        adoptNativeDueGatewayRow: wlAdoptNativeDueGatewayRow,
-        publishNativeDueReceipt: wlPublishNativeDueReceipt,
+        // Looked up by name at call time, as the direct calls these replace
+        // were, so a page-level override (a test's spy) still sees each call.
+        adoptNativeDueGatewayRow: row => wlAdoptNativeDueGatewayRow(row),
+        publishNativeDueReceipt: row => wlPublishNativeDueReceipt(row),
     });
     function onLinearSearchInput() {
         const input = document.getElementById('linearClientSearch');

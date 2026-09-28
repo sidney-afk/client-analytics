@@ -16,7 +16,8 @@ import {
   wlBackgroundBusinessFingerprint, wlCachedBoardUsable, wlCachedRoster, wlFetchLinearMetadata,
   wlFetchPlanRows, wlIssueClientAllowed, wlIssueEditorAllowed, wlLinearEditingEnabled,
   wlLoadSnapshot, wlMarkLinearMetadataFailure, wlMetadataTeamBucket, wlNativeDueDate,
-  wlPlanEditingEnabled, wlPurgePlanSensitiveState, wlReadCache
+  wlPlanEditingEnabled, wlPurgePlanSensitiveState, wlReadCache,
+  wlPurgeBoardData, wlStaffMayView, wlStaffSignedOut,
 } from './067-workload-board-source.js';
 import {
   wlAddWorkingDays, wlISO, wlIsWeekend, wlParseISO, wlWeekMondayISO, wlWorkloadTodayISO
@@ -56,9 +57,29 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         const me = _syncviewCreativeMe();
         if (me && wlState.editor === 'all') _wlCreativePending = me;
     }
+    // Signed out (or not yet verified): no board data may be on screen. Anything
+    // held in memory or in this browser is dropped, and the board says why.
+    function wlRenderSignedOut() {
+        if ((Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) || wlState.fetchedAt != null
+            || (Array.isArray(wlState.editorRoster) && wlState.editorRoster.length)) wlPurgeBoardData();
+        if (wlState.popoverAnchor) wlClosePopover(false);
+        ['wlOverviewRows', 'wlUndatedChips', 'wlUnassignedChips'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+        const bodyEl = document.getElementById('wlBody');
+        if (bodyEl) bodyEl.innerHTML = '<div class="wl-signed-out" data-wl-signed-out>Sign in as staff to see Workload.</div>';
+    }
     async function initWorkloadView() {
         // Guarded: unit suites run this mount alone in a sandbox.
         if (typeof _wlCreativeDefaultInit === 'function') _wlCreativeDefaultInit();
+        if (wlStaffSignedOut()) {
+            wlRenderSignedOut();
+            // A sign-in completing later reloads the board through the normal path.
+            if (typeof _syncviewRequireStaffIdentity === 'function') {
+                _syncviewRequireStaffIdentity('workload-plan-read').then(() => {
+                    if (wlStaffMayView() && document.querySelector('.workload-view')) initWorkloadView();
+                }).catch(() => {});
+            }
+            return;
+        }
         const todayISO = wlWorkloadTodayISO();
         const now = wlParseISO(todayISO);
         if (wlState.year == null)      { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }
@@ -271,6 +292,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
             return _wlBackgroundRefreshPromise;
         }
 
+        if (!wlStaffMayView()) return false;
         const run = async () => {
             const loadGeneration = _wlNextPlanLoadGeneration();
             const sessionGeneration = _wlPlanSessionGeneration;
@@ -2203,6 +2225,12 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
             return;
         }
         wlState.renderQueued = false;
+        if (!wlStaffMayView()) {
+            // Signed out: wipe and say so. Still verifying: draw no board data
+            // yet; the load after verification repaints.
+            if (wlStaffSignedOut()) wlRenderSignedOut();
+            return;
+        }
         // Re-rendering the calendar wipes out the spotlight markers and the
         // popover's anchor element, so close it before painting the new DOM.
         if (wlState.popoverAnchor) wlClosePopover(false);

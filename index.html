@@ -202,6 +202,14 @@
     })();
     </script>
 <script>
+    // No staff sign-in in this browser: a Workload board copy left by an
+    // earlier session is private data, so it is deleted on every load.
+    try {
+        if (!localStorage.getItem('syncview_staff_identity_v1')) {
+            localStorage.removeItem('syncview_workloadBoardCache_v2');
+            localStorage.removeItem('syncview_linearIssuesCache_v1');
+        }
+    } catch (e) {}
     (function () {
         try {
             var de = document.documentElement;
@@ -447,7 +455,12 @@
                 var wlBase = 'https://uzltbbrjidmjwwfakwve.supabase.co';
                 var wlKey = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';
                 window.__wlEarlyIssuesUrl = wlBase + '/rest/v1/workload_issues?select=*&active=eq.true&order=id.asc&limit=1000&offset=0';
-                if (!wlKilled && !wlFresh) {
+                // Only for a browser that holds a staff sign-in: a signed-out
+                // visitor must not load Workload rows at all (the board itself
+                // also refuses to draw without a verified identity).
+                var wlHasStaff = false;
+                try { wlHasStaff = !!localStorage.getItem('syncview_staff_identity_v1'); } catch (e) {}
+                if (!wlKilled && !wlFresh && wlHasStaff) {
                     window.__wlEarlyIssues = fetch(window.__wlEarlyIssuesUrl, {
                         cache: 'no-store',
                         headers: { apikey: wlKey, Authorization: 'Bearer ' + wlKey, Accept: 'application/json', Prefer: 'count=exact' }
@@ -17648,13 +17661,39 @@
         // No plans are loaded at all now, so "some of them were dropped" is no
         // longer a true statement about what is on screen.
         wlState.nativePlansDropped = 0;
-        if (Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) {
-            wlApplyData(wlState.issueSnapshot, wlState.fetchedAt);
-        }
+        // The board itself is private too (Vigil's hand test, 2026-09-28): a
+        // signed-out browser showed every card and person behind the sign-in
+        // prompt, even after a reload. Sign-out now drops the board's rows,
+        // its team roster, the saved browser copy and any in-flight early read.
+        wlPurgeBoardData();
         if (document.querySelector('.workload-view')) {
             wlClosePopover(false);
             renderWorkloadAll();
         }
+    }
+
+    // True only for a verified staff identity. Workload shows nothing to anyone
+    // else: not the live board, not the in-memory copy, not the browser copy.
+    function wlStaffMayView() {
+        return typeof _syncviewStaffIdentityForHeaders === 'function' && !!_syncviewStaffIdentityForHeaders();
+    }
+    // No staff identity held at all (signed out), as opposed to one that is
+    // still being verified on boot, which must not throw away the board copy.
+    function wlStaffSignedOut() {
+        if (wlStaffMayView()) return false;
+        try { return typeof _syncviewStaffIdentityLoad !== 'function' || !_syncviewStaffIdentityLoad(); } catch (e) { return true; }
+    }
+    function wlPurgeBoardData() {
+        wlDropCache();
+        try { window.__wlEarlyIssues = null; } catch (e) {}
+        wlState.snapshotMemo = null;
+        wlState.cachedBoardAt = null;
+        wlState.editorRoster = [];
+        wlState.editorRosterStatus = 'unknown';
+        wlApplyData([], null);
+        wlState.fetchedAt = null;
+        wlState.loading = false;
+        wlState.refreshing = false;
     }
 
     // Issue ids that moved from their fast-paint automatic estimate to a saved
@@ -19145,9 +19184,29 @@
         const me = _syncviewCreativeMe();
         if (me && wlState.editor === 'all') _wlCreativePending = me;
     }
+    // Signed out (or not yet verified): no board data may be on screen. Anything
+    // held in memory or in this browser is dropped, and the board says why.
+    function wlRenderSignedOut() {
+        if ((Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) || wlState.fetchedAt != null
+            || (Array.isArray(wlState.editorRoster) && wlState.editorRoster.length)) wlPurgeBoardData();
+        if (wlState.popoverAnchor) wlClosePopover(false);
+        ['wlOverviewRows', 'wlUndatedChips', 'wlUnassignedChips'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+        const bodyEl = document.getElementById('wlBody');
+        if (bodyEl) bodyEl.innerHTML = '<div class="wl-signed-out" data-wl-signed-out>Sign in as staff to see Workload.</div>';
+    }
     async function initWorkloadView() {
         // Guarded: unit suites run this mount alone in a sandbox.
         if (typeof _wlCreativeDefaultInit === 'function') _wlCreativeDefaultInit();
+        if (wlStaffSignedOut()) {
+            wlRenderSignedOut();
+            // A sign-in completing later reloads the board through the normal path.
+            if (typeof _syncviewRequireStaffIdentity === 'function') {
+                _syncviewRequireStaffIdentity('workload-plan-read').then(() => {
+                    if (wlStaffMayView() && document.querySelector('.workload-view')) initWorkloadView();
+                }).catch(() => {});
+            }
+            return;
+        }
         const todayISO = wlWorkloadTodayISO();
         const now = wlParseISO(todayISO);
         if (wlState.year == null)      { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }
@@ -19360,6 +19419,7 @@
             return _wlBackgroundRefreshPromise;
         }
 
+        if (!wlStaffMayView()) return false;
         const run = async () => {
             const loadGeneration = _wlNextPlanLoadGeneration();
             const sessionGeneration = _wlPlanSessionGeneration;
@@ -21292,6 +21352,12 @@
             return;
         }
         wlState.renderQueued = false;
+        if (!wlStaffMayView()) {
+            // Signed out: wipe and say so. Still verifying: draw no board data
+            // yet; the load after verification repaints.
+            if (wlStaffSignedOut()) wlRenderSignedOut();
+            return;
+        }
         // Re-rendering the calendar wipes out the spotlight markers and the
         // popover's anchor element, so close it before painting the new DOM.
         if (wlState.popoverAnchor) wlClosePopover(false);

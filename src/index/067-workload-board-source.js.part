@@ -2206,13 +2206,39 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
         // No plans are loaded at all now, so "some of them were dropped" is no
         // longer a true statement about what is on screen.
         wlState.nativePlansDropped = 0;
-        if (Array.isArray(wlState.issueSnapshot) && wlState.issueSnapshot.length) {
-            wlApplyData(wlState.issueSnapshot, wlState.fetchedAt);
-        }
+        // The board itself is private too (Vigil's hand test, 2026-09-28): a
+        // signed-out browser showed every card and person behind the sign-in
+        // prompt, even after a reload. Sign-out now drops the board's rows,
+        // its team roster, the saved browser copy and any in-flight early read.
+        wlPurgeBoardData();
         if (document.querySelector('.workload-view')) {
             wlClosePopover(false);
             renderWorkloadAll();
         }
+    }
+
+    // True only for a verified staff identity. Workload shows nothing to anyone
+    // else: not the live board, not the in-memory copy, not the browser copy.
+    function wlStaffMayView() {
+        return typeof _syncviewStaffIdentityForHeaders === 'function' && !!_syncviewStaffIdentityForHeaders();
+    }
+    // No staff identity held at all (signed out), as opposed to one that is
+    // still being verified on boot, which must not throw away the board copy.
+    function wlStaffSignedOut() {
+        if (wlStaffMayView()) return false;
+        try { return typeof _syncviewStaffIdentityLoad !== 'function' || !_syncviewStaffIdentityLoad(); } catch (e) { return true; }
+    }
+    function wlPurgeBoardData() {
+        wlDropCache();
+        try { window.__wlEarlyIssues = null; } catch (e) {}
+        wlState.snapshotMemo = null;
+        wlState.cachedBoardAt = null;
+        wlState.editorRoster = [];
+        wlState.editorRosterStatus = 'unknown';
+        wlApplyData([], null);
+        wlState.fetchedAt = null;
+        wlState.loading = false;
+        wlState.refreshing = false;
     }
 
     // Issue ids that moved from their fast-paint automatic estimate to a saved
@@ -2492,5 +2518,6 @@ export {
   wlBackgroundBusinessFingerprint, wlCachedBoardUsable, wlCachedRoster, wlFetchLinearMetadata,
   wlFetchPlanRows, wlIssueClientAllowed, wlIssueEditorAllowed, wlLinearEditingEnabled,
   wlLoadSnapshot, wlMarkLinearMetadataFailure, wlMetadataTeamBucket, wlNativeDueDate,
-  wlPlanEditingEnabled, wlPurgePlanSensitiveState, wlReadCache, wlSnapshotIdentity
+  wlPlanEditingEnabled, wlPurgeBoardData, wlPurgePlanSensitiveState, wlReadCache, wlSnapshotIdentity,
+  wlStaffMayView, wlStaffSignedOut
 };

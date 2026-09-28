@@ -1,4 +1,12 @@
 <script>
+    // No staff sign-in in this browser: a Workload board copy left by an
+    // earlier session is private data, so it is deleted on every load.
+    try {
+        if (!localStorage.getItem('syncview_staff_identity_v1')) {
+            localStorage.removeItem('syncview_workloadBoardCache_v2');
+            localStorage.removeItem('syncview_linearIssuesCache_v1');
+        }
+    } catch (e) {}
     (function () {
         try {
             var de = document.documentElement;
@@ -244,7 +252,12 @@
                 var wlBase = 'https://uzltbbrjidmjwwfakwve.supabase.co';
                 var wlKey = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';
                 window.__wlEarlyIssuesUrl = wlBase + '/rest/v1/workload_issues?select=*&active=eq.true&order=id.asc&limit=1000&offset=0';
-                if (!wlKilled && !wlFresh) {
+                // Only for a browser that holds a staff sign-in: a signed-out
+                // visitor must not load Workload rows at all (the board itself
+                // also refuses to draw without a verified identity).
+                var wlHasStaff = false;
+                try { wlHasStaff = !!localStorage.getItem('syncview_staff_identity_v1'); } catch (e) {}
+                if (!wlKilled && !wlFresh && wlHasStaff) {
                     window.__wlEarlyIssues = fetch(window.__wlEarlyIssuesUrl, {
                         cache: 'no-store',
                         headers: { apikey: wlKey, Authorization: 'Bearer ' + wlKey, Accept: 'application/json', Prefer: 'count=exact' }

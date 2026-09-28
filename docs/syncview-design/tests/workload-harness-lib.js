@@ -248,7 +248,16 @@ async function launchWorkloadHarness(options) {
     return route.abort();
   });
 
-  await seedStaffIdentity(context, member);
+  // `signedOut`: no staff identity at all, but a board copy left in this
+  // browser by an earlier signed-in visit (the case a signed-out privacy test
+  // must prove is never shown).
+  if (opts.signedOut) {
+    await context.addInitScript(payload => {
+      try { localStorage.setItem('syncview_workloadBoardCache_v2', JSON.stringify(payload)); } catch (e) {}
+    }, { fetchedAt: NOW_EPOCH_MS, issues: state.issues, roster: [] });
+  } else {
+    await seedStaffIdentity(context, member);
+  }
   await context.route('**/functions/v1/key-verify', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -256,7 +265,9 @@ async function launchWorkloadHarness(options) {
   }));
 
   // The board's issue snapshot.
+  state.issueReads = 0;
   await context.route('**/rest/v1/workload_issues**', async route => {
+    state.issueReads++;
     if (state.holdIssues) await state.holdIssues;
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state.issues) });
   });
@@ -342,7 +353,9 @@ async function launchWorkloadHarness(options) {
 
   const query = opts.query ? '?' + String(opts.query).replace(/^\?/, '') : '';
   await page.goto(`http://127.0.0.1:${server.address().port}/${query}#workload`, { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('.workload-view', { timeout: 20000 });
+  // Signed out, the sign-in gate stands in front of the app and the board may
+  // never mount; a signed-out suite checks the whole page instead.
+  if (!opts.signedOut) await page.waitForSelector('.workload-view', { timeout: 20000 });
 
   const close = async () => {
     await context.close().catch(() => {});

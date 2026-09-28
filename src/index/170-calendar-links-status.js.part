@@ -1602,7 +1602,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
             }
         } catch (e) {
             console.warn('[Calendar] save failed', e);
-            if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('calendar', 'status', e);
+            if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('calendar', 'status', e, { card: String(pid || '') });
             // A save that never reached the gateway (older save path, or a
             // failure before sending) is recorded too, without a second notice.
             else if (!gatewayAttempted) _writeUiRecordFailure('calendar', 'status', e, { card: String(pid || '') });
@@ -1610,7 +1610,7 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
                is a real failure for that component: tell the person, and (below)
                put that component back on screen, while the committed one stays
                and goes on syncing. */
-            else if (gatewayCommitted && refusedStatusComponents.length) _writeUiReportFailure('calendar', 'status', e);
+            else if (gatewayCommitted && refusedStatusComponents.length) _writeUiReportFailure('calendar', 'status', e, { card: String(pid || '') });
             /* COMMITTED, THEN A LATER STEP FAILED. The gateway already saved the
                status, so "Save failed" was false and made people redo a change
                that had landed. It is now "Saved, syncing", the remaining step is

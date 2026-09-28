@@ -1509,6 +1509,33 @@ import { _kasperPaintReview } from './330-kasper-review-history.js';
             return isNaN(at.getTime()) ? '' : at.toISOString().slice(0, 16);
         } catch (e) { return ''; }
     }
+    /* OPEN_REPAIRS 101 follow-up (2026-09-28): one record per click. The live
+       proof saw one failed click write three rows, because the page retries a
+       failed save on its own. A save and its retries share one attempt id for
+       ten minutes, so the server attaches each retry to the first row (and
+       counts it) instead of adding rows. The key is the save itself: screen,
+       action, card, component, work item and outcome. A different outcome is
+       a different record. */
+    const WRITE_REFUSAL_ATTEMPT_MS = 10 * 60 * 1000;
+    const _writeRefusalAttempts = new Map();
+    function _writeRefusalAttemptId(key) {
+        const now = Date.now();
+        for (const [k, v] of _writeRefusalAttempts) if (now - v.at > WRITE_REFUSAL_ATTEMPT_MS) _writeRefusalAttempts.delete(k);
+        const hit = _writeRefusalAttempts.get(key);
+        if (hit) return { id: hit.id, retry: true };
+        let id = '';
+        try { id = crypto.randomUUID(); } catch (e) {}
+        if (!id) id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
+        _writeRefusalAttempts.set(key, { id, at: now });
+        return { id, retry: false };
+    }
+    // A save that never reached any server: fetch threw before a response.
+    // It has no status and usually no code, only the browser's own wording.
+    function _writeRefusalIsNetworkFailure(error) {
+        if (!error || error.status || error.code) return false;
+        return error.name === 'TypeError' || error.name === 'AbortError'
+            || /failed to fetch|networkerror|load failed|network request failed|network connection was lost/i.test(String(error.message || ''));
+    }
     function _writeRefusalBeacon(surface, outcome, item, error) {
         if (outcome !== 'ui_write_failure' || _writeRefusalBeaconBudget <= 0) return;
         _writeRefusalBeaconBudget--;
@@ -1533,6 +1560,19 @@ import { _kasperPaintReview } from './330-kasper-review-history.js';
                 page: (typeof _isClientLink !== 'undefined' && _isClientLink) ? 'client_link' : 'staff_page'
             };
             if (status !== null) claim.status = status;
+            if (status === null && _writeRefusalIsNetworkFailure(error)) claim.failure = 'network';
+            /* The client reference: on a client link, the same client slug the
+               save itself sends (production-write hashes that value into its
+               receipts), so one client's problems group together. The server
+               hashes it before storing; it is never stored or shown as text. */
+            if (claim.page === 'client_link' && !identifiers.client_slug) {
+                let slug = '';
+                try { slug = _writeUiSourceClientSlug(surface === 'sxr' ? 'sxr' : 'calendar'); } catch (e) {}
+                if (slug) identifiers.client_slug = String(slug).slice(0, 120);
+            }
+            const attempt = _writeRefusalAttemptId([claim.surface, claim.operation, identifiers.card, context.component,
+                identifiers.id, claim.code, status, claim.failure].map(v => String(v || '')).join('|'));
+            claim.attempt = attempt.id;
             /* OPEN_REPAIRS 101 release A: what the person was told, and which
                build of the page told them. The message is trimmed here and
                cleaned again on the server (emails, links, token-like strings

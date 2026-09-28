@@ -18,3 +18,17 @@ export function browserDetail(body,agent,staffRole){
  const version=typeof body?.app_version==='string'&&VERSION.test(body.app_version)?body.app_version:null;
  return {card_ref:card,ui_action:action,detail,...agentFamily(agent),app_version:version,staff_role:['admin','smm','creative'].includes(staffRole)?staffRole:null};
 }
+// OPEN_REPAIRS 101 follow-up (2026-09-28), two corrections to the receipt the
+// shared builder makes for a browser claim:
+//  - one record per click: the page sends one attempt id for a save and its
+//    automatic retries; reusing it makes a retry a duplicate of the first row
+//    (the database then counts it in `attempts`) instead of a new row;
+//  - a save that never reached a server is 'network_failure' with NO status.
+//    The builder would otherwise call it 'browser_refusal' and invent 500.
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export function shapeBrowserReceipt(receipt,body){
+ const out={...receipt};
+ if(typeof body?.attempt==='string'&&UUID.test(body.attempt))out.attempt_id=body.attempt.toLowerCase();
+ if(body?.failure==='network'){out.code='network_failure';out.status=null;}
+ return out;
+}

@@ -1353,7 +1353,7 @@ import {
         const cell = (v, cls) => '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + (v ? _calEsc(String(v)) : '<span class="sp-muted">-</span>') + '</td>';
         body.innerHTML = summary + '<div class="sp-scroll"><table class="sp-table"><thead><tr><th>When</th><th>Screen</th><th>Action</th><th>Who</th><th>Card</th><th>Error</th><th>Message</th><th>Browser</th><th>App version</th></tr></thead><tbody>' +
             rows.map(r => '<tr>' + cell(_spWhen(r.recorded_at)) + cell(SP_SCREENS[r.surface] || r.surface) + cell(r.ui_action || r.operation) + cell(who(r)) +
-                cell(r.card_ref, 'sp-code') + cell((r.code || '') + (r.status ? ' (' + r.status + ')' : ''), 'sp-code') + cell(r.detail, 'sp-detail') +
+                cell(r.card_ref, 'sp-code') + cell((r.code === 'network_failure' ? 'network failure, no status' : (r.code || '') + (r.status ? ' (' + r.status + ')' : '')) + (Number(r.attempts) > 1 ? ' · ' + r.attempts + ' tries' : ''), 'sp-code') + cell(r.detail, 'sp-detail') +
                 cell([r.browser, r.os].filter(Boolean).join(' / ')) + cell(r.app_version ? r.app_version.replace('T', ' ') + ' UTC' : '') + '</tr>').join('') +
             '</tbody></table></div>';
     }

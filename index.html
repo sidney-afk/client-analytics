@@ -31120,6 +31120,33 @@
             return isNaN(at.getTime()) ? '' : at.toISOString().slice(0, 16);
         } catch (e) { return ''; }
     }
+    /* OPEN_REPAIRS 101 follow-up (2026-09-28): one record per click. The live
+       proof saw one failed click write three rows, because the page retries a
+       failed save on its own. A save and its retries share one attempt id for
+       ten minutes, so the server attaches each retry to the first row (and
+       counts it) instead of adding rows. The key is the save itself: screen,
+       action, card, component, work item and outcome. A different outcome is
+       a different record. */
+    const WRITE_REFUSAL_ATTEMPT_MS = 10 * 60 * 1000;
+    const _writeRefusalAttempts = new Map();
+    function _writeRefusalAttemptId(key) {
+        const now = Date.now();
+        for (const [k, v] of _writeRefusalAttempts) if (now - v.at > WRITE_REFUSAL_ATTEMPT_MS) _writeRefusalAttempts.delete(k);
+        const hit = _writeRefusalAttempts.get(key);
+        if (hit) return { id: hit.id, retry: true };
+        let id = '';
+        try { id = crypto.randomUUID(); } catch (e) {}
+        if (!id) id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
+        _writeRefusalAttempts.set(key, { id, at: now });
+        return { id, retry: false };
+    }
+    // A save that never reached any server: fetch threw before a response.
+    // It has no status and usually no code, only the browser's own wording.
+    function _writeRefusalIsNetworkFailure(error) {
+        if (!error || error.status || error.code) return false;
+        return error.name === 'TypeError' || error.name === 'AbortError'
+            || /failed to fetch|networkerror|load failed|network request failed|network connection was lost/i.test(String(error.message || ''));
+    }
     function _writeRefusalBeacon(surface, outcome, item, error) {
         if (outcome !== 'ui_write_failure' || _writeRefusalBeaconBudget <= 0) return;
         _writeRefusalBeaconBudget--;
@@ -31144,6 +31171,19 @@
                 page: (typeof _isClientLink !== 'undefined' && _isClientLink) ? 'client_link' : 'staff_page'
             };
             if (status !== null) claim.status = status;
+            if (status === null && _writeRefusalIsNetworkFailure(error)) claim.failure = 'network';
+            /* The client reference: on a client link, the same client slug the
+               save itself sends (production-write hashes that value into its
+               receipts), so one client's problems group together. The server
+               hashes it before storing; it is never stored or shown as text. */
+            if (claim.page === 'client_link' && !identifiers.client_slug) {
+                let slug = '';
+                try { slug = _writeUiSourceClientSlug(surface === 'sxr' ? 'sxr' : 'calendar'); } catch (e) {}
+                if (slug) identifiers.client_slug = String(slug).slice(0, 120);
+            }
+            const attempt = _writeRefusalAttemptId([claim.surface, claim.operation, identifiers.card, context.component,
+                identifiers.id, claim.code, status, claim.failure].map(v => String(v || '')).join('|'));
+            claim.attempt = attempt.id;
             /* OPEN_REPAIRS 101 release A: what the person was told, and which
                build of the page told them. The message is trimmed here and
                cleaned again on the server (emails, links, token-like strings
@@ -37966,7 +38006,7 @@
                 return _calPushStatusToLinear(url, st, { post, component: comp, linearOnly: true, sourceEditedAt: post[comp + '_status_updated_at'] || post.updated_at });
             });
         })
-            .catch(e => _writeUiReportFailure('calendar', 'status', e));
+            .catch(e => _writeUiReportFailure('calendar', 'status', e, { card: String(post && post.id || ''), component: String(comp || '') }));
     }
     /* Commit a client/Kasper comment through the authenticated gateway. */
     async function _calPostLinearComment(issueUrl, body, author, meta) {
@@ -45385,7 +45425,7 @@
             }
         } catch (e) {
             console.warn('[Calendar] save failed', e);
-            if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('calendar', 'status', e);
+            if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('calendar', 'status', e, { card: String(pid || '') });
             // A save that never reached the gateway (older save path, or a
             // failure before sending) is recorded too, without a second notice.
             else if (!gatewayAttempted) _writeUiRecordFailure('calendar', 'status', e, { card: String(pid || '') });
@@ -45393,7 +45433,7 @@
                is a real failure for that component: tell the person, and (below)
                put that component back on screen, while the committed one stays
                and goes on syncing. */
-            else if (gatewayCommitted && refusedStatusComponents.length) _writeUiReportFailure('calendar', 'status', e);
+            else if (gatewayCommitted && refusedStatusComponents.length) _writeUiReportFailure('calendar', 'status', e, { card: String(pid || '') });
             /* COMMITTED, THEN A LATER STEP FAILED. The gateway already saved the
                status, so "Save failed" was false and made people redo a change
                that had landed. It is now "Saved, syncing", the remaining step is
@@ -73961,7 +74001,7 @@
                    only the outbound copy to Linear is gone. */
             } catch (e) {
                 console.warn('[Samples] save failed', e);
-                if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', 'status', e);
+                if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', 'status', e, { card: String(pid || '') });
                 _sxrSetCardStatus(realId, 'error', e.message || 'save failed');
                 const iErr = sxrState.posts.findIndex(p => p.id === realId);
                 if (wasNewRow) {
@@ -77809,9 +77849,9 @@
             }
             _sxrKasperState.saving[key] = false;
             _sxrKasperRepaint(pid);
-            if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', linearComment ? 'comment' : 'status', e);
+            if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', linearComment ? 'comment' : 'status', e, { card: String(pid || ''), component: String(comp || '') });
             else {
-                _writeUiRecordFailure('sxr', linearComment ? 'comment' : 'status', e);
+                _writeUiRecordFailure('sxr', linearComment ? 'comment' : 'status', e, { card: String(pid || ''), component: String(comp || '') });
                 if (typeof showNotify === 'function') showNotify(gatewayCommitted ? 'Card sync incomplete' : 'Save failed', gatewayCommitted ? 'The native write is safe; Samples source sync will retry automatically.' : ((e && e.message) || 'Please try again.'));
             }
         }
@@ -82508,7 +82548,7 @@
         const cell = (v, cls) => '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + (v ? _calEsc(String(v)) : '<span class="sp-muted">-</span>') + '</td>';
         body.innerHTML = summary + '<div class="sp-scroll"><table class="sp-table"><thead><tr><th>When</th><th>Screen</th><th>Action</th><th>Who</th><th>Card</th><th>Error</th><th>Message</th><th>Browser</th><th>App version</th></tr></thead><tbody>' +
             rows.map(r => '<tr>' + cell(_spWhen(r.recorded_at)) + cell(SP_SCREENS[r.surface] || r.surface) + cell(r.ui_action || r.operation) + cell(who(r)) +
-                cell(r.card_ref, 'sp-code') + cell((r.code || '') + (r.status ? ' (' + r.status + ')' : ''), 'sp-code') + cell(r.detail, 'sp-detail') +
+                cell(r.card_ref, 'sp-code') + cell((r.code === 'network_failure' ? 'network failure, no status' : (r.code || '') + (r.status ? ' (' + r.status + ')' : '')) + (Number(r.attempts) > 1 ? ' · ' + r.attempts + ' tries' : ''), 'sp-code') + cell(r.detail, 'sp-detail') +
                 cell([r.browser, r.os].filter(Boolean).join(' / ')) + cell(r.app_version ? r.app_version.replace('T', ' ') + ' UTC' : '') + '</tr>').join('') +
             '</tbody></table></div>';
     }

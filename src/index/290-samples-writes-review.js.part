@@ -1584,9 +1584,9 @@ import {
             }
             _sxrKasperState.saving[key] = false;
             _sxrKasperRepaint(pid);
-            if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', linearComment ? 'comment' : 'status', e);
+            if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', linearComment ? 'comment' : 'status', e, { card: String(pid || ''), component: String(comp || '') });
             else {
-                _writeUiRecordFailure('sxr', linearComment ? 'comment' : 'status', e);
+                _writeUiRecordFailure('sxr', linearComment ? 'comment' : 'status', e, { card: String(pid || ''), component: String(comp || '') });
                 if (typeof showNotify === 'function') showNotify(gatewayCommitted ? 'Card sync incomplete' : 'Save failed', gatewayCommitted ? 'The native write is safe; Samples source sync will retry automatically.' : ((e && e.message) || 'Please try again.'));
             }
         }

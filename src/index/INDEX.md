@@ -24,7 +24,7 @@
 | 16 | `098-smm-clients.js.part` | 86 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
 | 17 | `100-onboarding-staff-controls.js.part` | 2388 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 18 | `110-time-off-reports.js.part` | 2207 | Kasper Time Off calendar |
-| 19 | `120-calendar-flags-write-repair.js.part` | 3180 | The members a flag value offers, or null when it offers no member list at |
+| 19 | `120-calendar-flags-write-repair.js.part` | 3220 | The members a flag value offers, or null when it offers no member list at |
 | 20 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
 | 21 | `130-calendar-model-cache.js.part` | 1387 | Returns the comments array for a given component. Falls back to the |
 | 22 | `131-core-html.js.part` | 13 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |

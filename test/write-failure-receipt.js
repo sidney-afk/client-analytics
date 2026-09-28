@@ -119,6 +119,8 @@ const ctx2 = vm.createContext({
   fetch: (url, init) => { beaconCalls.push({ url, headers: init.headers, body: JSON.parse(init.body) }); return Promise.reject(new Error('offline')); },
   document: { lastModified: '09/27/2026 14:05:09' },
   _syncviewStaffIdentityForHeaders: () => ({ key: 'synthetic-staff-key', role: 'smm' }),
+  crypto: require('crypto').webcrypto, Map, Date, Math,
+  _writeUiSourceClientSlug: () => 'synthetic-client',
 });
 vm.runInContext(`
 const localStorage = { _d: {}, getItem(k) { return this._d[k] == null ? null : this._d[k]; }, setItem(k, v) { this._d[k] = String(v); } };
@@ -133,6 +135,10 @@ const CAL_SUPABASE_URL = 'https://synthetic.invalid';
   + 'let _writeRefusalBeaconBudget = WRITE_REFUSAL_BEACON_MAX;\n'
   + grabFunc('_writeUiDiagnosticIds') + '\n'
   + grabFunc('_writeRefusalAppVersion') + '\n'
+  + grabConst('WRITE_REFUSAL_ATTEMPT_MS') + '\n'
+  + grabConst('_writeRefusalAttempts') + '\n'
+  + grabFunc('_writeRefusalAttemptId') + '\n'
+  + grabFunc('_writeRefusalIsNetworkFailure') + '\n'
   + grabFunc('_writeRefusalBeacon') + '\n'
   + grabFunc('_writeUiQueueDiagnostic') + '\n', ctx2);
 const run2 = e => vm.runInContext(e, ctx2);
@@ -191,10 +197,23 @@ run2(`var _isClientLink = true; _writeUiQueueDiagnostic('calendar', 'ui_write_fa
 ok(beaconCalls.length === 2 && beaconCalls[1].body.page === 'client_link' && !('X-Syncview-Key' in beaconCalls[1].headers),
 'a client link never sends a staff key');
 ok(beaconCalls[1].body.message === 'Someone else changed this card', 'the error message rides along, trimmed');
+// OPEN_REPAIRS 101 follow-up (2026-09-28).
+ok(beaconCalls[1].body.identifiers.client_slug === 'synthetic-client',
+'a client link sends the client slug the save uses, so the server can hash it into the same reference');
+ok(/^[0-9a-f-]{36}$/.test(beaconCalls[1].body.attempt), 'every claim carries an attempt id');
+run2(`_writeUiQueueDiagnostic('calendar', 'ui_write_failure', { kind: 'status', card: 'card-B' }, { code: 'write_conflict', message: 'Someone else changed this card' });`);
+ok(beaconCalls.length === 3 && beaconCalls[2].body.attempt === beaconCalls[1].body.attempt,
+'an automatic retry of the same save reuses the first attempt id (one record per click)');
+run2(`_writeUiQueueDiagnostic('calendar', 'ui_write_failure', { kind: 'status', card: 'card-C' }, Object.assign(new TypeError('Failed to fetch')));`);
+const net = beaconCalls[3].body;
+ok(net.failure === 'network' && !('status' in net) && net.attempt !== beaconCalls[1].body.attempt,
+'a save that never reached a server is flagged as a network failure, with no status, as its own record');
+run2(`_writeUiQueueDiagnostic('calendar', 'ui_write_failure', { kind: 'status', card: 'card-D' }, { code: 'write_conflict', status: 409, message: 'Failed to fetch' });`);
+ok(!('failure' in beaconCalls[4].body), 'a real server answer is never called a network failure');
 run2(`_isClientLink = false;`);
 
 run2(`_writeUiQueueDiagnostic('calendar', 'drained', { kind: 'status', payload: { nested: { deep: 'x' } }, id: { not: 'a scalar' } });`);
-ok(beaconCalls.length === 2, 'an outcome that is not a write failure never reports');
+ok(beaconCalls.length === 5, 'an outcome that is not a write failure never reports');
 const row2 = JSON.parse(run2(`localStorage.getItem(WRITE_UI_QUEUE_DIAG_KEY)`))[1];
 ok(row2.id === undefined && row2.nested === undefined,
 'a non-scalar under an allowlisted key is dropped rather than serialized');

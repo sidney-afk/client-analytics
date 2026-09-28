@@ -576,7 +576,7 @@ import {
                    only the outbound copy to Linear is gone. */
             } catch (e) {
                 console.warn('[Samples] save failed', e);
-                if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', 'status', e);
+                if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', 'status', e, { card: String(pid || '') });
                 _sxrSetCardStatus(realId, 'error', e.message || 'save failed');
                 const iErr = sxrState.posts.findIndex(p => p.id === realId);
                 if (wasNewRow) {

@@ -6,6 +6,7 @@ const DEFAULT_BASE_URL = 'https://synchrosocial.app.n8n.cloud';
 const DEFAULT_TIME_ZONE = 'America/Guatemala';
 const DEFAULT_THRESHOLDS = Object.freeze([80, 90]);
 const DEFAULT_ALERT_WORKFLOW_ID = 'Tfhc3vebZyG6obOg';
+const DEFAULT_MAX_HISTORY_DAYS = 14;
 
 function clean(value) {
   return String(value == null ? '' : value).trim();
@@ -117,23 +118,70 @@ async function readMonthlyExecutionCount({
   timeZone = DEFAULT_TIME_ZONE,
   fetchImpl = fetch,
   sleepImpl = sleep,
+  checkpoint = null,
+  maxHistoryDays = DEFAULT_MAX_HISTORY_DAYS,
 } = {}) {
   if (!clean(apiKey)) throw new Error('N8N_API_KEY is required');
   const window = monthWindow(now, timeZone);
   const root = clean(baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, '');
   const effectiveEnd = new Date(Math.min(now.getTime(), window.end.getTime()));
-  const url = new URL(`${root}/api/v1/insights/summary`);
-  url.searchParams.set('startDate', window.start.toISOString());
-  url.searchParams.set('endDate', effectiveEnd.toISOString());
-  const payload = await fetchJson(url, {
-    method: 'GET',
-    headers: { 'X-N8N-API-KEY': apiKey, accept: 'application/json' },
-  }, { fetchImpl, sleepImpl });
-  const total = Number(payload && payload.total && payload.total.value);
-  const failed = Number(payload && payload.failed && payload.failed.value);
-  if (!Number.isFinite(total) || total < 0 || payload.total.unit !== 'count') {
-    throw new Error('n8n Insights response did not contain a valid production execution total');
+  const historyDays = positiveNumber(maxHistoryDays, 'licensed Insights history days');
+  if (!Number.isInteger(historyDays)) throw new Error('licensed Insights history days must be an integer');
+  const today = zonedParts(now, timeZone);
+  const todayStart = zonedLocalToUtc({ year: today.year, month: today.month, day: today.day }, timeZone);
+  const tomorrow = zonedParts(new Date(todayStart.getTime() + 36 * 3600 * 1000), timeZone);
+  const tomorrowStart = zonedLocalToUtc({ year: tomorrow.year, month: tomorrow.month, day: tomorrow.day }, timeZone);
+  const safeStart = zonedLocalToUtc({ year: today.year, month: today.month, day: today.day - historyDays }, timeZone);
+
+  async function count(start, end) {
+    if (start < safeStart) throw new Error(`n8n quota coverage unavailable: ${start.toISOString()} is older than the configured ${historyDays}-day Insights history; a complete monthly checkpoint is required`);
+    const url = new URL(`${root}/api/v1/insights/summary`);
+    url.searchParams.set('startDate', start.toISOString());
+    url.searchParams.set('endDate', end.toISOString());
+    url.searchParams.set('timeZone', timeZone);
+    const payload = await fetchJson(url, {
+      method: 'GET',
+      headers: { 'X-N8N-API-KEY': apiKey, accept: 'application/json' },
+    }, { fetchImpl, sleepImpl });
+    const total = Number(payload?.total?.value);
+    const failed = Number(payload?.failed?.value);
+    if (!payload?.total || !Number.isSafeInteger(total) || total < 0 || payload.total.unit !== 'count') {
+      throw new Error('n8n Insights response did not contain a valid production execution total');
+    }
+    return { total, failed: payload?.failed && Number.isSafeInteger(failed) && failed >= 0 && payload.failed.unit === 'count' ? failed : null };
   }
+
+  // A past end date includes that whole local day in n8n. Save only complete days;
+  // the current day is read again on every run, so late events cannot disappear.
+  let completeDays = { total: 0, failed: 0 };
+  let start = window.start;
+  if (checkpoint) {
+    if (checkpoint.month !== window.key || checkpoint.time_zone !== timeZone ||
+        !Number.isSafeInteger(checkpoint.execution_count) || checkpoint.execution_count < 0 ||
+        (checkpoint.failed_count !== null && (!Number.isSafeInteger(checkpoint.failed_count) || checkpoint.failed_count < 0)) ||
+        !Number.isFinite(Date.parse(checkpoint.through)) ||
+        checkpoint.through < window.start.toISOString() || checkpoint.through > todayStart.toISOString() ||
+        checkpoint.through !== zonedLocalToUtc({
+          year: zonedParts(new Date(checkpoint.through), timeZone).year,
+          month: zonedParts(new Date(checkpoint.through), timeZone).month,
+          day: zonedParts(new Date(checkpoint.through), timeZone).day,
+        }, timeZone).toISOString()) {
+      throw new Error('n8n quota checkpoint is invalid for this month or time zone');
+    }
+    start = new Date(checkpoint.through);
+    completeDays = { total: checkpoint.execution_count, failed: checkpoint.failed_count };
+  }
+  if (start < todayStart) {
+    const next = await count(start, todayStart);
+    completeDays = { total: completeDays.total + next.total, failed: next.failed === null ? null : completeDays.failed === null ? null : completeDays.failed + next.failed };
+    start = todayStart;
+  }
+  if (start.getTime() !== todayStart.getTime()) throw new Error('n8n quota checkpoint did not reach the current local day');
+  // Tomorrow's bound keeps a one-day query out of n8n's hourly-only mode.
+  // No future executions exist; this includes all current production events.
+  const current = await count(todayStart, tomorrowStart);
+  const total = completeDays.total + current.total;
+  const failed = completeDays.failed === null || current.failed === null ? null : completeDays.failed + current.failed;
 
   return {
     month: window.key,
@@ -144,6 +192,7 @@ async function readMonthlyExecutionCount({
     failed_count: Number.isFinite(failed) && failed >= 0 ? failed : null,
     source: 'n8n_insights_summary',
     complete: true,
+    checkpoint: { month: window.key, time_zone: timeZone, through: todayStart.toISOString(), execution_count: completeDays.total, failed_count: completeDays.failed },
   };
 }
 
@@ -283,6 +332,9 @@ async function main(env = process.env) {
     apiKey: env.N8N_API_KEY,
     now,
     timeZone,
+    checkpoint: env.N8N_QUOTA_CHECKPOINT_PATH && fs.existsSync(env.N8N_QUOTA_CHECKPOINT_PATH)
+      ? JSON.parse(fs.readFileSync(env.N8N_QUOTA_CHECKPOINT_PATH, 'utf8')) : null,
+    maxHistoryDays: env.N8N_QUOTA_MAX_HISTORY_DAYS || DEFAULT_MAX_HISTORY_DAYS,
   });
   const assessment = evaluateThresholds({
     count: usage.execution_count,
@@ -318,6 +370,10 @@ async function main(env = process.env) {
   }
 
   output('month', usage.month);
+  if (clean(env.N8N_QUOTA_CHECKPOINT_PATH)) {
+    fs.mkdirSync(require('path').dirname(env.N8N_QUOTA_CHECKPOINT_PATH), { recursive: true });
+    fs.writeFileSync(env.N8N_QUOTA_CHECKPOINT_PATH, `${JSON.stringify(usage.checkpoint)}\n`);
+  }
   output('execution_count', usage.execution_count);
   output('remaining', assessment.remaining);
   output('percent', assessment.percent.toFixed(4));

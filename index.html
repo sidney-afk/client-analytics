@@ -23724,7 +23724,7 @@
        their own tabs, which is also when they are saved to this browser. So
        before a switch leaves the address, each one is read here once: it is
        saved exactly as if its tab had opened, and nothing is lost (Codex on
-       #1798). */
+       PR 1798). */
     function _svAddressPage(search, hash) {
         const q = new URLSearchParams(search || '');
         if (q.get('prod') === '1') return 'production';

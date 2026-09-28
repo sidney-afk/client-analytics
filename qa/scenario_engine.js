@@ -511,7 +511,7 @@ async function smmDeleteComment(page, id, comp) {
 }
 async function kasperAct(page, name, comp, kind, text) {
   // ensure on samples sub-tab + fresh queue
-  await page.evaluate(() => { const b = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'); if (b) b.click(); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
+  await page.evaluate(() => { if (typeof _kasperGotoTab === 'function' && (typeof _kasperState === 'undefined' || !_kasperState || _kasperState.tab !== 'review')) _kasperGotoTab('review'); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
   await page.waitForFunction((n) => [...document.querySelectorAll('#kasperContent .kcard.cal-review-card')].some(c => (c.querySelector('.kcard-title') || {}).textContent === n), name, { timeout: 12000 }).catch(() => {});
   await expandKasper(page, name);
   if (kind !== 'approve') {
@@ -537,7 +537,7 @@ async function kasperUndo(page) {
 }
 // Card-level Kasper queue actions: 'finish' (kcard-done-btn) or 'close' (kcard-close-btn).
 async function kasperCardAction(page, name, which) {
-  await page.evaluate(() => { const b = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'); if (b) b.click(); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
+  await page.evaluate(() => { if (typeof _kasperGotoTab === 'function' && (typeof _kasperState === 'undefined' || !_kasperState || _kasperState.tab !== 'review')) _kasperGotoTab('review'); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
   await page.waitForFunction((n) => [...document.querySelectorAll('#kasperContent .kcard.cal-review-card')].some(c => (c.querySelector('.kcard-title') || {}).textContent === n), name, { timeout: 12000 }).catch(() => {});
   return page.evaluate((args) => {
     const [n, which] = args;
@@ -554,7 +554,7 @@ async function kasperCardAction(page, name, which) {
 // flakes present/absent right after a status change or a note.
 async function kasperCardState(page, name, want) {
   const readOnce = async () => {
-    await page.evaluate(() => { const b = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'); if (b) b.click(); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
+    await page.evaluate(() => { if (typeof _kasperGotoTab === 'function' && (typeof _kasperState === 'undefined' || !_kasperState || _kasperState.tab !== 'review')) _kasperGotoTab('review'); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
     await sleep(page, 2500);
     return page.evaluate((n) => {
       const card = [...document.querySelectorAll('#kasperContent .kcard.cal-review-card')].find(c => (c.querySelector('.kcard-title') || {}).textContent === n);

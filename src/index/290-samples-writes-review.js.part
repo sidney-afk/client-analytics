@@ -1171,7 +1171,7 @@ import {
        Tweaks Needed + a kasper-role tweak comment. Pushes status/comments to Linear.
        v1 omits URGENT + the Replies/Messages union (per SAMPLES_PARITY_LOG M5a).
        ============================================================ */
-    const _sxrKasperState = { items: [], history: [], loading: false, loaded: false, error: false, expanded: Object.create(null), drafts: Object.create(null), saving: Object.create(null), touched: Object.create(null), dismissed: Object.create(null), closed: Object.create(null), historyCollapsed: false };
+    const _sxrKasperState = { items: [], history: [], loading: false, reloadPending: false, writeGen: 0, loaded: false, error: false, expanded: Object.create(null), drafts: Object.create(null), saving: Object.create(null), touched: Object.create(null), dismissed: Object.create(null), closed: Object.create(null), historyCollapsed: false };
     // Per-component Kasper-queue visibility (mirror of _calCompKasperVisible):
     //  · an UNLINKED thumbnail is not reviewable — gated out so a junk
     //    'Kasper Approval' graphic_status can't surface a panel nobody can act on;
@@ -1264,7 +1264,12 @@ import {
         return await _sxrSupabaseFetchAllRows(baseUrl);   // cross-client (no client filter)
     }
     async function _sxrKasperLoadQueue(force) {
-        if (_sxrKasperState.loading) return;
+        // A refresh asked for while one is in flight must not be dropped: the
+        // running fetch may predate the write that triggered this call, which
+        // left the queue showing a decided card until the next unrelated reload.
+        if (_sxrKasperState.loading) { _sxrKasperState.reloadPending = true; return; }
+        _sxrKasperState.reloadPending = false;
+        const startGen = _sxrKasperState.writeGen;
         _sxrKasperState.loading = true; _sxrKasperState.error = false;
         if (force) _sxrKasperRenderQueue();
         try {
@@ -1273,6 +1278,10 @@ import {
                 _sxrKasperFetchAllSamples(),
                 _kasperLoadSMMMap().catch(() => new Map()),
             ]);
+            // A decision made while this read was in flight may not be in it.
+            // Drop the rows rather than replace the item the save is still
+            // mutating, and read again once this load ends.
+            if (_sxrKasperState.writeGen !== startGen || Object.values(_sxrKasperState.saving || {}).some(Boolean)) { _sxrKasperState.reloadPending = true; return; }
             _sxrKasperState.smmByClient = smmMap;
             const items = [];
             const keepDismissed = new Set();
@@ -1309,7 +1318,10 @@ import {
             _sxrKasperState.items = items; _sxrKasperState.loaded = true;
             setTimeout(() => { if (typeof _sxrKasperResumeSourceRepairs === 'function') _sxrKasperResumeSourceRepairs(); }, 0);
         } catch (e) { _sxrKasperState.error = true; }
-        finally { _sxrKasperState.loading = false; _sxrKasperRenderQueue(); }
+        finally {
+            _sxrKasperState.loading = false; _sxrKasperRenderQueue();
+            if (_sxrKasperState.reloadPending) setTimeout(() => _sxrKasperLoadQueue(), 0);
+        }
     }
     function _sxrKasperRenderQueue() {
         // Samples are listed in Kasper's Review queue (the separate Samples
@@ -1484,6 +1496,7 @@ import {
     async function _sxrKasperApplyAndPersist(pid, comp, mutate, linearComment, afterPersist) {
         const it = _sxrKasperFindItem(pid); if (!it) return;
         const key = pid + '|' + comp; if (_sxrKasperState.saving[key]) return;
+        _sxrKasperState.writeGen++;
         const p = it.post;
         const cachedRepair = p._writeUiKasperRepair
             || ((_kasperState && _kasperState.sxrRepairs) || []).find(row => row && row.id === p.id && row.slug === it.slug);
@@ -1596,6 +1609,7 @@ import {
             _kasperState.sxrRepairs = (_kasperState.sxrRepairs || []).filter(row => row && row.id !== p.id);
             _kasperPersistCache();
             _sxrKasperState.saving[key] = false;
+            _sxrKasperState.writeGen++;
             _sxrSetLastLocalWriteAt(Date.now());   // echo lands a beat after the write resolves
             // Pin the card in the queue (touched) — it no longer auto-vanishes when
             // a component leaves Kasper Approval. It only leaves via "Finish

@@ -111,7 +111,30 @@ async function callFrom(page, key) {
     await p4.goto(`http://127.0.0.1:${server.address().port}/`);
     assert.equal((await readFrom(p4, STAFF_GATE_KEY)).body.from, 'network', 'keepAnalyticsRead leaves the suite mock in charge');
     await keep.close();
-    console.log('staff-gate-stub-refusal-local: 14 checks passed ✅');
+
+    // Case 5 (2026-09-28): the page must see analytics_mirror_read_enabled as
+    // ABSENT, so a staff page never POSTs analytics-read at all; every other
+    // flag in the same read still reaches the next handler untouched.
+    const FLAGS = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/syncview_runtime_flags';
+    const flagCtx = await browser.newContext();
+    const asked = [];
+    await flagCtx.route('**/rest/v1/syncview_runtime_flags*', route => {
+      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } });
+      asked.push(new URL(route.request().url()).searchParams.get('key'));
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '[]' });
+    });
+    await seedStaffGate(flagCtx);
+    const p5 = await flagCtx.newPage();
+    await p5.goto(`http://127.0.0.1:${server.address().port}/`);
+    const get = q => p5.evaluate(u => fetch(u).then(r => r.status), FLAGS + q);
+    await get('?select=key,value&key=in.(' + encodeURIComponent('prod_authority,analytics_mirror_read_enabled,pto_v1') + ')&limit=3');
+    await get('?select=value&key=eq.analytics_mirror_read_enabled&limit=1');
+    await get('?select=value&key=eq.pto_v1&limit=1');
+    assert.equal(asked[0], 'in.(prod_authority,pto_v1)', 'the batch read keeps every other flag and drops the mirror flag');
+    assert.ok(!/analytics_mirror_read_enabled/.test(asked[1]), 'the single mirror-flag read never asks for the real flag');
+    assert.equal(asked[2], 'eq.pto_v1', 'an unrelated single-flag read is untouched');
+    await flagCtx.close();
+    console.log('staff-gate-stub-refusal-local: 17 checks passed ✅');
   } finally {
     await browser.close();
     server.close();

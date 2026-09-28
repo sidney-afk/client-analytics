@@ -38,7 +38,7 @@ async function sendNote(page, text) {
     up({ id: id1, name: 'RACE dbl ' + ts, order_index: 1, video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval', linear_issue_id: 'https://linear.app/x/VID-R1' + ts, graphic_linear_issue_id: 'https://linear.app/x/GRA-R1' + ts });
     await sleep(1500);
     const kp = await kasper(browser);
-    await kp.evaluate(() => { const b = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'); if (b) b.click(); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
+    await kp.evaluate(() => { if (typeof _kasperGotoTab === 'function' && (typeof _kasperState === 'undefined' || !_kasperState || _kasperState.tab !== 'review')) _kasperGotoTab('review'); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
     await kp.waitForFunction((cid) => (typeof _sxrKasperFindItem === 'function') && !!_sxrKasperFindItem(cid), id1, { timeout: 20000 });
     await kp.evaluate((cid) => { _sxrKasperApproveComp(cid, 'video'); _sxrKasperApproveComp(cid, 'video'); }, id1);
     // Poll until the write lands (fixed sleeps flake under the courier); on a
@@ -84,7 +84,7 @@ async function sendNote(page, text) {
     up({ id: id3, name: 'RACE xc ' + ts, order_index: 3, video_status: 'Kasper Approval', graphic_status: 'Tweaks Needed', status: 'Kasper Approval', linear_issue_id: 'https://linear.app/x/VID-R3' + ts, graphic_linear_issue_id: 'https://linear.app/x/GRA-R3' + ts });
     await sleep(1500);
     const kp3 = await kasper(browser);
-    await kp3.evaluate(() => { const b = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'); if (b) b.click(); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
+    await kp3.evaluate(() => { if (typeof _kasperGotoTab === 'function' && (typeof _kasperState === 'undefined' || !_kasperState || _kasperState.tab !== 'review')) _kasperGotoTab('review'); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
     await kp3.waitForFunction((cid) => (typeof _sxrKasperFindItem === 'function') && !!_sxrKasperFindItem(cid), id3, { timeout: 20000 });
     const smm3 = await smm(browser);
     await smm3.waitForFunction((cid) => !!document.querySelector(`#sxrStrip .cal-card[data-pid="${cid}"]`), id3, { timeout: 15000 });

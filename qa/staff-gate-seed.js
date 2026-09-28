@@ -200,11 +200,44 @@ async function answerStubKeyAnalyticsRead(target) {
   });
 }
 
+// The answer above still counts as a request: prod-structure-subset and
+// prod-comments-browser fail on ANY write-like request, and a POST to
+// functions/v1/analytics-read is one even when answered locally (diagnosed
+// 2026-09-28 with the trial on: their only marker was 'analytics-read'). So
+// the harness also makes the page see analytics_mirror_read_enabled as ABSENT,
+// which the app reads as off: the staff page then never calls analytics-read.
+// The flag's key is removed from the page's runtime-flag reads (the boot
+// batch `key=in.(...)` and the single `key=eq.` read) and the request then
+// FALLS BACK, rewritten, to whatever answers it next -- a suite's own flag
+// mock or the network -- so every other flag is untouched.
+const ANALYTICS_MIRROR_FLAG = 'analytics_mirror_read_enabled';
+async function hideAnalyticsMirrorFlag(target) {
+  await target.route(url => /\/rest\/v1\/syncview_runtime_flags/.test(url.toString())
+    && decodeURIComponent(url.toString()).includes(ANALYTICS_MIRROR_FLAG), route => {
+    const request = route.request();
+    if (request.method() !== 'GET') return route.fallback();
+    const url = new URL(request.url());
+    const key = url.searchParams.get('key') || '';
+    if (key.startsWith('eq.')) {
+      url.searchParams.set('key', 'eq.__harness_analytics_mirror_absent');
+    } else if (key.startsWith('in.(') && key.endsWith(')')) {
+      const keys = key.slice(4, -1).split(',').filter(k => k.trim() !== ANALYTICS_MIRROR_FLAG);
+      url.searchParams.set('key', 'in.(' + (keys.length ? keys.join(',') : '__harness_analytics_mirror_absent') + ')');
+    } else {
+      return route.fallback();
+    }
+    return route.fallback({ url: url.toString() });
+  });
+}
+
 async function seedStaffGate(target, options) {
   await target.addInitScript(staffGateInit, staffGateIdentityJson());
   if (options && options.dropVerificationAfterBoot) await dropVerificationAfterBoot(target);
   await refuseStubKeyProductionWrite(target);
-  if (!(options && options.keepAnalyticsRead)) await answerStubKeyAnalyticsRead(target);
+  if (!(options && options.keepAnalyticsRead)) {
+    await answerStubKeyAnalyticsRead(target);
+    await hideAnalyticsMirrorFlag(target);
+  }
   await target.route('**/functions/v1/key-verify', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -212,4 +245,4 @@ async function seedStaffGate(target, options) {
   }));
 }
 
-module.exports = { seedStaffGate, refuseStubKeyProductionWrite, answerStubKeyAnalyticsRead, isStubKeyProductionWrite, isFakeStaffKey, seedStaffIdentity, dropVerificationAfterBoot, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };
+module.exports = { seedStaffGate, refuseStubKeyProductionWrite, answerStubKeyAnalyticsRead, hideAnalyticsMirrorFlag, isStubKeyProductionWrite, isFakeStaffKey, seedStaffIdentity, dropVerificationAfterBoot, staffGateIdentityJson, STAFF_GATE_KEY, STAFF_GATE_MEMBER };

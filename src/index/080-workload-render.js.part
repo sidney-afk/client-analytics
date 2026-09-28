@@ -35,15 +35,12 @@ import {
   wlTeamBucket
 } from './071-workload-planner.js';
 import { wlClosePopover, wlOpenRollupPopover } from './090-workload-popovers.js';
-import { navTo } from './092-core-submit-form-navigation.js';
 import {
   CAL_SUPABASE_ANON_KEY, WORKLOAD_LINEAR_URL, WORKLOAD_PLAN_URL, _syncviewCreativeMe,
   _syncviewRequireStaffIdentity, _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders
 } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
-import { _calSetFocusRequest } from './130-calendar-model-cache.js';
 import { _svLoadingSkeletonHtml, _svSkel } from './133-core-loading-skeletons.js';
-import { _calGetPins, _calSavePins } from './134-calendar-prefs-mount.js';
 import { PROD_WRITE_EF_URL } from './210-production-state-writes.js';
 import { _prodApplyGatewayRow } from './230-production-create-comments.js';
     /* Smart default: a creative lands on their own work (see
@@ -1837,32 +1834,6 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
        snapshot would remove the need for the message; that is a projection
        change in the calendar's own region and is recorded in OPEN_REPAIRS 169
        rather than done here. */
-    function wlOpenInContentCalendar(clientName, identifier, nativeId) {
-        const canon = wlCanonicalClient(clientName);
-        if (!canon) return;
-        const ident = String(identifier || '').toUpperCase();
-        // Codex review, PR for OPEN_REPAIRS 218 (fix 3): a native row carries
-        // no Linear identifier at all, so `ident` alone left every native
-        // deliverable unmatchable and this notice fired unconditionally for
-        // it. `nativeId` (the row's OWN id, not a Linear string) is carried
-        // as its own field rather than folded into `identifier` -- folding it
-        // in would have sent it through `ident`'s uppercase-only sanitizing
-        // in _calApplyFocusRequest, which strips underscores and lowercase
-        // hex and mangles a UUID/native id. The notice now only fires when
-        // NEITHER identity is available to match on.
-        const nid = String(nativeId || '').trim();
-        if (!ident && !nid) {
-            showNotify('Opening the calendar, not the card',
-                'This deliverable has no Linear identifier, so it cannot be matched to a calendar card yet. '
-                + canon + "'s calendar is opening; find the card by title.");
-        }
-        _calSetFocusRequest({ client: canon, identifier: ident, nativeId: nid });
-        try {
-            const pins = _calGetPins();
-            if (!pins.includes(canon)) { pins.push(canon); _calSavePins(pins); }
-        } catch (e) {}
-        navTo('calendar');
-    }
 
     function wlPassesFilters(sub) {
         if (wlState.team !== 'all' && wlTeamBucket(sub.teamKey, sub.teamName) !== wlState.team) return false;
@@ -3440,5 +3411,5 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
 export {
   initWorkloadView, renderWorkloadAll, wlAdoptNativeDueGatewayRow, wlApplyData,
   wlClearBackgroundRefreshFailure, wlDueWriteRoute, wlEscape, wlMarkBackgroundRefreshFailure,
-  wlPublishNativeDueReceipt, wlRefetchSilent, wlRefreshSensitiveStateSilent, wlOpenInContentCalendar, wlSyncLinearUrl
+  wlPublishNativeDueReceipt, wlRefetchSilent, wlRefreshSensitiveStateSilent, wlSyncLinearUrl
 };

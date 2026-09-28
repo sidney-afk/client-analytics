@@ -63,6 +63,7 @@ const LAZY_VIEWS = {
     { route: 'templates', drawn: '.tpl-index-centered, [data-sv-save-ind="templates"]' },
     { route: 'filming-plans', drawn: '.fp-view' },
   ],
+  workload: [{ route: 'workload', drawn: '.workload-view' }],
 };
 async function lazyChecks(browser, origin, failures) {
   const lazyNames = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'index', 'split.json'), 'utf8')).lazy || [];

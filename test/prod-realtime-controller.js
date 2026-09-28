@@ -17,7 +17,9 @@ assert.ok(a > 0 && b > a, 'controller markers present');
 const _prodRtCreate = new Function(src.slice(a, b) + '\nreturn _prodRtCreate;')();
 
 // The wiring the page relies on.
-assert.ok(/getClient: \(\) => _wlV2Client\(\)/.test(src), 'reuses the shared supabase-js client');
+// Through the on-demand Workload area, which registers its own client.
+assert.ok(/getClient: \(\) => svArea\('workload'\)\.then\(wl => wl\.v2Client\(\), \(\) => null\)/.test(src)
+  && /v2Client: _wlV2Client,/.test(fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8')), 'reuses the shared supabase-js client');
 assert.ok(/refresh: \(o\) => _prodDeltaRefresh\(\{ full: !!\(o && o\.full\) \}\)/.test(src), 'events feed the existing delta refresh');
 const stale = Number((fs.readFileSync(path.join(__dirname, '..', 'src/index/250-production-controls-data.js.part'), 'utf8').match(/const PROD_STALE_AFTER_MS = (\d+);/) || [])[1]);
 const slow = Number((src.match(/const PROD_RT_SLOW_POLL_MS = (\d+);/) || [])[1]);

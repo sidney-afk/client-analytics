@@ -40,7 +40,6 @@ button 280-samples-cards-notes.js.part _prodProjectCanonicalCardComments
 guard 060-templates-filming.js.part _kasperRefreshTabCounts
 guard 080-workload-render.js.part _prodApplyGatewayRow
 guard 092-core-submit-form-navigation.js.part _kasperTeardown
-guard 092-core-submit-form-navigation.js.part _wlV2Teardown
 guard 100-onboarding-staff-controls.js.part _caPurgeSensitiveState
 guard 100-onboarding-staff-controls.js.part _ccCloseModal
 guard 100-onboarding-staff-controls.js.part _ccCloseSelect
@@ -52,13 +51,9 @@ guard 100-onboarding-staff-controls.js.part _prodCachePurge
 guard 100-onboarding-staff-controls.js.part _prodClearLayer
 guard 100-onboarding-staff-controls.js.part _srpPurgeSensitiveState
 guard 100-onboarding-staff-controls.js.part _svStaffPageRender
-guard 100-onboarding-staff-controls.js.part wlPurgePlanSensitiveState
-guard 100-onboarding-staff-controls.js.part wlRefreshSensitiveStateSilent
 guard 110-time-off.js.part renderKasperView
 guard 120-calendar-flags-write-repair.js.part _kasperPaintReview
 guard 200-intake-data-startup.js.part _kasperCalCachePrune
-guard 230-production-create-comments.js.part wlAdoptNativeDueGatewayRow
-guard 230-production-create-comments.js.part wlPublishNativeDueReceipt
 guard 270-samples-model.js.part _kasperOpenLightbox
 guard 290-samples-writes-review.js.part _kasperPaintReview
 guard 290-samples-writes-review.js.part _kasperRefreshTabCounts

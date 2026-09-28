@@ -88,7 +88,31 @@
         error: null
     };
 
+
+    /* Workload v2 read switch (the rest of v2 is in 067). Here, in core,
+       because the router (092 _svNavQuery) reads the sticky ?wl2 choice before
+       leaving the address, whether or not Workload has loaded. */
+    const WL_V2_LS_KEY         = 'syncview_workload_v2';
+    const WL_V2_KILL_KEY       = 'syncview_workload_v2_off';
+    let _wlV2FlagCache = null;
+    function _wlV2Enabled() {
+        if (_wlV2FlagCache !== null) return _wlV2FlagCache;
+        // Phase 3 (2026-06-17): v2 is now the DEFAULT — the Supabase read path is
+        // ON for everyone (webhook fast-path is live, ~2s reassignments). ?wl2=0 is
+        // a sticky per-browser kill-switch; ?wl2=1 force-enables / clears an opt-out.
+        // Rollback for everyone = set this default back to false; the Supabase read
+        // always falls back to the live linear-issues endpoint, so a flip is lossless.
+        let on = true;
+        try {
+            const q = new URLSearchParams(svRoute.search()).get('wl2');
+            if (q === '1' || q === 'true') { on = true; localStorage.setItem(WL_V2_LS_KEY, '1'); localStorage.removeItem(WL_V2_KILL_KEY); }
+            else if (q === '0' || q === 'false') { on = false; localStorage.setItem(WL_V2_KILL_KEY, '1'); localStorage.removeItem(WL_V2_LS_KEY); }
+            else { on = (localStorage.getItem(WL_V2_KILL_KEY) !== '1'); }
+        } catch { on = true; }
+        _wlV2FlagCache = on;
+        return on;
+    }
 export {
   LINEAR_ISSUES_CACHE_KEY, LINEAR_ISSUES_TTL_MS, LINEAR_ISSUES_WEBHOOK, WL_CACHED_BOARD_MAX_AGE_MS,
-  WL_DEADLINE_PREF_KEY, WL_LEGACY_CACHE_KEY, WL_VIEW_PREF_KEY, wlState
+  WL_DEADLINE_PREF_KEY, WL_LEGACY_CACHE_KEY, WL_VIEW_PREF_KEY, _wlV2Enabled, wlState
 };

@@ -45,7 +45,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const { readModuleList, servedBytes } = require('./index-modules');
+const { readModuleList } = require('./index-modules');
+const { buildOutputs } = require('./index-split');
 
 const ROOT = path.resolve(__dirname, '..');
 const SRC_DIR = path.join(ROOT, 'src', 'index');
@@ -210,8 +211,23 @@ function main() {
   // scripts/index-modules.js). INDEX.md still describes the fragment as written.
   const modules = readModuleList(SRC_DIR);
   for (const m of modules) if (!entries.includes(m)) fail('modules.txt lists a fragment that is not in the manifest: ' + m);
-  const assembled = Buffer.concat(entries.map((entry, i) => servedBytes(entry, fragmentBufs[i], modules)));
+  // src/index/split.json decides whether index.html is one file or a loader
+  // plus js/ files (scripts/index-split.js). --force-split[=parts] builds the
+  // split version regardless, for the split-preview CI job only.
+  const forceArg = process.argv.find((a) => a.startsWith('--force-split'));
+  const force = forceArg ? (forceArg.split('=')[1] || 'split') : null;
+  if (force && force !== 'split' && force !== 'parts') fail('--force-split takes no value or =parts');
+  let outputs;
+  try { outputs = buildOutputs(SRC_DIR, entries, fragmentBufs, modules, force); } catch (e) { fail(e.message); }
+  const assembled = outputs.get('index.html');
   fs.writeFileSync(OUTPUT_PATH, assembled);
+  for (const [rel, buf] of outputs) {
+    if (rel === 'index.html') continue;
+    const full = path.join(ROOT, rel);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    if (!fs.existsSync(full)) fs.writeFileSync(full, buf);
+    console.log('build-index: ' + rel + ' (' + buf.length + ' bytes)');
+  }
 
   const indexMd = buildIndexMd(entries, fragmentBufs);
   fs.writeFileSync(INDEX_MD_PATH, indexMd);

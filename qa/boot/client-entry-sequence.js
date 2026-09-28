@@ -14,7 +14,11 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..');
 const INDEX_PATH = path.join(ROOT, 'index.html');
 const INDEX_HTML = fs.readFileSync(INDEX_PATH, 'utf8');
-const MAIN_SCRIPT_MARKER = '<script>\n    const SYNCVIEW_THEME_KEY';
+// The main script is either inline, or (src/index/split.json on) the loader
+// that writes the js/ scripts in its place (scripts/index-split.js). The split
+// point is the same either way: the moment the page reaches its code.
+const MAIN_SCRIPT_MARKER = ['<script>\n    const SYNCVIEW_THEME_KEY', '<script>\n    /* SyncView loader.']
+  .find(marker => INDEX_HTML.includes(marker)) || '<script>\n    const SYNCVIEW_THEME_KEY';
 const MAIN_SCRIPT_OFFSET = INDEX_HTML.indexOf(MAIN_SCRIPT_MARKER);
 
 assert.notEqual(
@@ -239,6 +243,13 @@ function startStreamServer() {
         'cache-control': 'no-store',
       });
       response.end('<!doctype html><html><body><main data-boot-away>Outside the client entry document</main></body></html>');
+      return;
+    }
+    // The split build's code files (scripts/index-split.js), served as-is.
+    const splitFile = /^\/js\/sv-[\w-]+\.js$/.test(requestUrl.pathname) && path.join(ROOT, requestUrl.pathname);
+    if (splitFile && fs.existsSync(splitFile)) {
+      response.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store' });
+      response.end(fs.readFileSync(splitFile));
       return;
     }
     const isBfcacheDocument = requestUrl.pathname === '/bfcache.html';

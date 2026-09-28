@@ -74193,15 +74193,68 @@
             _sxrRenderBody();
             try { _sxrCacheWrite(slug, sxrState.posts); } catch (e) {}
             if (!_sxrIsBlankId(pid)) {
-                _sxrArchiveOne(pid, slug).catch(() => { sxrState.posts = snapshot; _sxrArchivedRemove(slug, refs); _sxrRenderBody(); loadSxrCards({ skipCache: true }); });
+                _sxrArchiveOne(pid, slug, post || null).catch(() => { sxrState.posts = snapshot; _sxrArchivedRemove(slug, refs); _sxrRenderBody(); loadSxrCards({ skipCache: true }); });
             }
         }, 'Archive');
     }
-    async function _sxrArchiveOne(pid, slug) {
+    async function _sxrArchiveOne(pid, slug, preCapturedPost) {
         delete _sxrPendingEdits[pid];
+        // Captured before any await, and before the caller's optimistic removal
+        // (the Calendar learned this the hard way: OPEN_REPAIRS 23).
+        const knownPost = preCapturedPost || sxrState.posts.find(p => p.id === pid) || null;
         if (typeof _sxrSaveInFlight[pid] !== 'undefined') { try { await _sxrSaveInFlight[pid]; } catch (e) {} }
-        const resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: new Date().toISOString() }, comments_base_at: '' }, 'ui');
+        const archivedAt = new Date().toISOString();
+        const resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: archivedAt }, comments_base_at: '' }, 'ui');
         if (!resp.ok) throw new Error('archive HTTP ' + resp.status);
+        // Same rule as the Calendar (owner ruling 2026-08-17, extended to
+        // samples 2026-09-28): archiving parks the sample's work items in
+        // Backlog through the same guarded status write a person's status
+        // change uses. Un-archiving forces nothing back.
+        await _sxrArchiveParkWorkItems(knownPost, slug, pid, archivedAt);
+    }
+    /*
+     * Park an archived sample's work items (video and thumbnail) in Backlog.
+     * Mirrors _calArchiveParkSubIssues. It never fails the archive, which has
+     * already succeeded; it says so when something could not be parked.
+     *
+     * Backlog is a work-item state, not a card state (SXR_STATUSES has no
+     * Backlog), so the card keeps its component statuses. The status write
+     * carries the card as it now is -- Archived -- so the card-side repair the
+     * gateway path keeps can never write the pre-archive overall status back
+     * and un-archive the sample.
+     */
+    async function _sxrArchiveParkWorkItems(post, slug, id, archivedAt) {
+        if (!post) {
+            console.warn('[Samples] archive could not resolve the sample to park', id || '');
+            showNotify('Archived, but its work items were not parked',
+                'The sample is archived. Its video and thumbnail work may still be open; move them to Backlog in Production.');
+            return { parked: 0, failed: 0, unresolved: true };
+        }
+        let parked = 0;
+        let failed = 0;
+        for (const component of ['video', 'graphic']) {
+            const url = component === 'video' ? post.linear_issue_id : post.graphic_linear_issue_id;
+            const nativeId = _writeUiNativeId(post, component);
+            if (!url && !nativeId) continue;
+            const parkedPost = Object.assign({}, post, { status: 'Archived', updated_at: archivedAt || post.updated_at });
+            try {
+                await _sxrPushStatusToLinear(url, 'Backlog', {
+                    post: parkedPost,
+                    component,
+                    slug,
+                    sourceEditedAt: archivedAt || post[component + '_status_updated_at'] || post.updated_at
+                });
+                parked += 1;
+            } catch (error) {
+                failed += 1;
+                console.warn('[Samples] archive could not park ' + component, error);
+            }
+        }
+        if (failed) {
+            showNotify('Archived, but a work item is still open',
+                'The sample is archived. ' + failed + ' of its work items could not be moved to Backlog.');
+        }
+        return { parked, failed };
     }
     function _sxrCardSelectClick(e, pid) {
         e.preventDefault();
@@ -74244,8 +74297,10 @@
             () => {
                 const idSet = new Set(ids);
                 const refsById = new Map();
+                const postById = new Map();
                 sxrState.posts.forEach(p => {
                     if (!idSet.has(p.id)) return;
+                    postById.set(p.id, p);
                     const refs = [p.id];
                     if (p.linear_issue_id) refs.push(p.linear_issue_id);
                     if (p.graphic_linear_issue_id) refs.push(p.graphic_linear_issue_id);
@@ -74264,7 +74319,7 @@
                 document.querySelectorAll('#sxrView .cal-select-btn').forEach(btn => btn.classList.remove('active'));
                 _sxrRenderBody({ preserveScroll: true });
                 try { _sxrCacheWrite(slug, sxrState.posts); } catch (e) {}
-                Promise.allSettled(ids.map(id => _sxrArchiveOne(id, slug))).then(results => {
+                Promise.allSettled(ids.map(id => _sxrArchiveOne(id, slug, postById.get(id) || null))).then(results => {
                     const failedRefs = [];
                     results.forEach((r, i) => { if (r.status === 'rejected') { const refs = refsById.get(ids[i]); if (refs) refs.forEach(x => failedRefs.push(x)); } });
                     if (failedRefs.length) { _sxrArchivedRemove(slug, failedRefs); loadSxrCards({ skipCache: true }); }

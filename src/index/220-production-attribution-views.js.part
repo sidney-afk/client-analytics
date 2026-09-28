@@ -1,7 +1,5 @@
-import { wlWorkloadTodayISO } from './070-workload-source.js';
-import {
-  _svDateHtml, _svSelectHtml, _syncviewStaffIdentityForHeaders
-} from './100-onboarding-staff-controls.js';
+import { wlWorkloadTodayISO } from './068-core-workload-dates.js';
+import { _svDateHtml, _svSelectHtml, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
 import {
   PROD_ATTRIBUTION_CONFLICT, PROD_ATTRIBUTION_NEEDS, PROD_BOARD_STATUS, PROD_CREATED_STATUS,

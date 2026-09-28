@@ -1,5 +1,5 @@
 import { showConfirm, showNotify, showToast } from './040-shared-briefs.js';
-import { wlAddWorkingDays, wlTodayISO } from './070-workload-source.js';
+import { wlAddWorkingDays, wlTodayISO } from './068-core-workload-dates.js';
 import {
   CALENDAR_REORDER_BATCH_URL, CALENDAR_REORDER_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL,
   CAPTION_JOB_STATUS_URL, CAPTION_JOB_UPDATE_URL, CAPTION_PROMPTS_GET_URL,
@@ -8,7 +8,17 @@ import {
 } from './100-onboarding-staff-controls.js';
 import { _settingsEfClients } from './115-core-calendar-flags.js';
 import {
-  _calCapJobBatch, _calCapJobPollBusy, _calCapJobPollTimer, _calCapJobsRestored, _calCapJobTicker, _calCaptionJobs, _calCaptionPrompts, _calCaptionPromptsInFlight, _calCaptionPromptsLoaded, _calComponentsFor, _calNormStatus, _calReorderUrlForClient, _calSetCapJobBatch, _calSetCapJobPollBusy, _calSetCapJobPollTimer, _calSetCapJobsRestored, _calSetCapJobTicker, _calSetCaptionPrompts, _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calUpsertFetch, _calUpsertHeaders, _calUpsertUseEf, _settingsPrimeRoutingFlag, _settingsUseEf, _settingsWriteHeaders, _settingsWriteUrlForClient, _writeUiNativeId, _writeUiQueueDiagnostic, _writeUiRecordFailure, _writeUiRerouteUseGatewayWhenReady, CAL_CAPJOB_CANCEL_GRACE_MS, CAL_CAPJOB_CONCURRENCY, CAL_CAPJOB_CONFIRM_MS, CAL_CAPJOB_FETCH_TIMEOUT_MS, CAL_CAPJOB_LS_KEY, CAL_CAPJOB_POLL_MS, CAL_CAPJOB_STALE_MS, computeOverallStatus, DEFAULT_CAPTION_PROMPT
+  CAL_CAPJOB_CANCEL_GRACE_MS, CAL_CAPJOB_CONCURRENCY, CAL_CAPJOB_CONFIRM_MS,
+  CAL_CAPJOB_FETCH_TIMEOUT_MS, CAL_CAPJOB_LS_KEY, CAL_CAPJOB_POLL_MS, CAL_CAPJOB_STALE_MS,
+  DEFAULT_CAPTION_PROMPT, _calCapJobBatch, _calCapJobPollBusy, _calCapJobPollTimer,
+  _calCapJobTicker, _calCapJobsRestored, _calCaptionJobs, _calCaptionPrompts,
+  _calCaptionPromptsInFlight, _calCaptionPromptsLoaded, _calComponentsFor, _calNormStatus,
+  _calReorderUrlForClient, _calSetCapJobBatch, _calSetCapJobPollBusy, _calSetCapJobPollTimer,
+  _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
+  _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calUpsertFetch, _calUpsertHeaders,
+  _calUpsertUseEf, _settingsPrimeRoutingFlag, _settingsUseEf, _settingsWriteHeaders,
+  _settingsWriteUrlForClient, _writeUiNativeId, _writeUiQueueDiagnostic, _writeUiRecordFailure,
+  _writeUiRerouteUseGatewayWhenReady, computeOverallStatus
 } from './120-calendar-flags-write-repair.js';
 import {
   _calCanDragCards, _calCommentsFor, _calCommentsForView, _calFailedNewCards, _calIsCollabOn,
@@ -41,7 +51,10 @@ import {
 } from './170-calendar-links-status.js';
 import { _calCommentRole, _calSmmMissingMedia, _calSmmWarnDotHtml } from './190-calendar-approval-comments.js';
 import {
-  _linearIntakeActorContext, _linearIntakeBatchTitle, _linearIntakeItems, _linearIntakeJobId, _linearIntakeMarkRestored, _linearIntakePending, _linearIntakePrepareReplace, _linearIntakeRead, _linearIntakeRemoveIfCurrent, _linearIntakeWithLock, _linearIntakeWrite, _linearSavedWhen, _linearSavedWork, _resumeNativeIntakeJob
+  _linearIntakeActorContext, _linearIntakeBatchTitle, _linearIntakeItems, _linearIntakeJobId,
+  _linearIntakeMarkRestored, _linearIntakePending, _linearIntakePrepareReplace, _linearIntakeRead,
+  _linearIntakeRemoveIfCurrent, _linearIntakeWithLock, _linearIntakeWrite, _linearSavedWhen,
+  _linearSavedWork, _resumeNativeIntakeJob
 } from './200-intake-data-startup.js';
 import { _prodRestRows } from './210-production-state-writes.js';
 import { _isClientLink } from './260-production-refresh-boot.js';

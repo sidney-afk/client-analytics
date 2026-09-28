@@ -1,9 +1,8 @@
-import { _syncviewCreativeMe } from './100-onboarding-staff-controls.js';
 import { showNotify } from './040-shared-briefs.js';
+import { WL_DEADLINE_PREF_KEY, WL_VIEW_PREF_KEY, wlState } from './066-core-workload-state.js';
 import {
-  WL_CLIENT_NAMES, WL_DEADLINE_PREF_KEY, WL_LINEAR_WRITE_TIMEOUT_MS,
-  WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS, WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY,
-  WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA, WL_PLAN_WRITE_TIMEOUT_MS, WL_VIEW_PREF_KEY,
+  WL_LINEAR_WRITE_TIMEOUT_MS, WL_NATIVE_DUE_RECEIPT_RETRY_DELAYS_MS,
+  WL_NATIVE_DUE_RECEIPT_SIGNAL_KEY, WL_NATIVE_DUE_RECEIPT_SIGNAL_SCHEMA, WL_PLAN_WRITE_TIMEOUT_MS,
   _wlBackgroundRefreshMode, _wlBackgroundRefreshPromise, _wlDueWriteInFlight, _wlNativeDiffEnabled,
   _wlNativeDueReceiptGeneration, _wlNativeDueReceiptRetryAttempt, _wlNativeDueReceiptRetryPromise,
   _wlNativeDueReceiptRetryTimer, _wlNextNativeDueReceiptGeneration, _wlNextPlanLoadGeneration,
@@ -12,25 +11,34 @@ import {
   _wlSetBackgroundRefreshMode, _wlSetBackgroundRefreshPromise, _wlSetNativeDueReceiptRetryAttempt,
   _wlSetNativeDueReceiptRetryPromise, _wlSetNativeDueReceiptRetryTimer,
   _wlTakeNativeDueReceiptRetryAttempt, _wlV2CheckWatermark, _wlV2EnsureSubscribed,
-  _wlV2EnsureWatermarkPoll, _wlV2FetchIssues, wlAnnouncePlanSaved, _wlV2FetchLatestWatermark, _wlV2Ready, wlAddDays,
-  wlAddWorkingDays, wlAdoptLinearMetadata, wlAdoptPlanRows, wlApplySettleAnimation,
-  wlAutoPlacementTip, wlBackgroundBusinessFingerprint, wlBucketByDisplayDate, wlCachedBoardUsable,
-  wlCachedRoster, wlCalendarDayDiff, wlCanonicalClient, wlCompareClientGroups,
-  wlComputeAutoPlacements, wlDayOverCapacity, wlDeadlineDotHtml, wlDeadlineMeta, wlDeadlineTagHtml,
-  wlDisplayDate, wlDisplayName, wlEditorCapacity, wlFetchLinearMetadata, wlFetchPlanRows,
-  wlFormatShort, wlGroupDeadlineHtml, wlGroupDeadlineSummary, wlGroupDragHandleHtml,
-  wlGroupPlanOriginHtml, wlGroupWorkloadHtml, wlISO, wlInitials, wlIsActiveStatus, wlIsInProgress,
-  wlIsToDo, wlIsTweaksNeeded, wlIsWeekend, wlIssueClientAllowed, wlIssueDragHandleHtml,
-  wlIssueEditorAllowed, wlLinearEditingEnabled, wlLoadSnapshot, wlMarkLinearMetadataFailure,
-  wlMetadataTeamBucket, wlNativeDueDate, wlNormalizeClient, wlParseISO, wlPlacementMode,
-  wlPlanDate, wlPlanEditingEnabled, wlPlanOriginHtml, wlPurgePlanSensitiveState, wlReadCache,
-  wlState, wlTeamBucket, wlValidRfc3339Timestamp, wlWeekMondayISO, wlWorkloadBadgeHtml,
-  wlWorkloadTodayISO, wlWorkloadUnits, wlWorkloadWeight
-} from './070-workload-source.js';
-import { navTo, wlClosePopover, wlOpenRollupPopover } from './090-workload-popovers-navigation.js';
+  _wlV2EnsureWatermarkPoll, _wlV2FetchIssues, _wlV2FetchLatestWatermark, _wlV2Ready,
+  wlAdoptLinearMetadata, wlAdoptPlanRows, wlAnnouncePlanSaved, wlApplySettleAnimation,
+  wlBackgroundBusinessFingerprint, wlCachedBoardUsable, wlCachedRoster, wlFetchLinearMetadata,
+  wlFetchPlanRows, wlIssueClientAllowed, wlIssueEditorAllowed, wlLinearEditingEnabled,
+  wlLoadSnapshot, wlMarkLinearMetadataFailure, wlMetadataTeamBucket, wlNativeDueDate,
+  wlPlanEditingEnabled, wlPurgePlanSensitiveState, wlReadCache
+} from './067-workload-board-source.js';
 import {
-  CAL_SUPABASE_ANON_KEY, WORKLOAD_LINEAR_URL, WORKLOAD_PLAN_URL, _syncviewRequireStaffIdentity,
-  _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders
+  wlAddWorkingDays, wlISO, wlIsWeekend, wlParseISO, wlWeekMondayISO, wlWorkloadTodayISO
+} from './068-core-workload-dates.js';
+import {
+  wlAddDays, wlCalendarDayDiff, wlCompareClientGroups, wlDeadlineDotHtml, wlDeadlineMeta,
+  wlDeadlineTagHtml, wlFormatShort, wlGroupDeadlineHtml, wlGroupDeadlineSummary,
+  wlGroupDragHandleHtml, wlGroupPlanOriginHtml, wlGroupWorkloadHtml, wlIsActiveStatus,
+  wlIsInProgress, wlIsToDo, wlIsTweaksNeeded, wlIssueDragHandleHtml, wlPlanOriginHtml,
+  wlValidRfc3339Timestamp, wlWorkloadBadgeHtml, wlWorkloadUnits, wlWorkloadWeight
+} from './069-workload-planning-helpers.js';
+import { WL_CLIENT_NAMES, wlCanonicalClient, wlNormalizeClient } from './070-core-client-names.js';
+import {
+  wlAutoPlacementTip, wlBucketByDisplayDate, wlComputeAutoPlacements, wlDayOverCapacity,
+  wlDisplayDate, wlDisplayName, wlEditorCapacity, wlInitials, wlPlacementMode, wlPlanDate,
+  wlTeamBucket
+} from './071-workload-planner.js';
+import { wlClosePopover, wlOpenRollupPopover } from './090-workload-popovers.js';
+import { navTo } from './092-core-submit-form-navigation.js';
+import {
+  CAL_SUPABASE_ANON_KEY, WORKLOAD_LINEAR_URL, WORKLOAD_PLAN_URL, _syncviewCreativeMe,
+  _syncviewRequireStaffIdentity, _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders
 } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
 import { _calSetFocusRequest } from './130-calendar-model-cache.js';

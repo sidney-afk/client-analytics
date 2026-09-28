@@ -3,7 +3,8 @@ import {
   _syncviewStoredTheme, _toastEl, showNotify, showToast, svAreaApi
 } from './040-shared-briefs.js';
 import { FP_SAVED_KEY, currentNav } from './065-core-nav-intake-state.js';
-import { wlNormalizeClient, wlPurgePlanSensitiveState } from './070-workload-source.js';
+import { wlPurgePlanSensitiveState } from './067-workload-board-source.js';
+import { wlNormalizeClient } from './070-core-client-names.js';
 import { wlRefreshSensitiveStateSilent } from './080-workload-render.js';
 import { _tdyPurgeSensitiveState } from './097-today.js';
 import {

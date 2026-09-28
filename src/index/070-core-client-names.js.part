@@ -1,0 +1,104 @@
+    // Active clients as listed in SYNCVIEW's "Clients Info" sheet. Anything
+    // else (former clients, mismatched Linear project names, internal/test
+    // projects) is filtered out everywhere clients are read. Names are
+    // normalised so "Dr. Erica Matluck" / "Dr Erica Matluck" / "Erica
+    // Matluck" all match the same canonical entry, and "Eben & Annie" /
+    // "Eben and Annie" collapse to one too.
+    function wlNormalizeClient(s) {
+        if (!s) return '';
+        const cache = wlNormalizeClient._cache || (wlNormalizeClient._cache = new Map());
+        const cacheKey = String(s);
+        const cached = cache.get(cacheKey);
+        if (cached !== undefined) return cached;
+        let t = String(s).toLowerCase().trim()
+            .normalize('NFD').replace(/[̀-ͯ]/g, '');
+        t = t.replace(/^dr\.?\s+/, '');
+        t = t.replace(/\s+(?:and|&)\s+/g, '&');
+        t = t.replace(/[^a-z0-9&]+/g, '');
+        if (cache.size > 4000) cache.clear();
+        cache.set(cacheKey, t);
+        return t;
+    }
+    // SEED + OFFLINE FALLBACK ONLY. The live source of truth for "who's a
+    // client" is the "Clients Info" sheet: wlMergeClientsFromSheet() (below)
+    // folds every client_name from that sheet into this allowlist on each load,
+    // so adding a Clients Info row makes a client go live everywhere with no
+    // code change. This hardcoded list just guarantees a sane first paint if the
+    // sheet fetch fails — you normally do NOT need to edit it by hand.
+    // (Historical note: under the pre-2026-06 architecture the calendar read from
+    // a Calendar_<slug> Google-Sheet tab, so a new client also needed that tab
+    // provisioned via the "Provision Missing Tabs" n8n workflow. The calendar now
+    // reads from Supabase calendar_posts, which auto-creates rows on first write,
+    // so that step is no longer required — the Sheet tab is just a mirror.)
+    const WL_CLIENT_NAMES = [
+        'Baya Voce',
+        'Jessica Winterstern',
+        'Morgan Burton',
+        'Dr. Sonia Chopra',
+        'Alyssa Nobriga',
+        'Doug Cartwright',
+        'Dr. Rocco Piazza',
+        'Edward Mannix',
+        'Alli Schaper',
+        'Eben & Annie',
+        'Jordan Marks',
+        'Miki Agrawal',
+        'Erica Matluck',
+        'Natalie MacNeil',
+        'John Wineland',
+        'David Kessler',
+        'Chelsey Scaffidi',
+        'Danielle Robin',
+        'Morgan Burch',
+        'Jesse Israel',
+        'Mastin Kipp',
+        'Melissa Pruett',
+        'Adriana Rizzolo',
+        'Sidney Laruel',
+        'Lisa Kleyn',
+        'Lauren Taus',
+        'Henry Ammar',
+        'Kasper Hytonen',
+        'Lily Baker',
+        'Terrin Ammar',
+    ];
+    // Map of normalised key -> canonical sheet name. Used to collapse Linear
+    // variants like "Miki-agrawal" / "Miki Agrawal" / "miki agrawal" into one
+    // entry everywhere clients are read.
+    const WL_CLIENT_CANONICAL = new Map(WL_CLIENT_NAMES.map(n => [wlNormalizeClient(n), n]));
+    function wlCanonicalClient(name) {
+        return WL_CLIENT_CANONICAL.get(wlNormalizeClient(name)) || name;
+    }
+    function wlIsAllowedClient(name) {
+        return WL_CLIENT_CANONICAL.has(wlNormalizeClient(name));
+    }
+    // CANONICAL client-list accessor — the single source for "which clients exist".
+    // Every surface that lists or searches clients MUST call this. Do NOT derive a
+    // client list from allData (sheet metrics) or iterate WL_CLIENT_NAMES directly.
+    // Source of truth: WL_CLIENT_NAMES (hardcoded seed ∪ Clients Info sheet, merged
+    // by wlMergeClientsFromSheet on each load).
+    function getClientRoster() {
+        return [...new Set(WL_CLIENT_NAMES.map(wlCanonicalClient))].sort((a, b) => a.localeCompare(b));
+    }
+    // Sheet-driven onboarding: merge any client_name from the "Clients Info"
+    // sheet that isn't already known into the allowlist, so a new sheet row goes
+    // live without a deploy. Additive only (never removes a seed client), and it
+    // never overrides an existing canonical name, so Linear-variant collapsing
+    // (e.g. "Miki-agrawal" -> "Miki Agrawal") is preserved. Idempotent: re-running
+    // on every sheet load is a no-op for clients already present.
+    function wlMergeClientsFromSheet(names) {
+        if (!Array.isArray(names)) return;
+        for (const raw of names) {
+            const name = (raw == null ? '' : String(raw)).trim();
+            if (!name) continue;
+            const slug = wlNormalizeClient(name);
+            if (!slug || WL_CLIENT_CANONICAL.has(slug)) continue;
+            WL_CLIENT_CANONICAL.set(slug, name);
+            WL_CLIENT_NAMES.push(name);
+        }
+    }
+
+export {
+  WL_CLIENT_CANONICAL, WL_CLIENT_NAMES, getClientRoster, wlCanonicalClient, wlIsAllowedClient,
+  wlMergeClientsFromSheet, wlNormalizeClient
+};

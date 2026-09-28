@@ -1,6 +1,6 @@
 import { clientMap, showConfirm, showNotify } from './040-shared-briefs.js';
 import { _mrExternalLink, igUrl, ttUrl, ytUrl } from './050-market-briefs.js';
-import { WL_CLIENT_NAMES } from './070-workload-source.js';
+import { WL_CLIENT_NAMES } from './070-core-client-names.js';
 import {
   CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, THUMBNAIL_FOLDER_RESOLVE_EF_URL,
   THUMBNAIL_REVISION_READ_EF_URL, _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity,

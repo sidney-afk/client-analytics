@@ -34,7 +34,7 @@ const throwAt = persist.indexOf('throw new Error((json && json.error)');
 const annAt = persist.indexOf('wlAnnouncePlanSaved()');
 ok(throwAt > 0 && annAt > throwAt, 'announce runs only after the saved row is validated');
 ok(persist.split('wlAnnouncePlanSaved()').length === 2, 'announce appears exactly once in the save path');
-ok(/import[\s\S]*wlAnnouncePlanSaved[\s\S]*from '\.\/070-workload-source\.js'/.test(SRC80), '080 imports the announce from 070');
+ok(/import[\s\S]*wlAnnouncePlanSaved[\s\S]*from '\.\/067-workload-board-source\.js'/.test(SRC80), '080 imports the announce from 067 (the board source, cut from 070)');
 ok(/planLive:\s*_wlPlanLive/.test(INDEX), 'wlV2Status exposes planLive status');
 ok(!/table:\s*['"]workload_plan['"]/.test(INDEX), 'no postgres_changes subscription on workload_plan');
 

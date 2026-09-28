@@ -1,5 +1,5 @@
 import { _analyticsReleaseExtras, parseCSV, showNotify, showToast } from './040-shared-briefs.js';
-import { WL_CLIENT_NAMES, wlCanonicalClient, wlNormalizeClient } from './070-workload-source.js';
+import { WL_CLIENT_NAMES, wlCanonicalClient, wlNormalizeClient } from './070-core-client-names.js';
 import {
   CALENDAR_GET_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, KASPER_QUEUE_URL,
   _syncviewStaffIdentityForHeaders

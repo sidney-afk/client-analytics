@@ -219,3 +219,30 @@ no screenshot re-review. Saves ~37 KB compressed from every staff first load.
 
 Remaining order: Workload (the router moves to core first), Kasper (with the Editors board),
 SyncLinear.
+
+## Step 3, area 7 of 9, part 1: Workload's shared pieces become core (2026-09-28)
+
+Fingerprint check: the leave-evidence fingerprint hashes the Time Off lines of the page in
+order. Workload holds one of them (in `navTo`), and a same-bytes split keeps every line in
+place, so no screenshot re-review.
+
+Workload (~116 KB compressed) was used by 27 other files, the approve path among them, for
+four things that are not the Workload board: its state object (read by a loading skeleton),
+date helpers, the client-name list and helpers, and the page router `navTo` with the Submit
+form helpers. Those now sit in their own core fragments, cut with the same bytes in the same
+order, so the served page is byte-identical:
+
+- `070-workload-source` became `066-core-workload-state` (core), `067-workload-board-source`,
+  `068-core-workload-dates` (core), `069-workload-planning-helpers`, `070-core-client-names`
+  (core) and `071-workload-planner`.
+- `090-workload-popovers-navigation` became `090-workload-popovers` and
+  `092-core-submit-form-navigation` (core: the Submit form helpers, the tab favicon and pill,
+  and `navTo`).
+
+About 25 KB compressed of it is core; the rest (~90 KB) is Workload. Its outside ties drop from
+32 names in 28 files to 11 in 5, none from the approve path. 17 recorded hazards are gone; two
+guards now sit in the core router (`092` → `_kasperTeardown`, moved from `090`, and
+`092` → `_wlV2Teardown`, which became a cross-area guard when the router left Workload; part 2
+routes it through the registry). 63 recorded hazards. Workload is now three runs of fragments
+(`067`, `069`, `071`–`090`) with core between them, so part 2 also lets an on-demand area be
+built from several runs into one file.

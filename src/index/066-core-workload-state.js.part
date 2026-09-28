@@ -1,0 +1,94 @@
+    /* ── Workload Calendar ── */
+    const LINEAR_ISSUES_WEBHOOK        = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issues';
+    /* The warm-start copy of the board. v1 stored every row (6,700+, ~4.9M
+       characters); stock Chrome allows ~5.2M characters per site in total, so
+       with any other SyncView cache present the write threw QuotaExceededError,
+       the empty catch swallowed it, and the page kept painting whatever v1 had
+       last managed to store -- a board days old (Loom, 2026-09-23). v2 stores
+       only what the board draws (active sub-issues and their parents, ~0.25M
+       characters, bucket-for-bucket identical), and the v1 key is deleted. */
+    const LINEAR_ISSUES_CACHE_KEY = 'syncview_workloadBoardCache_v2';
+    const WL_LEGACY_CACHE_KEY     = 'syncview_linearIssuesCache_v1';
+    // Never paint a cached board older than this; show the loading state instead.
+    const WL_CACHED_BOARD_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+    const LINEAR_ISSUES_TTL_MS    = 5 * 60 * 1000;
+    const WL_VIEW_PREF_KEY        = 'syncview_workloadView_v1';
+    const WL_DEADLINE_PREF_KEY    = 'syncview_workloadDeadlineOverlay_v1';
+
+
+    function wlReadDeadlinePref() {
+        try { return localStorage.getItem(WL_DEADLINE_PREF_KEY) === '1'; }
+        catch { return false; }
+    }
+
+    const wlState = {
+        viewMode: 'week',                          // 'week' | 'month'
+        showDeadlines: wlReadDeadlinePref(),       // persistent display-only Week relationship view
+        year: null, month: null,                   // visible month (month view)
+        weekStart: null,                           // Monday of the visible work week
+        team: 'all', editor: 'all', client: 'all', // filters
+        planned: [],                               // assigned non-tweak sub-issues with a manual or automatic work day
+        nowWorking: [],                            // assigned sub-issues currently "In Progress"
+        tweaksNeeded: [],                          // assigned sub-issues currently "Tweaks Needed"
+        overdue: [],                               // assigned sub-issues in To Do whose dueDate is before today (any other live status overrides overdue)
+        undated: [],                               // assigned active sub-issues with neither manual day nor deadline
+        unassigned: [],                            // sub-issues with no assignee (and In Progress OR has dueDate)
+        parentById: new Map(),                     // parent issue lookup for rollup link-outs
+        calendarByDate: new Map(),                 // effective work day -> planned sub-issues[]
+        allActiveSubs: [],                         // all non-completed sub-issues for filter options
+        issueSnapshot: [],                         // last feeder snapshot; due writes follow the current per-team authority map
+        planByIssueId: new Map(),                  // stable Linear issue id -> explicit internal plan_date
+        autoPlacementByIssueId: new Map(),         // stable Linear issue id -> capacity-adjusted automatic work day; holds ONLY the items whose ideal day was full (see wlComputeAutoPlacements)
+        workloadByIssueId: new Map(),              // stable Linear issue id -> exact 2× / 3× Workload label metadata
+        dueAuthorityByIssueId: new Map(),           // stable Linear issue id -> current prod_authority fingerprint + team lane
+        nativeDueTargetByIssueId: new Map(),        // stable Linear issue id -> native deliverable id + independent updated_at CAS cursor
+        linearMetadataStatus: 'loading',            // 'loading' | 'refreshing' | 'ready' | 'stale' | 'unknown'
+        // How many rows are withheld when NOTHING ELSE is degraded. 0 means the
+        // degradation (if any) is broad; a positive number means exactly that
+        // many rows are unprovable and every other row is untouched.
+        linearMetadataWithheldOnly: 0,
+        linearMetadataError: null,
+        planHasSnapshot: false,                    // true only after one authoritative workload-plan list response
+        planLoading: false,                        // true during the fast first paint, before plans have resolved/failed — items use the automatic estimate so they don't move when plans land
+        planStatus: 'loading',                     // 'loading' | 'refreshing' | 'ready' | 'stale' | 'unknown'
+        planError: null,
+        planFetchedAt: null,
+        // How the sidecar matched saved days to cards on the last authoritative
+        // read. 'snapshot' and 'pairs' are both complete answers; 'none' means
+        // it could not build the id pairing at all. planUnaliased counts the
+        // saved days it could NOT match — the board is then right about
+        // everything else and missing those, which is exactly the state that
+        // used to be invisible (item 210).
+        planAliasMode: '',                         // '' | 'snapshot' | 'pairs' | 'none'
+        planUnaliased: 0,
+        subsByParentId: new Map(),
+        popoverAnchor: null,                       // currently-open popover's anchor rollup element
+        renderQueued: false,                       // background repaint deferred while a popover is open
+        fetchedAt: null,
+        // The last validated v2 snapshot this page holds, keyed by staff
+        // identity, so a refresh sends its version and reuses it on "unchanged".
+        snapshotMemo: null,
+        snapshotV2Unavailable: false,                // 400/501 from v2: use the v1 action for this page
+        cachedBoardAt: null,                        // set while the board shows the localStorage copy, not a live snapshot
+        sourceSyncedAt: null,                      // newest workload_issues.synced_at represented by this snapshot
+        loading: false,
+        refreshing: false,
+        backgroundError: null,                    // non-destructive warning; never replaces a warm calendar
+        // How many saved work days the gateway refused to attach to their card
+        // (OPEN_REPAIRS 177). Its OWN state rather than a sentence stuffed into
+        // backgroundError, because backgroundError is the transient
+        // refresh-failure channel: the renderer rewrites anything it does not
+        // recognise, and a successful manual refresh clears it. A dropped plan
+        // is neither transient nor a refresh problem -- it is a work day a
+        // person dragged and can no longer see, and it stays true until the
+        // stored client is repaired.
+        nativePlansDropped: 0,
+        editorRoster: [],                       // active exact-role creative members from the authenticated snapshot
+        editorRosterStatus: 'unknown',              // ready | unavailable during SQL/Edge/browser mixed release
+        error: null
+    };
+
+export {
+  LINEAR_ISSUES_CACHE_KEY, LINEAR_ISSUES_TTL_MS, LINEAR_ISSUES_WEBHOOK, WL_CACHED_BOARD_MAX_AGE_MS,
+  WL_DEADLINE_PREF_KEY, WL_LEGACY_CACHE_KEY, WL_VIEW_PREF_KEY, wlState
+};

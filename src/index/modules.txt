@@ -17,6 +17,7 @@
 115-core-calendar-flags.js.part
 050-market-briefs.js.part
 060-templates-filming.js.part
+065-core-nav-intake-state.js.part
 160-calendar-organize-ui.js.part
 100-onboarding-staff-controls.js.part
 150-calendar-hydration-import.js.part

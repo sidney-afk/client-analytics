@@ -1,5 +1,5 @@
 import { showNotify } from './040-shared-briefs.js';
-import { _linearRefreshProjectsForRerouteChange } from './060-templates-filming.js';
+import { _linearRefreshProjectsForRerouteChange } from './065-core-nav-intake-state.js';
 import { wlNormalizeClient } from './070-workload-source.js';
 import {
   CALENDAR_REORDER_BATCH_URL, CALENDAR_REORDER_EF_URL, CALENDAR_UPSERT_EF_URL,

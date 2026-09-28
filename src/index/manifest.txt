@@ -7,6 +7,7 @@
 040-shared-briefs.js.part
 050-market-briefs.js.part
 060-templates-filming.js.part
+065-core-nav-intake-state.js.part
 070-workload-source.js.part
 080-workload-render.js.part
 090-workload-popovers-navigation.js.part

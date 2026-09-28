@@ -4,8 +4,9 @@ import {
 import { _svCss, _svRgb } from './050-market-briefs.js';
 import {
   _fpEnsureLoaded, _obvEnsureLoaded, _obvFetchFull, _obvInjectStyles, _obvLoading, _obvSetMode,
-  _obvSubs, _syncviewNavEpoch, currentNav, renderOnboardingInbox
+  _obvSubs, renderOnboardingInbox
 } from './060-templates-filming.js';
+import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
 import { WL_CLIENT_CANONICAL, WL_CLIENT_NAMES, wlNormalizeClient } from './070-workload-source.js';
 import { navTo } from './090-workload-popovers-navigation.js';
 import {

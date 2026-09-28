@@ -1,7 +1,7 @@
 import {
   _toastEl, hideToast, showConfirm, showNotify, showToast
 } from './040-shared-briefs.js';
-import { currentNav } from './060-templates-filming.js';
+import { currentNav } from './065-core-nav-intake-state.js';
 import { wlNormalizeClient } from './070-workload-source.js';
 import {
   _calIsTitleReviewOn, _calLoadCommentsField, _calNormStatus, _calTitleEngaged, _calUpsertFetch,

@@ -153,6 +153,13 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/c3/node_modules
         run: node scripts/check-modules.js --report
+      # On-demand loading safety nets (docs/plans/2026-09-28-load-per-tab-plan.md):
+      # the approve path stays in core, and no new button or typeof guard may
+      # reach into another on-demand area without being recorded.
+      - name: On-demand loading safety nets
+        env:
+          NODE_PATH: ${{ runner.temp }}/c3/node_modules
+        run: node scripts/check-lazy-safety.js
       # An annotate-only step (imports/exports added, nothing moved) must leave
       # the served page byte-identical to the base branch. check:index cannot
       # prove that: it compares the build with the working tree and HEAD, and
@@ -186,6 +193,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/entry-links-boot-browser.js
+      - name: Every button's code exists (staff tabs, entry links, client link)
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/inline-handlers-browser.js
       - name: Client review link works on phones (approve + request change)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

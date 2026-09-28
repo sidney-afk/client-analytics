@@ -66,7 +66,9 @@ const INSTRUCTIONS = [
   "You help non-technical teammates of a social media agency make AI videos and images with Higgsfield. Talk in plain English, no jargon.",
   "Start with start_here. Work out what they want (ask one short question if unclear), pick a model from the shortlist and say why in one sentence.",
   "Call model_details before the first create with a model, write a rich prompt for them (subject, action, setting, camera, lighting, mood) and show it.",
-  "Always run price_check, tell them the exact cost in dollars, and get a yes before create. Never make anything without stating its price first. Mention the cost again when it is done.",
+  "Choose sensible settings yourself: vertical 9:16 for social media unless they say otherwise, and a sharp but not wasteful quality (1080p or 2K when offered).",
+  "Before EVERY create, run price_check and show its plan card to the person exactly as returned: model, what it will make, every setting (shape, quality, length, sound, inputs), the exact price, and the other quality and shape options. End with: \"Say go, or tell me what to change.\"",
+  "Only call create after they say go (or yes). If they change anything, run price_check again and show the updated card. Never make anything without showing its price first. Mention the cost again when it is done.",
   "Input media must be public links. If they have a file in Google Drive or Dropbox, pass its share link to import_file and use the link it returns.",
   "After create, call check_job about every 20 to 30 seconds until it is done (images take seconds, videos 1 to 5 minutes), then give them the download link.",
   "Never go around the monthly budget. If create refuses for budget, tell them to ask the account owner.",
@@ -139,6 +141,38 @@ function validate(schema: Schema, inputs: JsonMap): string[] {
     if (Array.isArray(value) && p.maxItems !== undefined && value.length > p.maxItems) problems.push(`"${key}" takes at most ${p.maxItems} items`);
   }
   return problems;
+}
+
+// The confirmation card shown before every job: each setting the model has
+// an option for, with the value this request will use (chosen or the model's
+// default) and the alternatives, so nothing is decided silently.
+const SETTING_LABELS: Record<string, string> = {
+  aspect_ratio: "Shape", resolution: "Quality", quality: "Quality level", duration: "Length (seconds)",
+  generate_audio: "Sound", sound: "Sound", batch_size: "Number of images", bitrate_mode: "Bitrate", output_format: "File type",
+};
+const SHAPE_WORDS: Record<string, string> = { "9:16": "9:16 vertical", "16:9": "16:9 horizontal", "1:1": "1:1 square", "4:5": "4:5 portrait", "3:4": "3:4 portrait", "4:3": "4:3", "21:9": "21:9 cinema", auto: "auto (matches the photo)" };
+
+function planCard(id: string, inputs: JsonMap, usd: number): string {
+  const m = BY_ID.get(id)!;
+  const props = (m.schema as Schema).properties || {};
+  const show = (k: string, v: unknown) => k === "aspect_ratio" ? (SHAPE_WORDS[String(v)] || String(v)) : typeof v === "boolean" ? (v ? "on" : "off") : String(v);
+  const lines: string[] = [`Plan: ${m.name}`];
+  if (inputs.prompt) lines.push(`What it will make: "${String(inputs.prompt)}"`);
+  for (const [k, p] of Object.entries(props)) {
+    const label = SETTING_LABELS[k];
+    if (!label && !p.enum && p.type !== "boolean") continue;
+    if (k === "prompt" || /seed|negative|cfg|strength|weight|thinking|extend|enhance|style_id|custom_reference/.test(k)) continue;
+    const chosen = inputs[k] !== undefined;
+    const value = chosen ? inputs[k] : p.default;
+    if (value === undefined && !p.enum) continue;
+    const others = p.enum ? p.enum.filter((o) => o !== value).map((o) => show(k, o)) : [];
+    lines.push(`- ${label || k}: ${value === undefined ? "not set" : show(k, value)}${chosen ? "" : " (default)"}${others.length ? `  [other options: ${others.join(", ")}]` : ""}`);
+  }
+  for (const [k, v] of Object.entries(inputs)) {
+    if (/url/.test(k)) lines.push(`- Input ${k.replace(/_/g, " ")}: ${Array.isArray(v) ? v.length + " file(s)" : "1 file"}`);
+  }
+  lines.push(`Price: ${money(usd)}`);
+  return lines.join("\n");
 }
 
 function describeModel(id: string): string {
@@ -375,7 +409,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
     if (problems.length) return "Fix these settings first:\n- " + problems.join("\n- ") + "\n\n" + describeModel(id);
     const est = await estimate(id, inputs);
     if ("error" in est) return "Higgsfield could not price this request: " + est.error;
-    if (name === "price_check") return `Exact price: ${money(est.usd)}. ${await budget()}`;
+    if (name === "price_check") return planCard(id, inputs, est.usd) + "\n" + await budget() + "\n\nSay go, or tell me what to change.";
     if (CAP_USD === null) return BAD_CAP;
 
     const client = db();

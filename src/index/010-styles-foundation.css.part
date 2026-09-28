@@ -1669,6 +1669,7 @@
         html[data-boot-nav="analytics"] .boot-skeleton-analytics,
         html[data-boot-nav="linear"] .boot-skeleton-linear,
         html[data-boot-nav="workload"] .boot-skeleton-workload,
+        html[data-boot-nav="today"] .boot-skeleton-today,
         html[data-boot-nav="calendar"] .boot-skeleton-calendar,
         html[data-boot-nav="samples"] .boot-skeleton-samples,
         html[data-boot-nav="sample-reviews"] .boot-skeleton-review,

@@ -16,8 +16,8 @@
 090-workload-popovers-navigation.js.part   workload
 095-shared-client.js.part                  core
 096-quick-jump.js.part                     quick-jump
-097-today.js.part                          today
-098-smm-clients.js.part                    smm-clients
+097-today.js.part                          core
+098-smm-clients.js.part                    core
 100-onboarding-staff-controls.js.part      core
 110-time-off-reports.js.part               time-off
 120-calendar-flags-write-repair.js.part    core!
@@ -34,7 +34,7 @@
 180-calendar-native-post-media.js.part     core!
 185-client-review-queue.js.part            core!
 190-calendar-approval-comments.js.part     core!
-200-intake-data-startup.js.part            submit
+200-intake-data-startup.js.part            core
 210-production-state-writes.js.part        synclinear
 220-production-attribution-views.js.part   synclinear
 230-production-create-comments.js.part     synclinear

@@ -34,7 +34,7 @@
 180-calendar-native-post-media.js.part     core!
 185-client-review-queue.js.part            core!
 190-calendar-approval-comments.js.part     core!
-200-intake-data-startup.js.part            submit
+200-intake-data-startup.js.part            core
 210-production-state-writes.js.part        synclinear
 220-production-attribution-views.js.part   synclinear
 230-production-create-comments.js.part     synclinear

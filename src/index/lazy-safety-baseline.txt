@@ -44,7 +44,6 @@ button 260-production-refresh-boot.js.part _prodToggleSection
 button 260-production-refresh-boot.js.part _prodToggleTeam
 button 280-samples-cards-notes.js.part _prodProjectCanonicalCardComments
 guard 060-templates-filming.js.part _kasperRefreshTabCounts
-guard 060-templates-filming.js.part _linearIntakeRead
 guard 060-templates-filming.js.part _linearInvalidatePlanMap
 guard 060-templates-filming.js.part saveLinearForm
 guard 060-templates-filming.js.part updateLinearFilmingPlan
@@ -52,18 +51,14 @@ guard 060-templates-filming.js.part updateLinearSearchGhost
 guard 060-templates-filming.js.part updateLinearTitle
 guard 080-workload-render.js.part _prodApplyGatewayRow
 guard 090-workload-popovers-navigation.js.part _kasperTeardown
-guard 090-workload-popovers-navigation.js.part _linearSubmissionHoldRead
 guard 100-onboarding-staff-controls.js.part _caPurgeSensitiveState
 guard 100-onboarding-staff-controls.js.part _ccCloseModal
 guard 100-onboarding-staff-controls.js.part _ccCloseSelect
 guard 100-onboarding-staff-controls.js.part _ccRevTeardown
 guard 100-onboarding-staff-controls.js.part _fpPurgeSensitiveState
 guard 100-onboarding-staff-controls.js.part _hpPurgeSensitiveState
-guard 100-onboarding-staff-controls.js.part _kasperApplyAccess
-guard 100-onboarding-staff-controls.js.part _kasperForgetAdmin
 guard 100-onboarding-staff-controls.js.part _kasperRenderTab
 guard 100-onboarding-staff-controls.js.part _kasperRestorePendingSubtab
-guard 100-onboarding-staff-controls.js.part _linearIntakePurgeSensitiveState
 guard 100-onboarding-staff-controls.js.part _prodCachePurge
 guard 100-onboarding-staff-controls.js.part _prodClearLayer
 guard 100-onboarding-staff-controls.js.part _ptoCalResetView
@@ -90,5 +85,4 @@ guard 290-samples-writes-review.js.part _kasperPaintReview
 guard 290-samples-writes-review.js.part _kasperRefreshTabCounts
 guard 290-samples-writes-review.js.part _kasperResumeSourceRepairs
 guard 290-samples-writes-review.js.part _kasperSamplesMerged
-guard 290-samples-writes-review.js.part _linearResumeSubmissionHold
 guard 345-core-tooltip-date-picker.js.part wlWorkloadTodayISO

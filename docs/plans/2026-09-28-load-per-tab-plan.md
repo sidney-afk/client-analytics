@@ -136,7 +136,7 @@ consecutive fragments with the same bytes, so the served page is byte-identical:
 The separate "editors" area no longer exists; the remaining order is Today and SMM clients,
 Submit, Time off, Templates and Filming, Workload, Kasper (with the Editors board), SyncLinear.
 
-## Step 3, area 3 of 9: Today and SMM clients stay in core (2026-09-28)
+## Step 3, areas 3 and 4 of 9: Today, SMM clients and Submit stay in core (2026-09-28)
 
 Since #1798 the bare address opens Today for staff, so Today is the first screen of almost
 every staff visit. Loading it on demand would make that first screen wait for an extra
@@ -146,5 +146,16 @@ the sign-out purge (`100`) and start-up (`260`). So both move to **core** in `ar
 three recorded Today guards are no longer hazards and leave the baseline (91 left). Nothing
 served changes.
 
-Remaining order: Submit, Time off, Templates and Filming, Workload, Kasper (with the Editors
-board), SyncLinear.
+**Submit (`200`) stays in core too.** The file is three things: the Submit form screen (its
+first ~190 lines, only 2.8 KB compressed), the background queue that sends submissions and
+writes their Calendar cards (resumed at start-up and used by the approve path: `180`, `290`),
+and start-up plus Kasper access checks. Only the form could go on demand, and 2.8 KB is less
+than one extra network round trip costs. So `200` is core; six more recorded guards stop
+being hazards, including the approve path's `290` → `_linearResumeSubmissionHold` (85 left).
+
+Compressed sizes of what is left to split, which is where the gain is: SyncLinear ~213 KB,
+Workload ~138 KB, Kasper with the Editors board ~133 KB, Templates and Filming ~39 KB,
+Time off ~37 KB.
+
+Remaining order: Time off, Templates and Filming, Workload, Kasper (with the Editors board),
+SyncLinear.

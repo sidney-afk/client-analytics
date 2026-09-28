@@ -109,13 +109,6 @@ jobs:
           N8N_QUOTA_ALREADY_90: ${{ steps.marker-90.outputs.cache-hit == 'true' }}
         run: node scripts/n8n-execution-quota-watchdog.js
 
-      - name: Save complete-month count checkpoint
-        if: steps.watchdog.outputs.dry_run == 'false'
-        uses: actions/cache/save@v4
-        with:
-          path: .quota-watchdog/count
-          key: n8n-execution-quota-count-v1-${{ steps.month.outputs.month }}-${{ github.run_id }}-${{ github.run_attempt }}
-
       - name: Prepare 80 percent marker
         if: steps.watchdog.outputs.alert_80_sent == 'true' && steps.watchdog.outputs.dry_run == 'false'
         shell: bash
@@ -139,3 +132,12 @@ jobs:
         with:
           path: .quota-watchdog/90
           key: n8n-execution-quota-v1-${{ steps.month.outputs.month }}-90
+
+      # Saved after the alert markers: a failure here must never skip the dedupe
+      # markers of an alert that was already delivered.
+      - name: Save complete-month count checkpoint
+        if: steps.watchdog.outputs.dry_run == 'false'
+        uses: actions/cache/save@v4
+        with:
+          path: .quota-watchdog/count
+          key: n8n-execution-quota-count-v1-${{ steps.month.outputs.month }}-${{ github.run_id }}-${{ github.run_attempt }}

@@ -158,7 +158,7 @@ async function readMonthlyExecutionCount({
   if (checkpoint) {
     if (checkpoint.month !== window.key || checkpoint.time_zone !== timeZone ||
         !Number.isSafeInteger(checkpoint.execution_count) || checkpoint.execution_count < 0 ||
-        !Number.isSafeInteger(checkpoint.failed_count) || checkpoint.failed_count < 0 ||
+        (checkpoint.failed_count !== null && (!Number.isSafeInteger(checkpoint.failed_count) || checkpoint.failed_count < 0)) ||
         !Number.isFinite(Date.parse(checkpoint.through)) ||
         checkpoint.through < window.start.toISOString() || checkpoint.through > todayStart.toISOString() ||
         checkpoint.through !== zonedLocalToUtc({

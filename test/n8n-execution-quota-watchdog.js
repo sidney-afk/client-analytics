@@ -91,6 +91,15 @@ async function run() {
     && resumedCalls[0].searchParams.get('startDate') === '2026-07-27T00:00:00.000Z',
   'a verified checkpoint carries forward exactly the uncovered closed days');
 
+  const nullFailed = await readMonthlyExecutionCount({
+    baseUrl: 'https://fixture.invalid', apiKey: 'fixture-key',
+    now: new Date('2026-07-28T12:00:00.000Z'), timeZone: 'UTC',
+    checkpoint: { month: '2026-07', time_zone: 'UTC', through: '2026-07-27T00:00:00.000Z', execution_count: 4000, failed_count: null },
+    fetchImpl: async () => response({ total: { value: 10, unit: 'count' }, failed: { value: 1, unit: 'count' } }),
+  });
+  ok(nullFailed.execution_count === 4020 && nullFailed.failed_count === null && nullFailed.checkpoint.failed_count === null,
+    'a checkpoint saved without the optional failed count still resumes the total');
+
   let partialCheckpointFailed = false;
   try {
     await readMonthlyExecutionCount({

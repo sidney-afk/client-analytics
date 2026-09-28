@@ -17,8 +17,8 @@
 | 9 | `060-templates-filming.js.part` | 2295 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `070-workload-source.js.part` | 3823 | Workload Calendar |
 | 11 | `080-workload-render.js.part` | 3436 | Smart default: a creative lands on their own work (see |
-| 12 | `090-workload-popovers-navigation.js.part` | 1748 | Sub-issue popover |
-| 13 | `095-shared-client.js.part` | 395 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
+| 12 | `090-workload-popovers-navigation.js.part` | 1805 | Sub-issue popover |
+| 13 | `095-shared-client.js.part` | 397 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
 | 14 | `096-quick-jump.js.part` | 172 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
 | 15 | `097-today.js.part` | 411 | TODAY (owner design , session Compass). |
 | 16 | `098-smm-clients.js.part` | 69 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |

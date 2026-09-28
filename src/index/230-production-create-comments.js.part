@@ -1,4 +1,4 @@
-import { wlAdoptNativeDueGatewayRow, wlPublishNativeDueReceipt } from './080-workload-render.js';
+import { svArea, svAreaApi } from './040-shared-briefs.js';
 import {
   CAL_SUPABASE_ANON_KEY, _syncviewOpenStaffIdentity, _syncviewStaffIdentityForHeaders,
   _syncviewStaffIdentitySignature, _syncviewStaffVerificationEpoch
@@ -353,7 +353,9 @@ import {
             // projection for any currently-visible issue. Its deliverable cursor
             // stays separate from workload_issues.synced_at and the authority
             // fingerprint, so no inactive fast bridge is required to converge.
-            if (typeof wlAdoptNativeDueGatewayRow === 'function') wlAdoptNativeDueGatewayRow(row);
+            // (Only a loaded Workload has a projection to update.)
+            const wlArea = svAreaApi('workload');
+            if (wlArea) wlArea.adoptNativeDueGatewayRow(row);
         }
         /* The gateway's asset guidance is public-safe and provider-neutral,
            which makes it vague at exactly the moment a designer needs a next
@@ -598,9 +600,11 @@ import {
                 const committedDueDate = rowHasDueDate && json.row.due_date
                     ? String(json.row.due_date).slice(0, 10)
                     : null;
-                if (rowHasDueDate && (operation === 'due' || committedDueDate !== previousDueDate)
-                    && typeof wlPublishNativeDueReceipt === 'function') {
-                    wlPublishNativeDueReceipt(json.row);
+                if (rowHasDueDate && (operation === 'due' || committedDueDate !== previousDueDate)) {
+                    // The receipt tells Workload boards in OTHER tabs to refetch,
+                    // so it goes out even when this tab has not loaded Workload.
+                    const receiptRow = json.row;
+                    svArea('workload').then(wl => wl.publishNativeDueReceipt(receiptRow), () => {});
                 }
                 return json;
             } finally {

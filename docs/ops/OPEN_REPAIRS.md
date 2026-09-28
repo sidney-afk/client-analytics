@@ -29613,7 +29613,59 @@ September has no complete-day checkpoint (the last pass, 2026-09-15, counted to
 mid-day), so the scheduled check stays red until the 2026-10-01 month reset lets
 it build one. No partial count is allowed to pass.
 
-## 284. [2026-09-28, PR open] Current clients with no Templates page: flag it every weekday
+## 284. [2026-09-28] Archiving a sample parks its work items in Backlog, and a cleanup for the ones already stuck
+
+**Built, not yet run** (session Compass). Owner request: archiving a sample
+should behave like archiving a calendar post.
+
+**What the Calendar does (measured in code).** `_calArchiveOne` writes the
+card `Archived`, then `_calArchiveParkSubIssues` sends every linked component
+(video and thumbnail, whatever its status) to `Backlog` through
+`_calPushStatusToLinear`: the guarded `production-write` `status` operation, the
+same one a person's status change uses. It never fails the archive and says so
+when a park fails. Un-archiving forces nothing back.
+
+**What samples did.** `_sxrArchiveOne` wrote the card `Archived` and nothing
+else, so the sample's work items stayed open on people's lists.
+
+**Fix.** `_sxrArchiveOne` now parks through `_sxrArchiveParkWorkItems`, a copy
+of the Calendar helper using the Samples guarded writer
+(`_sxrPushStatusToLinear`). Both archive callers pass the row they captured
+before their optimistic removal (the OPEN_REPAIRS 23 lesson). The status write
+carries the card as `Archived`, so its card-side repair can never write the
+pre-archive status back. Backlog is a work-item state, not a card state (no
+card status list has it), so the card keeps its component statuses. Test:
+`test/samples-archive-parks-work-items.js`.
+
+**Cleanup for items already stuck.** `scripts/archived-work-items-park.js`
+covers open work items (triage, todo, in progress, any approval, tweak) behind
+archived samples AND archived calendar posts, still bound to that card. It
+moves each to Backlog through the same gateway `status` operation under a
+staff key and a named staff member; each committed change is captured by
+`card_change_journal`, which `--apply` reads back per item. Output is counts
+only. Test: `test/archived-work-items-park.js`.
+
+Dry run, 2026-09-28 (read-only): 7,652 archived samples and 12,993 archived
+calendar posts; **46 open work items, all real clients, 45 with a card**:
+
+| Source / kind / status | Count |
+|---|---|
+| sample / video / todo | 3 |
+| calendar / video / todo | 13 |
+| calendar / video / smm_approval | 8 |
+| calendar / video / client_approval | 5 |
+| calendar / graphic / smm_approval | 6 |
+| calendar / graphic / client_approval | 6 |
+| calendar / graphic / todo | 4 |
+| calendar / graphic / in_progress | 1 |
+
+**Open.** Lighthouse runs `--apply` after merge (needs `SYNCVIEW_STAFF_KEY`,
+`SYNCVIEW_ACTOR`, and `SUPABASE_SERVICE_ROLE_KEY` for the journal read-back),
+then re-runs the dry run and expects 0. Noticed in passing, not changed here:
+the Calendar park builds its card repair from the pre-archive row, so a replay
+of that repair could in principle write the old overall status back.
+
+## 285. [2026-09-28, PR open] Current clients with no Templates page: flag it every weekday
 
 Written by session Vigil. A row in `templates` is created only by the first
 save of a client's Templates page (`supabase/functions/templates-save` upserts

@@ -25,6 +25,11 @@ const strip = (name, buf) => {
 };
 
 const cfg = readSplitConfig(SRC);
+const areas = new Map();
+for (const line of fs.readFileSync(path.join(SRC, 'areas.txt'), 'utf8').split(/\r?\n/)) {
+  const [frag, area] = line.replace(/#.*/, '').trim().split(/\s+/);
+  if (frag && area) areas.set(frag, area.replace(/!$/, ''));
+}
 t(typeof cfg.enabled === 'boolean', 'split.json has an on/off "enabled"');
 if (!cfg.enabled) {
   const off = buildOutputs(SRC, entries, bufs, modules, null);
@@ -38,7 +43,19 @@ for (const force of ['split', 'parts']) {
   const full = files.find(f => /^js\/sv-full-[0-9a-f]{12}\.js$/.test(f));
   const parts = files.filter(f => /^js\/sv-\d\d-[a-z-]+-[0-9a-f]{12}\.js$/.test(f)).sort();
   t(!!full && strip(full, out.get(full)) && strip(full, out.get(full)).equals(script), `${force}: the full file is the inline script, byte for byte, plus its ran-marker`);
-  t(Buffer.concat(parts.map(p => strip(p, out.get(p)))).equals(script), `${force}: the parts, in order, are the same script, byte for byte`);
+  // Core parts in order are the non-lazy code; each lazy file is all of its
+  // area's code in page order (an area may be several runs, core between).
+  const lazyNames = new Set(cfg.lazy || []);
+  const areaOf = e => areas.get(e);
+  const lazyFiles = parts.filter(p => lazyNames.has(p.replace(/^js\/sv-\d\d-/, '').replace(/-[0-9a-f]{12}\.js$/, '')));
+  const coreFiles = parts.filter(p => !lazyFiles.includes(p));
+  const coreCode = Buffer.concat(jsIdx.filter(i => !lazyNames.has(areaOf(entries[i]))).map(i => served[i]));
+  t(Buffer.concat(coreFiles.map(p => strip(p, out.get(p)))).equals(coreCode), `${force}: the always-loaded parts, in order, are the non-on-demand code, byte for byte`);
+  t([...lazyNames].every(a => {
+    const f = lazyFiles.find(p => p.includes('-' + a + '-'));
+    return f && strip(f, out.get(f)).equals(Buffer.concat(jsIdx.filter(i => areaOf(entries[i]) === a).map(i => served[i])));
+  }), `${force}: each on-demand file is all of its area's code, in page order`);
+  t(parts.reduce((s, p) => s + strip(p, out.get(p)).length, 0) === script.length, `${force}: together the parts cover the whole script once`);
   t(files.length === parts.length + 1, `${force}: nothing else is written to js/`);
   const htmlBuf = out.get('index.html');
   const head = Buffer.concat(served.slice(0, jsIdx[0]));

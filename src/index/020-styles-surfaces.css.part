@@ -4372,6 +4372,10 @@
             .tdy-rw { padding: 10px 12px; gap: 10px; }
             .tdy-rw .tdy-b { min-width: 44px; min-height: 44px; justify-content: center; padding: 0; font-size: 0; gap: 0; }
             .tdy-vw button, .tdy-rg, .tdy-b.p, .tdy-acts .tdy-b { min-height: 44px; }
+            /* Walk-through and Deck actions stay on one line at phone width
+               (owner, 2026-09-28): they share the row equally. */
+            .tdy-acts { flex-wrap: nowrap; gap: 6px; }
+            .tdy-acts .tdy-b { flex: 1 1 0; min-width: 0; justify-content: center; padding: 0 8px; font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; }
             .tdy-ic { width: 16px; height: 16px; }
             .tdy-chip { overflow: hidden; }
             .tdy-win { padding: 36px 20px; }

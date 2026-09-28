@@ -2300,7 +2300,10 @@ import {
                 else _ccRevModalTimer = setTimeout(tick, 1200);
                 return;
             }
-            if (scope === 'kasper') { _ccRevKasperTimer = null; if (_kasperState.tab === 'client-credentials') _ccLoadKasper(true); }
+            // The list is live on the Kasper subtab AND on the standalone
+            // /client-credentials page (same #ccKasperBody), so refresh when
+            // either is showing it.
+            if (scope === 'kasper') { _ccRevKasperTimer = null; if (_kasperState.tab === 'client-credentials' || document.getElementById('ccKasperBody')) _ccLoadKasper(true); }
             else { _ccRevModalTimer = null; if (_ccState.modal.open) _ccLoadModal(true); }
         };
         if (scope === 'kasper') _ccRevKasperTimer = setTimeout(run, 900);

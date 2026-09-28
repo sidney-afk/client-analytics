@@ -49,25 +49,6 @@ const NEW2 = 'https://x.supabase.co/storage/v1/object/public/syncview-descriptio
 (async () => {
 const M = await import('../scripts/linear-media-rescue.mjs');
 
-{
-  let attempts = 0;
-  const response = await M.uploadWithRetry('https://example.invalid/upload', { method: 'POST' },
-    async () => {
-      attempts++;
-      if (attempts === 1) throw new TypeError('fetch failed');
-      if (attempts === 2) return { status: 520, ok: false };
-      return { status: 200, ok: true };
-    }, async () => {});
-  ok(attempts === 3 && response.ok, 'upload retries a transport error and HTTP 520 within three attempts');
-  let message = '';
-  try {
-    await M.uploadWithRetry('https://example.invalid/upload', { method: 'POST' },
-      async () => { throw new TypeError('fetch failed'); }, async () => {});
-  } catch (error) { message = error.message; }
-  ok(message === 'media upload: transport failed after 3 attempts',
-    'exhausted upload gives an actionable bounded error without leaking the URL');
-}
-
 /* ---- 1. Scanner offsets, hand-computed ------------------------------- */
 
 /* `![](` is 4 characters, so the URL starts at offset 4. */

@@ -58,6 +58,7 @@ import {
         { key: 'onboarding', label: 'Onboarding', showCount: true, hideZero: true, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h6l2.5 2.5v8.3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M9.5 2.5V5h2.5"/><path d="M6 8.2h4M6 10.6h4"/></svg>' },
         { key: 'client-credentials', label: 'Client Credentials', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="11" height="7" rx="1.4"/><path d="M5 7V5.2a3 3 0 0 1 6 0V7"/><path d="M8 10v1.5"/></svg>' },
         { key: 'clients', label: 'Clients', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5.5" r="2.5"/><path d="M1.5 13.5c.6-2.4 2.4-3.8 4.5-3.8s3.9 1.4 4.5 3.8"/><path d="M10.5 3.2a2.4 2.4 0 0 1 0 4.6M12.2 9.9c1.2.5 2 1.7 2.3 3.6"/></svg>' },
+        { key: 'save-problems', label: 'Save problems', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.2 14 13H2z"/><path d="M8 6.5v3"/><circle cx="8" cy="11.3" r=".2" fill="currentColor"/></svg>' },
         { key: 'ad-performance', label: 'Ad Performance', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13.5h12"/><rect x="3.3" y="8.5" width="2.3" height="5"/><rect x="6.85" y="5.5" width="2.3" height="8"/><rect x="10.4" y="3" width="2.3" height="10.5"/></svg>' },
         { key: 'quiz-leads', label: 'Quiz Leads', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8s2.2-4.5 6-4.5S14 8 14 8s-2.2 4.5-6 4.5S2 8 2 8z"/><path d="M6.3 6.6a1.7 1.7 0 1 1 2.2 1.6c-.5.2-.8.6-.8 1.1"/><circle cx="8" cy="10.6" r=".2" fill="currentColor"/></svg>' }
     ];
@@ -75,7 +76,7 @@ import {
     const KASPER_PRIMARY_SHORT_LABELS = { review: 'Review', replies: 'Messages', filming: 'Filming' };
     const KASPER_MORE_GROUPS = [
         { label: 'Team', keys: ['editors', 'time-off'] },
-        { label: 'Pipeline & Admin', keys: ['sales-intake', 'hiring-process', 'onboarding', 'quiz-leads', 'client-credentials', 'clients'] },
+        { label: 'Pipeline & Admin', keys: ['sales-intake', 'hiring-process', 'onboarding', 'quiz-leads', 'client-credentials', 'clients', 'save-problems'] },
         { label: 'Analytics', keys: ['ad-performance'] },
     ];
     const KASPER_MORE_NOTIFICATION_KEYS = ['time-off', 'onboarding'];
@@ -224,7 +225,7 @@ import {
         const tabButtonHtml = (t, inMore) => {
             const capability = t.key === 'client-credentials' ? 'credentials' : (t.key === 'onboarding' ? 'onboarding' : (t.key === 'time-off' ? 'pto-admin' : ''));
             const gatedCapability = t.key === 'hiring-process' ? 'hiring'
-                : (t.key === 'quiz-leads' ? 'quiz-leads' : (t.key === 'clients' ? 'clients-admin' : capability));
+                : (t.key === 'quiz-leads' ? 'quiz-leads' : ((t.key === 'clients' || t.key === 'save-problems') ? 'clients-admin' : capability));
             const gated = gatedCapability ? ` data-staff-capability="${gatedCapability}"${_syncviewStaffCan(gatedCapability) ? '' : ' hidden'}` : '';
             const active = _kasperState.tab === t.key;
             const count = t.showCount === false ? '' : `<span class="kasper-tab-count" data-kasper-count="${t.key}"${t.hideZero ? ' data-kasper-hide-zero' : ''}>·</span>`;
@@ -723,6 +724,7 @@ import {
         if (tab === 'hiring-process' && !_syncviewStaffCan('hiring')) { _syncviewOfferStaffSignIn('hiring'); return; }
         if (tab === 'quiz-leads' && !_syncviewStaffCan('quiz-leads')) { _syncviewOfferStaffSignIn('quiz-leads'); return; }
         if (tab === 'clients' && !_syncviewStaffCan('clients-admin')) { _syncviewOfferStaffSignIn('clients-admin'); return; }
+        if (tab === 'save-problems' && !_syncviewStaffCan('clients-admin')) { _syncviewOfferStaffSignIn('clients-admin'); return; }
         if (tab === 'time-off') {
             _ptoInvalidateOverviewCaches();
         }
@@ -757,6 +759,9 @@ import {
         if (_kasperState.tab === 'clients' && !_syncviewStaffCan('clients-admin')) {
             _kasperDenySubtab('clients-admin');
         }
+        if (_kasperState.tab === 'save-problems' && !_syncviewStaffCan('clients-admin')) {
+            _kasperDenySubtab('clients-admin');
+        }
         _kasperSyncTabNav();
         // Only the review queue holds the analytics extras back (see _analyticsHoldExtras).
         if (_kasperState.tab !== 'review' && typeof _analyticsReleaseExtras === 'function') _analyticsReleaseExtras();
@@ -772,6 +777,7 @@ import {
         if (_kasperState.tab === 'ad-performance') return _kasperRenderAdPerformance();
         if (_kasperState.tab === 'quiz-leads') return _kasperRenderQuizLeads();
         if (_kasperState.tab === 'clients') return _caRender();
+        if (_kasperState.tab === 'save-problems') return _spRender();
     }
 
     // Kasper Ad Performance: read-only summary of Meta spend + iClosed
@@ -1230,6 +1236,123 @@ import {
         }
         body.innerHTML = _kqlSummaryHtml(_kqlState.leads) + _kqlState.leads.map(_kqlRowHtml).join('');
         _kqlFilter(_kqlState.search);
+    }
+
+    /* SAVE PROBLEMS (OPEN_REPAIRS 101 release A, session Sentinel, 2026-09-27).
+     *
+     * Admin-only, read-only list of refused or failed saves from the server
+     * refusal log: when, which screen and action, client link or staff page
+     * (with the VERIFIED staff role when there is one), which card, the error
+     * code and its cleaned message, browser and app version. Our own automated
+     * tests are hidden unless asked for. A client link shows only as the start
+     * of its one-way hash, so rows from one client group together without
+     * naming anyone. Nothing here writes. */
+    const SP_EF_URL = CAL_SUPABASE_URL + '/functions/v1/write-diagnostics';
+    const SP_SCREENS = { calendar: 'Calendar', sxr: 'Samples', production: 'Production', unknown: 'Unknown' };
+    const SP_PAGES = { client_link: 'Client link', staff_page: 'Staff', unknown: 'Unknown' };
+    const _spState = { days: 7, automation: false, screen: '', page: '', loading: false, loaded: false, error: null, data: null, gen: 0 };
+    function _spInjectStyles() {
+        if (document.getElementById('spStyles')) return;
+        const style = document.createElement('style');
+        style.id = 'spStyles';
+        style.textContent = '.sp-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px;font-size:0.74rem;color:var(--text-secondary)}' +
+            '.sp-controls select{height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font:inherit;padding:0 8px}' +
+            '.sp-summary{margin-bottom:10px;font-size:0.74rem;color:var(--text-muted)}' +
+            '.sp-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:10px}' +
+            '.sp-table{width:100%;border-collapse:collapse;font-size:0.72rem}' +
+            '.sp-table th{position:sticky;top:0;text-align:left;font-weight:750;color:var(--text-secondary);background:var(--surface-2);padding:8px 10px;white-space:nowrap}' +
+            '.sp-table td{padding:8px 10px;border-top:1px solid var(--border);vertical-align:top;color:var(--text-primary)}' +
+            '.sp-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.68rem}' +
+            '.sp-muted{color:var(--text-muted)}' +
+            '.sp-detail{max-width:360px;overflow-wrap:anywhere}' +
+            '.sp-controls label{display:inline-flex;align-items:center;gap:6px}' +
+            '@media (max-width:767px){.sp-controls select,.sp-controls label,.sp-refresh{min-height:44px}.sp-controls select{font-size:16px}.sp-controls input[type=checkbox]{width:22px;height:22px}}';
+        document.head.appendChild(style);
+    }
+    function _spRender() {
+        const root = document.getElementById('kasperContent');
+        if (!root) return;
+        if (!_syncviewStaffCan('clients-admin')) { _kasperDenySubtab('clients-admin'); return; }
+        _kqlInjectStyles();   // the shared card head and Refresh button
+        _spInjectStyles();
+        const opt = (value, label, current) => '<option value="' + _calEscAttr(value) + '"' + (String(current) === String(value) ? ' selected' : '') + '>' + _calEsc(label) + '</option>';
+        root.innerHTML = '<div class="kql-wrap"><div class="kql-card-head"><div><div class="kql-card-title">Save problems</div>' +
+            '<div class="kql-card-sub">Every refused or failed save that reached the server log, newest first. Kept for 30 days.</div></div>' +
+            '<button class="kql-refresh sp-refresh" type="button" data-sp-refresh>Refresh</button></div>' +
+            '<div class="sp-controls">' +
+            '<label>Period <select data-sp-days>' + opt(1, 'Last 24 hours', _spState.days) + opt(7, 'Last 7 days', _spState.days) + opt(30, 'Last 30 days', _spState.days) + '</select></label>' +
+            '<label>Screen <select data-sp-screen>' + opt('', 'All', _spState.screen) + Object.keys(SP_SCREENS).map(k => opt(k, SP_SCREENS[k], _spState.screen)).join('') + '</select></label>' +
+            '<label>Who <select data-sp-page>' + opt('', 'Everyone', _spState.page) + opt('client_link', 'Client links', _spState.page) + opt('staff_page', 'Staff', _spState.page) + '</select></label>' +
+            '<label><input type="checkbox" data-sp-automation' + (_spState.automation ? ' checked' : '') + '> Show automated tests</label>' +
+            '</div><div id="spBody"></div></div>';
+        root.querySelector('[data-sp-refresh]').addEventListener('click', () => _spLoad());
+        root.querySelector('[data-sp-days]').addEventListener('change', e => { _spState.days = Number(e.target.value) || 7; _spLoad(); });
+        root.querySelector('[data-sp-screen]').addEventListener('change', e => { _spState.screen = e.target.value; _spPaint(); });
+        root.querySelector('[data-sp-page]').addEventListener('change', e => { _spState.page = e.target.value; _spPaint(); });
+        root.querySelector('[data-sp-automation]').addEventListener('change', e => { _spState.automation = !!e.target.checked; _spLoad(); });
+        _spPaint();
+        _spLoad();
+    }
+    async function _spLoad() {
+        const gen = ++_spState.gen;
+        _spState.loading = true; _spState.error = null;
+        _spPaint();
+        try {
+            const ident = _syncviewStaffIdentityForHeaders();
+            if (!ident || !ident.key) throw new Error('Sign in as an admin to see save problems.');
+            const resp = await fetch(SP_EF_URL, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', 'X-Syncview-Key': ident.key },
+                body: JSON.stringify({ action: 'staff_list', days: _spState.days, include_automation: _spState.automation })
+            });
+            const data = await resp.json().catch(() => null);
+            if (resp.status === 403) throw new Error('Save problems need an Admin account.');
+            if (resp.status === 503 && data && data.error === 'dormant') throw new Error('The save-problem log is switched off on the server.');
+            if (!resp.ok || !data || data.ok !== true) throw new Error('Could not read the save-problem log (HTTP ' + resp.status + ').');
+            if (gen !== _spState.gen) return;
+            _spState.data = data.result || { rows: [] };
+            _spState.loaded = true;
+        } catch (e) {
+            if (gen !== _spState.gen) return;
+            _spState.error = e && e.message ? e.message : String(e);
+        } finally {
+            if (gen === _spState.gen) { _spState.loading = false; _spPaint(); }
+        }
+    }
+    function _spWhen(iso) {
+        const d = new Date(iso);
+        return isNaN(d.getTime()) ? '' : d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+    function _spPaint() {
+        const body = document.getElementById('spBody');
+        if (!body) return;
+        if (_spState.loading && !_spState.loaded) { body.innerHTML = _calLoaderHtml('Loading save problems'); return; }
+        if (_spState.error) {
+            body.innerHTML = '<div class="kasper-empty"><div class="kasper-empty-title">Could not load save problems</div><div class="kasper-empty-sub">' + _calEsc(_spState.error) + '</div></div>';
+            return;
+        }
+        const data = _spState.data || { rows: [] };
+        const rows = (Array.isArray(data.rows) ? data.rows : []).filter(r => (!_spState.screen || r.surface === _spState.screen) && (!_spState.page || r.page === _spState.page));
+        const hidden = Number(data.hidden_automation) || 0;
+        const summary = '<div class="sp-summary">' + _calEsc(String(rows.length)) + ' shown' +
+            (Number(data.total) > (Array.isArray(data.rows) ? data.rows.length : 0) ? ' (newest ' + _calEsc(String(data.rows.length)) + ' of ' + _calEsc(String(data.total)) + ')' : '') +
+            (!data.include_automation && hidden ? ' · ' + _calEsc(String(hidden)) + ' automated test rows hidden' : '') + '</div>';
+        if (!rows.length) {
+            body.innerHTML = summary + '<div class="kasper-empty"><div class="kasper-empty-title">No save problems</div><div class="kasper-empty-sub">Nothing was refused or failed in this period.</div></div>';
+            return;
+        }
+        const who = r => {
+            const page = SP_PAGES[r.page] || 'Unknown';
+            if (r.page === 'staff_page' && r.staff_role) return page + ' (' + ({ admin: 'Admin', smm: 'SMM', creative: 'Creative' }[r.staff_role] || r.staff_role) + ')';
+            if (r.page === 'client_link' && r.client_ref) return page + ' · ' + r.client_ref;
+            return page;
+        };
+        const cell = (v, cls) => '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + (v ? _calEsc(String(v)) : '<span class="sp-muted">-</span>') + '</td>';
+        body.innerHTML = summary + '<div class="sp-scroll"><table class="sp-table"><thead><tr><th>When</th><th>Screen</th><th>Action</th><th>Who</th><th>Card</th><th>Error</th><th>Message</th><th>Browser</th><th>App version</th></tr></thead><tbody>' +
+            rows.map(r => '<tr>' + cell(_spWhen(r.recorded_at)) + cell(SP_SCREENS[r.surface] || r.surface) + cell(r.ui_action || r.operation) + cell(who(r)) +
+                cell(r.card_ref, 'sp-code') + cell((r.code || '') + (r.status ? ' (' + r.status + ')' : ''), 'sp-code') + cell(r.detail, 'sp-detail') +
+                cell([r.browser, r.os].filter(Boolean).join(' / ')) + cell(r.app_version ? r.app_version.replace('T', ' ') + ' UTC' : '') + '</tr>').join('') +
+            '</tbody></table></div>';
     }
 
     // Sales Intake lives as a Kasper subtab (it's Kasper's post-close paperwork

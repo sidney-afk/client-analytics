@@ -12,7 +12,7 @@ import {
   _writeUiLegacyResumeOwner, _writeUiLegacyResumeOwnerCurrent, _writeUiLegacyResumeOwnerKey,
   _writeUiMarkRepairCommitted, _writeUiNativeId, _writeUiNativeStatus, _writeUiPrincipalKey,
   _writeUiQueueDiagnostic, _writeUiRefreshAuthority, _writeUiRemoveCompletedRepairRefs,
-  _writeUiRepairCompanions, _writeUiRepairJournalRead, _writeUiReportFailure,
+  _writeUiRecordFailure, _writeUiRepairCompanions, _writeUiRepairJournalRead, _writeUiReportFailure,
   _writeUiSetLastRenderedAuthoritySig, _writeUiSnapshotRepairRefs, _writeUiTeam,
   _writeUiUseGatewayWhenReady, computeOverallStatus
 } from './120-calendar-flags-write-repair.js';
@@ -1585,7 +1585,10 @@ import {
             _sxrKasperState.saving[key] = false;
             _sxrKasperRepaint(pid);
             if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', linearComment ? 'comment' : 'status', e);
-            else if (typeof showNotify === 'function') showNotify(gatewayCommitted ? 'Card sync incomplete' : 'Save failed', gatewayCommitted ? 'The native write is safe; Samples source sync will retry automatically.' : ((e && e.message) || 'Please try again.'));
+            else {
+                _writeUiRecordFailure('sxr', linearComment ? 'comment' : 'status', e);
+                if (typeof showNotify === 'function') showNotify(gatewayCommitted ? 'Card sync incomplete' : 'Save failed', gatewayCommitted ? 'The native write is safe; Samples source sync will retry automatically.' : ((e && e.message) || 'Please try again.'));
+            }
         }
     }
     async function _sxrKasperResumeSourceRepairs() {

@@ -3,7 +3,7 @@ import {
   CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svSelectHtml, _syncviewStaffIdentityForHeaders,
   _syncviewStaffIdentitySignature, _syncviewStaffIdentityValid, _syncviewStaffVerificationEpoch
 } from './100-onboarding-staff-controls.js';
-import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
+import { _syncviewEfHeaders, _writeUiRecordFailure } from './120-calendar-flags-write-repair.js';
 import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
 import { CAL_CACHE_KEY_PREFIX } from './150-calendar-hydration-import.js';
 import {
@@ -2356,6 +2356,7 @@ import { SXR_CACHE_PREFIX } from './270-samples-model.js';
                 if (operation === 'batch_asset') _prodInvalidateBatchAssetReads(issue, id, slot, value);
                 await _prodEnsureAssets(id, true);
             } catch (error) {
+                _writeUiRecordFailure('production', String(operation || 'asset'), error, { id: String(id) });
                 state.saving = false;
                 const conflictRow = String(error && error.code || '') === 'write_conflict'
                     && error && error.row

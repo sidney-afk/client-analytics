@@ -116,7 +116,9 @@ ok(JSON.parse(run(`sessionStorage.getItem(CAL_REPLY_DRAFTS_PREFIX + 'card-D')`))
 const beaconCalls = [];
 const ctx2 = vm.createContext({
   console, TextEncoder, AbortController, setTimeout, clearTimeout,
-  fetch: (url, init) => { beaconCalls.push({ url, body: JSON.parse(init.body) }); return Promise.reject(new Error('offline')); },
+  fetch: (url, init) => { beaconCalls.push({ url, headers: init.headers, body: JSON.parse(init.body) }); return Promise.reject(new Error('offline')); },
+  document: { lastModified: '09/27/2026 14:05:09' },
+  _syncviewStaffIdentityForHeaders: () => ({ key: 'synthetic-staff-key', role: 'smm' }),
 });
 vm.runInContext(`
 const localStorage = { _d: {}, getItem(k) { return this._d[k] == null ? null : this._d[k]; }, setItem(k, v) { this._d[k] = String(v); } };
@@ -130,6 +132,7 @@ const CAL_SUPABASE_URL = 'https://synthetic.invalid';
   + "const WRITE_REFUSAL_BEACON_URL = CAL_SUPABASE_URL + '/functions/v1/write-diagnostics';\n"
   + 'let _writeRefusalBeaconBudget = WRITE_REFUSAL_BEACON_MAX;\n'
   + grabFunc('_writeUiDiagnosticIds') + '\n'
+  + grabFunc('_writeRefusalAppVersion') + '\n'
   + grabFunc('_writeRefusalBeacon') + '\n'
   + grabFunc('_writeUiQueueDiagnostic') + '\n', ctx2);
 const run2 = e => vm.runInContext(e, ctx2);
@@ -178,9 +181,20 @@ ok(!('request_id' in claim.identifiers) && !('transport' in claim.identifiers) &
 ok(claim.identifiers.card === 'card-A' && claim.identifiers.comment === 'cm_root_1'
   && claim.identifiers.id === 'q_123_comment',
 'and it names the thread a human would need to find');
+// OPEN_REPAIRS 101 release A: the page build and, from a staff page, the role
+// key the server verifies (it never stores the key).
+ok(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(claim.app_version), 'the claim carries the page build stamp');
+ok(claim.page === 'staff_page' && beaconCalls[0].headers['X-Syncview-Key'] === 'synthetic-staff-key',
+'a staff page sends its role key so the server can verify the role');
+ok(!('message' in claim), 'an error with no message sends no message');
+run2(`var _isClientLink = true; _writeUiQueueDiagnostic('calendar', 'ui_write_failure', { kind: 'status', card: 'card-B' }, { code: 'write_conflict', message: 'Someone else changed this card' });`);
+ok(beaconCalls.length === 2 && beaconCalls[1].body.page === 'client_link' && !('X-Syncview-Key' in beaconCalls[1].headers),
+'a client link never sends a staff key');
+ok(beaconCalls[1].body.message === 'Someone else changed this card', 'the error message rides along, trimmed');
+run2(`_isClientLink = false;`);
 
 run2(`_writeUiQueueDiagnostic('calendar', 'drained', { kind: 'status', payload: { nested: { deep: 'x' } }, id: { not: 'a scalar' } });`);
-ok(beaconCalls.length === 1, 'an outcome that is not a write failure never reports');
+ok(beaconCalls.length === 2, 'an outcome that is not a write failure never reports');
 const row2 = JSON.parse(run2(`localStorage.getItem(WRITE_UI_QUEUE_DIAG_KEY)`))[1];
 ok(row2.id === undefined && row2.nested === undefined,
 'a non-scalar under an allowlisted key is dropped rather than serialized');

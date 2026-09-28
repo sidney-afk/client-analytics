@@ -1500,6 +1500,15 @@ import { _kasperPaintReview } from './330-kasper-review-history.js';
     const WRITE_REFUSAL_BEACON_IDS = ['id', 'client_slug', 'card', 'component', 'comment', 'parent'];
     const WRITE_REFUSAL_BEACON_MAX = 20;
     let _writeRefusalBeaconBudget = WRITE_REFUSAL_BEACON_MAX;
+    // The served page's last-modified time (GitHub Pages sets it on every
+    // deploy), as YYYY-MM-DDTHH:MM in UTC: enough to tell which build a
+    // person had open without a build step stamping a version in.
+    function _writeRefusalAppVersion() {
+        try {
+            const at = new Date(document.lastModified);
+            return isNaN(at.getTime()) ? '' : at.toISOString().slice(0, 16);
+        } catch (e) { return ''; }
+    }
     function _writeRefusalBeacon(surface, outcome, item, error) {
         if (outcome !== 'ui_write_failure' || _writeRefusalBeaconBudget <= 0) return;
         _writeRefusalBeaconBudget--;
@@ -1524,12 +1533,30 @@ import { _kasperPaintReview } from './330-kasper-review-history.js';
                 page: (typeof _isClientLink !== 'undefined' && _isClientLink) ? 'client_link' : 'staff_page'
             };
             if (status !== null) claim.status = status;
-            const body = JSON.stringify(claim);
+            /* OPEN_REPAIRS 101 release A: what the person was told, and which
+               build of the page told them. The message is trimmed here and
+               cleaned again on the server (emails, links, token-like strings
+               and long numbers become [redacted]); comment text never reaches
+               an error object, so it cannot ride along. */
+            const message = String(error && error.message || '').slice(0, 200);
+            if (message) claim.message = message;
+            const version = _writeRefusalAppVersion();
+            if (version) claim.app_version = version;
+            const headers = { 'content-type': 'application/json' };
+            // A staff page sends its role key so the server can VERIFY the
+            // role it records; the key is checked, never stored. A client
+            // link sends nothing.
+            if (claim.page === 'staff_page') {
+                const ident = _syncviewStaffIdentityForHeaders();
+                if (ident && typeof ident.key === 'string' && ident.key) headers['X-Syncview-Key'] = ident.key;
+            }
+            let body = JSON.stringify(claim);
+            if (new TextEncoder().encode(body).length > 2048) { delete claim.message; body = JSON.stringify(claim); }
             if (new TextEncoder().encode(body).length > 2048) return;
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), 1500);
             fetch(WRITE_REFUSAL_BEACON_URL, {
-                method: 'POST', headers: { 'content-type': 'application/json' },
+                method: 'POST', headers,
                 body, credentials: 'omit', keepalive: true, signal: controller.signal
             }).catch(() => {}).finally(() => clearTimeout(timer));
         } catch (e) {}
@@ -2237,6 +2264,16 @@ import { _kasperPaintReview } from './330-kasper-review-history.js';
            it, and this is the same format. */
         if (code) return _writeUiFailureText('write', code, error && error.status).text + ' (code: ' + code + ')';
         return fallback || 'Save failed';
+    }
+    /* Record a refused or failed save WITHOUT showing anything: for the save
+       paths that already tell the person themselves (a toast, an inline
+       error). Same ring, same capped fire-and-forget beacon as
+       _writeUiReportFailure. Never throws. */
+    function _writeUiRecordFailure(surface, operation, error, context) {
+        try {
+            _writeUiQueueDiagnostic(surface, 'ui_write_failure',
+                Object.assign({ kind: operation }, error && error.diagIds || {}, context || {}), error);
+        } catch (e) {}
     }
     function _writeUiReportFailure(surface, operation, error, context) {
         try { console.warn('[' + surface + '] native ' + operation + ' gateway failed', error); } catch (e) {}
@@ -3137,7 +3174,7 @@ export {
   _writeUiMergeCommittedBatch, _writeUiNativeId, _writeUiNativeStatus, _writeUiPrimeRerouteFlag,
   _writeUiPrincipalKey, _writeUiQueueDiagnostic, _writeUiRefreshAuthority,
   _writeUiRemoveCompletedRepairRefs, _writeUiRepairCompanions, _writeUiRepairJournalRead,
-  _writeUiReportFailure, _writeUiRerouteUseGateway, _writeUiRerouteUseGatewayWhenReady,
+  _writeUiRecordFailure, _writeUiReportFailure, _writeUiRerouteUseGateway, _writeUiRerouteUseGatewayWhenReady,
   _writeUiSetLastRenderedAuthoritySig, _writeUiSnapshotRepairRefs, _writeUiSourceClientSlug,
   _writeUiSourceEditsOnly, _writeUiTeam, _writeUiUseGatewayWhenReady, computeOverallStatus
 };

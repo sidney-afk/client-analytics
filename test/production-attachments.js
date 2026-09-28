@@ -175,7 +175,7 @@ function extractFunction(source, name) {
     assetUrlType: policy.assetUrlType,
     URL,
   };
-  vm.createContext(providerContext);
+  vm.createContext(Object.assign(providerContext, { _writeUiRecordFailure: providerContext._writeUiRecordFailure || (() => {}) }));
   const providerStart = edge.indexOf('function providerEvidenceState(');
   const providerEnd = edge.indexOf('\nasync function probeAssetUrl(', providerStart);
   const providerFn = edge.slice(providerStart, providerEnd)
@@ -692,7 +692,7 @@ function extractFunction(source, name) {
       }));
     },
   };
-  vm.createContext(archiveContext);
+  vm.createContext(Object.assign(archiveContext, { _writeUiRecordFailure: archiveContext._writeUiRecordFailure || (() => {}) }));
   vm.runInContext([
     extractFunction(ui, '_prodArchiveScopeSignature'),
     extractFunction(ui, '_prodArchiveScopeChange'),
@@ -781,7 +781,7 @@ function extractFunction(source, name) {
     PROD_BATCH_ASSET_GUIDANCE: 'Held on the post, not readable here. Open a sub-issue to see it.',
     PROD_ASSET_UNREAD_GUIDANCE: 'Not readable until asset access is checked.',
   };
-  vm.createContext(assetContext);
+  vm.createContext(Object.assign(assetContext, { _writeUiRecordFailure: assetContext._writeUiRecordFailure || (() => {}) }));
   const assetSpecsStart = ui.indexOf('const PROD_ASSET_SPECS = Object.freeze([');
   const assetSpecsEnd = ui.indexOf('\n        const PROD_GROUP_KEYS', assetSpecsStart);
   vm.runInContext([
@@ -862,7 +862,7 @@ function extractFunction(source, name) {
     PROD_BATCH_ASSET_GUIDANCE: 'Held on the post, not readable here. Open a sub-issue to see it.',
     PROD_ASSET_UNREAD_GUIDANCE: 'Not readable until asset access is checked.',
   };
-  vm.createContext(scopedAssetContext);
+  vm.createContext(Object.assign(scopedAssetContext, { _writeUiRecordFailure: scopedAssetContext._writeUiRecordFailure || (() => {}) }));
   vm.runInContext([
     ui.slice(assetSpecsStart, assetSpecsEnd),
     extractFunction(ui, '_prodAssetDefaultEvidence'),
@@ -1030,7 +1030,7 @@ function extractFunction(source, name) {
     PROD_BATCH_ASSET_GUIDANCE: 'Held on the post, not readable here. Open a sub-issue to see it.',
     PROD_ASSET_UNREAD_GUIDANCE: 'Not readable until asset access is checked.',
   };
-  vm.createContext(assetMatrixContext);
+  vm.createContext(Object.assign(assetMatrixContext, { _writeUiRecordFailure: assetMatrixContext._writeUiRecordFailure || (() => {}) }));
   vm.runInContext(
     `${ui.slice(assetSpecsStart, assetSpecsEnd)}
 ${ui.slice(assetDefaultStart, assetDefaultEnd)}

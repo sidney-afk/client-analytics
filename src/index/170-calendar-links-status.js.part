@@ -6,7 +6,7 @@ import {
   _syncviewEfHeaders, _writeUiAdoptRepairAck, _writeUiAdoptReplayStatus, _writeUiAppendRepairRef,
   _writeUiCompleteSourceRepairRefs, _writeUiFailureSentence, _writeUiGatewayError,
   _writeUiLinkSlotSealedLive, _writeUiLinkSlotSealedNotice, _writeUiPrincipalKey,
-  _writeUiQueueDiagnostic, _writeUiRemoveCompletedRepairRefs, _writeUiReportFailure,
+  _writeUiQueueDiagnostic, _writeUiRecordFailure, _writeUiRemoveCompletedRepairRefs, _writeUiReportFailure,
   _writeUiSnapshotRepairRefs, _writeUiSourceEditsOnly, computeOverallStatus
 } from './120-calendar-flags-write-repair.js';
 import { _calNameSyncAfterSave } from './125-title-name-rule.js';
@@ -1603,6 +1603,9 @@ import { _writeUiClearSupersededSourceRepair, _writeUiJournalCoversRepairRefs, _
         } catch (e) {
             console.warn('[Calendar] save failed', e);
             if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('calendar', 'status', e);
+            // A save that never reached the gateway (older save path, or a
+            // failure before sending) is recorded too, without a second notice.
+            else if (!gatewayAttempted) _writeUiRecordFailure('calendar', 'status', e, { card: String(pid || '') });
             /* One component committed and its sibling was REFUSED. The refusal
                is a real failure for that component: tell the person, and (below)
                put that component back on screen, while the committed one stays

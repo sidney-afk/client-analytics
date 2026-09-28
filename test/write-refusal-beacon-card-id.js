@@ -49,6 +49,8 @@ function grabConst(name) {
     fetch: (url, init) => { sent.push(JSON.parse(init.body)); return Promise.resolve({}); },
     localStorage: { _d: {}, getItem(k) { return this._d[k] || null; }, setItem(k, v) { this._d[k] = String(v); } },
     WRITE_UI_QUEUE_DIAG_KEY: 'diag',
+    document: { lastModified: '09/27/2026 14:05:09' },
+    _syncviewStaffIdentityForHeaders: () => null,
   });
   vm.runInContext([
     grabFunc('_writeUiGatewayError'),
@@ -59,6 +61,7 @@ function grabConst(name) {
     grabConst('WRITE_REFUSAL_BEACON_IDS'),
     grabConst('WRITE_REFUSAL_BEACON_MAX'),
     'let _writeRefusalBeaconBudget = WRITE_REFUSAL_BEACON_MAX;',
+    grabFunc('_writeRefusalAppVersion'),
     grabFunc('_writeRefusalBeacon'),
     grabFunc('_writeUiQueueDiagnostic'),
     grabFunc('_writeUiTagDiagIds'),
@@ -107,7 +110,8 @@ function grabConst(name) {
   // `page` (client_link | staff_page) joined 2026-09-25 (refusal-log triage).
   // write-diagnostics reads named fields only, so a function deployed before
   // it ignores `page` and still accepts the claim.
-  ok(Object.keys(claim).sort().join(',') === 'action,code,identifiers,operation,page,status,surface'
+  // message and app_version joined 2026-09-27 (OPEN_REPAIRS 101 release A).
+  ok(Object.keys(claim).sort().join(',') === 'action,app_version,code,identifiers,message,operation,page,status,surface'
     && (claim.page === 'client_link' || claim.page === 'staff_page'),
     'the beacon shape is the known set plus the page claim, which older write-diagnostics ignores');
 

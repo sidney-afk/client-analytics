@@ -26,7 +26,11 @@ const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const split = html.includes('/* SyncView loader.');
 const forcedParts = /var FORCE = "parts";/.test(html);
 
-const empty = r => (r.request().method() === 'OPTIONS'
+// Time Off only exists when its flag is on, so the offline answers turn it on.
+const PTO_ON = JSON.stringify([{ key: 'pto_v1', value: { mode: 'on' } }]);
+const empty = r => (/\/rest\/v1\/syncview_runtime_flags/.test(r.request().url()) && /pto_v1/.test(r.request().url())
+  ? r.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: PTO_ON }).catch(() => {})
+  : r.request().method() === 'OPTIONS'
   ? r.fulfill({ status: 204, headers: CORS, body: '' })
   : r.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: '[]' }).catch(() => {}));
 
@@ -55,7 +59,10 @@ async function load(browser, origin, { url, staff, route, dropFirstPart }) {
   return Object.assign(state, { navigations, dropped });
 }
 
-const LAZY_VIEWS = { tiktok: { route: 'tiktok-upload', drawn: '.tk-page #tkFormCol' } };
+const LAZY_VIEWS = {
+  tiktok: { route: 'tiktok-upload', drawn: '.tk-page #tkFormCol' },
+  'time-off': { route: 'time-off', drawn: '.pto-wrap #ptoRoot' },
+};
 async function lazyChecks(browser, origin, failures) {
   const lazyNames = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'index', 'split.json'), 'utf8')).lazy || [];
   for (const name of lazyNames) {

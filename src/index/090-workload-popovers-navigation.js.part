@@ -19,7 +19,7 @@ import { _tdyTeardown, mountTodayView, renderTodayView } from './097-today.js';
 import {
   CAL_SUPABASE_URL, OB_VARIANT, _svDateHtml, mountOnboardingView, renderOnboardingView
 } from './100-onboarding-staff-controls.js';
-import { _ptoEnabled, mountTimeOffView, renderTimeOffView } from './110-time-off.js';
+import { _ptoEnabled } from './108-core-time-off-flag.js';
 import { mountSmmWeeklyReportFormView, mountSmmWeeklyReportsView, renderSmmWeeklyReportFormView, renderSmmWeeklyReportsView } from './112-smm-weekly-reports.js';
 import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
 import { _calAbandonLinkOnCalendarExit, calState } from './130-calendar-model-cache.js';
@@ -1779,8 +1779,11 @@ import {
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'time-off') {
             pageTop.style.display = 'none';
-            content.innerHTML = renderTimeOffView();
-            mountTimeOffView();
+            // Time Off is an on-demand area (040, svWithArea).
+            svWithArea('time-off', content, pto => {
+                content.innerHTML = pto.render();
+                pto.mount();
+            }, () => navTo('time-off'));
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'calendar') {
             pageTop.style.display = 'none';

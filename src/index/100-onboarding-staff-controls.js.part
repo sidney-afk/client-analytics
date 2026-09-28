@@ -1,6 +1,6 @@
 import {
   _syncviewApplyStatusPalette, _syncviewApplyTheme, _syncviewStoredStatusPalette,
-  _syncviewStoredTheme, _toastEl, showNotify, showToast
+  _syncviewStoredTheme, _toastEl, showNotify, showToast, svArea, svAreaApi
 } from './040-shared-briefs.js';
 import {
   _fpPurgeSensitiveState, _obvMode, _obvSetError, _obvSetLoadedAt, _obvSetLoading, _obvSetMode,
@@ -9,10 +9,7 @@ import {
 import { wlNormalizeClient, wlPurgePlanSensitiveState } from './070-workload-source.js';
 import { wlRefreshSensitiveStateSilent } from './080-workload-render.js';
 import { _tdyPurgeSensitiveState } from './097-today.js';
-import {
-  _ptoCalResetView, _ptoDate, _ptoEnabled, _ptoLoadAdmin, _ptoLoadOverview, _ptoPaint,
-  _ptoRenderAdmin
-} from './110-time-off.js';
+import { _ptoDate, _ptoEnabled } from './108-core-time-off-flag.js';
 import { _srpPurgeSensitiveState } from './112-smm-weekly-reports.js';
 import { _jsAttrArg } from './131-core-html.js';
 import { _thumbCompareScheduleAvailability } from './160-calendar-organize-ui.js';
@@ -1439,21 +1436,25 @@ import {
             // remains visible after sign-out, a cross-tab identity change, or
             // an expired-key 401.
             try {
-                if (typeof currentNav !== 'undefined' && currentNav === 'time-off' && typeof _ptoPaint === 'function') _ptoPaint();
+                // Time Off loads on demand (040 svAreaApi): not loaded means
+                // nothing of it is on screen, so there is nothing to repaint.
+                const pto = svAreaApi('time-off');
+                if (typeof currentNav !== 'undefined' && currentNav === 'time-off' && pto) pto.paint();
                 if (typeof currentNav !== 'undefined' && currentNav === 'kasper'
                     && typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'time-off'
-                    && typeof _ptoRenderAdmin === 'function') _ptoRenderAdmin();
+                    && pto) pto.renderAdmin();
             } catch (e) {}
         } else {
             // A cross-tab identity replacement first purges the mounted HR
             // view. Rehydrate it only after the replacement is verified.
             try {
+                const pto = svAreaApi('time-off');
                 if (typeof currentNav !== 'undefined' && currentNav === 'time-off'
-                    && typeof _ptoLoadOverview === 'function' && typeof _ptoState !== 'undefined'
-                    && !_ptoState.overview && !_ptoState.loading) _ptoLoadOverview(true);
+                    && pto && typeof _ptoState !== 'undefined'
+                    && !_ptoState.overview && !_ptoState.loading) pto.loadOverview(true);
                 if (typeof currentNav !== 'undefined' && currentNav === 'kasper'
                     && typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'time-off'
-                    && typeof _ptoRenderAdmin === 'function') _ptoRenderAdmin();
+                    && pto) pto.renderAdmin();
             } catch (e) {}
         }
         try {
@@ -1567,7 +1568,7 @@ import {
         try { if (typeof _prodSmmPurgeSensitiveState === 'function') _prodSmmPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _hpPurgeSensitiveState === 'function') _hpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _caPurgeSensitiveState === 'function') _caPurgeSensitiveState(); } catch (e) {}
-        try { if (typeof _ptoCalResetView === 'function') _ptoCalResetView(); } catch (e) {}
+        try { const pto = svAreaApi('time-off'); if (pto) pto.calResetView(); } catch (e) {}
         try { if (typeof _ccCloseModal === 'function') _ccCloseModal(); } catch (e) {}
         try { if (typeof _ccRevTeardown === 'function') _ccRevTeardown(); } catch (e) {}
         try { document.querySelectorAll('#ccOverlay, .cc-sensitive-overlay').forEach(element => element.remove()); } catch (e) {}
@@ -2128,8 +2129,10 @@ import {
     async function _ptoRefreshAfterConflict(surface, message) {
         _ptoShowToast(message || 'Time Off changed. Refreshing the latest state.');
         _ptoInvalidateOverviewCaches();
-        if (surface === 'admin') await _ptoLoadAdmin(true);
-        else await _ptoLoadOverview(true);
+        // Only Time Off's own writes call this, so its code is here.
+        const pto = await svArea('time-off');
+        if (surface === 'admin') await pto.loadAdmin(true);
+        else await pto.loadOverview(true);
     }
 
     function _ptoEsc(value) {

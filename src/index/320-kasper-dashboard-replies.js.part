@@ -1,5 +1,6 @@
 import {
-  FILMING_PLAN_TABS_URL, SHEET_ID, _analyticsReleaseExtras, parseCSV, showConfirm, showToast
+  FILMING_PLAN_TABS_URL, SHEET_ID, _analyticsReleaseExtras, parseCSV, showConfirm, showToast,
+  svArea, svAreaApi, svWithArea
 } from './040-shared-briefs.js';
 import { _svCss, _svRgb } from './050-market-briefs.js';
 import {
@@ -15,7 +16,7 @@ import {
   _syncviewStaffIdentityForHeaders, _syncviewStaffIdentityLoad, _syncviewStaffIdentitySignature,
   _syncviewStaffIdentityValid, _syncviewStaffRoleValue
 } from './100-onboarding-staff-controls.js';
-import { _ptoAdminPending, _ptoEnabled, _ptoLoadAdmin, _ptoRenderAdmin } from './110-time-off.js';
+import { _ptoEnabled } from './108-core-time-off-flag.js';
 import { _calComponentsFor, _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
 import {
   _calCommentsFor, _calMigratePostShape, _calMsgAudience, _calMsgIsTweak, _calSetCommentsFor,
@@ -769,7 +770,12 @@ import {
         if (_kasperState.tab === 'replies') return _kasperRenderReplies();
         if (_kasperState.tab === 'editors') return _kasperRenderEditors();
         if (_kasperState.tab === 'filming') return _kasperRenderFilming();
-        if (_kasperState.tab === 'time-off') return _ptoRenderAdmin();
+        if (_kasperState.tab === 'time-off') {
+            // Time Off loads on demand (040 svWithArea); its admin draws into kasperContent.
+            const root = document.getElementById('kasperContent');
+            if (root) svWithArea('time-off', root, pto => pto.renderAdmin(), () => _kasperGotoTab('time-off'));
+            return;
+        }
         if (_kasperState.tab === 'sales-intake') return _kasperRenderSalesIntake();
         if (_kasperState.tab === 'hiring-process') return _kasperRenderHiringProcess();
         if (_kasperState.tab === 'onboarding') return _kasperRenderOnboarding();
@@ -2840,8 +2846,9 @@ import {
         if (fd && Array.isArray(fd.rows)) {
             _kasperSetTabCount('filming', fd.rows.filter(r => r && r.status !== 'green').length);
         }
-        if (_ptoEnabled() && _ptoAdminState.overview) {
-            _kasperSetTabCount('time-off', _ptoAdminPending(_ptoAdminState.overview).length);
+        const ptoArea = svAreaApi('time-off');
+        if (_ptoEnabled() && _ptoAdminState.overview && ptoArea) {
+            _kasperSetTabCount('time-off', ptoArea.adminPending(_ptoAdminState.overview).length);
         }
         const onboardingUnread = _kasperOnboardingUnreadCount();
         if (onboardingUnread !== null) _kasperSetTabCount('onboarding', onboardingUnread);
@@ -2868,7 +2875,10 @@ import {
             _sxrKasperLoadQueue();
         }
         if (!_kasperState.filmingLoading && !_kasperState.filmingData) _kasperLoadFilming(false);
-        if (_ptoEnabled() && _syncviewStaffCan('pto-admin') && !_ptoAdminState.loading && !_ptoAdminState.overview) _ptoLoadAdmin(false);
+        if (_ptoEnabled() && _syncviewStaffCan('pto-admin') && !_ptoAdminState.loading && !_ptoAdminState.overview) {
+            // The tab count needs Time Off's code (on demand); fetch it quietly.
+            svArea('time-off').then(pto => pto.loadAdmin(false), () => {});
+        }
         if (_syncviewStaffCan('onboarding') && !_obvLoading && !Array.isArray(_obvSubs)) {
             _obvSetMode('full');
             _obvEnsureLoaded();

@@ -24058,8 +24058,11 @@
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'time-off') {
             pageTop.style.display = 'none';
-            content.innerHTML = renderTimeOffView();
-            mountTimeOffView();
+            // Time Off is an on-demand area (040, svWithArea).
+            svWithArea('time-off', content, pto => {
+                content.innerHTML = pto.render();
+                pto.mount();
+            }, () => navTo('time-off'));
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'calendar') {
             pageTop.style.display = 'none';
@@ -26681,21 +26684,25 @@
             // remains visible after sign-out, a cross-tab identity change, or
             // an expired-key 401.
             try {
-                if (typeof currentNav !== 'undefined' && currentNav === 'time-off' && typeof _ptoPaint === 'function') _ptoPaint();
+                // Time Off loads on demand (040 svAreaApi): not loaded means
+                // nothing of it is on screen, so there is nothing to repaint.
+                const pto = svAreaApi('time-off');
+                if (typeof currentNav !== 'undefined' && currentNav === 'time-off' && pto) pto.paint();
                 if (typeof currentNav !== 'undefined' && currentNav === 'kasper'
                     && typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'time-off'
-                    && typeof _ptoRenderAdmin === 'function') _ptoRenderAdmin();
+                    && pto) pto.renderAdmin();
             } catch (e) {}
         } else {
             // A cross-tab identity replacement first purges the mounted HR
             // view. Rehydrate it only after the replacement is verified.
             try {
+                const pto = svAreaApi('time-off');
                 if (typeof currentNav !== 'undefined' && currentNav === 'time-off'
-                    && typeof _ptoLoadOverview === 'function' && typeof _ptoState !== 'undefined'
-                    && !_ptoState.overview && !_ptoState.loading) _ptoLoadOverview(true);
+                    && pto && typeof _ptoState !== 'undefined'
+                    && !_ptoState.overview && !_ptoState.loading) pto.loadOverview(true);
                 if (typeof currentNav !== 'undefined' && currentNav === 'kasper'
                     && typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'time-off'
-                    && typeof _ptoRenderAdmin === 'function') _ptoRenderAdmin();
+                    && pto) pto.renderAdmin();
             } catch (e) {}
         }
         try {
@@ -26809,7 +26816,7 @@
         try { if (typeof _prodSmmPurgeSensitiveState === 'function') _prodSmmPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _hpPurgeSensitiveState === 'function') _hpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _caPurgeSensitiveState === 'function') _caPurgeSensitiveState(); } catch (e) {}
-        try { if (typeof _ptoCalResetView === 'function') _ptoCalResetView(); } catch (e) {}
+        try { const pto = svAreaApi('time-off'); if (pto) pto.calResetView(); } catch (e) {}
         try { if (typeof _ccCloseModal === 'function') _ccCloseModal(); } catch (e) {}
         try { if (typeof _ccRevTeardown === 'function') _ccRevTeardown(); } catch (e) {}
         try { document.querySelectorAll('#ccOverlay, .cc-sensitive-overlay').forEach(element => element.remove()); } catch (e) {}
@@ -27370,8 +27377,10 @@
     async function _ptoRefreshAfterConflict(surface, message) {
         _ptoShowToast(message || 'Time Off changed. Refreshing the latest state.');
         _ptoInvalidateOverviewCaches();
-        if (surface === 'admin') await _ptoLoadAdmin(true);
-        else await _ptoLoadOverview(true);
+        // Only Time Off's own writes call this, so its code is here.
+        const pto = await svArea('time-off');
+        if (surface === 'admin') await pto.loadAdmin(true);
+        else await pto.loadOverview(true);
     }
 
     function _ptoEsc(value) {
@@ -28950,7 +28959,18 @@
             button.disabled = false;
         }
     }
-
+    // What the rest of the page may use, through 040's svAreaApi / svArea:
+    // this area can arrive after the page has started (on-demand loading).
+    svAreaRegister('time-off', {
+        render: renderTimeOffView,
+        mount: mountTimeOffView,
+        paint: _ptoPaint,
+        loadOverview: _ptoLoadOverview,
+        renderAdmin: _ptoRenderAdmin,
+        loadAdmin: _ptoLoadAdmin,
+        adminPending: _ptoAdminPending,
+        calResetView: _ptoCalResetView
+    });
     const SRP_OVERALL = ['On track', 'Minor friction', 'Needs your attention', 'Blocked'];
     const SRP_OBSTACLE = ['Handling it', 'Need your input', 'Need you to act'];
     const SRP_MOOD = ['Great', 'Fine', 'Cooling', 'Concerned'];
@@ -82140,7 +82160,12 @@
         if (_kasperState.tab === 'replies') return _kasperRenderReplies();
         if (_kasperState.tab === 'editors') return _kasperRenderEditors();
         if (_kasperState.tab === 'filming') return _kasperRenderFilming();
-        if (_kasperState.tab === 'time-off') return _ptoRenderAdmin();
+        if (_kasperState.tab === 'time-off') {
+            // Time Off loads on demand (040 svWithArea); its admin draws into kasperContent.
+            const root = document.getElementById('kasperContent');
+            if (root) svWithArea('time-off', root, pto => pto.renderAdmin(), () => _kasperGotoTab('time-off'));
+            return;
+        }
         if (_kasperState.tab === 'sales-intake') return _kasperRenderSalesIntake();
         if (_kasperState.tab === 'hiring-process') return _kasperRenderHiringProcess();
         if (_kasperState.tab === 'onboarding') return _kasperRenderOnboarding();
@@ -84211,8 +84236,9 @@
         if (fd && Array.isArray(fd.rows)) {
             _kasperSetTabCount('filming', fd.rows.filter(r => r && r.status !== 'green').length);
         }
-        if (_ptoEnabled() && _ptoAdminState.overview) {
-            _kasperSetTabCount('time-off', _ptoAdminPending(_ptoAdminState.overview).length);
+        const ptoArea = svAreaApi('time-off');
+        if (_ptoEnabled() && _ptoAdminState.overview && ptoArea) {
+            _kasperSetTabCount('time-off', ptoArea.adminPending(_ptoAdminState.overview).length);
         }
         const onboardingUnread = _kasperOnboardingUnreadCount();
         if (onboardingUnread !== null) _kasperSetTabCount('onboarding', onboardingUnread);
@@ -84239,7 +84265,10 @@
             _sxrKasperLoadQueue();
         }
         if (!_kasperState.filmingLoading && !_kasperState.filmingData) _kasperLoadFilming(false);
-        if (_ptoEnabled() && _syncviewStaffCan('pto-admin') && !_ptoAdminState.loading && !_ptoAdminState.overview) _ptoLoadAdmin(false);
+        if (_ptoEnabled() && _syncviewStaffCan('pto-admin') && !_ptoAdminState.loading && !_ptoAdminState.overview) {
+            // The tab count needs Time Off's code (on demand); fetch it quietly.
+            svArea('time-off').then(pto => pto.loadAdmin(false), () => {});
+        }
         if (_syncviewStaffCan('onboarding') && !_obvLoading && !Array.isArray(_obvSubs)) {
             _obvSetMode('full');
             _obvEnsureLoaded();

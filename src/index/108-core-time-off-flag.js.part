@@ -1,0 +1,217 @@
+import { currentNav } from './060-templates-filming.js';
+import { navTo } from './090-workload-popovers-navigation.js';
+import {
+  CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, PTO_API_TIMEOUT_MS, PTO_EF_URL, PTO_FLAG_KEY,
+  _ptoFlagChannel, _ptoFlagGeneration, _ptoFlagPromise, _ptoFlagValue,
+  _ptoInvalidateOverviewCaches, _ptoNextFlagGeneration, _ptoSetFlagChannel, _ptoSetFlagPromise,
+  _ptoStoreFlagValue, _syncviewCloseStaffAccount, _syncviewOpenStaffIdentity,
+  _syncviewRequireStaffIdentity, _syncviewStaffCan, _syncviewStaffIdentityClear,
+  _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature
+} from './100-onboarding-staff-controls.js';
+import { _calRuntimeFlagClient, _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
+import { _kasperFallbackToReview, _kasperState, mountKasperView, renderKasperView } from './320-kasper-dashboard-replies.js';
+    function _ptoClearValidation(errorId, controlIds) {
+        const errorBox = document.getElementById(errorId);
+        if (errorBox) errorBox.textContent = '';
+        String(controlIds || '').split(/\s+/).filter(Boolean).forEach(id => {
+            const control = document.getElementById(id);
+            if (!control) return;
+            control.removeAttribute('aria-invalid');
+            const describedBy = String(control.getAttribute('aria-describedby') || '')
+                .split(/\s+/).filter(value => value && value !== errorId);
+            if (describedBy.length) control.setAttribute('aria-describedby', describedBy.join(' '));
+            else control.removeAttribute('aria-describedby');
+        });
+    }
+    function _ptoShowValidation(errorId, message, focusId, invalidIds) {
+        const ids = String(invalidIds || focusId || '').split(/\s+/).filter(Boolean);
+        _ptoClearValidation(errorId, ids.join(' '));
+        const errorBox = document.getElementById(errorId);
+        if (errorBox) errorBox.textContent = message;
+        ids.forEach(id => {
+            const control = document.getElementById(id);
+            if (!control) return;
+            control.setAttribute('aria-invalid', 'true');
+            const describedBy = new Set(String(control.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+            describedBy.add(errorId);
+            control.setAttribute('aria-describedby', Array.from(describedBy).join(' '));
+        });
+        document.getElementById(focusId || ids[0])?.focus();
+    }
+    function _ptoEnabled() { return String(_ptoFlagValue && _ptoFlagValue.mode || 'off').toLowerCase() === 'on'; }
+    function _ptoSetFlagValue(value, generation) {
+        if (generation == null) generation = _ptoNextFlagGeneration();
+        if (generation !== _ptoFlagGeneration) return;
+        const wasEnabled = _ptoEnabled();
+        _ptoStoreFlagValue(value && typeof value === 'object' ? value : { mode: 'off' });
+        const enabled = _ptoEnabled();
+        const menuItem = document.getElementById('headerTimeOffMenuItem');
+        if (menuItem) menuItem.hidden = !enabled;
+        if (!enabled) {
+            _ptoInvalidateOverviewCaches();
+            try {
+                if (typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'time-off') {
+                    _kasperFallbackToReview();
+                }
+            } catch (e) {}
+            if (typeof currentNav !== 'undefined' && currentNav === 'time-off') {
+                setTimeout(() => { if (currentNav === 'time-off' && !_ptoEnabled()) navTo('home'); }, 0);
+            }
+        }
+        if (wasEnabled !== enabled && typeof currentNav !== 'undefined' && currentNav === 'kasper') {
+            setTimeout(() => {
+                if (currentNav !== 'kasper') return;
+                const content = document.getElementById('content');
+                if (content && typeof renderKasperView === 'function') {
+                    content.innerHTML = renderKasperView();
+                    mountKasperView();
+                }
+            }, 0);
+        }
+    }
+    async function _ptoFetchFlagOnce() {
+        const generation = _ptoNextFlagGeneration();
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _ptoSetFlagValue({ mode: 'off' }, generation); return; }
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        const timeout = controller ? setTimeout(() => controller.abort(), 5000) : null;
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(PTO_FLAG_KEY) + '&limit=1';
+            const options = { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } };
+            if (controller) options.signal = controller.signal;
+            const response = await fetch(url, options);
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            const rows = await response.json();
+            const row = Array.isArray(rows) ? rows[0] : null;
+            _ptoSetFlagValue(row && row.value ? row.value : { mode: 'off' }, generation);
+        } catch (error) {
+            _ptoSetFlagValue({ mode: 'off' }, generation);
+            console.warn('[PTO] runtime flag read failed; keeping Time Off dark', error);
+        } finally { if (timeout) clearTimeout(timeout); }
+    }
+    async function _ptoSubscribeFlag() {
+        if (_ptoFlagChannel || typeof _calRuntimeFlagClient !== 'function') return;
+        const client = await _calRuntimeFlagClient();
+        if (!client || _ptoFlagChannel) return;
+        try {
+            _ptoSetFlagChannel(client
+                .channel('syncview-pto-runtime-flag')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + PTO_FLAG_KEY }, payload => {
+                    const row = payload && payload.new ? payload.new : null;
+                    const generation = _ptoNextFlagGeneration();
+                    _ptoSetFlagValue(row && row.value ? row.value : { mode: 'off' }, generation);
+                })
+                .subscribe());
+        } catch (error) {
+            _ptoSetFlagChannel(null);
+            console.warn('[PTO] runtime flag subscription failed', error);
+        }
+    }
+    function _ptoPrimeFlag() {
+        if (!_ptoFlagPromise) _ptoSetFlagPromise(_ptoFetchFlagOnce().then(_ptoSubscribeFlag).catch(() => null));
+        return _ptoFlagPromise;
+    }
+    function _ptoRefreshFlagOnResume() {
+        try { if (document.visibilityState === 'hidden') return; } catch (e) {}
+        _ptoFetchFlagOnce();
+    }
+    window.addEventListener('focus', _ptoRefreshFlagOnResume);
+    document.addEventListener('visibilitychange', _ptoRefreshFlagOnResume);
+    function _ptoOpenFromMenu() {
+        _syncviewCloseStaffAccount();
+        if (_ptoEnabled()) navTo('time-off');
+    }
+    function _ptoApiMessage(json, status) {
+        const code = String(json && (json.code || json.error) || '');
+        if (code === 'insufficient_balance') return 'This request is larger than the available wellness balance.';
+        if (code === 'insufficient_sick_balance') return 'This request is larger than the available sick balance.';
+        if (code === 'pto_not_enabled') return 'Your Time Off profile has not been enabled yet. Ask an Admin to finish setup.';
+        if (code === 'member_not_found') return 'This active staff profile is no longer available. Refresh Time Off.';
+        if (code === 'member_inactive') return 'This request belongs to an inactive staff profile and cannot be approved. It can still be denied for cleanup.';
+        if (code === 'feature_disabled') return 'Time Off is temporarily unavailable.';
+        if (code === 'not_eligible') return 'Paid time off becomes available 60 days after the start date.';
+        if (code === 'past_date_not_allowed') return 'Only sick leave can be requested for today or a past date.';
+        if (code === 'request_range_too_long') return 'Split this request into shorter date ranges.';
+        if (code === 'floating_holiday_used' || code === 'floating_holiday_unavailable') return 'The floating holiday is already used or awaiting a decision this calendar year.';
+        if (code === 'floating_holiday_range') return 'Choose one business date for a floating holiday.';
+        if (code === 'crosses_leave_year') return 'Paid requests cannot cross the Dec 31 leave-year boundary. Submit separate requests.';
+        if (code === 'request_state_changed') return 'Time Off changed while this form was open. Refresh and try again.';
+        if (code === 'request_not_pending') return 'This request was already decided or cancelled. SyncView will refresh the latest status.';
+        if (code === 'decision_conflict') return 'Another Time Off change happened during this decision. SyncView will refresh before you try again.';
+        if (code === 'cancel_not_allowed') return 'This request can no longer be cancelled. SyncView will refresh its current status.';
+        if (code === 'request_not_found') return 'This request is no longer available. SyncView will refresh the list.';
+        if (code === 'pto_service_failed') return 'Time Off is temporarily unavailable. Try again in a moment.';
+        if (code === 'cancellation_audit_not_ready') return 'Approved leave cannot be cancelled until the private cancellation-audit migration is ready.';
+        if (code === 'start_date_history_conflict') return 'This start date cannot be changed here because leave history already exists. Use a reviewed data correction so balances are not silently rewritten.';
+        if (code === 'days_mismatch' || code === 'day_count_mismatch' || code === 'invalid_days') return 'Choose a half-day amount no larger than the business days in this range.';
+        return String(json && (json.message || json.error_description || json.error) || (status === 403 ? 'This action is not available for this staff role.' : 'Time Off could not be updated.'));
+    }
+    async function _ptoApi(action, method, payload, retried) {
+        const adminAction = action === 'decide' || action === 'adjust' || action === 'set_start_date' || (action === 'cancel' && _syncviewStaffCan('pto-admin'));
+        const identity = await _syncviewRequireStaffIdentity(adminAction ? 'pto-admin' : undefined);
+        method = method || (action === 'overview' ? 'GET' : 'POST');
+        const wire = Object.assign({}, payload || {});
+        if (method !== 'GET') wire.action = action;
+        if (adminAction) wire.actor_member_id = identity.member.id;
+        if ((action === 'quote' || action === 'request' || action === 'cancel') && !wire.member_id) wire.member_id = identity.member.id;
+        let url = PTO_EF_URL + '?action=' + encodeURIComponent(action);
+        if (action === 'overview') url += '&member_id=' + encodeURIComponent(identity.member.id);
+        const options = {
+            method,
+            headers: _syncviewEfHeaders(method === 'GET' ? { Accept: 'application/json' } : { Accept: 'application/json', 'Content-Type': 'application/json' }, PTO_EF_URL),
+        };
+        if (method !== 'GET') options.body = JSON.stringify(wire);
+        const mutating = method !== 'GET' && action !== 'quote';
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        let timedOut = false;
+        const timeout = controller ? setTimeout(() => {
+            timedOut = true;
+            controller.abort();
+        }, PTO_API_TIMEOUT_MS) : null;
+        if (controller) options.signal = controller.signal;
+        let response;
+        try {
+            response = await fetch(url, options);
+        } catch (cause) {
+            const error = new Error(mutating
+                ? 'SyncView could not confirm whether this change was saved. Refresh Time Off before trying again.'
+                : (timedOut
+                    ? 'Time Off took too long to respond. Try again.'
+                    : 'SyncView could not reach Time Off. Check your connection and try again.'));
+            error.code = mutating ? 'write_outcome_unknown' : (timedOut ? 'request_timeout' : 'network_error');
+            error.ptoWriteOutcomeUnknown = mutating;
+            throw error;
+        } finally {
+            if (timeout) clearTimeout(timeout);
+        }
+        let json = null;
+        try { json = await response.json(); } catch (e) {}
+        if (json && (json.error === 'feature_disabled' || json.code === 'feature_disabled')) _ptoSetFlagValue({ mode: 'off' });
+        if (response.status === 401) {
+            const active = _syncviewStaffIdentityForHeaders();
+            if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(identity)) throw new Error('Staff sign-in changed.');
+            _syncviewStaffIdentityClear();
+            if (retried) throw new Error(_ptoApiMessage(json, response.status));
+            const replacement = await _syncviewOpenStaffIdentity({ reason: 'expired' });
+            if (!replacement) throw new Error('Staff sign-in required.');
+            return _ptoApi(action, method, payload, true);
+        }
+        const active = _syncviewStaffIdentityForHeaders();
+        if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(identity)) throw new Error('Staff sign-in changed.');
+        if (!response.ok || !json || json.ok === false) {
+            const error = new Error(_ptoApiMessage(json, response.status));
+            error.status = response.status;
+            error.code = json && (json.code || json.error);
+            throw error;
+        }
+        return json || {};
+    }
+    function _ptoDate(value) {
+        const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!match) return null;
+        const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+export {
+  _ptoApi, _ptoClearValidation, _ptoDate, _ptoEnabled, _ptoFetchFlagOnce, _ptoPrimeFlag,
+  _ptoShowValidation
+};

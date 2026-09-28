@@ -12,6 +12,7 @@
 080-workload-render.js.part
 090-workload-popovers-navigation.js.part
 200-intake-data-startup.js.part
+108-core-time-off-flag.js.part
 110-time-off.js.part
 112-smm-weekly-reports.js.part
 115-core-calendar-flags.js.part

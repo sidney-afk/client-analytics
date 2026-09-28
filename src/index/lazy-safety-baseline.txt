@@ -1,7 +1,6 @@
 # Recorded on-demand-loading hazards: "<kind> <caller fragment> <name>".
 # Written by `node scripts/check-lazy-safety.js --update`; see that file for what each kind means.
 # The list may only shrink: a new line needs a reason in its PR, and a line whose hazard is gone must be removed.
-button 030-body-shell.html.part _ptoOpenFromMenu
 button 030-body-shell.html.part _svOpenStaffPage
 button 030-body-shell.html.part navTo
 button 030-body-shell.html.part svQuickJumpOpen
@@ -61,18 +60,13 @@ guard 100-onboarding-staff-controls.js.part _kasperRenderTab
 guard 100-onboarding-staff-controls.js.part _kasperRestorePendingSubtab
 guard 100-onboarding-staff-controls.js.part _prodCachePurge
 guard 100-onboarding-staff-controls.js.part _prodClearLayer
-guard 100-onboarding-staff-controls.js.part _ptoCalResetView
-guard 100-onboarding-staff-controls.js.part _ptoEnabled
-guard 100-onboarding-staff-controls.js.part _ptoLoadOverview
-guard 100-onboarding-staff-controls.js.part _ptoPaint
-guard 100-onboarding-staff-controls.js.part _ptoRenderAdmin
 guard 100-onboarding-staff-controls.js.part _srpPurgeSensitiveState
 guard 100-onboarding-staff-controls.js.part _svStaffPageRender
 guard 100-onboarding-staff-controls.js.part wlNormalizeClient
 guard 100-onboarding-staff-controls.js.part wlPurgePlanSensitiveState
 guard 100-onboarding-staff-controls.js.part wlRefreshSensitiveStateSilent
 guard 112-smm-weekly-reports.js.part getClientRoster
-guard 110-time-off.js.part renderKasperView
+guard 108-core-time-off-flag.js.part renderKasperView
 guard 112-smm-weekly-reports.js.part wlNormalizeClient
 guard 120-calendar-flags-write-repair.js.part _kasperPaintReview
 guard 200-intake-data-startup.js.part _kasperCalCachePrune

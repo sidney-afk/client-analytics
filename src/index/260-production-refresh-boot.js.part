@@ -27,7 +27,7 @@ import {
   _syncviewOpenStaffGate, _syncviewStaffCan, _syncviewStaffGateRequired,
   _syncviewStaffIdentityBoot, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentityLoad
 } from './100-onboarding-staff-controls.js';
-import { _ptoPrimeFlag } from './110-time-off.js';
+import { _ptoPrimeFlag } from './108-core-time-off-flag.js';
 import { _srpState } from './112-smm-weekly-reports.js';
 import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
 import { _prodDetailTitleHtml } from './125-title-name-rule.js';

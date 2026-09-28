@@ -1,11 +1,15 @@
+import { svAreaRegister } from './040-shared-briefs.js';
 import { wlState } from './066-core-workload-state.js';
 import {
-  WL_PLAN_READ_TIMEOUT_MS, _wlDueWriteInFlight, _wlPlanWriteInFlight, wlLinearEditingEnabled,
-  wlPlanEditingEnabled, wlSnapshotIdentity
+  WL_PLAN_READ_TIMEOUT_MS, _wlDueWriteInFlight, _wlPlanWriteInFlight, _wlV2Client, _wlV2Teardown,
+  wlLinearEditingEnabled, wlPlanEditingEnabled, wlPurgePlanSensitiveState, wlSnapshotIdentity
 } from './067-workload-board-source.js';
 import { wlDeadlineTagHtml, wlIsTweaksNeeded, wlPlanOriginHtml, wlWorkloadBadgeHtml } from './069-workload-planning-helpers.js';
-import { wlDisplayDate, wlPlacementMode, wlPlanDate } from './071-workload-planner.js';
-import { renderWorkloadAll, wlEscape, wlSyncLinearUrl } from './080-workload-render.js';
+import { renderWorkloadShell, wlDisplayDate, wlPlacementMode, wlPlanDate } from './071-workload-planner.js';
+import {
+  initWorkloadView, renderWorkloadAll, wlAdoptNativeDueGatewayRow, wlEscape,
+  wlPublishNativeDueReceipt, wlRefreshSensitiveStateSilent, wlSyncLinearUrl
+} from './080-workload-render.js';
 import { CAL_SUPABASE_URL, _svDateHtml } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
 import { _jsAttrArg } from './131-core-html.js';
@@ -993,4 +997,21 @@ import { _calFmtCommentTime } from './190-calendar-approval-comments.js';
         }
     }
 
+
+    // Workload is an on-demand area (plan: docs/plans/2026-09-28-load-per-tab-plan.md);
+    // this is its last fragment, so everything it names has run by now.
+    // Everything outside it reaches in through here (040 svAreaApi / svArea /
+    // svWithArea).
+    svAreaRegister('workload', {
+        render: renderWorkloadShell,
+        init: initWorkloadView,
+        teardown: _wlV2Teardown,
+        v2Client: _wlV2Client,
+        purgePlanSensitiveState: wlPurgePlanSensitiveState,
+        refreshSensitiveStateSilent: wlRefreshSensitiveStateSilent,
+        // Looked up by name at call time, as the direct calls these replace
+        // were, so a page-level override (a test's spy) still sees each call.
+        adoptNativeDueGatewayRow: row => wlAdoptNativeDueGatewayRow(row),
+        publishNativeDueReceipt: row => wlPublishNativeDueReceipt(row),
+    });
 export { wlClosePopover, wlOpenRollupPopover };

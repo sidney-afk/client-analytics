@@ -246,3 +246,28 @@ guards now sit in the core router (`092` → `_kasperTeardown`, moved from `090`
 routes it through the registry). 63 recorded hazards. Workload is now three runs of fragments
 (`067`, `069`, `071`–`090`) with core between them, so part 2 also lets an on-demand area be
 built from several runs into one file.
+
+## Step 3, area 7 of 9, part 2: Workload loads on demand (2026-09-28)
+
+Fingerprint check: the Time Off line in `navTo` is untouched and keeps its place;
+`test/leave-evidence-fingerprint-coupling.js` passes, so no screenshot re-review. Saves
+~90 KB compressed from every staff first load.
+
+- `090` (Workload's last fragment) registers the area `workload`: draw, start, tear-down, the
+  Supabase client, the sign-out purge, the quiet refresh after sign-in, and the two due-date
+  receipt hooks the Production writes use.
+- Callers: `092` navTo draws Workload with `svWithArea` and tears it down through the registry;
+  `100` purges and refreshes it only when it has loaded (its plan data lives only in memory, so
+  there is nothing to clear before it loads); `230` updates a loaded board from a Production due
+  write, and always sends the cross-tab due receipt (loading Workload for it if needed), since
+  that receipt is what makes Workload boards in other tabs refetch; `260` Production's realtime
+  gets the Supabase client through `svArea`.
+- Moved into core, because they only use core pieces: the Workload v2 read switch
+  (`_wlV2Enabled`, into `066`), which the router reads before it drops `?wl2` from the address;
+  and `wlOpenInContentCalendar` (into `092`), so Today opens a card without waiting for
+  Workload. The Submit form's search suggestions escape names with core `_calEscAttr`, which
+  escapes the same five characters as `wlEscape`.
+- `scripts/index-split.js`: an on-demand area may now be several runs of fragments with core
+  between them; its runs are one file, in page order. Workload is `067`, `069` and `071`–`090`.
+- `split.json` lists `tiktok`, `templates` and `workload` as lazy. Workload has no outside import
+  ties; five recorded guards are gone (58 left).

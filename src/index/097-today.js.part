@@ -100,13 +100,21 @@ import { navTo } from './090-workload-popovers-navigation.js';
     /* A batch PARENT (the old Linear post issue) sits in the same view as its
        video and thumbnail children. It is not work anybody owes, so every list
        and count here drops it: a row is a parent when another row names it as
-       its parent. */
-    async function _tdyParentIds() {
-        const rows = await _tdyRest('production_deliverables_browser_v1', 'select=raw_issue_parent_id&raw_issue_parent_id=not.is.null');
-        return new Set(rows.map(r => r.raw_issue_parent_id));
+       its parent. Only the rows this page read are checked, in parallel
+       batches, instead of paging through every child in the table. */
+    async function _tdyParentIds(rows) {
+        const ids = [...new Set(rows.map(r => r.linear_issue_uuid).filter(Boolean))];
+        const reads = [];
+        for (let i = 0; i < ids.length; i += 80) reads.push(_tdyRest('production_deliverables_browser_v1', 'select=raw_issue_parent_id&raw_issue_parent_id=' + _tdyIn(ids.slice(i, i + 80))));
+        return new Set((await Promise.all(reads)).flat().map(r => r.raw_issue_parent_id));
     }
-    async function _tdyRoster() {
-        if (_srpState.managersLoaded) return _srpState.managers;
+    let _tdyRosterReading = null;   // one roster read in flight, shared
+    function _tdyRoster() {
+        if (_srpState.managersLoaded) return Promise.resolve(_srpState.managers);
+        if (!_tdyRosterReading) _tdyRosterReading = _tdyRosterRead().finally(() => { _tdyRosterReading = null; });
+        return _tdyRosterReading;
+    }
+    async function _tdyRosterRead() {
         const ident = _syncviewStaffIdentityForHeaders();
         if (!ident || !ident.key) return null;
         try {
@@ -184,8 +192,9 @@ import { navTo } from './090-workload-popovers-navigation.js';
         const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
         const monday = _tdyMonday().toISOString();
         _tdyClientRows = null;   // one fresh read per load
-        const clientsP = _tdyClients(), parentsP = _tdyParentIds();
+        const clientsP = _tdyClients();
         if (!me.editor) {
+            _tdyRoster();   // start the roster read now; _tdyVisibleClients reuses it
             // Start every read now; only the client filter waits on the roster.
             const today = _tdyIso(_tdyDays(0));
             const reads = Promise.all([
@@ -195,6 +204,7 @@ import { navTo } from './090-workload-popovers-navigation.js';
                     + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)')
             ]);
             reads.catch(() => {});
+            const parentsP = reads.then(([o, d]) => _tdyParentIds(o.concat(d)));
             const [clients, parents] = await Promise.all([clientsP, parentsP]);
             const visible = await _tdyVisibleClients(me, clients);
             const names = {};
@@ -208,10 +218,11 @@ import { navTo } from './090-workload-popovers-navigation.js';
         }
         // Editors: their own queue, read alongside the clients and parents.
         const mine = 'assignee_id=eq.' + encodeURIComponent(me.id);
-        const [clients, parents, open, done] = await Promise.all([clientsP, parentsP,
+        const [clients, open, done] = await Promise.all([clientsP,
             _tdyRest('production_deliverables_browser_v1', DSEL + '&' + mine + '&status=' + _tdyIn(['todo', 'in_progress', 'tweak'])),
             _tdyRest('production_deliverables_browser_v1', DSEL + '&' + mine + '&status=' + _tdyIn(TDY_PAST_EDIT) + '&status_at=gte.' + encodeURIComponent(monday))
         ]);
+        const parents = await _tdyParentIds(open.concat(done));
         const names = {};
         clients.forEach(c => { names[c.slug] = c.display_name || c.slug; });
         const test = new Set(clients.filter(c => String(c.kind || '').toLowerCase() === 'test').map(c => c.slug));

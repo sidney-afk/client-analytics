@@ -20,7 +20,7 @@
 | 12 | `090-workload-popovers-navigation.js.part` | 1806 | Sub-issue popover |
 | 13 | `095-shared-client.js.part` | 397 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
 | 14 | `096-quick-jump.js.part` | 172 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
-| 15 | `097-today.js.part` | 531 | TODAY (owner design , session Compass). |
+| 15 | `097-today.js.part` | 542 | TODAY (owner design , session Compass). |
 | 16 | `098-smm-clients.js.part` | 86 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
 | 17 | `100-onboarding-staff-controls.js.part` | 2388 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 18 | `110-time-off-reports.js.part` | 2207 | Kasper Time Off calendar |

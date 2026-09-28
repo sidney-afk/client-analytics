@@ -1,0 +1,48 @@
+name: Clients roster sync
+
+# Keeps public.clients.active in step with the "Clients Info" tab, once a day
+# (owner rule 2026-09-27: a client is current only if it is on that tab).
+# Rule and guards: migrations/2026-09-28-clients-roster-sync.sql.
+# Script: scripts/clients-roster-sync.js (prints counts only; names go to
+# public.clients_roster_sync_log).
+#
+# DRY RUN unless the repository variable CLIENTS_ROSTER_SYNC_APPLY is 'true'
+# (Settings > Secrets and variables > Actions > Variables). A refused run
+# (Sheet read looks broken, or too many switch-offs at once) exits red and
+# changes nothing.
+#
+# `schedule` fires only from the default branch.
+
+on:
+  schedule:
+    - cron: '41 6 * * *'
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Apply changes (otherwise dry run)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clients-roster-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      APPLY: ${{ (github.event_name == 'workflow_dispatch' && inputs.apply) || (github.event_name == 'schedule' && vars.CLIENTS_ROSTER_SYNC_APPLY == 'true') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Sync
+        run: |
+          if [ "$APPLY" = "true" ]; then node scripts/clients-roster-sync.js --apply; else node scripts/clients-roster-sync.js; fi

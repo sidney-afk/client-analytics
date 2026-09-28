@@ -10,18 +10,18 @@
 | 2 | `003-sv-route.html.part` | 177 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 278 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3912 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 4357 | Templates view |
+| 5 | `020-styles-surfaces.css.part` | 4374 | Templates view |
 | 6 | `030-body-shell.html.part` | 500 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 1847 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
 | 8 | `050-market-briefs.js.part` | 1779 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2295 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `070-workload-source.js.part` | 3823 | Workload Calendar |
 | 11 | `080-workload-render.js.part` | 3436 | Smart default: a creative lands on their own work (see |
-| 12 | `090-workload-popovers-navigation.js.part` | 1748 | Sub-issue popover |
-| 13 | `095-shared-client.js.part` | 292 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
+| 12 | `090-workload-popovers-navigation.js.part` | 1805 | Sub-issue popover |
+| 13 | `095-shared-client.js.part` | 397 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
 | 14 | `096-quick-jump.js.part` | 172 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
-| 15 | `097-today.js.part` | 391 | TODAY (owner design , session Compass). |
-| 16 | `098-smm-clients.js.part` | 69 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
+| 15 | `097-today.js.part` | 435 | TODAY (owner design , session Compass). |
+| 16 | `098-smm-clients.js.part` | 82 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
 | 17 | `100-onboarding-staff-controls.js.part` | 2388 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 18 | `110-time-off-reports.js.part` | 2207 | Kasper Time Off calendar |
 | 19 | `120-calendar-flags-write-repair.js.part` | 3180 | The members a flag value offers, or null when it offers no member list at |
@@ -36,7 +36,7 @@
 | 28 | `160-calendar-organize-ui.js.part` | 2825 | Lighter path for the Order switch: update the chrome in place so the |
 | 29 | `170-calendar-links-status.js.part` | 2855 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 30 | `180-calendar-native-post-media.js.part` | 2750 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
-| 31 | `185-client-review-queue.js.part` | 361 | Client review send queue: a client's Approve or Request changes is |
+| 31 | `185-client-review-queue.js.part` | 371 | Client review send queue: a client's Approve or Request changes is |
 | 32 | `190-calendar-approval-comments.js.part` | 3108 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 33 | `200-intake-data-startup.js.part` | 1528 | Video-only and Thumbnail-only were already built, but sat |
 | 34 | `210-production-state-writes.js.part` | 3201 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |

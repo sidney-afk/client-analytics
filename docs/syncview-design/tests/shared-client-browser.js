@@ -168,6 +168,214 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       await context.close();
     }
 
+    // Recent list: remove one client, then clear the rest. The current client
+    // and everything else stay as they were.
+    {
+      const { context, page } = await open(browser, port, '/calendar');
+      const THIRD = 'Anchor Fixture Charlie';
+      await page.evaluate(names => { names.forEach(n => { if (!WL_CLIENT_NAMES.includes(n)) WL_CLIENT_NAMES.push(n); }); }, [FIRST, SECOND, THIRD]);
+      for (const n of [THIRD, SECOND, FIRST]) {
+        await page.click('#svClientBadge');
+        await page.fill('#svClientSearch', n.slice(0, 22));
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(300);
+      }
+      const recentNames = () => page.$$eval('#svClientResults [data-sv-client]:not(.is-current)', els => els.map(e => e.getAttribute('data-sv-client')));
+      await page.click('#svClientBadge');
+      expect(!(await page.$(`#svClientResults .is-current .sv-client-forget`)), 'recent: the current client must not offer a remove button');
+      expect(JSON.stringify(await recentNames()) === JSON.stringify([SECOND, THIRD]), `recent: expected two recent clients, got ${await recentNames()}`);
+      await page.hover(`#svClientResults [data-sv-client="${SECOND}"]`);
+      await page.click(`#svClientResults [data-sv-forget="${SECOND}"]`);
+      expect(await page.isVisible('#svClientPop'), 'recent: removing a client closed the dropdown');
+      expect(JSON.stringify(await recentNames()) === JSON.stringify([THIRD]), 'recent: the removed client is still listed');
+      expect(await page.evaluate(() => calState.client) === FIRST && await page.getAttribute('#svClientBadge', 'data-sv-current') === FIRST, 'recent: removing a recent client changed the current client');
+      await page.click('#svClientResults [data-sv-forget-all]');
+      expect((await recentNames()).length === 0, 'recent: Clear recent left clients behind');
+      expect(await page.$('#svClientResults .is-current') !== null, 'recent: Clear recent removed the current client');
+      expect(!(await page.$('#svClientResults [data-sv-forget-all]')), 'recent: Clear recent should hide once the list is empty');
+      expect(await page.evaluate(() => calState.client) === FIRST, 'recent: Clear recent changed the current client');
+      await context.close();
+    }
+
+    // My clients: an SMM sees their own clients above Recent, with no remove
+    // button; Recent holds at most three others; an admin sees only Recent;
+    // the current client is tinted wherever it shows; search still reaches
+    // a client in neither list. The SMM assignment comes from the same source
+    // Today reads (098-smm-clients): the social_media_managers roster from the
+    // smm-weekly-reports options call, mocked here with an invented SMM, and
+    // the current clients from Clients Info (clientMap), seeded in the page.
+    {
+      const { context, page } = await open(browser, port, '/calendar');
+      const ROSTER_MINE = ['Anchor Fixture Mine One', 'Anchor Fixture Mine Two'];
+      await context.route(/\/functions\/v1\/smm-weekly-reports\?action=options/, route => {
+        route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ managers: [
+          { name: 'QA Staff', email: '', active: true, source_clients: ROSTER_MINE },
+          { name: 'Other Fixture Person', email: '', active: true, source_clients: ['Anchor Fixture Delta'] }
+        ] }) }).catch(() => {});
+      });
+      const MINE = ['Anchor Fixture Mine One', 'Anchor Fixture Mine Two'];
+      const OTHERS = ['Anchor Fixture Delta', 'Anchor Fixture Echo', 'Anchor Fixture Foxtrot', 'Anchor Fixture Golf'];
+      const OUTSIDE = 'Anchor Fixture Hotel';
+      const all = MINE.concat(OTHERS, [OUTSIDE]);
+      await page.evaluate(({ all, mine }) => {
+        all.forEach(n => { if (!WL_CLIENT_NAMES.includes(n)) WL_CLIENT_NAMES.push(n); });
+        all.forEach(n => { clientMap[n] = { client_name: n }; });
+      }, { all, mine: MINE });
+      // Open the dropdown from a known closed state and wait for focus. An
+      // Escape pressed before the search box had focus left it open on CI,
+      // so the next badge click closed it and the checks read a stale render.
+      const closePop = async () => {
+        await page.evaluate(() => { if (!document.getElementById('svClientPop').hidden) _svClientPopClose(); });
+        await page.waitForFunction(() => document.getElementById('svClientPop').hidden, null, { timeout: 5000 });
+      };
+      const openPop = async () => {
+        await closePop();
+        await page.click('#svClientBadge');
+        await page.waitForFunction(() => !document.getElementById('svClientPop').hidden && document.activeElement && document.activeElement.id === 'svClientSearch', null, { timeout: 5000 });
+      };
+      const pick = async name => {
+        await openPop();
+        await page.fill('#svClientSearch', name);
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(300);
+      };
+      // Visit a mine client, then four others (Golf last = current).
+      for (const n of [MINE[1], ...OTHERS]) await pick(n);
+      const sections = () => page.$$eval('#svClientResults [data-sv-client]', els => els.map(e => ({
+        n: e.getAttribute('data-sv-client'), sec: e.getAttribute('data-sv-section'), cur: e.classList.contains('is-current'),
+        forget: !!(e.parentElement && e.parentElement.querySelector('.sv-client-forget'))
+      })));
+      const labels = () => page.$$eval('#svClientResults .sv-client-sec', els => els.map(e => ({ t: e.textContent.trim(), tt: getComputedStyle(e).textTransform })));
+
+      // Admin not on the roster: no My clients, Recent capped at three.
+      const asStaff = async (role, name) => {
+        await page.evaluate(({ role, name }) => {
+          const id = _syncviewStaffIdentityLoad();
+          _syncviewStaffIdentitySave(Object.assign({}, id, { role, member: Object.assign({}, id.member, { role, name }) }));
+        }, { role, name });
+        await page.waitForFunction(r => _syncviewStaffIdentityValid() && _syncviewStaffIdentityLoad().member.role === r, role, { timeout: 15000 })
+          .catch(() => failures.push(`${role}: the seeded identity never became valid`));
+        await page.evaluate(all => { all.forEach(n => { clientMap[n] = { client_name: n }; }); }, all);
+      };
+      await asStaff('admin', 'Unlisted Admin Fixture');
+      await openPop();
+      await page.waitForTimeout(800);
+      let rows = await sections();
+      expect(rows.every(r => r.sec === 'recent'), 'admin: only Recent should show');
+      expect(rows.length === 3, `admin: Recent should hold three rows, got ${rows.length}`);
+      expect(rows[0].n === OTHERS[3] && rows[0].cur, 'admin: the current client should lead Recent, tinted');
+      expect((await labels()).length === 0, 'admin: no section label when only Recent shows');
+      await closePop();
+
+      // Admin on the roster (the owner is an admin and an SMM): My clients
+      // shows, with no remove button.
+      await asStaff('admin', 'QA Staff');
+      await openPop();
+      await page.waitForFunction(() => document.querySelector('#svClientResults [data-sv-section="mine"]'), null, { timeout: 10000 })
+        .catch(() => failures.push('rostered admin: My clients never appeared'));
+      rows = await sections();
+      expect(JSON.stringify(rows.filter(r => r.sec === 'mine').map(r => r.n)) === JSON.stringify(MINE), `rostered admin: My clients should be ${MINE}, got ${rows.filter(r => r.sec === 'mine').map(r => r.n)}`);
+      expect(rows.filter(r => r.sec === 'mine').every(r => !r.forget), 'rostered admin: My clients must not offer a remove button');
+      expect(rows.filter(r => r.sec === 'recent').every(r => !MINE.includes(r.n)), 'rostered admin: Recent repeats a My clients entry');
+      await closePop();
+
+      // Become a verified SMM whose first name matches the fixture map.
+      await page.evaluate(() => {
+        const id = _syncviewStaffIdentityLoad();
+        _syncviewStaffIdentitySave(Object.assign({}, id, { role: 'smm', member: Object.assign({}, id.member, { role: 'smm', name: 'QA Staff' }) }));
+      });
+      // Boot keeps loading in the background (key-verify, Clients Info), and
+      // on a slower runner that can land after the seed above. Wait for the
+      // verified SMM identity, then seed Clients Info again and open the
+      // dropdown once so the roster loads, as it does for a real SMM.
+      await page.waitForFunction(() => _syncviewStaffIdentityValid() && _syncviewStaffIdentityLoad().member.role === 'smm', null, { timeout: 15000 })
+        .catch(() => failures.push('smm: the seeded SMM identity never became valid'));
+      await page.waitForTimeout(1500);
+      await page.evaluate(all => { all.forEach(n => { clientMap[n] = { client_name: n }; }); }, all);
+      await openPop();
+      await page.waitForFunction(() => document.querySelector('#svClientResults [data-sv-section="mine"]'), null, { timeout: 10000 })
+        .catch(() => failures.push('smm: My clients never appeared after the roster loaded'));
+      rows = await sections();
+      const mineRows = rows.filter(r => r.sec === 'mine');
+      const recentRows = rows.filter(r => r.sec === 'recent');
+      expect(JSON.stringify(mineRows.map(r => r.n)) === JSON.stringify(MINE), `smm: My clients should be ${MINE}, got ${mineRows.map(r => r.n)} (state: ${JSON.stringify(await page.evaluate(() => ({ valid: _syncviewStaffIdentityValid(), role: (_syncviewStaffIdentityLoad() || {}).role, roster: _srpState.managersLoaded })))})`);
+      // Today and the dropdown agree: Today's own visible-client list for this
+      // SMM is exactly the dropdown's My clients.
+      const today = await page.evaluate(async () => {
+        const v = await _tdyVisibleClients(_tdyIdentity());
+        return [...v.keys].map(k => svCurrentClients().get(k)).sort((a, b) => a.localeCompare(b));
+      }).catch(e => 'error: ' + e.message);
+      expect(JSON.stringify(today) === JSON.stringify(mineRows.map(r => r.n)), `smm: Today's clients ${JSON.stringify(today)} differ from the dropdown's My clients ${JSON.stringify(mineRows.map(r => r.n))}`);
+      expect(mineRows.every(r => !r.forget), 'smm: My clients must not offer a remove button');
+      expect(recentRows.length <= 3 && recentRows.length > 0, `smm: Recent should hold one to three rows, got ${recentRows.length}`);
+      expect(recentRows.every(r => !MINE.includes(r.n)), 'smm: Recent repeats a My clients entry');
+      expect(recentRows.filter(r => !r.cur).every(r => r.forget), 'smm: Recent rows should offer a remove button');
+      expect(rows.filter(r => r.cur).length === 1 && rows.find(r => r.cur).n === OTHERS[3], 'smm: the current client should be tinted once');
+      const ls = await labels();
+      expect(JSON.stringify(ls.map(l => l.t)) === JSON.stringify(['My clients', 'Recent']), `smm: section labels are ${ls.map(l => l.t)}`);
+      expect(ls.every(l => l.tt === 'none'), 'smm: section labels should be sentence case, not uppercase');
+      // Accessibility: listboxes hold options only; buttons sit outside them.
+      const a11y = await page.evaluate(() => {
+        const boxes = [...document.querySelectorAll('#svClientResults [role="listbox"]')];
+        const optionOnly = boxes.every(b => [...b.children].every(c => c.querySelector(':scope > [role="option"]') && !c.matches('[role="option"] *')));
+        const btnInOption = !!document.querySelector('#svClientResults [role="option"] button');
+        const clearInList = !!document.querySelector('#svClientResults [role="listbox"] .sv-client-clear');
+        return { n: boxes.length, optionOnly, btnInOption, clearInList };
+      });
+      expect(a11y.n === 2 && !a11y.btnInOption && !a11y.clearInList, `smm: remove / clear controls must sit outside options and listboxes (${JSON.stringify(a11y)})`);
+      await closePop();
+
+      // Current is one of My clients: tinted there, not repeated in Recent.
+      await pick(MINE[0]);
+      await openPop();
+      rows = await sections();
+      expect(rows.find(r => r.n === MINE[0] && r.sec === 'mine' && r.cur), 'smm: a current My client should be tinted in My clients');
+      expect(rows.filter(r => r.sec === 'recent').length === 3 && rows.filter(r => r.sec === 'recent').every(r => !MINE.includes(r.n)), 'smm: Recent should show three others');
+      // Search reaches a client in neither list.
+      await page.fill('#svClientSearch', OUTSIDE);
+      rows = await sections();
+      expect(rows.length === 1 && rows[0].n === OUTSIDE, 'search: a client outside both lists is not found');
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(300);
+      expect(await page.evaluate(() => calState.client) === OUTSIDE, 'search: picking a client outside both lists did not switch');
+      // Escape pressed before focus reaches the search box still closes it.
+      const earlyEsc = await page.evaluate(() => {
+        const badge = document.getElementById('svClientBadge');
+        badge.focus();
+        svClientPopToggle();
+        badge.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        return document.getElementById('svClientPop').hidden;
+      });
+      expect(earlyEsc, 'escape: an Escape before the search box had focus left the dropdown open');
+
+      await context.close();
+    }
+
+    // Touch device: the remove button is at least 44px square.
+    {
+      const context = await browser.newContext({ viewport: { width: 390, height: 800 }, hasTouch: true, isMobile: true });
+      await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()), route => {
+        route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }).catch(() => {});
+      });
+      await seedStaffGate(context);
+      await context.addInitScript(v => { try { localStorage.setItem('syncview_recent_clients', JSON.stringify(v)); } catch (e) {} }, [FIRST, SECOND]);
+      const page = await context.newPage();
+      await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(() => typeof window.navTo === 'function' && document.getElementById('svClientBar'));
+      await page.waitForTimeout(1500);
+      await page.evaluate(names => { names.forEach(n => { if (!WL_CLIENT_NAMES.includes(n)) WL_CLIENT_NAMES.push(n); }); }, [FIRST, SECOND]);
+      await page.evaluate(() => svClientPopToggle());
+      await page.waitForTimeout(200);
+      const box = await page.evaluate(() => {
+        const b = document.querySelector('#svClientResults .sv-client-forget');
+        if (!b) return null;
+        const r = b.getBoundingClientRect();
+        return { w: r.width, h: r.height, o: getComputedStyle(b).opacity };
+      });
+      expect(box && box.w >= 44 && box.h >= 44 && box.o === '1', `touch: the remove button should be a visible 44px target, got ${JSON.stringify(box)}`);
+      await context.close();
+    }
+
     // Samples in a fresh browser: the first top-bar pick draws its Share menu.
     {
       const { context, page } = await open(browser, port, '/sample-reviews');
@@ -283,6 +491,142 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
         check(await measure(), `${base} after a long client name`);
         await context.close();
       }
+    }
+
+    // Late web font (owner, 2026-09-27): on a wide desktop the tabs loaded as
+    // icons only and needed a window resize to show their names. The first fit
+    // ran on the fallback font, went compact, and nothing re-fit when the web
+    // font swapped in. Hold the font back a few seconds, then require full
+    // labels, no overflow and the pill under the active tab once it settles.
+    // Also: the touch-only quick-jump button stays hidden on a mouse desktop.
+    // Any narrow system TTF stands in for the web font file; the timing is what matters.
+    const fontFile = ['/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf', '/usr/share/fonts/truetype/freefont/FreeSans.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf']
+      .map(f => { try { return require('fs').readFileSync(f); } catch (e) { return null; } }).find(Boolean);
+    for (const width of [1440, 1600]) {
+      const context = await browser.newContext({ viewport: { width, height: 800 } });
+      let fontServed = false;
+      await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()), async route => {
+        const u = route.request().url();
+        try {
+          if (/fonts\.googleapis\.com\/css2/.test(u)) {
+            // Held back too, so document.fonts.ready has already settled on
+            // the fallback before the face is even declared (as on a slow link).
+            await new Promise(r => setTimeout(r, 2000));
+            return await route.fulfill({ status: 200, contentType: 'text/css', body:
+              "@font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:300 800;font-display:swap;src:url(https://fonts.gstatic.com/s/fixture/late-font.ttf) format('truetype');}" });
+          }
+          if (/fonts\.gstatic\.com\/s\/fixture\//.test(u)) {
+            await new Promise(r => setTimeout(r, 2000));
+            fontServed = true;
+            if (!fontFile) return await route.fulfill({ status: 404, body: '' });
+            return await route.fulfill({ status: 200, contentType: 'font/ttf', body: fontFile });
+          }
+          await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+        } catch (e) {}
+      });
+      await seedStaffGate(context);
+      await context.addInitScript(v => {
+        try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); localStorage.setItem('syncview_shared_client', v); } catch (e) {}
+        // Stand-in for a wide system fallback (the owner's machine): until the
+        // web font lands, the family renders from a wide local face.
+        try {
+          const wide = new FontFace('Plus Jakarta Sans', "local('DejaVu Sans Bold'), local('DejaVuSans-Bold')", { sizeAdjust: '135%' });
+          document.fonts.add(wide);
+          wide.load().catch(() => {});
+          // The rest of the header is still settling too: a wide placeholder
+          // in the actions area goes away as the web font lands.
+          document.addEventListener('DOMContentLoaded', () => {
+            const a = document.querySelector('.header-actions');
+            if (!a) return;
+            const ph = document.createElement('span');
+            ph.style.cssText = 'display:inline-block;width:260px;height:1px;flex:none';
+            a.appendChild(ph);
+            setTimeout(() => { ph.remove(); document.fonts.delete(wide); }, 3800);
+          });
+        } catch (e) {}
+      }, FIRST);
+      const page = await context.newPage();
+      await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(1200);
+      const early = await page.evaluate(() => { const n = document.getElementById('headerNav'); return n.className + ' w=' + n.clientWidth + ' sw=' + n.scrollWidth + ' ' + document.fonts.check("600 12px 'Plus Jakarta Sans'") + ' ' + [...document.fonts].map(f => f.status).join(','); });
+      await page.waitForTimeout(5000);
+      const tag = `late font @${width}`;
+      if (process.env.SV_DEBUG) console.log(tag, 'before the font:', early);
+      expect(fontServed, `${tag}: the delayed web font was never requested`);
+      const m = await page.evaluate(() => {
+        const nav = document.getElementById('headerNav');
+        const tabs = [...nav.querySelectorAll(':scope > .header-nav-btn')].filter(a => getComputedStyle(a).display !== 'none');
+        const navBox = nav.getBoundingClientRect();
+        const active = nav.querySelector(':scope > .header-nav-btn.active');
+        const pill = nav.querySelector(':scope > .header-nav-pill').getBoundingClientRect();
+        const act = active.getBoundingClientRect();
+        const jump = document.querySelector('.sv-jump-touch');
+        return {
+          fontLoaded: document.fonts.check("600 12px 'Plus Jakarta Sans'"),
+          kasper: tabs.some(a => a.id === 'navKasper'),
+          compact: nav.classList.contains('is-compact') || nav.classList.contains('is-icons'),
+          iconOnly: tabs.filter(a => parseFloat(getComputedStyle(a).fontSize) < 1).map(a => a.id),
+          over: nav.scrollWidth - nav.clientWidth,
+          outside: tabs.filter(a => { const r = a.getBoundingClientRect(); return r.left < navBox.left - 1 || r.right > navBox.right + 1 || r.width < 20; }).map(a => a.id),
+          pillOff: Math.round(Math.abs(pill.left - act.left) + Math.abs(pill.width - act.width)),
+          jumpShown: !!jump && getComputedStyle(jump).display !== 'none',
+        };
+      });
+      if (fontFile) expect(m.fontLoaded, `${tag}: the web font did not finish loading`);
+      expect(m.kasper, `${tag}: the Kasper tab should be present for this check`);
+      expect(!m.compact && !m.iconOnly.length, `${tag}: tabs stuck compact / icons only after the font arrived: ${m.iconOnly.join(',') || 'row class'}`);
+      expect(m.over <= 0, `${tag}: overflows by ${m.over}px`);
+      expect(!m.outside.length, `${tag}: tabs cut off or hidden: ${m.outside.join(',')}`);
+      expect(m.pillOff <= 2, `${tag}: the active highlight is ${m.pillOff}px off its tab`);
+      expect(!m.jumpShown, `${tag}: the touch-only quick-jump button shows on a mouse desktop`);
+      await context.close();
+    }
+    // Resize burst (review, 2026-09-27): more than 30 resizes inside a second
+    // trips the fit's loop cap. A narrow-then-wide burst must still end on
+    // full labels, via the trailing fit, not stay stuck on icons.
+    {
+      const context = await browser.newContext({ viewport: { width: 1600, height: 800 } });
+      await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()), route => {
+        route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }).catch(() => {});
+      });
+      await seedStaffGate(context);
+      await context.addInitScript(v => {
+        try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); localStorage.setItem('syncview_shared_client', v); } catch (e) {}
+      }, FIRST);
+      const page = await context.newPage();
+      await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(2500);
+      // Burn the cap at the wide size, then go narrow (icons), then back wide
+      // while the cap is still tripped.
+      for (let i = 0; i < 40; i++) {
+        await page.evaluate(() => new Promise(r => { window.dispatchEvent(new Event('resize')); requestAnimationFrame(() => r()); }));
+      }
+      await page.setViewportSize({ width: 1100, height: 800 });
+      for (let i = 0; i < 10; i++) {
+        await page.evaluate(() => new Promise(r => { window.dispatchEvent(new Event('resize')); requestAnimationFrame(() => r()); }));
+      }
+      await page.setViewportSize({ width: 1600, height: 800 });
+      await page.waitForTimeout(1800);
+      const stuck = await page.evaluate(() => {
+        const nav = document.getElementById('headerNav');
+        return nav.classList.contains('is-compact') || nav.classList.contains('is-icons') || nav.scrollWidth > nav.clientWidth;
+      });
+      expect(!stuck, 'resize burst: the tab row did not settle on full labels after the burst');
+      await context.close();
+    }
+    // Quick-jump button: shown only on a touch-first device.
+    {
+      const context = await browser.newContext({ viewport: { width: 820, height: 1180 }, hasTouch: true, isMobile: true });
+      await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()), route => {
+        route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }).catch(() => {});
+      });
+      await seedStaffGate(context);
+      const page = await context.newPage();
+      await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(2000);
+      const shown = await page.evaluate(() => { const j = document.querySelector('.sv-jump-touch'); return !!j && getComputedStyle(j).display !== 'none'; });
+      expect(shown, 'touch device: the quick-jump button is not showing');
+      await context.close();
     }
 
     // A client share link: no bar, and the shared client is neither read nor written.

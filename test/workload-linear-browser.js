@@ -349,6 +349,7 @@ function backgroundHarness(options = {}) {
     ),
     _wlV2Ready: () => options.v2Ready !== false,
     wlStaffMayView: () => !!context._syncviewStaffIdentityForHeaders(),
+    wlStaffSignedOut: () => !context._syncviewStaffIdentityForHeaders() && !context._syncviewStaffIdentityMem,
     // The board wipe itself is covered by workload-plan-failclosed.js; this
     // harness measures refresh ordering across sessions.
     wlPurgeBoardData: () => {},
@@ -1888,6 +1889,7 @@ async function run() {
       _wlV2EnsureWatermarkPoll: () => {},
       _wlNativeDiffEnabled: () => false,
       wlStaffMayView: () => true,
+      wlStaffSignedOut: () => false,
       wlScheduleNativeDueReceiptRetry: () => false,
       _wlV2CheckWatermark: () => { watermarkChecks++; },
       wlLoadSnapshot: () => { foregroundLoads++; throw new Error('warm entry loaded'); },

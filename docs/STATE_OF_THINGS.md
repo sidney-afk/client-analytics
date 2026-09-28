@@ -50,7 +50,9 @@ line is older than a week, re-check it before relying on it.
   (OPEN_REPAIRS 215).
 - **Mixed-batch orphans:** a browser fix should re-attach 22 cards; nobody has
   confirmed it on a live read (journal 2026-09-22).
-- **Copy scripts die on a bare network error** (OPEN_REPAIRS 223).
+- **Copy transport retry** (OPEN_REPAIRS 223/279): the native brief copy now
+  retries with bounded attempts and reconciles ambiguous uploads by readback,
+  tested offline. No live re-copy has been run.
 - **Onboarding runbooks have no native steps** for their retired Linear parts
   (OPEN_REPAIRS 227).
 - **Sheets to Supabase, next steps:** the mirror write is on and backfilled;

@@ -254,6 +254,25 @@ function cmdPlan(rowsPath, manifestPath) {
  * real network access, per the task's "no live run" constraint.
  * ------------------------------------------------------------------ */
 
+/** Retry transient transport failures without printing signed URLs or keys.
+ * A non-retryable response is returned to the caller's existing guard. */
+export async function fetchCopyStep(label, url, options, deps) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    let response;
+    try {
+      response = await deps.fetch(url, options);
+    } catch (_) {
+      if (attempt === 3) throw new Error(`${label}: transport failed after 3 attempts`);
+    }
+    if (response && (response.status < 500 || attempt === 3)) {
+      if (response.status >= 500) throw new Error(`${label}: HTTP ${response.status} after 3 attempts`);
+      return response;
+    }
+    if (attempt < 3) await (deps.sleep ? deps.sleep(500 * 2 ** (attempt - 1))
+      : new Promise(resolve => setTimeout(resolve, 500 * 2 ** (attempt - 1))));
+  }
+}
+
 /**
  * Query for an existing verified occurrence matching the exact key tuple.
  * This IS the idempotency mechanism: the unique index only exists for
@@ -273,10 +292,10 @@ export async function findExistingVerified(config, tuple, deps) {
     state: 'eq.verified',
     limit: '2',
   });
-  const res = await deps.fetch(`${config.supabaseUrl}/rest/v1/native_brief_media_occurrences?${params}`, {
+  const res = await fetchCopyStep('existing lookup', `${config.supabaseUrl}/rest/v1/native_brief_media_occurrences?${params}`, {
     method: 'GET',
     headers: restHeaders(config),
-  });
+  }, deps);
   if (!res.ok) throw new Error(`existing_lookup_failed_${res.status}`);
   const rows = await res.json();
   if (!Array.isArray(rows) || rows.length > 1) throw new Error('existing_lookup_ambiguous');
@@ -302,14 +321,14 @@ function restHeaders(config) {
 export async function resolveFreshUrl(linearIssueUuid, staleUrl, config, deps) {
   if (!linearIssueUuid) throw new Error('linear_issue_uuid_missing');
   const key = mediaKey(staleUrl);
-  const res = await deps.fetch('https://api.linear.app/graphql', {
+  const res = await fetchCopyStep('source refresh', 'https://api.linear.app/graphql', {
     method: 'POST',
     headers: { authorization: config.linearApiKey, 'content-type': 'application/json' },
     body: JSON.stringify({
       query: 'query NativeBriefMediaRefresh($id: String!) { issue(id: $id) { id description } }',
       variables: { id: linearIssueUuid },
     }),
-  });
+  }, deps);
   if (!res.ok) throw new Error(`linear_graphql_failed_${res.status}`);
   const json = await res.json();
   if (json.errors) throw new Error('linear_graphql_error');
@@ -323,10 +342,10 @@ export async function resolveFreshUrl(linearIssueUuid, staleUrl, config, deps) {
 /** Download the file from Linear, given an ALREADY-FRESH URL (see
  *  resolveFreshUrl). Returns { bytes, mimeType, contentSha256, receiptSha256 }. */
 export async function downloadFromLinear(url, config, deps) {
-  const res = await deps.fetch(url, {
+  const res = await fetchCopyStep('source download', url, {
     method: 'GET',
     headers: { authorization: config.linearApiKey },
-  });
+  }, deps);
   if (!res.ok) throw new Error(`linear_download_failed_${res.status}`);
   const arrayBuffer = await res.arrayBuffer();
   const bytes = Buffer.from(arrayBuffer);
@@ -357,9 +376,9 @@ export async function downloadFromLinear(url, config, deps) {
  *  read it back — the reader trusts readback_sha256 only when it was
  *  PROVEN by a real second read, not merely asserted equal to content_sha256. */
 export async function uploadAndReadBack(config, storagePath, bytes, mimeType, deps) {
-  const uploadRes = await deps.fetch(
-    `${config.supabaseUrl}/storage/v1/object/${BRIEF_MEDIA_BUCKET}/${storagePath}`,
-    {
+  const uploadUrl = `${config.supabaseUrl}/storage/v1/object/${BRIEF_MEDIA_BUCKET}/${storagePath}`;
+  const readUrl = `${config.supabaseUrl}/storage/v1/object/authenticated/${BRIEF_MEDIA_BUCKET}/${storagePath}`;
+  const uploadOptions = {
       method: 'POST',
       headers: {
         apikey: config.supabaseServiceKey,
@@ -368,21 +387,39 @@ export async function uploadAndReadBack(config, storagePath, bytes, mimeType, de
         'x-upsert': 'false',
       },
       body: bytes,
+    };
+  const readOptions = {
+    method: 'GET',
+    headers: {
+      apikey: config.supabaseServiceKey,
+      authorization: `Bearer ${config.supabaseServiceKey}`,
+    },
+  };
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    let uploadRes;
+    try { uploadRes = await deps.fetch(uploadUrl, uploadOptions); }
+    catch (_) { /* The upload may have committed before the connection dropped. */ }
+    if (uploadRes && uploadRes.ok) break;
+    if (uploadRes && uploadRes.status < 500 && uploadRes.status !== 409) {
+      throw new Error(`storage_upload_failed_${uploadRes.status}`);
     }
-  );
-  if (!uploadRes.ok) throw new Error(`storage_upload_failed_${uploadRes.status}`);
+    // A failed response can hide a successful write. Read before retrying a
+    // no-upsert POST, or a subsequent attempt could get a misleading 409.
+    const possibleCopy = await fetchCopyStep('storage readback', readUrl, readOptions, deps);
+    if (possibleCopy.ok) {
+      const hash = sha256Hex(Buffer.from(await possibleCopy.arrayBuffer()));
+      if (hash === sha256Hex(bytes)) return hash;
+      throw new Error('storage_readback_mismatch_after_ambiguous_upload');
+    }
+    if (possibleCopy.status !== 404) throw new Error(`storage_readback_failed_${possibleCopy.status}`);
+    if (uploadRes && uploadRes.status === 409) throw new Error('storage_conflict_without_matching_readback');
+    if (attempt === 3) throw new Error(`storage upload: ${uploadRes ? `HTTP ${uploadRes.status}` : 'transport failed'} after 3 attempts`);
+    await (deps.sleep ? deps.sleep(500 * 2 ** (attempt - 1))
+      : new Promise(resolve => setTimeout(resolve, 500 * 2 ** (attempt - 1))));
+  }
 
   /* Independent readback: a fresh GET, not a reuse of the bytes just sent. */
-  const readRes = await deps.fetch(
-    `${config.supabaseUrl}/storage/v1/object/authenticated/${BRIEF_MEDIA_BUCKET}/${storagePath}`,
-    {
-      method: 'GET',
-      headers: {
-        apikey: config.supabaseServiceKey,
-        authorization: `Bearer ${config.supabaseServiceKey}`,
-      },
-    }
-  );
+  const readRes = await fetchCopyStep('storage readback', readUrl, readOptions, deps);
   if (!readRes.ok) throw new Error(`storage_readback_failed_${readRes.status}`);
   const readBytes = Buffer.from(await readRes.arrayBuffer());
   const readbackSha256 = sha256Hex(readBytes);
@@ -390,14 +427,31 @@ export async function uploadAndReadBack(config, storagePath, bytes, mimeType, de
 }
 
 export async function insertVerifiedRow(config, row, deps) {
-  const res = await deps.fetch(`${config.supabaseUrl}/rest/v1/native_brief_media_occurrences`, {
+  const url = `${config.supabaseUrl}/rest/v1/native_brief_media_occurrences`;
+  const options = {
     method: 'POST',
     headers: { ...restHeaders(config), prefer: 'return=representation' },
     body: JSON.stringify(row),
-  });
-  if (!res.ok) throw new Error(`insert_failed_${res.status}`);
-  const inserted = await res.json();
-  return Array.isArray(inserted) ? inserted[0] : inserted;
+  };
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    let res;
+    try { res = await deps.fetch(url, options); }
+    catch (_) { /* Reconcile an ambiguous insert by its unique occurrence key. */ }
+    if (res && res.ok) {
+      const inserted = await res.json();
+      return Array.isArray(inserted) ? inserted[0] : inserted;
+    }
+    if (res && res.status < 500) throw new Error(`insert_failed_${res.status}`);
+    const existing = await findExistingVerified(config, row, deps);
+    if (existing) {
+      if (existing.content_sha256 !== row.content_sha256 || existing.readback_sha256 !== row.readback_sha256 ||
+          existing.storage_path !== row.storage_path) throw new Error('verified_receipt_conflict_after_ambiguous_insert');
+      return existing;
+    }
+    if (attempt === 3) throw new Error(`verified receipt insert: ${res ? `HTTP ${res.status}` : 'transport failed'} after 3 attempts`);
+    await (deps.sleep ? deps.sleep(500 * 2 ** (attempt - 1))
+      : new Promise(resolve => setTimeout(resolve, 500 * 2 ** (attempt - 1))));
+  }
 }
 
 /**

@@ -88,6 +88,27 @@ const nav = page => page.evaluate(() => typeof currentNav === 'string' ? current
       check(await addr(page) === '/intake', 'the public intake form keeps /intake (got ' + await addr(page) + ')');
       await context.close();
     }
+    // 3d. Samples names its client in the address, like Calendar (Vigil,
+    //     2026-09-28), and that address reopens the same client after a
+    //     refresh and when pasted into a fresh browser. The client is read
+    //     from the app's own list at run time; no name is written here.
+    {
+      const { context, page } = await openStaff(browser, port, '/workload');
+      const pick = await page.evaluate(() => { const c = WL_CLIENT_NAMES[0]; svSharedClientPick(c); return { name: c, slug: sxrClientSlug(c) }; });
+      await page.evaluate(() => navTo('sample-reviews'));
+      await page.waitForFunction(() => typeof sxrState !== 'undefined' && !!sxrState.client, null, { timeout: 10000 }).catch(() => {});
+      const want = '/sample-reviews/' + encodeURIComponent(pick.slug);
+      const at = await addr(page);
+      check(at === want, 'Samples names its client in the address (got ' + (at === want ? 'the client address' : at.split('/').slice(0, 2).join('/') + '/...') + ')');
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(() => typeof sxrState !== 'undefined' && !!sxrState.client, null, { timeout: 20000 }).catch(() => {});
+      check(await page.evaluate(n => sxrState.client === n, pick.name) && await addr(page) === want, 'a refresh reopens Samples on the same client');
+      await context.close();
+      const fresh = await openStaff(browser, port, want);
+      await fresh.page.waitForFunction(() => typeof sxrState !== 'undefined' && !!sxrState.client, null, { timeout: 20000 }).catch(() => {});
+      check(await fresh.page.evaluate(n => sxrState.client === n, pick.name), 'the same address pasted into a fresh browser opens that client');
+      await fresh.context.close();
+    }
     // 4. Default landing.
     {
       const { context, page, errors } = await openStaff(browser, port, '/');

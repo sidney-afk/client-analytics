@@ -5,7 +5,7 @@ import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-s
 import { selectClient, _templatesSetSelected } from './050-market-briefs.js';
 import { currentNav, _fpSetQueryQuiet } from './060-templates-filming.js';
 import { WL_CLIENT_NAMES, wlCanonicalClient } from './070-workload-source.js';
-import { _navPillSync, navTo } from './090-workload-popovers-navigation.js';
+import { _navFitSchedule, _navPillSync, navTo } from './090-workload-popovers-navigation.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import { _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
@@ -190,6 +190,8 @@ import { tdyMyClientNames } from './097-today.js';
             else badge.style.removeProperty('--sv-client-h');
         }
         if (dot) dot.outerHTML = cur ? _svClientDot(cur).replace('class="sv-client-dot"', 'class="sv-client-dot" id="svClientBadgeDot"') : '<span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>';
+        // Re-fit the tab row whenever the picker draws: its width sets the room.
+        _navFitSchedule();
     }
     // Staff see the picker on every tab, so the tab row never shifts; team
     // tabs simply ignore the client. Client links never show it.

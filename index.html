@@ -8674,6 +8674,7 @@
         .tdy-note { margin-top: 18px; }
         .tdy-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
         .tdy-date { font-size: 0.88rem; font-weight: 600; color: var(--text-secondary); }
+        .tdy-scope { margin-left: auto; }
         .tdy-vw { display: flex; gap: 2px; background: var(--surface-subtle); border: 1px solid var(--border-light); border-radius: 10px; padding: 3px; }
         .tdy-vw button { font: 600 0.78rem 'Plus Jakarta Sans', sans-serif; color: var(--text-secondary); background: none; border: 0; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
         .tdy-vw button.on { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
@@ -8755,6 +8756,8 @@
         @media (max-width: 760px) {
             .tdy { padding: 20px 16px 60px; }
             .tdy-big { font-size: 1.6rem; }
+            .tdy-top { flex-wrap: wrap; }
+            .tdy-scope { margin-left: 0; order: 3; }
             .tdy-rings { grid-template-columns: repeat(3, minmax(0, 1fr)); }
             .tdy-pipe { display: none; }
             .tdy-rw .tdy-b { padding: 7px; font-size: 0; gap: 0; }
@@ -23513,8 +23516,20 @@
             const btns = [...nav.querySelectorAll(':scope > .header-nav-btn')].filter(b => b.offsetWidth);
             if (!btns.length || window.innerWidth <= 760) { nav.classList.remove('is-measuring'); return; }
             const last = btns[btns.length - 1];
-            // Sub-pixel boxes: scrollWidth rounds a fractional overflow up, so must we.
-            const overflows = () => Math.ceil(last.getBoundingClientRect().right - btns[0].getBoundingClientRect().left - 0.01) > nav.clientWidth;
+            // Compare fractional boxes on both sides. The row is width:max-content,
+            // so when everything fits its clientWidth is the tabs' width ROUNDED
+            // DOWN (1131.09 -> 1131); rounding the tabs up against that made a row
+            // that fits read as 1px over and dropped to icons (seen at 1600px once
+            // the Today tab landed). A real overflow clamps the row at its column,
+            // so the tabs' span then exceeds its content box by whole pixels.
+            const overflows = () => {
+                const cs = getComputedStyle(nav);
+                const box = nav.getBoundingClientRect();
+                const room = box.width - (parseFloat(cs.borderLeftWidth) || 0) - (parseFloat(cs.borderRightWidth) || 0)
+                    - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+                // Tab span, not positions: the row may be scrolled sideways.
+                return last.getBoundingClientRect().right - btns[0].getBoundingClientRect().left > room + 0.05;
+            };
             if (overflows()) {
                 nav.classList.add('is-compact');
                 void nav.offsetWidth;
@@ -23528,6 +23543,28 @@
             // Tab widths just changed: move the sliding pill under the active tab again.
             if (nav.classList.contains('is-compact') + ':' + nav.classList.contains('is-icons') !== wasCompact) requestAnimationFrame(() => _navPillSync(false));
         } catch (e) {}
+    }
+    let _navFitQueued = false, _navFitTrailing = false, _navFitWindowAt = 0, _navFitWindowRuns = 0;
+    function _navFitSchedule() {
+        if (_navFitQueued) return;
+        _navFitQueued = true;
+        const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (f => setTimeout(f, 16));
+        raf(() => {
+            _navFitQueued = false;
+            const now = Date.now();
+            if (now - _navFitWindowAt > 1000) { _navFitWindowAt = now; _navFitWindowRuns = 0; }
+            // Loop guard: past 30 fits a second, stop fitting per signal but
+            // keep ONE trailing fit for when the window resets, so a burst
+            // (a fast drag-resize) still ends on the right layout.
+            if (++_navFitWindowRuns > 30) {
+                if (!_navFitTrailing) {
+                    _navFitTrailing = true;
+                    setTimeout(() => { _navFitTrailing = false; _navFitSchedule(); }, Math.max(0, 1001 - (Date.now() - _navFitWindowAt)));
+                }
+                return;
+            }
+            _navPillSync(false);
+        });
     }
     function _navPillSync(animate) {
         _navFitSync();
@@ -23559,10 +23596,25 @@
     }
     // Re-measure on anything that can change a tab's width or position: viewport
     // changes, the webfont swapping in, and tabs revealed later by a flag.
+    //
+    // LATE FIRST FIT (owner, 2026-09-27): on a wide desktop the first fit could
+    // run before the web font or the rest of the header settled, go icons only,
+    // and never retry: the row's ResizeObserver only sees the row's OWN width,
+    // and an icons-only row keeps the same width when room frees up beside it.
+    // Every fit starts from full labels (see _navFitSync), so re-running it is
+    // always safe; we re-run once per frame on every signal that can change
+    // the room: fonts (ready + each loadingdone, since the Google Fonts sheet
+    // is attached after onload and can outlive fonts.ready), window load, any
+    // resize, the client picker rendering, and the header's other children
+    // resizing. A per-second cap guards against any feedback loop.
     try {
-        window.addEventListener('resize', () => _navPillSync(false));
-        if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
-            document.fonts.ready.then(() => _navPillSync(false)).catch(() => {});
+        window.addEventListener('resize', _navFitSchedule);
+        window.addEventListener('load', _navFitSchedule);
+        if (document.fonts) {
+            if (document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+                document.fonts.ready.then(_navFitSchedule).catch(() => {});
+            }
+            if (typeof document.fonts.addEventListener === 'function') document.fonts.addEventListener('loadingdone', _navFitSchedule);
         }
         // A tab revealed after first paint (Kasper, Samples) changes the row's
         // width with no route change; watch the row itself so the fit and the
@@ -23586,6 +23638,14 @@
                         lastW = w;
                         resync();
                     }).observe(nav);
+                    // Room beside the row: the header's other children (logo,
+                    // client picker, actions). Their size never depends on the
+                    // row's compact state, so this cannot loop either.
+                    const header = nav.parentElement;
+                    if (header) {
+                        const sib = new ResizeObserver(() => _navFitSchedule());
+                        [...header.children].forEach(ch => { if (ch !== nav) sib.observe(ch); });
+                    }
                 }
             };
             if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch);
@@ -24078,6 +24138,8 @@
             else badge.style.removeProperty('--sv-client-h');
         }
         if (dot) dot.outerHTML = cur ? _svClientDot(cur).replace('class="sv-client-dot"', 'class="sv-client-dot" id="svClientBadgeDot"') : '<span class="sv-client-dot is-empty" id="svClientBadgeDot" aria-hidden="true">+</span>';
+        // Re-fit the tab row whenever the picker draws: its width sets the room.
+        _navFitSchedule();
     }
     // Staff see the picker on every tab, so the tab row never shifts; team
     // tabs simply ignore the client. Client links never show it.
@@ -24466,6 +24528,7 @@
      * retry rather than guessing. Today is a team tab: it ignores
      * the shared client, but opening a card makes that card's client current. */
     const TDY_VIEW_KEY = 'syncview_today_view';
+    const TDY_SCOPE_KEY = 'syncview_today_scope';   // admin's My clients / All clients choice
     const TDY_OPEN = ['todo', 'in_progress', 'tweak', 'smm_approval'];
     const TDY_PAST_EDIT = ['smm_approval', 'kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted'];
     const TDY_PAST_SMM = ['kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted'];
@@ -24562,18 +24625,33 @@
     }
     /* The current Clients Info clients this person may see: every one for an
        admin, the roster's list for an SMM (see 098-smm-clients). */
+    function _tdySavedScope() { try { return localStorage.getItem(TDY_SCOPE_KEY) || ''; } catch (e) { return ''; } }
     async function _tdyVisibleClients(me) {
         const current = svCurrentClients();
         if (!current.size) throw new Error('clients');
-        if (me.role === 'admin') return { keys: new Set(current.keys()), notListed: false };
-        const mine = await _tdySmmClients(me);
-        return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0 };
+        const isAdmin = me.role === 'admin';
+        const managers = await _tdyRoster();
+        // An admin can always fall back to every client; an SMM cannot guess.
+        if (!managers && !isAdmin) throw new Error('roster');
+        let email = '';
+        if (managers) {
+            try {
+                const rows = await _tdyRest('team_members', 'select=email&id=eq.' + encodeURIComponent(me.id));
+                email = String(rows[0] && rows[0].email || '');
+            } catch (e) {}
+        }
+        const entry = managers ? svRosterEntryFor(managers, { email, name: me.name }) : null;
+        // With no roster there is no "mine" to show: an admin gets every client.
+        const scope = !managers ? { mode: 'all', canSwitch: false } : svScopeMode(isAdmin, !!entry, isAdmin ? _tdySavedScope() : '');
+        if (scope.mode === 'all') return { keys: new Set(current.keys()), notListed: false, scope };
+        const mine = svSmmCurrentClients(entry, current);
+        return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0, scope };
     }
     /* The signed-in member's own roster clients for the dropdown: { id, names }.
        Anyone on the SMM roster gets their clients, admins included (an admin
        can also be an SMM); names are empty for anyone not on the roster or
-       signed out. Rejects when not loaded. Today itself still shows admins
-       every client (_tdyVisibleClients). */
+       signed out. Rejects when not loaded. Today defaults admins on the roster
+       to these clients too, with a My / All switch (_tdyVisibleClients). */
     async function tdyMyClientNames() {
         const me = _tdyIdentity();
         if (!me) return { id: '', names: [] };
@@ -24610,7 +24688,7 @@
             _tdyRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
                 + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)')
         ]);
-        return { names, notListed: visible.notListed, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
+        return { names, scope: visible.scope, notListed: visible.notListed, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
     }
 
     /* ---------- small pieces ---------- */
@@ -24654,9 +24732,12 @@
         const chips = list.slice(0, 12).map(r => `<span class="tdy-chip"><span class="tdy-tk"></span>${_calEsc(r.title || 'Untitled')}<span class="tdy-cn">${_calEsc(names[r.client_slug] || '')}</span><time>${_calEsc(_tdyTimeOf(r.status_at))}</time></span>`).join('');
         return `<div class="tdy-trail"><div class="tdy-st">Cleared today <span>${list.length}</span></div><div class="tdy-chips">${chips}</div></div>`;
     }
-    function _tdyTop(views, on) {
+    function _tdyTop(views, on, scope) {
         const d = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
-        return `<div class="tdy-top"><span class="tdy-date">${_calEsc(d)}</span><div class="tdy-vw" role="tablist">${views.map(v => `<button type="button" role="tab" aria-selected="${v === on}" class="${v === on ? 'on' : ''}" data-tdy-key="view-${_calEscAttr(v)}" onclick="_tdySetView(${_calEscAttr(JSON.stringify(v))})">${_calEsc(v)}</button>`).join('')}</div></div>`;
+        const sw = scope && scope.canSwitch
+            ? `<div class="tdy-vw tdy-scope" role="group" aria-label="Clients shown">${[['mine', 'My clients'], ['all', 'All clients']].map(([k, l]) => `<button type="button" aria-pressed="${scope.mode === k}" class="${scope.mode === k ? 'on' : ''}" data-tdy-key="scope-${k}" onclick="_tdySetScope('${k}')">${l}</button>`).join('')}</div>`
+            : '';
+        return `<div class="tdy-top"><span class="tdy-date">${_calEsc(d)}</span>${sw}<div class="tdy-vw" role="tablist">${views.map(v => `<button type="button" role="tab" aria-selected="${v === on}" class="${v === on ? 'on' : ''}" data-tdy-key="view-${_calEscAttr(v)}" onclick="_tdySetView(${_calEscAttr(JSON.stringify(v))})">${_calEsc(v)}</button>`).join('')}</div></div>`;
     }
     const _tdyToday = rows => rows.filter(r => r.status_at && new Date(r.status_at) >= _tdyDays(0));
 
@@ -24726,7 +24807,7 @@
         const jobs = _tdyJobs(d);
         const left = jobs.reduce((s, j) => s + j.rows.length, 0);
         const today = _tdyToday(d.done);
-        const head = _tdyTop(['Rings', 'Walk-through'], view) + _tdyMeter(today.length, left, d.done.length);
+        const head = _tdyTop(['Rings', 'Walk-through'], view, d.scope) + _tdyMeter(today.length, left, d.done.length);
         const scope = d.notListed ? '<p class="tdy-note">No clients are listed for you yet. Ask an admin to add yours to the SMM list.</p>' : '';
         if (view === 'Walk-through') {
             const list = _tdyWalkList(d);
@@ -24812,6 +24893,10 @@
         _tdyPaint();
     }
     function _tdySetJob(k) { tdyState.job = k; _tdyPaint(); }
+    function _tdySetScope(k) {
+        try { localStorage.setItem(TDY_SCOPE_KEY, k); } catch (e) {}
+        mountTodayView();
+    }
     function _tdyWalkNext() { tdyState.walk++; _tdyPaint(); }
     function _tdySkip(id) { tdyState.skipped = tdyState.skipped.filter(x => x !== id).concat(id); _tdyPaint(); }
     function _tdyOpenSync(id) {
@@ -24839,6 +24924,7 @@
 
     window._tdySetView = _tdySetView;
     window._tdySetJob = _tdySetJob;
+    window._tdySetScope = _tdySetScope;
     window._tdyWalkNext = _tdyWalkNext;
     window._tdySkip = _tdySkip;
     window._tdyOpenSync = _tdyOpenSync;
@@ -24860,8 +24946,12 @@
      *   3. Roster and Clients Info spell names differently, so both sides go
      *      through svClientKey: titles (Dr, Dr.), "&" versus "and",
      *      punctuation, accents, case and spacing are all ignored.
-     *   4. An admin sees every current client. A current client that no active
-     *      SMM lists is shown to admins only.
+     *   4. Anyone on the roster sees their own clients by default, admins
+     *      included (svScopeMode). An admin also gets a "My clients / All
+     *      clients" switch, remembered per browser; an admin who is not on the
+     *      roster starts on All clients. A non-admin SMM only ever sees their
+     *      own. A current client that no active SMM lists shows under All
+     *      clients only.
      *
      * Everything here is pure over its inputs except svCurrentClients, which
      * reads the loaded Clients Info rows. */
@@ -24903,6 +24993,15 @@
         const cur = current instanceof Map ? current : svCurrentClients();
         const owned = new Set((Array.isArray(entry.source_clients) ? entry.source_clients : []).map(svClientKey).filter(Boolean));
         return [...cur].filter(([k]) => owned.has(k)).map(([, n]) => n);
+    }
+    /* Which clients a Today-style view starts on.
+       isAdmin: the signed-in role is admin. onRoster: an active roster entry
+       matched them. saved: an admin's remembered choice ('mine' | 'all' | '').
+       Returns { mode: 'mine' | 'all', canSwitch }. */
+    function svScopeMode(isAdmin, onRoster, saved) {
+        if (!isAdmin) return { mode: 'mine', canSwitch: false };
+        if (saved === 'mine' || saved === 'all') return { mode: saved, canSwitch: true };
+        return { mode: onRoster ? 'mine' : 'all', canSwitch: true };
     }
     /* Current clients no active SMM lists: admins only. */
     function svUnownedCurrentClients(managers, current) {

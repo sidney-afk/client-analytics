@@ -1355,8 +1355,20 @@ import {
             const btns = [...nav.querySelectorAll(':scope > .header-nav-btn')].filter(b => b.offsetWidth);
             if (!btns.length || window.innerWidth <= 760) { nav.classList.remove('is-measuring'); return; }
             const last = btns[btns.length - 1];
-            // Sub-pixel boxes: scrollWidth rounds a fractional overflow up, so must we.
-            const overflows = () => Math.ceil(last.getBoundingClientRect().right - btns[0].getBoundingClientRect().left - 0.01) > nav.clientWidth;
+            // Compare fractional boxes on both sides. The row is width:max-content,
+            // so when everything fits its clientWidth is the tabs' width ROUNDED
+            // DOWN (1131.09 -> 1131); rounding the tabs up against that made a row
+            // that fits read as 1px over and dropped to icons (seen at 1600px once
+            // the Today tab landed). A real overflow clamps the row at its column,
+            // so the tabs' span then exceeds its content box by whole pixels.
+            const overflows = () => {
+                const cs = getComputedStyle(nav);
+                const box = nav.getBoundingClientRect();
+                const room = box.width - (parseFloat(cs.borderLeftWidth) || 0) - (parseFloat(cs.borderRightWidth) || 0)
+                    - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+                // Tab span, not positions: the row may be scrolled sideways.
+                return last.getBoundingClientRect().right - btns[0].getBoundingClientRect().left > room + 0.05;
+            };
             if (overflows()) {
                 nav.classList.add('is-compact');
                 void nav.offsetWidth;
@@ -1370,6 +1382,28 @@ import {
             // Tab widths just changed: move the sliding pill under the active tab again.
             if (nav.classList.contains('is-compact') + ':' + nav.classList.contains('is-icons') !== wasCompact) requestAnimationFrame(() => _navPillSync(false));
         } catch (e) {}
+    }
+    let _navFitQueued = false, _navFitTrailing = false, _navFitWindowAt = 0, _navFitWindowRuns = 0;
+    function _navFitSchedule() {
+        if (_navFitQueued) return;
+        _navFitQueued = true;
+        const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (f => setTimeout(f, 16));
+        raf(() => {
+            _navFitQueued = false;
+            const now = Date.now();
+            if (now - _navFitWindowAt > 1000) { _navFitWindowAt = now; _navFitWindowRuns = 0; }
+            // Loop guard: past 30 fits a second, stop fitting per signal but
+            // keep ONE trailing fit for when the window resets, so a burst
+            // (a fast drag-resize) still ends on the right layout.
+            if (++_navFitWindowRuns > 30) {
+                if (!_navFitTrailing) {
+                    _navFitTrailing = true;
+                    setTimeout(() => { _navFitTrailing = false; _navFitSchedule(); }, Math.max(0, 1001 - (Date.now() - _navFitWindowAt)));
+                }
+                return;
+            }
+            _navPillSync(false);
+        });
     }
     function _navPillSync(animate) {
         _navFitSync();
@@ -1401,10 +1435,25 @@ import {
     }
     // Re-measure on anything that can change a tab's width or position: viewport
     // changes, the webfont swapping in, and tabs revealed later by a flag.
+    //
+    // LATE FIRST FIT (owner, 2026-09-27): on a wide desktop the first fit could
+    // run before the web font or the rest of the header settled, go icons only,
+    // and never retry: the row's ResizeObserver only sees the row's OWN width,
+    // and an icons-only row keeps the same width when room frees up beside it.
+    // Every fit starts from full labels (see _navFitSync), so re-running it is
+    // always safe; we re-run once per frame on every signal that can change
+    // the room: fonts (ready + each loadingdone, since the Google Fonts sheet
+    // is attached after onload and can outlive fonts.ready), window load, any
+    // resize, the client picker rendering, and the header's other children
+    // resizing. A per-second cap guards against any feedback loop.
     try {
-        window.addEventListener('resize', () => _navPillSync(false));
-        if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
-            document.fonts.ready.then(() => _navPillSync(false)).catch(() => {});
+        window.addEventListener('resize', _navFitSchedule);
+        window.addEventListener('load', _navFitSchedule);
+        if (document.fonts) {
+            if (document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+                document.fonts.ready.then(_navFitSchedule).catch(() => {});
+            }
+            if (typeof document.fonts.addEventListener === 'function') document.fonts.addEventListener('loadingdone', _navFitSchedule);
         }
         // A tab revealed after first paint (Kasper, Samples) changes the row's
         // width with no route change; watch the row itself so the fit and the
@@ -1428,6 +1477,14 @@ import {
                         lastW = w;
                         resync();
                     }).observe(nav);
+                    // Room beside the row: the header's other children (logo,
+                    // client picker, actions). Their size never depends on the
+                    // row's compact state, so this cannot loop either.
+                    const header = nav.parentElement;
+                    if (header) {
+                        const sib = new ResizeObserver(() => _navFitSchedule());
+                        [...header.children].forEach(ch => { if (ch !== nav) sib.observe(ch); });
+                    }
                 }
             };
             if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch);
@@ -1742,7 +1799,7 @@ import {
 
 export {
   _linearInvalidatePlanMap, _linearResolveClientRow, _linearResolvedPlanUrl,
-  _linearSetResolvedPlanUrl, _navPillSync, _syncviewApplyTabFavicon, buildLinearTitle,
+  _linearSetResolvedPlanUrl, _navFitSchedule, _navPillSync, _syncviewApplyTabFavicon, buildLinearTitle,
   loadLinearForm, navTo, renderLinearSearchResults, saveLinearForm, updateLinearFilmingPlan,
   updateLinearSearchGhost, updateLinearTitle, wlClosePopover, wlOpenRollupPopover
 };

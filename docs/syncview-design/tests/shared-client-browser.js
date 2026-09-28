@@ -493,6 +493,142 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       }
     }
 
+    // Late web font (owner, 2026-09-27): on a wide desktop the tabs loaded as
+    // icons only and needed a window resize to show their names. The first fit
+    // ran on the fallback font, went compact, and nothing re-fit when the web
+    // font swapped in. Hold the font back a few seconds, then require full
+    // labels, no overflow and the pill under the active tab once it settles.
+    // Also: the touch-only quick-jump button stays hidden on a mouse desktop.
+    // Any narrow system TTF stands in for the web font file; the timing is what matters.
+    const fontFile = ['/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf', '/usr/share/fonts/truetype/freefont/FreeSans.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf']
+      .map(f => { try { return require('fs').readFileSync(f); } catch (e) { return null; } }).find(Boolean);
+    for (const width of [1440, 1600]) {
+      const context = await browser.newContext({ viewport: { width, height: 800 } });
+      let fontServed = false;
+      await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()), async route => {
+        const u = route.request().url();
+        try {
+          if (/fonts\.googleapis\.com\/css2/.test(u)) {
+            // Held back too, so document.fonts.ready has already settled on
+            // the fallback before the face is even declared (as on a slow link).
+            await new Promise(r => setTimeout(r, 2000));
+            return await route.fulfill({ status: 200, contentType: 'text/css', body:
+              "@font-face{font-family:'Plus Jakarta Sans';font-style:normal;font-weight:300 800;font-display:swap;src:url(https://fonts.gstatic.com/s/fixture/late-font.ttf) format('truetype');}" });
+          }
+          if (/fonts\.gstatic\.com\/s\/fixture\//.test(u)) {
+            await new Promise(r => setTimeout(r, 2000));
+            fontServed = true;
+            if (!fontFile) return await route.fulfill({ status: 404, body: '' });
+            return await route.fulfill({ status: 200, contentType: 'font/ttf', body: fontFile });
+          }
+          await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+        } catch (e) {}
+      });
+      await seedStaffGate(context);
+      await context.addInitScript(v => {
+        try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); localStorage.setItem('syncview_shared_client', v); } catch (e) {}
+        // Stand-in for a wide system fallback (the owner's machine): until the
+        // web font lands, the family renders from a wide local face.
+        try {
+          const wide = new FontFace('Plus Jakarta Sans', "local('DejaVu Sans Bold'), local('DejaVuSans-Bold')", { sizeAdjust: '135%' });
+          document.fonts.add(wide);
+          wide.load().catch(() => {});
+          // The rest of the header is still settling too: a wide placeholder
+          // in the actions area goes away as the web font lands.
+          document.addEventListener('DOMContentLoaded', () => {
+            const a = document.querySelector('.header-actions');
+            if (!a) return;
+            const ph = document.createElement('span');
+            ph.style.cssText = 'display:inline-block;width:260px;height:1px;flex:none';
+            a.appendChild(ph);
+            setTimeout(() => { ph.remove(); document.fonts.delete(wide); }, 3800);
+          });
+        } catch (e) {}
+      }, FIRST);
+      const page = await context.newPage();
+      await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(1200);
+      const early = await page.evaluate(() => { const n = document.getElementById('headerNav'); return n.className + ' w=' + n.clientWidth + ' sw=' + n.scrollWidth + ' ' + document.fonts.check("600 12px 'Plus Jakarta Sans'") + ' ' + [...document.fonts].map(f => f.status).join(','); });
+      await page.waitForTimeout(5000);
+      const tag = `late font @${width}`;
+      if (process.env.SV_DEBUG) console.log(tag, 'before the font:', early);
+      expect(fontServed, `${tag}: the delayed web font was never requested`);
+      const m = await page.evaluate(() => {
+        const nav = document.getElementById('headerNav');
+        const tabs = [...nav.querySelectorAll(':scope > .header-nav-btn')].filter(a => getComputedStyle(a).display !== 'none');
+        const navBox = nav.getBoundingClientRect();
+        const active = nav.querySelector(':scope > .header-nav-btn.active');
+        const pill = nav.querySelector(':scope > .header-nav-pill').getBoundingClientRect();
+        const act = active.getBoundingClientRect();
+        const jump = document.querySelector('.sv-jump-touch');
+        return {
+          fontLoaded: document.fonts.check("600 12px 'Plus Jakarta Sans'"),
+          kasper: tabs.some(a => a.id === 'navKasper'),
+          compact: nav.classList.contains('is-compact') || nav.classList.contains('is-icons'),
+          iconOnly: tabs.filter(a => parseFloat(getComputedStyle(a).fontSize) < 1).map(a => a.id),
+          over: nav.scrollWidth - nav.clientWidth,
+          outside: tabs.filter(a => { const r = a.getBoundingClientRect(); return r.left < navBox.left - 1 || r.right > navBox.right + 1 || r.width < 20; }).map(a => a.id),
+          pillOff: Math.round(Math.abs(pill.left - act.left) + Math.abs(pill.width - act.width)),
+          jumpShown: !!jump && getComputedStyle(jump).display !== 'none',
+        };
+      });
+      if (fontFile) expect(m.fontLoaded, `${tag}: the web font did not finish loading`);
+      expect(m.kasper, `${tag}: the Kasper tab should be present for this check`);
+      expect(!m.compact && !m.iconOnly.length, `${tag}: tabs stuck compact / icons only after the font arrived: ${m.iconOnly.join(',') || 'row class'}`);
+      expect(m.over <= 0, `${tag}: overflows by ${m.over}px`);
+      expect(!m.outside.length, `${tag}: tabs cut off or hidden: ${m.outside.join(',')}`);
+      expect(m.pillOff <= 2, `${tag}: the active highlight is ${m.pillOff}px off its tab`);
+      expect(!m.jumpShown, `${tag}: the touch-only quick-jump button shows on a mouse desktop`);
+      await context.close();
+    }
+    // Resize burst (review, 2026-09-27): more than 30 resizes inside a second
+    // trips the fit's loop cap. A narrow-then-wide burst must still end on
+    // full labels, via the trailing fit, not stay stuck on icons.
+    {
+      const context = await browser.newContext({ viewport: { width: 1600, height: 800 } });
+      await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()), route => {
+        route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }).catch(() => {});
+      });
+      await seedStaffGate(context);
+      await context.addInitScript(v => {
+        try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); localStorage.setItem('syncview_shared_client', v); } catch (e) {}
+      }, FIRST);
+      const page = await context.newPage();
+      await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(2500);
+      // Burn the cap at the wide size, then go narrow (icons), then back wide
+      // while the cap is still tripped.
+      for (let i = 0; i < 40; i++) {
+        await page.evaluate(() => new Promise(r => { window.dispatchEvent(new Event('resize')); requestAnimationFrame(() => r()); }));
+      }
+      await page.setViewportSize({ width: 1100, height: 800 });
+      for (let i = 0; i < 10; i++) {
+        await page.evaluate(() => new Promise(r => { window.dispatchEvent(new Event('resize')); requestAnimationFrame(() => r()); }));
+      }
+      await page.setViewportSize({ width: 1600, height: 800 });
+      await page.waitForTimeout(1800);
+      const stuck = await page.evaluate(() => {
+        const nav = document.getElementById('headerNav');
+        return nav.classList.contains('is-compact') || nav.classList.contains('is-icons') || nav.scrollWidth > nav.clientWidth;
+      });
+      expect(!stuck, 'resize burst: the tab row did not settle on full labels after the burst');
+      await context.close();
+    }
+    // Quick-jump button: shown only on a touch-first device.
+    {
+      const context = await browser.newContext({ viewport: { width: 820, height: 1180 }, hasTouch: true, isMobile: true });
+      await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()), route => {
+        route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }).catch(() => {});
+      });
+      await seedStaffGate(context);
+      const page = await context.newPage();
+      await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(2000);
+      const shown = await page.evaluate(() => { const j = document.querySelector('.sv-jump-touch'); return !!j && getComputedStyle(j).display !== 'none'; });
+      expect(shown, 'touch device: the quick-jump button is not showing');
+      await context.close();
+    }
+
     // A client share link: no bar, and the shared client is neither read nor written.
     {
       const context = await browser.newContext({ viewport: { width: 390, height: 800 } });

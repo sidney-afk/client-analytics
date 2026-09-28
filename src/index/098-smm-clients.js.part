@@ -14,8 +14,12 @@ import { clientMap } from './040-shared-briefs.js';
      *   3. Roster and Clients Info spell names differently, so both sides go
      *      through svClientKey: titles (Dr, Dr.), "&" versus "and",
      *      punctuation, accents, case and spacing are all ignored.
-     *   4. An admin sees every current client. A current client that no active
-     *      SMM lists is shown to admins only.
+     *   4. Anyone on the roster sees their own clients by default, admins
+     *      included (svScopeMode). An admin also gets a "My clients / All
+     *      clients" switch, remembered per browser; an admin who is not on the
+     *      roster starts on All clients. A non-admin SMM only ever sees their
+     *      own. A current client that no active SMM lists shows under All
+     *      clients only.
      *
      * Everything here is pure over its inputs except svCurrentClients, which
      * reads the loaded Clients Info rows. */
@@ -58,6 +62,15 @@ import { clientMap } from './040-shared-briefs.js';
         const owned = new Set((Array.isArray(entry.source_clients) ? entry.source_clients : []).map(svClientKey).filter(Boolean));
         return [...cur].filter(([k]) => owned.has(k)).map(([, n]) => n);
     }
+    /* Which clients a Today-style view starts on.
+       isAdmin: the signed-in role is admin. onRoster: an active roster entry
+       matched them. saved: an admin's remembered choice ('mine' | 'all' | '').
+       Returns { mode: 'mine' | 'all', canSwitch }. */
+    function svScopeMode(isAdmin, onRoster, saved) {
+        if (!isAdmin) return { mode: 'mine', canSwitch: false };
+        if (saved === 'mine' || saved === 'all') return { mode: saved, canSwitch: true };
+        return { mode: onRoster ? 'mine' : 'all', canSwitch: true };
+    }
     /* Current clients no active SMM lists: admins only. */
     function svUnownedCurrentClients(managers, current) {
         const cur = current instanceof Map ? current : svCurrentClients();
@@ -66,4 +79,4 @@ import { clientMap } from './040-shared-briefs.js';
         return [...cur].filter(([k]) => !owned.has(k)).map(([, n]) => n);
     }
 
-export { svClientKey, svCurrentClients, svRosterEntryFor, svSmmCurrentClients };
+export { svClientKey, svCurrentClients, svRosterEntryFor, svScopeMode, svSmmCurrentClients };

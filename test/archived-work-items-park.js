@@ -26,7 +26,7 @@ const cards = [
   ] },
 ];
 const deliverables = [
-  { id: 'd1', status: 'todo', card_id: 's1', client_slug: 'fixture-real' },
+  { id: 'd1', status: 'todo', card_id: 's1', client_slug: 'fixture-real', updated_at: '2026-09-01T00:00:00+00:00' },
   { id: 'd2', status: 'approved', card_id: 's1', client_slug: 'fixture-real' },
   { id: 'd3', status: 'smm_approval', card_id: 's2', client_slug: 'fixture-test' },
   { id: 'd4', status: 'todo', card_id: 's3', client_slug: 'fixture-real' },
@@ -94,8 +94,33 @@ function fakeNetwork() {
   ok(net.writes.every(w => w.body.operation === 'status' && w.body.status === 'backlog' && w.body.entity === 'deliverable'), 'each is a status move to backlog');
   ok(net.writes.every(w => w.headers['x-syncview-key'] && w.headers['x-syncview-actor']), 'each carries the staff key and a named staff member');
   ok(new Set(net.writes.map(w => w.body.request_id)).size === 3, 'each move has its own request id');
+  const d1 = net.writes.find(w => w.body.id === 'd1');
+  ok(d1 && d1.body.expected_status === 'todo' && d1.body.expected_updated_at === '2026-09-01T00:00:00+00:00',
+    'each move carries the status and timestamp the plan saw, so a changed item is refused, not overwritten');
   ok(run.run.parked === 3 && run.run.journal_confirmed === 3, 'every move is confirmed in the change journal');
   ok(!/fixture-|"d\d"|"s\d"|"p\d"/.test(logs.join('\n')), 'the apply output prints counts only');
+
+  // No journal credential: refuse before the first write.
+  delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  net = fakeNetwork();
+  let noJournal = false;
+  try { await main(['--apply']); } catch (e) { noJournal = /card_change_journal/.test(e.message); }
+  ok(noJournal && net.writes.length === 0, 'apply refuses without a journal credential and writes nothing');
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'fixture-service-key';
+
+  // A move the gateway refuses as changed counts as a refusal, not a park.
+  net = fakeNetwork();
+  const baseFetch = global.fetch;
+  global.fetch = async (url, init) => (init && init.method === 'POST' && JSON.parse(init.body).id === 'd1')
+    ? { ok: false, status: 409, json: async () => ({ ok: false, error: 'write_conflict' }) }
+    : baseFetch(url, init);
+  process.exitCode = 0;
+  console.log = () => {};
+  const conflicted = await main(['--apply']);
+  console.log = realLog;
+  ok(conflicted.run.parked === 2 && conflicted.run.failed.write_conflict === 1 && process.exitCode === 1,
+    'an item that changed since the read is refused and reported, and the run exits non-zero');
+  process.exitCode = 0;
 
   delete process.env.SYNCVIEW_STAFF_KEY;
   let refused = false;

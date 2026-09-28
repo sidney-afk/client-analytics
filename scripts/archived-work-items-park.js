@@ -148,6 +148,11 @@ async function parkOne(item, runId) {
       // replay, never a second change.
       request_id: `archived-park:${runId}:${item.id}`,
       source_edited_at: new Date().toISOString(),
+      // Compare-and-set on what the plan saw: if the item moved after the
+      // read (someone approved it, say), the gateway refuses with
+      // write_conflict and this run leaves it alone.
+      expected_status: item.status,
+      expected_updated_at: item.updated_at,
     }),
   });
   const body = await response.json().catch(() => ({}));
@@ -157,6 +162,13 @@ async function parkOne(item, runId) {
     throw error;
   }
   return body;
+}
+
+async function journalReachable() {
+  const key = clean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const response = await fetch(`${SUPA_URL}/rest/v1/card_change_journal?select=id&limit=1`,
+    { headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' } }).catch(() => null);
+  return !!(response && response.ok);
 }
 
 async function journalHas(id, since) {
@@ -180,6 +192,12 @@ async function main(argv) {
   if (!clean(process.env.SYNCVIEW_STAFF_KEY) || !clean(process.env.SYNCVIEW_ACTOR)) {
     throw new Error('--apply needs SYNCVIEW_STAFF_KEY and SYNCVIEW_ACTOR (the guarded gateway path)');
   }
+  // The journal read-back is what makes each move undoable, so prove it
+  // works BEFORE the first write rather than discovering afterwards that
+  // nothing could be checked.
+  if (!clean(process.env.SUPABASE_SERVICE_ROLE_KEY) || await journalReachable() !== true) {
+    throw new Error('--apply needs SUPABASE_SERVICE_ROLE_KEY able to read card_change_journal');
+  }
   const runId = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
   const started = new Date().toISOString();
   const outcome = { parked: 0, failed: {}, journal_confirmed: 0, journal_missing: 0, journal_unchecked: 0 };
@@ -198,7 +216,7 @@ async function main(argv) {
   }
   const result = Object.assign(summary, { run: outcome });
   console.log(JSON.stringify(result, null, 2));
-  if (Object.keys(outcome.failed).length || outcome.journal_missing) process.exitCode = 1;
+  if (Object.keys(outcome.failed).length || outcome.journal_missing || outcome.journal_unchecked) process.exitCode = 1;
   return result;
 }
 

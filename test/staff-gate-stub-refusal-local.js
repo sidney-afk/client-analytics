@@ -83,9 +83,11 @@ async function callFrom(page, key) {
       return { status: r.status, body: await r.json() };
     }, { url: AR, key });
     const net = { hits: 0 };
+    // Counts the preflight too: with the seed on, nothing about a stub-key
+    // read (preflight included) may reach this stand-in for the network.
     const answerNetwork = ctx => ctx.route('**/functions/v1/analytics-read', route => {
-      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'POST, OPTIONS', 'access-control-allow-headers': '*' } });
       net.hits++;
+      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'POST, OPTIONS', 'access-control-allow-headers': '*' } });
       return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{"ok":true,"from":"network"}' });
     });
     const ar = await browser.newContext();
@@ -96,7 +98,7 @@ async function callFrom(page, key) {
     const stubRead = await readFrom(p3, STAFF_GATE_KEY);
     assert.equal(stubRead.status, 200);
     assert.deepEqual(stubRead.body, { ok: false, error: 'invalid_staff_key' });
-    assert.equal(net.hits, 0, 'a stub-key analytics read must not reach the live backend');
+    assert.equal(net.hits, 0, 'neither a stub-key analytics read nor its preflight may reach the live backend');
     assert.equal((await readFrom(p3, 'some-other-key')).body.from, 'network', 'a non-stub key must fall through');
     await ar.close();
 

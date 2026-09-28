@@ -176,6 +176,16 @@ async function refuseStubKeyProductionWrite(target) {
 async function answerStubKeyAnalyticsRead(target) {
   await target.route('**/functions/v1/analytics-read', route => {
     const request = route.request();
+    // The key rides in a custom header, so the browser sends a CORS preflight
+    // first; it carries no key to match on. Answer it here too, or it reaches
+    // the live function and a network blip there fails the harness anyway.
+    if (request.method() === 'OPTIONS') {
+      return route.fulfill({ status: 204, headers: {
+        'access-control-allow-origin': request.headers().origin || '*',
+        'access-control-allow-methods': 'POST, OPTIONS',
+        'access-control-allow-headers': request.headers()['access-control-request-headers'] || '*',
+      }, body: '' });
+    }
     if (!isStubKeyProductionWrite(request)) return route.fallback();
     return route.fulfill({
       status: 200,

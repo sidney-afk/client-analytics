@@ -29664,3 +29664,25 @@ calendar posts; **46 open work items, all real clients, 45 with a card**:
 then re-runs the dry run and expects 0. Noticed in passing, not changed here:
 the Calendar park builds its card repair from the pre-archive row, so a replay
 of that repair could in principle write the old overall status back.
+
+## 285. [2026-09-28] The item 284 cleanup ran: 46 stuck work items parked in Backlog
+
+Lighthouse ran `scripts/archived-work-items-park.js --apply` on main a1bc3dd3,
+after the owner's go, through the guarded `production-write` status operation
+with a staff key and a named staff member.
+
+- Dry run before: 46 open work items behind archived cards, all real clients
+  (3 behind archived samples, 43 behind archived calendar posts). Checked
+  beforehand: none linked to a live post, none scheduled ahead, none touched
+  since 2026-09-16.
+- Run: 46 parked, 0 failed, 46 confirmed in `card_change_journal`, 0 missing.
+- Dry run after: 0.
+- Before-statuses: 20 todo, 14 smm_approval, 11 client_approval, 1 in_progress.
+- Only `deliverables` rows changed; no `calendar_posts` or `sample_reviews` row
+  was written in the run window.
+
+**Undo:** `card_change_journal` ids 120083 to 120128 (relation `deliverables`,
+recorded 2026-09-28 23:30:10 to 23:30:51 UTC). Each row's `row_before.status`
+is the status to put back, through the same gateway status operation, with the
+item's current status and `updated_at` as the expected values so a later edit
+is never overwritten.

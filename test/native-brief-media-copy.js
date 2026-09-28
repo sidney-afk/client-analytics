@@ -308,6 +308,30 @@ function makeOccurrence({ deliverableId, clientSlug, team, linearIssueUuid, stal
   ok(hash === crypto.createHash('sha256').update(PNG_BYTES).digest('hex') && uploads === 1,
     'ambiguous upload reconciles by readback instead of reposting a no-upsert object');
 }
+{
+  const storage = new Map();
+  const mock = mockDeps({ storage });
+  const realFetch = mock.deps.fetch;
+  let uploads = 0, reads = 0;
+  mock.deps.fetch = async (url, options) => {
+    if (String(url).includes('/storage/v1/object/') && options.method === 'POST') {
+      uploads++;
+      if (uploads === 1) {
+        await realFetch(url, options);
+        return { status: 520, ok: false };
+      }
+      return { status: 409, ok: false };
+    }
+    if (String(url).includes('/authenticated/') && options.method === 'GET' && ++reads === 1) {
+      return { status: 404, ok: false }; // delayed visibility after committed 520
+    }
+    return realFetch(url, options);
+  };
+  mock.deps.sleep = async () => {};
+  const hash = await M.uploadAndReadBack(makeConfig(), 'hash/delayed', PNG_BYTES, 'image/png', mock.deps);
+  ok(hash === crypto.createHash('sha256').update(PNG_BYTES).digest('hex') && uploads === 2 && reads === 2,
+    'delayed readback after HTTP 520 reconciles a subsequent 409 by matching bytes');
+}
 
 /* ---- 6. apply resolves a FRESH signed URL through Linear's GraphQL API - */
 /*        rather than GETting the historical, already-401 URL in `brief`   */

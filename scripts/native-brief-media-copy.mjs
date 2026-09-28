@@ -400,7 +400,9 @@ export async function uploadAndReadBack(config, storagePath, bytes, mimeType, de
     try { uploadRes = await deps.fetch(uploadUrl, uploadOptions); }
     catch (_) { /* The upload may have committed before the connection dropped. */ }
     if (uploadRes && uploadRes.ok) break;
-    if (uploadRes && uploadRes.status < 500) throw new Error(`storage_upload_failed_${uploadRes.status}`);
+    if (uploadRes && uploadRes.status < 500 && uploadRes.status !== 409) {
+      throw new Error(`storage_upload_failed_${uploadRes.status}`);
+    }
     // A failed response can hide a successful write. Read before retrying a
     // no-upsert POST, or a subsequent attempt could get a misleading 409.
     const possibleCopy = await fetchCopyStep('storage readback', readUrl, readOptions, deps);
@@ -410,6 +412,7 @@ export async function uploadAndReadBack(config, storagePath, bytes, mimeType, de
       throw new Error('storage_readback_mismatch_after_ambiguous_upload');
     }
     if (possibleCopy.status !== 404) throw new Error(`storage_readback_failed_${possibleCopy.status}`);
+    if (uploadRes && uploadRes.status === 409) throw new Error('storage_conflict_without_matching_readback');
     if (attempt === 3) throw new Error(`storage upload: ${uploadRes ? `HTTP ${uploadRes.status}` : 'transport failed'} after 3 attempts`);
     await (deps.sleep ? deps.sleep(500 * 2 ** (attempt - 1))
       : new Promise(resolve => setTimeout(resolve, 500 * 2 ** (attempt - 1))));

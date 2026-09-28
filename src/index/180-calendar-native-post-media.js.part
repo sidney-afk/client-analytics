@@ -472,13 +472,14 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
         const nameOf = n => { const hit = items.find(item => Number(item.videoNumber) === n && item.name); return hit ? String(hit.name) : ''; };
         const requestId = _linearIntakeJobId(job);
         try {
-            await _linearIntakeWithLock(() => {
-                const current = _linearIntakeRead();
-                if (!current || _linearIntakeJobId(current) !== requestId) return;
-                current.replace_on_submit = true;
-                _linearIntakeWrite(current);
-            });
-        } catch (error) { _calNativeSavedSay('It could not be restored: ' + String(error && (error.code || error.message) || 'error') + '.'); return; }
+            // Refuses unless the mark is read back: the window is left as it
+            // was rather than filled for an edit that would be refused.
+            await _linearIntakeWithLock(() => _linearIntakeMarkRestored(requestId));
+        } catch (error) {
+            _writeUiRecordFailure(work.surface === 'sxr' ? 'sxr' : 'calendar', 'create_post', error);
+            _calNativeSavedSay('It could not be restored in this browser (' + String(error && (error.code || error.message) || 'error') + '). You can still send it as it was, or discard it.');
+            return;
+        }
         state.mode = ['video', 'thumbnail', 'both'].includes(context.mode) ? context.mode : state.mode;
         state.postCount = numbers.length || 1;
         state.postNames = numbers.map(nameOf);
@@ -534,6 +535,8 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
         if (code === 'assignee_not_eligible' || code === 'assignee_ineligible') return 'That editor cannot take this work right now. Choose someone else.';
         if (code === 'native_intake_pending_conflict') return 'An earlier post is still saved in this browser. Use the box at the top of this window to restore it, send it, or discard it.';
         if (code === 'native_intake_recovery_pending') return 'An earlier post in this browser is still finishing its calendar card. Use the box at the top of this window to finish it or discard it.';
+        if (code === 'native_intake_saved_committed') return 'The saved post already went through on the server, so your changes were not sent: they would have made a second batch. Use Send it as it was in the box above to finish it, then create your changes as a new post.';
+        if (code === 'native_intake_saved_unverified') return 'Your changes were not sent: the server could not confirm whether the saved post already went through. Try again in a moment, or use the box above to send it as it was or discard it.';
         if (code === 'batch_version_conflict' || code === 'write_conflict') return 'That batch changed while this window was open. Close this message and try again.';
         if (/^invalid_intake_append_|^batch_not_(active|found)$/.test(code)) return 'That batch cannot take this post right now. Start a new batch instead.';
         if (code === 'legacy_parity_disabled' || code === 'team_is_linear_authoritative') return 'Native Create Post is still locked for this team. No post was created.';
@@ -834,6 +837,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
         });
         let pending;
         try {
+            await _linearIntakePrepareReplace(surface);
             pending = await _linearIntakeWithLock(() => _linearIntakePending(signature, (requestId, sourceEditedAt) => {
                 const payload = {
                     operation: 'intake_create', surface, client_slug: state.clientSlug,

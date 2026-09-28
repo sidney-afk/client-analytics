@@ -38,10 +38,10 @@
 | 30 | `150-calendar-hydration-import.js.part` | 2197 | For a card linked to a real sub-issue (not a parent), return which of |
 | 31 | `160-calendar-organize-ui.js.part` | 2825 | Lighter path for the Order switch: update the chrome in place so the |
 | 32 | `170-calendar-links-status.js.part` | 2855 | Move a Linear sub-issue link from the old card onto the new one. The |
-| 33 | `180-calendar-native-post-media.js.part` | 2849 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
+| 33 | `180-calendar-native-post-media.js.part` | 2853 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 34 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
 | 35 | `190-calendar-approval-comments.js.part` | 3108 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
-| 36 | `200-intake-data-startup.js.part` | 1747 | Video-only and Thumbnail-only were already built, but sat |
+| 36 | `200-intake-data-startup.js.part` | 1861 | Video-only and Thumbnail-only were already built, but sat |
 | 37 | `210-production-state-writes.js.part` | 3201 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 38 | `220-production-attribution-views.js.part` | 2764 | An ABSENT persisted slug is missing evidence, not |
 | 39 | `230-production-create-comments.js.part` | 2645 | `production_create_closed` is a DEFINITIVE no-replay verdict, |

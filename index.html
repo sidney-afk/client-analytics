@@ -47357,13 +47357,14 @@
         const nameOf = n => { const hit = items.find(item => Number(item.videoNumber) === n && item.name); return hit ? String(hit.name) : ''; };
         const requestId = _linearIntakeJobId(job);
         try {
-            await _linearIntakeWithLock(() => {
-                const current = _linearIntakeRead();
-                if (!current || _linearIntakeJobId(current) !== requestId) return;
-                current.replace_on_submit = true;
-                _linearIntakeWrite(current);
-            });
-        } catch (error) { _calNativeSavedSay('It could not be restored: ' + String(error && (error.code || error.message) || 'error') + '.'); return; }
+            // Refuses unless the mark is read back: the window is left as it
+            // was rather than filled for an edit that would be refused.
+            await _linearIntakeWithLock(() => _linearIntakeMarkRestored(requestId));
+        } catch (error) {
+            _writeUiRecordFailure(work.surface === 'sxr' ? 'sxr' : 'calendar', 'create_post', error);
+            _calNativeSavedSay('It could not be restored in this browser (' + String(error && (error.code || error.message) || 'error') + '). You can still send it as it was, or discard it.');
+            return;
+        }
         state.mode = ['video', 'thumbnail', 'both'].includes(context.mode) ? context.mode : state.mode;
         state.postCount = numbers.length || 1;
         state.postNames = numbers.map(nameOf);
@@ -47419,6 +47420,8 @@
         if (code === 'assignee_not_eligible' || code === 'assignee_ineligible') return 'That editor cannot take this work right now. Choose someone else.';
         if (code === 'native_intake_pending_conflict') return 'An earlier post is still saved in this browser. Use the box at the top of this window to restore it, send it, or discard it.';
         if (code === 'native_intake_recovery_pending') return 'An earlier post in this browser is still finishing its calendar card. Use the box at the top of this window to finish it or discard it.';
+        if (code === 'native_intake_saved_committed') return 'The saved post already went through on the server, so your changes were not sent: they would have made a second batch. Use Send it as it was in the box above to finish it, then create your changes as a new post.';
+        if (code === 'native_intake_saved_unverified') return 'Your changes were not sent: the server could not confirm whether the saved post already went through. Try again in a moment, or use the box above to send it as it was or discard it.';
         if (code === 'batch_version_conflict' || code === 'write_conflict') return 'That batch changed while this window was open. Close this message and try again.';
         if (/^invalid_intake_append_|^batch_not_(active|found)$/.test(code)) return 'That batch cannot take this post right now. Start a new batch instead.';
         if (code === 'legacy_parity_disabled' || code === 'team_is_linear_authoritative') return 'Native Create Post is still locked for this team. No post was created.';
@@ -47719,6 +47722,7 @@
         });
         let pending;
         try {
+            await _linearIntakePrepareReplace(surface);
             pending = await _linearIntakeWithLock(() => _linearIntakePending(signature, (requestId, sourceEditedAt) => {
                 const payload = {
                     operation: 'intake_create', surface, client_slug: state.clientSlug,
@@ -53526,16 +53530,27 @@
         /* RESTORED FOR EDITING (owner rule 2026-09-28: never trap the person).
            "Restore it" puts a saved, never-committed job back into the form
            and marks it replace_on_submit. The edited submit then REPLACES it
-           instead of conflicting -- and it keeps the saved request id and
-           timestamp, because the gateway derives the batch id from the request
-           id: whatever happened to the first attempt, the edit can only ever
-           land in that same one batch, never a second. */
+           under the saved request id and timestamp, so it can only ever land
+           in that one batch. Two guards (Codex review on #1824):
+           - the id is reused only after the server said the saved request
+             never committed (_linearIntakePrepareReplace, stamped as
+             replace_verified just before this). A committed first manifest is
+             immutable, so an edited payload must never go out under its id.
+           - the saved job is never deleted first. The replacement carries the
+             same request id, so it is written over the saved record and read
+             back; if building or storing it fails, the saved job is untouched. */
+        let replacing = false;
         if (saved && saved.signature !== signature && saved.replace_on_submit === true
             && !saved.result && saved.recovery_only !== true
             && String(saved.payload && saved.payload.surface || '') === String(context && context.surface || '')) {
+            const verified = saved.replace_verified || {};
+            if (verified.request_id !== _linearIntakeJobId(saved)
+                || !(Date.now() - Number(verified.at || 0) < NATIVE_INTAKE_REPLACE_CHECK_MS)) {
+                throw _linearIntakeActorError(409, 'native_intake_saved_unverified');
+            }
             seed = { request_id: String(saved.payload.request_id || ''), source_edited_at: String(saved.payload.source_edited_at || '') };
-            try { localStorage.removeItem(NATIVE_INTAKE_PENDING_KEY); } catch (e) {}
             saved = null;
+            replacing = true;
         }
         if (saved) {
             if (saved.signature !== signature) {
@@ -53568,7 +53583,93 @@
             completed_card_ids: [], stage: 'request_pending', telemetry_sent: false
         };
         if (!_linearIntakeWrite(pending, { allowCreate: true })) throw new Error('native_intake_storage_unavailable');
+        if (replacing) {
+            // Same request id on both sides, so the id check inside the write
+            // cannot tell the replacement from the saved copy it overwrites.
+            const stored = _linearIntakeRead();
+            if (!stored || stored.signature !== signature) throw new Error('native_intake_storage_unavailable');
+        }
         return pending;
+    }
+    /* How long a server check that the saved request never committed stays
+       good for the submit that follows it. */
+    const NATIVE_INTAKE_REPLACE_CHECK_MS = 120000;
+    /* Background resume (start-up, focus, the timer, the connection coming
+       back) must not send a job while it is restored for editing: only these
+       explicit, person-initiated paths may. */
+    const NATIVE_INTAKE_EXPLICIT_REASONS = ['submit', 'calendar-create-post', 'samples-create-post'];
+    function _linearIntakeRestoredPaused(job, reason) {
+        return !!(job && job.replace_on_submit === true && NATIVE_INTAKE_EXPLICIT_REASONS.indexOf(String(reason || '')) < 0);
+    }
+    /* The ids the gateway derives from a request id (policy.mjs
+       deterministicNativeId): a prefix, the request and a discriminator,
+       hashed to a v4-shaped uuid. */
+    async function _linearIntakeNativeId(prefix, requestId, discriminator) {
+        const key = String(prefix).trim() + ':' + String(requestId).trim() + ':' + String(discriminator).trim();
+        const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key)));
+        const bytes = digest.slice(0, 16);
+        bytes[6] = (bytes[6] & 0x0f) | 0x40;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        const hex = [...bytes].map(value => value.toString(16).padStart(2, '0')).join('');
+        return String(prefix).trim() + '_' + hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+    }
+    /* Did the saved request already commit on the server? Reads the rows the
+       gateway would have created under its id: the batch (new-batch jobs) and
+       every item. Any row means committed. 'unknown' when the read fails or
+       the browser cannot hash; the caller then refuses rather than guesses.
+       The anon key reads these tables today; if the scoped read policies
+       (OPEN_REPAIRS 276, deferred) ever land, this read must move to the
+       session, since an empty scoped answer would not prove anything. */
+    async function _linearIntakeSavedCommitState(job) {
+        try {
+            const payload = job && job.payload || {};
+            const requestId = _linearIntakeJobId(job);
+            if (!requestId || !CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return 'unknown';
+            const teams = { video: 'video', vid: 'video', graphics: 'graphics', graphic: 'graphics', gra: 'graphics', thumbnail: 'graphics' };
+            const items = Array.isArray(payload.items) ? payload.items : [];
+            const ids = await Promise.all(items.map((item, index) =>
+                _linearIntakeNativeId('del', requestId, (teams[String(item && item.team || '').trim().toLowerCase()] || '') + ':' + index)));
+            const headers = { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' };
+            const read = async url => {
+                const response = await fetch(url, { headers, cache: 'no-store' });
+                if (!response.ok) throw new Error('commit_check_http_' + response.status);
+                const rows = await response.json();
+                if (!Array.isArray(rows)) throw new Error('commit_check_shape');
+                return rows.length;
+            };
+            const reads = [];
+            if (ids.length) reads.push(read(CAL_SUPABASE_URL + '/rest/v1/deliverables?select=id&id=in.(' + ids.map(encodeURIComponent).join(',') + ')'));
+            if (!payload.batch_id) {
+                const batchId = await _linearIntakeNativeId('bat', requestId, 'submission');
+                reads.push(read(CAL_SUPABASE_URL + '/rest/v1/batches?select=id&id=eq.' + encodeURIComponent(batchId)));
+            }
+            if (!reads.length) return 'unknown';
+            const counts = await Promise.all(reads);
+            return counts.some(count => count > 0) ? 'committed' : 'uncommitted';
+        } catch (error) { return 'unknown'; }
+    }
+    /* Run before a submit on any surface. When the saved job is restored for
+       editing, ask the server whether its request already committed:
+       - never committed: stamp replace_verified so the submit may reuse its id;
+       - committed: clear the restore mark (so it can finish as it was) and
+         refuse the edited submit, which would otherwise go out under a
+         committed id;
+       - cannot tell: refuse, keep everything as it is. */
+    async function _linearIntakePrepareReplace(surface) {
+        const saved = _linearIntakeRead();
+        if (!saved || saved.replace_on_submit !== true || saved.result || saved.recovery_only === true
+            || String(saved.payload && saved.payload.surface || '') !== String(surface || '')) return;
+        const requestId = _linearIntakeJobId(saved);
+        const verdict = await _linearIntakeSavedCommitState(saved);
+        if (verdict === 'unknown') throw _linearIntakeActorError(409, 'native_intake_saved_unverified');
+        await _linearIntakeWithLock(() => {
+            const current = _linearIntakeRead();
+            if (!current || _linearIntakeJobId(current) !== requestId) return;
+            if (verdict === 'committed') delete current.replace_on_submit;
+            else current.replace_verified = { request_id: requestId, at: Date.now() };
+            if (!_linearIntakeWrite(current)) throw new Error('native_intake_storage_unavailable');
+        });
+        if (verdict === 'committed') throw _linearIntakeActorError(409, 'native_intake_saved_committed');
     }
 
 
@@ -53686,6 +53787,17 @@
             notes: String(payload.batch && payload.batch.notes || ''), videos: videos.length ? videos : [{}]
         };
     }
+    /* Mark the saved job restored, and prove the mark is stored before any
+       form is filled: an unmarked job would refuse the edited submit again
+       (Codex, #1824). Throws, leaving the page as it was, when it is not. */
+    function _linearIntakeMarkRestored(requestId) {
+        const current = _linearIntakeRead();
+        if (!current || _linearIntakeJobId(current) !== requestId) throw _linearIntakeActorError(409, 'native_intake_job_replaced');
+        current.replace_on_submit = true;
+        delete current.replace_verified;
+        const stored = _linearIntakeWrite(current) ? _linearIntakeRead() : null;
+        if (!stored || stored.replace_on_submit !== true) throw new Error('native_intake_storage_unavailable');
+    }
     async function _linearSavedRestore() {
         const work = _linearSavedWork();
         if (!work || !work.restorable) return;
@@ -53693,12 +53805,7 @@
             if (work.kind === 'native') {
                 const requestId = _linearIntakeJobId(work.job);
                 const form = _linearFormFromSavedJob(work.job);
-                await _linearIntakeWithLock(() => {
-                    const current = _linearIntakeRead();
-                    if (!current || _linearIntakeJobId(current) !== requestId) return;
-                    current.replace_on_submit = true;
-                    _linearIntakeWrite(current);
-                });
+                await _linearIntakeWithLock(() => _linearIntakeMarkRestored(requestId));
                 localStorage.setItem(LINEAR_FORM_KEY, JSON.stringify(form));
             }
             // A hold already shows its own draft in the form (loadLinearForm).
@@ -54162,6 +54269,7 @@
         });
         let pending;
         try {
+            await _linearIntakePrepareReplace('submission');
             pending = await _linearIntakeWithLock(() => _linearIntakePending(signature, (requestId, sourceEditedAt) => {
             return {
                 operation: 'intake_create', surface: 'submission', client_slug: client.slug,
@@ -54194,10 +54302,15 @@
             // or slug), so the next stuck person shows up before they text us.
             _writeUiRecordFailure('production', 'intake_create', error);
             const blocked = error && (error.code === 'native_intake_pending_conflict' || error.code === 'native_intake_recovery_pending');
-            status.textContent = blocked
-                ? 'An earlier submission is still saved in this browser. Use the box at the top of this page to restore it, send it, or discard it.'
-                : 'This submission could not be saved safely in this browser.';
-            if (blocked) _linearRefreshSavedBox({ scroll: true });
+            const code = String(error && error.code || '');
+            status.textContent = code === 'native_intake_saved_committed'
+                ? 'The saved submission already went through on the server, so your edits were not sent: they would have made a second batch. Use Send it as it was in the box at the top to finish it, then submit your changes as a new one.'
+                : code === 'native_intake_saved_unverified'
+                    ? 'Your edits were not sent: the server could not confirm whether the saved submission already went through. Try again in a moment, or use the box at the top to send it as it was or discard it.'
+                    : blocked
+                        ? 'An earlier submission is still saved in this browser. Use the box at the top of this page to restore it, send it, or discard it.'
+                        : 'This submission could not be saved safely in this browser.';
+            if (blocked || code.indexOf('native_intake_saved_') === 0) _linearRefreshSavedBox({ scroll: true });
             return;
         }
 
@@ -54610,12 +54723,17 @@
         if (_nativeIntakeResumePromise) return _nativeIntakeResumePromise;
         const job = suppliedJob || _linearIntakeRead();
         if (!job) return Promise.resolve(null);
+        // A job restored for editing waits for the person (Codex, #1824):
+        // sending it behind the form would leave the edits to go out later
+        // under a fresh id, as a second batch.
+        if (_linearIntakeRestoredPaused(job, reason)) return Promise.resolve(null);
         const requestId = _linearIntakeJobId(job);
         const runCurrent = () => {
             const current = _linearIntakeRead();
             if (!current || _linearIntakeJobId(current) !== requestId) {
                 throw _linearIntakeActorError(409, 'native_intake_job_replaced');
             }
+            if (_linearIntakeRestoredPaused(current, reason)) return null;
             return _runNativeIntakeJob(current);
         };
         _nativeIntakeResumePromise = _linearIntakeWithLock(runCurrent)

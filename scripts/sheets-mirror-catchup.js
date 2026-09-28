@@ -47,8 +47,23 @@ const TABLES = {
 };
 
 /* The rows to add: every mirror row whose fingerprint appears more often in
-   the mirror than in the Sheet. Pure, so it is tested offline. */
+   the mirror than in the Sheet. Briefs are keyed by id and updated in place,
+   so for them only an id the Sheet lacks is added; a brief whose id is in the
+   Sheet with other values is returned in `changed`, never appended (a second
+   row with the same id would leave the stale one in place). Pure, so it is
+   tested offline. */
 async function missingRows(m, dataset, sheetRows, dbRows) {
+  if (m.DATASETS[dataset].key === 'id') {
+    const byId = new Map();
+    for (const row of sheetRows) if (m.clientSlug(row.client_name)) byId.set(String(row.id || '').trim(), await m.rowHash(dataset, row));
+    const add = [], changed = [];
+    for (const row of dbRows) {
+      const id = String(row.id || '').trim();
+      if (!byId.has(id)) add.push(row);
+      else if (byId.get(id) !== (row.row_hash || await m.rowHash(dataset, row))) changed.push(row);
+    }
+    return Object.assign(add, { changed });
+  }
   const inSheet = new Map();
   for (const row of sheetRows) {
     if (!m.clientSlug(row.client_name)) continue;
@@ -62,7 +77,7 @@ async function missingRows(m, dataset, sheetRows, dbRows) {
     if (left > 0) { inSheet.set(h, left - 1); continue; }
     out.push(row);
   }
-  return out;
+  return Object.assign(out, { changed: [] });
 }
 
 // A mirror row in the tab's own column order; columns the mirror keeps in
@@ -161,6 +176,12 @@ async function main() {
   console.log(`${dataset}: Sheet rows since ${since} ${sheetRows.length}, mirror rows ${dbRows.length}, missing from the Sheet ${add.length}`
     + (days.length ? ` (days ${days[0]} to ${days[days.length - 1]})` : ''));
 
+  if (add.changed.length) {
+    console.log(`${add.changed.length} brief(s) exist in the Sheet with other values: not appended; update them in place by id`
+      + ' (ids in --out-changed=<file>)');
+    const changedOut = arg('--out-changed');
+    if (changedOut) fs.writeFileSync(changedOut, add.changed.map(r => String(r.id)).join('\n') + '\n');
+  }
   const out = arg('--out');
   if (out) fs.writeFileSync(out, [csvLine(header), ...values.map(csvLine)].join('\n') + '\n');
   if (!apply || !values.length) { if (!apply) console.log('DRY RUN: nothing written'); return; }

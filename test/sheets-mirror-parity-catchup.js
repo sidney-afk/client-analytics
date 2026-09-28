@@ -51,6 +51,12 @@ const ok = (cond, msg) => { assert.ok(cond, msg); n++; console.log('  ok  ' + ms
   const again = await catchup.missingRows(m, 'metrics', sheetRows.concat(add), dbRows);
   ok(again.length === 0, 'a second run adds nothing');
 
+  const brief = (id, name, raw) => ({ id, client_name: name, date: '2026-09-01', raw_json: raw });
+  const bAdd = await catchup.missingRows(m, 'market_research_briefs', [brief('b1', 'Probe One', 'old')],
+    [brief('b1', 'Probe One', 'new'), brief('b2', 'Probe Two', 'x')]);
+  ok(bAdd.length === 1 && bAdd[0].id === 'b2' && bAdd.changed.length === 1 && bAdd.changed[0].id === 'b1',
+    'a brief is keyed by id: a new id is appended, an edited one is reported for an in-place update, never appended twice');
+
   const values = catchup.toSheetValues(['date', 'client_name', 'ig_followers', 'custom_col'], { date: '2026-09-02', client_name: 'Probe One', ig_followers: '2', extra: { custom_col: 'x' } });
   ok(JSON.stringify(values) === JSON.stringify(['2026-09-02', 'Probe One', '2', 'x']), 'rows go back in the tab column order, extra columns to their own column');
   ok(catchup.csvLine(['a"b', '']) === '"a""b",""', 'CSV output quotes every value');

@@ -15,7 +15,8 @@
  *   6. flag on for one client only: staff keep reading the Sheets;
  *   7. {"staff": true}: one "overview" and one "extras" answer, no Sheet tab;
  *   8. staff read fails: the Sheets are read instead;
- *   9. staff copy incomplete (no whole-dataset receipt): the Sheets are read.
+ *   9. staff copy incomplete (no whole-dataset receipt): the Sheets are read;
+ *  10. staff copy stale (last whole-dataset receipt older than 3 days): Sheets.
  * No request leaves the machine.
  */
 const fs = require('fs');
@@ -120,10 +121,12 @@ async function scenario(browser, origin, name, flag, efMode) {
 
 const STAFF_METRIC_COLUMNS = ['date', 'client_name', 'ig_followers', 'ig_avg_views'];
 function staffAnswer(scope, mode) {
-  const receipt = { complete: true, full_snapshot: true, created_at: '2026-09-25T00:00:00Z' };
+  const receipt = { complete: true, full_snapshot: true, created_at: new Date().toISOString() };
+  const stale = { complete: true, full_snapshot: true, created_at: '2026-01-01T00:00:00Z' };
   if (scope === 'overview') {
     return { ok: true, principal: 'staff', scope, latest_metrics_date: DAY,
-      receipts: mode === 'incomplete' ? { metrics: null, client_profiles: receipt } : { metrics: receipt, client_profiles: receipt },
+      receipts: mode === 'incomplete' ? { metrics: null, client_profiles: receipt }
+        : mode === 'stale' ? { metrics: stale, client_profiles: receipt } : { metrics: receipt, client_profiles: receipt },
       data: { metrics: { columns: STAFF_METRIC_COLUMNS, rows: [[DAY, CLIENT, DB_FOLLOWERS, '200']] },
         client_profiles: [{ slug: SLUG, display_name: CLIENT, instagram_handle: 'fixture', content_description: 'Database description', extra: {} }] } };
   }
@@ -240,11 +243,14 @@ async function staffScenario(browser, origin, name, flag, efMode) {
     const sPart = await staffScenario(browser, origin, 'staff copy incomplete', { enabled: true }, 'incomplete');
     expect(sPart.seen.sheets.includes('Metrics') && sPart.got.followers === SHEET_FOLLOWERS, 'staff copy with no whole-dataset receipt: the numbers come from the Sheets');
 
+    const sStale = await staffScenario(browser, origin, 'staff copy stale', { enabled: true }, 'stale');
+    expect(sStale.seen.sheets.includes('Metrics') && sStale.got.followers === SHEET_FOLLOWERS, 'staff copy whose last whole-dataset receipt is old: the numbers come from the Sheets');
+
     for (const s of [off, other, on, fail, nocopy, empty]) {
       console.log(`  ${s.name.padEnd(28)} analytics-read=${s.seen.ef} sheets=[${s.seen.sheets.join(', ')}] followers=${s.got.followers || '-'}`);
       if (s.errors.length) failures.push(`${s.name}: page error ${s.errors[0]}`);
     }
-    for (const s of [sOff, sOn, sFail, sPart]) {
+    for (const s of [sOff, sOn, sFail, sPart, sStale]) {
       console.log(`  ${s.name.padEnd(28)} analytics-read=[${s.seen.scopes.join(', ')}] sheets=[${s.seen.sheets.join(', ')}] followers=${s.got.followers || '-'}`);
       if (s.errors.length) failures.push(`${s.name}: page error ${s.errors[0]}`);
     }

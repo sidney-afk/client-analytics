@@ -10746,18 +10746,23 @@
                 const json = await resp.json();
                 if (!json || json.ok !== true || json.scope !== scope || !json.data) throw new Error('unexpected answer');
                 const d = json.data, rc = json.receipts || {};
+                // A whole-dataset copy counts only if it finished recently: if the
+                // daily copy stops, an old receipt must not vouch for stale rows.
+                const oldestCopy = Date.now() - ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS * 86400000;
+                const fresh = name => !!(rc[name] && Date.parse(rc[name].created_at) >= oldestCopy);
                 let out = null, why = '';
                 if (scope === 'overview') {
                     const m = d.metrics || {}, profiles = Array.isArray(d.client_profiles) ? d.client_profiles : [];
                     const latest = String(json.latest_metrics_date || '');
                     const oldest = new Date(Date.now() - ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS * 86400000).toISOString().slice(0, 10);
                     if (!Array.isArray(m.rows) || !m.rows.length || !profiles.length) why = 'no copy yet';
-                    else if (!rc.metrics || !rc.client_profiles) why = 'no complete copy yet';
+                    else if (!fresh('metrics') || !fresh('client_profiles')) why = 'no complete copy in the last ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
                     else if (latest < oldest) why = 'copy is older than ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
                     else out = { metrics: _analyticsMirrorCsv(m.columns, m.rows), clients: profiles.map(_analyticsMirrorProfileRow) };
                 } else {
                     const tv = d.top_videos || {};
-                    if (!Array.isArray(tv.rows) || !rc.top_videos || !rc.market_research_briefs || !rc.content_summaries) why = 'no complete copy yet';
+                    if (!Array.isArray(tv.rows)) why = 'no copy yet';
+                    else if (!fresh('top_videos') || !fresh('market_research_briefs') || !fresh('content_summaries')) why = 'no complete copy in the last ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
                     else out = {
                         topvids: _analyticsMirrorCsv(tv.columns, tv.rows),
                         mrbriefs: _analyticsMirrorCsv(['id', 'client_name', 'date', 'raw_json', 'raw_json_2', 'raw_json_3'], d.market_research_briefs || []),

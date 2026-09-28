@@ -58,14 +58,18 @@ variable from the owner (section 5, step 3).
   The page uses them when the flag says `"enabled": true` (everyone) or
   `"staff": true` (staff only, for trying it first). It falls back to the
   Sheets on a failed read, a timeout (10 s overview, 20 s extras), no complete
-  whole-dataset copy, or a metrics copy older than 3 days. The answer is
+  whole-dataset copy of each dataset finished in the last 3 days, or a
+  metrics copy older than 3 days. So if the daily copy stops, staff go back
+  to the Sheets by themselves within 3 days. The answer is
   turned back into the Sheet's CSV shape, so the parse, the saved copy and the
   change detection are the same code as today.
 - **Daily comparison check** (Phase 3 step 1): `scripts/sheets-mirror-parity.js`
   and the daily lane above.
 - **Catch-up job** (Phase 3 rollback): `scripts/sheets-mirror-catchup.js`
   appends the rows Supabase has and a Sheet tab lacks, in the tab's own column
-  order, and adds nothing on a second run. It refuses the live Sheet unless
+  order, and adds nothing on a second run. Briefs are keyed by id: a brief
+  the Sheet lacks is appended, an edited one is listed for an in-place update
+  (`--out-changed`), never appended a second time. It refuses the live Sheet unless
   told `--production`, so it is rehearsed on a copy first.
   **Rehearsed 2026-09-28 on a copy of the Metrics tab:** 20 to 22 Sept (108
   rows) removed from the copy; the catch-up, reading the live Supabase rows,

@@ -307,6 +307,20 @@ function cmdScan(rowsPath, manifestPath) {
   console.log(`manifest written (PRIVATE): ${manifestPath}`);
 }
 
+export async function uploadWithRetry(endpoint, options, fetchImpl = fetch, sleepImpl = ms => new Promise(r => setTimeout(r, ms))) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    let response;
+    try {
+      response = await fetchImpl(endpoint, options);
+    } catch (_) {
+      if (attempt === 3) throw new Error('media upload: transport failed after 3 attempts');
+    }
+    if (response && response.status < 500) return response;
+    if (response && attempt === 3) throw new Error(`media upload: HTTP ${response.status} after 3 attempts`);
+    if (attempt < 3) await sleepImpl(500 * 2 ** (attempt - 1));
+  }
+}
+
 async function cmdUpload(manifestPath, filesDir, outMapPath) {
   assertPrivatePath(outMapPath);
   const endpoint = process.env.SYNCVIEW_UPLOAD_URL;
@@ -356,7 +370,9 @@ async function cmdUpload(manifestPath, filesDir, outMapPath) {
       failed += 1;
       continue;
     }
-    const res = await fetch(endpoint, {
+    let res;
+    try {
+      res = await uploadWithRetry(endpoint, {
       method: 'POST',
       headers: {
         'content-type': mime,
@@ -366,7 +382,12 @@ async function cmdUpload(manifestPath, filesDir, outMapPath) {
         'x-syncview-image-issue': occ.id,
       },
       body: bytes,
-    });
+      });
+    } catch (error) {
+      console.error(`REFUSED ${error.message}  ${occ.key_sha256}`);
+      failed += 1;
+      continue;
+    }
     const body = await res.json().catch(() => ({}));
     if (!res.ok || !body.ok || !body.url) {
       console.error(`REFUSED ${res.status} ${body.error || ''}  ${occ.key_sha256}`);

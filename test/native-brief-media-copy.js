@@ -254,6 +254,61 @@ function makeOccurrence({ deliverableId, clientSlug, team, linearIssueUuid, stal
   };
 }
 
+/* 223: a dropped connection and an HTTP 520 on separate files must recover
+ * inside one apply, with one verified receipt for each occurrence. */
+{
+  const first = HOST + P1 + SIG_STALE;
+  const second = HOST + P2 + SIG_STALE;
+  const freshFirst = HOST + P1 + SIG_FRESH;
+  const freshSecond = HOST + P2 + SIG_FRESH_B;
+  const insertedRows = [];
+  const mock = mockDeps({ insertedRows, graphqlIssues: {
+    'issue-uuid-1': `![](${freshFirst})`,
+    'issue-uuid-2': `![](${freshSecond})`,
+  } });
+  const calls = new Map();
+  const realFetch = mock.deps.fetch;
+  mock.deps.fetch = async (url, options) => {
+    const key = String(url);
+    const count = (calls.get(key) || 0) + 1;
+    calls.set(key, count);
+    if (key === freshFirst && count === 1) throw new TypeError('fetch failed');
+    if (key === freshSecond && count === 1) return { ok: false, status: 520 };
+    return realFetch(url, options);
+  };
+  mock.deps.sleep = async () => {};
+  const sha = 'a'.repeat(64);
+  const manifest = { occurrences: [first, second].map((url, i) => makeOccurrence({
+    deliverableId: `D-${i + 1}`, clientSlug: 'test-client', team: 'video',
+    linearIssueUuid: `issue-uuid-${i + 1}`, staleUrl: url, offset: i,
+    briefSha256: sha, originalUrlSha256: sha, sourceLength: url.length,
+  })) };
+  const result = await M.applyManifest(manifest, makeConfig(), mock.deps);
+  ok(result.results.copied === 2 && result.results.refused === 0,
+    'transport exception and HTTP 520 recover within the two-occurrence apply');
+  ok(insertedRows.length === 2 && new Set(insertedRows.map(row => row.id)).size === 2,
+    'retry writes exactly one verified receipt per occurrence');
+  ok(calls.get(freshFirst) === 2 && calls.get(freshSecond) === 2,
+    'each transient download gets exactly one bounded retry');
+}
+{
+  const storage = new Map();
+  const mock = mockDeps({ storage });
+  const realFetch = mock.deps.fetch;
+  let uploads = 0;
+  mock.deps.fetch = async (url, options) => {
+    if (String(url).includes('/storage/v1/object/') && options.method === 'POST') {
+      uploads++;
+      await realFetch(url, options); // server committed, but response was lost
+      throw new TypeError('fetch failed');
+    }
+    return realFetch(url, options);
+  };
+  const hash = await M.uploadAndReadBack(makeConfig(), 'hash/uuid', PNG_BYTES, 'image/png', mock.deps);
+  ok(hash === crypto.createHash('sha256').update(PNG_BYTES).digest('hex') && uploads === 1,
+    'ambiguous upload reconciles by readback instead of reposting a no-upsert object');
+}
+
 /* ---- 6. apply resolves a FRESH signed URL through Linear's GraphQL API - */
 /*        rather than GETting the historical, already-401 URL in `brief`   */
 {
@@ -592,10 +647,8 @@ function makeOccurrence({ deliverableId, clientSlug, team, linearIssueUuid, stal
   const self = fs.readFileSync(__filename, 'utf8');
   const real = self.match(/uploads\.linear\.app\/[0-9a-f]{8}-(?!1111|2222|3333|4444|5555)/gi) || [];
   ok(real.length === 0, 'no real Linear URL is embedded in this test');
-  /* Built from parts so this check does not trip over its own pattern. */
-  const realClientSlugProbe = new RegExp('sidney' + 'laruel');
-  ok(!realClientSlugProbe.test(self.replace(/'sidney' \+ 'laruel'/g, '')),
-    'no real client slug is embedded in this test');
+  ok(!/clientSlug:\s*['"](?!test-client)[^'"]+['"]/.test(self),
+    'every client slug fixture in this test uses the invented test-client prefix');
 }
 
 {

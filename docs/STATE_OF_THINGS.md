@@ -55,7 +55,9 @@ line is older than a week, re-check it before relying on it.
   (OPEN_REPAIRS 215).
 - **Mixed-batch orphans:** a browser fix should re-attach 22 cards; nobody has
   confirmed it on a live read (journal 2026-09-22).
-- **Copy scripts die on a bare network error** (OPEN_REPAIRS 223).
+- **Copy transport retry is prepared for review** (OPEN_REPAIRS 223/279):
+  bounded retries, 5xx handling, and ambiguous storage/receipt readback are
+  tested offline. No live re-copy has been run.
 - **F34 archive rescue is still open:** archived descriptions, comment bodies
   and attachments were never copied; the rescue config table has 0 rows. The
   brief-media half is done (see below).

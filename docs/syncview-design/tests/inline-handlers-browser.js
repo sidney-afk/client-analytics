@@ -54,6 +54,10 @@ async function openContext(browser, route) {
 }
 const emptyAnswer = r => {
   if (r.request().method() === 'OPTIONS') return r.fulfill({ status: 204, headers: CORS, body: '' });
+  // Time Off only exists when its flag is on; turn it on so its view renders.
+  if (/\/rest\/v1\/syncview_runtime_flags/.test(r.request().url()) && /pto_v1/.test(r.request().url())) {
+    return r.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify([{ key: 'pto_v1', value: { mode: 'on' } }]) }).catch(() => {});
+  }
   return r.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: '[]' }).catch(() => {});
 };
 
@@ -93,6 +97,32 @@ async function check(page, label, failures, totals) {
         await page.click('#' + id);
         await page.waitForTimeout(SETTLE_MS);
         await check(page, `staff ${id}`, failures, totals);
+      }
+      // Kasper's subtabs (Review, Editors, Time Off, Hiring, Onboarding,
+      // Credentials, Clients, ...), including the ones behind "More": each is
+      // opened through the same function its button calls, and must mount
+      // before its buttons are read.
+      await page.click('#navKasper');
+      await page.waitForTimeout(SETTLE_MS);
+      const subtabs = await page.evaluate(() => [...new Set([...document.querySelectorAll('.kasper-subtab[data-kasper-tab]')]
+        .map(b => b.getAttribute('data-kasper-tab')))]);
+      if (subtabs.length < 3) failures.push(`expected Kasper's subtabs, found ${subtabs.length}`);
+      for (const key of subtabs) {
+        await page.evaluate(k => _kasperGotoTab(k), key);
+        await page.waitForTimeout(SETTLE_MS);
+        const now = await page.evaluate(() => _kasperState.tab);
+        if (now !== key) { failures.push(`Kasper ${key}: subtab did not mount (on ${now})`); continue; }
+        await check(page, `staff Kasper ${key}`, failures, totals);
+      }
+      // Standalone staff views that have an address but no top-level tab.
+      for (const route of ['time-off', 'smm-weekly-reports', 'client-credentials']) {
+        await page.evaluate(r => { location.hash = '#' + r; }, route);
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await page.waitForFunction(() => typeof window.navTo === 'function');
+        await page.waitForTimeout(SETTLE_MS);
+        const at = await page.evaluate(() => currentNav);
+        if (at !== route) { failures.push(`${route}: view did not mount (currentNav ${at})`); continue; }
+        await check(page, `staff ${route}`, failures, totals);
       }
       if (errors.length) failures.push(`staff tabs: page errors: ${errors.slice(0, 2).join(' | ')}`);
       await context.close();

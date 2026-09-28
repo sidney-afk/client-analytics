@@ -1,12 +1,8 @@
 import {
   _syncviewApplyStatusPalette, _syncviewApplyTheme, _syncviewStoredStatusPalette,
-  _syncviewStoredTheme, _toastEl, showNotify, showToast
+  _syncviewStoredTheme, _toastEl, showNotify, showToast, svAreaApi
 } from './040-shared-briefs.js';
-import {
-  _fpPurgeSensitiveState, _obvMode, _obvSetError, _obvSetLoadedAt, _obvSetLoading, _obvSetMode,
-  _obvSetSelected, _obvSetSubs, _obvSetWarn
-} from './060-templates-filming.js';
-import { currentNav } from './065-core-nav-intake-state.js';
+import { FP_SAVED_KEY, currentNav } from './065-core-nav-intake-state.js';
 import { wlNormalizeClient, wlPurgePlanSensitiveState } from './070-workload-source.js';
 import { wlRefreshSensitiveStateSilent } from './080-workload-render.js';
 import { _tdyPurgeSensitiveState } from './097-today.js';
@@ -28,10 +24,10 @@ import {
 import { _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
 import { _hpPurgeSensitiveState } from './310-sales-intake-hiring.js';
 import {
-  CC_ICON_EYE, _caPurgeSensitiveState, _ccCloseModal, _ccCloseSelect, _ccExpanded, _ccOpenSelectId,
-  _ccRevTeardown, _ccRevealed, _ccSelectHtml, _ccState, _ccTogglePasswordField,
-  _kasperFallbackToReview, _kasperRenderTab, _kasperRestorePendingSubtab, _kasperState,
-  _svStaffPageRender
+  CC_ICON_EYE, KASPER_FILMING_CACHE_KEY, _caPurgeSensitiveState, _ccCloseModal, _ccCloseSelect,
+  _ccExpanded, _ccOpenSelectId, _ccRevTeardown, _ccRevealed, _ccSelectHtml, _ccState,
+  _ccTogglePasswordField, _kasperFallbackToReview, _kasperRenderTab, _kasperRestorePendingSubtab,
+  _kasperState, _svStaffPageRender
 } from './320-kasper-dashboard-replies.js';
     /* ============================================================
        CLIENT ONBOARDING MODULE  (standalone, private-link page)
@@ -1559,10 +1555,30 @@ import {
         const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
         return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] || 'S').slice(0, 2)).toUpperCase();
     }
+    // Filming plans live in the on-demand Templates area. When it has not
+    // loaded, its saved copy and Kasper's filming copy can still be in this
+    // browser from an earlier visit, so sign-out clears them from here, the
+    // same way the area's own purge (060 _fpPurgeSensitiveState) does.
+    function _svFilmingPlansColdPurge() {
+        try { localStorage.removeItem(KASPER_FILMING_CACHE_KEY); } catch (e) {}
+        try { localStorage.removeItem(FP_SAVED_KEY); } catch (e) {}
+        try {
+            if (typeof _kasperState !== 'undefined' && _kasperState) {
+                _kasperState.filmingData = null;
+                _kasperState.filmingLoadedAt = 0;
+                _kasperState.filmingError = null;
+                _kasperState.filmingExpanded = {};
+            }
+        } catch (e) {}
+    }
     function _syncviewStaffPurgeSensitiveState() {
         try { if (typeof wlPurgePlanSensitiveState === 'function') wlPurgePlanSensitiveState(); } catch (e) {}
         try { if (typeof _linearIntakePurgeSensitiveState === 'function') _linearIntakePurgeSensitiveState(); } catch (e) {}
-        try { if (typeof _fpPurgeSensitiveState === 'function') _fpPurgeSensitiveState(); } catch (e) {}
+        try {
+            const tpl = svAreaApi('templates');
+            if (tpl) tpl.fpPurgeSensitiveState();
+            else _svFilmingPlansColdPurge();
+        } catch (e) {}
         try { if (typeof _srpPurgeSensitiveState === 'function') _srpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _tdyPurgeSensitiveState === 'function') _tdyPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _prodSmmPurgeSensitiveState === 'function') _prodSmmPurgeSensitiveState(); } catch (e) {}
@@ -1586,17 +1602,7 @@ import {
         } catch (e) {}
         try { _ccRevealed.clear(); } catch (e) {}
         try { _ccExpanded.clear(); } catch (e) {}
-        try {
-            if (_obvMode === 'full') {
-                _obvSetSubs(null);
-                _obvSetSelected(null);
-                _obvSetError('');
-                _obvSetWarn('');
-                _obvSetLoadedAt(0);
-                _obvSetLoading(false);
-                _obvSetMode('edge');
-            }
-        } catch (e) {}
+        try { const tpl = svAreaApi('templates'); if (tpl) tpl.obvPurgeFullMode(); } catch (e) {}
         try {
             if (typeof _prodState !== 'undefined' && _prodState) {
                 _prodState.commentDrafts.clear();

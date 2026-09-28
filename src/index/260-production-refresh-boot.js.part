@@ -6,13 +6,12 @@ import {
   _setCurrentClientHistory, _setFetchExtrasPromise, _setFetchExtrasState, _setGrowthChart,
   _setMrBriefs, _setTabSummaryCache, _setTopVideos, _setViewsChart, _syncviewCancelBriefWork,
   _syncviewClientAnalyticsData, _syncviewWatchClientExtras, activeBriefSection, activeBriefTab,
-  activeMRBriefTab, clientViewTab, fetchAll, fetchEssentials, growthChart, viewsChart
+  activeMRBriefTab, clientViewTab, fetchAll, fetchEssentials, growthChart, svArea, viewsChart
 } from './040-shared-briefs.js';
 import {
   _autoSummaryAttempted, _templatesSelected, _templatesSetActiveTab, _templatesSetSelected,
   loadTemplates, render
 } from './050-market-briefs.js';
-import { _obvMountStandalone } from './060-templates-filming.js';
 import { NAV_KEY, _isSmmWeeklyRoute, _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
 import {
   WL_CLIENT_NAMES, _wlV2Client, getClientRoster, wlCanonicalClient, wlIsAllowedClient,
@@ -2583,7 +2582,7 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
         try { document.title = 'Onboarding — SynchroSocial'; } catch(e){}
         const _hV=document.querySelector('header.header'); if(_hV) _hV.style.display='none';
         const _ptV=document.getElementById('pageTop'); if(_ptV) _ptV.style.display='none';
-        setTimeout(function(){ try{ _obvMountStandalone(new URLSearchParams(svRoute.search()).get('onboarding_view')); }catch(e){ console.error('[onboarding_view] mount failed', e); } }, 0);
+        setTimeout(function(){ svArea('templates').then(function(tpl){ tpl.obvMountStandalone(new URLSearchParams(svRoute.search()).get('onboarding_view')); }).catch(function(e){ console.error('[onboarding_view] mount failed', e); }); }, 0);
     } else if(_isSmmWeeklyEntry||_isIntake||!!_syncviewStaffIdentityLoad()){
         // A saved identity boots the app optimistically so signed-in staff
         // never see the gate flash. It grants nothing: _syncviewStaffIdentityBoot()

@@ -1,5 +1,5 @@
+import { svArea, svAreaApi } from './040-shared-briefs.js';
 import { _templatesSetSelected, selectClient } from './050-market-briefs.js';
-import { _fpSetQueryQuiet } from './060-templates-filming.js';
 import { currentNav } from './065-core-nav-intake-state.js';
 import { WL_CLIENT_NAMES, wlCanonicalClient } from './070-workload-source.js';
 import { _navFitSchedule, _navPillSync, navTo } from './090-workload-popovers-navigation.js';
@@ -143,7 +143,13 @@ import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-s
         const c = svSharedClientFor(page);
         if (!c || !push) return;
         if (page === 'templates') _templatesSetSelected(c);
-        else if (page === 'filming-plans') _fpSetQueryQuiet(c);
+        else if (page === 'filming-plans') {
+            // Filming plans is on demand (040): set the search before it draws.
+            // svArea's promise is shared, so this runs ahead of navTo's draw.
+            const tpl = svAreaApi('templates');
+            if (tpl) tpl.fpSetQueryQuiet(c);
+            else svArea('templates').then(t => t.fpSetQueryQuiet(c), () => {});
+        }
     }
     // The Analytics tab: overview when no client is picked, else that client.
     function svOpenAnalytics() {

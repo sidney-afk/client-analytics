@@ -42,6 +42,7 @@ import { _linearIntakeRead } from './200-intake-data-startup.js';
     const LINEAR_INTAKE_HOLD_KEY = 'syncview_linear_intake_hold_v1';
     const LINEAR_INTAKE_LOAD_ID = Date.now().toString(36) + ':' + Math.random().toString(36).slice(2);
     const NAV_KEY = 'syncview_nav';
+    const FP_SAVED_KEY = 'syncview_filmingPlansCache_v1';   // Filming plans' saved copy (060)
     const SMM_WEEKLY_ROUTES = ['smm-weekly-report', 'smm-weekly-reports'];
     function _isSmmWeeklyRoute(page) { return SMM_WEEKLY_ROUTES.includes(page); }
     let currentNav = 'home';
@@ -202,7 +203,7 @@ import { _linearIntakeRead } from './200-intake-data-startup.js';
         }
     }
 export {
-  LAST_LINK_KEY, LINEAR_DEFAULT_VIDEO_COUNT, LINEAR_FORM_KEY, LINEAR_INTAKE_HOLD_KEY,
+  FP_SAVED_KEY, LAST_LINK_KEY, LINEAR_DEFAULT_VIDEO_COUNT, LINEAR_FORM_KEY, LINEAR_INTAKE_HOLD_KEY,
   LINEAR_INTAKE_LOAD_ID, LINEAR_INTAKE_MAX_ITEMS, LINEAR_RECEIPTS_KEY, LOG_SUBMISSION_WEBHOOK,
   NATIVE_INTAKE_PENDING_KEY, NAV_KEY, _isSmmWeeklyRoute, _linearIntakeItemsPerVideo,
   _linearIntakeTooLargeMessage, _linearNextVideoCount, _linearRefreshProjectsForRerouteChange,

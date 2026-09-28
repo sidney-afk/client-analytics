@@ -1,4 +1,4 @@
-import { FILMING_PLANS_EF_URL, showToast } from './040-shared-briefs.js';
+import { FILMING_PLANS_EF_URL, showToast, svAreaRegister } from './040-shared-briefs.js';
 import {
   CHECK_SVG, PEN_ICON_SVG, PIN_ICON_SVG, TPL_MAX_PINS, TPL_PINS_KEY, TPL_RECENT_KEY, _NOT_SET,
   _maybeRerenderTemplates, _setTplStatus, _templatesEditMode, _templatesSelected,
@@ -7,7 +7,7 @@ import {
   _tplPinsEditMode, _tplQueueSave, _tplSaveColorSets, _tplSaveErrorMsg, _tplSetPinSelectorOpen,
   _tplSetPinsEditMode, _tplViewColor, _tplViewProse, _tplViewText, templatesLoadError
 } from './050-market-briefs.js';
-import { currentNav } from './065-core-nav-intake-state.js';
+import { FP_SAVED_KEY, currentNav } from './065-core-nav-intake-state.js';
 import { getClientRoster, wlNormalizeClient } from './070-workload-source.js';
 import { _linearInvalidatePlanMap, updateLinearFilmingPlan } from './090-workload-popovers-navigation.js';
 import { svSharedClientNote } from './095-shared-client.js';
@@ -1791,8 +1791,9 @@ import {
     /* SAVED COPY. The plans list is small (one row per client), so it lives in
        localStorage, bound to the signed-in staff member (never the key) and
        dropped on sign-out by _fpPurgeSensitiveState. Client links never read or
-       write it. The tab paints from it at once and refreshes behind. */
-    const FP_SAVED_KEY = 'syncview_filmingPlansCache_v1';
+       write it. The tab paints from it at once and refreshes behind. Its key,
+       FP_SAVED_KEY, lives in core (065) so sign-out can clear it even before
+       this on-demand area has loaded. */
     const FP_SAVED_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
     const FP_SAVED_MAX_BYTES = 900 * 1024;
     function _fpSavedOwner() {
@@ -2086,10 +2087,38 @@ import {
     window._fpSaveExisting = _fpSaveExisting;
     window._fpSaveNew = _fpSaveNew;
 
-export {
-  _fpEnsureLoaded, _fpPurgeSensitiveState, _fpSetQueryQuiet, _obvEnsureLoaded, _obvFetchFull,
-  _obvInjectStyles, _obvLoading, _obvMode, _obvMountStandalone, _obvSetError, _obvSetLoadedAt,
-  _obvSetLoading, _obvSetMode, _obvSetSelected, _obvSetSubs, _obvSetWarn, _obvSubs,
-  mountFilmingPlansView, mountTemplatesView, renderClientTemplate, renderFilmingPlansView,
-  renderOnboardingInbox, renderTemplatesView
-};
+    // Templates, the onboarding inbox and Filming plans are one on-demand area
+    // (plan: docs/plans/2026-09-28-load-per-tab-plan.md). Everything outside
+    // it reaches in through here (040 svAreaApi / svArea / svWithArea); state
+    // is read through getters so callers always see the current value.
+    svAreaRegister('templates', {
+        renderTemplates: renderTemplatesView,
+        mountTemplates: mountTemplatesView,
+        renderClientTemplate,
+        renderFilmingPlans: renderFilmingPlansView,
+        mountFilmingPlans: mountFilmingPlansView,
+        fpEnsureLoaded: _fpEnsureLoaded,
+        fpSetQueryQuiet: _fpSetQueryQuiet,
+        fpPurgeSensitiveState: _fpPurgeSensitiveState,
+        // Sign-out / identity change: the full (credential-bearing) inbox
+        // goes back to the public edge view with nothing cached.
+        obvPurgeFullMode() {
+            if (_obvMode === 'full') {
+                _obvSetSubs(null);
+                _obvSetSelected(null);
+                _obvSetError('');
+                _obvSetWarn('');
+                _obvSetLoadedAt(0);
+                _obvSetLoading(false);
+                _obvSetMode('edge');
+            }
+        },
+        obvMountStandalone: _obvMountStandalone,
+        obvSetMode: _obvSetMode,
+        obvSubs: () => _obvSubs,
+        obvLoading: () => _obvLoading,
+        obvInjectStyles: _obvInjectStyles,
+        renderOnboardingInbox,
+        obvEnsureLoaded: _obvEnsureLoaded,
+        obvFetchFull: _obvFetchFull,
+    });

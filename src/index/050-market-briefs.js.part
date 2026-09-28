@@ -11,10 +11,9 @@ import {
   fmtCompact, fmtDate, followersMode, followersPlat, formatHookTemplate, getActivePeriod,
   getMonthRow, getPeriodKey, getWeekRow, growthChart, isPhrase, latestPerClient,
   monthPrevPerClient, n, parseViewCount, prevPerClient, renderBriefContent, renderTabSummary,
-  savedHooks, showNotify, showToast, sortCol, sortDir, topVideos, viewsChart, viewsPlat,
+  savedHooks, showNotify, showToast, sortCol, sortDir, svAreaApi, topVideos, viewsChart, viewsPlat,
   weekPrevPerClient
 } from './040-shared-briefs.js';
-import { mountTemplatesView, renderClientTemplate, renderTemplatesView } from './060-templates-filming.js';
 import {
   NAV_KEY, _isSmmWeeklyRoute, _syncviewNextNavEpoch, _syncviewSetCurrentNav, currentNav
 } from './065-core-nav-intake-state.js';
@@ -1507,8 +1506,11 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
         // Same for a "Send a change" box being typed into.
         // Only a field being typed into blocks it; a focused Save/Cancel button must not.
         if (ae && ae.matches && ae.matches('input, textarea') && (ae.closest('.tpl-brain-form') || ae.closest('.tpl-spec-form'))) return;
-        content.innerHTML = renderTemplatesView();
-        mountTemplatesView();
+        // Templates is an on-demand area: nothing to redraw until it has loaded.
+        const tpl = svAreaApi('templates');
+        if (!tpl) return;
+        content.innerHTML = tpl.renderTemplates();
+        tpl.mountTemplates();
     }
 
     function _tplGet(name, field) {
@@ -1710,7 +1712,8 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
         _tplSaveColorSets(name, sets);
         if (_templatesSelected === name) {
             const content = document.getElementById('content');
-            if (content) { content.innerHTML = renderClientTemplate(name); mountTemplatesView(); }
+            const tpl = svAreaApi('templates');
+            if (content && tpl) { content.innerHTML = tpl.renderClientTemplate(name); tpl.mountTemplates(); }
         }
     }
     function _tplRemoveColorSet(name, index) {
@@ -1721,7 +1724,8 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
         _tplSaveColorSets(name, sets);
         if (_templatesSelected === name) {
             const content = document.getElementById('content');
-            if (content) { content.innerHTML = renderClientTemplate(name); mountTemplatesView(); }
+            const tpl = svAreaApi('templates');
+            if (content && tpl) { content.innerHTML = tpl.renderClientTemplate(name); tpl.mountTemplates(); }
         }
     }
 
@@ -1764,7 +1768,6 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
     }
 
 export {
-  selectClient,
   CHECK_SVG, PEN_ICON_SVG, PIN_ICON_SVG, TPL_MAX_PINS, TPL_PINS_KEY, TPL_RECENT_KEY, _NOT_SET,
   _autoSummaryAttempted, _maybeRerenderTemplates, _mrExternalLink, _setTplStatus, _svCss, _svRgb,
   _templatesActiveTab, _templatesEditMode, _templatesSelected, _templatesSetActiveTab,
@@ -1772,8 +1775,7 @@ export {
   _tplFieldLink, _tplFlush, _tplGet, _tplGetColorSets, _tplPinSelectorOpen, _tplPinsEditMode,
   _tplQueueSave, _tplSaveColorSets, _tplSaveErrorMsg, _tplSetPinSelectorOpen, _tplSetPinsEditMode,
   _tplViewColor, _tplViewProse, _tplViewText, clientSearchGhostHtml, clientSearchMatches,
-  clientSearchResultsHtml, getRecent, highlightMatch, igUrl, loadTemplates, render,
-  renderChart, renderMRTab_angles, renderMRTab_gap, renderMRTab_hooks, renderMRTab_niche,
-  renderMRTab_overview, renderMRTab_sources, renderPins, renderViewsChart, templatesLoadError,
-  ttUrl, ytUrl
+  clientSearchResultsHtml, getRecent, highlightMatch, igUrl, loadTemplates, render, renderChart,
+  renderMRTab_angles, renderMRTab_gap, renderMRTab_hooks, renderMRTab_niche, renderMRTab_overview,
+  renderMRTab_sources, renderPins, renderViewsChart, selectClient, templatesLoadError, ttUrl, ytUrl
 };

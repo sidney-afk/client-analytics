@@ -54,7 +54,6 @@ guard 100-onboarding-staff-controls.js.part _caPurgeSensitiveState
 guard 100-onboarding-staff-controls.js.part _ccCloseModal
 guard 100-onboarding-staff-controls.js.part _ccCloseSelect
 guard 100-onboarding-staff-controls.js.part _ccRevTeardown
-guard 100-onboarding-staff-controls.js.part _fpPurgeSensitiveState
 guard 100-onboarding-staff-controls.js.part _hpPurgeSensitiveState
 guard 100-onboarding-staff-controls.js.part _kasperRenderTab
 guard 100-onboarding-staff-controls.js.part _kasperRestorePendingSubtab

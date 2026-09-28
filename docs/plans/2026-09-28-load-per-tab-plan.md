@@ -195,3 +195,27 @@ byte-identical. `060` keeps Templates (~21 KB), the onboarding inbox it shows (~
 Filming plans (~5 KB). Its outside ties drop from 52 names in 16 files to 23 in 6; the approve
 path now imports nothing from it. Four recorded guards moved with the tail and are renamed in
 the baseline (79 left, after the six Time off ones above). Part 2 makes Templates load on demand.
+
+## Step 3, area 6 of 9, part 2: Templates and Filming load on demand (2026-09-28)
+
+Fingerprint check: none of the lines this changes match the leave-evidence fingerprint
+(`test/leave-evidence-fingerprint-coupling.js` and `test/pto-ui-wiring.js` pass unchanged), so
+no screenshot re-review. Saves ~37 KB compressed from every staff first load.
+
+- `060` registers the area `templates`: the Templates and Filming plans tabs, the filming-plan
+  list the Submit form and Kasper read, the onboarding inbox (Kasper's Onboarding subtab and the
+  `?onboarding_view=` viewer), and the sign-out clean-up of its private data. Live state (the
+  inbox list, whether it is loading) is read through getters.
+- Callers: `090` navTo draws both tabs with `svWithArea`, and the Submit form's filming-plan
+  lookup waits for the area with `svArea`; `050` redraws Templates only when it has loaded;
+  `095` sets the Filming plans search before the tab draws; `100` clears the area's private data
+  on sign-out only if it has loaded (if not, there is nothing to clear); `260` opens the
+  standalone onboarding viewer through `svArea`; `320` Kasper draws its Onboarding subtab with
+  `svWithArea`, reads the unread count only once the list exists, and fetches the area quietly
+  for its tab count. `040` now exports `svArea`.
+- `split.json` lists `tiktok` and `templates` as lazy. Templates has no outside import ties; one
+  recorded guard is gone (78 left). `split-load-browser.js` now opens every view of an area cold
+  (Templates and Filming plans) and requires one download each.
+
+Remaining order: Workload (the router moves to core first), Kasper (with the Editors board),
+SyncLinear.

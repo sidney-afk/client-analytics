@@ -69,7 +69,10 @@ ok(/button\.setAttribute\('aria-haspopup', 'menu'\)/.test(functionSource('_syncv
 ok(/event\.key === 'Tab'[\s\S]{0,180}!wrap\.contains\(document\.activeElement\)[\s\S]{0,100}_syncviewCloseStaffAccount/.test(functionSource('_syncviewOpenStaffAccount')), 'account popover closes when Tab leaves its wrapper');
 const purgeSource = functionSource('_syncviewStaffPurgeSensitiveState');
 ok(/_ccCloseModal\(\)/.test(purgeSource) && /_ccRevTeardown\(\)/.test(purgeSource) && /_ccState\.modal\.credentials = \[\]/.test(purgeSource), 'sign-out purge closes credential UI, realtime, and plaintext rows');
-ok(/_obvMode === 'full'[\s\S]{0,240}_obvSetSubs\(null\)[\s\S]{0,240}_obvSetMode\('edge'\)/.test(purgeSource)
+// The onboarding inbox loads on demand (Templates area): sign-out reaches its
+// reset through the area registry, and the area's reset does the clearing.
+ok(/svAreaApi\('templates'\)[\s\S]{0,80}\.obvPurgeFullMode\(\)/.test(purgeSource)
+  && /obvPurgeFullMode\(\) \{\s*if \(_obvMode === 'full'\)[\s\S]{0,240}_obvSetSubs\(null\)[\s\S]{0,240}_obvSetMode\('edge'\)/.test(source)
   && /function _obvSetSubs\(value\) \{ _obvSubs = value; \}/.test(source) && /function _obvSetMode\(value\) \{ _obvMode = value; \}/.test(source), 'sign-out purge clears full onboarding data and restores stripped mode');
 ok(/function _syncviewStaffIdentityClear\(\)[\s\S]{0,120}_syncviewStaffPurgeSensitiveState\(\)/.test(source), 'every 401/sign-out identity clear purges sensitive UI state');
 ok(/await _syncviewStaffIdentityBoot\(\)/.test(source), 'boot validates a stored staff key before route restoration');

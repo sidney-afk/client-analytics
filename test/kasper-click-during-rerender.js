@@ -129,7 +129,7 @@ check('safety timer auto-releases the guard', mod.held(), false);
 
 console.log('\n— Source-form guards: both repaint paths defer while held —');
 
-const paintSrc = grabFunc('_kasperPaintReview');
+const paintSrc = grabFunc('_kasperPaintReviewNow');
 check('_kasperPaintReview guards on _kasperPointerHeld, re-arms a retry, returns',
   /if\s*\(\s*_kasperPointerHeld\s*\)\s*\{[\s\S]*?setTimeout\(\s*_kasperPaintReview[\s\S]*?return;[\s\S]*?\}/.test(paintSrc), true);
 

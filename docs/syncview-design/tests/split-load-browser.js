@@ -64,6 +64,10 @@ const LAZY_VIEWS = {
     { route: 'filming-plans', drawn: '.fp-view' },
   ],
   workload: [{ route: 'workload', drawn: '.workload-view' }],
+  kasper: [
+    { route: 'kasper', drawn: '.kasper-head' },
+    { route: 'client-credentials', drawn: '.sv-staff-page' },
+  ],
 };
 async function lazyChecks(browser, origin, failures) {
   const lazyNames = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'index', 'split.json'), 'utf8')).lazy || [];

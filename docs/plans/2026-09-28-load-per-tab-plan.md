@@ -271,3 +271,35 @@ Fingerprint check: the Time Off line in `navTo` is untouched and keeps its place
   between them; its runs are one file, in page order. Workload is `067`, `069` and `071`–`090`.
 - `split.json` lists `tiktok`, `templates` and `workload` as lazy. Workload has no outside import
   ties; five recorded guards are gone (58 left).
+
+## Step 3, area 8 of 9: Kasper loads on demand (2026-09-28)
+
+Fingerprint check: Kasper holds 15 of the lines the leave-evidence fingerprint hashes (its Time
+Off subtab), and the leave page calls two Kasper functions on hashed lines (`_kasperSetTabCount`,
+`_kasperGotoTab`). None of those lines is edited or reordered: the two Kasper pieces that must stay
+loaded and contain hashed lines (the subtab list and `_kasperRefreshTabCounts`) are cut out in
+place, and everything else that moves contains no hashed line.
+`test/leave-evidence-fingerprint-coupling.js` passes unchanged, so no screenshot re-review. Kasper
+is ~112 KB compressed; ~11 KB stays loaded and ~100 KB now loads on demand.
+
+- **Nothing on the approve path changes.** The sample-review approve path (`270`, `290`, `120`)
+  used ten Kasper names. The ones it needs whether or not Kasper is open (the review state, its
+  saved copy and the two save functions, the client-map loader, the sample-repair resume, the
+  tab counts) move into core with the pieces they use; its lines are untouched.
+- `305-core-kasper-shared` (new, core): those pieces, in their original order, plus Kasper's
+  dropdown and show-password widget (the staff sign-in form uses it before Kasper loads),
+  `_svOpenStaffPage`, `CA_RECENT_KEY`, and stand-ins. `320-kasper-dashboard-replies` became
+  `320-core-kasper-subtabs` (core), `321-kasper-dashboard-replies`, `322-core-kasper-tab-counts`
+  (core) and `323-kasper-dashboard-tail`.
+- **Stand-ins** (core `305`): `_kasperPaintReview`, `_kasperOpenLightbox`, `_kasperGotoTab`,
+  `_kasperFallbackToReview` and `_ccOpenModal` keep their names, so every caller's line stays as
+  it was (the approve path's guards, the leave page's hashed line, the Calendar menu's button),
+  and forward to Kasper's real function (renamed `...Now`) once Kasper has loaded. Painting does
+  nothing before that (none of Kasper is on screen); the others load Kasper first.
+- `340` registers the area `kasper`. Callers: `092` navTo draws Kasper and the standalone staff
+  pages (Onboarding, Client Credentials) with `svWithArea` and tears down through the registry;
+  `100` sign-out purges Kasper's hiring, client and credential data if it has loaded and always
+  clears the saved recent-clients list; `100`'s identity-change repaints and `110`'s flag-change
+  redraw go through the registry; `060`'s onboarding and filming redraws too.
+- `split.json` lists `kasper` as lazy (switch still off). Kasper has no outside import ties;
+  20 recorded hazards are gone (38 left).

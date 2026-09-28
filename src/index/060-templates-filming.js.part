@@ -1,4 +1,4 @@
-import { FILMING_PLANS_EF_URL, showToast, svAreaRegister } from './040-shared-briefs.js';
+import { FILMING_PLANS_EF_URL, showToast, svAreaApi, svAreaRegister } from './040-shared-briefs.js';
 import {
   CHECK_SVG, PEN_ICON_SVG, PIN_ICON_SVG, TPL_MAX_PINS, TPL_PINS_KEY, TPL_RECENT_KEY, _NOT_SET,
   _maybeRerenderTemplates, _mrExternalLink, _setTplStatus, _templatesEditMode, _templatesSelected,
@@ -23,10 +23,8 @@ import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
 import { _calSocialLinksFor } from './160-calendar-organize-ui.js';
 import { _svSaveIndHtml } from './170-calendar-links-status.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
-import {
-  KASPER_FILMING_CACHE_KEY, _kasperLoadFilming, _kasperRefreshTabCounts, _kasperRenderOnboarding,
-  _kasperState
-} from './320-kasper-dashboard-replies.js';
+import { KASPER_FILMING_CACHE_KEY, _kasperState } from './305-core-kasper-shared.js';
+import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     function _tplRenderColorSetsView(name, hlOff) {
         const sets = _tplGetColorSets(name).filter(s => s.title || s.highlight);
         if (!sets.length) {
@@ -204,7 +202,7 @@ import {
     // tab) or the standalone per-client viewer. (It used to live under Templates.)
     function _obvRerender(){
       if (typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'onboarding' && document.getElementById('kasperContent')) {
-        _kasperRenderOnboarding();
+        svAreaApi('kasper').renderOnboarding();   // drawn by Kasper, so Kasper has loaded
         try{ if(document.getElementById('obvSearchInput')) setTimeout(_obvFilter, 0); }catch(e){}
         return;
       }
@@ -212,7 +210,7 @@ import {
       // reuses the same #kasperContent renderer. Without this branch the list
       // arrived and nothing redrew it: the page sat on its skeleton forever.
       if (document.querySelector('[data-sv-staff-page="staff-onboarding"] #kasperContent')) {
-        _kasperRenderOnboarding();
+        svAreaApi('kasper').renderOnboarding();   // drawn by Kasper, so Kasper has loaded
         try{ if(document.getElementById('obvSearchInput')) setTimeout(_obvFilter, 0); }catch(e){}
         return;
       }
@@ -1852,7 +1850,8 @@ import {
         if (currentNav === 'templates') _maybeRerenderTemplates();
         if (currentNav === 'linear') updateLinearFilmingPlan();
         if (currentNav === 'kasper' && typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'filming') {
-            _kasperLoadFilming(true).catch(() => {});
+            const kasper = svAreaApi('kasper');
+            if (kasper) kasper.loadFilming(true).catch(() => {});
         }
     }
     function _fpPurgeSensitiveState() {

@@ -1,15 +1,12 @@
-import { _analyticsReleaseExtras, parseCSV, showNotify, showToast } from './040-shared-briefs.js';
+import { _analyticsReleaseExtras, showNotify, showToast } from './040-shared-briefs.js';
 import { WL_CLIENT_NAMES, wlCanonicalClient, wlNormalizeClient } from './070-core-client-names.js';
 import {
   CALENDAR_GET_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, KASPER_QUEUE_URL,
   _syncviewStaffIdentityForHeaders
 } from './100-onboarding-staff-controls.js';
 import {
-  _calClearStaleApprovals, _calComponentsFor, _calNormStatus, _calReadFreshCardStamp,
-  _calUnionCommentCell, _calUpsertFetch, _writeUiAdoptRepairAck, _writeUiAdoptReplayStatus,
-  _writeUiAppendRepairRef, _writeUiCompleteSourceRepairRefs, _writeUiFailureSentence,
-  _writeUiGatewayError, _writeUiNativeId, _writeUiPrincipalKey, _writeUiQueueDiagnostic,
-  _writeUiRemoveCompletedRepairRefs, _writeUiRepairCompanions, _writeUiReportFailure,
+  _calClearStaleApprovals, _calComponentsFor, _calNormStatus, _writeUiAdoptRepairAck,
+  _writeUiFailureSentence, _writeUiNativeId, _writeUiRepairCompanions, _writeUiReportFailure,
   computeOverallStatus
 } from './120-calendar-flags-write-repair.js';
 import {
@@ -20,8 +17,8 @@ import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
 import { _calArchivedRefs, _calCoerceDate, _calDedupeByLinearIssue, _calIsArchivedRef } from './134-calendar-prefs-mount.js';
 import {
-  URGENT_EDITOR_NEEDS_NATIVE, _calKasperUrgentActive, _calPersistUrgentSentForPost,
-  _calPostLinearComment, _calPushStatusToLinear, _calUrgentButtonHtml, _calUrgentSlackDispatch
+  URGENT_EDITOR_NEEDS_NATIVE, _calPersistUrgentSentForPost, _calPostLinearComment,
+  _calUrgentButtonHtml, _calUrgentSlackDispatch
 } from './140-calendar-legacy-outbox.js';
 import { _calSupabaseFetchAllRows, _calV2Ready } from './150-calendar-hydration-import.js';
 import {
@@ -36,23 +33,25 @@ import {
 } from './180-calendar-native-post-media.js';
 import {
   REVIEW_APPROVE_DRAFT_TITLE, _calCompHasUnresolvedKasperTweak, _calCompKasperVisible,
-  _calFmtCommentTime, _calLatestMsgCreatedAt, _calLoadComments, _calMergeCommentLists,
-  _calMintCommentId, _calPostHasUnresolvedKasperTweak, _calPostKasperVisible,
-  _calReviewComponentPreview, _calShowUrgent, _calStringifyComments, _kasperCompReviewable,
-  _kasperOpenTweakCount, _kasperPanelComps, _kasperUndecidedComps
+  _calFmtCommentTime, _calLatestMsgCreatedAt, _calLoadComments, _calMintCommentId,
+  _calPostHasUnresolvedKasperTweak, _calPostKasperVisible, _calReviewComponentPreview,
+  _calShowUrgent, _calStringifyComments, _kasperCompReviewable, _kasperOpenTweakCount,
+  _kasperPanelComps, _kasperUndecidedComps
 } from './190-calendar-approval-comments.js';
-import { SXR_REVIEW_COMPONENTS } from './270-samples-model.js';
+import { _sxrKasperRenderCard, _sxrKasperRenderHistorySection, _sxrKasperState } from './290-samples-writes-review.js';
 import {
-  _sxrKasperPartitionItems, _sxrKasperRenderCard, _sxrKasperRenderHistorySection, _sxrKasperState,
-  _writeUiJournalCoversRepairRefs, _writeUiReconcileReplayStatus
-} from './290-samples-writes-review.js';
+  KASPER_CAL_CACHE_TTL, _kasperCalCacheKey, _kasperCalCachePrune, _kasperIsFinished,
+  _kasperLoadSMMMap, _kasperPaintReview, _kasperPartitionItems, _kasperPatchSnapshot,
+  _kasperPersistCache, _kasperPersistPost, _kasperSamplePartition, _kasperSamplesMerged,
+  _kasperState
+} from './305-core-kasper-shared.js';
 import {
   KASPER_EDITORS_CACHE_KEY, KASPER_EDITORS_CACHE_MAX_AGE_MS, KASPER_HISTORY_CAP,
-  KASPER_HISTORY_KEY, KASPER_SMM_URL, _kasperInvalidateInFlightLoad, _kasperIsReviewMounted,
-  _kasperLoadGen, _kasperPersistCache, _kasperPointerHeld, _kasperRefreshTabCounts,
-  _kasperRenderReplies, _kasperSamplesEnabled, _kasperSetLoadGen, _kasperState,
-  _kasperUpdateReplyCount
-} from './320-kasper-dashboard-replies.js';
+  KASPER_HISTORY_KEY, _kasperInvalidateInFlightLoad, _kasperIsReviewMounted, _kasperLoadGen,
+  _kasperPointerHeld, _kasperSetLoadGen, _kasperUpdateReplyCount
+} from './321-kasper-dashboard-replies.js';
+import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
+import { _kasperRenderReplies } from './323-kasper-dashboard-tail.js';
 import { _kedPaint } from './340-kasper-editors-board.js';
     async function _kasperRenderReview() {
         const root = document.getElementById('kasperContent');
@@ -244,37 +243,8 @@ import { _kedPaint } from './340-kasper-editors-board.js';
         if (_kasperState.tab === 'replies') _kasperRenderReplies();
     }
 
-    async function _kasperLoadSMMMap() {
-        // The "Social Media Managers" tab: client_name, social_media_manager,
-        // optional slack_user_id / slack_team_id (the script ignores anything
-        // it doesn't recognise so adding columns later is non-breaking).
-        try {
-            const resp = await fetch(KASPER_SMM_URL + '&_t=' + Date.now());
-            const text = await resp.text();
-            const rows = parseCSV(text);
-            const map = new Map();
-            for (const r of rows) {
-                const name = (r.client_name || r.client || '').trim();
-                if (!name) continue;
-                const slug = wlNormalizeClient(name);
-                if (!slug) continue;
-                map.set(slug, {
-                    name: (r.social_media_manager || r.smm_name || r.smm || '').trim(),
-                    slack_profile_url: (r.slack_profile_url || r.slack_url || r.slack_link || '').trim(),
-                    slack_user_id: (r.slack_user_id || r.smm_slack_id || '').trim(),
-                    slack_team_id: (r.slack_team_id || '').trim(),
-                });
-            }
-            return map;
-        } catch (e) {
-            console.warn('[Kasper] SMM sheet load failed:', e);
-            return new Map();
-        }
-    }
 
-    const KASPER_CAL_CACHE_TTL = 5 * 60 * 1000;
     const KASPER_CAL_CONCURRENCY = 5;             // Sheets-backed calendar-get hits Google's per-user quota beyond ~5 in flight.
-    function _kasperCalCacheKey(slug) { return 'syncview_kasper_cal_' + slug + '_v1'; }
     function _kasperCalCacheRead(slug) {
         try {
             const raw = localStorage.getItem(_kasperCalCacheKey(slug));
@@ -299,27 +269,6 @@ import { _kedPaint } from './340-kasper-editors-board.js';
        weight. COUNT is what actually caps growth, since a roster larger than
        the cap would otherwise stay live and unbounded. Newest kept, oldest
        dropped, and the slug being written is never a candidate for eviction. */
-    const KASPER_CAL_CACHE_MAX_CLIENTS = 8;
-    function _kasperCalCachePrune(keepSlug) {
-        const keepKey = _kasperCalCacheKey(String(keepSlug || ''));
-        const entries = [];
-        try {
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (!key || key === keepKey) continue;
-                if (!/^syncview_kasper_cal_.*_v1$/.test(key)) continue;
-                let savedAt = 0;
-                try { savedAt = Number(JSON.parse(localStorage.getItem(key) || '{}').savedAt) || 0; } catch {}
-                entries.push({ key, savedAt });
-            }
-        } catch { return; }
-        const now = Date.now();
-        const stale = entries.filter(e => !e.savedAt || now - e.savedAt >= KASPER_CAL_CACHE_TTL);
-        const live = entries.filter(e => !stale.includes(e)).sort((a, b) => b.savedAt - a.savedAt);
-        // keepSlug is excluded above, so it holds one of the allowed slots.
-        const overflow = live.slice(Math.max(0, KASPER_CAL_CACHE_MAX_CLIENTS - 1));
-        stale.concat(overflow).forEach(e => { try { localStorage.removeItem(e.key); } catch {} });
-    }
     function _kasperCalCacheWrite(slug, json) {
         const payload = JSON.stringify({ data: json, savedAt: Date.now() });
         _kasperCalCachePrune(slug);
@@ -687,7 +636,6 @@ import { _kedPaint } from './340-kasper-editors-board.js';
        flags are kept only as a SAME-DEVICE continuity fallback. The backend
        columns and allowlist are deployed; the current contract is recorded in
        docs/features/KASPER_REVIEW_GLOBAL_ROLLOUT.md. */
-    function _kasperFinishedAt(post) { return String((post && post.kasper_finished_at) || ''); }
     /* "Finish reviewing" hand-off. A finished card sits in "Tweaks pending"
        until a genuine fresh ask supersedes it:
          • an ACTIONABLE component is back at Kasper Approval — gated by
@@ -699,24 +647,6 @@ import { _kedPaint } from './340-kasper-editors-board.js';
          • a message landed after he finished (the SMM replied / client commented).
        `kasper_finished_at` doubles as his "seen up to here" stamp, so the second
        test is just latestMsg > kasper_finished_at. */
-    function _kasperIsFinished(post) {
-        if (!post) return false;
-        const stampedAt = _kasperFinishedAt(post);
-        const localFin = !!(_kasperState.dismissed && _kasperState.dismissed[post.id]);
-        if (!stampedAt && !localFin) return false;
-        // Once finished, a card STAYS in "Tweaks pending" and returns to "Waiting"
-        // ONLY when a component is genuinely re-sent to Kasper Approval. A later
-        // message — even a client tweak — updates the card in place but must NOT pull
-        // it back into his queue (product rule: Finish means finished until an explicit
-        // For-Kasper-Approval re-route; the earlier reply-re-surfaces-it behaviour was
-        // the friction — a client tweak kept bouncing finished cards back into
-        // "Waiting"). Gated on a SERVER-CONFIRMED finish (stamp present) so a mid-write
-        // stale read can't bounce a freshly-finished card; _kasperUndecidedComps applies
-        // the unlinked-thumbnail gate (a graphic stuck at KA with no GRA sub-issue
-        // doesn't count).
-        if (stampedAt && _kasperUndecidedComps(post).length > 0) return false;   // fresh ask: a component re-sent to Kasper Approval
-        return true;
-    }
     /* X-close (top-right X) — no decision, just hide it. Re-surfaces when a new
        message arrives after the close (a fresh "look again"). Pre-backend it
        falls back to the local flag + the queue-membership prune (today's rule). */
@@ -787,64 +717,12 @@ import { _kedPaint } from './340-kasper-editors-board.js';
         return items;
     }
 
-    function _kasperPartitionItems(items) {
-        // Bucket on whether Kasper has FINISHED the card (handed it to the SMM),
-        // sourced from the global kasper_finished_at stamp (local flag fallback),
-        // NOT live component status — writing a tweak flips a component to Tweaks
-        // Needed, but the card must STAY in "Waiting" so he can keep layering
-        // decisions; it moves to "Tweaks pending" only when he explicitly
-        // finishes, and returns to "Waiting" on a fresh ask (see _kasperIsFinished).
-        // The Urgent bucket is a SPLIT OF WAITING, not a fourth kind of card:
-        // an urgent card is a waiting card someone has pinged him about, and it
-        // behaves like every other waiting card in every other respect (same
-        // render, same actions, same finish path). Splitting here rather than
-        // anywhere downstream is what keeps that true -- nothing else in the
-        // review tab has to learn the word "urgent".
-        const urgent = [], waiting = [], tweaks = [];
-        for (const it of items) {
-            if (_kasperIsFinished(it.post)) tweaks.push(it);
-            else if (_calKasperUrgentActive(it.post)) urgent.push(it);
-            else waiting.push(it);
-        }
-        return { urgent, waiting, tweaks };
-    }
 
     /* Samples in the Review queue (owner request 2026-09-26). Sample cards
        are listed beside calendar cards in the same sections, but each one is
        still rendered, decided and saved by the Samples code: the card comes
        from _sxrKasperRenderCard, its buttons call the _sxrKasper* handlers,
        and its data stays in _sxrKasperState. Only the listing lives here. */
-    function _kasperSamplesMerged() {
-        return typeof _sxrKasperState !== 'undefined' && !!_sxrKasperState
-            && typeof _sxrKasperRenderCard === 'function'
-            && typeof _kasperSamplesEnabled === 'function' && _kasperSamplesEnabled();
-    }
-    // When a sample was handed to Kasper: the earliest status time among the
-    // parts still waiting on him, else its last update. Same oldest-first
-    // meaning as _kasperSentAtMs for calendar cards.
-    function _kasperSampleSentAtMs(post) {
-        let best = Infinity;
-        for (const c of SXR_REVIEW_COMPONENTS) {
-            if (String(post[c + '_status'] || '') !== 'Kasper Approval') continue;
-            const t = Date.parse(post[c + '_status_at'] || '');
-            if (isFinite(t) && t < best) best = t;
-        }
-        if (best === Infinity) {
-            const t = Date.parse(post.updated_at || post.created_at || '');
-            if (isFinite(t)) best = t;
-        }
-        return best;
-    }
-    function _kasperSamplePartition() {
-        const none = { urgent: [], waiting: [], tweaks: [] };
-        if (!_kasperSamplesMerged() || !_sxrKasperState.loaded) return none;
-        const items = (_sxrKasperState.items || []).filter(Boolean);
-        for (const it of items) { it._sxr = true; it.sentAtMs = _kasperSampleSentAtMs(it.post); }
-        const parts = _sxrKasperPartitionItems(items);
-        const byTime = (a, b) => (a.sentAtMs === b.sentAtMs ? 0 : (a.sentAtMs < b.sentAtMs ? -1 : 1));
-        parts.urgent.sort(byTime); parts.waiting.sort(byTime); parts.tweaks.sort(byTime);
-        return parts;
-    }
     // Stable merge: calendar order is kept as sorted, each sample slots in
     // before the first calendar card handed over later than it.
     function _kasperMergeBySentAt(calItems, sxrItems) {
@@ -881,13 +759,9 @@ import { _kedPaint } from './340-kasper-editors-board.js';
         if (!_kasperSamplesMerged() || typeof _sxrKasperRenderHistorySection !== 'function') return '';
         return _sxrKasperRenderHistorySection('Approved samples');
     }
-    function _kasperSampleOpenCount() {
-        const p = _kasperSamplePartition();
-        return p.urgent.length + p.waiting.length;
-    }
 
     let _kasperPaintRetry = null;
-    function _kasperPaintReview() {
+    function _kasperPaintReviewNow() {
         const body = document.getElementById('kasperReviewBody');
         const count = document.getElementById('kasperReviewCount');
         if (!body) return;
@@ -1612,216 +1486,6 @@ import { _kedPaint } from './340-kasper-editors-board.js';
             snap[comp + '_tweaks'] = post && post[comp + '_tweaks'];
         }
         return snap;
-    }
-    const KASPER_PATCH_SCALARS = ['order_index','scheduled_date','name','asset_url','thumbnail_url','caption','caption_alt','caption_alt_platform','post_url','cta','linear_issue_id','video_deliverable_id','kasper_approved_at','posted_at','platform','platforms','color','video_status','graphic_status','caption_status','graphic_linear_issue_id','graphic_deliverable_id','client_video_approved_at','client_graphic_approved_at','client_caption_approved_at','title_status','client_title_approved_at','kasper_seen','kasper_approved_after_tweaks','thumb_rev','kasper_finished_at','kasper_closed_at','kasper_finish_log'];
-    function _kasperPatchSnapshot(post) {
-        const s = {};
-        for (const k of KASPER_PATCH_SCALARS) s[k] = (post && post[k] != null) ? String(post[k]) : '';
-        s.status = (post && post.status != null) ? String(post.status) : '';
-        return s;
-    }
-    // Serialize writes per card. The button locks above are PER-COMPONENT
-    // (item._saving[comp]); chaining each write after the previous keeps the
-    // per-card writes strictly ordered so a slower response can't revert a
-    // fresher one. The payload is now a field-level patch (see KASPER_PATCH_SCALARS)
-    // rather than the whole row, so two overlapping component writes no longer
-    // clobber each other's status — but the chain is kept as belt-and-suspenders.
-    function _kasperPersistPost(item, repairContext) {
-        // Capture only the acknowledgements causally owned by this queued
-        // persist. Later component actions may add refs while this request is
-        // in flight; they belong to their own chained write.
-        const context = {
-            precommitted: !!(repairContext && repairContext.precommitted),
-            refs: (Array.isArray(repairContext && repairContext.refs) ? repairContext.refs : [])
-                .filter(ref => ref && ref.key && ref.token)
-                .map(ref => ({ key: ref.key, token: ref.token })),
-            companions: JSON.parse(JSON.stringify(Array.isArray(repairContext && repairContext.companions)
-                ? repairContext.companions : []))
-        };
-        const run = () => _kasperPersistPostWrite(item, context);
-        const chain = (item._persistChain || Promise.resolve()).then(run, run);
-        // Stored link must never reject or it would poison every later .then.
-        item._persistChain = chain.catch(() => {});
-        return chain;
-    }
-    function _kasperResumeSourceRepairs() {
-        const principal = _writeUiPrincipalKey();
-        if (!principal || typeof _kasperState === 'undefined' || !_kasperState) return Promise.resolve();
-        (_kasperState.items || []).filter(item => item && item.post
-            && item.post._writeUiRetrySourceAt
-            && item.post._writeUiRetryPrincipal === principal
-            && !_writeUiJournalCoversRepairRefs(item.post, 'calendar', 'kasper-calendar', item.slug, principal)).forEach(item => {
-                item._errors = item._errors || { video: null, graphic: null, caption: null };
-                item._errors.video = 'Source repair receipt missing; explicit review required';
-                _writeUiQueueDiagnostic('calendar', 'cache_only_repair_held', { kind: 'kasper-source-repair' });
-            });
-        return Promise.resolve();
-    }
-    async function _kasperPersistPostWrite(item, repairContext) {
-        const retryPrincipal = _writeUiPrincipalKey();
-        if (item.post._writeUiRetrySourceAt
-            && (item.post._writeUiRetryPrincipal !== retryPrincipal
-                || !_writeUiJournalCoversRepairRefs(item.post, 'calendar', 'kasper-calendar', item.slug, retryPrincipal))) {
-            _writeUiQueueDiagnostic('calendar', 'cache_only_repair_blocked', { kind: 'kasper-source-repair' });
-            throw _writeUiGatewayError(409, 'source_repair_receipt_required');
-        }
-        // Stamp updated_at locally so a background poll racing this write
-        // can't fetch the still-stale sheet row and clobber the freshly
-        // submitted comment / status flip.
-        item.post.updated_at = String(item.post._writeUiRetrySourceAt || new Date().toISOString());
-        const recoveringWriteUiSource = !!item.post._writeUiRetrySourceAt;
-        const sourceRepairRefsForWrite = [];
-        (Array.isArray(repairContext && repairContext.refs) ? repairContext.refs : [])
-            .forEach(ref => _writeUiAppendRepairRef(sourceRepairRefsForWrite, ref));
-        let gatewayCommitted = !!(repairContext && repairContext.precommitted);
-        const companionRepairsForWrite = Array.isArray(repairContext && repairContext.companions)
-            ? repairContext.companions : [];
-        const checkpointCommittedSource = () => {
-            if (!gatewayCommitted) return;
-            item.post._writeUiRetrySourceAt = item.post.updated_at;
-            item.post._writeUiRetryPrincipal = _writeUiPrincipalKey();
-            if (!_kasperPersistCache()) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
-        };
-        checkpointCommittedSource();
-        const overall = computeOverallStatus(item.post);
-        // Field-level patch: send the id, the comment cells (always — the upsert
-        // 3-way-merges them), and ONLY the scalar columns that changed since this
-        // card was loaded (item.post._patchBase). A concurrent change to a
-        // component Kasper DIDN'T touch is therefore never on his wire, so it
-        // can't be clobbered. If no snapshot is available (older cached item),
-        // fall back to the whole row — identical to the previous behaviour, so a
-        // missing snapshot is never WORSE than before, only the patch is an
-        // improvement. (p42 cross-component clobber fix.)
-        const base = item.post._patchBase;
-        const wire = { id: item.post.id };
-        wire.video_tweaks   = _calStringifyComments(_calCommentsFor(item.post, 'video'));
-        wire.graphic_tweaks = _calStringifyComments(_calCommentsFor(item.post, 'graphic'));
-        wire.caption_tweaks = _calStringifyComments(_calCommentsFor(item.post, 'caption'));
-        wire.title_tweaks   = _calStringifyComments(_calCommentsFor(item.post, 'title'));
-        wire.tweaks = wire.video_tweaks;
-        for (const k of KASPER_PATCH_SCALARS) {
-            const cur = item.post[k] == null ? '' : String(item.post[k]);
-            if (!base || cur !== (base[k] == null ? '' : String(base[k]))) wire[k] = cur;
-        }
-        // overall status rides along only when it actually moved (or no snapshot)
-        if (!base || overall !== (base.status == null ? '' : String(base.status))) wire.status = overall;
-        for (const comp of ['video', 'graphic']) {
-            const statusKey = comp + '_status';
-            const current = String(item.post[statusKey] || '');
-            const previous = base && String(base[statusKey] || '');
-            const companion = companionRepairsForWrite.find(row => row
-                && row.operation === 'status' && row.component === comp) || null;
-            if (!current || (base && current === previous && !companion)) continue;
-            let reconciled = false;
-            if (companion) {
-                reconciled = await _writeUiReconcileReplayStatus({ edits: wire, source_at: companion.source_at }, companion.intent, item.post);
-                if (reconciled) gatewayCommitted = true;
-            }
-            if (!reconciled) {
-                const acknowledgement = await _calPushStatusToLinear(_calLinearUrlFor(item.post, comp), current, {
-                    post: item.post, component: comp, sourceEditedAt: companion ? companion.source_at : item.post.updated_at,
-                    clientSlug: item.slug, repairLane: 'kasper-calendar', repairEdits: wire,
-                    repairRecord: companion && companion.record
-                });
-                _writeUiAdoptRepairAck(item.post, acknowledgement);
-                _writeUiAppendRepairRef(sourceRepairRefsForWrite, acknowledgement && acknowledgement.source_repair);
-                gatewayCommitted = gatewayCommitted || !!(acknowledgement && acknowledgement.native_committed);
-                if ((!acknowledgement || acknowledgement.native_committed !== true)
-                    && !(acknowledgement && acknowledgement.skipped === true && !companion)) {
-                    throw _writeUiGatewayError(503, 'status_commit_required');
-                }
-                const adopted = _writeUiAdoptReplayStatus(item.post, comp, acknowledgement, recoveringWriteUiSource, 'calendar');
-                if (adopted) {
-                    wire[statusKey] = adopted;
-                    wire.status = computeOverallStatus(item.post);
-                }
-            }
-            checkpointCommittedSource();
-        }
-        const resp = await _calUpsertFetch(item.slug, { client: item.slug, post: wire, comments_base_at: String(item.post._baseAt || '') });
-        let json = await resp.json().catch(() => ({}));
-        /* SELF-CONFLICT RECOVERY (OPEN_REPAIRS 212's known gap): a status push
-           this same call just made (above) can make calendar-upsert refuse THIS
-           write a moment later -- production_native_calendar_status_project
-           writes <comp>_status + updated_at into calendar_posts the instant the
-           native status commits, but deliberately never recomputes the overall
-           `status` roll-up, so the freshly computed `wire.status` this call is
-           about to save collides with the server's still-stale copy under
-           calendar-upsert's own SCALAR_FIELDS conflict guard. gatewayCommitted
-           being true is what tells us the "someone else" the conflict blames is
-           almost certainly our own bridge, not a third party, so one retry
-           against a freshly read `updated_at` is worth making.
-
-           BE PRECISE ABOUT WHAT THE RETRY DOES AND DOES NOT PROTECT. Adopting
-           the fresh stamp as our baseline deliberately disarms the server's
-           conflict guard for this one write, so it protects only against an
-           edit that lands BETWEEN the fresh read and the retry -- that one
-           still conflicts and falls through unchanged. A third party's scalar
-           edit that landed just BEFORE the fresh read is swallowed into the
-           new baseline and then overwritten by `wire`, silently. That is a
-           real narrowing, accepted on the measured trade: this conflict fires
-           on essentially every FIRST tweak of a component (Tweaks Needed is
-           priority 0, so it always moves the roll-up), and the old behaviour
-           lost Kasper's comment 100% of the time it fired, whereas the
-           clobber needs a second person editing the same card's scalars
-           inside the same ~1s window. Do not restate this as "concurrent
-           edits still conflict" -- an earlier draft of this comment did, and
-           it is not what the code does.
-
-           COMMENTS ARE NOT COVERED BY THAT TRADE AND MUST NOT BE. The one
-           `comments_base_at` field drives calendar-upsert's scalar guard AND
-           its per-cell comment merge, which keeps an existing comment missing
-           from the incoming list only while that comment is NEWER than the
-           baseline. Advancing the baseline to the bridge's stamp therefore
-           re-reads any comment another reviewer added in the meantime as a
-           deliberate deletion and prunes it -- losing someone else's note, not
-           merely overwriting a status. They cannot be decoupled from here, so
-           the retry instead carries every comment the server currently holds
-           into its own payload: an id present in the incoming list is never
-           pruned, and ours still wins on a shared id because the server keeps
-           the newer stamp. Raised as P1 by Codex review on PR 1493. */
-        let retryIssued = false;
-        if (json && json.conflict === true && gatewayCommitted) {
-            const fresh = await _calReadFreshCardStamp(item.slug, item.post.id);
-            const freshAt = fresh && String(fresh.updated_at || '');
-            if (freshAt && freshAt > String(item.post._baseAt || '')) {
-                for (const cell of ['video_tweaks', 'graphic_tweaks', 'caption_tweaks']) {
-                    if (Object.prototype.hasOwnProperty.call(wire, cell)) {
-                        wire[cell] = _calUnionCommentCell(wire[cell], fresh[cell]);
-                    }
-                }
-                item.post._baseAt = freshAt;
-                retryIssued = true;
-                const retry = await _calUpsertFetch(item.slug, { client: item.slug, post: wire, comments_base_at: String(item.post._baseAt || '') });
-                json = await retry.json().catch(() => ({}));
-            }
-        }
-        if (!json || !json.ok) { const err = new Error((json && json.error) || 'Save failed'); err._calRetryIssued = retryIssued; throw err; }
-        if (await _writeUiCompleteSourceRepairRefs(sourceRepairRefsForWrite)) _writeUiRemoveCompletedRepairRefs(item.post, sourceRepairRefsForWrite);
-        delete item.post._writeUiRetrySourceAt;
-        delete item.post._writeUiRetryPrincipal;
-        if (Array.isArray(item.post._writeUiRepairRefs) && item.post._writeUiRepairRefs.length) item.post._writeUiPrecommittedNative = true;
-        else delete item.post._writeUiPrecommittedNative;
-        _kasperPersistCache();
-        // Advance the merge base + adopt the server-merged comment cells so a
-        // concurrent comment that the server merged in shows up locally too.
-        const echo = json.post;
-        if (echo && typeof echo === 'object') {
-            _calMigratePostShape(echo);
-            for (const comp of _calComponentsFor(item.post)) {
-                if (!((comp + '_tweaks') in echo)) continue;
-                // Union, don't replace: keep any comment added locally between
-                // this chained write and its echo while still adopting the
-                // concurrent comments the server merged in.
-                _calSetCommentsFor(item.post, comp, _calMergeCommentLists(_calCommentsFor(item.post, comp), _calCommentsFor(echo, comp)));
-            }
-            item.post._baseAt = String(echo.updated_at || item.post._baseAt || '');
-        }
-        // The patch base now reflects the row we just persisted, so the NEXT
-        // Kasper write on this card diffs against the post-write state (sequential
-        // approvals on different components each patch only their own column).
-        item.post.status = overall;
-        item.post._patchBase = _kasperPatchSnapshot(item.post);
     }
 
     function _kasperOnPanelDraftInput(ta, pid, comp) {
@@ -2751,10 +2415,9 @@ import { _kedPaint } from './340-kasper-editors-board.js';
     }
 
 export {
-  _kasperAddCommentComp, _kasperApproveAfterTweaksComp, _kasperApproveComp, _kasperCalCachePrune,
-  _kasperClose, _kasperDismiss, _kasperHistoryThumbFallback, _kasperLoadEditors, _kasperLoadReview,
-  _kasperLoadSMMMap, _kasperOnPanelDraftInput, _kasperPaintReview, _kasperPartitionItems,
-  _kasperPersistPost, _kasperRenderEditors, _kasperRenderReview, _kasperRequestTweakComp,
-  _kasperResumeSourceRepairs, _kasperReviewInFlight, _kasperSampleOpenCount, _kasperSamplesMerged,
-  _kasperSetEditorsAvg, _kasperToggleCard, _kasperToggleHistory, _kedToggleInfo
+  _kasperAddCommentComp, _kasperApproveAfterTweaksComp, _kasperApproveComp, _kasperClose,
+  _kasperDismiss, _kasperHistoryThumbFallback, _kasperLoadEditors, _kasperLoadReview,
+  _kasperOnPanelDraftInput, _kasperPaintReviewNow, _kasperRenderEditors, _kasperRenderReview,
+  _kasperRequestTweakComp, _kasperReviewInFlight, _kasperSetEditorsAvg, _kasperToggleCard,
+  _kasperToggleHistory, _kedToggleInfo
 };

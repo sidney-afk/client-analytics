@@ -54,8 +54,12 @@
 280-samples-cards-notes.js.part            core!
 290-samples-writes-review.js.part          core!
 300-tiktok-upload.js.part                  tiktok
+305-core-kasper-shared.js.part             core
 310-sales-intake-hiring.js.part            kasper
-320-kasper-dashboard-replies.js.part       kasper
+320-core-kasper-subtabs.js.part            core
+321-kasper-dashboard-replies.js.part       kasper
+322-core-kasper-tab-counts.js.part         core
+323-kasper-dashboard-tail.js.part          kasper
 330-kasper-review-history.js.part          kasper
 340-kasper-editors-board.js.part           kasper
 345-core-tooltip-date-picker.js.part       core

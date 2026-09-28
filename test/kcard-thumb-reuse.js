@@ -83,7 +83,7 @@ check('the comment-add handler repaints through the (now image-preserving) path'
   /_kasperRepaintCard\s*\(/.test(grabFunc('_kasperAddCommentComp')), true);
 
 console.log('\n— All four repaint paths route through the reuse helpers —');
-const kPaint = grabFunc('_kasperPaintReview');
+const kPaint = grabFunc('_kasperPaintReviewNow');
 check('_kasperPaintReview harvests + restores around its innerHTML rebuild',
   /_kcardHarvestThumbs\s*\(/.test(kPaint) && /_kcardRestoreThumbs\s*\(/.test(kPaint), true);
 const kRepaint = grabFunc('_kasperRepaintCard');

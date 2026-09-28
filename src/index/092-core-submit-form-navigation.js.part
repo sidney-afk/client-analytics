@@ -26,10 +26,7 @@ import { _isClientLink, _syncviewClientEntryCapability, _syncviewInvalidClientLi
 import { _sxrEnabled, mountSxrView, renderSxrView } from './270-samples-model.js';
 import { mountSxrClientView } from './280-samples-cards-notes.js';
 import { _sxrV2Teardown } from './290-samples-writes-review.js';
-import {
-  _kasperState, _kasperTeardown, _svStaffPageRender, _svStaffPageShell, mountKasperView,
-  renderKasperView
-} from './320-kasper-dashboard-replies.js';
+import { _kasperState } from './305-core-kasper-shared.js';
     function onLinearSearchInput() {
         const input = document.getElementById('linearClientSearch');
         const q = input?.value || '';
@@ -686,7 +683,8 @@ import {
         if (page !== 'tiktok-upload' && tkArea) _navTeardownSafe(tkArea.teardown);
         if (page !== 'today' && typeof _tdyTeardown === 'function') _navTeardownSafe(_tdyTeardown);
         // Same for Kasper review's 30 s background poller + visibility listeners.
-        if (page !== 'kasper' && typeof _kasperTeardown === 'function') _navTeardownSafe(_kasperTeardown);
+        const kArea = svAreaApi('kasper');
+        if (page !== 'kasper' && kArea) _navTeardownSafe(kArea.teardown);
         // Phase 2: drop the calendar's Supabase realtime subscription when
         // leaving the calendar so it isn't held open in the background.
         if (page !== 'calendar' && typeof _calV2Teardown === 'function') _navTeardownSafe(_calV2Teardown);
@@ -833,12 +831,18 @@ import {
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'staff-onboarding' || page === 'client-credentials') {
             pageTop.style.display = 'none';
-            content.innerHTML = _svStaffPageShell(page);
-            _svStaffPageRender(page);
+            // The standalone staff pages are drawn by the on-demand Kasper area.
+            svWithArea('kasper', content, k => {
+                content.innerHTML = k.staffPageShell(page);
+                k.staffPageRender(page);
+            }, () => navTo(page));
         } else if (page === 'kasper') {
             pageTop.style.display = 'none';
-            content.innerHTML = renderKasperView();
-            mountKasperView();
+            // Kasper is an on-demand area (040, svWithArea).
+            svWithArea('kasper', content, k => {
+                content.innerHTML = k.render();
+                k.mount();
+            }, () => navTo('kasper'));
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'onboarding') {
             pageTop.style.display = 'none';

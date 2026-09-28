@@ -78,7 +78,7 @@ import {
 import { SXR_CACHE_PREFIX, _sxrAbortActiveLoad, _sxrNextLoadSeq, sxrState } from './270-samples-model.js';
 import { _sxrFlushAllPending, _sxrLinearOutboxTimer, _sxrSetLinearOutboxTimer, mountSxrClientView } from './280-samples-cards-notes.js';
 import { _sxrV2Teardown, _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
-import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-replies.js';
+import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js';
         function _prodManualRefresh() {
             // The press must be visibly acknowledged: the refresh itself is a
             // silent background delta, and a button that does nothing on

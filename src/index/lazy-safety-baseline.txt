@@ -1,9 +1,7 @@
 # Recorded on-demand-loading hazards: "<kind> <caller fragment> <name>".
 # Written by `node scripts/check-lazy-safety.js --update`; see that file for what each kind means.
 # The list may only shrink: a new line needs a reason in its PR, and a line whose hazard is gone must be removed.
-button 030-body-shell.html.part _svOpenStaffPage
 button 030-body-shell.html.part svQuickJumpOpen
-button 160-calendar-organize-ui.js.part _ccOpenModal
 button 190-calendar-approval-comments.js.part _prodProjectCanonicalCardComments
 button 260-production-refresh-boot.js.part _prodCardClick
 button 260-production-refresh-boot.js.part _prodClearFilters
@@ -37,25 +35,7 @@ button 260-production-refresh-boot.js.part _prodToggleRowSelection
 button 260-production-refresh-boot.js.part _prodToggleSection
 button 260-production-refresh-boot.js.part _prodToggleTeam
 button 280-samples-cards-notes.js.part _prodProjectCanonicalCardComments
-guard 060-templates-filming.js.part _kasperRefreshTabCounts
 guard 080-workload-render.js.part _prodApplyGatewayRow
-guard 092-core-submit-form-navigation.js.part _kasperTeardown
-guard 100-onboarding-staff-controls.js.part _caPurgeSensitiveState
-guard 100-onboarding-staff-controls.js.part _ccCloseModal
-guard 100-onboarding-staff-controls.js.part _ccCloseSelect
-guard 100-onboarding-staff-controls.js.part _ccRevTeardown
-guard 100-onboarding-staff-controls.js.part _hpPurgeSensitiveState
-guard 100-onboarding-staff-controls.js.part _kasperRenderTab
-guard 100-onboarding-staff-controls.js.part _kasperRestorePendingSubtab
 guard 100-onboarding-staff-controls.js.part _prodCachePurge
 guard 100-onboarding-staff-controls.js.part _prodClearLayer
 guard 100-onboarding-staff-controls.js.part _srpPurgeSensitiveState
-guard 100-onboarding-staff-controls.js.part _svStaffPageRender
-guard 110-time-off.js.part renderKasperView
-guard 120-calendar-flags-write-repair.js.part _kasperPaintReview
-guard 200-intake-data-startup.js.part _kasperCalCachePrune
-guard 270-samples-model.js.part _kasperOpenLightbox
-guard 290-samples-writes-review.js.part _kasperPaintReview
-guard 290-samples-writes-review.js.part _kasperRefreshTabCounts
-guard 290-samples-writes-review.js.part _kasperResumeSourceRepairs
-guard 290-samples-writes-review.js.part _kasperSamplesMerged

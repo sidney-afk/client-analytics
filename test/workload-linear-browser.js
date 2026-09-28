@@ -197,6 +197,16 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
     'wlSetDueDate',
     ...WL_070_SETTERS,
   ]) vm.runInContext(extract(name), context);
+  // Workload is an on-demand area (040 registry); here it has loaded, as on the
+  // one-file page, and the registry hands back this sandbox's own functions.
+  const wlApi = {
+    adoptNativeDueGatewayRow: row => context.wlAdoptNativeDueGatewayRow(row),
+    publishNativeDueReceipt: row => context.wlPublishNativeDueReceipt(row),
+    purgePlanSensitiveState: () => context.wlPurgePlanSensitiveState(),
+    refreshSensitiveStateSilent: () => context.wlRefreshSensitiveStateSilent(),
+  };
+  context.svAreaApi = name => (name === 'workload' ? wlApi : null);
+  context.svArea = name => (name === 'workload' ? Promise.resolve(wlApi) : Promise.reject(new Error('no area ' + name)));
   return {
     context,
     issue,
@@ -460,6 +470,16 @@ function backgroundHarness(options = {}) {
     'initWorkloadView',
     ...WL_070_SETTERS,
   ]) vm.runInContext(extract(name), context);
+  // Workload is an on-demand area (040 registry); here it has loaded, as on the
+  // one-file page, and the registry hands back this sandbox's own functions.
+  const wlApi = {
+    adoptNativeDueGatewayRow: row => context.wlAdoptNativeDueGatewayRow(row),
+    publishNativeDueReceipt: row => context.wlPublishNativeDueReceipt(row),
+    purgePlanSensitiveState: () => context.wlPurgePlanSensitiveState(),
+    refreshSensitiveStateSilent: () => context.wlRefreshSensitiveStateSilent(),
+  };
+  context.svAreaApi = name => (name === 'workload' ? wlApi : null);
+  context.svArea = name => (name === 'workload' ? Promise.resolve(wlApi) : Promise.reject(new Error('no area ' + name)));
   return { context, counters, renderStates };
 }
 

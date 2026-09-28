@@ -463,7 +463,8 @@ ok(/const hasWarmSnapshot = wlState\.fetchedAt != null && Array\.isArray\(wlStat
   && !/wlLoadSnapshot\(!!cache/.test(workloadInit),
  'warm route re-entry paints the in-memory calendar immediately and cold loading does not force n8n');
 ok(/wlRefreshSensitiveStateSilent/.test(workloadInit)
-  && /identity && _syncviewStaffIdentityVerified[\s\S]*wlRefreshSensitiveStateSilent\(\)/.test(staffIdentitySave)
+  && /identity && _syncviewStaffIdentityVerified[\s\S]*svAreaApi\('workload'\)[\s\S]{0,120}wl\.refreshSensitiveStateSilent\(\)/.test(staffIdentitySave)
+  && /refreshSensitiveStateSilent: wlRefreshSensitiveStateSilent,/.test(INDEX)
   && /!_syncviewStaffIdentityForHeaders\(\)/.test(backgroundRefresh),
 'sign-in and warm remount refresh only behind the actual staff identity boundary');
 ok(/if \(_wlBackgroundRefreshPromise\) return _wlBackgroundRefreshPromise/.test(backgroundRefresh)
@@ -520,7 +521,9 @@ ok(/function wlPurgePlanSensitiveState\(/.test(INDEX)
   && /wlState\.planByIssueId\.clear\(\)/.test(INDEX)
   && /status === 401[\s\S]{0,120}_syncviewStaffIdentityClear\(\)/.test(INDEX)
   && /status === 403[\s\S]{0,120}wlPurgePlanSensitiveState\(\)/.test(INDEX)
-  && /typeof wlPurgePlanSensitiveState === 'function'/.test(INDEX),
+  // Sign-out reaches the purge through the on-demand Workload area (040 registry).
+  && /const wl = svAreaApi\('workload'\); if \(wl\) wl\.purgePlanSensitiveState\(\)/.test(INDEX)
+  && /purgePlanSensitiveState: wlPurgePlanSensitiveState,/.test(INDEX),
 'staff identity transitions and server auth denials purge the private projection');
 ok(/_wlPlanLastWriteGeneration/.test(INDEX)
   && /writeGeneration > readGeneration/.test(INDEX)

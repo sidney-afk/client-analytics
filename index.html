@@ -15405,6 +15405,30 @@
         error: null
     };
 
+
+    /* Workload v2 read switch (the rest of v2 is in 067). Here, in core,
+       because the router (092 _svNavQuery) reads the sticky ?wl2 choice before
+       leaving the address, whether or not Workload has loaded. */
+    const WL_V2_LS_KEY         = 'syncview_workload_v2';
+    const WL_V2_KILL_KEY       = 'syncview_workload_v2_off';
+    let _wlV2FlagCache = null;
+    function _wlV2Enabled() {
+        if (_wlV2FlagCache !== null) return _wlV2FlagCache;
+        // Phase 3 (2026-06-17): v2 is now the DEFAULT — the Supabase read path is
+        // ON for everyone (webhook fast-path is live, ~2s reassignments). ?wl2=0 is
+        // a sticky per-browser kill-switch; ?wl2=1 force-enables / clears an opt-out.
+        // Rollback for everyone = set this default back to false; the Supabase read
+        // always falls back to the live linear-issues endpoint, so a flip is lossless.
+        let on = true;
+        try {
+            const q = new URLSearchParams(svRoute.search()).get('wl2');
+            if (q === '1' || q === 'true') { on = true; localStorage.setItem(WL_V2_LS_KEY, '1'); localStorage.removeItem(WL_V2_KILL_KEY); }
+            else if (q === '0' || q === 'false') { on = false; localStorage.setItem(WL_V2_KILL_KEY, '1'); localStorage.removeItem(WL_V2_LS_KEY); }
+            else { on = (localStorage.getItem(WL_V2_KILL_KEY) !== '1'); }
+        } catch { on = true; }
+        _wlV2FlagCache = on;
+        return on;
+    }
     function wlReadCache() {
         try {
             const raw = localStorage.getItem(LINEAR_ISSUES_CACHE_KEY);
@@ -15486,8 +15510,6 @@
      * so v2 can never blank the board. Rollback for everyone = leave the default
      * false; rollback for one browser = ?wl2=0.
      * =================================================================== */
-    const WL_V2_LS_KEY         = 'syncview_workload_v2';
-    const WL_V2_KILL_KEY       = 'syncview_workload_v2_off';
     const WL_V2_RT_DEBOUNCE_MS = 500;
     // Realtime auto-update is ON. It was gated off because the board read
     // workload_issues, which the n8n reconcile re-wrote in full each run (to
@@ -15499,24 +15521,8 @@
     // Rollback: set this back to false and push; WL_V2_WATERMARK_POLL_MS still
     // keeps the board fresh, just more slowly.
     const WL_V2_REALTIME       = true;
-    let _wlV2FlagCache = null;
-    function _wlV2Enabled() {
-        if (_wlV2FlagCache !== null) return _wlV2FlagCache;
-        // Phase 3 (2026-06-17): v2 is now the DEFAULT — the Supabase read path is
-        // ON for everyone (webhook fast-path is live, ~2s reassignments). ?wl2=0 is
-        // a sticky per-browser kill-switch; ?wl2=1 force-enables / clears an opt-out.
-        // Rollback for everyone = set this default back to false; the Supabase read
-        // always falls back to the live linear-issues endpoint, so a flip is lossless.
-        let on = true;
-        try {
-            const q = new URLSearchParams(svRoute.search()).get('wl2');
-            if (q === '1' || q === 'true') { on = true; localStorage.setItem(WL_V2_LS_KEY, '1'); localStorage.removeItem(WL_V2_KILL_KEY); }
-            else if (q === '0' || q === 'false') { on = false; localStorage.setItem(WL_V2_KILL_KEY, '1'); localStorage.removeItem(WL_V2_LS_KEY); }
-            else { on = (localStorage.getItem(WL_V2_KILL_KEY) !== '1'); }
-        } catch { on = true; }
-        _wlV2FlagCache = on;
-        return on;
-    }
+    // _wlV2Enabled and its keys live in core (066): the router reads the
+    // ?wl2 switch before it leaves the address, even before Workload loads.
     // The old sticky mirror kill switch cannot reopen a provider read path.
     function _wlV2Ready() { return !!CAL_SUPABASE_URL && !!CAL_SUPABASE_ANON_KEY; }
 
@@ -20886,32 +20892,6 @@
        snapshot would remove the need for the message; that is a projection
        change in the calendar's own region and is recorded in OPEN_REPAIRS 169
        rather than done here. */
-    function wlOpenInContentCalendar(clientName, identifier, nativeId) {
-        const canon = wlCanonicalClient(clientName);
-        if (!canon) return;
-        const ident = String(identifier || '').toUpperCase();
-        // Codex review, PR for OPEN_REPAIRS 218 (fix 3): a native row carries
-        // no Linear identifier at all, so `ident` alone left every native
-        // deliverable unmatchable and this notice fired unconditionally for
-        // it. `nativeId` (the row's OWN id, not a Linear string) is carried
-        // as its own field rather than folded into `identifier` -- folding it
-        // in would have sent it through `ident`'s uppercase-only sanitizing
-        // in _calApplyFocusRequest, which strips underscores and lowercase
-        // hex and mangles a UUID/native id. The notice now only fires when
-        // NEITHER identity is available to match on.
-        const nid = String(nativeId || '').trim();
-        if (!ident && !nid) {
-            showNotify('Opening the calendar, not the card',
-                'This deliverable has no Linear identifier, so it cannot be matched to a calendar card yet. '
-                + canon + "'s calendar is opening; find the card by title.");
-        }
-        _calSetFocusRequest({ client: canon, identifier: ident, nativeId: nid });
-        try {
-            const pins = _calGetPins();
-            if (!pins.includes(canon)) { pins.push(canon); _calSavePins(pins); }
-        } catch (e) {}
-        navTo('calendar');
-    }
 
     function wlPassesFilters(sub) {
         if (wlState.team !== 'all' && wlTeamBucket(sub.teamKey, sub.teamName) !== wlState.team) return false;
@@ -23468,6 +23448,23 @@
         }
     }
 
+
+    // Workload is an on-demand area (plan: docs/plans/2026-09-28-load-per-tab-plan.md);
+    // this is its last fragment, so everything it names has run by now.
+    // Everything outside it reaches in through here (040 svAreaApi / svArea /
+    // svWithArea).
+    svAreaRegister('workload', {
+        render: renderWorkloadShell,
+        init: initWorkloadView,
+        teardown: _wlV2Teardown,
+        v2Client: _wlV2Client,
+        purgePlanSensitiveState: wlPurgePlanSensitiveState,
+        refreshSensitiveStateSilent: wlRefreshSensitiveStateSilent,
+        // Looked up by name at call time, as the direct calls these replace
+        // were, so a page-level override (a test's spy) still sees each call.
+        adoptNativeDueGatewayRow: row => wlAdoptNativeDueGatewayRow(row),
+        publishNativeDueReceipt: row => wlPublishNativeDueReceipt(row),
+    });
     function onLinearSearchInput() {
         const input = document.getElementById('linearClientSearch');
         const q = input?.value || '';
@@ -23545,7 +23542,7 @@
         const q2 = q.trim().toLowerCase();
         if (!q2) {
             el.innerHTML = linearProjects.slice(0, 8).map(name =>
-                `<div class="linear-search-suggestion" onclick="selectLinearProject(${_jsAttrArg(name)},${_jsAttrArg((_linearResolveClientRow(name) || {}).slug || '')})"><span>${wlEscape(name)}</span></div>`
+                `<div class="linear-search-suggestion" onclick="selectLinearProject(${_jsAttrArg(name)},${_jsAttrArg((_linearResolveClientRow(name) || {}).slug || '')})"><span>${_calEscAttr(name)}</span></div>`
             ).join('');
             return;
         }
@@ -24151,7 +24148,8 @@
          * route that already shares the _calV2Teardown line beside it. */
         if (typeof _calAbandonLinkOnCalendarExit === 'function') _calAbandonLinkOnCalendarExit(page === 'calendar');
         if (page !== 'sample-reviews' && typeof _sxrV2Teardown === 'function') _navTeardownSafe(_sxrV2Teardown); // SXR_LINE
-        if (page !== 'workload' && typeof _wlV2Teardown === 'function') _navTeardownSafe(_wlV2Teardown);
+        const wlArea = svAreaApi('workload');
+        if (page !== 'workload' && wlArea) _navTeardownSafe(wlArea.teardown);
 
         svSharedClientApply(page, push);   // Templates / Filming Plans open on the shared client
         const state = {nav: page, client: null};
@@ -24226,8 +24224,11 @@
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'workload') {
             pageTop.style.display = 'none';
-            content.innerHTML = renderWorkloadShell();
-            initWorkloadView();
+            // Workload is an on-demand area (040, svWithArea).
+            svWithArea('workload', content, wl => {
+                content.innerHTML = wl.render();
+                wl.init();
+            }, () => navTo('workload'));
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'time-off') {
             pageTop.style.display = 'none';
@@ -24285,6 +24286,36 @@
         }
     }
 
+
+    // Open a client's card in the Content Calendar (Workload rows and Today).
+    // Moved here from Workload (080) because it only needs core pieces, so
+    // Today opens a card without waiting for the on-demand Workload code.
+    function wlOpenInContentCalendar(clientName, identifier, nativeId) {
+        const canon = wlCanonicalClient(clientName);
+        if (!canon) return;
+        const ident = String(identifier || '').toUpperCase();
+        // Codex review, PR for OPEN_REPAIRS 218 (fix 3): a native row carries
+        // no Linear identifier at all, so `ident` alone left every native
+        // deliverable unmatchable and this notice fired unconditionally for
+        // it. `nativeId` (the row's OWN id, not a Linear string) is carried
+        // as its own field rather than folded into `identifier` -- folding it
+        // in would have sent it through `ident`'s uppercase-only sanitizing
+        // in _calApplyFocusRequest, which strips underscores and lowercase
+        // hex and mangles a UUID/native id. The notice now only fires when
+        // NEITHER identity is available to match on.
+        const nid = String(nativeId || '').trim();
+        if (!ident && !nid) {
+            showNotify('Opening the calendar, not the card',
+                'This deliverable has no Linear identifier, so it cannot be matched to a calendar card yet. '
+                + canon + "'s calendar is opening; find the card by title.");
+        }
+        _calSetFocusRequest({ client: canon, identifier: ident, nativeId: nid });
+        try {
+            const pins = _calGetPins();
+            if (!pins.includes(canon)) { pins.push(canon); _calSavePins(pins); }
+        } catch (e) {}
+        navTo('calendar');
+    }
     /* ONE CLIENT ACROSS THE SITE (owner decision 2026-09-27, option A).
      *
      * Staff used to re-pick the same client on every tab: Calendar and Samples
@@ -26638,7 +26669,8 @@
         } catch (e) {}
         if (identity && _syncviewStaffIdentityVerified) {
             try {
-                if (typeof wlRefreshSensitiveStateSilent === 'function') wlRefreshSensitiveStateSilent();
+                const wl = svAreaApi('workload');   // nothing to refresh until Workload has loaded
+                if (wl) wl.refreshSensitiveStateSilent();
             } catch (e) {}
         }
     }
@@ -26996,7 +27028,7 @@
         } catch (e) {}
     }
     function _syncviewStaffPurgeSensitiveState() {
-        try { if (typeof wlPurgePlanSensitiveState === 'function') wlPurgePlanSensitiveState(); } catch (e) {}
+        try { const wl = svAreaApi('workload'); if (wl) wl.purgePlanSensitiveState(); } catch (e) {}   // in-memory only; nothing loaded before Workload runs
         try { if (typeof _linearIntakePurgeSensitiveState === 'function') _linearIntakePurgeSensitiveState(); } catch (e) {}
         try {
             const tpl = svAreaApi('templates');
@@ -61204,7 +61236,9 @@
             // projection for any currently-visible issue. Its deliverable cursor
             // stays separate from workload_issues.synced_at and the authority
             // fingerprint, so no inactive fast bridge is required to converge.
-            if (typeof wlAdoptNativeDueGatewayRow === 'function') wlAdoptNativeDueGatewayRow(row);
+            // (Only a loaded Workload has a projection to update.)
+            const wlArea = svAreaApi('workload');
+            if (wlArea) wlArea.adoptNativeDueGatewayRow(row);
         }
         /* The gateway's asset guidance is public-safe and provider-neutral,
            which makes it vague at exactly the moment a designer needs a next
@@ -61449,9 +61483,11 @@
                 const committedDueDate = rowHasDueDate && json.row.due_date
                     ? String(json.row.due_date).slice(0, 10)
                     : null;
-                if (rowHasDueDate && (operation === 'due' || committedDueDate !== previousDueDate)
-                    && typeof wlPublishNativeDueReceipt === 'function') {
-                    wlPublishNativeDueReceipt(json.row);
+                if (rowHasDueDate && (operation === 'due' || committedDueDate !== previousDueDate)) {
+                    // The receipt tells Workload boards in OTHER tabs to refetch,
+                    // so it goes out even when this tab has not loaded Workload.
+                    const receiptRow = json.row;
+                    svArea('workload').then(wl => wl.publishNativeDueReceipt(receiptRow), () => {});
                 }
                 return json;
             } finally {
@@ -69334,7 +69370,7 @@
             hidden: () => !!document.hidden,
             active: _prodRtActive,
             enabled: () => _prodRtEnabled(),
-            getClient: () => _wlV2Client(),
+            getClient: () => svArea('workload').then(wl => wl.v2Client(), () => null),
             refresh: (o) => _prodDeltaRefresh({ full: !!(o && o.full) }),
             localRow: (table, id) => {
                 const rows = table === 'batches' ? _prodState.batches : _prodState.deliverables;

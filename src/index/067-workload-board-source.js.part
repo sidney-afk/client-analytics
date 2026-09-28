@@ -1,6 +1,6 @@
 import {
   LINEAR_ISSUES_CACHE_KEY, LINEAR_ISSUES_TTL_MS, LINEAR_ISSUES_WEBHOOK, WL_CACHED_BOARD_MAX_AGE_MS,
-  WL_LEGACY_CACHE_KEY, wlState
+  WL_LEGACY_CACHE_KEY, _wlV2Enabled, wlState
 } from './066-core-workload-state.js';
 import { wlIsActiveStatus, wlIsAllowedEditor, wlValidRfc3339Timestamp } from './069-workload-planning-helpers.js';
 import { wlCanonicalClient, wlIsAllowedClient } from './070-core-client-names.js';
@@ -99,8 +99,6 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
      * so v2 can never blank the board. Rollback for everyone = leave the default
      * false; rollback for one browser = ?wl2=0.
      * =================================================================== */
-    const WL_V2_LS_KEY         = 'syncview_workload_v2';
-    const WL_V2_KILL_KEY       = 'syncview_workload_v2_off';
     const WL_V2_RT_DEBOUNCE_MS = 500;
     // Realtime auto-update is ON. It was gated off because the board read
     // workload_issues, which the n8n reconcile re-wrote in full each run (to
@@ -112,24 +110,8 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
     // Rollback: set this back to false and push; WL_V2_WATERMARK_POLL_MS still
     // keeps the board fresh, just more slowly.
     const WL_V2_REALTIME       = true;
-    let _wlV2FlagCache = null;
-    function _wlV2Enabled() {
-        if (_wlV2FlagCache !== null) return _wlV2FlagCache;
-        // Phase 3 (2026-06-17): v2 is now the DEFAULT — the Supabase read path is
-        // ON for everyone (webhook fast-path is live, ~2s reassignments). ?wl2=0 is
-        // a sticky per-browser kill-switch; ?wl2=1 force-enables / clears an opt-out.
-        // Rollback for everyone = set this default back to false; the Supabase read
-        // always falls back to the live linear-issues endpoint, so a flip is lossless.
-        let on = true;
-        try {
-            const q = new URLSearchParams(svRoute.search()).get('wl2');
-            if (q === '1' || q === 'true') { on = true; localStorage.setItem(WL_V2_LS_KEY, '1'); localStorage.removeItem(WL_V2_KILL_KEY); }
-            else if (q === '0' || q === 'false') { on = false; localStorage.setItem(WL_V2_KILL_KEY, '1'); localStorage.removeItem(WL_V2_LS_KEY); }
-            else { on = (localStorage.getItem(WL_V2_KILL_KEY) !== '1'); }
-        } catch { on = true; }
-        _wlV2FlagCache = on;
-        return on;
-    }
+    // _wlV2Enabled and its keys live in core (066): the router reads the
+    // ?wl2 switch before it leaves the address, even before Workload loads.
     // The old sticky mirror kill switch cannot reopen a provider read path.
     function _wlV2Ready() { return !!CAL_SUPABASE_URL && !!CAL_SUPABASE_ANON_KEY; }
 
@@ -2504,11 +2486,11 @@ export {
   _wlPlanSessionGeneration, _wlPlanWriteInFlight, _wlSetBackgroundRefreshMode,
   _wlSetBackgroundRefreshPromise, _wlSetNativeDueReceiptRetryAttempt,
   _wlSetNativeDueReceiptRetryPromise, _wlSetNativeDueReceiptRetryTimer,
-  _wlTakeNativeDueReceiptRetryAttempt, _wlV2CheckWatermark, _wlV2Client, _wlV2Enabled,
-  _wlV2EnsureSubscribed, _wlV2EnsureWatermarkPoll, _wlV2FetchIssues, _wlV2FetchLatestWatermark,
-  _wlV2Ready, _wlV2Teardown, wlAdoptLinearMetadata, wlAdoptPlanRows, wlAnnouncePlanSaved,
-  wlApplySettleAnimation, wlBackgroundBusinessFingerprint, wlCachedBoardUsable, wlCachedRoster,
-  wlFetchLinearMetadata, wlFetchPlanRows, wlIssueClientAllowed, wlIssueEditorAllowed,
-  wlLinearEditingEnabled, wlLoadSnapshot, wlMarkLinearMetadataFailure, wlMetadataTeamBucket,
-  wlNativeDueDate, wlPlanEditingEnabled, wlPurgePlanSensitiveState, wlReadCache, wlSnapshotIdentity
+  _wlTakeNativeDueReceiptRetryAttempt, _wlV2CheckWatermark, _wlV2Client, _wlV2EnsureSubscribed,
+  _wlV2EnsureWatermarkPoll, _wlV2FetchIssues, _wlV2FetchLatestWatermark, _wlV2Ready, _wlV2Teardown,
+  wlAdoptLinearMetadata, wlAdoptPlanRows, wlAnnouncePlanSaved, wlApplySettleAnimation,
+  wlBackgroundBusinessFingerprint, wlCachedBoardUsable, wlCachedRoster, wlFetchLinearMetadata,
+  wlFetchPlanRows, wlIssueClientAllowed, wlIssueEditorAllowed, wlLinearEditingEnabled,
+  wlLoadSnapshot, wlMarkLinearMetadataFailure, wlMetadataTeamBucket, wlNativeDueDate,
+  wlPlanEditingEnabled, wlPurgePlanSensitiveState, wlReadCache, wlSnapshotIdentity
 };

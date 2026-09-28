@@ -16,7 +16,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 
 const HF_API = "https://api.higgsfield.ai";
-const CAP_USD = Number(Deno.env.get("HF_MONTHLY_CAP_USD") || "200");
+const CAP_RAW = (Deno.env.get("HF_MONTHLY_CAP_USD") || "200").trim();
+// A malformed cap must not silently disable the limit: CAP_USD stays null and
+// every new video is refused until the setting is fixed.
+const CAP_USD: number | null = /^\d+(\.\d+)?$/.test(CAP_RAW) ? Number(CAP_RAW) : null;
 const PROTOCOLS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
 const CORS: Record<string, string> = {
@@ -205,28 +208,47 @@ async function hf(method: string, path: string, body?: JsonMap): Promise<{ ok: b
 
 // ---- Tool handlers -------------------------------------------------------
 
+async function idemKey(member: string, model: string, input: JsonMap): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify([member, model, input]));
+  const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  return Array.from(hash, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 async function callTool(name: string, args: JsonMap, member: string): Promise<string> {
+  if (CAP_USD === null && (name === "video_model_guide" || name === "make_video" || name === "team_usage")) {
+    return "The monthly budget setting (HF_MONTHLY_CAP_USD) is not a valid dollar amount, so video making is paused. Ask the account owner.";
+  }
+  const cap = CAP_USD as number;
   if (name === "video_model_guide") {
     const spent = await monthSpend();
-    return `${GUIDE}\n\nTeam budget this month: ${money(spent)} of ${money(CAP_USD)} used, ${money(Math.max(0, CAP_USD - spent))} left.`;
+    return `${GUIDE}\n\nTeam budget this month: ${money(spent)} of ${money(cap)} used, ${money(Math.max(0, cap - spent))} left.`;
   }
 
   if (name === "make_video") {
     const plan = planVideo(args);
     if ("error" in plan) return "Could not start: " + plan.error;
-    const spent = await monthSpend();
-    if (spent + plan.cost > CAP_USD) {
-      return `Refused: this video (about ${money(plan.cost)}) would pass the team's monthly budget of ${money(CAP_USD)} (${money(spent)} already used). Ask the account owner.`;
-    }
     const client = db();
-    const { data: row, error } = await client.from("hf_generations").insert({
-      member_name: member,
-      model: plan.model.id,
-      prompt: String(args.prompt),
-      params: plan.input,
-      est_cost_usd: plan.cost,
-    }).select("id").single();
-    if (error || !row) return "Could not start: the log is unavailable, so nothing was spent.";
+    // Cap check, retry dedupe and log row happen in one serialized database step.
+    const { data: rsv, error } = await client.rpc("hf_reserve_generation", {
+      p_member: member,
+      p_model: plan.model.id,
+      p_prompt: String(args.prompt),
+      p_params: plan.input,
+      p_cost: plan.cost,
+      p_cap: cap,
+      p_idem_key: await idemKey(member, plan.model.id, plan.input),
+    });
+    if (error || !rsv) return "Could not start: the log is unavailable, so nothing was spent.";
+    const reservation = rsv as JsonMap;
+    if (reservation.outcome === "over_cap") {
+      return `Refused: this video (about ${money(plan.cost)}) would pass the team's monthly budget of ${money(cap)} (${money(Number(reservation.spent))} already used). Ask the account owner.`;
+    }
+    if (reservation.outcome === "duplicate") {
+      return reservation.request_id
+        ? `This exact video was already started a moment ago, so it was not charged twice.\njob_id: ${reservation.request_id}\nUse check_video with that job_id.`
+        : "This exact video is being started right now. Wait a minute, then ask for team_usage to find its job.";
+    }
+    const row = { id: Number(reservation.id) };
 
     const res = await hf("POST", plan.path, plan.input);
     const requestId = String(res.data.request_id || "");
@@ -272,7 +294,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
     const lines = (data || []).map((r) =>
       `${String(r.created_at).slice(0, 10)}  ${r.member_name}  ${r.model}  ~${money(Number(r.est_cost_usd))}  ${r.status}  "${String(r.prompt).slice(0, 60)}"`
     );
-    return `This month: ${money(spent)} of ${money(CAP_USD)} used (estimates; the Higgsfield console shows exact charges).\n\nRecent videos:\n${lines.join("\n") || "none yet"}`;
+    return `This month: ${money(spent)} of ${money(cap)} used (estimates; the Higgsfield console shows exact charges).\n\nRecent videos:\n${lines.join("\n") || "none yet"}`;
   }
 
   return "Unknown tool: " + name;

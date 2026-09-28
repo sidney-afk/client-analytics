@@ -8634,6 +8634,20 @@
            next to the client opens it there, and only there. */
         .sv-jump-touch { display: none; flex: none; width: 30px; height: 30px; margin-left: 6px; place-items: center; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-secondary); cursor: pointer; }
         @media (hover: none) and (pointer: coarse) { .sv-jump-touch { display: inline-grid; } }
+        .sv-client-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .sv-client-item { position: relative; }
+        .sv-client-item.has-forget .sv-client-row { padding-right: 36px; }
+        .sv-client-forget { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); width: 22px; height: 22px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); cursor: pointer; opacity: 0; }
+        .sv-client-item:hover .sv-client-forget, .sv-client-item.is-active .sv-client-forget, .sv-client-forget:focus-visible { opacity: 1; }
+        .sv-client-sec { padding: 6px 10px 3px; font-size: 0.7rem; font-weight: 500; color: var(--text-muted); }
+        .sv-client-forget:hover { background: var(--border-light); color: var(--text-primary); }
+        /* Touch: always visible, and a 44px hit area (review on #1782). */
+        @media (hover: none) {
+            .sv-client-forget { opacity: 1; width: 44px; height: 44px; right: 0; }
+            .sv-client-item.has-forget .sv-client-row { min-height: 44px; padding-right: 48px; }
+        }
+        .sv-client-clear { display: block; width: 100%; margin-top: 4px; padding: 8px 10px 4px; border: 0; border-top: 1px solid var(--border-light); background: transparent; text-align: left; font: inherit; font-size: 0.74rem; color: var(--text-muted); cursor: pointer; }
+        .sv-client-clear:hover { color: var(--text-primary); }
         .sv-client-divider { height: 1px; margin: 4px; background: var(--border-light); }
         .sv-client-none { padding: 10px; font-size: 0.8rem; color: var(--text-muted); }
         @media (max-width: 760px) {
@@ -8834,7 +8848,7 @@
                     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
                     <input type="text" class="sv-client-search" id="svClientSearch" placeholder="Search clients" autocomplete="off" aria-label="Search clients" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="svClientResults">
                 </div>
-                <div class="sv-client-results" id="svClientResults" role="listbox"></div>
+                <div class="sv-client-results" id="svClientResults"></div>
             </div>
         </div>
         <button type="button" class="sv-jump-touch" onclick="svQuickJumpOpen()" aria-label="Quick jump to a client and tab"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg></button>
@@ -23909,7 +23923,10 @@
      * shared client; opening it simply makes that client the shared one. */
     const SV_SHARED_CLIENT_KEY = 'syncview_shared_client';
     const SV_RECENT_CLIENTS_KEY = 'syncview_recent_clients';
-    const SV_RECENT_MAX = 4;   // current + the three shown as buttons
+    // Stored list: the current client plus enough others that, after My
+    // clients are taken out, up to three still show under Recent.
+    const SV_RECENT_MAX = 8;
+    const SV_RECENT_SHOWN = 3;
     const SV_CLIENT_FOLLOW_TABS = ['calendar', 'sample-reviews', 'templates', 'filming-plans', 'tiktok-upload', 'home'];
 
     function _svClientLinkMode() {
@@ -23941,6 +23958,18 @@
         const s = String(name || '').trim();
         if (!s) return null;
         try { return wlCanonicalClient(s) || s; } catch (e) { return s; }
+    }
+    // Forget clients from the Recent list only. The current client is never in
+    // that list (it is shown on top, not as a recent), and nothing else is
+    // touched: no pins, no drafts, no data.
+    function svRecentClientRemove(name) {
+        const cur = svSharedClientGet();
+        if (!name || name === cur) return;
+        try { localStorage.setItem(SV_RECENT_CLIENTS_KEY, JSON.stringify(svRecentClients().filter(r => r !== name))); } catch (e) {}
+    }
+    function svRecentClientsClear() {
+        const cur = svSharedClientGet();
+        try { localStorage.setItem(SV_RECENT_CLIENTS_KEY, JSON.stringify(cur ? [cur] : [])); } catch (e) {}
     }
     // A tab changed its own client (a deep link, the Analytics grid, the
     // Templates index): remember it as the shared client. Never re-mounts.
@@ -24075,26 +24104,89 @@
         const has = all.filter(n => !starts.includes(n) && n.toLowerCase().includes(needle));
         return starts.sort((a, b) => a.localeCompare(b)).concat(has.sort((a, b) => a.localeCompare(b))).slice(0, 8);
     }
-    // No query: the current client on top in its colour, a thin line, then
-    // the recent clients. A query: the matches only. No headings.
+    /* MY CLIENTS (owner request 2026-09-27). The signed-in SMM's own clients
+     * sit above Recent, always, with no remove button. Which clients are
+     * "mine" is the ONE shared rule in 098-smm-clients, computed by Today's
+     * own loader (tdyMyClientNames in 097-today: the SMM roster from the
+     * smm-weekly-reports options call, cached in _srpState, matched against
+     * current Clients Info clients), so Today and this dropdown can never
+     * disagree. Nothing new is stored: the answer is kept in memory for the
+     * signed-in member only, and a failed or not-yet-loaded roster is retried
+     * on the next open. Anyone on the SMM roster gets My clients, admins
+     * included (an admin can also be an SMM). Anyone not on the roster, or
+     * with no listed client, gets search and Recent only. */
+    let _svMine = null;          // { id, names } once loaded
+    let _svMineLoading = null;
+    function svMyClients() {
+        let me = null;
+        let role = '';
+        try { const id = _syncviewStaffIdentityForHeaders(); me = id && id.member; role = String(id && id.role || me && me.role || '').toLowerCase(); } catch (e) {}
+        if (!me || !me.id) return [];
+        const meId = String(me.id) + '|' + role + '|' + String(me.name || '');   // a role or name change re-reads
+        if (_svMine && _svMine.id === meId) return _svMine.names;
+        if (!_svMineLoading && typeof tdyMyClientNames === 'function') {
+            _svMineLoading = Promise.resolve().then(() => tdyMyClientNames()).then(r => {
+                _svMineLoading = null;
+                if (!r || String(r.id) + '|' + role + '|' + String(me.name || '') !== meId) return;
+                const names = [...new Set((r.names || []).map(n => _svCanon(n) || String(n).trim()).filter(Boolean))];
+                _svMine = { id: meId, names: names.sort((x, y) => x.localeCompare(y)) };
+                const pop = document.getElementById('svClientPop');
+                if (pop && !pop.hidden) _svClientRenderResults();
+            }).catch(() => { _svMineLoading = null; });
+        }
+        return [];
+    }
+    // No query: My clients (if any), then Recent (at most three rows, the
+    // current client first when it is not one of My clients). The current
+    // client is tinted wherever it shows. A query: the matches only.
+    //
+    // Accessibility (review on #1782): each listbox holds options only. The
+    // remove buttons sit beside their option, not inside it, and Clear recent
+    // sits outside every listbox, so screen readers announce both.
     function _svClientRenderResults() {
         const input = document.getElementById('svClientSearch');
         const box = document.getElementById('svClientResults');
         if (!input || !box) return;
         const q = input.value.trim();
         const cur = svSharedClientGet();
-        const recent = svRecentClients().filter(r => r !== cur);
-        const flat = q ? _svClientMatches(q) : (cur ? [cur] : []).concat(recent);
+        const sections = [];
+        if (q) sections.push({ key: 'match', label: '', names: _svClientMatches(q), removable: false });
+        else {
+            const mine = svMyClients();
+            const recent = [];
+            if (cur && !mine.includes(cur)) recent.push(cur);
+            for (const r of svRecentClients()) {
+                if (recent.length >= SV_RECENT_SHOWN) break;
+                if (r !== cur && !mine.includes(r)) recent.push(r);
+            }
+            if (mine.length) sections.push({ key: 'mine', label: 'My clients', names: mine, removable: false });
+            if (recent.length) sections.push({ key: 'recent', label: mine.length ? 'Recent' : '', names: recent, removable: true });
+        }
+        const flat = [].concat(...sections.map(sec => sec.names));
         if (_svClientActive >= flat.length) _svClientActive = 0;
-        const rowHtml = (n, idx) => `<div class="sv-client-row${idx === _svClientActive ? ' is-active' : ''}${n === cur ? ' is-current' : ''}" style="--sv-client-h:${_svClientHue(n)}" role="option" id="svClientOpt${idx}" aria-selected="${n === cur}" data-sv-client="${_calEscAttr(n)}">${_svClientDot(n)}<span>${_calEsc(n)}</span></div>`;
+        const forgetBtn = n => `<button type="button" class="sv-client-forget" data-sv-forget="${_calEscAttr(n)}" aria-label="Remove ${_calEscAttr(n)} from recent" title="Remove from recent"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3l6 6M9 3 3 9"/></svg></button>`;
         let html = '';
+        let idx = 0;
+        const ids = [];
         if (!flat.length) html = `<div class="sv-client-none">${q ? 'No clients match' : 'Type a client name'}</div>`;
-        else flat.forEach((n, idx) => {
-            if (!q && cur && idx === 1) html += '<div class="sv-client-divider" role="separator"></div>';
-            html += rowHtml(n, idx);
+        sections.forEach((sec, si) => {
+            if (!sec.names.length) return;
+            const listId = 'svClientList-' + sec.key;
+            ids.push(listId);
+            if (si > 0) html += '<div class="sv-client-divider" aria-hidden="true"></div>';
+            if (sec.label) html += `<div class="sv-client-sec" id="${listId}-label">${sec.label}</div>`;
+            html += `<div class="sv-client-list" role="listbox" id="${listId}" ${sec.label ? `aria-labelledby="${listId}-label"` : 'aria-label="Clients"'}>`;
+            for (const n of sec.names) {
+                const canForget = sec.removable && n !== cur;
+                html += `<div class="sv-client-item${canForget ? ' has-forget' : ''}${idx === _svClientActive ? ' is-active' : ''}"><div class="sv-client-row${idx === _svClientActive ? ' is-active' : ''}${n === cur ? ' is-current' : ''}" style="--sv-client-h:${_svClientHue(n)}" role="option" id="svClientOpt${idx}" aria-selected="${n === cur}" data-sv-section="${sec.key}" data-sv-client="${_calEscAttr(n)}">${_svClientDot(n)}<span class="sv-client-row-name">${_calEsc(n)}</span></div>${canForget ? forgetBtn(n) : ''}</div>`;
+                idx++;
+            }
+            html += '</div>';
         });
+        if (!q && sections.some(sec => sec.removable && sec.names.some(n => n !== cur))) html += '<button type="button" class="sv-client-clear" data-sv-forget-all="1">Clear recent</button>';
         box.innerHTML = html;
         box._svFlat = flat;
+        input.setAttribute('aria-controls', ids.join(' ') || 'svClientResults');
         if (flat.length) input.setAttribute('aria-activedescendant', 'svClientOpt' + _svClientActive);
         else input.removeAttribute('aria-activedescendant');
     }
@@ -24129,6 +24221,19 @@
         if (!bar || bar.dataset.wired === '1') return;
         bar.dataset.wired = '1';
         bar.addEventListener('click', e => {
+            // Remove buttons sit inside a row: handle them first, never as a pick.
+            const forget = e.target.closest('[data-sv-forget]');
+            const forgetAll = e.target.closest('[data-sv-forget-all]');
+            if (forget || forgetAll) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (forgetAll) svRecentClientsClear();
+                else svRecentClientRemove(forget.getAttribute('data-sv-forget'));
+                _svClientActive = 0;
+                _svClientRenderResults();
+                document.getElementById('svClientSearch')?.focus();
+                return;
+            }
             const pick = e.target.closest('[data-sv-client]');
             if (pick) { e.preventDefault(); svSharedClientPick(pick.getAttribute('data-sv-client')); }
         });
@@ -24154,6 +24259,16 @@
         }
         document.addEventListener('click', e => {
             if (!e.target.closest('#svClientBadgeWrap')) _svClientPopClose();
+        });
+        // Escape closes the dropdown even before focus has reached the search
+        // box (the focus move is deferred a tick); without this, a quick
+        // Escape left it open and the next badge click closed it instead.
+        document.addEventListener('keydown', e => {
+            if (e.key !== 'Escape' || e.target && e.target.id === 'svClientSearch') return;
+            const pop = document.getElementById('svClientPop');
+            if (!pop || pop.hidden) return;
+            _svClientPopClose();
+            document.getElementById('svClientBadge')?.focus();
         });
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _svClientBarWire);
@@ -24428,12 +24543,14 @@
             return data.managers;
         } catch (e) { return null; }
     }
-    /* The current Clients Info clients this person may see: every one for an
-       admin, the roster's list for an SMM (see 098-smm-clients). */
-    async function _tdyVisibleClients(me) {
+    /* The current Clients Info clients one SMM owns, by the shared rule in
+       098-smm-clients. Throws when Clients Info or the roster is not
+       available, so a caller never mistakes "not loaded" for "no clients".
+       The main-bar dropdown's "My clients" calls this too (tdyMyClientNames),
+       so Today and the dropdown always agree. */
+    async function _tdySmmClients(me) {
         const current = svCurrentClients();
         if (!current.size) throw new Error('clients');
-        if (me.role === 'admin') return { keys: new Set(current.keys()), notListed: false };
         const managers = await _tdyRoster();
         if (!managers) throw new Error('roster');
         let email = '';
@@ -24441,8 +24558,26 @@
             const rows = await _tdyRest('team_members', 'select=email&id=eq.' + encodeURIComponent(me.id));
             email = String(rows[0] && rows[0].email || '');
         } catch (e) {}
-        const mine = svSmmCurrentClients(svRosterEntryFor(managers, { email, name: me.name }), current);
+        return svSmmCurrentClients(svRosterEntryFor(managers, { email, name: me.name }), current);
+    }
+    /* The current Clients Info clients this person may see: every one for an
+       admin, the roster's list for an SMM (see 098-smm-clients). */
+    async function _tdyVisibleClients(me) {
+        const current = svCurrentClients();
+        if (!current.size) throw new Error('clients');
+        if (me.role === 'admin') return { keys: new Set(current.keys()), notListed: false };
+        const mine = await _tdySmmClients(me);
         return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0 };
+    }
+    /* The signed-in member's own roster clients for the dropdown: { id, names }.
+       Anyone on the SMM roster gets their clients, admins included (an admin
+       can also be an SMM); names are empty for anyone not on the roster or
+       signed out. Rejects when not loaded. Today itself still shows admins
+       every client (_tdyVisibleClients). */
+    async function tdyMyClientNames() {
+        const me = _tdyIdentity();
+        if (!me) return { id: '', names: [] };
+        return { id: me.id, names: await _tdySmmClients(me) };
     }
     async function _tdyLoad(me) {
         const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';

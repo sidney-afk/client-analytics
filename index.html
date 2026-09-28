@@ -395,6 +395,11 @@
             else if (!hash) {
                 var saved = null; try { saved = localStorage.getItem('syncview_nav'); } catch (e) {}
                 var nav = (st && st.nav) || saved;
+                // Mirror of init()'s _bareLanding: a new visit to the bare
+                // address opens Today (BARE_LANDING_OK_PARAMS may ride along).
+                var bareOk = ['sxr', 'wl2', 'v2', 'prodcache'], bare = !(st && (st.nav || st.client));
+                q.forEach(function (v, k) { if (bareOk.indexOf(k) < 0) bare = false; });
+                if (bare) nav = 'today';
                 // Mirror of init(): the fast path restores (stateNav ||
                 // savedNav) for FAST tabs even in a NEW tab (fallbackFast —
                 // no history.state needed); the post-await router restores
@@ -23706,6 +23711,29 @@
         // overwriting it with the SyncView default.
         onboarding: '/synchro-social-favicon.png',
     };
+    /* CLEAN ADDRESSES ACROSS TABS (owner, 2026-09-28). Every setting in the
+       address belongs to the tab that put it there (SyncLinear's d, batch,
+       order and view; a switch like sxr=1). Switching to ANOTHER tab starts
+       from an empty query, so /workload never carries SyncLinear's card or
+       sort. Staying on the same tab (a re-render, or boot opening an old link)
+       keeps the address as it was, so old links still open exactly. Client
+       share links (c / t / v) are never touched. */
+    function _svAddressPage(search, hash) {
+        const q = new URLSearchParams(search || '');
+        if (q.get('prod') === '1') return 'production';
+        const head = String(hash || '').replace(/^#/, '').split('?')[0].split('/')[0];
+        if (head === 'samples') return 'sample-reviews';
+        return head || 'home';
+    }
+    function _svNavQuery(page) {
+        const search = svRoute.search();
+        const cur = new URLSearchParams(search);
+        const isClientLink = cur.has('c') || cur.has('t') || cur.has('v');
+        const query = isClientLink || _svAddressPage(search, svRoute.hash()) === page ? cur : new URLSearchParams();
+        if (page === 'production') query.set('prod', '1');
+        else query.delete('prod');
+        return query;
+    }
     function _syncviewFaviconFor(page) {
         return SYNCVIEW_TAB_FAVICONS[String(page || '')] || SYNCVIEW_DEFAULT_FAVICON;
     }
@@ -23885,9 +23913,7 @@
             // line erased it from the URL the reload reads.
             if (page === 'kasper' && typeof _kasperState !== 'undefined' && _kasperState
                 && _kasperState.tab && _kasperState.tab !== 'review') hash = '#kasper/' + _kasperState.tab;
-            const query = new URLSearchParams(svRoute.search());
-            if (page === 'production') query.set('prod', '1');
-            else query.delete('prod');
+            const query = _svNavQuery(page);
             const queryText = query.toString();
             const url = '/' + (queryText ? '?' + queryText : '') + hash;
             if (push) history.pushState(state, '', url);
@@ -54149,6 +54175,9 @@
         // of blocking on the analytics roundtrip.
         const FAST_TABS = ['today', 'linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'smm-weekly-report', 'smm-weekly-reports'];
         const RESTORABLE_FAST_TABS = FAST_TABS.filter(tab => !_isSmmWeeklyRoute(tab));
+        // Query keys that do not stop a bare address from landing on Today
+        // (per-browser switches). Mirrored in the head boot script.
+        const BARE_LANDING_OK_PARAMS = ['sxr', 'wl2', 'v2', 'prodcache'];
 
         function _applyAllDataDependentChrome() {
             try { renderPins(); } catch {}
@@ -69837,7 +69866,14 @@
                 || hashRaw.startsWith('templates/')
                 // The standalone staff pages have their own APIs and checks.
                 || hashRaw === 'staff-onboarding' || hashRaw === 'client-credentials';
-            const restoreFastNav = _isSmmWeeklyRoute(stateNav) ? savedNav : (stateNav || savedNav);
+            // DEFAULT LANDING (owner, 2026-09-28): the bare site address opens
+            // Today for staff on a new visit. A refresh (history.state) still
+            // returns you to the tab you were on, Analytics included; client
+            // links and every explicit address are unchanged. Only harmless
+            // switches may ride along in the query.
+            const _bareLanding = !hashRaw && !stateNav && !stateClient && !_isClientLink
+                && [...qp.keys()].every(k => BARE_LANDING_OK_PARAMS.includes(k));
+            const restoreFastNav = _bareLanding ? 'today' : (_isSmmWeeklyRoute(stateNav) ? savedNav : (stateNav || savedNav));
             const fallbackFast = !hashRaw && !stateClient && RESTORABLE_FAST_TABS.includes(restoreFastNav);
             // Kasper has no analytics dependency — every sub-tab fetches its own
             // data over webhooks. So a refresh straight onto Kasper (when the tab

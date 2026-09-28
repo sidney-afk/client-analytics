@@ -8,7 +8,7 @@
 |---|---|---|---|
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `003-sv-route.html.part` | 177 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
-| 3 | `005-head-boot.html.part` | 278 | NOT render-blocking, and the reason is measured rather than assumed. |
+| 3 | `005-head-boot.html.part` | 283 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3913 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 5 | `020-styles-surfaces.css.part` | 4383 | Templates view |
 | 6 | `030-body-shell.html.part` | 511 | Confirmation modal |
@@ -17,7 +17,7 @@
 | 9 | `060-templates-filming.js.part` | 2295 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `070-workload-source.js.part` | 3823 | Workload Calendar |
 | 11 | `080-workload-render.js.part` | 3436 | Smart default: a creative lands on their own work (see |
-| 12 | `090-workload-popovers-navigation.js.part` | 1806 | Sub-issue popover |
+| 12 | `090-workload-popovers-navigation.js.part` | 1827 | Sub-issue popover |
 | 13 | `095-shared-client.js.part` | 397 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
 | 14 | `096-quick-jump.js.part` | 172 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
 | 15 | `097-today.js.part` | 542 | TODAY (owner design , session Compass). |
@@ -38,13 +38,13 @@
 | 30 | `180-calendar-native-post-media.js.part` | 2750 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 31 | `185-client-review-queue.js.part` | 371 | Client review send queue: a client's Approve or Request changes is |
 | 32 | `190-calendar-approval-comments.js.part` | 3108 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
-| 33 | `200-intake-data-startup.js.part` | 1528 | Video-only and Thumbnail-only were already built, but sat |
+| 33 | `200-intake-data-startup.js.part` | 1531 | Video-only and Thumbnail-only were already built, but sat |
 | 34 | `210-production-state-writes.js.part` | 3201 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 35 | `220-production-attribution-views.js.part` | 2764 | An ABSENT persisted slug is missing evidence, not |
 | 36 | `230-production-create-comments.js.part` | 2645 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
 | 37 | `240-production-description.js.part` | 2648 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
 | 38 | `250-production-controls-data.js.part` | 2889 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 39 | `260-production-refresh-boot.js.part` | 2628 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 39 | `260-production-refresh-boot.js.part` | 2635 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 40 | `270-samples-model.js.part` | 2857 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 41 | `280-samples-cards-notes.js.part` | 2922 | SURFACE 3: the save engine |
 | 42 | `290-samples-writes-review.js.part` | 1824 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |

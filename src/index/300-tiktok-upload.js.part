@@ -1,13 +1,13 @@
-import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
 import {
   TIKTOK_FORM_KEY, TIKTOK_HIDDEN_KEY, TIKTOK_LEGACY_MAX_BYTES, TIKTOK_MAX_BYTES, TIKTOK_MAX_PHOTOS,
   TIKTOK_OPTIMISTIC_TTL_MS, TIKTOK_PENDING_KEY, TIKTOK_PHOTO_MAX_BYTES, TIKTOK_QUEUE_CACHE_KEY,
   TIKTOK_UPLOADS_LIST_URL, TIKTOK_UPLOAD_CANCEL_URL, TIKTOK_UPLOAD_DIRECT_WEBHOOK,
   TIKTOK_UPLOAD_STATUS_URL, TIKTOK_UPLOAD_URL_WEBHOOK, TIKTOK_UPLOAD_WEBHOOK, clientMap,
-  showConfirm, showNotify
+  showConfirm, showNotify, svAreaRegister
 } from './040-shared-briefs.js';
-import { WL_CLIENT_NAMES } from './070-workload-source.js';
 import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, getRecent } from './050-market-briefs.js';
+import { WL_CLIENT_NAMES } from './070-workload-source.js';
+import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
     /* ============================================================
        TIKTOK UPLOAD MODULE
        Posts videos to Post For Me (api.postforme.dev) through a
@@ -2016,5 +2016,13 @@ import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, ge
     window._tkDismissRow = _tkDismissRow;
     window._tkSetQueueTab = _tkSetQueueTab;
     window._tkQueueShowMore = _tkQueueShowMore;
+    // What the rest of the page may use, through 040's svAreaApi / svArea:
+    // this area can arrive after the page has started (on-demand loading).
+    svAreaRegister('tiktok', {
+        render: renderTiktokUploadView,
+        mount: mountTiktokUploadView,
+        teardown: _tkTeardown,
+        isMounted: () => _tkMounted,
+        renderForm: _tkRenderForm
+    });
 
-export { _tkMounted, _tkRenderForm, _tkTeardown, mountTiktokUploadView, renderTiktokUploadView };

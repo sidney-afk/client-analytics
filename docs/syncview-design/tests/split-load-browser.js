@@ -55,6 +55,69 @@ async function load(browser, origin, { url, staff, route, dropFirstPart }) {
   return Object.assign(state, { navigations, dropped });
 }
 
+const LAZY_VIEWS = { tiktok: { route: 'tiktok-upload', drawn: '.tk-page #tkFormCol' } };
+async function lazyChecks(browser, origin, failures) {
+  const lazyNames = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'index', 'split.json'), 'utf8')).lazy || [];
+  for (const name of lazyNames) {
+    const view = LAZY_VIEWS[name];
+    if (!view) { failures.push(`lazy area "${name}" has no view in LAZY_VIEWS; add how to open it`); continue; }
+    const open = async (url, opts = {}) => {
+      const context = await browser.newContext();
+      await context.route(u => !/^http:\/\/127\.0\.0\.1/.test(u.toString()), empty);
+      let fail = opts.failFirst ? 1 : 0;
+      const fetched = [];
+      await context.route(new RegExp(`/js/sv-\\d\\d-${name}-[0-9a-f]+\\.js$`), r => { fetched.push(r.request().url()); return fail-- > 0 ? r.fulfill({ status: 503, body: '' }) : r.continue(); });
+      await seedStaffGate(context);
+      await context.addInitScript(() => { try { localStorage.removeItem('syncview_nav'); } catch (e) {} });
+      const page = await context.newPage();
+      await page.goto(origin + url, { waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(() => typeof window.navTo === 'function', null, { timeout: 20000 });
+      return { context, page, fetched };
+    };
+    // 1. Not in the first download; opening the tab fetches it and draws.
+    {
+      const { context, page, fetched } = await open('/');
+      const early = await page.evaluate(n => ({ lazy: self.__svLoad && self.__svLoad.lazy && self.__svLoad.lazy[n], ran: (self.__svParts || []).some(f => f.includes('-' + n + '-')) }), name);
+      if (!early.lazy) failures.push(`${name}: not listed as on demand in the parts page`);
+      if (early.ran) failures.push(`${name}: its code ran before anyone asked for it`);
+      await page.evaluate(r => navTo(r), view.route);
+      const drew = await page.waitForSelector(view.drawn, { timeout: 15000 }).then(() => true, () => false);
+      if (!drew) failures.push(`${name}: opening its tab never drew it`);
+      if (fetched.length !== 1) failures.push(`${name}: expected one download of its code, saw ${fetched.length}`);
+      console.log(`split-load: ${name} on demand: ${drew ? 'drawn' : 'NOT drawn'} after ${fetched.length} download(s)`);
+      await context.close();
+    }
+    // 2. Refresh while on the tab.
+    {
+      const { context, page } = await open('/#' + view.route);
+      const drew = await page.waitForSelector(view.drawn, { timeout: 15000 }).then(() => true, () => false);
+      if (!drew) failures.push(`${name}: a refresh on its tab never drew it`);
+      await context.close();
+    }
+    // 3. Download fails once: Retry, then it draws.
+    {
+      const { context, page, fetched } = await open('/', { failFirst: true });
+      await page.evaluate(r => navTo(r), view.route);
+      const retry = await page.waitForSelector('[data-sv-area-retry]', { timeout: 15000 }).then(() => true, () => false);
+      if (!retry) failures.push(`${name}: a failed download showed no Retry`);
+      else {
+        await page.click('[data-sv-area-retry]');
+        const drew = await page.waitForSelector(view.drawn, { timeout: 15000 }).then(() => true, () => false);
+        if (!drew) failures.push(`${name}: Retry after a failed download never drew it`);
+      }
+      console.log(`split-load: ${name} failed download: Retry ${retry ? 'shown' : 'MISSING'}, ${fetched.length} download(s)`);
+      await context.close();
+    }
+    // 4. Fetched quietly in the background after the first screen.
+    {
+      const { context, page } = await open('/');
+      const ok = await page.waitForFunction(n => (self.__svParts || []).some(f => f.includes('-' + n + '-')), name, { timeout: 15000 }).then(() => true, () => false);
+      if (!ok) failures.push(`${name}: never fetched in the background`);
+      await context.close();
+    }
+  }
+}
+
 (async () => {
   const server = await serveStatic();
   const origin = `http://127.0.0.1:${server.address().port}`;
@@ -93,6 +156,10 @@ async function load(browser, origin, { url, staff, route, dropFirstPart }) {
         if (!s.booted) failures.push(`${label}: the app did not boot`);
         console.log(`split-load: ${label}: ${s.load.mode}, ${s.ran.length} file(s) ran`);
       }
+      // On-demand areas (split.json "lazy"): staff start without their code,
+      // get it when the tab opens (or on a refresh there), see Retry when the
+      // download fails, and get it quietly in the background otherwise.
+      await lazyChecks(browser, origin, failures);
       const r = await load(browser, origin, { url: '/', staff: true, dropFirstPart: true });
       if (r.dropped < 2) failures.push(`failed download: the page did not retry the missing file (requests: ${r.dropped})`);
       if (r.navigations !== 2) failures.push(`failed download: expected exactly one reload, saw ${r.navigations - 1}`);

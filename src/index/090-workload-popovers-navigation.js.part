@@ -1,6 +1,6 @@
-import { svClientBarSync, svSharedClientApply } from './095-shared-client.js';
-import { _tdyTeardown, mountTodayView, renderTodayView } from './097-today.js';
-import { _analyticsReleaseExtras, linearClientRows, linearProjects } from './040-shared-briefs.js';
+import {
+  _analyticsReleaseExtras, linearClientRows, linearProjects, svAreaApi, svWithArea
+} from './040-shared-briefs.js';
 import { _templatesActiveTab, _templatesSelected, highlightMatch, render } from './050-market-briefs.js';
 import {
   LINEAR_FORM_KEY, NAV_KEY, _fpEnsureLoaded, _isSmmWeeklyRoute, _syncviewNextNavEpoch,
@@ -14,6 +14,8 @@ import {
   wlWorkloadBadgeHtml
 } from './070-workload-source.js';
 import { initWorkloadView, renderWorkloadAll, wlEscape, wlSyncLinearUrl } from './080-workload-render.js';
+import { svClientBarSync, svSharedClientApply } from './095-shared-client.js';
+import { _tdyTeardown, mountTodayView, renderTodayView } from './097-today.js';
 import {
   CAL_SUPABASE_URL, OB_VARIANT, _svDateHtml, mountOnboardingView, renderOnboardingView
 } from './100-onboarding-staff-controls.js';
@@ -28,18 +30,16 @@ import { _svLoadingSkeletonHtml, _svSkel } from './133-core-loading-skeletons.js
 import { mountCalendar, renderCalendarView } from './134-calendar-prefs-mount.js';
 import { _calV2Enabled, _calV2Teardown } from './150-calendar-hydration-import.js';
 import { _calFmtCommentTime } from './190-calendar-approval-comments.js';
-import {
-  _kasperApplyAccess, _linearIntakeBatchTitle, _linearSubmissionHoldRead, renderLinearView
-} from './200-intake-data-startup.js';
+import { _kasperApplyAccess, _linearIntakeBatchTitle, _linearSubmissionHoldRead, renderLinearView } from './200-intake-data-startup.js';
 import { _prodAccessAllowed, _prodCacheEnabled } from './210-production-state-writes.js';
 import { mountProductionView, renderProductionView } from './250-production-controls-data.js';
 import { _isClientLink, _syncviewClientEntryCapability, _syncviewInvalidClientLinkScreen } from './260-production-refresh-boot.js';
 import { _sxrEnabled, mountSxrView, renderSxrView } from './270-samples-model.js';
 import { mountSxrClientView } from './280-samples-cards-notes.js';
 import { _sxrV2Teardown } from './290-samples-writes-review.js';
-import { _tkTeardown, mountTiktokUploadView, renderTiktokUploadView } from './300-tiktok-upload.js';
 import {
-  _kasperState, _kasperTeardown, _svStaffPageRender, _svStaffPageShell, mountKasperView, renderKasperView
+  _kasperState, _kasperTeardown, _svStaffPageRender, _svStaffPageShell, mountKasperView,
+  renderKasperView
 } from './320-kasper-dashboard-replies.js';
     // ── Sub-issue popover ────────────────────────────────────────────────
     // Fetches the underlying subs for a rollup (either the in-progress list
@@ -1675,7 +1675,8 @@ import {
 
         // Tear down the TikTok-upload polling timer whenever we leave the page so
         // it doesn't keep hitting the queue webhook in the background.
-        if (page !== 'tiktok-upload' && typeof _tkTeardown === 'function') _navTeardownSafe(_tkTeardown);
+        const tkArea = svAreaApi('tiktok');
+        if (page !== 'tiktok-upload' && tkArea) _navTeardownSafe(tkArea.teardown);
         if (page !== 'today' && typeof _tdyTeardown === 'function') _navTeardownSafe(_tdyTeardown);
         // Same for Kasper review's 30 s background poller + visibility listeners.
         if (page !== 'kasper' && typeof _kasperTeardown === 'function') _navTeardownSafe(_kasperTeardown);
@@ -1797,8 +1798,12 @@ import {
         // <<< SXR_END
         } else if (page === 'tiktok-upload') {
             pageTop.style.display = 'none';
-            content.innerHTML = renderTiktokUploadView();
-            mountTiktokUploadView();
+            // TikTok Upload is an on-demand area (040, svWithArea): drawn at
+            // once when its code is here, else after it arrives.
+            svWithArea('tiktok', content, tk => {
+                content.innerHTML = tk.render();
+                tk.mount();
+            }, () => navTo('tiktok-upload'));
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'smm-weekly-report') {
             pageTop.style.display = 'none';
@@ -1832,7 +1837,8 @@ import {
 
 export {
   _linearInvalidatePlanMap, _linearResolveClientRow, _linearResolvedPlanUrl,
-  _linearSetResolvedPlanUrl, _navFitSchedule, _navPillSync, _syncviewApplyTabFavicon, buildLinearTitle,
-  loadLinearForm, navTo, renderLinearSearchResults, saveLinearForm, updateLinearFilmingPlan,
-  updateLinearSearchGhost, updateLinearTitle, wlClosePopover, wlOpenRollupPopover
+  _linearSetResolvedPlanUrl, _navFitSchedule, _navPillSync, _syncviewApplyTabFavicon,
+  buildLinearTitle, loadLinearForm, navTo, renderLinearSearchResults, saveLinearForm,
+  updateLinearFilmingPlan, updateLinearSearchGhost, updateLinearTitle, wlClosePopover,
+  wlOpenRollupPopover
 };

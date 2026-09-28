@@ -9294,6 +9294,78 @@
     const SYNCVIEW_THEME_KEY = 'syncview_theme';
     const SYNCVIEW_STATUS_PALETTE_KEY = 'syncview_status_palette';
     /*
+     * On-demand areas (docs/plans/2026-09-28-load-per-tab-plan.md, step 3).
+     *
+     * A staff-only area listed as "lazy" in src/index/split.json is not in
+     * the page's first download when the page is served in parts: its code
+     * arrives the first time something asks for it. So nothing outside an
+     * area calls its functions by name. The area registers what it offers,
+     * the moment its code runs (svAreaRegister), and callers go through here:
+     *   svAreaApi(name)   what the area offers if its code has run, else null
+     *                     (an area that never loaded has nothing to tear down,
+     *                     re-render or flush);
+     *   svArea(name)      a promise of the same, fetching the code if needed;
+     *   svWithArea(...)   draw a tab from its area: at once when the code is
+     *                     here (always, for the whole-script page), else a
+     *                     loading state, then the tab, or a Retry.
+     * The client approve / request-changes path is never lazy (areas.txt).
+     */
+    const _svAreaApis = Object.create(null);
+    const _svAreaLoads = Object.create(null);
+    let _svAreaDrawSeq = 0;
+    function svAreaRegister(name, api) { _svAreaApis[name] = api; }
+    function svAreaApi(name) { return _svAreaApis[name] || null; }
+    function svArea(name) {
+        if (_svAreaApis[name]) return Promise.resolve(_svAreaApis[name]);
+        if (_svAreaLoads[name]) return _svAreaLoads[name];
+        const file = self.__svLoad && self.__svLoad.lazy && self.__svLoad.lazy[name];
+        if (!file) {
+            // Not on demand: the area's code is in the page and simply has not
+            // run yet while the page is still being read (start-up routing can
+            // ask this early). It has once the document has finished loading.
+            if (document.readyState !== 'loading') return Promise.reject(new Error('SyncView area "' + name + '" is not available'));
+            return new Promise((resolve, reject) => document.addEventListener('DOMContentLoaded', () => (
+                _svAreaApis[name] ? resolve(_svAreaApis[name]) : reject(new Error('SyncView area "' + name + '" is not available'))
+            ), { once: true }));
+        }
+        const load = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = '/' + file;
+            s.onload = () => (_svAreaApis[name] ? resolve(_svAreaApis[name]) : reject(new Error('SyncView area "' + name + '" did not start')));
+            s.onerror = () => { s.remove(); reject(new Error('SyncView area "' + name + '" could not be downloaded')); };
+            document.head.appendChild(s);
+        });
+        // A failed download is not remembered, so Retry fetches again.
+        _svAreaLoads[name] = load.catch(e => { delete _svAreaLoads[name]; throw e; });
+        return _svAreaLoads[name];
+    }
+    function svWithArea(name, content, draw, retry) {
+        const seq = ++_svAreaDrawSeq;
+        const api = _svAreaApis[name];
+        if (api) { draw(api); return; }
+        content.innerHTML = '<div class="sv-area-loading" data-sv-area-wait="' + seq + '" role="status" aria-live="polite" style="padding:48px 24px;text-align:center;opacity:.7;">Loading…</div>';
+        const stillWaiting = () => seq === _svAreaDrawSeq && !!content.querySelector('[data-sv-area-wait="' + seq + '"]');
+        svArea(name).then(loaded => { if (stillWaiting()) draw(loaded); }, () => {
+            if (!stillWaiting()) return;
+            content.innerHTML = '<div class="sv-area-loading" data-sv-area-wait="' + seq + '" role="alert" style="padding:48px 24px;text-align:center;">'
+                + 'This page could not be loaded. Check your connection. '
+                + '<button type="button" class="btn btn-secondary" data-sv-area-retry>Retry</button></div>';
+            const b = content.querySelector('[data-sv-area-retry]');
+            if (b) b.addEventListener('click', () => { if (typeof retry === 'function') retry(); else svWithArea(name, content, draw, retry); });
+        });
+    }
+    // Staff pages served in parts fetch the remaining areas quietly once the
+    // first screen is up, so switching tabs later waits on nothing.
+    function _svPrefetchAreas() {
+        const lazy = self.__svLoad && self.__svLoad.lazy;
+        if (!lazy) return;
+        for (const name of Object.keys(lazy)) svArea(name).catch(() => {});
+    }
+    window.addEventListener('load', () => {
+        const idle = window.requestIdleCallback || (fn => setTimeout(fn, 1500));
+        setTimeout(() => idle(_svPrefetchAreas), 2500);
+    });
+    /*
      * OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog
      * overlays.
      *
@@ -10457,7 +10529,7 @@
         // dropdown until *something else* happened to re-render the form. Redraw
         // it here whenever it's on screen so a fresh sheet merge shows up
         // immediately instead of only on the next unrelated form interaction.
-        try { if (typeof _tkMounted !== 'undefined' && _tkMounted) _tkRenderForm(); }
+        try { const tk = svAreaApi('tiktok'); if (tk && tk.isMounted()) tk.renderForm(); }
         catch(e){ console.warn('[SyncView] TikTok Upload roster refresh deferred:', e && e.message); }
         // Same story for the Calendar's social-profiles (globe) button: its
         // handles come from clientMap, but it was only re-synced when the
@@ -23862,7 +23934,8 @@
 
         // Tear down the TikTok-upload polling timer whenever we leave the page so
         // it doesn't keep hitting the queue webhook in the background.
-        if (page !== 'tiktok-upload' && typeof _tkTeardown === 'function') _navTeardownSafe(_tkTeardown);
+        const tkArea = svAreaApi('tiktok');
+        if (page !== 'tiktok-upload' && tkArea) _navTeardownSafe(tkArea.teardown);
         if (page !== 'today' && typeof _tdyTeardown === 'function') _navTeardownSafe(_tdyTeardown);
         // Same for Kasper review's 30 s background poller + visibility listeners.
         if (page !== 'kasper' && typeof _kasperTeardown === 'function') _navTeardownSafe(_kasperTeardown);
@@ -23984,8 +24057,12 @@
         // <<< SXR_END
         } else if (page === 'tiktok-upload') {
             pageTop.style.display = 'none';
-            content.innerHTML = renderTiktokUploadView();
-            mountTiktokUploadView();
+            // TikTok Upload is an on-demand area (040, svWithArea): drawn at
+            // once when its code is here, else after it arrives.
+            svWithArea('tiktok', content, tk => {
+                content.innerHTML = tk.render();
+                tk.mount();
+            }, () => navTo('tiktok-upload'));
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'smm-weekly-report') {
             pageTop.style.display = 'none';
@@ -80093,6 +80170,15 @@
     window._tkDismissRow = _tkDismissRow;
     window._tkSetQueueTab = _tkSetQueueTab;
     window._tkQueueShowMore = _tkQueueShowMore;
+    // What the rest of the page may use, through 040's svAreaApi / svArea:
+    // this area can arrive after the page has started (on-demand loading).
+    svAreaRegister('tiktok', {
+        render: renderTiktokUploadView,
+        mount: mountTiktokUploadView,
+        teardown: _tkTeardown,
+        isMounted: () => _tkMounted,
+        renderForm: _tkRenderForm
+    });
 
     /* ============================================================
        KASPER REVIEW TAB

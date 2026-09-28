@@ -107,6 +107,23 @@ import { navTo } from './090-workload-popovers-navigation.js';
             return data.managers;
         } catch (e) { return null; }
     }
+    /* The current Clients Info clients one SMM owns, by the shared rule in
+       098-smm-clients. Throws when Clients Info or the roster is not
+       available, so a caller never mistakes "not loaded" for "no clients".
+       The main-bar dropdown's "My clients" calls this too (tdyMyClientNames),
+       so Today and the dropdown always agree. */
+    async function _tdySmmClients(me) {
+        const current = svCurrentClients();
+        if (!current.size) throw new Error('clients');
+        const managers = await _tdyRoster();
+        if (!managers) throw new Error('roster');
+        let email = '';
+        try {
+            const rows = await _tdyRest('team_members', 'select=email&id=eq.' + encodeURIComponent(me.id));
+            email = String(rows[0] && rows[0].email || '');
+        } catch (e) {}
+        return svSmmCurrentClients(svRosterEntryFor(managers, { email, name: me.name }), current);
+    }
     /* The current Clients Info clients this person may see: every one for an
        admin, the roster's list for an SMM (see 098-smm-clients). */
     function _tdySavedScope() { try { return localStorage.getItem(TDY_SCOPE_KEY) || ''; } catch (e) { return ''; } }
@@ -130,6 +147,16 @@ import { navTo } from './090-workload-popovers-navigation.js';
         if (scope.mode === 'all') return { keys: new Set(current.keys()), notListed: false, scope };
         const mine = svSmmCurrentClients(entry, current);
         return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0, scope };
+    }
+    /* The signed-in member's own roster clients for the dropdown: { id, names }.
+       Anyone on the SMM roster gets their clients, admins included (an admin
+       can also be an SMM); names are empty for anyone not on the roster or
+       signed out. Rejects when not loaded. Today defaults admins on the roster
+       to these clients too, with a My / All switch (_tdyVisibleClients). */
+    async function tdyMyClientNames() {
+        const me = _tdyIdentity();
+        if (!me) return { id: '', names: [] };
+        return { id: me.id, names: await _tdySmmClients(me) };
     }
     async function _tdyLoad(me) {
         const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
@@ -405,4 +432,4 @@ import { navTo } from './090-workload-popovers-navigation.js';
     window._tdyOpenCard = _tdyOpenCard;
     window.mountTodayView = mountTodayView;
 
-export { _tdyPurgeSensitiveState, _tdyTeardown, mountTodayView, renderTodayView };
+export { _tdyPurgeSensitiveState, _tdyTeardown, mountTodayView, renderTodayView, tdyMyClientNames };

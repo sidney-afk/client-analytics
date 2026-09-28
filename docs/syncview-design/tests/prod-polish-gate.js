@@ -449,6 +449,7 @@ for (const [, label, script] of suites) {
     /* One classifier, so the invariant stays checkable at a glance: `combined`
        appears here exactly once and only as an argument. */
     reason: run.status === 0 ? '' : failureReason(combined),
+    diag: run.status === 0 ? '' : throwawaySafeDiag(combined),
   });
   if (run.status !== 0) {
     failures.push(`${label} failed with exit ${run.status == null ? 'unknown' : run.status}`);
@@ -467,6 +468,15 @@ for (const [, label, script] of suites) {
    lesson as the Slice 5 drill failure codes. Nothing from suite stdout ever
    enters this file: the trailing reason is one code from FAILURE_SIGNATURES,
    chosen by classifyFailure(), never a quotation of what the suite printed. */
+// THROWAWAY DIAGNOSTIC (do not merge): only value-free shapes are kept --
+// describeRead's {host, supabase path, query KEY names, outcomes} objects and
+// the HTTP status of "Failed to load resource" console errors.
+function throwawaySafeDiag(text) {
+  const reads = [...new Set((text.match(/\{"host":"[a-z0-9.-]*","path":"[\/a-z0-9_.-]*","queryKeys":\[[^\]]{0,200}\],"outcomes":\[[^\]]{0,200}\]\}/gi) || []))];
+  const flr = (text.match(/Failed to load resource: [^|\n]*?status of \d{3}/g) || []).map(m => 'FLR ' + m.slice(-3));
+  const kinds = ['persistent read failures', 'pending read requests', 'Browser errors'].filter(k => text.includes(k));
+  return ('kinds=' + kinds.join('+') + ' flr=' + [...new Set(flr)].join(',') + ' reads=' + reads.join(' ')).replace(/[^\x20-\x7e]/g, '').slice(0, 900);
+}
 const publicSummaryPath = process.env.PROD_POLISH_PUBLIC_SUMMARY;
 if (publicSummaryPath) {
   try {
@@ -474,7 +484,7 @@ if (publicSummaryPath) {
       publicSummaryPath,
       results.map(r => (r.pass
         ? `PASS ${r.seconds}s ${r.label}`
-        : `FAIL ${r.seconds}s ${r.label} [${r.reason}]`)).join('\n') + '\n',
+        : `FAIL ${r.seconds}s ${r.label} [${r.reason}] ${r.diag}`)).join('\n') + '\n',
     );
   } catch (_) { /* summary is best-effort; never fail the gate over it */ }
 }

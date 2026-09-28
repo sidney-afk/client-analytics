@@ -17,6 +17,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
+import { clientStyle, filmingPlan, listClients } from "./clientinfo.ts";
 import { DIRECT_MODELS, directEstimate, isDirect, runDirect, type Fetched } from "./direct.ts";
 
 const HF_API = "https://api.higgsfield.ai";
@@ -73,6 +74,7 @@ const INSTRUCTIONS = [
   "Before EVERY create, run price_check and show its plan card to the person exactly as returned: model, what it will make, every setting (shape, quality, length, sound, inputs), the exact price, and the other quality and shape options. End with: \"Say go, or tell me what to change.\"",
   "Only call create after they say go (or yes). If they change anything, run price_check again and show the updated card. Never make anything without showing its price first. Mention the cost again when it is done.",
   "For repeat team workflows (thumbnail expression fixes, batches of screenshots, photo-then-video b-roll) use recipes: recipe_plan shows the card and total price, run_recipe after go, then check_jobs.",
+  "For thumbnail titles, read the client's style with client_style and the videos with client_filming_plan instead of asking the person to paste them.",
   "Input media must be public links. If they have a file in Google Drive or Dropbox, pass its share link to import_file and use the link it returns.",
   "After create, call check_job about every 20 to 30 seconds until it is done (images take seconds, videos 1 to 5 minutes), then give them the download link.",
   "Never go around the monthly budget. If create refuses for budget, tell them to ask the account owner.",
@@ -142,6 +144,17 @@ const TOOLS = [
         aspect_ratio: { type: "string" },
       },
     },
+  },
+  { name: "clients", description: "List the agency's clients (names as SyncView has them).", inputSchema: EMPTY },
+  {
+    name: "client_filming_plan",
+    description: "Read a client's filming plan (the Google Doc linked in SyncView), optionally starting at a month, e.g. \"October\". Use it to find which videos a thumbnail is for and to write titles.",
+    inputSchema: { type: "object", required: ["client"], additionalProperties: false, properties: { client: { type: "string" }, month: { type: "string" } } },
+  },
+  {
+    name: "client_style",
+    description: "A client's written voice and thumbnail style (fonts, colours, thumbnail and on-screen text notes) from the Synchro Brain. Use before writing thumbnail titles.",
+    inputSchema: { type: "object", required: ["client"], additionalProperties: false, properties: { client: { type: "string" } } },
   },
   {
     name: "import_file",
@@ -717,6 +730,10 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
     }
     return `${recipe.name}: started ${images.length} image(s) at ${money(est.usd)} each.\n${lines.join("\n")}\n\nCheck them all with check_jobs in about 30 seconds.`;
   }
+
+  if (name === "clients") return await listClients(db());
+  if (name === "client_filming_plan") return await filmingPlan(db(), String(args.client || ""), String(args.month || ""));
+  if (name === "client_style") return await clientStyle(db(), String(args.client || ""));
 
   if (name === "import_file") return await importFile(String(args.link || "").trim());
 

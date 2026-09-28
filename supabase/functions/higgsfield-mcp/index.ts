@@ -17,6 +17,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
+import { DIRECT_MODELS, directEstimate, isDirect, runDirect, type Fetched } from "./direct.ts";
 
 const HF_API = "https://api.higgsfield.ai";
 const CAP_RAW = (Deno.env.get("HF_MONTHLY_CAP_USD") || "200").trim();
@@ -53,19 +54,21 @@ const GO_TO: Pick[] = [
   { task: "Copy the movement from one video onto a person in a photo", picks: ["higgsfield/genjutsu/motion-transfer/v1.0", "kling-video/v3/motion-control/pro"] },
   { task: "Swap an object in a video for another", picks: ["higgsfield/genjutsu/object-swap/v1.0"] },
   { task: "Photorealistic image of people or scenes", picks: ["higgsfield-ai/soul/v2/standard"] },
-  { task: "Edit a photo (change a person, outfit, background, add or remove things)", picks: ["xai/grok-imagine-image-2.0", "alibaba/qwen-image-3/edit"] },
+  { task: "Edit a photo (change a person, outfit, background, add or remove things)", picks: ["openai/gpt-image", "google/nano-banana", "google/nano-banana-pro", "xai/grok-imagine-image-2.0"] },
   { task: "Image with readable text: thumbnails, posters, quotes", picks: ["ideogram/v4.0"] },
   { task: "Logos, icons, illustrations, design assets", picks: ["recraft/v4.1/pro/text-to-image", "recraft/v4.1/utility/pro/text-to-image"] },
   { task: "Quick, cheap image drafts", picks: ["z-image/turbo"] },
   { task: "Product and ad images", picks: ["marketing-studio/image/sunburst", "marketing-studio/image/flare"] },
 ];
 
-const BY_ID = new Map(CATALOG.map((m) => [m.id, m]));
+const ALL_MODELS = [...DIRECT_MODELS, ...CATALOG];
+const BY_ID = new Map(ALL_MODELS.map((m) => [m.id, m]));
 
 const INSTRUCTIONS = [
   "You help non-technical teammates of a social media agency make AI videos and images with Higgsfield. Talk in plain English, no jargon.",
   "Start with start_here. Work out what they want (ask one short question if unclear), pick a model from the shortlist and say why in one sentence.",
   "Call model_details before the first create with a model, write a rich prompt for them (subject, action, setting, camera, lighting, mood) and show it.",
+  "For photo edits and thumbnails prefer GPT Image (openai/gpt-image), then Nano Banana; they change only what is asked. ",
   "Choose sensible settings yourself: vertical 9:16 for social media unless they say otherwise, and a sharp but not wasteful quality (1080p or 2K when offered).",
   "Before EVERY create, run price_check and show its plan card to the person exactly as returned: model, what it will make, every setting (shape, quality, length, sound, inputs), the exact price, and the other quality and shape options. End with: \"Say go, or tell me what to change.\"",
   "Only call create after they say go (or yes). If they change anything, run price_check again and show the updated card. Never make anything without showing its price first. Mention the cost again when it is done.",
@@ -287,6 +290,7 @@ async function idemKey(member: string, model: string, input: JsonMap): Promise<s
 
 
 async function estimate(model: string, inputs: JsonMap): Promise<{ usd: number } | { error: string }> {
+  if (isDirect(model)) return directEstimate(model, inputs);
   const res = await hf("POST", "estimate/" + model, inputs);
   const usd = Number(res.data.usd);
   if (!res.ok || !Number.isFinite(usd)) return { error: hfError(res) };
@@ -457,9 +461,11 @@ const RECIPES: Recipe[] = [
     name: "Thumbnail expression fix",
     forWho: "graphic designers making thumbnails",
     summary: "Fixes an awkward mid-word face in a client screenshot with the smallest possible change, keeping everything else identical. Works on one screenshot or a batch.",
-    models: ["xai/grok-imagine-image-2.0", "alibaba/qwen-image-3/edit"],
+    models: ["openai/gpt-image", "google/nano-banana", "google/nano-banana-pro", "xai/grok-imagine-image-2.0", "alibaba/qwen-image-3/edit"],
     build: (model, image, notes, aspect) => {
       const prompt = EXPRESSION_FIX_PROMPT + (notes ? `\n\nAdditional instruction for this image: ${notes}` : "");
+      if (model === "openai/gpt-image") return { prompt, image_urls: [image], size: "auto", quality: "high" };
+      if (model.startsWith("google/")) return { prompt, image_urls: [image], image_size: "2K" };
       return model === "alibaba/qwen-image-3/edit"
         ? { prompt, image_urls: [image], resolution: "2k", aspect_ratio: aspect || "16:9", prompt_extend: false, enable_thinking: false }
         : { prompt, image_urls: [image], resolution: "2k", aspect_ratio: "auto", quality: "medium" };
@@ -483,6 +489,42 @@ const MAX_BATCH = 20;
 
 function isHostedInput(url: string): boolean {
   return /^https:\/\/[a-z0-9]+\.cloudfront\.net\//i.test(url);
+}
+
+// Direct (OpenAI / Google) jobs finish inside this function after the reply,
+// so the chat app gets its job_id at once and checks back like any other job.
+function background(p: Promise<unknown>) {
+  const edge = (globalThis as unknown as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+  if (edge?.waitUntil) edge.waitUntil(p);
+  else p.catch(() => {});
+}
+
+async function fetchInputImage(url: string): Promise<Fetched> {
+  const res = await safeFetch(directLink(url));
+  if (typeof res === "string") throw new Error(res);
+  if (!res.ok || !res.body) throw new Error(`Could not download an input image (${res.status}).`);
+  let type = (res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+  if (type === "image/jpg") type = "image/jpeg";
+  if (!/^image\/(jpeg|png|webp|gif)$/.test(type)) { await res.body.cancel(); throw new Error("An input link is not a jpg, png, webp or gif image."); }
+  const bytes = await readLimited(res);
+  if (!bytes) throw new Error("An input image is over 60 MB.");
+  return { bytes, type };
+}
+
+async function runDirectJob(rowId: number, id: string, inputs: JsonMap): Promise<void> {
+  const client = db();
+  try {
+    const out = await runDirect(id, inputs, fetchInputImage);
+    const up = await uploadLink(out.type === "image/jpeg" ? "image/jpeg" : out.type === "image/webp" ? "image/webp" : "image/png");
+    if ("error" in up) throw new Error("Could not store the result: " + up.error);
+    const put = await fetch(up.upload_url, { method: "PUT", headers: up.upload_headers, body: out.bytes });
+    if (!put.ok) throw new Error(`Could not store the result (${put.status}).`);
+    const update: JsonMap = { status: "completed", video_url: up.public_url, error: null, updated_at: new Date().toISOString() };
+    if (out.usd !== null && Number.isFinite(out.usd)) update.est_cost_usd = Math.round(out.usd * 10000) / 10000;
+    await client.from("hf_generations").update(update).eq("id", rowId);
+  } catch (e) {
+    await client.from("hf_generations").update({ status: "failed", error: String((e as Error).message || e).slice(0, 500), updated_at: new Date().toISOString() }).eq("id", rowId);
+  }
 }
 
 // Reserve against the cap (serialized, deduped), submit, and log the outcome.
@@ -509,6 +551,12 @@ async function submitJob(member: string, id: string, inputs: JsonMap, usd: numbe
       : { text: "This exact request is being started right now. Wait a minute, then ask for team_usage to find its job." };
   }
   const rowId = Number(reservation.id);
+  if (isDirect(id)) {
+    const requestId = crypto.randomUUID();
+    await client.from("hf_generations").update({ request_id: requestId, status: "in_progress", updated_at: new Date().toISOString() }).eq("id", rowId);
+    background(runDirectJob(rowId, id, inputs));
+    return { text: `Started: ${BY_ID.get(id)!.name}, about ${money(usd)}.\njob_id: ${requestId}\nCheck with check_job in about 30 to 60 seconds.`, jobId: requestId };
+  }
   const res = await hf("POST", id, inputs);
   const requestId = String(res.data.request_id || "");
   if (!res.ok || !requestId) {
@@ -522,6 +570,12 @@ async function submitJob(member: string, id: string, inputs: JsonMap, usd: numbe
 
 async function checkJob(jobId: string): Promise<string> {
   if (!/^[0-9a-f-]{36}$/i.test(jobId)) return "That job_id does not look right.";
+  const { data: row } = await db().from("hf_generations").select("model,status,video_url,error,est_cost_usd").eq("request_id", jobId).maybeSingle();
+  if (row && isDirect(String(row.model))) {
+    if (row.status === "completed" && row.video_url) return `Done. It cost ${money(Number(row.est_cost_usd))}. Download:\n${row.video_url}\n(Save the file; stored results are kept for a limited time.)`;
+    if (row.status === "failed") return "It failed: " + (row.error || "no reason given") + ". Nothing was charged by the provider for a failed image; try again or adjust the prompt.";
+    return "Still working. Check again in about 20 to 30 seconds.";
+  }
   const res = await hf("GET", `requests/${jobId}/status`);
   if (!res.ok) return "Could not check: " + hfError(res);
   const status = String(res.data.status || "unknown");
@@ -557,13 +611,13 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
 
   if (name === "start_here") {
     const list = GO_TO.map((g) => `- ${g.task}: ${g.picks.map((id) => `${BY_ID.get(id)?.name} [${id}]`).join(" or ")}`).join("\n");
-    return `This connector can make videos and images with ${CATALOG.length} Higgsfield models, plus saved team recipes (use recipes). Go-to picks:\n${list}\n\nThere are more options per task: use find_models.\nPrices vary by model, length and resolution; price_check gives the exact figure.\nInput photos, videos and audio must be public links; import_file converts Drive and Dropbox links.\n\n${await budget()}`;
+    return `This connector can make videos and images with ${ALL_MODELS.length} models (Higgsfield, plus GPT Image and Nano Banana), plus saved team recipes (use recipes). Go-to picks:\n${list}\n\nThere are more options per task: use find_models.\nPrices vary by model, length and resolution; price_check gives the exact figure.\nInput photos, videos and audio must be public links; import_file converts Drive and Dropbox links.\n\n${await budget()}`;
   }
 
   if (name === "find_models") {
     const category = String(args.category || "").trim();
-    const models = CATALOG.filter((m) => !category || m.category === category);
-    if (!models.length) return `No models in "${category}". Kinds: ${[...new Set(CATALOG.map((m) => m.category))].join(", ")}.`;
+    const models = ALL_MODELS.filter((m) => !category || m.category === category);
+    if (!models.length) return `No models in "${category}". Kinds: ${[...new Set(ALL_MODELS.map((m) => m.category))].join(", ")}.`;
     return models.map((m) => `- ${m.name} [${m.id}] (${m.category})${m.notes[0] ? ": " + m.notes[0] : ""}`).join("\n");
   }
 

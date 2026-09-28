@@ -1,7 +1,7 @@
 // Client context for the team's chat app: the client list, a client's
 // filming plan (the Google Doc SyncView links in filming_plans, read as text
 // the same way production-write does), and the client's written voice and
-// thumbnail style from the Synchro Brain (same repository and token the
+// title guidance from the Synchro Brain (same repository and token the
 // brain Edge Function uses). Read-only; nothing here writes anywhere.
 
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
@@ -11,8 +11,10 @@ type Plan = { client_slug: string; client_name: string; doc_id: string; plan_mon
 
 const PLAN_MAX_CHARS = 40_000;
 const BRIEF_MAX_CHARS = 20_000;
-// Facts from editing.md that matter for thumbnails; voice.md is used whole.
-const THUMBNAIL_FACTS = /thumbnail|font|colou?r|on-screen|text|graphic|brand|reference/i;
+// For titles only: voice.md whole, plus editing.md facts about thumbnail or
+// on-screen wording. Visual specs (fonts, colours, layout) are deliberately
+// left out: the designer's latest Canva thumbnail is the source for those.
+const TITLE_FACTS = /thumbnail|on-screen|title|hook/i;
 
 function norm(s: string): string {
   return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -41,23 +43,62 @@ export async function listClients(db: SupabaseClient): Promise<string> {
   return all.length ? "Clients:\n" + all.map((p) => `- ${p.client_name}${p.doc_id ? "" : " (no filming plan linked)"}`).join("\n") : "No clients found.";
 }
 
+const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+const MAX_TABS = 16;
+
+// The house format keeps a header on the master Doc's first page and each
+// month's plan in its own Docs tab (NEW_CLIENT_ONBOARDING §6a). A plain export
+// returns only the first tab, so read the tab ids from the Doc page (the Doc
+// is shared by link) and export each tab as text.
+async function planTabs(docId: string): Promise<Array<{ id: string; text: string }>> {
+  const base = `https://docs.google.com/document/d/${encodeURIComponent(docId)}`;
+  const page = await fetch(`${base}/edit`);
+  const html = page.ok ? await page.text() : "";
+  const ids = [...new Set([...html.matchAll(/"(t\.[a-z0-9]{6,20})"/g)].map((m) => m[1]))].slice(0, MAX_TABS);
+  const targets = ids.length ? ids : [""];
+  const tabs = await Promise.all(targets.map(async (id) => {
+    const res = await fetch(`${base}/export?format=txt${id ? `&tab=${encodeURIComponent(id)}` : ""}`);
+    return { id, text: res.ok ? (await res.text()).replace(/^﻿/, "").replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n") : "" };
+  }));
+  return tabs.filter((t) => t.text.trim());
+}
+
+// A tab's label: the month (and year) it mentions most, ignoring the shared header.
+function tabMonth(text: string): string {
+  const counts = new Map<string, number>();
+  for (const m of text.matchAll(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\b(?:\s+(\d{4}))?/gi)) {
+    const key = m[1][0].toUpperCase() + m[1].slice(1).toLowerCase() + (m[2] ? " " + m[2] : "");
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  let best = "", n = 0;
+  for (const [k, v] of counts) if (v > n || (v === n && k.length > best.length)) { best = k; n = v; }
+  return best || "no month found";
+}
+
 export async function filmingPlan(db: SupabaseClient, client: string, month: string): Promise<string> {
   const found = await findClient(db, client);
   if (!found.plan) return `Which client? ${found.choices?.length ? "Options: " + found.choices.join(", ") : "No match."}`;
   const p = found.plan;
   if (!p.doc_id) return `${p.client_name} has no filming plan linked in SyncView.`;
-  const res = await fetch(`https://docs.google.com/document/d/${encodeURIComponent(p.doc_id)}/export?format=txt`);
-  if (!res.ok) return `Could not open ${p.client_name}'s filming plan (${res.status}). It may not be shared by link.`;
-  let text = (await res.text()).replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n");
-  let note = "";
-  const m = String(month || "").trim();
-  if (m) {
-    const at = text.toLowerCase().indexOf(m.toLowerCase());
-    if (at >= 0) text = text.slice(at);
-    else note = `(No section mentioning "${m}" was found, so this is the whole plan.)\n`;
+  const tabs = await planTabs(p.doc_id);
+  if (!tabs.length) return `Could not open ${p.client_name}'s filming plan. It may not be shared by link.`;
+  const labelled = tabs.map((t, i) => ({ ...t, n: i + 1, month: tabMonth(t.text) }));
+  const want = String(month || "").trim().toLowerCase();
+  const list = labelled.map((t) => `${t.n}. ${t.month}`).join("\n");
+  let pick = labelled.length === 1 ? labelled[0] : undefined;
+  if (want) {
+    const byNumber = /^\d+$/.test(want) ? labelled.find((t) => String(t.n) === want) : undefined;
+    const monthWord = MONTHS.find((m) => want.includes(m));
+    const scored = labelled
+      .map((t) => ({ t, hits: (t.text.toLowerCase().match(new RegExp(monthWord || want.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) || []).length }))
+      .filter((x) => x.hits > 0)
+      .sort((a, b) => (b.t.month.toLowerCase().startsWith(monthWord || want) ? 1 : 0) - (a.t.month.toLowerCase().startsWith(monthWord || want) ? 1 : 0) || b.hits - a.hits);
+    pick = byNumber || scored[0]?.t;
+    if (!pick) return `${p.client_name}'s filming plan has no tab for "${month}". Tabs found:\n${list}\nAsk for one by month or number.`;
   }
-  const cut = text.length > PLAN_MAX_CHARS;
-  return `${p.client_name} filming plan${m ? `, from "${m}"` : ""}${p.plan_months ? ` (months listed in SyncView: ${p.plan_months})` : ""}:\n${note}\n${text.slice(0, PLAN_MAX_CHARS)}${cut ? "\n\n[cut here; ask for a specific month to see later parts]" : ""}`;
+  if (!pick) return `${p.client_name}'s filming plan has ${labelled.length} tabs:\n${list}\nAsk for one by month or number.`;
+  const cut = pick.text.length > PLAN_MAX_CHARS;
+  return `${p.client_name} filming plan, tab ${pick.n} (${pick.month})${labelled.length > 1 ? `. Other tabs:\n${list}\n` : ""}\n\n${pick.text.slice(0, PLAN_MAX_CHARS)}${cut ? "\n\n[cut here]" : ""}`;
 }
 
 function gh(path: string, raw = false): Promise<Response> {
@@ -89,10 +130,10 @@ export async function clientStyle(db: SupabaseClient, client: string): Promise<s
   const [voice, editing] = await Promise.all([read("voice"), read("editing")]);
   const facts = [
     ...parseBrainFacts(voice, "voice"),
-    ...parseBrainFacts(editing, "editing").filter((f: { heading: string }) => THUMBNAIL_FACTS.test(f.heading)),
+    ...parseBrainFacts(editing, "editing").filter((f: { heading: string }) => TITLE_FACTS.test(f.heading) && !/font|colou?r|spec/i.test(f.heading)),
   ].filter((f: { status: string; body: string }) => f.status === "written" && f.body);
-  if (!facts.length) return `${found.plan.client_name}: the Synchro Brain has no written voice or thumbnail facts yet. Ask the designer for the style, or match the client's latest Canva thumbnail.`;
+  if (!facts.length) return `${found.plan.client_name}: the Synchro Brain has no written voice or title facts yet. Match the wording style of the client's recent Canva thumbnail titles.`;
   const text = facts.map((f: { file: string; heading: string; spec: string; body: string }) =>
-    `## ${f.heading} (${f.file})${f.spec ? `\nspec: ${f.spec}` : ""}\n${f.body}`).join("\n\n");
-  return `${found.plan.client_name}, from the Synchro Brain (written facts only):\n\n${text.slice(0, BRIEF_MAX_CHARS)}`;
+    `## ${f.heading} (${f.file})\n${f.body}`).join("\n\n");
+  return `${found.plan.client_name}, voice and title guidance from the Synchro Brain (written facts only; fonts and colours come from the latest Canva thumbnail, not from here):\n\n${text.slice(0, BRIEF_MAX_CHARS)}`;
 }

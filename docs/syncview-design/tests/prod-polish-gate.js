@@ -474,7 +474,7 @@ for (const [, label, script] of suites) {
 function throwawaySafeDiag(text) {
   const reads = [...new Set((text.match(/\{"host":"[a-z0-9.-]*","path":"[\/a-z0-9_.-]*","queryKeys":\[[^\]]{0,200}\],"outcomes":\[[^\]]{0,200}\]\}/gi) || []))];
   const flr = (text.match(/Failed to load resource: [^|\n]*?status of \d{3}/g) || []).map(m => 'FLR ' + m.slice(-3));
-  const kinds = ['persistent read failures', 'pending read requests', 'Browser errors'].filter(k => text.includes(k));
+  const kinds = ['persistent read failures', 'pending read requests', 'Browser errors', 'analytics database', 'analytics-read', 'using the Sheets', 'unexpected answer', 'invalid_staff_key'].filter(k => text.includes(k));
   return ('kinds=' + kinds.join('+') + ' flr=' + [...new Set(flr)].join(',') + ' reads=' + reads.join(' ')).replace(/[^\x20-\x7e]/g, '').slice(0, 900);
 }
 const publicSummaryPath = process.env.PROD_POLISH_PUBLIC_SUMMARY;

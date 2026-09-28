@@ -24,6 +24,9 @@
  *   1. areas.txt lists every script fragment exactly once, and the approve /
  *      request-changes path (APPROVE_PATH below, a second copy on purpose) is
  *      "core!": in core, never split.
+ *   3. An area src/index/split.json lists as "lazy" has no import ties and no
+ *      button or guard pointing into it from outside (it is reached only
+ *      through 040's svAreaApi / svArea).
  *   2. Every button and guard hazard is recorded in
  *      src/index/lazy-safety-baseline.txt. A new one fails: fix it, or record
  *      it with --update so the diff shows it to the reviewer. A recorded one
@@ -153,6 +156,18 @@ if (UPDATE) {
   const rec = new Set(recorded);
   for (const k of current) if (!rec.has(k)) errors.push(`new hazard: ${k} (see the header of scripts/check-lazy-safety.js)`);
   for (const k of recorded) if (!found.has(k)) errors.push(`recorded hazard is gone, remove its line from lazy-safety-baseline.txt: ${k}`);
+}
+
+// ---- rule 3: a lazy area is cut loose --------------------------------------
+// An area src/index/split.json loads on demand may be reached only through
+// 040's svAreaApi / svArea: no fragment outside it may import its names, and
+// no recorded button or guard may point into it.
+const splitCfgFile = path.join(SRC, 'split.json');
+const lazyAreas = fs.existsSync(splitCfgFile) ? (JSON.parse(fs.readFileSync(splitCfgFile, 'utf8')).lazy || []) : [];
+for (const a of lazyAreas) {
+  if (a === 'core' || ![...area.values()].includes(a)) { errors.push(`split.json lists lazy area "${a}", which is not an on-demand area in areas.txt`); continue; }
+  for (const [imp, name, src] of imports) if (area.get(src) === a && area.get(imp) !== a) errors.push(`lazy area "${a}": ${imp} still imports ${name}; go through svAreaApi('${a}') instead`);
+  for (const k of found.keys()) { const [kind, caller, name] = k.split(' '); if (area.get(owner.get(name)) === a) errors.push(`lazy area "${a}": ${kind} in ${caller} names ${name}`); }
 }
 
 // ---- report -----------------------------------------------------------------

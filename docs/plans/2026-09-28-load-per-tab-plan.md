@@ -103,3 +103,19 @@ script moves into content-hashed files under `js/` and a small loader takes its 
 Measured on the split build (offline, all gates): `index.html` drops from 5.9 MB to
 0.9 MB (markup and styles); the full script is one 5.0 MB file. Every browser gate passes
 on it, both as it would ship and with everyone, clients included, on the parts.
+
+## Step 3, area 1 of 9: TikTok (2026-09-28)
+
+- 040 gains the area registry: `svAreaRegister`, `svAreaApi`, `svArea`, `svWithArea`, and a quiet
+  background fetch of the remaining on-demand areas once the first screen is up. An area that
+  has not loaded has nothing to tear down or re-render, so `svAreaApi` returning null is the
+  honest answer; a tab that needs one draws it through `svWithArea` (at once when the code is
+  here, which is always on the single-file page; else "Loading…", then the tab, or a Retry).
+- 300 registers `render`, `mount`, `teardown`, `isMounted`, `renderForm`; 040 (roster
+  refresh) and 090 (navTo draw and teardown) go through the registry. No fragment imports from
+  300 any more, and its one recorded guard is gone.
+- `split.json` lists `"lazy": ["tiktok"]`; `check-lazy-safety.js` now fails if a lazy area still
+  has an import tie or a recorded button or guard pointing into it.
+- Found on the way: the Workload area (`090`) holds `navTo`, the router every tab uses, so
+  Workload can only go on demand after the router moves to core. That move is part of the
+  Workload step.

@@ -12,12 +12,12 @@
 | 4 | `010-styles-foundation.css.part` | 3913 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 5 | `020-styles-surfaces.css.part` | 4383 | Templates view |
 | 6 | `030-body-shell.html.part` | 511 | Confirmation modal |
-| 7 | `040-shared-briefs.js.part` | 1847 | OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog |
+| 7 | `040-shared-briefs.js.part` | 1918 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1779 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2295 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `070-workload-source.js.part` | 3823 | Workload Calendar |
 | 11 | `080-workload-render.js.part` | 3436 | Smart default: a creative lands on their own work (see |
-| 12 | `090-workload-popovers-navigation.js.part` | 1806 | Sub-issue popover |
+| 12 | `090-workload-popovers-navigation.js.part` | 1812 | Sub-issue popover |
 | 13 | `095-shared-client.js.part` | 397 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
 | 14 | `096-quick-jump.js.part` | 172 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
 | 15 | `097-today.js.part` | 542 | TODAY (owner design , session Compass). |
@@ -48,7 +48,7 @@
 | 40 | `270-samples-model.js.part` | 2857 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 41 | `280-samples-cards-notes.js.part` | 2922 | SURFACE 3: the save engine |
 | 42 | `290-samples-writes-review.js.part` | 1824 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
-| 43 | `300-tiktok-upload.js.part` | 2020 | TIKTOK UPLOAD MODULE |
+| 43 | `300-tiktok-upload.js.part` | 2028 | TIKTOK UPLOAD MODULE |
 | 44 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
 | 45 | `320-kasper-dashboard-replies.js.part` | 3398 | The Samples subtab was folded into Review (samples are listed in the |
 | 46 | `330-kasper-review-history.js.part` | 2760 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |

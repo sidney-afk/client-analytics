@@ -29633,10 +29633,17 @@ Prevention in this PR:
   saving the link goes through the normal save and shows on the page.
 - The weekday dawn check gains a read-only "Every current client has a
   Templates page" line (`qa/dawn/templates-coverage.js`): current clients from
-  Clients Info, test clients left out, matched to rows by the `clients` slug.
+  Clients Info, test and internal accounts left out, matched to rows by the `clients` slug.
   A gap is a ⚠️ with counts only, never a failed run.
 - The lifecycle checklist gains row 18 for `templates`.
 
 At the first live read after the repair: 35 current clients, 2 still with no
 Templates page (not in the owner's list, so left for the owner), 0 missing only
 the link.
+
+Update (same PR): the owner confirmed the 2 still flagged are internal accounts,
+not clients. The check now leaves out `clients.kind = 'internal'` as well as
+`'test'`, using the column's existing values. It stays at 2 until those accounts
+(and 1 more internal account) are marked `internal` in `clients`; that data
+change is the owner's call, since other features read `kind` too (urgent client
+alerts fire only for `kind = 'client'`).

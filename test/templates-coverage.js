@@ -22,6 +22,7 @@ const templates = [
 ];
 const c = coverage({ clientNames: names, clients, templates });
 ok(c.current === 4, 'the test client is left out of current clients');
+ok(coverage({ clientNames: ['Alpha Fixture', 'Iota Fixture'], clients: clients.concat([{ slug: 'iotafixture', display_name: 'Iota Fixture', kind: 'internal' }]), templates }).current === 1, 'an internal account is left out too');
 ok(c.noRow === 2, 'clients with no Templates row are counted');
 ok(c.noLink === 1, 'a row with a blank thumbnail link is counted once, separately');
 ok(JSON.stringify(coverage({ clientNames: ['Alpha Fixture'], clients, templates })) === JSON.stringify({ current: 1, noRow: 0, noLink: 0 }), 'a fully set-up client is not flagged');

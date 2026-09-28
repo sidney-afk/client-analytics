@@ -8,7 +8,8 @@
 // this check makes the gap visible every weekday morning so it is never missed.
 //
 // "Current clients" is the same list the site uses: every client_name row in the
-// SYNCVIEW "Clients Info" sheet, minus clients whose `clients.kind` is 'test'.
+// SYNCVIEW "Clients Info" sheet, minus accounts whose `clients.kind` is 'test'
+// or 'internal' (our own accounts are not clients and need no Templates page).
 // A client is matched to its row by the client's slug in the `clients` table
 // (found by its display name), falling back to the name run through the same
 // normalizer templates-save uses to name a row (normalizeWriteClient). A row
@@ -27,6 +28,8 @@ const CLIENTS_INFO_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gvi
 // templates-save uses to name a row), so live counts never depend on this.
 const plainKey = (v) => String(v == null ? '' : v).toLowerCase().replace(/[^a-z0-9]/g, '');
 const READ_TIMEOUT_MS = 20000;
+// clients.kind values that are not real clients (the column allows client, internal, test).
+const SKIP_KINDS = new Set(['test', 'internal']);
 
 // What the Templates page shows: the `_list` JSON first, else the single
 // field; a slot counts only when it is an http(s) link (060 _tplGetLinks and
@@ -87,7 +90,7 @@ function coverage({ clientNames, clients, templates, normalize }) {
     if (sk && !slugOf.has(sk)) slugOf.set(sk, sk);
   }
   for (const c of clients || []) {
-    if (String(c && c.kind || '').toLowerCase() !== 'test') continue;
+    if (!SKIP_KINDS.has(String(c && c.kind || '').toLowerCase())) continue;
     for (const v of [c.display_name, c.slug]) { const k = key(v); if (k) test.add(k); }
   }
   const byKey = new Map();

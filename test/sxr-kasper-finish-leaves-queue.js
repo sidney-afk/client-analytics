@@ -122,6 +122,23 @@ const tweak = { id: 'c1', role: 'kasper', is_tweak: true, done: false, body: 'ch
   await mod.load();
   check('stamp failed to save: a new version still shows', ids(), 's_back');
 
+  // A decision made while a queue read is in flight: the read may predate
+  // the write, so its rows must not replace the queue; it asks for a re-read.
+  const before = ids();
+  mod.setRows([]);                       // what a stale read would bring back
+  const inFlight = mod.load();
+  mod.S.writeGen = (mod.S.writeGen || 0) + 1;
+  await inFlight;
+  check('a read that overlapped a decision does not replace the queue', ids(), before);
+  check('and it asks for a fresh read', mod.S.reloadPending, true);
+
+  // A second refresh asked for while one is running is remembered, not dropped.
+  mod.S.reloadPending = false;
+  const first = mod.load();
+  mod.load();
+  check('a refresh asked for during a load is remembered', mod.S.reloadPending, true);
+  await first;
+
   if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
   console.log('\nAll sxr-kasper-finish-leaves-queue checks passed.');
 })().catch(e => { console.error(e); process.exit(1); });

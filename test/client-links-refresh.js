@@ -35,8 +35,11 @@ function check(label, got, want) {
 }
 
 const links = grabFunc('_calClientLinks');
+// The list itself is built by _calSocialLinksFor(name), shared with the
+// Templates client page; the Calendar passes it the current client.
 check('handles are sourced from the CURRENT client (clientMap[calState.client])',
-  /clientMap\[calState\.client\]/.test(links), true);
+  /return _calSocialLinksFor\(calState\.client\)/.test(links)
+    && /clientMap\[name\]/.test(grabFunc('_calSocialLinksFor')), true);
 
 const html = grabFunc('_calClientLinksHtml');
 check('the button is tagged with its client (data-client)',

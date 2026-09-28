@@ -26,6 +26,7 @@
 
 const fs = require('fs');
 const { readModuleList, servedBytes } = require('./index-modules');
+const { buildOutputs } = require('./index-split');
 const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
@@ -92,11 +93,30 @@ function assembleFromManifest(entries, readable) {
   // header and export footer, exactly as build-index.js assembles them.
   const modules = readModuleList(SRC_DIR);
   for (const m of modules) if (!entries.includes(m)) fail('modules.txt lists a fragment that is not in the manifest: ' + m);
-  for (const entry of entries) {
-    if (!readable.has(entry)) continue; // already failed for this entry above
-    bufs.push(servedBytes(entry, fs.readFileSync(path.join(SRC_DIR, entry)), modules));
+  if (entries.some(entry => !readable.has(entry))) {
+    // already failed for these entries above; check what can be assembled
+    for (const entry of entries) if (readable.has(entry)) bufs.push(servedBytes(entry, fs.readFileSync(path.join(SRC_DIR, entry)), modules));
+    return new Map([['index.html', Buffer.concat(bufs)]]);
   }
-  return Buffer.concat(bufs);
+  // src/index/split.json may serve the main script from js/ files instead
+  // (scripts/index-split.js); those must exist, committed, with the same bytes.
+  try {
+    return buildOutputs(SRC_DIR, entries, entries.map(e => fs.readFileSync(path.join(SRC_DIR, e))), modules, null);
+  } catch (e) {
+    fail(e.message);
+    return new Map([['index.html', Buffer.alloc(0)]]);
+  }
+}
+
+function checkSplitFiles(outputs) {
+  for (const [rel, buf] of outputs) {
+    if (rel === 'index.html') continue;
+    const full = path.join(ROOT, rel);
+    if (!fs.existsSync(full) || !fs.readFileSync(full).equals(buf)) { fail(`${rel} is missing or differs from the build; run npm run build:index`); continue; }
+    let committed = null;
+    try { committed = execFileSync('git', ['show', 'HEAD:' + rel], { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 }); } catch (e) {}
+    if (!committed || !committed.equals(buf)) fail(`${rel} is not committed with the same bytes`);
+  }
 }
 
 function sha256(buf) {
@@ -111,7 +131,9 @@ function main() {
   const entries = readManifest();
   const knownGood = validateManifest(entries);
 
-  const assembled = assembleFromManifest(entries, knownGood);
+  const outputs = assembleFromManifest(entries, knownGood);
+  const assembled = outputs.get('index.html');
+  checkSplitFiles(outputs);
 
   if (!fs.existsSync(WORKING_TREE_PATH)) {
     fail('working-tree index.html not found at repository root');

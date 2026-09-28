@@ -224,6 +224,7 @@
     "index-build.js",
     "index-inline-script-syntax.js",
     "index-modules-strip.js",
+    "index-split.js",
     "intake-created-status-server-guard.js",
     "intake-post-names.js",
     "intake-retry-mirror-convergence.js",

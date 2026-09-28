@@ -194,6 +194,8 @@ const wlApplyData = compile('wlApplyData', {
   wlIsActiveStatus: realIsActiveStatus,
   wlIsAllowedClient: () => true,
   wlIssueClientAllowed: compile('wlIssueClientAllowed', { wlIsAllowedClient: () => true }),
+  wlTestClientsMode: () => false,
+  wlIsTestClientIssue: () => false,
   wlIssueEditorAllowed: compile('wlIssueEditorAllowed', { wlIsAllowedEditor: () => true }),
   wlCanonicalClient: name => name,
   wlTeamBucket: () => 'video',

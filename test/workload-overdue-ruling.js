@@ -164,7 +164,7 @@ ok(ungated.overdue.some(s => s.id === 'inprog-late'),
   'remove the To Do gate and the late In Progress row IS called overdue again — the gate is doing work');
 
 // ---- the composition is the app's own -------------------------------------
-const filterAt = html.indexOf('const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIssueClientAllowed(i));');
+const filterAt = html.indexOf('const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIssueClientAllowed(i)');
 ok(filterAt > -1 && filterAt < partFrom,
   'the app filters through wlIsActiveStatus BEFORE the partition — the order this suite reproduces');
 for (const name of ['for client approval', 'for smm approval', 'for kasper approval']) {

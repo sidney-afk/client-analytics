@@ -349,6 +349,9 @@ function backgroundHarness(options = {}) {
     ),
     _wlV2Ready: () => options.v2Ready !== false,
     wlStaffMayView: () => !!context._syncviewStaffIdentityForHeaders(),
+    wlTestClientsMode: () => false,
+    wlIsTestClientIssue: () => false,
+    wlLoadTestClients: () => null,
     wlStaffSignedOut: () => !context._syncviewStaffIdentityForHeaders() && !context._syncviewStaffIdentityMem,
     // The board wipe itself is covered by workload-plan-failclosed.js; this
     // harness measures refresh ordering across sessions.
@@ -1889,6 +1892,9 @@ async function run() {
       _wlV2EnsureWatermarkPoll: () => {},
       _wlNativeDiffEnabled: () => false,
       wlStaffMayView: () => true,
+wlTestClientsMode: () => false,
+wlIsTestClientIssue: () => false,
+wlLoadTestClients: () => null,
       wlStaffSignedOut: () => false,
       wlScheduleNativeDueReceiptRetry: () => false,
       _wlV2CheckWatermark: () => { watermarkChecks++; },

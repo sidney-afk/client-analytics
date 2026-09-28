@@ -15426,6 +15426,11 @@
         popoverAnchor: null,                       // currently-open popover's anchor rollup element
         renderQueued: false,                       // background repaint deferred while a popover is open
         fetchedAt: null,
+        // Test clients (clients.kind = 'test'), as normalised slug/name keys.
+        // Their cards stay off the board unless this browser opted in with
+        // ?wltest=1 (wlTestClientsMode).
+        testClientKeys: new Set(),
+        testClientKeysLoaded: false,
         // The last validated v2 snapshot this page holds, keyed by staff
         // identity, so a refresh sends its version and reuses it on "unchanged".
         snapshotMemo: null,
@@ -16520,6 +16525,7 @@
                 const issue = { ..._wlV2MapRow(row), workloadSource: row.source,
                     linearId: row.source === 'native' ? row.linear_id : row.id,
                     nativeClientActive: row.native_client_active,
+                    clientSlug: typeof row.client_slug === 'string' ? row.client_slug : '',
                     nativeAssigneeEligible: row.native_assignee_eligible,
                     // A legacy row the gateway could bind to a native
                     // deliverable (`native_plan_id` -- the same client-matched
@@ -17672,6 +17678,56 @@
         }
     }
 
+    /* TEST CLIENTS ON WORKLOAD (Vigil's hand test, 2026-09-28).
+       A test client's cards are never shown to the team by default. A browser
+       that opts in with ?wltest=1 (remembered here; ?wltest=0 clears it) sees
+       them, Backlog included: the test client's work sits almost entirely in
+       Backlog, which the 2026-08-23 ruling keeps off Workload for real
+       clients, so without it there is nothing to hand-test or to move. */
+    const WL_TEST_CLIENTS_KEY = 'syncview_workload_test_clients_v1';
+    function wlTestClientsMode() {
+        try {
+            const q = new URLSearchParams(svRoute.search()).get('wltest');
+            if (q === '1' || q === 'true') { localStorage.setItem(WL_TEST_CLIENTS_KEY, '1'); return true; }
+            if (q === '0' || q === 'false') { localStorage.removeItem(WL_TEST_CLIENTS_KEY); return false; }
+            return localStorage.getItem(WL_TEST_CLIENTS_KEY) === '1';
+        } catch (e) { return false; }
+    }
+    function _wlClientKey(value) {
+        return String(value == null ? '' : value).toLowerCase().replace(/[^a-z0-9]+/g, '');
+    }
+    function wlIsTestClientIssue(issue) {
+        const keys = wlState.testClientKeys;
+        if (!issue || !keys || !keys.size) return false;
+        const slug = _wlClientKey(issue.clientSlug), name = _wlClientKey(issue.clientName);
+        return (!!slug && keys.has(slug)) || (!!name && keys.has(name));
+    }
+    let _wlTestClientsLoading = null;
+    function wlLoadTestClients() {
+        if (wlState.testClientKeysLoaded || _wlTestClientsLoading || !wlStaffMayView()) return _wlTestClientsLoading;
+        _wlTestClientsLoading = (async () => {
+            try {
+                const url = CAL_SUPABASE_URL + '/rest/v1/clients?select=slug,display_name&kind=eq.test';
+                const resp = await fetch(url, { cache: 'no-store', headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const rows = await resp.json();
+                const keys = new Set();
+                for (const row of (Array.isArray(rows) ? rows : [])) {
+                    for (const v of [row && row.slug, row && row.display_name]) { const k = _wlClientKey(v); if (k) keys.add(k); }
+                }
+                wlState.testClientKeys = keys;
+                wlState.testClientKeysLoaded = true;
+                if (keys.size && wlState.issueSnapshot.length && wlStaffMayView()) {
+                    wlApplyData(wlState.issueSnapshot, wlState.fetchedAt);
+                    if (document.querySelector('.workload-view')) renderWorkloadAll({ deferWhilePopoverOpen: true });
+                }
+            } catch (e) {
+                console.warn('[workload] test client list unavailable', e && e.message);
+            } finally { _wlTestClientsLoading = null; }
+        })();
+        return _wlTestClientsLoading;
+    }
+
     // True only for a verified staff identity. Workload shows nothing to anyone
     // else: not the live board, not the in-memory copy, not the browser copy.
     function wlStaffMayView() {
@@ -18367,7 +18423,10 @@
         // docs/ops/OPEN_REPAIRS.md item 22. Nothing reconciles the two stores,
         // so that class does not heal on its own -- if it grows, this filter is
         // where it goes quiet.
-        if (t === 'backlog') return false;
+        // A test client's Backlog counts only in a browser that opted in to
+        // test clients (wlTestClientsMode): it is the only open work the test
+        // client has, and real clients are never affected.
+        if (t === 'backlog' && sub.wlTestShown !== true) return false;
         return !WL_PARKED_STATUSES.has(wlNormStatus(sub));
     }
     function wlIsInProgress(sub) {
@@ -19242,6 +19301,7 @@
         try { if (_wlNativeDiffEnabled()) window.wlNativeDiff(); }
         catch (e) { console.warn('[workload native] diff failed to start', e); }
 
+        wlLoadTestClients();
         const hasWarmSnapshot = wlState.fetchedAt != null && Array.isArray(wlState.issueSnapshot);
         if (hasWarmSnapshot) {
             wlState.loading = false;
@@ -19660,9 +19720,16 @@
         // Log any active sub-issue whose client we don't recognise so
         // typo'd Linear projects (e.g. "Mastin Kip" vs "Mastin Kipp") are
         // easy to track down from the browser console.
+        // Test clients: tagged here, hidden unless this browser opted in.
+        const testMode = wlTestClientsMode();
+        for (const i of issues) {
+            i.wlTestClient = wlIsTestClientIssue(i);
+            i.wlTestShown = i.wlTestClient && testMode;
+        }
         const dropped = new Map();
         for (const i of issues) {
             if (!i.isSubIssue || !wlIsActiveStatus(i)) continue;
+            if (i.wlTestClient && !i.wlTestShown) continue;
             if (wlIssueClientAllowed(i)) continue;
             const k = i.clientName || '(no client)';
             dropped.set(k, (dropped.get(k) || 0) + 1);
@@ -19670,7 +19737,8 @@
         if (dropped.size) {
             console.warn('[workload] inactive or unrecognised client rows:', [...dropped.values()].reduce((a,b) => a+b,0));
         }
-        const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIssueClientAllowed(i));
+        const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIssueClientAllowed(i)
+            && (!i.wlTestClient || i.wlTestShown));
         // Replace each sub's clientName with the canonical sheet name so
         // dropdowns, group keys and rollup labels collapse "Miki-agrawal" and
         // "Miki Agrawal" into a single "Miki Agrawal" entry.

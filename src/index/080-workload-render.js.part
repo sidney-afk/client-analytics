@@ -17,7 +17,8 @@ import {
   wlFetchPlanRows, wlIssueClientAllowed, wlIssueEditorAllowed, wlLinearEditingEnabled,
   wlLoadSnapshot, wlMarkLinearMetadataFailure, wlMetadataTeamBucket, wlNativeDueDate,
   wlPlanEditingEnabled, wlPurgePlanSensitiveState, wlReadCache,
-  wlPurgeBoardData, wlStaffMayView, wlStaffSignedOut,
+  wlIsTestClientIssue, wlLoadTestClients, wlPurgeBoardData, wlStaffMayView, wlStaffSignedOut,
+  wlTestClientsMode,
 } from './067-workload-board-source.js';
 import {
   wlAddWorkingDays, wlISO, wlIsWeekend, wlParseISO, wlWeekMondayISO, wlWorkloadTodayISO
@@ -115,6 +116,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         try { if (_wlNativeDiffEnabled()) window.wlNativeDiff(); }
         catch (e) { console.warn('[workload native] diff failed to start', e); }
 
+        wlLoadTestClients();
         const hasWarmSnapshot = wlState.fetchedAt != null && Array.isArray(wlState.issueSnapshot);
         if (hasWarmSnapshot) {
             wlState.loading = false;
@@ -533,9 +535,16 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         // Log any active sub-issue whose client we don't recognise so
         // typo'd Linear projects (e.g. "Mastin Kip" vs "Mastin Kipp") are
         // easy to track down from the browser console.
+        // Test clients: tagged here, hidden unless this browser opted in.
+        const testMode = wlTestClientsMode();
+        for (const i of issues) {
+            i.wlTestClient = wlIsTestClientIssue(i);
+            i.wlTestShown = i.wlTestClient && testMode;
+        }
         const dropped = new Map();
         for (const i of issues) {
             if (!i.isSubIssue || !wlIsActiveStatus(i)) continue;
+            if (i.wlTestClient && !i.wlTestShown) continue;
             if (wlIssueClientAllowed(i)) continue;
             const k = i.clientName || '(no client)';
             dropped.set(k, (dropped.get(k) || 0) + 1);
@@ -543,7 +552,8 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         if (dropped.size) {
             console.warn('[workload] inactive or unrecognised client rows:', [...dropped.values()].reduce((a,b) => a+b,0));
         }
-        const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIssueClientAllowed(i));
+        const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIssueClientAllowed(i)
+            && (!i.wlTestClient || i.wlTestShown));
         // Replace each sub's clientName with the canonical sheet name so
         // dropdowns, group keys and rollup labels collapse "Miki-agrawal" and
         // "Miki Agrawal" into a single "Miki Agrawal" entry.

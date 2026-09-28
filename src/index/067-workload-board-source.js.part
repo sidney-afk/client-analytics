@@ -1065,6 +1065,7 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
                 const issue = { ..._wlV2MapRow(row), workloadSource: row.source,
                     linearId: row.source === 'native' ? row.linear_id : row.id,
                     nativeClientActive: row.native_client_active,
+                    clientSlug: typeof row.client_slug === 'string' ? row.client_slug : '',
                     nativeAssigneeEligible: row.native_assignee_eligible,
                     // A legacy row the gateway could bind to a native
                     // deliverable (`native_plan_id` -- the same client-matched
@@ -2217,6 +2218,56 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
         }
     }
 
+    /* TEST CLIENTS ON WORKLOAD (Vigil's hand test, 2026-09-28).
+       A test client's cards are never shown to the team by default. A browser
+       that opts in with ?wltest=1 (remembered here; ?wltest=0 clears it) sees
+       them, Backlog included: the test client's work sits almost entirely in
+       Backlog, which the 2026-08-23 ruling keeps off Workload for real
+       clients, so without it there is nothing to hand-test or to move. */
+    const WL_TEST_CLIENTS_KEY = 'syncview_workload_test_clients_v1';
+    function wlTestClientsMode() {
+        try {
+            const q = new URLSearchParams(svRoute.search()).get('wltest');
+            if (q === '1' || q === 'true') { localStorage.setItem(WL_TEST_CLIENTS_KEY, '1'); return true; }
+            if (q === '0' || q === 'false') { localStorage.removeItem(WL_TEST_CLIENTS_KEY); return false; }
+            return localStorage.getItem(WL_TEST_CLIENTS_KEY) === '1';
+        } catch (e) { return false; }
+    }
+    function _wlClientKey(value) {
+        return String(value == null ? '' : value).toLowerCase().replace(/[^a-z0-9]+/g, '');
+    }
+    function wlIsTestClientIssue(issue) {
+        const keys = wlState.testClientKeys;
+        if (!issue || !keys || !keys.size) return false;
+        const slug = _wlClientKey(issue.clientSlug), name = _wlClientKey(issue.clientName);
+        return (!!slug && keys.has(slug)) || (!!name && keys.has(name));
+    }
+    let _wlTestClientsLoading = null;
+    function wlLoadTestClients() {
+        if (wlState.testClientKeysLoaded || _wlTestClientsLoading || !wlStaffMayView()) return _wlTestClientsLoading;
+        _wlTestClientsLoading = (async () => {
+            try {
+                const url = CAL_SUPABASE_URL + '/rest/v1/clients?select=slug,display_name&kind=eq.test';
+                const resp = await fetch(url, { cache: 'no-store', headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const rows = await resp.json();
+                const keys = new Set();
+                for (const row of (Array.isArray(rows) ? rows : [])) {
+                    for (const v of [row && row.slug, row && row.display_name]) { const k = _wlClientKey(v); if (k) keys.add(k); }
+                }
+                wlState.testClientKeys = keys;
+                wlState.testClientKeysLoaded = true;
+                if (keys.size && wlState.issueSnapshot.length && wlStaffMayView()) {
+                    wlApplyData(wlState.issueSnapshot, wlState.fetchedAt);
+                    if (document.querySelector('.workload-view')) renderWorkloadAll({ deferWhilePopoverOpen: true });
+                }
+            } catch (e) {
+                console.warn('[workload] test client list unavailable', e && e.message);
+            } finally { _wlTestClientsLoading = null; }
+        })();
+        return _wlTestClientsLoading;
+    }
+
     // True only for a verified staff identity. Workload shows nothing to anyone
     // else: not the live board, not the in-memory copy, not the browser copy.
     function wlStaffMayView() {
@@ -2519,5 +2570,5 @@ export {
   wlFetchPlanRows, wlIssueClientAllowed, wlIssueEditorAllowed, wlLinearEditingEnabled,
   wlLoadSnapshot, wlMarkLinearMetadataFailure, wlMetadataTeamBucket, wlNativeDueDate,
   wlPlanEditingEnabled, wlPurgeBoardData, wlPurgePlanSensitiveState, wlReadCache, wlSnapshotIdentity,
-  wlStaffMayView, wlStaffSignedOut
+  wlIsTestClientIssue, wlLoadTestClients, wlStaffMayView, wlStaffSignedOut, wlTestClientsMode
 };

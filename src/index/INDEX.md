@@ -16,13 +16,13 @@
 | 8 | `050-market-briefs.js.part` | 1781 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2153 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
-| 11 | `066-core-workload-state.js.part` | 118 | Workload Calendar |
-| 12 | `067-workload-board-source.js.part` | 2523 | The roster saved with a cached board, checked with the same rules the |
+| 11 | `066-core-workload-state.js.part` | 123 | Workload Calendar |
+| 12 | `067-workload-board-source.js.part` | 2574 | The roster saved with a cached board, checked with the same rules the |
 | 13 | `068-core-workload-dates.js.part` | 126 | ONE FORMATTER, NOT ONE PER CALL. |
-| 14 | `069-workload-planning-helpers.js.part` | 377 | MEMOISED PURE HELPERS. |
+| 14 | `069-workload-planning-helpers.js.part` | 380 | MEMOISED PURE HELPERS. |
 | 15 | `070-core-client-names.js.part` | 104 | — |
 | 16 | `071-workload-planner.js.part` | 636 | ONE automatic state (owner ruling ). |
-| 17 | `080-workload-render.js.part` | 3443 | Smart default: a creative lands on their own work (see |
+| 17 | `080-workload-render.js.part` | 3453 | Smart default: a creative lands on their own work (see |
 | 18 | `090-workload-popovers.js.part` | 1017 | Sub-issue popover |
 | 19 | `092-core-submit-form-navigation.js.part` | 889 | True for ctrl/cmd/shift/alt-clicks (and non-primary buttons): the user |
 | 20 | `095-shared-client.js.part` | 404 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |

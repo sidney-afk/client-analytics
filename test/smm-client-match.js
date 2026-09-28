@@ -47,13 +47,20 @@ ok(api.svSmmCurrentClients(api.svRosterEntryFor(roster, { name: 'Robin Smm' }), 
 const unowned = api.svUnownedCurrentClients(roster, current).sort();
 ok(JSON.stringify(unowned) === JSON.stringify(['Omega Fixture', 'Unowned Fixture']), 'admins-only list = current clients no ACTIVE SMM lists');
 
-// Which clients a person starts on (svScopeMode).
-const m = (a, r, s) => JSON.stringify(api.svScopeMode(a, r, s));
-ok(m(true, true, '') === JSON.stringify({ mode: 'mine', canSwitch: true }), 'an admin on the roster starts on My clients, with the switch');
-ok(m(true, false, '') === JSON.stringify({ mode: 'all', canSwitch: true }), 'an admin not on the roster starts on All clients, with the switch');
-ok(m(true, true, 'all') === JSON.stringify({ mode: 'all', canSwitch: true }), "an admin's remembered choice wins");
-ok(m(true, false, 'mine') === JSON.stringify({ mode: 'mine', canSwitch: true }), 'an admin may pick My clients even when not on the roster');
-ok(m(false, true, 'all') === JSON.stringify({ mode: 'mine', canSwitch: false }), 'a non-admin SMM only ever sees their own clients, whatever is saved');
+// Test clients (clients.kind = 'test') never count.
+const withTest = api.svCurrentClients(['Jane Fixture', 'Dr Test Fixture', 'Slugged Fixture'], [
+  { slug: 'x', display_name: 'Test Fixture', kind: 'test' },
+  { slug: 'slugged-fixture', display_name: 'Other Name', kind: 'test' },
+  { slug: 'jane-fixture', display_name: 'Jane Fixture', kind: 'client' },
+]);
+ok(JSON.stringify([...withTest.values()]) === JSON.stringify(['Jane Fixture']), 'a test client is dropped, matched by display name or slug; a real one stays');
+ok(api.svSmmCurrentClients({ source_clients: ['Test Fixture', 'Jane Fixture'] }, withTest).join() === 'Jane Fixture', "a test client is never in an SMM's own list");
+
+// Which clients a person sees (svScopeMode). No switch, nothing saved.
+ok(api.svScopeMode(true, true) === 'mine', 'an admin on the roster sees their own clients');
+ok(api.svScopeMode(true, false) === 'all', 'an admin not on the roster sees all clients');
+ok(api.svScopeMode(false, true) === 'mine', 'an SMM sees their own clients');
+ok(api.svScopeMode(false, false) === 'mine', 'a non-admin not on the roster still never sees all');
 
 if (failed) { console.log(`smm-client-match: ${failed} failed`); process.exit(1); }
 console.log('smm-client-match: all checks passed');

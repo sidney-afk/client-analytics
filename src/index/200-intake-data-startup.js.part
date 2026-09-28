@@ -1469,7 +1469,7 @@ import { _kasperCalCachePrune } from './330-kasper-review-history.js';
         // refreshes (or arrives) directly on one of these we kick off
         // fetchAll in the background so the page paints immediately instead
         // of blocking on the analytics roundtrip.
-        const FAST_TABS = ['linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'smm-weekly-report', 'smm-weekly-reports'];
+        const FAST_TABS = ['today', 'linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'smm-weekly-report', 'smm-weekly-reports'];
         const RESTORABLE_FAST_TABS = FAST_TABS.filter(tab => !_isSmmWeeklyRoute(tab));
 
         function _applyAllDataDependentChrome() {

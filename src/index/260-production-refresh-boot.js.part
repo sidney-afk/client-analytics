@@ -1,3 +1,4 @@
+import { tdySetClientsInfoReady } from './097-today.js';
 import {
   ANALYTICS_CACHE_KEY, _analyticsAppliedFp, _analyticsHoldExtras, _analyticsHydrateFromCache,
   _analyticsHydrateFromIdb, _analyticsIdbDelete, _analyticsLiveApplied,
@@ -1920,6 +1921,9 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
             dataLoad.essentials.then(() => {
                 if(_clientEntryStillCurrent())_applyAllDataDependentChrome();
             }, () => {});
+            // Today mounts before Clients Info lands (it is a fast tab); let
+            // it wait for this load instead of reporting "could not read".
+            try { tdySetClientsInfoReady(dataLoad.essentials); } catch (e) {}
 
             if (skipAwait) {
                 // Bare /?Kasper=1 with no hash — drop straight into Kasper
@@ -2316,6 +2320,7 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
         try { if (typeof _analyticsIdbDelete === 'function') _analyticsIdbDelete(); } catch (e) {}
         try { localStorage.removeItem('syncview_contentSummaryState_v1'); } catch (e) {}
         try { localStorage.removeItem('syncview_generalBriefState_v5'); } catch (e) {}
+        try { localStorage.removeItem('syncview_today_cache_v1'); } catch (e) {}
         if (!slug) return;
         try { localStorage.removeItem(CAL_CACHE_KEY_PREFIX + slug); } catch (e) {}
         try { localStorage.removeItem(SXR_CACHE_PREFIX + slug); } catch (e) {}

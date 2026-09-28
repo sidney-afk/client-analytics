@@ -162,7 +162,7 @@
                 de.setAttribute('data-boot-nav', seg);
                 return;
             }
-            var FAST = ['linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'smm-weekly-report', 'smm-weekly-reports'];
+            var FAST = ['today', 'linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'smm-weekly-report', 'smm-weekly-reports'];
             var RESTORABLE_FAST = FAST.filter(function (nav) { return nav !== 'smm-weekly-report' && nav !== 'smm-weekly-reports'; });
             // Kasper is admin-only: mirror _kasperAdminAllowed()'s remembered
             // admin (a paint hint only; the tab itself waits for the check).

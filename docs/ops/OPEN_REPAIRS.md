@@ -29455,3 +29455,51 @@ tables, that reads are unchanged, and that service_role writes are unchanged.
 Phases 1 (session JWT in the browser) and 2 (`scoped-read-policies.sql`) are
 **deferred by the owner**. Until they ship, the anon key still reads every
 client's rows.
+
+## 277. [2026-09-27] Item 101, release A: the refusal log records what a person needs, and staff can read it
+
+**Built, not applied, not deployed** (session Sentinel). Owner-approved plan:
+extend the existing `write_refusal_diagnostics.receipts_v1` log rather than
+build a second one, and leave `production-write` for a separate later release.
+
+**Measured before building (read-only, 2026-09-27).** The log has been live
+since 2026-09-23 and held about 4,750 receipts, but it could not answer the
+owner's questions: no error message, no browser or page build, card ids only
+as one-way hashes, no staff role on browser claims, a 24-hour read behind a
+runner key, and no screen. Only 1 of the tagged receipts came from a person;
+the rest were our own automation. **No cron job ran the 30-day cleanup.**
+
+**Coverage gaps found and closed in the browser.** Production / SyncLinear
+card saves (status, assignee, due date, labels, create, comment, comment edit,
+description, description image, asset link) and the calendar Create Post
+dialog never reported a failure. The calendar card save on the older path
+and the Samples "Save failed" branch reported only sometimes. Each now calls
+`_writeUiRecordFailure` (records, shows nothing extra) through the same
+capped, fire-and-forget beacon. Client approve, request changes and all
+comments were already covered.
+
+**What the release adds.**
+- Migration `20260927200000_write_refusal_detail_and_viewer.sql`: seven
+  optional columns (`card_ref`, `ui_action`, `detail`, `browser`, `os`,
+  `app_version`, `staff_role`); the error message is cleaned IN SQL (emails,
+  links, token-like strings and long digit runs become `[redacted]`, cap 200);
+  `production_write_refusal_record_browser_v2` reuses every v1 check;
+  `production_write_refusal_list_v1` (hides automation by default, client link
+  shown only as a 12-character hash prefix); `…_retention_daily_v1` scheduled
+  daily at 04:17 UTC via pg_cron. v1 is re-issued with ONE change: its replay
+  check leaves the new columns out (without it every replay, gateway ones
+  included, would read as a conflict; caught by the new Postgres test).
+- `write-diagnostics`: passes the detail fields, records a staff role only
+  when the page's role key VERIFIES (the key is never stored), falls back to
+  v1 until the migration is applied, and serves `staff_list` to admin keys.
+- Kasper › More › **Save problems**: admin-only, read-only table.
+
+**Order:** apply the migration, then deploy `write-diagnostics`, then merge
+the browser change (the browser change is harmless before either: the old
+function ignores the new fields and the page shows a clear error).
+
+**Later, separate release (needs the capture-and-dispatch routine):**
+`production-write` would add the same detail to receipts the SERVER refuses:
+readable card id, the staff role it already verified, the refusal's own
+message, and browser/os from the request. Until then those rows show code,
+screen, action and client link / staff, but no message or browser.

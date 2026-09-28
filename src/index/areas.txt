@@ -1,0 +1,51 @@
+# On-demand loading: which area each script fragment belongs to.
+# Plan: docs/plans/2026-09-28-load-per-tab-plan.md. Checked by scripts/check-lazy-safety.js.
+#
+# "core" is loaded on every visit. Any other name is a staff-only area that a
+# later step may load the first time its tab is opened. "core!" is the client
+# approve / request-changes path: it must stay in core and is never split
+# (owner, 2026-09-28). The checker also holds its own copy of that list, so
+# editing this file alone cannot move an approve-path fragment out of core.
+#
+# fragment                                 area
+040-shared-briefs.js.part                  core
+050-market-briefs.js.part                  core
+060-templates-filming.js.part              templates
+070-workload-source.js.part                workload
+080-workload-render.js.part                workload
+090-workload-popovers-navigation.js.part   workload
+095-shared-client.js.part                  core
+096-quick-jump.js.part                     quick-jump
+097-today.js.part                          today
+098-smm-clients.js.part                    smm-clients
+100-onboarding-staff-controls.js.part      core
+110-time-off-reports.js.part               time-off
+120-calendar-flags-write-repair.js.part    core!
+125-title-name-rule.js.part                core!
+130-calendar-model-cache.js.part           core!
+131-core-html.js.part                      core!
+132-calendar-dates-ids.js.part             core!
+133-core-loading-skeletons.js.part         core!
+134-calendar-prefs-mount.js.part           core!
+140-calendar-legacy-outbox.js.part         core!
+150-calendar-hydration-import.js.part      core!
+160-calendar-organize-ui.js.part           core!
+170-calendar-links-status.js.part          core!
+180-calendar-native-post-media.js.part     core!
+185-client-review-queue.js.part            core!
+190-calendar-approval-comments.js.part     core!
+200-intake-data-startup.js.part            submit
+210-production-state-writes.js.part        synclinear
+220-production-attribution-views.js.part   synclinear
+230-production-create-comments.js.part     synclinear
+240-production-description.js.part         synclinear
+250-production-controls-data.js.part       synclinear
+260-production-refresh-boot.js.part        core
+270-samples-model.js.part                  core!
+280-samples-cards-notes.js.part            core!
+290-samples-writes-review.js.part          core!
+300-tiktok-upload.js.part                  tiktok
+310-sales-intake-hiring.js.part            kasper
+320-kasper-dashboard-replies.js.part       kasper
+330-kasper-review-history.js.part          kasper
+340-editors-date-picker.js.part            editors

@@ -1513,7 +1513,8 @@ import {
         linear: '/nav-icons/submit-favicon.png',
         templates: '/nav-icons/templates-favicon.png',
         'filming-plans': '/nav-icons/filming-plans-favicon.png',
-        today: '/nav-icons/today-favicon.png',
+        // today: the default SyncView mark (owner, 2026-09-28: its own icon was
+        // nearly invisible in a browser tab).
         workload: '/nav-icons/workload-favicon.png',
         calendar: '/nav-icons/calendar-favicon.png',
         'sample-reviews': '/nav-icons/samples-favicon.png',

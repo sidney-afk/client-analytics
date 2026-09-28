@@ -4277,11 +4277,11 @@
 
         /* TODAY: what is waiting on you (097-today). Reads only; no checkboxes. */
         .tdy { max-width: 880px; margin: 0 auto; padding: 36px 24px 80px; font-family: 'Plus Jakarta Sans', sans-serif; color: var(--text-primary); }
-        .tdy-loading, .tdy-note { color: var(--text-secondary); font-size: 0.85rem; }
-        .tdy-note { margin-top: 18px; }
+        .tdy-note { color: var(--text-secondary); font-size: 0.85rem; background: var(--surface-subtle); border: 1px solid var(--border-light); border-radius: 12px; padding: 12px 16px; margin: 0 0 18px; }
+        .tdy-skel .tdy-mrow { margin-top: 8px; }
+        .tdy-skel .tdy-rg { cursor: default; }
         .tdy-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
-        .tdy-date { font-size: 0.88rem; font-weight: 600; color: var(--text-secondary); }
-        .tdy-scope { margin-left: auto; }
+        .tdy-date { font-size: 0.88rem; font-weight: 600; color: var(--text-secondary); margin: 0; letter-spacing: 0; }
         .tdy-vw { display: flex; gap: 2px; background: var(--surface-subtle); border: 1px solid var(--border-light); border-radius: 10px; padding: 3px; }
         .tdy-vw button { font: 600 0.78rem 'Plus Jakarta Sans', sans-serif; color: var(--text-secondary); background: none; border: 0; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
         .tdy-vw button.on { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
@@ -4311,6 +4311,9 @@
         .tdy-urg { font-size: 0.68rem; font-weight: 800; color: var(--text-inverse); background: var(--dn); border-radius: 6px; padding: 3px 7px; flex: none; }
         .tdy-b { display: inline-flex; align-items: center; gap: 6px; font: 700 0.75rem 'Plus Jakarta Sans', sans-serif; color: var(--text-primary); background: var(--surface-subtle); border: 1px solid var(--border-light); border-radius: 8px; padding: 7px 10px; white-space: nowrap; cursor: pointer; flex: none; }
         .tdy-b:hover { background: var(--surface-hover); }
+        .tdy-b.p:hover { background: var(--text-primary); opacity: 0.88; }
+        .tdy-rg:hover { border-color: var(--border); color: var(--text-primary); }
+        .tdy-vw button:hover:not(.on) { color: var(--text-primary); }
         .tdy-b.p { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); font-size: 0.84rem; padding: 10px 15px; }
         .tdy-b:focus-visible, .tdy-vw button:focus-visible, .tdy-rg:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
         .tdy-ic { width: 14px; height: 14px; background: currentColor; -webkit-mask: var(--ic) center / contain no-repeat; mask: var(--ic) center / contain no-repeat; flex: none; }
@@ -4324,7 +4327,7 @@
         .tdy-ring.full b::after { content: ''; display: block; width: 14px; height: 7px; border: 3px solid var(--text-inverse); border-top: 0; border-right: 0; transform: rotate(-45deg) translate(2px, -2px); }
         .tdy-trail { margin-top: 24px; }
         .tdy-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-        .tdy-chip { display: inline-flex; align-items: center; gap: 7px; background: var(--white); border: 1px solid var(--border-light); border-radius: 99px; padding: 5px 12px 5px 6px; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); }
+        .tdy-chip { max-width: 100%; min-width: 0; display: inline-flex; align-items: center; gap: 7px; background: var(--white); border: 1px solid var(--border-light); border-radius: 99px; padding: 5px 12px 5px 6px; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); }
         .tdy-chip .tdy-cn { font-size: 0.72rem; }
         .tdy-chip time { color: var(--text-muted); font-weight: 500; }
         .tdy-tk, .tdy-ok { width: 16px; height: 16px; border-radius: 50%; background: var(--up); display: inline-grid; place-items: center; flex: none; }
@@ -4364,10 +4367,16 @@
             .tdy { padding: 20px 16px 60px; }
             .tdy-big { font-size: 1.6rem; }
             .tdy-top { flex-wrap: wrap; }
-            .tdy-scope { margin-left: 0; order: 3; }
             .tdy-rings { grid-template-columns: repeat(3, minmax(0, 1fr)); }
             .tdy-pipe { display: none; }
-            .tdy-rw .tdy-b { padding: 7px; font-size: 0; gap: 0; }
+            .tdy-rw { padding: 10px 12px; gap: 10px; }
+            .tdy-rw .tdy-b { min-width: 44px; min-height: 44px; justify-content: center; padding: 0; font-size: 0; gap: 0; }
+            .tdy-vw button, .tdy-rg, .tdy-b.p, .tdy-acts .tdy-b { min-height: 44px; }
+            .tdy-ic { width: 16px; height: 16px; }
+            .tdy-chip { overflow: hidden; }
+            .tdy-win { padding: 36px 20px; }
+            .tdy-win h2, .tdy-focus h2, .tdy-cd.c1 h2 { font-size: 1.4rem; }
+            .tdy-focus, .tdy-cd.c1 { padding: 24px 18px 20px; }
             .tdy-deck { grid-template-columns: 1fr 1fr; }
             .tdy-deck .tdy-cd { grid-column: 1 / -1 !important; grid-row: 2 !important; }
             .tdy-left { grid-column: 2; }

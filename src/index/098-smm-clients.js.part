@@ -14,12 +14,12 @@ import { clientMap } from './040-shared-briefs.js';
      *   3. Roster and Clients Info spell names differently, so both sides go
      *      through svClientKey: titles (Dr, Dr.), "&" versus "and",
      *      punctuation, accents, case and spacing are all ignored.
-     *   4. Anyone on the roster sees their own clients by default, admins
-     *      included (svScopeMode). An admin also gets a "My clients / All
-     *      clients" switch, remembered per browser; an admin who is not on the
-     *      roster starts on All clients. A non-admin SMM only ever sees their
-     *      own. A current client that no active SMM lists shows under All
-     *      clients only.
+     *   4. Test clients (clients.kind = 'test') are never anyone's real
+     *      client: svCurrentClients drops them, so they leave Today and the
+     *      dropdown's "My clients" alike.
+     *   5. Anyone on the roster sees their own clients, admins included
+     *      (svScopeMode). An admin who is not on the roster sees every
+     *      current client. There is no switch (owner decision 2026-09-28).
      *
      * Everything here is pure over its inputs except svCurrentClients, which
      * reads the loaded Clients Info rows. */
@@ -32,11 +32,18 @@ import { clientMap } from './040-shared-briefs.js';
     }
     /* Current clients as Map(key -> Clients Info name). Empty until Clients
        Info has loaded; callers treat empty as "not known yet", never as "no
-       clients". */
-    function svCurrentClients(names) {
+       clients". testClients: rows of the clients table ({ slug,
+       display_name, kind }); any with kind 'test' is left out, matched by
+       display name or slug. */
+    function svCurrentClients(names, testClients) {
         const list = Array.isArray(names) ? names : Object.keys(clientMap || {});
+        const test = new Set();
+        for (const c of (Array.isArray(testClients) ? testClients : [])) {
+            if (!c || String(c.kind || '').toLowerCase() !== 'test') continue;
+            for (const v of [c.display_name, c.slug]) { const k = svClientKey(v); if (k) test.add(k); }
+        }
         const out = new Map();
-        for (const n of list) { const k = svClientKey(n); if (k && !out.has(k)) out.set(k, String(n).trim()); }
+        for (const n of list) { const k = svClientKey(n); if (k && !test.has(k) && !out.has(k)) out.set(k, String(n).trim()); }
         return out;
     }
     function svActiveManagers(managers) {
@@ -62,14 +69,11 @@ import { clientMap } from './040-shared-briefs.js';
         const owned = new Set((Array.isArray(entry.source_clients) ? entry.source_clients : []).map(svClientKey).filter(Boolean));
         return [...cur].filter(([k]) => owned.has(k)).map(([, n]) => n);
     }
-    /* Which clients a Today-style view starts on.
+    /* Which clients a Today-style view shows: 'mine' or 'all'.
        isAdmin: the signed-in role is admin. onRoster: an active roster entry
-       matched them. saved: an admin's remembered choice ('mine' | 'all' | '').
-       Returns { mode: 'mine' | 'all', canSwitch }. */
-    function svScopeMode(isAdmin, onRoster, saved) {
-        if (!isAdmin) return { mode: 'mine', canSwitch: false };
-        if (saved === 'mine' || saved === 'all') return { mode: saved, canSwitch: true };
-        return { mode: onRoster ? 'mine' : 'all', canSwitch: true };
+       matched them. Only an admin who is not on the roster sees all. */
+    function svScopeMode(isAdmin, onRoster) {
+        return isAdmin && !onRoster ? 'all' : 'mine';
     }
     /* Current clients no active SMM lists: admins only. */
     function svUnownedCurrentClients(managers, current) {

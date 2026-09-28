@@ -4349,6 +4349,8 @@
         @media (max-width: 760px) {
             .tdy { padding: 20px 16px 60px; }
             .tdy-big { font-size: 1.6rem; }
+            .tdy-top { flex-wrap: wrap; }
+            .tdy-scope { margin-left: 0; order: 3; }
             .tdy-rings { grid-template-columns: repeat(3, minmax(0, 1fr)); }
             .tdy-pipe { display: none; }
             .tdy-rw .tdy-b { padding: 7px; font-size: 0; gap: 0; }

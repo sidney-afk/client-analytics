@@ -8742,6 +8742,8 @@
         @media (max-width: 760px) {
             .tdy { padding: 20px 16px 60px; }
             .tdy-big { font-size: 1.6rem; }
+            .tdy-top { flex-wrap: wrap; }
+            .tdy-scope { margin-left: 0; order: 3; }
             .tdy-rings { grid-template-columns: repeat(3, minmax(0, 1fr)); }
             .tdy-pipe { display: none; }
             .tdy-rw .tdy-b { padding: 7px; font-size: 0; gap: 0; }
@@ -24448,7 +24450,8 @@
             } catch (e) {}
         }
         const entry = managers ? svRosterEntryFor(managers, { email, name: me.name }) : null;
-        const scope = svScopeMode(isAdmin, !!entry, isAdmin ? _tdySavedScope() : '');
+        // With no roster there is no "mine" to show: an admin gets every client.
+        const scope = !managers ? { mode: 'all', canSwitch: false } : svScopeMode(isAdmin, !!entry, isAdmin ? _tdySavedScope() : '');
         if (scope.mode === 'all') return { keys: new Set(current.keys()), notListed: false, scope };
         const mine = svSmmCurrentClients(entry, current);
         return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0, scope };

@@ -125,7 +125,8 @@ import { navTo } from './090-workload-popovers-navigation.js';
             } catch (e) {}
         }
         const entry = managers ? svRosterEntryFor(managers, { email, name: me.name }) : null;
-        const scope = svScopeMode(isAdmin, !!entry, isAdmin ? _tdySavedScope() : '');
+        // With no roster there is no "mine" to show: an admin gets every client.
+        const scope = !managers ? { mode: 'all', canSwitch: false } : svScopeMode(isAdmin, !!entry, isAdmin ? _tdySavedScope() : '');
         if (scope.mode === 'all') return { keys: new Set(current.keys()), notListed: false, scope };
         const mine = svSmmCurrentClients(entry, current);
         return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0, scope };

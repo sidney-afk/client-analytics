@@ -741,6 +741,10 @@ function installBfcacheSyntheticNetwork(config) {
           member: { id: 'qa_staff', name: 'QA Staff', role: 'admin', team: null },
         });
       }
+      if (url.pathname === '/functions/v1/smm-weekly-reports') {
+        state.supportReads.push({ at, kind: 'smm_roster', url: url.href });
+        return jsonResponse({ managers: [] });
+      }
       if (url.pathname === '/rest/v1/team_members') {
         state.supportReads.push({ at, kind: 'team_members', url: url.href });
         return jsonResponse([{
@@ -1288,6 +1292,12 @@ async function installSyntheticNetwork(context, origin, config = {}) {
           role: 'admin',
           member: { id: 'qa_staff', name: 'QA Staff', role: 'admin', team: null },
         });
+        return;
+      }
+      // The top-bar client dropdown asks the SMM roster for "My clients"
+      // (098-smm-clients); this operator is on no roster.
+      if (url.pathname === '/functions/v1/smm-weekly-reports') {
+        await fulfillJson(route, { managers: [] });
         return;
       }
       if (url.pathname === '/rest/v1/team_members') {

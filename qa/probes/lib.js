@@ -17,7 +17,15 @@ const SUPA   = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/calendar_posts'
 const KEY    = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';
 
 // generic upsert for the test client
-const up = G.up;
+// Seeding a NEW card (it names itself and its platforms) gives its caption
+// text. Kasper's queue hides a caption with nothing written (owner report
+// 2026-09-03), so a caption seeded at Kasper Approval never reached his queue
+// and every caption probe that starts there failed at step one. A probe that
+// sets `caption` or `caption_alt` itself (including '') is left as written.
+const up = (post) => {
+  if (!(post && post.id && post.name && post.platforms) || 'caption' in post || 'caption_alt' in post) return G.up(post);
+  return G.up(Object.assign({}, post, { caption: 'QA probe caption ' + String(post.id).slice(-6) }));
+};
 
 // read an arbitrary column set from the backend row
 const rawRow = async (pid, sel = '*') =>

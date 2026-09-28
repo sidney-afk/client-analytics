@@ -1,4 +1,3 @@
-import { svSharedClientNote } from './095-shared-client.js';
 import {
   FILMING_PLANS_EF_URL, _setLinearClientRows, _setLinearProjects, linearClientRows, showToast
 } from './040-shared-briefs.js';
@@ -15,13 +14,14 @@ import {
   _linearInvalidatePlanMap, renderLinearSearchResults, saveLinearForm, updateLinearFilmingPlan,
   updateLinearSearchGhost, updateLinearTitle
 } from './090-workload-popovers-navigation.js';
+import { svSharedClientNote } from './095-shared-client.js';
 import {
   CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _obZoom, _syncviewOfferStaffSignIn,
   _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity, _syncviewStaffCan,
   _syncviewStaffIdentityBoot, _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders,
   _syncviewStaffIdentitySignature
 } from './100-onboarding-staff-controls.js';
-import { _writeUiRerouteClients, _writeUiRerouteFlagFailed, _writeUiRerouteRosterUnusable } from './110-time-off-reports.js';
+import { _writeUiRerouteClients, _writeUiRerouteFlagFailed, _writeUiRerouteRosterUnusable } from './115-core-calendar-flags.js';
 import { _syncviewEfHeaders, _writeUiPrimeRerouteFlag, _writeUiRerouteUseGateway } from './120-calendar-flags-write-repair.js';
 import { calClientSlug } from './130-calendar-model-cache.js';
 import { _jsAttrArg } from './131-core-html.js';
@@ -2287,17 +2287,16 @@ import {
         }
     }
 export {
-  _fpSetQueryQuiet,
   LAST_LINK_KEY, LINEAR_DEFAULT_VIDEO_COUNT, LINEAR_FORM_KEY, LINEAR_INTAKE_HOLD_KEY,
   LINEAR_INTAKE_LOAD_ID, LINEAR_INTAKE_MAX_ITEMS, LINEAR_RECEIPTS_KEY, LOG_SUBMISSION_WEBHOOK,
-  NATIVE_INTAKE_PENDING_KEY, NAV_KEY, _fpEnsureLoaded, _fpPurgeSensitiveState, _isSmmWeeklyRoute,
-  _linearIntakeItemsPerVideo, _linearIntakeTooLargeMessage, _linearNextVideoCount,
-  _linearRefreshProjectsForRerouteChange, _linearSetJustCreated, _linearSetSubmitInFlight,
-  _linearSetVideoCount, _obvEnsureLoaded, _obvFetchFull, _obvInjectStyles, _obvLoading, _obvMode,
-  _obvMountStandalone, _obvSetError, _obvSetLoadedAt, _obvSetLoading, _obvSetMode, _obvSetSelected,
-  _obvSetSubs, _obvSetWarn, _obvSubs, _syncviewNavEpoch, _syncviewNextNavEpoch,
-  _syncviewSetCurrentNav, currentNav, fetchLinearProjects, getLastLink, linearJustCreated,
-  linearProjectsLoading, linearSubmitInFlight, linearVideoCount, mountFilmingPlansView,
-  mountTemplatesView, renderClientTemplate, renderFilmingPlansView, renderOnboardingInbox,
-  renderTemplatesView, saveLastLink
+  NATIVE_INTAKE_PENDING_KEY, NAV_KEY, _fpEnsureLoaded, _fpPurgeSensitiveState, _fpSetQueryQuiet,
+  _isSmmWeeklyRoute, _linearIntakeItemsPerVideo, _linearIntakeTooLargeMessage,
+  _linearNextVideoCount, _linearRefreshProjectsForRerouteChange, _linearSetJustCreated,
+  _linearSetSubmitInFlight, _linearSetVideoCount, _obvEnsureLoaded, _obvFetchFull,
+  _obvInjectStyles, _obvLoading, _obvMode, _obvMountStandalone, _obvSetError, _obvSetLoadedAt,
+  _obvSetLoading, _obvSetMode, _obvSetSelected, _obvSetSubs, _obvSetWarn, _obvSubs,
+  _syncviewNavEpoch, _syncviewNextNavEpoch, _syncviewSetCurrentNav, currentNav,
+  fetchLinearProjects, getLastLink, linearJustCreated, linearProjectsLoading, linearSubmitInFlight,
+  linearVideoCount, mountFilmingPlansView, mountTemplatesView, renderClientTemplate,
+  renderFilmingPlansView, renderOnboardingInbox, renderTemplatesView, saveLastLink
 };

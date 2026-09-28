@@ -7,12 +7,13 @@ import {
   _obvSetSelected, _obvSetSubs, _obvSetWarn, currentNav
 } from './060-templates-filming.js';
 import { wlNormalizeClient, wlPurgePlanSensitiveState } from './070-workload-source.js';
-import { _tdyPurgeSensitiveState } from './097-today.js';
 import { wlRefreshSensitiveStateSilent } from './080-workload-render.js';
+import { _tdyPurgeSensitiveState } from './097-today.js';
 import {
   _ptoCalResetView, _ptoDate, _ptoEnabled, _ptoLoadAdmin, _ptoLoadOverview, _ptoPaint,
-  _ptoRenderAdmin, _srpPurgeSensitiveState
-} from './110-time-off-reports.js';
+  _ptoRenderAdmin
+} from './110-time-off.js';
+import { _srpPurgeSensitiveState } from './112-smm-weekly-reports.js';
 import { _jsAttrArg } from './131-core-html.js';
 import { _thumbCompareScheduleAvailability } from './160-calendar-organize-ui.js';
 import { _kasperApplyAccess, _kasperForgetAdmin, _linearIntakePurgeSensitiveState } from './200-intake-data-startup.js';
@@ -26,9 +27,10 @@ import {
 import { _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
 import { _hpPurgeSensitiveState } from './310-sales-intake-hiring.js';
 import {
-  CC_ICON_EYE, _caPurgeSensitiveState, _ccCloseModal, _ccCloseSelect, _ccExpanded, _ccOpenSelectId, _ccRevTeardown,
-  _ccRevealed, _ccSelectHtml, _ccState, _ccTogglePasswordField, _kasperFallbackToReview,
-  _kasperRenderTab, _kasperRestorePendingSubtab, _kasperState, _svStaffPageRender
+  CC_ICON_EYE, _caPurgeSensitiveState, _ccCloseModal, _ccCloseSelect, _ccExpanded, _ccOpenSelectId,
+  _ccRevTeardown, _ccRevealed, _ccSelectHtml, _ccState, _ccTogglePasswordField,
+  _kasperFallbackToReview, _kasperRenderTab, _kasperRestorePendingSubtab, _kasperState,
+  _svStaffPageRender
 } from './320-kasper-dashboard-replies.js';
     /* ============================================================
        CLIENT ONBOARDING MODULE  (standalone, private-link page)
@@ -2362,7 +2364,6 @@ import {
         _svSyncStepper(id);
     }
 export {
-  _syncviewCreativeMe,
   CALENDAR_GET_URL, CALENDAR_REORDER_BATCH_URL, CALENDAR_REORDER_EF_URL, CALENDAR_REORDER_URL,
   CALENDAR_UPSERT_EF_URL, CALENDAR_UPSERT_N8N_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL,
   CAL_SUPABASE_URL, CAPTION_JOB_STATUS_URL, CAPTION_JOB_UPDATE_URL, CAPTION_PROMPTS_GET_URL,
@@ -2378,11 +2379,11 @@ export {
   _ptoRefreshAfterConflict, _ptoSetFlagChannel, _ptoSetFlagPromise, _ptoShowToast, _ptoState,
   _ptoStateConflict, _ptoStoreFlagValue, _ptoUnknownWrite, _svBootFlagRows, _svDateHtml,
   _svExplainLabel, _svSelectHtml, _svStepperHtml, _svSyncDateControl, _svSyncStepper, _svTone,
-  _syncviewCloseStaffAccount, _syncviewOfferStaffSignIn, _syncviewOpenStaffGate,
-  _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity, _syncviewStaffCan,
-  _syncviewStaffEligible, _syncviewStaffGateRequired, _syncviewStaffIdentityBoot,
-  _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentityLoad,
-  _syncviewStaffIdentitySignature, _syncviewStaffIdentityValid, _syncviewStaffRoleLabel,
-  _syncviewStaffRoleValue, _syncviewStaffVerificationEpoch, mountOnboardingView,
-  renderOnboardingView
+  _syncviewCloseStaffAccount, _syncviewCreativeMe, _syncviewOfferStaffSignIn,
+  _syncviewOpenStaffGate, _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity,
+  _syncviewStaffCan, _syncviewStaffEligible, _syncviewStaffGateRequired,
+  _syncviewStaffIdentityBoot, _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders,
+  _syncviewStaffIdentityLoad, _syncviewStaffIdentitySignature, _syncviewStaffIdentityValid,
+  _syncviewStaffRoleLabel, _syncviewStaffRoleValue, _syncviewStaffVerificationEpoch,
+  mountOnboardingView, renderOnboardingView
 };

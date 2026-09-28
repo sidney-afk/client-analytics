@@ -18,7 +18,7 @@ import {
   _writeUiRerouteFlagFailed, _writeUiRerouteFlagGeneration, _writeUiRerouteFlagPromise,
   _writeUiRerouteRosterUnusable, _writeUiSetRerouteClients, _writeUiSetRerouteFlagFailed,
   _writeUiSetRerouteFlagGeneration, _writeUiSetRerouteFlagPromise, _writeUiSetRerouteRosterUnusable
-} from './110-time-off-reports.js';
+} from './115-core-calendar-flags.js';
 import { _calCommentsFor, _calPostPlatforms, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calMapNativeStatusStrict, renderCalendarView } from './134-calendar-prefs-mount.js';
 import { _calV2LoadLib, _calV2Log } from './150-calendar-hydration-import.js';
@@ -3213,20 +3213,21 @@ export {
   _prodMarkLegacyReadIncomplete, _prodResolveCardCrosswalk, _prodRootAudienceClientRows,
   _prodStripEphemeralCanonicalPosts, _settingsPrimeRoutingFlag, _settingsUseEf,
   _settingsWriteHeaders, _settingsWriteUrlForClient, _syncviewClientWriteToken, _syncviewEfHeaders,
-  _syncviewIssueClientShareUrl, _writeUiAdoptRepairAck, _writeUiAdoptReplayStatus,
-  _writeUiAppendRepairRef, _writeUiAuthoritySnapshot, _writeUiBindRepairAck,
-  _writeUiBuildSourceRepair, _writeUiClassifyTargetless, _writeUiCompleteSourceRepairRefs,
-  _writeUiComponentHasWorkItem, _writeUiExpireV1Caches, _writeUiFailureSentence,
-  _writeUiFailureText, _writeUiFilterCachedPosts, _writeUiGatewayError, _writeUiGatewayPost,
-  _writeUiGatewayWithRepair, _writeUiHasCredential, _writeUiHealRerouteFlag,
-  _writeUiIdentifierAllowed, _writeUiIntentId, _writeUiLastRenderedAuthoritySig,
-  _writeUiLegacyItemOwnedBy, _writeUiLegacyResumeOwner, _writeUiLegacyResumeOwnerCurrent,
-  _writeUiLegacyResumeOwnerKey, _writeUiLegacyRetainFrom, _writeUiLinkSlotSealed,
-  _writeUiLinkSlotSealedLive, _writeUiLinkSlotSealedNotice, _writeUiMarkRepairCommitted,
-  _writeUiMergeCommittedBatch, _writeUiNativeId, _writeUiNativeStatus, _writeUiPrimeRerouteFlag,
-  _writeUiPrincipalKey, _writeUiQueueDiagnostic, _writeUiRefreshAuthority,
-  _writeUiRemoveCompletedRepairRefs, _writeUiRepairCompanions, _writeUiRepairJournalRead,
-  _writeRefusalNewId, _writeRefusalStageAttempt, _writeUiRecordFailure, _writeUiReportFailure, _writeUiRerouteUseGateway, _writeUiRerouteUseGatewayWhenReady,
-  _writeUiSetLastRenderedAuthoritySig, _writeUiSnapshotRepairRefs, _writeUiSourceClientSlug,
-  _writeUiSourceEditsOnly, _writeUiTeam, _writeUiUseGatewayWhenReady, computeOverallStatus
+  _syncviewIssueClientShareUrl, _writeRefusalNewId, _writeRefusalStageAttempt,
+  _writeUiAdoptRepairAck, _writeUiAdoptReplayStatus, _writeUiAppendRepairRef,
+  _writeUiAuthoritySnapshot, _writeUiBindRepairAck, _writeUiBuildSourceRepair,
+  _writeUiClassifyTargetless, _writeUiCompleteSourceRepairRefs, _writeUiComponentHasWorkItem,
+  _writeUiExpireV1Caches, _writeUiFailureSentence, _writeUiFailureText, _writeUiFilterCachedPosts,
+  _writeUiGatewayError, _writeUiGatewayPost, _writeUiGatewayWithRepair, _writeUiHasCredential,
+  _writeUiHealRerouteFlag, _writeUiIdentifierAllowed, _writeUiIntentId,
+  _writeUiLastRenderedAuthoritySig, _writeUiLegacyItemOwnedBy, _writeUiLegacyResumeOwner,
+  _writeUiLegacyResumeOwnerCurrent, _writeUiLegacyResumeOwnerKey, _writeUiLegacyRetainFrom,
+  _writeUiLinkSlotSealed, _writeUiLinkSlotSealedLive, _writeUiLinkSlotSealedNotice,
+  _writeUiMarkRepairCommitted, _writeUiMergeCommittedBatch, _writeUiNativeId, _writeUiNativeStatus,
+  _writeUiPrimeRerouteFlag, _writeUiPrincipalKey, _writeUiQueueDiagnostic, _writeUiRecordFailure,
+  _writeUiRefreshAuthority, _writeUiRemoveCompletedRepairRefs, _writeUiRepairCompanions,
+  _writeUiRepairJournalRead, _writeUiReportFailure, _writeUiRerouteUseGateway,
+  _writeUiRerouteUseGatewayWhenReady, _writeUiSetLastRenderedAuthoritySig,
+  _writeUiSnapshotRepairRefs, _writeUiSourceClientSlug, _writeUiSourceEditsOnly, _writeUiTeam,
+  _writeUiUseGatewayWhenReady, computeOverallStatus
 };

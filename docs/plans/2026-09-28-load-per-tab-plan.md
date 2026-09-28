@@ -159,3 +159,18 @@ Time off ~37 KB.
 
 Remaining order: Time off, Templates and Filming, Workload, Kasper (with the Editors board),
 SyncLinear.
+
+## Step 3, area 5 of 9, part 1: Time off split three ways (2026-09-28)
+
+`110-time-off-reports` was three consecutive sections, now three fragments with the same bytes
+(the served page is byte-identical):
+
+- `110-time-off` (area **time-off**, ~23 KB compressed): the Time Off tab and admin.
+- `112-smm-weekly-reports` (area **smm-weekly**, ~11 KB): the SMM weekly report form (a public
+  entry, which always gets the full file) and the staff reports list.
+- `115-core-calendar-flags` (**core!**, pinned with the approve path in `areas.txt` and in
+  `check-lazy-safety.js`): the Calendar write-routing flags and their setters. The approve path
+  used to import 37 names from the Time Off file for these; it now imports none from Time off,
+  and its ties into staff-only areas fall from 110 names at step 1 to 56.
+
+Time Off's own outside ties drop from 54 names to 11. Part 2 makes Time off load on demand.

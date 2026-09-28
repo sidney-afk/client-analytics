@@ -71,9 +71,9 @@ guard 100-onboarding-staff-controls.js.part _svStaffPageRender
 guard 100-onboarding-staff-controls.js.part wlNormalizeClient
 guard 100-onboarding-staff-controls.js.part wlPurgePlanSensitiveState
 guard 100-onboarding-staff-controls.js.part wlRefreshSensitiveStateSilent
-guard 110-time-off-reports.js.part getClientRoster
-guard 110-time-off-reports.js.part renderKasperView
-guard 110-time-off-reports.js.part wlNormalizeClient
+guard 112-smm-weekly-reports.js.part getClientRoster
+guard 110-time-off.js.part renderKasperView
+guard 112-smm-weekly-reports.js.part wlNormalizeClient
 guard 120-calendar-flags-write-repair.js.part _kasperPaintReview
 guard 200-intake-data-startup.js.part _kasperCalCachePrune
 guard 200-intake-data-startup.js.part _navPillSync

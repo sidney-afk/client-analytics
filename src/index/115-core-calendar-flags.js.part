@@ -1,0 +1,136 @@
+    const CAL_V2_LS_KEY         = 'syncview_calendar_v2';
+    const CAL_V2_KILL_KEY       = 'syncview_calendar_v2_off'; // Phase 3: ?v2=0 sets this (sticky opt-out); v2 is now the default
+    const CAL_V2_RT_DEBOUNCE_MS = 350;
+    /* A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing
+       debounce only coalesces writes that arrive faster than 350 ms apart.
+
+       Owner report, 2026-09-03: "when I go to the calendar it refreshes like 10
+       times in a row, like 15 times -- I see the refresh pill and every card
+       refreshing a ton of times". Measured the same day: `calendar_posts` took
+       200 row writes in an hour, 171 of them in the last 15 minutes, across 9
+       clients, 56 on the busiest one. Those are backend jobs -- the reconcilers
+       that still apply Linear -> card every ten minutes (OPEN_REPAIRS 76) --
+       and they land as a burst of individual row updates spread over seconds.
+
+       This tab subscribes filtered to the client on screen and reloads the
+       WHOLE client on every event. The existing 4-second coalescing window
+       (CAL_RT_SELF_ECHO_MS) keys off `_calLastLocalWriteAt`, so it only ever
+       applied to writes THIS TAB made; a reconciler's writes are foreign and
+       nothing coalesced them. Every 350 ms window containing one row write
+       became its own full reload, pill and all -- one refresh per row.
+
+       So foreign bursts now get what our own writes always had: while a reload
+       is inside the floor the handler RE-ARMS instead of reloading, exactly as
+       the self-echo branch does, and the burst collapses to one reload when it
+       settles. The cost is that a teammate's edit can take up to this long to
+       appear when it lands right behind another change; the first event after
+       a quiet period still reloads on the 350 ms debounce, which is the case
+       that actually reads as "live". */
+    const CAL_V2_RT_MIN_RELOAD_MS = 8000;
+    const CALENDAR_UPSERT_FLAG_KEY = 'calendar_upsert_ef_clients';
+    const WRITE_UI_REROUTE_FLAG_KEY = 'write_ui_reroute_clients';
+    const WRITE_UI_REROUTE_FLAG_TIMEOUT_MS = 2000;
+    /* Rollout switch for the gateway comment FRONT DOOR (the real repair for
+       the 2026-08-13 comment_forbidden P0 that PR 1064 routed around).
+       Client comments go legacy UNLESS this flag is on AND the tab can build a
+       verified gateway context — so code can merge and deploy in any order and
+       nothing changes until the owner flips the flag AFTER the production-write
+       EF deploy. Rollback is flag off. Missing, malformed, or unreadable
+       values are OFF (fail-legacy); only the exact operator value
+       { "enabled": true } opens the door. */
+    const CLIENT_COMMENT_GATEWAY_FLAG_KEY = 'client_comment_gateway_enabled';
+    const SETTINGS_EF_FLAG_KEY = 'settings_ef_clients';
+    let _calUpsertEfClients = new Set();
+    function _calSetUpsertEfClients(value) { _calUpsertEfClients = value; }
+    let _writeUiRerouteClients = new Set();
+    function _writeUiSetRerouteClients(value) { _writeUiRerouteClients = value; }
+    let _clientCommentGatewayEnabled = false;
+    function _clientCommentSetGatewayEnabled(value) { _clientCommentGatewayEnabled = value; }
+    let _calUpsertFlagPromise = null;
+    function _calSetUpsertFlagPromise(value) { _calUpsertFlagPromise = value; }
+    let _writeUiRerouteFlagPromise = null;
+    function _writeUiSetRerouteFlagPromise(value) { _writeUiRerouteFlagPromise = value; }
+    let _writeUiRerouteFlagFailed = false;
+    function _writeUiSetRerouteFlagFailed(value) { _writeUiRerouteFlagFailed = value; }
+    /* VALIDITY IS TRACKED SEPARATELY FROM THE ALLOWLIST (Codex finding 1 on the
+       item-175 fix, 2026-09-08).
+
+       `_writeUiRerouteFlagFailed` means one narrow thing and must keep meaning
+       it: the READ ITSELF failed, which is what `_writeUiHealRerouteFlag` keys
+       on to decide whether a resume should re-fetch. It says nothing about a
+       read that SUCCEEDED and came back with nothing a router can act on.
+
+       Those are not the same state, and item 175 shipped as though they were.
+       The success path applies `rerouteRow.value` when there is one and
+       `{clients: []}` when there is not, then clears the failed mark
+       unconditionally. So a 200 carrying `[]`, or a missing `write_ui_reroute_clients`
+       key, or a value of the wrong shape produced an EMPTY allowlist and a
+       flag that reported itself healthy -- and `_writeUiRerouteUseGatewayFailClosed`,
+       finding no failure, answered the factual "this slug is not enrolled" and
+       sent every status change to LINEAR_SET_STATUS_URL and every comment to
+       LINEAR_ADD_COMMENT_URL. Delete or corrupt that one row after 2026-09-15
+       and every write in every open tab goes silently to a dead endpoint,
+       which is precisely the outcome item 175 exists to prevent. The
+       fail-closed contract has to cover "succeeded with nothing usable", not
+       only "could not be read".
+
+       This flag is that second signal. It gates ROUTING ONLY. The allowlist
+       itself is untouched on every path -- it stays the factual answer the
+       outbox drain and the project-source filter need, exactly as item 175
+       pinned -- and a heal still re-fetches only on a genuine read failure, so
+       an empty roster does not put a tab into a re-fetch loop. It starts TRUE
+       because before the first read lands there is no roster to trust, and the
+       whole point is that the unknown case routes to the authority that can
+       answer out loud. */
+    let _writeUiRerouteRosterUnusable = true;
+    function _writeUiSetRerouteRosterUnusable(value) { _writeUiRerouteRosterUnusable = value; }
+    /* Review finding on the item-70 fix: the heal re-fetch and the realtime
+       channel are separate connections, so a heal that started BEFORE a
+       channel delivery can land after it and overwrite a good roster -- a
+       failed one blanks it, a slow successful one applies an older snapshot.
+       Either way an enrolled client silently returns to the legacy lane,
+       which post-flip means swallowed 409s behind a green UI: the exact
+       item-70 hazard, re-entered through the repair for it. Every apply site
+       below is therefore stamped with the generation it was issued under and
+       discards itself if a newer read (fetch OR channel) has already landed. */
+    let _writeUiRerouteFlagGeneration = 0;
+    function _writeUiSetRerouteFlagGeneration(value) { _writeUiRerouteFlagGeneration = value; }
+    let _calUpsertFlagChannel = null;
+    function _calSetUpsertFlagChannel(value) { _calUpsertFlagChannel = value; }
+    let _calUpsertFlagClient = null;
+    function _calSetUpsertFlagClient(value) { _calUpsertFlagClient = value; }
+    let _calUpsertFlagClientPromise = null;
+    function _calSetUpsertFlagClientPromise(value) { _calUpsertFlagClientPromise = value; }
+    let _settingsEfClients = new Set();
+    function _settingsSetEfClients(value) { _settingsEfClients = value; }
+    let _settingsFlagPromise = null;
+    function _settingsSetFlagPromise(value) { _settingsFlagPromise = value; }
+    let _settingsFlagChannel = null;
+    function _settingsSetFlagChannel(value) { _settingsFlagChannel = value; }
+    /* One roster MEMBER, normalised, or null when the member is not a slug at
+       all. Codex finding on the item-175 repair: this used to be
+       `calClientSlug(String(x || ''))` inline, and `String()` does not reject a
+       non-string -- it FABRICATES a slug out of it. `{}` becomes
+       "[object Object]", which the slug rules then strip to the perfectly
+       plausible-looking `objectobject`. So `{"clients":[{}]}` -- a corrupt row,
+       an object where a slug belongs -- produced a non-empty roster that no
+       real client is in, and every real client fell through to "not enrolled".
+       A member that is not a string is corruption, and the honest answer is
+       null rather than an invented enrolment. Every caller filters those out,
+       so this only ever drops entries that could not have matched a real client
+       slug in the first place; what it additionally buys is that
+       `_writeUiRerouteRosterUsable` can now SEE the corruption instead of
+       counting it. */
+export {
+  CALENDAR_UPSERT_FLAG_KEY, CAL_V2_KILL_KEY, CAL_V2_LS_KEY, CAL_V2_RT_DEBOUNCE_MS,
+  CAL_V2_RT_MIN_RELOAD_MS, CLIENT_COMMENT_GATEWAY_FLAG_KEY, SETTINGS_EF_FLAG_KEY,
+  WRITE_UI_REROUTE_FLAG_KEY, WRITE_UI_REROUTE_FLAG_TIMEOUT_MS, _calSetUpsertEfClients,
+  _calSetUpsertFlagChannel, _calSetUpsertFlagClient, _calSetUpsertFlagClientPromise,
+  _calSetUpsertFlagPromise, _calUpsertEfClients, _calUpsertFlagChannel, _calUpsertFlagClient,
+  _calUpsertFlagClientPromise, _calUpsertFlagPromise, _clientCommentGatewayEnabled,
+  _clientCommentSetGatewayEnabled, _settingsEfClients, _settingsFlagChannel, _settingsFlagPromise,
+  _settingsSetEfClients, _settingsSetFlagChannel, _settingsSetFlagPromise, _writeUiRerouteClients,
+  _writeUiRerouteFlagFailed, _writeUiRerouteFlagGeneration, _writeUiRerouteFlagPromise,
+  _writeUiRerouteRosterUnusable, _writeUiSetRerouteClients, _writeUiSetRerouteFlagFailed,
+  _writeUiSetRerouteFlagGeneration, _writeUiSetRerouteFlagPromise, _writeUiSetRerouteRosterUnusable
+};

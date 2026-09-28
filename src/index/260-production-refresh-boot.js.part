@@ -1,4 +1,3 @@
-import { tdySetClientsInfoReady } from './097-today.js';
 import {
   ANALYTICS_CACHE_KEY, _analyticsAppliedFp, _analyticsHoldExtras, _analyticsHydrateFromCache,
   _analyticsHydrateFromIdb, _analyticsIdbDelete, _analyticsLiveApplied,
@@ -21,13 +20,15 @@ import {
   wlNormalizeClient
 } from './070-workload-source.js';
 import { navTo } from './090-workload-popovers-navigation.js';
+import { tdySetClientsInfoReady } from './097-today.js';
 import {
   CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, CLIENT_TOKEN_VERIFY_URL, SMM_WEEKLY_REPORTS_URL,
   SYNCVIEW_CLIENT_ENTRY_PROTOCOL, _obSetDraftKey, _obSetSubIdKey, _obSetVariant,
   _syncviewOpenStaffGate, _syncviewStaffCan, _syncviewStaffGateRequired,
   _syncviewStaffIdentityBoot, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentityLoad
 } from './100-onboarding-staff-controls.js';
-import { _ptoPrimeFlag, _srpState } from './110-time-off-reports.js';
+import { _ptoPrimeFlag } from './110-time-off.js';
+import { _srpState } from './112-smm-weekly-reports.js';
 import { _writeUiRefreshAuthority } from './120-calendar-flags-write-repair.js';
 import { _prodDetailTitleHtml } from './125-title-name-rule.js';
 import { _calSetFocusRequest, _calSetPendingDeepLink, calState } from './130-calendar-model-cache.js';
@@ -39,8 +40,9 @@ import {
 } from './134-calendar-prefs-mount.js';
 import { CAL_CACHE_KEY_PREFIX, _calNextLoadSeq, _calV2Teardown } from './150-calendar-hydration-import.js';
 import {
-  BARE_LANDING_OK_PARAMS, FAST_TABS, KASPER_UNLOCK_KEY, RESTORABLE_FAST_TABS, _applyAllDataDependentChrome,
-  _kasperApplyAccess, _kasperUnlocked, _linearResumeSubmissionHold, _resumePendingCalCardJobs
+  BARE_LANDING_OK_PARAMS, FAST_TABS, KASPER_UNLOCK_KEY, RESTORABLE_FAST_TABS,
+  _applyAllDataDependentChrome, _kasperApplyAccess, _kasperUnlocked, _linearResumeSubmissionHold,
+  _resumePendingCalCardJobs
 } from './200-intake-data-startup.js';
 import {
   PROD_ATTRIBUTION_CONFLICT, PROD_ATTRIBUTION_NEEDS, PROD_BOARD_ORDER, PROD_DELETE_UNSUPPORTED,

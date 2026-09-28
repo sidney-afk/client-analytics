@@ -14,7 +14,7 @@
     (function () {
         // clean first path segment -> legacy hash route
         var SIMPLE = {
-            'submit': 'linear', 'workload': 'workload', 'calendar': 'calendar',
+            'today': 'today', 'submit': 'linear', 'workload': 'workload', 'calendar': 'calendar',
             'templates': 'templates', 'filming-plans': 'filming-plans',
             'tiktok-upload': 'tiktok-upload', 'time-off': 'time-off',
             'sample-reviews': 'sample-reviews', 'smm-weekly-report': 'smm-weekly-report',

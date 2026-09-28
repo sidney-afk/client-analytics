@@ -84,13 +84,17 @@
                     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>
                     <input type="text" class="sv-client-search" id="svClientSearch" placeholder="Search clients" autocomplete="off" aria-label="Search clients" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="svClientResults">
                 </div>
-                <div class="sv-client-results" id="svClientResults" role="listbox"></div>
+                <div class="sv-client-results" id="svClientResults"></div>
             </div>
         </div>
         <button type="button" class="sv-jump-touch" onclick="svQuickJumpOpen()" aria-label="Quick jump to a client and tab"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg></button>
     </div>
     <div class="header-nav" id="headerNav">
         <span class="header-nav-pill" aria-hidden="true"></span>
+        <a class="header-nav-btn" id="navToday" href="/today" onclick="if(_modClick(event))return;event.preventDefault();navTo('today')">
+            <span class="header-nav-ico ico-today" aria-hidden="true"></span>
+            Today
+        </a>
         <a class="header-nav-btn" id="navCalendar" href="/calendar" onclick="if(_modClick(event))return;event.preventDefault();navTo('calendar')">
             <span class="header-nav-ico ico-calendar" aria-hidden="true"></span>
             Calendar

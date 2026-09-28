@@ -208,7 +208,7 @@ ok(!/<div/.test(navBlock),
    rule, and every rule names a file that exists — because a broken link in it
    is invisible (an unmasked span is simply blank, not an error). */
 const iconClasses = [...navBlock.matchAll(/class="header-nav-ico (ico-[a-z]+)"/g)].map(m => m[1]);
-ok(iconClasses.length === 9, 'nine visible tabs declare an owner-designed icon (found ' + iconClasses.length + ')');
+ok(iconClasses.length === 10, 'ten visible tabs declare an owner-designed icon (found ' + iconClasses.length + ')');
 ok(new Set(iconClasses).size === iconClasses.length, 'every tab gets a DISTINCT icon — none is pasted twice');
 ok(/\.header-nav-btn \.header-nav-ico \{[^}]*background-color: currentColor;/.test(source),
   'the icon is filled with currentColor, so it follows the theme and inverts on the active pill');

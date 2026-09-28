@@ -135,3 +135,16 @@ consecutive fragments with the same bytes, so the served page is byte-identical:
 
 The separate "editors" area no longer exists; the remaining order is Today and SMM clients,
 Submit, Time off, Templates and Filming, Workload, Kasper (with the Editors board), SyncLinear.
+
+## Step 3, area 3 of 9: Today and SMM clients stay in core (2026-09-28)
+
+Since #1798 the bare address opens Today for staff, so Today is the first screen of almost
+every staff visit. Loading it on demand would make that first screen wait for an extra
+download: the opposite of the goal. SMM clients (`098`) is used only by Today. And core
+already leans on Today in three places: the "My clients" part of the client dropdown (`095`),
+the sign-out purge (`100`) and start-up (`260`). So both move to **core** in `areas.txt`; the
+three recorded Today guards are no longer hazards and leave the baseline (91 left). Nothing
+served changes.
+
+Remaining order: Submit, Time off, Templates and Filming, Workload, Kasper (with the Editors
+board), SyncLinear.

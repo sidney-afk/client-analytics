@@ -53,8 +53,6 @@ guard 060-templates-filming.js.part updateLinearTitle
 guard 080-workload-render.js.part _prodApplyGatewayRow
 guard 090-workload-popovers-navigation.js.part _kasperTeardown
 guard 090-workload-popovers-navigation.js.part _linearSubmissionHoldRead
-guard 090-workload-popovers-navigation.js.part _tdyTeardown
-guard 095-shared-client.js.part tdyMyClientNames
 guard 100-onboarding-staff-controls.js.part _caPurgeSensitiveState
 guard 100-onboarding-staff-controls.js.part _ccCloseModal
 guard 100-onboarding-staff-controls.js.part _ccCloseSelect
@@ -75,7 +73,6 @@ guard 100-onboarding-staff-controls.js.part _ptoPaint
 guard 100-onboarding-staff-controls.js.part _ptoRenderAdmin
 guard 100-onboarding-staff-controls.js.part _srpPurgeSensitiveState
 guard 100-onboarding-staff-controls.js.part _svStaffPageRender
-guard 100-onboarding-staff-controls.js.part _tdyPurgeSensitiveState
 guard 100-onboarding-staff-controls.js.part wlNormalizeClient
 guard 100-onboarding-staff-controls.js.part wlPurgePlanSensitiveState
 guard 100-onboarding-staff-controls.js.part wlRefreshSensitiveStateSilent

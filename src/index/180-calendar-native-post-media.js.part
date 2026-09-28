@@ -41,7 +41,7 @@ import {
 } from './170-calendar-links-status.js';
 import { _calCommentRole, _calSmmMissingMedia, _calSmmWarnDotHtml } from './190-calendar-approval-comments.js';
 import {
-  _linearIntakeActorContext, _linearIntakeBatchTitle, _linearIntakeItems, _linearIntakeJobId, _linearIntakePending, _linearIntakeRead, _linearIntakeRemoveIfCurrent, _linearIntakeWithLock, _linearIntakeWrite, _linearSavedWhen, _linearSavedWork, _resumeNativeIntakeJob
+  _linearIntakeActorContext, _linearIntakeBatchTitle, _linearIntakeItems, _linearIntakeJobId, _linearIntakeMarkRestored, _linearIntakePending, _linearIntakePrepareReplace, _linearIntakeRead, _linearIntakeRemoveIfCurrent, _linearIntakeWithLock, _linearIntakeWrite, _linearSavedWhen, _linearSavedWork, _resumeNativeIntakeJob
 } from './200-intake-data-startup.js';
 import { _prodRestRows } from './210-production-state-writes.js';
 import { _isClientLink } from './260-production-refresh-boot.js';

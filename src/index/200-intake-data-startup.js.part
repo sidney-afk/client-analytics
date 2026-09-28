@@ -13,7 +13,7 @@ import {
   _linearResolveClientRow, _linearResolvedPlanUrl, _linearSetResolvedPlanUrl, _navPillSync,
   buildLinearTitle, loadLinearForm, navTo, saveLinearForm
 } from './090-workload-popovers-navigation.js';
-import { CAL_SUPABASE_ANON_KEY, _syncviewRequireStaffIdentity, _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue } from './100-onboarding-staff-controls.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewRequireStaffIdentity, _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue } from './100-onboarding-staff-controls.js';
 import {
   _calUpsertFetch, _syncviewEfHeaders, _writeUiQueueDiagnostic, _writeUiRecordFailure, _writeUiRefreshAuthority, _writeUiRerouteUseGatewayWhenReady
 } from './120-calendar-flags-write-repair.js';
@@ -1854,7 +1854,7 @@ export {
   BARE_LANDING_OK_PARAMS, CAL_CARD_JOBS_KEY, FAST_TABS, KASPER_UNLOCK_KEY, RESTORABLE_FAST_TABS,
   _applyAllDataDependentChrome, _calCardJobsRead, _kasperApplyAccess,
   _kasperForgetAdmin, _kasperUnlocked, _linearIntakeActorContext,
-  _linearIntakeBatchTitle, _linearIntakeItems, _linearIntakeJobId, _linearIntakePending,
+  _linearIntakeBatchTitle, _linearIntakeItems, _linearIntakeJobId, _linearIntakeMarkRestored, _linearIntakePending, _linearIntakePrepareReplace,
   _linearIntakePurgeSensitiveState, _linearIntakeRead, _linearIntakeRemoveIfCurrent,
   _linearIntakeWithLock, _linearResumeSubmissionHold, _linearSubmissionHoldRead,
   _linearIntakeWrite, _linearRefreshSavedBox, _linearSavedWhen, _linearSavedWork, _resumeNativeIntakeJob, _resumePendingCalCardJobs, renderLinearView

@@ -39,7 +39,7 @@ const GROUPING = {
   metrics: { table: 'analytics_metrics', day: 'date' },
   top_videos: { table: 'analytics_top_videos', day: 'scraped_date', recentDays: 90 },
   content_summaries: { table: 'analytics_content_summaries', day: 'date' },
-  market_research_briefs: { table: 'analytics_market_research_briefs', day: 'id' },
+  market_research_briefs: { table: 'analytics_market_research_briefs', day: 'id', order: 'id' },   // no seq column
   client_profiles: { table: 'client_profiles', day: null },
 };
 
@@ -110,13 +110,13 @@ async function sheetGroups(m, dataset, text, cutoff) {
   return groups;
 }
 
-async function restRows(table, select, filter) {
+async function restRows(table, select, filter, order) {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required (or pass --db-digests)');
   const out = [];
   for (let from = 0; ; from += 1000) {
-    const r = await fetch(`${url}/rest/v1/${table}?select=${select}${filter || ''}&order=seq`, {
+    const r = await fetch(`${url}/rest/v1/${table}?select=${select}${filter || ''}&order=${order || 'seq'}`, {
       headers: { apikey: key, authorization: 'Bearer ' + key, range: `${from}-${from + 999}` },
     });
     if (!r.ok) throw new Error(`${table} read failed: HTTP ${r.status}`);
@@ -137,7 +137,7 @@ async function dbGroupsRest(dataset, cutoff) {
     return groups;
   }
   const filter = g.recentDays ? `&${g.day}=gte.${cutoff}` : '';
-  for (const row of await restRows(g.table, `client_slug,${g.day},row_hash`, filter)) {
+  for (const row of await restRows(g.table, `client_slug,${g.day},row_hash`, filter, g.order)) {
     addTo(groups, row.client_slug, String(row[g.day] || ''), row.row_hash);
   }
   return groups;

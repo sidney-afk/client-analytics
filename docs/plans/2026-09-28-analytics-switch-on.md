@@ -148,14 +148,17 @@ usable: its other flag reads fail there on the network, as on main.
 Nothing below has been done; each step is the owner's.
 
 1. **Deploy** `analytics-read` from this PR through "Deploy one allowlisted
-   Edge Function". Nothing changes for anyone: staff only use the new answers
+   Edge Function"
+   (https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml),
+   pasting main's commit SHA after the merge. Nothing changes for anyone: staff only use the new answers
    when the flag says so.
 2. **Apply** `migrations/2026-09-28-sheets-mirror-staff-read-index.sql`.
 3. **Turn on the daily copy.** In GitHub, Settings, Secrets and variables,
    Actions: add the secret `ANALYTICS_MIRROR_WRITE_KEY` (the same value as the
    Supabase secret of that name) and the variable `SHEETS_MIRROR_COPY_APPLY`
    = `true`. Then run "Sheets mirror daily copy and parity" once by hand with
-   "apply" ticked. Good result: green, the log ends `PARITY: clean`.
+   "apply" ticked:
+   https://github.com/sidney-afk/client-analytics/actions/workflows/sheets-mirror-daily.yml Good result: green, the log ends `PARITY: clean`.
 4. **Staff trial.** Set the flag to
    `{"enabled": false, "clients": ["<test client slug>"], "staff": true}`.
    Staff open Analytics and a client page; the browser console says

@@ -39,10 +39,11 @@ const has = name => process.argv.includes(name);
 // Which mirror table holds each dataset, and its day column. Clients Info is
 // not here: it is hand-edited in the Sheet and only ever copied one way.
 const TABLES = {
-  metrics: { table: 'analytics_metrics', day: 'date' },
-  top_videos: { table: 'analytics_top_videos', day: 'scraped_date' },
-  content_summaries: { table: 'analytics_content_summaries', day: 'date' },
-  market_research_briefs: { table: 'analytics_market_research_briefs', day: 'date' },
+  metrics: { table: 'analytics_metrics', day: 'date', order: 'seq' },
+  top_videos: { table: 'analytics_top_videos', day: 'scraped_date', order: 'seq' },
+  content_summaries: { table: 'analytics_content_summaries', day: 'date', order: 'seq' },
+  // Keyed by brief id: this table has no seq column.
+  market_research_briefs: { table: 'analytics_market_research_briefs', day: 'date', order: 'id' },
 };
 
 /* The rows to add: every mirror row whose fingerprint appears more often in
@@ -88,10 +89,10 @@ async function downloadTab(sheetId, tab) {
 async function readMirror(dataset, since) {
   const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required (or pass --db-rows)');
-  const { table, day } = TABLES[dataset];
+  const { table, day, order } = TABLES[dataset];
   const out = [];
   for (let from = 0; ; from += 1000) {
-    const r = await fetch(`${url}/rest/v1/${table}?select=*&${day}=gte.${since}&order=seq`, {
+    const r = await fetch(`${url}/rest/v1/${table}?select=*&${day}=gte.${since}&order=${order}`, {
       headers: { apikey: key, authorization: 'Bearer ' + key, range: `${from}-${from + 999}` },
     });
     if (!r.ok) throw new Error(`${table} read failed: HTTP ${r.status}`);

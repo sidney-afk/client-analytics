@@ -55,6 +55,9 @@ const ok = (cond, msg) => { assert.ok(cond, msg); n++; console.log('  ok  ' + ms
   ok(JSON.stringify(values) === JSON.stringify(['2026-09-02', 'Probe One', '2', 'x']), 'rows go back in the tab column order, extra columns to their own column');
   ok(catchup.csvLine(['a"b', '']) === '"a""b",""', 'CSV output quotes every value');
 
+  const bothSrc = fs.readFileSync(path.join(__dirname, '..', 'scripts/sheets-mirror-catchup.js'), 'utf8') + fs.readFileSync(path.join(__dirname, '..', 'scripts/sheets-mirror-parity.js'), 'utf8');
+  ok(/market_research_briefs: \{[^}]*order: 'id'/.test(bothSrc) && (bothSrc.match(/market_research_briefs: \{[^}]*order: 'id'/g) || []).length === 2,
+    'briefs are paged by id in both scripts: that table has no seq column');
   const src = fs.readFileSync(path.join(__dirname, '..', 'scripts/sheets-mirror-catchup.js'), 'utf8');
   ok(/--apply on the live Sheet needs --production/.test(src), 'the catch-up refuses to write the live Sheet without --production');
   ok(!/console\.log\([^)]*client_name/.test(src) && !/console\.log\([^)]*client_name/.test(fs.readFileSync(path.join(__dirname, '..', 'scripts/sheets-mirror-parity.js'), 'utf8')),

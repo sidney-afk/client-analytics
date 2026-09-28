@@ -8,7 +8,9 @@
 const fs = require('fs');
 const path = require('path');
 const root = path.join(__dirname, '..');
-const src = fs.readFileSync(path.join(root, 'src/index/185-client-review-queue.js.part'), 'utf8');
+const { splitModuleFragment } = require('../scripts/index-modules');
+// 185 is an ES module source; the served page strips its import header and export footer.
+const src = splitModuleFragment(fs.readFileSync(path.join(root, 'src/index/185-client-review-queue.js.part'))).body.toString('utf8');
 const c190 = fs.readFileSync(path.join(root, 'src/index/190-calendar-approval-comments.js.part'), 'utf8');
 
 let failed = 0;

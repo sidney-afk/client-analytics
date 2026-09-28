@@ -493,6 +493,65 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
       }
     }
 
+    // Full labels for the worst case (owner, 2026-09-28): an admin with every
+    // tab including Kasper and a client selected keeps FULL labels (not compact,
+    // not icons) at 1366px (typical client) and 1440px (long client name too).
+    // Three visible labels were shortened for this; each keeps its full name
+    // as title and aria-label. At 1366px a long client name still falls back
+    // to compact (about 63px short), so that case is not asserted here.
+    for (const [width, clients] of [[1366, [FIRST]], [1440, [FIRST, LONG]]]) {
+      for (const client of clients) {
+        const context = await browser.newContext({ viewport: { width, height: 700 } });
+        await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()), route => {
+          route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }).catch(() => {});
+        });
+        await seedStaffGate(context);
+        await context.addInitScript(v => {
+          try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); localStorage.setItem('syncview_shared_client', v); } catch (e) {}
+        }, FIRST);
+        const page = await context.newPage();
+        await page.goto(`http://127.0.0.1:${port}/calendar`, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(2500);
+        await page.evaluate(n => { if (!WL_CLIENT_NAMES.includes(n)) WL_CLIENT_NAMES.push(n); }, client);
+        await page.click('#svClientBadge');
+        await page.fill('#svClientSearch', client.slice(0, 18));
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(800);
+        const m = await page.evaluate(() => {
+          const nav = document.getElementById('headerNav');
+          const tabs = [...nav.querySelectorAll(':scope > .header-nav-btn')].filter(a => getComputedStyle(a).display !== 'none');
+          const navBox = nav.getBoundingClientRect();
+          const short = {};
+          for (const id of ['navFilmingPlans', 'navTiktokUpload', 'navProd']) {
+            const a = document.getElementById(id);
+            short[id] = { text: a.textContent.trim(), title: a.title, aria: a.getAttribute('aria-label') };
+          }
+          return {
+            label: document.getElementById('svClientBadgeLabel').textContent,
+            kasper: tabs.some(a => a.id === 'navKasper'),
+            compact: nav.classList.contains('is-compact') || nav.classList.contains('is-icons'),
+            small: tabs.filter(a => parseFloat(getComputedStyle(a).fontSize) < 11).map(a => a.id),
+            over: nav.scrollWidth - nav.clientWidth,
+            outside: tabs.filter(a => { const r = a.getBoundingClientRect(); return r.left < navBox.left - 1 || r.right > navBox.right + 1; }).map(a => a.id),
+            short,
+          };
+        });
+        const tag = `full labels @${width} with ${client === LONG ? 'a long' : 'a typical'} client`;
+        expect(m.label === client.split(' ')[0], `${tag}: the client was not selected (${m.label})`);
+        expect(m.kasper, `${tag}: the Kasper tab should be present for this check`);
+        expect(!m.compact && !m.small.length, `${tag}: tabs compact or icons only: ${m.small.join(',') || 'row class'}`);
+        expect(m.over <= 0, `${tag}: overflows by ${m.over}px`);
+        expect(!m.outside.length, `${tag}: tabs cut off: ${m.outside.join(',')}`);
+        const want = { navFilmingPlans: ['Filming', 'Filming Plans'], navTiktokUpload: ['TikTok', 'TikTok Upload'], navProd: ['Linear', 'SyncLinear'] };
+        for (const [id, [text, full]] of Object.entries(want)) {
+          const s = m.short[id];
+          expect(s.text === text, `${tag}: ${id} reads "${s.text}", expected "${text}"`);
+          expect(s.title === full && s.aria === full, `${tag}: ${id} title/aria-label should be "${full}" (got "${s.title}" / "${s.aria}")`);
+        }
+        await context.close();
+      }
+    }
+
     // Late web font (owner, 2026-09-27): on a wide desktop the tabs loaded as
     // icons only and needed a window resize to show their names. The first fit
     // ran on the fallback font, went compact, and nothing re-fit when the web

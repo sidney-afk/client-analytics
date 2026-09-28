@@ -1,23 +1,23 @@
 import {
-  _analyticsReleaseExtras, linearClientRows, linearProjects, svArea, svAreaApi, svWithArea
+  _analyticsReleaseExtras, linearClientRows, linearProjects, showNotify, svArea, svAreaApi,
+  svWithArea
 } from './040-shared-briefs.js';
 import { _templatesActiveTab, _templatesSelected, highlightMatch, render } from './050-market-briefs.js';
 import {
   LINEAR_FORM_KEY, NAV_KEY, _isSmmWeeklyRoute, _syncviewNextNavEpoch, _syncviewSetCurrentNav,
   fetchLinearProjects, linearProjectsLoading
 } from './065-core-nav-intake-state.js';
-import { _wlV2Enabled, _wlV2Teardown } from './067-workload-board-source.js';
-import { renderWorkloadShell } from './071-workload-planner.js';
-import { initWorkloadView, wlEscape } from './080-workload-render.js';
+import { _wlV2Enabled } from './066-core-workload-state.js';
+import { wlCanonicalClient } from './070-core-client-names.js';
 import { svClientBarSync, svSharedClientApply } from './095-shared-client.js';
 import { _tdyTeardown, mountTodayView, renderTodayView } from './097-today.js';
 import { OB_VARIANT, mountOnboardingView, renderOnboardingView } from './100-onboarding-staff-controls.js';
 import { _ptoEnabled, mountTimeOffView, renderTimeOffView } from './110-time-off.js';
 import { mountSmmWeeklyReportFormView, mountSmmWeeklyReportsView, renderSmmWeeklyReportFormView, renderSmmWeeklyReportsView } from './112-smm-weekly-reports.js';
-import { _calAbandonLinkOnCalendarExit, calState } from './130-calendar-model-cache.js';
-import { _jsAttrArg } from './131-core-html.js';
+import { _calAbandonLinkOnCalendarExit, _calSetFocusRequest, calState } from './130-calendar-model-cache.js';
+import { _calEscAttr, _jsAttrArg } from './131-core-html.js';
 import { _svLoadingSkeletonHtml, _svSkel } from './133-core-loading-skeletons.js';
-import { mountCalendar, renderCalendarView } from './134-calendar-prefs-mount.js';
+import { _calGetPins, _calSavePins, mountCalendar, renderCalendarView } from './134-calendar-prefs-mount.js';
 import { _calV2Enabled, _calV2Teardown } from './150-calendar-hydration-import.js';
 import { _kasperApplyAccess, _linearIntakeBatchTitle, _linearSubmissionHoldRead, renderLinearView } from './200-intake-data-startup.js';
 import { _prodAccessAllowed, _prodCacheEnabled } from './210-production-state-writes.js';
@@ -107,7 +107,7 @@ import {
         const q2 = q.trim().toLowerCase();
         if (!q2) {
             el.innerHTML = linearProjects.slice(0, 8).map(name =>
-                `<div class="linear-search-suggestion" onclick="selectLinearProject(${_jsAttrArg(name)},${_jsAttrArg((_linearResolveClientRow(name) || {}).slug || '')})"><span>${wlEscape(name)}</span></div>`
+                `<div class="linear-search-suggestion" onclick="selectLinearProject(${_jsAttrArg(name)},${_jsAttrArg((_linearResolveClientRow(name) || {}).slug || '')})"><span>${_calEscAttr(name)}</span></div>`
             ).join('');
             return;
         }
@@ -713,7 +713,8 @@ import {
          * route that already shares the _calV2Teardown line beside it. */
         if (typeof _calAbandonLinkOnCalendarExit === 'function') _calAbandonLinkOnCalendarExit(page === 'calendar');
         if (page !== 'sample-reviews' && typeof _sxrV2Teardown === 'function') _navTeardownSafe(_sxrV2Teardown); // SXR_LINE
-        if (page !== 'workload' && typeof _wlV2Teardown === 'function') _navTeardownSafe(_wlV2Teardown);
+        const wlArea = svAreaApi('workload');
+        if (page !== 'workload' && wlArea) _navTeardownSafe(wlArea.teardown);
 
         svSharedClientApply(page, push);   // Templates / Filming Plans open on the shared client
         const state = {nav: page, client: null};
@@ -788,8 +789,11 @@ import {
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'workload') {
             pageTop.style.display = 'none';
-            content.innerHTML = renderWorkloadShell();
-            initWorkloadView();
+            // Workload is an on-demand area (040, svWithArea).
+            svWithArea('workload', content, wl => {
+                content.innerHTML = wl.render();
+                wl.init();
+            }, () => navTo('workload'));
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'time-off') {
             pageTop.style.display = 'none';
@@ -847,9 +851,39 @@ import {
         }
     }
 
+
+    // Open a client's card in the Content Calendar (Workload rows and Today).
+    // Moved here from Workload (080) because it only needs core pieces, so
+    // Today opens a card without waiting for the on-demand Workload code.
+    function wlOpenInContentCalendar(clientName, identifier, nativeId) {
+        const canon = wlCanonicalClient(clientName);
+        if (!canon) return;
+        const ident = String(identifier || '').toUpperCase();
+        // Codex review, PR for OPEN_REPAIRS 218 (fix 3): a native row carries
+        // no Linear identifier at all, so `ident` alone left every native
+        // deliverable unmatchable and this notice fired unconditionally for
+        // it. `nativeId` (the row's OWN id, not a Linear string) is carried
+        // as its own field rather than folded into `identifier` -- folding it
+        // in would have sent it through `ident`'s uppercase-only sanitizing
+        // in _calApplyFocusRequest, which strips underscores and lowercase
+        // hex and mangles a UUID/native id. The notice now only fires when
+        // NEITHER identity is available to match on.
+        const nid = String(nativeId || '').trim();
+        if (!ident && !nid) {
+            showNotify('Opening the calendar, not the card',
+                'This deliverable has no Linear identifier, so it cannot be matched to a calendar card yet. '
+                + canon + "'s calendar is opening; find the card by title.");
+        }
+        _calSetFocusRequest({ client: canon, identifier: ident, nativeId: nid });
+        try {
+            const pins = _calGetPins();
+            if (!pins.includes(canon)) { pins.push(canon); _calSavePins(pins); }
+        } catch (e) {}
+        navTo('calendar');
+    }
 export {
   _linearInvalidatePlanMap, _linearResolveClientRow, _linearResolvedPlanUrl,
   _linearSetResolvedPlanUrl, _navFitSchedule, _navPillSync, _syncviewApplyTabFavicon,
   buildLinearTitle, loadLinearForm, navTo, renderLinearSearchResults, saveLinearForm,
-  updateLinearFilmingPlan, updateLinearSearchGhost, updateLinearTitle
+  updateLinearFilmingPlan, updateLinearSearchGhost, updateLinearTitle, wlOpenInContentCalendar
 };

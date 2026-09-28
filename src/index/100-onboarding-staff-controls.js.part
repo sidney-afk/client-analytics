@@ -3,9 +3,7 @@ import {
   _syncviewStoredTheme, _toastEl, showNotify, showToast, svAreaApi
 } from './040-shared-briefs.js';
 import { FP_SAVED_KEY, currentNav } from './065-core-nav-intake-state.js';
-import { wlPurgePlanSensitiveState } from './067-workload-board-source.js';
 import { wlNormalizeClient } from './070-core-client-names.js';
-import { wlRefreshSensitiveStateSilent } from './080-workload-render.js';
 import { _tdyPurgeSensitiveState } from './097-today.js';
 import {
   _ptoCalResetView, _ptoDate, _ptoEnabled, _ptoLoadAdmin, _ptoLoadOverview, _ptoPaint,
@@ -1215,7 +1213,8 @@ import {
         } catch (e) {}
         if (identity && _syncviewStaffIdentityVerified) {
             try {
-                if (typeof wlRefreshSensitiveStateSilent === 'function') wlRefreshSensitiveStateSilent();
+                const wl = svAreaApi('workload');   // nothing to refresh until Workload has loaded
+                if (wl) wl.refreshSensitiveStateSilent();
             } catch (e) {}
         }
     }
@@ -1573,7 +1572,7 @@ import {
         } catch (e) {}
     }
     function _syncviewStaffPurgeSensitiveState() {
-        try { if (typeof wlPurgePlanSensitiveState === 'function') wlPurgePlanSensitiveState(); } catch (e) {}
+        try { const wl = svAreaApi('workload'); if (wl) wl.purgePlanSensitiveState(); } catch (e) {}   // in-memory only; nothing loaded before Workload runs
         try { if (typeof _linearIntakePurgeSensitiveState === 'function') _linearIntakePurgeSensitiveState(); } catch (e) {}
         try {
             const tpl = svAreaApi('templates');

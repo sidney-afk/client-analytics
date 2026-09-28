@@ -30,7 +30,8 @@
  *   - "parts" for signed-in staff on any other address: the runs, in the
  *     same order, each as its own <script>, except the areas split.json
  *     lists as "lazy": those are left out and fetched the first time their
- *     tab asks (040's svArea), or quietly once the first screen is up.
+ *     tab asks (040's svArea), or quietly once the first screen is up. A lazy
+ *     area made of several runs (core between them) is one file.
  * Both are parser-blocking scripts written at the exact place the inline
  * script stood, so they run at the same moment relative to the page's
  * markup as the inline script did.
@@ -113,20 +114,28 @@ function buildOutputs(srcDir, entries, bufs, modules, force) {
   const lazyAreas = new Set(cfg.lazy || []);
   const parts = [];
   const lazy = {};
+  // An on-demand area may be several runs with core between them (Workload's
+  // shared pieces were cut out into core in place). Its runs become ONE file,
+  // in page order: it only ever runs after every core part has, so nothing
+  // the runs need from the core between them is missing.
+  const lazyRuns = new Map();   // area -> { n, bufs }
   let n = 0;
   for (let i = first; i <= last;) {
     const area = areas.get(entries[i]);
     if (!area) throw new Error(`index-split: ${AREAS_FILE} does not list ${entries[i]}`);
     let j = i;
     while (j + 1 <= last && areas.get(entries[j + 1]) === area) j++;
-    const name = file(`sv-${String(++n).padStart(2, '0')}-${area}`, Buffer.concat(served.slice(i, j + 1)));
+    const body = Buffer.concat(served.slice(i, j + 1));
     if (lazyAreas.has(area)) {
-      if (lazy[area]) throw new Error(`index-split: lazy area "${area}" must be one run of consecutive fragments`);
-      lazy[area] = name;
+      if (!lazyRuns.has(area)) lazyRuns.set(area, { n: ++n, bufs: [] });
+      lazyRuns.get(area).bufs.push(body);
     } else {
-      parts.push(name);
+      parts.push(file(`sv-${String(++n).padStart(2, '0')}-${area}`, body));
     }
     i = j + 1;
+  }
+  for (const [area, run] of lazyRuns) {
+    lazy[area] = file(`sv-${String(run.n).padStart(2, '0')}-${area}`, Buffer.concat(run.bufs));
   }
   for (const a of lazyAreas) {
     if (a === 'core') throw new Error('index-split: core can never be lazy');

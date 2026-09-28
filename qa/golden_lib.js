@@ -108,7 +108,8 @@ async function kasperPage(browser) { const p = await _open(browser, `${ORIGIN}/i
 
 // ---- seeds / SMM moves (upsert = the SMM status control's write) ----
 async function seedCaptionCard(pid, captionStatus) {
-  await up({ id: pid, name: 'GOLDEN ' + pid.slice(-6), platforms: 'youtube', scheduled_date: '2026-06-29',
+  // Captioned like a real card; see the note on `up` in qa/probes/lib.js.
+  await up({ id: pid, name: 'GOLDEN ' + pid.slice(-6), platforms: 'youtube', scheduled_date: '2026-06-29', caption: 'QA probe caption ' + pid.slice(-6),
     video_status: 'Approved', graphic_status: 'Approved', caption_status: captionStatus, status: 'In Progress',
     thumbnail_url: 'https://via.placeholder.com/320x180.png', asset_url: 'https://example.com/g.mp4' });
 }

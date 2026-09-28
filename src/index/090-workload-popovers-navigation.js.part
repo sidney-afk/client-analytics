@@ -1355,8 +1355,20 @@ import {
             const btns = [...nav.querySelectorAll(':scope > .header-nav-btn')].filter(b => b.offsetWidth);
             if (!btns.length || window.innerWidth <= 760) { nav.classList.remove('is-measuring'); return; }
             const last = btns[btns.length - 1];
-            // Sub-pixel boxes: scrollWidth rounds a fractional overflow up, so must we.
-            const overflows = () => Math.ceil(last.getBoundingClientRect().right - btns[0].getBoundingClientRect().left - 0.01) > nav.clientWidth;
+            // Compare fractional boxes on both sides. The row is width:max-content,
+            // so when everything fits its clientWidth is the tabs' width ROUNDED
+            // DOWN (1131.09 -> 1131); rounding the tabs up against that made a row
+            // that fits read as 1px over and dropped to icons (seen at 1600px once
+            // the Today tab landed). A real overflow clamps the row at its column,
+            // so the tabs' span then exceeds its content box by whole pixels.
+            const overflows = () => {
+                const cs = getComputedStyle(nav);
+                const box = nav.getBoundingClientRect();
+                const room = box.width - (parseFloat(cs.borderLeftWidth) || 0) - (parseFloat(cs.borderRightWidth) || 0)
+                    - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+                // Tab span, not positions: the row may be scrolled sideways.
+                return last.getBoundingClientRect().right - btns[0].getBoundingClientRect().left > room + 0.05;
+            };
             if (overflows()) {
                 nav.classList.add('is-compact');
                 void nav.offsetWidth;

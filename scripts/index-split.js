@@ -22,8 +22,11 @@
  *
  * The loader picks, while the page is still being read:
  *   - "full" for everyone who is not signed-in staff: client links (?c= /
- *     ?t=), onboarding and intake forms, signed-out visitors. They run the
- *     same single script as today.
+ *     ?t=), onboarding and intake forms, the SMM weekly report, signed-out
+ *     visitors. These public entries get it even in a browser that also
+ *     holds a staff sign-in; the address is read through svRoute, so clean
+ *     paths (/intake, /onboarding/<id>) count. They run the same single
+ *     script as today.
  *   - "parts" for signed-in staff on any other address: the runs, in the
  *     same order, each as its own <script>. (Loading a staff-only area only
  *     when its tab opens comes later, one area at a time, in step 3.)
@@ -132,8 +135,16 @@ function loaderSource({ full, parts, force }) {
         function staffParts() {
             if (FORCE) return FORCE === 'parts';
             try {
-                var q = new URLSearchParams(location.search);
-                if (q.has('c') || q.has('t') || q.has('onboarding') || q.has('onboarding_view')) return false;
+                // Read the address the way the app does: svRoute (003, which ran
+                // first) turns clean paths such as /intake or /onboarding/<id>
+                // back into their query and hash form. Every public entry, the
+                // ones that never meet the staff gate, gets the full file even
+                // in a browser that also holds a staff sign-in.
+                var r = self.svRoute;
+                var q = new URLSearchParams(r ? r.search() : location.search);
+                var h = String(r ? r.hash() : location.hash).replace(/^#/, '').split(/[/?]/)[0];
+                if (q.has('c') || q.has('t') || q.has('onboarding') || q.has('onboarding_view') || q.get('intake') === '1') return false;
+                if (h === 'smm-weekly-report' || h === 'smm-weekly-reports') return false;
                 return !!localStorage.getItem('syncview_staff_identity_v1');
             } catch (e) { return false; }
         }

@@ -72,6 +72,14 @@ async function load(browser, origin, { url, staff, route, dropFirstPart }) {
         ['intake form', { url: '/?intake=1' }, forcedParts ? 'parts' : 'full'],
         ['onboarding form', { url: '/?onboarding=1' }, forcedParts ? 'parts' : 'full'],
         ['signed-out visitor', { url: '/' }, forcedParts ? 'parts' : 'full'],
+        // Public entries opened in a browser that also holds a staff sign-in,
+        // by their clean addresses too (svRoute rewrites them before the loader).
+        ['intake form, staff browser, clean path', { url: '/intake', staff: true }, forcedParts ? 'parts' : 'full'],
+        ['intake form, staff browser', { url: '/?intake=1', staff: true }, forcedParts ? 'parts' : 'full'],
+        ['onboarding form, staff browser, clean path', { url: '/onboarding/qa-fixture', staff: true }, forcedParts ? 'parts' : 'full'],
+        ['onboarding form, staff browser', { url: '/?onboarding=1', staff: true }, forcedParts ? 'parts' : 'full'],
+        ['SMM weekly report, staff browser', { url: '/#smm-weekly-report', staff: true }, forcedParts ? 'parts' : 'full'],
+        ['client link, staff browser', { url: clientLinkUrl('', 'calendar'), route: clientLinkRoute('calendar'), staff: true }, forcedParts ? 'parts' : 'full'],
         ['signed-in staff', { url: '/', staff: true }, 'parts'],
         ['signed-in staff, Calendar', { url: '/#calendar', staff: true }, 'parts'],
       ];

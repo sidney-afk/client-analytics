@@ -171,8 +171,9 @@ async function refuseStubKeyProductionWrite(target) {
 // red on every PR, app change or not (bisected: green through #1805, red from
 // #1810). A stub key can never read the mirror, so answer it here with the
 // shape of "no mirror for you" and the page takes the Sheets, as it did
-// before the flag. Only fake keys are matched; a suite that tests this read
-// itself passes { keepAnalyticsRead: true } so its own mock answers.
+// before the flag. Every key is answered, since no harness key is real; a
+// suite that tests this read itself passes { keepAnalyticsRead: true } so its
+// own mock answers.
 async function answerStubKeyAnalyticsRead(target) {
   await target.route('**/functions/v1/analytics-read', route => {
     const request = route.request();
@@ -186,7 +187,10 @@ async function answerStubKeyAnalyticsRead(target) {
         'access-control-allow-headers': request.headers()['access-control-request-headers'] || '*',
       }, body: '' });
     }
-    if (!isStubKeyProductionWrite(request)) return route.fallback();
+    // Any key: a public repo holds no real key, and suites forge their own
+    // mid-run (prod-structure-subset uses 'structure-fixture-key', which the
+    // FAKE_STAFF_KEY shapes do not cover), so no harness read can succeed live.
+    if (request.method() !== 'POST') return route.fallback();
     return route.fulfill({
       status: 200,
       contentType: 'application/json',

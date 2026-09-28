@@ -99,7 +99,9 @@ async function callFrom(page, key) {
     assert.equal(stubRead.status, 200);
     assert.deepEqual(stubRead.body, { ok: false, error: 'invalid_staff_key' });
     assert.equal(net.hits, 0, 'neither a stub-key analytics read nor its preflight may reach the live backend');
-    assert.equal((await readFrom(p3, 'some-other-key')).body.from, 'network', 'a non-stub key must fall through');
+    const forged = await readFrom(p3, 'structure-fixture-key');
+    assert.deepEqual(forged.body, { ok: false, error: 'invalid_staff_key' }, 'a key a suite forges mid-run is answered locally too');
+    assert.equal(net.hits, 0, 'no harness key may reach the live analytics-read');
     await ar.close();
 
     const keep = await browser.newContext();
@@ -109,7 +111,7 @@ async function callFrom(page, key) {
     await p4.goto(`http://127.0.0.1:${server.address().port}/`);
     assert.equal((await readFrom(p4, STAFF_GATE_KEY)).body.from, 'network', 'keepAnalyticsRead leaves the suite mock in charge');
     await keep.close();
-    console.log('staff-gate-stub-refusal-local: 13 checks passed ✅');
+    console.log('staff-gate-stub-refusal-local: 14 checks passed ✅');
   } finally {
     await browser.close();
     server.close();

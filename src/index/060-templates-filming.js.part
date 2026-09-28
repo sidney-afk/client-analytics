@@ -8,8 +8,8 @@ import {
   _tplSetPinsEditMode, _tplViewColor, _tplViewProse, _tplViewText, templatesLoadError
 } from './050-market-briefs.js';
 import { FP_SAVED_KEY, currentNav } from './065-core-nav-intake-state.js';
-import { getClientRoster, wlNormalizeClient } from './070-workload-source.js';
-import { _linearInvalidatePlanMap, updateLinearFilmingPlan } from './090-workload-popovers-navigation.js';
+import { getClientRoster, wlNormalizeClient } from './070-core-client-names.js';
+import { _linearInvalidatePlanMap, updateLinearFilmingPlan } from './092-core-submit-form-navigation.js';
 import { svSharedClientNote } from './095-shared-client.js';
 import {
   CAL_SUPABASE_URL, _obZoom, _syncviewOfferStaffSignIn, _syncviewOpenStaffIdentity,

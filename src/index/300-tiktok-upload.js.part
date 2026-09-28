@@ -6,7 +6,7 @@ import {
   showConfirm, showNotify, svAreaRegister
 } from './040-shared-briefs.js';
 import { clientSearchGhostHtml, clientSearchMatches, clientSearchResultsHtml, getRecent } from './050-market-briefs.js';
-import { WL_CLIENT_NAMES } from './070-workload-source.js';
+import { WL_CLIENT_NAMES } from './070-core-client-names.js';
 import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
     /* ============================================================
        TIKTOK UPLOAD MODULE

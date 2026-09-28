@@ -1,0 +1,377 @@
+import { wlState } from './066-core-workload-state.js';
+import { wlISO, wlParseISO } from './068-core-workload-dates.js';
+import { wlDisplayDate, wlPlacementMode, wlTeamBucket } from './071-workload-planner.js';
+import { wlEscape } from './080-workload-render.js';
+    function wlAddDays(iso, n) {
+        const d = wlParseISO(iso);
+        d.setDate(d.getDate() + n);
+        return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    /* MEMOISED PURE HELPERS.
+       Each of these is a pure function of its arguments and is called once per
+       sub-issue (sometimes several times) inside the board's hot loops, so at
+       live scale they dominate the boot. Profiled 2026-09-15 on a fixture at
+       live shape (~1,700 sub-issues): wlFormatShort 942 ms of a 3.1 s render,
+       wlNormalizeClient 157 ms and wlWorkloadTodayISO 85 ms of a 446 ms
+       wlApplyData. The caches are keyed by the exact inputs, so the result is
+       identical; they are cleared wholesale past a ceiling rather than grown
+       without bound. */
+    function wlFormatShort(iso) {
+        const cache = wlFormatShort._cache || (wlFormatShort._cache = new Map());
+        const key = String(iso);
+        const hit = cache.get(key);
+        if (hit !== undefined) return hit;
+        const d = wlParseISO(iso);
+        const out = d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+        if (cache.size > 4000) cache.clear();
+        cache.set(key, out);
+        return out;
+    }
+    function wlCalendarDayDiff(fromISO, toISO) {
+        const parseUTC = (iso) => {
+            const match = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            return match ? Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : NaN;
+        };
+        const from = parseUTC(fromISO);
+        const to = parseUTC(toISO);
+        return Number.isFinite(from) && Number.isFinite(to)
+            ? Math.round((to - from) / 86400000)
+            : null;
+    }
+    // Signed WORKING-day difference from `fromISO` to `toISO` (Saturdays and
+    // Sundays don't count), reusing the same weekend rule as wlAddWorkingDays /
+    // wlSubWorkingDays. This is the buffer/proximity metric: a Friday plan with
+    // a Monday due date is 1 working day of slack, not 3 calendar days. Grid
+    // column positioning still uses wlCalendarDayDiff.
+    function wlWorkingDayDiff(fromISO, toISO) {
+        const valid = (iso) => /^\d{4}-\d{2}-\d{2}$/.test(String(iso || ''));
+        if (!valid(fromISO) || !valid(toISO)) return null;
+        if (fromISO === toISO) return 0;
+        const dir = toISO > fromISO ? 1 : -1;
+        const d = wlParseISO(fromISO);
+        let count = 0;
+        for (let guard = 0; guard < 4000; guard++) {
+            d.setDate(d.getDate() + dir);
+            const dow = d.getDay();
+            if (dow !== 0 && dow !== 6) count += dir;
+            if (wlISO(d.getFullYear(), d.getMonth(), d.getDate()) === toISO) break;
+        }
+        return count;
+    }
+    function wlValidRfc3339Timestamp(value) {
+        if (typeof value !== 'string' || value.trim() !== value) return false;
+        const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.exec(value);
+        if (!match) return false;
+        const parts = match.slice(1, 7).map(Number);
+        const calendar = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+        return calendar.getUTCFullYear() === parts[0]
+            && calendar.getUTCMonth() === parts[1] - 1
+            && calendar.getUTCDate() === parts[2]
+            && parts[3] <= 23 && parts[4] <= 59 && parts[5] <= 59
+            && Number.isFinite(Date.parse(value));
+    }
+    function wlPlacementLabel(mode) {
+        return ({ auto: 'Automatically planned', manual: 'Manually planned', mixed: 'Mixed planning', fallback: 'Deadline fallback', loading: 'Planning…' })[mode] || '';
+    }
+    function wlPlanOriginHtml(mode, compact, count, tipDetail) {
+        const label = wlPlacementLabel(mode);
+        if (!label) return '';
+        let icon;
+        if (mode === 'manual') {
+            icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.2 2.2h5.6l-.8 3 1.7 1.7v1.3H8.7v5.2L8 14l-.7-.6V8.2H4.3V6.9L6 5.2l-.8-3Z" fill="currentColor"/></svg>';
+        } else if (mode === 'loading') {
+            icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 1 0 5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+        } else if (mode === 'fallback') {
+            icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.2h10v9.6H3zM3 6h10M5.5 1.8v2.8M10.5 1.8v2.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 8v2.1M8 11.8h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+        } else {
+            icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m8 1 .8 2.2L11 4l-2.2.8L8 7l-.8-2.2L5 4l2.2-.8L8 1Zm4.2 6 .55 1.45L14.2 9l-1.45.55L12.2 11l-.55-1.45L10.2 9l1.45-.55L12.2 7ZM4.5 8l.85 2.15L7.5 11l-2.15.85L4.5 14l-.85-2.15L1.5 11l2.15-.85L4.5 8Z" fill="currentColor"/></svg>';
+        }
+        const amount = Number(count) > 0 ? ` <span class="wl-plan-origin-count">${Number(count)}</span>` : '';
+        const accessible = Number(count) > 0 ? `${Number(count)} ${label.toLowerCase()}` : label;
+        const tip = mode === 'manual'
+            ? 'Manual plan: stays on this work day until someone changes or clears it.'
+            : (mode === 'loading'
+                ? 'Loading saved plans… showing an automatic estimate from the due date; only manually planned items will settle when plans arrive.'
+                : (mode === 'fallback'
+                    ? 'Deadline fallback: no plan day is saved, so this uses the due date.'
+                    : (String(tipDetail || '')
+                        || 'Automatic plan: the earliest working day with room, never later than one working day before the deadline. Drag it to pin it somewhere else.')));
+        return `<span class="wl-plan-origin is-${wlEscape(mode)}" role="img" aria-label="${wlEscape(accessible)}" data-tip="${wlEscape(tip)}">${icon}${amount}</span>`;
+    }
+    function wlGroupPlacementMode(subs) {
+        const modes = new Set((subs || []).map(wlPlacementMode).filter(mode => mode !== 'none'));
+        if (!modes.size) return 'none';
+        if (modes.size === 1) return [...modes][0];
+        return 'mixed';
+    }
+    function wlGroupPlanOriginHtml(subs) {
+        const counts = { auto: 0, manual: 0, fallback: 0, loading: 0 };
+        for (const sub of subs || []) {
+            const mode = wlPlacementMode(sub);
+            if (Object.prototype.hasOwnProperty.call(counts, mode)) counts[mode]++;
+        }
+        const present = Object.entries(counts).filter(([, count]) => count > 0);
+        if (present.length === 1) return wlPlanOriginHtml(present[0][0], true, 0);
+        return present.map(([mode, count]) => wlPlanOriginHtml(mode, true, count)).join('');
+    }
+    function wlDeadlineMeta(dueDate, planDate, prefix) {
+        const due = String(dueDate || '').slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) {
+            return { tone: '', days: null, label: 'No deadline' };
+        }
+        const plan = String(planDate || '').slice(0, 10);
+        const lead = prefix || 'Due';
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(plan)) {
+            return { tone: '', days: null, label: lead + ' ' + wlFormatShort(due) };
+        }
+        const days = wlWorkingDayDiff(plan, due);
+        if (days === null) return { tone: '', days, label: lead + ' ' + wlFormatShort(due) };
+        const tone = days <= 0 ? 'red' : (days <= 2 ? 'orange' : 'green');
+        let label;
+        if (days < 0) label = `${lead} ${wlFormatShort(due)} · plan ${Math.abs(days)}d late`;
+        else if (days === 0) label = `${lead} ${wlFormatShort(due)} · same day`;
+        else label = `${lead} ${wlFormatShort(due)} · ${days}d buffer`;
+        return { tone, days, label };
+    }
+    function wlDeadlineTagHtml(dueDate, planDate, prefix) {
+        const meta = wlDeadlineMeta(dueDate, planDate, prefix);
+        const meanings = {
+            red: 'Red: planned on or after the due date.',
+            orange: 'Orange: one or two days between the work day and due date.',
+            green: 'Green: three or more days between the work day and due date.',
+        };
+        const tip = [meanings[meta.tone] || '', meta.label].filter(Boolean).join(' ');
+        return `<span class="wl-deadline-tag${meta.tone ? ' is-' + meta.tone : ''}" data-tip="${wlEscape(tip)}">${wlEscape(meta.label)}</span>`;
+    }
+    function wlDeadlineDotHtml() {
+        return '<span class="wl-deadline-dot" aria-hidden="true"></span>';
+    }
+    function wlGroupDeadlineSummary(subs) {
+        const rows = Array.isArray(subs) ? subs : [];
+        if (!rows.length) return { tone: '', mixed: false, label: '', counts: {} };
+        const counts = { red: 0, orange: 0, green: 0, missing: 0 };
+        for (const sub of rows) {
+            const due = String(sub && sub.dueDate || '').slice(0, 10);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) { counts.missing++; continue; }
+            const tone = wlDeadlineMeta(due, wlDisplayDate(sub)).tone;
+            if (tone) counts[tone]++;
+            else counts.missing++;
+        }
+        const tones = ['red', 'orange', 'green'].filter(tone => counts[tone] > 0);
+        if (counts.missing === 0 && tones.length === 1) {
+            const labels = { red: 'planned on or after the due date', orange: 'with 1–2d buffer', green: 'with 3d or more buffer' };
+            return { tone: tones[0], mixed: false, label: `All ${rows.length} ${labels[tones[0]]}`, counts };
+        }
+        const parts = [];
+        if (counts.red) parts.push(`${counts.red} planned on or after the due date`);
+        if (counts.orange) parts.push(`${counts.orange} with 1–2d buffer`);
+        if (counts.green) parts.push(`${counts.green} with 3d or more buffer`);
+        if (counts.missing) parts.push(`${counts.missing} without a deadline`);
+        return { tone: '', mixed: true, label: `Mixed deadline proximity: ${parts.join(', ')}`, counts };
+    }
+    function wlGroupDeadlineHtml(subs) {
+        const meta = wlGroupDeadlineSummary(subs);
+        if (!meta.label || !meta.tone) return '';
+        const toneLabel = ({ red: 'Red proximity', orange: 'Orange proximity', green: 'Green proximity' })[meta.tone] || 'Deadline proximity';
+        const tip = `${toneLabel}: ${meta.label}.`;
+        return `<span class="wl-deadline-summary is-${meta.tone}" role="img" aria-label="${wlEscape(meta.label)}" data-tip="${wlEscape(tip)}">${wlDeadlineDotHtml()}</span>`;
+    }
+    function wlDragGripSvg() {
+        return '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg>';
+    }
+    function wlIssueDragHandleHtml(issueId, canDrag) {
+        if (!canDrag) return '';
+        return `<span class="workload-drag-handle workload-plan-drag-handle" draggable="true" data-wl-drag-handle="issue" data-wl-plan-drag="${wlEscape(issueId)}" role="img" aria-label="Drag to another work day" data-tip="Drag this sub-issue to another work day.">${wlDragGripSvg()}</span>`;
+    }
+    function wlGroupDragHandleHtml(dayISO, assigneeId, clientName, canDrag) {
+        if (!canDrag) return '';
+        return `<span class="workload-drag-handle workload-plan-drag-handle" draggable="true" data-wl-drag-handle="group" data-wl-plan-group-drag="1" data-wl-date="${wlEscape(dayISO || '')}" data-wl-assignee-id="${wlEscape(assigneeId || '')}" data-wl-client="${wlEscape(clientName || '')}" role="img" aria-label="Drag this client group to another work day" data-tip="Drag this entire client group to another work day.">${wlDragGripSvg()}</span>`;
+    }
+    function wlWorkloadMeta(sub) {
+        if (wlTeamBucket(sub && sub.teamKey, sub && sub.teamName) !== 'video') return null;
+        return wlState.workloadByIssueId.get(String(sub && sub.id || '')) || null;
+    }
+    function wlWorkloadWeight(sub) {
+        const meta = wlWorkloadMeta(sub);          // one lookup, not two
+        const weight = Number(meta && meta.weight);
+        return weight === 2 || weight === 3 ? weight : 1;
+    }
+    function wlWorkloadUnits(subs) {
+        return (subs || []).reduce((total, sub) => total + wlWorkloadWeight(sub), 0);
+    }
+    function wlWorkloadBadgeHtml(sub, compact) {
+        const meta = wlWorkloadMeta(sub);
+        if (!meta) return '';
+        const color = /^#[0-9a-f]{6}$/i.test(String(meta.color || '')) ? ` style="--wl-weight-color:${meta.color}"` : '';
+        const text = compact ? `${meta.weight}×` : meta.label;
+        const label = `${meta.label}; counts as ${meta.weight} videos for capacity`;
+        return `<span class="wl-workload-badge" role="img" aria-label="${wlEscape(label)}" data-tip="${wlEscape(label)}"${color}>${wlEscape(text)}</span>`;
+    }
+    function wlGroupWorkloadHtml(subs) {
+        const rows = Array.isArray(subs) ? subs : [];
+        const counts = { 2: 0, 3: 0 };
+        for (const sub of rows) {
+            const weight = wlWorkloadWeight(sub);
+            if (weight === 2 || weight === 3) counts[weight]++;
+        }
+        const extraCount = counts[2] + counts[3];
+        if (!extraCount) return '';
+        const allExtra = extraCount === rows.length;
+        const details = [2, 3].filter(weight => counts[weight]).map(weight =>
+            `${counts[weight]} at ${weight}× Workload`
+        ).join(', ');
+        const label = `${allExtra ? 'All' : 'Some'} sub-issues use extra workload: ${details}. Capacity totals use these weights.`;
+        const icon = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m2.5 5 5.5-2.7L13.5 5 8 7.8 2.5 5Zm0 3L8 10.8 13.5 8M2.5 11 8 13.7l5.5-2.7" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        return `<span class="wl-workload-group is-${allExtra ? 'all' : 'some'}" role="img" aria-label="${wlEscape(label)}" data-tip="${wlEscape(label)}">${icon}</span>`;
+    }
+    function wlGroupProximityDays(subs, planDate) {
+        let closest = Infinity;
+        for (const sub of subs || []) {
+            const due = String(sub && sub.dueDate || '').slice(0, 10);
+            const plan = String(planDate || wlDisplayDate(sub) || '').slice(0, 10);
+            const days = wlWorkingDayDiff(plan, due);
+            if (days !== null && days < closest) closest = days;
+        }
+        return closest;
+    }
+    function wlCompareClientGroups(a, b, planDate) {
+        const aDays = wlGroupProximityDays(a && a.subs, planDate);
+        const bDays = wlGroupProximityDays(b && b.subs, planDate);
+        if (aDays !== bDays) return aDays === Infinity ? 1 : (bDays === Infinity ? -1 : aDays - bDays);
+        return String(a && a.clientName || '').localeCompare(String(b && b.clientName || ''));
+    }
+
+    // Status classification — user rule:
+    //   Workload only shows work the editor still owns. Anything parked on
+    //   someone else (Tweaks Applied, awaiting SMM/Kasper/Client approval,
+    //   Approved, Posted) is hidden, along with completed/canceled/triage
+    //   workflow types. Everything else (To Do, In Progress, Tweaks Needed,
+    //   plus any active status not explicitly parked) is shown.
+    //   "Right now" = status name is literally "In Progress".
+    const WL_PARKED_STATUSES = new Set([
+        'tweak applied', 'tweaks applied',
+        'for smm approval', 'waiting for smm approval', 'smm approval',
+        'for casper approval', 'waiting for casper approval', 'casper approval',
+        'for kasper approval', 'waiting for kasper approval', 'kasper approval',
+        'for client approval', 'waiting for client approval', 'client approval',
+        'approved',
+        'posted'
+    ]);
+    function wlNormStatus(sub) {
+        return (sub.status || '').trim().toLowerCase();
+    }
+    function wlIsActiveStatus(sub) {
+        const t = (sub.statusType || '').toLowerCase();
+        // `duplicate` is terminal everywhere else in this file -- _prodIsDone
+        // lists it beside completed and canceled -- but Workload used to omit
+        // it, so a Linear issue marked Duplicate stayed live here: it kept its
+        // assignee, kept its due date, and took up that designer's capacity for
+        // work that is closed by definition. Found 2026-08-22 by the F40 gate,
+        // which counted GRA-7101 (Duplicate, due 2026-08-17, assigned) as a row
+        // that would lose its deadline at the flip -- a deadline nobody wanted.
+        if (t === 'completed' || t === 'canceled' || t === 'duplicate' || t === 'triage') return false;
+        // OWNER RULING 2026-08-23: Backlog is not work anyone is holding, so it
+        // has no place on this page. It used to pass as live work, which is why
+        // 681 of the 1,073 rows on Workload were parked: 618 active Backlog
+        // sub-issues, 273 of them assigned to somebody, each taking a slice of
+        // that person's daily capacity for work nobody had started.
+        //
+        // Keyed on the Linear workflow-state TYPE, never the column's name, so
+        // Todo (type `unstarted`, 254 live rows) stays live work and a
+        // backlog-type column renamed to anything else is still caught.
+        //
+        // KNOWN COST, accepted with the ruling. `workload_issues.status_type`
+        // has exactly one writer, the Linear-derived reconcile, and graphics has
+        // been SyncView-authoritative since 2026-08-16 -- a Linear status edit
+        // on a graphics issue is recorded and deliberately not applied. So a row
+        // whose deliverable says `todo` while its Linear mirror says Backlog now
+        // leaves this page while the Production tab still renders it live. The
+        // 2026-08-20 census put that class at 7 rows (one real client, one
+        // unattributed, five TEST) and the owner ruled to leave them:
+        // docs/ops/OPEN_REPAIRS.md item 22. Nothing reconciles the two stores,
+        // so that class does not heal on its own -- if it grows, this filter is
+        // where it goes quiet.
+        if (t === 'backlog') return false;
+        return !WL_PARKED_STATUSES.has(wlNormStatus(sub));
+    }
+    function wlIsInProgress(sub) {
+        return wlNormStatus(sub) === 'in progress';
+    }
+    function wlIsTweaksNeeded(sub) {
+        // Linear's actual status is "Tweak Needed" (singular). We match the
+        // plural form too in case the status name gets renamed later — same
+        // defensive pattern as the "tweak applied" / "tweaks applied" entry
+        // in WL_PARKED_STATUSES.
+        const s = wlNormStatus(sub);
+        return s === 'tweak needed' || s === 'tweaks needed';
+    }
+    function wlIsToDo(sub) {
+        const s = wlNormStatus(sub);
+        return s === 'to do' || s === 'todo';
+    }
+
+
+    // Editors who have left the team. This shared exclusion is applied to both
+    // Workload's local roster and the Kasper Editors response, so historical or
+    // cached Linear activity cannot put a former editor back in either view.
+    const WL_INACTIVE_EDITOR_IDS = new Set([
+        '6b70f1d8-f73e-4222-9a59-944b86da2cc9', // Martin
+    ]);
+    const WL_INACTIVE_EDITORS = new Set([
+        'martin',
+        'martinsynchro',
+    ]);
+
+    // Legacy cached-row fallback only. Fresh authenticated snapshots carry exact
+    // active-role membership from team_members; these tokens preserve the
+    // previous rollback behavior when an older cached row lacks that field.
+    // Each entry is a normalised name token — wlNormalizeEditor() collapses
+    // emails, accented names and "First Last"/"Last First" into the same key.
+    const WL_ALLOWED_EDITORS = new Set([
+        'iaramiraille',
+        'espindolanahuel',
+        'nahuelespindola',
+        'santigimelli',
+        'gimellisanti',
+        'davidstrutt',
+        'struttdavid',
+    ]);
+    const WL_ALLOWED_GRAPHICS = new Set([
+        'rocioperez',
+        'perezrocio',
+    ]);
+    function wlNormalizeEditor(s) {
+        if (!s) return '';
+        const cache = wlNormalizeEditor._cache || (wlNormalizeEditor._cache = new Map());
+        const cacheKey = String(s);
+        const cached = cache.get(cacheKey);
+        if (cached !== undefined) return cached;
+        const lower = String(s).trim().toLowerCase()
+            .normalize('NFD').replace(/[̀-ͯ]/g, ''); // strip accents
+        const local = lower.includes('@') ? lower.split('@')[0] : lower;
+        const out = local.replace(/[\s._\-]+/g, '');
+        if (cache.size > 4000) cache.clear();
+        cache.set(cacheKey, out);
+        return out;
+    }
+    function wlIsInactiveEditor(id, name) {
+        return WL_INACTIVE_EDITOR_IDS.has(String(id || '').trim()) ||
+            WL_INACTIVE_EDITORS.has(wlNormalizeEditor(name));
+    }
+    function wlIsAllowedEditor(name, teamKey, teamName) {
+        if (!name) return false;
+        const norm = wlNormalizeEditor(name);
+        if (WL_INACTIVE_EDITORS.has(norm)) return false;
+        if (wlTeamBucket(teamKey, teamName) === 'graphics') {
+            return WL_ALLOWED_GRAPHICS.has(norm);
+        }
+        return WL_ALLOWED_EDITORS.has(norm);
+    }
+
+export {
+  wlAddDays, wlCalendarDayDiff, wlCompareClientGroups, wlDeadlineDotHtml, wlDeadlineMeta,
+  wlDeadlineTagHtml, wlFormatShort, wlGroupDeadlineHtml, wlGroupDeadlineSummary,
+  wlGroupDragHandleHtml, wlGroupPlanOriginHtml, wlGroupWorkloadHtml, wlIsActiveStatus,
+  wlIsAllowedEditor, wlIsInProgress, wlIsToDo, wlIsTweaksNeeded, wlIssueDragHandleHtml,
+  wlPlanOriginHtml, wlValidRfc3339Timestamp, wlWorkloadBadgeHtml, wlWorkloadUnits, wlWorkloadWeight
+};

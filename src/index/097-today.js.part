@@ -1,5 +1,5 @@
 import { wlOpenInContentCalendar } from './080-workload-render.js';
-import { navTo } from './090-workload-popovers-navigation.js';
+import { navTo } from './092-core-submit-form-navigation.js';
 import { svSharedClientNote } from './095-shared-client.js';
 import {
   svClientKey, svCurrentClients, svRosterEntryFor, svScopeMode, svSmmCurrentClients

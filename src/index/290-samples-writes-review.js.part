@@ -1,7 +1,7 @@
 import { _svCaptureFocus, _svRestoreFocus, showNotify, showToast } from './040-shared-briefs.js';
 import { NATIVE_INTAKE_PENDING_KEY, currentNav } from './065-core-nav-intake-state.js';
-import { wlCanonicalClient, wlNormalizeClient } from './070-workload-source.js';
-import { _navPillSync } from './090-workload-popovers-navigation.js';
+import { wlCanonicalClient, wlNormalizeClient } from './070-core-client-names.js';
+import { _navPillSync } from './092-core-submit-form-navigation.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
 import {
   WRITE_UI_PRODUCTION_WRITE_URL, _syncviewEfHeaders, _writeUiAdoptRepairAck,
@@ -36,7 +36,9 @@ import { _calFlushCardSave } from './170-calendar-links-status.js';
 import { COMP_LABELS, _kasperHasUnreadReply, _kasperMarkSeenAt } from './180-calendar-native-post-media.js';
 import { REVIEW_APPROVE_DRAFT_TITLE, _calMergeCommentLists, _calStringifyComments } from './190-calendar-approval-comments.js';
 import {
-  _calCardJobsRead, _linearIntakeJobId, _linearIntakeRead, _linearRefreshSavedBox, _linearResumeSubmissionHold, _resumeNativeIntakeJob, _resumePendingCalCardJobs, CAL_CARD_JOBS_KEY
+  CAL_CARD_JOBS_KEY, _calCardJobsRead, _linearIntakeJobId, _linearIntakeRead,
+  _linearRefreshSavedBox, _linearResumeSubmissionHold, _resumeNativeIntakeJob,
+  _resumePendingCalCardJobs
 } from './200-intake-data-startup.js';
 import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodVerifiedClientCommentMutationContext } from './230-production-create-comments.js';
 import { _isClientLink, _isIntake } from './260-production-refresh-boot.js';

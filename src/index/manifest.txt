@@ -8,9 +8,15 @@
 050-market-briefs.js.part
 060-templates-filming.js.part
 065-core-nav-intake-state.js.part
-070-workload-source.js.part
+066-core-workload-state.js.part
+067-workload-board-source.js.part
+068-core-workload-dates.js.part
+069-workload-planning-helpers.js.part
+070-core-client-names.js.part
+071-workload-planner.js.part
 080-workload-render.js.part
-090-workload-popovers-navigation.js.part
+090-workload-popovers.js.part
+092-core-submit-form-navigation.js.part
 095-shared-client.js.part
 096-quick-jump.js.part
 097-today.js.part

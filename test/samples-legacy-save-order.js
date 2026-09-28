@@ -115,6 +115,7 @@ async function runCase({ gateway, saveOk }) {
     _writeUiCompleteSourceRepairRefs: async () => false,
     _writeUiRemoveCompletedRepairRefs: () => {},
     _writeUiReportFailure: () => { events.push('gateway-report'); },
+    _writeUiRecordFailure: () => {},
     _writeUiUseGatewayWhenReady: async () => {
       events.push(gateway ? 'route:gateway' : 'route:legacy');
       return gateway;
@@ -308,6 +309,7 @@ async function runReviewTweakCase({
       else post._saveError = 'save failed';
     },
     _writeUiReportFailure: () => { events.push('gateway-report'); },
+    _writeUiRecordFailure: () => {},
     _sxrRenderBody: () => {},
     _writeUiUseGatewayWhenReady: async () => {
       events.push(gateway ? 'route:comment:gateway' : 'route:comment:legacy');
@@ -412,6 +414,7 @@ async function runKasperTweakCase({ gateway, saveOk }) {
     _writeUiCompleteSourceRepairRefs: async () => false,
     _writeUiRemoveCompletedRepairRefs: () => {},
     _writeUiReportFailure: () => { events.push('gateway-report'); },
+    _writeUiRecordFailure: () => {},
     showNotify: title => { events.push('notify:' + title); },
     _sxrKasperPersist: async () => {
       events.push('save');

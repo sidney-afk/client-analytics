@@ -17,7 +17,7 @@ import {
   _calSetCapJobTicker, _calSetCapJobsRestored, _calSetCaptionPrompts,
   _calSetCaptionPromptsInFlight, _calSetCaptionPromptsLoaded, _calUpsertFetch, _calUpsertHeaders,
   _calUpsertUseEf, _settingsPrimeRoutingFlag, _settingsUseEf, _settingsWriteHeaders,
-  _settingsWriteUrlForClient, _writeUiNativeId, _writeUiRerouteUseGatewayWhenReady,
+  _settingsWriteUrlForClient, _writeUiNativeId, _writeUiRecordFailure, _writeUiRerouteUseGatewayWhenReady,
   computeOverallStatus
 } from './120-calendar-flags-write-repair.js';
 import {
@@ -755,6 +755,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
                 videos: videos.map(video => ({ number: video.number })), ..._linearIntakeActorContext(identity)
             }));
         } catch (error) {
+            _writeUiRecordFailure(surface === 'sxr' ? 'sxr' : 'calendar', 'create_post', error);
             if (errorBox) { errorBox.hidden = false; errorBox.textContent = _calNativePostErrorText(error); }
             return;
         }
@@ -819,6 +820,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
                     : savedWhat + ' in the selected batch.');
         } catch (error) {
             console.warn('[SyncView] Calendar native Create Post failed:', error);
+            _writeUiRecordFailure(surface === 'sxr' ? 'sxr' : 'calendar', 'create_post', error);
             const saved = _linearIntakeRead();
             if (Number(error && error.status) >= 400 && Number(error && error.status) < 500 && !(saved && saved.result)) {
                 _linearIntakeRemoveIfCurrent(pending && pending.payload && pending.payload.request_id);

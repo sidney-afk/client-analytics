@@ -14778,8 +14778,9 @@
     /* SAVED COPY. The plans list is small (one row per client), so it lives in
        localStorage, bound to the signed-in staff member (never the key) and
        dropped on sign-out by _fpPurgeSensitiveState. Client links never read or
-       write it. The tab paints from it at once and refreshes behind. */
-    const FP_SAVED_KEY = 'syncview_filmingPlansCache_v1';
+       write it. The tab paints from it at once and refreshes behind. Its key,
+       FP_SAVED_KEY, lives in core (065) so sign-out can clear it even before
+       this on-demand area has loaded. */
     const FP_SAVED_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
     const FP_SAVED_MAX_BYTES = 900 * 1024;
     function _fpSavedOwner() {
@@ -15142,6 +15143,7 @@
     const LINEAR_INTAKE_HOLD_KEY = 'syncview_linear_intake_hold_v1';
     const LINEAR_INTAKE_LOAD_ID = Date.now().toString(36) + ':' + Math.random().toString(36).slice(2);
     const NAV_KEY = 'syncview_nav';
+    const FP_SAVED_KEY = 'syncview_filmingPlansCache_v1';   // Filming plans' saved copy (060)
     const SMM_WEEKLY_ROUTES = ['smm-weekly-report', 'smm-weekly-reports'];
     function _isSmmWeeklyRoute(page) { return SMM_WEEKLY_ROUTES.includes(page); }
     let currentNav = 'home';
@@ -26965,10 +26967,30 @@
         const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
         return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] || 'S').slice(0, 2)).toUpperCase();
     }
+    // Filming plans live in the on-demand Templates area. When it has not
+    // loaded, its saved copy and Kasper's filming copy can still be in this
+    // browser from an earlier visit, so sign-out clears them from here, the
+    // same way the area's own purge (060 _fpPurgeSensitiveState) does.
+    function _svFilmingPlansColdPurge() {
+        try { localStorage.removeItem(KASPER_FILMING_CACHE_KEY); } catch (e) {}
+        try { localStorage.removeItem(FP_SAVED_KEY); } catch (e) {}
+        try {
+            if (typeof _kasperState !== 'undefined' && _kasperState) {
+                _kasperState.filmingData = null;
+                _kasperState.filmingLoadedAt = 0;
+                _kasperState.filmingError = null;
+                _kasperState.filmingExpanded = {};
+            }
+        } catch (e) {}
+    }
     function _syncviewStaffPurgeSensitiveState() {
         try { if (typeof wlPurgePlanSensitiveState === 'function') wlPurgePlanSensitiveState(); } catch (e) {}
         try { if (typeof _linearIntakePurgeSensitiveState === 'function') _linearIntakePurgeSensitiveState(); } catch (e) {}
-        try { const tpl = svAreaApi('templates'); if (tpl) tpl.fpPurgeSensitiveState(); } catch (e) {}
+        try {
+            const tpl = svAreaApi('templates');
+            if (tpl) tpl.fpPurgeSensitiveState();
+            else _svFilmingPlansColdPurge();
+        } catch (e) {}
         try { if (typeof _srpPurgeSensitiveState === 'function') _srpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _tdyPurgeSensitiveState === 'function') _tdyPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _prodSmmPurgeSensitiveState === 'function') _prodSmmPurgeSensitiveState(); } catch (e) {}

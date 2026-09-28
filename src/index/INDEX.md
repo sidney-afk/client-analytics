@@ -14,8 +14,8 @@
 | 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2032 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1781 | Market Research Brief Tab Renderers |
-| 9 | `060-templates-filming.js.part` | 2123 | Multiple links per link field (client photos, thumbnail, reference reel) |
-| 10 | `065-core-nav-intake-state.js.part` | 212 | The gateway's own cap on ONE credential-less submission, mirrored here so |
+| 9 | `060-templates-filming.js.part` | 2124 | Multiple links per link field (client photos, thumbnail, reference reel) |
+| 10 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
 | 11 | `070-workload-source.js.part` | 3823 | Workload Calendar |
 | 12 | `080-workload-render.js.part` | 3436 | Smart default: a creative lands on their own work (see |
 | 13 | `090-workload-popovers-navigation.js.part` | 1846 | Sub-issue popover |
@@ -23,7 +23,7 @@
 | 15 | `096-quick-jump.js.part` | 172 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
 | 16 | `097-today.js.part` | 547 | TODAY (owner design , session Compass). |
 | 17 | `098-smm-clients.js.part` | 86 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
-| 18 | `100-onboarding-staff-controls.js.part` | 2376 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
+| 18 | `100-onboarding-staff-controls.js.part` | 2396 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 19 | `110-time-off.js.part` | 1372 | Kasper Time Off calendar |
 | 20 | `112-smm-weekly-reports.js.part` | 705 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
 | 21 | `115-core-calendar-flags.js.part` | 136 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |

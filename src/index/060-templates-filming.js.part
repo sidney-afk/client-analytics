@@ -7,7 +7,7 @@ import {
   _tplPinsEditMode, _tplQueueSave, _tplSaveColorSets, _tplSaveErrorMsg, _tplSetPinSelectorOpen,
   _tplSetPinsEditMode, _tplViewColor, _tplViewProse, _tplViewText, templatesLoadError
 } from './050-market-briefs.js';
-import { currentNav } from './065-core-nav-intake-state.js';
+import { FP_SAVED_KEY, currentNav } from './065-core-nav-intake-state.js';
 import { getClientRoster, wlNormalizeClient } from './070-workload-source.js';
 import { _linearInvalidatePlanMap, updateLinearFilmingPlan } from './090-workload-popovers-navigation.js';
 import { svSharedClientNote } from './095-shared-client.js';
@@ -1791,8 +1791,9 @@ import {
     /* SAVED COPY. The plans list is small (one row per client), so it lives in
        localStorage, bound to the signed-in staff member (never the key) and
        dropped on sign-out by _fpPurgeSensitiveState. Client links never read or
-       write it. The tab paints from it at once and refreshes behind. */
-    const FP_SAVED_KEY = 'syncview_filmingPlansCache_v1';
+       write it. The tab paints from it at once and refreshes behind. Its key,
+       FP_SAVED_KEY, lives in core (065) so sign-out can clear it even before
+       this on-demand area has loaded. */
     const FP_SAVED_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
     const FP_SAVED_MAX_BYTES = 900 * 1024;
     function _fpSavedOwner() {

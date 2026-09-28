@@ -81,6 +81,14 @@ const staffPurge = grabFunc('_syncviewStaffPurgeSensitiveState');
 ok(/svAreaApi\('templates'\)[\s\S]{0,80}\.fpPurgeSensitiveState\(\)/.test(staffPurge)
   && /fpPurgeSensitiveState: _fpPurgeSensitiveState/.test(INDEX),
   'global staff sign-out must invoke the filming-plan purge');
+// Before the area loads there is no area purge to call, but the saved copies
+// can already be in the browser: sign-out clears them from core.
+const coldPurge = grabFunc('_svFilmingPlansColdPurge');
+ok(/else _svFilmingPlansColdPurge\(\)/.test(staffPurge)
+  && /localStorage\.removeItem\(KASPER_FILMING_CACHE_KEY\)/.test(coldPurge)
+  && /localStorage\.removeItem\(FP_SAVED_KEY\)/.test(coldPurge)
+  && /_kasperState\.filmingData = null/.test(coldPurge),
+  'sign-out must clear saved filming-plan copies even before the Templates area has loaded');
 const loadKasperCache = grabFunc('_filmsLoadCache');
 ok(/if \(!_syncviewStaffIdentityForHeaders\(\)\) return null/.test(loadKasperCache),
   'Kasper filming cache must not load before staff identity is reverified');

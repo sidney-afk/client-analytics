@@ -2,7 +2,7 @@
 import {createClient} from 'npm:@supabase/supabase-js@2.49.8';
 import {authorizeStaffKey,timingSafeEqual} from '../_shared/staff-role-auth.ts';
 import {makeRefusalReceipt,requestTraffic} from '../_shared/write-refusal-diagnostics.mjs';
-import {browserDetail} from './browser-detail.mjs';
+import {browserDetail,shapeBrowserReceipt} from './browser-detail.mjs';
 const headers={'content-type':'application/json','cache-control':'no-store','access-control-allow-origin':'*','access-control-allow-headers':'content-type,x-diagnostics-runner-key,x-syncview-traffic,x-syncview-key','access-control-allow-methods':'POST,OPTIONS'};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers});
 // The v2 record RPC arrives with migration 20260927200000. Until it is applied
@@ -19,7 +19,7 @@ Deno.serve(async(req:Request)=>{
  const staffKey=req.headers.get('x-syncview-key')||'';
  const staff=staffKey?authorizeStaffKey(staffKey,['admin','smm','creative']):null;
  if(body.action==='browser_claim'){
-  const receipt=await makeRefusalReceipt({surface:body.surface,operation:body.operation,identifiers:body.identifiers},body.code,body.status,'browser_claim',{traffic:requestTraffic(req),claimed_page:body.page});
+  const receipt=shapeBrowserReceipt(await makeRefusalReceipt({surface:body.surface,operation:body.operation,identifiers:body.identifiers},body.code,body.status,'browser_claim',{traffic:requestTraffic(req),claimed_page:body.page}),body);
   let result=await db.rpc('production_write_refusal_record_browser_v2',{p_receipt:receipt,p_detail:browserDetail(body,req.headers.get('user-agent'),staff?.ok?staff.role:null)});
   if(missingRpc(result.error))result=await db.rpc('production_write_refusal_record_v1',{p_receipt:receipt});
   return json({ok:!result.error&&result.data?.recorded===true},result.error?503:202);

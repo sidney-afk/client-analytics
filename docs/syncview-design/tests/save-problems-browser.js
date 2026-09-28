@@ -38,6 +38,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
 const ROWS = [
   { recorded_at: '2026-09-27T14:05:00Z', origin: 'browser_claim', surface: 'calendar', operation: 'status', ui_action: 'approve', code: 'write_conflict', status: 409, page: 'client_link', staff_role: null, card_ref: 'p_card_1', client_ref: 'abcdef012345', detail: 'Someone else changed this card', browser: 'safari', os: 'ios', app_version: '2026-09-27T13:00', traffic: 'person' },
   { recorded_at: '2026-09-27T12:00:00Z', origin: 'browser_claim', surface: 'production', operation: 'labels', ui_action: 'labels', code: 'label_selection_invalid', status: 422, page: 'staff_page', staff_role: 'smm', card_ref: 'b1_d_2', client_ref: null, detail: null, browser: 'chrome', os: 'windows', app_version: null, traffic: 'person' },
+  { recorded_at: '2026-09-26T10:00:00Z', origin: 'browser_claim', surface: 'calendar', operation: 'status', ui_action: 'status', code: 'network_failure', status: null, attempts: 3, page: 'client_link', staff_role: null, card_ref: 'p_card_3', client_ref: 'abcdef012345', detail: 'Failed to fetch', browser: 'chrome', os: 'mac', app_version: '2026-09-26T09:00', traffic: 'person' },
   { recorded_at: '2026-09-26T09:00:00Z', origin: 'gateway', surface: 'sxr', operation: 'comment', ui_action: null, code: 'comment_forbidden', status: 403, page: 'unknown', staff_role: null, card_ref: null, client_ref: null, detail: null, browser: null, os: null, app_version: null, traffic: 'unknown' },
 ];
 
@@ -54,7 +55,7 @@ async function open(browser, origin, role, viewport) {
       const b = JSON.parse(r.postData() || '{}');
       if (b.action === 'staff_list') {
         calls.push({ body: b, key: r.headers()['x-syncview-key'] });
-        return json({ ok: true, result: { days: b.days, include_automation: b.include_automation, total: 3, hidden_automation: 5, rows: ROWS } });
+        return json({ ok: true, result: { days: b.days, include_automation: b.include_automation, total: 4, hidden_automation: 5, rows: ROWS } });
       }
       return route.fulfill({ status: 202, headers: CORS, contentType: 'application/json', body: '{"ok":true}' });
     }
@@ -94,10 +95,10 @@ async function open(browser, origin, role, viewport) {
       const first = s.calls[0];
       if (!first || first.key !== 'qa-admin-key' || first.body.days !== 7 || first.body.include_automation !== false) failures.push(`${label}: staff_list was not asked with the admin key, 7 days, automation hidden (${JSON.stringify(first)})`);
       const text = await s.page.$eval('.sp-table', t => t.innerText).catch(() => '');
-      for (const want of ['Client link · abcdef012345', 'Staff (SMM)', 'p_card_1', 'write_conflict (409)', 'Someone else changed this card', 'safari / ios', '2026-09-27 13:00 UTC', 'Samples', 'Production'])
+      for (const want of ['network failure, no status · 3 tries', 'Client link · abcdef012345', 'Staff (SMM)', 'p_card_1', 'write_conflict (409)', 'Someone else changed this card', 'safari / ios', '2026-09-27 13:00 UTC', 'Samples', 'Production'])
         if (!text.includes(want)) failures.push(`${label}: the table is missing "${want}"`);
       const summary = await s.page.$eval('.sp-summary', e => e.innerText).catch(() => '');
-      if (!/3 shown/.test(summary) || !/5 automated test rows hidden/.test(summary)) failures.push(`${label}: summary reads "${summary}"`);
+      if (!/4 shown/.test(summary) || !/5 automated test rows hidden/.test(summary)) failures.push(`${label}: summary reads "${summary}"`);
       // SyncView dropdowns: open the trigger, pick the option.
       const pick = async (id, value) => {
         await s.page.click('#' + id + 'Btn');

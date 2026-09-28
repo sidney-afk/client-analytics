@@ -22,6 +22,12 @@ const root=path.resolve(__dirname,'..'),tmp=fs.mkdtempSync(path.join(os.tmpdir()
  assert(!JSON.stringify(calls).includes('synthetic-smm'),'the staff key is never passed on');calls=[];
  await handler(withKey({action:'browser_claim',code:'write_conflict',status:409,page:'staff_page'},'not-a-key'));assert.equal(calls[0].args.p_detail.staff_role,null,'an unverified key records no role');calls=[];
  await handler(withKey({action:'browser_claim',code:'write_conflict',status:409,app_version:'yesterday',operation:'Bad Action!'}));assert.equal(calls[0].args.p_detail.app_version,null);assert.equal(calls[0].args.p_detail.ui_action,null);calls=[];
+ // 2026-09-28: the page's attempt id is kept (one record per click) and a network failure has no status.
+ const att='0f8fad5b-d9cb-469f-a165-70867728950e';
+ await handler(withKey({action:'browser_claim',code:'write_conflict',status:409,attempt:att}));assert.equal(calls[0].args.p_receipt.attempt_id,att);calls=[];
+ await handler(withKey({action:'browser_claim',attempt:'not-a-uuid'}));assert.notEqual(calls[0].args.p_receipt.attempt_id,'not-a-uuid');calls=[];
+ await handler(withKey({action:'browser_claim',failure:'network',message:'Failed to fetch'}));assert.equal(calls[0].args.p_receipt.code,'network_failure');assert.equal(calls[0].args.p_receipt.status,null,'no invented 500');calls=[];
+ await handler(withKey({action:'browser_claim',code:'write_conflict',status:409}));assert.equal(calls[0].args.p_receipt.status,409);assert.equal(calls[0].args.p_receipt.code,'write_conflict');calls=[];
  const realRpc=globalThis.__wr101db.rpc;globalThis.__wr101db.rpc=async(name,args)=>{calls.push({name,args});return name==='production_write_refusal_record_browser_v2'?{error:{code:'PGRST202'}}:{data:{recorded:true},error:null};};
  assert.equal((await handler(request({action:'browser_claim',code:'write_conflict',status:409}))).status,202);assert.deepEqual(calls.map(c=>c.name),['production_write_refusal_record_browser_v2','production_write_refusal_record_v1'],'before the migration a claim still records through v1');globalThis.__wr101db.rpc=realRpc;calls=[];
  assert.equal((await handler(request({action:'staff_list'}))).status,401);assert.equal((await handler(withKey({action:'staff_list'},'synthetic-smm'))).status,403);assert.equal(calls.length,0,'only an admin key reads the list');

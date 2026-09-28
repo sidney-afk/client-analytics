@@ -24,7 +24,7 @@
 | 16 | `098-smm-clients.js.part` | 86 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
 | 17 | `100-onboarding-staff-controls.js.part` | 2388 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 18 | `110-time-off-reports.js.part` | 2207 | Kasper Time Off calendar |
-| 19 | `120-calendar-flags-write-repair.js.part` | 3180 | The members a flag value offers, or null when it offers no member list at |
+| 19 | `120-calendar-flags-write-repair.js.part` | 3232 | The members a flag value offers, or null when it offers no member list at |
 | 20 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
 | 21 | `130-calendar-model-cache.js.part` | 1387 | Returns the comments array for a given component. Falls back to the |
 | 22 | `131-core-html.js.part` | 13 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
@@ -36,7 +36,7 @@
 | 28 | `160-calendar-organize-ui.js.part` | 2825 | Lighter path for the Order switch: update the chrome in place so the |
 | 29 | `170-calendar-links-status.js.part` | 2855 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 30 | `180-calendar-native-post-media.js.part` | 2750 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
-| 31 | `185-client-review-queue.js.part` | 371 | Client review send queue: a client's Approve or Request changes is |
+| 31 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
 | 32 | `190-calendar-approval-comments.js.part` | 3108 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 33 | `200-intake-data-startup.js.part` | 1531 | Video-only and Thumbnail-only were already built, but sat |
 | 34 | `210-production-state-writes.js.part` | 3201 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |

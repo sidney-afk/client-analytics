@@ -1,6 +1,6 @@
 import { hideToast, showNotify, showToast } from './040-shared-briefs.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
-import { _writeUiFailureSentence } from './120-calendar-flags-write-repair.js';
+import { _writeRefusalNewId, _writeRefusalStageAttempt, _writeUiFailureSentence } from './120-calendar-flags-write-repair.js';
 import { _calPendingEdits, calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calRenderBody } from './160-calendar-organize-ui.js';
 import { _calFlushCardSave } from './170-calendar-links-status.js';
@@ -161,8 +161,13 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             data.actionId = String(data.actionId || _calReviewState.draftActionIds[key] || _calMintCommentId());
             _calReviewState.draftActionIds[key] = data.actionId;
         }
+        // The click's diagnostic attempt id (OPEN_REPAIRS 278): a replay keeps
+        // it, a new click mints one. Staged for the card so a failure of this
+        // send, or of a later automatic re-send, lands on ONE record.
+        const diag = String(replay && prior && prior.diag || _writeRefusalNewId());
+        _writeRefusalStageAttempt(pid, diag);
         _crqPut(Object.assign({ kind, pid, comp,
-            at: replay && prior && prior.at || Date.now() }, data || {}));
+            at: replay && prior && prior.at || Date.now(), diag }, data || {}));
         _crqRun.inflight.add(key);
         _crqSending();
     }
@@ -314,6 +319,7 @@ import { _isClientLink } from './260-production-refresh-boot.js';
             return 'changed';
         }
         _crqSending();
+        if (entry.diag) _writeRefusalStageAttempt(entry.pid, entry.diag);
         Object.assign(post, target);
         _calPendingEdits[entry.pid] = Object.assign(_calPendingEdits[entry.pid] || {}, target);
         try { await _calFlushCardSave(entry.pid); }

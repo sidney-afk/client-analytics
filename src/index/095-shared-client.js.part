@@ -1,8 +1,8 @@
 import { svArea, svAreaApi } from './040-shared-briefs.js';
 import { _templatesSetSelected, selectClient } from './050-market-briefs.js';
 import { currentNav } from './065-core-nav-intake-state.js';
-import { WL_CLIENT_NAMES, wlCanonicalClient } from './070-workload-source.js';
-import { _navFitSchedule, _navPillSync, navTo } from './090-workload-popovers-navigation.js';
+import { WL_CLIENT_NAMES, wlCanonicalClient } from './070-core-client-names.js';
+import { _navFitSchedule, _navPillSync, navTo } from './092-core-submit-form-navigation.js';
 import { tdyMyClientNames } from './097-today.js';
 import { _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { calState } from './130-calendar-model-cache.js';

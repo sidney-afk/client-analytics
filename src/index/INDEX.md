@@ -16,45 +16,51 @@
 | 8 | `050-market-briefs.js.part` | 1781 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2124 | Multiple links per link field (client photos, thumbnail, reference reel) |
 | 10 | `065-core-nav-intake-state.js.part` | 213 | The gateway's own cap on ONE credential-less submission, mirrored here so |
-| 11 | `070-workload-source.js.part` | 3823 | Workload Calendar |
-| 12 | `080-workload-render.js.part` | 3436 | Smart default: a creative lands on their own work (see |
-| 13 | `090-workload-popovers-navigation.js.part` | 1846 | Sub-issue popover |
-| 14 | `095-shared-client.js.part` | 404 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
-| 15 | `096-quick-jump.js.part` | 172 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
-| 16 | `097-today.js.part` | 547 | TODAY (owner design , session Compass). |
-| 17 | `098-smm-clients.js.part` | 86 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
-| 18 | `100-onboarding-staff-controls.js.part` | 2396 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
-| 19 | `110-time-off.js.part` | 1372 | Kasper Time Off calendar |
-| 20 | `112-smm-weekly-reports.js.part` | 705 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
-| 21 | `115-core-calendar-flags.js.part` | 136 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
-| 22 | `120-calendar-flags-write-repair.js.part` | 3233 | The members a flag value offers, or null when it offers no member list at |
-| 23 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
-| 24 | `130-calendar-model-cache.js.part` | 1387 | Returns the comments array for a given component. Falls back to the |
-| 25 | `131-core-html.js.part` | 13 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
-| 26 | `132-calendar-dates-ids.js.part` | 14 | — |
-| 27 | `133-core-loading-skeletons.js.part` | 367 | Modern animated loader — a single rotating ring with a subtle label. |
-| 28 | `134-calendar-prefs-mount.js.part` | 1076 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
-| 29 | `140-calendar-legacy-outbox.js.part` | 3155 | Shed the retired legacy rows from storage, under the surface mutation |
-| 30 | `150-calendar-hydration-import.js.part` | 2197 | For a card linked to a real sub-issue (not a parent), return which of |
-| 31 | `160-calendar-organize-ui.js.part` | 2825 | Lighter path for the Order switch: update the chrome in place so the |
-| 32 | `170-calendar-links-status.js.part` | 2855 | Move a Linear sub-issue link from the old card onto the new one. The |
-| 33 | `180-calendar-native-post-media.js.part` | 2853 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
-| 34 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
-| 35 | `190-calendar-approval-comments.js.part` | 3108 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
-| 36 | `200-intake-data-startup.js.part` | 1861 | Video-only and Thumbnail-only were already built, but sat |
-| 37 | `210-production-state-writes.js.part` | 3201 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
-| 38 | `220-production-attribution-views.js.part` | 2764 | An ABSENT persisted slug is missing evidence, not |
-| 39 | `230-production-create-comments.js.part` | 2645 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
-| 40 | `240-production-description.js.part` | 2648 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
-| 41 | `250-production-controls-data.js.part` | 2889 | F50 DISCLOSURE — say when a status has no word on the card. |
-| 42 | `260-production-refresh-boot.js.part` | 2635 | AND TYPING COUNTS, which is the case this guard was missing. |
-| 43 | `270-samples-model.js.part` | 2866 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
-| 44 | `280-samples-cards-notes.js.part` | 2922 | SURFACE 3: the save engine |
-| 45 | `290-samples-writes-review.js.part` | 1867 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
-| 46 | `300-tiktok-upload.js.part` | 2028 | TIKTOK UPLOAD MODULE |
-| 47 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
-| 48 | `320-kasper-dashboard-replies.js.part` | 3416 | The Samples subtab was folded into Review (samples are listed in the |
-| 49 | `330-kasper-review-history.js.part` | 2760 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
-| 50 | `340-kasper-editors-board.js.part` | 677 | Editor work model |
-| 51 | `345-core-tooltip-date-picker.js.part` | 625 | Global styled tooltip — replaces every browser-native title popup |
-| 52 | `350-footer.html.part` | 398 | Transcript preview modal |
+| 11 | `066-core-workload-state.js.part` | 94 | Workload Calendar |
+| 12 | `067-workload-board-source.js.part` | 2514 | The roster saved with a cached board, checked with the same rules the |
+| 13 | `068-core-workload-dates.js.part` | 126 | ONE FORMATTER, NOT ONE PER CALL. |
+| 14 | `069-workload-planning-helpers.js.part` | 377 | MEMOISED PURE HELPERS. |
+| 15 | `070-core-client-names.js.part` | 104 | — |
+| 16 | `071-workload-planner.js.part` | 636 | ONE automatic state (owner ruling ). |
+| 17 | `080-workload-render.js.part` | 3444 | Smart default: a creative lands on their own work (see |
+| 18 | `090-workload-popovers.js.part` | 996 | Sub-issue popover |
+| 19 | `092-core-submit-form-navigation.js.part` | 855 | True for ctrl/cmd/shift/alt-clicks (and non-primary buttons): the user |
+| 20 | `095-shared-client.js.part` | 404 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
+| 21 | `096-quick-jump.js.part` | 172 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
+| 22 | `097-today.js.part` | 547 | TODAY (owner design , session Compass). |
+| 23 | `098-smm-clients.js.part` | 86 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
+| 24 | `100-onboarding-staff-controls.js.part` | 2397 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
+| 25 | `110-time-off.js.part` | 1372 | Kasper Time Off calendar |
+| 26 | `112-smm-weekly-reports.js.part` | 705 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
+| 27 | `115-core-calendar-flags.js.part` | 136 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
+| 28 | `120-calendar-flags-write-repair.js.part` | 3233 | The members a flag value offers, or null when it offers no member list at |
+| 29 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
+| 30 | `130-calendar-model-cache.js.part` | 1387 | Returns the comments array for a given component. Falls back to the |
+| 31 | `131-core-html.js.part` | 13 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |
+| 32 | `132-calendar-dates-ids.js.part` | 14 | — |
+| 33 | `133-core-loading-skeletons.js.part` | 367 | Modern animated loader — a single rotating ring with a subtle label. |
+| 34 | `134-calendar-prefs-mount.js.part` | 1076 | Hydrate calState.monthFilter/statusFilter from the named client's saved |
+| 35 | `140-calendar-legacy-outbox.js.part` | 3155 | Shed the retired legacy rows from storage, under the surface mutation |
+| 36 | `150-calendar-hydration-import.js.part` | 2197 | For a card linked to a real sub-issue (not a parent), return which of |
+| 37 | `160-calendar-organize-ui.js.part` | 2825 | Lighter path for the Order switch: update the chrome in place so the |
+| 38 | `170-calendar-links-status.js.part` | 2855 | Move a Linear sub-issue link from the old card onto the new one. The |
+| 39 | `180-calendar-native-post-media.js.part` | 2866 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
+| 40 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
+| 41 | `190-calendar-approval-comments.js.part` | 3108 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
+| 42 | `200-intake-data-startup.js.part` | 1866 | Video-only and Thumbnail-only were already built, but sat |
+| 43 | `210-production-state-writes.js.part` | 3201 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
+| 44 | `220-production-attribution-views.js.part` | 2762 | An ABSENT persisted slug is missing evidence, not |
+| 45 | `230-production-create-comments.js.part` | 2645 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
+| 46 | `240-production-description.js.part` | 2648 | FOCUS MUST NOT MOVE THE PAGE. Owner, : "when I click edit |
+| 47 | `250-production-controls-data.js.part` | 2888 | F50 DISCLOSURE — say when a status has no word on the card. |
+| 48 | `260-production-refresh-boot.js.part` | 2635 | AND TYPING COUNTS, which is the case this guard was missing. |
+| 49 | `270-samples-model.js.part` | 2866 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
+| 50 | `280-samples-cards-notes.js.part` | 2922 | SURFACE 3: the save engine |
+| 51 | `290-samples-writes-review.js.part` | 1869 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
+| 52 | `300-tiktok-upload.js.part` | 2028 | TIKTOK UPLOAD MODULE |
+| 53 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
+| 54 | `320-kasper-dashboard-replies.js.part` | 3416 | The Samples subtab was folded into Review (samples are listed in the |
+| 55 | `330-kasper-review-history.js.part` | 2760 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |
+| 56 | `340-kasper-editors-board.js.part` | 677 | Editor work model |
+| 57 | `345-core-tooltip-date-picker.js.part` | 625 | Global styled tooltip — replaces every browser-native title popup |
+| 58 | `350-footer.html.part` | 398 | Transcript preview modal |

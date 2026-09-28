@@ -4,8 +4,8 @@ import {
 } from './040-shared-briefs.js';
 import { _svCss, _svRgb } from './050-market-briefs.js';
 import { _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
-import { WL_CLIENT_CANONICAL, WL_CLIENT_NAMES, wlNormalizeClient } from './070-workload-source.js';
-import { navTo } from './090-workload-popovers-navigation.js';
+import { WL_CLIENT_CANONICAL, WL_CLIENT_NAMES, wlNormalizeClient } from './070-core-client-names.js';
+import { navTo } from './092-core-submit-form-navigation.js';
 import {
   CALENDAR_GET_URL, CAL_SUPABASE_URL, _ptoAdminState, _ptoInvalidateOverviewCaches, _svSelectHtml,
   _syncviewCloseStaffAccount, _syncviewOfferStaffSignIn, _syncviewOpenStaffIdentity,

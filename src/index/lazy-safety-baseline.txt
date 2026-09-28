@@ -2,14 +2,9 @@
 # Written by `node scripts/check-lazy-safety.js --update`; see that file for what each kind means.
 # The list may only shrink: a new line needs a reason in its PR, and a line whose hazard is gone must be removed.
 button 030-body-shell.html.part _svOpenStaffPage
-button 030-body-shell.html.part navTo
 button 030-body-shell.html.part svQuickJumpOpen
 button 160-calendar-organize-ui.js.part _ccOpenModal
 button 190-calendar-approval-comments.js.part _prodProjectCanonicalCardComments
-button 200-intake-data-startup.js.part onLinearSearchFocus
-button 200-intake-data-startup.js.part onLinearSearchInput
-button 200-intake-data-startup.js.part onLinearSearchKey
-button 200-intake-data-startup.js.part saveLinearForm
 button 260-production-refresh-boot.js.part _prodCardClick
 button 260-production-refresh-boot.js.part _prodClearFilters
 button 260-production-refresh-boot.js.part _prodGuardGroupSelection
@@ -43,13 +38,9 @@ button 260-production-refresh-boot.js.part _prodToggleSection
 button 260-production-refresh-boot.js.part _prodToggleTeam
 button 280-samples-cards-notes.js.part _prodProjectCanonicalCardComments
 guard 060-templates-filming.js.part _kasperRefreshTabCounts
-guard 060-templates-filming.js.part _linearInvalidatePlanMap
-guard 065-core-nav-intake-state.js.part saveLinearForm
-guard 065-core-nav-intake-state.js.part updateLinearFilmingPlan
-guard 065-core-nav-intake-state.js.part updateLinearSearchGhost
-guard 065-core-nav-intake-state.js.part updateLinearTitle
 guard 080-workload-render.js.part _prodApplyGatewayRow
-guard 090-workload-popovers-navigation.js.part _kasperTeardown
+guard 092-core-submit-form-navigation.js.part _kasperTeardown
+guard 092-core-submit-form-navigation.js.part _wlV2Teardown
 guard 100-onboarding-staff-controls.js.part _caPurgeSensitiveState
 guard 100-onboarding-staff-controls.js.part _ccCloseModal
 guard 100-onboarding-staff-controls.js.part _ccCloseSelect
@@ -61,16 +52,11 @@ guard 100-onboarding-staff-controls.js.part _prodCachePurge
 guard 100-onboarding-staff-controls.js.part _prodClearLayer
 guard 100-onboarding-staff-controls.js.part _srpPurgeSensitiveState
 guard 100-onboarding-staff-controls.js.part _svStaffPageRender
-guard 100-onboarding-staff-controls.js.part wlNormalizeClient
 guard 100-onboarding-staff-controls.js.part wlPurgePlanSensitiveState
 guard 100-onboarding-staff-controls.js.part wlRefreshSensitiveStateSilent
-guard 112-smm-weekly-reports.js.part getClientRoster
 guard 110-time-off.js.part renderKasperView
-guard 112-smm-weekly-reports.js.part wlNormalizeClient
 guard 120-calendar-flags-write-repair.js.part _kasperPaintReview
 guard 200-intake-data-startup.js.part _kasperCalCachePrune
-guard 200-intake-data-startup.js.part _navPillSync
-guard 200-intake-data-startup.js.part navTo
 guard 230-production-create-comments.js.part wlAdoptNativeDueGatewayRow
 guard 230-production-create-comments.js.part wlPublishNativeDueReceipt
 guard 270-samples-model.js.part _kasperOpenLightbox
@@ -78,4 +64,3 @@ guard 290-samples-writes-review.js.part _kasperPaintReview
 guard 290-samples-writes-review.js.part _kasperRefreshTabCounts
 guard 290-samples-writes-review.js.part _kasperResumeSourceRepairs
 guard 290-samples-writes-review.js.part _kasperSamplesMerged
-guard 345-core-tooltip-date-picker.js.part wlWorkloadTodayISO

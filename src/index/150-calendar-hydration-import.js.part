@@ -1,5 +1,5 @@
 import { showNotify, showToast } from './040-shared-briefs.js';
-import { wlNormalizeClient } from './070-workload-source.js';
+import { wlNormalizeClient } from './070-core-client-names.js';
 import { CALENDAR_GET_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
 import { CAL_V2_KILL_KEY, CAL_V2_LS_KEY, CAL_V2_RT_DEBOUNCE_MS, CAL_V2_RT_MIN_RELOAD_MS } from './115-core-calendar-flags.js';
 import {

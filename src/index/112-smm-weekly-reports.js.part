@@ -1,4 +1,4 @@
-import { WL_CLIENT_NAMES, getClientRoster, wlNormalizeClient } from './070-workload-source.js';
+import { WL_CLIENT_NAMES, getClientRoster, wlNormalizeClient } from './070-core-client-names.js';
 import { CAL_SUPABASE_ANON_KEY, SMM_WEEKLY_REPORTS_URL, _syncviewRequireStaffIdentity, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _jsAttrArg } from './131-core-html.js';
 import { _isClientLink } from './260-production-refresh-boot.js';

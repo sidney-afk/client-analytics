@@ -13,10 +13,9 @@ import {
   _linearResolveClientRow, _linearResolvedPlanUrl, _linearSetResolvedPlanUrl, _navPillSync,
   buildLinearTitle, loadLinearForm, navTo, saveLinearForm
 } from './090-workload-popovers-navigation.js';
-import { CAL_SUPABASE_ANON_KEY, _syncviewRequireStaffIdentity, _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue } from './100-onboarding-staff-controls.js';
+import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _syncviewRequireStaffIdentity, _syncviewStaffIdentityForHeaders, _syncviewStaffRoleValue } from './100-onboarding-staff-controls.js';
 import {
-  _calUpsertFetch, _syncviewEfHeaders, _writeUiQueueDiagnostic, _writeUiRefreshAuthority,
-  _writeUiRerouteUseGatewayWhenReady
+  _calUpsertFetch, _syncviewEfHeaders, _writeUiQueueDiagnostic, _writeUiRecordFailure, _writeUiRefreshAuthority, _writeUiRerouteUseGatewayWhenReady
 } from './120-calendar-flags-write-repair.js';
 import { calClientSlug, calState } from './130-calendar-model-cache.js';
 import { _calEsc } from './131-core-html.js';
@@ -67,6 +66,7 @@ import { _kasperCalCachePrune } from './330-kasper-review-history.js';
 
         return `<div class="linear-view">
             ${successBanner}
+            <div id="linearSavedSlot">${_linearSavedBoxHtml()}</div>
             <div class="linear-form-title">Create production work</div>
             <div class="linear-form-sub">Create native video and graphics deliverables</div>
             <div class="linear-form">
@@ -417,7 +417,32 @@ import { _kasperCalCachePrune } from './330-kasper-review-history.js';
         });
     }
     function _linearIntakePending(signature, makePayload, context, seed) {
-        const saved = _linearIntakeRead();
+        let saved = _linearIntakeRead();
+        /* RESTORED FOR EDITING (owner rule 2026-09-28: never trap the person).
+           "Restore it" puts a saved, never-committed job back into the form
+           and marks it replace_on_submit. The edited submit then REPLACES it
+           under the saved request id and timestamp, so it can only ever land
+           in that one batch. Two guards (Codex review on PR 1824):
+           - the id is reused only after the server said the saved request
+             never committed (_linearIntakePrepareReplace, stamped as
+             replace_verified just before this). A committed first manifest is
+             immutable, so an edited payload must never go out under its id.
+           - the saved job is never deleted first. The replacement carries the
+             same request id, so it is written over the saved record and read
+             back; if building or storing it fails, the saved job is untouched. */
+        let replacing = false;
+        if (saved && saved.signature !== signature && saved.replace_on_submit === true
+            && !saved.result && saved.recovery_only !== true
+            && String(saved.payload && saved.payload.surface || '') === String(context && context.surface || '')) {
+            const verified = saved.replace_verified || {};
+            if (verified.request_id !== _linearIntakeJobId(saved)
+                || !(Date.now() - Number(verified.at || 0) < NATIVE_INTAKE_REPLACE_CHECK_MS)) {
+                throw _linearIntakeActorError(409, 'native_intake_saved_unverified');
+            }
+            seed = { request_id: String(saved.payload.request_id || ''), source_edited_at: String(saved.payload.source_edited_at || '') };
+            saved = null;
+            replacing = true;
+        }
         if (saved) {
             if (saved.signature !== signature) {
                 // A recovery copy blocks under its own code: it is not an
@@ -449,7 +474,293 @@ import { _kasperCalCachePrune } from './330-kasper-review-history.js';
             completed_card_ids: [], stage: 'request_pending', telemetry_sent: false
         };
         if (!_linearIntakeWrite(pending, { allowCreate: true })) throw new Error('native_intake_storage_unavailable');
+        if (replacing) {
+            // Same request id on both sides, so the id check inside the write
+            // cannot tell the replacement from the saved copy it overwrites.
+            const stored = _linearIntakeRead();
+            if (!stored || stored.signature !== signature) throw new Error('native_intake_storage_unavailable');
+        }
         return pending;
+    }
+    /* How long a server check that the saved request never committed stays
+       good for the submit that follows it. */
+    const NATIVE_INTAKE_REPLACE_CHECK_MS = 120000;
+    /* Background resume (start-up, focus, the timer, the connection coming
+       back) must not send a job while it is restored for editing: only these
+       explicit, person-initiated paths may. */
+    const NATIVE_INTAKE_EXPLICIT_REASONS = ['submit', 'calendar-create-post', 'samples-create-post'];
+    function _linearIntakeRestoredPaused(job, reason) {
+        return !!(job && job.replace_on_submit === true && NATIVE_INTAKE_EXPLICIT_REASONS.indexOf(String(reason || '')) < 0);
+    }
+    /* The ids the gateway derives from a request id (policy.mjs
+       deterministicNativeId): a prefix, the request and a discriminator,
+       hashed to a v4-shaped uuid. */
+    async function _linearIntakeNativeId(prefix, requestId, discriminator) {
+        const key = String(prefix).trim() + ':' + String(requestId).trim() + ':' + String(discriminator).trim();
+        const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key)));
+        const bytes = digest.slice(0, 16);
+        bytes[6] = (bytes[6] & 0x0f) | 0x40;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        const hex = [...bytes].map(value => value.toString(16).padStart(2, '0')).join('');
+        return String(prefix).trim() + '_' + hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+    }
+    /* Did the saved request already commit on the server? Reads the rows the
+       gateway would have created under its id: the batch (new-batch jobs) and
+       every item. Any row means committed. 'unknown' when the read fails or
+       the browser cannot hash; the caller then refuses rather than guesses.
+       The anon key reads these tables today; if the scoped read policies
+       (OPEN_REPAIRS 276, deferred) ever land, this read must move to the
+       session, since an empty scoped answer would not prove anything. */
+    async function _linearIntakeSavedCommitState(job) {
+        try {
+            const payload = job && job.payload || {};
+            const requestId = _linearIntakeJobId(job);
+            if (!requestId || !CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return 'unknown';
+            const teams = { video: 'video', vid: 'video', graphics: 'graphics', graphic: 'graphics', gra: 'graphics', thumbnail: 'graphics' };
+            const items = Array.isArray(payload.items) ? payload.items : [];
+            const ids = await Promise.all(items.map((item, index) =>
+                _linearIntakeNativeId('del', requestId, (teams[String(item && item.team || '').trim().toLowerCase()] || '') + ':' + index)));
+            const headers = { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' };
+            const read = async url => {
+                const response = await fetch(url, { headers, cache: 'no-store' });
+                if (!response.ok) throw new Error('commit_check_http_' + response.status);
+                const rows = await response.json();
+                if (!Array.isArray(rows)) throw new Error('commit_check_shape');
+                return rows.length;
+            };
+            const reads = [];
+            if (ids.length) reads.push(read(CAL_SUPABASE_URL + '/rest/v1/deliverables?select=id&id=in.(' + ids.map(encodeURIComponent).join(',') + ')'));
+            if (!payload.batch_id) {
+                const batchId = await _linearIntakeNativeId('bat', requestId, 'submission');
+                reads.push(read(CAL_SUPABASE_URL + '/rest/v1/batches?select=id&id=eq.' + encodeURIComponent(batchId)));
+            }
+            if (!reads.length) return 'unknown';
+            const counts = await Promise.all(reads);
+            return counts.some(count => count > 0) ? 'committed' : 'uncommitted';
+        } catch (error) { return 'unknown'; }
+    }
+    /* Run before a submit on any surface. When the saved job is restored for
+       editing, ask the server whether its request already committed:
+       - never committed: stamp replace_verified so the submit may reuse its id;
+       - committed: clear the restore mark (so it can finish as it was) and
+         refuse the edited submit, which would otherwise go out under a
+         committed id;
+       - cannot tell: refuse, keep everything as it is. */
+    async function _linearIntakePrepareReplace(surface) {
+        const saved = _linearIntakeRead();
+        if (!saved || saved.replace_on_submit !== true || saved.result || saved.recovery_only === true
+            || String(saved.payload && saved.payload.surface || '') !== String(surface || '')) return;
+        const requestId = _linearIntakeJobId(saved);
+        const verdict = await _linearIntakeSavedCommitState(saved);
+        if (verdict === 'unknown') throw _linearIntakeActorError(409, 'native_intake_saved_unverified');
+        await _linearIntakeWithLock(() => {
+            const current = _linearIntakeRead();
+            if (!current || _linearIntakeJobId(current) !== requestId) return;
+            if (verdict === 'committed') delete current.replace_on_submit;
+            else current.replace_verified = { request_id: requestId, at: Date.now() };
+            if (!_linearIntakeWrite(current)) throw new Error('native_intake_storage_unavailable');
+        });
+        if (verdict === 'committed') throw _linearIntakeActorError(409, 'native_intake_saved_committed');
+    }
+
+
+    /* ---------- The saved-submission box (owner rule 2026-09-28) ----------
+     * A submission saved in this browser used to be invisible. When a later
+     * form differed from it, every submit was refused with "Finish the
+     * previously saved submission" and nothing on the page could finish, show
+     * or remove it; on the public submission link it was not even retried on
+     * page load. Whenever something is saved, this box says what it is and
+     * offers the three ways out: Restore it (back into the form to check, edit
+     * and submit; the submit replaces it), Send it as it was (the saved
+     * request, unchanged), Discard it (after a confirm).
+     *
+     * It covers both local stores that can block a submit: the native intake
+     * job (shared with Calendar and Samples Create Post) and the Submit hold.
+     */
+    function _linearSavedWork() {
+        const job = _linearIntakeRead();
+        if (job) {
+            const payload = job.payload || {};
+            const context = job.context || {};
+            const surface = String(payload.surface || context.surface || 'submission');
+            const numbers = new Set((Array.isArray(payload.items) ? payload.items : []).map(item => Number(item && item.videoNumber)).filter(Boolean));
+            const committed = job.recovery_only === true || !!(job.result && job.result.native_committed === true);
+            return {
+                kind: 'native', job, surface, committed,
+                clientName: String(context.clientName || payload.client_slug || context.clientSlug || ''),
+                title: String(payload.batch && payload.batch.name || (payload.batch_id ? 'Added to an existing batch' : '')),
+                videos: Array.isArray(context.videos) && context.videos.length ? context.videos.length : numbers.size,
+                savedAt: String(payload.source_edited_at || ''),
+                restorable: !committed && surface === 'submission',
+                restored: job.replace_on_submit === true
+            };
+        }
+        const snapshot = _linearSubmissionHoldSnapshot();
+        if (snapshot) {
+            const hold = snapshot.hold;
+            return {
+                kind: 'hold', hold, surface: 'submission', committed: false,
+                clientName: String(hold.client_name || ''), title: String(hold.computed_title || ''),
+                videos: Array.isArray(hold.computed_due_dates) ? hold.computed_due_dates.length : 0,
+                savedAt: String(hold.created_at || hold.source_edited_at || ''),
+                restorable: !hold.legacy_receipt_present, restored: false
+            };
+        }
+        return null;
+    }
+    function _linearSavedWhen(iso) {
+        const d = new Date(iso);
+        if (!iso || isNaN(d)) return 'earlier';
+        return d.toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+    }
+    function _linearSavedBoxHtml() {
+        const work = _linearSavedWork();
+        if (!work) return '';
+        const from = work.surface === 'submission' ? 'submission' : (work.surface === 'sxr' ? 'Samples post' : 'Calendar post');
+        const lead = work.committed
+            ? 'A ' + from + ' saved in this browser was already created, but its last step (the calendar cards) did not finish.'
+            : work.restored
+                ? 'The saved ' + from + ' is back in the form below. Check it, change anything, then submit: it replaces the saved copy.'
+                : 'A ' + from + ' is saved in this browser and was not sent yet.';
+        const facts = [
+            work.clientName ? '<b>' + _calEsc(work.clientName) + '</b>' : '',
+            // The generated title starts with the client; do not say it twice.
+            work.title ? _calEsc(work.clientName && work.title.indexOf(work.clientName) === 0 ? work.title.slice(work.clientName.length).replace(/^\s*·\s*/, '') : work.title) : '',
+            work.videos ? work.videos + (work.videos === 1 ? ' video' : ' videos') : '',
+            'saved ' + _calEsc(_linearSavedWhen(work.savedAt))
+        ].filter(Boolean).join(' · ');
+        const btn = (fn, label, primary) => '<button type="button" class="linear-saved-btn' + (primary ? ' primary' : '') + '" onclick="' + fn + '()">' + label + '</button>';
+        return '<div class="linear-saved-box" id="linearSavedBox" role="region" aria-label="Saved submission">'
+            + '<div class="linear-saved-lead">' + lead + '</div>'
+            + '<div class="linear-saved-facts">' + facts + '</div>'
+            + '<div class="linear-saved-actions">'
+            + (work.restorable && !work.restored ? btn('_linearSavedRestore', 'Restore it', true) : '')
+            + btn('_linearSavedSend', work.committed ? 'Finish it' : 'Send it as it was', !work.restorable || work.restored)
+            + btn('_linearSavedDiscard', 'Discard it', false)
+            + '</div><div class="linear-saved-status" id="linearSavedStatus" role="status"></div></div>';
+    }
+    function _linearRefreshSavedBox(options) {
+        const slot = document.getElementById('linearSavedSlot');
+        if (!slot) return;
+        slot.innerHTML = _linearSavedBoxHtml();
+        if (options && options.scroll) { const box = document.getElementById('linearSavedBox'); if (box && box.scrollIntoView) box.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+    }
+    function _linearSavedSay(text) { const el = document.getElementById('linearSavedStatus'); if (el) el.textContent = text; }
+    /* The form a saved job was made from. New jobs carry it; an older job is
+       rebuilt from its payload (the brief is the notes, then the asset lines). */
+    function _linearFormFromSavedJob(job) {
+        const context = job.context || {};
+        if (context.form && typeof context.form === 'object' && Array.isArray(context.form.videos)) return context.form;
+        const payload = job.payload || {};
+        const items = Array.isArray(payload.items) ? payload.items : [];
+        const byNumber = new Map();
+        items.forEach(item => {
+            const n = Number(item && item.videoNumber) || 0;
+            if (!n || (byNumber.has(n) && item.team !== 'video')) return;
+            byNumber.set(n, item);
+        });
+        const videos = [...byNumber.keys()].sort((a, b) => a - b).map(n => {
+            const brief = String(byNumber.get(n).brief || '');
+            const blocks = brief.split('\n\n');
+            const last = blocks.length ? blocks[blocks.length - 1] : '';
+            const lines = last.split('\n');
+            const assets = lines.length && lines.every(line => /^(Main camera|Side camera|Audio): /.test(line)) ? lines : [];
+            const pick = label => { const hit = assets.find(line => line.indexOf(label + ': ') === 0); return hit ? hit.slice(label.length + 2) : ''; };
+            return {
+                main_cam: pick('Main camera'), side_cam: pick('Side camera'), audio: pick('Audio'),
+                notes: (assets.length ? blocks.slice(0, -1) : blocks).join('\n\n')
+            };
+        });
+        return {
+            client: String(context.clientName || ''), clientSlug: String(payload.client_slug || context.clientSlug || ''),
+            filmingPlans: String(payload.batch && payload.batch.filming_doc_url || ''),
+            generalDrive: String(payload.batch && payload.batch.footage_folder_url || ''),
+            notes: String(payload.batch && payload.batch.notes || ''), videos: videos.length ? videos : [{}]
+        };
+    }
+    /* Mark the saved job restored, and prove the mark is stored before any
+       form is filled: an unmarked job would refuse the edited submit again
+       (Codex, PR 1824). Throws, leaving the page as it was, when it is not. */
+    function _linearIntakeMarkRestored(requestId) {
+        const current = _linearIntakeRead();
+        if (!current || _linearIntakeJobId(current) !== requestId) throw _linearIntakeActorError(409, 'native_intake_job_replaced');
+        current.replace_on_submit = true;
+        delete current.replace_verified;
+        const stored = _linearIntakeWrite(current) ? _linearIntakeRead() : null;
+        if (!stored || stored.replace_on_submit !== true) throw new Error('native_intake_storage_unavailable');
+    }
+    async function _linearSavedRestore() {
+        const work = _linearSavedWork();
+        if (!work || !work.restorable) return;
+        try {
+            if (work.kind === 'native') {
+                const requestId = _linearIntakeJobId(work.job);
+                const form = _linearFormFromSavedJob(work.job);
+                await _linearIntakeWithLock(() => _linearIntakeMarkRestored(requestId));
+                localStorage.setItem(LINEAR_FORM_KEY, JSON.stringify(form));
+            }
+            // A hold already shows its own draft in the form (loadLinearForm).
+            _writeUiQueueDiagnostic(work.surface, 'saved_submission_restored', { kind: work.kind }, null);
+            navTo('linear', false);
+            const status = document.getElementById('linearStatus');
+            if (status) status.textContent = '';
+        } catch (error) {
+            _linearSavedSay('It could not be restored in this browser: ' + String(error && (error.code || error.message) || 'error') + '. You can still send it as it was, or discard it.');
+        }
+    }
+    async function _linearSavedSend() {
+        const work = _linearSavedWork();
+        if (!work) return;
+        _linearSavedSay('Sending…');
+        document.querySelectorAll('#linearSavedBox button').forEach(button => { button.disabled = true; });
+        try {
+            if (work.kind === 'hold') {
+                const result = await _submitLinearFormRoutedOnce(work.hold.mode);
+                if (result && result.ok === false) throw Object.assign(new Error(result.error || result.reason || 'not_sent'), { code: result.reason });
+            } else {
+                // Send exactly the saved request: undo any restore mark first.
+                const requestId = _linearIntakeJobId(work.job);
+                await _linearIntakeWithLock(() => {
+                    const current = _linearIntakeRead();
+                    if (current && _linearIntakeJobId(current) === requestId && current.replace_on_submit) { delete current.replace_on_submit; _linearIntakeWrite(current); }
+                });
+                await _resumeNativeIntakeJob('submit');
+                if (work.surface === 'submission') {
+                    _linearSetJustCreated(true);
+                    navTo('linear', false);
+                }
+            }
+            if (!_linearSavedWork()) { _linearRefreshSavedBox(); showNotify('Saved submission sent', 'The saved ' + (work.surface === 'submission' ? 'submission' : 'post') + ' was created.'); }
+            else _linearRefreshSavedBox();
+        } catch (error) {
+            _writeUiRecordFailure(work.surface === 'submission' ? 'production' : (work.surface === 'sxr' ? 'sxr' : 'calendar'), 'intake_create', error);
+            _linearRefreshSavedBox();
+            _linearSavedSay('It was not sent (' + String(error && (error.code || error.message) || 'error') + '). You can try again, restore it to edit it, or discard it.');
+        }
+    }
+    async function _linearSavedDiscard() {
+        const work = _linearSavedWork();
+        if (!work) return;
+        const what = work.surface === 'submission' ? 'submission' : 'post';
+        const question = work.committed
+            ? 'Discard the saved ' + what + '? It was already created in Production; discarding only stops this browser from finishing its calendar cards.'
+            : 'Discard the saved ' + what + (work.clientName ? ' for ' + work.clientName : '') + '? Nothing from it has been created, and it cannot be brought back.';
+        if (!window.confirm(question)) return;
+        try {
+            if (work.kind === 'native') {
+                const requestId = _linearIntakeJobId(work.job);
+                await _linearIntakeWithLock(() => _linearIntakeRemoveIfCurrent(requestId));
+            } else {
+                _linearCompareRemove(LINEAR_INTAKE_HOLD_KEY, _linearSubmissionHoldSnapshot().raw);
+            }
+            _writeUiQueueDiagnostic(work.surface, 'saved_submission_discarded', { kind: work.kind }, null);
+        } catch (error) {
+            _linearSavedSay('It could not be removed: ' + String(error && (error.code || error.message) || 'error') + '.');
+            return;
+        }
+        const status = document.getElementById('linearStatus');
+        if (status) status.textContent = 'The saved ' + what + ' was discarded. You can submit a new one now.';
+        _linearRefreshSavedBox();
     }
 
     /* The per-video Notes box (owner request 2026-08-21) is the human half of
@@ -849,6 +1160,7 @@ import { _kasperCalCachePrune } from './330-kasper-review-history.js';
         });
         let pending;
         try {
+            await _linearIntakePrepareReplace('submission');
             pending = await _linearIntakeWithLock(() => _linearIntakePending(signature, (requestId, sourceEditedAt) => {
             return {
                 operation: 'intake_create', surface: 'submission', client_slug: client.slug,
@@ -866,6 +1178,8 @@ import { _kasperCalCachePrune } from './330-kasper-review-history.js';
                 clientName,
                 mode,
                 videos: videos.map(video => ({ number: video.number })),
+                // The exact form, so "Restore it" puts back what was typed.
+                form: (() => { try { return saveLinearForm(); } catch (e) { return null; } })(),
                 ..._linearIntakeActorContext(identity)
             }, heldSnapshot && {
                 request_id: heldSnapshot.hold.request_id,
@@ -875,9 +1189,19 @@ import { _kasperCalCachePrune } from './330-kasper-review-history.js';
             // identity. Remove only the exact hold version we consumed.
             if (heldSnapshot) _linearCompareRemove(LINEAR_INTAKE_HOLD_KEY, heldSnapshot.raw);
         } catch (error) {
-            status.textContent = error && error.code === 'native_intake_pending_conflict'
-                ? 'Finish the previously saved submission before starting a different one.'
-                : 'This submission could not be saved safely in this browser.';
+            // Every refusal here reaches the save-problems log (no client name
+            // or slug), so the next stuck person shows up before they text us.
+            _writeUiRecordFailure('production', 'intake_create', error);
+            const blocked = error && (error.code === 'native_intake_pending_conflict' || error.code === 'native_intake_recovery_pending');
+            const code = String(error && error.code || '');
+            status.textContent = code === 'native_intake_saved_committed'
+                ? 'The saved submission already went through on the server, so your edits were not sent: they would have made a second batch. Use Send it as it was in the box at the top to finish it, then submit your changes as a new one.'
+                : code === 'native_intake_saved_unverified'
+                    ? 'Your edits were not sent: the server could not confirm whether the saved submission already went through. Try again in a moment, or use the box at the top to send it as it was or discard it.'
+                    : blocked
+                        ? 'An earlier submission is still saved in this browser. Use the box at the top of this page to restore it, send it, or discard it.'
+                        : 'This submission could not be saved safely in this browser.';
+            if (blocked || code.indexOf('native_intake_saved_') === 0) _linearRefreshSavedBox({ scroll: true });
             return;
         }
 
@@ -918,6 +1242,7 @@ import { _kasperCalCachePrune } from './330-kasper-review-history.js';
                 : 'Submission was not completed. Your exact request is saved; retry to resume safely.';
         } finally {
             buttons.forEach((button, index) => { button.disabled = false; button.innerHTML = buttonHtml[index]; });
+            _linearRefreshSavedBox();
         }
     }
 
@@ -1289,12 +1614,17 @@ import { _kasperCalCachePrune } from './330-kasper-review-history.js';
         if (_nativeIntakeResumePromise) return _nativeIntakeResumePromise;
         const job = suppliedJob || _linearIntakeRead();
         if (!job) return Promise.resolve(null);
+        // A job restored for editing waits for the person (Codex, PR 1824):
+        // sending it behind the form would leave the edits to go out later
+        // under a fresh id, as a second batch.
+        if (_linearIntakeRestoredPaused(job, reason)) return Promise.resolve(null);
         const requestId = _linearIntakeJobId(job);
         const runCurrent = () => {
             const current = _linearIntakeRead();
             if (!current || _linearIntakeJobId(current) !== requestId) {
                 throw _linearIntakeActorError(409, 'native_intake_job_replaced');
             }
+            if (_linearIntakeRestoredPaused(current, reason)) return null;
             return _runNativeIntakeJob(current);
         };
         _nativeIntakeResumePromise = _linearIntakeWithLock(runCurrent)
@@ -1524,8 +1854,8 @@ export {
   BARE_LANDING_OK_PARAMS, CAL_CARD_JOBS_KEY, FAST_TABS, KASPER_UNLOCK_KEY, RESTORABLE_FAST_TABS,
   _applyAllDataDependentChrome, _calCardJobsRead, _kasperApplyAccess,
   _kasperForgetAdmin, _kasperUnlocked, _linearIntakeActorContext,
-  _linearIntakeBatchTitle, _linearIntakeItems, _linearIntakeJobId, _linearIntakePending,
+  _linearIntakeBatchTitle, _linearIntakeItems, _linearIntakeJobId, _linearIntakeMarkRestored, _linearIntakePending, _linearIntakePrepareReplace,
   _linearIntakePurgeSensitiveState, _linearIntakeRead, _linearIntakeRemoveIfCurrent,
   _linearIntakeWithLock, _linearResumeSubmissionHold, _linearSubmissionHoldRead,
-  _resumeNativeIntakeJob, _resumePendingCalCardJobs, renderLinearView
+  _linearIntakeWrite, _linearRefreshSavedBox, _linearSavedWhen, _linearSavedWork, _resumeNativeIntakeJob, _resumePendingCalCardJobs, renderLinearView
 };

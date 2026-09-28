@@ -109,27 +109,29 @@
             <span class="header-nav-ico ico-templates" aria-hidden="true"></span>
             Templates
         </a>
-        <a class="header-nav-btn" id="navFilmingPlans" href="/filming-plans" onclick="if(_modClick(event))return;event.preventDefault();navTo('filming-plans')">
+        <a class="header-nav-btn" id="navFilmingPlans" title="Filming Plans" aria-label="Filming Plans" href="/filming-plans" onclick="if(_modClick(event))return;event.preventDefault();navTo('filming-plans')">
             <span class="header-nav-ico ico-filmingplans" aria-hidden="true"></span>
-            Filming Plans
+            Filming
         </a>
-        <a class="header-nav-btn" id="navTiktokUpload" href="/tiktok-upload" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-upload')">
+        <a class="header-nav-btn" id="navTiktokUpload" title="TikTok Upload" aria-label="TikTok Upload" href="/tiktok-upload" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-upload')">
             <span class="header-nav-ico ico-tiktok" aria-hidden="true"></span>
-            TikTok Upload
+            TikTok
         </a>
         <a class="header-nav-btn active" id="navHome" href="/" onclick="if(_modClick(event))return;event.preventDefault();svOpenAnalytics()">
             <span class="header-nav-ico ico-analytics" aria-hidden="true"></span>
             Analytics
         </a>
+        <!-- Tab row labels (owner, 2026-09-28): Filming, TikTok and Linear are short so the
+             admin row keeps full labels at 1366/1440px; title and aria-label keep the full names. -->
         <!-- The six tabs above follow the shared top-bar client; the team tabs below ignore it. -->
         <span class="header-nav-sep" aria-hidden="true"></span>
         <a class="header-nav-btn" id="navWorkload" href="/workload" onclick="if(_modClick(event))return;event.preventDefault();navTo('workload')">
             <span class="header-nav-ico ico-workload" aria-hidden="true"></span>
             Workload
         </a>
-        <a class="header-nav-btn" id="navProd" href="/synclinear" onclick="if(_modClick(event))return;event.preventDefault();navTo('production')">
+        <a class="header-nav-btn" id="navProd" title="SyncLinear" aria-label="SyncLinear" href="/synclinear" onclick="if(_modClick(event))return;event.preventDefault();navTo('production')">
             <span class="header-nav-ico ico-synclinear" aria-hidden="true"></span>
-            SyncLinear
+            Linear
         </a>
         <a class="header-nav-btn" id="navLinear" href="/submit" onclick="if(_modClick(event))return;event.preventDefault();navTo('linear')">
             <span class="header-nav-ico ico-submit" aria-hidden="true"></span>

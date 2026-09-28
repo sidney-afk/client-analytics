@@ -10,8 +10,8 @@
 | 2 | `003-sv-route.html.part` | 177 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 283 | NOT render-blocking, and the reason is measured rather than assumed. |
 | 4 | `010-styles-foundation.css.part` | 3913 | Video and Thumbnail share the same vibrant pink/blue pair the |
-| 5 | `020-styles-surfaces.css.part` | 4390 | Templates view |
-| 6 | `030-body-shell.html.part` | 511 | Confirmation modal |
+| 5 | `020-styles-surfaces.css.part` | 4391 | Templates view |
+| 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 1918 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
 | 8 | `050-market-briefs.js.part` | 1779 | Market Research Brief Tab Renderers |
 | 9 | `060-templates-filming.js.part` | 2303 | Multiple links per link field (client photos, thumbnail, reference reel) |

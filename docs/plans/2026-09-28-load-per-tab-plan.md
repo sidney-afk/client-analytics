@@ -174,3 +174,24 @@ SyncLinear.
   and its ties into staff-only areas fall from 110 names at step 1 to 56.
 
 Time Off's own outside ties drop from 54 names to 11. Part 2 makes Time off load on demand.
+
+**Part 2 was dropped (owner, 2026-09-28): Time off stays in core.** Wiring it through the
+registry changes lines the leave-evidence fingerprint hashes (`qa/pto-lifecycle/review.js`),
+which would mean re-reviewing 101 approved screenshots for ~23 KB. Before each remaining
+area, check whether it touches an approved-screenshot fingerprint; if it does, the owner
+gets the size saved and the screenshot count before anything is built. `areas.txt` now marks
+`110` **core**, so its six recorded hazards are no longer hazards.
+
+## Step 3, area 6 of 9, part 1: Templates and Filming lose their shared tail (2026-09-28)
+
+Fingerprint check first: the only approved-screenshot fingerprint over the page's code is the
+leave-evidence one, and no line of `060` matches it, so this area needs no re-review.
+
+`060-templates-filming` ended with state the whole app reads: the current tab (`currentNav`,
+read by 13 other files, the approve path among them), the Submit form's settings and receipts
+keys, and the client-project list the form loads. That tail (~4 KB compressed) is now
+`065-core-nav-intake-state`, **core**, with the same bytes, so the served page is
+byte-identical. `060` keeps Templates (~21 KB), the onboarding inbox it shows (~11 KB) and
+Filming plans (~5 KB). Its outside ties drop from 52 names in 16 files to 23 in 6; the approve
+path now imports nothing from it. Four recorded guards moved with the tail and are renamed in
+the baseline (79 left, after the six Time off ones above). Part 2 makes Templates load on demand.

@@ -3,10 +3,13 @@ import {
 } from './040-shared-briefs.js';
 import { _templatesActiveTab, _templatesSelected, highlightMatch, render } from './050-market-briefs.js';
 import {
-  LINEAR_FORM_KEY, NAV_KEY, _fpEnsureLoaded, _isSmmWeeklyRoute, _syncviewNextNavEpoch,
-  _syncviewSetCurrentNav, fetchLinearProjects, linearProjectsLoading, mountFilmingPlansView,
-  mountTemplatesView, renderFilmingPlansView, renderTemplatesView
+  _fpEnsureLoaded, mountFilmingPlansView, mountTemplatesView, renderFilmingPlansView,
+  renderTemplatesView
 } from './060-templates-filming.js';
+import {
+  LINEAR_FORM_KEY, NAV_KEY, _isSmmWeeklyRoute, _syncviewNextNavEpoch, _syncviewSetCurrentNav,
+  fetchLinearProjects, linearProjectsLoading
+} from './065-core-nav-intake-state.js';
 import {
   WL_PLAN_READ_TIMEOUT_MS, _wlDueWriteInFlight, _wlPlanWriteInFlight, _wlV2Enabled, _wlV2Teardown,
   renderWorkloadShell, wlDeadlineTagHtml, wlDisplayDate, wlIsTweaksNeeded, wlLinearEditingEnabled,

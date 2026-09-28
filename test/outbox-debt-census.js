@@ -208,17 +208,20 @@ for (const [file, variable, businessName] of [
   ['syncview-retirement-census.yml', 'SYNCVIEW_RETIREMENT_CENSUS_ENABLED', 'Check retirement admission boundary'],
 ]) {
   const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', file), 'utf8');
-  const expected = "github.event_name == 'workflow_dispatch' || vars." + variable + " == 'true'";
+  const expected = "(github.event_name == 'workflow_dispatch' && !inputs.scheduled_tick) || vars." + variable + " == 'true'";
   for (const name of ['Require census credentials', businessName]) {
     const lines = workflow.slice(workflow.indexOf('- name: ' + name)).split(/\r?\n/);
     ok(lines[1].trim() === 'if: ' + expected, file + ': ' + name + ' uses the exact activation gate');
   }
-  const enabled = new Function('github', 'vars', 'return (' + expected + ');');
+  const enabled = new Function('github', 'vars', 'inputs', 'return (' + expected + ');');
   for (const value of [undefined, '', 'false', '0']) {
-    ok(!enabled({event_name: 'schedule'}, {[variable]: value}), file + ': default/disabled schedule performs no census');
-    ok(enabled({event_name: 'workflow_dispatch'}, {[variable]: value}), file + ': explicit manual census stays available');
+    ok(!enabled({event_name: 'schedule'}, {[variable]: value}, {}), file + ': default/disabled schedule performs no census');
+    ok(enabled({event_name: 'workflow_dispatch'}, {[variable]: value}, {scheduled_tick: false}), file + ': explicit manual census stays available');
+    ok(!enabled({event_name: 'workflow_dispatch'}, {[variable]: value}, {scheduled_tick: true}), file + ': a lane-ticker dispatch stays dormant like a schedule');
   }
-  ok(enabled({event_name: 'schedule'}, {[variable]: 'true'}), file + ': approved scheduled activation works');
+  ok(enabled({event_name: 'schedule'}, {[variable]: 'true'}, {}), file + ': approved scheduled activation works');
+  ok(enabled({event_name: 'workflow_dispatch'}, {[variable]: 'true'}, {scheduled_tick: true}), file + ': approved activation works from a lane-ticker dispatch');
+  ok(workflow.includes("if: (github.event_name != 'workflow_dispatch' || inputs.scheduled_tick) && vars." + variable + " != 'true'"), file + ': dormant step mirrors the activation gate');
   ok(/if: always\(\)[\s\S]{0,300}?--heartbeat=/.test(workflow), file + ': existing heartbeat remains active');
   ok(workflow.includes('Report dormant scheduled census') && workflow.includes('heartbeat remains active'), file + ': dormant output distinguishes host health from census completion');
 }

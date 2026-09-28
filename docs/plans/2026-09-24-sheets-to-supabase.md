@@ -321,6 +321,12 @@ Measured 2026-09-25: a client link today downloads 19.6 MB of Sheets
 (essentials 2.8 MB in 0.4 to 0.6 s, extras 16.8 MB in 2.5 to 2.9 s, 5 runs);
 `analytics-read` for the test client answered in 342 ms with 89 KB.
 
+**Built 2026-09-28: staff pages too.** The staff overview and per-client
+pages read two new staff scopes of `analytics-read` behind `"enabled": true`
+(or `"staff": true` to try staff first), with the same Sheet fallback. Parity
+report, the daily copy and comparison lane, the catch-up job, every other
+reader and the switch-on plan: `docs/plans/2026-09-28-analytics-switch-on.md`.
+
 ### Phase 3: parity period, then retire the Sheets
 
 1. Run each dataset on Supabase for at least **3 days** (owner decision

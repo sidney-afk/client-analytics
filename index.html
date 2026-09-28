@@ -10594,8 +10594,13 @@
        link, and only while analytics_mirror_read_enabled says so (on for all,
        or {"enabled": false, "clients": [slug]} for named clients). One
        analytics-read call answers both stages for that one client, instead of
-       downloading every client's Sheets. The staff overview still reads the
-       Sheets: it shows every client, and analytics-read answers one.
+       downloading every client's Sheets.
+
+       STAFF (the overview and every per-client page) reads the database too
+       once the flag is on for everyone ({"enabled": true}) or for staff only
+       ({"staff": true}, for checking it before clients see it): one
+       analytics-read "overview" answer for the numbers and roster, one
+       "extras" answer for videos, briefs and summaries, every client each.
 
        FALLBACK: the Sheets are read exactly as before when the flag is off,
        the read fails or times out, or the database has no copy yet. An empty
@@ -10637,7 +10642,7 @@
         if (_analyticsMirrorLoad && _analyticsMirrorLoad.run === clientEntryRun) return _analyticsMirrorLoad.promise;
         const started = performance.now();
         const promise = (async () => {
-            if (!_analyticsMirrorOnFor(await _analyticsMirrorFlagValue().catch(() => null), cap.slug)) return null;
+            if (!_analyticsMirrorOnFor(await _analyticsMirrorFlagShared(), cap.slug)) return null;
             const token = _syncviewClientWriteToken();
             if (!token) return null;
             const controller = typeof AbortController === 'function' ? new AbortController() : null;
@@ -10685,6 +10690,101 @@
         return promise;
     }
 
+    // One flag read per page load, shared by the client and staff paths (the
+    // boot batch hands each key out once).
+    let _analyticsMirrorFlagPromise = null;
+    function _analyticsMirrorFlagShared(){
+        if (!_analyticsMirrorFlagPromise) {
+            _analyticsMirrorFlagPromise = _analyticsMirrorFlagValue().catch(() => null);
+        }
+        return _analyticsMirrorFlagPromise;
+    }
+    function _analyticsMirrorStaffOn(value){
+        return !!value && typeof value === 'object' && (value.enabled === true || value.staff === true);
+    }
+    // Rows back into the Sheet's CSV shape, so the database answer goes
+    // through the same parse, fingerprint and saved-copy path as a Sheet.
+    function _analyticsMirrorCsv(columns, rows){
+        const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+        const lines = [columns.map(q).join(',')];
+        for (const r of rows) lines.push(columns.map(c => q(Array.isArray(r) ? r[columns.indexOf(c)] : r[c])).join(','));
+        return lines.join('\n');
+    }
+    function _analyticsMirrorProfileRow(p){
+        const row = Object.assign({}, (p && typeof p.extra === 'object' && p.extra) || {});
+        Object.keys(p || {}).forEach(k => {
+            if (k === 'slug' || k === 'display_name' || k === 'extra') return;
+            row[k] = _analyticsMirrorText(p[k]);
+        });
+        row.client_name = String(p.display_name || '');
+        return row;
+    }
+    // A stuck read must not hold the overview: past this, the Sheets load instead.
+    const ANALYTICS_MIRROR_STAFF_TIMEOUT_MS = { overview: 10000, extras: 20000 };
+    const ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS = 3;
+    let _analyticsStaffMirror = { overview: null, extras: null };
+    // null = read the Sheets; otherwise CSV texts shaped like the Sheet tabs.
+    function _analyticsStaffMirrorRead(scope){
+        if (_analyticsIsClientSession()) return Promise.resolve(null);
+        const ident = typeof _syncviewStaffIdentityForHeaders === 'function' ? _syncviewStaffIdentityForHeaders() : null;
+        if (!ident || !ident.key) return Promise.resolve(null);
+        if (_analyticsStaffMirror[scope]) return _analyticsStaffMirror[scope];
+        const started = performance.now();
+        const promise = (async () => {
+            if (!_analyticsMirrorStaffOn(await _analyticsMirrorFlagShared())) return null;
+            const controller = typeof AbortController === 'function' ? new AbortController() : null;
+            const timer = controller ? setTimeout(() => controller.abort(), ANALYTICS_MIRROR_STAFF_TIMEOUT_MS[scope]) : null;
+            try {
+                const resp = await fetch(CAL_SUPABASE_URL + '/functions/v1/analytics-read', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': String(ident.key) },
+                    cache: 'no-store',
+                    signal: controller ? controller.signal : undefined,
+                    body: JSON.stringify({ scope })
+                });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const json = await resp.json();
+                if (!json || json.ok !== true || json.scope !== scope || !json.data) throw new Error('unexpected answer');
+                const d = json.data, rc = json.receipts || {};
+                // A whole-dataset copy counts only if it finished recently: if the
+                // daily copy stops, an old receipt must not vouch for stale rows.
+                const oldestCopy = Date.now() - ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS * 86400000;
+                const fresh = name => !!(rc[name] && Date.parse(rc[name].created_at) >= oldestCopy);
+                let out = null, why = '';
+                if (scope === 'overview') {
+                    const m = d.metrics || {}, profiles = Array.isArray(d.client_profiles) ? d.client_profiles : [];
+                    const latest = String(json.latest_metrics_date || '');
+                    const oldest = new Date(Date.now() - ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS * 86400000).toISOString().slice(0, 10);
+                    if (!Array.isArray(m.rows) || !m.rows.length || !profiles.length) why = 'no copy yet';
+                    else if (!fresh('metrics') || !fresh('client_profiles')) why = 'no complete copy in the last ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
+                    else if (latest < oldest) why = 'copy is older than ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
+                    else out = { metrics: _analyticsMirrorCsv(m.columns, m.rows), clients: profiles.map(_analyticsMirrorProfileRow) };
+                } else {
+                    const tv = d.top_videos || {};
+                    if (!Array.isArray(tv.rows)) why = 'no copy yet';
+                    else if (!fresh('top_videos') || !fresh('market_research_briefs') || !fresh('content_summaries')) why = 'no complete copy in the last ' + ANALYTICS_MIRROR_STAFF_MAX_AGE_DAYS + ' days';
+                    else out = {
+                        topvids: _analyticsMirrorCsv(tv.columns, tv.rows),
+                        mrbriefs: _analyticsMirrorCsv(['id', 'client_name', 'date', 'raw_json', 'raw_json_2', 'raw_json_3'], d.market_research_briefs || []),
+                        summaries: _analyticsMirrorCsv(['date', 'client_name', 'bullets'], d.content_summaries || [])
+                    };
+                }
+                console.log('[SyncView] analytics database ' + scope + ' read in ' + Math.round(performance.now() - started) + ' ms'
+                    + (out ? '' : '; ' + why + ', using the Sheets'));
+                return out;
+            } finally {
+                if (timer) clearTimeout(timer);
+            }
+        })().catch(e => {
+            console.warn('[SyncView] analytics database ' + scope + ' read failed, using the Sheets:', e && e.message);
+            return null;
+        });
+        // A failed or refused read is not remembered: the next load tries again.
+        _analyticsStaffMirror[scope] = promise;
+        promise.then(r => { if (!r) _analyticsStaffMirror[scope] = null; });
+        return promise;
+    }
+
     async function fetchEssentials(clientEntryRun){
         const mirror=await _analyticsMirrorRead(clientEntryRun);
         if(mirror&&mirror.ess){
@@ -10692,6 +10792,13 @@
             _analyticsLiveEssentials = true;
             _applyEssentialRows(mirror.ess.metrics, mirror.ess.clients);
             return;   // a client link never saves a copy
+        }
+        const staff=clientEntryRun?null:await _analyticsStaffMirrorRead('overview');
+        if(staff){
+            _analyticsLiveEssentials = true;
+            const publicClientRows = _applyEssentialTexts(staff.metrics, staff.clients);
+            _analyticsCacheWrite({ metrics: staff.metrics, clients: publicClientRows });
+            return;
         }
         const requestOpts=clientEntryRun?{signal:clientEntryRun.signal}:undefined;
         const [mr,cr]=await Promise.all([fetch(METRICS_URL,requestOpts),fetch(CLIENTS_URL,requestOpts)]);
@@ -10729,6 +10836,13 @@
                 _analyticsPendingExtras = null;
                 _applyExtraRows(mirror.ext.topvids, [], mirror.ext.mrbriefs, mirror.ext.summaries, null);
                 return;   // a client link never saves a copy
+            }
+            const staff=clientEntryRun?null:await _analyticsStaffMirrorRead('extras');
+            if(staff){
+                _analyticsPendingExtras = null;
+                _applyExtraTexts(staff.topvids, '', staff.mrbriefs, staff.summaries);
+                _analyticsCacheWrite({ topvids: staff.topvids, briefs: '', mrbriefs: staff.mrbriefs, summaries: staff.summaries });
+                return;
             }
             const requestOpts=clientEntryRun?{signal:clientEntryRun.signal}:undefined;
             const [tr,mrb,cs]=await Promise.all([

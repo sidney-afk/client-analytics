@@ -50,13 +50,20 @@ line is older than a week, re-check it before relying on it.
   (OPEN_REPAIRS 215).
 - **Mixed-batch orphans:** a browser fix should re-attach 22 cards; nobody has
   confirmed it on a live read (journal 2026-09-22).
-- **Copy scripts die on a bare network error** (OPEN_REPAIRS 223).
+- **Copy transport retry** (OPEN_REPAIRS 223/279): the native brief copy now
+  retries with bounded attempts and reconciles ambiguous uploads by readback,
+  tested offline. No live re-copy has been run.
 - **Onboarding runbooks have no native steps** for their retired Linear parts
   (OPEN_REPAIRS 227).
-- **Sheets to Supabase, next steps:** the mirror write is on and backfilled
-  (about 5,200 metric rows, 57,000 top-video rows); the mirror READ is off and
-  enrolled only for the test client. `client_profiles_authority` is still
-  `sheet`. n8n dual-write nodes wait on the owner's go-ahead per workflow.
+- **Sheets to Supabase, next steps:** the mirror write is on and backfilled;
+  CLIENTS METRICS and TOP VIDEOS mirror every client (since 2026-09-28). The
+  mirror READ is enrolled only for the test client. Parity on 2026-09-28: no
+  value differs; Supabase lacks Metrics 26-28 Sept and TopVideos 26-27 Sept,
+  filled by the new daily copy lane once the owner adds its secret and
+  variable. Staff read, daily parity check and catch-up job are built but the
+  staff scopes need `analytics-read` deployed. Switch-on plan and every other
+  reader: `docs/plans/2026-09-28-analytics-switch-on.md`.
+  `client_profiles_authority` is still `sheet`.
 - **`mirror_outbox` still grows** (236 new rows in the last 24 hours, all
   receipts; 12,974 total). Retiring it is a planned later slice, not urgent.
 

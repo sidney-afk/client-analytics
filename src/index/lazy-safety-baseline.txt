@@ -1,7 +1,6 @@
 # Recorded on-demand-loading hazards: "<kind> <caller fragment> <name>".
 # Written by `node scripts/check-lazy-safety.js --update`; see that file for what each kind means.
 # The list may only shrink: a new line needs a reason in its PR, and a line whose hazard is gone must be removed.
-button 030-body-shell.html.part _ptoOpenFromMenu
 button 030-body-shell.html.part _svOpenStaffPage
 button 030-body-shell.html.part navTo
 button 030-body-shell.html.part svQuickJumpOpen
@@ -45,10 +44,10 @@ button 260-production-refresh-boot.js.part _prodToggleTeam
 button 280-samples-cards-notes.js.part _prodProjectCanonicalCardComments
 guard 060-templates-filming.js.part _kasperRefreshTabCounts
 guard 060-templates-filming.js.part _linearInvalidatePlanMap
-guard 060-templates-filming.js.part saveLinearForm
-guard 060-templates-filming.js.part updateLinearFilmingPlan
-guard 060-templates-filming.js.part updateLinearSearchGhost
-guard 060-templates-filming.js.part updateLinearTitle
+guard 065-core-nav-intake-state.js.part saveLinearForm
+guard 065-core-nav-intake-state.js.part updateLinearFilmingPlan
+guard 065-core-nav-intake-state.js.part updateLinearSearchGhost
+guard 065-core-nav-intake-state.js.part updateLinearTitle
 guard 080-workload-render.js.part _prodApplyGatewayRow
 guard 090-workload-popovers-navigation.js.part _kasperTeardown
 guard 100-onboarding-staff-controls.js.part _caPurgeSensitiveState
@@ -61,11 +60,6 @@ guard 100-onboarding-staff-controls.js.part _kasperRenderTab
 guard 100-onboarding-staff-controls.js.part _kasperRestorePendingSubtab
 guard 100-onboarding-staff-controls.js.part _prodCachePurge
 guard 100-onboarding-staff-controls.js.part _prodClearLayer
-guard 100-onboarding-staff-controls.js.part _ptoCalResetView
-guard 100-onboarding-staff-controls.js.part _ptoEnabled
-guard 100-onboarding-staff-controls.js.part _ptoLoadOverview
-guard 100-onboarding-staff-controls.js.part _ptoPaint
-guard 100-onboarding-staff-controls.js.part _ptoRenderAdmin
 guard 100-onboarding-staff-controls.js.part _srpPurgeSensitiveState
 guard 100-onboarding-staff-controls.js.part _svStaffPageRender
 guard 100-onboarding-staff-controls.js.part wlNormalizeClient

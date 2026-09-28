@@ -11,6 +11,7 @@
 040-shared-briefs.js.part                  core
 050-market-briefs.js.part                  core
 060-templates-filming.js.part              templates
+065-core-nav-intake-state.js.part          core
 070-workload-source.js.part                workload
 080-workload-render.js.part                workload
 090-workload-popovers-navigation.js.part   workload
@@ -19,7 +20,7 @@
 097-today.js.part                          core
 098-smm-clients.js.part                    core
 100-onboarding-staff-controls.js.part      core
-110-time-off.js.part                       time-off
+110-time-off.js.part                       core
 112-smm-weekly-reports.js.part             smm-weekly
 115-core-calendar-flags.js.part            core!
 120-calendar-flags-write-repair.js.part    core!

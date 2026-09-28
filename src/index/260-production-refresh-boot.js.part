@@ -12,9 +12,8 @@ import {
   _autoSummaryAttempted, _templatesSelected, _templatesSetActiveTab, _templatesSetSelected,
   loadTemplates, render
 } from './050-market-briefs.js';
-import {
-  NAV_KEY, _isSmmWeeklyRoute, _obvMountStandalone, _syncviewNavEpoch, currentNav
-} from './060-templates-filming.js';
+import { _obvMountStandalone } from './060-templates-filming.js';
+import { NAV_KEY, _isSmmWeeklyRoute, _syncviewNavEpoch, currentNav } from './065-core-nav-intake-state.js';
 import {
   WL_CLIENT_NAMES, _wlV2Client, getClientRoster, wlCanonicalClient, wlIsAllowedClient,
   wlNormalizeClient

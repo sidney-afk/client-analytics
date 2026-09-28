@@ -233,12 +233,81 @@ async function uploadLink(contentType: string) {
   return res.data as { upload_url: string; public_url: string; upload_headers: Record<string, string> };
 }
 
+// import_file fetches a caller-supplied link, so every hop (including each
+// redirect) must be public https: no IP literals in private ranges, no
+// internal names, and every resolved address public. The body is read in
+// chunks and abandoned the moment it passes the size limit.
+function privateIp(ip: string): boolean {
+  const v4 = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254)
+      || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224;
+  }
+  const v6 = ip.toLowerCase().replace(/^\[|\]$/g, "");
+  if (!v6.includes(":")) return false;
+  const mapped = v6.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped) return privateIp(mapped[1]);
+  return v6 === "::" || v6 === "::1" || /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6) || /^ff/.test(v6);
+}
+
+async function publicHost(url: URL): Promise<boolean> {
+  if (url.protocol !== "https:" || url.username || url.password) return false;
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (!host.includes(".") && !host.includes(":")) return false;
+  if (/(^|\.)(localhost|local|internal|localdomain|home\.arpa)$/.test(host)) return false;
+  if (/^[\d.]+$/.test(host) || host.includes(":")) return !privateIp(host);
+  try {
+    const addrs = [
+      ...(await Deno.resolveDns(host, "A").catch(() => [] as string[])),
+      ...(await Deno.resolveDns(host, "AAAA").catch(() => [] as string[])),
+    ];
+    return addrs.length > 0 && addrs.every((a) => !privateIp(a));
+  } catch {
+    return false;
+  }
+}
+
+async function safeFetch(link: string): Promise<Response | string> {
+  let url = new URL(link);
+  for (let hop = 0; hop < 6; hop++) {
+    if (!(await publicHost(url))) return "That link points somewhere that is not a public https address.";
+    const res = await fetch(url, { redirect: "manual" });
+    if (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
+      await res.body?.cancel();
+      url = new URL(res.headers.get("location")!, url);
+      continue;
+    }
+    return res;
+  }
+  return "That link redirects too many times.";
+}
+
+async function readLimited(res: Response): Promise<Uint8Array<ArrayBuffer> | null> {
+  const reader = res.body!.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > MAX_IMPORT_BYTES) { await reader.cancel(); return null; }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) { out.set(c, offset); offset += c.length; }
+  return out;
+}
+
 async function importFile(link: string): Promise<string> {
   if (!/^https:\/\//i.test(link)) return "The link must start with https://";
-  const res = await fetch(directLink(link), { redirect: "follow" });
-  if (!res.ok) return `Could not download that link (${res.status}). Make sure it is shared as "anyone with the link".`;
-  const size = Number(res.headers.get("content-length") || 0);
-  if (size > MAX_IMPORT_BYTES) return "That file is over 60 MB, too big to import.";
+  let fetched: Response | string;
+  try { fetched = await safeFetch(directLink(link)); } catch { return "Could not open that link."; }
+  if (typeof fetched === "string") return fetched;
+  const res = fetched;
+  if (!res.ok || !res.body) return `Could not download that link (${res.status}). Make sure it is shared as "anyone with the link".`;
+  if (Number(res.headers.get("content-length") || 0) > MAX_IMPORT_BYTES) { await res.body.cancel(); return "That file is over 60 MB, too big to import."; }
   let type = (res.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
   if (type === "audio/x-wav" || type === "audio/wave") type = "audio/wav";
   if (type === "image/jpg") type = "image/jpeg";
@@ -246,9 +315,9 @@ async function importFile(link: string): Promise<string> {
     const ext = (res.headers.get("content-disposition")?.match(/filename\*?=(?:UTF-8'')?"?[^";]*\.(\w+)/i)?.[1] || new URL(link).pathname.split(".").pop() || "").toLowerCase();
     type = UPLOAD_TYPES[ext] || "";
   }
-  if (!type) return "That link is not a supported file (jpg, png, webp, gif, mp4 or wav), or it opened a web page instead of the file. Check the sharing setting.";
-  const bytes = new Uint8Array(await res.arrayBuffer());
-  if (bytes.length > MAX_IMPORT_BYTES) return "That file is over 60 MB, too big to import.";
+  if (!type) { await res.body.cancel(); return "That link is not a supported file (jpg, png, webp, gif, mp4 or wav), or it opened a web page instead of the file. Check the sharing setting."; }
+  const bytes = await readLimited(res);
+  if (!bytes) return "That file is over 60 MB, too big to import.";
   const up = await uploadLink(type);
   if ("error" in up) return "Could not prepare the upload: " + up.error;
   const put = await fetch(up.upload_url, { method: "PUT", headers: up.upload_headers, body: bytes });
@@ -267,10 +336,14 @@ function outputs(data: JsonMap): string[] {
 // ---- Tool handlers -------------------------------------------------------
 
 async function callTool(name: string, args: JsonMap, member: string): Promise<string> {
-  if (CAP_USD === null) {
-    return "The monthly budget setting (HF_MONTHLY_CAP_USD) is not a valid dollar amount, so the connector is paused. Ask the account owner.";
-  }
-  const cap = CAP_USD;
+  // A malformed cap stops new spending only; job checks, details and imports keep working.
+  const BAD_CAP = "The monthly budget setting (HF_MONTHLY_CAP_USD) is not a valid dollar amount, so nothing new can be made. Ask the account owner.";
+  const cap = CAP_USD ?? 0;
+  const budget = async (): Promise<string> => {
+    if (CAP_USD === null) return BAD_CAP;
+    const spent = await monthSpend();
+    return `Team budget this month: ${money(spent)} of ${money(cap)} used, ${money(Math.max(0, cap - spent))} left.`;
+  };
   const needModel = (): string | null => {
     const id = String(args.model || "").trim();
     return BY_ID.has(id) ? id : null;
@@ -278,9 +351,8 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   const inputsOf = (): JsonMap => (args.inputs && typeof args.inputs === "object" && !Array.isArray(args.inputs) ? args.inputs as JsonMap : {});
 
   if (name === "start_here") {
-    const spent = await monthSpend();
     const list = GO_TO.map((g) => `- ${g.task}: ${g.picks.map((id) => `${BY_ID.get(id)?.name} [${id}]`).join(" or ")}`).join("\n");
-    return `This connector can make videos and images with ${CATALOG.length} Higgsfield models. Go-to picks:\n${list}\n\nThere are more options per task: use find_models.\nPrices vary by model, length and resolution; price_check gives the exact figure.\nInput photos, videos and audio must be public links; import_file converts Drive and Dropbox links.\n\nTeam budget this month: ${money(spent)} of ${money(cap)} used, ${money(Math.max(0, cap - spent))} left.`;
+    return `This connector can make videos and images with ${CATALOG.length} Higgsfield models. Go-to picks:\n${list}\n\nThere are more options per task: use find_models.\nPrices vary by model, length and resolution; price_check gives the exact figure.\nInput photos, videos and audio must be public links; import_file converts Drive and Dropbox links.\n\n${await budget()}`;
   }
 
   if (name === "find_models") {
@@ -303,10 +375,8 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
     if (problems.length) return "Fix these settings first:\n- " + problems.join("\n- ") + "\n\n" + describeModel(id);
     const est = await estimate(id, inputs);
     if ("error" in est) return "Higgsfield could not price this request: " + est.error;
-    if (name === "price_check") {
-      const spent = await monthSpend();
-      return `Exact price: ${money(est.usd)}. Team budget left this month: ${money(Math.max(0, cap - spent))}.`;
-    }
+    if (name === "price_check") return `Exact price: ${money(est.usd)}. ${await budget()}`;
+    if (CAP_USD === null) return BAD_CAP;
 
     const client = db();
     // Cap check, retry dedupe and log row happen in one serialized database step.
@@ -371,7 +441,6 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
   }
 
   if (name === "team_usage") {
-    const spent = await monthSpend();
     const { data } = await db()
       .from("hf_generations")
       .select("created_at,member_name,model,est_cost_usd,status,prompt")
@@ -380,7 +449,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
     const lines = (data || []).map((r) =>
       `${String(r.created_at).slice(0, 10)}  ${r.member_name}  ${r.model}  ${money(Number(r.est_cost_usd))}  ${r.status}  "${String(r.prompt).slice(0, 60)}"`
     );
-    return `This month: ${money(spent)} of ${money(cap)} used.\n\nRecent jobs:\n${lines.join("\n") || "none yet"}`;
+    return `${await budget()}\n\nRecent jobs:\n${lines.join("\n") || "none yet"}`;
   }
 
   return "Unknown tool: " + name;

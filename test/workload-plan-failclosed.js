@@ -291,6 +291,11 @@ function makeIdentityPurgeContext() {
     JSON, String, Number, Map, Array, Error, Promise, console,
   };
   context.globalThis = context;
+  // Workload loaded (040 registry), handing back this sandbox's own functions.
+  context.svAreaApi = name => (name === 'workload' ? {
+    purgePlanSensitiveState: () => context.wlPurgePlanSensitiveState(),
+    refreshSensitiveStateSilent: () => (context.wlRefreshSensitiveStateSilent ? context.wlRefreshSensitiveStateSilent() : undefined),
+  } : null);
   vm.createContext(context);
   for (const name of [
     '_syncviewStaffIdentitySignature',

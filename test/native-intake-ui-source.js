@@ -801,9 +801,12 @@ const result = {
     && pendingFn.includes("'native_intake_pending_conflict'"),
   'a recovery copy blocks under its own error code, not the pending-conflict one');
   const errorTextFn = extract('_calNativePostErrorText');
+  /* It used to say it "stops retrying on its own" and offered nothing to
+     click. Since the saved-post box (owner rule 2026-09-28) there IS a place
+     to go: the copy names it, and the box offers Finish it and Discard it. */
   ok(errorTextFn.includes("code === 'native_intake_recovery_pending'")
-    && /stops retrying on its own/.test(errorTextFn),
-  'the recovery block reads as self-clearing instead of sending the user to find a dialog');
+    && /finish it or discard it/.test(errorTextFn),
+  'the recovery block names the box that finishes or discards it, not a dialog that does not exist');
 
   const resumeFn = extract('_resumeNativeIntakeJob');
   ok(resumeFn.includes('_linearIntakeDiscardTerminallyRefused(reason, requestId, error)'),

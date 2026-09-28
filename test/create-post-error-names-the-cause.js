@@ -129,8 +129,11 @@ const clientText = build(false, true);
     'batch_team_mismatch keeps its specific sentence, the first defect to escape this catch-all');
   ok(/belongs to a different client/.test(staffText('batch_client_mismatch')),
     'and so does batch_client_mismatch, the second');
-  ok(/Finish the previously saved intake/.test(staffText('native_intake_pending_conflict')),
-    'and the pending-conflict copy is untouched');
+  /* The old copy ("Finish the previously saved intake") was a dead end: there
+     was nothing on screen to finish it with (owner incident 2026-09-28). It now
+     names the box in the dialog that restores, sends or discards it. */
+  ok(/restore it, send it, or discard it/.test(staffText('native_intake_pending_conflict')),
+    'and the pending-conflict copy names the way out instead of a dead end');
   /* Keyed on STATUS, not code, so it needs its own call shape rather than the
      code-only helper above. Written out because a `|| true` tail would make
      this assertion pass no matter what the mapper does, which is worse than

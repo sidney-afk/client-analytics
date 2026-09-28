@@ -16,6 +16,7 @@ if (!groups.has(lane)) {
 const suites = [
   ['fast', 'Production boot budget', 'docs/syncview-design/tests/prod-boot-budget.js'],
   ['fast', 'Tab switch during boot (Phase D)', 'docs/syncview-design/tests/tab-switch-boot-browser.js'],
+  ['fast', 'Saved submission never traps (Submit + Create Post)', 'docs/syncview-design/tests/saved-submission-browser.js'],
   ['fast', 'Clean tab addresses and default landing', 'docs/syncview-design/tests/clean-address-landing-browser.js'],
   ['fast', 'Onboarding page from the staff menu', 'docs/syncview-design/tests/staff-onboarding-page-browser.js'],
   ['fast', 'Today phone actions on one line', 'docs/syncview-design/tests/today-phone-actions-browser.js'],

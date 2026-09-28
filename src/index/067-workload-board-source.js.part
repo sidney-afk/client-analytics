@@ -13,7 +13,7 @@ import { wlClosePopover } from './090-workload-popovers.js';
 import {
   CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, WORKLOAD_LINEAR_URL, WORKLOAD_PLAN_URL,
   _syncviewRequireStaffIdentity, _syncviewStaffCan, _syncviewStaffIdentityClear,
-  _syncviewStaffIdentityForHeaders
+  _syncviewStaffIdentityForHeaders, _syncviewStaffIdentityLoad
 } from './100-onboarding-staff-controls.js';
 import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
 import { _calV2LoadLib } from './150-calendar-hydration-import.js';
@@ -2220,13 +2220,13 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
     // True only for a verified staff identity. Workload shows nothing to anyone
     // else: not the live board, not the in-memory copy, not the browser copy.
     function wlStaffMayView() {
-        return typeof _syncviewStaffIdentityForHeaders === 'function' && !!_syncviewStaffIdentityForHeaders();
+        return !!_syncviewStaffIdentityForHeaders();
     }
     // No staff identity held at all (signed out), as opposed to one that is
     // still being verified on boot, which must not throw away the board copy.
     function wlStaffSignedOut() {
         if (wlStaffMayView()) return false;
-        try { return typeof _syncviewStaffIdentityLoad !== 'function' || !_syncviewStaffIdentityLoad(); } catch (e) { return true; }
+        try { return !_syncviewStaffIdentityLoad(); } catch (e) { return true; }
     }
     function wlPurgeBoardData() {
         wlDropCache();

@@ -24829,7 +24829,7 @@
                 + (q.length > 1 ? `<div class="tdy-st">Next in the deck</div><div class="tdy-ls">${q.slice(1, 4).map(x => _tdyEditorRow(x, d)).join('')}</div>` : '')
                 + _tdyTrail(today, d.names);
         }
-        return head + scope + `<p class="tdy-big">${me.first ? _calEsc(me.first) + ', ' : ''}${q.length} to clear.</p><div class="tdy-ls">${q.slice(0, 15).map(r => _tdyEditorRow(r, d)).join('')}${q.length > 15 ? `<div class="tdy-more">${q.length - 15} more in SyncLinear</div>` : ''}</div>` + _tdyTrail(today, d.names);
+        return head + `<p class="tdy-big">${me.first ? _calEsc(me.first) + ', ' : ''}${q.length} to clear.</p><div class="tdy-ls">${q.slice(0, 15).map(r => _tdyEditorRow(r, d)).join('')}${q.length > 15 ? `<div class="tdy-more">${q.length - 15} more in SyncLinear</div>` : ''}</div>` + _tdyTrail(today, d.names);
     }
 
     /* ---------- SMM and admin ---------- */

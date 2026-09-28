@@ -136,8 +136,11 @@ const CAL_SUPABASE_URL = 'https://synthetic.invalid';
   + grabFunc('_writeUiDiagnosticIds') + '\n'
   + grabFunc('_writeRefusalAppVersion') + '\n'
   + grabConst('WRITE_REFUSAL_ATTEMPT_MS') + '\n'
-  + grabConst('_writeRefusalAttempts') + '\n'
+  + grabConst('_writeRefusalStaged') + '\n'
+  + grabFunc('_writeRefusalNewId') + '\n'
+  + grabFunc('_writeRefusalStageAttempt') + '\n'
   + grabFunc('_writeRefusalAttemptId') + '\n'
+  + grabConst('WRITE_REFUSAL_NETWORK_MESSAGE') + '\n'
   + grabFunc('_writeRefusalIsNetworkFailure') + '\n'
   + grabFunc('_writeRefusalBeacon') + '\n'
   + grabFunc('_writeUiQueueDiagnostic') + '\n', ctx2);
@@ -202,18 +205,25 @@ ok(beaconCalls[1].body.identifiers.client_slug === 'synthetic-client',
 'a client link sends the client slug the save uses, so the server can hash it into the same reference');
 ok(/^[0-9a-f-]{36}$/.test(beaconCalls[1].body.attempt), 'every claim carries an attempt id');
 run2(`_writeUiQueueDiagnostic('calendar', 'ui_write_failure', { kind: 'status', card: 'card-B' }, { code: 'write_conflict', message: 'Someone else changed this card' });`);
-ok(beaconCalls.length === 3 && beaconCalls[2].body.attempt === beaconCalls[1].body.attempt,
-'an automatic retry of the same save reuses the first attempt id (one record per click)');
-run2(`_writeUiQueueDiagnostic('calendar', 'ui_write_failure', { kind: 'status', card: 'card-C' }, Object.assign(new TypeError('Failed to fetch')));`);
+ok(beaconCalls.length === 3 && beaconCalls[2].body.attempt !== beaconCalls[1].body.attempt,
+'a second, separate click on the same save is its own record (nothing ties it to the first)');
+// The client review queue stages its click's id; the click's send and its automatic re-sends share it.
+run2(`_writeRefusalStageAttempt('card-Q', '0f8fad5b-d9cb-469f-a165-70867728950e');
+_writeUiQueueDiagnostic('calendar', 'ui_write_failure', { kind: 'status', card: 'card-Q' }, new TypeError('Failed to fetch'));
+_writeUiQueueDiagnostic('calendar', 'ui_write_failure', { kind: 'status', card: 'card-Q' }, new TypeError('Failed to fetch'));
+_writeUiQueueDiagnostic('calendar', 'ui_write_failure', { kind: 'status', card: 'card-Q' }, { code: 'write_conflict', status: 409, message: 'x' });`);
+ok(beaconCalls[3].body.attempt === '0f8fad5b-d9cb-469f-a165-70867728950e' && beaconCalls[4].body.attempt === beaconCalls[3].body.attempt,
+'a queued re-send reuses its click\'s staged id (one record per click)');
+ok(beaconCalls[5].body.attempt !== beaconCalls[3].body.attempt, 'a re-send that ends differently is its own record');
 const net = beaconCalls[3].body;
-ok(net.failure === 'network' && !('status' in net) && net.attempt !== beaconCalls[1].body.attempt,
-'a save that never reached a server is flagged as a network failure, with no status, as its own record');
-run2(`_writeUiQueueDiagnostic('calendar', 'ui_write_failure', { kind: 'status', card: 'card-D' }, { code: 'write_conflict', status: 409, message: 'Failed to fetch' });`);
-ok(!('failure' in beaconCalls[4].body), 'a real server answer is never called a network failure');
+ok(net.failure === 'network' && !('status' in net), 'a save that never reached a server is flagged as a network failure, with no status');
+ok(!('failure' in beaconCalls[5].body), 'a real server answer is never called a network failure');
+run2(`_writeUiQueueDiagnostic('calendar', 'ui_write_failure', { kind: 'status', card: 'card-E' }, new TypeError("Cannot read properties of undefined (reading 'id')"));`);
+ok(!('failure' in beaconCalls[6].body), 'a programming TypeError is not relabelled as a network failure');
 run2(`_isClientLink = false;`);
 
 run2(`_writeUiQueueDiagnostic('calendar', 'drained', { kind: 'status', payload: { nested: { deep: 'x' } }, id: { not: 'a scalar' } });`);
-ok(beaconCalls.length === 5, 'an outcome that is not a write failure never reports');
+ok(beaconCalls.length === 7, 'an outcome that is not a write failure never reports');
 const row2 = JSON.parse(run2(`localStorage.getItem(WRITE_UI_QUEUE_DIAG_KEY)`))[1];
 ok(row2.id === undefined && row2.nested === undefined,
 'a non-scalar under an allowlisted key is dropped rather than serialized');

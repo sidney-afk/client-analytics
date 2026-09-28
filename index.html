@@ -31120,32 +31120,45 @@
             return isNaN(at.getTime()) ? '' : at.toISOString().slice(0, 16);
         } catch (e) { return ''; }
     }
-    /* OPEN_REPAIRS 101 follow-up (2026-09-28): one record per click. The live
-       proof saw one failed click write three rows, because the page retries a
-       failed save on its own. A save and its retries share one attempt id for
-       ten minutes, so the server attaches each retry to the first row (and
-       counts it) instead of adding rows. The key is the save itself: screen,
-       action, card, component, work item and outcome. A different outcome is
-       a different record. */
-    const WRITE_REFUSAL_ATTEMPT_MS = 10 * 60 * 1000;
-    const _writeRefusalAttempts = new Map();
-    function _writeRefusalAttemptId(key) {
-        const now = Date.now();
-        for (const [k, v] of _writeRefusalAttempts) if (now - v.at > WRITE_REFUSAL_ATTEMPT_MS) _writeRefusalAttempts.delete(k);
-        const hit = _writeRefusalAttempts.get(key);
-        if (hit) return { id: hit.id, retry: true };
+    /* OPEN_REPAIRS 101 follow-up (2026-09-28): one record per click.
+
+       The live proof saw one failed click write three rows: the client review
+       send queue (185) held the approval and re-sent it on its backoff timer,
+       and each re-send failed again. The attempt id now belongs to the CLICK:
+       every report gets a fresh id, except when the queue has staged the id of
+       the click it is re-sending for that card. Then the re-send's failure
+       reuses it, and the server attaches it to the first row and counts it.
+       A new click stages a new id, so separate clicks stay separate records.
+       A re-send that ends differently (say, refused where the click hit a
+       network failure) is its own record under its own id. */
+    const WRITE_REFUSAL_ATTEMPT_MS = 30 * 60 * 1000;   // the queue's own max age
+    const _writeRefusalStaged = new Map();
+    function _writeRefusalNewId() {
         let id = '';
         try { id = crypto.randomUUID(); } catch (e) {}
-        if (!id) id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
-        _writeRefusalAttempts.set(key, { id, at: now });
-        return { id, retry: false };
+        return id || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
     }
-    // A save that never reached any server: fetch threw before a response.
-    // It has no status and usually no code, only the browser's own wording.
+    function _writeRefusalStageAttempt(card, id) {
+        if (!card || !id) return;
+        _writeRefusalStaged.set(String(card), { id: String(id), at: Date.now(), byOutcome: {} });
+    }
+    function _writeRefusalAttemptId(card, outcomeKey) {
+        const now = Date.now();
+        for (const [k, v] of _writeRefusalStaged) if (now - v.at > WRITE_REFUSAL_ATTEMPT_MS) _writeRefusalStaged.delete(k);
+        const staged = card ? _writeRefusalStaged.get(String(card)) : null;
+        if (!staged) return _writeRefusalNewId();
+        if (!staged.byOutcome[outcomeKey]) staged.byOutcome[outcomeKey] = Object.keys(staged.byOutcome).length ? _writeRefusalNewId() : staged.id;
+        return staged.byOutcome[outcomeKey];
+    }
+    // A save that never got any answer from a server. Only the browser's own
+    // wording for a failed request counts: a programming TypeError caught by
+    // the same broad catch is a real defect and must not be relabelled.
+    const WRITE_REFUSAL_NETWORK_MESSAGE = /^(failed to fetch|networkerror when attempting to fetch resource\.?|load failed|the network connection was lost\.?|network request failed)$/i;
     function _writeRefusalIsNetworkFailure(error) {
         if (!error || error.status || error.code) return false;
-        return error.name === 'TypeError' || error.name === 'AbortError'
-            || /failed to fetch|networkerror|load failed|network request failed|network connection was lost/i.test(String(error.message || ''));
+        if (error.network === true) return true;
+        return (error.name === 'TypeError' || error.name === 'AbortError')
+            && WRITE_REFUSAL_NETWORK_MESSAGE.test(String(error.message || '').trim());
     }
     function _writeRefusalBeacon(surface, outcome, item, error) {
         if (outcome !== 'ui_write_failure' || _writeRefusalBeaconBudget <= 0) return;
@@ -31181,9 +31194,8 @@
                 try { slug = _writeUiSourceClientSlug(surface === 'sxr' ? 'sxr' : 'calendar'); } catch (e) {}
                 if (slug) identifiers.client_slug = String(slug).slice(0, 120);
             }
-            const attempt = _writeRefusalAttemptId([claim.surface, claim.operation, identifiers.card, context.component,
-                identifiers.id, claim.code, status, claim.failure].map(v => String(v || '')).join('|'));
-            claim.attempt = attempt.id;
+            claim.attempt = _writeRefusalAttemptId(identifiers.card,
+                [claim.surface, claim.operation, context.component, claim.code, status, claim.failure].map(v => String(v || '')).join('|'));
             /* OPEN_REPAIRS 101 release A: what the person was told, and which
                build of the page told them. The message is trimmed here and
                cleaned again on the server (emails, links, token-like strings
@@ -49493,8 +49505,13 @@
             data.actionId = String(data.actionId || _calReviewState.draftActionIds[key] || _calMintCommentId());
             _calReviewState.draftActionIds[key] = data.actionId;
         }
+        // The click's diagnostic attempt id (OPEN_REPAIRS 278): a replay keeps
+        // it, a new click mints one. Staged for the card so a failure of this
+        // send, or of a later automatic re-send, lands on ONE record.
+        const diag = String(replay && prior && prior.diag || _writeRefusalNewId());
+        _writeRefusalStageAttempt(pid, diag);
         _crqPut(Object.assign({ kind, pid, comp,
-            at: replay && prior && prior.at || Date.now() }, data || {}));
+            at: replay && prior && prior.at || Date.now(), diag }, data || {}));
         _crqRun.inflight.add(key);
         _crqSending();
     }
@@ -49646,6 +49663,7 @@
             return 'changed';
         }
         _crqSending();
+        if (entry.diag) _writeRefusalStageAttempt(entry.pid, entry.diag);
         Object.assign(post, target);
         _calPendingEdits[entry.pid] = Object.assign(_calPendingEdits[entry.pid] || {}, target);
         try { await _calFlushCardSave(entry.pid); }

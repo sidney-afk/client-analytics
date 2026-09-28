@@ -1142,7 +1142,7 @@ import {
        Tweaks Needed + a kasper-role tweak comment. Pushes status/comments to Linear.
        v1 omits URGENT + the Replies/Messages union (per SAMPLES_PARITY_LOG M5a).
        ============================================================ */
-    const _sxrKasperState = { items: [], history: [], loading: false, loaded: false, error: false, expanded: Object.create(null), drafts: Object.create(null), saving: Object.create(null), touched: Object.create(null), dismissed: Object.create(null), closed: Object.create(null), historyCollapsed: false };
+    const _sxrKasperState = { items: [], history: [], loading: false, reloadPending: false, loaded: false, error: false, expanded: Object.create(null), drafts: Object.create(null), saving: Object.create(null), touched: Object.create(null), dismissed: Object.create(null), closed: Object.create(null), historyCollapsed: false };
     // Per-component Kasper-queue visibility (mirror of _calCompKasperVisible):
     //  · an UNLINKED thumbnail is not reviewable — gated out so a junk
     //    'Kasper Approval' graphic_status can't surface a panel nobody can act on;
@@ -1235,7 +1235,11 @@ import {
         return await _sxrSupabaseFetchAllRows(baseUrl);   // cross-client (no client filter)
     }
     async function _sxrKasperLoadQueue(force) {
-        if (_sxrKasperState.loading) return;
+        // A refresh asked for while one is in flight must not be dropped: the
+        // running fetch may predate the write that triggered this call, which
+        // left the queue showing a decided card until the next unrelated reload.
+        if (_sxrKasperState.loading) { _sxrKasperState.reloadPending = true; return; }
+        _sxrKasperState.reloadPending = false;
         _sxrKasperState.loading = true; _sxrKasperState.error = false;
         if (force) _sxrKasperRenderQueue();
         try {
@@ -1280,7 +1284,10 @@ import {
             _sxrKasperState.items = items; _sxrKasperState.loaded = true;
             setTimeout(() => { if (typeof _sxrKasperResumeSourceRepairs === 'function') _sxrKasperResumeSourceRepairs(); }, 0);
         } catch (e) { _sxrKasperState.error = true; }
-        finally { _sxrKasperState.loading = false; _sxrKasperRenderQueue(); }
+        finally {
+            _sxrKasperState.loading = false; _sxrKasperRenderQueue();
+            if (_sxrKasperState.reloadPending) setTimeout(() => _sxrKasperLoadQueue(), 0);
+        }
     }
     function _sxrKasperRenderQueue() {
         // Samples are listed in Kasper's Review queue (the separate Samples

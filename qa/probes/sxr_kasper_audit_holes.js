@@ -40,7 +40,7 @@ const row = (id, cols) => { const r = supa('id=eq.' + id + '&select=' + cols); r
     resetLinearCalls();
 
     const kp = await kasper(browser);
-    await kp.evaluate(() => { const b = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'); if (b) b.click(); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
+    await kp.evaluate(() => { if (typeof _kasperGotoTab === 'function' && (typeof _kasperState === 'undefined' || !_kasperState || _kasperState.tab !== 'review')) _kasperGotoTab('review'); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
     await kp.waitForFunction((cid) => (typeof _sxrKasperFindItem === 'function') && !!_sxrKasperFindItem(cid), id, { timeout: 20000 });
 
     // approve → Client Approval, Linear push captured

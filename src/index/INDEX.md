@@ -49,7 +49,7 @@
 | 41 | `260-production-refresh-boot.js.part` | 2637 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 42 | `270-samples-model.js.part` | 2864 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 43 | `280-samples-cards-notes.js.part` | 2922 | SURFACE 3: the save engine |
-| 44 | `290-samples-writes-review.js.part` | 1824 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
+| 44 | `290-samples-writes-review.js.part` | 1831 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 45 | `300-tiktok-upload.js.part` | 2028 | TIKTOK UPLOAD MODULE |
 | 46 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
 | 47 | `320-kasper-dashboard-replies.js.part` | 3401 | The Samples subtab was folded into Review (samples are listed in the |

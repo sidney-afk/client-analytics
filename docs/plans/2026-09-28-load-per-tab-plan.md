@@ -174,3 +174,17 @@ SyncLinear.
   and its ties into staff-only areas fall from 110 names at step 1 to 56.
 
 Time Off's own outside ties drop from 54 names to 11. Part 2 makes Time off load on demand.
+
+## Step 3, area 5 of 9, part 2: Time off loads on demand (2026-09-28)
+
+- The always-needed start of `110` moves, bytes unchanged, into a new core fragment
+  `108-core-time-off-flag`: the Time Off flag (read at every staff start-up; it shows or hides
+  the account-menu item), its resume listeners, the account-menu opener, the API helper, and
+  `_ptoDate`, which core's date control uses.
+- The rest of `110` registers `render`, `mount`, `paint`, `loadOverview`, `renderAdmin`,
+  `loadAdmin`, `adminPending`, `calResetView`. Callers: `090` navTo draws Time Off with
+  `svWithArea`; `100`'s sign-out and identity-change repaint and its write-conflict refresh use
+  `svAreaApi` / `svArea`; `320` Kasper draws its Time Off subtab with `svWithArea` and fetches
+  the area quietly for its tab count.
+- `split.json` lists `tiktok` and `time-off` as lazy. Time off now has no outside import ties;
+  six recorded hazards are gone (79 left).

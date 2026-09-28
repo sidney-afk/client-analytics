@@ -168,8 +168,21 @@ function planCard(id: string, inputs: JsonMap, usd: number): string {
     const others = p.enum ? p.enum.filter((o) => o !== value).map((o) => show(k, o)) : [];
     lines.push(`- ${label || k}: ${value === undefined ? "not set" : show(k, value)}${chosen ? "" : " (default)"}${others.length ? `  [other options: ${others.join(", ")}]` : ""}`);
   }
+  // Anything the person supplied that the loop above did not show (multi-shot
+  // prompts, custom fields) is listed too, so the card never omits what is paid for.
+  const shown = new Set(lines.map((l) => l));
   for (const [k, v] of Object.entries(inputs)) {
-    if (/url/.test(k)) lines.push(`- Input ${k.replace(/_/g, " ")}: ${Array.isArray(v) ? v.length + " file(s)" : "1 file"}`);
+    if (k === "prompt") continue;
+    if (/url/.test(k)) { lines.push(`- Input ${k.replace(/_/g, " ")}: ${Array.isArray(v) ? v.length + " file(s)" : "1 file"}`); continue; }
+    const label = SETTING_LABELS[k] || k;
+    if ([...shown].some((l) => l.startsWith(`- ${label}:`))) continue;
+    if (Array.isArray(v) && v.every((x) => x && typeof x === "object")) {
+      lines.push(`- ${label.replace(/_/g, " ")}:`);
+      v.forEach((item, i) => lines.push(`    ${i + 1}. ${Object.entries(item as JsonMap).map(([ik, iv]) => `${ik.replace(/_/g, " ")}: ${typeof iv === "string" ? `"${iv}"` : JSON.stringify(iv)}`).join(", ")}`));
+    } else {
+      const text = typeof v === "string" ? `"${v}"` : JSON.stringify(v);
+      lines.push(`- ${label.replace(/_/g, " ")}: ${text.length > 400 ? text.slice(0, 400) + "…" : text}`);
+    }
   }
   lines.push(`Price: ${money(usd)}`);
   return lines.join("\n");

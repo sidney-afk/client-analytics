@@ -29554,3 +29554,61 @@ be overwritten. Then, in one transaction, restore `status` from `row_before`
 (guarded on `status = 'canceled'`, aborting unless exactly 80 rows change), and
 `status_at` in a second UPDATE that leaves `status` alone, as item 224 explains
 (the touch trigger restamps `status_at` on a status change).
+
+## 279. [2026-09-28, MERGED #1803] Copy transport retries (item 223)
+
+Written by session Keel, appended by Lighthouse at merge. The native brief copy
+(`scripts/native-brief-media-copy.mjs`) now retries a thrown connection error or
+HTTP 5xx at most three times with 500/1000 ms backoff and a step-specific
+terminal message that does not print signed URLs or keys. It retries read-only
+lookups and downloads, and reconciles an ambiguous storage upload by an
+independent byte-hash readback before another no-upsert POST. An ambiguous
+verified-row insert is re-read by its occurrence tuple; only a matching hash and
+storage path can count as the receipt. Permanent 4xx refusals still fail.
+
+Offline tests inject `fetch failed` and HTTP 520 into separate occurrences in
+one apply and prove two copies with exactly two verified receipts; another test
+proves a committed upload with a lost response is not sent twice.
+
+**Changed at review:** the retry first added to `scripts/linear-media-rescue.mjs`
+was removed before merge. That endpoint's POST is not idempotent (Codex), and the
+Linear rescue is no longer needed (owner decision 2026-09-28), so the script stays
+as it was. No live copy was run; the next authorized copy run is item 223's
+operational proof.
+
+## 280. [2026-09-28, MERGED #1804] The client-review assurance claim aged from FRESH to NEAR
+
+Written by session Keel, appended by Lighthouse at merge. The scheduled assurance
+gate was right on 2026-09-27: its sole overclaim was the Tier-0 client review
+row, last proven 2026-09-23 but still marked FRESH. At five days on 2026-09-28 it
+is NEAR in its seven-day window. The row states that age without moving its proof
+date. At review the tier headers were restamped `State (2026-09-28)` (Codex), and
+`assurance-ledger-freshness.js --gate` confirmed every row supports its state as
+of that date. This is a truthful restatement, not a new proof: without a fresh
+test-client drill the gate turns red when the seven-day window expires.
+
+## 281. [2026-09-28, MERGED #1805] Retire the Linear cutover proof, keep live maintenance
+
+Written by session Keel, appended by Lighthouse at merge. `monitoring-cutover-proof.yml`
+had no main push trigger and its last manual proof failed on 2026-08-05. Its write
+drill and refresh-gap report needed the Linear key revoked on 2026-09-23, and its
+alert selftest duplicates `monitoring-deadman.yml`. Those three jobs are retired.
+The manual test-residue cleanup (classify before apply) and read-only roster
+coverage remain, each behind an explicit dispatch lane. The owner dispatched the
+roster lane on the branch before merge: green, 36 active clients, 0 gaps.
+
+## 283. [2026-09-28, MERGED #1809] n8n quota watchdog: licensed Insights window and complete-month checkpoint
+
+Written by session Keel, appended by Lighthouse at merge. The daily quota
+watchdog's full-month Insights query returned HTTP 403 once the month outran the
+license's history window. The script now reads complete local days and the
+current day in non-overlapping queries, keeps a month- and time-zone-validated
+cumulative checkpoint of complete days only, and refuses a missing or expired
+checkpoint before judging thresholds. At review (Codex) a checkpoint with a null
+failed count is accepted (new test, fails on the earlier script), and the
+checkpoint cache is saved after the 80/90 percent markers so a cache failure can
+never cause a repeated alert.
+
+September has no complete-day checkpoint (the last pass, 2026-09-15, counted to
+mid-day), so the scheduled check stays red until the 2026-10-01 month reset lets
+it build one. No partial count is allowed to pass.

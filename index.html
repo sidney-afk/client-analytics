@@ -25537,6 +25537,18 @@
     function _tdyOpenSync(id) {
         try { window.open('/synclinear/' + encodeURIComponent(id), '_blank', 'noopener'); } catch (e) {}
     }
+    /* Vigil's hand test, 2026-09-28: the address held only the client, so a
+       reload lost the card. Write the calendar's own card deep link
+       (#calendar/<slug>/<card>); the calendar keeps it and reopens it. */
+    function _tdyCardInAddress(name, cardId) {
+        try {
+            const slug = calClientSlug(name);
+            if (!slug || !cardId || currentNav !== 'calendar') return;
+            const base = '/' + svRoute.search().replace(/#.*$/, '');
+            history.replaceState({ nav: 'calendar', client: null }, '',
+                base + '#calendar/' + slug + '/' + encodeURIComponent(cardId));
+        } catch (e) {}
+    }
     function _tdyOpenCard(kind, id) {
         const d = tdyState.data;
         if (!d) return;
@@ -25547,6 +25559,7 @@
             try { svSharedClientNote(name); } catch (e) {}
             _calSetFocusRequest({ client: name, cardId: p.id });
             navTo('calendar');
+            _tdyCardInAddress(name, p.id);
             return;
         }
         const r = d.open.find(x => x.id === id);
@@ -25563,6 +25576,7 @@
     window._tdySkip = _tdySkip;
     window._tdyOpenSync = _tdyOpenSync;
     window._tdyOpenCard = _tdyOpenCard;
+    window._tdyCardInAddress = _tdyCardInAddress;
     window.mountTodayView = mountTodayView;
 
     /* WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the

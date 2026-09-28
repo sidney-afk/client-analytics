@@ -1,3 +1,4 @@
+import { currentNav } from './065-core-nav-intake-state.js';
 import { navTo, wlOpenInContentCalendar } from './092-core-submit-form-navigation.js';
 import { svSharedClientNote } from './095-shared-client.js';
 import {
@@ -5,7 +6,7 @@ import {
 } from './098-smm-clients.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, SMM_WEEKLY_REPORTS_URL, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { _srpState } from './112-smm-weekly-reports.js';
-import { _calSetFocusRequest } from './130-calendar-model-cache.js';
+import { _calSetFocusRequest, calClientSlug } from './130-calendar-model-cache.js';
 import { _calEsc, _calEscAttr } from './131-core-html.js';
 import { _svSkel } from './133-core-loading-skeletons.js';
 import { _calV2Client } from './150-calendar-hydration-import.js';
@@ -512,6 +513,18 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     function _tdyOpenSync(id) {
         try { window.open('/synclinear/' + encodeURIComponent(id), '_blank', 'noopener'); } catch (e) {}
     }
+    /* Vigil's hand test, 2026-09-28: the address held only the client, so a
+       reload lost the card. Write the calendar's own card deep link
+       (#calendar/<slug>/<card>); the calendar keeps it and reopens it. */
+    function _tdyCardInAddress(name, cardId) {
+        try {
+            const slug = calClientSlug(name);
+            if (!slug || !cardId || currentNav !== 'calendar') return;
+            const base = '/' + svRoute.search().replace(/#.*$/, '');
+            history.replaceState({ nav: 'calendar', client: null }, '',
+                base + '#calendar/' + slug + '/' + encodeURIComponent(cardId));
+        } catch (e) {}
+    }
     function _tdyOpenCard(kind, id) {
         const d = tdyState.data;
         if (!d) return;
@@ -522,6 +535,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             try { svSharedClientNote(name); } catch (e) {}
             _calSetFocusRequest({ client: name, cardId: p.id });
             navTo('calendar');
+            _tdyCardInAddress(name, p.id);
             return;
         }
         const r = d.open.find(x => x.id === id);
@@ -538,6 +552,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     window._tdySkip = _tdySkip;
     window._tdyOpenSync = _tdyOpenSync;
     window._tdyOpenCard = _tdyOpenCard;
+    window._tdyCardInAddress = _tdyCardInAddress;
     window.mountTodayView = mountTodayView;
 
 export {

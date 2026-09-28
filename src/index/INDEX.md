@@ -27,7 +27,7 @@
 | 19 | `092-core-submit-form-navigation.js.part` | 889 | True for ctrl/cmd/shift/alt-clicks (and non-primary buttons): the user |
 | 20 | `095-shared-client.js.part` | 404 | ONE CLIENT ACROSS THE SITE (owner decision , option A). |
 | 21 | `096-quick-jump.js.part` | 172 | QUICK JUMP (owner decision ). Press / anywhere, type part of a |
-| 22 | `097-today.js.part` | 546 | TODAY (owner design , session Compass). |
+| 22 | `097-today.js.part` | 561 | TODAY (owner design , session Compass). |
 | 23 | `098-smm-clients.js.part` | 86 | WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the |
 | 24 | `100-onboarding-staff-controls.js.part` | 2396 | CLIENT ONBOARDING MODULE (standalone, private-link page) |
 | 25 | `110-time-off.js.part` | 1372 | Kasper Time Off calendar |

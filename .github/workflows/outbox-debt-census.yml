@@ -27,6 +27,11 @@ on:
     # within the hour it forms.
     - cron: '13,43 * * * *'
   workflow_dispatch:
+    inputs:
+      scheduled_tick:
+        description: 'Set by lane-ticker.yml: behave exactly like a scheduled run (dormant stays dormant)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -54,11 +59,11 @@ jobs:
           node-version: '22'
 
       - name: Report dormant scheduled census
-        if: github.event_name != 'workflow_dispatch' && vars.OUTBOX_DEBT_CENSUS_ENABLED != 'true'
+        if: (github.event_name != 'workflow_dispatch' || inputs.scheduled_tick) && vars.OUTBOX_DEBT_CENSUS_ENABLED != 'true'
         run: echo 'Census is DORMANT; automatic census and its alerts are disabled. Existing host heartbeat remains active.'
 
       - name: Require census credentials
-        if: github.event_name == 'workflow_dispatch' || vars.OUTBOX_DEBT_CENSUS_ENABLED == 'true'
+        if: (github.event_name == 'workflow_dispatch' && !inputs.scheduled_tick) || vars.OUTBOX_DEBT_CENSUS_ENABLED == 'true'
         shell: bash
         run: |
           if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
@@ -69,7 +74,7 @@ jobs:
       # Debt, or a census that could not be taken, leaves this run red on
       # purpose. An unreadable census is never reported as zero debt.
       - name: Count undeliverable mirror rows
-        if: github.event_name == 'workflow_dispatch' || vars.OUTBOX_DEBT_CENSUS_ENABLED == 'true'
+        if: (github.event_name == 'workflow_dispatch' && !inputs.scheduled_tick) || vars.OUTBOX_DEBT_CENSUS_ENABLED == 'true'
         run: node scripts/outbox-debt-census.js
 
       - name: Record outbox debt census heartbeat

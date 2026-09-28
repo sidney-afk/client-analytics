@@ -29547,7 +29547,10 @@ is), 1 edited after its archive, and 3 linked to a calendar post, where a
 status change would reach the client's calendar.
 
 **Undo.** `card_change_journal` holds every row's before and after image under
-`transaction_id = 2086436` (80 rows, 2026-09-28 15:43Z). Restore `status` from
-`row_before`, then `status_at` in a second UPDATE that leaves `status` alone,
-as item 224 explains (the touch trigger restamps `status_at` on a status
-change).
+`transaction_id = 2086436` (80 rows, 2026-09-28 15:43Z). Before undoing, check
+that every row's current `status` and `status_at` still equal its `row_after`
+image, and abort unless all 80 match: a card someone has changed since must not
+be overwritten. Then, in one transaction, restore `status` from `row_before`
+(guarded on `status = 'canceled'`, aborting unless exactly 80 rows change), and
+`status_at` in a second UPDATE that leaves `status` alone, as item 224 explains
+(the touch trigger restamps `status_at` on a status change).

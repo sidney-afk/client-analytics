@@ -95,8 +95,8 @@ line is older than a week, re-check it before relying on it.
 - **Design decisions closed 2026-09-28.** 212 (server recompute of a post's
   overall status): not needed, the page recomputes it on every load
   (`130-calendar-model-cache.js.part`), so the stored copy is never shown.
-  Topbar "New issue": already removed in #1662. 254: built, rides the next
-  `production-write` deploy; not a decision.
+  Topbar "New issue": already removed in #1662. 254: not a decision; already
+  deployed 2026-09-25 and checked live on the test client.
 - **Analytics Sheets to Supabase:** the finishing prompt went to Prism on
   2026-09-28 (parity report, staff overview read, daily comparison, catch-up
   job, switch-on plan). Flags unchanged until the owner says go.

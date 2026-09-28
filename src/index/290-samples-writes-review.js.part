@@ -36,11 +36,10 @@ import { _calFlushCardSave } from './170-calendar-links-status.js';
 import { COMP_LABELS, _kasperHasUnreadReply, _kasperMarkSeenAt } from './180-calendar-native-post-media.js';
 import { REVIEW_APPROVE_DRAFT_TITLE, _calMergeCommentLists, _calStringifyComments } from './190-calendar-approval-comments.js';
 import {
-  CAL_CARD_JOBS_KEY, _calCardJobsRead, _linearIntakeJobId, _linearIntakeRead,
-  _linearResumeSubmissionHold, _resumeNativeIntakeJob, _resumePendingCalCardJobs
+  _calCardJobsRead, _linearIntakeJobId, _linearIntakeRead, _linearRefreshSavedBox, _linearResumeSubmissionHold, _resumeNativeIntakeJob, _resumePendingCalCardJobs, CAL_CARD_JOBS_KEY
 } from './200-intake-data-startup.js';
 import { _prodCanonicalCommentGate, _prodClientCommentGatewayContext, _prodVerifiedClientCommentMutationContext } from './230-production-create-comments.js';
-import { _isClientLink } from './260-production-refresh-boot.js';
+import { _isClientLink, _isIntake } from './260-production-refresh-boot.js';
 import {
   SXR_CACHE_PREFIX, SXR_COMPONENTS, SXR_LINEAR_OUTBOX_KEY, SXR_REVIEW_COMPONENTS,
   SXR_RT_CHANNEL_PREFIX, SXR_TABLE, _sxrAbortActiveLoad, _sxrBgLoadInFlight, _sxrCacheWrite,
@@ -822,8 +821,38 @@ import {
     }
     let _writeUiLegacyResumePromise = null;
     let _writeUiLegacyResumeActiveOwnerKey = '';
+    /* THE PUBLIC SUBMISSION LINK NEVER RETRIED (owner incident 2026-09-28).
+       That link (/intake) has no staff sign-in and is not a client share
+       link, so the resume owner below is null and every retry was skipped:
+       a submission saved there after a dropped connection or a refused write
+       sat in the browser forever, was never struck off, and blocked every
+       later, different submit. Its saved work is retried here on page load and
+       when the connection returns. Only jobs made on this link (no staff actor)
+       are retried; a staff job still waits for its own staff sign-in. */
+    function _writeUiResumePublicIntake(reason) {
+        if (['startup', 'resume', 'online'].indexOf(String(reason || '')) < 0) return Promise.resolve({ deferred: false });
+        const job = _linearIntakeRead();
+        const holdResume = typeof _linearResumeSubmissionHold === 'function'
+            ? _linearResumeSubmissionHold(reason === 'online' ? 'resume' : reason).catch(() => {})
+            : Promise.resolve();
+        const publicJob = job && String(job.payload && job.payload.surface || '') === 'submission'
+            && !(job.context && job.context.initiating_actor_id);
+        const nativeResume = publicJob
+            ? _resumeNativeIntakeJob(reason).then(result => {
+                if (result && result.native_committed === true) {
+                    try { showNotify('Saved submission sent', 'A submission saved in this browser earlier has now been created.'); } catch (e) {}
+                }
+            }).catch(() => {})
+            : Promise.resolve();
+        return Promise.all([holdResume, nativeResume]).then(() => {
+            try { _linearRefreshSavedBox(); } catch (e) {}
+            return { deferred: false };
+        });
+    }
     function _writeUiResumeLegacyQueues(reason, clientEntryRun) {
         const owner = _writeUiLegacyResumeOwner(clientEntryRun);
+        // typeof: harnesses extract this function without the boot flag.
+        if (!owner && typeof _isIntake !== 'undefined' && _isIntake) return _writeUiResumePublicIntake(reason);
         if (!_writeUiLegacyResumeOwnerCurrent(owner)) {
             return Promise.resolve({ deferred: true });
         }

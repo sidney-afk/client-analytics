@@ -236,7 +236,13 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
     let _calClientLinksOutside = null;
     function _calClientLinks() {
         if (!calState.client || _isClientLink) return [];
-        const info = (typeof clientMap !== 'undefined' && clientMap[calState.client]) || {};
+        return _calSocialLinksFor(calState.client);
+    }
+    // One client's profile links, [{ key, sub, url }], only for handles on
+    // file. Shared with the Templates client page (060), so both screens build
+    // the same addresses from the same fields.
+    function _calSocialLinksFor(name) {
+        const info = (typeof clientMap !== 'undefined' && clientMap[name]) || {};
         const ig = String(info.instagram_handle || '').trim().replace(/^@+/, '');
         const tt = String(info.tiktok_handle || '').trim().replace(/^@+/, '');
         const yt = String(info.youtube_channel_id || '').trim();
@@ -2806,7 +2812,6 @@ import { _sxrForceThumbRefresh, _sxrLinkFieldHtml, sxrClientSlug, sxrState } fro
         if (row) row.innerHTML = _calTitleRowHtml(pid, post || { id: pid }, _isClientLink);
     }
 export {
-  onCalTabClick,
   _CAL_CLIENT_READY_STATES, _CAL_WEEK_BUFFER, _calAdoptThumbnailFolderMeta, _calBlankPost,
   _calChevron, _calClearThumbnailFolderMeta, _calClientCompPillsHtml, _calClientHue,
   _calCompStatusLabel, _calDeriveThumb, _calDeriveThumbInfo, _calDriveWarnHtml,
@@ -2816,10 +2821,11 @@ export {
   _calPendingLinkMove, _calPostsEqualForRender, _calRefreshOrganize, _calRenderBody,
   _calRenderClientSearchResults, _calRenderShell, _calRenderTabs, _calResetSelection,
   _calResolveThumbnailFolder, _calReviewFrameHtml, _calScrollTabStripToActive, _calSetThumbMedia,
-  _calStatusFilterLabel, _calStatusLabel, _calStripThumbnailFolderFields, _calSyncClientLinks,
-  _calTabScrollBy, _calThumbContent, _calThumbFolderIconSvg, _calThumbFrameHtml, _calThumbIconHtml,
-  _calThumbIconSvg, _calThumbImgTag, _calThumbMediaHtml, _calThumbnailFolderUrl, _calTitleRowHtml,
-  _calUpdateTabScroll, _kcardHarvestThumbs, _kcardRestoreThumbs, _kcardReuseThumbInto,
-  _thumbAdoptPersistedRevision, _thumbCompareScheduleAvailability, _thumbCompareSlotHtml,
-  _thumbRefreshChangedCards, onCalMonthFilterChange, onCalViewChange
+  _calSocialLinksFor, _calStatusFilterLabel, _calStatusLabel, _calStripThumbnailFolderFields,
+  _calSyncClientLinks, _calTabScrollBy, _calThumbContent, _calThumbFolderIconSvg,
+  _calThumbFrameHtml, _calThumbIconHtml, _calThumbIconSvg, _calThumbImgTag, _calThumbMediaHtml,
+  _calThumbnailFolderUrl, _calTitleRowHtml, _calUpdateTabScroll, _kcardHarvestThumbs,
+  _kcardRestoreThumbs, _kcardReuseThumbInto, _thumbAdoptPersistedRevision,
+  _thumbCompareScheduleAvailability, _thumbCompareSlotHtml, _thumbRefreshChangedCards,
+  onCalMonthFilterChange, onCalTabClick, onCalViewChange
 };

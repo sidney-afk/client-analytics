@@ -1262,6 +1262,9 @@ import {
         // sheet arrived after, the button stayed missing until a client switch.
         try { if (typeof _calSyncClientLinks === 'function') _calSyncClientLinks(); }
         catch(e){ console.warn('[SyncView] calendar profile links refresh deferred:', e && e.message); }
+        // And the Templates client page's profile links, which read the same map.
+        try { const tpl = svAreaApi('templates'); if (tpl) tpl.refreshSocialLinks(); }
+        catch(e){ console.warn('[SyncView] templates profile links refresh deferred:', e && e.message); }
         // Add placeholder rows for clients in Clients Info sheet that don't have metrics yet
         const metricsClients=new Set(allData.map(r=>r.client_name));
         Object.keys(clientMap).forEach(name=>{

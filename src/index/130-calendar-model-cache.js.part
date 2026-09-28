@@ -1381,7 +1381,8 @@ export {
   _calPostInMonthFilter, _calPostInStatusFilter, _calPostPlatforms, _calRecentSaveFields,
   _calRecentSaveReconcile, _calReconcileSettings, _calReviewCapCardHtml, _calSaveInFlight,
   _calSaveLocalSettings, _calSaveSettings, _calSaveTimers, _calSetCommentsFor, _calSetFocusRequest,
-  _calSetFocusRequestLoadFailed, _calSetPendingDeepLink, _calSyncUrlCard, _calShiftMonthIso,
+  _calSetFocusRequestLoadFailed, _calSetPendingDeepLink, _calShiftMonthIso,
   _calShouldBumpThumbRevForGraphicStatus, _calSplitSettings, _calSyncCollabSwitch,
-  _calSyncTitleReviewSwitch, _calSyncUrlClient, _calThumbRev, calClientSlug, calState
+  _calSyncTitleReviewSwitch, _calSyncUrlCard, _calSyncUrlClient, _calThumbRev, calClientSlug,
+  calState
 };

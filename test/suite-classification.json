@@ -621,7 +621,8 @@
     "sheets-mirror-policy.js",
     "client-profile-edit.js",
     "onboarding-boot-skeleton.js",
-    "syncview-session.js"
+    "syncview-session.js",
+    "sheets-mirror-parity-catchup.js"
   ],
   "profiles": [
     {

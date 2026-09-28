@@ -61,10 +61,15 @@ line is older than a week, re-check it before relying on it.
   brief-media half is done (see below).
 - **Onboarding runbooks have no native steps** for their retired Linear parts
   (OPEN_REPAIRS 227).
-- **Sheets to Supabase, next steps:** the mirror write is on and backfilled
-  (about 5,200 metric rows, 57,000 top-video rows); the mirror READ is off and
-  enrolled only for the test client. `client_profiles_authority` is still
-  `sheet`. n8n dual-write nodes wait on the owner's go-ahead per workflow.
+- **Sheets to Supabase, next steps:** the mirror write is on and backfilled;
+  CLIENTS METRICS and TOP VIDEOS mirror every client (since 2026-09-28). The
+  mirror READ is enrolled only for the test client. Parity on 2026-09-28: no
+  value differs; Supabase lacks Metrics 26-28 Sept and TopVideos 26-27 Sept,
+  filled by the new daily copy lane once the owner adds its secret and
+  variable. Staff read, daily parity check and catch-up job are built but the
+  staff scopes need `analytics-read` deployed. Switch-on plan and every other
+  reader: `docs/plans/2026-09-28-analytics-switch-on.md`.
+  `client_profiles_authority` is still `sheet`.
 - **`mirror_outbox` still grows** (236 new rows in the last 24 hours, all
   receipts; 12,974 total). Retiring it is a planned later slice, not urgent.
 

@@ -1,0 +1,73 @@
+name: Sheets mirror daily copy and parity
+
+# Keeps the Supabase analytics mirror equal to the Analytics Sheets, and proves
+# it every day (docs/plans/2026-09-24-sheets-to-supabase.md, Phase 3 step 1).
+#
+# 1. COPY: scripts/sheets-mirror-backfill.js sends every row of the six tabs
+#    through analytics-write. Safe to repeat: rows are keyed by fingerprint,
+#    so a row already there (from n8n or an earlier copy) is not added twice.
+#    This is what fills the days an n8n workflow does not mirror yet, and the
+#    daily Clients Info copy the plan calls for.
+# 2. PARITY: scripts/sheets-mirror-parity.js compares every row, per client per
+#    day, and goes red on any difference. It prints counts only; a client is a
+#    short sha256 reference, never a name or slug (this log is public).
+#
+# The copy step is a DRY RUN unless the repository variable
+# SHEETS_MIRROR_COPY_APPLY is 'true' (or a manual run ticks "apply").
+# Needs repository secrets SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (read, for
+# parity) and ANALYTICS_MIRROR_WRITE_KEY (the copy). After n8n has run:
+# CLIENTS METRICS ends about 05:15 UTC, TOP VIDEOS about 08:05 UTC.
+#
+# `schedule` fires only from the default branch.
+
+on:
+  schedule:
+    - cron: '23 9 * * *'
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Copy for real (otherwise the copy step is a dry run)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sheets-mirror-daily
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      ANALYTICS_MIRROR_WRITE_KEY: ${{ secrets.ANALYTICS_MIRROR_WRITE_KEY }}
+      SYNCVIEW_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      APPLY: ${{ (github.event_name == 'workflow_dispatch' && inputs.apply) || (github.event_name == 'schedule' && vars.SHEETS_MIRROR_COPY_APPLY == 'true') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Require the project URL and credentials
+        shell: bash
+        run: |
+          missing=0
+          [ -n "$SUPABASE_URL" ] || { echo "::error::Missing repository secret SUPABASE_URL."; missing=1; }
+          [ -n "$SUPABASE_SERVICE_ROLE_KEY" ] || { echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY (the parity read)."; missing=1; }
+          if [ "$APPLY" = "true" ] && [ -z "$ANALYTICS_MIRROR_WRITE_KEY" ]; then
+            echo "::error::Missing repository secret ANALYTICS_MIRROR_WRITE_KEY (the copy). Add it, or leave SHEETS_MIRROR_COPY_APPLY unset for a dry run."
+            missing=1
+          fi
+          exit "$missing"
+
+      - name: Copy the Sheets into the mirror
+        run: |
+          if [ "$APPLY" = "true" ]; then node scripts/sheets-mirror-backfill.js --apply; else node scripts/sheets-mirror-backfill.js; fi
+
+      - name: Compare the mirror with the Sheets
+        run: node scripts/sheets-mirror-parity.js --strict --json="$RUNNER_TEMP/parity.json"

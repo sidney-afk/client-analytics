@@ -2697,6 +2697,18 @@
         .linear-advanced-panel.open { display: flex; animation: fadeIn 0.15s ease; }
         .linear-advanced-panel .linear-submit-btn { padding: 9px 18px; font-size: 0.78rem; font-weight: 600; margin-top: 0; }
         .linear-status { font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
+        /* The saved-submission box (Submit tab and Create Post): what is saved and the three ways out. */
+        .linear-saved-box { border: 1px solid var(--wl-tweaks-accent); background: var(--surface-subtle); border-radius: 12px; padding: 14px 16px; margin: 0 0 18px; display: flex; flex-direction: column; gap: 8px; }
+        .linear-saved-lead { font-size: 0.86rem; font-weight: 700; color: var(--text-primary); }
+        .linear-saved-facts { font-size: 0.8rem; color: var(--text-secondary); }
+        .linear-saved-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+        .linear-saved-btn { font: inherit; font-size: 0.8rem; font-weight: 700; min-height: 36px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); cursor: pointer; }
+        .linear-saved-btn.primary { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
+        .linear-saved-btn:disabled { opacity: 0.55; cursor: default; }
+        .linear-saved-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+        .linear-saved-status { font-size: 0.78rem; color: var(--text-secondary); }
+        .linear-saved-status:empty { display: none; }
+        @media (max-width: 760px) { .linear-saved-btn { min-height: 44px; } }
         .linear-success-banner { display: flex; align-items: center; gap: 8px; background: var(--sv-bg-1a3a2a); border: 1px solid var(--sv-border-2d6a45); color: var(--sv-fg-4ade80); border-radius: 10px; padding: 12px 16px; font-size: 0.88rem; font-weight: 600; margin-bottom: 20px; animation: fadeIn 0.2s ease; }
         /* Linear search bar */
         .linear-search-wrap { position: relative; }

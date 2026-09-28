@@ -9,7 +9,7 @@
 | 1 | `000-head.html.part` | 27 | Pre-paint boot gate. The static <body> markup is the staff analytics |
 | 2 | `003-sv-route.html.part` | 177 | Clean addresses (docs/features/CLEAN_URLS.md). The app routes internally |
 | 3 | `005-head-boot.html.part` | 283 | NOT render-blocking, and the reason is measured rather than assumed. |
-| 4 | `010-styles-foundation.css.part` | 3913 | Video and Thumbnail share the same vibrant pink/blue pair the |
+| 4 | `010-styles-foundation.css.part` | 3925 | Video and Thumbnail share the same vibrant pink/blue pair the |
 | 5 | `020-styles-surfaces.css.part` | 4391 | Templates view |
 | 6 | `030-body-shell.html.part` | 513 | Confirmation modal |
 | 7 | `040-shared-briefs.js.part` | 2032 | On-demand areas (docs/plans/-load-per-tab-plan.md, step 3). |
@@ -38,10 +38,10 @@
 | 30 | `150-calendar-hydration-import.js.part` | 2197 | For a card linked to a real sub-issue (not a parent), return which of |
 | 31 | `160-calendar-organize-ui.js.part` | 2825 | Lighter path for the Order switch: update the chrome in place so the |
 | 32 | `170-calendar-links-status.js.part` | 2855 | Move a Linear sub-issue link from the old card onto the new one. The |
-| 33 | `180-calendar-native-post-media.js.part` | 2750 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
+| 33 | `180-calendar-native-post-media.js.part` | 2849 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 34 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
 | 35 | `190-calendar-approval-comments.js.part` | 3108 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
-| 36 | `200-intake-data-startup.js.part` | 1531 | Video-only and Thumbnail-only were already built, but sat |
+| 36 | `200-intake-data-startup.js.part` | 1747 | Video-only and Thumbnail-only were already built, but sat |
 | 37 | `210-production-state-writes.js.part` | 3201 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |
 | 38 | `220-production-attribution-views.js.part` | 2764 | An ABSENT persisted slug is missing evidence, not |
 | 39 | `230-production-create-comments.js.part` | 2645 | `production_create_closed` is a DEFINITIVE no-replay verdict, |
@@ -50,7 +50,7 @@
 | 42 | `260-production-refresh-boot.js.part` | 2636 | AND TYPING COUNTS, which is the case this guard was missing. |
 | 43 | `270-samples-model.js.part` | 2866 | SAMPLES (REVIEW) MODULE — ?sxr=1 (default-OFF), route #sample-reviews |
 | 44 | `280-samples-cards-notes.js.part` | 2922 | SURFACE 3: the save engine |
-| 45 | `290-samples-writes-review.js.part` | 1824 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
+| 45 | `290-samples-writes-review.js.part` | 1853 | RETIRED (B1 order row 5, OPEN_REPAIRS 239): |
 | 46 | `300-tiktok-upload.js.part` | 2028 | TIKTOK UPLOAD MODULE |
 | 47 | `310-sales-intake-hiring.js.part` | 1161 | KASPER REVIEW TAB |
 | 48 | `320-kasper-dashboard-replies.js.part` | 3402 | The Samples subtab was folded into Review (samples are listed in the |

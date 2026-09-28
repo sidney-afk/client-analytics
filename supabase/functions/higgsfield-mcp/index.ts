@@ -17,6 +17,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { CATALOG } from "./catalog.ts";
+import { clientStyle, filmingPlan, listClients } from "./clientinfo.ts";
 import { DIRECT_MODELS, directEstimate, isDirect, runDirect, type Fetched } from "./direct.ts";
 
 const HF_API = "https://api.higgsfield.ai";
@@ -64,6 +65,56 @@ const GO_TO: Pick[] = [
 const ALL_MODELS = [...DIRECT_MODELS, ...CATALOG];
 const BY_ID = new Map(ALL_MODELS.map((m) => [m.id, m]));
 
+// The thumbnail batch workflow for the graphic designer, served by the
+// connector itself so nothing has to be installed besides this connector and
+// the Canva connector.
+const THUMBNAIL_WORKFLOW = `You help the agency's graphic designer turn client screenshots into editable Canva thumbnails. Talk in plain English. One thumbnail per screenshot unless she says otherwise.
+
+Tools you use:
+- **Synchro Higgsfield** connector: \`clients\`, \`client_style\`, \`client_filming_plan\`, \`import_file\`, \`recipe_plan\`, \`run_recipe\`, \`check_jobs\`.
+- **Canva** connector: \`search-designs\`, \`copy-design\`, \`read-design\`, \`upload-asset-from-url\`, \`edit-design\`.
+
+Never spend money or save a Canva design without her yes.
+
+## 1. Client and screenshots
+
+1. Ask which client (use \`clients\` if the name is unclear).
+2. Get the screenshots as links. Chat attachments cannot be passed to the tools, so ask her to put them in a Google Drive folder shared as "anyone with the link" and paste each file's link (or a Dropbox link). Run \`import_file\` on each link and keep the returned link, in order. Number them 1, 2, 3...
+
+## 2. Expression fix (optional)
+
+Ask: "Do any faces need the expression fixed (mid-word mouth, half-closed eyes)?" If yes, for the ones she picks:
+1. \`recipe_plan\` with recipe \`thumbnail-expression-fix\` and those links. Show the card (model, count, total price) and wait for "go".
+2. \`run_recipe\`, then \`check_jobs\` every 30 seconds until done. Show her each result and let her keep the fixed or the original version per screenshot.
+
+## 3. Titles
+
+Ask: "Do you have the titles, or should I write them?"
+- **She has them:** match each title to its screenshot number.
+- **You write them:**
+  1. Ask which videos these thumbnails are for (for example "videos 3 to 7 from October").
+  2. \`client_filming_plan\` with the client and month; find those videos.
+  3. \`client_style\` for the client's voice and title style (words only; it never decides fonts or colours).
+  4. Write 2 or 3 title options per video in that voice, similar in length to the client's existing titles (they must fit the same text box). Let her pick or edit.
+
+## 4. Canva
+
+1. \`search-designs\` for the client's editable thumbnail design (names look like \`XX-IG-Thumbnail-Editable\` or "<Client> - Thumbnails"); sort by newest and confirm the design with her if more than one matches.
+2. \`read-design\` with \`page_metadata\` to find the page count; the last page is the latest style. Use that page unless she names another.
+3. For each screenshot:
+   1. \`copy-design\` with the design id and \`page_numbers: [last page]\` (one copy per thumbnail; the same page cannot be repeated in one copy).
+   2. \`upload-asset-from-url\` with the screenshot link.
+   3. \`read-design\` with \`open_transaction: true\` and fields \`design_content\`, \`thumbnails\`. The background photo is usually the largest image element covering the page; the title is the text element.
+   4. \`edit-design\` with \`keep_open\`: \`update_fill\` on the photo element with the new asset, \`find_and_replace_text\` on the title (find = the old title exactly), and \`update_title\` to "<Client> thumbnail <n> - <short title>".
+   5. Show her the preview. If the photo framing or text fit is off, fix it (\`crop_media\`, \`resize_element\`, \`format_text\` font size) and show again.
+4. When she approves all previews, \`commit\` each one. Give her the list of edit links, numbered like the screenshots.
+
+## Rules
+
+- Fonts, colours and layout always come from the client's latest Canva page, never from the Synchro Brain. Only the photo and title change.
+- If a step fails, say which screenshot and why, and continue with the rest.
+- State every price before spending, and the total at the end.`;
+
 const INSTRUCTIONS = [
   "You help non-technical teammates of a social media agency make AI videos and images with Higgsfield. Talk in plain English, no jargon.",
   "Start with start_here. Work out what they want (ask one short question if unclear), pick a model from the shortlist and say why in one sentence.",
@@ -73,6 +124,8 @@ const INSTRUCTIONS = [
   "Before EVERY create, run price_check and show its plan card to the person exactly as returned: model, what it will make, every setting (shape, quality, length, sound, inputs), the exact price, and the other quality and shape options. End with: \"Say go, or tell me what to change.\"",
   "Only call create after they say go (or yes). If they change anything, run price_check again and show the updated card. Never make anything without showing its price first. Mention the cost again when it is done.",
   "For repeat team workflows (thumbnail expression fixes, batches of screenshots, photo-then-video b-roll) use recipes: recipe_plan shows the card and total price, run_recipe after go, then check_jobs.",
+  "When someone wants thumbnails from screenshots, call thumbnail_workflow first and follow it.",
+  "For thumbnail titles, read the client's voice with client_style and the videos with client_filming_plan instead of asking the person to paste them.",
   "Input media must be public links. If they have a file in Google Drive or Dropbox, pass its share link to import_file and use the link it returns.",
   "After create, call check_job about every 20 to 30 seconds until it is done (images take seconds, videos 1 to 5 minutes), then give them the download link.",
   "Never go around the monthly budget. If create refuses for budget, tell them to ask the account owner.",
@@ -142,6 +195,22 @@ const TOOLS = [
         aspect_ratio: { type: "string" },
       },
     },
+  },
+  {
+    name: "thumbnail_workflow",
+    description: "Read first whenever someone wants thumbnails made from client screenshots (batch or single): the full step-by-step workflow using this connector and the Canva connector.",
+    inputSchema: EMPTY,
+  },
+  { name: "clients", description: "List the agency's clients (names as SyncView has them).", inputSchema: EMPTY },
+  {
+    name: "client_filming_plan",
+    description: "Read a client's filming plan (the Google Doc linked in SyncView), optionally starting at a month, e.g. \"October\". Use it to find which videos a thumbnail is for and to write titles.",
+    inputSchema: { type: "object", required: ["client"], additionalProperties: false, properties: { client: { type: "string" }, month: { type: "string" } } },
+  },
+  {
+    name: "client_style",
+    description: "A client's written voice and title style from the Synchro Brain, for writing thumbnail titles. Not for fonts, colours or layout: those come from the client's latest Canva thumbnail.",
+    inputSchema: { type: "object", required: ["client"], additionalProperties: false, properties: { client: { type: "string" } } },
   },
   {
     name: "import_file",
@@ -717,6 +786,11 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
     }
     return `${recipe.name}: started ${images.length} image(s) at ${money(est.usd)} each.\n${lines.join("\n")}\n\nCheck them all with check_jobs in about 30 seconds.`;
   }
+
+  if (name === "thumbnail_workflow") return THUMBNAIL_WORKFLOW;
+  if (name === "clients") return await listClients(db());
+  if (name === "client_filming_plan") return await filmingPlan(db(), String(args.client || ""), String(args.month || ""));
+  if (name === "client_style") return await clientStyle(db(), String(args.client || ""));
 
   if (name === "import_file") return await importFile(String(args.link || "").trim());
 

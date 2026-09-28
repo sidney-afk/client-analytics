@@ -1,4 +1,3 @@
-import { svClientBarSync, svSharedClientNote } from './095-shared-client.js';
 import {
   CONTENT_SUMMARY_WEBHOOK, ICON, WEEKLY_SLACK_WEBHOOK, _analyticsExtrasApplied,
   _analyticsExtrasArrival, _analyticsFlushPendingExtras, _analyticsHasTrustedMetrics,
@@ -15,14 +14,15 @@ import {
   savedHooks, showNotify, showToast, sortCol, sortDir, topVideos, viewsChart, viewsPlat,
   weekPrevPerClient
 } from './040-shared-briefs.js';
+import { mountTemplatesView, renderClientTemplate, renderTemplatesView } from './060-templates-filming.js';
 import {
-  NAV_KEY, _isSmmWeeklyRoute, _syncviewNextNavEpoch, _syncviewSetCurrentNav, currentNav,
-  mountTemplatesView, renderClientTemplate, renderTemplatesView
-} from './060-templates-filming.js';
+  NAV_KEY, _isSmmWeeklyRoute, _syncviewNextNavEpoch, _syncviewSetCurrentNav, currentNav
+} from './065-core-nav-intake-state.js';
 import {
   WL_CLIENT_NAMES, getClientRoster, wlCanonicalClient, wlIsAllowedClient, wlNormalizeClient
 } from './070-workload-source.js';
 import { _syncviewApplyTabFavicon, navTo } from './090-workload-popovers-navigation.js';
+import { svClientBarSync, svSharedClientNote } from './095-shared-client.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
 import { _calRuntimeFlagClient, _settingsWriteHeaders, _syncviewIssueClientShareUrl } from './120-calendar-flags-write-repair.js';
 import { _calAbandonLinkOnCalendarExit, _calSetFocusRequest, _calSetPendingDeepLink } from './130-calendar-model-cache.js';

@@ -1,6 +1,4 @@
-import {
-  FILMING_PLANS_EF_URL, _setLinearClientRows, _setLinearProjects, linearClientRows, showToast
-} from './040-shared-briefs.js';
+import { FILMING_PLANS_EF_URL, showToast } from './040-shared-briefs.js';
 import {
   CHECK_SVG, PEN_ICON_SVG, PIN_ICON_SVG, TPL_MAX_PINS, TPL_PINS_KEY, TPL_RECENT_KEY, _NOT_SET,
   _maybeRerenderTemplates, _setTplStatus, _templatesEditMode, _templatesSelected,
@@ -9,25 +7,20 @@ import {
   _tplPinsEditMode, _tplQueueSave, _tplSaveColorSets, _tplSaveErrorMsg, _tplSetPinSelectorOpen,
   _tplSetPinsEditMode, _tplViewColor, _tplViewProse, _tplViewText, templatesLoadError
 } from './050-market-briefs.js';
+import { currentNav } from './065-core-nav-intake-state.js';
 import { getClientRoster, wlNormalizeClient } from './070-workload-source.js';
-import {
-  _linearInvalidatePlanMap, renderLinearSearchResults, saveLinearForm, updateLinearFilmingPlan,
-  updateLinearSearchGhost, updateLinearTitle
-} from './090-workload-popovers-navigation.js';
+import { _linearInvalidatePlanMap, updateLinearFilmingPlan } from './090-workload-popovers-navigation.js';
 import { svSharedClientNote } from './095-shared-client.js';
 import {
-  CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _obZoom, _syncviewOfferStaffSignIn,
-  _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity, _syncviewStaffCan,
-  _syncviewStaffIdentityBoot, _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders,
-  _syncviewStaffIdentitySignature
+  CAL_SUPABASE_URL, _obZoom, _syncviewOfferStaffSignIn, _syncviewOpenStaffIdentity,
+  _syncviewRequireStaffIdentity, _syncviewStaffCan, _syncviewStaffIdentityBoot,
+  _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature
 } from './100-onboarding-staff-controls.js';
-import { _writeUiRerouteClients, _writeUiRerouteFlagFailed, _writeUiRerouteRosterUnusable } from './115-core-calendar-flags.js';
-import { _syncviewEfHeaders, _writeUiPrimeRerouteFlag, _writeUiRerouteUseGateway } from './120-calendar-flags-write-repair.js';
+import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
 import { calClientSlug } from './130-calendar-model-cache.js';
 import { _jsAttrArg } from './131-core-html.js';
 import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
 import { _svSaveIndHtml } from './170-calendar-links-status.js';
-import { _linearIntakeRead } from './200-intake-data-startup.js';
 import { _isClientLink } from './260-production-refresh-boot.js';
 import {
   KASPER_FILMING_CACHE_KEY, _kasperLoadFilming, _kasperRefreshTabCounts, _kasperRenderOnboarding,
@@ -2093,210 +2086,10 @@ import {
     window._fpSaveExisting = _fpSaveExisting;
     window._fpSaveNew = _fpSaveNew;
 
-    const LOG_SUBMISSION_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/log-linear-submission';
-    /*
-     * The gateway's own cap on ONE credential-less submission, mirrored here so
-     * the form can say so before sending rather than after being refused.
-     * `MAX_PUBLIC_INTAKE_ITEMS` in supabase/functions/production-write/index.ts
-     * is the authority; test/linear-intake-submission-cap.js fails if the two
-     * numbers drift apart.
-     *
-     * Why this exists: on 2026-08-26 a videographer submitting through the
-     * client link was refused eleven times between 19:53 and 20:39 with
-     * "Submission was not completed", which names no cause, so he simply
-     * pressed the button again. The request was 7.7KB -- nothing was too big
-     * except the COUNT: video+thumbnail mode sends two deliverables per video,
-     * so his shoot crossed 25 items and the gateway refused it whole, before
-     * writing anything.
-     */
-    const LINEAR_INTAKE_MAX_ITEMS = 50;
-    function _linearIntakeItemsPerVideo(mode) { return mode === 'both' ? 2 : 1; }
-    function _linearIntakeTooLargeMessage(mode, itemCount) {
-        const perVideo = _linearIntakeItemsPerVideo(mode);
-        const maxVideos = Math.floor(LINEAR_INTAKE_MAX_ITEMS / perVideo);
-        return 'This submission is ' + itemCount + ' deliverables and one submission can carry '
-            + LINEAR_INTAKE_MAX_ITEMS + '. Send it in parts of up to ' + maxVideos
-            + (maxVideos === 1 ? ' video' : ' videos')
-            + (perVideo === 2 ? ' — video + thumbnail counts as two per video.' : '.')
-            + ' Nothing was sent, so nothing is duplicated by splitting it.';
-    }
-    const LAST_LINK_KEY = 'syncview_last_link';
-    const LINEAR_FORM_KEY = 'syncview_linear_form';
-    const NATIVE_INTAKE_PENDING_KEY = 'syncview_native_intake_pending_v1';
-    const LINEAR_RECEIPTS_KEY = 'syncview_linear_intake_receipts_v1';
-    const LINEAR_INTAKE_HOLD_KEY = 'syncview_linear_intake_hold_v1';
-    const LINEAR_INTAKE_LOAD_ID = Date.now().toString(36) + ':' + Math.random().toString(36).slice(2);
-    const NAV_KEY = 'syncview_nav';
-    const SMM_WEEKLY_ROUTES = ['smm-weekly-report', 'smm-weekly-reports'];
-    function _isSmmWeeklyRoute(page) { return SMM_WEEKLY_ROUTES.includes(page); }
-    let currentNav = 'home';
-    /* Phase D: the last tab you clicked always wins. Every staff route change
-       (navTo, render) bumps this; init() remembers the value it started with
-       and gives up routing the moment it moves, so a landing tab that finishes
-       loading after you left can never pull you back, rewrite the address bar
-       or move focus. `var`, not `let`: navTo can run before this line has
-       been evaluated on some boot paths, and a TDZ throw there would be worse
-       than the bug. */
-    var _syncviewNavEpoch = 0;
-    // Setters for the Workload popovers and navigation module (090). ES module
-    // imports are read-only, so navTo changes these through the functions
-    // below instead of assigning them directly (phase C step C3). Function
-    // declarations are hoisted, so they behave exactly like the direct writes
-    // on the early boot paths described above.
-    function _syncviewSetCurrentNav(value) { currentNav = value; }
-    function _syncviewNextNavEpoch() { return ++_syncviewNavEpoch; }
-    const LINEAR_DEFAULT_VIDEO_COUNT = 12;
-    let linearVideoCount = LINEAR_DEFAULT_VIDEO_COUNT;
-    let linearJustCreated = false;
-    let linearSubmitInFlight = null;
-    // Setters for the Submit screen module (200). ES module imports are
-    // read-only, so 200 changes these through the functions below instead of
-    // assigning them directly (phase C step C3).
-    function _linearSetVideoCount(value) { linearVideoCount = value; }
-    function _linearNextVideoCount() { return ++linearVideoCount; }
-    function _linearSetJustCreated(value) { linearJustCreated = value; }
-    function _linearSetSubmitInFlight(value) { linearSubmitInFlight = value; }
-    let linearProjectsLoading = false;
-    let linearProjectsLoaded = false;
-    let linearProjectsLoadGeneration = 0;
-    let linearLegacyProjects = [];
-
-
-
-    function getLastLink() { return localStorage.getItem(LAST_LINK_KEY) || ''; }
-    function saveLastLink(v) { if (v && v.trim()) localStorage.setItem(LAST_LINK_KEY, v.trim()); }
-
-    function _linearPendingNativeClientSlug() {
-        try {
-            const pending = typeof _linearIntakeRead === 'function' ? _linearIntakeRead() : null;
-            return String(pending && pending.payload && pending.payload.client_slug || '').trim();
-        } catch (e) { return ''; }
-    }
-
-    /* WHEN THE ROSTER CANNOT BE TRUSTED, THE DROPDOWN FOLLOWS THE ROUTER.
-       Submit routes with _writeUiRerouteUseGatewayFailClosed: if the reroute
-       flag read failed, or landed with nothing usable, every client goes to the
-       native gateway. The dropdown used the factual allowlist instead, which is
-       empty in exactly that state, and the legacy Linear projects source that
-       used to fill it is gone -- so a slow or failed flag read left Submit with
-       no clients at all, while the submit path would have sent any of them
-       natively. In that state the dropdown now lists every active native
-       client, the same set the router would accept. With a usable roster it is
-       unchanged: enrolled clients only. */
-    function _linearRosterFailsNative() {
-        try { return !!(_writeUiRerouteFlagFailed || _writeUiRerouteRosterUnusable); } catch (e) { return false; }
-    }
-
-    function _linearRebuildProjectSource() {
-        const failNative = _linearRosterFailsNative();
-        const enrolledBySlug = new Map(linearClientRows
-            .filter(row => failNative || _writeUiRerouteUseGateway(row.slug))
-            .map(row => [calClientSlug(row.slug), row]));
-        const includedNativeSlugs = new Set();
-        const mixedProjects = linearLegacyProjects.map(name => {
-            const slug = calClientSlug(name);
-            const row = enrolledBySlug.get(slug);
-            if (!row) return name;
-            includedNativeSlugs.add(slug);
-            return String(row.display_name).trim();
-        });
-        enrolledBySlug.forEach((row, slug) => {
-            if (!includedNativeSlugs.has(slug)) mixedProjects.push(String(row.display_name).trim());
-        });
-        _setLinearProjects([...new Set(mixedProjects.filter(Boolean))]);
-    }
-
-    function _linearRenderProjectSource() {
-        const q = document.getElementById('linearClientSearch')?.value || '';
-        renderLinearSearchResults(q);
-    }
-
-    function _linearReconcileProjectSelection(previousClients, nextClients) {
-        const input = document.getElementById('linearClientSearch');
-        if (!input) return;
-        const selectedSlug = calClientSlug(String(input.dataset.clientSlug || input.value || ''));
-        if (!selectedSlug || !previousClients.has(selectedSlug) || nextClients.has(selectedSlug)) return;
-        if (selectedSlug === calClientSlug(_linearPendingNativeClientSlug())) return;
-        const legacyMatches = linearLegacyProjects.filter(name => calClientSlug(name) === selectedSlug);
-        input.value = legacyMatches.length === 1 ? legacyMatches[0] : '';
-        input.dataset.clientSlug = '';
-        if (typeof updateLinearSearchGhost === 'function') updateLinearSearchGhost(input.value);
-        if (typeof updateLinearTitle === 'function') updateLinearTitle();
-        if (typeof updateLinearFilmingPlan === 'function') updateLinearFilmingPlan();
-        if (typeof saveLinearForm === 'function') saveLinearForm();
-    }
-
-    function _linearRefreshProjectsForRerouteChange(previousClients, nextClients) {
-        if (!linearProjectsLoaded && !linearProjectsLoading && !linearLegacyProjects.length && !linearClientRows.length) {
-            return Promise.resolve();
-        }
-        // Rebuild synchronously from the last exact legacy response so a click
-        // after de-enrollment cannot submit the former native display name.
-        _linearRebuildProjectSource();
-        _linearReconcileProjectSelection(previousClients, nextClients);
-        _linearRenderProjectSource();
-        // Refresh both sources in the background. The generation guard inside
-        // fetchLinearProjects prevents an older cohort request from winning.
-        return fetchLinearProjects();
-    }
-
-    async function fetchLinearProjects() {
-        const generation = ++linearProjectsLoadGeneration;
-        linearProjectsLoading = true;
-        let legacyProjects = linearLegacyProjects.slice();
-        let nativeRows = linearClientRows.slice();
-        // The legacy source (the n8n Linear projects webhook) read Linear with a key
-        // that is now revoked: every open of Submit failed with 401 and raised an
-        // "n8n workflow failed" Slack alert, and returned no names. Every active
-        // client is in the native cohort, so the dropdown comes from the clients
-        // registry below; the legacy list stays whatever it already held.
-        let nativeError = null;
-        try {
-            if (typeof _writeUiPrimeRerouteFlag === 'function') await _writeUiPrimeRerouteFlag();
-            const pendingNativeClientSlug = _linearPendingNativeClientSlug();
-            // The visible native source is cohort-only. A de-enrolled client may
-            // still need its registry row to resume an already-checkpointed native
-            // intake, but that recovery exception never changes dropdown names.
-            if (_writeUiRerouteClients.size || pendingNativeClientSlug || _linearRosterFailsNative()) {
-                const url = CAL_SUPABASE_URL + '/rest/v1/clients?select=slug,display_name,kind,active&active=eq.true&order=display_name.asc';
-                const resp = await fetch(url, { headers: {
-                    apikey: CAL_SUPABASE_ANON_KEY,
-                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
-                    Accept: 'application/json'
-                }});
-                if (!resp.ok) throw new Error('HTTP ' + resp.status);
-                const rows = await resp.json();
-                nativeRows = (Array.isArray(rows) ? rows : []).filter(row => row && row.active !== false && row.slug && row.display_name);
-            }
-        } catch (e) {
-            nativeError = e;
-        } finally {
-            if (generation === linearProjectsLoadGeneration) {
-                linearLegacyProjects = legacyProjects;
-                _setLinearClientRows(nativeRows);
-                _linearRebuildProjectSource();
-                linearProjectsLoaded = true;
-                linearProjectsLoading = false;
-                _linearRenderProjectSource();
-                if (nativeError) {
-                    // A registry failure must never replace or blank the legacy
-                    // project names used by every non-enrolled client.
-                    console.error('[SyncView] Failed to fetch enrolled native clients:', nativeError);
-                }
-            }
-        }
-    }
 export {
-  LAST_LINK_KEY, LINEAR_DEFAULT_VIDEO_COUNT, LINEAR_FORM_KEY, LINEAR_INTAKE_HOLD_KEY,
-  LINEAR_INTAKE_LOAD_ID, LINEAR_INTAKE_MAX_ITEMS, LINEAR_RECEIPTS_KEY, LOG_SUBMISSION_WEBHOOK,
-  NATIVE_INTAKE_PENDING_KEY, NAV_KEY, _fpEnsureLoaded, _fpPurgeSensitiveState, _fpSetQueryQuiet,
-  _isSmmWeeklyRoute, _linearIntakeItemsPerVideo, _linearIntakeTooLargeMessage,
-  _linearNextVideoCount, _linearRefreshProjectsForRerouteChange, _linearSetJustCreated,
-  _linearSetSubmitInFlight, _linearSetVideoCount, _obvEnsureLoaded, _obvFetchFull,
+  _fpEnsureLoaded, _fpPurgeSensitiveState, _fpSetQueryQuiet, _obvEnsureLoaded, _obvFetchFull,
   _obvInjectStyles, _obvLoading, _obvMode, _obvMountStandalone, _obvSetError, _obvSetLoadedAt,
   _obvSetLoading, _obvSetMode, _obvSetSelected, _obvSetSubs, _obvSetWarn, _obvSubs,
-  _syncviewNavEpoch, _syncviewNextNavEpoch, _syncviewSetCurrentNav, currentNav,
-  fetchLinearProjects, getLastLink, linearJustCreated, linearProjectsLoading, linearSubmitInFlight,
-  linearVideoCount, mountFilmingPlansView, mountTemplatesView, renderClientTemplate,
-  renderFilmingPlansView, renderOnboardingInbox, renderTemplatesView, saveLastLink
+  mountFilmingPlansView, mountTemplatesView, renderClientTemplate, renderFilmingPlansView,
+  renderOnboardingInbox, renderTemplatesView
 };

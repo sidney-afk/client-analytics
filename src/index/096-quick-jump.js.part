@@ -1,4 +1,4 @@
-import { currentNav } from './060-templates-filming.js';
+import { currentNav } from './065-core-nav-intake-state.js';
 import { WL_CLIENT_NAMES, wlCanonicalClient } from './070-workload-source.js';
 import { navTo } from './090-workload-popovers-navigation.js';
 import { SV_CLIENT_FOLLOW_TABS, svOpenAnalytics, svSharedClientGet, svSharedClientNote } from './095-shared-client.js';

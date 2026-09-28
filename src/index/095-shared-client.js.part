@@ -1,15 +1,16 @@
-import { calState } from './130-calendar-model-cache.js';
-import { _calGetPins, _calOpenClientTab, _calSavePins } from './134-calendar-prefs-mount.js';
-import { onCalTabClick } from './160-calendar-organize-ui.js';
-import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-samples-model.js';
-import { selectClient, _templatesSetSelected } from './050-market-briefs.js';
-import { currentNav, _fpSetQueryQuiet } from './060-templates-filming.js';
+import { _templatesSetSelected, selectClient } from './050-market-briefs.js';
+import { _fpSetQueryQuiet } from './060-templates-filming.js';
+import { currentNav } from './065-core-nav-intake-state.js';
 import { WL_CLIENT_NAMES, wlCanonicalClient } from './070-workload-source.js';
 import { _navFitSchedule, _navPillSync, navTo } from './090-workload-popovers-navigation.js';
-import { _calEsc, _calEscAttr } from './131-core-html.js';
-import { _isClientLink } from './260-production-refresh-boot.js';
-import { _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
 import { tdyMyClientNames } from './097-today.js';
+import { _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
+import { calState } from './130-calendar-model-cache.js';
+import { _calEsc, _calEscAttr } from './131-core-html.js';
+import { _calGetPins, _calOpenClientTab, _calSavePins } from './134-calendar-prefs-mount.js';
+import { onCalTabClick } from './160-calendar-organize-ui.js';
+import { _isClientLink } from './260-production-refresh-boot.js';
+import { _sxrPinClient, _sxrRenderShell, onSxrTabClick, sxrState } from './270-samples-model.js';
     /* ONE CLIENT ACROSS THE SITE (owner decision 2026-09-27, option A).
      *
      * Staff used to re-pick the same client on every tab: Calendar and Samples

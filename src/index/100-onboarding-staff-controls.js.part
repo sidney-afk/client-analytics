@@ -4,8 +4,9 @@ import {
 } from './040-shared-briefs.js';
 import {
   _fpPurgeSensitiveState, _obvMode, _obvSetError, _obvSetLoadedAt, _obvSetLoading, _obvSetMode,
-  _obvSetSelected, _obvSetSubs, _obvSetWarn, currentNav
+  _obvSetSelected, _obvSetSubs, _obvSetWarn
 } from './060-templates-filming.js';
+import { currentNav } from './065-core-nav-intake-state.js';
 import { wlNormalizeClient, wlPurgePlanSensitiveState } from './070-workload-source.js';
 import { wlRefreshSensitiveStateSilent } from './080-workload-render.js';
 import { _tdyPurgeSensitiveState } from './097-today.js';

@@ -1,7 +1,9 @@
-import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
-import { _svPreserveFocus, fetchEssentials, showConfirm, showNotify, showToast } from './040-shared-briefs.js';
-import { currentNav } from './060-templates-filming.js';
+import {
+  _svPreserveFocus, fetchEssentials, showConfirm, showNotify, showToast
+} from './040-shared-briefs.js';
+import { currentNav } from './065-core-nav-intake-state.js';
 import { WL_CLIENT_NAMES, wlIsAllowedClient, wlNormalizeClient } from './070-workload-source.js';
+import { svSharedClientFor, svSharedClientNote } from './095-shared-client.js';
 import { CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_URL, _svBootFlagRows, _syncviewRequireStaffIdentity } from './100-onboarding-staff-controls.js';
 import {
   WRITE_UI_NO_WORK_ITEM_TEXT, _calRuntimeFlagClient, _calRuntimeFlagClients, _kasperUrgentPingOn,

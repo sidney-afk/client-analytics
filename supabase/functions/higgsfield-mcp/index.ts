@@ -69,6 +69,7 @@ const INSTRUCTIONS = [
   "Choose sensible settings yourself: vertical 9:16 for social media unless they say otherwise, and a sharp but not wasteful quality (1080p or 2K when offered).",
   "Before EVERY create, run price_check and show its plan card to the person exactly as returned: model, what it will make, every setting (shape, quality, length, sound, inputs), the exact price, and the other quality and shape options. End with: \"Say go, or tell me what to change.\"",
   "Only call create after they say go (or yes). If they change anything, run price_check again and show the updated card. Never make anything without showing its price first. Mention the cost again when it is done.",
+  "For repeat team workflows (thumbnail expression fixes, batches of screenshots, photo-then-video b-roll) use recipes: recipe_plan shows the card and total price, run_recipe after go, then check_jobs.",
   "Input media must be public links. If they have a file in Google Drive or Dropbox, pass its share link to import_file and use the link it returns.",
   "After create, call check_job about every 20 to 30 seconds until it is done (images take seconds, videos 1 to 5 minutes), then give them the download link.",
   "Never go around the monthly budget. If create refuses for budget, tell them to ask the account owner.",
@@ -104,6 +105,40 @@ const TOOLS = [
     name: "check_job",
     description: "Check whether a job is finished. Returns the download links when done.",
     inputSchema: { type: "object", required: ["job_id"], additionalProperties: false, properties: { job_id: { type: "string" } } },
+  },
+  {
+    name: "check_jobs",
+    description: "Check several jobs at once (for batches). Returns each one's status and download links.",
+    inputSchema: { type: "object", required: ["job_ids"], additionalProperties: false, properties: { job_ids: { type: "array", items: { type: "string" }, maxItems: 25 } } },
+  },
+  { name: "recipes", description: "Saved team workflows, such as the thumbnail expression fix for designers and photo-then-video b-roll for editors.", inputSchema: EMPTY },
+  {
+    name: "recipe_plan",
+    description: "Price a recipe for one or many images and show its plan card. Always call before run_recipe.",
+    inputSchema: {
+      type: "object", required: ["recipe"], additionalProperties: false,
+      properties: {
+        recipe: { type: "string" },
+        images: { type: "array", items: { type: "string" }, maxItems: 20, description: "Image links (Drive, Dropbox or public)." },
+        model: { type: "string", description: "Optional: one of the recipe's models." },
+        notes: { type: "string", description: "Optional extra instruction added to the recipe prompt." },
+        aspect_ratio: { type: "string", description: "Only for models that cannot keep the original shape automatically (e.g. 16:9)." },
+      },
+    },
+  },
+  {
+    name: "run_recipe",
+    description: "Run a recipe on the images after the person said go to its plan card. Returns one job_id per image.",
+    inputSchema: {
+      type: "object", required: ["recipe", "images"], additionalProperties: false,
+      properties: {
+        recipe: { type: "string" },
+        images: { type: "array", items: { type: "string" }, maxItems: 20 },
+        model: { type: "string" },
+        notes: { type: "string" },
+        aspect_ratio: { type: "string" },
+      },
+    },
   },
   {
     name: "import_file",
@@ -380,6 +415,129 @@ function outputs(data: JsonMap): string[] {
   return urls;
 }
 
+// ---- Recipes (saved team workflows) ---------------------------------------
+
+type Recipe = { key: string; name: string; forWho: string; summary: string; models: string[]; build?: (model: string, image: string, notes: string, aspect: string) => JsonMap; guide?: string };
+
+const EXPRESSION_FIX_PROMPT = `Edit this uploaded screenshot with the smallest possible change. This is an expression-only correction, not a beauty edit, retouch, color grade, or image enhancement.
+
+Keep the exact original aspect ratio, framing, crop, composition, lighting, exposure, contrast, white balance, colors, skin tone, skin texture, sharpness, background, clothing, hair, headscarf, jewelry, microphone, body position, and hand position from the source image.
+
+The final image should look almost identical to the original screenshot. Someone comparing the two should mainly notice that a better facial moment was captured.
+
+Only modify the facial expression where necessary:
+- Correct the mouth/lips so they no longer look awkward from being captured mid-word. Make the mouth look like a natural, flattering frame from the same conversation.
+- Make only a very subtle adjustment to the eyes/eyelids if needed so the expression feels slightly more attentive and suitable for a thumbnail.
+- Preserve the direction of the gaze and the natural expression.
+
+Identity preservation is extremely important. Keep the exact facial anatomy and proportions. Do not alter the shape or appearance of the eyes, eyebrows, nose, jaw, cheeks, chin, forehead, teeth, lips, or face except for the minimal movement necessary to correct the expression.
+
+Do not:
+- beautify or glamorize the person
+- smooth or retouch skin
+- remove or add freckles, lines, pores, or texture
+- change makeup
+- change skin tone or saturation
+- improve or relight the image
+- sharpen the image
+- add background blur or depth of field
+- change the color grade
+- change hair or clothing
+- crop or recompose the image
+- make the eyes larger, brighter, more symmetrical, or more stylized
+- make the lips fuller or reshape them
+
+Think of this as choosing a better frame from the same video recorded one fraction of a second earlier or later, rather than generating a better-looking version of the person.
+
+Everything outside the minimal mouth and eye-expression correction should remain visually unchanged from the original source.`;
+
+const RECIPES: Recipe[] = [
+  {
+    key: "thumbnail-expression-fix",
+    name: "Thumbnail expression fix",
+    forWho: "graphic designers making thumbnails",
+    summary: "Fixes an awkward mid-word face in a client screenshot with the smallest possible change, keeping everything else identical. Works on one screenshot or a batch.",
+    models: ["xai/grok-imagine-image-2.0", "alibaba/qwen-image-3/edit"],
+    build: (model, image, notes, aspect) => {
+      const prompt = EXPRESSION_FIX_PROMPT + (notes ? `\n\nAdditional instruction for this image: ${notes}` : "");
+      return model === "alibaba/qwen-image-3/edit"
+        ? { prompt, image_urls: [image], resolution: "2k", aspect_ratio: aspect || "16:9", prompt_extend: false, enable_thinking: false }
+        : { prompt, image_urls: [image], resolution: "2k", aspect_ratio: "auto", quality: "medium" };
+    },
+  },
+  {
+    key: "broll-photo-then-video",
+    name: "B-roll: photo first, then video",
+    forWho: "video editors",
+    summary: "Make a still first (cheap, fast), pick the one you like, then animate that exact photo into a video clip.",
+    models: ["higgsfield-ai/soul/v2/standard", "z-image/turbo", "kling-video/v2.6/pro/image-to-video", "bytedance/seedance-2.5/image-to-video"],
+    guide: [
+      "Step 1, the photo: write the shot as a photo prompt and price_check then create it with higgsfield-ai/soul/v2/standard (photoreal; batch_size 4 gives four options at once) or z-image/turbo (quick drafts). Use the final video's shape (usually 9:16).",
+      "Step 2, pick: show the results and let them choose one, or adjust and redo step 1.",
+      "Step 3, the video: animate the chosen image link with kling-video/v2.6/pro/image-to-video (cheaper, good for b-roll) or bytedance/seedance-2.5/image-to-video (best motion). Prompt only the motion and camera move, since the photo already sets the look. price_check, show the plan card, create after go.",
+    ].join("\n"),
+  },
+];
+const RECIPE_BY_KEY = new Map(RECIPES.map((r) => [r.key, r]));
+const MAX_BATCH = 20;
+
+function isHostedInput(url: string): boolean {
+  return /^https:\/\/[a-z0-9]+\.cloudfront\.net\//i.test(url);
+}
+
+// Reserve against the cap (serialized, deduped), submit, and log the outcome.
+async function submitJob(member: string, id: string, inputs: JsonMap, usd: number, cap: number): Promise<{ text: string; jobId?: string; overCap?: boolean }> {
+  const client = db();
+  // Cap check, retry dedupe and log row happen in one serialized database step.
+  const { data: rsv, error } = await client.rpc("hf_reserve_generation", {
+    p_member: member,
+    p_model: id,
+    p_prompt: String(inputs.prompt || "(no prompt)"),
+    p_params: inputs,
+    p_cost: usd,
+    p_cap: cap,
+    p_idem_key: await idemKey(member, id, inputs),
+  });
+  if (error || !rsv) return { text: "Could not start: the log is unavailable, so nothing was spent." };
+  const reservation = rsv as JsonMap;
+  if (reservation.outcome === "over_cap") {
+    return { text: `Refused: this (${money(usd)}) would pass the team's monthly budget of ${money(cap)} (${money(Number(reservation.spent))} already used). Ask the account owner.`, overCap: true };
+  }
+  if (reservation.outcome === "duplicate") {
+    return reservation.request_id
+      ? { text: `This exact request was already started a moment ago, so it was not charged twice.\njob_id: ${reservation.request_id}\nUse check_job with that job_id.`, jobId: String(reservation.request_id) }
+      : { text: "This exact request is being started right now. Wait a minute, then ask for team_usage to find its job." };
+  }
+  const rowId = Number(reservation.id);
+  const res = await hf("POST", id, inputs);
+  const requestId = String(res.data.request_id || "");
+  if (!res.ok || !requestId) {
+    const why = hfError(res);
+    await client.from("hf_generations").update({ status: "submit_failed", error: why, updated_at: new Date().toISOString() }).eq("id", rowId);
+    return { text: "Higgsfield refused the request: " + why };
+  }
+  await client.from("hf_generations").update({ request_id: requestId, status: String(res.data.status || "queued"), updated_at: new Date().toISOString() }).eq("id", rowId);
+  return { text: `Started: ${BY_ID.get(id)!.name}, ${money(usd)}.\njob_id: ${requestId}\nCheck with check_job in about 20 to 30 seconds.`, jobId: requestId };
+}
+
+async function checkJob(jobId: string): Promise<string> {
+  if (!/^[0-9a-f-]{36}$/i.test(jobId)) return "That job_id does not look right.";
+  const res = await hf("GET", `requests/${jobId}/status`);
+  if (!res.ok) return "Could not check: " + hfError(res);
+  const status = String(res.data.status || "unknown");
+  const urls = outputs(res.data);
+  const err = res.data.error ? String(res.data.error) : null;
+  const { data: logged } = await db().from("hf_generations").update({
+    status, video_url: urls[0] || null, error: err, updated_at: new Date().toISOString(),
+  }).eq("request_id", jobId).select("est_cost_usd");
+  const cost = logged && logged[0] ? ` It cost ${money(Number(logged[0].est_cost_usd))}.` : "";
+  if (status === "completed" && urls.length) return `Done.${cost} Download:\n${urls.join("\n")}\n(Higgsfield keeps results for about 7 days, so save the files.)`;
+  if (status === "failed") return "It failed: " + (err || "no reason given") + ". Failed jobs are not charged; try again or adjust the prompt.";
+  if (status === "nsfw") return "Higgsfield blocked this for its content rules (not charged). Try a different prompt or image.";
+  if (status === "canceled") return "This job was canceled.";
+  return `Still working (${status.replace("_", " ")}). Check again in about 20 to 30 seconds.`;
+}
+
 // ---- Tool handlers -------------------------------------------------------
 
 async function callTool(name: string, args: JsonMap, member: string): Promise<string> {
@@ -399,7 +557,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
 
   if (name === "start_here") {
     const list = GO_TO.map((g) => `- ${g.task}: ${g.picks.map((id) => `${BY_ID.get(id)?.name} [${id}]`).join(" or ")}`).join("\n");
-    return `This connector can make videos and images with ${CATALOG.length} Higgsfield models. Go-to picks:\n${list}\n\nThere are more options per task: use find_models.\nPrices vary by model, length and resolution; price_check gives the exact figure.\nInput photos, videos and audio must be public links; import_file converts Drive and Dropbox links.\n\n${await budget()}`;
+    return `This connector can make videos and images with ${CATALOG.length} Higgsfield models, plus saved team recipes (use recipes). Go-to picks:\n${list}\n\nThere are more options per task: use find_models.\nPrices vary by model, length and resolution; price_check gives the exact figure.\nInput photos, videos and audio must be public links; import_file converts Drive and Dropbox links.\n\n${await budget()}`;
   }
 
   if (name === "find_models") {
@@ -425,56 +583,68 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
     if (name === "price_check") return planCard(id, inputs, est.usd) + "\n" + await budget() + "\n\nSay go, or tell me what to change.";
     if (CAP_USD === null) return BAD_CAP;
 
-    const client = db();
-    // Cap check, retry dedupe and log row happen in one serialized database step.
-    const { data: rsv, error } = await client.rpc("hf_reserve_generation", {
-      p_member: member,
-      p_model: id,
-      p_prompt: String(inputs.prompt || "(no prompt)"),
-      p_params: inputs,
-      p_cost: est.usd,
-      p_cap: cap,
-      p_idem_key: await idemKey(member, id, inputs),
-    });
-    if (error || !rsv) return "Could not start: the log is unavailable, so nothing was spent.";
-    const reservation = rsv as JsonMap;
-    if (reservation.outcome === "over_cap") {
-      return `Refused: this (${money(est.usd)}) would pass the team's monthly budget of ${money(cap)} (${money(Number(reservation.spent))} already used). Ask the account owner.`;
-    }
-    if (reservation.outcome === "duplicate") {
-      return reservation.request_id
-        ? `This exact request was already started a moment ago, so it was not charged twice.\njob_id: ${reservation.request_id}\nUse check_job with that job_id.`
-        : "This exact request is being started right now. Wait a minute, then ask for team_usage to find its job.";
-    }
-    const rowId = Number(reservation.id);
-    const res = await hf("POST", id, inputs);
-    const requestId = String(res.data.request_id || "");
-    if (!res.ok || !requestId) {
-      const why = hfError(res);
-      await client.from("hf_generations").update({ status: "submit_failed", error: why, updated_at: new Date().toISOString() }).eq("id", rowId);
-      return "Higgsfield refused the request: " + why;
-    }
-    await client.from("hf_generations").update({ request_id: requestId, status: String(res.data.status || "queued"), updated_at: new Date().toISOString() }).eq("id", rowId);
-    return `Started: ${BY_ID.get(id)!.name}, ${money(est.usd)}.\njob_id: ${requestId}\nCheck with check_job in about 20 to 30 seconds.`;
+    return (await submitJob(member, id, inputs, est.usd, cap)).text;
   }
 
-  if (name === "check_job" || name === "check_video") {
-    const jobId = String(args.job_id || "").trim();
-    if (!/^[0-9a-f-]{36}$/i.test(jobId)) return "That job_id does not look right.";
-    const res = await hf("GET", `requests/${jobId}/status`);
-    if (!res.ok) return "Could not check: " + hfError(res);
-    const status = String(res.data.status || "unknown");
-    const urls = outputs(res.data);
-    const err = res.data.error ? String(res.data.error) : null;
-    const { data: logged } = await db().from("hf_generations").update({
-      status, video_url: urls[0] || null, error: err, updated_at: new Date().toISOString(),
-    }).eq("request_id", jobId).select("est_cost_usd");
-    const cost = logged && logged[0] ? ` It cost ${money(Number(logged[0].est_cost_usd))}.` : "";
-    if (status === "completed" && urls.length) return `Done.${cost} Download:\n${urls.join("\n")}\n(Higgsfield keeps results for about 7 days, so save the files.)`;
-    if (status === "failed") return "It failed: " + (err || "no reason given") + ". Failed jobs are not charged; try again or adjust the prompt.";
-    if (status === "nsfw") return "Higgsfield blocked this for its content rules (not charged). Try a different prompt or image.";
-    if (status === "canceled") return "This job was canceled.";
-    return `Still working (${status.replace("_", " ")}). Check again in about 20 to 30 seconds.`;
+  if (name === "check_job" || name === "check_video") return await checkJob(String(args.job_id || "").trim());
+
+  if (name === "check_jobs") {
+    const ids = (Array.isArray(args.job_ids) ? args.job_ids : []).map((x) => String(x).trim()).slice(0, 25);
+    if (!ids.length) return "Give the job_ids to check.";
+    const results = await Promise.all(ids.map(async (j, i) => `${i + 1}. [${j}] ${await checkJob(j)}`));
+    return results.join("\n\n");
+  }
+
+  if (name === "recipes") {
+    return RECIPES.map((r) => `- ${r.name} [${r.key}], for ${r.forWho}: ${r.summary}\n  Models: ${r.models.map((m) => BY_ID.get(m)?.name || m).join(", ")}`).join("\n")
+      + "\n\nUse recipe_plan to price a recipe, then run_recipe after they say go.";
+  }
+
+  if (name === "recipe_plan" || name === "run_recipe") {
+    const recipe = RECIPE_BY_KEY.get(String(args.recipe || ""));
+    if (!recipe) return "Unknown recipe. Use recipes to see them.";
+    if (!recipe.build) return `${recipe.name}\n\n${recipe.guide}`;
+    const model = String(args.model || recipe.models[0]);
+    if (!recipe.models.includes(model)) return `This recipe runs on: ${recipe.models.join(", ")}.`;
+    const images = (Array.isArray(args.images) ? args.images : []).map((x) => String(x).trim()).filter(Boolean);
+    if (!images.length) return "Give one or more image links (Drive, Dropbox or any public link).";
+    if (images.length > MAX_BATCH) return `At most ${MAX_BATCH} images per batch.`;
+    const notes = String(args.notes || "").trim();
+    const aspect = String(args.aspect_ratio || "").trim();
+    const sample = recipe.build(model, images[0], notes, aspect);
+    const problems = validate(BY_ID.get(model)!.schema as Schema, sample);
+    if (problems.length) return "Fix these first:\n- " + problems.join("\n- ");
+    const est = await estimate(model, sample);
+    if ("error" in est) return "Higgsfield could not price this: " + est.error;
+    const total = est.usd * images.length;
+    if (name === "recipe_plan") {
+      return [
+        `Plan: ${recipe.name}`,
+        `- Model: ${BY_ID.get(model)!.name}${recipe.models.length > 1 ? `  [other options: ${recipe.models.filter((m) => m !== model).map((m) => BY_ID.get(m)?.name).join(", ")}]` : ""}`,
+        `- Images: ${images.length}`,
+        notes ? `- Extra instruction: "${notes}"` : "- Extra instruction: none",
+        `- Output: same shape as each screenshot, 2K`,
+        `- Price: ${money(est.usd)} each, ${money(total)} total`,
+        await budget(),
+        "",
+        "Say go, or tell me what to change.",
+      ].join("\n");
+    }
+    if (CAP_USD === null) return BAD_CAP;
+    const lines: string[] = [];
+    for (const [i, link] of images.entries()) {
+      let url = link;
+      if (!isHostedInput(link)) {
+        const imported = await importFile(link);
+        const m = imported.match(/https:\/\/\S+$/m);
+        if (!imported.startsWith("Imported") || !m) { lines.push(`${i + 1}. Skipped: ${imported}`); continue; }
+        url = m[0];
+      }
+      const result = await submitJob(member, model, recipe.build(model, url, notes, aspect), est.usd, cap);
+      lines.push(`${i + 1}. ${result.jobId ? `job_id: ${result.jobId}` : result.text}`);
+      if (result.overCap) { lines.push("Stopped: the monthly budget is reached."); break; }
+    }
+    return `${recipe.name}: started ${images.length} image(s) at ${money(est.usd)} each.\n${lines.join("\n")}\n\nCheck them all with check_jobs in about 30 seconds.`;
   }
 
   if (name === "import_file") return await importFile(String(args.link || "").trim());

@@ -497,9 +497,9 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
     // tab including Kasper and a client selected keeps FULL labels (not compact,
     // not icons) at 1366px (typical client) and 1440px (long client name too).
     // Three visible labels were shortened for this; each keeps its full name
-    // as title and aria-label. At 1366px a long client name still falls back
-    // to compact (about 63px short), so that case is not asserted here.
-    for (const [width, clients] of [[1366, [FIRST]], [1440, [FIRST, LONG]]]) {
+    // as title and aria-label. The client label is width-capped, so a long
+    // client name at 1366px also keeps full labels (it was about 63px short).
+    for (const [width, clients] of [[1366, [FIRST, LONG]], [1440, [FIRST, LONG]]]) {
       for (const client of clients) {
         const context = await browser.newContext({ viewport: { width, height: 700 } });
         await context.route(url => !/^http:\/\/127\.0\.0\.1/.test(url.toString()), route => {
@@ -526,8 +526,14 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
             const a = document.getElementById(id);
             short[id] = { text: a.textContent.trim(), title: a.title, aria: a.getAttribute('aria-label') };
           }
+          const lab = document.getElementById('svClientBadgeLabel');
+          const badge = document.getElementById('svClientBadge');
           return {
-            label: document.getElementById('svClientBadgeLabel').textContent,
+            label: lab.textContent,
+            labelW: Math.round(lab.getBoundingClientRect().width),
+            truncated: lab.scrollWidth > lab.clientWidth,
+            badgeTitle: badge.title,
+            navW: Math.round(nav.scrollWidth), navClient: Math.round(nav.clientWidth),
             kasper: tabs.some(a => a.id === 'navKasper'),
             compact: nav.classList.contains('is-compact') || nav.classList.contains('is-icons'),
             small: tabs.filter(a => parseFloat(getComputedStyle(a).fontSize) < 11).map(a => a.id),
@@ -538,6 +544,11 @@ const navLeft = page => page.evaluate(() => Math.round(document.getElementById('
         });
         const tag = `full labels @${width} with ${client === LONG ? 'a long' : 'a typical'} client`;
         expect(m.label === client.split(' ')[0], `${tag}: the client was not selected (${m.label})`);
+        if (process.env.SV_DEBUG) console.log(tag, JSON.stringify({ labelW: m.labelW, truncated: m.truncated, navW: m.navW, navClient: m.navClient, over: m.over }));
+        // The label is capped (max-width + ellipsis); a typical name fits, a
+        // very long one truncates and the full name stays in the badge title.
+        expect(m.truncated === (client === LONG), `${tag}: label truncated=${m.truncated} (width ${m.labelW}px)`);
+        expect(m.badgeTitle === client, `${tag}: the badge title should hold the full name (got "${m.badgeTitle}")`);
         expect(m.kasper, `${tag}: the Kasper tab should be present for this check`);
         expect(!m.compact && !m.small.length, `${tag}: tabs compact or icons only: ${m.small.join(',') || 'row class'}`);
         expect(m.over <= 0, `${tag}: overflows by ${m.over}px`);

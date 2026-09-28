@@ -51,6 +51,7 @@ function grabConst(name) {
     WRITE_UI_QUEUE_DIAG_KEY: 'diag',
     document: { lastModified: '09/27/2026 14:05:09' },
     _syncviewStaffIdentityForHeaders: () => null,
+    crypto: require('crypto').webcrypto, Map, Date, Math,
   });
   vm.runInContext([
     grabFunc('_writeUiGatewayError'),
@@ -62,6 +63,13 @@ function grabConst(name) {
     grabConst('WRITE_REFUSAL_BEACON_MAX'),
     'let _writeRefusalBeaconBudget = WRITE_REFUSAL_BEACON_MAX;',
     grabFunc('_writeRefusalAppVersion'),
+    grabConst('WRITE_REFUSAL_ATTEMPT_MS'),
+    grabConst('_writeRefusalStaged'),
+    grabFunc('_writeRefusalNewId'),
+    grabFunc('_writeRefusalStageAttempt'),
+    grabFunc('_writeRefusalAttemptId'),
+    grabConst('WRITE_REFUSAL_NETWORK_MESSAGE'),
+    grabFunc('_writeRefusalIsNetworkFailure'),
     grabFunc('_writeRefusalBeacon'),
     grabFunc('_writeUiQueueDiagnostic'),
     grabFunc('_writeUiTagDiagIds'),
@@ -111,7 +119,8 @@ function grabConst(name) {
   // write-diagnostics reads named fields only, so a function deployed before
   // it ignores `page` and still accepts the claim.
   // message and app_version joined 2026-09-27 (OPEN_REPAIRS 101 release A).
-  ok(Object.keys(claim).sort().join(',') === 'action,app_version,code,identifiers,message,operation,page,status,surface'
+  // attempt joined 2026-09-28 (one record per click).
+  ok(Object.keys(claim).sort().join(',') === 'action,app_version,attempt,code,identifiers,message,operation,page,status,surface'
     && (claim.page === 'client_link' || claim.page === 'staff_page'),
     'the beacon shape is the known set plus the page claim, which older write-diagnostics ignores');
 

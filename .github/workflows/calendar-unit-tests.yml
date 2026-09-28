@@ -197,6 +197,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/inline-handlers-browser.js
+      - name: Split switch off means one inline script
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/split-load-browser.js
       - name: Client review link works on phones (approve + request change)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
@@ -226,6 +230,48 @@ jobs:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/shared-client-browser.js
 
+
+  split-preview:
+    # Plan docs/plans/2026-09-28-load-per-tab-plan.md, step 2. The split build
+    # (scripts/index-split.js) is off in src/index/split.json, so nothing
+    # served changes; this job builds it anyway, in the runner's checkout only,
+    # and runs the browser gates against it: once as it would ship (staff get
+    # the parts, everyone else the one full file) and once with everyone on the
+    # parts. Nothing is committed from here.
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright into a temp prefix (package.json untouched)
+        run: |
+          npm install --no-save --no-package-lock --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Build the split version (runner checkout only)
+        run: node scripts/build-index.js --force-split
+      - name: Gates on the split version
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: |
+          node docs/syncview-design/tests/split-load-browser.js
+          node docs/syncview-design/tests/entry-links-boot-browser.js
+          node docs/syncview-design/tests/client-phone-review-browser.js
+          node docs/syncview-design/tests/inline-handlers-browser.js
+          node docs/syncview-design/tests/tab-switch-boot-browser.js
+          node docs/syncview-design/tests/prod-write-gateway-browser.js
+          node qa/boot/client-entry-sequence.js
+      - name: Build with everyone on the parts (runner checkout only)
+        run: node scripts/build-index.js --force-split=parts
+      - name: Gates with everyone on the parts
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: |
+          node docs/syncview-design/tests/split-load-browser.js
+          node docs/syncview-design/tests/entry-links-boot-browser.js
+          node docs/syncview-design/tests/client-phone-review-browser.js
+          node docs/syncview-design/tests/inline-handlers-browser.js
   f27-team-rollback-proof:
     if: contains(github.event.head_commit.message || '', 'F27') || github.event_name == 'pull_request'
     runs-on: ubuntu-latest

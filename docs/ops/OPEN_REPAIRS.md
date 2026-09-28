@@ -29503,3 +29503,30 @@ function ignores the new fields and the page shows a clear error).
 readable card id, the staff role it already verified, the refusal's own
 message, and browser/os from the request. Until then those rows show code,
 screen, action and client link / staff, but no message or browser.
+
+## 278. [2026-09-28] Item 101 follow-up: the four gaps the live proof found
+
+**Built, migration NOT applied, `write-diagnostics` NOT redeployed** (session
+Sentinel). The 2026-09-28 live proof on the test client (see item 277) showed
+receipts landing with message, browser and build, the admin page listing
+them and both filters working, and four gaps. All four are addressed:
+
+1. **A refusal the page makes itself now names its card.** The status save
+   paths (calendar, older calendar retry, Samples card and Kasper Samples
+   saves) pass the card to the report; before, a page-side refusal such as
+   `native_link_required` was recorded before the card was attached.
+2. **One record per click.** A save and its automatic retries share one
+   attempt id for ten minutes; the server attaches each retry to the first
+   row and counts it in a new `attempts` column (measured: one failed click
+   had made three rows). A different outcome is a different record.
+3. **A network failure is "network failure, no status".** New code
+   `network_failure`, `status` may now be empty; the log used to call it
+   `browser_refusal` and invent 500.
+4. **Client-link records carry the client reference.** The page sends the
+   same client slug the save itself sends; the server hashes it exactly as
+   `production-write` does, so one client's problems group together. Never
+   stored or shown as text.
+
+**Order:** apply `20260928060000_write_refusal_attempts_and_network.sql`, then
+redeploy `write-diagnostics`, then rerun the live proof. Merging the browser
+change first is harmless: the deployed function ignores the new fields.

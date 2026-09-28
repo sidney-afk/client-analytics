@@ -224,6 +224,7 @@
     "index-build.js",
     "index-inline-script-syntax.js",
     "index-modules-strip.js",
+    "index-split.js",
     "intake-created-status-server-guard.js",
     "intake-post-names.js",
     "intake-retry-mirror-convergence.js",
@@ -629,6 +630,15 @@
       "postgres_major": 16,
       "required_inputs": "A throwaway PostgreSQL 16 server named by WRITE_REFUSAL_TEST_PG (psql connection args); the suite creates and drops its own database.",
       "reproduce": "WRITE_REFUSAL_TEST_PG='-h 127.0.0.1 -p PORT -U postgres' node test/write-refusal-page-traffic-postgres.js",
+      "ci": "not_run_by_unit_ci",
+      "required_for_release": true
+    },
+    {
+      "file": "write-refusal-attempts-network-postgres.js",
+      "route": "isolated_postgres",
+      "postgres_major": 16,
+      "required_inputs": "A throwaway PostgreSQL 16 server named by WRITE_REFUSAL_TEST_PG (psql connection args); the suite creates and drops its own database.",
+      "reproduce": "WRITE_REFUSAL_TEST_PG='-h 127.0.0.1 -p PORT -U postgres' node test/write-refusal-attempts-network-postgres.js",
       "ci": "not_run_by_unit_ci",
       "required_for_release": true
     },

@@ -39,7 +39,7 @@ import {
 } from './134-calendar-prefs-mount.js';
 import { CAL_CACHE_KEY_PREFIX, _calNextLoadSeq, _calV2Teardown } from './150-calendar-hydration-import.js';
 import {
-  FAST_TABS, KASPER_UNLOCK_KEY, RESTORABLE_FAST_TABS, _applyAllDataDependentChrome,
+  BARE_LANDING_OK_PARAMS, FAST_TABS, KASPER_UNLOCK_KEY, RESTORABLE_FAST_TABS, _applyAllDataDependentChrome,
   _kasperApplyAccess, _kasperUnlocked, _linearResumeSubmissionHold, _resumePendingCalCardJobs
 } from './200-intake-data-startup.js';
 import {
@@ -1803,7 +1803,14 @@ import { _kasperResolveSubtab, _kasperState } from './320-kasper-dashboard-repli
                 || hashRaw.startsWith('templates/')
                 // The standalone staff pages have their own APIs and checks.
                 || hashRaw === 'staff-onboarding' || hashRaw === 'client-credentials';
-            const restoreFastNav = _isSmmWeeklyRoute(stateNav) ? savedNav : (stateNav || savedNav);
+            // DEFAULT LANDING (owner, 2026-09-28): the bare site address opens
+            // Today for staff on a new visit. A refresh (history.state) still
+            // returns you to the tab you were on, Analytics included; client
+            // links and every explicit address are unchanged. Only harmless
+            // switches may ride along in the query.
+            const _bareLanding = !hashRaw && !stateNav && !stateClient && !_isClientLink
+                && [...qp.keys()].every(k => BARE_LANDING_OK_PARAMS.includes(k));
+            const restoreFastNav = _bareLanding ? 'today' : (_isSmmWeeklyRoute(stateNav) ? savedNav : (stateNav || savedNav));
             const fallbackFast = !hashRaw && !stateClient && RESTORABLE_FAST_TABS.includes(restoreFastNav);
             // Kasper has no analytics dependency — every sub-tab fetches its own
             // data over webhooks. So a refresh straight onto Kasper (when the tab

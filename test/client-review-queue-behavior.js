@@ -39,6 +39,8 @@ function sandbox(opts) {
         _calRenderBody: () => {},
         _calFlushCardSave: async () => { log.flushes++; if (o.flushError) post._saveError = o.flushError; else delete post._saveError; },
         _writeUiFailureSentence: e => String(e && e.message || e),
+        _writeRefusalNewId: () => '0f8fad5b-d9cb-469f-a165-70867728950e',
+        _writeRefusalStageAttempt: () => {},
         _calReviewRequestTweak: (pid, comp) => { log.tweaks++; if (o.tweakStarts) env._calReviewState.saving[pid + '|' + comp] = true; },
         CAL_SUPABASE_URL: 'https://example.invalid', CAL_SUPABASE_ANON_KEY: 'k',
         fetch: async () => {

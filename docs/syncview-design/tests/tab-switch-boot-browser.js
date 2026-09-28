@@ -8,7 +8,8 @@
 // Fully offline. Every non-local request is HELD (never answered) until the
 // test releases it, so the landing tab is genuinely still loading when the
 // second tab is clicked. For every visible tab this suite:
-//   1. opens the app on Analytics (the landing that waits on data),
+//   1. opens the app on Analytics (the landing that waits on data; reached
+//      by a refresh on it, since a new bare visit now opens Today),
 //   2. clicks the tab while boot is still waiting,
 //   3. checks the switch was immediate (active pill + address bar at once),
 //   4. releases the network and lets boot finish,
@@ -23,7 +24,7 @@ const { seedStaffGate } = require('../../../qa/staff-gate-seed');
 
 const SETTLE_MS = Number(process.env.TAB_SWITCH_SETTLE_MS || 2500);
 
-async function openHeld(browser, port, suffix) {
+async function openHeld(browser, port, suffix, opts = {}) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 950 } });
   const held = [];
   let released = false;
@@ -43,6 +44,11 @@ async function openHeld(browser, port, suffix) {
       localStorage.removeItem('syncview_nav');
     } catch (e) {}
   });
+  // A NEW visit to the bare address now opens Today (owner, 2026-09-28).
+  // Analytics is still the landing that waits on data, reached by a refresh
+  // while on it (history.state.nav = home); that is what the mid-boot
+  // switches below race against.
+  if (opts.analytics) await context.addInitScript(() => { try { if (!history.state) history.replaceState({ nav: 'home', client: null }, ''); } catch (e) {} });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(String(e && e.message || e)));
@@ -78,9 +84,21 @@ const snapshot = page => page.evaluate(() => {
     await probe.context.close();
     if (tabs.length < 5) failures.push(`expected the staff tab row, found only ${tabs.length} visible tabs`);
 
-    // Baseline: nobody clicks, so boot still lands you on Analytics.
+    // Baseline: a new visit to the bare address, nobody clicks: Today.
     {
       const { context, page, release } = await openHeld(browser, port, '/');
+      try {
+        await page.waitForTimeout(150);
+        release();
+        await page.waitForFunction(() => currentNav === 'today', null, { timeout: 15000 })
+          .catch(() => failures.push('baseline: a new bare visit never finished routing to Today'));
+      } finally {
+        await context.close();
+      }
+    }
+    // Baseline: a refresh on Analytics, nobody clicks, stays on Analytics.
+    {
+      const { context, page, release } = await openHeld(browser, port, '/', { analytics: true });
       try {
         await page.waitForTimeout(150);
         release();
@@ -92,7 +110,7 @@ const snapshot = page => page.evaluate(() => {
     }
 
     for (const tab of tabs) {
-      const { context, page, release, errors } = await openHeld(browser, port, '/');
+      const { context, page, release, errors } = await openHeld(browser, port, '/', { analytics: true });
       try {
         await page.waitForTimeout(150);
         const before = await snapshot(page);

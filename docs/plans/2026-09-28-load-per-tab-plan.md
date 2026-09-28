@@ -80,3 +80,42 @@ not on code (`docs/audits/2026-09-23-boot-baseline.md` §3.4).
 - The browser check found 2 Samples buttons (`_sxrTabScrollBy`, `_sxrUpdateTabScroll`)
   that work today only because the page is one classic script; they are named constants,
   not on `window`. They must be put on `window` before the page runs as real modules.
+
+## Step 2 (2026-09-28): how the switch works
+
+GitHub Pages serves the committed files as they are, so the switch lives in the build:
+`src/index/split.json`. Off (the default and the way back), `index.html` is the plain
+concatenation, byte for byte what it was, and nothing else is written. On, the main
+script moves into content-hashed files under `js/` and a small loader takes its place:
+
+- **Client links, the intake and onboarding forms, signed-out visitors: `full`.** One file,
+  `js/sv-full-<hash>.js`, holding the same script that was inline, byte for byte. This is
+  how "client links keep today's single file" holds in step 4: same code, one file,
+  loaded at the same moment in the page; the only difference is that it is a separate
+  download the browser can keep between visits.
+- **Signed-in staff: `parts`.** The same script cut into 16 runs of consecutive fragments
+  of one area, in page order. Step 3 then moves one area at a time from "loaded in
+  order" to "loaded when its tab opens".
+- Hashed names mean a page from the browser's cache only asks for the files it was
+  built with. Every file records that it ran; if one did not arrive, the page reloads
+  itself once.
+
+Measured on the split build (offline, all gates): `index.html` drops from 5.9 MB to
+0.9 MB (markup and styles); the full script is one 5.0 MB file. Every browser gate passes
+on it, both as it would ship and with everyone, clients included, on the parts.
+
+## Step 3, area 1 of 9: TikTok (2026-09-28)
+
+- 040 gains the area registry: `svAreaRegister`, `svAreaApi`, `svArea`, `svWithArea`, and a quiet
+  background fetch of the remaining on-demand areas once the first screen is up. An area that
+  has not loaded has nothing to tear down or re-render, so `svAreaApi` returning null is the
+  honest answer; a tab that needs one draws it through `svWithArea` (at once when the code is
+  here, which is always on the single-file page; else "Loading…", then the tab, or a Retry).
+- 300 registers `render`, `mount`, `teardown`, `isMounted`, `renderForm`; 040 (roster
+  refresh) and 090 (navTo draw and teardown) go through the registry. No fragment imports from
+  300 any more, and its one recorded guard is gone.
+- `split.json` lists `"lazy": ["tiktok"]`; `check-lazy-safety.js` now fails if a lazy area still
+  has an import tie or a recorded button or guard pointing into it.
+- Found on the way: the Workload area (`090`) holds `navTo`, the router every tab uses, so
+  Workload can only go on demand after the router moves to core. That move is part of the
+  Workload step.

@@ -2175,7 +2175,7 @@ import {
                 return _calPushStatusToLinear(url, st, { post, component: comp, linearOnly: true, sourceEditedAt: post[comp + '_status_updated_at'] || post.updated_at });
             });
         })
-            .catch(e => _writeUiReportFailure('calendar', 'status', e));
+            .catch(e => _writeUiReportFailure('calendar', 'status', e, { card: String(post && post.id || ''), component: String(comp || '') }));
     }
     /* Commit a client/Kasper comment through the authenticated gateway. */
     async function _calPostLinearComment(issueUrl, body, author, meta) {

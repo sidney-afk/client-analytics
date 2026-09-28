@@ -1471,6 +1471,9 @@ import { _kasperCalCachePrune } from './330-kasper-review-history.js';
         // of blocking on the analytics roundtrip.
         const FAST_TABS = ['today', 'linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'smm-weekly-report', 'smm-weekly-reports'];
         const RESTORABLE_FAST_TABS = FAST_TABS.filter(tab => !_isSmmWeeklyRoute(tab));
+        // Query keys that do not stop a bare address from landing on Today
+        // (per-browser switches). Mirrored in the head boot script.
+        const BARE_LANDING_OK_PARAMS = ['sxr', 'wl2', 'v2', 'prodcache'];
 
         function _applyAllDataDependentChrome() {
             try { renderPins(); } catch {}
@@ -1518,7 +1521,7 @@ import { _kasperCalCachePrune } from './330-kasper-review-history.js';
             return allowed;
         }
 export {
-  CAL_CARD_JOBS_KEY, FAST_TABS, KASPER_UNLOCK_KEY, RESTORABLE_FAST_TABS,
+  BARE_LANDING_OK_PARAMS, CAL_CARD_JOBS_KEY, FAST_TABS, KASPER_UNLOCK_KEY, RESTORABLE_FAST_TABS,
   _applyAllDataDependentChrome, _calCardJobsRead, _kasperApplyAccess,
   _kasperForgetAdmin, _kasperUnlocked, _linearIntakeActorContext,
   _linearIntakeBatchTitle, _linearIntakeItems, _linearIntakeJobId, _linearIntakePending,

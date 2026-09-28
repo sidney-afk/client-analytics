@@ -395,6 +395,11 @@
             else if (!hash) {
                 var saved = null; try { saved = localStorage.getItem('syncview_nav'); } catch (e) {}
                 var nav = (st && st.nav) || saved;
+                // Mirror of init()'s _bareLanding: a new visit to the bare
+                // address opens Today (BARE_LANDING_OK_PARAMS may ride along).
+                var bareOk = ['sxr', 'wl2', 'v2', 'prodcache'], bare = !(st && (st.nav || st.client));
+                q.forEach(function (v, k) { if (bareOk.indexOf(k) < 0) bare = false; });
+                if (bare) nav = 'today';
                 // Mirror of init(): the fast path restores (stateNav ||
                 // savedNav) for FAST tabs even in a NEW tab (fallbackFast —
                 // no history.state needed); the post-await router restores
@@ -9292,6 +9297,78 @@
     const SYNCVIEW_THEME_KEY = 'syncview_theme';
     const SYNCVIEW_STATUS_PALETTE_KEY = 'syncview_status_palette';
     /*
+     * On-demand areas (docs/plans/2026-09-28-load-per-tab-plan.md, step 3).
+     *
+     * A staff-only area listed as "lazy" in src/index/split.json is not in
+     * the page's first download when the page is served in parts: its code
+     * arrives the first time something asks for it. So nothing outside an
+     * area calls its functions by name. The area registers what it offers,
+     * the moment its code runs (svAreaRegister), and callers go through here:
+     *   svAreaApi(name)   what the area offers if its code has run, else null
+     *                     (an area that never loaded has nothing to tear down,
+     *                     re-render or flush);
+     *   svArea(name)      a promise of the same, fetching the code if needed;
+     *   svWithArea(...)   draw a tab from its area: at once when the code is
+     *                     here (always, for the whole-script page), else a
+     *                     loading state, then the tab, or a Retry.
+     * The client approve / request-changes path is never lazy (areas.txt).
+     */
+    const _svAreaApis = Object.create(null);
+    const _svAreaLoads = Object.create(null);
+    let _svAreaDrawSeq = 0;
+    function svAreaRegister(name, api) { _svAreaApis[name] = api; }
+    function svAreaApi(name) { return _svAreaApis[name] || null; }
+    function svArea(name) {
+        if (_svAreaApis[name]) return Promise.resolve(_svAreaApis[name]);
+        if (_svAreaLoads[name]) return _svAreaLoads[name];
+        const file = self.__svLoad && self.__svLoad.lazy && self.__svLoad.lazy[name];
+        if (!file) {
+            // Not on demand: the area's code is in the page and simply has not
+            // run yet while the page is still being read (start-up routing can
+            // ask this early). It has once the document has finished loading.
+            if (document.readyState !== 'loading') return Promise.reject(new Error('SyncView area "' + name + '" is not available'));
+            return new Promise((resolve, reject) => document.addEventListener('DOMContentLoaded', () => (
+                _svAreaApis[name] ? resolve(_svAreaApis[name]) : reject(new Error('SyncView area "' + name + '" is not available'))
+            ), { once: true }));
+        }
+        const load = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = '/' + file;
+            s.onload = () => (_svAreaApis[name] ? resolve(_svAreaApis[name]) : reject(new Error('SyncView area "' + name + '" did not start')));
+            s.onerror = () => { s.remove(); reject(new Error('SyncView area "' + name + '" could not be downloaded')); };
+            document.head.appendChild(s);
+        });
+        // A failed download is not remembered, so Retry fetches again.
+        _svAreaLoads[name] = load.catch(e => { delete _svAreaLoads[name]; throw e; });
+        return _svAreaLoads[name];
+    }
+    function svWithArea(name, content, draw, retry) {
+        const seq = ++_svAreaDrawSeq;
+        const api = _svAreaApis[name];
+        if (api) { draw(api); return; }
+        content.innerHTML = '<div class="sv-area-loading" data-sv-area-wait="' + seq + '" role="status" aria-live="polite" style="padding:48px 24px;text-align:center;opacity:.7;">Loading…</div>';
+        const stillWaiting = () => seq === _svAreaDrawSeq && !!content.querySelector('[data-sv-area-wait="' + seq + '"]');
+        svArea(name).then(loaded => { if (stillWaiting()) draw(loaded); }, () => {
+            if (!stillWaiting()) return;
+            content.innerHTML = '<div class="sv-area-loading" data-sv-area-wait="' + seq + '" role="alert" style="padding:48px 24px;text-align:center;">'
+                + 'This page could not be loaded. Check your connection. '
+                + '<button type="button" class="btn btn-secondary" data-sv-area-retry>Retry</button></div>';
+            const b = content.querySelector('[data-sv-area-retry]');
+            if (b) b.addEventListener('click', () => { if (typeof retry === 'function') retry(); else svWithArea(name, content, draw, retry); });
+        });
+    }
+    // Staff pages served in parts fetch the remaining areas quietly once the
+    // first screen is up, so switching tabs later waits on nothing.
+    function _svPrefetchAreas() {
+        const lazy = self.__svLoad && self.__svLoad.lazy;
+        if (!lazy) return;
+        for (const name of Object.keys(lazy)) svArea(name).catch(() => {});
+    }
+    window.addEventListener('load', () => {
+        const idle = window.requestIdleCallback || (fn => setTimeout(fn, 1500));
+        setTimeout(() => idle(_svPrefetchAreas), 2500);
+    });
+    /*
      * OPEN_REPAIRS 215 -- backdrop-dismiss press guard, shared by all dialog
      * overlays.
      *
@@ -10455,7 +10532,7 @@
         // dropdown until *something else* happened to re-render the form. Redraw
         // it here whenever it's on screen so a fresh sheet merge shows up
         // immediately instead of only on the next unrelated form interaction.
-        try { if (typeof _tkMounted !== 'undefined' && _tkMounted) _tkRenderForm(); }
+        try { const tk = svAreaApi('tiktok'); if (tk && tk.isMounted()) tk.renderForm(); }
         catch(e){ console.warn('[SyncView] TikTok Upload roster refresh deferred:', e && e.message); }
         // Same story for the Calendar's social-profiles (globe) button: its
         // handles come from clientMap, but it was only re-synced when the
@@ -23709,6 +23786,40 @@
         // overwriting it with the SyncView default.
         onboarding: '/synchro-social-favicon.png',
     };
+    /* CLEAN ADDRESSES ACROSS TABS (owner, 2026-09-28). Every setting in the
+       address belongs to the tab that put it there (SyncLinear's d, batch,
+       order and view; a switch like sxr=1). Switching to ANOTHER tab starts
+       from an empty query, so /workload never carries SyncLinear's card or
+       sort. Staying on the same tab (a re-render, or boot opening an old link)
+       keeps the address as it was, so old links still open exactly. Client
+       share links (c / t / v), the public intake form and the onboarding
+       views are never touched (their address IS their access).
+
+       The per-browser switches (wl2, v2, sxr, prodcache) are read lazily by
+       their own tabs, which is also when they are saved to this browser. So
+       before a switch leaves the address, each one is read here once: it is
+       saved exactly as if its tab had opened, and nothing is lost (Codex on
+       PR 1798). */
+    function _svAddressPage(search, hash) {
+        const q = new URLSearchParams(search || '');
+        if (q.get('prod') === '1') return 'production';
+        const head = String(hash || '').replace(/^#/, '').split('?')[0].split('/')[0];
+        if (head === 'samples') return 'sample-reviews';
+        return head || 'home';
+    }
+    function _svNavQuery(page) {
+        const search = svRoute.search();
+        const cur = new URLSearchParams(search);
+        const ownAccess = ['c', 't', 'v', 'intake', 'onboarding', 'onboarding_view'].some(k => cur.has(k));
+        const keep = ownAccess || _svAddressPage(search, svRoute.hash()) === page;
+        if (!keep && ['wl2', 'v2', 'sxr', 'prodcache'].some(k => cur.has(k))) {
+            for (const read of [_wlV2Enabled, _calV2Enabled, _sxrEnabled, _prodCacheEnabled]) { try { read(); } catch (e) {} }
+        }
+        const query = keep ? cur : new URLSearchParams();
+        if (page === 'production') query.set('prod', '1');
+        else query.delete('prod');
+        return query;
+    }
     function _syncviewFaviconFor(page) {
         return SYNCVIEW_TAB_FAVICONS[String(page || '')] || SYNCVIEW_DEFAULT_FAVICON;
     }
@@ -23826,7 +23937,8 @@
 
         // Tear down the TikTok-upload polling timer whenever we leave the page so
         // it doesn't keep hitting the queue webhook in the background.
-        if (page !== 'tiktok-upload' && typeof _tkTeardown === 'function') _navTeardownSafe(_tkTeardown);
+        const tkArea = svAreaApi('tiktok');
+        if (page !== 'tiktok-upload' && tkArea) _navTeardownSafe(tkArea.teardown);
         if (page !== 'today' && typeof _tdyTeardown === 'function') _navTeardownSafe(_tdyTeardown);
         // Same for Kasper review's 30 s background poller + visibility listeners.
         if (page !== 'kasper' && typeof _kasperTeardown === 'function') _navTeardownSafe(_kasperTeardown);
@@ -23888,9 +24000,7 @@
             // line erased it from the URL the reload reads.
             if (page === 'kasper' && typeof _kasperState !== 'undefined' && _kasperState
                 && _kasperState.tab && _kasperState.tab !== 'review') hash = '#kasper/' + _kasperState.tab;
-            const query = new URLSearchParams(svRoute.search());
-            if (page === 'production') query.set('prod', '1');
-            else query.delete('prod');
+            const query = _svNavQuery(page);
             const queryText = query.toString();
             const url = '/' + (queryText ? '?' + queryText : '') + hash;
             if (push) history.pushState(state, '', url);
@@ -23950,8 +24060,12 @@
         // <<< SXR_END
         } else if (page === 'tiktok-upload') {
             pageTop.style.display = 'none';
-            content.innerHTML = renderTiktokUploadView();
-            mountTiktokUploadView();
+            // TikTok Upload is an on-demand area (040, svWithArea): drawn at
+            // once when its code is here, else after it arrives.
+            svWithArea('tiktok', content, tk => {
+                content.innerHTML = tk.render();
+                tk.mount();
+            }, () => navTo('tiktok-upload'));
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'smm-weekly-report') {
             pageTop.style.display = 'none';
@@ -31123,6 +31237,46 @@
             return isNaN(at.getTime()) ? '' : at.toISOString().slice(0, 16);
         } catch (e) { return ''; }
     }
+    /* OPEN_REPAIRS 101 follow-up (2026-09-28): one record per click.
+
+       The live proof saw one failed click write three rows: the client review
+       send queue (185) held the approval and re-sent it on its backoff timer,
+       and each re-send failed again. The attempt id now belongs to the CLICK:
+       every report gets a fresh id, except when the queue has staged the id of
+       the click it is re-sending for that card. Then the re-send's failure
+       reuses it, and the server attaches it to the first row and counts it.
+       A new click stages a new id, so separate clicks stay separate records.
+       A re-send that ends differently (say, refused where the click hit a
+       network failure) is its own record under its own id. */
+    const WRITE_REFUSAL_ATTEMPT_MS = 30 * 60 * 1000;   // the queue's own max age
+    const _writeRefusalStaged = new Map();
+    function _writeRefusalNewId() {
+        let id = '';
+        try { id = crypto.randomUUID(); } catch (e) {}
+        return id || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
+    }
+    function _writeRefusalStageAttempt(card, id) {
+        if (!card || !id) return;
+        _writeRefusalStaged.set(String(card), { id: String(id), at: Date.now(), byOutcome: {} });
+    }
+    function _writeRefusalAttemptId(card, outcomeKey) {
+        const now = Date.now();
+        for (const [k, v] of _writeRefusalStaged) if (now - v.at > WRITE_REFUSAL_ATTEMPT_MS) _writeRefusalStaged.delete(k);
+        const staged = card ? _writeRefusalStaged.get(String(card)) : null;
+        if (!staged) return _writeRefusalNewId();
+        if (!staged.byOutcome[outcomeKey]) staged.byOutcome[outcomeKey] = Object.keys(staged.byOutcome).length ? _writeRefusalNewId() : staged.id;
+        return staged.byOutcome[outcomeKey];
+    }
+    // A save that never got any answer from a server. Only the browser's own
+    // wording for a failed request counts: a programming TypeError caught by
+    // the same broad catch is a real defect and must not be relabelled.
+    const WRITE_REFUSAL_NETWORK_MESSAGE = /^(failed to fetch|networkerror when attempting to fetch resource\.?|load failed|the network connection was lost\.?|network request failed)$/i;
+    function _writeRefusalIsNetworkFailure(error) {
+        if (!error || error.status || error.code) return false;
+        if (error.network === true) return true;
+        return (error.name === 'TypeError' || error.name === 'AbortError')
+            && WRITE_REFUSAL_NETWORK_MESSAGE.test(String(error.message || '').trim());
+    }
     function _writeRefusalBeacon(surface, outcome, item, error) {
         if (outcome !== 'ui_write_failure' || _writeRefusalBeaconBudget <= 0) return;
         _writeRefusalBeaconBudget--;
@@ -31147,6 +31301,18 @@
                 page: (typeof _isClientLink !== 'undefined' && _isClientLink) ? 'client_link' : 'staff_page'
             };
             if (status !== null) claim.status = status;
+            if (status === null && _writeRefusalIsNetworkFailure(error)) claim.failure = 'network';
+            /* The client reference: on a client link, the same client slug the
+               save itself sends (production-write hashes that value into its
+               receipts), so one client's problems group together. The server
+               hashes it before storing; it is never stored or shown as text. */
+            if (claim.page === 'client_link' && !identifiers.client_slug) {
+                let slug = '';
+                try { slug = _writeUiSourceClientSlug(surface === 'sxr' ? 'sxr' : 'calendar'); } catch (e) {}
+                if (slug) identifiers.client_slug = String(slug).slice(0, 120);
+            }
+            claim.attempt = _writeRefusalAttemptId(identifiers.card,
+                [claim.surface, claim.operation, context.component, claim.code, status, claim.failure].map(v => String(v || '')).join('|'));
             /* OPEN_REPAIRS 101 release A: what the person was told, and which
                build of the page told them. The message is trimmed here and
                cleaned again on the server (emails, links, token-like strings
@@ -37969,7 +38135,7 @@
                 return _calPushStatusToLinear(url, st, { post, component: comp, linearOnly: true, sourceEditedAt: post[comp + '_status_updated_at'] || post.updated_at });
             });
         })
-            .catch(e => _writeUiReportFailure('calendar', 'status', e));
+            .catch(e => _writeUiReportFailure('calendar', 'status', e, { card: String(post && post.id || ''), component: String(comp || '') }));
     }
     /* Commit a client/Kasper comment through the authenticated gateway. */
     async function _calPostLinearComment(issueUrl, body, author, meta) {
@@ -45388,7 +45554,7 @@
             }
         } catch (e) {
             console.warn('[Calendar] save failed', e);
-            if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('calendar', 'status', e);
+            if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('calendar', 'status', e, { card: String(pid || '') });
             // A save that never reached the gateway (older save path, or a
             // failure before sending) is recorded too, without a second notice.
             else if (!gatewayAttempted) _writeUiRecordFailure('calendar', 'status', e, { card: String(pid || '') });
@@ -45396,7 +45562,7 @@
                is a real failure for that component: tell the person, and (below)
                put that component back on screen, while the committed one stays
                and goes on syncing. */
-            else if (gatewayCommitted && refusedStatusComponents.length) _writeUiReportFailure('calendar', 'status', e);
+            else if (gatewayCommitted && refusedStatusComponents.length) _writeUiReportFailure('calendar', 'status', e, { card: String(pid || '') });
             /* COMMITTED, THEN A LATER STEP FAILED. The gateway already saved the
                status, so "Save failed" was false and made people redo a change
                that had landed. It is now "Saved, syncing", the remaining step is
@@ -49456,8 +49622,13 @@
             data.actionId = String(data.actionId || _calReviewState.draftActionIds[key] || _calMintCommentId());
             _calReviewState.draftActionIds[key] = data.actionId;
         }
+        // The click's diagnostic attempt id (OPEN_REPAIRS 278): a replay keeps
+        // it, a new click mints one. Staged for the card so a failure of this
+        // send, or of a later automatic re-send, lands on ONE record.
+        const diag = String(replay && prior && prior.diag || _writeRefusalNewId());
+        _writeRefusalStageAttempt(pid, diag);
         _crqPut(Object.assign({ kind, pid, comp,
-            at: replay && prior && prior.at || Date.now() }, data || {}));
+            at: replay && prior && prior.at || Date.now(), diag }, data || {}));
         _crqRun.inflight.add(key);
         _crqSending();
     }
@@ -49609,6 +49780,7 @@
             return 'changed';
         }
         _crqSending();
+        if (entry.diag) _writeRefusalStageAttempt(entry.pid, entry.diag);
         Object.assign(post, target);
         _calPendingEdits[entry.pid] = Object.assign(_calPendingEdits[entry.pid] || {}, target);
         try { await _calFlushCardSave(entry.pid); }
@@ -54152,6 +54324,9 @@
         // of blocking on the analytics roundtrip.
         const FAST_TABS = ['today', 'linear', 'workload', 'calendar', 'samples', 'templates', 'filming-plans', 'tiktok-upload', 'time-off', 'smm-weekly-report', 'smm-weekly-reports'];
         const RESTORABLE_FAST_TABS = FAST_TABS.filter(tab => !_isSmmWeeklyRoute(tab));
+        // Query keys that do not stop a bare address from landing on Today
+        // (per-browser switches). Mirrored in the head boot script.
+        const BARE_LANDING_OK_PARAMS = ['sxr', 'wl2', 'v2', 'prodcache'];
 
         function _applyAllDataDependentChrome() {
             try { renderPins(); } catch {}
@@ -69840,7 +70015,14 @@
                 || hashRaw.startsWith('templates/')
                 // The standalone staff pages have their own APIs and checks.
                 || hashRaw === 'staff-onboarding' || hashRaw === 'client-credentials';
-            const restoreFastNav = _isSmmWeeklyRoute(stateNav) ? savedNav : (stateNav || savedNav);
+            // DEFAULT LANDING (owner, 2026-09-28): the bare site address opens
+            // Today for staff on a new visit. A refresh (history.state) still
+            // returns you to the tab you were on, Analytics included; client
+            // links and every explicit address are unchanged. Only harmless
+            // switches may ride along in the query.
+            const _bareLanding = !hashRaw && !stateNav && !stateClient && !_isClientLink
+                && [...qp.keys()].every(k => BARE_LANDING_OK_PARAMS.includes(k));
+            const restoreFastNav = _bareLanding ? 'today' : (_isSmmWeeklyRoute(stateNav) ? savedNav : (stateNav || savedNav));
             const fallbackFast = !hashRaw && !stateClient && RESTORABLE_FAST_TABS.includes(restoreFastNav);
             // Kasper has no analytics dependency — every sub-tab fetches its own
             // data over webhooks. So a refresh straight onto Kasper (when the tab
@@ -73964,7 +74146,7 @@
                    only the outbound copy to Linear is gone. */
             } catch (e) {
                 console.warn('[Samples] save failed', e);
-                if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', 'status', e);
+                if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', 'status', e, { card: String(pid || '') });
                 _sxrSetCardStatus(realId, 'error', e.message || 'save failed');
                 const iErr = sxrState.posts.findIndex(p => p.id === realId);
                 if (wasNewRow) {
@@ -77812,9 +77994,9 @@
             }
             _sxrKasperState.saving[key] = false;
             _sxrKasperRepaint(pid);
-            if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', linearComment ? 'comment' : 'status', e);
+            if (gatewayAttempted && !gatewayCommitted) _writeUiReportFailure('sxr', linearComment ? 'comment' : 'status', e, { card: String(pid || ''), component: String(comp || '') });
             else {
-                _writeUiRecordFailure('sxr', linearComment ? 'comment' : 'status', e);
+                _writeUiRecordFailure('sxr', linearComment ? 'comment' : 'status', e, { card: String(pid || ''), component: String(comp || '') });
                 if (typeof showNotify === 'function') showNotify(gatewayCommitted ? 'Card sync incomplete' : 'Save failed', gatewayCommitted ? 'The native write is safe; Samples source sync will retry automatically.' : ((e && e.message) || 'Please try again.'));
             }
         }
@@ -80049,6 +80231,15 @@
     window._tkDismissRow = _tkDismissRow;
     window._tkSetQueueTab = _tkSetQueueTab;
     window._tkQueueShowMore = _tkQueueShowMore;
+    // What the rest of the page may use, through 040's svAreaApi / svArea:
+    // this area can arrive after the page has started (on-demand loading).
+    svAreaRegister('tiktok', {
+        render: renderTiktokUploadView,
+        mount: mountTiktokUploadView,
+        teardown: _tkTeardown,
+        isMounted: () => _tkMounted,
+        renderForm: _tkRenderForm
+    });
 
     /* ============================================================
        KASPER REVIEW TAB
@@ -82511,7 +82702,7 @@
         const cell = (v, cls) => '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + (v ? _calEsc(String(v)) : '<span class="sp-muted">-</span>') + '</td>';
         body.innerHTML = summary + '<div class="sp-scroll"><table class="sp-table"><thead><tr><th>When</th><th>Screen</th><th>Action</th><th>Who</th><th>Card</th><th>Error</th><th>Message</th><th>Browser</th><th>App version</th></tr></thead><tbody>' +
             rows.map(r => '<tr>' + cell(_spWhen(r.recorded_at)) + cell(SP_SCREENS[r.surface] || r.surface) + cell(r.ui_action || r.operation) + cell(who(r)) +
-                cell(r.card_ref, 'sp-code') + cell((r.code || '') + (r.status ? ' (' + r.status + ')' : ''), 'sp-code') + cell(r.detail, 'sp-detail') +
+                cell(r.card_ref, 'sp-code') + cell((r.code === 'network_failure' ? 'network failure, no status' : (r.code || '') + (r.status ? ' (' + r.status + ')' : '')) + (Number(r.attempts) > 1 ? ' · ' + r.attempts + ' tries' : ''), 'sp-code') + cell(r.detail, 'sp-detail') +
                 cell([r.browser, r.os].filter(Boolean).join(' / ')) + cell(r.app_version ? r.app_version.replace('T', ' ') + ' UTC' : '') + '</tr>').join('') +
             '</tbody></table></div>';
     }

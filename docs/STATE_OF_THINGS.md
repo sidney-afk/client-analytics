@@ -19,22 +19,17 @@ line is older than a week, re-check it before relying on it.
   5 minutes, and the journal says the "Hiring Raw Log" data table (applicant data) is to be cleared then (not re-counted today).
   Evidence: n8n list 2026-09-26, both `active: true`. No deadline, but it is
   personal data sitting in a third-party tool.
-- **Stop the restore scratch project.** The second Supabase project
-  (`syncview-restore-scratch`) is ACTIVE_HEALTHY. Storage custody step 1 says
-  "scratch server stopped". Evidence: `list_projects` 2026-09-26. It costs money
-  and holds a restored copy of production data.
 - **2026-10-15: assurance-ledger lane goes red again.** Four quality-tier rows
   were restated, not re-proven, and reach 90 days on about 2026-10-15
   (OPEN_REPAIRS 205a). The fix is to re-prove those surfaces, which needs live
   access from the owner's machine. The separate "Linear access extension to
   2026-10-15" is moot: all Linear keys were revoked on 2026-09-23.
-- **123 cards archived in Linear before the cutoff still show as open** in
-  SyncView (test client excluded). A sweep needs the owner's word
-  (OPEN_REPAIRS 224, journal 2026-09-21). Not re-counted today.
-- **Open design decisions, each waiting on one ruling:** whether the server
-  should recompute a calendar post's overall status (OPEN_REPAIRS 212); the
-  Create Post server-side card link design point (254); the topbar "New issue"
-  control; Step 29c alert consolidation; modularization C3 step 0 start.
+- **Slack alerts become one message (owner said yes, 2026-09-28).** Build the
+  single consolidated problem message with a quiet default proposed in
+  `docs/ops/LINEAR_EXIT_STEP29C_ALERT_CONSOLIDATION.md`, AFTER the analytics
+  move to Supabase lands.
+- **Modularization C3 step 0 waits for Mason's C2 (owner, 2026-09-28).** Do
+  not start it while the load-per-tab split is still editing the same files.
 
 ## Needs a session
 
@@ -56,9 +51,6 @@ line is older than a week, re-check it before relying on it.
 - **Mixed-batch orphans:** a browser fix should re-attach 22 cards; nobody has
   confirmed it on a live read (journal 2026-09-22).
 - **Copy scripts die on a bare network error** (OPEN_REPAIRS 223).
-- **F34 archive rescue is still open:** archived descriptions, comment bodies
-  and attachments were never copied; the rescue config table has 0 rows. The
-  brief-media half is done (see below).
 - **Onboarding runbooks have no native steps** for their retired Linear parts
   (OPEN_REPAIRS 227).
 - **Sheets to Supabase, next steps:** the mirror write is on and backfilled
@@ -85,6 +77,30 @@ line is older than a week, re-check it before relying on it.
 
 ## Done (was listed as open somewhere)
 
+- **Linear archive rescue (F34) is NOT needed. Owner decision 2026-09-28; do
+  not raise it again.** Linear is being cancelled. Measured live the same day:
+  3,478 briefs (with their images, see Brief media rescue below) and 14,205
+  Linear comment bodies are already in SyncView, including those of cards
+  archived in Linear. The only thing not copied is files pasted into about 246
+  old comments on 46 cards (newest 2026-08-11), which stop opening once Linear
+  is gone. The owner accepted that loss. The rescue script and its empty
+  config table stay as dead reference.
+- **Restore scratch Supabase project deleted** by the owner (only
+  `syncview-calendar` remains, `list_projects` 2026-09-28).
+- **Archived-in-Linear cards still open: swept 2026-09-28 on the owner's word**
+  (OPEN_REPAIRS 282). 80 non-test cards in archived batches, with no calendar
+  post link and untouched since their Linear archive, set to `canceled`. 8 left
+  on purpose: 4 `posted` (correct), 1 edited after its archive, 3 linked to a
+  calendar post (a status change there projects onto the client's calendar).
+- **Design decisions closed 2026-09-28.** 212 (server recompute of a post's
+  overall status): not needed, the page recomputes it on every load
+  (`130-calendar-model-cache.js.part`), so the stored copy is never shown.
+  Topbar "New issue": already removed in #1662. 254: built, rides the next
+  `production-write` deploy; not a decision.
+- **Analytics Sheets to Supabase:** the finishing prompt went to Prism on
+  2026-09-28 (parity report, staff overview read, daily comparison, catch-up
+  job, switch-on plan). Flags unchanged until the owner says go.
+
 - **Guest-login gap closed before v2 sign-in (applied 2026-09-27).** The
   `authenticated` role no longer holds any right `anon` lacks: a live
   re-measure across tables, sequences, columns, functions, schemas and
@@ -107,7 +123,7 @@ line is older than a week, re-check it before relying on it.
   inactive, which also ends the n8n bill item in OPEN_REPAIRS 233.
 - **Brief media rescue.** `native_brief_media` = `required` since 2026-09-21;
   1,338 of 1,338 occurrences `verified`, 1,338 files in the bucket. Supersedes
-  F34 and LINEAR_MEDIA_RESCUE. (The execution map row saying `off` is stale.)
+  F34 and LINEAR_MEDIA_RESCUE (the rest of F34 is not needed, see above). (The execution map row saying `off` is stale.)
 - **All native capabilities on:** intake epochs, assignment, ordinary receipts,
   label catalog, identifier mint are `native` for both teams.
 - **Migrations applied** that the ledger still calls "built, not applied":

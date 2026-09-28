@@ -29530,3 +29530,24 @@ them and both filters working, and four gaps. All four are addressed:
 **Order:** apply `20260928060000_write_refusal_attempts_and_network.sql`, then
 redeploy `write-diagnostics`, then rerun the live proof. Merging the browser
 change first is harmless: the deployed function ignores the new fields.
+
+## 282. [2026-09-28, DONE on the owner's word] Sweep of the archived-in-Linear cards item 224 left open
+
+Item 224 closed the rows people reported and left a wider class: non-test cards
+whose Linear issue was archived while their native status stayed open. The
+owner said to archive them on 2026-09-28. Re-measured live first (item 224's
+123 had shrunk, because people had closed some by hand): 88 non-test rows.
+
+Canceled: **80**, every one inside an already archived batch, with no
+`card_id` (so no calendar post to project a status onto through
+`zzz_native_calendar_status_project`), and no status change since its Linear
+archive. One guarded statement, aborting unless exactly 80 rows changed; a
+read-back showed 80 `canceled`. Left alone on purpose: 4 `posted` (correct as
+is), 1 edited after its archive, and 3 linked to a calendar post, where a
+status change would reach the client's calendar.
+
+**Undo.** `card_change_journal` holds every row's before and after image under
+`transaction_id = 2086436` (80 rows, 2026-09-28 15:43Z). Restore `status` from
+`row_before`, then `status_at` in a second UPDATE that leaves `status` alone,
+as item 224 explains (the touch trigger restamps `status_at` on a status
+change).

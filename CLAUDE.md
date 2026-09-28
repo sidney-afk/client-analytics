@@ -139,6 +139,9 @@ Regenerate with `node scripts/ef-fingerprint.js <sha> --slugs=<slug> --expected-
   content calendar.
 - The owner has decided **not** to rotate the Supabase publishable key. Do not
   raise it again.
+- The owner has decided the **Linear archive rescue (F34) is not needed**
+  (2026-09-28): Linear is being cancelled and its text and brief images are
+  already in SyncView. Do not raise it again.
 
 ## Things that will waste a cycle if you forget them
 

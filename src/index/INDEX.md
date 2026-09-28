@@ -36,7 +36,7 @@
 | 28 | `160-calendar-organize-ui.js.part` | 2825 | Lighter path for the Order switch: update the chrome in place so the |
 | 29 | `170-calendar-links-status.js.part` | 2852 | Move a Linear sub-issue link from the old card onto the new one. The |
 | 30 | `180-calendar-native-post-media.js.part` | 2748 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
-| 31 | `185-client-review-queue.js.part` | 361 | Client review send queue: a client's Approve or Request changes is |
+| 31 | `185-client-review-queue.js.part` | 371 | Client review send queue: a client's Approve or Request changes is |
 | 32 | `190-calendar-approval-comments.js.part` | 3108 | Count of posts actually awaiting this surface's sign-off — i.e. at least |
 | 33 | `200-intake-data-startup.js.part` | 1528 | Video-only and Thumbnail-only were already built, but sat |
 | 34 | `210-production-state-writes.js.part` | 3200 | PRODUCTION PREVIEW (Track B B2) / AUTHORITY-GATED WRITE UI |

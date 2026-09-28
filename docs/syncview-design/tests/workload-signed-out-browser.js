@@ -73,6 +73,7 @@ async function boardText(page) {
         const issues = rows.map(_wlV2MapRow).filter(Boolean);
         wlApplyData(issues, Date.now());
         wlWriteCache({ issues, fetchedAt: Date.now() });
+        wlState.client = 'Client A';
         renderWorkloadAll();
       }, ISSUES);
       expect(await h.page.evaluate(() => wlState.issueSnapshot.length > 0), 'the signed-in board holds the fixture cards first');
@@ -86,6 +87,9 @@ async function boardText(page) {
         'sign-out deletes the saved board copy');
       expect(await h.page.evaluate(() => wlState.issueSnapshot.length === 0 && wlState.fetchedAt === null),
         'sign-out empties the board held in memory');
+      expect(await h.page.locator('[data-wl-signed-out]').count() === 1, 'after sign-out the board says a staff sign-in is needed');
+      expect(await h.page.evaluate(() => wlState.client === 'all'), 'after sign-out the client filter is forgotten');
+      expect(!(await h.page.evaluate(() => { const v = document.querySelector('.workload-view'); return v ? v.innerText : ''; })).includes('Client A'), 'after sign-out no client name remains on the Workload view');
     } finally { await h.close(); }
   }
 

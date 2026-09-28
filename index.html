@@ -17675,6 +17675,9 @@
         if (document.querySelector('.workload-view')) {
             wlClosePopover(false);
             renderWorkloadAll();
+            // Sign-out purges before it clears the identity, so paint again
+            // once it has: that pass draws the signed-out surface.
+            setTimeout(() => { try { if (document.querySelector('.workload-view')) renderWorkloadAll(); } catch (e) {} }, 0);
         }
     }
 
@@ -17717,12 +17720,15 @@
                 }
                 wlState.testClientKeys = keys;
                 wlState.testClientKeysLoaded = true;
-                if (keys.size && wlState.issueSnapshot.length && wlStaffMayView()) {
+                if (wlState.issueSnapshot.length && wlStaffMayView()) {
                     wlApplyData(wlState.issueSnapshot, wlState.fetchedAt);
                     if (document.querySelector('.workload-view')) renderWorkloadAll({ deferWhilePopoverOpen: true });
                 }
             } catch (e) {
+                // Test cards stay hidden until this list loads (wlApplyData
+                // holds unclassified rows back), so keep trying.
                 console.warn('[workload] test client list unavailable', e && e.message);
+                setTimeout(() => { try { wlLoadTestClients(); } catch (e2) {} }, 5000);
             } finally { _wlTestClientsLoading = null; }
         })();
         return _wlTestClientsLoading;
@@ -19250,8 +19256,22 @@
             || (Array.isArray(wlState.editorRoster) && wlState.editorRoster.length)) wlPurgeBoardData();
         if (wlState.popoverAnchor) wlClosePopover(false);
         ['wlOverviewRows', 'wlUndatedChips', 'wlUnassignedChips'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+        // Filters can name a client or editor; forget them and hide the
+        // toolbar around the board, so only the sign-in note is left.
+        wlState.client = 'all'; wlState.editor = 'all'; wlState.team = 'all';
         const bodyEl = document.getElementById('wlBody');
-        if (bodyEl) bodyEl.innerHTML = '<div class="wl-signed-out" data-wl-signed-out>Sign in as staff to see Workload.</div>';
+        if (!bodyEl) return;
+        bodyEl.innerHTML = '<div class="wl-signed-out" data-wl-signed-out>Sign in as staff to see Workload.</div>';
+        const view = bodyEl.closest('.workload-view');
+        for (let el = bodyEl; el && el !== view && el.parentElement; el = el.parentElement) {
+            for (const sib of el.parentElement.children) {
+                if (sib !== el && !sib.hidden) { sib.hidden = true; sib.setAttribute('data-wl-so-hidden', ''); }
+            }
+            if (el.parentElement === view) break;
+        }
+    }
+    function wlUnhideSignedOut() {
+        document.querySelectorAll('[data-wl-so-hidden]').forEach(el => { el.hidden = false; el.removeAttribute('data-wl-so-hidden'); });
     }
     async function initWorkloadView() {
         // Guarded: unit suites run this mount alone in a sandbox.
@@ -21426,6 +21446,7 @@
             if (wlStaffSignedOut()) wlRenderSignedOut();
             return;
         }
+        wlUnhideSignedOut();
         // Re-rendering the calendar wipes out the spotlight markers and the
         // popover's anchor element, so close it before painting the new DOM.
         if (wlState.popoverAnchor) wlClosePopover(false);
@@ -25540,9 +25561,9 @@
     /* Vigil's hand test, 2026-09-28: the address held only the client, so a
        reload lost the card. Write the calendar's own card deep link
        (#calendar/<slug>/<card>); the calendar keeps it and reopens it. */
-    function _tdyCardInAddress(name, cardId) {
+    function _tdyCardInAddress(clientSlug, cardId) {
         try {
-            const slug = calClientSlug(name);
+            const slug = calClientSlug(clientSlug);
             if (!slug || !cardId || currentNav !== 'calendar') return;
             const base = '/' + svRoute.search().replace(/#.*$/, '');
             history.replaceState({ nav: 'calendar', client: null }, '',
@@ -25559,7 +25580,7 @@
             try { svSharedClientNote(name); } catch (e) {}
             _calSetFocusRequest({ client: name, cardId: p.id });
             navTo('calendar');
-            _tdyCardInAddress(name, p.id);
+            _tdyCardInAddress(p.client, p.id);
             return;
         }
         const r = d.open.find(x => x.id === id);

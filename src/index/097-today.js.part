@@ -516,9 +516,9 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
     /* Vigil's hand test, 2026-09-28: the address held only the client, so a
        reload lost the card. Write the calendar's own card deep link
        (#calendar/<slug>/<card>); the calendar keeps it and reopens it. */
-    function _tdyCardInAddress(name, cardId) {
+    function _tdyCardInAddress(clientSlug, cardId) {
         try {
-            const slug = calClientSlug(name);
+            const slug = calClientSlug(clientSlug);
             if (!slug || !cardId || currentNav !== 'calendar') return;
             const base = '/' + svRoute.search().replace(/#.*$/, '');
             history.replaceState({ nav: 'calendar', client: null }, '',
@@ -535,7 +535,7 @@ import { _calSmmMediaGap } from './190-calendar-approval-comments.js';
             try { svSharedClientNote(name); } catch (e) {}
             _calSetFocusRequest({ client: name, cardId: p.id });
             navTo('calendar');
-            _tdyCardInAddress(name, p.id);
+            _tdyCardInAddress(p.client, p.id);
             return;
         }
         const r = d.open.find(x => x.id === id);

@@ -59,6 +59,17 @@ async function boardIds(page) {
       expect(ids.has('test-todo') === on, `[${query || 'default'}] the test client's To Do card is ${on ? 'shown' : 'hidden'}`);
       expect(ids.has('test-backlog') === on, `[${query || 'default'}] the test client's Backlog card is ${on ? 'shown' : 'hidden'}`);
       if (on) {
+        // Before the test-client list loads (or when it fails), no Backlog
+        // card is admitted, even in test mode.
+        const early = await h.page.evaluate(({ rows }) => {
+          wlState.testClientKeys = new Set();
+          wlState.testClientKeysLoaded = false;
+          wlApplyData(rows.map(_wlV2MapRow).filter(Boolean), Date.now());
+          return [...wlState.planned, ...wlState.nowWorking, ...wlState.undated, ...wlState.unassigned,
+            ...(wlState.allActiveSubs || [])].map(issue => issue.id);
+        }, { rows: ROWS });
+        expect(!early.includes('test-backlog') && !early.includes('real-backlog'),
+          'unclassified Backlog stays off the board until the test-client list loads');
         // The choice is remembered for this browser, then cleared by ?wltest=0.
         expect(await h.page.evaluate(() => localStorage.getItem('syncview_workload_test_clients_v1')) === '1',
           '?wltest=1 is remembered in this browser');

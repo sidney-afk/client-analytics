@@ -65,8 +65,22 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
             || (Array.isArray(wlState.editorRoster) && wlState.editorRoster.length)) wlPurgeBoardData();
         if (wlState.popoverAnchor) wlClosePopover(false);
         ['wlOverviewRows', 'wlUndatedChips', 'wlUnassignedChips'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+        // Filters can name a client or editor; forget them and hide the
+        // toolbar around the board, so only the sign-in note is left.
+        wlState.client = 'all'; wlState.editor = 'all'; wlState.team = 'all';
         const bodyEl = document.getElementById('wlBody');
-        if (bodyEl) bodyEl.innerHTML = '<div class="wl-signed-out" data-wl-signed-out>Sign in as staff to see Workload.</div>';
+        if (!bodyEl) return;
+        bodyEl.innerHTML = '<div class="wl-signed-out" data-wl-signed-out>Sign in as staff to see Workload.</div>';
+        const view = bodyEl.closest('.workload-view');
+        for (let el = bodyEl; el && el !== view && el.parentElement; el = el.parentElement) {
+            for (const sib of el.parentElement.children) {
+                if (sib !== el && !sib.hidden) { sib.hidden = true; sib.setAttribute('data-wl-so-hidden', ''); }
+            }
+            if (el.parentElement === view) break;
+        }
+    }
+    function wlUnhideSignedOut() {
+        document.querySelectorAll('[data-wl-so-hidden]').forEach(el => { el.hidden = false; el.removeAttribute('data-wl-so-hidden'); });
     }
     async function initWorkloadView() {
         // Guarded: unit suites run this mount alone in a sandbox.
@@ -2241,6 +2255,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
             if (wlStaffSignedOut()) wlRenderSignedOut();
             return;
         }
+        wlUnhideSignedOut();
         // Re-rendering the calendar wipes out the spotlight markers and the
         // popover's anchor element, so close it before painting the new DOM.
         if (wlState.popoverAnchor) wlClosePopover(false);

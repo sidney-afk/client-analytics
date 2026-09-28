@@ -2215,6 +2215,9 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
         if (document.querySelector('.workload-view')) {
             wlClosePopover(false);
             renderWorkloadAll();
+            // Sign-out purges before it clears the identity, so paint again
+            // once it has: that pass draws the signed-out surface.
+            setTimeout(() => { try { if (document.querySelector('.workload-view')) renderWorkloadAll(); } catch (e) {} }, 0);
         }
     }
 
@@ -2257,12 +2260,15 @@ import { _prodBrowserProjectionMissing, _prodDeliverableLive, _prodHeaders } fro
                 }
                 wlState.testClientKeys = keys;
                 wlState.testClientKeysLoaded = true;
-                if (keys.size && wlState.issueSnapshot.length && wlStaffMayView()) {
+                if (wlState.issueSnapshot.length && wlStaffMayView()) {
                     wlApplyData(wlState.issueSnapshot, wlState.fetchedAt);
                     if (document.querySelector('.workload-view')) renderWorkloadAll({ deferWhilePopoverOpen: true });
                 }
             } catch (e) {
+                // Test cards stay hidden until this list loads (wlApplyData
+                // holds unclassified rows back), so keep trying.
                 console.warn('[workload] test client list unavailable', e && e.message);
+                setTimeout(() => { try { wlLoadTestClients(); } catch (e2) {} }, 5000);
             } finally { _wlTestClientsLoading = null; }
         })();
         return _wlTestClientsLoading;

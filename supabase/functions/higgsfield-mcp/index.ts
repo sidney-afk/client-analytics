@@ -348,8 +348,9 @@ async function hf(method: string, path: string, body?: JsonMap): Promise<{ ok: b
     headers: { Authorization: "Key " + key, "Content-Type": "application/json", Accept: "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
+  const text = await res.text();
   let data: JsonMap = {};
-  try { data = await res.json(); } catch { data = {}; }
+  try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text.slice(0, 300) }; }
   return { ok: res.ok, status: res.status, data };
 }
 
@@ -360,12 +361,37 @@ async function idemKey(member: string, model: string, input: JsonMap): Promise<s
 }
 
 
+// Higgsfield's documented estimate reply is {"credits": "1.500", "usd": "0.094"},
+// but some endpoints (video edit, for one) answer 200 in another shape. Read
+// the known variants, convert credits at the documented rate ($0.094 per 1.5
+// credits = $0.0625 each) when no dollar figure is given, and otherwise show
+// the reply so the failure is diagnosable instead of a bare "answered 200".
+const USD_PER_CREDIT = 0.0625;
+
+function pickNumber(obj: unknown, keys: string[]): number | null {
+  if (!obj || typeof obj !== "object") return null;
+  const o = obj as JsonMap;
+  for (const k of keys) {
+    const n = Number(o[k]);
+    if (o[k] !== undefined && o[k] !== null && o[k] !== "" && Number.isFinite(n)) return n;
+  }
+  for (const nest of ["data", "estimate", "result", "price"]) {
+    const inner = pickNumber(o[nest], keys);
+    if (inner !== null) return inner;
+  }
+  return null;
+}
+
 async function estimate(model: string, inputs: JsonMap): Promise<{ usd: number } | { error: string }> {
   if (isDirect(model)) return directEstimate(model, inputs);
   const res = await hf("POST", "estimate/" + model, inputs);
-  const usd = Number(res.data.usd);
-  if (!res.ok || !Number.isFinite(usd)) return { error: hfError(res) };
-  return { usd };
+  if (!res.ok) return { error: hfError(res) };
+  const usd = pickNumber(res.data, ["usd", "price_usd", "cost_usd", "amount_usd", "usd_cost"]);
+  if (usd !== null && usd > 0) return { usd };
+  const credits = pickNumber(res.data, ["credits", "credit", "cost", "price", "amount"]);
+  if (credits !== null && credits > 0) return { usd: Math.round(credits * USD_PER_CREDIT * 10000) / 10000 };
+  const raw = JSON.stringify(res.data).slice(0, 300);
+  return { error: `Higgsfield returned no price for this request (reply: ${raw || "empty"}). This model may not support price checks yet.` };
 }
 
 function hfError(res: { status: number; data: JsonMap }): string {

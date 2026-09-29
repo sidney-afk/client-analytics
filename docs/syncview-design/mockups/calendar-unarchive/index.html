@@ -1,0 +1,1229 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Archived cards: restore mock-up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap">
+<style>
+:root {
+            --tpl-prev-dark: #1f2229; --tpl-prev-dark2: #3a3f4a; --tpl-prev-light: #eef0f3; --tpl-prev-light2: #ffffff; --tpl-prev-shadow: rgba(0,0,0,0.65); --brief-look: #7c5cff; --brief-look-bg: #f4f1ff; --brief-edit: #2f7de1; --brief-edit-bg: #eef5fe; --brief-music: #0e9f8e; --brief-music-bg: #eafaf7; --brief-avoid: #e0445a; --brief-avoid-bg: #fdf0f2; --brief-about: #d98a12; --brief-about-bg: #fdf6ea; --brief-asks: #d4509a; --brief-asks-bg: #fcf0f7; --brief-know: #5b6b82; --brief-know-bg: #f1f4f8;
+            --brief-look-ink: #5a36e0; --brief-edit-ink: #1c5fb3; --brief-music-ink: #0a6f63; --brief-avoid-ink: #b3243a; --brief-about-ink: #8a5300; --brief-asks-ink: #a82c73; --brief-know-ink: #45546b;
+            color-scheme: light;
+            --white:  #ffffff; --bg: #f4f4f2; --border: #e4e4e0; --border-light: #ededea;
+            --surface-raised: #ffffff; --surface-hover: #f8f8f6; --surface-subtle: #f3f3f1;
+            --text-primary: #111110; --text-secondary: #6b6b67; --text-muted: #b4b4ae; --text-inverse: #ffffff; --toast-bg: #111110; --toast-color: #ffffff;
+            --focus-ring: #6c5ce7; --overlay: rgba(0,0,0,0.25);
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.06); --shadow-md: 0 8px 30px rgba(0,0,0,0.12); --shadow-lg: 0 12px 40px rgba(0,0,0,0.18);
+            --ig: #E1306C; --ig-light: #fdf0f5; --ig-mid: #f4c2d5; --ig-dark: #a81950;
+            --tt: #111111; --tt-light: #f5f5f5; --tt-mid: #d8d8d8; --tt-dark: #3a3a3a;
+            --yt: #e60000; --yt-light: #fff4f4; --yt-mid: #ffbebe; --yt-dark: #aa0000;
+            --up: #16a34a; --up-bg: #f0fdf4; --dn: #dc2626; --dn-bg: #fef2f2;
+            --chart-axis: #b4b4ae; --chart-grid: rgba(0,0,0,0.045); --chart-tooltip-bg: rgba(255,255,255,0.97); --chart-tooltip-title: #111110; --chart-tooltip-body: #555555; --chart-tooltip-border: rgba(0,0,0,0.08); --chart-point-border: #ffffff; --chart-negative: #b43c3c; --chart-negative-fill: rgba(180,60,60,0.65); --chart-spend: #6c5ce7;
+            --theme-toggle-bg: #ffffff; --theme-toggle-color: #6b6b67; --theme-toggle-border: #e4e4e0; --theme-toggle-active-bg: #111110; --theme-toggle-active-color: #ffffff; --theme-toggle-ring: rgba(108,92,231,0.12); --selection-bg: rgba(108,92,231,0.18); --scrollbar-thumb: #d4d4d0; --scrollbar-thumb-hover: #b4b4ae;
+            --field-bg: var(--sv-bg-f3f3f1); --field-bg-hover: var(--sv-bg-ebebe8); --field-bg-focus: var(--sv-bg-fff); --field-border-focus: var(--text-primary); --field-placeholder: var(--sv-fg-b6b6b1); --field-fade-from: var(--sv-bg-rgba-243-243-241-0); --field-fade-mid: var(--sv-bg-rgba-243-243-241-0_7);
+            --media-tub-bg: linear-gradient(155deg, var(--sv-bg-f7f7f5) 0%, var(--sv-bg-e7e7e3) 100%); --media-tub-empty-bg: var(--sv-bg-f4f4f2);
+            --cal-status-in-progress-bg: #fde047; --cal-status-in-progress-fg: #101114; --cal-status-for-smm-approval-bg: #e879f9; --cal-status-for-smm-approval-fg: #101114; --cal-status-kasper-approval-bg: #93c5fd; --cal-status-kasper-approval-fg: #101114; --cal-status-client-approval-bg: #ff6b6b; --cal-status-client-approval-fg: #101114; --cal-status-approved-bg: #4ade80; --cal-status-approved-fg: #101114; --cal-status-tweaks-needed-bg: #fb923c; --cal-status-tweaks-needed-fg: #101114; --cal-status-scheduled-bg: #60a5fa; --cal-status-scheduled-fg: #101114; --cal-status-posted-bg: #047857; --cal-status-posted-fg: #ffffff; --cal-status-archived-bg: #9ca3af; --cal-status-archived-fg: #101114; --cal-status-n-a-bg: #9ca3af; --cal-status-n-a-fg: #101114;
+            --cal-urgent-bg: #ff5a36; --cal-urgent-hover-bg: #f0442d; --cal-urgent-fg: #101114; --cal-urgent-disabled-bg: #9ca3af; --cal-urgent-sent-bg: #4ade80;
+            
+            --cal-comp-video-dot: var(--sv-slot-video-fg); --cal-comp-graphic-dot: var(--sv-slot-thumb-fg); --cal-comp-caption-dot: var(--sv-misc-f59e0b); --cal-comp-title-dot: var(--sv-misc-ef4444); --cal-comp-dot-ring: var(--sv-shadow-rgba-255-255-255-0_55);
+            --cal-notes-accent: var(--sv-bg-ea580c); --cal-notes-accent-fg: var(--sv-fg-c2410c); --cal-notes-open-bg: var(--sv-bg-fff5e6); --cal-notes-count-fg: var(--sv-fg-fff); --cal-notes-dot-bg: var(--sv-bg-ea580c); --cal-notes-dot-ring: rgba(0,0,0,0); --cal-notes-dot-glow: rgba(234,88,12,0);
+            --wl-status-fg: var(--sv-fg-fff); --wl-progress-section-bg: var(--sv-bg-fefce8); --wl-progress-border: var(--sv-border-fde047); --wl-progress-accent: var(--sv-bg-eab308); --wl-progress-accent-hover: var(--sv-bg-ca8a04); --wl-progress-label: var(--sv-fg-854d0e); --wl-progress-chip-bg: var(--sv-bg-fef9c3); --wl-progress-chip-hover: var(--sv-bg-fef08a); --wl-progress-chip-fg: var(--sv-fg-854d0e);
+            --wl-proximity-red: #e11d48; --wl-proximity-orange: #ea580c; --wl-proximity-green: #0f9f50;
+            --wl-timeline-today-bg: rgba(108,92,231,0.05); --wl-timeline-lane-alt-bg: rgba(17,17,16,0.025);
+            --wl-overdue-section-bg: var(--sv-bg-fef2f2); --wl-overdue-border: var(--sv-border-fca5a5); --wl-overdue-accent: var(--sv-bg-dc2626); --wl-overdue-accent-hover: var(--sv-bg-b91c1c); --wl-overdue-label: var(--sv-fg-991b1b); --wl-overdue-chip-bg: var(--sv-bg-fee2e2); --wl-overdue-chip-hover: var(--sv-bg-fecaca); --wl-overdue-chip-fg: var(--sv-fg-991b1b);
+            --wl-tweaks-section-bg: var(--sv-bg-fff7ed); --wl-tweaks-border: var(--sv-border-fdba74); --wl-tweaks-accent: var(--sv-bg-ea580c); --wl-tweaks-accent-hover: var(--sv-bg-c2410c); --wl-tweaks-label: var(--sv-fg-9a3412); --wl-tweaks-chip-bg: var(--sv-bg-ffedd5); --wl-tweaks-chip-hover: var(--sv-bg-fed7aa); --wl-tweaks-chip-fg: var(--sv-fg-9a3412);
+            --upload-progress-track: var(--bg); --upload-progress-fill: var(--sv-bg-111110); --upload-progress-glow: rgba(0,0,0,0);
+        }
+:root {
+            --sv-bg-000: #000;
+            --sv-bg-059669: #059669;
+            --sv-bg-064e3b: #064e3b;
+            --sv-bg-06b6d4: #06b6d4;
+            --sv-bg-0a0a1a: #0a0a1a;
+            --sv-bg-0a66c2: #0a66c2;
+            --sv-bg-0d1a3a: #0d1a3a;
+            --sv-bg-0e0d0c: #0e0d0c;
+            --sv-bg-0ea5e9: #0ea5e9;
+            --sv-bg-0f172a: #0f172a;
+            --sv-bg-a020f0: #A020F0;
+            --sv-bg-100f0e: #100f0e;
+            --sv-bg-101216: #101216;
+            --sv-bg-10b981: #10b981;
+            --sv-bg-111: #111;
+            --sv-bg-111110: #111110;
+            --sv-bg-15803d: #15803d;
+            --sv-bg-16130f: #16130f;
+            --sv-bg-166534: #166534;
+            --sv-bg-16a34a: #16a34a;
+            --sv-bg-1877f2: #1877f2;
+            --sv-bg-1a1a4a: #1a1a4a;
+            --sv-bg-1a3a2a: #1a3a2a;
+            --sv-bg-1e3a8a: #1e3a8a;
+            --sv-bg-1f2937: #1f2937;
+            --sv-bg-222: #222;
+            --sv-bg-22c55e: #22c55e;
+            --sv-bg-2563eb: #2563eb;
+            --sv-bg-262220: #262220;
+            --sv-bg-2a2a28: #2a2a28;
+            --sv-bg-322d2a: #322d2a;
+            --sv-bg-333: #333;
+            --sv-bg-3b82f6: #3b82f6;
+            --sv-bg-4a54b8: #4a54b8;
+            --sv-bg-4f46e5: #4f46e5;
+            --sv-bg-555: #555;
+            --sv-bg-5a4bd1: #5a4bd1;
+            --sv-bg-5e6ad2: #5e6ad2;
+            --sv-bg-6366f1: #6366f1;
+            --sv-bg-6c5ce7: #6c5ce7;
+            --sv-bg-6c63ff: #6c63ff;
+            --sv-bg-6d28d9: #6d28d9;
+            --sv-bg-6f8be8: #6f8be8;
+            --sv-bg-71717a: #71717a;
+            --sv-bg-7a0000: #7a0000;
+            --sv-bg-7c3aed: #7c3aed;
+            --sv-bg-8b5cf6: #8b5cf6;
+            --sv-bg-93c5fd: #93c5fd;
+            --sv-bg-9ca3af: #9ca3af;
+            --sv-bg-a00000: #a00000;
+            --sv-bg-a073e0: #a073e0;
+            --sv-bg-a78bfa: #a78bfa;
+            --sv-bg-b1b1aa: #b1b1aa;
+            --sv-bg-b91c1c: #b91c1c;
+            --sv-bg-bbf7d0: #bbf7d0;
+            --sv-bg-c2410c: #c2410c;
+            --sv-bg-c46fc6: #c46fc6;
+            --sv-bg-c56fc0: #c56fc0;
+            --sv-bg-c9006a: #c9006a;
+            --sv-bg-ca8a04: #ca8a04;
+            --sv-bg-cc0000: #cc0000;
+            --sv-bg-cc77bf: #cc77bf;
+            --sv-bg-cdb4f5: #cdb4f5;
+            --sv-bg-cdcdc8: #cdcdc8;
+            --sv-bg-cf9230: #cf9230;
+            --sv-bg-d16fa6: #d16fa6;
+            --sv-bg-d1d1d1: #d1d1d1;
+            --sv-bg-d1fae5: #d1fae5;
+            --sv-bg-d3839f: #d3839f;
+            --sv-bg-d4d4d0: #d4d4d0;
+            --sv-bg-d4d4d8: #d4d4d8;
+            --sv-bg-d6d6d0: #d6d6d0;
+            --sv-bg-d8d8d4: #d8d8d4;
+            --sv-bg-d946ef: #d946ef;
+            --sv-bg-d97706: #d97706;
+            --sv-bg-db2777: #db2777;
+            --sv-bg-db6f93: #db6f93;
+            --sv-bg-dbeafe: #dbeafe;
+            --sv-bg-dc2626: #dc2626;
+            --sv-bg-dcfce7: #dcfce7;
+            --sv-bg-ddd: #ddd;
+            --sv-bg-e0a23c: #e0a23c;
+            --sv-bg-d1f0eb: #d1f0eb;
+            --sv-bg-e0e2f8: #e0e2f8;
+            --sv-bg-e6f7f4: #e6f7f4;
+            --sv-bg-e0e7ff: #e0e7ff;
+            --sv-bg-e0f2fe: #e0f2fe;
+            --sv-bg-e4405f: #e4405f;
+            --sv-bg-e4e6fc: #e4e6fc;
+            --sv-bg-e5e5e0: #e5e5e0;
+            --sv-bg-e5e5e1: #e5e5e1;
+            --sv-bg-e60023: #e60023;
+            --sv-bg-e6e6e0: #e6e6e0;
+            --sv-bg-e7e7e3: #e7e7e3;
+            --sv-bg-e7edff: #e7edff;
+            --sv-bg-e8510a: #e8510a;
+            --sv-bg-e8e8e4: #e8e8e4;
+            --sv-bg-e9e9eb: #e9e9eb;
+            --sv-bg-ea580c: #ea580c;
+            --sv-bg-eab308: #eab308;
+            --sv-bg-ebebe8: #ebebe8;
+            --sv-bg-ec4899: #ec4899;
+            --sv-bg-ececea: #ececea;
+            --sv-bg-ececef: #ececef;
+            --sv-bg-ecedfb: #ecedfb;
+            --sv-bg-ede9fe: #ede9fe;
+            --sv-bg-ededea: #ededea;
+            --sv-bg-eef0fe: #eef0fe;
+            
+            --sv-slot-thumb-fg: #3737f2;
+            --sv-slot-thumb-bg: #e2e4ff;
+            --sv-slot-thumb-bg-hover: #cdd1ff;
+            --sv-slot-thumb-fg-soft: #5b5be8;
+            --sv-slot-thumb-border: #ccceff;
+            
+            --sv-slot-video-fg: #b21060;
+            --sv-slot-video-bg: #ffe0ef;
+            --sv-slot-video-bg-hover: #ffc9e2;
+            --sv-slot-video-fg-soft: #d62d79;
+            --sv-slot-video-border: #ffc9e2;
+            --sv-bg-ef4444: #ef4444;
+            --sv-bg-efedfd: #efedfd;
+            --sv-bg-eff3ff: #eff3ff;
+            --sv-bg-eff6ff: #eff6ff;
+            --sv-bg-f0e6ff: #f0e6ff;
+            --sv-bg-f0efea: #f0efea;
+            --sv-bg-f0f0ee: #f0f0ee;
+            --sv-bg-f0f0f0: #f0f0f0;
+            --sv-bg-f0f1f6: #f0f1f6;
+            --sv-bg-f0fdf4: #f0fdf4;
+            --sv-bg-f1f0ee: #f1f0ee;
+            --sv-bg-f1f1ef: #f1f1ef;
+            --sv-bg-f1f1f1: #f1f1f1;
+            --sv-bg-f1f1f2: #f1f1f2;
+            --sv-bg-f1f5f9: #f1f5f9;
+            --sv-bg-f3e4cb: #f3e4cb;
+            --sv-bg-f3e8ff: #f3e8ff;
+            --sv-bg-f3f0ff: #f3f0ff;
+            --sv-bg-f3f3f1: #f3f3f1;
+            --sv-bg-f3f4f6: #f3f4f6;
+            --sv-bg-f3f4fb: #f3f4fb;
+            --sv-bg-f4f4f2: #f4f4f2;
+            --sv-bg-f4f4f5: #f4f4f5;
+            --sv-bg-f59e0b: #f59e0b;
+            --sv-bg-f5d0fe: #f5d0fe;
+            --sv-bg-f5f3ff: #f5f3ff;
+            --sv-bg-f5f5f3: #f5f5f3;
+            --sv-bg-f6f6f3: #f6f6f3;
+            --sv-bg-f7f7f5: #f7f7f5;
+            --sv-bg-f7f7f7: #f7f7f7;
+            --sv-bg-f7f8fb: #f7f8fb;
+            --sv-bg-f8f8f6: #f8f8f6;
+            --sv-bg-f97316: #f97316;
+            --sv-bg-f9eef4: #f9eef4;
+            --sv-bg-faf5ff: #faf5ff;
+            --sv-bg-fafaf7: #fafaf7;
+            --sv-bg-fafaf8: #fafaf8;
+            --sv-bg-fafaf9: #fafaf9;
+            --sv-bg-fafafa: #fafafa;
+            --sv-bg-fbcfe8: #fbcfe8;
+            --sv-bg-fbdcec: #fbdcec;
+            --sv-bg-fbe7fe: #fbe7fe;
+            --sv-bg-fbfbfa: #fbfbfa;
+            --sv-bg-fce7f3: #fce7f3;
+            --sv-bg-fceef0: #fceef0;
+            --sv-bg-fcfcfb: #fcfcfb;
+            --sv-bg-fdba74: #fdba74;
+            --sv-bg-fde68a: #fde68a;
+            --sv-bg-fde8d8: #fde8d8;
+            --sv-bg-fde8f3: #fde8f3;
+            --sv-bg-fdf0f5: #fdf0f5;
+            --sv-bg-fdf6e3: #fdf6e3;
+            --sv-bg-fdf6f9: #fdf6f9;
+            --sv-bg-fe2c55: #FE2C55;
+            --sv-bg-fecaca: #fecaca;
+            --sv-bg-fed7aa: #fed7aa;
+            --sv-bg-fee2e2: #fee2e2;
+            --sv-bg-fef08a: #fef08a;
+            --sv-bg-fef2f2: #fef2f2;
+            --sv-bg-fef3c7: #fef3c7;
+            --sv-bg-fef9c3: #fef9c3;
+            --sv-bg-fefce8: #fefce8;
+            --sv-bg-ff0000: #ff0000;
+            --sv-bg-ffe4cc: #ffe4cc;
+            --sv-bg-ffedd5: #ffedd5;
+            --sv-bg-fff: #fff;
+            --sv-bg-fff5e6: #fff5e6;
+            --sv-bg-fff7ea: #fff7ea;
+            --sv-bg-fff7ed: #fff7ed;
+            --sv-bg-fff7f7: #fff7f7;
+            --sv-bg-fffaec: #fffaec;
+            --sv-bg-fffaf2: #fffaf2;
+            --sv-bg-fffbeb: #fffbeb;
+            --sv-bg-ffffff: #ffffff;
+            --sv-bg-rgba-0-0-0-0: rgba(0,0,0,0);
+            --sv-bg-rgba-0-0-0-0_04: rgba(0,0,0,0.04);
+            --sv-bg-rgba-0-0-0-0_05: rgba(0,0,0,0.05);
+            --sv-bg-rgba-0-0-0-0_07: rgba(0,0,0,0.07);
+            --sv-bg-rgba-0-0-0-0_08: rgba(0,0,0,0.08);
+            --sv-bg-rgba-0-0-0-0_15: rgba(0,0,0,0.15);
+            --sv-bg-rgba-0-0-0-0_2: rgba(0,0,0,0.2);
+            --sv-bg-rgba-0-0-0-0_25: rgba(0,0,0,0.25);
+            --sv-bg-rgba-0-0-0-0_30: rgba(0,0,0,0.30);
+            --sv-bg-rgba-0-0-0-0_32: rgba(0,0,0,0.32);
+            --sv-bg-rgba-0-0-0-0_35: rgba(0,0,0,0.35);
+            --sv-bg-rgba-0-0-0-0_4: rgba(0,0,0,0.4);
+            --sv-bg-rgba-0-0-0-0_45: rgba(0,0,0,0.45);
+            --sv-bg-rgba-0-0-0-0_5: rgba(0,0,0,0.5);
+            --sv-bg-rgba-0-0-0-0_55: rgba(0,0,0,0.55);
+            --sv-bg-rgba-0-0-0-0_62: rgba(0,0,0,0.62);
+            --sv-bg-rgba-0-0-0-0_78: rgba(0,0,0,0.78);
+            --sv-bg-rgba-0-0-0-0_82: rgba(0,0,0,0.82);
+            --sv-bg-rgba-0-0-0-0_86: rgba(0,0,0,0.86);
+            --sv-bg-rgba-0-0-0-0_88: rgba(0,0,0,0.88);
+            --sv-bg-rgba-124-45-18-0_06: rgba(124,45,18,0.06);
+            --sv-bg-rgba-124-58-237-0_12: rgba(124,58,237,0.12);
+            --sv-bg-rgba-15-15-14-0_42: rgba(15,15,14,0.42);
+            --sv-bg-rgba-15-23-42-0_55: rgba(15,23,42,0.55);
+            --sv-bg-rgba-15-23-42-0_8: rgba(15,23,42,0.8);
+            --sv-bg-rgba-162-28-230-0: rgba(162,28,230,0);
+            --sv-bg-rgba-162-28-230-0_34: rgba(162,28,230,0.34);
+            --sv-bg-rgba-17-17-16-0_035: rgba(17,17,16,0.035);
+            --sv-bg-rgba-17-17-16-0_82: rgba(17,17,16,0.82);
+            --sv-bg-rgba-192-57-43-0_1: rgba(192,57,43,0.1);
+            --sv-bg-rgba-194-65-12-0_12: rgba(194,65,12,0.12);
+            --sv-bg-rgba-194-65-12-0_16: rgba(194,65,12,0.16);
+            --sv-bg-rgba-22-101-52-0_12: rgba(22,101,52,0.12);
+            --sv-bg-rgba-22-163-74-0_12: rgba(22,163,74,0.12);
+            --sv-bg-rgba-220-38-38-0_06: rgba(220, 38, 38, 0.06);
+            --sv-bg-rgba-234-88-12-0_07: rgba(234,88,12,0.07);
+            --sv-bg-rgba-234-88-12-0_12: rgba(234,88,12,0.12);
+            --sv-bg-rgba-243-243-241-0: rgba(243,243,241,0);
+            --sv-bg-rgba-243-243-241-0_7: rgba(243,243,241,0.7);
+            --sv-bg-rgba-255-247-237-0_96: rgba(255,247,237,0.96);
+            --sv-bg-rgba-255-255-255-0_05: rgba(255,255,255,0.05);
+            --sv-bg-rgba-255-255-255-0_06: rgba(255,255,255,0.06);
+            --sv-bg-rgba-255-255-255-0_07: rgba(255,255,255,0.07);
+            --sv-bg-rgba-255-255-255-0_1: rgba(255,255,255,0.1);
+            --sv-bg-rgba-255-255-255-0_12: rgba(255,255,255,0.12);
+            --sv-bg-rgba-255-255-255-0_15: rgba(255,255,255,0.15);
+            --sv-bg-rgba-255-255-255-0_16: rgba(255,255,255,0.16);
+            --sv-bg-rgba-255-255-255-0_18: rgba(255,255,255,0.18);
+            --sv-bg-rgba-255-255-255-0_2: rgba(255,255,255,0.2);
+            --sv-bg-rgba-255-255-255-0_22: rgba(255,255,255,0.22);
+            --sv-bg-rgba-255-255-255-0_24: rgba(255,255,255,0.24);
+            --sv-bg-rgba-255-255-255-0_25: rgba(255,255,255,0.25);
+            --sv-bg-rgba-255-255-255-0_26: rgba(255,255,255,0.26);
+            --sv-bg-rgba-255-255-255-0_28: rgba(255,255,255,0.28);
+            --sv-bg-rgba-255-255-255-0_3: rgba(255,255,255,0.3);
+            --sv-bg-rgba-255-255-255-0_32: rgba(255,255,255,0.32);
+            --sv-bg-rgba-255-255-255-0_5: rgba(255,255,255,0.5);
+            --sv-bg-rgba-255-255-255-0_6: rgba(255,255,255,0.6);
+            --sv-bg-rgba-255-255-255-0_65: rgba(255,255,255,0.65);
+            --sv-bg-rgba-255-255-255-0_7: rgba(255,255,255,0.7);
+            --sv-bg-rgba-255-255-255-0_72: rgba(255,255,255,0.72);
+            --sv-bg-rgba-255-255-255-0_78: rgba(255,255,255,0.78);
+            --sv-bg-rgba-255-255-255-0_82: rgba(255,255,255,0.82);
+            --sv-bg-rgba-255-255-255-0_85: rgba(255,255,255,0.85);
+            --sv-bg-rgba-255-255-255-0_9: rgba(255,255,255,0.9);
+            --sv-bg-rgba-255-255-255-0_92: rgba(255,255,255,0.92);
+            --sv-bg-rgba-255-255-255-0_94: rgba(255,255,255,0.94);
+            --sv-bg-rgba-255-255-255-0_96: rgba(255,255,255,0.96);
+            --sv-bg-rgba-255-255-255-0_98: rgba(255,255,255,0.98);
+            --sv-bg-rgba-37-99-235-0_07: rgba(37,99,235,0.07);
+            --sv-bg-rgba-6-78-59-0_18: rgba(6,78,59,0.18);
+            --sv-bg-rgba-74-21-75-0_06: rgba(74,21,75,0.06);
+            --sv-bg-rgba-94-106-210-_08: rgba(94,106,210,.08);
+            --sv-border-06b6d4: #06b6d4;
+            --sv-border-0f172a: #0f172a;
+            --sv-border-10b981: #10b981;
+            --sv-border-111: #111;
+            --sv-border-111110: #111110;
+            --sv-border-15803d: #15803d;
+            --sv-border-16a34a: #16a34a;
+            --sv-border-2a2a28: #2a2a28;
+            --sv-border-2d6a45: #2d6a45;
+            --sv-border-333: #333;
+            --sv-border-3b82f6: #3b82f6;
+            --sv-border-4a154b: #4a154b;
+            --sv-border-4f46e5: #4f46e5;
+            --sv-border-5e6ad2: #5e6ad2;
+            --sv-border-611f69: #611f69;
+            --sv-border-611f6933: #611f6933;
+            --sv-border-6c5ce7: #6c5ce7;
+            --sv-border-6c63ff: #6c63ff;
+            --sv-border-777: #777;
+            --sv-border-7c3aed: #7c3aed;
+            --sv-border-86efac: #86efac;
+            --sv-border-888: #888;
+            --sv-border-999: #999;
+            --sv-border-9aa3f0: #9aa3f0;
+            --sv-border-9b9b9b: #9b9b9b;
+            --sv-border-aaa: #aaa;
+            --sv-border-b9b9b4: #b9b9b4;
+            --sv-border-bbb: #bbb;
+            --sv-border-bbf7d0: #bbf7d0;
+            --sv-border-bfdbfe: #bfdbfe;
+            --sv-border-c5efd5: #c5efd5;
+            --sv-border-c7c7c4: #c7c7c4;
+            --sv-border-c7c9f2: #c7c9f2;
+            --sv-border-c7ccda: #c7ccda;
+            --sv-border-c9c9c4: #c9c9c4;
+            --sv-border-cfcec7: #cfcec7;
+            --sv-border-d0d0d0: #d0d0d0;
+            --sv-border-d4d4cf: #d4d4cf;
+            --sv-border-d4d4d2: #d4d4d2;
+            --sv-border-d946ef: #d946ef;
+            --sv-border-d97706: #d97706;
+            --sv-border-d9daf8: #d9daf8;
+            --sv-border-dc2626: #dc2626;
+            --sv-border-dcdcfa: #dcdcfa;
+            --sv-border-ddd6fe: #ddd6fe;
+            --sv-border-dfdfdb: #dfdfdb;
+            --sv-border-e0a23c: #e0a23c;
+            --sv-border-e0e0de: #e0e0de;
+            --sv-border-e2e2e2: #e2e2e2;
+            --sv-border-e2e3f3: #e2e3f3;
+            --sv-border-e2e4ea: #e2e4ea;
+            --sv-border-e3e3e0: #e3e3e0;
+            --sv-border-e9d5ff: #e9d5ff;
+            --sv-border-ea580c: #ea580c;
+            --sv-border-eab308: #eab308;
+            --sv-border-eceef3: #eceef3;
+            --sv-border-ef4444: #ef4444;
+            --sv-border-f0b429: #f0b429;
+            --sv-border-f1f5f9: #f1f5f9;
+            --sv-border-f4c2d5: #f4c2d5;
+            --sv-border-f59e0b: #f59e0b;
+            --sv-border-f6d3e4: #f6d3e4;
+            --sv-border-fca5a5: #fca5a5;
+            --sv-border-fdba74: #fdba74;
+            --sv-border-fde047: #fde047;
+            --sv-border-fde68a: #fde68a;
+            --sv-border-fecaca: #fecaca;
+            --sv-border-fed7aa: #fed7aa;
+            --sv-border-ffbebe: #ffbebe;
+            --sv-border-fff: #fff;
+            --sv-border-rgba-0-0-0-0_08: rgba(0,0,0,0.08);
+            --sv-border-rgba-124-45-18-0_12: rgba(124,45,18,0.12);
+            --sv-border-rgba-124-45-18-0_18: rgba(124,45,18,0.18);
+            --sv-border-rgba-124-45-18-0_2: rgba(124,45,18,0.2);
+            --sv-border-rgba-15-23-42-0_18: rgba(15,23,42,0.18);
+            --sv-border-rgba-17-17-16-0_07: rgba(17,17,16,0.07);
+            --sv-border-rgba-17-17-16-0_10: rgba(17,17,16,0.10);
+            --sv-border-rgba-217-70-239-0_55: rgba(217,70,239,0.55);
+            --sv-border-rgba-220-38-38-0_35: rgba(220, 38, 38, 0.35);
+            --sv-border-rgba-245-158-11-0_55: rgba(245,158,11,0.55);
+            --sv-border-rgba-255-255-255-0_08: rgba(255,255,255,0.08);
+            --sv-border-rgba-255-255-255-0_1: rgba(255,255,255,0.1);
+            --sv-border-rgba-255-255-255-0_12: rgba(255,255,255,0.12);
+            --sv-border-rgba-255-255-255-0_15: rgba(255,255,255,0.15);
+            --sv-border-rgba-255-255-255-0_18: rgba(255,255,255,0.18);
+            --sv-border-rgba-255-255-255-0_2: rgba(255,255,255,0.2);
+            --sv-border-rgba-255-255-255-0_3: rgba(255,255,255,0.3);
+            --sv-border-rgba-255-255-255-0_35: rgba(255,255,255,0.35);
+            --sv-border-rgba-255-255-255-0_5: rgba(255,255,255,0.5);
+            --sv-border-rgba-255-255-255-0_55: rgba(255,255,255,0.55);
+            --sv-border-rgba-255-255-255-0_85: rgba(255,255,255,0.85);
+            --sv-border-rgba-6-182-212-0_55: rgba(6,182,212,0.55);
+            --sv-border-rgba-92-68-38-0_28: rgba(92,68,38,0.28);
+            --sv-fg-000: #000;
+            --sv-fg-000000: #000000;
+            --sv-fg-0284c7: #0284c7;
+            --sv-fg-0369a1: #0369a1;
+            --sv-fg-047857: #047857;
+            --sv-fg-059669: #059669;
+            --sv-fg-064e3b: #064e3b;
+            --sv-fg-065f46: #065f46;
+            --sv-fg-0891b2: #0891b2;
+            --sv-fg-0a66c2: #0a66c2;
+            --sv-fg-10b981: #10b981;
+            --sv-fg-111: #111;
+            --sv-fg-111110: #111110;
+            --sv-fg-14532d: #14532d;
+            --sv-fg-15803d: #15803d;
+            --sv-fg-166534: #166534;
+            --sv-fg-16a34a: #16a34a;
+            --sv-fg-1877f2: #1877f2;
+            --sv-fg-1d4ed8: #1d4ed8;
+            --sv-fg-1e40af: #1e40af;
+            --sv-fg-22c55e: #22c55e;
+            --sv-fg-2563eb: #2563eb;
+            --sv-fg-2a2a26: #2a2a26;
+            --sv-fg-2b2f38: #2b2f38;
+            --sv-fg-3730a3: #3730a3;
+            --sv-fg-3a3a37: #3a3a37;
+            --sv-fg-4338ca: #4338ca;
+            --sv-fg-475569: #475569;
+            --sv-fg-4a154b: #4a154b;
+            --sv-fg-4a54b8: #4a54b8;
+            --sv-fg-4a54c0: #4a54c0;
+            --sv-fg-4ade80: #4ade80;
+            --sv-fg-4b5563: #4b5563;
+            --sv-fg-4f46e5: #4f46e5;
+            --sv-fg-555: #555;
+            --sv-fg-5b21b6: #5b21b6;
+            --sv-fg-5b6172: #5b6172;
+            --sv-fg-5c4426: #5c4426;
+            --sv-fg-0d9488: #0d9488;
+            --sv-fg-0f766e: #0f766e;
+            --sv-fg-5e6ad2: #5e6ad2;
+            --sv-fg-611f69: #611f69;
+            --sv-fg-6b6b66: #6b6b66;
+            --sv-fg-6b6b67: #6b6b67;
+            --sv-fg-6b6b6b: #6b6b6b;
+            --sv-fg-6b7280: #6b7280;
+            --sv-fg-6c5ce7: #6c5ce7;
+            --sv-fg-6d28d9: #6d28d9;
+            --sv-fg-713f12: #713f12;
+            --sv-fg-777: #777;
+            --sv-fg-7a4e10: #7a4e10;
+            --sv-fg-7c2d12: #7c2d12;
+            --sv-fg-7c3aed: #7c3aed;
+            --sv-fg-7c79d8: #7c79d8;
+            --sv-fg-854d0e: #854d0e;
+            --sv-fg-888: #888;
+            --sv-fg-8a8780: #8a8780;
+            --sv-fg-8a93a6: #8a93a6;
+            --sv-fg-8b5cf6: #8b5cf6;
+            --sv-fg-92400e: #92400e;
+            --sv-fg-92681e: #92681e;
+            --sv-fg-991b1b: #991b1b;
+            --sv-fg-9a3412: #9a3412;
+            --sv-fg-9a6700: #9a6700;
+            --sv-fg-9d174d: #9d174d;
+            --sv-fg-a81950: #a81950;
+            --sv-fg-a8ffb0: #a8ffb0;
+            --sv-fg-aaa: #aaa;
+            --sv-fg-aab0c0: #aab0c0;
+            --sv-fg-b45309: #b45309;
+            --sv-fg-b4b4ae: #b4b4ae;
+            --sv-fg-b6b6b1: #b6b6b1;
+            --sv-fg-b91c1c: #b91c1c;
+            --sv-fg-bdbdb8: #bdbdb8;
+            --sv-fg-be2d72: #be2d72;
+            --sv-fg-c026d3: #c026d3;
+            --sv-fg-c08a2e: #c08a2e;
+            --sv-fg-c2410c: #c2410c;
+            --sv-fg-c2c2bd: #c2c2bd;
+            --sv-fg-c5c5c2: #c5c5c2;
+            --sv-fg-c8c8c3: #c8c8c3;
+            --sv-fg-ca8a04: #ca8a04;
+            --sv-fg-cdcdc8: #cdcdc8;
+            --sv-fg-cf6f9e: #cf6f9e;
+            --sv-fg-d4b0bc: #d4b0bc;
+            --sv-fg-d4d4d8: #d4d4d8;
+            --sv-fg-d6d6d3: #d6d6d3;
+            --sv-fg-d8d8d3: #d8d8d3;
+            --sv-fg-d946ef: #d946ef;
+            --sv-fg-d97706: #d97706;
+            --sv-fg-dc2626: #dc2626;
+            --sv-fg-e05: #e05;
+            --sv-fg-e4405f: #e4405f;
+            --sv-fg-e60023: #e60023;
+            --sv-fg-ea580c: #ea580c;
+            --sv-fg-ecfdf5: #ecfdf5;
+            --sv-fg-ef4444: #ef4444;
+            --sv-fg-f59e0b: #f59e0b;
+            --sv-fg-f5f5f3: #f5f5f3;
+            --sv-fg-ff0000: #ff0000;
+            --sv-fg-ffb0b0: #ffb0b0;
+            --sv-fg-fff: #fff;
+            --sv-fg-rgba-0-0-0-0_25: rgba(0,0,0,0.25);
+            --sv-fg-rgba-0-0-0-0_4: rgba(0,0,0,0.4);
+            --sv-fg-rgba-255-255-255-0_25: rgba(255,255,255,0.25);
+            --sv-fg-rgba-255-255-255-0_26: rgba(255,255,255,0.26);
+            --sv-fg-rgba-255-255-255-0_3: rgba(255,255,255,0.3);
+            --sv-fg-rgba-255-255-255-0_35: rgba(255,255,255,0.35);
+            --sv-fg-rgba-255-255-255-0_4: rgba(255,255,255,0.4);
+            --sv-fg-rgba-255-255-255-0_42: rgba(255,255,255,0.42);
+            --sv-fg-rgba-255-255-255-0_45: rgba(255,255,255,0.45);
+            --sv-fg-rgba-255-255-255-0_5: rgba(255,255,255,0.5);
+            --sv-fg-rgba-255-255-255-0_55: rgba(255,255,255,0.55);
+            --sv-fg-rgba-255-255-255-0_6: rgba(255,255,255,0.6);
+            --sv-fg-rgba-255-255-255-0_65: rgba(255,255,255,0.65);
+            --sv-fg-rgba-255-255-255-0_7: rgba(255,255,255,0.7);
+            --sv-fg-rgba-255-255-255-0_72: rgba(255,255,255,0.72);
+            --sv-fg-rgba-255-255-255-0_8: rgba(255,255,255,0.8);
+            --sv-fg-rgba-255-255-255-0_85: rgba(255,255,255,0.85);
+            --sv-fg-rgba-255-255-255-0_9: rgba(255,255,255,0.9);
+            --sv-fg-rgba-255-255-255-0_92: rgba(255,255,255,0.92);
+            --sv-fg-rgba-92-68-38-0_75: rgba(92,68,38,0.75);
+            --sv-misc-000: #000;
+            --sv-misc-06b6d4: #06b6d4;
+            --sv-misc-101216: #101216;
+            --sv-misc-10b981: #10b981;
+            --sv-misc-2ec4b6: #2EC4B6;
+            --sv-misc-5f86df: #5f86df;
+            --sv-misc-6366f1: #6366f1;
+            --sv-misc-6c5ce7: #6c5ce7;
+            --sv-misc-6f78e2: #6f78e2;
+            --sv-misc-8a6fe0: #8a6fe0;
+            --sv-misc-a063d8: #a063d8;
+            --sv-misc-b65fce: #b65fce;
+            --sv-misc-c560bc: #c560bc;
+            --sv-misc-cf64a2: #cf64a2;
+            --sv-misc-d36f93: #d36f93;
+            --sv-misc-d946ef: #d946ef;
+            --sv-misc-d97706: #d97706;
+            --sv-misc-e1306c: #E1306C;
+            --sv-misc-ececea: #ececea;
+            --sv-misc-ef4444: #ef4444;
+            --sv-misc-f3f3f1: #f3f3f1;
+            --sv-misc-f59e0b: #f59e0b;
+            --sv-misc-ff4444: #FF4444;
+            --sv-misc-rgba-0-0-0-0_35: rgba(0,0,0,0.35);
+            --sv-shadow-15803d: #15803d;
+            --sv-shadow-2563eb: #2563eb;
+            --sv-shadow-6c5ce7: #6c5ce7;
+            --sv-shadow-7c3aed: #7c3aed;
+            --sv-shadow-f1f5f9: #f1f5f9;
+            --sv-shadow-fff: #fff;
+            --sv-shadow-rgba-0-0-0-0_03: rgba(0,0,0,0.03);
+            --sv-shadow-rgba-0-0-0-0_04: rgba(0,0,0,0.04);
+            --sv-shadow-rgba-0-0-0-0_05: rgba(0,0,0,0.05);
+            --sv-shadow-rgba-0-0-0-0_06: rgba(0,0,0,0.06);
+            --sv-shadow-rgba-0-0-0-0_07: rgba(0,0,0,0.07);
+            --sv-shadow-rgba-0-0-0-0_08: rgba(0,0,0,0.08);
+            --sv-shadow-rgba-0-0-0-0_09: rgba(0,0,0,0.09);
+            --sv-shadow-rgba-0-0-0-0_1: rgba(0,0,0,0.1);
+            --sv-shadow-rgba-0-0-0-0_10: rgba(0,0,0,0.10);
+            --sv-shadow-rgba-0-0-0-0_11: rgba(0,0,0,0.11);
+            --sv-shadow-rgba-0-0-0-0_12: rgba(0,0,0,0.12);
+            --sv-shadow-rgba-0-0-0-0_13: rgba(0,0,0,0.13);
+            --sv-shadow-rgba-0-0-0-0_14: rgba(0,0,0,0.14);
+            --sv-shadow-rgba-0-0-0-0_15: rgba(0,0,0,0.15);
+            --sv-shadow-rgba-0-0-0-0_16: rgba(0,0,0,0.16);
+            --sv-shadow-rgba-0-0-0-0_18: rgba(0,0,0,0.18);
+            --sv-shadow-rgba-0-0-0-0_2: rgba(0,0,0,0.2);
+            --sv-shadow-rgba-0-0-0-0_20: rgba(0,0,0,0.20);
+            --sv-shadow-rgba-0-0-0-0_22: rgba(0,0,0,0.22);
+            --sv-shadow-rgba-0-0-0-0_24: rgba(0,0,0,0.24);
+            --sv-shadow-rgba-0-0-0-0_25: rgba(0,0,0,0.25);
+            --sv-shadow-rgba-0-0-0-0_28: rgba(0,0,0,0.28);
+            --sv-shadow-rgba-0-0-0-0_3: rgba(0,0,0,0.3);
+            --sv-shadow-rgba-0-0-0-0_30: rgba(0,0,0,0.30);
+            --sv-shadow-rgba-0-0-0-0_32: rgba(0,0,0,0.32);
+            --sv-shadow-rgba-0-0-0-0_4: rgba(0,0,0,0.4);
+            --sv-shadow-rgba-0-0-0-0_5: rgba(0,0,0,0.5);
+            --sv-shadow-rgba-0-0-0-0_55: rgba(0,0,0,0.55);
+            --sv-shadow-rgba-0-0-0-0_6: rgba(0,0,0,0.6);
+            --sv-shadow-rgba-108-92-231-0_12: rgba(108,92,231,0.12);
+            --sv-shadow-rgba-108-92-231-0_5: rgba(108,92,231,0.5);
+            --sv-shadow-rgba-124-45-18-0_22: rgba(124,45,18,0.22);
+            --sv-shadow-rgba-124-58-237-0_08: rgba(124,58,237,0.08);
+            --sv-shadow-rgba-15-23-42-0_18: rgba(15,23,42,0.18);
+            --sv-shadow-rgba-15-23-42-0_28: rgba(15,23,42,0.28);
+            --sv-shadow-rgba-162-28-230-0_38: rgba(162,28,230,0.38);
+            --sv-shadow-rgba-17-17-16-0_06: rgba(17,17,16,0.06);
+            --sv-shadow-rgba-17-17-16-0_07: rgba(17,17,16,0.07);
+            --sv-shadow-rgba-17-17-16-0_16: rgba(17,17,16,0.16);
+            --sv-shadow-rgba-22-101-52-0_10: rgba(22,101,52,0.10);
+            --sv-shadow-rgba-22-101-52-0_16: rgba(22,101,52,0.16);
+            --sv-shadow-rgba-22-101-52-0_22: rgba(22,101,52,0.22);
+            --sv-shadow-rgba-22-101-52-0_28: rgba(22,101,52,0.28);
+            --sv-shadow-rgba-22-101-52-0_3: rgba(22,101,52,0.3);
+            --sv-shadow-rgba-22-101-52-0_36: rgba(22,101,52,0.36);
+            --sv-shadow-rgba-22-163-74-0_3: rgba(22,163,74,0.3);
+            --sv-shadow-rgba-22-163-74-0_35: rgba(22,163,74,0.35);
+            --sv-shadow-rgba-255-255-255-0_5: rgba(255,255,255,0.5);
+            --sv-shadow-rgba-255-255-255-0_55: rgba(255,255,255,0.55);
+            --sv-shadow-rgba-37-99-235-0_42: rgba(37,99,235,0.42);
+            --sv-shadow-rgba-6-78-59-0_28: rgba(6,78,59,0.28);
+            --sv-shadow-rgba-92-68-38-0_10: rgba(92,68,38,0.10);
+            --sv-shadow-rgba-94-106-210-_12: rgba(94,106,210,.12);
+            --sv-shadow-rgba-94-106-210-0: rgba(94,106,210,0);
+            --sv-shadow-rgba-94-106-210-0_18: rgba(94,106,210,0.18);
+            --sv-shadow-rgba-94-106-210-0_45: rgba(94,106,210,0.45);
+            --sv-shadow-rgba-94-106-210-0_55: rgba(94,106,210,0.55);
+            --sv-shadow-rgba-94-106-210-0_6: rgba(94,106,210,0.6);
+            --sv-shadow-rgba-99-102-241-0_22: rgba(99,102,241,0.22);
+        }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text-primary); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+body.intake-mode .header { display: none !important; }
+body.intake-mode #linearFilmingPlansField { display: none !important; }
+body.onboarding-mode .header { display: none !important; }
+body.onboarding-mode #pageTop { display: none !important; }
+.brief-action-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border);
+            background: var(--white); font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);
+            cursor: pointer; transition: all 0.15s; white-space: nowrap;
+        }
+.brief-action-btn:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); }
+.brief-action-btn.primary {
+            background: var(--text-primary); color: var(--white); border-color: var(--text-primary);
+        }
+.brief-action-btn.primary:hover { background: var(--sv-bg-333); border-color: var(--sv-border-333); }
+.confirm-overlay {
+            display: none; position: fixed; inset: 0; z-index: 9999;
+            background: var(--sv-bg-rgba-0-0-0-0_35); backdrop-filter: blur(2px);
+            align-items: center; justify-content: center;
+        }
+.confirm-overlay.active { display: flex; }
+.confirm-box {
+            background: var(--white); border-radius: 14px; padding: 28px 32px 24px;
+            max-width: 380px; width: 90%; box-shadow: 0 20px 60px var(--sv-shadow-rgba-0-0-0-0_18);
+            text-align: center;
+        }
+.confirm-box-title { font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+.confirm-box-msg { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px; }
+.confirm-box-actions { display: flex; gap: 10px; justify-content: center; }
+.confirm-box-check { display: flex; align-items: center; justify-content: center; gap: 7px; margin: -8px 0 18px;
+            font-size: 0.76rem; color: var(--text-muted); cursor: pointer; }
+.confirm-box-check[hidden] { display: none; }
+.confirm-box-check input { cursor: pointer; }
+.resolve-dest-box .confirm-box-title,
+        .resolve-dest-box .confirm-box-msg { text-align: left; }
+.resolve-dest-actions .brief-action-btn { flex: 1 1 auto; justify-content: center; }
+body.prod-page { overflow: hidden; }
+body.prod-page .main { padding: 0; }
+.cal-view { position: relative; padding: 8px 16px 32px;
+            --cal-card-w: 320px; --cal-thumb-h: 240px; --cal-month-w: 146px; --cal-week-h: 224px; }
+.cal-view[data-zoom="s"] { --cal-card-w: 268px; --cal-thumb-h: 178px; --cal-month-w: 116px;  --cal-week-h: 172px; }
+.cal-view[data-zoom="l"] { --cal-card-w: 420px; --cal-thumb-h: 340px; --cal-month-w: 184px; --cal-week-h: 320px; }
+.cal-zoom { display: inline-flex; align-items: center; gap: 2px; background: var(--bg); border-radius: 99px; padding: 3px 6px; }
+.cal-zoom .cal-zoom-ico { width: 14px; height: 14px; color: var(--text-muted); margin: 0 3px; }
+.cal-zoom button { width: 26px; height: 26px; border-radius: 50%; border: 0; background: transparent; cursor: pointer; color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; }
+.cal-zoom button:hover:not(:disabled) { background: var(--white); color: var(--text-primary); }
+.cal-zoom button:disabled { opacity: 0.32; cursor: default; }
+.cal-zoom button svg { width: 13px; height: 13px; }
+body.cal-modal-open { overflow: hidden; }
+.cal-toolbar { display: flex; align-items: center; gap: 16px; padding: 12px 14px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; margin: 8px 0 16px; flex-wrap: wrap; }
+body.cal-page .main { padding-top: 12px; }
+body.cal-page .cal-view { padding-top: 0; }
+body.cal-page .cal-toolbar { margin: 0 0 8px; }
+.cal-toolbar-left, .cal-toolbar-mid, .cal-toolbar-right { display: flex; align-items: center; gap: 10px; }
+.cal-toolbar-left  { flex: 1 1 380px; min-width: 0; }
+.cal-toolbar-mid   { flex: 0 0 auto; }
+.cal-toolbar-right { flex: 0 0 auto; }
+.cal-toolbar.is-picker-shell > .cal-toolbar-left { display: none; }
+.cal-toolbar.is-picker-shell > .cal-toolbar-mid { flex: 1 1 auto; min-width: 0; flex-wrap: wrap; row-gap: 8px; }
+.cal-toolbar.is-picker-shell .cal-toolbar-mid > .cal-view-toggle { margin-right: auto; }
+.cal-tabs { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; min-width: 0; }
+.cal-tabs-scroll { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; min-width: 0; flex: 0 1 auto;
+            overflow-x: auto; overflow-y: hidden; scrollbar-width: none; scroll-behavior: smooth; }
+.cal-tabs-scroll::-webkit-scrollbar { display: none; }
+.cal-tabs-scroll > .cal-tab { flex: 0 0 auto; }
+.cal-tabs > .cal-tab-add-wrap { flex: 0 0 auto; }
+.cal-tabs-scroll.fade-left  { -webkit-mask-image: linear-gradient(to right, transparent, var(--sv-misc-000) 20px); mask-image: linear-gradient(to right, transparent, var(--sv-misc-000) 20px); }
+.cal-tabs-scroll.fade-right { -webkit-mask-image: linear-gradient(to left, transparent, var(--sv-misc-000) 20px); mask-image: linear-gradient(to left, transparent, var(--sv-misc-000) 20px); }
+.cal-tabs-scroll.fade-left.fade-right { -webkit-mask-image: linear-gradient(to right, transparent, var(--sv-misc-000) 20px, var(--sv-misc-000) calc(100% - 20px), transparent); mask-image: linear-gradient(to right, transparent, var(--sv-misc-000) 20px, var(--sv-misc-000) calc(100% - 20px), transparent); }
+.cal-view-toggle { display: inline-flex; background: var(--bg); border-radius: 99px; padding: 3px; }
+.cal-view-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border: none; background: transparent; border-radius: 99px; font-family: inherit; font-size: 0.78rem; font-weight: 700; color: var(--text-muted); cursor: pointer; }
+.cal-view-btn.active { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 4px var(--sv-shadow-rgba-0-0-0-0_06); }
+.cal-view-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; padding: 0 5px; border-radius: 99px; background: var(--sv-bg-ec4899); color: var(--sv-fg-fff); font-size: 0.64rem; font-weight: 800; line-height: 1; }
+.cal-view-btn.active .cal-view-badge { background: var(--sv-bg-db2777); }
+.cal-refresh-btn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-muted); cursor: pointer; }
+.cal-refresh-btn:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
+.cal-embed-title { display: flex; align-items: baseline; gap: 9px; }
+.cal-embed-title strong { font-size: 0.98rem; font-weight: 800; color: var(--text-primary); }
+.cal-embed-title span { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.cal-kebab-wrap { position: relative; display: inline-flex; }
+.cal-kebab { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-secondary); cursor: pointer; }
+.cal-kebab svg { width: 15px; height: 15px; display: block; }
+.cal-kebab:hover { color: var(--text-primary); border-color: var(--sv-border-aaa); }
+.cal-kebab-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 90; min-width: 188px;
+            background: var(--white); border: 1px solid var(--border); border-radius: 11px; box-shadow: 0 10px 34px var(--sv-shadow-rgba-0-0-0-0_14); padding: 5px; }
+.cal-kebab-menu[hidden] { display: none; }
+.cal-kebab-item { display: flex; align-items: center; gap: 9px; width: 100%; box-sizing: border-box; padding: 9px 11px;
+            background: transparent; border: 0; border-radius: 7px; cursor: pointer; font-family: inherit; font-size: 0.8rem;
+            font-weight: 600; color: var(--text-primary); text-align: left; }
+.cal-kebab-item:hover { background: var(--bg); }
+.cal-kebab-sep { height: 1px; margin: 5px 8px; background: var(--border); }
+.cal-kebab-item svg { width: 15px; height: 15px; color: var(--text-secondary); flex-shrink: 0; }
+.cal-kebab-import-panel { display: none; padding: 0 0 2px; }
+.cal-kebab-import-panel.is-open { display: block; }
+.cal-kebab-import-toggle .cal-kebab-label { flex: 1 1 auto; }
+.cal-kebab-import-toggle[aria-expanded="true"] .cal-kebab-chevron { transform: rotate(180deg); }
+.cal-kebab-chevron { width: 13px; height: 13px; margin-left: auto; transition: transform 0.14s ease; }
+.cal-kebab-subitem { padding-left: 33px; color: var(--text-secondary); font-size: 0.76rem; font-weight: 600; }
+.cal-kebab-subitem:hover { color: var(--text-primary); }
+.cal-kebab-subitem svg { width: 13px; height: 13px; opacity: 0.8; }
+.cal-kebab-item.cal-kebab-toggle { gap: 8px; }
+.cal-kebab-item .cal-kebab-label { flex: 1 1 auto; }
+.cal-kebab-info-wrap { position: relative; display: inline-flex; align-items: center; flex-shrink: 0; }
+.cal-kebab-info-i { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px;
+            border-radius: 50%; background: var(--sv-bg-e5e5e1); color: var(--text-secondary);
+            font-family: Georgia, 'Times New Roman', serif; font-size: 0.66rem; font-weight: 700; font-style: italic;
+            line-height: 1; cursor: help; flex-shrink: 0; user-select: none;
+            transition: background 0.12s, color 0.12s; }
+.cal-kebab-info-wrap:hover .cal-kebab-info-i { background: var(--sv-bg-2a2a28); color: var(--sv-fg-fff); }
+.cal-kebab-info-tip { position: absolute; top: calc(100% + 9px); right: -10px; z-index: 1500;
+            width: 230px; padding: 10px 12px;
+            background: var(--sv-bg-2a2a28); color: var(--sv-fg-f5f5f3);
+            font-size: 0.72rem; font-weight: 500; line-height: 1.45; letter-spacing: 0;
+            border-radius: 8px; box-shadow: 0 8px 22px var(--sv-shadow-rgba-0-0-0-0_22);
+            opacity: 0; pointer-events: none; transform: translateY(-4px);
+            transition: opacity 0.14s ease, transform 0.14s ease;
+            white-space: normal; text-align: left; font-style: normal; }
+.cal-kebab-info-tip::before { content: ''; position: absolute; bottom: 100%; right: 14px;
+            border: 6px solid transparent; border-bottom-color: var(--sv-border-2a2a28); }
+.cal-kebab-info-wrap:hover .cal-kebab-info-tip { opacity: 1; transform: translateY(0); }
+.cal-kebab-switch { position: relative; display: inline-block; width: 26px; height: 15px; border-radius: 99px;
+            background: var(--sv-bg-d4d4d0); flex-shrink: 0; transition: background 0.15s; }
+.cal-kebab-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px;
+            border-radius: 50%; background: var(--sv-bg-fff); box-shadow: 0 1px 2px var(--sv-shadow-rgba-0-0-0-0_18); transition: transform 0.15s; }
+.cal-kebab-switch.is-on { background: var(--sv-bg-10b981); }
+.cal-kebab-switch.is-on::after { transform: translateX(11px); }
+.cal-card-del > svg, .cal-tab-x > svg, .cal-import-x > svg,
+        .cal-lightbox-close > svg, .kasper-lightbox-close > svg,
+        .cal-preview-close > svg, .cal-comments-close > svg,
+        .cal-prompt-close > svg, .cr-modal-close > svg,
+        .workload-popover-close > svg, .wl-client-search-clear > svg {
+            display: block; width: 42%; height: 42%;
+            
+            max-width: 1em; max-height: 1em; }
+.cal-card-del, .cal-tab-x, .cal-import-x,
+        .cal-lightbox-close, .kasper-lightbox-close,
+        .cal-preview-close, .cal-comments-close,
+        .cal-prompt-close, .cr-modal-close,
+        .workload-popover-close, .wl-client-search-clear {
+            display: inline-flex; align-items: center; justify-content: center; }
+.cal-select-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+            border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-secondary);
+            cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s; }
+.cal-select-btn:hover { background: var(--bg); color: var(--text-primary); }
+.cal-select-btn.active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
+.cal-select-btn svg { width: 15px; height: 15px; }
+.cal-refreshing, .app-refresh-pill { position: fixed; top: 74px; left: 50%; z-index: 101;
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 6px 14px; background: var(--sv-bg-rgba-255-255-255-0_92);
+            -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+            border: 1px solid var(--sv-border-rgba-0-0-0-0_08); border-radius: 99px;
+            box-shadow: 0 4px 14px var(--sv-shadow-rgba-0-0-0-0_08);
+            font-size: 0.74rem; font-weight: 600; color: var(--text-secondary);
+            opacity: 0; transform: translate(-50%, -140%); pointer-events: none;
+            transition: opacity 0.22s ease-out, transform 0.22s ease-out; }
+.cal-refreshing:not([hidden]), .app-refresh-pill:not([hidden]) { opacity: 1; transform: translate(-50%, 0); }
+.cal-refreshing[hidden], .app-refresh-pill[hidden] { display: inline-flex; }
+.app-refresh-pill .cal-refresh-spin { width: 11px; height: 11px; border: 2px solid var(--border);
+            border-top-color: var(--text-muted); border-radius: 50%; animation: cal-spin 0.7s linear infinite; }
+.cal-refresh-spin { width: 11px; height: 11px; border: 2px solid var(--border);
+            border-top-color: var(--text-muted); border-radius: 50%; animation: cal-spin 0.7s linear infinite; }
+.cal-status { display: inline-block; align-self: flex-start; padding: 3px 10px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em; border-radius: 99px; background: var(--bg); color: var(--text-secondary); text-transform: uppercase; white-space: nowrap; }
+.cal-status-in-progress { background: var(--cal-status-in-progress-bg); color: var(--cal-status-in-progress-fg); }
+.cal-status-for-smm-approval { background: var(--cal-status-for-smm-approval-bg); color: var(--cal-status-for-smm-approval-fg); }
+.cal-status-kasper-approval { background: var(--cal-status-kasper-approval-bg); color: var(--cal-status-kasper-approval-fg); }
+.cal-status-client-approval { background: var(--cal-status-client-approval-bg); color: var(--cal-status-client-approval-fg); }
+.cal-status-approved { background: var(--cal-status-approved-bg); color: var(--cal-status-approved-fg); }
+.cal-status-tweaks-needed { background: var(--cal-status-tweaks-needed-bg); color: var(--cal-status-tweaks-needed-fg); }
+.cal-status-scheduled { background: var(--cal-status-scheduled-bg); color: var(--cal-status-scheduled-fg); }
+.cal-status-posted { background: var(--cal-status-posted-bg); color: var(--cal-status-posted-fg); }
+.cal-status-archived { background: var(--cal-status-archived-bg); color: var(--cal-status-archived-fg); text-decoration: line-through; }
+.cal-status-n-a { background: var(--cal-status-n-a-bg); color: var(--cal-status-n-a-fg); }
+.cal-status-chev { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); width: 9px; height: 9px;
+            pointer-events: none; color: inherit; opacity: 0.7; }
+.cal-month-pill-meta .cal-status { font-size: 0.54rem; padding: 2px 7px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; }
+.cal-week-card-body .cal-status { max-width: 100%; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; }
+.cal-prompt-overlay { display: none; position: fixed; inset: 0; background: var(--sv-bg-rgba-0-0-0-0_4); z-index: 330; align-items: center; justify-content: center; padding: 20px; }
+.cal-prompt-overlay.open { display: flex; }
+.cal-prompt-modal { background: var(--white); border-radius: 16px; width: 720px; max-width: 96vw; max-height: 88vh; display: flex; flex-direction: column; box-shadow: 0 24px 70px var(--sv-shadow-rgba-0-0-0-0_24); overflow: hidden; }
+.cal-prompt-head { padding: 16px 20px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-shrink: 0; }
+.cal-prompt-head-text { min-width: 0; flex: 1; }
+.cal-prompt-head-text h3 { margin: 0 0 3px; font-size: 0.98rem; font-weight: 800; color: var(--text-primary); }
+.cal-prompt-head-text p { margin: 0; font-size: 0.74rem; color: var(--text-muted); line-height: 1.45; }
+.cal-prompt-close { width: 28px; height: 28px; border-radius: 50%; border: none; background: var(--bg); font-size: 1.2rem; line-height: 1; cursor: pointer; color: var(--text-muted); flex-shrink: 0; }
+.cal-prompt-close:hover { background: var(--border); color: var(--text-primary); }
+.cal-prompt-body { flex: 1; overflow-y: auto; padding: 14px 20px; display: flex; flex-direction: column; gap: 10px; }
+.cal-prompt-textarea { width: 100%; min-height: 260px; resize: vertical; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace; font-size: 0.8rem; line-height: 1.55; color: var(--text-primary); background: var(--bg); box-sizing: border-box; outline: none; }
+.cal-prompt-textarea:focus { border-color: var(--text-primary); background: var(--white); }
+.cal-prompt-hint { font-size: 0.72rem; color: var(--text-muted); line-height: 1.45; }
+.cal-prompt-banner { display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px; border-radius: 9px; font-size: 0.78rem; font-weight: 600; line-height: 1.4; }
+.cal-prompt-banner.is-default { background: var(--sv-bg-fef9c3); border: 1px solid var(--sv-border-fde68a); color: var(--sv-fg-854d0e); }
+.cal-prompt-banner.is-custom { background: var(--sv-bg-dcfce7); border: 1px solid var(--sv-border-bbf7d0); color: var(--sv-fg-166534); }
+.cal-prompt-banner svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 1px; }
+.cal-prompt-foot { padding: 12px 20px 16px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-shrink: 0; }
+.cal-prompt-foot-left { display: flex; gap: 8px; }
+.cal-prompt-foot-right { display: flex; gap: 8px; }
+.cal-prompt-btn { font-family: inherit; font-size: 0.82rem; font-weight: 700; padding: 8px 14px; border-radius: 9px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); cursor: pointer; }
+.cal-prompt-btn:hover { background: var(--bg); }
+.cal-prompt-btn.is-primary { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
+.cal-prompt-btn.is-primary:hover { opacity: 0.9; background: var(--text-primary); }
+.cal-prompt-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.sv-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(10px); background: var(--toast-bg); color: var(--toast-color); border-radius: 12px; padding: 11px 16px; display: flex; align-items: center; gap: 14px; font-size: 0.84rem; font-weight: 600; box-shadow: 0 10px 32px var(--sv-shadow-rgba-0-0-0-0_28); z-index: 3000; opacity: 0; transition: opacity 0.18s ease, transform 0.18s ease; max-width: min(92vw, 480px); }
+.sv-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.sv-toast-msg { line-height: 1.35; }
+.sv-toast-action { background: var(--sv-bg-rgba-255-255-255-0_16); border: none; color: var(--sv-fg-fff); font-family: inherit; font-size: 0.8rem; font-weight: 800; border-radius: 8px; padding: 6px 13px; cursor: pointer; flex-shrink: 0; transition: background 0.13s; }
+.sv-toast-action:hover { background: var(--sv-bg-rgba-255-255-255-0_28); }
+body.smm-weekly-mode .header, body.smm-weekly-mode #pageTop { display: none !important; }
+body.sv-shared-client #calTabs, body.sv-shared-client #sxrTabs { display: none !important; }
+/* ---- mock-up only ---- */
+html,body{background:var(--bg)}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:var(--text-primary);margin:0;padding:32px 24px 80px}
+.mk-wrap{max-width:1120px;margin:0 auto}
+h1{font-size:1.5rem;margin:0 0 6px;letter-spacing:-0.02em}
+.mk-lede{color:var(--text-secondary);font-size:.9rem;line-height:1.55;margin:0 0 20px;max-width:820px}
+.mk-notes{background:var(--white);border:1px solid var(--border);border-radius:14px;padding:18px 22px;margin-bottom:28px}
+.mk-notes h2{font-size:.95rem;margin:0 0 8px}
+.mk-notes p,.mk-notes li{font-size:.82rem;line-height:1.55;color:var(--text-secondary)}
+.mk-notes ol{padding-left:18px;margin:6px 0}
+.mk-q{background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 14px;margin:8px 0}
+.mk-q b{color:#9a3412}
+.mk-group{font-size:1.15rem;font-weight:800;margin:36px 0 4px}
+.mk-screen{margin:18px 0 30px}
+.mk-screen h3{font-size:.92rem;margin:0 0 4px}
+.mk-cap{font-size:.78rem;color:var(--text-secondary);margin:0 0 10px;max-width:860px;line-height:1.5}
+.mk-stage{position:relative;width:1080px;height:600px;overflow:hidden;background:var(--bg);border:1px solid var(--border);border-radius:12px}
+.mk-stage .cal-prompt-overlay,.mk-stage .confirm-overlay{position:absolute;inset:0}
+.mk-stage .confirm-overlay{z-index:400;backdrop-filter:none}
+.mk-stage .cal-toolbar{position:relative;top:0}
+.mk-stage .cal-kebab-menu{z-index:50}
+.mk-new{outline:2px dashed #7c3aed;outline-offset:-2px;background:#f5f3ff}
+.mk-body{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:18px 24px}
+.mk-skel{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:12px;height:230px}
+.mk-skel i{display:block;height:120px;border-radius:8px;background:var(--surface-subtle)}
+.mk-skel b{display:block;height:10px;border-radius:5px;background:var(--border-light);margin-top:12px;width:80%}
+.mk-skel b.s{width:50%}
+.mk-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;border:1px solid var(--border);border-radius:11px;background:var(--white)}
+.mk-row-name{font-size:.86rem;font-weight:800}
+.mk-row-meta{font-size:.72rem;color:var(--text-muted);margin:2px 0 7px}
+.mk-pills{display:flex;flex-wrap:wrap;gap:6px}
+.mk-pill{font-size:.68rem;font-weight:700;padding:3px 9px;border-radius:99px}
+.mk-pill b{font-weight:800;opacity:.75;margin-right:2px}
+.mk-empty,.mk-error{text-align:center;padding:52px 20px}
+.mk-empty-ico{width:34px;height:34px;margin:0 auto 10px;color:var(--text-muted)}
+.mk-empty-ico svg{width:34px;height:34px}
+.mk-empty-t,.mk-error-t{font-size:.92rem;font-weight:800}
+.mk-empty-s,.mk-error-s{font-size:.78rem;color:var(--text-secondary);margin:4px 0 14px}
+.mk-error-t{color:var(--brief-avoid-ink)}
+.mk-confirm{max-width:440px;text-align:center}
+.mk-wi{list-style:none;padding:0;margin:0 0 16px;text-align:left;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.mk-wi li{display:flex;justify-content:space-between;gap:14px;padding:9px 12px;font-size:.78rem;border-top:1px solid var(--border-light)}
+.mk-wi li:first-child{border-top:0}
+.mk-wi-name{font-weight:700}
+.mk-wi-to{font-weight:700;text-align:right}
+.mk-wi-to.is-move{color:#166534}.mk-wi-to.is-stay{color:var(--text-secondary)}.mk-wi-to.is-left{color:#9a3412}
+.mk-annot{color:#7c3aed}
+.mk-note{font-size:.74rem;color:var(--text-secondary);margin:-6px 0 16px;line-height:1.45}
+</style></head><body><div class="mk-wrap">
+<h1>Archived cards: see and restore</h1>
+<p class="mk-lede">Static mock-up for owner review. Calendar first, then Samples. Every screen below is also saved as a picture in <code>screens/</code>.</p>
+
+<div class="mk-notes">
+<h2>For the reviewer</h2>
+<p>This page shows the whole sequence for <b>Calendar</b> and for <b>Samples</b>, using the app's own styles. Nothing here is wired to anything; names are made up. Plan: <code>docs/plans/2026-09-29-calendar-unarchive.md</code>.</p>
+<div class="mk-q"><b>Open question 1, needs the owner's answer before the build.</b> The decision says each work item goes back to the exact status it had. For an item whose status before the archive was <b>SMM approval</b> or <b>Tweaks</b>, the database announces any staff move into those two statuses to the client's channel (read from <code>migrations/2026-09-09-native-notification-outbox.sql</code>, the trigger <code>production_notification_status_intent_after</code>). So restoring such an item would send the client a second "ready for SMM approval" or "needs tweaks" message. The build instruction says to stop and report if a restore sends a client notification, so I am asking now instead. Options: (a) accept the message; (b) put those items back but silence the message, which needs a change to <code>production-write</code> and an owner deploy; (c) leave those two kinds of item in Backlog and say "left in Backlog so the client is not told again" in the dialog. My recommendation is (c). Every other status (To do, In progress, Client approval, Done) is not announced by that trigger. In the 2026-09-28 park run, 14 of 46 parked items came from SMM approval.</div>
+<ol>
+<li>Wording of the work item lines follows the decision: "back to SMM approval", "to To do", "stays Done", "left alone, it moved since".</li>
+<li>Samples call the second item a Thumbnail and have no dates, so the Samples screens drop the date line.</li>
+<li>Assumption A1: an item that is in Backlog with no readable record of where it came from is left alone, with the words "left alone, no record of where it was". The decision did not cover this case.</li>
+<li>Dashed purple outline on the menu item marks the new item for the review only. It will not ship.</li>
+</ol></div>
+<div class="mk-group">Calendar</div><section class="mk-screen" id="cal-1-menu"><h3>1. The More menu</h3><p class="mk-cap">New item <b>Archived cards</b> at the bottom of the More menu, after Import, under its own divider. Shown only to admin and SMM seats. Hidden for creative seats and for every client link (the outlined item is only marked here for the review).</p><div class="mk-stage" data-shot="cal-1-menu"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Content calendar</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button><button type="button" class="cal-view-btn">Month</button><button type="button" class="cal-view-btn">Week</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu"><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Caption prompt</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Platform</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Client credentials</span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-switch"></span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">YouTube title review</span><span class="cal-kebab-switch"></span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item cal-kebab-import-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Import</span><svg class="cal-kebab-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived cards</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div></div></section>
+<section class="mk-screen" id="cal-2-list"><h3>2. The archived list</h3><p class="mk-cap">Newest first, last 30 days. Each row says who archived it and when, and shows the card's current statuses. One <b>Restore</b> per row. <b>Show older</b> goes back to 60, then 90 days.</p><div class="mk-stage" data-shot="cal-2-list"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Content calendar</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button><button type="button" class="cal-view-btn">Month</button><button type="button" class="cal-view-btn">Week</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu" hidden><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Caption prompt</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Platform</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Client credentials</span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-switch"></span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">YouTube title review</span><span class="cal-kebab-switch"></span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item cal-kebab-import-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Import</span><svg class="cal-kebab-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived cards</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div><div class="cal-prompt-overlay open"><div class="cal-prompt-modal" role="dialog" aria-modal="true">
+    <div class="cal-prompt-head"><div class="cal-prompt-head-text"><h3>Archived cards</h3><p>Restore puts a card back exactly as it was. Only admins and SMMs see this.</p></div><button class="cal-prompt-close" type="button" aria-label="Close">&times;</button></div>
+    <div class="cal-prompt-body"><div class="mk-row"><div class="mk-row-main"><div class="mk-row-name">Spring launch teaser</div>
+      <div class="mk-row-meta">Scheduled Oct 3 · Archived 2 days ago by an SMM</div>
+      <div class="mk-pills"><span class="mk-pill cal-status-for-smm-approval"><b>Video</b> For SMM Approval</span><span class="mk-pill cal-status-approved"><b>Graphic</b> Approved</span><span class="mk-pill cal-status-approved"><b>Caption</b> Approved</span></div></div>
+      <button class="cal-prompt-btn is-primary" type="button">Restore</button></div><div class="mk-row"><div class="mk-row-main"><div class="mk-row-name">Behind the scenes reel</div>
+      <div class="mk-row-meta">Scheduled Oct 8 · Archived 4 days ago by an SMM</div>
+      <div class="mk-pills"><span class="mk-pill cal-status-in-progress"><b>Video</b> In Progress</span><span class="mk-pill cal-status-in-progress"><b>Graphic</b> In Progress</span><span class="mk-pill cal-status-in-progress"><b>Caption</b> In Progress</span></div></div>
+      <button class="cal-prompt-btn is-primary" type="button">Restore</button></div><div class="mk-row"><div class="mk-row-main"><div class="mk-row-name">Customer story, part 2</div>
+      <div class="mk-row-meta">Scheduled Sep 21 (date has passed) · Archived 9 days ago by an admin</div>
+      <div class="mk-pills"><span class="mk-pill cal-status-approved"><b>Video</b> Approved</span><span class="mk-pill cal-status-approved"><b>Graphic</b> Approved</span><span class="mk-pill cal-status-approved"><b>Caption</b> Approved</span></div></div>
+      <button class="cal-prompt-btn is-primary" type="button">Restore</button></div><div class="mk-row"><div class="mk-row-main"><div class="mk-row-name">Weekly tips carousel</div>
+      <div class="mk-row-meta">Scheduled Oct 12 · Archived 21 days ago by an SMM</div>
+      <div class="mk-pills"><span class="mk-pill cal-status-client-approval"><b>Video</b> Client Approval</span><span class="mk-pill cal-status-client-approval"><b>Graphic</b> Client Approval</span><span class="mk-pill cal-status-approved"><b>Caption</b> Approved</span></div></div>
+      <button class="cal-prompt-btn is-primary" type="button">Restore</button></div></div>
+    <div class="cal-prompt-foot"><div class="cal-prompt-foot-left"><span class="cal-prompt-hint">Showing the last 30 days, newest first.</span></div><div class="cal-prompt-foot-right"><button class="cal-prompt-btn" type="button">Show older</button></div></div></div></div></div></section>
+<section class="mk-screen" id="cal-3-empty"><h3>3. Empty state</h3><p class="mk-cap">When nothing was archived in the window.</p><div class="mk-stage" data-shot="cal-3-empty"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Content calendar</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button><button type="button" class="cal-view-btn">Month</button><button type="button" class="cal-view-btn">Week</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu" hidden><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Caption prompt</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Platform</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Client credentials</span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-switch"></span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">YouTube title review</span><span class="cal-kebab-switch"></span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item cal-kebab-import-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Import</span><svg class="cal-kebab-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived cards</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div><div class="cal-prompt-overlay open"><div class="cal-prompt-modal" role="dialog" aria-modal="true">
+    <div class="cal-prompt-head"><div class="cal-prompt-head-text"><h3>Archived cards</h3><p>Restore puts a card back exactly as it was. Only admins and SMMs see this.</p></div><button class="cal-prompt-close" type="button" aria-label="Close">&times;</button></div>
+    <div class="cal-prompt-body"><div class="mk-empty"><div class="mk-empty-ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg></div><div class="mk-empty-t">Nothing archived in the last 30 days.</div><div class="mk-empty-s">Older cards are still kept. Use Show older to look further back, up to 90 days.</div></div></div>
+    <div class="cal-prompt-foot"><div class="cal-prompt-foot-left"><span class="cal-prompt-hint">Showing the last 30 days.</span></div><div class="cal-prompt-foot-right"><button class="cal-prompt-btn" type="button">Show older</button></div></div></div></div></div></section>
+<section class="mk-screen" id="cal-4-error"><h3>4. Error state</h3><p class="mk-cap">When the list cannot be read. Nothing has been changed, and there is a retry.</p><div class="mk-stage" data-shot="cal-4-error"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Content calendar</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button><button type="button" class="cal-view-btn">Month</button><button type="button" class="cal-view-btn">Week</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu" hidden><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Caption prompt</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Platform</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Client credentials</span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-switch"></span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">YouTube title review</span><span class="cal-kebab-switch"></span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item cal-kebab-import-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Import</span><svg class="cal-kebab-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived cards</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div><div class="cal-prompt-overlay open"><div class="cal-prompt-modal" role="dialog" aria-modal="true">
+    <div class="cal-prompt-head"><div class="cal-prompt-head-text"><h3>Archived cards</h3><p>Restore puts a card back exactly as it was. Only admins and SMMs see this.</p></div><button class="cal-prompt-close" type="button" aria-label="Close">&times;</button></div>
+    <div class="cal-prompt-body"><div class="mk-error"><div class="mk-error-t">Couldn't load archived cards.</div><div class="mk-error-s">Nothing was changed. Check your connection and try again.</div><button class="cal-prompt-btn" type="button">Try again</button></div></div>
+    <div class="cal-prompt-foot"><div class="cal-prompt-foot-left"></div><div class="cal-prompt-foot-right"></div></div></div></div></div></section>
+<section class="mk-screen" id="cal-5-confirm"><h3>5. Confirm, typical</h3><p class="mk-cap">Lists every work item and where it will go. No checkboxes. Video goes back to the exact status it had before the archive; a finished graphic item stays finished.</p><div class="mk-stage" data-shot="cal-5-confirm"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Content calendar</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button><button type="button" class="cal-view-btn">Month</button><button type="button" class="cal-view-btn">Week</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu" hidden><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Caption prompt</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Platform</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Client credentials</span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-switch"></span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">YouTube title review</span><span class="cal-kebab-switch"></span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item cal-kebab-import-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Import</span><svg class="cal-kebab-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived cards</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div><div class="confirm-overlay active"><div class="confirm-box mk-confirm">
+    <div class="confirm-box-title">Restore “Spring launch teaser”?</div>
+    <div class="confirm-box-msg">It goes back to the Calendar, scheduled Oct 3, exactly as it was, with its caption, links, comments and approvals untouched. Its overall status will be For SMM Approval.</div>
+    <ul class="mk-wi"><li><span class="mk-wi-name">Video work item</span><span class="mk-wi-to is-move">back to SMM approval</span></li><li><span class="mk-wi-name">Graphic work item</span><span class="mk-wi-to is-stay">stays Done</span></li></ul>
+    <div class="mk-note"><i class="mk-annot">Reviewer note, not part of the dialog: see open question 1 at the top of this page. Moving a work item back to SMM approval is a status the system announces to the client.</i></div>
+    <div class="confirm-box-actions"><button class="brief-action-btn" type="button">Cancel</button><button class="brief-action-btn primary" type="button">Restore</button></div>
+  </div></div></div></section>
+<section class="mk-screen" id="cal-6-confirm-mixed"><h3>6. Confirm, mixed</h3><p class="mk-cap">The other outcomes: an item that was already in Backlog before the archive goes to To do, and an item that has moved since the archive is left alone. A past date is flagged.</p><div class="mk-stage" data-shot="cal-6-confirm-mixed"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Content calendar</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button><button type="button" class="cal-view-btn">Month</button><button type="button" class="cal-view-btn">Week</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu" hidden><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Caption prompt</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Platform</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Client credentials</span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-switch"></span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">YouTube title review</span><span class="cal-kebab-switch"></span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item cal-kebab-import-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Import</span><svg class="cal-kebab-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived cards</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div><div class="confirm-overlay active"><div class="confirm-box mk-confirm">
+    <div class="confirm-box-title">Restore “Customer story, part 2”?</div>
+    <div class="confirm-box-msg">It goes back to the Calendar exactly as it was. Its overall status will be Approved.</div>
+    <ul class="mk-wi"><li><span class="mk-wi-name">Video work item</span><span class="mk-wi-to is-move">to To do</span></li><li><span class="mk-wi-name">Graphic work item</span><span class="mk-wi-to is-left">left alone, it moved since</span></li></ul>
+    <div class="mk-note">Its scheduled date, Sep 21, has passed. It keeps that date.</div>
+    <div class="confirm-box-actions"><button class="brief-action-btn" type="button">Cancel</button><button class="brief-action-btn primary" type="button">Restore</button></div>
+  </div></div></div></section>
+<section class="mk-screen" id="cal-7-success"><h3>7. Success message</h3><p class="mk-cap">Shown after the card is back. One line per work item, so nobody has to guess what moved.</p><div class="mk-stage" data-shot="cal-7-success"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Content calendar</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button><button type="button" class="cal-view-btn">Month</button><button type="button" class="cal-view-btn">Week</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu" hidden><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Caption prompt</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Platform</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Client credentials</span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-switch"></span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">YouTube title review</span><span class="cal-kebab-switch"></span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item cal-kebab-import-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Import</span><svg class="cal-kebab-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived cards</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div><div class="confirm-overlay active"><div class="confirm-box mk-confirm">
+    <div class="confirm-box-title">Restored</div>
+    <div class="confirm-box-msg">“Spring launch teaser” is back in the Calendar.</div>
+    <ul class="mk-wi"><li><span class="mk-wi-name">Video work item</span><span class="mk-wi-to is-move">moved back to SMM approval</span></li><li><span class="mk-wi-name">Graphic work item</span><span class="mk-wi-to is-stay">stays Done</span></li></ul>
+    
+    <div class="confirm-box-actions"><button class="brief-action-btn primary" type="button">OK</button></div>
+  </div></div></div></section>
+<section class="mk-screen" id="cal-8-success-conflict"><h3>8. Success, one move kept another person's change</h3><p class="mk-cap">If someone changed a work item first, their change wins and the message says so. The card stays restored.</p><div class="mk-stage" data-shot="cal-8-success-conflict"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Content calendar</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button><button type="button" class="cal-view-btn">Month</button><button type="button" class="cal-view-btn">Week</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu" hidden><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Caption prompt</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Platform</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Client credentials</span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-switch"></span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">YouTube title review</span><span class="cal-kebab-switch"></span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item cal-kebab-import-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Import</span><svg class="cal-kebab-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived cards</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div><div class="confirm-overlay active"><div class="confirm-box mk-confirm">
+    <div class="confirm-box-title">Restored, one work item left as it is</div>
+    <div class="confirm-box-msg">“Spring launch teaser” is back in the Calendar.</div>
+    <ul class="mk-wi"><li><span class="mk-wi-name">Video work item</span><span class="mk-wi-to is-left">not moved: someone else changed it first, their change was kept</span></li><li><span class="mk-wi-name">Graphic work item</span><span class="mk-wi-to is-stay">stays Done</span></li></ul>
+    
+    <div class="confirm-box-actions"><button class="brief-action-btn primary" type="button">OK</button></div>
+  </div></div></div></section>
+<section class="mk-screen" id="cal-9-blocked"><h3>9. Blocked: a live card already uses this work item</h3><p class="mk-cap">Two cards must never drive one work item, so the restore is refused. The message names the live card. Nothing is written.</p><div class="mk-stage" data-shot="cal-9-blocked"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Content calendar</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button><button type="button" class="cal-view-btn">Month</button><button type="button" class="cal-view-btn">Week</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu" hidden><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Caption prompt</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Platform</span></button>
+       <button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Client credentials</span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-switch"></span></button>
+       <button class="cal-kebab-item cal-kebab-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">YouTube title review</span><span class="cal-kebab-switch"></span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item cal-kebab-import-toggle" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3"/></svg><span class="cal-kebab-label">Import</span><svg class="cal-kebab-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived cards</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div><div class="cal-prompt-overlay open"><div class="cal-prompt-modal" role="dialog" aria-modal="true">
+    <div class="cal-prompt-head"><div class="cal-prompt-head-text"><h3>Archived cards</h3><p>Restore puts a card back exactly as it was. Only admins and SMMs see this.</p></div><button class="cal-prompt-close" type="button" aria-label="Close">&times;</button></div>
+    <div class="cal-prompt-body"><div class="mk-row"><div class="mk-row-main"><div class="mk-row-name">Spring launch teaser</div>
+      <div class="mk-row-meta">Scheduled Oct 3 · Archived 2 days ago by an SMM</div>
+      <div class="mk-pills"><span class="mk-pill cal-status-for-smm-approval"><b>Video</b> For SMM Approval</span><span class="mk-pill cal-status-approved"><b>Graphic</b> Approved</span><span class="mk-pill cal-status-approved"><b>Caption</b> Approved</span></div></div>
+      <button class="cal-prompt-btn is-primary" type="button">Restore</button></div><div class="mk-row"><div class="mk-row-main"><div class="mk-row-name">Behind the scenes reel</div>
+      <div class="mk-row-meta">Scheduled Oct 8 · Archived 4 days ago by an SMM</div>
+      <div class="mk-pills"><span class="mk-pill cal-status-in-progress"><b>Video</b> In Progress</span><span class="mk-pill cal-status-in-progress"><b>Graphic</b> In Progress</span><span class="mk-pill cal-status-in-progress"><b>Caption</b> In Progress</span></div></div>
+      <button class="cal-prompt-btn is-primary" type="button">Restore</button></div><div class="mk-row"><div class="mk-row-main"><div class="mk-row-name">Customer story, part 2</div>
+      <div class="mk-row-meta">Scheduled Sep 21 (date has passed) · Archived 9 days ago by an admin</div>
+      <div class="mk-pills"><span class="mk-pill cal-status-approved"><b>Video</b> Approved</span><span class="mk-pill cal-status-approved"><b>Graphic</b> Approved</span><span class="mk-pill cal-status-approved"><b>Caption</b> Approved</span></div></div>
+      <button class="cal-prompt-btn is-primary" type="button">Restore</button></div><div class="mk-row"><div class="mk-row-main"><div class="mk-row-name">Weekly tips carousel</div>
+      <div class="mk-row-meta">Scheduled Oct 12 · Archived 21 days ago by an SMM</div>
+      <div class="mk-pills"><span class="mk-pill cal-status-client-approval"><b>Video</b> Client Approval</span><span class="mk-pill cal-status-client-approval"><b>Graphic</b> Client Approval</span><span class="mk-pill cal-status-approved"><b>Caption</b> Approved</span></div></div>
+      <button class="cal-prompt-btn is-primary" type="button">Restore</button></div></div>
+    <div class="cal-prompt-foot"><div class="cal-prompt-foot-left"><span class="cal-prompt-hint">Showing the last 30 days, newest first.</span></div><div class="cal-prompt-foot-right"><button class="cal-prompt-btn" type="button">Show older</button></div></div></div></div><div class="confirm-overlay active"><div class="confirm-box mk-confirm">
+    <div class="confirm-box-title">Can't restore this card yet</div>
+    <div class="confirm-box-msg">A live card, “Spring launch teaser v2”, already uses the video work item of “Spring launch teaser”. Unlink it there first, then restore this one.</div>
+    
+    
+    <div class="confirm-box-actions"><button class="brief-action-btn primary" type="button">OK</button></div>
+  </div></div></div></section>
+<div class="mk-group">Samples</div><section class="mk-screen" id="sxr-1-menu"><h3>1. The More menu</h3><p class="mk-cap">New item <b>Archived samples</b> at the bottom of the More menu, under Share with client. Shown only to admin and SMM seats. Hidden for creative seats and for every client link (the outlined item is only marked here for the review).</p><div class="mk-stage" data-shot="sxr-1-menu"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Sample reviews</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu"><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived samples</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div></div></section>
+<section class="mk-screen" id="sxr-2-list"><h3>2. The archived list</h3><p class="mk-cap">Newest first, last 30 days. Each row says who archived it and when, and shows the sample's current statuses. One <b>Restore</b> per row. <b>Show older</b> goes back to 60, then 90 days.</p><div class="mk-stage" data-shot="sxr-2-list"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Sample reviews</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu" hidden><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived samples</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div><div class="cal-prompt-overlay open"><div class="cal-prompt-modal" role="dialog" aria-modal="true">
+    <div class="cal-prompt-head"><div class="cal-prompt-head-text"><h3>Archived samples</h3><p>Restore puts a sample back exactly as it was. Only admins and SMMs see this.</p></div><button class="cal-prompt-close" type="button" aria-label="Close">&times;</button></div>
+    <div class="cal-prompt-body"><div class="mk-row"><div class="mk-row-main"><div class="mk-row-name">Sample reel A</div>
+      <div class="mk-row-meta">Archived 3 days ago by an SMM</div>
+      <div class="mk-pills"><span class="mk-pill cal-status-for-smm-approval"><b>Video</b> For SMM Approval</span><span class="mk-pill cal-status-approved"><b>Thumbnail</b> Approved</span></div></div>
+      <button class="cal-prompt-btn is-primary" type="button">Restore</button></div><div class="mk-row"><div class="mk-row-main"><div class="mk-row-name">Sample reel B</div>
+      <div class="mk-row-meta">Archived 6 days ago by an SMM</div>
+      <div class="mk-pills"><span class="mk-pill cal-status-in-progress"><b>Video</b> In Progress</span><span class="mk-pill cal-status-in-progress"><b>Thumbnail</b> In Progress</span></div></div>
+      <button class="cal-prompt-btn is-primary" type="button">Restore</button></div><div class="mk-row"><div class="mk-row-main"><div class="mk-row-name">Sample reel C</div>
+      <div class="mk-row-meta">Archived 12 days ago by an admin</div>
+      <div class="mk-pills"><span class="mk-pill cal-status-approved"><b>Video</b> Approved</span><span class="mk-pill cal-status-approved"><b>Thumbnail</b> Approved</span></div></div>
+      <button class="cal-prompt-btn is-primary" type="button">Restore</button></div><div class="mk-row"><div class="mk-row-main"><div class="mk-row-name">Sample reel D</div>
+      <div class="mk-row-meta">Archived 27 days ago by an SMM</div>
+      <div class="mk-pills"><span class="mk-pill cal-status-client-approval"><b>Video</b> Client Approval</span><span class="mk-pill cal-status-tweaks-needed"><b>Thumbnail</b> Tweaks Needed</span></div></div>
+      <button class="cal-prompt-btn is-primary" type="button">Restore</button></div></div>
+    <div class="cal-prompt-foot"><div class="cal-prompt-foot-left"><span class="cal-prompt-hint">Showing the last 30 days, newest first.</span></div><div class="cal-prompt-foot-right"><button class="cal-prompt-btn" type="button">Show older</button></div></div></div></div></div></section>
+<section class="mk-screen" id="sxr-3-empty"><h3>3. Empty state</h3><p class="mk-cap">When nothing was archived in the window.</p><div class="mk-stage" data-shot="sxr-3-empty"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Sample reviews</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu" hidden><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived samples</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div><div class="cal-prompt-overlay open"><div class="cal-prompt-modal" role="dialog" aria-modal="true">
+    <div class="cal-prompt-head"><div class="cal-prompt-head-text"><h3>Archived samples</h3><p>Restore puts a sample back exactly as it was. Only admins and SMMs see this.</p></div><button class="cal-prompt-close" type="button" aria-label="Close">&times;</button></div>
+    <div class="cal-prompt-body"><div class="mk-empty"><div class="mk-empty-ico"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg></div><div class="mk-empty-t">Nothing archived in the last 30 days.</div><div class="mk-empty-s">Older samples are still kept. Use Show older to look further back, up to 90 days.</div></div></div>
+    <div class="cal-prompt-foot"><div class="cal-prompt-foot-left"><span class="cal-prompt-hint">Showing the last 30 days.</span></div><div class="cal-prompt-foot-right"><button class="cal-prompt-btn" type="button">Show older</button></div></div></div></div></div></section>
+<section class="mk-screen" id="sxr-4-error"><h3>4. Error state</h3><p class="mk-cap">When the list cannot be read. Nothing has been changed, and there is a retry.</p><div class="mk-stage" data-shot="sxr-4-error"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Sample reviews</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu" hidden><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived samples</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div><div class="cal-prompt-overlay open"><div class="cal-prompt-modal" role="dialog" aria-modal="true">
+    <div class="cal-prompt-head"><div class="cal-prompt-head-text"><h3>Archived samples</h3><p>Restore puts a sample back exactly as it was. Only admins and SMMs see this.</p></div><button class="cal-prompt-close" type="button" aria-label="Close">&times;</button></div>
+    <div class="cal-prompt-body"><div class="mk-error"><div class="mk-error-t">Couldn't load archived samples.</div><div class="mk-error-s">Nothing was changed. Check your connection and try again.</div><button class="cal-prompt-btn" type="button">Try again</button></div></div>
+    <div class="cal-prompt-foot"><div class="cal-prompt-foot-left"></div><div class="cal-prompt-foot-right"></div></div></div></div></div></section>
+<section class="mk-screen" id="sxr-5-confirm"><h3>5. Confirm, typical</h3><p class="mk-cap">Lists every work item and where it will go. No checkboxes. Video goes back to the exact status it had before the archive; a finished thumbnail item stays finished.</p><div class="mk-stage" data-shot="sxr-5-confirm"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Sample reviews</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu" hidden><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived samples</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div><div class="confirm-overlay active"><div class="confirm-box mk-confirm">
+    <div class="confirm-box-title">Restore “Sample reel A”?</div>
+    <div class="confirm-box-msg">It goes back to Sample reviews exactly as it was, with its caption, links, comments and approvals untouched. Its overall status will be For SMM Approval.</div>
+    <ul class="mk-wi"><li><span class="mk-wi-name">Video work item</span><span class="mk-wi-to is-move">back to SMM approval</span></li><li><span class="mk-wi-name">Thumbnail work item</span><span class="mk-wi-to is-stay">stays Done</span></li></ul>
+    <div class="mk-note"><i class="mk-annot">Reviewer note, not part of the dialog: see open question 1 at the top of this page. Moving a work item back to SMM approval is a status the system announces to the client.</i></div>
+    <div class="confirm-box-actions"><button class="brief-action-btn" type="button">Cancel</button><button class="brief-action-btn primary" type="button">Restore</button></div>
+  </div></div></div></section>
+<section class="mk-screen" id="sxr-6-confirm-mixed"><h3>6. Confirm, mixed</h3><p class="mk-cap">The other outcomes: an item that was already in Backlog before the archive goes to To do, and an item that has moved since the archive is left alone.</p><div class="mk-stage" data-shot="sxr-6-confirm-mixed"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Sample reviews</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu" hidden><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived samples</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div><div class="confirm-overlay active"><div class="confirm-box mk-confirm">
+    <div class="confirm-box-title">Restore “Sample reel C”?</div>
+    <div class="confirm-box-msg">It goes back to Sample reviews exactly as it was. Its overall status will be Approved.</div>
+    <ul class="mk-wi"><li><span class="mk-wi-name">Video work item</span><span class="mk-wi-to is-move">to To do</span></li><li><span class="mk-wi-name">Thumbnail work item</span><span class="mk-wi-to is-left">left alone, it moved since</span></li></ul>
+    
+    <div class="confirm-box-actions"><button class="brief-action-btn" type="button">Cancel</button><button class="brief-action-btn primary" type="button">Restore</button></div>
+  </div></div></div></section>
+<section class="mk-screen" id="sxr-7-success"><h3>7. Success message</h3><p class="mk-cap">Shown after the sample is back. One line per work item, so nobody has to guess what moved.</p><div class="mk-stage" data-shot="sxr-7-success"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Sample reviews</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu" hidden><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived samples</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div><div class="confirm-overlay active"><div class="confirm-box mk-confirm">
+    <div class="confirm-box-title">Restored</div>
+    <div class="confirm-box-msg">“Sample reel A” is back in Sample reviews.</div>
+    <ul class="mk-wi"><li><span class="mk-wi-name">Video work item</span><span class="mk-wi-to is-move">moved back to SMM approval</span></li><li><span class="mk-wi-name">Thumbnail work item</span><span class="mk-wi-to is-stay">stays Done</span></li></ul>
+    
+    <div class="confirm-box-actions"><button class="brief-action-btn primary" type="button">OK</button></div>
+  </div></div></div></section>
+<section class="mk-screen" id="sxr-8-success-conflict"><h3>8. Success, one move kept another person's change</h3><p class="mk-cap">If someone changed a work item first, their change wins and the message says so. The sample stays restored.</p><div class="mk-stage" data-shot="sxr-8-success-conflict"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Sample reviews</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu" hidden><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived samples</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div><div class="confirm-overlay active"><div class="confirm-box mk-confirm">
+    <div class="confirm-box-title">Restored, one work item left as it is</div>
+    <div class="confirm-box-msg">“Sample reel A” is back in Sample reviews.</div>
+    <ul class="mk-wi"><li><span class="mk-wi-name">Video work item</span><span class="mk-wi-to is-left">not moved: someone else changed it first, their change was kept</span></li><li><span class="mk-wi-name">Thumbnail work item</span><span class="mk-wi-to is-stay">stays Done</span></li></ul>
+    
+    <div class="confirm-box-actions"><button class="brief-action-btn primary" type="button">OK</button></div>
+  </div></div></div></section>
+<section class="mk-screen" id="sxr-9-blocked"><h3>9. Blocked: a live sample already uses this work item</h3><p class="mk-cap">Two samples must never drive one work item, so the restore is refused. The message names the live sample. Nothing is written.</p><div class="mk-stage" data-shot="sxr-9-blocked"><div class="cal-toolbar">
+    <div class="cal-toolbar-left"><div class="cal-embed-title"><strong>Test client</strong><span>Sample reviews</span></div></div>
+    <div class="cal-toolbar-mid"><div class="cal-view-toggle"><button type="button" class="cal-view-btn">Review</button><button type="button" class="cal-view-btn active">Sheet</button></div></div>
+    <div class="cal-toolbar-right"><div class="cal-kebab-wrap"><button class="cal-kebab" type="button" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="8" cy="13" r="1.4"/></svg></button>
+      <div class="cal-kebab-menu" hidden><button class="cal-kebab-item" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M5 7.2L3.6 8.6a2.4 2.4 0 0 0 3.4 3.4L8.4 10.6M11 8.8l1.4-1.4A2.4 2.4 0 0 0 9 4L7.6 5.4"/></svg><span class="cal-kebab-label">Share with client</span></button>
+       <div class="cal-kebab-sep"></div>
+       <button class="cal-kebab-item mk-new" type="button"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.6" width="12.4" height="3.4" rx="1"/><path d="M3 6v6.2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6M6.4 9h3.2"/></svg><span class="cal-kebab-label">Archived samples</span></button></div></div></div>
+  </div><div class="mk-body"><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div><div class="mk-skel"><i></i><b></b><b class="s"></b></div></div><div class="cal-prompt-overlay open"><div class="cal-prompt-modal" role="dialog" aria-modal="true">
+    <div class="cal-prompt-head"><div class="cal-prompt-head-text"><h3>Archived samples</h3><p>Restore puts a sample back exactly as it was. Only admins and SMMs see this.</p></div><button class="cal-prompt-close" type="button" aria-label="Close">&times;</button></div>
+    <div class="cal-prompt-body"><div class="mk-row"><div class="mk-row-main"><div class="mk-row-name">Sample reel A</div>
+      <div class="mk-row-meta">Archived 3 days ago by an SMM</div>
+      <div class="mk-pills"><span class="mk-pill cal-status-for-smm-approval"><b>Video</b> For SMM Approval</span><span class="mk-pill cal-status-approved"><b>Thumbnail</b> Approved</span></div></div>
+      <button class="cal-prompt-btn is-primary" type="button">Restore</button></div><div class="mk-row"><div class="mk-row-main"><div class="mk-row-name">Sample reel B</div>
+      <div class="mk-row-meta">Archived 6 days ago by an SMM</div>
+      <div class="mk-pills"><span class="mk-pill cal-status-in-progress"><b>Video</b> In Progress</span><span class="mk-pill cal-status-in-progress"><b>Thumbnail</b> In Progress</span></div></div>
+      <button class="cal-prompt-btn is-primary" type="button">Restore</button></div><div class="mk-row"><div class="mk-row-main"><div class="mk-row-name">Sample reel C</div>
+      <div class="mk-row-meta">Archived 12 days ago by an admin</div>
+      <div class="mk-pills"><span class="mk-pill cal-status-approved"><b>Video</b> Approved</span><span class="mk-pill cal-status-approved"><b>Thumbnail</b> Approved</span></div></div>
+      <button class="cal-prompt-btn is-primary" type="button">Restore</button></div><div class="mk-row"><div class="mk-row-main"><div class="mk-row-name">Sample reel D</div>
+      <div class="mk-row-meta">Archived 27 days ago by an SMM</div>
+      <div class="mk-pills"><span class="mk-pill cal-status-client-approval"><b>Video</b> Client Approval</span><span class="mk-pill cal-status-tweaks-needed"><b>Thumbnail</b> Tweaks Needed</span></div></div>
+      <button class="cal-prompt-btn is-primary" type="button">Restore</button></div></div>
+    <div class="cal-prompt-foot"><div class="cal-prompt-foot-left"><span class="cal-prompt-hint">Showing the last 30 days, newest first.</span></div><div class="cal-prompt-foot-right"><button class="cal-prompt-btn" type="button">Show older</button></div></div></div></div><div class="confirm-overlay active"><div class="confirm-box mk-confirm">
+    <div class="confirm-box-title">Can't restore this sample yet</div>
+    <div class="confirm-box-msg">A live sample, “Sample reel A v2”, already uses the video work item of “Sample reel A”. Unlink it there first, then restore this one.</div>
+    
+    
+    <div class="confirm-box-actions"><button class="brief-action-btn primary" type="button">OK</button></div>
+  </div></div></div></section>
+</div></body></html>

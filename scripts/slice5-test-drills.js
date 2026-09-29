@@ -1,4 +1,5 @@
 'use strict';
+require('../test/helpers/single-file-index.js'); // split switch on (plan step 4): reads of index.html get the single-file page
 
 /*
  * Owner-dispatched Slice 5 TEST drills (all six in SLICE5_APPLY_WINDOW.md §3).

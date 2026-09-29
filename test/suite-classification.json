@@ -238,6 +238,7 @@
     "kasper-click-during-rerender.js",
     "kasper-finish-log.js",
     "kasper-finish-refresh-popback.js",
+    "split-switch.js",
     "sxr-kasper-finish-leaves-queue.js",
     "kasper-priority-more-nav.js",
     "kasper-review-state-global.js",

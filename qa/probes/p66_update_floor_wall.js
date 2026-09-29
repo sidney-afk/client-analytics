@@ -1,4 +1,5 @@
 'use strict';
+require('../../test/helpers/single-file-index.js'); // split switch on (plan step 4): reads of index.html get the single-file page
 // p66 — VERSION FLOOR / RELOAD WALL (Codex review on #1163: "exercise the new
 // runtime-flag path in a browser harness"). The unit suite executes the verdict
 // function; THIS runs the real IIFE in a real Chromium against every network

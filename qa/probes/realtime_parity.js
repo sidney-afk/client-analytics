@@ -1,3 +1,4 @@
+require('../../test/helpers/single-file-index.js'); // split switch on (plan step 4): reads of index.html get the single-file page
 // realtime_parity.js — STATIC realtime + action-immediacy parity guard. No browser.
 //
 // Asserts that every CALENDAR realtime / immediacy hook has a wired SAMPLES twin:

@@ -54,7 +54,13 @@ jobs:
         run: deno check --node-modules-dir=auto supabase/functions/pto/index.ts
       - name: Run synthetic PTO interactions
         run: npm run test:pto-ui
+      # The evidence fingerprint is taken over the single-file page (the leave-page
+      # lines of every fragment, in order). With the load-per-tab split on,
+      # index.html is a loader, so these two steps read the single-file page
+      # through the preload rather than by editing the fingerprinted qa files.
       - name: Run stateful PTO lifecycle simulation
         run: npm run test:pto-lifecycle
+        env:
+          NODE_OPTIONS: --require=./test/helpers/single-file-index.js
       - name: Validate committed PTO lifecycle evidence
-        run: node qa/pto-lifecycle/run.js --validate-public-evidence
+        run: node --require ./test/helpers/single-file-index.js qa/pto-lifecycle/run.js --validate-public-evidence

@@ -1,4 +1,5 @@
 'use strict';
+require('../../test/helpers/single-file-index.js'); // split switch on (plan step 4): reads of index.html get the single-file page
 // Full integrated HTML in Chromium; only network/storage/time fixtures are supplied.
 // No product loader, renderer, date writer or receipt callback is replaced.
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');

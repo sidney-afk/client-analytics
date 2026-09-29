@@ -1,4 +1,5 @@
 'use strict';
+require('../../test/helpers/single-file-index.js'); // split switch on (plan step 4): reads of index.html get the single-file page
 /* desktop-parity.js -- proves a client-phone CSS change moved NO desktop pixel.
  *
  * Loads two builds of index.html (BEFORE = a git ref, default origin/main;

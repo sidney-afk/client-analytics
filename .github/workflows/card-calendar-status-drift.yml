@@ -82,7 +82,7 @@ jobs:
       # and not about the estate -- which is a different conversation, and one
       # worth being able to have without a credential.
       - name: Classifier unit suite (offline)
-        run: node test/card-calendar-status-drift-check.js
+        run: node --require ./test/helpers/single-file-index.js test/card-calendar-status-drift-check.js
 
       # The counts for every bucket, whatever the verdict. Printing the full
       # classification is what lets somebody act on a red run without re-running

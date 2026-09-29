@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 'use strict';
+require('../../test/helpers/single-file-index.js'); // split switch on (plan step 4): reads of index.html get the single-file page
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 'use strict';
+require('../test/helpers/single-file-index.js'); // split switch on (plan step 4): reads of index.html get the single-file page
 
 /**
  * F40 — will the Workload lane survive the flip?

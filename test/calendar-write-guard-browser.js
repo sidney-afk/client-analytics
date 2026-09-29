@@ -209,7 +209,7 @@ function ok(cond, msg) {
     const t0 = Date.now();
     r = await window_('hang', () => save('a', 'card-10'));
     if (state.flagHang) state.flagHang();
-    ok(!r.result.sent && r.result.held && r.result.code === 'calendar_flag_timeout' && r.ef === 0 && r.n8n.length === 0,
+    ok(!r.result.sent && r.result.held && r.result.code === 'authority_unavailable' && r.ef === 0 && r.n8n.length === 0,
       'a flag read that never answers times out and holds the save (' + (Date.now() - t0) + ' ms for 3 bounded tries)');
     ok(Date.now() - t0 < 12000, 'each read is bounded (about two seconds), not open ended');
 

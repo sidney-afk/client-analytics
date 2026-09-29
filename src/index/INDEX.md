@@ -33,7 +33,7 @@
 | 25 | `110-time-off.js.part` | 1370 | Kasper Time Off calendar |
 | 26 | `112-smm-weekly-reports.js.part` | 705 | SAVED COPY, the way Filming Plans and Workload do it. The reports page |
 | 27 | `115-core-calendar-flags.js.part` | 136 | A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing |
-| 28 | `120-calendar-flags-write-repair.js.part` | 3343 | The members a flag value offers, or null when it offers no member list at |
+| 28 | `120-calendar-flags-write-repair.js.part` | 3348 | The members a flag value offers, or null when it offers no member list at |
 | 29 | `125-title-name-rule.js.part` | 343 | Title name rule (browser copy) |
 | 30 | `130-calendar-model-cache.js.part` | 1388 | Returns the comments array for a given component. Falls back to the |
 | 31 | `131-core-html.js.part` | 13 | NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value). |

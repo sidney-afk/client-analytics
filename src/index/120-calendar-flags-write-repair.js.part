@@ -2877,14 +2877,19 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     const CAL_WRITE_FLAG_READ_TRIES = 3;
     function _calWriteHeldError(code, message) {
         const error = new Error(message);
-        error.code = code;
+        /* Recordable codes only: the refusal log's code list lives in a deployed
+           function and a database constraint, and this change is browser-only, so
+           it reuses two codes that already exist and keeps the precise reason in
+           `reason`. */
+        error.code = 'authority_unavailable';
+        error.reason = code;
         error.status = 503;
         error.calWriteHeld = true;
         return error;
     }
     function _calWritePausedError() {
         const error = new Error('Saving is paused for this client. Your change is kept and will save once saving is switched back on.');
-        error.code = 'calendar_saving_paused';
+        error.code = 'client_scope_unavailable';
         error.status = 503;
         error.calWritePaused = true;
         return error;

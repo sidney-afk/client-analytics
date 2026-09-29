@@ -388,7 +388,9 @@ async function estimate(model: string, inputs: JsonMap): Promise<{ usd: number }
   if (!res.ok) return { error: hfError(res) };
   const usd = pickNumber(res.data, ["usd", "price_usd", "cost_usd", "amount_usd", "usd_cost"]);
   if (usd !== null && usd > 0) return { usd };
-  const credits = pickNumber(res.data, ["credits", "credit", "cost", "price", "amount"]);
+  // Only explicitly credit-labelled fields are converted; a generic "price" or
+  // "amount" could already be dollars, and guessing wrong undercounts the cap.
+  const credits = pickNumber(res.data, ["credits", "credit", "credits_cost", "credit_cost"]);
   if (credits !== null && credits > 0) return { usd: Math.round(credits * USD_PER_CREDIT * 10000) / 10000 };
   const raw = JSON.stringify(res.data).slice(0, 300);
   return { error: `Higgsfield returned no price for this request (reply: ${raw || "empty"}). This model may not support price checks yet.` };
@@ -396,7 +398,7 @@ async function estimate(model: string, inputs: JsonMap): Promise<{ usd: number }
 
 function hfError(res: { status: number; data: JsonMap }): string {
   const d = res.data.detail;
-  const text = Array.isArray(d) ? d.map((x) => (x as JsonMap).msg || JSON.stringify(x)).join("; ") : String(d || res.data.error || `Higgsfield answered ${res.status}`);
+  const text = Array.isArray(d) ? d.map((x) => (x as JsonMap).msg || JSON.stringify(x)).join("; ") : String(d || res.data.error || `Higgsfield answered ${res.status}${res.data.raw ? ": " + String(res.data.raw) : ""}`);
   return res.status === 403 ? text + " (the API balance needs a top-up)" : text;
 }
 

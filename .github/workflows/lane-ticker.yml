@@ -11,8 +11,6 @@
 # keeps exactly one ticker running and at most one waiting (the hand-over);
 # the hourly cron only restarts the chain if it ever breaks.
 # Dispatches made with GITHUB_TOKEN do start workflow_dispatch runs.
-# The two dormant censuses get scheduled_tick=true, so they stay dormant
-# exactly as on a timer run.
 #
 # KILL SWITCH (one step): disable this workflow in the Actions tab. The
 # running ticker checks that state before every pass and stops within a
@@ -49,8 +47,6 @@ jobs:
             "native-notification-monitor.yml|5|"
             "native-intake-completion.yml|15|"
             "native-intake-completion-monitor.yml|15|"
-            "syncview-retirement-census.yml|30|-f scheduled_tick=true"
-            "outbox-debt-census.yml|30|-f scheduled_tick=true"
             "card-calendar-status-drift.yml|60|"
           )
           declare -A last

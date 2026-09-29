@@ -259,8 +259,13 @@ const LANES = Object.freeze([
   { key: 'workload_source_freshness', label: 'workload source freshness', cadence: 'schedule 30m', max_age_minutes: 90,
     hosts: ['workload-source-freshness.yml'],
     retired: { at: '2026-09-26', reason: 'workload-reads-native-snapshot' } },
+  // RETIRED 2026-09-29 by the owner: the census was dormant (its workflow only
+  // heartbeat) and its subject, the Linear mirror outbox, is going away with
+  // Linear. The host workflow is deleted; the script and its test stay as a
+  // frozen reference, and the old heartbeat rows stay in the event log.
   { key: 'outbox_debt_census', label: 'mirror outbox debt census', cadence: 'schedule 30m', max_age_minutes: 90,
-    hosts: ['outbox-debt-census.yml'], retired: null },
+    hosts: ['outbox-debt-census.yml'],
+    retired: { at: '2026-09-29', reason: 'dormant-census-retired-by-owner' } },
   // Prepared native intake repair is dormant until the protected repository
   // variable enables it. Both scheduled hosts still heartbeat while dormant.
   // The 360-minute provisional tolerance matches the measured 274-minute
@@ -278,14 +283,15 @@ const LANES = Object.freeze([
   { key: 'native_notification_monitor', label: 'native notification monitor', cadence: 'schedule 5m offset (best effort; no SLO)', max_age_minutes: 360,
     hosts: ['native-notification-monitor.yml'], retired: null },
   /*
-   * The admission gate is dormant until its explicit SQL activation RPC runs.
-   * This lane starts before that activation and reports DORMANT as healthy;
-   * after activation it proves the recorded high-water has no ordinary rows
-   * above it. It is intentionally Linear-free and does not retire with a main
-   * schedule: it is the evidence that the already-retired boundary still holds.
+   * RETIRED 2026-09-29 by the owner. This lane was the dormant admission census:
+   * it reported DORMANT as healthy until an explicit SQL activation RPC ran and
+   * was never activated. The host workflow is deleted; the script, the SQL and
+   * their tests stay as a frozen reference, and the old heartbeat rows stay in
+   * the event log (retired lanes keep theirs, the same as b1_incremental_refresh).
    */
   { key: 'syncview_retirement_census', label: 'SyncView retirement admission census', cadence: 'schedule 30m', max_age_minutes: 90,
-    hosts: ['syncview-retirement-census.yml'], retired: null },
+    hosts: ['syncview-retirement-census.yml'],
+    retired: { at: '2026-09-29', reason: 'dormant-census-retired-by-owner' } },
 ]);
 
 function clean(value) {

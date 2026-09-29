@@ -332,8 +332,15 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // path moved; closure membership is unchanged. Hash from
   // `git show HEAD:scripts/monitoring-watchdog.js | sha256sum` on the retiring
   // commit, never typed by hand. (Previous pin: a94d1cb8...)
+  //
+  // Re-pinned 2026-09-29: the `outbox_debt_census` and `syncview_retirement_census`
+  // lanes changed only their `retired` field from null to a dated reason, with
+  // comments, and their two host workflows were deleted in the same commit. No
+  // import, command, entrypoint or mutation path moved; closure membership is
+  // unchanged. Hash from `git show HEAD:scripts/monitoring-watchdog.js | sha256sum`
+  // on the retiring commit, never typed by hand. (Previous pin: a5465ab2...)
   'scripts/monitoring-watchdog.js':
-    'a5465ab28c79b0ccb437f0e7e844836c4d6d9881a6cffc2decb236348905cd2c',
+    '6cebc1b4aabf5c8db81e1fb599495a3b8546affbae83beede872e6d9c788da8b',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

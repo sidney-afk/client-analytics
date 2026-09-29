@@ -822,6 +822,12 @@ function installBfcacheSyntheticNetwork(config) {
         ));
         return jsonResponse(rows);
       }
+      if (url.pathname === '/rest/v1/caption_prompts') {
+        // n8n exit PR 3: the Calendar reads prompts from this table (the n8n webhook
+        // above is now only the error fallback). Same boundary record it used to leave.
+        state.captionBoundaryRequests.push({ at, method, path: url.pathname, url: url.href });
+        return jsonResponse([]);
+      }
       if (url.pathname === '/rest/v1/calendar_posts') {
         const read = {
           index: state.sensitiveClientReads.filter(item => item.kind === 'calendar_posts').length,
@@ -1329,6 +1335,10 @@ async function installSyntheticNetwork(context, origin, config = {}) {
         return;
       }
       if (url.pathname === '/rest/v1/templates') {
+        await fulfillJson(route, []);
+        return;
+      }
+      if (url.pathname === '/rest/v1/caption_prompts') {
         await fulfillJson(route, []);
         return;
       }

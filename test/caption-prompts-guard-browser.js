@@ -62,10 +62,10 @@ function ok(cond, msg) {
   const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 1200, height: 900 } });
   const errors = [];
   const state = {
-    table: 'ok',            // ok | http500 | malformed
+    table: 'ok',            // ok | http500 | malformed | hang
     flag: 'list',           // list | empty | http500 | hang | malformed
     armed: false, flagReads: 0, flagUrls: [], tableUrls: [],
-    saves: [], n8n: [], hang: null,
+    saves: [], n8n: [], hang: null, tableHang: null,
   };
   try {
     await context.routeWebSocket('**/*', socket => socket.close());
@@ -85,6 +85,7 @@ function ok(cond, msg) {
       if (url.pathname === '/rest/v1/caption_prompts' && method === 'GET') {
         state.tableUrls.push(url.search);
         if (state.table === 'http500') return json(route, { message: 'fixture failure' }, 500);
+        if (state.table === 'hang') { await new Promise(resolve => { state.tableHang = resolve; }); return route.abort(); }
         if (state.table === 'malformed') return json(route, { not: 'an array' });
         return json(route, [{ client_slug: SLUG, prompt: 'prompt from the table' }, { client_slug: 'otherclient', prompt: '' }]);
       }
@@ -162,6 +163,15 @@ function ok(cond, msg) {
     ok(r.out.loaded && r.out.prompts[SLUG] === 'prompt from the table' && r.n8n.length === 0,
       'table answers a malformed body with a saved copy: the saved copy is used, zero n8n');
 
+    // A table read that connects and never answers is bounded, then the saved copy is used.
+    const tHang = Date.now();
+    r = await load('hang');
+    if (state.tableHang) state.tableHang();
+    ok(r.out.loaded && r.out.prompts[SLUG] === 'prompt from the table' && r.n8n.length === 0 && Date.now() - tHang < 12000,
+      'a stalled caption_prompts read is bounded (' + (Date.now() - tHang) + ' ms) and the saved copy is used, zero n8n');
+    const lsrc = fs.readFileSync(path.join(ROOT, 'src/index/180-calendar-native-post-media.js.part'), 'utf8');
+    ok(/AbortController[\s\S]{0,400}CAL_CAPTION_PROMPTS_READ_MS[\s\S]{0,400}signal: ctrl \? ctrl\.signal/.test(lsrc), 'the table read is aborted by a timer (source)');
+
     // Everything fails: not loaded, so Generate refuses instead of sending an empty prompt.
     await page.route('**/webhook/caption-prompts-get*', route => route.abort());
     await page.evaluate(() => { try { localStorage.removeItem('syncview_caption_prompts_lkg_v1'); } catch (e) {} });
@@ -218,6 +228,7 @@ function ok(cond, msg) {
     ok(state.n8n.filter(l => /caption-prompts-save/.test(l)).length === 0, 'no request to the n8n caption-prompts-save webhook at any point');
   } finally {
     if (state.hang) state.hang();
+    if (state.tableHang) state.tableHang();
     await browser.close();
     server.close();
   }

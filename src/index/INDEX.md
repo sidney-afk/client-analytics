@@ -44,7 +44,7 @@
 | 36 | `150-calendar-hydration-import.js.part` | 2193 | For a card linked to a real sub-issue (not a parent), return which of |
 | 37 | `160-calendar-organize-ui.js.part` | 2835 | Lighter path for the Order switch: update the chrome in place so the |
 | 38 | `170-calendar-links-status.js.part` | 2855 | Move a Linear sub-issue link from the old card onto the new one. The |
-| 39 | `180-calendar-native-post-media.js.part` | 2875 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
+| 39 | `180-calendar-native-post-media.js.part` | 2884 | A BATCH PARENT IS NOT A POST IN ITS OWN BATCH. |
 | 40 | `185-client-review-queue.js.part` | 377 | Client review send queue: a client's Approve or Request changes is |
 | 41 | `186-archived-restore.js.part` | 457 | ARCHIVED CARDS AND SAMPLES: SEE THEM, RESTORE ONE (Calendar and Samples). |
 | 42 | `190-calendar-approval-comments.js.part` | 3108 | Count of posts actually awaiting this surface's sign-off — i.e. at least |

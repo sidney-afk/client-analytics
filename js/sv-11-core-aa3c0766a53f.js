@@ -18578,12 +18578,21 @@
        when that is empty the n8n caption-prompts-get webhook, which stays as the
        reachable first-load fallback until a durable server copy exists. */
     const CAL_CAPTION_PROMPTS_LKG_KEY = 'syncview_caption_prompts_lkg_v1';
+    const CAL_CAPTION_PROMPTS_READ_MS = 6000;
     async function _calLoadCaptionPromptsFromSupabase() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase not configured');
         const url = CAL_SUPABASE_URL + '/rest/v1/caption_prompts?select=client_slug,prompt&order=client_slug.asc';
-        const resp = await fetch(url, { cache: 'no-store', headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const rows = await resp.json();
+        /* Bounded: a request that connects and then never answers must not leave the
+           in-flight load pending forever, or the saved-copy and n8n fallbacks are never
+           reached and every Generate in the tab waits. The abort covers the body too. */
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => ctrl.abort(), CAL_CAPTION_PROMPTS_READ_MS) : null;
+        let rows;
+        try {
+            const resp = await fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined, headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            rows = await resp.json();
+        } finally { if (timer) clearTimeout(timer); }
         if (!Array.isArray(rows)) throw new Error('caption_prompts: unexpected payload');
         const prompts = {};
         rows.forEach(row => {
@@ -25828,4 +25837,4 @@
             return allowed;
         }
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-11-core-3a4be872241e.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-11-core-aa3c0766a53f.js");

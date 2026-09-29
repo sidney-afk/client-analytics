@@ -40,6 +40,7 @@ const NOTE = 'Please shorten the opening line in this fixture.';
 const FROZEN = '2026-09-29T12:00:00.000Z';
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*',
   'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS' };
+const loadModes = new Set();   // how the page was served in each run (parts, full or single-file)
 const BROWSER_OWN = /^(user-agent|sec-ch-.*|origin|referer|accept-language|accept-encoding|connection|host|pragma|cache-control|sec-fetch-.*|priority)$/i;
 
 function serve(root) {
@@ -169,6 +170,7 @@ async function capture(browser, origin, action, flag) {
     await page.goto(origin + '/index.html?' + query, { waitUntil: 'domcontentloaded' });
     const card = `.kcard[data-cal-review-pid="${CARD}"]`;
     await page.locator(card).waitFor({ timeout: 30000 });
+    loadModes.add(await page.evaluate(() => (self.__svLoad ? self.__svLoad.mode : 'single-file')));
     await page.locator(card + ' .kcard-expand-btn').click();
     await page.locator(card + ' .cal-review-body').waitFor();
     let button;
@@ -228,8 +230,15 @@ async function captureTree(root) {
   }
   const golden = JSON.parse(fs.readFileSync(GOLDEN, 'utf8'));
   let failures = 0;
+  // A new comment's id is `c_<clock>_<random>`. The test seeds "random", so the id
+  // repeats run to run only while the page draws the same NUMBER of random values
+  // before the click. Once client links load in parts (plan step 5), one line of
+  // Workload's start-up code (an id for its live plan sync, staff only) no longer
+  // runs on a client link, one draw fewer, and every later draw shifts by one. The
+  // clock part of the id stays compared; only the random suffix is not.
+  const noRandomId = value => JSON.stringify(value).replace(/(c_[a-z0-9]{6,10}_)[a-z0-9]{3,8}/g, '$1<random>');
   const compare = (label, a, b) => {
-    const same = JSON.stringify(a) === JSON.stringify(b);
+    const same = noRandomId(a) === noRandomId(b);
     console.log((same ? '  ok  ' : 'FAIL  ') + label);
     if (!same) {
       failures++;
@@ -245,6 +254,15 @@ async function captureTree(root) {
     const toFn = w.some(item => /functions\/v1\/calendar-upsert$/.test(item.url));
     console.log('        (' + key + ' sends to ' + (toN8n ? 'the n8n webhook, as today' : toFn ? 'the calendar-upsert function, as today' : 'neither?!') + ')');
     if (!toN8n && !toFn) failures++;
+  }
+  // Plan step 5: with split.json on and "clients" on, a client link is served in
+  // parts; the requests above must have been recorded on the code as it ships.
+  {
+    const splitCfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'index', 'split.json'), 'utf8'));
+    const want = splitCfg.enabled && splitCfg.clients ? 'parts' : (splitCfg.enabled ? 'full' : 'single-file');
+    const got = [...loadModes].join(',');
+    console.log((got === want ? '  ok  ' : 'FAIL  ') + 'the client link was served as "' + want + '" in every run (got "' + got + '")');
+    if (got !== want) failures++;
   }
   if (process.env.BASE_TREE) {
     const base = await captureTree(path.resolve(process.env.BASE_TREE));

@@ -2186,7 +2186,12 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
     let _syncviewAppBooted = false;
     function _syncviewSetAppBooted(value) { _syncviewAppBooted = value; }
     const SYNCVIEW_CLIENT_ENTRY_VIEWS = Object.freeze(['analytics', 'calendar', 'brief', 'samples', 'sample-reviews']);
-    const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr']);
+    // 'split' is the per-browser way back from the split page (?split=0 / ?split=1,
+    // read by the loader in index.html, plan docs/plans/2026-09-28-load-per-tab-plan.md,
+    // step 5). It carries no credential and no route: only those two values pass
+    // (see _syncviewClientEntryEnvelope) and it is dropped from the address once the
+    // link is verified. Every other key is still refused.
+    const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr', 'split']);
     let _syncviewClientEntryCapability = null;
     function _syncviewSetClientEntryCapability(value) { _syncviewClientEntryCapability = value; }
     let _syncviewClientEntryGeneration = 0;
@@ -2247,6 +2252,8 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         for (const key of SYNCVIEW_CLIENT_ENTRY_KEYS) {
             if (q.getAll(key).length > 1) return { ok: false, reason: 'duplicate_' + key };
         }
+        // The one key that is not part of the link itself: exactly 0 or 1, nothing else.
+        if (q.has('split') && q.get('split') !== '0' && q.get('split') !== '1') return { ok: false, reason: 'invalid_split' };
         if (q.getAll('c').length !== 1 || q.getAll('t').length !== 1) return { ok: false, reason: 'missing_credential' };
         const client = String(q.get('c') || '').trim();
         const token = String(q.get('t') || '').trim();
@@ -2408,6 +2415,7 @@ import { _kasperResolveSubtab, _kasperState } from './305-core-kasper-shared.js'
         if (view === 'samples') view = 'sample-reviews';
         if (view === 'analytics') q.delete('v'); else q.set('v', view);
         if (view === 'sample-reviews') q.set('sxr', '1'); else q.delete('sxr');
+        q.delete('split');   // the loader has read it by now; it is not part of the link
         const tab = view === 'sample-reviews' ? 'sample-reviews' : view;
         const prev = history.state && _syncviewClientEntrySlug(history.state.client) === entry.slug ? history.state : {};
         const state = Object.assign({}, prev, {

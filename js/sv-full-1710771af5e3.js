@@ -17459,7 +17459,8 @@
        own copies of these URLs and are tracked separately. */
     const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
-    const CAPTION_PROMPTS_SAVE_URL   = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save';
+    /* caption-prompts-save (n8n) was removed in the n8n exit, PR 3: the save goes
+       to CAPTION_PROMPTS_SAVE_EF_URL only, behind the settings_ef_clients pause switch. */
     /* Caption-job tracking. The generate-caption workflow upserts a row per
        run into the caption_jobs n8n data table (status: running/done/error/
        cancelled, stage: scraping → transcribing → writing → done). The UI
@@ -23798,8 +23799,8 @@
         error.calWriteHeld = true;
         return error;
     }
-    function _calWritePausedError() {
-        const error = new Error('Saving is paused for this client. Your change is kept and will save once saving is switched back on.');
+    function _calWritePausedError(what) {
+        const error = new Error((what || 'Saving') + ' is paused for this client. Your change is kept and will save once saving is switched back on.');
         error.code = 'client_scope_unavailable';
         error.status = 503;
         error.calWritePaused = true;
@@ -23807,7 +23808,7 @@
     }
     /* One fresh read of the flag. Resolves to the set of listed slugs; rejects
        (never resolves to a guess) when the answer cannot be trusted. */
-    function _calReadWriteFlagFresh() {
+    function _calReadWriteFlagFresh(flagKey) {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) {
             return Promise.reject(_calWriteHeldError('calendar_flag_unavailable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.'));
         }
@@ -23820,7 +23821,7 @@
             }, CAL_WRITE_FLAG_READ_MS);
         });
         const read = (async () => {
-            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(CALENDAR_UPSERT_FLAG_KEY) + '&limit=1';
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(flagKey || CALENDAR_UPSERT_FLAG_KEY) + '&limit=1';
             const resp = await fetch(url, {
                 cache: 'no-store',
                 signal: ctrl ? ctrl.signal : undefined,
@@ -23842,17 +23843,21 @@
             }
         );
     }
-    async function _calAssertSavingOn(clientOrSlug) {
+    /* The one guard loop, parameterised by WHICH flag decides. Calendar saves
+       and reorders ask calendar_upsert_ef_clients; the caption prompt save asks
+       settings_ef_clients. Same rules for both: a fresh read of its own, bounded,
+       retried a few times, never a cached or default answer. */
+    async function _calAssertFlagAllows(flagKey, clientOrSlug, onListed, what) {
         let slug = '';
         try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
         let lastError = null;
         for (let attempt = 0; attempt < CAL_WRITE_FLAG_READ_TRIES; attempt++) {
             try {
-                const listed = await _calReadWriteFlagFresh();
+                const listed = await _calReadWriteFlagFresh(flagKey);
                 // Keep the boot copy honest too, so the rest of the page (which
                 // still asks the cached set for display decisions) agrees.
-                try { _calSetUpsertEfClients(new Set(listed)); } catch (e) {}
-                if (!slug || !listed.has(slug)) throw _calWritePausedError();
+                try { onListed(new Set(listed)); } catch (e) {}
+                if (!slug || !listed.has(slug)) throw _calWritePausedError(what);
                 return true;
             } catch (error) {
                 if (error && error.calWritePaused) throw error;
@@ -23861,6 +23866,15 @@
             }
         }
         throw lastError || _calWriteHeldError('calendar_flag_unreadable', 'Checking whether saving is on failed. Your change is kept; retry in a moment.');
+    }
+    function _calAssertSavingOn(clientOrSlug) {
+        return _calAssertFlagAllows(CALENDAR_UPSERT_FLAG_KEY, clientOrSlug, set => _calSetUpsertEfClients(set), 'Saving');
+    }
+    /* Caption prompt saves (n8n exit, PR 3): settings_ef_clients is now purely a
+       visible save-pause switch. Off for a client pauses the save with a message;
+       it never reroutes to n8n. */
+    function _settingsAssertSavingOn(clientOrSlug) {
+        return _calAssertFlagAllows(SETTINGS_EF_FLAG_KEY, clientOrSlug, set => _settingsSetEfClients(set), 'Saving caption prompts');
     }
     function _calUpsertFetchClientLink(clientOrSlug, payload, source) {
         _calPrimeUpsertRoutingFlag();
@@ -23974,7 +23988,7 @@
             _settingsSetFlagValue(row && row.value ? row.value : { clients: [] });
         } catch (e) {
             _settingsSetFlagValue({ clients: [] });
-            console.warn('[Settings] settings EF flag read failed; using n8n fallback', e);
+            console.warn('[Settings] settings EF flag read failed; caption saves stay held until a fresh read succeeds', e);
         }
     }
     async function _settingsSubscribeFlag() {
@@ -23999,15 +24013,6 @@
             _settingsSetFlagPromise(_settingsFetchFlagOnce().then(() => _settingsSubscribeFlag()).catch(() => null));
         }
         return _settingsFlagPromise;
-    }
-    function _settingsUseEf(clientOrSlug) {
-        let slug = '';
-        try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
-        return !!slug && _settingsEfClients.has(slug);
-    }
-    function _settingsWriteUrlForClient(clientOrSlug, efUrl, n8nUrl) {
-        _settingsPrimeRoutingFlag();
-        return _settingsUseEf(clientOrSlug) ? efUrl : n8nUrl;
     }
     function _settingsWriteHeaders(source, url) {
         return _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': source || 'settings' }, url);
@@ -39385,19 +39390,48 @@
        SyncView Calendar Sheet. The Edit caption prompt modal in
        the per-card kebab edits that tab via caption-prompts-save.
        ============================================================ */
+    /* n8n exit, PR 3: the prompts are read from the caption_prompts table, the
+       one source (it already holds every prompt the n8n Sheet held). The read is
+       a plain REST read: never a cache-buster (PostgREST answers 400 to any
+       parameter it does not know), freshness comes from cache: 'no-store'.
+
+       An ERROR-ONLY fallback keeps a failed read from making Generate send an
+       empty prompt (which would use the generic default, not the client's
+       stored one): first a last-known-good copy kept in this browser, and only
+       when that is empty the n8n caption-prompts-get webhook, which stays as the
+       reachable first-load fallback until a durable server copy exists. */
+    const CAL_CAPTION_PROMPTS_LKG_KEY = 'syncview_caption_prompts_lkg_v1';
+    const CAL_CAPTION_PROMPTS_READ_MS = 6000;
     async function _calLoadCaptionPromptsFromSupabase() {
         if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase not configured');
         const url = CAL_SUPABASE_URL + '/rest/v1/caption_prompts?select=client_slug,prompt&order=client_slug.asc';
-        const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        const rows = await resp.json();
+        /* Bounded: a request that connects and then never answers must not leave the
+           in-flight load pending forever, or the saved-copy and n8n fallbacks are never
+           reached and every Generate in the tab waits. The abort covers the body too. */
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timer = ctrl ? setTimeout(() => ctrl.abort(), CAL_CAPTION_PROMPTS_READ_MS) : null;
+        let rows;
+        try {
+            const resp = await fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined, headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            rows = await resp.json();
+        } finally { if (timer) clearTimeout(timer); }
+        if (!Array.isArray(rows)) throw new Error('caption_prompts: unexpected payload');
         const prompts = {};
-        (Array.isArray(rows) ? rows : []).forEach(row => {
+        rows.forEach(row => {
             const slug = String((row && row.client_slug) || '').trim();
-            if (!slug || !_settingsUseEf(slug)) return;
             if (slug) prompts[slug] = String(row.prompt || '');
         });
         return prompts;
+    }
+    function _calCaptionPromptsLkgRead() {
+        try {
+            const raw = JSON.parse(localStorage.getItem(CAL_CAPTION_PROMPTS_LKG_KEY) || 'null');
+            return raw && typeof raw === 'object' && !Array.isArray(raw) && Object.keys(raw).length ? raw : null;
+        } catch (e) { return null; }
+    }
+    function _calCaptionPromptsLkgWrite(prompts) {
+        try { if (prompts && Object.keys(prompts).length) localStorage.setItem(CAL_CAPTION_PROMPTS_LKG_KEY, JSON.stringify(prompts)); } catch (e) {}
     }
     async function _calLoadCaptionPromptsFromN8n() {
         const r = await fetch(CAPTION_PROMPTS_GET_URL + '?_t=' + Date.now());
@@ -39410,17 +39444,19 @@
         if (_calCaptionPromptsInFlight) return _calCaptionPromptsInFlight;
         _calSetCaptionPromptsInFlight((async () => {
             try {
-                const basePrompts = await _calLoadCaptionPromptsFromN8n();
-                _calSetCaptionPrompts(basePrompts);
+                let prompts = null;
                 try {
-                    await _settingsPrimeRoutingFlag();
-                    if (_settingsEfClients.size) {
-                        const supaPrompts = await _calLoadCaptionPromptsFromSupabase();
-                        _calSetCaptionPrompts(Object.assign({}, basePrompts, supaPrompts));
+                    prompts = await _calLoadCaptionPromptsFromSupabase();
+                    _calCaptionPromptsLkgWrite(prompts);
+                } catch (tableError) {
+                    console.warn('[Calendar] caption_prompts read failed; using the last saved copy', tableError);
+                    prompts = _calCaptionPromptsLkgRead();
+                    if (!prompts) {
+                        console.warn('[Calendar] no saved copy either; asking n8n caption-prompts-get once');
+                        prompts = await _calLoadCaptionPromptsFromN8n();
                     }
-                } catch (supaError) {
-                    console.warn('[Calendar] Supabase caption prompts overlay failed; using n8n base', supaError);
                 }
+                _calSetCaptionPrompts(prompts);
                 _calSetCaptionPromptsLoaded(true);
             } catch (e) {
                 console.warn('[Calendar] caption prompts load failed', e);
@@ -39635,6 +39671,12 @@
         // DEFAULT prompt, ignoring the client's tailored one. clientName is captured
         // above so a client switch during this await can't mis-target the job.
         if (!_calCaptionPromptsLoaded) { try { await _calLoadCaptionPrompts(); } catch (e) {} }
+        // Every source failed: sending now would silently use the generic default
+        // prompt instead of this client's own, so stop and say so.
+        if (!_calCaptionPromptsLoaded) {
+            if (!opts.silent) _calSetCaptionBusy(pid, null, 'Could not load this client\u2019s caption prompt. Try again in a moment.');
+            return { ok: false, error: 'Caption prompt unavailable', skipped: true };
+        }
         const job = {
             jobId: 'job_' + pid + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
             pid: pid, client: calClientSlug(clientName), clientName: clientName,
@@ -40097,15 +40139,24 @@
         btn.disabled = true;
         btn.textContent = 'Saving…';
         try {
-            const writeUrl = _settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL);
-            const r = await _writeUiTrackSave('captions', 'caption_prompt_save', () => ({ client_slug: calClientSlug(client) }), () => fetch(writeUrl, {
-                method: 'POST',
-                headers: _settingsWriteHeaders('caption-prompts', writeUrl),
-                body: JSON.stringify({ client: calClientSlug(client), prompt: promptText })
-            }), { requireOk: true });
+            // n8n exit, PR 3: the function only, after a fresh, bounded read of
+            // settings_ef_clients. An unreadable flag holds the save, an unlisted client
+            // pauses it with a message; neither ever reroutes to n8n. The read sits inside
+            // the tracked send so a paused or held save is recorded in the failed-saves
+            // log like any other refusal.
+            const writeUrl = CAPTION_PROMPTS_SAVE_EF_URL;
+            const r = await _writeUiTrackSave('captions', 'caption_prompt_save', () => ({ client_slug: calClientSlug(client) }), async () => {
+                await _settingsAssertSavingOn(client);
+                return fetch(writeUrl, {
+                    method: 'POST',
+                    headers: _settingsWriteHeaders('caption-prompts', writeUrl),
+                    body: JSON.stringify({ client: calClientSlug(client), prompt: promptText })
+                });
+            }, { requireOk: true });
             const j = await r.json();
             if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
             _calCaptionPrompts[calClientSlug(client)] = promptText;
+            _calCaptionPromptsLkgWrite(_calCaptionPrompts);
             _calCloseCaptionPromptModal();
             showNotify('Saved', promptText
                 ? 'Custom caption prompt saved for ' + client + '.'
@@ -62738,7 +62789,12 @@
     let _syncviewAppBooted = false;
     function _syncviewSetAppBooted(value) { _syncviewAppBooted = value; }
     const SYNCVIEW_CLIENT_ENTRY_VIEWS = Object.freeze(['analytics', 'calendar', 'brief', 'samples', 'sample-reviews']);
-    const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr']);
+    // 'split' is the per-browser way back from the split page (?split=0 / ?split=1,
+    // read by the loader in index.html, plan docs/plans/2026-09-28-load-per-tab-plan.md,
+    // step 5). It carries no credential and no route: only those two values pass
+    // (see _syncviewClientEntryEnvelope) and it is dropped from the address once the
+    // link is verified. Every other key is still refused.
+    const SYNCVIEW_CLIENT_ENTRY_KEYS = Object.freeze(['c', 't', 'v', 'sxr', 'split']);
     let _syncviewClientEntryCapability = null;
     function _syncviewSetClientEntryCapability(value) { _syncviewClientEntryCapability = value; }
     let _syncviewClientEntryGeneration = 0;
@@ -62799,6 +62855,8 @@
         for (const key of SYNCVIEW_CLIENT_ENTRY_KEYS) {
             if (q.getAll(key).length > 1) return { ok: false, reason: 'duplicate_' + key };
         }
+        // The one key that is not part of the link itself: exactly 0 or 1, nothing else.
+        if (q.has('split') && q.get('split') !== '0' && q.get('split') !== '1') return { ok: false, reason: 'invalid_split' };
         if (q.getAll('c').length !== 1 || q.getAll('t').length !== 1) return { ok: false, reason: 'missing_credential' };
         const client = String(q.get('c') || '').trim();
         const token = String(q.get('t') || '').trim();
@@ -62960,6 +63018,7 @@
         if (view === 'samples') view = 'sample-reviews';
         if (view === 'analytics') q.delete('v'); else q.set('v', view);
         if (view === 'sample-reviews') q.set('sxr', '1'); else q.delete('sxr');
+        q.delete('split');   // the loader has read it by now; it is not part of the link
         const tab = view === 'sample-reviews' ? 'sample-reviews' : view;
         const prev = history.state && _syncviewClientEntrySlug(history.state.client) === entry.slug ? history.state : {};
         const state = Object.assign({}, prev, {
@@ -81413,4 +81472,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-03eab134ee9a.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-1710771af5e3.js");

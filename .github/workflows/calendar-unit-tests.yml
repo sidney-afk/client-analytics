@@ -213,6 +213,10 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules
         run: node docs/syncview-design/tests/split-load-browser.js
+      - name: Client link accepts the split way-back key and still refuses every other key
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: node docs/syncview-design/tests/client-link-split-key-browser.js
       - name: Client review link works on phones (approve + request change)
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

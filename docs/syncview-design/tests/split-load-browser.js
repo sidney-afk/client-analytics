@@ -263,16 +263,20 @@ async function lazyChecks(browser, origin, failures) {
           const context = await browser.newContext();
           await context.route(u => !/^http:\/\/127\.0\.0\.1/.test(u.toString()), clientLinkRoute('calendar'));
           const page = await context.newPage();
+          // Which script loaded is not enough: the link itself must also be accepted
+          // (a client link with an extra key was once refused as "This link isn't valid").
           const modeAt = async url => {
             await page.goto(origin + url, { waitUntil: 'domcontentloaded' });
             await page.waitForFunction(() => typeof window.navTo === 'function', null, { timeout: 20000 });
-            return page.evaluate(() => self.__svLoad && self.__svLoad.mode);
+            const drew = await page.waitForSelector(clientLinkCard('calendar'), { timeout: 20000 }).then(() => true, () => false);
+            const invalid = /This link isn.t valid/.test(await page.evaluate(() => document.body.innerText || ''));
+            return { mode: await page.evaluate(() => self.__svLoad && self.__svLoad.mode), ok: drew && !invalid };
           };
           const base = clientLinkUrl('', 'calendar');
           const steps = [[base, 'parts'], [base + '&split=0', 'full'], [base, 'full'], [base + '&split=1', 'parts'], [base, 'parts']];
           for (const [url, want] of steps) {
             const got = await modeAt(url);
-            if (got !== want) failures.push(`client opt-out: ${url.replace(/[?].*?(&split=\d)?$/, '?...$1')} got "${got}", expected "${want}"`);
+            if (got.mode !== want || !got.ok) failures.push(`client opt-out: ${url.replace(/[?].*?(&split=\d)?$/, '?...$1')} got "${got.mode}" (link accepted and card drawn: ${got.ok}), expected "${want}" and an accepted link`);
           }
           console.log('split-load: client link opt-out (?split=0 sticks, ?split=1 clears): ' + (failures.some(f => f.startsWith('client opt-out')) ? 'FAIL' : 'ok'));
           await context.close();

@@ -43,7 +43,7 @@ type Pick = { task: string; picks: string[] };
 // Plain-language shortlist the chat app reads first. Every id is in CATALOG
 // (the generated list of all 80+ API models); find_models lists the rest.
 const GO_TO: Pick[] = [
-  { task: "B-roll, background or filler video: ALWAYS photo first, then animate the chosen photo (recipe broll-photo-then-video)", picks: ["higgsfield-ai/soul/v2/standard", "kling-video/v2.6/pro/image-to-video"] },
+  { task: "B-roll, background or filler video: ALWAYS photo first, then animate the chosen photo (recipe broll-photo-then-video)", picks: ["openai/gpt-image", "kling-video/v2.6/pro/image-to-video"] },
   { task: "Best-quality video: people up close, realistic motion, clips up to 30s", picks: ["bytedance/seedance-2.5/text-to-video"] },
   { task: "Animate a photo", picks: ["bytedance/seedance-2.5/image-to-video", "kling-video/v2.6/pro/image-to-video"] },
   { task: "Keep the same person or product across shots (reference images)", picks: ["bytedance/seedance-2.5/reference-to-video", "kling-video/o3/image-reference"] },
@@ -55,7 +55,7 @@ const GO_TO: Pick[] = [
   { task: "Copy the movement from one video onto a person in a photo", picks: ["higgsfield/genjutsu/motion-transfer/v1.0", "kling-video/v3/motion-control/pro"] },
   { task: "Swap an object in a video for another", picks: ["higgsfield/genjutsu/object-swap/v1.0"] },
   { task: "Photorealistic image of people or scenes", picks: ["higgsfield-ai/soul/v2/standard"] },
-  { task: "Edit a photo (change a person, outfit, background, add or remove things)", picks: ["openai/gpt-image", "google/nano-banana", "google/nano-banana-pro", "xai/grok-imagine-image-2.0"] },
+  { task: "Edit a photo (change a person, outfit, background, add or remove things)", picks: ["openai/gpt-image", "openai/gpt-image-fast", "google/nano-banana", "xai/grok-imagine-image-2.0"] },
   { task: "Image with readable text: thumbnails, posters, quotes", picks: ["ideogram/v4.0"] },
   { task: "Logos, icons, illustrations, design assets", picks: ["recraft/v4.1/pro/text-to-image", "recraft/v4.1/utility/pro/text-to-image"] },
   { task: "Quick, cheap image drafts", picks: ["z-image/turbo"] },
@@ -121,7 +121,7 @@ const INSTRUCTIONS = [
   "You help non-technical teammates of a social media agency make AI videos and images with Higgsfield. Talk in plain English, no jargon.",
   "Start with start_here. Work out what they want (ask one short question if unclear), pick a model from the shortlist and say why in one sentence.",
   "Call model_details before the first create with a model, write a rich prompt for them (subject, action, setting, camera, lighting, mood) and show it.",
-  "For photo edits and thumbnails prefer GPT Image (openai/gpt-image), then Nano Banana; they change only what is asked. ",
+  "For photo edits, thumbnails and new photos prefer GPT Image (openai/gpt-image; openai/gpt-image-fast for quick drafts), since it runs directly and never waits in Higgsfield's queue, then Nano Banana; they change only what is asked. ",
   "Choose sensible settings yourself: vertical 9:16 for social media unless they say otherwise, and a sharp but not wasteful quality (1080p or 2K when offered).",
   "Before EVERY create, run price_check and show its plan card to the person exactly as returned: model, what it will make, every setting (shape, quality, length, sound, inputs), the exact price, and the other quality and shape options. End with: \"Say go, or tell me what to change.\"",
   "Only call create after they say go (or yes). If they change anything, run price_check again and show the updated card. Never make anything without showing its price first. Mention the cost again when it is done.",
@@ -130,7 +130,7 @@ const INSTRUCTIONS = [
   "When someone wants thumbnails from screenshots, call thumbnail_workflow first and follow it.",
   "For thumbnail titles, read the client's voice with client_style and the videos with client_filming_plan instead of asking the person to paste them.",
   "Input media must be public links. If they have a file in Google Drive or Dropbox, pass its share link to import_file and use the link it returns.",
-  "After create, call check_job about every 20 to 30 seconds until it is done (images take seconds, videos 1 to 5 minutes), then give them the download link.",
+  "After create, call check_job about every 20 to 30 seconds until it is done (GPT Image and Nano Banana take under a minute; Higgsfield images wait in Higgsfield's queue and can take several minutes when it is busy; videos 1 to 5 minutes), then give them the download link.",
   "Never go around the monthly budget. If create refuses for budget, tell them to ask the account owner.",
 ].join(" ");
 
@@ -660,7 +660,7 @@ const RECIPES: Recipe[] = [
     models: ["openai/gpt-image", "google/nano-banana", "google/nano-banana-pro", "xai/grok-imagine-image-2.0", "alibaba/qwen-image-3/edit"],
     build: (model, image, notes, aspect) => {
       const prompt = EXPRESSION_FIX_PROMPT + (notes ? `\n\nAdditional instruction for this image: ${notes}` : "");
-      if (model === "openai/gpt-image") return { prompt, image_urls: [image], size: "auto", quality: "high" };
+      if (model === "openai/gpt-image") return { prompt, image_urls: [image], size: "auto", quality: "medium" };
       if (model.startsWith("google/")) return { prompt, image_urls: [image], image_size: "2K" };
       return model === "alibaba/qwen-image-3/edit"
         ? { prompt, image_urls: [image], resolution: "2k", aspect_ratio: aspect || "16:9", prompt_extend: false, enable_thinking: false }
@@ -671,10 +671,10 @@ const RECIPES: Recipe[] = [
     key: "broll-photo-then-video",
     name: "B-roll: photo first, then video",
     forWho: "video editors",
-    summary: "Make a still first (cheap, fast), pick the one you like, then animate that exact photo into a video clip.",
-    models: ["higgsfield-ai/soul/v2/standard", "z-image/turbo", "kling-video/v2.6/pro/image-to-video", "bytedance/seedance-2.5/image-to-video"],
+    summary: "Make a still with GPT Image first, refine it until you like it, then animate that exact photo into a video clip with a cheaper video model.",
+    models: ["openai/gpt-image", "kling-video/v2.6/pro/image-to-video", "bytedance/seedance-2.5/image-to-video"],
     guide: [
-      "Step 1, the photo: write the shot as a photo prompt and price_check then create it with higgsfield-ai/soul/v2/standard (photoreal; batch_size 4 gives four options at once) or z-image/turbo (quick drafts). Use the final video's shape (usually 9:16).",
+      "Step 1, the photo: write the shot as a detailed photo prompt and make it with openai/gpt-image (the team's preferred image model; a strong photo gives a better video even from a cheap video model). Use size 1152x2048 for vertical 9:16 or 2048x1152 for horizontal 16:9, quality medium (low for rough drafts; high only if they ask). price_check, show the plan card, create after go. To adjust, edit the last photo with openai/gpt-image by passing its link in image_urls with the change, instead of starting over.",
       "Step 2, pick: show the results and let them choose one, or adjust and redo step 1.",
       "Step 3, the video: animate the chosen image link with kling-video/v2.6/pro/image-to-video (cheaper, good for b-roll) or bytedance/seedance-2.5/image-to-video (best motion). Prompt only the motion and camera move, since the photo already sets the look. price_check, show the plan card, create after go.",
     ].join("\n"),
@@ -890,7 +890,7 @@ async function callTool(name: string, args: JsonMap, member: string): Promise<st
         `- Model: ${BY_ID.get(model)!.name}${recipe.models.length > 1 ? `  [other options: ${recipe.models.filter((m) => m !== model).map((m) => BY_ID.get(m)?.name).join(", ")}]` : ""}`,
         `- Images: ${images.length}`,
         notes ? `- Extra instruction: "${notes}"` : "- Extra instruction: none",
-        `- Output: ${model === "openai/gpt-image" ? "same shape as each screenshot, high quality" : model === "alibaba/qwen-image-3/edit" ? `${aspect || "16:9"} shape, 2K` : "same shape as each screenshot, 2K"}`,
+        `- Output: ${model === "openai/gpt-image" ? "same shape as each screenshot, medium quality" : model === "alibaba/qwen-image-3/edit" ? `${aspect || "16:9"} shape, 2K` : "same shape as each screenshot, 2K"}`,
         `- Price: ${money(est.usd)} each, ${money(total)} total`,
         await budget(),
         "",

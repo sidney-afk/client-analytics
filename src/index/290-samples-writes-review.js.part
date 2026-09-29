@@ -1491,7 +1491,7 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     }
     async function _sxrKasperPersist(item, patch) {
         const sample = Object.assign({ id: item.post.id }, patch);
-        const resp = await _writeUiTrackSave('sxr', 'kasper_sample_save', { client_slug: item.slug, id: String(item.post.id || '') }, () => _sxrUpsertFetch(item.slug, { client: item.slug, sample, comments_base_at: '' }, 'ui'));
+        const resp = await _writeUiTrackSave('sxr', 'kasper_sample_save', () => ({ client_slug: item.slug, id: String(item.post.id || '') }), () => _sxrUpsertFetch(item.slug, { client: item.slug, sample, comments_base_at: '' }, 'ui'));
         if (!resp.ok) throw new Error('http ' + resp.status);
         const j = await resp.json(); if (!j.ok) throw new Error(j.error || 'save failed');
         return j.sample || sample;

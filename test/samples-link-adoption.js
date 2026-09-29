@@ -90,7 +90,7 @@ function build(opts) {
      invisible from out here. As a context property it reads back, so the test
      can tell "armed the interval" (which alone does nothing) from "armed it and
      set the flag" (which actually repaints once the user stops typing). */
-  vm.createContext(scope);
+  Object.assign(scope, require('./helpers/write-log-stand-ins')); vm.createContext(scope);
   // 270 is a module: the adopter sets 280's flag through its owner's setter.
   vm.runInContext(extract('_sxrSetPendingBackgroundRender') + '\n'
     + extract('_sxrAdoptDeliverableLinks')

@@ -1028,7 +1028,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
         const knownPost = preCapturedPost || calState.posts.find(p => p.id === id) || null;
         const inflight = _calSaveInFlight[id];
         if (inflight) { try { await inflight; } catch (e) {} }
-        const resp = await _writeUiTrackSave('calendar', 'calendar_archive', { client_slug: useSlug, id: String(id || '') }, () => _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } }));
+        const resp = await _writeUiTrackSave('calendar', 'calendar_archive', () => ({ client_slug: useSlug, id: String(id || '') }), () => _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } }));
         const json = await resp.json();
         if (!json.ok) throw new Error(json.error || 'archive failed');
         // OWNER RULING 2026-08-17: archiving a post parks its sub-issues.
@@ -1997,7 +1997,7 @@ import { sxrClientSlug, sxrState } from './270-samples-model.js';
         btn.textContent = 'Saving…';
         try {
             const writeUrl = _settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL);
-            const r = await _writeUiTrackSave('captions', 'caption_prompt_save', { client_slug: calClientSlug(client) }, () => fetch(writeUrl, {
+            const r = await _writeUiTrackSave('captions', 'caption_prompt_save', () => ({ client_slug: calClientSlug(client) }), () => fetch(writeUrl, {
                 method: 'POST',
                 headers: _settingsWriteHeaders('caption-prompts', writeUrl),
                 body: JSON.stringify({ client: calClientSlug(client), prompt: promptText })

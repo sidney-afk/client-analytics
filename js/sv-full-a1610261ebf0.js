@@ -782,7 +782,7 @@
         const plusIcon = `<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
         btn.innerHTML = `${plusIcon} Saving…`;
         try {
-            const resp = await _writeUiTrackSave('briefs', 'hook_library_add', { client_slug: calClientSlug(clientName) }, () => fetch(HOOK_LIBRARY_WEBHOOK, {
+            const resp = await _writeUiTrackSave('briefs', 'hook_library_add', () => ({ client_slug: calClientSlug(clientName) }), () => fetch(HOOK_LIBRARY_WEBHOOK, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -2792,7 +2792,7 @@
             fresh.sort((a,b)=>n(b.views)-n(a.views));
             const top=fresh[0];
             if(!top){showNotify('No videos','No weekly top videos found for '+clientName);if(btn){btn.disabled=false;btn.innerHTML=_slackBtnContent;}return;}
-            const resp=await _writeUiTrackSave('briefs', 'weekly_slack_update', { client_slug: calClientSlug(clientName) }, () => fetch(WEEKLY_SLACK_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName,slack_channel_id:channelId,content_description:info.content_description||'',platform:top.platform||'instagram',video_url:top.video_url||'',caption:(top.caption||'').substring(0,500),views:n(top.views),likes:n(top.likes),comments:n(top.comments),shares:n(top.shares),scraped_date:latestDate})}));
+            const resp=await _writeUiTrackSave('briefs', 'weekly_slack_update', () => ({ client_slug: calClientSlug(clientName) }), () => fetch(WEEKLY_SLACK_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName,slack_channel_id:channelId,content_description:info.content_description||'',platform:top.platform||'instagram',video_url:top.video_url||'',caption:(top.caption||'').substring(0,500),views:n(top.views),likes:n(top.likes),comments:n(top.comments),shares:n(top.shares),scraped_date:latestDate})}));
             if(resp.ok)showNotify('Sent!','Slack update sent for '+clientName);
             else showNotify('Error','Slack webhook returned '+resp.status);
         }catch(e){console.error('[SyncView] Slack send error:',e);showNotify('Error','Could not send Slack update. Check webhook.');}
@@ -3498,7 +3498,7 @@
         let ok = false;
         try {
             const writeUrl = TEMPLATES_SAVE_EF_URL;
-            const resp = await _writeUiTrackSave('templates', 'templates_save', { client_slug: calClientSlug(name) }, () => fetch(writeUrl, {
+            const resp = await _writeUiTrackSave('templates', 'templates_save', () => ({ client_slug: calClientSlug(name) }), () => fetch(writeUrl, {
                 method: 'POST',
                 headers: _settingsWriteHeaders('templates', writeUrl),
                 body: JSON.stringify({ clientName: name, patch }),
@@ -4694,7 +4694,7 @@
         });
         // Only "Send a change" is a save; reading facts and folders is not.
         return (payload && payload.action === 'change'
-            ? _writeUiTrackSave('templates', 'templates_brain_change', { client_slug: calClientSlug(payload.clientName) }, send)
+            ? _writeUiTrackSave('templates', 'templates_brain_change', () => ({ client_slug: calClientSlug(payload.clientName) }), send)
             : send()).then(async r => {
             const j = await r.json().catch(() => ({}));
             if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
@@ -5603,7 +5603,7 @@
     }
     async function _fpPostPlan(payload, retried) {
         const ident = await _syncviewRequireStaffIdentity('onboarding');
-        const resp = await _writeUiTrackSave('filming', 'filming_plan_save', { client_slug: String(payload && payload.clientSlug || calClientSlug(payload && payload.clientName) || '') }, () => fetch(FILMING_PLANS_EF_URL, {
+        const resp = await _writeUiTrackSave('filming', 'filming_plan_save', () => ({ client_slug: String(payload && payload.clientSlug || calClientSlug(payload && payload.clientName) || '') }), () => fetch(FILMING_PLANS_EF_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key, 'X-Syncview-Actor': ident.member.name, 'X-Syncview-Role': ident.role },
             body: JSON.stringify(payload),
@@ -10645,7 +10645,7 @@
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), WL_PLAN_WRITE_TIMEOUT_MS);
         try {
-            return await _writeUiTrackSave('workload', 'workload_plan_save', { id: String(issue.id || '') }, () => fetch(WORKLOAD_PLAN_URL, {
+            return await _writeUiTrackSave('workload', 'workload_plan_save', () => ({ id: String(issue.id || '') }), () => fetch(WORKLOAD_PLAN_URL, {
                 method: 'POST',
                 cache: 'no-store',
                 signal: controller.signal,
@@ -10952,7 +10952,7 @@
         const timeout = setTimeout(() => controller.abort(), WL_LINEAR_WRITE_TIMEOUT_MS);
         try {
             if (route && route.authority === 'syncview') {
-                return await _writeUiTrackSave('workload', 'workload_due_save', { id: String(issue && issue.id || '') }, () => fetch(PROD_WRITE_EF_URL, {
+                return await _writeUiTrackSave('workload', 'workload_due_save', () => ({ id: String(issue && issue.id || '') }), () => fetch(PROD_WRITE_EF_URL, {
                     method: 'POST',
                     cache: 'no-store',
                     signal: controller.signal,
@@ -10974,7 +10974,7 @@
                     })
                 }));
             }
-            return await _writeUiTrackSave('workload', 'workload_due_save', { id: String(issue && issue.id || '') }, () => fetch(WORKLOAD_LINEAR_URL, {
+            return await _writeUiTrackSave('workload', 'workload_due_save', () => ({ id: String(issue && issue.id || '') }), () => fetch(WORKLOAD_LINEAR_URL, {
                 method: 'POST',
                 cache: 'no-store',
                 signal: controller.signal,
@@ -21317,7 +21317,7 @@
     async function _syncviewIssueClientShareUrl(clientName, view) {
         const identity = _syncviewStaffIdentityForHeaders();
         if (!identity) throw new Error('Sign in with your staff account to create a secure client link.');
-        const resp = await _writeUiTrackSave('share', 'client_link_issue', { client_slug: calClientSlug(clientName) }, () => fetch(CLIENT_REVIEW_LINK_URL, {
+        const resp = await _writeUiTrackSave('share', 'client_link_issue', () => ({ client_slug: calClientSlug(clientName) }), () => fetch(CLIENT_REVIEW_LINK_URL, {
             method: 'POST',
             headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CLIENT_REVIEW_LINK_URL),
             body: JSON.stringify({ client: clientName })
@@ -21383,7 +21383,7 @@
         let role = 'smm';
         try { if (_isClientLink) role = 'client'; else if (svRoute.hash() === '#kasper' || new URLSearchParams(svRoute.search()).get('Kasper') === '1') role = 'kasper'; } catch (e) {}
         const actor = role === 'client' ? 'Client' : (role === 'kasper' ? 'Kasper' : 'SyncView');
-        return _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': actor, 'X-Mutant': '1', 'X-Syncview-Role': role, 'X-Syncview-Source': source || 'ui' }, url);
+        return _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': actor, 'X-Syncview-Role': role, 'X-Syncview-Source': source || 'ui' }, url);
     }
 
     /* Write-UI Part 2: one authenticated Calendar/SXR gateway. The browser
@@ -23190,8 +23190,9 @@
        without touching what the save does next.
 
        `_writeUiTrackSave` runs the request and returns the SAME response, or
-       rethrows the SAME error, exactly as the bare request did: it only looks
-       at `response.ok` and never reads the body. The log's screen column
+       rethrows the SAME error, exactly as the bare request did: it looks at
+       `response.ok` and, for an OK answer, at a clone of the body for a
+       refusal sent as {"ok":false}; the response itself is never read. The log's screen column
        stores these as `unknown`; the operation name (`templates_save`,
        `filming_plan_save`, ...) is stored as the action, so the name says
        which save it was. Staff pages only: the client approve and
@@ -23212,7 +23213,11 @@
             // A request that never got an answer rejects with one of these two
             // and nothing else; anything with a status did reach a server.
             else if (name === 'TypeError' || name === 'AbortError') shape.network = true;
-            _writeUiRecordFailure(surface, operation, shape, context);
+            // The context may be given as a function so that building it can never
+            // get in the way of the save it describes.
+            let ids = context;
+            try { if (typeof context === 'function') ids = context(); } catch (e) { ids = {}; }
+            _writeUiRecordFailure(surface, operation, shape, ids);
         } catch (e) {}
     }
     async function _writeUiTrackSave(surface, operation, context, send) {
@@ -23220,6 +23225,15 @@
         try { response = await send(); }
         catch (error) { _writeUiRecordSaveFailure(surface, operation, error, null, context); throw error; }
         if (response && response.ok === false) _writeUiRecordSaveFailure(surface, operation, null, response, context);
+        else if (response && response.ok === true && typeof response.clone === 'function') {
+            // Some saves (the n8n webhooks) refuse with HTTP 200 and {"ok":false}.
+            // A CLONE is read, so the caller still gets an untouched body; a
+            // body that is not JSON is simply not a refusal we can see.
+            try {
+                const body = await response.clone().json();
+                if (body && body.ok === false) _writeUiRecordSaveFailure(surface, operation, { message: 'save refused' }, null, context);
+            } catch (e) {}
+        }
         return response;
     }
     function _writeUiReportFailure(surface, operation, error, context) {
@@ -29880,7 +29894,7 @@
         if (!post || !post.id) return null;
         const slug = calClientSlug(clientOrSlug);
         const patch = _calBuildUrgentPatch(post, ping || {});
-        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', { client_slug: slug, id: String(post.id || '') }, () => fetch(CALENDAR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(CALENDAR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _calUpsertHeaders('ui', CALENDAR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, post: patch, comments_base_at: '' })
@@ -29925,7 +29939,7 @@
         if (!post || !post.id) return null;
         const slug = calClientSlug(clientOrSlug);
         const patch = _calBuildKasperUrgentPatch(post, comp, ping || {});
-        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', { client_slug: slug, id: String(post.id || '') }, () => fetch(CALENDAR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(CALENDAR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _calUpsertHeaders('ui', CALENDAR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, post: patch, comments_base_at: '' })
@@ -30198,6 +30212,8 @@
                         const who = (j && j.editor) ? (' — pinged ' + j.editor) : '';
                         showNotify(spec.sentTitle, spec.sentWhere + who + (persistFailed ? '. The Sent state may not persist until the row saves.' : '.'));
                     } catch (e) {
+                        // Failed-saves log: an urgent ping that went out and did not come back confirmed.
+                        if (attempted) _writeUiRecordSaveFailure(native && native.surface === 'sxr' ? 'sxr' : 'calendar', 'urgent_ping', e, null, { id: String(native && native.card_id || '') });
                         if (nativeLane && attempted && !knownNotSent) { showUnknown(); return; }
                         if (nativeLane && !attempted) {
                             releaseOwnHold();
@@ -30431,7 +30447,7 @@
             if (!post || String(post[slot.field] || '').trim()) continue;
             if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
             try {
-                const resp = await _writeUiTrackSave('calendar', 'calendar_link_adopt', { client_slug: slug, id: String(post.id || '') }, () => _calUpsertFetch(slug, { client: slug, post: { id: post.id, [slot.field]: url } }));
+                const resp = await _writeUiTrackSave('calendar', 'calendar_link_adopt', () => ({ client_slug: slug, id: String(post.id || '') }), () => _calUpsertFetch(slug, { client: slug, post: { id: post.id, [slot.field]: url } }));
                 const json = await resp.json().catch(() => ({}));
                 if (!json || json.ok !== true) continue;
                 post[slot.field] = url;
@@ -38933,7 +38949,7 @@
         const knownPost = preCapturedPost || calState.posts.find(p => p.id === id) || null;
         const inflight = _calSaveInFlight[id];
         if (inflight) { try { await inflight; } catch (e) {} }
-        const resp = await _writeUiTrackSave('calendar', 'calendar_archive', { client_slug: useSlug, id: String(id || '') }, () => _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } }));
+        const resp = await _writeUiTrackSave('calendar', 'calendar_archive', () => ({ client_slug: useSlug, id: String(id || '') }), () => _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } }));
         const json = await resp.json();
         if (!json.ok) throw new Error(json.error || 'archive failed');
         // OWNER RULING 2026-08-17: archiving a post parks its sub-issues.
@@ -39902,7 +39918,7 @@
         btn.textContent = 'Saving…';
         try {
             const writeUrl = _settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL);
-            const r = await _writeUiTrackSave('captions', 'caption_prompt_save', { client_slug: calClientSlug(client) }, () => fetch(writeUrl, {
+            const r = await _writeUiTrackSave('captions', 'caption_prompt_save', () => ({ client_slug: calClientSlug(client) }), () => fetch(writeUrl, {
                 method: 'POST',
                 headers: _settingsWriteHeaders('caption-prompts', writeUrl),
                 body: JSON.stringify({ client: calClientSlug(client), prompt: promptText })
@@ -62657,7 +62673,7 @@
     }
     function _sxrReorderFetch(clientOrSlug, payload, source) {
         _sxrPrimeSampleRoutingFlag();
-        const post = (url) => _writeUiTrackSave('sxr', 'sample_reorder', { client_slug: String(payload && payload.client || '') }, () => fetch(url, {
+        const post = (url) => _writeUiTrackSave('sxr', 'sample_reorder', () => ({ client_slug: String(payload && payload.client || '') }), () => fetch(url, {
             method: 'POST',
             headers: _sxrWriteHeaders(source, url),
             body: JSON.stringify(payload)
@@ -64324,7 +64340,7 @@
             if (!post || String(post[slot.field] || '').trim()) continue;
             if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
             try {
-                const resp = await _writeUiTrackSave('sxr', 'sample_link_adopt', { client_slug: slug, id: String(post.id || '') }, () => _sxrUpsertFetch(slug, { client: slug, sample: { id: post.id, [slot.field]: url, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'link-adopt'));
+                const resp = await _writeUiTrackSave('sxr', 'sample_link_adopt', () => ({ client_slug: slug, id: String(post.id || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: post.id, [slot.field]: url, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'link-adopt'));
                 const json = await resp.json().catch(() => ({}));
                 if (!json || json.ok !== true) continue;
                 post[slot.field] = url;
@@ -64974,7 +64990,7 @@
         if (!post || !post.id) return null;
         const slug = sxrClientSlug(clientOrSlug);
         const patch = _calBuildKasperUrgentPatch(post, comp, ping || {});
-        const resp = await _writeUiTrackSave('sxr', 'urgent_marker_save', { client_slug: slug, id: String(post.id || '') }, () => fetch(SXR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('sxr', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(SXR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _sxrWriteHeaders('ui', SXR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, sample: patch, comments_base_at: '' })
@@ -65013,7 +65029,7 @@
         if (!post || !post.id) return null;
         const slug = sxrClientSlug(clientOrSlug);
         const patch = _calBuildUrgentPatch(post, ping || {});
-        const resp = await _writeUiTrackSave('sxr', 'urgent_marker_save', { client_slug: slug, id: String(post.id || '') }, () => fetch(SXR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('sxr', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(SXR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _sxrWriteHeaders('ui', SXR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, sample: patch, comments_base_at: '' })
@@ -65182,7 +65198,7 @@
         const knownPost = preCapturedPost || sxrState.posts.find(p => p.id === pid) || null;
         if (typeof _sxrSaveInFlight[pid] !== 'undefined') { try { await _sxrSaveInFlight[pid]; } catch (e) {} }
         const archivedAt = new Date().toISOString();
-        const resp = await _writeUiTrackSave('sxr', 'sample_archive', { client_slug: slug, id: String(pid || '') }, () => _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: archivedAt }, comments_base_at: '' }, 'ui'));
+        const resp = await _writeUiTrackSave('sxr', 'sample_archive', () => ({ client_slug: slug, id: String(pid || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: archivedAt }, comments_base_at: '' }, 'ui'));
         if (!resp.ok) throw new Error('archive HTTP ' + resp.status);
         // Same rule as the Calendar (owner ruling 2026-08-17, extended to
         // samples 2026-09-28): archiving parks the sample's work items in
@@ -69588,7 +69604,7 @@
     }
     async function _sxrKasperPersist(item, patch) {
         const sample = Object.assign({ id: item.post.id }, patch);
-        const resp = await _writeUiTrackSave('sxr', 'kasper_sample_save', { client_slug: item.slug, id: String(item.post.id || '') }, () => _sxrUpsertFetch(item.slug, { client: item.slug, sample, comments_base_at: '' }, 'ui'));
+        const resp = await _writeUiTrackSave('sxr', 'kasper_sample_save', () => ({ client_slug: item.slug, id: String(item.post.id || '') }), () => _sxrUpsertFetch(item.slug, { client: item.slug, sample, comments_base_at: '' }, 'ui'));
         if (!resp.ok) throw new Error('http ' + resp.status);
         const j = await resp.json(); if (!j.ok) throw new Error(j.error || 'save failed');
         return j.sample || sample;
@@ -71615,9 +71631,9 @@
         xhr.send(fd);
     }
 
-    /* Failed-saves log (Priority 4): every way a TikTok upload can fail is
-       recorded once, next to the message the person sees. Status only; the
-       file, title and links never leave the page. */
+    // Failed-saves log (Priority 4): every way a TikTok upload can fail is
+    // recorded once, next to the message the person sees. Status only; the
+    // file, title and links never leave the page.
     function _tkRecordFailure(operation, status, network) {
         const shape = { message: status ? 'HTTP ' + status : (network ? 'network error' : 'upload rejected') };
         if (status) shape.status = status;
@@ -80681,4 +80697,4 @@
         }, true);
     })();
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-full-0822001a44d8.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-full-a1610261ebf0.js");

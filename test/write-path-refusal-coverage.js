@@ -93,6 +93,20 @@ for (const key of listed) {
 ok(true, 'each "reports" decision is backed by a recorder call in the named function, and each "reports-in-callers" by its callers: ' + Object.entries(counts).map(([k, n]) => `${n} ${k}`).join(', '));
 ok(counts['reports'] >= 30, `at least 30 sites now record their own refusals (${counts['reports']})`);
 
+// The log stores the operation name as its action: lowercase letters, digits and
+// underscores, at most 40 (the server's own rule, so a name outside it is dropped).
+{
+  const { fragments, read } = require('./helpers/write-path-scan');
+  const names = new Set();
+  for (const fragment of fragments()) {
+    const text = read(fragment);
+    for (const m of text.matchAll(/(?:_writeUiTrackSave|_writeUiRecordSaveFailure|_writeUiRecordFailure)\(\s*'([a-z_]+)'\s*,\s*'([a-z0-9_]+)'/g)) names.add(m[2]);
+    for (const m of text.matchAll(/_tkRecordFailure\('([a-z0-9_]+)'/g)) names.add(m[1]);
+  }
+  const bad = [...names].filter(n => !/^[a-z0-9_]{1,40}$/.test(n));
+  ok(names.size >= 30 && bad.length === 0, `every operation name the page records is one the log accepts as an action (${names.size} names, ${bad.length} outside a-z, 0-9, _ and 40 characters)`);
+}
+
 // The saves the owner named.
 for (const [needle, what] of [['_tplFlush', 'Templates'], ['_fpPostPlan', 'Filming plans'], ['_tplBrainPost', 'Templates brain change'], ['_calSaveCaptionPrompt', 'Caption prompts'], ['_wlPlanWriteRequest', 'Workload plan'], ['_wlDueWriteRequest', 'Workload due date'], ['_tkCancelRow', 'TikTok cancel'], ['_hpCall', 'Hiring'], ['_ccApi', 'Client credentials'], ['_caEditPost', 'Client profile']]) {
   const entry = Object.entries(inventory).find(([k]) => k.split('|')[1] === needle || (inventory[k].within || []).includes(needle));
@@ -134,6 +148,14 @@ function makeSandbox() {
     const goodBody = { ok: true, status: 200, clone() { return { json: () => Promise.resolve({ ok: true }) }; } };
     await sb.track('captions', 'caption_prompt_save', {}, async () => goodBody);
     ok(sb.recorded.length === 1, 'an OK answer that is not JSON, or says ok:true, records nothing');
+  }
+  {
+    const sb = makeSandbox();
+    const refused = { ok: false, status: 500 };
+    const got = await sb.track('templates', 'templates_save', () => ({ client_slug: 'lazy' }), async () => refused);
+    ok(got === refused && sb.recorded.length === 1 && sb.recorded[0].context.client_slug === 'lazy', 'a context given as a function is resolved when the refusal is recorded');
+    const broken = await sb.track('templates', 'templates_save', () => { throw new Error('context blew up'); }, async () => refused);
+    ok(broken === refused && sb.recorded.length === 2, 'a context that throws never breaks the save: it is recorded without ids and the response still comes back');
   }
   {
     const sb = makeSandbox();

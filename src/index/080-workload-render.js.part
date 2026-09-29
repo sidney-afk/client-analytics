@@ -768,7 +768,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), WL_PLAN_WRITE_TIMEOUT_MS);
         try {
-            return await _writeUiTrackSave('workload', 'workload_plan_save', { id: String(issue.id || '') }, () => fetch(WORKLOAD_PLAN_URL, {
+            return await _writeUiTrackSave('workload', 'workload_plan_save', () => ({ id: String(issue.id || '') }), () => fetch(WORKLOAD_PLAN_URL, {
                 method: 'POST',
                 cache: 'no-store',
                 signal: controller.signal,
@@ -1075,7 +1075,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
         const timeout = setTimeout(() => controller.abort(), WL_LINEAR_WRITE_TIMEOUT_MS);
         try {
             if (route && route.authority === 'syncview') {
-                return await _writeUiTrackSave('workload', 'workload_due_save', { id: String(issue && issue.id || '') }, () => fetch(PROD_WRITE_EF_URL, {
+                return await _writeUiTrackSave('workload', 'workload_due_save', () => ({ id: String(issue && issue.id || '') }), () => fetch(PROD_WRITE_EF_URL, {
                     method: 'POST',
                     cache: 'no-store',
                     signal: controller.signal,
@@ -1097,7 +1097,7 @@ import { _prodApplyGatewayRow } from './230-production-create-comments.js';
                     })
                 }));
             }
-            return await _writeUiTrackSave('workload', 'workload_due_save', { id: String(issue && issue.id || '') }, () => fetch(WORKLOAD_LINEAR_URL, {
+            return await _writeUiTrackSave('workload', 'workload_due_save', () => ({ id: String(issue && issue.id || '') }), () => fetch(WORKLOAD_LINEAR_URL, {
                 method: 'POST',
                 cache: 'no-store',
                 signal: controller.signal,

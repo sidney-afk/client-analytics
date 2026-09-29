@@ -557,7 +557,7 @@
     async function _syncviewIssueClientShareUrl(clientName, view) {
         const identity = _syncviewStaffIdentityForHeaders();
         if (!identity) throw new Error('Sign in with your staff account to create a secure client link.');
-        const resp = await _writeUiTrackSave('share', 'client_link_issue', { client_slug: calClientSlug(clientName) }, () => fetch(CLIENT_REVIEW_LINK_URL, {
+        const resp = await _writeUiTrackSave('share', 'client_link_issue', () => ({ client_slug: calClientSlug(clientName) }), () => fetch(CLIENT_REVIEW_LINK_URL, {
             method: 'POST',
             headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CLIENT_REVIEW_LINK_URL),
             body: JSON.stringify({ client: clientName })
@@ -2430,8 +2430,9 @@
        without touching what the save does next.
 
        `_writeUiTrackSave` runs the request and returns the SAME response, or
-       rethrows the SAME error, exactly as the bare request did: it only looks
-       at `response.ok` and never reads the body. The log's screen column
+       rethrows the SAME error, exactly as the bare request did: it looks at
+       `response.ok` and, for an OK answer, at a clone of the body for a
+       refusal sent as {"ok":false}; the response itself is never read. The log's screen column
        stores these as `unknown`; the operation name (`templates_save`,
        `filming_plan_save`, ...) is stored as the action, so the name says
        which save it was. Staff pages only: the client approve and
@@ -2452,7 +2453,11 @@
             // A request that never got an answer rejects with one of these two
             // and nothing else; anything with a status did reach a server.
             else if (name === 'TypeError' || name === 'AbortError') shape.network = true;
-            _writeUiRecordFailure(surface, operation, shape, context);
+            // The context may be given as a function so that building it can never
+            // get in the way of the save it describes.
+            let ids = context;
+            try { if (typeof context === 'function') ids = context(); } catch (e) { ids = {}; }
+            _writeUiRecordFailure(surface, operation, shape, ids);
         } catch (e) {}
     }
     async function _writeUiTrackSave(surface, operation, context, send) {
@@ -2460,6 +2465,15 @@
         try { response = await send(); }
         catch (error) { _writeUiRecordSaveFailure(surface, operation, error, null, context); throw error; }
         if (response && response.ok === false) _writeUiRecordSaveFailure(surface, operation, null, response, context);
+        else if (response && response.ok === true && typeof response.clone === 'function') {
+            // Some saves (the n8n webhooks) refuse with HTTP 200 and {"ok":false}.
+            // A CLONE is read, so the caller still gets an untouched body; a
+            // body that is not JSON is simply not a refusal we can see.
+            try {
+                const body = await response.clone().json();
+                if (body && body.ok === false) _writeUiRecordSaveFailure(surface, operation, { message: 'save refused' }, null, context);
+            } catch (e) {}
+        }
         return response;
     }
     function _writeUiReportFailure(surface, operation, error, context) {
@@ -9120,7 +9134,7 @@
         if (!post || !post.id) return null;
         const slug = calClientSlug(clientOrSlug);
         const patch = _calBuildUrgentPatch(post, ping || {});
-        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', { client_slug: slug, id: String(post.id || '') }, () => fetch(CALENDAR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(CALENDAR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _calUpsertHeaders('ui', CALENDAR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, post: patch, comments_base_at: '' })
@@ -9165,7 +9179,7 @@
         if (!post || !post.id) return null;
         const slug = calClientSlug(clientOrSlug);
         const patch = _calBuildKasperUrgentPatch(post, comp, ping || {});
-        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', { client_slug: slug, id: String(post.id || '') }, () => fetch(CALENDAR_UPSERT_EF_URL, {
+        const resp = await _writeUiTrackSave('calendar', 'urgent_marker_save', () => ({ client_slug: slug, id: String(post.id || '') }), () => fetch(CALENDAR_UPSERT_EF_URL, {
             method: 'POST',
             headers: _calUpsertHeaders('ui', CALENDAR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, post: patch, comments_base_at: '' })
@@ -9673,7 +9687,7 @@
             if (!post || String(post[slot.field] || '').trim()) continue;
             if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
             try {
-                const resp = await _writeUiTrackSave('calendar', 'calendar_link_adopt', { client_slug: slug, id: String(post.id || '') }, () => _calUpsertFetch(slug, { client: slug, post: { id: post.id, [slot.field]: url } }));
+                const resp = await _writeUiTrackSave('calendar', 'calendar_link_adopt', () => ({ client_slug: slug, id: String(post.id || '') }), () => _calUpsertFetch(slug, { client: slug, post: { id: post.id, [slot.field]: url } }));
                 const json = await resp.json().catch(() => ({}));
                 if (!json || json.ok !== true) continue;
                 post[slot.field] = url;
@@ -18175,7 +18189,7 @@
         const knownPost = preCapturedPost || calState.posts.find(p => p.id === id) || null;
         const inflight = _calSaveInFlight[id];
         if (inflight) { try { await inflight; } catch (e) {} }
-        const resp = await _writeUiTrackSave('calendar', 'calendar_archive', { client_slug: useSlug, id: String(id || '') }, () => _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } }));
+        const resp = await _writeUiTrackSave('calendar', 'calendar_archive', () => ({ client_slug: useSlug, id: String(id || '') }), () => _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } }));
         const json = await resp.json();
         if (!json.ok) throw new Error(json.error || 'archive failed');
         // OWNER RULING 2026-08-17: archiving a post parks its sub-issues.
@@ -19144,7 +19158,7 @@
         btn.textContent = 'Saving…';
         try {
             const writeUrl = _settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL);
-            const r = await _writeUiTrackSave('captions', 'caption_prompt_save', { client_slug: calClientSlug(client) }, () => fetch(writeUrl, {
+            const r = await _writeUiTrackSave('captions', 'caption_prompt_save', () => ({ client_slug: calClientSlug(client) }), () => fetch(writeUrl, {
                 method: 'POST',
                 headers: _settingsWriteHeaders('caption-prompts', writeUrl),
                 body: JSON.stringify({ client: calClientSlug(client), prompt: promptText })
@@ -25239,4 +25253,4 @@
             return allowed;
         }
 
-;(self.__svParts || (self.__svParts = [])).push("js/sv-11-core-67f00a4a8a7b.js");
+;(self.__svParts || (self.__svParts = [])).push("js/sv-11-core-e0c1db2f1ff4.js");

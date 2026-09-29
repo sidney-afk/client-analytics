@@ -464,7 +464,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
     async function _syncviewIssueClientShareUrl(clientName, view) {
         const identity = _syncviewStaffIdentityForHeaders();
         if (!identity) throw new Error('Sign in with your staff account to create a secure client link.');
-        const resp = await _writeUiTrackSave('share', 'client_link_issue', { client_slug: calClientSlug(clientName) }, () => fetch(CLIENT_REVIEW_LINK_URL, {
+        const resp = await _writeUiTrackSave('share', 'client_link_issue', () => ({ client_slug: calClientSlug(clientName) }), () => fetch(CLIENT_REVIEW_LINK_URL, {
             method: 'POST',
             headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CLIENT_REVIEW_LINK_URL),
             body: JSON.stringify({ client: clientName })
@@ -2360,7 +2360,11 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             // A request that never got an answer rejects with one of these two
             // and nothing else; anything with a status did reach a server.
             else if (name === 'TypeError' || name === 'AbortError') shape.network = true;
-            _writeUiRecordFailure(surface, operation, shape, context);
+            // The context may be given as a function so that building it can never
+            // get in the way of the save it describes.
+            let ids = context;
+            try { if (typeof context === 'function') ids = context(); } catch (e) { ids = {}; }
+            _writeUiRecordFailure(surface, operation, shape, ids);
         } catch (e) {}
     }
     async function _writeUiTrackSave(surface, operation, context, send) {

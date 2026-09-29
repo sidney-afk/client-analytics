@@ -88,7 +88,7 @@ function world(opts) {
     console: { warn: () => {}, log: () => {} },
     Promise, Error, Set, Object, String, Boolean, Date,
   };
-  vm.createContext(sandbox);
+  Object.assign(sandbox, require('./helpers/write-log-stand-ins')); vm.createContext(sandbox);
   vm.runInContext(
     extractFn('_calArchiveParkSubIssues') + '\n' + extractFn('_calArchiveOne')
     + '\nthis.archiveOne = _calArchiveOne; this.park = _calArchiveParkSubIssues;',

@@ -214,7 +214,7 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
             if (!post || String(post[slot.field] || '').trim()) continue;
             if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
             try {
-                const resp = await _writeUiTrackSave('calendar', 'calendar_link_adopt', { client_slug: slug, id: String(post.id || '') }, () => _calUpsertFetch(slug, { client: slug, post: { id: post.id, [slot.field]: url } }));
+                const resp = await _writeUiTrackSave('calendar', 'calendar_link_adopt', () => ({ client_slug: slug, id: String(post.id || '') }), () => _calUpsertFetch(slug, { client: slug, post: { id: post.id, [slot.field]: url } }));
                 const json = await resp.json().catch(() => ({}));
                 if (!json || json.ok !== true) continue;
                 post[slot.field] = url;

@@ -41,7 +41,7 @@ here with where it stopped, so it can be restarted.
    `node scripts/split-switch.js off`, commit, merge; one browser: `?split=0`.
    SyncLinear stays in the always-loaded part (owner, 2026-09-29).
 4. **Failed saves: finish the log.** Built: the write-refusal log (#1499), an
-   admin page to read it (#1792), and (2026-09-29, OPEN_REPAIRS 288) refusals from
+   admin page to read it (#1792), and (2026-09-29, OPEN_REPAIRS 290) refusals from
    every other save: Templates, Filming plans, caption prompts, Workload dates,
    TikTok, Hiring, credentials and the rest (list in
    `docs/audits/2026-09-29-write-paths-refusal-coverage.md`, kept honest by a test).
@@ -83,13 +83,19 @@ here with where it stopped, so it can be restarted.
      #1857 removes it, after which Kasper > Filming reads from the function, with
      n8n kept as the automatic per-Doc fallback. Rollback: set the flag to
      `{"mode":"n8n"}` (takes effect on the next Filming open). The n8n Filming Plan
-     Tabs workflow stays on for 30 days. Next: PR 2 (Calendar, session Anvil), then
+     Tabs workflow stays on for 30 days. **PR 2 (Calendar, session Anvil, #1858) built 2026-09-29, awaiting Lighthouse's
+     merge:** staff saves hold or pause on a fresh flag read and never fall back to n8n; client
+     approve and request-changes untouched (byte-identical test); pinned repairs migrate on load;
+     the n8n Calendar workflows stay on 30 days after it ships. Next: Caption Prompts (PR 3), then
      Caption Prompts and Sample Review. Owner decisions: the client approve and request-changes buttons are
      not touched at all, and old n8n workflows stay on 30 days.
-   - **Staff can see and restore recently archived Calendar cards** (owner
-     2026-09-29): from the Calendar's More menu, researched first and heavily
-     tested, because a restore touches the card, its work items (archiving parks
-     them in backlog) and Workload. Given to a new session on 2026-09-29.
+   - **Staff can see and restore recently archived Calendar cards and Samples**
+     (owner 2026-09-29): BUILT in PR 1853 (session Harbor), waiting for
+     Lighthouse's merge; move to Done after that. From the More menu, admin and
+     SMM only; the card and each work item come back exactly as they were (plan
+     `docs/plans/2026-09-29-calendar-unarchive.md`, ledger item 288). Still to do
+     as a separate change: a warning when someone moves a work item whose card is
+     archived (needs the sealed capture and an owner deploy).
    - **Escape does not close a Calendar card's thumbnail or video edit box**
      (owner 2026-09-26). Last status: still broken. Re-check live first.
    - **Daily real-browser client check from a local session, Samples included,
@@ -201,8 +207,8 @@ hiring senders when the editor hire closes.
   The item showed only in SyncLinear, because the Calendar hides archived cards
   and so does Workload, and SMMs have no way to see or restore an archived card.
   Lighthouse restored that one card to In Progress on the owner's request
-  (logged in `calendar_post_events` as an `unarchive`). Open question for the owner:
-  should staff get a "show archived / restore" view in the Calendar?
+  (logged in `calendar_post_events` as an `unarchive`). The owner said yes: PR 1853
+  adds the view and the restore (see the priority list above).
 - **Publishable-key reads of `workload_issues`, `workload_issues_native_v1`
   and `production_deliverables_browser_v1` stay open. Owner decision
   2026-09-28; do not raise these three again.** Keel (#1840) found they return

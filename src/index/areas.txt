@@ -42,6 +42,7 @@
 170-calendar-links-status.js.part          core!
 180-calendar-native-post-media.js.part     core!
 185-client-review-queue.js.part            core!
+186-archived-restore.js.part              core
 190-calendar-approval-comments.js.part     core!
 200-intake-data-startup.js.part            core
 210-production-state-writes.js.part        synclinear

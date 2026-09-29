@@ -29,7 +29,7 @@ import {
   URGENT_EDITOR_NEEDS_NATIVE, _calKasperUrgentActive, _calPostLinearComment, _calUrgentButtonHtml,
   _calUrgentSlackDispatch, _linearOutboxFlush, _writeUiLegacyHydrateConfirmedCacheAfterAuthority,
   _writeUiLegacyQuarantineRead, _writeUiLegacyReconcileCommittedTombstones,
-  _writeUiLegacyShedRetired
+  _writeUiLegacyShedRetired, _writeUiMigratePinnedCalendarGates
 } from './140-calendar-legacy-outbox.js';
 import { CAL_CACHE_KEY_PREFIX, _calCacheWrite, _calHydrateLinearMeta, _calPruneLinearMetaForAuthority } from './150-calendar-hydration-import.js';
 import { _calRenderBody, _calThumbImgTag } from './160-calendar-organize-ui.js';
@@ -888,6 +888,14 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
                 _writeUiLegacyShedRetired('sxr'),
             ]);
             if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { deferred: true };
+            /* n8n exit, PR 2: move any staff Calendar repair still pinned to
+               the n8n writer onto Supabase (writer and verification source
+               together) before the drain looks at it. Staff only; a client
+               link is carved out. Never throws. */
+            if (owner.kind !== 'client') {
+                await _writeUiMigratePinnedCalendarGates().catch(() => null);
+                if (!_writeUiLegacyResumeOwnerCurrent(owner)) return { deferred: true };
+            }
             const calendarHasOwnedDebt = _linearOutboxRead()
                 .some(item => _writeUiLegacyItemOwnedBy(item, owner));
             const sxrHasOwnedDebt = _sxrLinearOutboxRead()

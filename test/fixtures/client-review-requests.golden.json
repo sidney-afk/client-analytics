@@ -141,8 +141,10 @@
     "_sxrReviewApprove": "b5d5b34acdd0f8183ce0ed21226c3435a388d035a5c744f2e7fd3b958a7363d3",
     "_sxrReviewRequestTweak": "f9ff325ea5e347fc95d82cf0939aa4ea3fb765f19f4ce925cbfa56db9fb1151e",
     "_writeUiGatewayPost": "2463b5dc6d0ff1d5f1cc8e645081484b53adb1ad5f0638dcf27e356308e502f3",
-    "_calUpsertFetch": "bb4d117b1a475f185327dd39a2c63ce5c0991ed7d78e650fcdd4f75ab65ceb53",
-    "_calUpsertFetchPinned": "ae04cf42149f44bfaa2b60427af98b8b5794dbc281ffff01efcf16826b78ebc7",
+    "_calUpsertFetch": "e4d9c943d76418299f3e85363f18f3b07fb2248770f06f3c6a0643d6687583c1",
+    "_calUpsertFetchClientLink": "c4af5af0588de63f2689cdffa2b038cec22e23ce8a5ab5ca61f5101702389813",
+    "_calUpsertFetchGuarded": "2c72f07aa28fb3388c107ee7aaf4759f6434a01a5ed449b1beef49b3a2a88702",
+    "_calUpsertFetchPinned": "d30bd3f11ab5242c15b32e4f55d393e75943f4c3a39dceb90672964bfe13fa46",
     "_sxrUpsertFetch": "5359851a208e16359c60a9ddae5e030fc44b8e473c5185232f9b8ee500ee6610",
     "_sxrUpsertFetchPinned": "c60010ba008e6b872a6b943d604949f619e55c62f6a96af7dde5cae60b3b1c34"
   }

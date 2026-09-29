@@ -39,7 +39,7 @@ const SURFACES = {
   samples: { card: 'sr_review_fixture_1', query: { v: 'sample-reviews', sxr: '1' }, table: 'sample_reviews', tweakComp: 'graphic' },
 };
 const FUNCTIONS = ['_calReviewApprove', '_calReviewRequestTweak', '_sxrReviewApprove', '_sxrReviewRequestTweak',
-  '_writeUiGatewayPost', '_calUpsertFetch', '_calUpsertFetchPinned', '_sxrUpsertFetch', '_sxrUpsertFetchPinned'];
+  '_writeUiGatewayPost', '_calUpsertFetch', '_calUpsertFetchClientLink', '_calUpsertFetchGuarded', '_calUpsertFetchPinned', '_sxrUpsertFetch', '_sxrUpsertFetchPinned'];
 
 // Per-run values (times, random ids) must not make two identical clicks differ.
 function normalise(value) {

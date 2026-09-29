@@ -29761,7 +29761,61 @@ Three things worth knowing:
 
 STATE_OF_THINGS corrected in the same change.
 
-## 288. [2026-09-29] Failed saves: the log now covers every save, and the `traffic` column is measured
+## 288. [2026-09-29] Archived cards and samples can be seen and restored by staff (PR pending)
+
+**Why.** On 2026-09-29 an SMM revived a work item in SyncLinear whose Calendar card was
+archived, so it showed nowhere else, and the card had to be restored by hand. Staff had no
+way to see or restore an archived card or sample.
+
+**What now exists.** The Calendar toolbar More menu has **Archived cards**, and the Samples
+menu has **Archived samples**, for admin and SMM seats only (never a creative seat, never a
+client link). The list shows what was archived in the last 30 days, newest first, 25 to a page,
+with Show older up to 90 days (paged by the last row shown, so no row repeats or is skipped).
+Restore puts the card back exactly as it was: the card is written through the same route
+archive uses (`calendar-upsert`, or `sample-review-upsert`) with the same minimal body and a
+status recomputed from its component statuses; its caption, links, comments, dates and approvals
+are not written. Each linked video and graphic (Samples: thumbnail) work item goes back to the
+exact status the archive parked it from, read from its own `deliverable_events` row (surface
+`calendar` or `sxr`, at or after the archive), through the guarded `production-write` status
+operation with `expected_status` and `expected_updated_at`. Already in Backlog before the archive,
+or Backlog with no record: To do. Finished stays. Moved since: left alone and said so. A
+conflict keeps the other person's change. A failed move never undoes the card restore. A live
+card that already uses the same work item blocks the restore and is named.
+
+**Owner decisions applied (2026-09-29).** Existing routes only, frozen writers untouched, no
+deploy. Samples included. The message the trigger posts when an item goes back to SMM approval
+or Tweaks is accepted (`production-write` unchanged).
+
+**Proof.** `test/calendar-unarchive.js`, `docs/syncview-design/tests/archived-restore-browser.js`
+(in the Production polish fast lane), and the on-demand live probe `qa/probes/arx_restore_live.js`
+on the test client. Plan: `docs/plans/2026-09-29-calendar-unarchive.md`. Mock-up:
+`docs/syncview-design/mockups/calendar-unarchive/`.
+
+**Not done here.** A warning when someone moves a work item whose card is archived (the actual
+cause of the 2026-09-29 incident) lives in `production-write` and needs the sealed capture and an
+owner deploy. A server-side staff check on the two frozen writers needs the owner's approval.
+Bulk restore.
+
+## 289. [2026-09-29] n8n exit PR 2: Calendar saves and reorders no longer reach n8n for staff
+
+Every staff and Kasper Calendar save, reorder and import-confirmation read now
+goes to `calendar-upsert`, `calendar-reorder` and `calendar_posts`. Before each
+write the page reads `calendar_upsert_ef_clients` afresh (its own read, two second
+bound, `cache: 'no-store'`, no extra query parameters). An unreadable, slow or
+malformed flag holds the save; a flag that does not list the client pauses it with
+a message; neither ever reroutes to n8n. Client approve and request-changes are
+carved out: a write from a client link keeps its old routing and request, proven
+byte for byte (`test/calendar-client-carveout-byte-identical-browser.js` against
+a golden captured from main). Staff repairs still pinned `webhook` migrate to
+Supabase on load, writer and verification source together in one write
+(`test/calendar-pinned-gate-migration.js`); client-link pins are left alone. The
+n8n Calendar workflows stay on for 30 days after this ships.
+Known limits: a client link that has not loaded the flag still sends approve and
+request-changes to n8n (by the carve-out); a client-link reorder now takes the
+guarded route; the qa/ef-writepath create-a-card steps fail identically on main
+in this sandbox, so their live save checks could not run (details in the PR).
+
+## 290. [2026-09-29] Failed saves: the log now covers every save, and the `traffic` column is measured
 
 Written by session Mason. Priority 4 in `docs/STATE_OF_THINGS.md`. Full write-up
 and the list of every write path checked: `docs/audits/2026-09-29-write-paths-refusal-coverage.md`.
@@ -29806,4 +29860,3 @@ that judge success some other way (a returned count, for example the Workload pl
 exact-one check) record HTTP failures only. The
 public onboarding form is not recorded (visitors are not signed in). A client whose
 Templates save is refused is recorded under a hashed client reference only.
-

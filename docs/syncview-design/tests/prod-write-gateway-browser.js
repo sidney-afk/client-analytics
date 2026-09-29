@@ -255,7 +255,13 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
         .filter(key => key !== 'client_comment_gateway_enabled')
         .map(key => ({ key, value: key === 'write_ui_reroute_clients'
           ? { ...writeUiRerouteClients }
-          : { ...serverAuthority } }));
+          /* n8n exit, PR 2: every Calendar write now reads this flag fresh and
+             holds when it has no roster, so the mock must serve a real one
+             (the live row lists every active client). Before, an unusable
+             answer here silently sent the save to n8n. */
+          : key === 'calendar_upsert_ef_clients'
+            ? { clients: clients.map(client => client.slug) }
+            : { ...serverAuthority } }));
     }
     // The Production list has read the bounded `production_deliverables_browser_v1`
     // view since the 2026-07-23 F34/F53 revoke; this mock still answered only the

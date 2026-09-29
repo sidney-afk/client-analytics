@@ -2,6 +2,7 @@
   "format": "explicit-test-suite-routing-v1",
   "scope": "Unit CI plus separately required isolated/private-input preparation profiles; deferred is NOT_RUN, never PASS",
   "unit": [
+    "calendar-unarchive.js",
     "workload-plan-live.js",
     "clean-urls-routes.js",
     "prod-realtime-controller.js",
@@ -90,6 +91,7 @@
     "calendar-card-deep-link.js",
     "calendar-card-write-jobs.js",
     "calendar-client-reorder-caption.js",
+    "calendar-pinned-gate-migration.js",
     "calendar-component-fill.js",
     "calendar-deep-link-focus.js",
     "calendar-deeplink-tab.js",
@@ -1390,6 +1392,22 @@
       "reproduce": "ROSTER_SYNC_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY PGHOST=127.0.0.1 PGPORT=PORT PGUSER=postgres node test/clients-roster-sync-postgres.js",
       "ci": "not_run_by_unit_ci",
       "required_for_release": true
+    },
+    {
+      "file": "calendar-client-carveout-byte-identical-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the client approve and request-changes requests, compared byte for byte to a golden captured from main.",
+      "reproduce": "node test/calendar-client-carveout-byte-identical-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
+    },
+    {
+      "file": "calendar-write-guard-browser.js",
+      "route": "isolated_browser",
+      "required_for_release": true,
+      "required_inputs": "Installed repository Playwright and Chromium; every backend call answered locally, no hosted credentials and no live data. Checks the staff Calendar write guard: fresh flag read per write, hold and pause, zero n8n requests, exact REST query parameters.",
+      "reproduce": "node test/calendar-write-guard-browser.js (after repository Playwright/Chromium setup)",
+      "ci": "not_run_by_unit_ci"
     }
   ]
 }

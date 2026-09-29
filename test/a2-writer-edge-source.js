@@ -28,12 +28,15 @@ ok(/"clients":\[\]/.test(SQL), 'sample_review_ef_clients must seed empty');
 ].forEach(fn => ok(new RegExp(`\\[functions\\.${fn}\\]\\s*verify_jwt = false`).test(CFG), fn + ' verify_jwt=false missing'));
 
 ok(/CALENDAR_REORDER_EF_URL/.test(INDEX), 'calendar reorder EF URL missing');
-ok(/_calUpsertUseEf\(slug\)/.test(INDEX), 'calendar reorder must share calendar_upsert_ef_clients');
-ok(/_calReorderUrlForClient/.test(INDEX), 'calendar reorder router missing');
-ok(/async function _calFetchPostsForVerify\(\)[\s\S]*_calUpsertUseEf\(slug\)[\s\S]*\/rest\/v1\/calendar_posts\?select=\*&client=eq\.[\s\S]*_calSupabaseFetchAllRows/.test(INDEX),
-  'EF-client bulk import verification must read calendar_posts, not n8n calendar-get');
-ok(/async function _calPersistReorderViaN8n/.test(INDEX)
-  && /_calUpsertHeaders\('ui', url\)/.test(INDEX)
+/* n8n exit, PR 2: the reorder has one route. It asks the SAME runtime flag
+   (calendar_upsert_ef_clients) through the shared fresh, bounded read before
+   the write, and no longer has an n8n router or a batch fallback. */
+ok(/await _calAssertSavingOn\(slug\);\s*const url = CALENDAR_REORDER_EF_URL;/.test(INDEX), 'calendar reorder must check the fresh flag read then post to the EF');
+ok(!/_calReorderUrlForClient|CALENDAR_REORDER_BATCH_URL|CALENDAR_REORDER_URL|n8n\.cloud\/webhook\/calendar-reorder/.test(INDEX), 'calendar reorder must not keep an n8n route');
+ok(/async function _calFetchPostsForVerify\(\)[\s\S]*\/rest\/v1\/calendar_posts\?select=\*&client=eq\.[\s\S]*_calSupabaseFetchAllRows/.test(INDEX)
+  && !/async function _calFetchPostsForVerify\(\)[\s\S]{0,1200}CALENDAR_GET_URL/.test(INDEX),
+  'bulk import verification must always read calendar_posts, never n8n calendar-get (n8n exit, PR 2)');
+ok(/_calUpsertHeaders\('ui', url\)/.test(INDEX)
   && /Number\(json\.updated \|\| 0\) < items\.length/.test(INDEX)
   && !/\[Calendar\] EF reorder failed; falling back to n8n/.test(INDEX),
   'calendar EF reorder must include token headers, verify updated count, and fail closed without n8n downgrade');

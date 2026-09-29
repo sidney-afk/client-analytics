@@ -119,10 +119,6 @@
       "status": "client-transport",
       "note": "Pinned Calendar upsert transport (status writes, including the client approve path). Not modified; its status writes record through _writeUiReportFailure."
     },
-    "120-calendar-flags-write-repair.js.part|_calUpsertFetch|url|POST": {
-      "status": "client-transport",
-      "note": "Calendar upsert transport, shared with the client link. Not modified; each staff save that uses it records its own failure (see calendar_settings_save, calendar_import, calendar_link_adopt, calendar_archive, kasper_post_save)."
-    },
     "120-calendar-flags-write-repair.js.part|_syncviewIssueClientShareUrl|CLIENT_REVIEW_LINK_URL|POST": {
       "status": "reports",
       "within": [
@@ -215,20 +211,6 @@
     "180-calendar-native-post-media.js.part|_calCapJobsPoll|CAPTION_JOB_UPDATE_URL|POST": {
       "status": "background",
       "note": "Stand-down message for a caption job that timed out; the job already ends in error and is recorded there."
-    },
-    "180-calendar-native-post-media.js.part|_calPersistReorderViaN8n|CALENDAR_REORDER_BATCH_URL|POST": {
-      "status": "reports-in-callers",
-      "callers": [
-        "persistCalReorder"
-      ],
-      "note": "Calendar drag order, legacy route. Recorded once by its caller as calendar_reorder."
-    },
-    "180-calendar-native-post-media.js.part|_calPersistReorderViaN8n|CALENDAR_REORDER_URL|POST": {
-      "status": "reports-in-callers",
-      "callers": [
-        "persistCalReorder"
-      ],
-      "note": "Calendar drag order, legacy fallback. Recorded once by its caller as calendar_reorder."
     },
     "180-calendar-native-post-media.js.part|_calSaveCaptionPrompt|writeUrl|POST": {
       "status": "reports",
@@ -451,6 +433,28 @@
     "330-kasper-review-history.js.part|fetchOne|KASPER_QUEUE_URL|POST": {
       "status": "read",
       "note": "Kasper review queue read."
+    },
+    "120-calendar-flags-write-repair.js.part|_calUpsertFetchClientLink|url|POST": {
+      "status": "client-transport",
+      "note": "Calendar upsert transport for the client review link (approve and request changes). Not modified by the failed-saves work; the golden test proves its requests are unchanged."
+    },
+    "120-calendar-flags-write-repair.js.part|_calUpsertFetchGuarded|CALENDAR_UPSERT_EF_URL|POST": {
+      "status": "client-transport",
+      "note": "Staff Calendar upsert behind the saving-on check. Not modified; each staff save that uses it records its own failure (see calendar_settings_save, calendar_import, calendar_link_adopt, calendar_archive, kasper_post_save, restore)."
+    },
+    "186-archived-restore.js.part|_arxGatewayMove|url|POST": {
+      "status": "reports-in-callers",
+      "callers": [
+        "_arxFail"
+      ],
+      "note": "Restore moves a work item back through the guarded production-write route. Its caller _arxRestore records a failed move through _arxFail, which reports to the log (surface calendar or sxr, operation status)."
+    },
+    "186-archived-restore.js.part|_arxRestore|CALENDAR_REORDER_EF_URL|POST": {
+      "status": "reports-in-callers",
+      "callers": [
+        "_arxFail"
+      ],
+      "note": "Restore position write. A failure is caught in _arxRestore and recorded through _arxFail (step order)."
     }
   }
 }

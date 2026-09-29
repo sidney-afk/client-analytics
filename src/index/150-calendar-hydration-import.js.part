@@ -4,7 +4,7 @@ import { wlNormalizeClient } from './070-core-client-names.js';
 import { CALENDAR_GET_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL, CAL_SUPABASE_URL } from './100-onboarding-staff-controls.js';
 import { CAL_V2_KILL_KEY, CAL_V2_LS_KEY, CAL_V2_RT_DEBOUNCE_MS, CAL_V2_RT_MIN_RELOAD_MS } from './115-core-calendar-flags.js';
 import {
-  CAL_STATUSES, _calNormStatus, _calUpsertFetch, _calUpsertUseEf,
+  CAL_STATUSES, _calNormStatus, _calUpsertFetch,
   _prodStripEphemeralCanonicalPosts, _writeUiAuthoritySnapshot, _writeUiFilterCachedPosts,
   _writeUiIdentifierAllowed, _writeUiLinkSlotSealed, _writeUiNativeId, _writeUiRefreshAuthority,
   _writeUiSnapshotRepairRefs
@@ -358,19 +358,15 @@ import { _writeUiResumeSourceRepairs } from './290-samples-writes-review.js';
         return { done, failed, retried, missingAfterRetry };
     }
     async function _calFetchPostsForVerify() {
-        // Verify against the active write target. Unflagged clients still write
-        // n8n/Sheets, so calendar-get is the right confirmation source. EF
-        // clients write directly to calendar_posts, so reading the Sheet would
-        // false-fail and re-send rows that already landed.
+        // Verify against the write target. Every Calendar save goes to
+        // calendar_posts through the Edge Functions (n8n exit, PR 2), so the
+        // confirmation read is always Supabase. The Sheet read this used to do
+        // for a client not on the function route would false-fail and re-send
+        // rows that already landed.
         try {
             const slug = calClientSlug(calState.client);
-            if (_calUpsertUseEf(slug)) {
-                const baseUrl = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&client=eq.' + encodeURIComponent(slug);
-                return await _calSupabaseFetchAllRows(baseUrl);
-            }
-            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
-            const json = await resp.json();
-            return json.ok ? (json.posts || []) : null;
+            const baseUrl = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&client=eq.' + encodeURIComponent(slug);
+            return await _calSupabaseFetchAllRows(baseUrl);
         } catch (e) {
             console.warn('[Calendar] import verification read failed', e);
             return null;

@@ -412,31 +412,83 @@ async function describedPrice(model: string, inputs: JsonMap, text: string): Pro
   const rate = rates.get(res) ?? Math.max(0, ...rates.values());
   if (!(rate > 0) || !/per second/i.test(text)) return { error: `Higgsfield described the price in a way the connector cannot read: "${text.slice(0, 300)}"` };
   const links = [inputs.video_url, ...(Array.isArray(inputs.video_urls) ? inputs.video_urls : [])].filter(Boolean).map(String);
-  const lengths = await Promise.all(links.map(videoSeconds));
+  // One at a time, so a request with many reference videos never holds more
+  // than one download open.
+  const lengths: Array<number | null> = [];
+  for (const link of links) lengths.push(await videoSeconds(link));
   const main = Math.max(4, Math.min(VIDEO_BUDGET_S, lengths[0] ?? VIDEO_BUDGET_S));
   const input = Math.min(VIDEO_BUDGET_S, lengths.reduce((a: number, b) => a + Math.max(4, b ?? VIDEO_BUDGET_S), 0) || main);
-  const output = Number(inputs.duration) > 0 ? Number(inputs.duration) : main;
+  const asked = Number(inputs.duration ?? schema?.properties?.duration?.default);
+  const output = asked > 0 ? asked : main;
   return { usd: Math.round(rate * (input + output) * 1.1 * 10000) / 10000 };
 }
 
-// Length in seconds of an MP4/MOV from its mvhd box, or null if unreadable.
+// Length in seconds of an MP4/MOV, read from moov/mvhd by walking the box
+// structure as it streams (media payloads are skipped, never buffered), or
+// null if unreadable. Stops after MAX_IMPORT_BYTES.
 async function videoSeconds(link: string): Promise<number | null> {
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   try {
     const res = await safeFetch(link);
     if (typeof res === "string" || !res.ok || !res.body) return null;
-    const b = await readLimited(res);
-    if (!b) return null;
-    for (let i = 4; i + 32 < b.length; i++) {
-      if (b[i] !== 0x6d || b[i + 1] !== 0x76 || b[i + 2] !== 0x68 || b[i + 3] !== 0x64) continue; // "mvhd"
-      const v = new DataView(b.buffer, b.byteOffset + i + 4);
-      const long = v.getUint8(0) === 1;
-      const scale = v.getUint32(long ? 20 : 12);
-      const dur = long ? Number(v.getBigUint64(24)) : v.getUint32(16);
-      return scale > 0 && dur > 0 ? dur / scale : null;
+    reader = res.body.getReader();
+    let buf = new Uint8Array(0);
+    let seen = 0;
+    const need = async (n: number): Promise<boolean> => {
+      while (buf.length < n) {
+        const { done, value } = await reader!.read();
+        if (done) return false;
+        seen += value.length;
+        if (seen > MAX_IMPORT_BYTES) return false;
+        const next = new Uint8Array(buf.length + value.length);
+        next.set(buf); next.set(value, buf.length);
+        buf = next;
+      }
+      return true;
+    };
+    const skip = async (n: number): Promise<boolean> => {
+      while (n > 0) {
+        if (!buf.length && !(await need(1))) return false;
+        const k = Math.min(n, buf.length);
+        buf = buf.subarray(k); n -= k;
+      }
+      return true;
+    };
+    for (;;) {
+      if (!(await need(8))) return null;
+      let size = new DataView(buf.buffer, buf.byteOffset).getUint32(0);
+      const type = String.fromCharCode(...buf.subarray(4, 8));
+      let hdr = 8;
+      if (size === 1) {
+        if (!(await need(16))) return null;
+        size = Number(new DataView(buf.buffer, buf.byteOffset).getBigUint64(8));
+        hdr = 16;
+      }
+      if (size === 0) return null; // box runs to end of file; not worth guessing
+      if (type !== "moov") {
+        if (size < hdr || !(await skip(size))) return null;
+        continue;
+      }
+      if (size > 16 * 1024 * 1024 || !(await need(size))) return null;
+      const moov = new DataView(buf.buffer, buf.byteOffset, size);
+      for (let at = hdr; at + 8 <= moov.byteLength;) {
+        const csize = moov.getUint32(at);
+        const ctype = String.fromCharCode(moov.getUint8(at + 4), moov.getUint8(at + 5), moov.getUint8(at + 6), moov.getUint8(at + 7));
+        if (csize < 8) return null;
+        if (ctype === "mvhd" && at + 40 <= moov.byteLength) {
+          const long = moov.getUint8(at + 8) === 1;
+          const scale = moov.getUint32(at + (long ? 28 : 20));
+          const dur = long ? Number(moov.getBigUint64(at + 32)) : moov.getUint32(at + 24);
+          return scale > 0 && dur > 0 ? dur / scale : null;
+        }
+        at += csize;
+      }
+      return null;
     }
-    return null;
   } catch {
     return null;
+  } finally {
+    await reader?.cancel().catch(() => {});
   }
 }
 

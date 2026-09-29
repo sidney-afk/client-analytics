@@ -142,6 +142,9 @@ Regenerate with `node scripts/ef-fingerprint.js <sha> --slugs=<slug> --expected-
 - The owner has decided the **Linear archive rescue (F34) is not needed**
   (2026-09-28): Linear is being cancelled and its text and brief images are
   already in SyncView. Do not raise it again.
+- The owner has decided **not** to close the public-key reads of the Workload
+  task tables (they return staff names and emails with the publishable key;
+  found by Keel on #1840, 2026-09-28). Do not raise it again.
 
 ## Things that will waste a cycle if you forget them
 

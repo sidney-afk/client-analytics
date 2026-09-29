@@ -86,6 +86,11 @@ line is older than a week, re-check it before relying on it.
 
 ## Done (was listed as open somewhere)
 
+- **Public-key reads of the Workload task tables stay open. Owner decision
+  2026-09-28; do not raise it again.** Keel (#1840) found two tables return
+  every task with staff names and emails to the publishable key, and a third
+  returns staff ids. #1840 stops a signed-out page from showing or keeping the
+  board; the table grants are left as they are by choice.
 - **Linear archive rescue (F34) is NOT needed. Owner decision 2026-09-28; do
   not raise it again.** Linear is being cancelled. Measured live the same day:
   3,478 briefs (with their images, see Brief media rescue below) and 14,205

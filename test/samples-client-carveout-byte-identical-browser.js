@@ -229,7 +229,12 @@ async function captureTree(root) {
   }
   const golden = JSON.parse(fs.readFileSync(GOLDEN, 'utf8'));
   let failures = 0;
-  const compare = (label, a, b) => {
+  // A new comment id is `c_<clock>_<random>`. The clock is faked; the random tail depends on how
+  // many random numbers the page drew before the click, which any unrelated boot change shifts. It is
+  // random by design, so it is masked on both sides. Everything else stays byte for byte.
+  const maskRandomId = value => JSON.parse(JSON.stringify(value).replace(/(c_[a-z0-9]+_)[a-z0-9]{5}/g, '$1RANDOM'));
+  const compare = (label, a0, b0) => {
+    const a = maskRandomId(a0), b = maskRandomId(b0);
     const same = JSON.stringify(a) === JSON.stringify(b);
     console.log((same ? '  ok  ' : 'FAIL  ') + label);
     if (!same) {

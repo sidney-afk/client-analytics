@@ -188,8 +188,15 @@ from a measured peak: 43 pull requests a day in bursts, each fanning out into
 6 to 10 jobs.
 
 Also settle before the switch:
-* **Spending limit $0** on Actions (GitHub billing budgets) so a miscount stops
-  jobs instead of billing. Set on the day of the switch, not before.
+* **Spending limit sized to the plan, not $0.** The recommended scenario leaves
+  9,000 to 11,000 GitHub-hosted minutes, above the 3,000 included, so a $0 limit
+  would stop the nightlies, monitors, backups and deploy lanes partway through
+  each month. Set the Actions budget to about **$75 a month** (planned overage
+  of $40 to $50 plus margin) with an alert at 75 percent, so a miscount stops
+  at a known ceiling instead of billing without bound. Set it on the day of the
+  switch, not before. To run at a $0 limit instead, first move enough work off
+  GitHub-hosted runners (a second, credentialed runner host) that usage fits in
+  3,000; that is a separate decision.
 * **Artifact storage:** the repo holds about **1.6 GB** of live workflow
   artifacts (2,588 listed, 14 to 30 day retention). Private repos have a quota
   (about 1 GB on Pro; confirm on the billing page) and overage is billed. Cut
@@ -277,7 +284,7 @@ and why it is not enough. pg_cron runs on the second.
 | 1 | `native-notification-sender` and `native-notification-monitor` | pg_cron plus pg_net POST to the existing `notify` function with the runner key from Vault | small | **Do not schedule the sender until a server-side gate exists.** Today the only dormant gate is the workflow's `NATIVE_NOTIFICATION_SENDER_ENABLED` variable; `supabase/functions/notify/index.ts` has no enable check, so a pg_cron POST would start client delivery at once (AGENTS.md owner directive: nothing to client channels). Order: add a fail-closed runtime flag checked by the function or the cron wrapper, prove it reads false live, then install the cron, then enable only on the owner's separate go. The monitor is read-only and can move first |
 | 1 | `thumbnail-revision-scan` | pg_cron plus pg_net calling the existing `thumbnail-revision-scan` Edge Function every 10 min with its signature header | small to medium | The workflow only calls the function. Keep today's capacity of 12 batches of 25 (300 rows) per 10 minutes **run sequentially with one shared `checked_before` cutoff**, as `scripts/thumbnail-revision-scan.js` does today (the scanner picks the oldest 25 rows without locking them, so overlapping independent calls would pick the same rows). Port that loop into one wrapper the cron calls once per cycle, or add an atomic row claim first. One 25-row call every 10 minutes would take about four hours to cover the 579 watchers measured in OPEN_REPAIRS 204. Prove live watcher count and needed detection latency before changing it |
 | 2 | `native-intake-completion` and its monitor | Port the runner (`scripts/native-intake-completion/*`, `native-intake-reconcile/runner-lib`) into an Edge Function, then pg_cron | medium | Needs its own test; keep the workflow until the parity check passes |
-| 2 | Retire `lane-ticker` | Delete after waves 1 and 2 | tiny | Its lanes no longer need a ticker |
+| 1 to 3 | `lane-ticker` entries | Remove each migrated lane from the ticker's `LANES` array **in the same pull request that moves it** (commenting out a lane's `schedule` does not stop `workflow_dispatch`, so a leftover entry would keep beating old heartbeats and hide a failed pg_cron replacement) | tiny | Retire the ticker itself only after every remaining entry (drift and the two dormant censuses) has moved or been retired, at the end of wave 3 |
 | 3 | `card-calendar-status-drift` | Port `scripts/card-calendar-status-drift-check.js` (550 lines; its test loads `index.html`) | medium to large | About 820 min/mo, the biggest scheduled saving. Move last |
 | 3 | `syncview-retirement-census`, `outbox-debt-census` | Decision: they are **dormant** (their step says so and they only heartbeat). Retire both and their heartbeat rows, or leave dormant | tiny | Owner or Lighthouse call; about 320 min/mo of nothing |
 | Stay | `monitoring-deadman`, `monitoring-crosscheck` | Stay on GitHub | none | They exist to watch Supabase from a second place; moving them in defeats the point |
@@ -295,7 +302,7 @@ Rules for every move: (1) the workflow stays in place with its schedule
 **commented out, not deleted**, until the moved job has written correct
 heartbeats for 7 days; (2) the dead-man's switch is the acceptance test: no lane
 may show stale during the overlap; (3) mutate only the test client during
-checks; (4) a moved job's key never sits in a migration file or in the cron
+checks; (4) the moved lane is removed from `lane-ticker`'s `LANES` in the same pull request; (5) a moved job's key never sits in a migration file or in the cron
 command text, only in Vault.
 
 ## 5. What breaks when the repo is private
@@ -401,19 +408,19 @@ reverting a pull request or one setting. Only step 9 changes visibility.
 | 2 | Build the allowlisted site artifact (5.1) in a workflow that **only builds and uploads it, with no deploy step**, from the pull request; download it and serve it locally (or on a separate preview site) and crawl it. There is one Pages site and one custom domain, so a test-branch deploy would replace the live site; **publish to production only from reviewed `main`**. Compare the artifact's file list to the allowlist; confirm every app URL, hashed script, client link and the `404.html` fallback still work and `/docs/`, `/CLAUDE.md`, `/scripts/`, `/migrations/` return 404 in the local crawl, then again on the live site right after the first production publish | Session, owner clicks the Pages source setting | Settings, Pages, Source back to "Deploy from a branch, main, root" (takes about a minute to republish) |
 | 3 | Wave 0 and wave 1 of section 4 (pg_net, Vault, rename drain, notification sender and monitor, thumbnail scan). Keep the workflow crons commented, not deleted | Session, Lighthouse merges | Uncomment the cron in each workflow; `cron.unschedule('<name>')` |
 | 4 | Watch 7 days: dead-man's switch shows no stale lane; heartbeats present | Lighthouse | As step 3 |
-| 5 | Waves 2 and 3 (intake completion, drift, retire `lane-ticker` and the dormant censuses) as separate pull requests, each with a parity test | Session | Same |
+| 5 | Waves 2 and 3 (intake completion, drift, the dormant censuses, then retire `lane-ticker` last) as separate pull requests, each with a parity test | Session | Same |
 | 6 | Provision the self-hosted runner server (Linux, Docker, Playwright browsers, Node 22) with **ephemeral, secret-free runners, one isolated Docker per runner** (3.2). **A registered runner runs one job at a time**, so cores do not add capacity; run a **controller that registers a fresh runner for every job** (for example the actions-runner-controller pattern or a script that re-registers with a just-in-time config after each job), because an ephemeral runner is gone after one job and a fixed set of 6 to 8 would be used up by the first burst. Size the pool ceiling from measured peak concurrency (count overlapping jobs in the run history) and the monthly load: one instance supplies at most 43,200 job-minutes a month, and the trimmed load is 55,000 to 75,000, so plan for at least 6 to 8 concurrent runners, more if the peak needs it. The 8-job burst test must run a burst larger than the pool and show that replacements appear and queued jobs drain. **Do not register any yet.** Prepare the runner install steps and a way to alert when it is offline | Owner buys, session writes the runbook | Cancel the server |
 | 7 | Change the **pull-request jobs** only (not nightlies, monitors, deploys, backups, or the credentialed manual jobs inside mixed workflows) to pick the runner per event, `runs-on: ${{ github.event_name == 'pull_request' && vars.CI_RUNNER \|\| 'ubuntu-latest' }}`, so a repository variable chooses it. Fix the shared port 5432 first (3.2). Merge with the variable unset (nothing changes) | Session | Revert |
 | 8 | Inventory artifact consumers, then shorten retention on screenshot and log uploads only (keep the 14 and 30 day windows the F2 evidence sequence needs); bring artifact storage under the private-repo limit. Dry-run the 30-day counts | Session | n/a |
-| 9 | **Day of the switch** (a quiet day, no deploy handed over; the Section 4 rule against merging between a deploy SHA and dispatch applies). In order: (a) set the Actions spending limit to $0; (b) settings, General, Danger Zone, Change visibility, **Make private**; (c) register the runner on the now-private repo; (d) set repository variable `CI_RUNNER` to the runner label | Owner clicks; session prepares the exact text | See "Way back from private" below |
+| 9 | **Day of the switch** (a quiet day, no deploy handed over; the Section 4 rule against merging between a deploy SHA and dispatch applies). In order: (a) set the Actions budget to about $75 with a 75 percent alert (section 3); (b) settings, General, Danger Zone, Change visibility, **Make private**; (c) register the runner on the now-private repo; (d) set repository variable `CI_RUNNER` to the runner label | Owner clicks; session prepares the exact text | See "Way back from private" below |
 | 10 | Verify within the hour: site loads at the domain with HTTPS; Pages still redeploys on a merge; one client review link and one staff sign-in work; a pull request runs all checks on the runner; Codex answers a test pull request; a fresh Claude session clones; `raw.githubusercontent.com/...` from a logged-out browser returns 404; the Actions billing page shows $0 spend | Owner and Vigil | As below |
 | 11 | After 30 days: update the "public repo" wording (5.3), the cost study, `STATE_OF_THINGS.md`; decide on keeping the identity gate | Session | n/a |
 
 ### Way back from private
 1. **Instant, no billing risk:** clear the `CI_RUNNER` variable if the server
-   is the problem; jobs fall back to GitHub runners (billed, but the spending
-   limit at $0 stops them instead of billing, so checks would stall rather than
-   cost). Raise the limit only if you accept the cost.
+   is the problem; jobs fall back to GitHub runners (billed: a full fallback month is about $790,
+   but the $75 budget stops jobs at the ceiling, so checks would stall rather
+   than run up the bill). Raise the budget only if you accept the cost.
 2. **Flip visibility back:** Settings, General, Danger Zone, Change visibility,
    **Make public**. Actions minutes are unmetered again. The site source stays
    the allowlisted deploy, which is fine public or private.

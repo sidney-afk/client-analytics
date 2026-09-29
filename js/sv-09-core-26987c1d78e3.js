@@ -1,30 +1,635 @@
-import {
-  _syncviewApplyStatusPalette, _syncviewApplyTheme, _syncviewStoredStatusPalette,
-  _syncviewStoredTheme, _toastEl, showNotify, showToast, svAreaApi
-} from './040-shared-briefs.js';
-import { FP_SAVED_KEY, currentNav } from './065-core-nav-intake-state.js';
-import { wlNormalizeClient } from './070-core-client-names.js';
-import { _tdyPurgeSensitiveState } from './097-today.js';
-import {
-  _ptoCalResetView, _ptoDate, _ptoEnabled, _ptoLoadAdmin, _ptoLoadOverview, _ptoPaint,
-  _ptoRenderAdmin
-} from './110-time-off.js';
-import { _srpPurgeSensitiveState } from './112-smm-weekly-reports.js';
-import { _jsAttrArg } from './131-core-html.js';
-import { _thumbCompareScheduleAvailability } from './160-calendar-organize-ui.js';
-import { _kasperApplyAccess, _kasperForgetAdmin, _linearIntakePurgeSensitiveState } from './200-intake-data-startup.js';
-import { PROD_CREATE_DRAFT_KEY, _prodCachePurge, _prodState } from './210-production-state-writes.js';
-import { _prodClearLayer } from './220-production-attribution-views.js';
-import { _prodComments } from './230-production-create-comments.js';
-import {
-  _isClientLink, _isIntake, _isOnboarding, _isOnboardingView, _isSmmWeeklyEntry,
-  _prodSmmPurgeSensitiveState, _syncviewAppBooted, _syncviewSetAppBooted, init
-} from './260-production-refresh-boot.js';
-import { _writeUiResumeLegacyQueues } from './290-samples-writes-review.js';
-import {
-  CA_RECENT_KEY, CC_ICON_EYE, KASPER_FILMING_CACHE_KEY, _ccCloseSelect, _ccOpenSelectId,
-  _ccSelectHtml, _ccTogglePasswordField, _kasperFallbackToReview, _kasperState
-} from './305-core-kasper-shared.js';
+    /* TODAY (owner design 2026-09-27, session Compass).
+     *
+     * One summary page per person: what is waiting on YOU right now, pulled
+     * from the tabs that already hold it. It reads only; it never writes and it
+     * has no checkboxes. A card leaves the page by itself when its status moves
+     * on (you approved it, the editor sent it back, and so on), and lands in
+     * "Cleared today".
+     *
+     *   SMM and admin: five jobs as rings (to approve, missing links, captions
+     *     to write, to schedule, dates to move), or a walk-through that takes
+     *     one upcoming post at a time.
+     *   Video and graphics: their own queue (urgent, changes, to do) as a list
+     *     or a deck. Editors work in SyncLinear, so rows only open SyncLinear.
+     *
+     * Client scope follows the one shared rule in 098-smm-clients (the same
+     * rule the client dropdown's "My clients" uses): only current Clients Info
+     * clients, never a test client; anyone on the SMM roster, admins included,
+     * sees the clients it lists for them; an admin not on the roster sees all.
+     * An SMM with no clients listed gets a short note.
+     *
+     * Speed (owner feedback 2026-09-28): Today is a fast tab, so it mounts
+     * before the Analytics data and starts its own reads at once. The last
+     * answer is kept per person (memory and localStorage, like the other
+     * tabs' caches) and painted instantly on return; a quiet read then
+     * replaces it. Card changes arrive live over the same realtime client
+     * Calendar uses (deliverables and calendar_posts). If the
+     * roster or Clients Info cannot be read, the page says so and offers a
+     * retry rather than guessing. Today is a team tab: it ignores
+     * the shared client, but opening a card makes that card's client current. */
+    const TDY_VIEW_KEY = 'syncview_today_view';
+    const TDY_CACHE_KEY = 'syncview_today_cache_v1';   // { who, at, data } for the last signed-in person
+    const TDY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+    const TDY_RT_DEBOUNCE_MS = 1500;
+    const TDY_OPEN = ['todo', 'in_progress', 'tweak', 'smm_approval'];
+    const TDY_PAST_EDIT = ['smm_approval', 'kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted'];
+    const TDY_PAST_SMM = ['kasper_approval', 'client_approval', 'approved', 'scheduled', 'posted'];
+    const TDY_STAGE = { todo: 0, in_progress: 0, tweak: 0, smm_approval: 1, kasper_approval: 2, client_approval: 3 };
+    // no-hardcoded-colors: allow-start (client avatar dots, same hues as the design mockups)
+    const TDY_PALETTE = ['#7c5cff', '#e1306c', '#0e9f8e', '#2f7de1', '#d98a12', '#5b6b82', '#c2410c', '#16a34a', '#9333ea', '#0891b2'];
+    // no-hardcoded-colors: allow-end
+    const tdyState = { gen: 0, data: null, error: '', view: '', walk: 0, skipped: [], who: '', loading: null };
+    let _tdyClientsInfo = null;   // Promise that settles once Clients Info has loaded (set at boot)
+
+    function _tdyIdentity() {
+        const id = _syncviewStaffIdentityForHeaders();
+        const m = id && id.member;
+        if (!m || !m.id) return null;
+        const role = String(id.role || m.role || '').toLowerCase();
+        const team = String(m.team || '').toLowerCase();
+        const editor = role !== 'admin' && role !== 'smm' && (team === 'video' || team === 'graphics');
+        return { id: String(m.id), name: String(m.name || '').trim(), first: String(m.name || '').trim().split(/\s+/)[0] || '', role, team, editor };
+    }
+    function _tdyIso(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function _tdyDays(n) { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + n); return d; }
+    function _tdyMonday() { const d = _tdyDays(0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; }
+    async function _tdyRest(table, query) {
+        const out = [];
+        for (let page = 0; page < 8; page++) {
+            let rows = null;
+            for (let attempt = 0; attempt < 3 && !rows; attempt++) {
+                try {
+                    const res = await fetch(CAL_SUPABASE_URL + '/rest/v1/' + table + '?' + query + '&limit=1000&offset=' + (page * 1000), {
+                        headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY }
+                    });
+                    if (!res.ok) throw new Error(table + ' ' + res.status);
+                    rows = await res.json();
+                } catch (e) {
+                    if (attempt === 2) throw e;
+                    await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
+                }
+            }
+            out.push(...rows);
+            if (rows.length < 1000) break;
+        }
+        return out;
+    }
+    const _tdyIn = list => 'in.(' + list.join(',') + ')';
+    /* Cards left over from the Linear era sit in open statuses for months and
+       nobody is working them. A card counts only while something about it is
+       recent: its status moved in the last 30 days, or its due date is no
+       older than that. */
+    function _tdyFresh(r) {
+        const cut = _tdyDays(-30);
+        return (!!r.status_at && new Date(r.status_at) >= cut) || (!!r.due_date && r.due_date >= _tdyIso(cut));
+    }
+
+    /* A batch PARENT (the old Linear post issue) sits in the same view as its
+       video and thumbnail children. It is not work anybody owes, so every list
+       and count here drops it: a row is a parent when another row names it as
+       its parent. Only the rows this page read are checked, in parallel
+       batches, instead of paging through every child in the table. */
+    async function _tdyParentIds(rows) {
+        const ids = [...new Set(rows.map(r => r.linear_issue_uuid).filter(Boolean))];
+        const reads = [];
+        for (let i = 0; i < ids.length; i += 80) reads.push(_tdyRest('production_deliverables_browser_v1', 'select=raw_issue_parent_id&raw_issue_parent_id=' + _tdyIn(ids.slice(i, i + 80))));
+        return new Set((await Promise.all(reads)).flat().map(r => r.raw_issue_parent_id));
+    }
+    let _tdyRosterReading = null;   // one roster read in flight, shared
+    function _tdyRoster() {
+        if (_srpState.managersLoaded) return Promise.resolve(_srpState.managers);
+        if (!_tdyRosterReading) _tdyRosterReading = _tdyRosterRead().finally(() => { _tdyRosterReading = null; });
+        return _tdyRosterReading;
+    }
+    async function _tdyRosterRead() {
+        const ident = _syncviewStaffIdentityForHeaders();
+        if (!ident || !ident.key) return null;
+        try {
+            const resp = await fetch(SMM_WEEKLY_REPORTS_URL + '?action=options', {
+                headers: { Accept: 'application/json', apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, 'X-Syncview-Key': ident.key }
+            });
+            const data = await resp.json().catch(() => null);
+            if (!resp.ok || !data || !Array.isArray(data.managers)) return null;
+            _srpState.managers = data.managers;
+            _srpState.managersLoaded = true;
+            return data.managers;
+        } catch (e) { return null; }
+    }
+    /* The clients table (names, and kind for the test-client rule), read
+       once per load and shared by Today and the dropdown's "My clients". */
+    let _tdyClientRows = null;
+    function _tdyClients() {
+        if (!_tdyClientRows) {
+            _tdyClientRows = _tdyRest('clients', 'select=slug,display_name,active,kind');
+            _tdyClientRows.catch(() => { _tdyClientRows = null; });
+        }
+        return _tdyClientRows;
+    }
+    /* Boot hands over the Clients Info load so Today, which mounts before
+       it, can wait for it instead of reporting "could not read". */
+    function tdySetClientsInfoReady(p) { _tdyClientsInfo = p; }
+    async function _tdyCurrent(rows) {
+        let cur = svCurrentClients(undefined, rows);
+        if (!cur.size && _tdyClientsInfo) { try { await _tdyClientsInfo; } catch (e) {} cur = svCurrentClients(undefined, rows); }
+        if (!cur.size) throw new Error('clients');
+        return cur;
+    }
+    async function _tdyRosterEntry(me, managers) {
+        let email = '';
+        try {
+            const rows = await _tdyRest('team_members', 'select=email&id=eq.' + encodeURIComponent(me.id));
+            email = String(rows[0] && rows[0].email || '');
+        } catch (e) {}
+        return svRosterEntryFor(managers, { email, name: me.name });
+    }
+    /* The current Clients Info clients one SMM owns, by the shared rule in
+       098-smm-clients. Throws when Clients Info or the roster is not
+       available, so a caller never mistakes "not loaded" for "no clients".
+       The main-bar dropdown's "My clients" calls this too (tdyMyClientNames),
+       so Today and the dropdown always agree. */
+    async function _tdySmmClients(me) {
+        const [rows, managers] = await Promise.all([_tdyClients(), _tdyRoster()]);
+        const current = await _tdyCurrent(rows);
+        if (!managers) throw new Error('roster');
+        return svSmmCurrentClients(await _tdyRosterEntry(me, managers), current);
+    }
+    /* The current Clients Info clients this person may see: their own roster
+       clients, or every one for an admin who is not on the roster (see
+       098-smm-clients). */
+    async function _tdyVisibleClients(me, rows) {
+        const isAdmin = me.role === 'admin';
+        const [current, managers] = await Promise.all([_tdyCurrent(rows), _tdyRoster()]);
+        // An admin can always fall back to every client; an SMM cannot guess.
+        if (!managers && !isAdmin) throw new Error('roster');
+        const entry = managers ? await _tdyRosterEntry(me, managers) : null;
+        if (svScopeMode(isAdmin, !!entry) === 'all') return { keys: new Set(current.keys()), notListed: false };
+        const mine = svSmmCurrentClients(entry, current);
+        return { keys: new Set(mine.map(svClientKey)), notListed: mine.length === 0 };
+    }
+    /* The signed-in member's own roster clients for the dropdown: { id, names }.
+       Anyone on the SMM roster gets their clients, admins included (an admin
+       can also be an SMM); names are empty for anyone not on the roster or
+       signed out. Rejects when not loaded. */
+    async function tdyMyClientNames() {
+        const me = _tdyIdentity();
+        if (!me) return { id: '', names: [] };
+        return { id: me.id, names: await _tdySmmClients(me) };
+    }
+    async function _tdyLoad(me) {
+        const DSEL = 'select=id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,linear_issue_uuid';
+        const monday = _tdyMonday().toISOString();
+        _tdyClientRows = null;   // one fresh read per load
+        const clientsP = _tdyClients();
+        if (!me.editor) {
+            _tdyRoster();   // start the roster read now; _tdyVisibleClients reuses it
+            // Start every read now; only the client filter waits on the roster.
+            const today = _tdyIso(_tdyDays(0));
+            const reads = Promise.all([
+                _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_OPEN)),
+                _tdyRest('production_deliverables_browser_v1', DSEL + '&status=' + _tdyIn(TDY_PAST_SMM) + '&status_at=gte.' + encodeURIComponent(monday)),
+                _tdyRest('calendar_posts', 'select=id,client,name,scheduled_date,status,video_status,graphic_status,caption,asset_url,thumbnail_url,video_deliverable_id,graphic_deliverable_id'
+                    + '&scheduled_date=gte.' + today + '&scheduled_date=lte.' + _tdyIso(_tdyDays(14)) + '&status=not.in.(Archived,Posted)')
+            ]);
+            reads.catch(() => {});
+            const parentsP = reads.then(([o, d]) => _tdyParentIds(o.concat(d)));
+            const [clients, parents] = await Promise.all([clientsP, parentsP]);
+            const visible = await _tdyVisibleClients(me, clients);
+            const names = {};
+            clients.forEach(c => { names[c.slug] = c.display_name || c.slug; });
+            const child = r => !(r.linear_issue_uuid && parents.has(r.linear_issue_uuid));
+            const scope = new Set(clients.filter(c => String(c.kind || '').toLowerCase() !== 'test'
+                && (visible.keys.has(svClientKey(c.display_name)) || visible.keys.has(svClientKey(c.slug)))).map(c => c.slug));
+            const inScope = r => scope.has(r.client_slug || r.client);
+            const [open, done, posts] = await reads;
+            return { names, notListed: visible.notListed, open: open.filter(r => child(r) && inScope(r) && _tdyFresh(r)), done: done.filter(r => child(r) && inScope(r)), posts: posts.filter(inScope) };
+        }
+        // Editors: their own queue, read alongside the clients and parents.
+        const mine = 'assignee_id=eq.' + encodeURIComponent(me.id);
+        const [clients, open, done] = await Promise.all([clientsP,
+            _tdyRest('production_deliverables_browser_v1', DSEL + '&' + mine + '&status=' + _tdyIn(['todo', 'in_progress', 'tweak'])),
+            _tdyRest('production_deliverables_browser_v1', DSEL + '&' + mine + '&status=' + _tdyIn(TDY_PAST_EDIT) + '&status_at=gte.' + encodeURIComponent(monday))
+        ]);
+        const parents = await _tdyParentIds(open.concat(done));
+        const names = {};
+        clients.forEach(c => { names[c.slug] = c.display_name || c.slug; });
+        const test = new Set(clients.filter(c => String(c.kind || '').toLowerCase() === 'test').map(c => c.slug));
+        const real = r => !(r.linear_issue_uuid && parents.has(r.linear_issue_uuid)) && !test.has(r.client_slug);
+        const urgent = new Set();
+        const ids = open.filter(real).map(r => r.id);
+        const pages = [];
+        for (let i = 0; i < ids.length; i += 100) pages.push(_tdyRest('deliverables', 'select=id,priority&id=' + _tdyIn(ids.slice(i, i + 100))));
+        (await Promise.all(pages)).forEach(rows => rows.forEach(r => { if (Number(r.priority) === 1) urgent.add(r.id); }));
+        return { names, open: open.filter(r => real(r) && (r.status === 'tweak' || _tdyFresh(r))), done: done.filter(real), urgent: [...urgent] };
+    }
+
+    /* ---------- small pieces ---------- */
+    function _tdyColor(slug) {
+        let h = 0;
+        for (const ch of String(slug || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+        return TDY_PALETTE[h % TDY_PALETTE.length];
+    }
+    function _tdyInitials(name) {
+        const w = String(name || '').replace(/^Dr\.?\s+/i, '').trim().split(/\s+/).filter(Boolean);
+        return ((w[0] || '?')[0] + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase();
+    }
+    function _tdyAvatar(slug, name) {
+        return `<span class="tdy-av" style="background:${_tdyColor(slug)}">${_calEsc(_tdyInitials(name))}</span>`;
+    }
+    function _tdyPipe(status) {
+        const s = TDY_STAGE[status] != null ? TDY_STAGE[status] : 0;
+        return `<span class="tdy-pipe" aria-hidden="true">${[0, 1, 2, 3].map(k => `<i class="${k < s ? 'd' : k === s ? (status === 'tweak' ? 'w' : 'n') : ''}"></i>`).join('')}</span>`;
+    }
+    function _tdyIco(name) { return `<span class="tdy-ic" style="--ic:url('/nav-icons/${name}.png')" aria-hidden="true"></span>`; }
+    function _tdyBtnSync(id) {
+        return id ? `<button type="button" class="tdy-b" aria-label="Open in SyncLinear" onclick="_tdyOpenSync(${_calEscAttr(JSON.stringify(String(id)))})">${_tdyIco('synclinear')}SyncLinear</button>` : '';
+    }
+    function _tdyBtnCard(kind, id) {
+        return `<button type="button" class="tdy-b" aria-label="Open card in Calendar" onclick="_tdyOpenCard(${_calEscAttr(JSON.stringify(kind))},${_calEscAttr(JSON.stringify(String(id)))})">${_tdyIco('calendar')}Open card</button>`;
+    }
+    function _tdyTimeOf(iso) {
+        const d = new Date(iso);
+        return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    }
+    function _tdyMeter(done, left, week) {
+        const total = done + left;
+        const segs = total > 0 && total <= 24
+            ? Array.from({ length: total }, (_, k) => `<i class="${k < done ? 'f' : ''}"></i>`).join('')
+            : `<i class="bar"><b style="width:${total ? Math.round(done / total * 100) : 0}%"></b></i>`;
+        return `<div class="tdy-meter ${total && !left ? 'all' : ''}">${segs}</div>
+            <div class="tdy-mrow"><span><b>${done} of ${total}</b> cleared today</span><span>${week} this week</span></div>`;
+    }
+    function _tdyTrail(list, names) {
+        if (!list.length) return '';
+        const chips = list.slice(0, 12).map(r => `<span class="tdy-chip"><span class="tdy-tk"></span>${_calEsc(r.title || 'Untitled')}<span class="tdy-cn">${_calEsc(names[r.client_slug] || '')}</span><time>${_calEsc(_tdyTimeOf(r.status_at))}</time></span>`).join('');
+        return `<div class="tdy-trail"><div class="tdy-st">Cleared today <span>${list.length}</span></div><div class="tdy-chips">${chips}</div></div>`;
+    }
+    function _tdyTop(views, on) {
+        const d = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+        return `<div class="tdy-top"><h1 class="tdy-date">${_calEsc(d)}</h1><div class="tdy-vw" role="group" aria-label="View">${views.map(v => `<button type="button" aria-pressed="${v === on}" class="${v === on ? 'on' : ''}" data-tdy-key="view-${_calEscAttr(v)}" onclick="_tdySetView(${_calEscAttr(JSON.stringify(v))})">${_calEsc(v)}</button>`).join('')}</div></div>`;
+    }
+    const _tdyToday = rows => rows.filter(r => r.status_at && new Date(r.status_at) >= _tdyDays(0));
+
+    /* ---------- editors ---------- */
+    function _tdyEditorQueue(d) {
+        const due = r => r.due_date || '9999';
+        const rank = r => (r.status === 'tweak' ? 0 : 2) - (d.urgent.includes(r.id) ? 1 : 0);
+        return d.open.filter(r => !tdyState.skipped.includes(r.id))
+            .concat(d.open.filter(r => tdyState.skipped.includes(r.id)))
+            .sort((a, b) => rank(a) - rank(b) || due(a).localeCompare(due(b)));
+    }
+    function _tdyEditorRow(r, d) {
+        const name = d.names[r.client_slug] || r.client_slug || '';
+        return `<div class="tdy-rw">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}${r.status === 'tweak' ? ' · changes asked' : ''}</div></div>${d.urgent.includes(r.id) ? '<span class="tdy-urg">Urgent</span>' : ''}${_tdyBtnSync(r.id)}</div>`;
+    }
+    function _tdyEditorHtml(me, d, view) {
+        const q = _tdyEditorQueue(d);
+        const today = _tdyToday(d.done);
+        const head = _tdyTop(['List', 'Deck'], view) + _tdyMeter(today.length, q.length, d.done.length);
+        if (!q.length) return head + `<div class="tdy-win"><span class="tdy-ok"></span><h2>All clear${me.first ? ', ' + _calEsc(me.first) : ''}.</h2><p>Nothing is waiting on you.</p></div>` + _tdyTrail(today, d.names);
+        if (view === 'Deck') {
+            const r = q[0];
+            const name = d.names[r.client_slug] || r.client_slug || '';
+            return head + `<div class="tdy-deck"><div class="tdy-pile"><b>${today.length}</b><span>cleared today</span></div><div class="tdy-left"><b>${q.length}</b><span>in the deck</span></div>
+                ${q.length > 2 ? '<div class="tdy-cd c3"></div>' : ''}${q.length > 1 ? '<div class="tdy-cd c2"></div>' : ''}
+                <div class="tdy-cd c1">${_tdyAvatar(r.client_slug, name)}<h2>${_calEsc(r.title || 'Untitled')}</h2><div class="tdy-cn">${_calEsc(name)}${r.status === 'tweak' ? ' · changes asked' : ''}</div>
+                ${d.urgent.includes(r.id) ? '<div><span class="tdy-urg">Urgent</span></div>' : ''}${_tdyPipe(r.status)}
+                <div class="tdy-acts"><button type="button" class="tdy-b p" onclick="_tdyOpenSync(${_calEscAttr(JSON.stringify(r.id))})">${_tdyIco('synclinear')}Open in SyncLinear</button>${q.length > 1 ? `<button type="button" class="tdy-b" onclick="_tdySkip(${_calEscAttr(JSON.stringify(r.id))})">Skip for now</button>` : ''}</div></div></div>`
+                + (q.length > 1 ? `<div class="tdy-st">Next in the deck</div><div class="tdy-ls">${q.slice(1, 4).map(x => _tdyEditorRow(x, d)).join('')}</div>` : '')
+                + _tdyTrail(today, d.names);
+        }
+        return head + `<p class="tdy-big">${me.first ? _calEsc(me.first) + ', ' : ''}${q.length} to clear.</p><div class="tdy-ls">${q.slice(0, 15).map(r => _tdyEditorRow(r, d)).join('')}${q.length > 15 ? `<div class="tdy-more">${q.length - 15} more in SyncLinear</div>` : ''}</div>` + _tdyTrail(today, d.names);
+    }
+
+    /* ---------- SMM and admin ---------- */
+    function _tdyJobs(d) {
+        const today = _tdyIso(_tdyDays(0));
+        const liveCal = p => !['Archived', 'Posted', 'Scheduled'].includes(p.status);
+        return [
+            { key: 'approve', label: 'To approve', rows: d.open.filter(r => r.status === 'smm_approval').map(r => ({ kind: 'del', r })) },
+            { key: 'links', label: 'Missing links', rows: d.posts.filter(p => liveCal(p) && _calSmmMediaGap(p)).map(p => ({ kind: 'post', p })) },
+            { key: 'captions', label: 'Captions to write', rows: d.posts.filter(p => liveCal(p) && !String(p.caption || '').trim()).map(p => ({ kind: 'post', p })) },
+            { key: 'schedule', label: 'To schedule', rows: d.posts.filter(p => p.status === 'Approved').map(p => ({ kind: 'post', p })) },
+            { key: 'dates', label: 'Dates to move', rows: d.open.filter(r => r.status !== 'smm_approval' && r.due_date && r.due_date < today).map(r => ({ kind: 'del', r })) }
+        ];
+    }
+    function _tdySmmRow(x, d) {
+        if (x.kind === 'del') {
+            const r = x.r, name = d.names[r.client_slug] || r.client_slug || '';
+            const card = r.origin === 'calendar' ? _tdyBtnCard('del', r.id) : '';
+            return `<div class="tdy-rw">${_tdyAvatar(r.client_slug, name)}${_tdyPipe(r.status)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(r.title || 'Untitled')}</div><div class="tdy-cn">${_calEsc(name)}</div></div>${card}${_tdyBtnSync(r.id)}</div>`;
+        }
+        const p = x.p, name = d.names[p.client] || p.client || '';
+        return `<div class="tdy-rw">${_tdyAvatar(p.client, name)}<div class="tdy-who"><div class="tdy-tt">${_calEsc(p.name || 'Untitled post')}</div><div class="tdy-cn">${_calEsc(name)} · ${_calEsc(_tdyShortDate(p.scheduled_date))}</div></div>${_tdyBtnCard('post', p.id)}${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id)}</div>`;
+    }
+    function _tdyShortDate(iso) {
+        const d = new Date(String(iso || '') + 'T12:00:00');
+        return isNaN(d) ? '' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+    function _tdyWalkList(d) {
+        const approving = p => /smm approval/i.test(p.video_status || '') || /smm approval/i.test(p.graphic_status || '') || /smm approval/i.test(p.status || '');
+        return d.posts.filter(p => !['Archived', 'Posted', 'Scheduled'].includes(p.status)
+            && (approving(p) || _calSmmMediaGap(p) || !String(p.caption || '').trim()))
+            .sort((a, b) => String(a.scheduled_date).localeCompare(String(b.scheduled_date)));
+    }
+    function _tdySmmHtml(me, d, view) {
+        const jobs = _tdyJobs(d);
+        const left = jobs.reduce((s, j) => s + j.rows.length, 0);
+        const today = _tdyToday(d.done);
+        const head = _tdyTop(['Rings', 'Walk-through'], view) + _tdyMeter(today.length, left, d.done.length);
+        const scope = d.notListed ? '<p class="tdy-note" role="note">No clients are listed for you yet. Ask an admin to add yours to the SMM list.</p>' : '';
+        if (view === 'Walk-through') {
+            const list = _tdyWalkList(d);
+            if (!list.length) return head + scope + `<div class="tdy-win"><span class="tdy-ok"></span><h2>Every post is ready.</h2><p>Nothing to walk through for the next two weeks.</p></div>`;
+            const i = ((tdyState.walk % list.length) + list.length) % list.length;
+            const p = list[i], name = d.names[p.client] || p.client || '';
+            const gap = _calSmmMediaGap(p) || {};
+            const approving = /smm approval/i.test((p.video_status || '') + (p.graphic_status || '') + (p.status || ''));
+            const step = (ok, text, bad) => `<div class="${ok ? 'ok' : bad ? 'bad' : ''}"><span class="tdy-ck"></span>${_calEsc(text)}</div>`;
+            return head + scope + `<div class="tdy-focus"><div class="tdy-n">Post ${i + 1} of ${list.length} · ${_calEsc(_tdyShortDate(p.scheduled_date))}</div>${_tdyAvatar(p.client, name)}<h2>${_calEsc(p.name || 'Untitled post')}</h2><div class="tdy-cn">${_calEsc(name)}</div>
+                <div class="tdy-steps">${step(!gap.video, gap.video ? 'Video link missing' : 'Video link in place', gap.video)}${step(!gap.thumb, gap.thumb ? 'Thumbnail link missing' : 'Thumbnail link in place', gap.thumb)}${step(!!String(p.caption || '').trim(), String(p.caption || '').trim() ? 'Caption written' : 'Caption to write', !String(p.caption || '').trim())}${step(!approving && !gap.video && !gap.thumb, approving ? 'Approve and send to Kasper' : 'Nothing waiting on your approval', false)}</div>
+                <div class="tdy-acts"><button type="button" class="tdy-b p" onclick="_tdyOpenCard('post',${_calEscAttr(JSON.stringify(p.id))})">${_tdyIco('calendar')}Open card</button>${_tdyBtnSync(p.video_deliverable_id || p.graphic_deliverable_id)}${list.length > 1 ? '<button type="button" class="tdy-b" onclick="_tdyWalkNext()">Skip</button>' : ''}</div></div>` + _tdyTrail(today, d.names);
+        }
+        const on = jobs.find(j => j.key === tdyState.job && j.rows.length) || jobs.find(j => j.rows.length) || jobs[0];
+        const rings = jobs.map(j => {
+            const n = j.rows.length;
+            return `<button type="button" class="tdy-rg ${j === on ? 'on' : ''}" aria-pressed="${j === on}" aria-label="${_calEscAttr(j.label + ': ' + n)}" data-tdy-key="job-${j.key}" onclick="_tdySetJob(${_calEscAttr(JSON.stringify(j.key))})"><span class="tdy-ring ${n ? '' : 'full'}"><b>${n || ''}</b></span><span>${_calEsc(j.label)}</span></button>`;
+        }).join('');
+        const body = on.rows.length
+            ? `<div class="tdy-ls">${on.rows.slice(0, 12).map(x => _tdySmmRow(x, d)).join('')}${on.rows.length > 12 ? `<div class="tdy-more">${on.rows.length - 12} more in SyncLinear and Calendar</div>` : ''}</div>`
+            : `<div class="tdy-win"><span class="tdy-ok"></span><h2>All clear${me.first ? ', ' + _calEsc(me.first) : ''}.</h2><p>Nothing is waiting on you.</p></div>`;
+        return head + scope + `<p class="tdy-big">${me.first ? _calEsc(me.first) + ', ' : ''}${left} to clear.</p><div class="tdy-rings" role="group" aria-label="What is waiting">${rings}</div>` + body + _tdyTrail(today, d.names);
+    }
+
+    /* ---------- page ---------- */
+    /* The loading shape: the same shimmer blocks every other tab uses
+       (_svSkel), laid out like the page it stands in for. The boot shell
+       paints the same markup before the app script runs
+       (030-body-shell, boot-skeleton-today). */
+    function _tdySkeletonHtml() {
+        const row = w => `<div class="tdy-rw">${_svSkel('sv-skeleton-dot', 'width:24px;height:24px;')}<div class="tdy-who">${_svSkel('sv-skeleton-line', 'width:' + w + ';height:12px;')}${_svSkel('sv-skeleton-line', 'width:90px;height:10px;margin-top:6px;')}</div>${_svSkel('sv-skeleton-pill', 'width:92px;height:30px;')}</div>`;
+        return `<div class="tdy-skel" role="status" aria-label="Loading Today">
+            <div class="tdy-top">${_svSkel('sv-skeleton-line', 'width:190px;height:16px;')}${_svSkel('sv-skeleton-pill', 'width:170px;height:34px;')}</div>
+            ${_svSkel('sv-skeleton-pill', 'width:100%;height:10px;')}
+            <div class="tdy-mrow">${_svSkel('sv-skeleton-line', 'width:130px;height:12px;')}${_svSkel('sv-skeleton-line', 'width:80px;height:12px;')}</div>
+            ${_svSkel('sv-skeleton-line', 'width:min(300px,70%);height:36px;margin:4px 0 18px;')}
+            <div class="tdy-rings">${[0, 1, 2, 3, 4].map(() => `<div class="tdy-rg">${_svSkel('sv-skeleton-dot', 'width:56px;height:56px;')}${_svSkel('sv-skeleton-line', 'width:70%;height:10px;')}</div>`).join('')}</div>
+            <div class="tdy-ls">${['62%', '48%', '70%', '54%'].map(row).join('')}</div>
+        </div>`;
+    }
+    function _tdyWho(me) { return me ? me.id + '|' + me.role : ''; }
+    /* The per-person cache (same shape as the other tabs' localStorage
+       caches: one key, a timestamp, a 24 hour limit). It holds only this
+       person's filtered day, and the sign-out purge removes it. */
+    function _tdyCacheRead(who) {
+        try {
+            const c = JSON.parse(localStorage.getItem(TDY_CACHE_KEY) || 'null');
+            if (c && c.who === who && c.data && Date.now() - Number(c.at || 0) < TDY_CACHE_TTL_MS) return c.data;
+        } catch (e) {}
+        return null;
+    }
+    function _tdyCacheWrite(who, data) {
+        try { localStorage.setItem(TDY_CACHE_KEY, JSON.stringify({ who, at: Date.now(), data })); } catch (e) {}
+    }
+    function _tdyCacheClear() { try { localStorage.removeItem(TDY_CACHE_KEY); } catch (e) {} }
+    /* What to paint the moment the tab opens: the last answer for this
+       person if there is one, the skeleton otherwise. */
+    function renderTodayView() {
+        const who = _tdyWho(_tdyIdentity());
+        if (who && tdyState.who !== who) {
+            const cached = _tdyCacheRead(who);
+            tdyState.data = cached; tdyState.who = cached ? who : '';
+        }
+        return `<div class="tdy" id="tdyRoot">${who && tdyState.data && tdyState.who === who ? '' : _tdySkeletonHtml()}</div>`;
+    }
+    function _tdyPaint() {
+        const root = document.getElementById('tdyRoot');
+        if (!root) return;
+        const me = _tdyIdentity();
+        if (!me) { root.innerHTML = '<div class="tdy-win"><h2>Sign in to see your day.</h2><p>Today shows what is waiting on you once you pick your name in the staff menu.</p></div>'; return; }
+        // A failed quiet refresh keeps the day on screen; only a first load
+        // with nothing to show turns into the error card.
+        if (tdyState.error && !tdyState.data) { root.innerHTML = `<div class="tdy-win" role="alert"><h2>Today could not load.</h2><p>${_calEsc(tdyState.error)}</p><button type="button" class="tdy-b p" onclick="mountTodayView()">Try again</button></div>`; return; }
+        if (!tdyState.data) { if (!root.querySelector('.tdy-skel')) root.innerHTML = _tdySkeletonHtml(); return; }
+        const focused = document.activeElement && root.contains(document.activeElement) ? document.activeElement.getAttribute('data-tdy-key') : '';
+        const views = me.editor ? ['List', 'Deck'] : ['Rings', 'Walk-through'];
+        const view = views.includes(tdyState.view) ? tdyState.view : views[0];
+        root.innerHTML = me.editor ? _tdyEditorHtml(me, tdyState.data, view) : _tdySmmHtml(me, tdyState.data, view);
+        // Repainting replaces the controls; put keyboard focus back on the one
+        // that was just used so a keyboard user keeps their place.
+        if (focused) { const back = root.querySelector('[data-tdy-key="' + focused + '"]'); if (back) back.focus(); }
+    }
+    /* Coming back to the browser tab reads again, quietly, keeping what is
+       on screen until the answer lands. A different person signing in on
+       this browser never sees the previous person's day: the sign-out purge
+       clears it (_tdyPurgeSensitiveState), and the cache is keyed by person. */
+    function _tdyOnVisible() {
+        if (document.visibilityState !== 'visible' || !document.getElementById('tdyRoot')) return;
+        mountTodayView();
+    }
+    /* LIVE: the same realtime client Calendar uses. Any change to a
+       deliverable or a calendar post schedules one quiet re-read (bursts
+       fold into one). A re-subscribe after a dropped socket re-reads too,
+       since realtime does not replay what was missed. */
+    let _tdyChannel = null, _tdyRtTimer = 0, _tdyRtSubscribedOnce = false;
+    function _tdyOnRealtime() {
+        if (!document.getElementById('tdyRoot')) return;
+        clearTimeout(_tdyRtTimer);
+        _tdyRtTimer = setTimeout(() => { _tdyRtTimer = 0; if (document.getElementById('tdyRoot') && !document.hidden) mountTodayView(); }, TDY_RT_DEBOUNCE_MS);
+    }
+    async function _tdyEnsureLive() {
+        if (_tdyChannel) return;
+        _tdyChannel = 'connecting';
+        let client = null;
+        try { client = await _calV2Client(); } catch (e) {}
+        if (!client || !document.getElementById('tdyRoot')) { _tdyChannel = null; return; }
+        try {
+            _tdyChannel = client.channel('today_live')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'deliverables' }, _tdyOnRealtime)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_posts' }, _tdyOnRealtime)
+                .subscribe(status => {
+                    if (status === 'SUBSCRIBED') { if (_tdyRtSubscribedOnce) _tdyOnRealtime(); _tdyRtSubscribedOnce = true; }
+                });
+        } catch (e) { _tdyChannel = null; }
+    }
+    function _tdyStopLive() {
+        clearTimeout(_tdyRtTimer); _tdyRtTimer = 0;
+        const ch = _tdyChannel;
+        _tdyChannel = null; _tdyRtSubscribedOnce = false;
+        if (ch && typeof ch === 'object') { _calV2Client().then(c => { try { c && c.removeChannel(ch); } catch (e) {} }, () => {}); }
+    }
+    function _tdyPurgeSensitiveState() {
+        tdyState.gen++;
+        tdyState.data = null; tdyState.who = ''; tdyState.error = ''; tdyState.skipped = []; tdyState.walk = 0;
+        _tdyClientRows = null;
+        _tdyCacheClear();
+        const root = document.getElementById('tdyRoot');
+        if (root) { root.innerHTML = _tdySkeletonHtml(); mountTodayView(); }
+    }
+    async function mountTodayView() {
+        if (!tdyState.listening) { tdyState.listening = true; document.addEventListener('visibilitychange', _tdyOnVisible); }
+        const gen = ++tdyState.gen;
+        try { tdyState.view = localStorage.getItem(TDY_VIEW_KEY) || ''; } catch (e) {}
+        const me = _tdyIdentity();
+        const who = _tdyWho(me);
+        if (!me) { tdyState.data = null; tdyState.who = ''; tdyState.error = ''; _tdyPaint(); return; }
+        if (who !== tdyState.who) { tdyState.data = _tdyCacheRead(who); tdyState.who = tdyState.data ? who : ''; tdyState.error = ''; }
+        // Paint what we have now (the cached day, or the skeleton), then read.
+        _tdyPaint();
+        _tdyEnsureLive();
+        try {
+            const data = await _tdyLoad(me);
+            if (gen !== tdyState.gen) return;
+            tdyState.data = data; tdyState.who = who; tdyState.error = '';
+            _tdyCacheWrite(who, data);
+        } catch (e) {
+            if (gen !== tdyState.gen) return;
+            tdyState.error = e && (e.message === 'roster' || e.message === 'clients') ? 'Your client list could not be read. Try again in a moment.' : 'Check your connection and try again.';
+        }
+        _tdyPaint();
+    }
+    function _tdySetView(v) {
+        tdyState.view = v;
+        try { localStorage.setItem(TDY_VIEW_KEY, v); } catch (e) {}
+        _tdyPaint();
+    }
+    function _tdySetJob(k) { tdyState.job = k; _tdyPaint(); }
+    function _tdyWalkNext() { tdyState.walk++; _tdyPaint(); }
+    function _tdySkip(id) { tdyState.skipped = tdyState.skipped.filter(x => x !== id).concat(id); _tdyPaint(); }
+    function _tdyOpenSync(id) {
+        try { window.open('/synclinear/' + encodeURIComponent(id), '_blank', 'noopener'); } catch (e) {}
+    }
+    /* Vigil's hand test, 2026-09-28: the address held only the client, so a
+       reload lost the card. Write the calendar's own card deep link
+       (#calendar/<slug>/<card>); the calendar keeps it and reopens it. */
+    function _tdyCardInAddress(clientSlug, cardId) {
+        try {
+            const slug = calClientSlug(clientSlug);
+            if (!slug || !cardId || currentNav !== 'calendar') return;
+            const base = '/' + svRoute.search().replace(/#.*$/, '');
+            history.replaceState({ nav: 'calendar', client: null }, '',
+                base + '#calendar/' + slug + '/' + encodeURIComponent(cardId));
+        } catch (e) {}
+    }
+    function _tdyOpenCard(kind, id) {
+        const d = tdyState.data;
+        if (!d) return;
+        if (kind === 'post') {
+            const p = d.posts.find(x => x.id === id);
+            if (!p) return;
+            const name = d.names[p.client] || p.client;
+            try { svSharedClientNote(name); } catch (e) {}
+            _calSetFocusRequest({ client: name, cardId: p.id });
+            navTo('calendar');
+            _tdyCardInAddress(p.client, p.id);
+            return;
+        }
+        const r = d.open.find(x => x.id === id);
+        if (!r) return;
+        const name = d.names[r.client_slug] || r.client_slug;
+        try { svSharedClientNote(name); } catch (e) {}
+        wlOpenInContentCalendar(name, '', r.id);
+    }
+    function _tdyTeardown() { tdyState.gen++; _tdyStopLive(); }
+
+    window._tdySetView = _tdySetView;
+    window._tdySetJob = _tdySetJob;
+    window._tdyWalkNext = _tdyWalkNext;
+    window._tdySkip = _tdySkip;
+    window._tdyOpenSync = _tdyOpenSync;
+    window._tdyOpenCard = _tdyOpenCard;
+    window._tdyCardInAddress = _tdyCardInAddress;
+    window.mountTodayView = mountTodayView;
+
+    // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
+    Object.assign(window, {
+        _tdyOpenCard, _tdyOpenSync, _tdySetJob, _tdySetView, _tdySkip, _tdyWalkNext, mountTodayView
+    });
+    /* WHICH CLIENTS BELONG TO WHICH SMM: one rule, shared by Today and the
+     * main-bar client dropdown's "My clients", so the two can never disagree
+     * (owner decision 2026-09-27).
+     *
+     *   1. Only CURRENT clients count: a client is current when it has a row in
+     *      Clients Info (clientMap, the list the rest of SyncView reads). A
+     *      former client leaves that sheet, so it disappears here whatever the
+     *      SMM roster still says.
+     *   2. The SMM roster (social_media_managers, the nightly copy of the
+     *      owner's roster sheet; SyncLinear's "Social media manager" card reads
+     *      it too) says which clients each SMM owns. Roster rows marked
+     *      inactive are former SMMs and are ignored.
+     *   3. Roster and Clients Info spell names differently, so both sides go
+     *      through svClientKey: titles (Dr, Dr.), "&" versus "and",
+     *      punctuation, accents, case and spacing are all ignored.
+     *   4. Test clients (clients.kind = 'test') are never anyone's real
+     *      client: svCurrentClients drops them, so they leave Today and the
+     *      dropdown's "My clients" alike.
+     *   5. Anyone on the roster sees their own clients, admins included
+     *      (svScopeMode). An admin who is not on the roster sees every
+     *      current client. There is no switch (owner decision 2026-09-28).
+     *
+     * Everything here is pure over its inputs except svCurrentClients, which
+     * reads the loaded Clients Info rows. */
+    const SV_CLIENT_TITLES = /^(?:dr|doctor|mr|mrs|ms|miss|prof|professor)\.?\s+/;
+    function svClientKey(name) {
+        let t = String(name == null ? '' : name).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+        t = t.replace(SV_CLIENT_TITLES, '');
+        t = t.replace(/&/g, ' and ');
+        return t.replace(/[^a-z0-9]+/g, '');
+    }
+    /* Current clients as Map(key -> Clients Info name). Empty until Clients
+       Info has loaded; callers treat empty as "not known yet", never as "no
+       clients". testClients: rows of the clients table ({ slug,
+       display_name, kind }); any with kind 'test' is left out, matched by
+       display name or slug. */
+    function svCurrentClients(names, testClients) {
+        const list = Array.isArray(names) ? names : Object.keys(clientMap || {});
+        const test = new Set();
+        for (const c of (Array.isArray(testClients) ? testClients : [])) {
+            if (!c || String(c.kind || '').toLowerCase() !== 'test') continue;
+            for (const v of [c.display_name, c.slug]) { const k = svClientKey(v); if (k) test.add(k); }
+        }
+        const out = new Map();
+        for (const n of list) { const k = svClientKey(n); if (k && !test.has(k) && !out.has(k)) out.set(k, String(n).trim()); }
+        return out;
+    }
+    function svActiveManagers(managers) {
+        return (Array.isArray(managers) ? managers : []).filter(m => m && m.active !== false && String(m.name || '').trim());
+    }
+    /* The roster entry for a signed-in staff member: email first, then full
+       name, then a first name only one active roster entry carries. */
+    function svRosterEntryFor(managers, member) {
+        const norm = v => String(v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        const list = svActiveManagers(managers);
+        const email = norm(member && member.email);
+        const name = norm(member && member.name);
+        const first = name.split(' ')[0];
+        const byFirst = first ? list.filter(m => norm(m.name).split(' ')[0] === first) : [];
+        return (email && list.find(m => norm(m.email) === email))
+            || (name && list.find(m => norm(m.name) === name))
+            || (byFirst.length === 1 ? byFirst[0] : null);
+    }
+    /* The current clients one roster entry owns, as Clients Info names. */
+    function svSmmCurrentClients(entry, current) {
+        if (!entry) return [];
+        const cur = current instanceof Map ? current : svCurrentClients();
+        const owned = new Set((Array.isArray(entry.source_clients) ? entry.source_clients : []).map(svClientKey).filter(Boolean));
+        return [...cur].filter(([k]) => owned.has(k)).map(([, n]) => n);
+    }
+    /* Which clients a Today-style view shows: 'mine' or 'all'.
+       isAdmin: the signed-in role is admin. onRoster: an active roster entry
+       matched them. Only an admin who is not on the roster sees all. */
+    function svScopeMode(isAdmin, onRoster) {
+        return isAdmin && !onRoster ? 'all' : 'mine';
+    }
+    /* Current clients no active SMM lists: admins only. */
+    function svUnownedCurrentClients(managers, current) {
+        const cur = current instanceof Map ? current : svCurrentClients();
+        const owned = new Set();
+        for (const m of svActiveManagers(managers)) for (const c of (Array.isArray(m.source_clients) ? m.source_clients : [])) owned.add(svClientKey(c));
+        return [...cur].filter(([k]) => !owned.has(k)).map(([, n]) => n);
+    }
+
     /* ============================================================
        CLIENT ONBOARDING MODULE  (standalone, private-link page)
        Reachable ONLY via ?onboarding=<token>. Mirrors ?intake=1: bypasses the
@@ -2363,27 +2968,1360 @@ import {
         _svSelectKeydown, _svSelectPick, _svSelectToggle, _svStepNumber, _svSyncStepper,
         _syncviewOpenStaffAccount, _syncviewOpenStaffGate, _syncviewToggleStaffRoleKey
     });
-export {
-  CALENDAR_GET_URL, CALENDAR_REORDER_EF_URL,
-  CALENDAR_UPSERT_EF_URL, CALENDAR_UPSERT_N8N_URL, CAL_SUPABASE_ANON_KEY, CAL_SUPABASE_LIB_URL,
-  CAL_SUPABASE_URL, CAPTION_JOB_STATUS_URL, CAPTION_JOB_UPDATE_URL, CAPTION_PROMPTS_GET_URL,
-  CAPTION_PROMPTS_SAVE_EF_URL, CLIENT_REVIEW_LINK_URL,
-  CLIENT_TOKEN_VERIFY_URL, GENERATE_CAPTION_URL, KASPER_QUEUE_URL, OB_VARIANT, PTO_API_TIMEOUT_MS,
-  PTO_EF_URL, PTO_FLAG_KEY, SMM_WEEKLY_REPORTS_URL, SYNCVIEW_CLIENT_ENTRY_PROTOCOL,
-  THUMBNAIL_FOLDER_RESOLVE_EF_URL, THUMBNAIL_REVISION_READ_EF_URL, URGENT_KASPER_SLACK_URL,
-  WORKLOAD_LINEAR_URL, WORKLOAD_PLAN_URL, _obEsc, _obPost, _obSetDraftKey, _obSetSubIdKey,
-  _obSetVariant, _obZoom, _ptoAdminOverviewGeneration, _ptoAdminState, _ptoAttr, _ptoBlockWrites,
-  _ptoEsc, _ptoFlagChannel, _ptoFlagGeneration, _ptoFlagPromise, _ptoFlagValue,
-  _ptoInvalidateOverviewCaches, _ptoNextAdminOverviewGeneration, _ptoNextFlagGeneration,
-  _ptoNextOverviewGeneration, _ptoNextQuoteGeneration, _ptoOverviewGeneration, _ptoQuoteGeneration,
-  _ptoRefreshAfterConflict, _ptoSetFlagChannel, _ptoSetFlagPromise, _ptoShowToast, _ptoState,
-  _ptoStateConflict, _ptoStoreFlagValue, _ptoUnknownWrite, _svBootFlagRows, _svDateHtml,
-  _svExplainLabel, _svSelectHtml, _svStepperHtml, _svSyncDateControl, _svSyncStepper, _svTone,
-  _syncviewCloseStaffAccount, _syncviewCreativeMe, _syncviewOfferStaffSignIn,
-  _syncviewOpenStaffGate, _syncviewOpenStaffIdentity, _syncviewRequireStaffIdentity,
-  _syncviewStaffCan, _syncviewStaffEligible, _syncviewStaffGateRequired,
-  _syncviewStaffIdentityBoot, _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders,
-  _syncviewStaffIdentityLoad, _syncviewStaffIdentitySignature, _syncviewStaffIdentityValid,
-  _syncviewStaffRoleLabel, _syncviewStaffRoleValue, _syncviewStaffVerificationEpoch,
-  mountOnboardingView, renderOnboardingView
-};
+    function _ptoClearValidation(errorId, controlIds) {
+        const errorBox = document.getElementById(errorId);
+        if (errorBox) errorBox.textContent = '';
+        String(controlIds || '').split(/\s+/).filter(Boolean).forEach(id => {
+            const control = document.getElementById(id);
+            if (!control) return;
+            control.removeAttribute('aria-invalid');
+            const describedBy = String(control.getAttribute('aria-describedby') || '')
+                .split(/\s+/).filter(value => value && value !== errorId);
+            if (describedBy.length) control.setAttribute('aria-describedby', describedBy.join(' '));
+            else control.removeAttribute('aria-describedby');
+        });
+    }
+    function _ptoShowValidation(errorId, message, focusId, invalidIds) {
+        const ids = String(invalidIds || focusId || '').split(/\s+/).filter(Boolean);
+        _ptoClearValidation(errorId, ids.join(' '));
+        const errorBox = document.getElementById(errorId);
+        if (errorBox) errorBox.textContent = message;
+        ids.forEach(id => {
+            const control = document.getElementById(id);
+            if (!control) return;
+            control.setAttribute('aria-invalid', 'true');
+            const describedBy = new Set(String(control.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+            describedBy.add(errorId);
+            control.setAttribute('aria-describedby', Array.from(describedBy).join(' '));
+        });
+        document.getElementById(focusId || ids[0])?.focus();
+    }
+    function _ptoEnabled() { return String(_ptoFlagValue && _ptoFlagValue.mode || 'off').toLowerCase() === 'on'; }
+    function _ptoSetFlagValue(value, generation) {
+        if (generation == null) generation = _ptoNextFlagGeneration();
+        if (generation !== _ptoFlagGeneration) return;
+        const wasEnabled = _ptoEnabled();
+        _ptoStoreFlagValue(value && typeof value === 'object' ? value : { mode: 'off' });
+        const enabled = _ptoEnabled();
+        const menuItem = document.getElementById('headerTimeOffMenuItem');
+        if (menuItem) menuItem.hidden = !enabled;
+        if (!enabled) {
+            _ptoInvalidateOverviewCaches();
+            try {
+                if (typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'time-off') {
+                    _kasperFallbackToReview();
+                }
+            } catch (e) {}
+            if (typeof currentNav !== 'undefined' && currentNav === 'time-off') {
+                setTimeout(() => { if (currentNav === 'time-off' && !_ptoEnabled()) navTo('home'); }, 0);
+            }
+        }
+        if (wasEnabled !== enabled && typeof currentNav !== 'undefined' && currentNav === 'kasper') {
+            setTimeout(() => {
+                if (currentNav !== 'kasper') return;
+                const content = document.getElementById('content');
+                const kasper = svAreaApi('kasper');   // on demand; on screen means loaded
+                if (content && kasper) {
+                    content.innerHTML = kasper.render();
+                    kasper.mount();
+                }
+            }, 0);
+        }
+    }
+    async function _ptoFetchFlagOnce() {
+        const generation = _ptoNextFlagGeneration();
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _ptoSetFlagValue({ mode: 'off' }, generation); return; }
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        const timeout = controller ? setTimeout(() => controller.abort(), 5000) : null;
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(PTO_FLAG_KEY) + '&limit=1';
+            const options = { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } };
+            if (controller) options.signal = controller.signal;
+            const response = await fetch(url, options);
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            const rows = await response.json();
+            const row = Array.isArray(rows) ? rows[0] : null;
+            _ptoSetFlagValue(row && row.value ? row.value : { mode: 'off' }, generation);
+        } catch (error) {
+            _ptoSetFlagValue({ mode: 'off' }, generation);
+            console.warn('[PTO] runtime flag read failed; keeping Time Off dark', error);
+        } finally { if (timeout) clearTimeout(timeout); }
+    }
+    async function _ptoSubscribeFlag() {
+        if (_ptoFlagChannel || typeof _calRuntimeFlagClient !== 'function') return;
+        const client = await _calRuntimeFlagClient();
+        if (!client || _ptoFlagChannel) return;
+        try {
+            _ptoSetFlagChannel(client
+                .channel('syncview-pto-runtime-flag')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + PTO_FLAG_KEY }, payload => {
+                    const row = payload && payload.new ? payload.new : null;
+                    const generation = _ptoNextFlagGeneration();
+                    _ptoSetFlagValue(row && row.value ? row.value : { mode: 'off' }, generation);
+                })
+                .subscribe());
+        } catch (error) {
+            _ptoSetFlagChannel(null);
+            console.warn('[PTO] runtime flag subscription failed', error);
+        }
+    }
+    function _ptoPrimeFlag() {
+        if (!_ptoFlagPromise) _ptoSetFlagPromise(_ptoFetchFlagOnce().then(_ptoSubscribeFlag).catch(() => null));
+        return _ptoFlagPromise;
+    }
+    function _ptoRefreshFlagOnResume() {
+        try { if (document.visibilityState === 'hidden') return; } catch (e) {}
+        _ptoFetchFlagOnce();
+    }
+    window.addEventListener('focus', _ptoRefreshFlagOnResume);
+    document.addEventListener('visibilitychange', _ptoRefreshFlagOnResume);
+    function _ptoOpenFromMenu() {
+        _syncviewCloseStaffAccount();
+        if (_ptoEnabled()) navTo('time-off');
+    }
+    function _ptoApiMessage(json, status) {
+        const code = String(json && (json.code || json.error) || '');
+        if (code === 'insufficient_balance') return 'This request is larger than the available wellness balance.';
+        if (code === 'insufficient_sick_balance') return 'This request is larger than the available sick balance.';
+        if (code === 'pto_not_enabled') return 'Your Time Off profile has not been enabled yet. Ask an Admin to finish setup.';
+        if (code === 'member_not_found') return 'This active staff profile is no longer available. Refresh Time Off.';
+        if (code === 'member_inactive') return 'This request belongs to an inactive staff profile and cannot be approved. It can still be denied for cleanup.';
+        if (code === 'feature_disabled') return 'Time Off is temporarily unavailable.';
+        if (code === 'not_eligible') return 'Paid time off becomes available 60 days after the start date.';
+        if (code === 'past_date_not_allowed') return 'Only sick leave can be requested for today or a past date.';
+        if (code === 'request_range_too_long') return 'Split this request into shorter date ranges.';
+        if (code === 'floating_holiday_used' || code === 'floating_holiday_unavailable') return 'The floating holiday is already used or awaiting a decision this calendar year.';
+        if (code === 'floating_holiday_range') return 'Choose one business date for a floating holiday.';
+        if (code === 'crosses_leave_year') return 'Paid requests cannot cross the Dec 31 leave-year boundary. Submit separate requests.';
+        if (code === 'request_state_changed') return 'Time Off changed while this form was open. Refresh and try again.';
+        if (code === 'request_not_pending') return 'This request was already decided or cancelled. SyncView will refresh the latest status.';
+        if (code === 'decision_conflict') return 'Another Time Off change happened during this decision. SyncView will refresh before you try again.';
+        if (code === 'cancel_not_allowed') return 'This request can no longer be cancelled. SyncView will refresh its current status.';
+        if (code === 'request_not_found') return 'This request is no longer available. SyncView will refresh the list.';
+        if (code === 'pto_service_failed') return 'Time Off is temporarily unavailable. Try again in a moment.';
+        if (code === 'cancellation_audit_not_ready') return 'Approved leave cannot be cancelled until the private cancellation-audit migration is ready.';
+        if (code === 'start_date_history_conflict') return 'This start date cannot be changed here because leave history already exists. Use a reviewed data correction so balances are not silently rewritten.';
+        if (code === 'days_mismatch' || code === 'day_count_mismatch' || code === 'invalid_days') return 'Choose a half-day amount no larger than the business days in this range.';
+        return String(json && (json.message || json.error_description || json.error) || (status === 403 ? 'This action is not available for this staff role.' : 'Time Off could not be updated.'));
+    }
+    async function _ptoApi(action, method, payload, retried) {
+        const adminAction = action === 'decide' || action === 'adjust' || action === 'set_start_date' || (action === 'cancel' && _syncviewStaffCan('pto-admin'));
+        const identity = await _syncviewRequireStaffIdentity(adminAction ? 'pto-admin' : undefined);
+        method = method || (action === 'overview' ? 'GET' : 'POST');
+        const wire = Object.assign({}, payload || {});
+        if (method !== 'GET') wire.action = action;
+        if (adminAction) wire.actor_member_id = identity.member.id;
+        if ((action === 'quote' || action === 'request' || action === 'cancel') && !wire.member_id) wire.member_id = identity.member.id;
+        let url = PTO_EF_URL + '?action=' + encodeURIComponent(action);
+        if (action === 'overview') url += '&member_id=' + encodeURIComponent(identity.member.id);
+        const options = {
+            method,
+            headers: _syncviewEfHeaders(method === 'GET' ? { Accept: 'application/json' } : { Accept: 'application/json', 'Content-Type': 'application/json' }, PTO_EF_URL),
+        };
+        if (method !== 'GET') options.body = JSON.stringify(wire);
+        const mutating = method !== 'GET' && action !== 'quote';
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        let timedOut = false;
+        const timeout = controller ? setTimeout(() => {
+            timedOut = true;
+            controller.abort();
+        }, PTO_API_TIMEOUT_MS) : null;
+        if (controller) options.signal = controller.signal;
+        let response;
+        try {
+            response = await fetch(url, options);
+        } catch (cause) {
+            const error = new Error(mutating
+                ? 'SyncView could not confirm whether this change was saved. Refresh Time Off before trying again.'
+                : (timedOut
+                    ? 'Time Off took too long to respond. Try again.'
+                    : 'SyncView could not reach Time Off. Check your connection and try again.'));
+            error.code = mutating ? 'write_outcome_unknown' : (timedOut ? 'request_timeout' : 'network_error');
+            error.ptoWriteOutcomeUnknown = mutating;
+            throw error;
+        } finally {
+            if (timeout) clearTimeout(timeout);
+        }
+        let json = null;
+        try { json = await response.json(); } catch (e) {}
+        if (json && (json.error === 'feature_disabled' || json.code === 'feature_disabled')) _ptoSetFlagValue({ mode: 'off' });
+        if (response.status === 401) {
+            const active = _syncviewStaffIdentityForHeaders();
+            if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(identity)) throw new Error('Staff sign-in changed.');
+            _syncviewStaffIdentityClear();
+            if (retried) throw new Error(_ptoApiMessage(json, response.status));
+            const replacement = await _syncviewOpenStaffIdentity({ reason: 'expired' });
+            if (!replacement) throw new Error('Staff sign-in required.');
+            return _ptoApi(action, method, payload, true);
+        }
+        const active = _syncviewStaffIdentityForHeaders();
+        if (_syncviewStaffIdentitySignature(active) !== _syncviewStaffIdentitySignature(identity)) throw new Error('Staff sign-in changed.');
+        if (!response.ok || !json || json.ok === false) {
+            const error = new Error(_ptoApiMessage(json, response.status));
+            error.status = response.status;
+            error.code = json && (json.code || json.error);
+            throw error;
+        }
+        return json || {};
+    }
+    function _ptoDate(value) {
+        const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!match) return null;
+        const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+    function _ptoIso(date) {
+        if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+        return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
+    }
+    function _ptoTodayIso() { return _ptoIso(new Date()); }
+    function _ptoLeaveYearEndFor(startIso, ptoStartIso) {
+        const start = _ptoDate(startIso);
+        const ptoStart = _ptoDate(ptoStartIso);
+        if (!start || !ptoStart) return '';
+        // Leave year is the shared Jan 1-Dec 31 calendar year (Kasper ruling,
+        // 2026-08-11), so the end date is always Dec 31 of the request's own
+        // year regardless of hire date.
+        return _ptoIso(new Date(start.getFullYear(), 11, 31, 12));
+    }
+    function _ptoFmtDate(value, options) {
+        const date = _ptoDate(value);
+        if (!date) return '—';
+        return new Intl.DateTimeFormat('en-US', options || { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+    }
+    function _ptoFmtDateTime(value) {
+        const date = new Date(String(value || ''));
+        if (Number.isNaN(date.getTime())) return '';
+        return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date);
+    }
+    function _ptoNumber(value, fallback) {
+        const n = Number(value);
+        return Number.isFinite(n) ? n : (fallback == null ? 0 : fallback);
+    }
+    function _ptoFmtDays(value) {
+        const n = _ptoNumber(value);
+        return Number.isInteger(n) ? n.toFixed(1) : String(Math.round(n * 10) / 10);
+    }
+    function _ptoTypeLabel(value) {
+        return ({ wellness: 'Wellness', sick: 'Sick', floating_holiday: 'Floating holiday', unpaid: 'Unpaid' })[String(value || '')] || String(value || 'Time off').replace(/_/g, ' ');
+    }
+    function _ptoTypePill(value) {
+        const tone = _svTone(value === 'floating_holiday' ? 'floating' : value);
+        return '<span class="pto-type-pill ' + tone + '"><span class="sv-option-dot ' + tone + '" aria-hidden="true"></span>' + _ptoEsc(_ptoTypeLabel(value)) + '</span>';
+    }
+    function _ptoStatusHtml(status) {
+        const value = String(status || 'pending').toLowerCase();
+        return '<span class="pto-status ' + _ptoAttr(value) + '">' + _ptoEsc(value) + '</span>';
+    }
+    function _ptoBalance(overview) {
+        const raw = overview && (overview.balance || overview.my_balance) || {};
+        const wellness = raw.wellness || {};
+        const sick = raw.sick || {};
+        const floating = raw.floating_holiday || {};
+        const leaveYear = raw.leave_year || raw.current_leave_year || {};
+        return {
+            pto_enabled: raw.pto_enabled != null ? raw.pto_enabled : overview && overview.pto_enabled,
+            pto_start_date: raw.pto_start_date || raw.start_date || '',
+            eligible: raw.eligible,
+            eligibility_date: raw.eligibility_date || '',
+            wellness_granted: _ptoNumber(raw.wellness_granted != null ? raw.wellness_granted : wellness.granted),
+            wellness_approved_used: _ptoNumber(raw.wellness_approved_used != null ? raw.wellness_approved_used : (wellness.approved_used != null ? wellness.approved_used : raw.wellness_used)),
+            wellness_adjustment: _ptoNumber(raw.wellness_adjustment != null ? raw.wellness_adjustment : wellness.adjustment),
+            wellness_used: _ptoNumber(raw.wellness_used != null ? raw.wellness_used : wellness.used),
+            wellness_available: _ptoNumber(raw.wellness_available != null ? raw.wellness_available : wellness.available),
+            sick_used: _ptoNumber(raw.sick_used != null ? raw.sick_used : sick.used),
+            sick_approved_used: _ptoNumber(raw.sick_approved_used != null ? raw.sick_approved_used : (sick.approved_used != null ? sick.approved_used : raw.sick_used)),
+            sick_adjustment: _ptoNumber(raw.sick_adjustment != null ? raw.sick_adjustment : sick.adjustment),
+            sick_available: _ptoNumber(raw.sick_available != null ? raw.sick_available : sick.available),
+            floating_holiday_used: !!(raw.floating_holiday_used != null ? raw.floating_holiday_used : floating.used),
+            floating_holiday_pending: !!(raw.floating_holiday_pending != null ? raw.floating_holiday_pending : floating.pending),
+            floating_holiday_status: String(raw.floating_holiday_status || floating.status || ''),
+            next_accrual_date: raw.next_accrual_date || wellness.next_accrual_date || '',
+            leave_year_start: raw.leave_year_start || leaveYear.start || '',
+            leave_year_end: raw.leave_year_end || leaveYear.end || '',
+        };
+    }
+    function _ptoHolidayDate(row) { return String(row && (row.observed_date || row.date) || ''); }
+    function _ptoCountRequestDays(startValue, endValue, holidays) {
+        const start = _ptoDate(startValue);
+        const end = _ptoDate(endValue);
+        if (!start || !end || end < start) return 0;
+        const holidayDates = new Set((Array.isArray(holidays) ? holidays : []).map(_ptoHolidayDate).filter(Boolean));
+        let count = 0;
+        const cursor = new Date(start.getTime());
+        while (cursor <= end) {
+            const day = cursor.getDay();
+            if (day !== 0 && day !== 6 && !holidayDates.has(_ptoIso(cursor))) count += 1;
+            cursor.setDate(cursor.getDate() + 1);
+        }
+        return count;
+    }
+    function renderTimeOffView() {
+        return '<div class="pto-wrap"><div class="pto-head"><div><div class="pto-eyebrow">People · Time away</div><h1 class="pto-title">Time Off</h1><p class="pto-sub">See your wellness balance, request leave, and plan around the team calendar.</p></div><button class="pto-refresh" id="ptoRefresh" type="button" onclick="_ptoLoadOverview(true)">Refresh</button></div><div id="ptoRoot"></div></div>';
+    }
+    function mountTimeOffView() {
+        if (!_ptoEnabled()) { navTo('home'); return; }
+        // Do not reuse a balance after leaving and returning: a disconnected
+        // realtime client must still converge on the server-side kill switch.
+        _ptoInvalidateOverviewCaches();
+        _ptoPaint();
+        _ptoFetchFlagOnce().then(() => {
+            if (typeof currentNav === 'undefined' || currentNav !== 'time-off') return;
+            if (!_ptoEnabled()) { navTo('home'); return; }
+            _ptoLoadOverview(true);
+        });
+    }
+    async function _ptoLoadOverview(force) {
+        if (!_ptoEnabled() || (_ptoState.loading && !force)) return;
+        if (_ptoState.overview && !force) { _ptoPaint(); return; }
+        const generation = _ptoNextOverviewGeneration();
+        _ptoState.loading = true;
+        _ptoState.error = '';
+        _ptoPaint();
+        try {
+            const overview = await _ptoApi('overview', 'GET');
+            if (generation !== _ptoOverviewGeneration) return;
+            _ptoState.overview = overview;
+            _ptoState.writeOutcomeUnknown = false;
+            const asOf = _ptoDate(_ptoState.overview && _ptoState.overview.as_of_date);
+            if (asOf) {
+                const currentMonth = new Date(asOf.getFullYear(), asOf.getMonth(), 1);
+                const minMonth = new Date(asOf.getFullYear(), asOf.getMonth() - 3, 1);
+                const maxMonth = new Date(asOf.getFullYear(), asOf.getMonth() + 3, 1);
+                if (!_ptoState.monthInitialized) _ptoState.month = currentMonth;
+                else if (_ptoState.month < minMonth) _ptoState.month = minMonth;
+                else if (_ptoState.month > maxMonth) _ptoState.month = maxMonth;
+                _ptoState.monthInitialized = true;
+            }
+        } catch (error) {
+            if (generation !== _ptoOverviewGeneration) return;
+            _ptoState.error = error && error.message ? error.message : 'Time Off could not be loaded.';
+        } finally {
+            if (generation !== _ptoOverviewGeneration) return;
+            _ptoState.loading = false;
+            _ptoPaint();
+        }
+    }
+    function _ptoLoadingHtml(label) {
+        return '<div class="pto-card pto-signin" role="status"><span class="pto-spinner" aria-hidden="true"></span><strong>' + _ptoEsc(label || 'Loading Time Off') + '</strong><span>Balances and requests are loaded securely for the signed-in staff member.</span></div>';
+    }
+    function _ptoPaint() {
+        const root = document.getElementById('ptoRoot');
+        if (!root || currentNav !== 'time-off') return;
+        const refresh = document.getElementById('ptoRefresh');
+        if (refresh) refresh.disabled = _ptoState.loading;
+        if (!_syncviewStaffIdentityForHeaders()) {
+            root.innerHTML = '<div class="pto-card pto-signin"><strong>Staff sign-in required</strong><span>Sign in with your verified staff identity to load private Time Off details.</span><button class="pto-refresh" type="button" onclick="_ptoLoadOverview(true)">Staff sign in</button></div>';
+            return;
+        }
+        if (_ptoState.loading && !_ptoState.overview) { root.innerHTML = _ptoLoadingHtml('Loading your balance'); return; }
+        if (_ptoState.error && !_ptoState.overview) {
+            root.innerHTML = '<div class="pto-card pto-signin"><strong>Could not load Time Off</strong><span>' + _ptoEsc(_ptoState.error) + '</span><button class="pto-refresh" type="button" onclick="_ptoLoadOverview(true)">Try again</button></div>';
+            return;
+        }
+        const overview = _ptoState.overview;
+        if (!overview) { root.innerHTML = _ptoLoadingHtml('Preparing Time Off'); return; }
+        const balance = _ptoBalance(overview);
+        const enabled = balance.pto_enabled !== false;
+        const writeLocked = _ptoState.writeOutcomeUnknown;
+        const requests = (overview.my_requests || overview.requests || []).slice().sort((a, b) => String(b.requested_at || '').localeCompare(String(a.requested_at || '')));
+        const members = Array.isArray(overview.members) ? overview.members : [];
+        const availableClass = balance.wellness_available < 0 ? ' negative' : '';
+        const floatingLabel = balance.floating_holiday_pending ? 'Pending' : (balance.floating_holiday_used ? 'Used' : (balance.floating_holiday_status === 'ineligible' ? 'Not eligible' : 'Available'));
+        const floatingUnavailable = balance.floating_holiday_used || balance.floating_holiday_pending;
+        const asOf = String(overview.as_of_date || _ptoTodayIso());
+        const typeItems = [
+            { value: 'wellness', label: 'Wellness', tone: 'wellness' },
+            { value: 'sick', label: 'Sick', tone: 'sick' },
+            { value: 'floating_holiday', label: 'Floating holiday' + (balance.floating_holiday_pending ? ' (pending)' : ''), tone: 'floating', disabled: floatingUnavailable },
+            { value: 'unpaid', label: 'Unpaid', tone: 'unpaid' },
+        ];
+        const wellnessAdjustmentMetric = balance.wellness_adjustment === 0 ? '' : '<div class="pto-balance-metric"><strong>' + (balance.wellness_adjustment > 0 ? '+' : '') + _ptoFmtDays(balance.wellness_adjustment) + '</strong>' + _svExplainLabel('wellness-adjustments', 'adjustments', 'Credits add to your balance and deductions reduce it; approved leave is shown separately.') + '</div>';
+        const balanceHtml = '<section class="pto-card pto-balance-card"><div class="pto-balance-label">' + _svExplainLabel('wellness-available', 'Wellness available', 'Days you can request now after grants, approved leave, and adjustments.') + '</div>'
+            + '<div class="pto-balance-number' + availableClass + '">' + _ptoFmtDays(balance.wellness_available) + '<span>days</span></div>'
+            + '<div class="pto-balance-metrics"><div class="pto-balance-metric"><strong>' + _ptoFmtDays(balance.wellness_granted) + '</strong>' + _svExplainLabel('granted-this-leave-year', 'granted this leave year', 'Wellness days earned in your current leave year.') + '</div>'
+            + '<div class="pto-balance-metric"><strong>' + _ptoFmtDays(balance.wellness_approved_used) + '</strong>' + _svExplainLabel('approved-leave', 'approved leave', 'Wellness days in approved requests during this leave year.') + '</div>' + wellnessAdjustmentMetric
+            + '<div class="pto-balance-metric"><strong class="' + (balance.sick_available < 0 ? 'pto-negative' : '') + '">' + _ptoFmtDays(balance.sick_available) + '</strong>' + _svExplainLabel('sick-days-remaining', 'sick days remaining', 'Sick days still available in your current leave year.') + '</div>'
+            + '<div class="pto-balance-metric"><strong>' + floatingLabel + '</strong>' + _svExplainLabel('floating-holiday', 'floating holiday', 'One flexible paid holiday is available each calendar year; a pending request reserves it.') + '</div>'
+            + '<div class="pto-balance-metric"><strong>' + _ptoFmtDate(balance.next_accrual_date, { month: 'short', day: 'numeric' }) + '</strong>' + _svExplainLabel('next-wellness-grant', 'next wellness grant', 'The next date your policy adds wellness time, if you have not reached the cap.') + '</div></div>'
+            + '<div class="pto-yearline"><span>Leave year ' + _ptoEsc(_ptoFmtDate(balance.leave_year_start, { month: 'short', day: 'numeric', year: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(balance.leave_year_end, { month: 'short', day: 'numeric', year: 'numeric' })) + '</span><span>Sick approved ' + _ptoFmtDays(balance.sick_approved_used) + (balance.sick_adjustment ? ' · adjustments ' + (balance.sick_adjustment > 0 ? '+' : '') + _ptoFmtDays(balance.sick_adjustment) : '') + '</span></div></section>';
+        const setupNote = enabled ? '' : '<div class="pto-notice">Your Time Off profile is not enabled yet. An Admin can finish setup from Kasper → Time Off.</div>';
+        const requestHtml = '<section class="pto-card"><div class="pto-card-head"><div><div class="pto-card-title-row">' + _svExplainLabel('request-time-off', 'Request time off', 'Weekends and observed company holidays are skipped automatically. The server checks the final count again when you submit.', 'pto-card-title') + '</div><div class="pto-card-sub">Pick your dates and SyncView will count the business days.</div></div></div>'
+            + '<form class="pto-form" id="ptoRequestForm" onsubmit="_ptoSubmitRequest(event)" oninput="_ptoClearValidation(\'ptoFormError\', \'ptoRequestTypeBtn ptoStartDateBtn ptoEndDateBtn ptoDays\')" onchange="_ptoClearValidation(\'ptoFormError\', \'ptoRequestTypeBtn ptoStartDateBtn ptoEndDateBtn ptoDays\')">' + setupNote
+            + '<div class="pto-field full"><label for="ptoRequestTypeBtn">' + _svExplainLabel('request-type', 'Type', 'Wellness and sick use their matching balances. A floating holiday is one flexible paid day; unpaid leave does not change a balance.') + '</label>' + _svSelectHtml('ptoRequestType', typeItems, 'wellness', 'Choose type', { disabled: !enabled, onchange: '_ptoSyncRequestForm(false)' }) + '</div>'
+            + '<div class="pto-field"><label for="ptoStartDateBtn">Start date</label>' + _svDateHtml('ptoStartDate', '', { disabled: !enabled, required: true, today: asOf, onchange: '_ptoSyncRequestForm(true)' }) + '</div>'
+            + '<div class="pto-field"><label for="ptoEndDateBtn">End date</label>' + _svDateHtml('ptoEndDate', '', { disabled: !enabled, required: true, today: asOf, onchange: '_ptoSyncRequestForm(true)' }) + '</div>'
+            + '<div class="pto-field full"><label for="ptoDays">' + _svExplainLabel('days-requested', 'Days requested', 'This is calculated from your dates. Use minus or plus only when one endpoint is a half day.') + '</label>' + _svStepperHtml('ptoDays', '', { min: 0.5, step: 0.5, disabled: true, downTip: 'Use one half-day endpoint', upTip: 'Return to the full business-day count' }) + '<div class="pto-field-help" id="ptoDaysHelp">Choose a date range to count business days.</div></div>'
+            + '<div class="pto-notice" id="ptoNotice" hidden>Less than 14 days’ notice. This is allowed, but the policy asks for two weeks when possible.</div>'
+            + '<div class="pto-field full"><label for="ptoNote">Note <span style="font-weight:500;color:var(--text-muted);">(optional)</span></label><textarea id="ptoNote" maxlength="1000" placeholder="Anything Kasper should know"' + (enabled ? '' : ' disabled') + '></textarea></div>'
+            + '<div class="pto-form-error" id="ptoFormError" role="alert"></div><button class="pto-submit" id="ptoSubmit" type="submit"' + (enabled && !writeLocked ? '' : ' disabled') + '>' + (writeLocked ? 'Refresh to verify' : 'Send request') + '</button></form></section>';
+        const requestRows = requests.length ? '<div class="pto-table-scroll pto-staff-history-table"><table class="pto-table"><thead><tr><th>Type</th><th>Dates</th><th>Days</th><th>Status</th><th></th></tr></thead><tbody>' + requests.map(row => '<tr><td>' + _ptoTypePill(row.type) + '</td><td>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + (row.decision_note ? '<div class="pto-table-note"><strong>Decision note:</strong> ' + _ptoEsc(row.decision_note) + '</div>' : '') + '</td><td>' + _ptoFmtDays(row.days) + '</td><td>' + _ptoStatusHtml(row.status) + '</td><td>' + (String(row.status) === 'pending' ? '<button class="pto-row-btn" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoCancelRequest(' + _jsAttrArg(row.id) + ',this)">Cancel</button>' : '') + '</td></tr>').join('') + '</tbody></table></div>'
+            + '<div class="pto-request-history-cards">' + requests.map(row => '<article class="pto-request-history-card type-' + _svTone(row.type === 'floating_holiday' ? 'floating' : row.type) + '"><div class="pto-request-history-top">' + _ptoTypePill(row.type) + _ptoStatusHtml(row.status) + '</div><div class="pto-request-history-dates">' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + '</div>' + (row.decision_note ? '<div class="pto-table-note"><strong>Decision note:</strong> ' + _ptoEsc(row.decision_note) + '</div>' : '') + '<div class="pto-request-history-actions"><span class="pto-request-history-meta">' + _ptoFmtDays(row.days) + ' days requested</span>' + (String(row.status) === 'pending' ? '<button class="pto-row-btn" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoCancelRequest(' + _jsAttrArg(row.id) + ',this)">Cancel request</button>' : '') + '</div></article>').join('') + '</div>'
+            : '<div class="pto-empty">No requests yet. Your submitted and past requests will stay here.</div>';
+        const historyHtml = '<section class="pto-card"><div class="pto-card-head"><div><div class="pto-card-title">My requests</div><div class="pto-card-sub">Pending requests can be cancelled before Kasper decides.</div></div></div>' + requestRows + '</section>';
+        const memberRows = members.length ? members.map(member => '<tr><td><strong>' + _ptoEsc(member.name || 'Staff member') + '</strong></td><td class="' + (_ptoNumber(member.wellness_available) < 0 ? 'pto-negative' : '') + '">' + _ptoFmtDays(member.wellness_available) + '</td><td>' + (member.on_leave_today ? '<span class="pto-status approved">Away today</span>' : '—') + '</td></tr>').join('') : '';
+        const teamHtml = '<section class="pto-card"><div class="pto-card-head"><div><div class="pto-card-title">Team snapshot</div><div class="pto-card-sub">Available wellness days and who is away today.</div></div></div>' + (memberRows ? '<div class="pto-table-scroll"><table class="pto-table" style="min-width:420px"><thead><tr><th>Team member</th><th>Available</th><th>Today</th></tr></thead><tbody>' + memberRows + '</tbody></table></div>' : '<div class="pto-empty">No enabled team members yet.</div>') + '</section>';
+        const refreshErrorHtml = _ptoState.error ? '<div class="pto-notice">Could not refresh Time Off. The data below may be out of date: ' + _ptoEsc(_ptoState.error) + '</div>' : '';
+        const writeUnknownHtml = writeLocked ? '<div class="pto-notice" role="status">SyncView could not confirm the last change. Select Refresh before sending or cancelling another request.</div>' : '';
+        root.innerHTML = '<div class="pto-layout">' + writeUnknownHtml + refreshErrorHtml + '<div class="pto-stack">' + balanceHtml + requestHtml + '</div><div class="pto-stack">' + historyHtml + teamHtml + '</div><section class="pto-card pto-calendar-card">' + _ptoRenderCalendar(overview) + '</section></div>';
+        _ptoSyncRequestForm(false);
+    }
+    function _ptoApplyRequestDayBounds(fullDays, isFloating, resetDays, profileEnabled) {
+        const days = document.getElementById('ptoDays');
+        const help = document.getElementById('ptoDaysHelp');
+        if (!days) return;
+        fullDays = _ptoNumber(fullDays);
+        const allowedDays = isFloating ? Math.min(1, fullDays) : fullDays;
+        const partialDayCount = Math.max(0.5, allowedDays - 0.5);
+        days.min = allowedDays > 0 ? String(partialDayCount) : '0.5';
+        days.max = allowedDays > 0 ? String(allowedDays) : '';
+        if (resetDays || !days.value || _ptoNumber(days.value) > allowedDays || _ptoNumber(days.value) < partialDayCount) {
+            days.value = allowedDays > 0 ? String(allowedDays) : '';
+        }
+        days.disabled = !profileEnabled || allowedDays <= 0;
+        _svSyncStepper('ptoDays');
+        if (help) help.textContent = fullDays > 0
+            ? (isFloating ? 'A floating holiday uses one business date; 0.5 or 1.0 day is allowed.' : fullDays.toFixed(1) + ' business days; use ' + partialDayCount.toFixed(1) + ' when one endpoint is a half-day.')
+            : 'Choose a valid range containing at least one business day.';
+    }
+    function _ptoSetRequestQuotePending(pending, profileEnabled) {
+        const button = document.getElementById('ptoSubmit');
+        const days = document.getElementById('ptoDays');
+        if (!button) return;
+        button.dataset.quotePending = pending ? 'true' : 'false';
+        button.disabled = _ptoState.writeOutcomeUnknown || !!pending || !profileEnabled || !days || days.disabled || !String(days.value || '').trim();
+    }
+    async function _ptoQuoteRequest(generation, type, start, end, isFloating, resetDays, profileEnabled) {
+        const help = document.getElementById('ptoDaysHelp');
+        try {
+            const quote = await _ptoApi('quote', 'POST', { type, start_date: start, end_date: end });
+            if (generation !== _ptoQuoteGeneration) return;
+            if (document.getElementById('ptoRequestType')?.value !== type
+                || document.getElementById('ptoStartDate')?.value !== start
+                || document.getElementById('ptoEndDate')?.value !== end) return;
+            _ptoApplyRequestDayBounds(Number(quote.full_days || 0), isFloating, resetDays, profileEnabled);
+            _ptoSetRequestQuotePending(false, profileEnabled);
+        } catch (error) {
+            if (generation !== _ptoQuoteGeneration) return;
+            const days = document.getElementById('ptoDays');
+            if (days) { days.value = ''; days.disabled = true; _svSyncStepper('ptoDays'); }
+            if (help) help.textContent = error && error.message ? error.message : 'SyncView could not count this range. Try again.';
+            _ptoSetRequestQuotePending(false, profileEnabled);
+        }
+    }
+    function _ptoSyncRequestForm(resetDays) {
+        const start = document.getElementById('ptoStartDate');
+        const end = document.getElementById('ptoEndDate');
+        const days = document.getElementById('ptoDays');
+        const help = document.getElementById('ptoDaysHelp');
+        const notice = document.getElementById('ptoNotice');
+        const type = document.getElementById('ptoRequestType');
+        if (!start || !end || !days) return;
+        const isFloating = !!(type && type.value === 'floating_holiday');
+        const balance = _ptoBalance(_ptoState.overview);
+        const profileEnabled = balance.pto_enabled !== false;
+        const asOfIso = String(_ptoState.overview && _ptoState.overview.as_of_date || _ptoTodayIso());
+        const afterAsOf = _ptoDate(asOfIso);
+        if (afterAsOf) afterAsOf.setDate(afterAsOf.getDate() + 1);
+        const futureMin = afterAsOf ? _ptoIso(afterAsOf) : '';
+        const paidEnd = type && type.value !== 'unpaid'
+            ? _ptoLeaveYearEndFor(start.value, balance.pto_start_date)
+            : '';
+        start.min = type && type.value === 'sick' ? String(balance.eligibility_date || balance.pto_start_date || '') : futureMin;
+        start.max = '';
+        if (start.value && ((start.min && start.value < start.min) || (start.max && start.value > start.max))) {
+            start.value = '';
+            end.value = '';
+        }
+        if (!start.value) end.value = '';
+        if (isFloating && start.value && end.value !== start.value) end.value = start.value;
+        end.min = start.value || start.min;
+        end.max = paidEnd;
+        if (end.value && ((end.min && end.value < end.min) || (end.max && end.value > end.max))) end.value = '';
+        end.disabled = !profileEnabled || isFloating || !start.value;
+        _svSyncDateControl('ptoStartDate');
+        _svSyncDateControl('ptoEndDate');
+        const asOfYear = Number(asOfIso.slice(0, 4));
+        const holidayMin = String(_ptoState.overview && _ptoState.overview.holiday_date_min || ((asOfYear - 1) + '-01-01'));
+        const holidayMax = String(_ptoState.overview && _ptoState.overview.holiday_date_max || ((asOfYear + 1) + '-12-31'));
+        const needsServerQuote = !!(start.value && end.value && (start.value < holidayMin || end.value > holidayMax));
+        const generation = _ptoNextQuoteGeneration();
+        if (needsServerQuote) {
+            days.value = '';
+            days.disabled = true;
+            _svSyncStepper('ptoDays');
+            if (help) help.textContent = 'Counting business days with the server…';
+            _ptoSetRequestQuotePending(true, profileEnabled);
+            _ptoQuoteRequest(generation, type && type.value || '', start.value, end.value, isFloating, resetDays, profileEnabled);
+        } else {
+            const fullDays = _ptoCountRequestDays(start.value, end.value, _ptoState.overview && _ptoState.overview.holidays);
+            _ptoApplyRequestDayBounds(fullDays, isFloating, resetDays, profileEnabled);
+            _ptoSetRequestQuotePending(false, profileEnabled);
+        }
+        if (notice) {
+            const selected = _ptoDate(start.value);
+            const today = _ptoDate(_ptoState.overview && _ptoState.overview.as_of_date || _ptoTodayIso());
+            const daysOut = selected && today ? Math.floor((selected - today) / 86400000) : 999;
+            notice.hidden = !selected || daysOut >= 14;
+        }
+    }
+    async function _ptoSubmitRequest(event) {
+        event.preventDefault();
+        if (_ptoBlockWrites('staff')) return;
+        const form = event.currentTarget;
+        const button = document.getElementById('ptoSubmit');
+        const errorBox = document.getElementById('ptoFormError');
+        const type = document.getElementById('ptoRequestType').value;
+        const start = document.getElementById('ptoStartDate').value;
+        const end = document.getElementById('ptoEndDate').value;
+        const daysInput = document.getElementById('ptoDays');
+        const days = _ptoNumber(daysInput.value, NaN);
+        const note = document.getElementById('ptoNote').value.trim();
+        const requestControls = 'ptoRequestTypeBtn ptoStartDateBtn ptoEndDateBtn ptoDays';
+        _ptoClearValidation('ptoFormError', requestControls);
+        if (!start || !end || end < start) {
+            const invalid = [!start ? 'ptoStartDateBtn' : '', (!end || end < start) ? 'ptoEndDateBtn' : ''].filter(Boolean).join(' ');
+            _ptoShowValidation('ptoFormError', 'Choose a valid start and end date.', invalid.split(' ')[0], invalid);
+            return;
+        }
+        const asOf = String(_ptoState.overview && _ptoState.overview.as_of_date || _ptoTodayIso());
+        if (type !== 'sick' && start <= asOf) { _ptoShowValidation('ptoFormError', 'Only sick leave can start today or in the past.', 'ptoStartDateBtn'); return; }
+        const leaveYearEnd = type === 'unpaid' ? '' : _ptoLeaveYearEndFor(start, _ptoBalance(_ptoState.overview).pto_start_date);
+        if (leaveYearEnd && end > leaveYearEnd) { _ptoShowValidation('ptoFormError', 'Paid requests cannot cross the Dec 31 leave-year boundary. Submit separate requests.', 'ptoEndDateBtn'); return; }
+        const allowedDays = _ptoNumber(daysInput.max, NaN);
+        const partialDayCount = _ptoNumber(daysInput.min, NaN);
+        if (daysInput.disabled || !String(daysInput.value || '').trim() || !(days > 0) || !(allowedDays > 0)) { _ptoShowValidation('ptoFormError', 'Wait for SyncView to count at least one business day before sending.', 'ptoDays'); return; }
+        if (type === 'floating_holiday' && (start !== end || allowedDays !== 1)) { _ptoShowValidation('ptoFormError', 'Choose one business date for a floating holiday.', 'ptoStartDateBtn', 'ptoStartDateBtn ptoEndDateBtn'); return; }
+        if (!Number.isFinite(days) || Math.round(days * 2) !== days * 2 || (days !== allowedDays && days !== partialDayCount)) { _ptoShowValidation('ptoFormError', 'Use the full business-day count, or subtract 0.5 for one half-day endpoint.', 'ptoDays'); return; }
+        button.disabled = true;
+        button.textContent = 'Sending…';
+        try {
+            await _ptoApi('request', 'POST', { type, start_date: start, end_date: end, days, note });
+            form.reset();
+            _ptoShowToast('Time off request sent');
+            _ptoInvalidateOverviewCaches();
+            await _ptoLoadOverview(true);
+        } catch (error) {
+            errorBox.textContent = error && error.message ? error.message : 'Could not send this request.';
+            if (_ptoUnknownWrite(error)) {
+                _ptoState.writeOutcomeUnknown = true;
+                button.disabled = true;
+                button.textContent = 'Refresh to verify';
+                return;
+            }
+            button.disabled = false;
+            button.textContent = 'Send request';
+            if (_ptoStateConflict(error)) await _ptoRefreshAfterConflict('staff', error.message);
+        }
+    }
+    function _ptoCancelRequest(requestId, button) {
+        if (_ptoBlockWrites('staff')) return;
+        showConfirm('Cancel request', 'Cancel this pending time off request?', async () => {
+            if (button) button.disabled = true;
+            try {
+                await _ptoApi('cancel', 'POST', { request_id: requestId });
+                _ptoShowToast('Request cancelled');
+                _ptoInvalidateOverviewCaches();
+                await _ptoLoadOverview(true);
+            } catch (error) {
+                const message = error && error.message ? error.message : 'Could not cancel this request';
+                if (_ptoUnknownWrite(error)) {
+                    _ptoState.writeOutcomeUnknown = true;
+                    _ptoShowToast(message);
+                    return;
+                }
+                if (_ptoStateConflict(error)) {
+                    await _ptoRefreshAfterConflict('staff', message);
+                    return;
+                }
+                _ptoShowToast(message);
+                if (button) button.disabled = false;
+            }
+        }, 'Cancel request');
+    }
+    function _ptoRenderCalendar(overview) {
+        const month = _ptoState.month;
+        const asOf = _ptoDate(overview && overview.as_of_date) || new Date();
+        const minMonth = new Date(asOf.getFullYear(), asOf.getMonth() - 3, 1);
+        const maxMonth = new Date(asOf.getFullYear(), asOf.getMonth() + 3, 1);
+        const canPrev = month > minMonth;
+        const canNext = month < maxMonth;
+        const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(month);
+        const start = new Date(month.getFullYear(), month.getMonth(), 1, 12);
+        start.setDate(start.getDate() - start.getDay());
+        const absences = Array.isArray(overview.absences) ? overview.absences : [];
+        const holidays = Array.isArray(overview.holidays) ? overview.holidays : [];
+        const today = String(overview && overview.as_of_date || _ptoTodayIso());
+        const cells = [];
+        for (let i = 0; i < 42; i += 1) {
+            const date = new Date(start.getTime());
+            date.setDate(start.getDate() + i);
+            const iso = _ptoIso(date);
+            const holidayRows = holidays.filter(row => _ptoHolidayDate(row) === iso);
+            const away = absences.filter(row => String(row.start_date || '') <= iso && String(row.end_date || '') >= iso);
+            const events = holidayRows.map(row => ({ holiday: true, label: row.name || row.label || 'Company holiday' }))
+                .concat(away.map(row => ({ holiday: false, label: row.member_name || row.name || 'Team member' })));
+            const visible = events.slice(0, 3).map(event => '<div class="pto-cal-event' + (event.holiday ? ' holiday' : '') + '" title="' + _ptoAttr(event.label) + '">' + _ptoEsc(event.label) + '</div>').join('');
+            cells.push('<div class="pto-cal-day' + (date.getMonth() !== month.getMonth() ? ' outside' : '') + ((date.getDay() === 0 || date.getDay() === 6) ? ' weekend' : '') + (iso === today ? ' today' : '') + '"><span class="sr-only">' + _ptoEsc(_ptoFmtDate(iso)) + '</span><div class="pto-cal-num" aria-hidden="true">' + date.getDate() + '</div>' + visible + (events.length > 3 ? '<div class="pto-cal-more">+' + (events.length - 3) + ' more</div>' : '') + '</div>');
+        }
+        const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => '<div class="pto-cal-weekday" aria-hidden="true">' + day + '</div>').join('');
+        return '<div class="pto-calendar-toolbar"><div><div class="pto-card-title">Team calendar</div><div class="pto-card-sub">Approved absences and observed paid holidays.</div></div><div class="pto-calendar-nav"><button type="button" onclick="_ptoShiftMonth(-1)" aria-label="Previous month"' + (canPrev ? '' : ' disabled') + '>‹</button><span class="pto-calendar-title">' + _ptoEsc(monthLabel) + '</span><button type="button" onclick="_ptoShiftMonth(1)" aria-label="Next month"' + (canNext ? '' : ' disabled') + '>›</button></div></div><div class="pto-calendar-scroll" tabindex="0" aria-label="Scrollable team time off calendar for ' + _ptoAttr(monthLabel) + '"><div class="pto-calendar" role="group" aria-label="Team time off for ' + _ptoAttr(monthLabel) + '">' + weekdays + cells.join('') + '</div></div>';
+    }
+    function _ptoShiftMonth(delta) {
+        const asOf = _ptoDate(_ptoState.overview && _ptoState.overview.as_of_date) || new Date();
+        const minMonth = new Date(asOf.getFullYear(), asOf.getMonth() - 3, 1);
+        const maxMonth = new Date(asOf.getFullYear(), asOf.getMonth() + 3, 1);
+        const next = new Date(_ptoState.month.getFullYear(), _ptoState.month.getMonth() + Number(delta || 0), 1);
+        _ptoState.month = next < minMonth ? minMonth : (next > maxMonth ? maxMonth : next);
+        const card = document.querySelector('#ptoRoot .pto-calendar-card');
+        if (!card) { _ptoPaint(); return; }
+        card.innerHTML = _ptoRenderCalendar(_ptoState.overview);
+        const direction = Number(delta || 0) < 0 ? 'Previous month' : 'Next month';
+        requestAnimationFrame(() => {
+            const same = card.querySelector('.pto-calendar-nav button[aria-label="' + direction + '"]:not([disabled])');
+            const fallback = card.querySelector('.pto-calendar-nav button:not([disabled])');
+            (same || fallback)?.focus();
+        });
+    }
+
+    function _ptoAdminMemberRows(overview) { return Array.isArray(overview && overview.admin_members) ? overview.admin_members : []; }
+    function _ptoAdminPending(overview) { return Array.isArray(overview && overview.pending_requests) ? overview.pending_requests : (Array.isArray(overview && overview.pending) ? overview.pending : []); }
+    function _ptoAdminUpcoming(overview) { return Array.isArray(overview && overview.upcoming_approved_requests) ? overview.upcoming_approved_requests : []; }
+    function _ptoAdminRecent(overview) { return Array.isArray(overview && overview.recent_requests) ? overview.recent_requests : []; }
+    async function _ptoLoadAdmin(force) {
+        if (!_ptoEnabled() || !_syncviewStaffCan('pto-admin') || (_ptoAdminState.loading && !force)) return;
+        if (_ptoAdminState.overview && !force) { _ptoRenderAdmin(); return; }
+        const generation = _ptoNextAdminOverviewGeneration();
+        _ptoAdminState.loading = true;
+        _ptoAdminState.error = '';
+        _ptoRenderAdmin();
+        try {
+            const overview = await _ptoApi('overview', 'GET');
+            if (generation !== _ptoAdminOverviewGeneration) return;
+            _ptoAdminState.overview = overview;
+            _ptoAdminState.writeOutcomeUnknown = false;
+            _kasperSetTabCount('time-off', _ptoAdminPending(_ptoAdminState.overview).length);
+        } catch (error) {
+            if (generation !== _ptoAdminOverviewGeneration) return;
+            _ptoAdminState.error = error && error.message ? error.message : 'Could not load Time Off administration.';
+        } finally {
+            if (generation !== _ptoAdminOverviewGeneration) return;
+            _ptoAdminState.loading = false;
+            _ptoRenderAdmin();
+        }
+    }
+    function _ptoAdminSignIn() {
+        if (_syncviewStaffIdentityForHeaders()) { _syncviewOfferStaffSignIn('pto-admin'); return; }
+        _syncviewOpenStaffIdentity({ reason: 'required' }).then(() => {
+            _ptoRenderAdmin();
+            if (_syncviewStaffCan('pto-admin')) _ptoLoadAdmin(true);
+        });
+    }
+    function _ptoRenderAdmin() {
+        const root = document.getElementById('kasperContent');
+        if (!root || typeof _kasperState === 'undefined' || _kasperState.tab !== 'time-off') return;
+        if (!_ptoEnabled()) { _kasperGotoTab('review'); return; }
+        if (!_syncviewStaffCan('pto-admin')) {
+            root.innerHTML = '<div class="pto-admin-card"><div class="pto-signin"><strong>Admin sign-in required</strong><span>Requests, hire dates, and adjustments are HR data. Sign in with an Admin role key to manage them.</span><button class="pto-refresh" type="button" onclick="_ptoAdminSignIn()">Sign in as Admin</button></div></div>';
+            _kasperSetTabCount('time-off', '—');
+            return;
+        }
+        if (_ptoAdminState.loading && !_ptoAdminState.overview) { root.innerHTML = _ptoLoadingHtml('Loading Time Off approvals'); return; }
+        if (_ptoAdminState.error && !_ptoAdminState.overview) {
+            root.innerHTML = '<div class="pto-admin-card"><div class="pto-signin"><strong>Could not load Time Off</strong><span>' + _ptoEsc(_ptoAdminState.error) + '</span><button class="pto-refresh" type="button" onclick="_ptoLoadAdmin(true)">Try again</button></div></div>';
+            return;
+        }
+        const overview = _ptoAdminState.overview;
+        if (!overview) { root.innerHTML = _ptoLoadingHtml('Preparing Time Off approvals'); _ptoLoadAdmin(false); return; }
+        const pending = _ptoAdminPending(overview);
+        const upcoming = _ptoAdminUpcoming(overview);
+        const recent = _ptoAdminRecent(overview);
+        const members = _ptoAdminMemberRows(overview);
+        const writeLocked = _ptoAdminState.writeOutcomeUnknown;
+        _kasperSetTabCount('time-off', pending.length);
+        const queue = pending.length ? pending.map(row => '<article class="pto-request-card type-' + _svTone(row.type === 'floating_holiday' ? 'floating' : row.type) + '" data-pto-request-id="' + _ptoAttr(row.id) + '"><div class="pto-request-top"><div><div class="pto-request-name">' + _ptoEsc(row.member_name || row.name || 'Team member') + '</div><div class="pto-request-meta">' + _ptoTypePill(row.type) + '<span>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + ' · ' + _ptoFmtDays(row.days) + ' days</span></div></div>' + _ptoStatusHtml(row.status || 'pending') + '</div>' + (row.note ? '<div class="pto-request-note">' + _ptoEsc(row.note) + '</div>' : '') + '<div class="pto-decision"><input type="text" maxlength="1000" data-pto-decision-note placeholder="Decision note (optional)" aria-label="Decision note for ' + _ptoAttr(row.member_name || row.name || 'request') + '"><button class="approve" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoAdminDecide(' + _jsAttrArg(row.id) + ',\'approved\',this)">Approve</button><button class="deny" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoAdminDecide(' + _jsAttrArg(row.id) + ',\'denied\',this)">Deny</button></div></article>').join('') : '<div class="pto-empty">No pending requests.</div>';
+        const upcomingRows = upcoming.length ? upcoming.map(row => '<div class="pto-upcoming-row"><div><strong>' + _ptoEsc(row.member_name || row.name || 'Team member') + '</strong><div class="pto-request-meta">' + _ptoTypePill(row.type) + '<span>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + ' · ' + _ptoFmtDays(row.days) + ' days</span></div></div><button class="pto-row-btn" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoAdminCancel(' + _jsAttrArg(row.id) + ',this)">Cancel leave</button></div>').join('') : '<div class="pto-empty">No upcoming approved leave.</div>';
+        const recentRows = recent.length ? recent.map(row => {
+            const wasCancelled = String(row.status) === 'cancelled';
+            const decisionAttribution = wasCancelled && row.cancelled_by && row.decided_by
+                ? '<span>' + _ptoEsc('Approved by ' + row.decided_by) + (row.decided_at ? ' · ' + _ptoEsc(_ptoFmtDateTime(row.decided_at)) : '') + '</span>'
+                : '';
+            const currentAttribution = wasCancelled
+                ? (row.cancelled_by ? _ptoEsc('Cancelled by ' + row.cancelled_by) + (row.cancelled_at ? ' · ' + _ptoEsc(_ptoFmtDateTime(row.cancelled_at)) : '') : 'Cancellation attribution unavailable')
+                : (row.decided_by ? _ptoEsc('Decided by ' + row.decided_by) + (row.decided_at ? ' · ' + _ptoEsc(_ptoFmtDateTime(row.decided_at)) : '') : 'Decision attribution unavailable');
+            const decisionNote = String(row.decision_note || '').trim();
+            return '<div class="pto-history-row"><div><strong>' + _ptoEsc(row.member_name || row.name || 'Team member') + '</strong><span>' + _ptoTypePill(row.type) + '</span></div><div><span>' + _ptoEsc(_ptoFmtDate(row.start_date, { month: 'short', day: 'numeric' })) + ' – ' + _ptoEsc(_ptoFmtDate(row.end_date, { month: 'short', day: 'numeric', year: 'numeric' })) + '</span><span>' + _ptoStatusHtml(row.status) + '</span></div>' + (decisionNote ? '<div class="pto-history-note"><strong>Decision note:</strong> ' + _ptoEsc(decisionNote) + '</div>' : '') + '<small>' + decisionAttribution + '<span>' + currentAttribution + '</span></small></div>';
+        }).join('') : '<div class="pto-empty">No completed requests yet.</div>';
+        const balanceRows = members.length ? members.map(member => '<tr><td><strong>' + _ptoEsc(member.name || 'Team member') + '</strong></td><td>' + _ptoEsc(_ptoFmtDate(member.pto_start_date)) + '</td><td>' + _ptoFmtDays(member.wellness_granted) + '</td><td>' + _ptoFmtDays(member.wellness_approved_used != null ? member.wellness_approved_used : member.wellness_used) + '</td><td>' + (_ptoNumber(member.wellness_adjustment) > 0 ? '+' : '') + _ptoFmtDays(member.wellness_adjustment) + '</td><td class="' + (_ptoNumber(member.wellness_available) < 0 ? 'pto-negative' : '') + '">' + _ptoFmtDays(member.wellness_available) + '</td><td class="' + (_ptoNumber(member.sick_available) < 0 ? 'pto-negative' : '') + '">' + _ptoFmtDays(member.sick_available) + '</td><td>' + (member.pto_enabled ? 'Enabled' : 'Off') + '</td></tr>').join('') : '';
+        const memberNameCounts = members.reduce((counts, member) => {
+            const key = String(member.name || 'Team member').trim().toLowerCase();
+            counts[key] = (counts[key] || 0) + 1;
+            return counts;
+        }, {});
+        const memberItems = members.map(member => {
+            const base = member.name || 'Team member';
+            const duplicate = memberNameCounts[String(base).trim().toLowerCase()] > 1;
+            const context = [_syncviewStaffRoleLabel(member.role), member.team ? String(member.team).charAt(0).toUpperCase() + String(member.team).slice(1) : ''].filter(Boolean).join(' · ');
+            return { value: String(member.member_id || ''), label: duplicate ? base + ' · ' + context : base };
+        });
+        const kindItems = [{ value: 'wellness', label: 'Wellness', tone: 'wellness' }, { value: 'sick', label: 'Sick', tone: 'sick' }];
+        const asOf = String(overview.as_of_date || _ptoTodayIso());
+        const writeUnknownHtml = writeLocked ? '<div class="pto-notice" role="status">SyncView could not confirm the last admin change. Select Refresh before making another update.</div>' : '';
+        root.innerHTML = '<div class="pto-admin"><div class="pto-card-head"><div><div class="pto-card-title">Time Off</div><div class="pto-card-sub">Approve requests, review balances, and maintain contractor PTO setup.</div></div><button class="pto-refresh" type="button" onclick="_ptoLoadAdmin(true)">Refresh</button></div>' + writeUnknownHtml + '<div class="pto-admin-grid">'
+            + '<section class="pto-admin-card full"><div class="pto-admin-title-row">' + _svExplainLabel('pending-requests', 'Pending requests', 'The server re-checks policy and available balance at the moment an approval is saved.', 'pto-admin-title') + '<span class="pto-status pending">' + pending.length + '</span></div><div class="pto-admin-sub">Review the request, then approve or deny it.</div><div class="pto-admin-queue">' + queue + '</div><div class="pto-admin-section-break"><div><div class="pto-admin-title">Upcoming approved leave</div><div class="pto-admin-sub">Future approvals can be cancelled here without erasing the original decision record.</div></div><span class="pto-status approved">' + upcoming.length + '</span></div><div class="pto-upcoming-list">' + upcomingRows + '</div><details class="pto-admin-history"><summary>Recent decisions and cancellations <span>' + recent.length + '</span></summary><div class="pto-history-list">' + recentRows + '</div></details></section>'
+            + '<section class="pto-admin-card full pto-cal-admin" id="ptoAdminCalendarCard">' + _ptoRenderAdminCalendar(overview) + '</section>'
+            + '<section class="pto-admin-card full"><div class="pto-admin-title-row">' + _svExplainLabel('member-balances', 'Member balances', 'Available equals granted minus approved leave, plus or minus adjustments. Credits are shown separately so usage stays understandable.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Approved leave and corrections are separated; negative availability stays red.</div>' + (balanceRows ? '<div class="pto-table-scroll-cue">Swipe sideways to view all balance columns →</div><div class="pto-table-scroll" tabindex="0" aria-label="Member balances; scroll horizontally to view all columns"><table class="pto-table"><thead><tr><th>Member</th><th>Start date</th><th>Granted</th><th>Approved</th><th>Adjustments</th><th>Available</th><th>Sick left</th><th>PTO</th></tr></thead><tbody>' + balanceRows + '</tbody></table></div>' : '<div class="pto-empty">No PTO members have been configured.</div>') + '</section>'
+            + '<section class="pto-admin-card"><div class="pto-admin-title-row">' + _svExplainLabel('member-setup', 'Member setup', 'The start date is private. Enabling PTO lets this person view balances and submit requests.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Set a confirmed contractor\'s private PTO start date.</div><form class="pto-admin-form" onsubmit="_ptoAdminSetMember(event)" oninput="_ptoClearValidation(\'ptoAdminMemberError\', \'ptoAdminMemberBtn ptoAdminStartBtn\')" onchange="_ptoClearValidation(\'ptoAdminMemberError\', \'ptoAdminMemberBtn ptoAdminStartBtn\')"><div class="pto-field"><label for="ptoAdminMemberBtn">Team member</label>' + _svSelectHtml('ptoAdminMember', memberItems, '', 'Choose member', { onchange: '_ptoAdminPickMember(this.value)' }) + '</div><div class="pto-field"><label for="ptoAdminStartBtn">PTO start date</label>' + _svDateHtml('ptoAdminStart', '', { required: true, today: asOf, max: asOf }) + '</div><label class="pto-check"><input id="ptoAdminEnabled" type="checkbox"> ' + _svExplainLabel('pto-enabled', 'PTO enabled', 'Lets this person view balances and submit Time Off requests.') + '</label><button class="pto-submit" type="submit"' + (writeLocked ? ' disabled' : '') + '>Save member</button><div class="pto-form-error" id="ptoAdminMemberError" role="alert"></div></form></section>'
+            + '<section class="pto-admin-card"><div class="pto-admin-title-row">' + _svExplainLabel('add-adjustment', 'Add adjustment', 'Corrections are auditable balance entries. Positive adds days; negative removes days.', 'pto-admin-title') + '</div><div class="pto-admin-sub">Add a signed correction in half-day steps.</div><form class="pto-admin-form" onsubmit="_ptoAdminAdjust(event)" oninput="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')" onchange="_ptoClearValidation(\'ptoAdjustError\', \'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason\')"><div class="pto-field"><label for="ptoAdjustMemberBtn">Team member</label>' + _svSelectHtml('ptoAdjustMember', memberItems, '', 'Choose member') + '</div><div class="pto-form"><div class="pto-field"><label for="ptoAdjustKindBtn">Balance</label>' + _svSelectHtml('ptoAdjustKind', kindItems, 'wellness', 'Choose balance') + '</div><div class="pto-field"><label for="ptoAdjustDelta">' + _svExplainLabel('adjustment-days', 'Days', 'Positive adds days; negative removes days. Zero is not allowed, and half-day steps are accepted.') + '</label>' + _svStepperHtml('ptoAdjustDelta', '', { step: 0.5, required: true, placeholder: '-1.0', downTip: 'Remove half a day', upTip: 'Add half a day' }) + '</div></div><div class="pto-field"><label for="ptoAdjustDateBtn">' + _svExplainLabel('adjustment-effective-date', 'Effective date', 'This date decides which calendar leave year receives the correction.') + '</label>' + _svDateHtml('ptoAdjustDate', asOf, { required: true, today: asOf }) + '</div><div class="pto-field"><label for="ptoAdjustReason">Reason</label><input id="ptoAdjustReason" type="text" maxlength="500" required placeholder="Migration or correction note"></div><button class="pto-submit" type="submit"' + (writeLocked ? ' disabled' : '') + '>Add adjustment</button><div class="pto-form-error" id="ptoAdjustError" role="alert"></div></form></section>'
+            + '</div></div>';
+    }
+    function _ptoAdminPickMember(memberId) {
+        const member = _ptoAdminMemberRows(_ptoAdminState.overview).find(row => String(row.member_id) === String(memberId));
+        const date = document.getElementById('ptoAdminStart');
+        const enabled = document.getElementById('ptoAdminEnabled');
+        if (date) date.value = member && member.pto_start_date || '';
+        if (enabled) enabled.checked = !!(member && member.pto_enabled);
+        _svSyncDateControl('ptoAdminStart');
+    }
+
+    /* ── Kasper Time Off calendar ────────────────────────────────────────
+       A visual month/person read of the whole team and its leave. The admin
+       overview already carries every pending request, every future approved
+       request, recent terminal history, and the minimized ±3-month approved
+       absence projection, so these views are assembled from the existing
+       payload: no new Edge Function contract, no extra request, no HR field
+       the queue does not already show. */
+    const PTO_CAL_VIEWS = [{ key: 'month', label: 'Month' }, { key: 'people', label: 'By person' }];
+    const PTO_CAL_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const PTO_CAL_LEGEND = [
+        { tone: 'wellness', label: 'Wellness' },
+        { tone: 'sick', label: 'Sick' },
+        { tone: 'floating', label: 'Floating' },
+        { tone: 'unpaid', label: 'Unpaid' },
+        { tone: 'pending', label: 'Pending' },
+        { tone: 'holiday', label: 'Paid holiday' },
+    ];
+
+    function _ptoCalTone(event) {
+        if (!event) return '';
+        if (event.status === 'pending') return 'pending';
+        return _svTone(event.type === 'floating_holiday' ? 'floating' : event.type);
+    }
+    // One de-duplicated event list. Typed requests win over the untyped absence
+    // projection so the same leave can never be drawn twice, and approved leave
+    // older than the recent slice still surfaces through absences.
+    function _ptoCalEvents(overview) {
+        const events = [];
+        const seen = new Set();
+        const addRequest = (row, status) => {
+            const start = String(row && row.start_date || '');
+            const end = String(row && row.end_date || '');
+            if (!start || !end || end < start) return;
+            const id = row && row.id != null ? String(row.id) : '';
+            const name = String(row && (row.member_name || row.name) || 'Team member');
+            const key = id || ['no-id', status, name.trim().toLowerCase(), start, end, String(row && row.type || '')].join('|');
+            if (seen.has(key)) return;
+            seen.add(key);
+            events.push({
+                id: id,
+                member_id: row && row.member_id != null ? String(row.member_id) : '',
+                name: name,
+                type: String(row && row.type || ''),
+                status: status,
+                start: start,
+                end: end,
+                days: row && row.days != null ? _ptoNumber(row.days) : null,
+                note: String(row && row.note || ''),
+            });
+        };
+        _ptoAdminUpcoming(overview).forEach(row => addRequest(row, 'approved'));
+        _ptoAdminRecent(overview).forEach(row => { if (String(row && row.status || '') === 'approved') addRequest(row, 'approved'); });
+        _ptoAdminPending(overview).forEach(row => addRequest(row, 'pending'));
+        const covered = new Set(events.filter(event => event.status === 'approved')
+            .map(event => [event.name.trim().toLowerCase(), event.start, event.end].join('|')));
+        (Array.isArray(overview && overview.absences) ? overview.absences : []).forEach(row => {
+            const start = String(row && row.start_date || '');
+            const end = String(row && row.end_date || '');
+            if (!start || !end || end < start) return;
+            const name = String(row && (row.member_name || row.name) || 'Team member');
+            const key = [name.trim().toLowerCase(), start, end].join('|');
+            if (covered.has(key)) return;
+            covered.add(key);
+            events.push({ id: '', member_id: '', name: name, type: '', status: 'approved', start: start, end: end, days: null, note: '' });
+        });
+        return events.sort((a, b) => (a.start === b.start ? a.name.localeCompare(b.name) : a.start.localeCompare(b.start)));
+    }
+    function _ptoCalOn(events, iso) {
+        return (Array.isArray(events) ? events : []).filter(event => event.start <= iso && event.end >= iso);
+    }
+    function _ptoCalHolidaysOn(overview, iso) {
+        return (Array.isArray(overview && overview.holidays) ? overview.holidays : [])
+            .filter(row => _ptoHolidayDate(row) === iso);
+    }
+    // Backwards the projection is only guaranteed for three months, so the grid
+    // stops there rather than implying a complete older history. Forwards it can
+    // run past three months because pending and future-approved rows are whole.
+    function _ptoCalBounds(overview, events) {
+        const asOf = _ptoDate(overview && overview.as_of_date) || new Date();
+        const min = new Date(asOf.getFullYear(), asOf.getMonth() - 3, 1);
+        const max = new Date(asOf.getFullYear(), asOf.getMonth() + 3, 1);
+        (Array.isArray(events) ? events : []).forEach(event => {
+            const end = _ptoDate(event.end);
+            if (!end) return;
+            const month = new Date(end.getFullYear(), end.getMonth(), 1);
+            if (month > max) max.setTime(month.getTime());
+        });
+        return { min: min, max: max };
+    }
+    function _ptoCalMonth(overview, events) {
+        const bounds = _ptoCalBounds(overview, events);
+        const asOf = _ptoDate(overview && overview.as_of_date) || new Date();
+        if (!_ptoAdminState.monthInitialized || !(_ptoAdminState.month instanceof Date) || Number.isNaN(_ptoAdminState.month.getTime())) {
+            _ptoAdminState.month = new Date(asOf.getFullYear(), asOf.getMonth(), 1);
+            _ptoAdminState.monthInitialized = true;
+        }
+        if (_ptoAdminState.month < bounds.min) _ptoAdminState.month = new Date(bounds.min.getTime());
+        if (_ptoAdminState.month > bounds.max) _ptoAdminState.month = new Date(bounds.max.getTime());
+        return _ptoAdminState.month;
+    }
+    function _ptoCalRangeLabel(event) {
+        // A leave that crosses New Year needs both years or it reads as one.
+        const crossesYear = String(event.start).slice(0, 4) !== String(event.end).slice(0, 4);
+        const start = _ptoFmtDate(event.start, crossesYear
+            ? { month: 'short', day: 'numeric', year: 'numeric' }
+            : { month: 'short', day: 'numeric' });
+        const end = _ptoFmtDate(event.end, { month: 'short', day: 'numeric', year: 'numeric' });
+        return event.start === event.end ? _ptoFmtDate(event.start) : start + ' – ' + end;
+    }
+    function _ptoCalTypePill(event) {
+        if (event && event.type) return _ptoTypePill(event.type);
+        // Approved leave that only reached us through the untyped absence
+        // projection: say so plainly rather than borrowing the unpaid colour.
+        return '<span class="pto-type-pill untyped"><span class="sv-option-dot untyped" aria-hidden="true"></span>Time off</span>';
+    }
+    function _ptoCalMemberLabels(overview) {
+        const members = _ptoAdminMemberRows(overview);
+        const counts = members.reduce((acc, member) => {
+            const key = String(member.name || 'Team member').trim().toLowerCase();
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+        }, {});
+        const byId = new Map();
+        const byName = new Map();
+        members.forEach(member => {
+            const base = String(member.name || 'Team member');
+            const key = base.trim().toLowerCase();
+            const context = [_syncviewStaffRoleLabel(member.role), member.team ? String(member.team).charAt(0).toUpperCase() + String(member.team).slice(1) : ''].filter(Boolean).join(' · ');
+            byId.set(String(member.member_id || ''), counts[key] > 1 && context ? base + ' · ' + context : base);
+            byName.set(key, (byName.get(key) || 0) + 1);
+        });
+        return { byId: byId, byName: byName };
+    }
+    function _ptoCalDaySummary(overview, events, iso) {
+        const parts = [];
+        const holidays = _ptoCalHolidaysOn(overview, iso).map(row => String(row.name || row.label || 'Company holiday'));
+        const dayEvents = _ptoCalOn(events, iso);
+        const approved = dayEvents.filter(event => event.status === 'approved').length;
+        const pending = dayEvents.filter(event => event.status === 'pending').length;
+        if (holidays.length) parts.push(holidays.join(', '));
+        if (approved) parts.push(approved + (approved === 1 ? ' person away' : ' people away'));
+        if (pending) parts.push(pending + ' pending');
+        if (!parts.length) parts.push('nobody away');
+        return _ptoFmtDate(iso, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) + ' — ' + parts.join(', ');
+    }
+
+    function _ptoCalMonthGridHtml(overview, events, month, todayIso) {
+        const monthStartIso = _ptoIso(new Date(month.getFullYear(), month.getMonth(), 1, 12));
+        const monthEndIso = _ptoIso(new Date(month.getFullYear(), month.getMonth() + 1, 0, 12));
+        const selected = String(_ptoAdminState.selectedDay || '');
+        let focusIso = String(_ptoAdminState.calFocusDay || '');
+        if (!focusIso || focusIso < monthStartIso || focusIso > monthEndIso) {
+            focusIso = (todayIso >= monthStartIso && todayIso <= monthEndIso) ? todayIso : monthStartIso;
+        }
+        _ptoAdminState.calFocusDay = focusIso;
+        const start = new Date(month.getFullYear(), month.getMonth(), 1, 12);
+        start.setDate(start.getDate() - start.getDay());
+        const cells = [];
+        for (let i = 0; i < 42; i += 1) {
+            const date = new Date(start.getTime());
+            date.setDate(start.getDate() + i);
+            const iso = _ptoIso(date);
+            const outside = date.getMonth() !== month.getMonth();
+            const classes = ['pto-cal-day'];
+            if (outside) classes.push('outside');
+            if (date.getDay() === 0 || date.getDay() === 6) classes.push('weekend');
+            if (iso === todayIso) classes.push('today');
+            const chips = _ptoCalHolidaysOn(overview, iso)
+                .map(row => ({ tone: 'holiday', label: String(row.name || row.label || 'Company holiday'), hint: 'Observed paid holiday' }))
+                .concat(_ptoCalOn(events, iso).map(event => ({
+                    tone: _ptoCalTone(event),
+                    label: event.name,
+                    hint: (event.status === 'pending' ? 'Pending · ' : '') + _ptoTypeLabel(event.type || '') + ' · ' + _ptoCalRangeLabel(event),
+                })));
+            // The sr-only summary on the button already names everyone on this
+            // day, so the visible chips stay out of its accessible name.
+            const visible = chips.slice(0, 3).map(chip => '<span class="pto-cal-event' + (chip.tone ? ' ' + chip.tone : '') + '" aria-hidden="true" title="' + _ptoAttr(chip.label + ' — ' + chip.hint) + '">' + _ptoEsc(chip.label) + '</span>').join('');
+            const more = chips.length > 3 ? '<span class="pto-cal-more" aria-hidden="true">+' + (chips.length - 3) + ' more</span>' : '';
+            const body = '<span class="pto-cal-num" aria-hidden="true">' + date.getDate() + '</span>' + visible + more;
+            if (outside) {
+                cells.push('<div class="' + classes.join(' ') + '" aria-hidden="true">' + body + '</div>');
+                continue;
+            }
+            if (iso === selected) classes.push('selected');
+            cells.push('<button type="button" class="' + classes.join(' ') + '" data-pto-cal-day="' + _ptoAttr(iso) + '"'
+                + ' tabindex="' + (iso === focusIso ? '0' : '-1') + '" aria-pressed="' + (iso === selected ? 'true' : 'false') + '"'
+                + (iso === todayIso ? ' aria-current="date"' : '')
+                + ' onclick="_ptoCalPickDay(' + _jsAttrArg(iso) + ')">'
+                + '<span class="sr-only">' + _ptoEsc(_ptoCalDaySummary(overview, events, iso)) + '</span>' + body + '</button>');
+        }
+        const weekdays = PTO_CAL_WEEKDAYS.map(day => '<div class="pto-cal-weekday" aria-hidden="true">' + day + '</div>').join('');
+        const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(month);
+        return '<div class="pto-calendar-scroll" tabindex="0" aria-label="Scrollable team time off calendar for ' + _ptoAttr(monthLabel) + '"><div class="pto-calendar" role="group" aria-label="Team time off for ' + _ptoAttr(monthLabel) + '"'
+            + ' onkeydown="_ptoCalGridKeydown(event)">' + weekdays + cells.join('') + '</div></div>';
+    }
+
+    function _ptoCalPeopleGridHtml(overview, events, month, todayIso) {
+        const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(month);
+        const dayCount = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+        const days = [];
+        for (let day = 1; day <= dayCount; day += 1) {
+            const date = new Date(month.getFullYear(), month.getMonth(), day, 12);
+            const iso = _ptoIso(date);
+            days.push({ iso: iso, day: day, weekend: date.getDay() === 0 || date.getDay() === 6, holiday: _ptoCalHolidaysOn(overview, iso).length > 0 });
+        }
+        const firstIso = days.length ? days[0].iso : '';
+        const lastIso = days.length ? days[days.length - 1].iso : '';
+        const visible = events.filter(event => event.start <= lastIso && event.end >= firstIso);
+        // One row per PERSON, not per display name: this roster can hold two
+        // members with the same name, and merging them would show one of them
+        // away on days they are working.
+        const labels = _ptoCalMemberLabels(overview);
+        const rowsByKey = new Map();
+        _ptoAdminMemberRows(overview).filter(member => member.pto_enabled).forEach(member => {
+            const key = 'id:' + String(member.member_id || '');
+            if (!rowsByKey.has(key)) rowsByKey.set(key, { label: labels.byId.get(String(member.member_id || '')) || String(member.name || 'Team member'), events: [] });
+        });
+        visible.forEach(event => {
+            const idKey = event.member_id ? 'id:' + event.member_id : '';
+            const nameKey = String(event.name || '').trim().toLowerCase();
+            // An untyped absence carries no id. Attach it by name only when that
+            // name identifies exactly one member; otherwise give it its own row
+            // rather than crediting it to the wrong person.
+            const key = idKey && rowsByKey.has(idKey) ? idKey
+                : (idKey || (labels.byName.get(nameKey) === 1 ? 'name:' + nameKey : 'unnamed:' + nameKey));
+            let row = rowsByKey.get(key);
+            if (!row) {
+                const byNameRow = !idKey && labels.byName.get(nameKey) === 1
+                    ? Array.from(rowsByKey.values()).find(candidate => String(candidate.label).split(' · ')[0].trim().toLowerCase() === nameKey)
+                    : null;
+                row = byNameRow || { label: String(event.name || 'Team member'), events: [] };
+                if (!byNameRow) rowsByKey.set(key, row);
+            }
+            row.events.push(event);
+        });
+        const rowList = Array.from(rowsByKey.values()).sort((a, b) => a.label.localeCompare(b.label));
+        if (!rowList.length) return '<div class="pto-empty">No PTO members have been configured yet, so there is nobody to plot.</div>';
+        const columns = 'grid-template-columns: 152px repeat(' + days.length + ', minmax(22px, 1fr));';
+        const header = '<div class="pto-people-name pto-people-head" aria-hidden="true" style="grid-column: 1; grid-row: 1;">Team member</div>'
+            + days.map((day, index) => '<div class="pto-people-daynum' + (day.weekend || day.holiday ? ' weekend' : '') + (day.iso === todayIso ? ' today' : '') + '" aria-hidden="true" style="grid-column: ' + (index + 2) + '; grid-row: 1;">' + day.day + '</div>').join('');
+        const rows = rowList.map((entry, rowIndex) => {
+            const gridRow = rowIndex + 2;
+            const name = entry.label;
+            const mine = entry.events;
+            const cells = days.map((day, index) => {
+                const classes = ['pto-people-cell'];
+                if (day.weekend || day.holiday) classes.push('weekend');
+                if (day.iso === todayIso) classes.push('today');
+                return '<div class="' + classes.join(' ') + '" aria-hidden="true" style="grid-column: ' + (index + 2) + '; grid-row: ' + gridRow + ';"></div>';
+            }).join('');
+            // Each leave is ONE bar, not a run of squares: it reads as a single
+            // stretch of time, and it gives the mouse-only tooltip a keyboard
+            // and touch equivalent that opens the same day panel.
+            const bars = mine.map(event => {
+                const startIso = event.start > firstIso ? event.start : firstIso;
+                const endIso = event.end < lastIso ? event.end : lastIso;
+                const startIndex = days.findIndex(day => day.iso === startIso);
+                const endIndex = days.findIndex(day => day.iso === endIso);
+                if (startIndex < 0 || endIndex < startIndex) return '';
+                const tone = _ptoCalTone(event);
+                const label = name + ' — ' + (event.status === 'pending' ? 'Pending, ' : '') + _ptoTypeLabel(event.type || '')
+                    + ', ' + _ptoCalRangeLabel(event) + (event.days != null ? ', ' + _ptoFmtDays(event.days) + ' days' : '');
+                return '<button type="button" class="pto-people-bar' + (tone ? ' ' + tone : '') + '" data-pto-cal-bar="' + _ptoAttr(startIso) + '"'
+                    + ' style="grid-column: ' + (startIndex + 2) + ' / span ' + ((endIndex - startIndex) + 1) + '; grid-row: ' + gridRow + ';"'
+                    + ' title="' + _ptoAttr(label) + '" aria-label="' + _ptoAttr(label) + '" onclick="_ptoCalPickDay(' + _jsAttrArg(startIso) + ')"></button>';
+            }).join('');
+            const spoken = mine.length ? name : name + ': no time off in ' + monthLabel;
+            return '<div class="pto-people-name" style="grid-column: 1; grid-row: ' + gridRow + ';"><span class="sr-only">' + _ptoEsc(spoken) + '</span><span aria-hidden="true">' + _ptoEsc(name) + '</span></div>' + cells + bars;
+        }).join('');
+        return '<div class="pto-calendar-scroll" tabindex="0" aria-label="Scrollable by-person time off calendar for ' + _ptoAttr(monthLabel) + '"><div class="pto-people-grid" role="group" aria-label="Time off by person for ' + _ptoAttr(monthLabel) + '" style="' + columns + '">' + header + rows + '</div></div>';
+    }
+    function _ptoCalDetailHtml(overview, events, todayIso) {
+        const iso = String(_ptoAdminState.selectedDay || '');
+        if (!iso) return '';
+        const holidays = _ptoCalHolidaysOn(overview, iso);
+        const rows = _ptoCalOn(events, iso).slice().sort((a, b) => (a.status === b.status ? a.name.localeCompare(b.name) : (a.status === 'approved' ? -1 : 1)));
+        const writeLocked = _ptoAdminState.writeOutcomeUnknown;
+        const holidayHtml = holidays.map(row => '<div class="pto-cal-detail-row holiday"><div class="pto-cal-detail-top"><strong>' + _ptoEsc(String(row.name || 'Company holiday')) + '</strong><span class="pto-type-pill floating"><span class="sv-option-dot floating" aria-hidden="true"></span>Paid holiday</span></div><div class="pto-request-meta"><span>Observed company-wide. No request is needed.</span></div></div>').join('');
+        const labels = _ptoCalMemberLabels(overview);
+        const rowHtml = rows.map(event => {
+            const label = (event.member_id && labels.byId.get(event.member_id)) || event.name;
+            const canCancel = event.status === 'approved' && !!event.id && event.start > todayIso;
+            const action = event.status === 'pending' && event.id
+                ? '<button class="pto-row-btn" type="button" onclick="_ptoCalReviewRequest(' + _jsAttrArg(event.id) + ')">Review request</button>'
+                : (canCancel ? '<button class="pto-row-btn" type="button"' + (writeLocked ? ' disabled' : '') + ' onclick="_ptoAdminCancel(' + _jsAttrArg(event.id) + ',this)">Cancel leave</button>' : '');
+            return '<div class="pto-cal-detail-row"><div class="pto-cal-detail-top"><strong>' + _ptoEsc(label) + '</strong>' + _ptoCalTypePill(event) + _ptoStatusHtml(event.status) + '</div>'
+                + '<div class="pto-request-meta"><span>' + _ptoEsc(_ptoCalRangeLabel(event)) + (event.days != null ? ' · ' + _ptoFmtDays(event.days) + ' days' : '') + '</span></div>'
+                + (event.note ? '<div class="pto-request-note">' + _ptoEsc(event.note) + '</div>' : '')
+                + (action ? '<div class="pto-cal-detail-actions">' + action + '</div>' : '') + '</div>';
+        }).join('');
+        const body = (holidayHtml + rowHtml) || '<div class="pto-empty">Nobody is away on this date.</div>';
+        return '<div class="pto-cal-detail" role="region" tabindex="-1" onkeydown="_ptoCalDetailKeydown(event)" aria-label="Time off on ' + _ptoAttr(_ptoFmtDate(iso)) + '">'
+            + '<div class="pto-cal-detail-head"><div class="pto-admin-title">' + _ptoEsc(_ptoFmtDate(iso, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })) + '</div>'
+            + '<button class="pto-row-btn" type="button" onclick="_ptoCalClearDay()">Close</button></div>' + body + '</div>';
+    }
+
+    function _ptoRenderAdminCalendar(overview) {
+        const events = _ptoCalEvents(overview);
+        const bounds = _ptoCalBounds(overview, events);
+        const month = _ptoCalMonth(overview, events);
+        const todayIso = String(overview && overview.as_of_date || _ptoTodayIso());
+        const view = _ptoAdminState.calView === 'people' ? 'people' : 'month';
+        const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(month);
+        const monthStartIso = _ptoIso(new Date(month.getFullYear(), month.getMonth(), 1, 12));
+        const monthEndIso = _ptoIso(new Date(month.getFullYear(), month.getMonth() + 1, 0, 12));
+        const inMonth = events.filter(event => event.start <= monthEndIso && event.end >= monthStartIso);
+        // A bounds clamp or a fresh overview can move the visible month under a
+        // stored selection; a panel describing an off-grid date is worse than none.
+        if (_ptoAdminState.selectedDay && (_ptoAdminState.selectedDay < monthStartIso || _ptoAdminState.selectedDay > monthEndIso)) _ptoAdminState.selectedDay = '';
+        // "Away today" follows the server rule: nobody is counted away on a day
+        // nobody works, so weekends and observed holidays report zero.
+        const todayDay = (_ptoDate(todayIso) || new Date()).getDay();
+        const todayIsBusiness = todayDay !== 0 && todayDay !== 6 && !_ptoCalHolidaysOn(overview, todayIso).length;
+        const awayToday = new Set(todayIsBusiness
+            ? _ptoCalOn(events, todayIso).filter(event => event.status === 'approved').map(event => event.member_id || event.name)
+            : []);
+        const outThisMonth = new Set(inMonth.filter(event => event.status === 'approved').map(event => event.member_id || event.name));
+        const pendingThisMonth = inMonth.filter(event => event.status === 'pending').length;
+        const canPrev = month > bounds.min;
+        const canNext = month < bounds.max;
+        const legend = PTO_CAL_LEGEND.concat(inMonth.some(event => event.status === 'approved' && !event.type) ? [{ tone: '', label: 'Time off' }] : [])
+            .map(item => '<span class="pto-cal-legend-item"><span class="pto-cal-swatch' + (item.tone ? ' ' + item.tone : '') + '" aria-hidden="true"></span>' + _ptoEsc(item.label) + '</span>').join('');
+        const views = PTO_CAL_VIEWS.map(item => '<button type="button" class="pto-cal-view" data-pto-cal-view="' + item.key + '" aria-pressed="' + (view === item.key ? 'true' : 'false') + '" onclick="_ptoCalSetView(' + _jsAttrArg(item.key) + ')">' + item.label + '</button>').join('');
+        const stats = [
+            { value: awayToday.size, label: 'Away today' },
+            { value: outThisMonth.size, label: 'Off this month' },
+            { value: pendingThisMonth, label: 'Pending this month' },
+        ].map(stat => '<div class="pto-cal-stat"><strong>' + stat.value + '</strong><span>' + stat.label + '</span></div>').join('');
+        const grid = view === 'people'
+            ? _ptoCalPeopleGridHtml(overview, events, month, todayIso)
+            : _ptoCalMonthGridHtml(overview, events, month, todayIso);
+        const emptyNote = inMonth.length ? '' : '<div class="pto-cal-note">Nobody has approved or pending leave in ' + _ptoEsc(monthLabel) + '.</div>';
+        return '<div class="pto-cal-head"><div><div class="pto-admin-title-row">'
+            + _svExplainLabel('team-calendar', 'Team calendar', 'Approved and pending leave for everyone, plus observed paid holidays. Select a day to see who is away and act on the requests it holds.', 'pto-admin-title')
+            + '</div><div class="pto-admin-sub">Approved and pending leave across the team, with observed paid holidays.</div></div>'
+            + '<div class="pto-cal-controls"><div class="pto-cal-views" role="group" aria-label="Calendar view">' + views + '</div>'
+            + '<div class="pto-calendar-nav"><button type="button" onclick="_ptoCalShiftMonth(-1)" aria-label="Previous month"' + (canPrev ? '' : ' disabled') + '>&lsaquo;</button>'
+            + '<span class="pto-calendar-title">' + _ptoEsc(monthLabel) + '</span>'
+            + '<button type="button" onclick="_ptoCalShiftMonth(1)" aria-label="Next month"' + (canNext ? '' : ' disabled') + '>&rsaquo;</button>'
+            + '<button type="button" class="pto-cal-today" onclick="_ptoCalGoToday()">Today</button></div></div></div>'
+            + '<div class="pto-cal-stats">' + stats + '</div>'
+            + '<div class="pto-cal-legend">' + legend + '</div>'
+            + emptyNote
+            + '<div class="pto-cal-scroll-cue">Swipe sideways to view the whole month &rarr;</div>'
+            + grid
+            + _ptoCalDetailHtml(overview, events, todayIso);
+    }
+
+    // Only the calendar card is repainted so a half-filled member setup or
+    // adjustment form is never wiped by browsing the calendar.
+    function _ptoCalRepaint(focusSelectors) {
+        const card = document.getElementById('ptoAdminCalendarCard');
+        if (!card || !_ptoAdminState.overview) { _ptoRenderAdmin(); return; }
+        card.innerHTML = _ptoRenderAdminCalendar(_ptoAdminState.overview);
+        const selectors = Array.isArray(focusSelectors) ? focusSelectors : (focusSelectors ? [focusSelectors] : []);
+        if (!selectors.length) return;
+        requestAnimationFrame(() => {
+            // Re-read the card: a full _ptoRenderAdmin between paint and frame
+            // detaches the node captured above, and focusing a detached button
+            // silently does nothing.
+            const live = document.getElementById('ptoAdminCalendarCard');
+            if (!live) return;
+            for (const selector of selectors) {
+                const target = live.querySelector(selector);
+                if (target) { target.focus({ preventScroll: true }); return; }
+            }
+        });
+    }
+    function _ptoCalShiftMonth(delta) {
+        const overview = _ptoAdminState.overview;
+        if (!overview) return;
+        const events = _ptoCalEvents(overview);
+        const bounds = _ptoCalBounds(overview, events);
+        const current = _ptoCalMonth(overview, events);
+        const next = new Date(current.getFullYear(), current.getMonth() + Number(delta || 0), 1);
+        _ptoAdminState.month = next < bounds.min ? new Date(bounds.min.getTime()) : (next > bounds.max ? new Date(bounds.max.getTime()) : next);
+        _ptoAdminState.selectedDay = '';
+        _ptoAdminState.calFocusDay = '';
+        const direction = Number(delta || 0) < 0 ? 'Previous month' : 'Next month';
+        _ptoCalRepaint(['.pto-calendar-nav button[aria-label="' + direction + '"]:not([disabled])', '.pto-calendar-nav button:not([disabled])']);
+    }
+    function _ptoCalGoToday() {
+        const overview = _ptoAdminState.overview;
+        if (!overview) return;
+        const asOf = _ptoDate(overview.as_of_date) || new Date();
+        const events = _ptoCalEvents(overview);
+        const bounds = _ptoCalBounds(overview, events);
+        const target = new Date(asOf.getFullYear(), asOf.getMonth(), 1);
+        _ptoAdminState.month = target < bounds.min ? new Date(bounds.min.getTime()) : (target > bounds.max ? new Date(bounds.max.getTime()) : target);
+        _ptoAdminState.selectedDay = String(overview.as_of_date || _ptoTodayIso());
+        _ptoAdminState.calFocusDay = _ptoAdminState.selectedDay;
+        _ptoCalRepaint(['.pto-cal-today']);
+    }
+    function _ptoCalSetView(view) {
+        _ptoAdminState.calView = view === 'people' ? 'people' : 'month';
+        _ptoCalRepaint(['.pto-cal-view[aria-pressed="true"]']);
+    }
+    function _ptoCalPickDay(iso) {
+        const value = String(iso || '');
+        if (!value) return;
+        _ptoAdminState.selectedDay = _ptoAdminState.selectedDay === value ? '' : value;
+        _ptoAdminState.calFocusDay = value;
+        _ptoCalRepaint(['[data-pto-cal-day="' + value + '"]', '[data-pto-cal-bar="' + value + '"]', '[data-pto-cal-day]', '.pto-cal-today']);
+    }
+    function _ptoCalClearDay(returnToIso) {
+        const previous = String(returnToIso || _ptoAdminState.selectedDay || '');
+        _ptoAdminState.selectedDay = '';
+        if (previous) _ptoAdminState.calFocusDay = previous;
+        _ptoCalRepaint(previous
+            ? ['[data-pto-cal-day="' + previous + '"]', '[data-pto-cal-bar="' + previous + '"]', '.pto-cal-today']
+            : ['.pto-cal-today']);
+    }
+    function _ptoCalDetailKeydown(event) {
+        if (!event || event.key !== 'Escape' || !_ptoAdminState.selectedDay) return;
+        event.preventDefault();
+        _ptoCalClearDay();
+    }
+    // Roving tabindex: the month grid is one tab stop and the arrow, Home/End,
+    // and Page Up/Down keys walk dates the way the shared date picker does.
+    function _ptoCalFocusDate(iso) {
+        const overview = _ptoAdminState.overview;
+        const date = _ptoDate(iso);
+        if (!overview || !date) return;
+        const bounds = _ptoCalBounds(overview, _ptoCalEvents(overview));
+        const target = new Date(date.getFullYear(), date.getMonth(), 1);
+        if (target < bounds.min || target > bounds.max) return;
+        _ptoAdminState.calFocusDay = String(iso);
+        const month = _ptoAdminState.month;
+        if (!(month instanceof Date) || month.getFullYear() !== target.getFullYear() || month.getMonth() !== target.getMonth()) {
+            _ptoAdminState.month = target;
+            // Leaving the month drops the selection with it: a day panel that
+            // describes a date the grid no longer shows is worse than none.
+            _ptoAdminState.selectedDay = '';
+            _ptoCalRepaint(['[data-pto-cal-day="' + _ptoAdminState.calFocusDay + '"]', '.pto-cal-today']);
+            return;
+        }
+        const card = document.getElementById('ptoAdminCalendarCard');
+        if (!card) return;
+        card.querySelectorAll('[data-pto-cal-day]').forEach(cell => { cell.tabIndex = cell.getAttribute('data-pto-cal-day') === String(iso) ? 0 : -1; });
+        const next = card.querySelector('[data-pto-cal-day="' + String(iso) + '"]');
+        if (next) next.focus({ preventScroll: true });
+    }
+    function _ptoCalGridKeydown(event) {
+        const key = event && event.key;
+        if (key === 'Escape') {
+            if (!_ptoAdminState.selectedDay) return;
+            event.preventDefault();
+            // Close the panel without moving the caret: Escape should never
+            // relocate focus to whichever day happened to be selected.
+            const here = event.target && event.target.closest ? event.target.closest('[data-pto-cal-day]') : null;
+            _ptoCalClearDay(here ? here.getAttribute('data-pto-cal-day') : '');
+            return;
+        }
+        // Walk from the day that actually holds focus, not just the roving
+        // bookmark: a mouse click or a scripted focus must not teleport the
+        // caret back to wherever the tab stop happened to be parked.
+        const focused = event.target && event.target.closest ? event.target.closest("[data-pto-cal-day]") : null;
+        const current = _ptoDate(focused ? focused.getAttribute("data-pto-cal-day") : _ptoAdminState.calFocusDay);
+        if (!current) return;
+        const steps = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
+        let target = null;
+        if (steps[key] != null) {
+            target = new Date(current.getTime());
+            target.setDate(target.getDate() + steps[key]);
+        } else if (key === 'Home') {
+            target = new Date(current.getFullYear(), current.getMonth(), 1, 12);
+        } else if (key === 'End') {
+            target = new Date(current.getFullYear(), current.getMonth() + 1, 0, 12);
+        } else if (key === 'PageUp' || key === 'PageDown') {
+            const shift = key === 'PageUp' ? -1 : 1;
+            const lastDay = new Date(current.getFullYear(), current.getMonth() + shift + 1, 0).getDate();
+            target = new Date(current.getFullYear(), current.getMonth() + shift, Math.min(current.getDate(), lastDay), 12);
+        }
+        if (!target) return;
+        event.preventDefault();
+        _ptoCalFocusDate(_ptoIso(target));
+    }
+    function _ptoCalResetView() {
+        _ptoAdminState.month = null;
+        _ptoAdminState.monthInitialized = false;
+        _ptoAdminState.calView = 'month';
+        _ptoAdminState.selectedDay = '';
+        _ptoAdminState.calFocusDay = '';
+    }
+    function _ptoCalReviewRequest(requestId) {
+        const wanted = String(requestId == null ? '' : requestId);
+        const cards = Array.from(document.querySelectorAll('[data-pto-request-id]'));
+        const card = cards.find(node => node.getAttribute('data-pto-request-id') === wanted);
+        if (!card) { _ptoShowToast('That request is no longer in the pending queue. Refresh Time Off to reload it.'); return; }
+        const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        card.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+        card.classList.add('is-flagged');
+        setTimeout(() => card.classList.remove('is-flagged'), 2400);
+        // Land on the decision note, never on Approve: an approval is not
+        // reversible and must not be one stray keypress away.
+        const target = card.querySelector('input[data-pto-decision-note]') || card.querySelector('button.approve:not([disabled])');
+        if (target) target.focus({ preventScroll: true });
+    }
+    async function _ptoAdminDecide(requestId, decision, button) {
+        if (_ptoBlockWrites('admin')) return;
+        const card = button && button.closest('.pto-request-card');
+        const note = card && card.querySelector('[data-pto-decision-note]');
+        if (card) card.querySelectorAll('button, input').forEach(element => { element.disabled = true; });
+        try {
+            await _ptoApi('decide', 'POST', { request_id: requestId, decision, decision_note: note ? note.value.trim() : '' });
+            _ptoShowToast(decision === 'approved' ? 'Request approved' : 'Request denied');
+            _ptoInvalidateOverviewCaches();
+            await _ptoLoadAdmin(true);
+        } catch (error) {
+            const message = error && error.message ? error.message : 'Could not decide this request';
+            if (error && error.code === 'member_inactive' && decision === 'approved' && card) {
+                _ptoShowToast(message);
+                const approve = card.querySelector('button.approve');
+                const deny = card.querySelector('button.deny');
+                if (approve) {
+                    approve.disabled = true;
+                    approve.title = 'Inactive staff profiles cannot be approved';
+                }
+                if (note) note.disabled = false;
+                if (deny) deny.disabled = false;
+                let notice = card.querySelector('[data-pto-inactive-note]');
+                if (!notice) {
+                    notice = document.createElement('div');
+                    notice.className = 'pto-notice';
+                    notice.dataset.ptoInactiveNote = 'true';
+                    notice.setAttribute('role', 'status');
+                    card.insertBefore(notice, card.querySelector('.pto-decision'));
+                }
+                notice.textContent = 'This profile is inactive. Approval is unavailable; deny the request to close it.';
+                return;
+            }
+            if (_ptoUnknownWrite(error)) {
+                _ptoAdminState.writeOutcomeUnknown = true;
+                _ptoShowToast(message);
+                return;
+            }
+            if (_ptoStateConflict(error)) {
+                await _ptoRefreshAfterConflict('admin', message);
+                return;
+            }
+            _ptoShowToast(message);
+            if (card) card.querySelectorAll('button, input').forEach(element => { element.disabled = false; });
+        }
+    }
+    function _ptoAdminCancel(requestId, button) {
+        if (_ptoBlockWrites('admin')) return;
+        showConfirm('Cancel approved leave', 'Remove this future approved leave from the team calendar? The original approval record will be preserved.', async () => {
+            if (button) button.disabled = true;
+            try {
+                await _ptoApi('cancel', 'POST', { request_id: requestId });
+                _ptoShowToast('Approved leave cancelled');
+                _ptoInvalidateOverviewCaches();
+                await _ptoLoadAdmin(true);
+            } catch (error) {
+                const message = error && error.message ? error.message : 'Could not cancel this leave';
+                if (_ptoUnknownWrite(error)) {
+                    _ptoAdminState.writeOutcomeUnknown = true;
+                    _ptoShowToast(message);
+                    return;
+                }
+                if (_ptoStateConflict(error)) {
+                    await _ptoRefreshAfterConflict('admin', message);
+                    return;
+                }
+                _ptoShowToast(message);
+                if (button) button.disabled = false;
+            }
+        }, 'Cancel leave');
+    }
+    async function _ptoAdminSetMember(event) {
+        event.preventDefault();
+        if (_ptoBlockWrites('admin')) return;
+        const errorBox = document.getElementById('ptoAdminMemberError');
+        const button = event.currentTarget.querySelector('button[type="submit"]');
+        const payload = { member_id: document.getElementById('ptoAdminMember').value, pto_start_date: document.getElementById('ptoAdminStart').value, pto_enabled: document.getElementById('ptoAdminEnabled').checked };
+        _ptoClearValidation('ptoAdminMemberError', 'ptoAdminMemberBtn ptoAdminStartBtn');
+        if (!payload.member_id) { _ptoShowValidation('ptoAdminMemberError', 'Choose a team member.', 'ptoAdminMemberBtn'); return; }
+        if (!_ptoDate(payload.pto_start_date)) { _ptoShowValidation('ptoAdminMemberError', 'Choose a valid PTO start date.', 'ptoAdminStartBtn'); return; }
+        button.disabled = true;
+        try {
+            await _ptoApi('set_start_date', 'POST', payload);
+            _ptoShowToast('PTO member saved');
+            _ptoInvalidateOverviewCaches();
+            await _ptoLoadAdmin(true);
+        } catch (error) {
+            errorBox.textContent = error && error.message ? error.message : 'Could not save this member.';
+            if (_ptoUnknownWrite(error)) {
+                _ptoAdminState.writeOutcomeUnknown = true;
+                return;
+            }
+            if (_ptoStateConflict(error)) {
+                await _ptoRefreshAfterConflict('admin', error.message);
+                return;
+            }
+            button.disabled = false;
+        }
+    }
+    async function _ptoAdminAdjust(event) {
+        event.preventDefault();
+        if (_ptoBlockWrites('admin')) return;
+        const errorBox = document.getElementById('ptoAdjustError');
+        const button = event.currentTarget.querySelector('button[type="submit"]');
+        const memberId = document.getElementById('ptoAdjustMember').value;
+        const delta = _ptoNumber(document.getElementById('ptoAdjustDelta').value, NaN);
+        _ptoClearValidation('ptoAdjustError', 'ptoAdjustMemberBtn ptoAdjustKindBtn ptoAdjustDelta ptoAdjustDateBtn ptoAdjustReason');
+        if (!memberId) { _ptoShowValidation('ptoAdjustError', 'Choose a team member.', 'ptoAdjustMemberBtn'); return; }
+        if (!Number.isFinite(delta) || delta === 0 || Math.round(delta * 2) !== delta * 2) { _ptoShowValidation('ptoAdjustError', 'Use a non-zero amount in half-day steps.', 'ptoAdjustDelta'); return; }
+        const payload = { member_id: memberId, kind: document.getElementById('ptoAdjustKind').value, delta, effective_date: document.getElementById('ptoAdjustDate').value, reason: document.getElementById('ptoAdjustReason').value.trim() };
+        if (!['wellness', 'sick'].includes(payload.kind)) { _ptoShowValidation('ptoAdjustError', 'Choose the balance to adjust.', 'ptoAdjustKindBtn'); return; }
+        if (!_ptoDate(payload.effective_date)) { _ptoShowValidation('ptoAdjustError', 'Choose a valid effective date.', 'ptoAdjustDateBtn'); return; }
+        if (!payload.reason) { _ptoShowValidation('ptoAdjustError', 'Add a reason for this adjustment.', 'ptoAdjustReason'); return; }
+        button.disabled = true;
+        try {
+            await _ptoApi('adjust', 'POST', payload);
+            _ptoShowToast('Balance adjustment added');
+            _ptoInvalidateOverviewCaches();
+            await _ptoLoadAdmin(true);
+        } catch (error) {
+            errorBox.textContent = error && error.message ? error.message : 'Could not add this adjustment.';
+            if (_ptoUnknownWrite(error)) {
+                _ptoAdminState.writeOutcomeUnknown = true;
+                return;
+            }
+            if (_ptoStateConflict(error)) {
+                await _ptoRefreshAfterConflict('admin', error.message);
+                return;
+            }
+            button.disabled = false;
+        }
+    }
+
+    // ---- window exports (generated by `node scripts/check-modules.js --write-window-exports`; do not edit) ----
+    Object.assign(window, {
+        _ptoAdminAdjust, _ptoAdminCancel, _ptoAdminDecide, _ptoAdminPickMember, _ptoAdminSetMember,
+        _ptoAdminSignIn, _ptoCalClearDay, _ptoCalDetailKeydown, _ptoCalGoToday, _ptoCalGridKeydown,
+        _ptoCalPickDay, _ptoCalReviewRequest, _ptoCalSetView, _ptoCalShiftMonth, _ptoCancelRequest,
+        _ptoClearValidation, _ptoLoadAdmin, _ptoLoadOverview, _ptoOpenFromMenu, _ptoShiftMonth,
+        _ptoSubmitRequest, _ptoSyncRequestForm
+    });
+
+;(self.__svParts || (self.__svParts = [])).push("js/sv-09-core-26987c1d78e3.js");

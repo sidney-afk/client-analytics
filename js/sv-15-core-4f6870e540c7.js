@@ -1,26 +1,3 @@
-import { _writeUiRecordSaveFailure } from './120-calendar-flags-write-repair.js';
-import {
-  SHEET_ID, parseCSV, showToast, svArea, svAreaApi
-} from './040-shared-briefs.js';
-import { wlNormalizeClient } from './070-core-client-names.js';
-import { navTo } from './092-core-submit-form-navigation.js';
-import { _syncviewCloseStaffAccount } from './100-onboarding-staff-controls.js';
-import {
-  _calComponentsFor, _calReadFreshCardStamp, _calUnionCommentCell, _calUpsertFetch,
-  _writeUiAdoptRepairAck, _writeUiAdoptReplayStatus, _writeUiAppendRepairRef,
-  _writeUiCompleteSourceRepairRefs, _writeUiGatewayError, _writeUiPrincipalKey,
-  _writeUiQueueDiagnostic, _writeUiRemoveCompletedRepairRefs, computeOverallStatus
-} from './120-calendar-flags-write-repair.js';
-import { _calCommentsFor, _calLinearUrlFor, _calMigratePostShape, _calSetCommentsFor } from './130-calendar-model-cache.js';
-import { _calEsc, _calEscAttr, _jsAttrArg } from './131-core-html.js';
-import { _calKasperUrgentActive, _calPushStatusToLinear } from './140-calendar-legacy-outbox.js';
-import { _calMergeCommentLists, _calStringifyComments, _kasperUndecidedComps } from './190-calendar-approval-comments.js';
-import { SXR_REVIEW_COMPONENTS, _sxrEnabled } from './270-samples-model.js';
-import {
-  _sxrKasperPartitionItems, _sxrKasperRenderCard, _sxrKasperState, _writeUiJournalCoversRepairRefs,
-  _writeUiReconcileReplayStatus
-} from './290-samples-writes-review.js';
-import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
     const KASPER_SUBTAB_ALIASES = { samples: 'review' };
     function _kasperResolveSubtab(sub) {
         const key = Object.prototype.hasOwnProperty.call(KASPER_SUBTAB_ALIASES, sub) ? KASPER_SUBTAB_ALIASES[sub] : sub;
@@ -605,14 +582,5 @@ import { KASPER_SUBTABS } from './320-core-kasper-subtabs.js';
         _ccOpenModal, _ccPickSelect, _ccTogglePasswordField, _ccToggleSelect, _kasperGotoTab,
         _kasperOpenLightbox, _svOpenStaffPage
     });
-export {
-  CA_RECENT_KEY, CC_ICON_CHECK, CC_ICON_CHEV, CC_ICON_EYE, CC_ICON_EYE_OFF, KASPER_CACHE_KEY,
-  KASPER_CAL_CACHE_TTL, KASPER_FILMING_CACHE_KEY, KASPER_ONBOARDING_SEEN_KEY, _ccCloseSelect,
-  _ccEsc, _ccEscAttr, _ccOpenSelectId, _ccSelectHtml, _ccTogglePasswordField, _kasperCalCacheKey,
-  _kasperCalCachePrune, _kasperFallbackToReview, _kasperGotoTab, _kasperIsFinished,
-  _kasperLoadSMMMap, _kasperOnboardingStamp, _kasperOnboardingSubs, _kasperOnboardingUnreadCount,
-  _kasperOpenLightbox, _kasperPaintReview, _kasperPartitionItems, _kasperPatchSnapshot,
-  _kasperPersistCache, _kasperPersistPost, _kasperResolveSubtab, _kasperResumeSourceRepairs,
-  _kasperSampleOpenCount, _kasperSamplePartition, _kasperSamplesEnabled, _kasperSamplesMerged,
-  _kasperSetTabCount, _kasperState, _kasperSyncMoreNotificationCount
-};
+
+;(self.__svParts || (self.__svParts = [])).push("js/sv-15-core-4f6870e540c7.js");

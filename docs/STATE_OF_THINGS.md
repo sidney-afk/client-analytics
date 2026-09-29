@@ -151,8 +151,16 @@ hiring senders when the editor hire closes.
   single consolidated problem message with a quiet default proposed in
   `docs/ops/LINEAR_EXIT_STEP29C_ALERT_CONSOLIDATION.md`, AFTER the analytics
   move to Supabase lands.
-- **Modularization C3 step 0 waits for Mason's C2 (owner, 2026-09-28).** Do
-  not start it while the load-per-tab split is still editing the same files.
+- **Modularization C3: every script fragment is a module; only step 13 (the
+  runtime switch) is left, and it waits for the owner's go.** The prep is in
+  (Keystone, 2026-09-29): each module lists the functions its buttons call on
+  `window`, a check fails if a list goes stale, and the screen guard
+  (`inline-handlers-browser.js`) enforces it. Owed: delete the dead
+  `_sxrSyncStatusFromLinear` calls in `270` and update `test/sxr-move-link-*.js`. The measured proposal for the
+  switch is `docs/plans/2026-09-29-c3-step13-switch-proposal.md`: serve today's
+  code in today's order (native modules and a plain bundle both fail to boot,
+  because of load order), and re-run `prod-boot-budget.js` on a machine with
+  the live backend first.
 
 ## Needs a session
 

@@ -1,8 +1,3 @@
-import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
-import { WL_CLIENT_NAMES, getClientRoster, wlNormalizeClient } from './070-core-client-names.js';
-import { CAL_SUPABASE_ANON_KEY, SMM_WEEKLY_REPORTS_URL, _syncviewRequireStaffIdentity, _syncviewStaffIdentityForHeaders } from './100-onboarding-staff-controls.js';
-import { _jsAttrArg } from './131-core-html.js';
-import { _isClientLink } from './260-production-refresh-boot.js';
     const SRP_OVERALL = ['On track', 'Minor friction', 'Needs your attention', 'Blocked'];
     const SRP_OBSTACLE = ['Handling it', 'Need your input', 'Need you to act'];
     const SRP_MOOD = ['Great', 'Fine', 'Cooling', 'Concerned'];
@@ -706,7 +701,5 @@ import { _isClientLink } from './260-production-refresh-boot.js';
     Object.assign(window, {
         _srpPickSelect, _srpToggleSelect
     });
-export {
-  _srpPurgeSensitiveState, _srpState, mountSmmWeeklyReportFormView, mountSmmWeeklyReportsView,
-  renderSmmWeeklyReportFormView, renderSmmWeeklyReportsView
-};
+
+;(self.__svParts || (self.__svParts = [])).push("js/sv-10-smm-weekly-c9e954c6f26e.js");

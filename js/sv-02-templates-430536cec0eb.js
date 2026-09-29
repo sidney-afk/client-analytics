@@ -1,31 +1,3 @@
-import { _writeUiTrackSave } from './120-calendar-flags-write-repair.js';
-import { FILMING_PLANS_EF_URL, showToast, svAreaApi, svAreaRegister } from './040-shared-briefs.js';
-import {
-  CHECK_SVG, PEN_ICON_SVG, PIN_ICON_SVG, TPL_MAX_PINS, TPL_PINS_KEY, TPL_RECENT_KEY, _NOT_SET,
-  _maybeRerenderTemplates, _mrExternalLink, _setTplStatus, _templatesEditMode, _templatesSelected,
-  _templatesSetActiveTab, _templatesSetEditMode, _templatesSetSelected, _tplClientReady, _tplDirty,
-  _tplEsc, _tplEscAttr, _tplFieldLink, _tplFlush, _tplGet, _tplGetColorSets, _tplPinSelectorOpen,
-  _tplPinsEditMode, _tplQueueSave, _tplSaveColorSets, _tplSaveErrorMsg, _tplSetPinSelectorOpen,
-  _tplSetPinsEditMode, _tplViewColor, _tplViewProse, _tplViewText, templatesLoadError
-} from './050-market-briefs.js';
-import { FP_SAVED_KEY, currentNav } from './065-core-nav-intake-state.js';
-import { getClientRoster, wlNormalizeClient } from './070-core-client-names.js';
-import { _linearInvalidatePlanMap, updateLinearFilmingPlan } from './092-core-submit-form-navigation.js';
-import { svSharedClientNote } from './095-shared-client.js';
-import {
-  CAL_SUPABASE_URL, _obZoom, _syncviewOfferStaffSignIn, _syncviewOpenStaffIdentity,
-  _syncviewRequireStaffIdentity, _syncviewStaffCan, _syncviewStaffIdentityBoot,
-  _syncviewStaffIdentityClear, _syncviewStaffIdentityForHeaders, _syncviewStaffIdentitySignature
-} from './100-onboarding-staff-controls.js';
-import { _syncviewEfHeaders } from './120-calendar-flags-write-repair.js';
-import { CAL_PLATFORM_BY_KEY, calClientSlug } from './130-calendar-model-cache.js';
-import { _jsAttrArg } from './131-core-html.js';
-import { _svLoadingSkeletonHtml } from './133-core-loading-skeletons.js';
-import { _calSocialLinksFor } from './160-calendar-organize-ui.js';
-import { _svSaveIndHtml } from './170-calendar-links-status.js';
-import { _isClientLink } from './260-production-refresh-boot.js';
-import { KASPER_FILMING_CACHE_KEY, _kasperState } from './305-core-kasper-shared.js';
-import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
     function _tplRenderColorSetsView(name, hlOff) {
         const sets = _tplGetColorSets(name).filter(s => s.title || s.highlight);
         if (!sets.length) {
@@ -2165,3 +2137,5 @@ import { _kasperRefreshTabCounts } from './322-core-kasper-tab-counts.js';
         tplBrainRetry, tplBrainSend, tplBrainSetTab, tplBriefChange, tplBriefMenu, tplBriefToggleSource,
         tplFoldersRetry, tplLinkRowToggle, tplSpecHexSync, tplSpecOpen, tplSpecSave
     });
+
+;(self.__svParts || (self.__svParts = [])).push("js/sv-02-templates-430536cec0eb.js");

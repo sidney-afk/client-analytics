@@ -1077,8 +1077,12 @@ Deno.serve(async (req) => {
       const text = await callTool(toolName, (params.arguments || {}) as JsonMap, member);
       if (!/^(check_(job|jobs|video)|wait_for_job)$/.test(toolName)) return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }] } });
       const previews = await imagePreviews(text);
-      const videos = [...new Set(text.match(/https:\/\/[^\s)"'<>]+\.(?:mp4|mov|webm)(?:\?[^\s)"'<>]*)?/gi) || [])];
-      const structuredContent = { images: previews.map((p) => p.url), videos, status: text.split("\n")[0] };
+      // The viewer gets every result link (a batch can have 25), independent of
+      // the four size-limited previews the model sees. Links in a job check are
+      // only result files; video files are told apart by extension.
+      const links = [...new Set((text.match(/https:\/\/[^\s)"'<>]+/g) || []).map((l) => l.replace(/[.,;:]+$/, "")))].slice(0, 25);
+      const isVideo = (l: string) => /\.(mp4|mov|webm)(\?|$)/i.test(l);
+      const structuredContent = { images: links.filter((l) => !isVideo(l)), videos: links.filter(isVideo), status: text.split("\n")[0] };
       return reply({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }, ...previews.map(({ url: _url, ...block }) => block)], structuredContent } });
     } catch (e) {
       return reply({ jsonrpc: "2.0", id, result: { isError: true, content: [{ type: "text", text: "Something went wrong: " + (e as Error).message }] } });

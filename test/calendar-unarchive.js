@@ -20,7 +20,6 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { execFileSync } = require('child_process');
 const { stripComments } = require('./helpers/strip-comments');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -244,14 +243,10 @@ function sourceShape() {
   ok(/capability === 'restore-archived'\) return role === 'admin' \|\| role === 'smm';/.test(staff), 'capability maps to admin and smm only');
   const areas = fs.readFileSync(path.join(ROOT, 'src/index/areas.txt'), 'utf8');
   ok(/186-archived-restore\.js\.part\s+core\s*$/m.test(areas), 'the fragment is in core, not in the client approve path list');
-  // frozen writers and the approve path are byte-identical to the base branch
-  let changed = null;
-  try {
-    const base = execFileSync('git', ['merge-base', 'HEAD', 'origin/main'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-    changed = execFileSync('git', ['diff', '--name-only', base, '--', 'supabase/functions', 'migrations'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch (e) { changed = null; }
-  if (changed === null) console.log('  skip  git base not available; function and migration diff not checked here');
-  else ok(changed === '', 'no Edge Function and no migration changed since this branch left main (frozen writers untouched, no deploy)');
+  /* The branch-scope proof (no Edge Function or migration changed) was a one-time check for
+     #1853 itself. Kept after merge it failed every later PR that touches any function or
+     migration, so it is gone; the frozen writers are guarded by their own fingerprint and
+     freeze checks. */
 
   if (failures) { console.error('\ncalendar-unarchive: ' + failures + ' FAILED'); process.exit(1); }
   console.log('\ncalendar-unarchive: all checks passed');

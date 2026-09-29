@@ -62,6 +62,12 @@ verify_jwt = false
 [functions.filming-plans]
 verify_jwt = false
 
+# Tab list of a client's filming-plan Google Doc for Kasper > Filming (replaces the
+# n8n filming-plan-tabs webhook). Staff role key required; reads Docs with the Google
+# service account and caches in filming_plan_tabs_cache.
+[functions.filming-plan-tabs]
+verify_jwt = false
+
 # Browser-callable transport for the SMM report form/viewer. Every action now
 # requires the shared staff role key: admin/SMM may submit, while report-text
 # reads and manager synchronization are admin-only (plus the transition legacy

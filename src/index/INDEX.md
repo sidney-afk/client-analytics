@@ -61,7 +61,7 @@
 | 53 | `305-core-kasper-shared.js.part` | 605 | SELF-CONFLICT RECOVERY (OPEN_REPAIRS 212's known gap): a status push |
 | 54 | `310-sales-intake-hiring.js.part` | 1159 | KASPER REVIEW TAB |
 | 55 | `320-core-kasper-subtabs.js.part` | 20 | — |
-| 56 | `321-kasper-dashboard-replies.js.part` | 2607 | The Samples subtab was folded into Review (samples are listed in the |
+| 56 | `321-kasper-dashboard-replies.js.part` | 2693 | The Samples subtab was folded into Review (samples are listed in the |
 | 57 | `322-core-kasper-tab-counts.js.part` | 34 | — |
 | 58 | `323-kasper-dashboard-tail.js.part` | 568 | Review Session |
 | 59 | `330-kasper-review-history.js.part` | 2423 | ONE KEY PER CLIENT, never evicted, was the shape. _kasperFetchAllRelevantPosts |

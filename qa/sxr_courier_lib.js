@@ -146,7 +146,12 @@ const LINEAR_HOOK = /\/webhook\/(linear-[a-z0-9-]+)\b/;
  */
 const LINEAR_BACKED_HOOK =
   /\/webhook\/(send-urgent-slack)(?:[/?]|$)/;
-const FILMING_TABS_HOOK = /\/webhook\/filming-plan-tabs\b/;
+// Kasper > Filming reads Doc tabs from the n8n webhook, or, when the runtime flag
+// filming_plan_tabs_source is {"mode":"function"}, from the filming-plan-tabs Edge
+// Function (docs/plans/2026-09-28-n8n-exit.md, PR 1b). The harness reads live flags
+// and must answer the same way whichever source the flag picks, so it stubs both
+// roads. Only the two Filming tab roads: the flag read itself is not touched.
+const FILMING_TABS_HOOK = /\/(?:webhook|functions\/v1)\/filming-plan-tabs\b/;
 const LIVE_FILMING_TABS = process.env.SYNCVIEW_QA_LIVE_FILMING_TABS === '1';
 const LINEAR_CALLS_FILE = `${TMP}/linear_calls.jsonl`;
 
@@ -251,7 +256,15 @@ function _subissuesResp() {
 function _filmingTabsStubPayload(url) {
   if (LIVE_FILMING_TABS || !FILMING_TABS_HOOK.test(url)) return null;
   let docId = '';
-  try { docId = new URL(url).searchParams.get('doc') || ''; } catch {}
+  let docs = '';
+  try { const q = new URL(url).searchParams; docId = q.get('doc') || ''; docs = q.get('docs') || ''; } catch {}
+  // The function's bulk form: one empty-tabs answer per Doc, each entry the same
+  // { ok, docId, tabs } the single form returns.
+  if (docs) {
+    const out = {};
+    for (const d of docs.split(',').filter(Boolean)) out[d] = { ok: true, docId: d, tabs: [] };
+    return { ok: true, docs: out };
+  }
   return { ok: true, docId, tabs: [] };
 }
 

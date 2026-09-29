@@ -26,11 +26,16 @@ function extractFunction(name) {
   throw new Error('unterminated function ' + name);
 }
 
+// The shipped regex, read out of the harness rather than copied here, so this suite
+// cannot drift from what the harness really matches.
+const hookSource = (src.match(/^const FILMING_TABS_HOOK = (\/.*\/[a-z]*);$/m) || [])[1];
+if (!hookSource) throw new Error('missing FILMING_TABS_HOOK');
+
 function makePayload(live) {
   const sandbox = {
     URL,
     LIVE_FILMING_TABS: live,
-    FILMING_TABS_HOOK: /\/webhook\/filming-plan-tabs\b/,
+    FILMING_TABS_HOOK: new RegExp(hookSource.slice(1, hookSource.lastIndexOf('/')), hookSource.slice(hookSource.lastIndexOf('/') + 1)),
   };
   vm.runInNewContext(extractFunction('_filmingTabsStubPayload') + '\nthis.payload = _filmingTabsStubPayload;', sandbox);
   return sandbox.payload;
@@ -58,6 +63,19 @@ function ok(cond, msg, detail) {
 {
   const payload = makePayload(true)('https://synchrosocial.app.n8n.cloud/webhook/filming-plan-tabs?doc=abc123');
   ok(payload === null, 'live opt-in bypasses the stub');
+}
+
+{
+  // PR 1b: the Edge Function road is stubbed too, so a flag flip cannot send the harness live.
+  const fn = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/filming-plan-tabs';
+  const one = makePayload(false)(fn + '?doc=abc123');
+  ok(one && one.ok === true && one.docId === 'abc123' && Array.isArray(one.tabs) && one.tabs.length === 0, 'function road, one Doc: same empty-tabs answer as the webhook');
+  const bulk = makePayload(false)(fn + '?docs=abc123,def456&refresh=1');
+  ok(bulk && bulk.ok === true && Object.keys(bulk.docs).join() === 'abc123,def456', 'function road, bulk: one entry per Doc');
+  ok(bulk && Object.values(bulk.docs).every(e => e.ok === true && Array.isArray(e.tabs) && e.tabs.length === 0 && e.docId), 'each bulk entry is { ok, docId, tabs }');
+  ok(makePayload(true)(fn + '?docs=abc123') === null, 'live opt-in bypasses the stub on the function road too');
+  ok(makePayload(false)('https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/filming-plans') === null, 'the Filming Plans source-of-truth function is not stubbed');
+  ok(makePayload(false)('https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/syncview_runtime_flags?select=value&key=eq.filming_plan_tabs_source') === null, 'the flag read is not stubbed: the page still reads the live flag');
 }
 
 ok(src.indexOf('const filmingTabsStub = _filmingTabsStubPayload(url);') > src.indexOf('const lh = url.match(LINEAR_HOOK);'), 'filming stub is installed after Linear safety mocks');

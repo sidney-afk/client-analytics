@@ -5,7 +5,7 @@
 //
 // Keys: OPENAI_KEY and GOOGLE_AI_KEY (Supabase function secrets).
 // Prices (USD, checked 2026-09-28):
-//   OpenAI gpt-image-2 family: text in $5/M, image in $8/M, image out $30/M tokens.
+//   OpenAI gpt-image-2 / 2.5 Sunburst / 2.5 Flare: text in $5/M, image in $8/M, image out $30/M tokens.
 //   Google gemini-3.1-flash-image: in $0.50/M, per image 1K $0.067, 2K $0.101, 4K $0.151.
 //   Google gemini-3-pro-image: in $2/M, per image 1K/2K $0.134, 4K $0.24.
 // Estimates are upper bounds; the actual cost from each response's token
@@ -15,7 +15,14 @@ import type { CatalogModel } from "./catalog.ts";
 
 type JsonMap = Record<string, unknown>;
 
-const OPENAI_MODEL = "chatgpt-image-latest";
+// Dated snapshots so behaviour does not shift under the team. Sunburst is
+// OpenAI's most precise model for edits and final images; Flare is its fast
+// everyday model, same token prices. (chatgpt-image-latest is a legacy
+// pointer to the older ChatGPT snapshot.)
+const OPENAI_MODELS: Record<string, string> = {
+  "openai/gpt-image": "gpt-image-2.5-sunburst-2026-09-08",
+  "openai/gpt-image-fast": "gpt-image-2.5-flare-2026-09-08",
+};
 const GOOGLE_MODELS: Record<string, { api: string; inRate: number; perImage: Record<string, number> }> = {
   "google/nano-banana": { api: "gemini-3.1-flash-image", inRate: 0.5e-6, perImage: { "1K": 0.067, "2K": 0.101, "4K": 0.151 } },
   "google/nano-banana-pro": { api: "gemini-3-pro-image", inRate: 2e-6, perImage: { "1K": 0.134, "2K": 0.134, "4K": 0.24 } },
@@ -29,8 +36,8 @@ export const DIRECT_MODELS: CatalogModel[] = [
     name: "GPT Image (ChatGPT's image model)",
     category: "image-edit",
     notes: [
-      "The same image model ChatGPT uses. Best at precise edits that change only what you ask for; also makes new images from a prompt.",
-      "size auto keeps the photo's own shape. quality high is the sharpest and costs the most.",
+      "OpenAI's most capable image model (GPT Image 2.5 Sunburst). Best at precise edits that change only what you ask for; also makes new images from a prompt.",
+      "size auto keeps the photo's own shape; any WIDTHxHEIGHT works (1152x2048 for vertical 9:16). quality medium is the default (good and cheap); low for rough drafts; high only when they ask for the sharpest result. Bigger sizes cost more.",
     ],
     schema: {
       type: "object",
@@ -38,8 +45,27 @@ export const DIRECT_MODELS: CatalogModel[] = [
       properties: {
         prompt: { type: "string" },
         image_urls: IMAGES,
-        size: { type: "string", enum: ["auto", "1024x1024", "1536x1024", "1024x1536"], default: "auto" },
-        quality: { type: "string", enum: ["low", "medium", "high"], default: "high" },
+        size: { type: "string", default: "auto", description: "auto (keeps the photo's shape), or WIDTHxHEIGHT: both multiples of 16, shape between 1:3 and 3:1, longest edge at most 3840. Vertical 9:16 is 1152x2048, horizontal 16:9 is 2048x1152, square 1024x1024, 2:3 is 1024x1536." },
+        quality: { type: "string", enum: ["low", "medium", "high"], default: "medium" },
+      },
+    },
+  },
+  {
+    id: "openai/gpt-image-fast",
+    name: "GPT Image Fast (OpenAI Flare)",
+    category: "image-edit",
+    notes: [
+      "OpenAI's fast everyday image model: quicker drafts at the same price per image as GPT Image. Use GPT Image for precise edits and final images.",
+      "size auto keeps the photo's own shape; any WIDTHxHEIGHT works (1152x2048 for vertical 9:16). quality medium is the default (good and cheap); low for rough drafts; high only when they ask for the sharpest result. Bigger sizes cost more.",
+    ],
+    schema: {
+      type: "object",
+      required: ["prompt"],
+      properties: {
+        prompt: { type: "string" },
+        image_urls: IMAGES,
+        size: { type: "string", default: "auto", description: "auto (keeps the photo's shape), or WIDTHxHEIGHT: both multiples of 16, shape between 1:3 and 3:1, longest edge at most 3840. Vertical 9:16 is 1152x2048, horizontal 16:9 is 2048x1152, square 1024x1024, 2:3 is 1024x1536." },
+        quality: { type: "string", enum: ["low", "medium", "high"], default: "medium" },
       },
     },
   },
@@ -99,6 +125,17 @@ export const MAX_PROMPT_CHARS = 8000;
 export const MAX_DIRECT_IMAGES = 4;
 const OPENAI_IN_IMAGE_TOKENS = 10000;
 const GOOGLE_IN_IMAGE_TOKENS = 3000;
+// "auto" -> undefined (fine), a valid WIDTHxHEIGHT -> [w, h], anything else -> null.
+function openaiSize(size: string): [number, number] | undefined | null {
+  if (size === "auto") return undefined;
+  const m = size.match(/^(\d{2,4})x(\d{2,4})$/);
+  if (!m) return null;
+  const w = Number(m[1]), h = Number(m[2]);
+  if (w % 16 || h % 16 || w > 3840 || h > 3840 || w / h > 3 || h / w > 3) return null;
+  if (w * h < 655_360 || w * h > 8_294_400) return null; // OpenAI's total pixel limits
+  return [w, h];
+}
+
 function textTokens(inputs: JsonMap): number {
   return String(inputs.prompt || "").length + 50;
 }
@@ -107,10 +144,15 @@ export function directEstimate(id: string, inputs: JsonMap): { usd: number } | {
   const n = images(inputs).length;
   if (String(inputs.prompt || "").length > MAX_PROMPT_CHARS) return { error: `The prompt is over ${MAX_PROMPT_CHARS} characters; shorten it.` };
   if (n > MAX_DIRECT_IMAGES) return { error: `At most ${MAX_DIRECT_IMAGES} input images for this model.` };
-  if (id === "openai/gpt-image") {
+  if (OPENAI_MODELS[id]) {
     if (!Deno.env.get("OPENAI_KEY")) return { error: "GPT Image is not set up yet (OPENAI_KEY missing)." };
-    const [sq, wide] = OPENAI_OUT[String(inputs.quality || "high")] || OPENAI_OUT.high;
-    const out = String(inputs.size || "auto") === "1024x1024" ? sq : wide;
+    const [sq, wide] = OPENAI_OUT[String(inputs.quality || "medium")] || OPENAI_OUT.medium;
+    const size = String(inputs.size || "auto");
+    const dims = openaiSize(size);
+    if (dims === null) return { error: `Size "${size}" is not allowed. Use auto, or WIDTHxHEIGHT with both multiples of 16, a shape between 1:3 and 3:1, no edge over 3840 and 0.66 to 8.3 megapixels (vertical 9:16 is 1152x2048).` };
+    // Output tokens grow with pixel count; the table is for 1024x1536, so
+    // larger custom sizes scale up from it (never below the table figure).
+    const out = size === "1024x1024" ? sq : Math.ceil(wide * Math.max(1, dims ? (dims[0] * dims[1]) / (1024 * 1536) : 1));
     return { usd: out * 30e-6 + n * OPENAI_IN_IMAGE_TOKENS * 8e-6 + textTokens(inputs) * 5e-6 };
   }
   const g = GOOGLE_MODELS[id];
@@ -142,14 +184,15 @@ export async function runDirect(id: string, inputs: JsonMap, fetchImage: (url: s
   const refs = await Promise.all(images(inputs).map(fetchImage));
   const prompt = String(inputs.prompt || "");
 
-  if (id === "openai/gpt-image") {
+  if (OPENAI_MODELS[id]) {
+    const model = OPENAI_MODELS[id];
     const key = Deno.env.get("OPENAI_KEY")!;
-    const quality = String(inputs.quality || "high");
+    const quality = String(inputs.quality || "medium");
     const size = String(inputs.size || "auto");
     let res: Response;
     if (refs.length) {
       const form = new FormData();
-      form.append("model", OPENAI_MODEL);
+      form.append("model", model);
       form.append("prompt", prompt);
       form.append("quality", quality);
       form.append("size", size);
@@ -160,7 +203,7 @@ export async function runDirect(id: string, inputs: JsonMap, fetchImage: (url: s
       res = await fetch("https://api.openai.com/v1/images/generations", {
         method: "POST",
         headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: OPENAI_MODEL, prompt, quality, size }),
+        body: JSON.stringify({ model, prompt, quality, size }),
       });
     }
     const data = await res.json().catch(() => ({})) as JsonMap;

@@ -67,13 +67,20 @@ here with where it stopped, so it can be restarted.
      Pairs with item 2. Forge restarted it on 2026-09-29: the plan
      (`docs/plans/2026-09-28-n8n-exit.md`) and PR 1a, the `filming-plan-tabs`
      Edge Function plus its cache-table migration, merged in #1846 (main
-     `66750995efb371eadaf503b45ade6d984fd1f8cb`); the page does not use it yet. Live since 2026-09-29: the cache
+     `66750995efb371eadaf503b45ade6d984fd1f8cb`). Live since 2026-09-29: the cache
      migration is applied, the owner deployed the function
      (`https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-single-function.yml`),
      switched on the Google Docs API and shared the Filming Plan folder with the
      thumbnail service account, and a bulk read of 25 recent Filming Plan Docs came
-     back from Google with no n8n fallback (source `google` in the cache). Next:
-     PR 1b (Kasper switches over, behind its runtime flag), then Calendar,
+     back from Google with no n8n fallback (source `google` in the cache). PR 1b
+     (#1854, main `b1039f0a27c1e0c2239dca13e6564531ac61be39`) puts Kasper > Filming behind the runtime flag
+     `filming_plan_tabs_source`; the flag row is applied and set to
+     `{"mode":"function"}` (owner's go, 2026-09-29). Live, every browser read of that
+     flag answered 400 because of a `_t=` cache-buster, so the page kept using n8n;
+     #1857 removes it, after which Kasper > Filming reads from the function, with
+     n8n kept as the automatic per-Doc fallback. Rollback: set the flag to
+     `{"mode":"n8n"}` (takes effect on the next Filming open). The n8n Filming Plan
+     Tabs workflow stays on for 30 days. Next: PR 2 (Calendar, session Anvil), then
      Caption Prompts and Sample Review. Owner decisions: the client approve and request-changes buttons are
      not touched at all, and old n8n workflows stay on 30 days.
    - **Staff can see and restore recently archived Calendar cards and Samples**

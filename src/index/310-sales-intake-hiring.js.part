@@ -441,7 +441,7 @@ import { _kasperRenderSalesIntake } from './321-kasper-dashboard-replies.js';
         });
         // Listing and opening an application are reads; every other action is a save.
         const isRead = !payload || payload.action === 'list' || payload.action === 'detail';
-        const response = await (isRead ? send() : _writeUiTrackSave('hiring', ('hiring_' + payload.action).slice(0, 40), {}, send));
+        const response = await (isRead ? send() : _writeUiTrackSave('hiring', ('hiring_' + payload.action).slice(0, 40), {}, send, { requireOk: true }));
         const data = await response.json().catch(() => null);
         if (!response.ok || !data || data.ok !== true) {
             const error = new Error((data && data.error) || ('http_' + response.status));

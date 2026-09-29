@@ -107,6 +107,11 @@ ok(counts['reports'] >= 30, `at least 30 sites now record their own refusals (${
   ok(names.size >= 30 && bad.length === 0, `every operation name the page records is one the log accepts as an action (${names.size} names, ${bad.length} outside a-z, 0-9, _ and 40 characters)`);
 }
 
+// Saves whose own code accepts only {"ok":true} must record an answer that is not.
+for (const name of ['_tplFlush', '_calSaveCaptionPrompt', '_fpPostPlan', '_hpCall', '_ccApi', '_caEditPost', '_syncviewIssueClientShareUrl', '_calPersistUrgentSentForPost']) {
+  ok(/requireOk: true/.test(functionSource(name) || ''), `${name} accepts only ok:true, so it records any other 2xx answer too (requireOk)`);
+}
+
 // The saves the owner named.
 for (const [needle, what] of [['_tplFlush', 'Templates'], ['_fpPostPlan', 'Filming plans'], ['_tplBrainPost', 'Templates brain change'], ['_calSaveCaptionPrompt', 'Caption prompts'], ['_wlPlanWriteRequest', 'Workload plan'], ['_wlDueWriteRequest', 'Workload due date'], ['_tkCancelRow', 'TikTok cancel'], ['_hpCall', 'Hiring'], ['_ccApi', 'Client credentials'], ['_caEditPost', 'Client profile']]) {
   const entry = Object.entries(inventory).find(([k]) => k.split('|')[1] === needle || (inventory[k].within || []).includes(needle));
@@ -147,7 +152,17 @@ function makeSandbox() {
     await sb.track('captions', 'caption_prompt_save', {}, async () => unreadable);
     const goodBody = { ok: true, status: 200, clone() { return { json: () => Promise.resolve({ ok: true }) }; } };
     await sb.track('captions', 'caption_prompt_save', {}, async () => goodBody);
-    ok(sb.recorded.length === 1, 'an OK answer that is not JSON, or says ok:true, records nothing');
+    ok(sb.recorded.length === 1, 'without requireOk, an OK answer that is not JSON, or says ok:true, records nothing');
+    const strict = { requireOk: true };
+    const answer = json => ({ ok: true, status: 200, clone() { return { json: () => json === undefined ? Promise.reject(new Error('empty')) : Promise.resolve(json) }; } });
+    for (const [what, body] of [['malformed or empty', undefined], ['an object without ok', {}], ['an array (a webhook that answers with nothing useful)', []], ['ok:false', { ok: false }], ['ok that is not true', { ok: 'yes' }]]) {
+      const before = sb.recorded.length;
+      await sb.track('templates', 'templates_save', {}, async () => answer(body), strict);
+      ok(sb.recorded.length === before + 1 && sb.recorded[before].error.message === 'save refused', `with requireOk, an OK answer that is ${what} is recorded once (the caller rejects it too)`);
+    }
+    const before = sb.recorded.length;
+    await sb.track('templates', 'templates_save', {}, async () => answer({ ok: true, template: {} }), strict);
+    ok(sb.recorded.length === before, 'with requireOk, an answer of {"ok":true} records nothing');
   }
   {
     const sb = makeSandbox();

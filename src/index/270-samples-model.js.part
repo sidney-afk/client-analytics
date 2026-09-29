@@ -1912,7 +1912,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             if (!post || String(post[slot.field] || '').trim()) continue;
             if (_writeUiNativeId(post, slot.component) !== deliverableId) continue;
             try {
-                const resp = await _writeUiTrackSave('sxr', 'sample_link_adopt', () => ({ client_slug: slug, id: String(post.id || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: post.id, [slot.field]: url, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'link-adopt'));
+                const resp = await _writeUiTrackSave('sxr', 'sample_link_adopt', () => ({ client_slug: slug, id: String(post.id || '') }), () => _sxrUpsertFetch(slug, { client: slug, sample: { id: post.id, [slot.field]: url, updated_at: new Date().toISOString() }, comments_base_at: '' }, 'link-adopt'), { requireOk: true });
                 const json = await resp.json().catch(() => ({}));
                 if (!json || json.ok !== true) continue;
                 post[slot.field] = url;
@@ -2566,7 +2566,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             method: 'POST',
             headers: _sxrWriteHeaders('ui', SXR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, sample: patch, comments_base_at: '' })
-        }));
+        }), { requireOk: true });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.sample && typeof json.sample === 'object') ? json.sample : patch;
@@ -2605,7 +2605,7 @@ import { _kasperOpenLightbox } from './305-core-kasper-shared.js';
             method: 'POST',
             headers: _sxrWriteHeaders('ui', SXR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, sample: patch, comments_base_at: '' })
-        }));
+        }), { requireOk: true });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.sample && typeof json.sample === 'object') ? json.sample : patch;

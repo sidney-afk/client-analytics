@@ -360,7 +360,7 @@ import { _kasperLoadReview, _kasperReviewInFlight } from './330-kasper-review-hi
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
             body: JSON.stringify(Object.assign({ action, member_id: ident.member && ident.member.id }, extra || {})),
-        }));
+        }), { requireOk: true });
         let json = null;
         try { json = await resp.json(); } catch (e) { json = null; }
         return { resp, json: json || {}, ident };

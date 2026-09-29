@@ -40,7 +40,7 @@ their own Edge Function or webhook, because the gateway never sees those refusal
 Two helpers in `120-calendar-flags-write-repair` (`_writeUiTrackSave`,
 `_writeUiRecordSaveFailure`) record such a refusal through the **same** beacon as the
 gateway saves: same cap, same page tag (client link or staff page), same traffic tag, no
-prose. They look at `response.ok` (and, for an OK answer, at a clone of the body for a refusal sent as HTTP 200 with `{"ok":false}`), never read the response itself, and hand back the same
+prose. They look at `response.ok` (and, for an OK answer, at a clone of the body: a refusal sent as HTTP 200 with `{"ok":false}` is recorded, and for the saves whose own code accepts only `{"ok":true}` (`requireOk`) so is an empty, unreadable or ok-less answer, because the page rejects those too), never read the response itself, and hand back the same
 response or rethrow the same error, so what the save does next is unchanged.
 
 The log's screen column stores these saves as `unknown` (the server only knows four screen

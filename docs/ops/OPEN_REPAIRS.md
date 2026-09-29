@@ -29799,8 +29799,11 @@ request that is not a plain read and fails on any that is not in
 `test/fixtures/write-path-inventory.json` with a decision, or whose "reports"
 decision has no recorder call in the named function.
 
-**Known limits.** A refusal sent as HTTP 200 with `{"ok":false}` is recorded with no
-status (the log then shows 500, the function's default for an absent status). The
+**Known limits.** A refusal sent as HTTP 200 (`{"ok":false}`, or for the saves whose own
+code accepts only `{"ok":true}`, an empty or ok-less answer) is recorded with no
+status (the log then shows 500, the function's default for an absent status). Saves
+that judge success some other way (a returned count, for example the Workload plan's
+exact-one check) record HTTP failures only. The
 public onboarding form is not recorded (visitors are not signed in). A client whose
 Templates save is refused is recorded under a hashed client reference only.
 

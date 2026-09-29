@@ -1350,7 +1350,7 @@ import { _kasperLoadReview, _kasperRenderEditors, _kasperRenderReview } from './
         });
         // Listing and history are reads; every other action changes a credential.
         const isRead = action === 'list' || action === 'history';
-        const resp = await (isRead ? send() : _writeUiTrackSave('credentials', ('credentials_' + action).slice(0, 40), {}, send));
+        const resp = await (isRead ? send() : _writeUiTrackSave('credentials', ('credentials_' + action).slice(0, 40), {}, send, { requireOk: true }));
         let json = null;
         try { json = await resp.json(); } catch { json = null; }
         if (resp.status === 401) {

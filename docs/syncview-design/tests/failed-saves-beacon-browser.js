@@ -14,6 +14,8 @@
  *   - a caption-prompt save refused as HTTP 200 with {"ok":false} (how the n8n
  *     webhook route answers) is reported as caption_prompt_save and still
  *     re-enables the Save button and shows its notice;
+ *   - a Templates save answered with HTTP 200 but no {"ok":true} (which the page
+ *     itself rejects) is reported too;
  *   - a save that succeeds sends no report;
  *   - no report carries anything the person typed.
  */
@@ -38,6 +40,7 @@ const TYPED = 'ZZ-typed-text-must-not-leave-the-page';
     const behaviour = { templates: 'ok', filming: 'ok', captions: 'ok' };
     const respond = (route, mode, okBody, code) => {
       if (mode === 'network') return route.abort('failed');
+      if (mode === 'empty') return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: '{}' });
       if (mode === 'refuse') return route.fulfill({ status: code, headers: CORS, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'refused' }) });
       return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', body: JSON.stringify(okBody) });
     };
@@ -139,6 +142,17 @@ const TYPED = 'ZZ-typed-text-must-not-leave-the-page';
       const b = got[0].body;
       if (!(b.operation === 'caption_prompt_save' && b.status === undefined && b.message === 'save refused' && b.page === 'staff_page')) fail('refused caption-prompt save: wrong report ' + JSON.stringify(b).slice(0, 300));
       else console.log('failed-saves-beacon: caption-prompt save refused with HTTP 200 and ok:false reported as caption_prompt_save (no status), and the button is restored');
+    }
+
+    // A save answered with HTTP 200 and no ok:true: the page rejects it, so it is reported too.
+    behaviour.templates = 'empty';
+    await page.evaluate(({ name, typed }) => { _tplQueueSave(name, 'notes', typed + ' fifth', true); }, { name: CLIENT, typed: TYPED });
+    got = await next(5);
+    if (got.length !== 1) fail(`Templates save answered without ok:true: expected exactly 1 more report, got ${got.length}`);
+    else {
+      const b = got[0].body;
+      if (!(b.operation === 'templates_save' && b.message === 'save refused' && b.status === undefined)) fail('Templates save answered without ok:true: wrong report ' + JSON.stringify(b).slice(0, 300));
+      else console.log('failed-saves-beacon: a Templates save answered with HTTP 200 and no ok:true (the page rejects it) is reported too');
     }
 
     // Nothing typed ever leaves the page in a report.

@@ -468,7 +468,7 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             method: 'POST',
             headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, CLIENT_REVIEW_LINK_URL),
             body: JSON.stringify({ client: clientName })
-        }));
+        }), { requireOk: true });
         let json = null; try { json = await resp.json(); } catch (e) {}
         if (!resp.ok || !json || !json.ok || !json.token) throw new Error(_syncviewShareLinkErrorMessage(json && json.error, resp.status));
         const q = new URLSearchParams();
@@ -2367,19 +2367,22 @@ import { _kasperPaintReview } from './305-core-kasper-shared.js';
             _writeUiRecordFailure(surface, operation, shape, ids);
         } catch (e) {}
     }
-    async function _writeUiTrackSave(surface, operation, context, send) {
+    async function _writeUiTrackSave(surface, operation, context, send, options) {
         let response;
         try { response = await send(); }
         catch (error) { _writeUiRecordSaveFailure(surface, operation, error, null, context); throw error; }
         if (response && response.ok === false) _writeUiRecordSaveFailure(surface, operation, null, response, context);
         else if (response && response.ok === true && typeof response.clone === 'function') {
             // Some saves (the n8n webhooks) refuse with HTTP 200 and {"ok":false}.
-            // A CLONE is read, so the caller still gets an untouched body; a
-            // body that is not JSON is simply not a refusal we can see.
-            try {
-                const body = await response.clone().json();
-                if (body && body.ok === false) _writeUiRecordSaveFailure(surface, operation, { message: 'save refused' }, null, context);
-            } catch (e) {}
+            // A CLONE is read, so the caller still gets an untouched body.
+            // A save whose own code accepts only {"ok":true} passes
+            // { requireOk: true }: for those, an empty, unreadable or ok-less
+            // 2xx answer is the refusal the person sees, so it is recorded too.
+            const strict = !!(options && options.requireOk === true);
+            let body = null, readable = true;
+            try { body = await response.clone().json(); } catch (e) { readable = false; }
+            const refused = readable ? !!((body && body.ok === false) || (strict && !(body && body.ok === true))) : strict;
+            if (refused) _writeUiRecordSaveFailure(surface, operation, { message: 'save refused' }, null, context);
         }
         return response;
     }

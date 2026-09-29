@@ -2757,7 +2757,7 @@ import {
             method: 'POST',
             headers: _calUpsertHeaders('ui', CALENDAR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, post: patch, comments_base_at: '' })
-        }));
+        }), { requireOk: true });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.post && typeof json.post === 'object') ? json.post : patch;
@@ -2802,7 +2802,7 @@ import {
             method: 'POST',
             headers: _calUpsertHeaders('ui', CALENDAR_UPSERT_EF_URL),
             body: JSON.stringify({ client: slug, post: patch, comments_base_at: '' })
-        }));
+        }), { requireOk: true });
         const json = await resp.json().catch(() => ({}));
         if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || ('HTTP ' + resp.status));
         const echo = (json && json.post && typeof json.post === 'object') ? json.post : patch;
